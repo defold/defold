@@ -35,6 +35,7 @@
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.notifications :as notifications]
+            [editor.outline :as outline]
             [editor.placeholder-resource :as placeholder-resource]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
@@ -1217,17 +1218,23 @@
        (into {})))
 
 (defn- perform-selection [basis project all-selections]
-  (let [all-node-ids (->> all-selections
-                          vals
-                          (reduce into [])
-                          distinct
-                          vec)]
+  (let [all-node-ids (coll/into-> all-selections []
+                       (mapcat val)
+                       (map outline/selection-node-id)
+                       (distinct))]
     (concat
       (g/set-property project :all-selections all-selections)
       (for [arc (g/inputs basis project :all-selected-node-ids)]
         (g/disconnect (gt/source-id arc) (gt/source-label arc) project :all-selected-node-ids))
       (for [arc (g/inputs basis project :all-selected-node-properties)]
         (g/disconnect (gt/source-id arc) (gt/source-label arc) project :all-selected-node-properties))
+      (for [arc (g/inputs basis project :all-selected-node-outlines)
+            :when (not (contains? all-selections (gt/source-id arc)))]
+        (g/disconnect (gt/source-id arc) (gt/source-label arc) project :all-selected-node-outlines))
+      (for [[resource-node _selection] all-selections
+            :when (coll/not-any? #(= resource-node (gt/source-id %))
+                                 (g/inputs basis project :all-selected-node-outlines))]
+        (g/connect resource-node :node-outline project :all-selected-node-outlines))
       (for [node-id all-node-ids]
         (concat
           (g/connect node-id :_node-id project :all-selected-node-ids)
@@ -1314,38 +1321,34 @@
     (when (coll/any? coll/not-empty (vals (dissoc plan :invalidate-outputs :kept)))
       (g/reset-undo! :undo/global))
 
-    ;; Create the new nodes in the graph.
-    (du/measuring process-metrics :make-new-nodes
-      (g/transact transact-opts
-        (make-resource-nodes-tx-data project new-node-id+resource-pairs)))
+    (let [prelude-tx-data
+          (e/concat
+            ;; Create the new nodes in the graph.
+            (make-resource-nodes-tx-data project new-node-id+resource-pairs)
 
-    ;; Transfer of overrides must happen before we delete the original nodes below.
-    ;; The new target nodes do not need to be loaded. When loading the new targets,
-    ;; corresponding override-nodes for the incoming connections will be created in the
-    ;; overrides.
-    (du/measuring process-metrics :transfer-overrides
-      (g/transact transact-opts
-        (du/if-metrics
-          ;; Doing metrics - Submit separate transaction steps for each resource.
-          (for [[resource old-node-id] (:transfer-overrides plan)]
-            (g/transfer-overrides {old-node-id (resource->node-id resource)}))
+            ;; Transfer of overrides must happen before we delete the original
+            ;; nodes below. The new target nodes do not need to be loaded. When
+            ;; loading the new targets, corresponding override-nodes for the
+            ;; incoming connections will be created in the overrides.
+            (du/if-metrics
+              ;; Doing metrics - Submit separate transaction steps for each
+              ;; resource.
+              (e/map (fn make-transfer-overrides-tx-data [[resource old-node-id]]
+                       (g/transfer-overrides {old-node-id (resource->node-id resource)}))
+                     (:transfer-overrides plan))
 
-          ;; Not doing metrics - submit as a single transaction step.
-          (g/transfer-overrides
-            (into {}
+              ;; Not doing metrics - submit as a single transaction step.
+              (g/transfer-overrides
+                (coll/into-> (:transfer-overrides plan) {}
                   (map (fn [[resource old-node-id]]
-                         (pair old-node-id
-                               (resource->node-id resource))))
-                  (:transfer-overrides plan))))))
+                         (pair old-node-id (resource->node-id resource)))))))
 
-    ;; must delete old versions of resource nodes before loading to avoid
-    ;; load functions finding these when doing lookups of dependencies...
-    (du/measuring process-metrics :delete-old-nodes
-      (g/transact transact-opts
-        (for [node-id (:delete plan)]
-          (g/delete-node node-id))))
+            ;; Must delete old versions of resource nodes before loading to
+            ;; avoid load functions finding these when doing lookups of
+            ;; dependencies.
+            (e/map g/delete-node (:delete plan)))
 
-    (let [read-progress-span 1
+          read-progress-span 1
           load-progress-span 3
           total-progress-span (+ read-progress-span load-progress-span)
           total-progress (progress/make localization/empty-message total-progress-span 0)
@@ -1392,7 +1395,7 @@
           migrated-node-ids
           (let [render-progress! (progress/nest-render-progress render-progress! total-progress load-progress-span)]
             (du/measuring process-metrics :load-new-nodes
-              (load-nodes! project nil node-load-infos render-progress! resource-metrics transact-opts)))]
+              (load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))]
 
       (du/measuring process-metrics :update-cache-with-dependencies
         ;; Write any cached values created for old non-replaced resource node
@@ -1429,21 +1432,19 @@
                   flaw (make-file-not-found-error node-id resource)]
               (g/mark-defective node-id flaw))))))
 
-    ;; invalidate outputs.
+    ;; Invalidate all outputs of changed stateless nodes
     (du/measuring process-metrics :invalidate-outputs
       (let [basis (g/now)]
         (du/if-metrics
           (doseq [node-id (:invalidate-outputs plan)]
             (du/measuring resource-metrics (resource/proj-path (resource-node/resource basis node-id)) :invalidate-outputs
-              (g/invalidate-outputs! (mapv (fn [arc]
-                                             (g/endpoint node-id (gt/source-label arc)))
-                                           (g/explicit-outputs basis node-id)))))
-          (g/invalidate-outputs! (into []
-                                       (mapcat (fn [node-id]
-                                                 (map (fn [arc]
-                                                        (g/endpoint node-id (gt/source-label arc)))
-                                                      (g/explicit-outputs basis node-id))))
-                                       (:invalidate-outputs plan))))))
+              (g/invalidate-outputs! (mapv #(g/endpoint node-id %)
+                                           (g/output-labels (g/node-type* basis node-id))))))
+          (g/invalidate-outputs!
+            (coll/into-> (:invalidate-outputs plan) []
+              (mapcat (fn [node-id]
+                        (mapv #(g/endpoint node-id %)
+                              (g/output-labels (g/node-type* basis node-id))))))))))
 
     ;; restore overridden properties.
     (du/measuring process-metrics :restore-overridden-properties
@@ -1633,6 +1634,7 @@
   (input editor-localization-bundle g/NodeID :cascade-delete)
   (input all-selected-node-ids g/Any :array)
   (input all-selected-node-properties g/Any :array)
+  (input all-selected-node-outlines g/Any :array :substitute gu/array-subst-remove-errors)
   (input resources g/Any)
   (input save-data g/Any :array :substitute gu/array-subst-remove-errors)
   (input node-id+resources g/Any :array :cascade-delete)
@@ -1647,18 +1649,42 @@
   (input breakpoints Breakpoints :array :substitute gu/array-subst-remove-errors)
   (input proj-path+meta-info-pairs g/Any :array :substitute gu/array-subst-remove-errors)
 
+  (output selected-outline-entries g/Any :cached
+          (g/fnk [all-selected-node-outlines]
+            (coll/into-> all-selected-node-outlines {}
+              (mapcat outline/selection-id->outline))))
+  (output outline-selection-by-resource-node g/Any :cached
+          (g/fnk [all-selected-node-ids selected-outline-entries all-selections]
+            (let [node-ids (set all-selected-node-ids)]
+              (coll/map-vals
+                (fn [selections]
+                  (coll/into-> selections []
+                    (filter (fn [selection]
+                              (if (outline/entry-selection? selection)
+                                (contains? selected-outline-entries selection)
+                                (contains? node-ids selection))))))
+                all-selections))))
   (output selected-node-ids-by-resource-node g/Any :cached
-          (g/fnk [all-selected-node-ids all-selections]
-            (let [selected-node-id-set (set all-selected-node-ids)]
-              (coll/map-vals
-                #(filterv selected-node-id-set %)
-                all-selections))))
+          (g/fnk [outline-selection-by-resource-node]
+            (coll/map-vals (fn [outline-selection]
+                             (coll/into-> outline-selection []
+                               (map outline/selection-node-id)
+                               (distinct)))
+                           outline-selection-by-resource-node)))
   (output selected-node-properties-by-resource-node g/Any :cached
-          (g/fnk [all-selected-node-properties all-selections]
-            (let [props (coll/pair-map-by :node-id all-selected-node-properties)]
+          (g/fnk [all-selected-node-properties selected-outline-entries outline-selection-by-resource-node]
+            (let [props (coll/pair-map-by :node-id identity all-selected-node-properties)]
               (coll/map-vals
-                #(into [] (keep props) %)
-                all-selections))))
+                (fn [selections]
+                  (coll/into-> selections []
+                    (keep (fn [selection]
+                            (let [node-id (outline/selection-node-id selection)
+                                  entry (selected-outline-entries selection)]
+                              (when-let [property-set (:properties entry (props node-id))]
+                                (assoc property-set
+                                  :node-id node-id
+                                  :selection-id selection)))))))
+                outline-selection-by-resource-node))))
   (output sub-selections-by-resource-node g/Any :cached
           (g/fnk [all-selected-node-ids all-sub-selections]
             (let [selected-node-id-set (set all-selected-node-ids)]

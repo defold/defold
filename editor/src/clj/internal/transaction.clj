@@ -124,10 +124,17 @@
                       mutated-undoable-changes)))))]
     (pair ctx (or mutated-undoable-changes undoable-changes))))
 
+(defn- track-node-output-changes? [ctx node-id]
+  ;; Outputs on nodes absent from the initial basis cannot have cached values
+  ;; from this lifetime. Their existing consumers are marked separately when
+  ;; nodes and connections are added or restored.
+  (and (not (:full-invalidation ctx))
+       (contains? (gt/nodes (:initial-basis ctx)) node-id)))
+
 (defn- mark-input-activated
   [ctx node-id input-label]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (if (:full-invalidation ctx)
+  (if-not (track-node-output-changes? ctx node-id)
     ctx
     (let [basis (:basis ctx)
           dirty-deps (-> (ig/node-by-id-at basis node-id)
@@ -144,7 +151,7 @@
 (defn- mark-output-activated
   [ctx node-id output-label]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (if (:full-invalidation ctx)
+  (if-not (track-node-output-changes? ctx node-id)
     ctx
     (let [nodes-affected (:nodes-affected ctx)]
       (assoc ctx
@@ -154,7 +161,7 @@
 (defn- mark-outputs-activated
   [ctx node-id output-labels]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (if (:full-invalidation ctx)
+  (if-not (track-node-output-changes? ctx node-id)
     ctx
     (let [nodes-affected (:nodes-affected ctx)]
       (assoc ctx
@@ -175,14 +182,15 @@
         (into nodes-affected
               (keep
                 (fn [arc]
-                  (when (ig/node-by-id-at basis (gt/target-id arc))
+                  (when (and (track-node-output-changes? ctx (gt/target-id arc))
+                             (ig/node-by-id-at basis (gt/target-id arc)))
                     (gt/target-endpoint arc))))
               arcs)))))
 
 (defn- mark-all-outputs-activated
   [ctx node-id]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (if (:full-invalidation ctx)
+  (if-not (track-node-output-changes? ctx node-id)
     ctx
     (let [basis (:basis ctx)
           output-labels (-> (ig/node-by-id-at basis node-id)
@@ -205,9 +213,29 @@
       (coll/reduce=> (:nodes-affected ctx) nodes
         (fn [nodes-affected node]
           (let [node-id (gt/node-id node)]
-            (into nodes-affected
-                  (map #(gt/endpoint node-id %))
-                  (-> node gt/node-type in/output-labels))))))))
+            (if-not (track-node-output-changes? ctx node-id)
+              nodes-affected
+              (coll/into-> (-> node gt/node-type in/output-labels) nodes-affected
+                (map #(gt/endpoint node-id %))))))))))
+
+(defn- mark-added-node-consumers-activated [ctx node-ids is-new-override-tree]
+  ;; Initial creation of a new override tree cannot activate existing consumers.
+  ;; Undo/redo resolves its consumers because later additions may survive.
+  (if (or (:full-invalidation ctx) is-new-override-tree)
+    ctx
+    (let [basis (:basis ctx)]
+      (-> ctx
+          ;; Adding a node makes dormant and inherited outgoing arcs effective.
+          ;; Invalidate existing consumers directly instead of propagating from
+          ;; every output of the added node.
+          (mark-arc-targets-activated
+            (e/mapcat #(ig/arcs-by-source basis %) node-ids))
+          ;; Override nodes can survive undoing creation of their original.
+          ;; Their inherited properties become available again on redo, even
+          ;; when no explicit connection is restored.
+          (coll/reduce=> (ig/pre-traverse basis node-ids ig/get-overrides)
+            (fn [ctx node-id]
+              (mark-all-outputs-activated ctx node-id)))))))
 
 (defn- next-node-id [ctx]
   (gt/next-node-id (:node-id-generator ctx)))
@@ -320,7 +348,7 @@
                 arc-target->arc-set)))))
       (distinct))))
 
-(defn- ctx-add-nodes [ctx nodes introduced-node-id->pkid->override-node-id]
+(defn- ctx-add-nodes [ctx nodes introduced-node-id->pkid->override-node-id is-new-override-tree]
   (let [node-ids (mapv gt/node-id nodes)
         ctx (-> ctx
                 (update :basis ig/basis-perform-add-nodes nodes introduced-node-id->pkid->override-node-id)
@@ -332,13 +360,13 @@
             source-arcs (coll/into-> node-ids []
                           (mapcat #(ig/explicit-arcs-by-source new-basis %)))]
         (-> ctx
-            (mark-nodes-outputs-activated nodes)
+            (mark-added-node-consumers-activated node-ids is-new-override-tree)
             (mark-successor-nodes-changed changed-node-ids)
             (mark-successor-arcs-changed source-arcs))))))
 
 (defn- ctx-delete-nodes [ctx nodes removed-arc->source+target-pkids overrides node-id->pkid->override-node-id]
   (let [node-ids (mapv gt/node-id nodes)
-        nodes-by-id (coll/pair-map-by gt/node-id nodes)
+        nodes-by-id (coll/pair-map-by gt/node-id identity nodes)
         arcs (coll/into-> removed-arc->source+target-pkids []
                (map key))
         source-arcs (coll/into-> removed-arc->source+target-pkids []
@@ -392,7 +420,7 @@
                              node-ids)
         override-node-ids (map gt/node-id override-nodes)
         original-node-id->override-node-id (zipmap node-ids override-node-ids)
-        [ctx undoable-changes] (realize-add-nodes ctx undoable-changes override-nodes)
+        [ctx undoable-changes] (realize-add-nodes ctx undoable-changes override-nodes true)
         [ctx undoable-changes] (realize-add-override ctx undoable-changes override-id root-id traverse-fn init-props-fn)]
 
     (realize-tx
@@ -424,7 +452,7 @@
                                     node-type
                                     node-id
                                     properties)]
-            (realize-add-nodes ctx undoable-changes [new-override-node])))))))
+            (realize-add-nodes ctx undoable-changes [new-override-node] false)))))))
 
 (defn- realize-populate-overrides [ctx undoable-changes node-id]
   (let [basis (:basis ctx)
@@ -639,7 +667,7 @@
   ;; state changed, because evaluating the value-fns can potentially be
   ;; expensive. Besides, we're already skipping creating TransactionChanges for
   ;; unchanged properties when we realize the TransactionSteps.
-  (if (:full-invalidation ctx)
+  (if-not (track-node-output-changes? ctx node-id)
     ctx
     (let [basis (:basis ctx)
           node (ig/node-by-id-at basis node-id)]
@@ -818,18 +846,42 @@
               ctx+undoable-changes)))))))
 
 (defn- ctx-perform-add-nodes [ctx added-nodes introduced-node-id->pkid->override-node-id]
-  (ctx-add-nodes ctx added-nodes introduced-node-id->pkid->override-node-id))
+  ;; A tree created by this change can have surviving nodes when it is redone.
+  ;; Only initial creation may skip resolving inherited outgoing arcs.
+  (ctx-add-nodes ctx added-nodes introduced-node-id->pkid->override-node-id false))
 
 (defn- ctx-revert-add-nodes [ctx added-nodes introduced-node-id->pkid->override-node-id]
   (let [old-basis (:basis ctx)
         node-ids (mapv gt/node-id added-nodes)
-        nodes-by-id (coll/pair-map-by gt/node-id added-nodes)
+        nodes-by-id (coll/pair-map-by gt/node-id identity added-nodes)
         source-arcs (coll/into-> node-ids []
                       (mapcat #(ig/explicit-arcs-by-source old-basis %)))
-        changed-node-ids (e/concat node-ids (e/map key introduced-node-id->pkid->override-node-id))]
+        changed-node-ids (e/concat node-ids (e/map key introduced-node-id->pkid->override-node-id))
+        override-ids (coll/into-> (coll/vals nodes-by-id) #{} (keep gt/override-id))
+
+        ;; Descendant overrides can survive undoing their original's creation.
+        surviving-override-nodes
+        (->> (ig/pre-traverse old-basis node-ids ig/get-overrides)
+             (e/remove nodes-by-id)
+             (e/keep #(ig/node-by-id-at old-basis %)))]
     (-> ctx
         (mark-nodes-outputs-activated added-nodes)
         (mark-arc-targets-activated source-arcs)
+        (cond-> (not (coll/empty? override-ids))
+          (mark-arc-targets-activated
+            (let [originals (coll/into-> node-ids #{} (mapcat #(ig/override-originals old-basis %)))
+                  target-roots (coll/into-> originals #{}
+                                 (mapcat #(ig/explicit-arcs-by-source old-basis %))
+                                 (map gt/target-id))
+                  ;; Removed targets and their surviving overrides already
+                  ;; have every output marked. Inspect other branches only.
+                  candidates (ig/pre-traverse old-basis target-roots ig/get-overrides :seen (set node-ids))]
+              (coll/into-> candidates :eduction
+                (keep #(ig/node-by-id-at old-basis %))
+                (filter #(contains? override-ids (gt/override-id %)))
+                (mapcat #(ig/arcs-by-target old-basis (gt/node-id %)))
+                (filter #(contains? nodes-by-id (gt/source-id %)))))))
+        (mark-nodes-outputs-activated surviving-override-nodes)
         (mark-successor-nodes-changed changed-node-ids)
         (mark-successor-arcs-changed source-arcs)
         (update :nodes-deleted into nodes-by-id)
@@ -1023,11 +1075,12 @@
   (revert [_this ctx]
     (ctx-revert-add-nodes ctx added-nodes introduced-node-id->pkid->override-node-id)))
 
-(defn- realize-add-nodes [ctx undoable-changes added-nodes]
+(defn- realize-add-nodes [ctx undoable-changes added-nodes is-new-override-tree]
   (if-let [{:keys [added-nodes
                    introduced-node-id->pkid->override-node-id]}
            (ig/basis-plan-add-nodes (:basis ctx) added-nodes)]
-    (-> (perform-and-conj-change ctx undoable-changes (->AddNodesTXC added-nodes introduced-node-id->pkid->override-node-id))
+    (-> (pair (ctx-add-nodes ctx added-nodes introduced-node-id->pkid->override-node-id is-new-override-tree)
+              (conj-change undoable-changes (->AddNodesTXC added-nodes introduced-node-id->pkid->override-node-id)))
         (coll/reduce=> added-nodes
           (fn [[ctx undoable-changes] added-node]
             (realize-defaults ctx undoable-changes added-node))))
@@ -1044,7 +1097,7 @@
       (mapv gt/node-id added-nodes)))
 
   (realize [_this ctx undoable-changes]
-    (realize-add-nodes ctx undoable-changes added-nodes)))
+    (realize-add-nodes ctx undoable-changes added-nodes false)))
 
 (defn add-nodes
   "*transaction step* - Add nodes to the graph."
@@ -1065,7 +1118,7 @@
         ctx (-> ctx
                 (update :basis ig/basis-revert-delete-nodes nodes removed-arc->source+target-pkids overrides node-id->pkid->override-node-id)
                 (update :nodes-added into node-ids)
-                (mark-nodes-outputs-activated nodes)
+                (mark-added-node-consumers-activated node-ids false)
                 (coll/reduce-kv=> removed-arc->source+target-pkids
                   (fn [ctx arc [_source-arc-pkids target-arc-pkids]]
                     (let [target-id (gt/target-id arc)]
@@ -1687,9 +1740,10 @@
   ;; At this point, :nodes-affected is a set of all output Endpoints that have
   ;; been directly affected by the transaction changes.
   ;; We now follow these outputs recursively to obtain a sequence of all the
-  ;; outputs that depend on them in the entire graph.
+  ;; outputs that depend on them in the entire graph, stopping at fresh nodes.
+  ;; Node and connection changes have already marked their existing consumers.
   (du/measuring (:metrics ctx) :trace-dependencies
-    (let [outputs-modified (ig/dependencies (:basis ctx) (:nodes-affected ctx))]
+    (let [outputs-modified (ig/invalidation-dependencies (:initial-basis ctx) (:basis ctx) (:nodes-affected ctx))]
       (assoc ctx :outputs-modified outputs-modified))))
 
 (defn finalize-applied-changes

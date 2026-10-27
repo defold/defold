@@ -115,6 +115,10 @@ extern uint32_t      DEBUG_SPC_SIZE;
 #include <platform/platform_window_android.h>
 #endif
 
+#if defined(DM_PLATFORM_IOS)
+#include <platform/platform_window_ios.h>
+#endif
+
 DM_PROPERTY_EXTERN(rmtp_Script);
 DM_PROPERTY_U32(rmtp_LuaMem, 0, PROFILE_PROPERTY_FRAME_RESET, "kb", &rmtp_Script); // kilo bytes
 DM_PROPERTY_U32(rmtp_LuaRefs, 0, PROFILE_PROPERTY_FRAME_RESET, "# Lua references", &rmtp_Script);
@@ -267,15 +271,18 @@ namespace dmEngine
                                     safe_area.m_InsetRight, safe_area.m_InsetBottom);
     }
 
-    static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
+    void FlushPendingWindowResize(HEngine engine)
     {
+        if (!engine->m_HasPendingWindowResize || !engine->m_RenderContext)
+            return;
+
         uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
         uintptr_t descriptor = (uintptr_t)dmRenderDDF::WindowResized::m_DDFDescriptor;
         dmhash_t message_id = dmRenderDDF::WindowResized::m_DDFDescriptor->m_NameHash;
 
         dmRenderDDF::WindowResized window_resized;
-        window_resized.m_Width = width;
-        window_resized.m_Height = height;
+        window_resized.m_Width = engine->m_PendingWindowResizeWidth;
+        window_resized.m_Height = engine->m_PendingWindowResizeHeight;
 
         dmMessage::URL receiver;
         dmMessage::ResetURL(&receiver);
@@ -291,9 +298,22 @@ namespace dmEngine
             {
                 dmLogError("Could not send 'window_resized' to '%s' socket.", dmRender::RENDER_SOCKET_NAME);
             }
+            else
+            {
+                engine->m_HasPendingWindowResize = false;
+            }
         }
+    }
 
+    void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
+    {
         Engine* engine = (Engine*)user_data;
+        // The graphics adapter may resize the window before @render exists.
+        // Coalesce startup events and deliver the latest size once it is ready.
+        engine->m_PendingWindowResizeWidth = width;
+        engine->m_PendingWindowResizeHeight = height;
+        engine->m_HasPendingWindowResize = true;
+        FlushPendingWindowResize(engine);
         engine->m_InvPhysicalWidth = 1.0f / width;
         engine->m_InvPhysicalHeight = 1.0f / height;
         // update gui context if it exists
@@ -461,6 +481,9 @@ namespace dmEngine
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
     , m_InvPhysicalHeight(1.0f/640)
+    , m_PendingWindowResizeWidth(0)
+    , m_PendingWindowResizeHeight(0)
+    , m_HasPendingWindowResize(false)
     , m_ThrottleCooldownMax(0.0f)
     , m_ThrottleCooldown(0.0f)
     , m_ThrottleEnabled(false)
@@ -497,6 +520,9 @@ namespace dmEngine
 
     void Delete(HEngine engine)
     {
+        if (engine->m_EngineService)
+            dmEngineService::OnEngineDelete(engine->m_EngineService);
+
         {
             ScopedExtensionParams params(engine);
 
@@ -1314,6 +1340,10 @@ namespace dmEngine
             return false;
         }
 
+#if defined(DM_PLATFORM_IOS)
+        dmPlatform::SetiOSHomeIndicatorMode(dmConfigFile::GetString(engine->m_Config, "ios.home_indicator_mode", "deferred"));
+#endif
+
         bool setting_vsync     = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true); // Deprecated
         uint32_t swap_interval = dmConfigFile::GetInt(engine->m_Config, "display.swap_interval", 1);
         if (!setting_vsync)
@@ -1373,6 +1403,11 @@ namespace dmEngine
         if (dLib::IsDebugMode())
         {
             params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        }
+
+        if (dmConfigFile::GetInt(engine->m_Config, "resource.profile", 0))
+        {
+            params.m_Flags |= RESOURCE_FACTORY_FLAGS_PROFILE;
         }
 
 #if !defined(DM_RELEASE)
@@ -1454,6 +1489,7 @@ namespace dmEngine
 #endif
         render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
+        FlushPendingWindowResize(engine);
         PopulateContextRegistry(engine);
 
         dmGameObject::Initialize(engine->m_Register, engine->m_ScriptContext);
@@ -1994,6 +2030,7 @@ bail:
             DM_PROFILE("Frame");
 
             bool do_render = g_EngineRenderEnabled && !dmRender::IsRenderPaused(engine->m_RenderContext);
+            bool frame_rendered = false;
 
             {
                 DM_PROFILE("Sim");
@@ -2100,6 +2137,10 @@ bail:
                 // Don't render while iconified
                 if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED) && do_render)
                 {
+                    frame_rendered = true;
+                    if (engine->m_EngineService)
+                        dmEngineService::BeginFrame(engine->m_EngineService);
+
                     // Begin the renderer frame with current time since engine start and frame delta-time.
                     // Use the same dt that is passed into script updates and the accumulated engine time.
                     dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
@@ -2186,26 +2227,8 @@ bail:
 
                 dmGraphics::Flip(engine->m_GraphicsContext);
 
-                RecordData* record_data = &engine->m_RecordData;
-                if (record_data->m_Recorder)
-                {
-                    if (record_data->m_FrameCount % record_data->m_FramePeriod == 0)
-                    {
-                        int32_t x = 0, y = 0;
-                        uint32_t w = 0, h = 0;
-                        dmGraphics::GetViewport(engine->m_GraphicsContext, &x, &y, &w, &h);
-                        uint32_t buffer_size = w * h * 4;
-
-                        dmGraphics::ReadPixels(engine->m_GraphicsContext, x, y, w, h, record_data->m_Buffer, buffer_size);
-
-                        dmRecord::Result r = dmRecord::RecordFrame(record_data->m_Recorder, record_data->m_Buffer, buffer_size, dmRecord::BUFFER_FORMAT_BGRA);
-                        if (r != dmRecord::RESULT_OK)
-                        {
-                            dmLogError("Error while recoding frame (%d)", r);
-                        }
-                    }
-                    record_data->m_FrameCount++;
-                }
+                if (engine->m_EngineService && frame_rendered)
+                    dmEngineService::EndFrame(engine->m_EngineService);
             }
         }
         ProfileFrameEnd(profile);
@@ -2532,49 +2555,6 @@ bail:
                 {
                     self->m_PhysicsContextBox2D.m_BaseContext.m_Debug = !self->m_PhysicsContextBox2D.m_BaseContext.m_Debug;
                     self->m_PhysicsContextBullet3D.m_BaseContext.m_Debug = !self->m_PhysicsContextBullet3D.m_BaseContext.m_Debug;
-                }
-            }
-            else if (descriptor == dmSystemDDF::StartRecord::m_DDFDescriptor) // "start_record"
-            {
-                dmSystemDDF::StartRecord* start_record = (dmSystemDDF::StartRecord*) message->m_Data;
-                RecordData* record_data = &self->m_RecordData;
-
-                record_data->m_FramePeriod = start_record->m_FramePeriod;
-
-                int32_t x = 0, y = 0;
-                uint32_t width = 0, height = 0;
-                dmGraphics::GetViewport(self->m_GraphicsContext, &x, &y, &width, &height);
-                dmRecord::NewParams params;
-                params.m_Width = width;
-                params.m_Height = height;
-                params.m_Filename = start_record->m_FileName;
-                params.m_Fps = start_record->m_Fps;
-
-                dmRecord::Result r = dmRecord::New(&params, &record_data->m_Recorder);
-                if (r == dmRecord::RESULT_OK)
-                {
-                    record_data->m_Buffer = new char[width * height * 4];
-                    record_data->m_FrameCount = 0;
-                }
-                else
-                {
-                    dmLogError("Unable to start recording (%d)", r);
-                    record_data->m_Recorder = 0;
-                }
-            }
-            else if (descriptor == dmSystemDDF::StopRecord::m_DDFDescriptor) // "stop_record"
-            {
-                RecordData* record_data = &self->m_RecordData;
-                if (record_data->m_Recorder)
-                {
-                    dmRecord::Delete(record_data->m_Recorder);
-                    delete[] record_data->m_Buffer;
-                    record_data->m_Recorder = 0;
-                    record_data->m_Buffer = 0;
-                }
-                else
-                {
-                    dmLogError("No recording in progress");
                 }
             }
             else if (descriptor == dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor) // "set_update_frequency"

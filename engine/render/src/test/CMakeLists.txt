@@ -61,3 +61,47 @@ foreach(_render_test IN ITEMS
     "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols.cpp")
   render_configure_test(${_render_test})
 endforeach()
+
+# Vector-font tests load sibling font fixtures that are outside Node's mounted
+# working directory. Embed them at the paths used by the tests in the web VFS.
+if(TARGET_PLATFORM MATCHES "web$")
+  foreach(_render_test_font IN ITEMS vera_mo_bd.ttf SourceCodePro-Regular.otf color-test.ttf)
+    set(_render_test_font_path "${DEFOLD_HOME}/engine/font/src/test/data/${_render_test_font}")
+    target_link_options(test_render PRIVATE
+      "SHELL:--embed-file \"${_render_test_font_path}@/font/src/test/data/${_render_test_font}\"")
+    set_property(TARGET test_render APPEND PROPERTY LINK_DEPENDS "${_render_test_font_path}")
+  endforeach()
+endif()
+
+# Extend the font image matrix after renderer targets exist. The ordinary font
+# unit tests keep their lower-level dependencies and need no graphics context.
+if(APPLE AND TARGET test_font_bitmap_gen)
+  # Test executables locate the compiler through their runpath.
+  set_target_properties(fontc_shared PROPERTIES INSTALL_NAME_DIR "@rpath")
+endif()
+if(WIN32 AND TARGET test_font_bitmap_gen)
+  add_custom_target(font_image_compiler_runtime
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:fontc_shared>" "$<TARGET_FILE_DIR:test_font_bitmap_gen>"
+    DEPENDS fontc_shared)
+endif()
+foreach(target IN ITEMS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
+  if(TARGET ${target})
+    target_sources(${target} PRIVATE "${RENDER_TEST_ROOT}/font_vector_images.cpp")
+    target_include_directories(${target} PRIVATE "${RENDER_SRC_DIR}"
+      "${DEFOLD_HOME}/engine/font/src/test" "${DEFOLD_HOME}/engine/font/src/fontc")
+    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" render)
+    if(target MATCHES "_skribidi")
+      target_sources(${target} PRIVATE "${DEFOLD_HOME}/engine/font/src/fontc/fontc.cpp")
+    else()
+      # Keep the compiler's HarfBuzz dependencies separate from the legacy renderer.
+      target_link_libraries(${target} PRIVATE fontc_shared)
+      set_target_properties(${target} PROPERTIES
+        BUILD_WITH_INSTALL_RPATH ON
+        INSTALL_RPATH "$<TARGET_FILE_DIR:fontc_shared>")
+      if(WIN32)
+        add_dependencies(${target} font_image_compiler_runtime)
+      endif()
+    endif()
+    defold_target_link_app(${target} "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  endif()
+endforeach()

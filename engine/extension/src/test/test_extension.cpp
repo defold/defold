@@ -43,6 +43,18 @@ struct Initializer {
     }
 } g_SymbolInitializer;
 
+static dmExtension::Result TypedInitialize(dmExtension::Params*)
+{
+    return dmExtension::RESULT_OK;
+}
+
+// C++ extension callbacks must be assignable to the C API without a function-pointer cast.
+TEST(dmExtension, CallbackTypeCompatibility)
+{
+    FExtensionInitialize initialize = TypedInitialize;
+    ASSERT_EQ(EXTENSION_RESULT_OK, initialize(0));
+}
+
 TEST(dmExtension, Basic)
 {
     HContextRegistry context_registry = ContextRegistryCreate();

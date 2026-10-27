@@ -118,6 +118,23 @@ public class ModelUtilMetadataTest {
     }
 
     @Test
+    public void testMeshoptFallbackBuffersAreNotDependencies() throws Exception {
+        for (String extension : List.of("EXT_meshopt_compression", "KHR_meshopt_compression")) {
+            String compressedView = "\"extensions\":{\"" + extension + "\":{\"buffer\":0}}";
+            String gltf = "{\"buffers\":[" +
+                    "{\"uri\":\"compressed.bin\"},{\"uri\":\"unused-fallback.bin\"}," +
+                    "{\"uri\":\"mixed.bin\"},{\"uri\":\"ordinary.bin\"}]," +
+                    "\"bufferViews\":[" +
+                    "{\"buffer\":0," + compressedView + "}," +
+                    "{\"buffer\":1," + compressedView + "}," +
+                    "{\"buffer\":2," + compressedView + "},{\"buffer\":2}]}";
+            ModelUtil.ModelMetadata metadata = ModelUtil.getModelMetadata(
+                    new ByteArrayInputStream(gltf.getBytes(StandardCharsets.UTF_8)));
+            assertEquals(List.of("compressed.bin", "mixed.bin", "ordinary.bin"), metadata.externalBufferUris());
+        }
+    }
+
+    @Test
     public void testGlbBinChunkIsDrainedWithoutBeingRetained() throws Exception {
         int binByteCount = 1024 * 1024;
         byte[] glb = makeGlb("{" +

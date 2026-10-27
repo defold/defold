@@ -26,6 +26,8 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   engine_service_null
   extension
   font
+  font_gen
+  font_gen_null
   font_richtext
   font_richtext_null
   font_render
@@ -87,7 +89,8 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   profilerext
   profilerext_null
   record
-  record_null
+  record_script
+  record_service
   render
   resource
   rig
@@ -103,7 +106,6 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   sound_openal
   testmain
   texc
-  vpx
   zip
   zip_noasan)
 
@@ -121,6 +123,8 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
 #   is a linker flag (starts with "-"), or already ends with ".lib".
 # - Exceptions (these already follow Windows naming): hid, hid_null, input,
 #   platform, platform_null, platform_vulkan.
+# - Apple platforms omit mbedtls and mbedtls_noasan unless the mbedtls feature
+#   is enabled, matching dlib's crypto and TLS backend selection.
 # - Other platforms link the names as-is.
 
 function(defold_target_link_libraries target platform)
@@ -140,8 +144,14 @@ function(defold_target_link_libraries target platform)
   # mirrors Waf's LUA uselib and resolves to the platform runtime, not
   # necessarily the vanilla lua target.
   set(_SDK_LIBS ${DLIB_UNPARSED_ARGUMENTS})
+  if(platform MATCHES "(macos|ios)$")
+    defold_feature_enabled(mbedtls _use_mbedtls)
+    if(NOT _use_mbedtls)
+      list(REMOVE_ITEM _SDK_LIBS mbedtls mbedtls_noasan)
+    endif()
+  endif()
   set(_LIBS)
-  foreach(_lib IN LISTS DLIB_UNPARSED_ARGUMENTS)
+  foreach(_lib IN LISTS _SDK_LIBS)
     if(_lib MATCHES "^(basis_encoder|basis_transcoder)$")
       defold_import_basisu("${_lib}" "${platform}")
     endif()
@@ -399,6 +409,16 @@ function(defold_get_font_libraries out_var)
     list(APPEND _font_libs font_richtext)
   endif()
   set(${out_var} ${_font_libs} PARENT_SCOPE)
+endfunction()
+
+function(defold_get_font_gen_library out_var)
+  defold_feature_disabled(font_gen _without_font_gen)
+  if(_without_font_gen)
+    set(_font_gen_lib font_gen_null)
+  else()
+    set(_font_gen_lib font_gen)
+  endif()
+  set(${out_var} ${_font_gen_lib} PARENT_SCOPE)
 endfunction()
 
 function(defold_get_gamesys_libraries out_var)

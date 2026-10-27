@@ -81,7 +81,7 @@ jobs:
   #
   #   &if_bob_enabled &should_release &build_sha &step_validate_build_commit
   #   &step_checkout &step_dcache_key &step_cache_dcache &step_cache_lein &step_python &step_java &step_cmake &step_linux_clang &step_build_external
-  #   &step_download_bob &step_download_dynamo_home &step_chmod_dynamo_home
+  #   &step_download_bob &step_download_dynamo_home &step_download_engine_share &step_chmod_dynamo_home
   #   &step_remove_bob_maven &step_stop_gradle &step_notify
   #
   # Each is defined at its first use; grep for '&<name>' to find it.
@@ -783,7 +783,8 @@ jobs:
           name: "dynamo-home-${{ matrix.platform || 'x86_64-linux' }}"
           path: "tmp/dynamo_home"
       - *step_chmod_dynamo_home
-      - name: "Download docs and builtins"
+      - &step_download_engine_share
+        name: "Download docs and builtins"
         if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && runner.os != 'Linux'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -844,8 +845,45 @@ jobs:
       - *step_remove_bob_maven
       - *step_notify
 
+  test-editor-windows:
+    needs: [build-bob, build-sdk]
+    runs-on: windows-2025-vs2026
+    if: ${{ !cancelled() && needs.build-bob.result == 'success' && (needs.build-sdk.result == 'success' || (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))) }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      matrix:
+        platform: [x86_64-win32]
+    steps:
+      - *step_validate_build_commit
+      - name: "Keep fixture checkout line endings"
+        run: git config --global core.autocrlf false
+      - *step_checkout
+      - *step_python
+      - *step_dcache_key
+      - *step_cache_dcache
+      - *step_cache_lein
+      - *step_java
+      - *step_cmake
+      - name: "Install dependencies"
+        run: "ci/ci.sh install"
+      - *step_build_external
+      - *step_download_bob
+      - *step_download_dynamo_home
+      - *step_download_engine_share
+      - name: "Test editor"
+        env:
+          # Keep relative-path test fixtures on the checkout's drive.
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
+        run: "ci/ci.sh test-editor --platform=x86_64-win32 --skip-install-ext ${{ env.OPTION_EDITOR_LOCAL }}"
+      - *step_remove_bob_maven
+      - *step_notify
+
   release:
-    needs: [build-editor, test-editor-linux, test-bob]
+    needs: [build-editor, test-editor-linux, test-editor-windows, test-bob]
     runs-on: ubuntu-22.04
     # Each release branch publishes to its own channel: master -> stable, beta -> beta,
     # dev -> alpha. Serialize the entire publication per channel, including tags and S3

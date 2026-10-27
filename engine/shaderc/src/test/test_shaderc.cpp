@@ -243,6 +243,80 @@ TEST(Shaderc, ModifyBindings)
     free(data);
 }
 
+// GLSL cross-compilation preserves the material sampler name for samplerless integer textures.
+TEST(Shaderc, SamplerlessIntegerTextureRetainsMaterialNameInGLSL)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/samplerless_uint.spv", &data_size);
+    ASSERT_NE((void*)0, data);
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_GLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 330;
+    dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*)0, dst->m_Data.Begin());
+    ASSERT_NE((const char*)0, FindFirstOccurrence(dst->m_Data, "usampler2D band_texture"));
+    ASSERT_EQ((const char*)0, FindFirstOccurrence(dst->m_Data, "SPIRV_Cross_DummySampler"));
+    dmShaderc::FreeShaderCompileResult(dst);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
+}
+
+// Samplerless textures must keep native declarations when compiling HLSL and MSL.
+TEST(Shaderc, SamplerlessIntegerTextureRetainsNativeResources)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/samplerless_uint.spv", &data_size);
+    ASSERT_NE((void*)0, data);
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    const dmShaderc::ShaderLanguage languages[] = { dmShaderc::SHADER_LANGUAGE_HLSL, dmShaderc::SHADER_LANGUAGE_MSL };
+    const char* declarations[] = { "Texture2D<uint4> band_texture", "texture2d<uint> band_texture" };
+
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        dmShaderc::ShaderCompilerSPVC* compiler = dmShaderc::NewShaderCompilerSPVC(shader_ctx, languages[i]);
+        dmShaderc::ShaderCompilerOptions options;
+        options.m_Version = languages[i] == dmShaderc::SHADER_LANGUAGE_HLSL ? 51 : 22;
+        dmShaderc::ShaderCompileResult* dst = dmShaderc::CompileSPVC(shader_ctx, compiler, options);
+        ASSERT_STREQ("", dst->m_LastError);
+        ASSERT_NE((const char*)0, FindFirstOccurrence(dst->m_Data, declarations[i]));
+        ASSERT_EQ((const char*)0, FindFirstOccurrence(dst->m_Data, "SPIRV_Cross_DummySampler"));
+        dmShaderc::FreeShaderCompileResult(dst);
+        dmShaderc::DeleteShaderCompilerSPVC(compiler);
+    }
+
+    dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
+}
+
+#if defined(_WIN32)
+// HLSL binary compilation must succeed and preserve the samplerless texture binding.
+TEST(Shaderc, SamplerlessIntegerTextureCompilesToHLSLBinary)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/samplerless_uint.spv", &data_size);
+    ASSERT_NE((void*)0, data);
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 51;
+    dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*)0, dst);
+    ASSERT_STREQ("", dst->m_LastError);
+    ASSERT_GT(dst->m_Data.Size(), 0u);
+    ASSERT_EQ(1u, dst->m_HLSLResourceMappings.Size());
+    ASSERT_EQ(dmHashString64("band_texture"), dst->m_HLSLResourceMappings[0].m_NameHash);
+    ASSERT_EQ(0u, dst->m_HLSLResourceMappings[0].m_ShaderResourceSet);
+    ASSERT_EQ(0u, dst->m_HLSLResourceMappings[0].m_ShaderResourceBinding);
+    ASSERT_GT(dst->m_HLSLRootSignature.Size(), 0u);
+    dmShaderc::FreeShaderCompileResult(dst);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
+}
+#endif
+
 TEST(Shaderc, UniformBlocksAreDefault)
 {
     uint32_t data_size;

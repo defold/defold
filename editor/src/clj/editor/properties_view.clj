@@ -755,7 +755,7 @@
                              :style-class "property-category"}))
                     (conj
                       {:fx/type fxui/grid
-                       :fx/key (:original-node-ids properties)
+                       :fx/key (:selection-ids properties)
                        :on-key-pressed handle-grid-key-pressed
                        :column-constraints [{:fx/type fx.column-constraints/lifecycle}
                                             {:fx/type fx.column-constraints/lifecycle

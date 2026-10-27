@@ -322,6 +322,11 @@ def build_engine(channel, platform, args):
     if build_opts:
         cmd += ' -- ' + ' '.join(build_opts)
 
+    if args.with_tsan and platform in ('x86_64-linux', 'arm64-linux'):
+        # Mesa's software renderer reports internal fence teardown races under TSAN.
+        # Render serially in Mesa; the engine's own threads remain instrumented.
+        cmd = 'LP_NUM_THREADS=0 ' + cmd
+
     call(cmd)
 
 def build_editor2(channel, platform, args):

@@ -51,7 +51,7 @@
 
 (def ^:private model-icon "icons/32/Icons_22-Model.png")
 
-(def ^:private supported-image-exts (conj image/exts "cubemap" "render_target"))
+(def ^:private supported-image-exts (conj image/exts "ktx2" "cubemap" "render_target"))
 
 (def ^:private animations-message (properties/label-message :model :animations))
 (def ^:private default-animation-message (properties/label-message :model :default-animation))
@@ -614,7 +614,7 @@
           #{}
           (relevant-mesh-material-ids mesh-material-ids collision-meshes mesh-name mesh-index))
 
-        proto-material-name->material-binding-info (coll/pair-map-by :name material-binding-infos)
+        proto-material-name->material-binding-info (coll/pair-map-by :name identity material-binding-infos)
         proto-material-names (into #{} (map :name) material-binding-infos)
         all-material-names (set/union mesh-material-names proto-material-names)
 
@@ -874,7 +874,7 @@
   (let [model-node-materials (g/node-value model-node-id :materials evaluation-context)]
     (if (g/error? model-node-materials)
       false
-      (let [material-name->model-node-material (coll/pair-map-by :name model-node-materials)]
+      (let [material-name->model-node-material (coll/pair-map-by :name identity model-node-materials)]
         (some (fn [model-desc-material]
                 (let [material-name (:name model-desc-material)
                       model-node-material (material-name->model-node-material material-name)

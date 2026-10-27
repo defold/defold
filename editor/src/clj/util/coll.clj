@@ -14,7 +14,8 @@
 
 (ns util.coll
   (:refer-clojure :exclude [any? bounded-count empty? every? keys mapcat merge merge-with not-any? not-empty not-every? some sort sort-by update-vals vals])
-  (:require [util.task :as task])
+  (:require [util.array :as array]
+            [util.task :as task])
   (:import [clojure.core Eduction Vec]
            [clojure.lang Cons Counted Cycle IEditableCollection IReduceInit LazilyPersistentVector LazySeq MapEntry Repeat]
            [java.util ArrayList Arrays Collection Comparator List]
@@ -502,23 +503,27 @@
    (update-vals-kv coll f)))
 
 (defn pair-map-by
-  "Returns a hash-map where the keys are the result of applying the supplied
-  key-fn to each item in the input sequence and the values are the items
-  themselves. Returns a stateless transducer if no input sequence is
-  provided. Optionally, a value-fn can be supplied to transform the values."
+  "Returns a stateless transducer that produces pairs using key-fn and
+  value-fn. With only key-fn, the values are the items themselves. A seqable
+  or IReduceInit second argument supplies the collection; otherwise it
+  supplies value-fn. With a collection argument, returns a hash-map.
+
+  The two-argument collection form is deprecated. Use the three-argument
+  form with identity as value-fn instead."
   ([key-fn]
    {:pre [(ifn? key-fn)]}
    (map (pair-fn key-fn)))
+  ;; TODO: Remove the deprecated collection dispatch after 2027-10-15.
   ([key-fn value-fn-or-coll]
-   (if (fn? value-fn-or-coll)
-     (map (pair-fn key-fn value-fn-or-coll))
-     (into {}
-           (map (pair-fn key-fn))
-           value-fn-or-coll)))
+   (if (or (seqable? value-fn-or-coll) (instance? IReduceInit value-fn-or-coll))
+     (pair-map-by key-fn identity value-fn-or-coll)
+     (map (pair-fn key-fn value-fn-or-coll))))
   ([key-fn value-fn coll]
-   (into {}
-         (map (pair-fn key-fn value-fn))
-         coll)))
+   (persistent!
+     (reduce (fn [result item]
+               (assoc! result (key-fn item) (value-fn item)))
+             (transient {})
+             coll))))
 
 (defn merge
   "Like core.merge, but makes use of transients for efficiency, and ignores
@@ -1204,20 +1209,7 @@
                                     coll)
                             (.toArray items)))]
      (Arrays/sort items comparator)
-     (reify
-       Counted
-       (count [_] (alength items))
-
-       IReduceInit
-       (reduce [_ f init]
-         (loop [index 0
-                result init]
-           (if (= index (alength items))
-             result
-             (let [result (f result (aget items index))]
-               (if (reduced? result)
-                 @result
-                 (recur (inc index) result))))))))))
+     (array/reducible items))))
 
 (defn sort-by
   "Returns a stable, eagerly-sorted reducible ordered by (key-fn item).

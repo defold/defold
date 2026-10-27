@@ -633,6 +633,7 @@ namespace dmGraphics
             case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
             case ShaderDesc::SHADER_TYPE_IMAGE2D:         return TYPE_IMAGE_2D;
+            case ShaderDesc::SHADER_TYPE_UTEXTURE2D:      return TYPE_TEXTURE_2D;
             case ShaderDesc::SHADER_TYPE_TEXTURE2D:       return TYPE_TEXTURE_2D;
             case ShaderDesc::SHADER_TYPE_TEXTURE2D_ARRAY: return TYPE_TEXTURE_2D_ARRAY;
             // 3D
@@ -1281,7 +1282,8 @@ namespace dmGraphics
     {
         bindings_out.SetCapacity(bindings_count);
         bindings_out.SetSize(bindings_count);
-        memset(bindings_out.Begin(), 0, sizeof(ShaderResourceBinding) * bindings_count);
+        if (bindings_count)
+            memset(bindings_out.Begin(), 0, sizeof(ShaderResourceBinding) * bindings_count);
 
         for (int i = 0; i < bindings_count; ++i)
         {
@@ -1337,7 +1339,8 @@ namespace dmGraphics
         meta->m_TypeInfos.SetCapacity(ddf->m_Types.m_Count);
         meta->m_TypeInfos.SetSize(ddf->m_Types.m_Count);
 
-        memset(meta->m_TypeInfos.Begin(), 0, ddf->m_Types.m_Count * sizeof(meta->m_TypeInfos[0]));
+        if (ddf->m_Types.m_Count)
+            memset(meta->m_TypeInfos.Begin(), 0, ddf->m_Types.m_Count * sizeof(meta->m_TypeInfos[0]));
 
         for (int i = 0; i < ddf->m_Types.m_Count; ++i)
         {
@@ -2582,6 +2585,13 @@ namespace dmGraphics
     }
     void ReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
+        // Validate before any adapter can submit work or modify the destination.
+        if (!buffer || !width || !height || x < 0 || y < 0 ||
+            uint64_t(width) * height > buffer_size / 4)
+        {
+            dmLogError("ReadPixels: invalid destination or region");
+            return;
+        }
         g_functions.m_ReadPixels(context, x, y, width, height, buffer, buffer_size);
     }
 

@@ -1057,6 +1057,7 @@ static void LogFrameBufferError(GLenum status)
             case GL_FLOAT_MAT3:               return TYPE_FLOAT_MAT3;
             case GL_FLOAT_MAT4:               return TYPE_FLOAT_MAT4;
             case GL_SAMPLER_2D:               return TYPE_SAMPLER_2D;
+            case DMGRAPHICS_UNSIGNED_INT_SAMPLER_2D: return TYPE_SAMPLER_2D;
             case DMGRAPHICS_SAMPLER_2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
             case GL_SAMPLER_CUBE:             return TYPE_SAMPLER_CUBE;
             case DMGRAPHICS_IMAGE_2D:         return TYPE_IMAGE_2D;
@@ -1732,6 +1733,7 @@ static void LogFrameBufferError(GLenum status)
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG16F;
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R32F;
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG32F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R32UI;
 
             context->m_InstancingSupport = 1;
 
@@ -2078,6 +2080,7 @@ static void LogFrameBufferError(GLenum status)
         #endif
         }
 
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BACKBUFFER_READBACK);
         if (context->m_MultiTargetRenderingSupport)      SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         if (context->m_TextureArraySupport)              SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         if (context->m_ComputeSupport)                   SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
@@ -2962,6 +2965,11 @@ static void LogFrameBufferError(GLenum status)
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RG;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
             break;
+        case TEXTURE_FORMAT_R32UI:
+            gl_type            = GL_UNSIGNED_INT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RED_INTEGER;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_R32UI;
+            break;
         case TEXTURE_FORMAT_DEPTH:
             // GLES requires an integer upload type for normalized depth storage.
             gl_type            = GL_UNSIGNED_INT;
@@ -3560,6 +3568,26 @@ static void LogFrameBufferError(GLenum status)
         return -1;
     }
 
+    static void DeleteUniformBuffers(OpenGLContext* context, OpenGLProgram* program)
+    {
+        for (uint32_t i = 0; i < program->m_UniformBuffers.Size(); ++i)
+        {
+            OpenGLScratchUniformBuffer& buffer = program->m_UniformBuffers[i];
+            // Unused shader blocks never allocate an OpenGL handle.
+            if (buffer.m_BlockMemory)
+            {
+                GLuint id = GetGLHandle(context, buffer.m_Id);
+                glDeleteBuffersARB(1, &id);
+                CleanupGLHandle(context, buffer.m_Id);
+                delete[] buffer.m_BlockMemory;
+                buffer.m_BlockMemory = 0;
+            }
+            buffer.m_Indices.SetCapacity(0);
+            buffer.m_Offsets.SetCapacity(0);
+        }
+        program->m_UniformBuffers.SetSize(0);
+    }
+
     static void BuildUniformBuffers(OpenGLContext* context, OpenGLProgram* program)
     {
         uint32_t num_ubos = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size();
@@ -3567,7 +3595,8 @@ static void LogFrameBufferError(GLenum status)
         program->m_UniformBuffers.SetCapacity(num_ubos);
         program->m_UniformBuffers.SetSize(num_ubos);
 
-        memset(program->m_UniformBuffers.Begin(), 0, sizeof(OpenGLScratchUniformBuffer) * num_ubos);
+        if (num_ubos)
+            memset(program->m_UniformBuffers.Begin(), 0, sizeof(OpenGLScratchUniformBuffer) * num_ubos);
 
         uint32_t num_uniform_buffers = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size();
         for (uint32_t j = 0; j < num_uniform_buffers; ++j)
@@ -4363,15 +4392,7 @@ static void LogFrameBufferError(GLenum status)
             BuildAttributes(program);
         }
 
-        for (uint32_t i = 0; i < program->m_UniformBuffers.Size(); ++i)
-        {
-            OpenGLScratchUniformBuffer& buffer = program->m_UniformBuffers[i];
-            GLuint id = GetGLHandle(context, buffer.m_Id);
-            glDeleteBuffersARB(1, &id);
-            CleanupGLHandle(context, buffer.m_Id);
-            delete[] buffer.m_BlockMemory;
-        }
-        program->m_UniformBuffers.SetSize(0);
+        DeleteUniformBuffers(context, program);
         OpenGLShader* shaders[] = { program->m_VertexShader, program->m_FragmentShader };
         ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
         OpenGLShader** active_shaders = ddf_cp ? &program->m_ComputeShader : shaders;
@@ -4394,10 +4415,7 @@ static void LogFrameBufferError(GLenum status)
         DeleteShader(context, program_ptr->m_FragmentShader);
         DeleteShader(context, program_ptr->m_ComputeShader);
 
-        for (int i = 0; i < program_ptr->m_UniformBuffers.Size(); ++i)
-        {
-            delete[] program_ptr->m_UniformBuffers[i].m_BlockMemory;
-        }
+        DeleteUniformBuffers(context, program_ptr);
 
         delete program_ptr;
     }
@@ -5798,6 +5816,7 @@ static void LogFrameBufferError(GLenum status)
             case TEXTURE_FORMAT_R32F:
             case TEXTURE_FORMAT_RG16F:
             case TEXTURE_FORMAT_RG32F:
+            case TEXTURE_FORMAT_R32UI:
                 if (tex->m_Base.m_Type == TEXTURE_TYPE_2D || tex->m_Base.m_Type == TEXTURE_TYPE_IMAGE_2D)
                 {
                     const char* p = (const char*) params.m_Data;
@@ -6027,12 +6046,38 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLReadPixels(HContext _context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
-        assert(buffer_size >= width * height * 4);
-        glReadPixels(x, y, width, height,
-                     GL_BGRA,
-                     GL_UNSIGNED_BYTE,
-                     buffer);
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLRenderTarget* rt = context->m_CurrentRenderTarget ?
+            GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget) : 0;
+        const uint32_t target_width = rt ? rt->m_Base.m_ColorTextureParams[0].m_Width : dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
+        const uint32_t target_height = rt ? rt->m_Base.m_ColorTextureParams[0].m_Height : dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
+        if ((rt && !(rt->m_BufferTypeFlags & BUFFER_TYPE_COLOR0_BIT)) ||
+            uint64_t(x) + width > target_width || uint64_t(y) + height > target_height)
+        {
+            dmLogError("OpenGLReadPixels: region is outside the color attachment");
+            return;
+        }
+
+        const bool select_read_buffer = rt && context->m_IsGles3Version && PFN_glReadBuffer;
+        GLint previous_read_buffer = 0;
+        if (select_read_buffer)
+            glGetIntegerv(GL_READ_BUFFER, &previous_read_buffer);
+        if (rt && rt->m_Base.m_SampleCount > 1)
+        {
+            ResolveMultisampleRenderTarget(context, rt);
+            glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, rt->m_ResolveId));
+        }
+        if (select_read_buffer)
+            PFN_glReadBuffer(GL_COLOR_ATTACHMENT0);
+
+        // RGBA/UNSIGNED_BYTE is also supported on OpenGL ES, unlike BGRA.
+        glReadPixels(x, y, width, height, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
         CHECK_GL_ERROR;
+        if (rt && rt->m_Base.m_SampleCount > 1)
+            glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, rt->m_Id));
+        if (select_read_buffer)
+            PFN_glReadBuffer(previous_read_buffer);
+        SwizzleRGBAToBGRA(buffer, width * height);
         unsigned int *pixels = (unsigned int*)buffer;
         // flip vertically
         for (uint32_t yi = 0; yi < (height / 2); ++yi)

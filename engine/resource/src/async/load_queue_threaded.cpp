@@ -184,6 +184,7 @@ namespace dmLoadQueue
 
         req->m_PreloadInfo         = *info;
         req->m_Result.m_LoadResult = dmResource::RESULT_PENDING;
+        req->m_ProfileStartTime = dmResource::IsLoadProfilingEnabled(queue->m_Factory) ? dmTime::GetMonotonicTime() : 0;
 
         return req;
     }
