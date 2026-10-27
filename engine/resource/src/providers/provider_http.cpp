@@ -85,7 +85,8 @@ static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_cod
         // ignores Range and starts at byte zero, regardless of the request.
         origin = range_start;
         if (range_start == UINT32_MAX ||
-            (status_code == 206 && (range_end < range_start || document_size == UINT32_MAX || range_end >= document_size)))
+            (status_code == 206 && (range_end == UINT32_MAX || range_end < range_start ||
+                                   (document_size != UINT32_MAX && range_end >= document_size))))
         {
             read->m_Error = true;
             return;

@@ -26,6 +26,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def respond(self, head):
         path = self.path
+        cacheable = path in ("/somedata", "/unknown-range", "/unknown-range-chunked")
         if path == "/huge-head":
             self.send_response(200)
             self.send_header("Content-Length", str(1024 * 1024 * 1024))
@@ -35,7 +36,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             data = (self.data_dir / path[1:]).read_bytes()
         elif path in ("/large", "/chunked", "/unknown"):
             data = self.large
-        elif path in ("/somedata", "/retry", "/bad-range", "/truncated"):
+        elif cacheable or path in ("/retry", "/bad-range", "/truncated"):
             data = bytes(range(8))
         else:
             self.send_error(404)
@@ -43,17 +44,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         status = 200
         content_range = None
-        if path == "/somedata" and self.headers.get("Range"):
+        if cacheable and self.headers.get("Range"):
             start, end = map(int, self.headers["Range"][6:].split("-"))
             end = min(end, len(data) - 1)
-            content_range = f"bytes {start}-{end}/{len(data)}"
+            total = len(data) if path == "/somedata" else "*"
+            content_range = f"bytes {start}-{end}/{total}"
             data = data[start:end + 1]
             status = 206
         if path == "/bad-range":
             content_range = "bytes 7-2/8"
             status = 206
         tag = '"' + (content_range or "full") + '"'
-        if path == "/somedata" and self.headers.get("If-None-Match") == tag:
+        if cacheable and self.headers.get("If-None-Match") == tag:
             self.send_response(304)
             self.send_header("ETag", tag)
             self.end_headers()
@@ -65,11 +67,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Connection", "close")
         self.close_connection = True
-        if path == "/somedata":
+        if cacheable:
             self.send_header("ETag", tag)
         if content_range:
             self.send_header("Content-Range", content_range)
-        chunked = path == "/chunked" or retry
+        chunked = path in ("/chunked", "/unknown-range-chunked") or retry
         if chunked:
             self.send_header("Transfer-Encoding", "chunked")
         elif path != "/unknown":

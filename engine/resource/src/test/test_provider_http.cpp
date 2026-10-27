@@ -275,6 +275,40 @@ TEST_F(HttpProviderCached, Replay)
     }
 }
 
+// Ranges with an unknown total size must retain their offsets and metadata
+// through network reads, conditional 304 replay and trusted cache replay.
+TEST_F(HttpProviderCached, UnknownRangeSize)
+{
+    const char* paths[] = { "/unknown-range", "/unknown-range-chunked" };
+    for (uint32_t pass = 0; pass < 3; ++pass)
+    {
+        if (pass == 2)
+            dmHttpCache::SetConsistencyPolicy(m_Cache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
+        for (uint32_t p = 0; p < sizeof(paths) / sizeof(paths[0]); ++p)
+        {
+            uint8_t buffer[7];
+            memset(buffer, 0xfe, sizeof(buffer));
+            uint32_t nread = UINT32_MAX;
+            ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::ReadFilePartial(m_Archive, 0, paths[p], 5, 5, buffer + 1, &nread));
+            ASSERT_EQ(3U, nread);
+            ASSERT_ARRAY_EQ_LEN(SOMEDATA + 5, buffer + 1, nread);
+            ASSERT_EQ(0xfe, buffer[0]);
+            ASSERT_EQ(0xfe, buffer[4]);
+            ASSERT_EQ(0xfe, buffer[6]);
+
+            char cache_key[128];
+            dmSnPrintf(cache_key, sizeof(cache_key), "http://localhost:%d%s=bytes=5-9", PORT, paths[p]);
+            dmHttpCache::EntryInfo info;
+            ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::GetInfo(m_Cache, cache_key, &info));
+            ASSERT_EQ(5U, info.m_RangeStart);
+            ASSERT_EQ(7U, info.m_RangeEnd);
+            ASSERT_EQ(UINT32_MAX, info.m_DocumentSize);
+            if (pass > 0)
+                ASSERT_TRUE(info.m_Verified);
+        }
+    }
+}
+
 
 #if defined(DM_TEST_HTTP_SUPPORTED)
 

@@ -1078,8 +1078,9 @@ bail:
         }
         else
         {
-            // Let's make the range values valid, even if it might not be a ranged request
-            if (response.m_DocumentSize == 0xFFFFFFFF)
+            // Synthesize offsets only when no range was supplied. A Content-Range
+            // ending in /* still has valid offsets despite its unknown total size.
+            if (response.m_DocumentSize == 0xFFFFFFFF && response.m_RangeStart == -1 && response.m_RangeEnd == -1)
             {
                 response.m_DocumentSize = response.m_ContentLength;
                 response.m_RangeStart = 0;
@@ -1091,7 +1092,8 @@ bail:
             bool is_ok = response.m_Status == 200 || response.m_Status == 206;
             if (!client->m_IgnoreCache && client->m_HttpCache && !method_is_head && !method_is_connect && is_ok)
             {
-                uint32_t document_size = dmMath::Max(response.m_ContentLength, response.m_DocumentSize);
+                // Content-Length may describe only a range, so keep an unknown total.
+                uint32_t document_size = response.m_DocumentSize;
                 uint32_t range_start = response.m_RangeStart != -1 ? response.m_RangeStart : 0;
                 uint32_t range_end = response.m_RangeEnd != -1 ? response.m_RangeEnd : document_size-1;
 
