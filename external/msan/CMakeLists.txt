@@ -1,6 +1,7 @@
 # Dependencies normally distributed as binary packages must also be rebuilt
 # for MSan. Keep the same revisions and GLFW patch as the packaged versions.
 include(FetchContent)
+find_program(MSAN_PATCH patch REQUIRED)
 
 set(ASTCENC_CLI OFF CACHE BOOL "" FORCE)
 set(ASTCENC_ISA_NATIVE OFF CACHE BOOL "" FORCE)
@@ -14,6 +15,7 @@ endif()
 FetchContent_Declare(msan_astc
   URL https://codeload.github.com/ARM-software/astc-encoder/tar.gz/30aabb3f42406df45a910d8496f9bee17eeba9bb
   URL_HASH SHA256=4ae89d0d16435c761a65de3e96642a46b9a2e459152c72bcf1edcaf70ef7c2e8
+  PATCH_COMMAND "${MSAN_PATCH}" -p1 -i "${DEFOLD_HOME}/share/ext/astcenc/patch_initialize_weights"
   EXCLUDE_FROM_ALL)
 FetchContent_MakeAvailable(msan_astc)
 set_target_properties(${_astc_target} PROPERTIES OUTPUT_NAME astcenc)
@@ -42,7 +44,6 @@ install(TARGETS spirv-cross-c spirv-cross-core spirv-cross-glsl
   spirv-cross-hlsl spirv-cross-msl spirv-cross-reflect
   ARCHIVE DESTINATION "lib/${TARGET_PLATFORM}")
 
-find_program(MSAN_PATCH patch REQUIRED)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
