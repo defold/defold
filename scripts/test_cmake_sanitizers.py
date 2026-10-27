@@ -8,7 +8,7 @@ from pathlib import Path
 
 @unittest.skipUnless(shutil.which('cmake') and shutil.which('ninja'), 'CMake and Ninja are required')
 class MemorySanitizerConfigurationTests(unittest.TestCase):
-    def configure(self, root, **options):
+    def configure(self, root, extra_cmake='', **options):
         repository = Path(__file__).resolve().parent.parent
         runtime = root / 'runtime with spaces'
         (runtime / 'lib').mkdir(parents=True, exist_ok=True)
@@ -39,7 +39,7 @@ target_link_libraries(instrumented_cpp PRIVATE defold_sdk dependency)
 add_executable(excluded_cpp "${CMAKE_CURRENT_BINARY_DIR}/cpp.cpp")
 target_link_libraries(excluded_cpp PRIVATE defold_sdk dependency)
 defold_target_skip_sanitizer(excluded_cpp)
-''')
+''' + extra_cmake)
         return subprocess.run([
             'cmake', '-S', str(root), '-B', str(root / 'build'), '-G', 'Ninja',
             '-DDEFOLD_HOME=' + str(repository),
@@ -76,6 +76,60 @@ defold_target_skip_sanitizer(excluded_cpp)
                     self.assertNotIn('-fsanitize=memory', line)
                     self.assertNotIn('libc++.a', line)
                     self.assertNotIn(str(root / 'msan') + '/lib/', line)
+
+    # Reusing a build must switch all DDF package archives when MSan is enabled or disabled.
+    def test_ddf_packages_follow_msan_when_reconfiguring(self):
+        packages = (
+            ('absl', 'abslConfig.cmake', 'absl::base', 'libabsl_base.a'),
+            ('utf8_range', 'utf8_rangeConfig.cmake', 'utf8_range::utf8_validity', 'libutf8_validity.a'),
+            ('protobuf', 'protobuf-config.cmake', 'protobuf::libprotobuf', 'libprotobuf.a'),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for prefix in ('sdk', 'msan'):
+                library_dir = root / prefix / 'lib/x86_64-linux'
+                for package, config, target, archive in packages:
+                    package_dir = library_dir / 'cmake' / package
+                    package_dir.mkdir(parents=True)
+                    (library_dir / archive).touch()
+                    (package_dir / config).write_text(
+                        f'add_library({target} STATIC IMPORTED)\n'
+                        f'set_property(TARGET {target} PROPERTY IMPORTED_LOCATION "{library_dir / archive}")\n')
+                with (library_dir / 'cmake/protobuf/protobuf-config.cmake').open('a') as config:
+                    config.write('set_property(TARGET protobuf::libprotobuf PROPERTY INTERFACE_LINK_LIBRARIES '
+                                 '"absl::base;utf8_range::utf8_validity")\n')
+                (library_dir / 'cmake/protobuf/protobuf-config-version.cmake').write_text(
+                    'set(PACKAGE_VERSION "35.1.0")\n'
+                    'set(PACKAGE_VERSION_EXACT TRUE)\n'
+                    'set(PACKAGE_VERSION_COMPATIBLE TRUE)\n')
+
+            # Exercise the real DDF CMake file while replacing unrelated code generation and test setup.
+            extra_cmake = '''
+set(DEFOLD_EXT_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/sdk/lib/${TARGET_PLATFORM}")
+if(WITH_MSAN)
+  set(DEFOLD_EXT_LIB_DIR "${DEFOLD_MSAN_PREFIX}/lib/${TARGET_PLATFORM}")
+endif()
+foreach(command IN ITEMS ddf_protoc_gen_cpp defold_protoc_gen_protobuf_cpp
+    defold_target_link_libraries defold_target_link_socket
+    defold_target_link_libraries_web defold_register_test_target)
+  function(${command})
+  endfunction()
+endforeach()
+function(defold_add_executable target)
+  add_executable(${target} "${CMAKE_BINARY_DIR}/cpp.cpp")
+endfunction()
+add_subdirectory("${DEFOLD_HOME}/engine/ddf/src/test" ddf)
+'''
+            for enabled, prefix in (('OFF', 'sdk'), ('ON', 'msan'), ('OFF', 'sdk')):
+                with self.subTest(WITH_MSAN=enabled):
+                    result = self.configure(root, extra_cmake=extra_cmake,
+                                            TARGET_PLATFORM='x86_64-linux', WITH_MSAN=enabled)
+                    self.assertEqual(0, result.returncode, result.stdout)
+                    commands = subprocess.check_output(
+                        ['ninja', '-C', str(root / 'build'), '-t', 'commands', 'test_ddf'], text=True)
+                    link_command = shlex.split(commands.splitlines()[-1])
+                    for _, _, _, archive in packages:
+                        self.assertIn(str(root / prefix / 'lib/x86_64-linux' / archive), link_command)
 
     # A missing runtime must fail at configure time, before a misleading mixed-runtime test run.
     def test_requires_instrumented_runtime(self):
