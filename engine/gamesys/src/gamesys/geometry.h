@@ -21,7 +21,7 @@ namespace dmGameSystem
 {
     // Four rows and columns, with two triangles for each of the nine cells.
     const uint32_t SLICE9_VERTEX_COUNT = 16;
-    const uint32_t SLICE9_INDEX_COUNT = 54;
+    const uint32_t SLICE9_INDEX_COUNT  = 54;
 
     struct Slice9Params
     {
@@ -54,8 +54,7 @@ namespace dmGameSystem
      * @param tex_coords Unflipped TextureSet UV pairs in bottom-left, top-left, top-right, bottom-right order
      * @param uvs Output buffer of SLICE9_VERTEX_COUNT interleaved UV pairs in the same order as GenerateSlice9Positions
      */
-    void GenerateSlice9TexCoords(const Slice9Params& params, float texture_width, float texture_height,
-                                const float tex_coords[8], float uvs[SLICE9_VERTEX_COUNT * 2]);
+    void GenerateSlice9TexCoords(const Slice9Params& params, float texture_width, float texture_height, const float tex_coords[8], float uvs[SLICE9_VERTEX_COUNT * 2]);
 
     /**
      * Get indices for two counterclockwise triangles per slice-9 cell, sharing the bottom-left to top-right diagonal.

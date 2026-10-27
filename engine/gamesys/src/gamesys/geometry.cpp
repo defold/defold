@@ -27,23 +27,22 @@ namespace dmGameSystem
         const float sy = InverseDimension(params.m_Height);
         const float* slice9 = params.m_Slice9;
         const float xs[4] = {0.0f, sx * slice9[params.m_FlipHorizontal ? 2 : 0],
-                           1.0f - sx * slice9[params.m_FlipHorizontal ? 0 : 2], 1.0f};
+                             1.0f - sx * slice9[params.m_FlipHorizontal ? 0 : 2], 1.0f};
         const float ys[4] = {0.0f, sy * slice9[params.m_FlipVertical ? 1 : 3],
-                           1.0f - sy * slice9[params.m_FlipVertical ? 3 : 1], 1.0f};
+                             1.0f - sy * slice9[params.m_FlipVertical ? 3 : 1], 1.0f};
 
         for (uint32_t y = 0; y < 4; ++y)
         {
             for (uint32_t x = 0; x < 4; ++x)
             {
                 const uint32_t index = (y * 4 + x) * 2;
-                positions[index] = xs[x] - params.m_PivotX;
+                positions[index]     = xs[x] - params.m_PivotX;
                 positions[index + 1] = ys[y] - params.m_PivotY;
             }
         }
     }
 
-    void GenerateSlice9TexCoords(const Slice9Params& params, float texture_width, float texture_height,
-                                const float tex_coords[8], float uvs[SLICE9_VERTEX_COUNT * 2])
+    void GenerateSlice9TexCoords(const Slice9Params& params, float texture_width, float texture_height, const float tex_coords[8], float uvs[SLICE9_VERTEX_COUNT * 2])
     {
         const float su = InverseDimension(texture_width);
         const float sv = InverseDimension(texture_height);
@@ -53,6 +52,7 @@ namespace dmGameSystem
         static const uint32_t uv_indices[2][4] = {{0, 1, 2, 3}, {3, 2, 1, 0}};
         const uint32_t* ui = uv_indices[rotated ? params.m_FlipVertical : params.m_FlipHorizontal];
         const uint32_t* vi = uv_indices[rotated ? params.m_FlipHorizontal : params.m_FlipVertical];
+
         float us[4], vs[4];
         if (rotated)
         {

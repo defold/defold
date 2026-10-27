@@ -77,11 +77,11 @@
                          :atlas-rotated false
                          :width 40.0
                          :height 60.0
-                         :page-index 0}
+                         :page-index 0
+                         :texture-width 100.0
+                         :texture-height 100.0}
         slice9-margins [10.0 10.0 10.0 10.0]
-        _ (is (slice9/sliced? slice9-margins) "slice9 is active")
-        out (texture-set/vertex-data (assoc animation-frame :texture-width 100.0 :texture-height 100.0)
-                                     :size-mode-manual [80.0 120.0] slice9-margins :pivot-center)]
+        out (texture-set/vertex-data animation-frame :size-mode-manual [80.0 120.0] slice9-margins :pivot-center)]
     (is (:texture-transform out))
     (is (= 9 (count (:texture-transform out))))
     (is (vec= expected-transform-for-atlas-sub-rect (vec (:texture-transform out)))

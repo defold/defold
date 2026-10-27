@@ -24,13 +24,17 @@ namespace dmGameSystem
         Slice9Params native_params = {};
         jni::J2C_CreateSlice9Params(env, &context.m_TypeInfos, params, &native_params);
         if (env->ExceptionCheck())
+        {
             return 0;
+        }
 
         float positions[SLICE9_VERTEX_COUNT * 2];
         GenerateSlice9Positions(native_params, positions);
         jfloatArray result = env->NewFloatArray(SLICE9_VERTEX_COUNT * 2);
         if (result)
+        {
             env->SetFloatArrayRegion(result, 0, SLICE9_VERTEX_COUNT * 2, positions);
+        }
         return result;
     }
 
@@ -41,18 +45,24 @@ namespace dmGameSystem
         Slice9Params native_params = {};
         jni::J2C_CreateSlice9Params(env, &context.m_TypeInfos, params, &native_params);
         if (env->ExceptionCheck())
+        {
             return 0;
+        }
 
         float corners[8];
         env->GetFloatArrayRegion(tex_coords, 0, 8, corners);
         if (env->ExceptionCheck())
+        {
             return 0;
+        }
 
         float uvs[SLICE9_VERTEX_COUNT * 2];
         GenerateSlice9TexCoords(native_params, texture_width, texture_height, corners, uvs);
         jfloatArray result = env->NewFloatArray(SLICE9_VERTEX_COUNT * 2);
         if (result)
+        {
             env->SetFloatArrayRegion(result, 0, SLICE9_VERTEX_COUNT * 2, uvs);
+        }
         return result;
     }
 
@@ -61,10 +71,15 @@ namespace dmGameSystem
         const uint16_t* indices = GetSlice9Indices();
         jint values[SLICE9_INDEX_COUNT];
         for (uint32_t i = 0; i < SLICE9_INDEX_COUNT; ++i)
+        {
             values[i] = indices[i];
+        }
+
         jintArray result = env->NewIntArray(SLICE9_INDEX_COUNT);
         if (result)
+        {
             env->SetIntArrayRegion(result, 0, SLICE9_INDEX_COUNT, values);
+        }
         return result;
     }
 
@@ -72,12 +87,16 @@ namespace dmGameSystem
     {
         jclass cls = env->FindClass("com/defold/engine/GeometryJni");
         if (!cls)
+        {
             return JNI_ERR;
+        }
+
         const JNINativeMethod methods[] = {
             {(char*)"GenerateSlice9PositionsInternal", (char*)"(Lcom/defold/engine/Geometry$Slice9Params;)[F", (void*)GeneratePositions},
             {(char*)"GenerateSlice9TexCoordsInternal", (char*)"(Lcom/defold/engine/Geometry$Slice9Params;FF[F)[F", (void*)GenerateTexCoords},
             {(char*)"GetSlice9IndicesInternal", (char*)"()[I", (void*)GetIndices},
         };
+
         jint result = env->RegisterNatives(cls, methods, sizeof(methods) / sizeof(methods[0]));
         env->DeleteLocalRef(cls);
         return result;
