@@ -600,13 +600,6 @@ namespace dmEngine
             dmResource::DeleteFactory(engine->m_Factory);
         }
 
-// TODO: Temporarily disabled as it hangs the shutdown procedure
-        // // Stop processing graphics requests before deleting the graphics context
-        // if (engine->m_JobThreadContext)
-        // {
-        //     JobSystemDestroy(engine->m_JobThreadContext);
-        // }
-
         if (engine->m_GraphicsContext)
         {
             dmGraphics::CloseWindow(engine->m_GraphicsContext);
@@ -638,6 +631,12 @@ namespace dmEngine
             dmHttpCache::Close(engine->m_HttpCache);
 #endif
 
+        // TODO: Job-system shutdown on threaded platforms was disabled because it hung.
+        // Resolve the hang and graphics teardown ordering before enabling it.
+        // if (engine->m_JobThreadContext)
+        // {
+        //     JobSystemDestroy(engine->m_JobThreadContext);
+        // }
 #if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
         // Single-threaded WASM has no workers to join. Keep the job context alive
         // through graphics and extension shutdown, then release its queues.
