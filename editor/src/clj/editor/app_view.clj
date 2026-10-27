@@ -2909,7 +2909,9 @@
       localization)))
 
 (handler/defhandler :help.try-beta :global
-  (active? [] (beta/active?))
+  (active? [changes-view evaluation-context]
+    (and (beta/active?)
+         (some? (g/node-value changes-view :git evaluation-context))))
   (enabled? [] (beta/enabled?))
   (run [workspace project main-stage prefs localization]
     (beta/try! main-stage (workspace/notifications workspace) project prefs localization)))

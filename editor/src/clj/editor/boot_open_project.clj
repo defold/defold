@@ -301,7 +301,7 @@
         (let [update-link (.lookup root "#update-link")]
           (init-pending-update-indicator! stage update-link project changes-view updater localization)))
 
-      (beta/suggest! stage (workspace/notifications workspace) project prefs localization)
+      (beta/suggest! stage (workspace/notifications workspace) project git prefs localization)
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (os/is-mac-os?)

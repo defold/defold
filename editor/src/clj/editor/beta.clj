@@ -147,20 +147,21 @@
           (reset! busy false)
           (log/warn :message "Failed to check for beta" :exception e))))))
 
-(defn suggest! [^Stage stage notifications-node project prefs localization]
+(defn suggest! [^Stage stage notifications-node project git prefs localization]
   (when (= "beta" (system/defold-channel))
     (prefs/set! prefs [:versioning :ran-beta] true))
-  (future
-    (when-let [info (check-once! prefs (Platform/getHostPlatform))]
-      (ui/run-later
-        (when (and (.isShowing stage)
-                   (not (prefs/get prefs [:versioning :beta-suggestions-disabled])))
-          (notifications/show!
-            notifications-node
-            {:type :info
-             :id ::suggestion
-             :message (localization/message "beta.notification.available" {"version" (:version info)})
-             :actions [{:message (localization/message "beta.notification.try-it")
-                        :on-action #(try! stage notifications-node project prefs localization)}
-                       {:message (localization/message "beta.button.dont-suggest")
-                        :on-action #(prefs/set! prefs [:versioning :beta-suggestions-disabled] true)}]}))))))
+  (when git
+    (future
+      (when-let [info (check-once! prefs (Platform/getHostPlatform))]
+        (ui/run-later
+          (when (and (.isShowing stage)
+                     (not (prefs/get prefs [:versioning :beta-suggestions-disabled])))
+            (notifications/show!
+              notifications-node
+              {:type :info
+               :id ::suggestion
+               :message (localization/message "beta.notification.available" {"version" (:version info)})
+               :actions [{:message (localization/message "beta.notification.try-it")
+                          :on-action #(try! stage notifications-node project prefs localization)}
+                         {:message (localization/message "beta.button.dont-suggest")
+                          :on-action #(prefs/set! prefs [:versioning :beta-suggestions-disabled] true)}]})))))))
