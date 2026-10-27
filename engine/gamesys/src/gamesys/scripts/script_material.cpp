@@ -648,7 +648,6 @@ namespace dmGameSystem
             dmRender::SetMaterialProgramAttributes(material_res->m_Material, &attribute, 1);
             lua_pop(L, 1);
         }
-        MarkMaterialResourceDirty(material_res);
         return 0;
     }
 
@@ -714,7 +713,6 @@ namespace dmGameSystem
             SetMaterialSampler(L, material_res, name_hash, lua_gettop(L));
             lua_pop(L, 1);
         }
-        MarkMaterialResourceDirty(material_res);
         return 0;
     }
 
@@ -792,7 +790,6 @@ namespace dmGameSystem
             SetMaterialConstant(L, material_res, name_hash, lua_gettop(L));
             lua_pop(L, 1);
         }
-        MarkMaterialResourceDirty(material_res);
         return 0;
     }
 
@@ -847,6 +844,7 @@ namespace dmGameSystem
                 dmGraphics::GetTextureTypeLiteral(normalized_sampler_type));
         }
 
+        MarkMaterialResourceDirty(material_res);
         material_res->m_TextureResourcePaths[unit] = texture_path;
         material_res->m_SamplerNames[unit]         = name_hash;
 
@@ -887,7 +885,6 @@ namespace dmGameSystem
             SetMaterialTexture(L, material_res, name_hash, lua_gettop(L));
             lua_pop(L, 1);
         }
-        MarkMaterialResourceDirty(material_res);
         return 0;
     }
 

@@ -17,6 +17,7 @@
 
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
+#include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
 #include <dmsdk/dlib/math.h> // min
@@ -28,6 +29,18 @@
 namespace dmRender
 {
     using namespace dmVMath;
+
+    static void InvalidateMaterial(HMaterial material)
+    {
+        material->m_InstancingHashDirtyMask = 0xf;
+        ++material->m_Version;
+    }
+
+    static bool IsExcludedModelSampler(dmhash_t name_hash, uint32_t flags)
+    {
+        return (name_hash == SAMPLER_POSE_MATRIX_CACHE && (flags & MATERIAL_INSTANCING_HASH_SKIP_POSE_CACHE)) ||
+            (name_hash == SAMPLER_MORPH_TARGETS && (flags & MATERIAL_INSTANCING_HASH_SKIP_MORPH_TARGETS));
+    }
 
     static inline dmGraphics::VertexAttribute::VectorType GetAttributeVectorType(dmGraphics::Type from_type)
     {
@@ -424,6 +437,109 @@ namespace dmRender
         return material->m_Program;
     }
 
+    uint64_t GetMaterialInstancingHash(HMaterial material, uint32_t flags)
+    {
+        assert(flags < DM_ARRAY_SIZE(material->m_InstancingHashes));
+        uint32_t dirty_bit = 1u << flags;
+        if (!(material->m_InstancingHashDirtyMask & dirty_bit))
+            return material->m_InstancingHashes[flags];
+
+        HashState64 state;
+        dmHashInit64(&state, false);
+
+        // Hash fields individually: render state structs contain pointers and padding.
+        #define HASH_VALUE(value) dmHashUpdateBuffer64(&state, &(value), sizeof(value))
+
+        // Different materials may share the same executable program.
+        HASH_VALUE(material->m_Program);
+        HASH_VALUE(material->m_VertexSpace);
+        HASH_VALUE(flags);
+
+        uint32_t count = material->m_Constants.Size();
+        HASH_VALUE(count);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            HConstant constant = material->m_Constants[i].m_Constant;
+            HASH_VALUE(constant->m_NameHash);
+            HASH_VALUE(constant->m_Location);
+            HASH_VALUE(constant->m_Type);
+            uint32_t num_values = constant->m_NumValues;
+            HASH_VALUE(num_values);
+            dmHashUpdateBuffer64(&state, constant->m_Values, num_values * sizeof(Vector4));
+        }
+
+        count = material->m_Samplers.Size();
+        HASH_VALUE(count);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const Sampler& sampler = material->m_Samplers[i];
+            // When a model replaces an internal sampler for this draw, its initial
+            // unnamed slot and the later binding must remain compatible. Other
+            // uses of the same sampler names retain their configured render state.
+            if (sampler.m_NameHash == 0 || IsExcludedModelSampler(sampler.m_NameHash, flags))
+                continue;
+            HASH_VALUE(i);
+            HASH_VALUE(sampler.m_NameHash);
+            HASH_VALUE(sampler.m_Location);
+            HASH_VALUE(sampler.m_Type);
+            HASH_VALUE(sampler.m_MinFilter);
+            HASH_VALUE(sampler.m_MagFilter);
+            HASH_VALUE(sampler.m_UWrap);
+            HASH_VALUE(sampler.m_VWrap);
+            HASH_VALUE(sampler.m_WWrap);
+            HASH_VALUE(sampler.m_MaxAnisotropy);
+            HASH_VALUE(sampler.m_UnitValueCount);
+        }
+
+        count = material->m_VertexAttributeInfos.Size();
+        HASH_VALUE(count);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const dmGraphics::VertexAttributeInfo& attribute = material->m_VertexAttributeInfos[i];
+            HASH_VALUE(attribute.m_NameHash);
+            HASH_VALUE(attribute.m_SemanticType);
+            HASH_VALUE(attribute.m_DataType);
+            HASH_VALUE(attribute.m_VectorType);
+            HASH_VALUE(attribute.m_StepFunction);
+            HASH_VALUE(attribute.m_CoordinateSpace);
+            HASH_VALUE(attribute.m_ElementCount);
+            HASH_VALUE(attribute.m_Normalize);
+            HASH_VALUE(material->m_MaterialAttributes[i].m_ValueCount);
+            HASH_VALUE(material->m_MaterialAttributes[i].m_Location);
+            // Instance defaults are written per instance; effective per-vertex
+            // values also depend on model/component overrides and are hashed there.
+        }
+
+        const dmRenderDDF::MaterialDesc::PbrParameters& pbr = material->m_PbrParameters;
+        HASH_VALUE(pbr.m_HasParameters);
+        HASH_VALUE(pbr.m_HasMetallicRoughness);
+        HASH_VALUE(pbr.m_HasSpecularGlossiness);
+        HASH_VALUE(pbr.m_HasClearcoat);
+        HASH_VALUE(pbr.m_HasTransmission);
+        HASH_VALUE(pbr.m_HasIor);
+        HASH_VALUE(pbr.m_HasSpecular);
+        HASH_VALUE(pbr.m_HasVolume);
+        HASH_VALUE(pbr.m_HasSheen);
+        HASH_VALUE(pbr.m_HasEmissiveStrength);
+        HASH_VALUE(pbr.m_HasIridescence);
+
+        #undef HASH_VALUE
+
+        material->m_InstancingHashes[flags] = dmHashFinal64(&state);
+        material->m_InstancingHashDirtyMask &= ~dirty_bit;
+        return material->m_InstancingHashes[flags];
+    }
+
+    uint32_t GetMaterialVersion(HMaterial material)
+    {
+        return material->m_Version;
+    }
+
+    uint32_t GetMaterialAttributeVersion(HMaterial material)
+    {
+        return material->m_AttributeVersion;
+    }
+
     void GetMaterialProgramAttributeMetadata(HMaterial material, dmGraphics::VertexAttributeInfoMetadata* metadata)
     {
         *metadata = material->m_VertexAttributeInfoMetadata;
@@ -449,7 +565,11 @@ namespace dmRender
 
     void SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type)
     {
+        HConstant constant;
+        if (!GetProgramConstant(material->m_Constants, name_hash, constant) || GetConstantType(constant) == type)
+            return;
         SetProgramConstantType(material->m_Constants, name_hash, type);
+        InvalidateMaterial(material);
     }
 
     bool GetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, HConstant& out_value)
@@ -636,6 +756,8 @@ namespace dmRender
         }
 
         CreateVertexDeclarations(GetGraphicsContext(material->m_RenderContext), material);
+        ++material->m_AttributeVersion;
+        InvalidateMaterial(material);
     }
 
     void GetMaterialProgramVertexAttributeInfos(HMaterial material, const dmGraphics::VertexAttributeInfo** attribute_infos, uint32_t* num_attribute_infos)
@@ -646,7 +768,16 @@ namespace dmRender
 
     void SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vector4* values, uint32_t count)
     {
+        HConstant constant;
+        if (!GetProgramConstant(material->m_Constants, name_hash, constant))
+            return;
+        uint32_t num_values;
+        Vector4* current_values = GetConstantValues(constant, &num_values);
+        count = dmMath::Min(count, num_values);
+        if (count == 0 || memcmp(current_values, values, count * sizeof(Vector4)) == 0)
+            return;
         SetProgramRenderConstant(material->m_Constants, name_hash, values, count);
+        InvalidateMaterial(material);
     }
 
     bool GetMaterialHasSkinnedAttributes(HMaterial material)
@@ -689,7 +820,21 @@ namespace dmRender
 
     bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
     {
-        return SetProgramSampler(material->m_Samplers, material->m_NameHashToLocation, name_hash, unit, u_wrap, v_wrap, w_wrap, min_filter, mag_filter, max_anisotropy);
+        if (unit < material->m_Samplers.Size())
+        {
+            const Sampler& sampler = material->m_Samplers[unit];
+            if (sampler.m_NameHash == name_hash && name_hash != 0 &&
+                sampler.m_UWrap == u_wrap && sampler.m_VWrap == v_wrap && sampler.m_WWrap == w_wrap &&
+                sampler.m_MinFilter == min_filter && sampler.m_MagFilter == mag_filter &&
+                sampler.m_MaxAnisotropy == max_anisotropy)
+            {
+                return true;
+            }
+        }
+        if (!SetProgramSampler(material->m_Samplers, material->m_NameHashToLocation, name_hash, unit, u_wrap, v_wrap, w_wrap, min_filter, mag_filter, max_anisotropy))
+            return false;
+        InvalidateMaterial(material);
+        return true;
     }
 
     dmGraphics::HVertexDeclaration GetVertexDeclaration(HMaterial material)
@@ -723,7 +868,11 @@ namespace dmRender
 
     void SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space)
     {
+        if (material->m_VertexSpace == vertex_space)
+            return;
         material->m_VertexSpace = vertex_space;
+        ++material->m_AttributeVersion;
+        InvalidateMaterial(material);
     }
 
     dmRenderDDF::MaterialDesc::VertexSpace GetMaterialVertexSpace(HMaterial material)
@@ -734,6 +883,7 @@ namespace dmRender
     void SetMaterialPBRParameters(HMaterial material, const dmRenderDDF::MaterialDesc::PbrParameters* parameters)
     {
         material->m_PbrParameters = *parameters;
+        InvalidateMaterial(material);
     }
 
     void GetMaterialPBRParameters(HMaterial material, dmRenderDDF::MaterialDesc::PbrParameters* parameters)
@@ -784,11 +934,18 @@ namespace dmRender
 
     void SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags)
     {
-        material->m_TagListKey = RegisterMaterialTagList(material->m_RenderContext, tag_count, tags);
+        uint32_t tag_list_key = RegisterMaterialTagList(material->m_RenderContext, tag_count, tags);
+        if (material->m_TagListKey != tag_list_key)
+        {
+            material->m_TagListKey = tag_list_key;
+            ++material->m_Version;
+        }
     }
 
     void ClearMaterialTags(HMaterial material)
     {
+        if (material->m_TagListKey != 0)
+            ++material->m_Version;
         material->m_TagListKey = 0;
     }
 
