@@ -13,10 +13,12 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.beta
-  (:require [clojure.java.io :as io]
+  (:require [cljfx.fx.v-box :as fx.v-box]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [editor.connection-properties :refer [connection-properties]]
             [editor.dialogs :as dialogs]
+            [editor.fxui :as fxui]
             [editor.localization :as localization]
             [editor.markdown-view :as markdown-view]
             [editor.notifications :as notifications]
@@ -26,6 +28,7 @@
             [editor.updater :as updater]
             [service.log :as log])
   (:import [com.dynamo.bob Platform]
+           [javafx.scene.layout Region]
            [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
@@ -82,7 +85,7 @@
   (and (try-active?)
        (not @busy)))
 
-(defn- confirm-download! [stage project localization version markdown]
+(defn- confirm-download! [stage project localization version markdown show-warning]
   (dialogs/make-confirmation-dialog
     localization
     (cond-> {:title (localization/message "beta.dialog.title")
@@ -97,14 +100,26 @@
                        {:text (localization/message "beta.dialog.button.download")
                         :default-button true
                         :result :download}]}
-      markdown
+      (or show-warning markdown)
       (assoc :size :large
              :width 800
-             :content {:fx/type markdown-view/view
-                       :content markdown
-                       :project project
-                       :stylesheets [(str (io/resource "editor.css"))]
-                       :root-props {:style-class "md-page-root"}}))))
+             :content {:fx/type fx.v-box/lifecycle
+                       :children (cond-> []
+                                   show-warning
+                                   (conj {:fx/type fx.v-box/lifecycle
+                                          :style-class "beta-warning"
+                                          :children [{:fx/type fxui/paragraph
+                                                      :min-height Region/USE_PREF_SIZE
+                                                      :color :warning
+                                                      :text (localization (localization/message "beta.dialog.warning"))}]})
+
+                                   markdown
+                                   (conj {:fx/type markdown-view/view
+                                          :v-box/vgrow :always
+                                          :content markdown
+                                          :project project
+                                          :stylesheets [(str (io/resource "editor.css"))]
+                                          :root-props {:style-class "md-page-root"}}))}))))
 
 (defn try!
   "Offers to open the beta download link in the web browser. Returns the future
@@ -121,7 +136,7 @@
             (try
               (when (.isShowing stage)
                 (if newer
-                  (case (confirm-download! stage project localization version markdown)
+                  (case (confirm-download! stage project localization version markdown true)
                     :download
                     (let [platform (Platform/getHostPlatform)
                           extension (if (= "macos" (.getOs platform)) "dmg" "zip")]
