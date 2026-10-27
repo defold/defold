@@ -102,6 +102,12 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
     "${BASISU_OFFLINE_SOURCE}"
     "${BASISU_SOURCE_DIR}/transcoder/basisu_transcoder.cpp"
     "${BASISU_SOURCE_DIR}/zstd/zstd.c")
+  if(WITH_MSAN)
+    # Request stdint in the first inlined zstd_deps.h. The amalgamation skips
+    # its later MSan request, leaving intptr_t undefined on some systems.
+    set_property(SOURCE "${BASISU_SOURCE_DIR}/zstd/zstd.c" APPEND PROPERTY
+      COMPILE_DEFINITIONS ZSTD_DEPS_NEED_STDINT=)
+  endif()
   target_include_directories(basis_encoder PRIVATE "${BASISU_SOURCE_DIR}/encoder")
   target_compile_definitions(basis_encoder PRIVATE
     BASISD_SUPPORT_KTX2=1 BASISD_SUPPORT_KTX2_ZSTD=1
