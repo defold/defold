@@ -169,28 +169,28 @@ public class ShaderCompilePipeline {
         return source.getBytes(StandardCharsets.UTF_8);
     }
 
-    protected static String intermediateResourceToProjectPath(String message, String projectPath) {
-        String[] knownFileExtensions = new String[] { "glsl", "spv", "wgsl", "hlsl" };
-        String replacementRegex = String.format("/[^\\s:]+\\.(%s)(?=:)", String.join("|", knownFileExtensions));
+    protected String intermediateResourceToProjectPath(String message, String projectPath) {
         if (projectPath == null) {
             return message;
         }
-        return message.replaceAll(replacementRegex, projectPath);
+        for (File file : tempFiles) {
+            message = message.replace(file.getAbsolutePath(), projectPath);
+        }
+        return message;
     }
 
-    private static void checkResult(String resourcePath, Result result) throws CompileExceptionError {
+    private void checkResult(String resourcePath, Result result) throws CompileExceptionError {
         if (result.ret != 0) {
-            String[] tokenizedResult = new String(result.stdOutErr).split(":", 2);
+            String[] tokenizedResult = intermediateResourceToProjectPath(new String(result.stdOutErr), resourcePath).split(":", 2);
             String message = tokenizedResult[0];
             if(tokenizedResult.length != 1) {
                 message = tokenizedResult[1];
             }
-            message = intermediateResourceToProjectPath(message, resourcePath);
             throw new CompileExceptionError(message);
         }
     }
 
-    protected static void generateWGSL(String resourcePath, ShaderDesc.ShaderType shaderType, String pathFileInSpv, String pathFileOutWGSL) throws IOException, CompileExceptionError {
+    protected void generateWGSL(String resourcePath, ShaderDesc.ShaderType shaderType, String pathFileInSpv, String pathFileOutWGSL) throws IOException, CompileExceptionError {
         Result result = Exec.execResult(tintExe,
             "--format", "wgsl",
             "--allow-non-uniform-derivatives", "true",

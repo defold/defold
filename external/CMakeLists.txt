@@ -23,6 +23,11 @@ add_subdirectory(opus)
 add_subdirectory(sheenbidi)
 add_subdirectory(skribidi)
 
+# The framebuffer recorder is only linked into graphical Linux debug engines.
+if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)-linux$")
+  add_subdirectory(openh264)
+endif()
+
 # These libraries are used by desktop tools, including the host in cross-builds.
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$")
   add_subdirectory(meshoptimizer)

@@ -28,6 +28,46 @@ class PlatformLinkTests(unittest.TestCase):
                       if target['name'] == target_name)
         return json.loads((reply / target['jsonFile']).read_text())
 
+    # Apple consumers must omit mbedTLS by default, including dependencies propagated by dlib.
+    def test_mbedtls_linking_matches_crypto_backend(self):
+        apple_platforms = ('arm64-macos', 'x86_64-macos', 'arm64-ios', 'arm64_sim-ios')
+        cases = [(platform, enabled, '', 'OFF', bool(enabled))
+                 for platform in apple_platforms for enabled in ('', 'mbedtls')]
+        cases += [(platform, '', '', 'OFF', True)
+                  for platform in ('x86_64-linux', 'x86_64-win32', 'arm64-android', 'wasm-web')]
+        cases += [('arm64-macos', '', '', 'ON', True),
+                  ('arm64-macos', 'mbedtls', 'mbedtls', 'ON', False)]
+        for platform, enabled, disabled, legacy, expected in cases:
+            with self.subTest(platform=platform, enabled=enabled, disabled=disabled, legacy=legacy), \
+                    tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(mbedtls_link_test LANGUAGES C CXX)
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_LANGUAGE_LIST C CXX)
+set(DEFOLD_SDK_ROOT "${DEFOLD_BUILD_HOME}/sdk")
+set(DEFOLD_LIB_DIR "${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}")
+set(DEFOLD_EXT_LIB_DIR "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}")
+set(BUILD_TESTS OFF)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+include(features)
+add_subdirectory("${DEFOLD_HOME}/engine/dlib" dlib)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/main.c" "int main() { return 0; }\\n")
+add_executable(mbedtls_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.c")
+defold_target_link_libraries(mbedtls_consumer "${TARGET_PLATFORM}"
+    dlib dlib_noasan mbedtls mbedtls_noasan)
+''')
+                consumer = self.configure_target(
+                    root, 'mbedtls_consumer', TARGET_PLATFORM=platform,
+                    DEFOLD_ENABLE_FEATURES=enabled, DEFOLD_DISABLE_FEATURES=disabled, WITH_MBEDTLS=legacy)
+                libraries = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments']
+                                     if fragment['role'] == 'libraries')
+                for library in ('dmbedtls', 'dmbedtls_noasan'):
+                    self.assertEqual(expected, bool(re.search(r'\b(?:lib)?' + library + r'\.(?:a|lib)\b', libraries)),
+                                     libraries)
+
     # Host tools must compile and link for their own macOS minimum, even when the engine targets a newer OS.
     def test_macos_deployment_target_override(self):
         cases = (('', '', '12.0'), ('11.0', '', '11.0'), ('13.0', '11.0', '11.0'))
@@ -170,6 +210,7 @@ set(DEFOLD_SDK_ROOT "${DEFOLD_BUILD_HOME}/sdk")
 set(BUILD_TESTS OFF)
 list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
 include(functions)
+include(features)
 if(IN_TREE_PLATFORM)
     add_custom_target(platform_sdk_headers)
 endif()

@@ -81,6 +81,7 @@ namespace dmGraphics
         m_BaseContext.m_Window                  = params.m_Window;
         m_SwapInterval                          = params.m_SwapInterval;
         m_JobContext                            = params.m_JobContext;
+        m_ResourceRetirementQueue               = new ResourceRetirementQueue<MetalResourceToDestroy>();
 
         assert(dmPlatform::GetWindowStateParam(m_BaseContext.m_Window, WINDOW_STATE_OPENED));
 
@@ -278,7 +279,7 @@ namespace dmGraphics
             return;
         }
 
-        ResourceToDestroy resource_to_destroy;
+        MetalResourceToDestroy resource_to_destroy;
         resource_to_destroy.m_ResourceType = resource->GetType();
 
         switch(resource_to_destroy.m_ResourceType)
@@ -307,19 +308,16 @@ namespace dmGraphics
                 break;
         }
 
-        MetalFrameResource& frame = GetCurrentFrameResource(context);
-
-        if (frame.m_ResourcesToDestroy->Full())
-        {
-            frame.m_ResourcesToDestroy->OffsetCapacity(8);
-        }
-
-        frame.m_ResourcesToDestroy->Push(resource_to_destroy);
+        // Updates can happen before BeginFrame waits for a free slot. Keep these
+        // retirements separate from the snapshot being drained by its callback.
+        context->m_ResourceRetirementQueue->Push(resource_to_destroy);
         resource->m_Destroyed = 1;
     }
 
-    static void FlushResourcesToDestroy(MetalContext* context, ResourcesToDestroyList* resource_list)
+    static void FlushResourcesToDestroy(MetalContext* context, MetalResourcesToDestroyList* resource_list)
     {
+        // Synchronize the completion thread's snapshot access with TakePending().
+        DM_MUTEX_SCOPED_LOCK(context->m_ResourceRetirementQueue->m_Mutex);
         if (resource_list->Size() > 0)
         {
             for (uint32_t i = 0; i < resource_list->Size(); ++i)
@@ -432,14 +430,17 @@ namespace dmGraphics
             MetalContext* context = (MetalContext*) _context;
             MetalStopAsyncProcessing(context);
 
+            // Completion callbacks release and clear their command buffers. Wait on
+            // their final signal instead of reading those pointers concurrently.
+            // An active, unsubmitted frame already owns one semaphore permit.
+            for (uint32_t i = context->m_FrameBegun ? 1 : 0; i < context->m_NumFramesInFlight; ++i)
+            {
+                dispatch_semaphore_wait(context->m_FrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
+            }
+
             for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
             {
                 MetalFrameResource& frame = context->m_FrameResources[i];
-
-                if (frame.m_CommandBuffer && frame.m_InFlight)
-                {
-                    frame.m_CommandBuffer->waitUntilCompleted();
-                }
 
                 FlushResourcesToDestroy(context, frame.m_ResourcesToDestroy);
                 ReleaseMetalDeviceBuffer(&frame.m_ConstantScratchBuffer.m_DeviceBuffer);
@@ -485,6 +486,22 @@ namespace dmGraphics
             {
                 MetalPostDeleteTextures(context, true);
                 ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
+            }
+
+            // Deletes after the last Flip (including asynchronous texture cleanup)
+            // still need releasing even though no further frame will be submitted.
+            MetalResourcesToDestroyList pending_resources;
+            context->m_ResourceRetirementQueue->TakePending(pending_resources);
+            FlushResourcesToDestroy(context, &pending_resources);
+            delete context->m_ResourceRetirementQueue;
+            if (context->m_FrameBoundarySemaphore)
+            {
+                // Balance all acquired permits before disposing the semaphore.
+                for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
+                {
+                    dispatch_semaphore_signal(context->m_FrameBoundarySemaphore);
+                }
+                dispatch_release(context->m_FrameBoundarySemaphore);
             }
 
             context->m_PipelineCache.Iterate(static_cast<void (*)(MetalContext*, const unsigned long long*, MetalPipeline*)>([](MetalContext*, const unsigned long long*, MetalPipeline* value) {
@@ -1478,7 +1495,7 @@ namespace dmGraphics
         // Create main resources-to-destroy lists, one for each command buffer
         for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
         {
-            context->m_FrameResources[i].m_ResourcesToDestroy = new ResourcesToDestroyList;
+            context->m_FrameResources[i].m_ResourcesToDestroy = new MetalResourcesToDestroyList;
             context->m_FrameResources[i].m_ResourcesToDestroy->SetCapacity(8);
             context->m_FrameResources[i].m_CommandBuffer = 0;
             context->m_FrameResources[i].m_Drawable = 0;
@@ -2073,6 +2090,10 @@ namespace dmGraphics
 
         frame.m_CommandBuffer->presentDrawable(frame.m_Drawable);
 
+        // BeginFrame acquired this slot. Hand the callback a fixed snapshot before
+        // commit; subsequent updates belong to the next submission.
+        context->m_ResourceRetirementQueue->TakePending(*frame.m_ResourcesToDestroy);
+
         // Register completion callback
         frame.m_CommandBuffer->addCompletedHandler(^void(MTL::CommandBuffer* cb) {
             MetalCommandBufferCompleted(context, frame_index);
@@ -2276,11 +2297,9 @@ namespace dmGraphics
         {
             return;
         }
-        if (size != buffer->m_Base.m_Size)
-        {
-            DestroyResourceDeferred(context, buffer);
-        }
-
+        // Full replacements must preserve storage referenced by recorded or
+        // in-flight draws, including when the new data has the same size.
+        DestroyResourceDeferred(context, buffer);
         DeviceBufferUploadHelper(context, data, size, 0, buffer);
     }
 

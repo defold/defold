@@ -62,7 +62,7 @@ public class Task {
     private final List<IResource> outputs = new ArrayList<IResource>();
     // Each output has one bit per enum value; unflagged tasks need no bit set.
     private BitSet outputFlags;
-    private final List<String> extraCacheKeys = new ArrayList<String>();
+    private final Set<String> extraCacheKeys = new HashSet<String>();
     private Task productOf;
 
     private final HashSet<IResource> inputLookup = new HashSet<IResource>();
@@ -125,6 +125,7 @@ public class Task {
             return this;
         }
 
+        /** Include a signature key. Adding the same key more than once has no effect. */
         public TaskBuilder<T> addExtraCacheKey(String key) {
             task.extraCacheKeys.add(key);
             return this;
@@ -248,11 +249,11 @@ public class Task {
     }
 
     /**
-     * Update a message digest with a list of extra cache parameters.
+     * Update a message digest with extra cache parameters in sorted order.
      * @param digest The digest to update with the resources
-     * @param keys A list of keys to add
+     * @param keys A set of keys to add
      */
-    private void updateDigestWithExtraCacheKeys(MessageDigest digest, List<String> keys) {
+    private void updateDigestWithExtraCacheKeys(MessageDigest digest, Set<String> keys) {
         if (keys.isEmpty())
         {
             return;

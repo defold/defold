@@ -115,6 +115,61 @@
       (delete [_ components opts]
         (mapv #(fx.lifecycle/delete %1 %2 opts) lifecycles components)))))
 
+(def ext-reapply-props-on-key-changed
+  "Advances :desc normally and reapplies :props whenever :key changes.
+
+  The :props map uses cljfx prop definitions as keys. These props are owned by
+  this extension and must be omitted from the wrapped description. Prop value
+  lifecycles are preserved on key changes; their values are retracted and
+  assigned again after advancing the child."
+  (reify fx.lifecycle/Lifecycle
+    (create [_ {:keys [desc props key] :or {props {}}} opts]
+      (let [child (fx.lifecycle/create fx.lifecycle/dynamic desc opts)
+            instance (fx.component/instance child)]
+        (with-meta {:child child
+                    :key key
+                    :props (fx.lifecycle/advance-prop-map {} props {} instance opts)}
+          ui/child-instance-meta)))
+    (advance [_ component {:keys [desc props key] :or {props {}}} opts]
+      (let [old-instance (fx.component/instance (:child component))
+            child (fx.lifecycle/advance fx.lifecycle/dynamic (:child component) desc opts)
+            instance (fx.component/instance child)
+            old-props (:props component)
+            prop-components
+            (cond
+              (not (identical? old-instance instance))
+              (do
+                (doseq [[prop value] old-props]
+                  (fx.lifecycle/delete (fx.prop/lifecycle prop) value opts))
+                (fx.lifecycle/advance-prop-map {} props {} instance opts))
+
+              (= key (:key component))
+              (fx.lifecycle/advance-prop-map old-props props {} instance opts)
+
+              :else
+              (do
+                (doseq [[prop value] old-props]
+                  (fx.prop/retract! prop old-instance value))
+                (let [prop-components
+                      (reduce-kv
+                        (fn [acc prop desc]
+                          (let [value (if-let [entry (find old-props prop)]
+                                        (fx.lifecycle/advance (fx.prop/lifecycle prop) (val entry) desc opts)
+                                        (fx.lifecycle/create (fx.prop/lifecycle prop) desc opts))]
+                            (fx.prop/assign! prop instance value)
+                            (assoc acc prop value)))
+                        {}
+                        props)]
+                  (doseq [[prop value] old-props
+                          :when (not (contains? props prop))]
+                    (fx.lifecycle/delete (fx.prop/lifecycle prop) value opts))
+                  prop-components)))]
+        (assoc component :child child :key key :props prop-components)))
+    (delete [_ {:keys [child props]} opts]
+      (doseq [[prop value] props]
+        (fx.lifecycle/delete (fx.prop/lifecycle prop) value opts))
+      (fx.lifecycle/delete fx.lifecycle/dynamic child opts))))
+
 (extend-protocol fx.lifecycle/Lifecycle
   MultiFn
   (create [_ desc opts]

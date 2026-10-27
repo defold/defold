@@ -15,10 +15,12 @@
 #include <dlib/log.h>
 
 #include <dlib/atomic.h>
+#include <dlib/condition_variable.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/message.h>
+#include <dlib/mutex.h>
 #include <dlib/socket.h>
 #include <dlib/sys.h>
 #include <dlib/thread.h>
@@ -40,9 +42,11 @@
 #include "../resource_archive_private.h"
 #include "../resource_manifest.h"
 #include "../resource_manifest_private.h"
+#include "../resource_mounts.h"
 #include "../resource_private.h"
 #include "../resource_util.h"
 #include "../resource_verify.h"
+#include "../providers/provider_private.h"
 #include "test/test_resource_ddf.h"
 
 #if defined(DM_TEST_HTTP_SUPPORTED)
@@ -59,6 +63,19 @@ char g_HttpAddress[128] = "localhost";
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+
+static dmResource::Result TypedResourcePreload(const dmResource::ResourcePreloadParams*)
+{
+    return dmResource::RESULT_OK;
+}
+
+// Resource callbacks must retain the C API type when declared through the C++ SDK.
+TEST(Resource, CallbackTypeCompatibility)
+{
+    FResourcePreload preload = TypedResourcePreload;
+    ASSERT_EQ(RESOURCE_RESULT_OK, preload(0));
+}
+
 
 #include <vector>
 
@@ -990,6 +1007,12 @@ dmResource::Result RecreateResourceRecreate(const dmResource::ResourceRecreatePa
 
     ResourceDescriptorSetPrevResource(params->m_Resource, old_resource);
 
+    if (params->m_Message)
+    {
+        *recreate_resource = *(const int*)params->m_Message;
+        return dmResource::RESULT_OK;
+    }
+
     const int TMP_BUFFER_SIZE = 64;
     char tmp[TMP_BUFFER_SIZE];
     uint32_t data_size = params->m_BufferSize;
@@ -1142,6 +1165,53 @@ static void ResourceReloadedCallback(const ResourceReloadedParams* params) {
     ReloadData* data = (ReloadData*)params->m_UserData;
     data->m_Old = *((int*)ResourceDescriptorGetPrevResource(params->m_Resource));
     data->m_New = *((int*)ResourceDescriptorGetResource(params->m_Resource));
+}
+
+static dmResource::Result CountRecreatedResourceDestroy(const dmResource::ResourceDestroyParams* params)
+{
+    ++*(uint32_t*)params->m_Context;
+    return RecreateResourceDestroy(params);
+}
+
+// Both SetResource overloads must retain old data during callbacks and destroy it afterwards.
+TEST(RecreateTest, SetResourceDestroysPreviousResourceAfterCallbacks)
+{
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 16;
+    params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, MOUNT_DIR);
+    ASSERT_NE((void*)0, factory);
+
+    uint32_t destroy_count = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(factory, "foo", &destroy_count, 0,
+        RecreateResourceCreate, 0, CountRecreatedResourceDestroy, RecreateResourceRecreate));
+    ReloadData reload_data;
+    dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, &reload_data);
+
+    const char* resource_name = "/set_resource.foo";
+    char initial_data[] = "123";
+    int* resource;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, resource_name, initial_data, sizeof(initial_data), (void**)&resource));
+    HResourceDescriptor descriptor;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetDescriptor(factory, resource_name, &descriptor));
+
+    char new_data[] = "456";
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(factory, dmHashString64(resource_name), new_data, sizeof(new_data)));
+    ASSERT_EQ(123, reload_data.m_Old);
+    ASSERT_EQ(456, reload_data.m_New);
+    ASSERT_EQ(1u, destroy_count);
+    ASSERT_EQ((void*)0, ResourceDescriptorGetPrevResource(descriptor));
+
+    int message = 789;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(factory, dmHashString64(resource_name), &message));
+    ASSERT_EQ(456, reload_data.m_Old);
+    ASSERT_EQ(789, reload_data.m_New);
+    ASSERT_EQ(2u, destroy_count);
+    ASSERT_EQ((void*)0, ResourceDescriptorGetPrevResource(descriptor));
+
+    dmResource::Release(factory, resource);
+    ASSERT_EQ(3u, destroy_count);
+    dmResource::DeleteFactory(factory);
 }
 
 TEST(RecreateTest, RecreateTest)
@@ -1863,8 +1933,594 @@ TEST_F(ResourceTest, PartialReadTest)
     dmSys::Unlink(path);
 }
 
+#if defined(DM_HAS_THREADS)
 
+static const uint8_t STREAM_LOCK_TEST_DATA[] = { 1, 2, 3, 4 };
 
+struct StreamReadLockProbe
+{
+    dmMutex::HMutex                         m_Mutex;
+    dmConditionVariable::HConditionVariable m_Condition;
+    bool                                   m_Reading;
+    bool                                   m_Resume;
+    bool                                   m_Finished;
+};
+
+static dmResourceProvider::Result StreamLockGetFileSize(dmResourceProvider::HArchiveInternal, dmhash_t, const char*, uint32_t* file_size)
+{
+    *file_size = sizeof(STREAM_LOCK_TEST_DATA);
+    return dmResourceProvider::RESULT_OK;
+}
+
+static dmResourceProvider::Result StreamLockReadPartial(dmResourceProvider::HArchiveInternal internal, dmhash_t, const char*, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread)
+{
+    StreamReadLockProbe* probe = (StreamReadLockProbe*)internal;
+    {
+        dmMutex::ScopedLock lock(probe->m_Mutex);
+        probe->m_Reading = true;
+        dmConditionVariable::Signal(probe->m_Condition);
+        while (!probe->m_Resume)
+        {
+            dmConditionVariable::Wait(probe->m_Condition, probe->m_Mutex);
+        }
+    }
+    memcpy(buffer, STREAM_LOCK_TEST_DATA + offset, size);
+    *nread = size;
+    return dmResourceProvider::RESULT_OK;
+}
+
+static dmResourceProvider::Result StreamLockUnmount(dmResourceProvider::HArchiveInternal)
+{
+    // The fixture owns the probe until after the factory and worker are destroyed.
+    return dmResourceProvider::RESULT_OK;
+}
+
+static int StreamLockWorkerFinished(HJobContext, HJob, void* context, void*)
+{
+    StreamReadLockProbe* probe = (StreamReadLockProbe*)context;
+    dmMutex::ScopedLock lock(probe->m_Mutex);
+    probe->m_Finished = true;
+    dmConditionVariable::Signal(probe->m_Condition);
+    return 0;
+}
+
+class StreamLoadMutexTest : public ResourceTest
+{
+protected:
+    void SetUp() override
+    {
+        ResourceTest::SetUp();
+        memset(&m_Probe, 0, sizeof(m_Probe));
+        m_Probe.m_Mutex = dmMutex::New();
+        m_Probe.m_Condition = dmConditionVariable::New();
+
+        memset(&m_Loader, 0, sizeof(m_Loader));
+        m_Loader.m_GetFileSize = StreamLockGetFileSize;
+        m_Loader.m_ReadFilePartial = StreamLockReadPartial;
+        m_Loader.m_Unmount = StreamLockUnmount;
+
+        dmResourceProvider::HArchive archive;
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::CreateMount(&m_Loader, &m_Probe, &archive));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::AddMount(dmResource::GetMountsContext(factory), dmHashString64("stream_lock_probe"), archive, 10));
+    }
+
+    void TearDown() override
+    {
+        ResourceTest::TearDown();
+        dmConditionVariable::Delete(m_Probe.m_Condition);
+        dmMutex::Delete(m_Probe.m_Mutex);
+    }
+
+    StreamReadLockProbe              m_Probe;
+    dmResourceProvider::ArchiveLoader m_Loader;
+};
+
+// Verifies a streamed read leaves the factory load mutex available, preventing texture upload deadlocks.
+TEST_F(StreamLoadMutexTest, ReadDoesNotHoldLoadMutex)
+{
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(factory, "foo", 0, 0, StreamResourceCreate, 0, StreamResourceDestroy, 0));
+    const char* path = "/stream_lock.foo";
+    StreamTestResource* resource;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, path, (void*)STREAM_LOCK_TEST_DATA, sizeof(STREAM_LOCK_TEST_DATA), (void**)&resource));
+    resource->m_Offset = 0;
+    memset(resource->m_Data, 0, sizeof(STREAM_LOCK_TEST_DATA));
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::PreloadData(factory, path, 0, sizeof(STREAM_LOCK_TEST_DATA), StreamingPreloadCallback, resource));
+
+    Job finished = { 0 };
+    finished.m_Process = StreamLockWorkerFinished;
+    finished.m_Context = &m_Probe;
+    JobSystemPushJob(m_JobContext, JobSystemCreateJob(m_JobContext, &finished));
+
+    {
+        dmMutex::ScopedLock lock(m_Probe.m_Mutex);
+        while (!m_Probe.m_Reading)
+        {
+            dmConditionVariable::Wait(m_Probe.m_Condition, m_Probe.m_Mutex);
+        }
+    }
+
+    // The provider is paused on the worker; the main thread must be able to acquire the load mutex.
+    dmMutex::HMutex load_mutex = dmResource::GetLoadMutex(factory);
+    bool load_mutex_available = dmMutex::TryLock(load_mutex);
+    if (load_mutex_available)
+    {
+        dmMutex::Unlock(load_mutex);
+    }
+
+    {
+        dmMutex::ScopedLock lock(m_Probe.m_Mutex);
+        m_Probe.m_Resume = true;
+        dmConditionVariable::Signal(m_Probe.m_Condition);
+        while (!m_Probe.m_Finished)
+        {
+            dmConditionVariable::Wait(m_Probe.m_Condition, m_Probe.m_Mutex);
+        }
+    }
+
+    // The worker marker guarantees the stream completion is ready for this update.
+    JobSystemUpdate(m_JobContext, 0);
+    ASSERT_EQ(sizeof(STREAM_LOCK_TEST_DATA), resource->m_Offset);
+    ASSERT_ARRAY_EQ_LEN(STREAM_LOCK_TEST_DATA, resource->m_Data, sizeof(STREAM_LOCK_TEST_DATA));
+    dmResource::Release(factory, resource);
+    ASSERT_TRUE(load_mutex_available);
+}
+
+#endif
+
+static dmArray<char> g_ResourceProfileOutput;
+
+static void CaptureResourceProfile(LogSeverity severity, const char* domain, const char* text)
+{
+    if (strcmp(domain, "RESOURCE") != 0 || !strstr(text, " took ") || !strstr(text, " (pre: "))
+        return;
+    uint32_t length = (uint32_t)strlen(text);
+    if (g_ResourceProfileOutput.Remaining() < length + 1)
+        g_ResourceProfileOutput.OffsetCapacity(length + 1);
+    g_ResourceProfileOutput.PushArray(text, length);
+}
+
+class ResourceProfileTest : public jc_test_base_class
+{
+    public:
+    void SetUp() override
+    {
+        m_Factory = 0;
+        m_Preloader = 0;
+        m_AllowPostCreate = true;
+        m_AddDependency = false;
+        m_PostCreateCount = 0;
+        m_PendingPostCreateCalls = 0;
+        m_PostCreateHasFilename = true;
+        m_PreloadResult = dmResource::RESULT_OK;
+        m_CreateResult = dmResource::RESULT_OK;
+        m_PostCreateResult = dmResource::RESULT_OK;
+        JobSystemCreateParams job_params = { 0 };
+        job_params.m_ThreadCount = 1;
+        m_JobContext = JobSystemCreate(&job_params);
+        ASSERT_TRUE(FlushLogs());
+        m_LogLevel = dmLogGetLevel();
+        dmLogSetLevel(LOG_SEVERITY_INFO);
+        g_ResourceProfileOutput.SetSize(0);
+        dmLogRegisterListener(CaptureResourceProfile);
+    }
+
+    void TearDown() override
+    {
+        m_AllowPostCreate = true;
+        if (m_Preloader)
+            dmResource::DeletePreloader(m_Preloader);
+        if (m_Factory)
+            dmResource::DeleteFactory(m_Factory);
+        JobSystemDestroy(m_JobContext);
+        ASSERT_TRUE(FlushLogs());
+        dmLogUnregisterListener(CaptureResourceProfile);
+        dmLogSetLevel(m_LogLevel);
+    }
+
+    void CreateFactory(bool enabled, uint32_t max_resources = 1024, bool post_create = true)
+    {
+        dmResource::NewFactoryParams params;
+        params.m_Flags = enabled ? RESOURCE_FACTORY_FLAGS_PROFILE : 0;
+        params.m_MaxResources = max_resources;
+        params.m_JobThreadContext = m_JobContext;
+        m_Factory = dmResource::NewFactory(&params, "build/src/test");
+        ASSERT_NE((void*)0, m_Factory);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(m_Factory, "foo", this, Preload, Create, post_create ? PostCreate : 0, Destroy, 0));
+    }
+
+    static dmResource::Result Preload(const dmResource::ResourcePreloadParams* params)
+    {
+        ResourceProfileTest* self = (ResourceProfileTest*)params->m_Context;
+        if (self->m_AddDependency && strcmp(params->m_Filename, "/test02.foo") == 0)
+            dmResource::PreloadHint(params->m_HintInfo, "/test01.foo");
+        return self->m_PreloadResult;
+    }
+
+    static dmResource::Result Create(const dmResource::ResourceCreateParams* params)
+    {
+        ResourceProfileTest* self = (ResourceProfileTest*)params->m_Context;
+        if (self->m_CreateResult != dmResource::RESULT_OK)
+            return self->m_CreateResult;
+        ResourceDescriptorSetResource(params->m_Resource, new uint32_t(42));
+        return dmResource::RESULT_OK;
+    }
+
+    static dmResource::Result PostCreate(const dmResource::ResourcePostCreateParams* params)
+    {
+        ResourceProfileTest* self = (ResourceProfileTest*)params->m_Context;
+        ++self->m_PostCreateCount;
+        self->m_PostCreateHasFilename = self->m_PostCreateHasFilename && params->m_Filename && strcmp(params->m_Filename, "/test01.foo") == 0;
+        return self->m_AllowPostCreate && self->m_PostCreateCount > self->m_PendingPostCreateCalls ? self->m_PostCreateResult : dmResource::RESULT_PENDING;
+    }
+
+    static dmResource::Result Destroy(const dmResource::ResourceDestroyParams* params)
+    {
+        delete (uint32_t*)ResourceDescriptorGetResource(params->m_Resource);
+        return dmResource::RESULT_OK;
+    }
+
+    static bool FlushLogs()
+    {
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (dmLog::GetPendingLogCount() && dmTime::GetMonotonicTime() < deadline)
+        {
+        }
+        return dmLog::GetPendingLogCount() == 0;
+    }
+
+    const char* Output()
+    {
+        if (g_ResourceProfileOutput.Full())
+            g_ResourceProfileOutput.OffsetCapacity(1);
+        g_ResourceProfileOutput.Begin()[g_ResourceProfileOutput.Size()] = 0;
+        return g_ResourceProfileOutput.Begin();
+    }
+
+    dmResource::Result CompleteLoad()
+    {
+        uint64_t           deadline = dmTime::GetMonotonicTime() + 5000000;
+        dmResource::Result result;
+        do
+        {
+            result = dmResource::UpdatePreloader(m_Preloader, 0, 0, 1000);
+        } while (result == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() < deadline);
+        return result;
+    }
+
+    static bool CaptureTimings(const dmResource::IteratorResource& resource, void* context)
+    {
+        dmResource::IteratorResource* result = (dmResource::IteratorResource*)context;
+        if (resource.m_Id != result->m_Id)
+            return true;
+        *result = resource;
+        return false;
+    }
+
+    dmResource::LoadTimings GetTimings(const char* path)
+    {
+        dmResource::IteratorResource resource = {};
+        resource.m_Id = dmHashString64(path);
+        dmResource::IterateResources(m_Factory, CaptureTimings, &resource);
+        EXPECT_GT(resource.m_RefCount, 0u);
+        return resource.m_LoadTimings;
+    }
+
+    void AssertLoggedTimings(const char* path)
+    {
+        dmResource::LoadTimings timings = GetTimings(path);
+        ASSERT_TRUE(timings.m_Recorded);
+        ASSERT_EQ(timings.m_Total, timings.m_Preload + timings.m_Read + timings.m_Create + timings.m_PostCreate + timings.m_Queue + timings.m_Wait);
+        ASSERT_TRUE(FlushLogs());
+        const char* record = strstr(Output(), path);
+        ASSERT_NE((const char*)0, record);
+        double   total, preload, read, create, post_create, queue, wait;
+        uint32_t count;
+        ASSERT_EQ(8, sscanf(record + strlen(path), " took %lfms (pre: %lfms, read: %lfms, create: %lfms, post: %lfms [%u calls], queue: %lfms, wait: %lfms", &total, &preload, &read, &create, &post_create, &count, &queue, &wait));
+        ASSERT_EQ(timings.m_Total, (uint64_t)(total * 1000.0 + 0.5));
+        ASSERT_EQ(timings.m_Preload, (uint64_t)(preload * 1000.0 + 0.5));
+        ASSERT_EQ(timings.m_Read, (uint64_t)(read * 1000.0 + 0.5));
+        ASSERT_EQ(timings.m_Create, (uint64_t)(create * 1000.0 + 0.5));
+        ASSERT_EQ(timings.m_PostCreate, (uint64_t)(post_create * 1000.0 + 0.5));
+        ASSERT_EQ(timings.m_Queue, (uint64_t)(queue * 1000.0 + 0.5));
+        ASSERT_EQ(timings.m_Wait, (uint64_t)(wait * 1000.0 + 0.5));
+        ASSERT_EQ(timings.m_PostCreateCount, count);
+    }
+
+    dmResource::HFactory   m_Factory;
+    dmResource::HPreloader m_Preloader;
+    HJobContext            m_JobContext;
+    bool                   m_AllowPostCreate;
+    bool                   m_AddDependency;
+    bool                   m_PostCreateHasFilename;
+    uint32_t               m_PostCreateCount;
+    uint32_t               m_PendingPostCreateCalls;
+    LogSeverity            m_LogLevel;
+    dmResource::Result     m_PreloadResult;
+    dmResource::Result     m_CreateResult;
+    dmResource::Result     m_PostCreateResult;
+};
+
+// Loading without resource profiling must not emit timing records on either loading path.
+TEST_F(ResourceProfileTest, Disabled)
+{
+    CreateFactory(false);
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test01.foo", &resource));
+    ASSERT_FALSE(GetTimings("/test01.foo").m_Recorded);
+    dmResource::Release(m_Factory, resource);
+    m_Preloader = dmResource::NewPreloader(m_Factory, "/test01.foo");
+    ASSERT_EQ(dmResource::RESULT_OK, CompleteLoad());
+    ASSERT_FALSE(GetTimings("/test01.foo").m_Recorded);
+    ASSERT_TRUE(FlushLogs());
+    ASSERT_STREQ("", Output());
+}
+
+// A synchronous load reports all stages once, and subsequent cache hits do not report another load.
+TEST_F(ResourceProfileTest, Synchronous)
+{
+    CreateFactory(true);
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test01.foo", &resource));
+    AssertLoggedTimings("/test01.foo");
+    void* cached = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test01.foo", &cached));
+    ASSERT_EQ(resource, cached);
+    AssertLoggedTimings("/test01.foo");
+    dmResource::Release(m_Factory, cached);
+    dmResource::Release(m_Factory, resource);
+    ASSERT_TRUE(FlushLogs());
+    const char* output = Output();
+    const char* record = strstr(output, "/test01.foo took ");
+    ASSERT_NE((void*)0, record);
+    ASSERT_NE((void*)0, strstr(output, "INFO:RESOURCE: /test01.foo took "));
+    ASSERT_EQ((void*)0, strstr(record + 1, "INFO:RESOURCE: "));
+    ASSERT_NE((void*)0, strstr(output, "queue: "));
+    ASSERT_NE((void*)0, strstr(output, "read: "));
+    ASSERT_NE((void*)0, strstr(output, "pre: "));
+    ASSERT_NE((void*)0, strstr(output, "wait: "));
+    ASSERT_NE((void*)0, strstr(output, "create: "));
+    ASSERT_NE((void*)0, strstr(output, "post: "));
+    ASSERT_NE((void*)0, strstr(output, "[1 calls]"));
+    ASSERT_NE((void*)0, strstr(output, "result: OK"));
+}
+
+// Profile logs follow the normal log-level filter even when resource profiling is enabled.
+TEST_F(ResourceProfileTest, LogLevel)
+{
+    CreateFactory(true);
+    dmLogSetLevel(LOG_SEVERITY_WARNING);
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test01.foo", &resource));
+    ASSERT_TRUE(GetTimings("/test01.foo").m_Recorded);
+    dmResource::Release(m_Factory, resource);
+    ASSERT_TRUE(FlushLogs());
+    ASSERT_STREQ("", Output());
+}
+
+// Creating from supplied bytes reports the callbacks with no queue or file-read time.
+TEST_F(ResourceProfileTest, SuppliedBytes)
+{
+    CreateFactory(true);
+    uint32_t data = 42;
+    void*    resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, "/test01.foo", &data, sizeof(data), &resource));
+    AssertLoggedTimings("/test01.foo");
+    dmResource::Release(m_Factory, resource);
+    ASSERT_TRUE(FlushLogs());
+    ASSERT_NE((void*)0, strstr(Output(), "/test01.foo took "));
+    ASSERT_NE((void*)0, strstr(Output(), "queue: 0.000ms"));
+    ASSERT_NE((void*)0, strstr(Output(), "read: 0.000ms"));
+    ASSERT_NE((void*)0, strstr(Output(), "[1 calls]"));
+    ASSERT_NE((void*)0, strstr(Output(), "result: OK"));
+}
+
+// Synchronous PostCreate retries accumulate into one terminal record.
+TEST_F(ResourceProfileTest, SynchronousPendingPostCreate)
+{
+    CreateFactory(true);
+    m_PendingPostCreateCalls = 2;
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test01.foo", &resource));
+    AssertLoggedTimings("/test01.foo");
+    dmResource::Release(m_Factory, resource);
+    ASSERT_TRUE(FlushLogs());
+    ASSERT_EQ(3u, m_PostCreateCount);
+    const char* record = strstr(Output(), "/test01.foo took ");
+    ASSERT_NE((void*)0, record);
+    ASSERT_EQ((void*)0, strstr(record + 1, "INFO:RESOURCE: "));
+    ASSERT_NE((void*)0, strstr(record, "[3 calls]"));
+    ASSERT_NE((void*)0, strstr(record, "result: OK"));
+}
+
+// Preloading an already resident resource must not emit a new loading record.
+TEST_F(ResourceProfileTest, AsynchronousCacheHit)
+{
+    CreateFactory(true);
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test01.foo", &resource));
+    dmResource::LoadTimings original = GetTimings("/test01.foo");
+    ASSERT_TRUE(FlushLogs());
+    g_ResourceProfileOutput.SetSize(0);
+    m_Preloader = dmResource::NewPreloader(m_Factory, "/test01.foo");
+    ASSERT_EQ(dmResource::RESULT_OK, CompleteLoad());
+    dmResource::LoadTimings cached = GetTimings("/test01.foo");
+    ASSERT_EQ(original.m_Total, cached.m_Total);
+    ASSERT_EQ(original.m_Preload, cached.m_Preload);
+    ASSERT_EQ(original.m_Read, cached.m_Read);
+    ASSERT_EQ(original.m_Create, cached.m_Create);
+    ASSERT_EQ(original.m_PostCreate, cached.m_PostCreate);
+    ASSERT_EQ(original.m_Queue, cached.m_Queue);
+    ASSERT_EQ(original.m_Wait, cached.m_Wait);
+    ASSERT_EQ(original.m_PostCreateCount, cached.m_PostCreateCount);
+    ASSERT_EQ(original.m_Recorded, cached.m_Recorded);
+    dmResource::Release(m_Factory, resource);
+    ASSERT_TRUE(FlushLogs());
+    ASSERT_STREQ("", Output());
+}
+
+// Pending PostCreate callbacks retain the request timing and defer the single record until completion.
+TEST_F(ResourceProfileTest, PendingPostCreate)
+{
+    CreateFactory(true);
+    m_AllowPostCreate = false;
+    m_Preloader = dmResource::NewPreloader(m_Factory, "/test01.foo");
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!m_PostCreateCount && dmTime::GetMonotonicTime() < deadline)
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(m_Preloader, 0, 0, 1000));
+    ASSERT_GT(m_PostCreateCount, 0u);
+    ASSERT_FALSE(GetTimings("/test01.foo").m_Recorded);
+    ASSERT_TRUE(FlushLogs());
+    ASSERT_STREQ("", Output());
+
+    m_AllowPostCreate = true;
+    ASSERT_EQ(dmResource::RESULT_OK, CompleteLoad());
+    AssertLoggedTimings("/test01.foo");
+    ASSERT_TRUE(FlushLogs());
+    ASSERT_TRUE(m_PostCreateHasFilename);
+    ASSERT_GT(m_PostCreateCount, 1u);
+    char count[64];
+    dmSnPrintf(count, sizeof(count), "[%u calls]", m_PostCreateCount);
+    const char* output = Output();
+    const char* record = strstr(output, "/test01.foo took ");
+    ASSERT_NE((void*)0, record);
+    ASSERT_EQ((void*)0, strstr(record + 1, "INFO:RESOURCE: "));
+    ASSERT_NE((void*)0, strstr(output, count));
+    ASSERT_NE((void*)0, strstr(output, "result: OK"));
+}
+
+// Dependency requests and the parent retain independent timing records even when request slots are pruned.
+TEST_F(ResourceProfileTest, Dependencies)
+{
+    CreateFactory(true);
+    m_AddDependency = true;
+    m_Preloader = dmResource::NewPreloader(m_Factory, "/test02.foo");
+    ASSERT_EQ(dmResource::RESULT_OK, CompleteLoad());
+    AssertLoggedTimings("/test02.foo");
+    ASSERT_TRUE(FlushLogs());
+    const char* output = Output();
+    ASSERT_NE((void*)0, strstr(output, "/test01.foo took "));
+    ASSERT_NE((void*)0, strstr(output, "/test02.foo took "));
+    const char* first = strstr(output, "INFO:RESOURCE: ");
+    const char* second = strstr(first + 1, "INFO:RESOURCE: ");
+    ASSERT_EQ((void*)0, strstr(second + 1, "INFO:RESOURCE: "));
+}
+
+// Loads without PostCreate retain their timings after synchronous and asynchronous completion.
+TEST_F(ResourceProfileTest, TimingsWithoutPostCreate)
+{
+    for (uint32_t async = 0; async < 2; ++async)
+    {
+        CreateFactory(true, 1024, false);
+        if (async)
+        {
+            m_Preloader = dmResource::NewPreloader(m_Factory, "/test01.foo");
+            ASSERT_EQ(dmResource::RESULT_OK, CompleteLoad());
+        }
+        void* resource = 0;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test01.foo", &resource));
+        AssertLoggedTimings("/test01.foo");
+        ASSERT_EQ(0u, GetTimings("/test01.foo").m_PostCreateCount);
+        if (m_Preloader)
+        {
+            dmResource::DeletePreloader(m_Preloader);
+            m_Preloader = 0;
+            AssertLoggedTimings("/test01.foo");
+        }
+        dmResource::Release(m_Factory, resource);
+        dmResource::DeleteFactory(m_Factory);
+        m_Factory = 0;
+        ASSERT_TRUE(FlushLogs());
+        g_ResourceProfileOutput.SetSize(0);
+    }
+}
+
+// Unloading discards the snapshot; a later load retains only its own completed callbacks.
+TEST_F(ResourceProfileTest, TimingsAfterUnload)
+{
+    CreateFactory(true);
+    m_PendingPostCreateCalls = 2;
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test01.foo", &resource));
+    ASSERT_EQ(3u, GetTimings("/test01.foo").m_PostCreateCount);
+    dmResource::Release(m_Factory, resource);
+    ASSERT_TRUE(FlushLogs());
+    g_ResourceProfileOutput.SetSize(0);
+    m_PostCreateCount = 0;
+    m_PendingPostCreateCalls = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test01.foo", &resource));
+    AssertLoggedTimings("/test01.foo");
+    ASSERT_EQ(1u, GetTimings("/test01.foo").m_PostCreateCount);
+    dmResource::Release(m_Factory, resource);
+}
+
+// A failed synchronous file read still emits its terminal loading record.
+TEST_F(ResourceProfileTest, SynchronousReadFailure)
+{
+    CreateFactory(true);
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, dmResource::Get(m_Factory, "/missing.foo", &resource));
+    ASSERT_TRUE(FlushLogs());
+    ASSERT_NE((void*)0, strstr(Output(), "/missing.foo took "));
+    ASSERT_NE((void*)0, strstr(Output(), "result: RESOURCE_NOT_FOUND"));
+}
+
+// Failures while reading, preloading, creating or post-creating each terminate and report the load once.
+TEST_F(ResourceProfileTest, AsynchronousFailures)
+{
+    for (uint32_t stage = 0; stage < 4; ++stage)
+    {
+        CreateFactory(true);
+        m_PreloadResult = stage == 1 ? dmResource::RESULT_FORMAT_ERROR : dmResource::RESULT_OK;
+        m_CreateResult = stage == 2 ? dmResource::RESULT_FORMAT_ERROR : dmResource::RESULT_OK;
+        m_PostCreateResult = stage == 3 ? dmResource::RESULT_FORMAT_ERROR : dmResource::RESULT_OK;
+        const char* path = stage == 0 ? "/missing.foo" : "/test01.foo";
+        m_Preloader = dmResource::NewPreloader(m_Factory, path);
+        dmResource::Result expected = stage == 0 ? dmResource::RESULT_RESOURCE_NOT_FOUND : dmResource::RESULT_FORMAT_ERROR;
+        ASSERT_EQ(expected, CompleteLoad());
+        ASSERT_TRUE(FlushLogs());
+        const char* output = Output();
+        const char* record = strstr(output, "INFO:RESOURCE: ");
+        ASSERT_NE((void*)0, record);
+        ASSERT_NE((void*)0, strstr(record, path));
+        ASSERT_NE((void*)0, strstr(record, dmResource::ResultToString(expected)));
+        ASSERT_EQ((void*)0, strstr(record + 1, "INFO:RESOURCE: "));
+        dmResource::DeletePreloader(m_Preloader);
+        m_Preloader = 0;
+        dmResource::DeleteFactory(m_Factory);
+        m_Factory = 0;
+        ASSERT_TRUE(FlushLogs());
+        g_ResourceProfileOutput.SetSize(0);
+    }
+}
+
+// A pending PostCreate must preserve an earlier insertion failure as the terminal log result.
+TEST_F(ResourceProfileTest, InsertionFailureWithPendingPostCreate)
+{
+    CreateFactory(true, 1);
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test02.foo", &resource));
+    ASSERT_TRUE(FlushLogs());
+    g_ResourceProfileOutput.SetSize(0);
+    m_PostCreateCount = 0;
+    m_AllowPostCreate = false;
+    m_PostCreateResult = dmResource::RESULT_FORMAT_ERROR;
+    m_Preloader = dmResource::NewPreloader(m_Factory, "/test01.foo");
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!m_PostCreateCount && dmTime::GetMonotonicTime() < deadline)
+        ASSERT_EQ(dmResource::RESULT_PENDING, dmResource::UpdatePreloader(m_Preloader, 0, 0, 1000));
+    ASSERT_GT(m_PostCreateCount, 0u);
+    ASSERT_TRUE(FlushLogs());
+    ASSERT_STREQ("", Output());
+    m_AllowPostCreate = true;
+    ASSERT_EQ(dmResource::RESULT_OUT_OF_RESOURCES, CompleteLoad());
+    dmResource::Release(m_Factory, resource);
+    ASSERT_TRUE(FlushLogs());
+    const char* record = strstr(Output(), "/test01.foo took ");
+    ASSERT_NE((void*)0, record);
+    ASSERT_EQ((void*)0, strstr(record + 1, "INFO:RESOURCE: "));
+    ASSERT_NE((void*)0, strstr(record, "result: OUT_OF_RESOURCES"));
+}
 
 // *********************************************************************************************************
 

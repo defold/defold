@@ -209,6 +209,8 @@ struct DX12Test : public jc_test_base_class
         CloseHandle(event);
         RequireHR(m_Allocator->Reset());
         RequireHR(m_Context->m_CommandList->Reset(m_Allocator.Get(), 0));
+        memset(&m_Context->m_DrawState, 0, sizeof(m_Context->m_DrawState));
+        GetFrame().m_ScratchBuffer.m_BoundPool = ~0u;
         RenderTarget* target = GetAssetFromContainer<RenderTarget>(m_Context->m_BaseContext.m_AssetHandleContainer, m_Context->m_CurrentRenderTarget);
         if (target)
             target->m_IsBound = 0;
@@ -563,7 +565,10 @@ TEST_F(DX12Test, DescriptorPagesAndUniformOverflowPreserveDrawData)
         {
             ASSERT_TRUE(GetFrame().m_ScratchBuffer.Prepare(m_Context, 1, 1));
             GetFrame().m_ScratchBuffer.AllocateTexture2D(m_Context, PIPELINE_TYPE_COMPUTE, GetTextureData(texture), 0);
-            GetFrame().m_ScratchBuffer.AllocateSampler(m_Context, PIPELINE_TYPE_COMPUTE, m_Context->m_TextureSamplers[0], 1);
+            // More distinct sampler descriptions than the cache holds still force page rollover.
+            DX12TextureSampler sampler = m_Context->m_TextureSamplers[0];
+            sampler.m_Desc.MipLODBias = (float)(i % 17) / 16;
+            GetFrame().m_ScratchBuffer.AllocateSampler(m_Context, PIPELINE_TYPE_COMPUTE, sampler, 1);
             struct Constants
             {
                 uint32_t index;
@@ -1180,11 +1185,17 @@ TEST_F(DX12Test, DependentImageDispatchesAndComputeToDraw)
     DisableState(GetContext(), STATE_DEPTH_TEST);
     EnableProgram(GetContext(), draw_program);
     Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    // Return to an already-used compute program without resetting the command list.
+    // Graphics and compute root bindings persist independently, but share the current PSO.
+    EnableProgram(GetContext(), compute_program);
+    DispatchCompute(GetContext(), 1, 1, 1);
+    EnableProgram(GetContext(), draw_program);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
     uint8_t pixels[64] = {};
     ReadPixels(GetContext(), 0, 0, 4, 4, pixels, sizeof(pixels));
     for (uint32_t i = 0; i < 16; ++i)
     {
-        ASSERT_NEAR(i == 0 ? 230 : 102, pixels[i * 4 + 2], 1);
+        ASSERT_NEAR(i == 0 ? 255 : 128, pixels[i * 4 + 2], 1);
         ASSERT_NEAR(230, pixels[i * 4 + 1], 1);
     }
     SubmitAndWait();
@@ -1336,6 +1347,135 @@ TEST_F(DX12Test, UploadAndPipelineBenchmark)
     DeleteVertexBuffer(buffer);
     DeleteProgram(GetContext(), program);
     DeleteRenderTarget(GetContext(), target);
+}
+
+// Verifies repeated draws, dynamic stencil references, program switches and command-list resets preserve pixels and PSO reuse.
+TEST_F(DX12Test, CachedDrawStateSurvivesProgramSwitchAndReset)
+{
+    HRenderTarget target = CreateTestRenderTarget(4, 4);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+    SetViewport(GetContext(), 0, 0, 4, 4);
+    DisableState(GetContext(), STATE_DEPTH_TEST);
+    DisableState(GetContext(), STATE_CULL_FACE);
+    TestProgram red, green;
+    red.AddShaderStage(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
+    green.AddShaderStage(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
+    red.AddShaderStage("float4 main():SV_Target{return float4(1,0,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    green.AddShaderStage("float4 main():SV_Target{return float4(0,1,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    red.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    green.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    HProgram programs[] = { red.CreateProgram(GetContext()), green.CreateProgram(GetContext()) };
+    for (uint32_t frame = 0; frame < 2; ++frame)
+    {
+        for (uint32_t phase = 0; phase < 3; ++phase)
+        {
+            uint32_t color = phase == 1 ? 1 : 0;
+            EnableProgram(GetContext(), programs[color]);
+            Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+            uint32_t pipelines = m_Context->m_PipelineCache.Size();
+            for (uint32_t reference = 0; reference < 16; ++reference)
+            {
+                SetStencilFunc(GetContext(), COMPARE_FUNC_ALWAYS, reference, 0xff);
+                Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+            }
+            ASSERT_EQ(pipelines, m_Context->m_PipelineCache.Size());
+            uint8_t pixel[4] = {};
+            // ReadPixels flushes and resets the native command list; the next draw must rebind.
+            ReadPixels(GetContext(), 1, 1, 1, 1, pixel, sizeof(pixel));
+            ASSERT_EQ(color ? 255 : 0, pixel[1]);
+            ASSERT_EQ(color ? 0 : 255, pixel[2]);
+        }
+    }
+    SubmitAndWait();
+    DisableProgram(GetContext());
+    DeleteProgram(GetContext(), programs[0]);
+    DeleteProgram(GetContext(), programs[1]);
+    DeleteRenderTarget(GetContext(), target);
+}
+
+// Verifies pre-frame vertex updates retain their data, order, and destination after deletion.
+TEST_F(DX12Test, PendingVertexUploadsOwnDataAndDestination)
+{
+    m_Context->m_FrameBegun = 0;
+    uint32_t data[] = { 1, 2, 3, 4 };
+    HVertexBuffer buffer = NewVertexBuffer(GetContext(), sizeof(data), data, BUFFER_USAGE_STREAM_DRAW);
+    ID3D12Resource* resource = ((DX12VertexBuffer*)buffer)->m_DeviceBuffer.m_Resource;
+    uint32_t replacement = 9;
+    SetVertexBufferSubData(buffer, sizeof(uint32_t), sizeof(replacement), &replacement);
+    memset(data, 0, sizeof(data));
+    replacement = 0;
+    ASSERT_EQ(2u, m_Context->m_PendingBufferUploads.Size());
+    DeleteVertexBuffer(buffer);
+    FlushResourcesToDestroy(GetFrame());
+    m_Context->m_FrameBegun = 1;
+    FlushPendingBufferUploads(m_Context);
+    ASSERT_EQ(0u, m_Context->m_PendingBufferUploads.Size());
+    ASSERT_EQ(0u, m_Context->m_PendingBufferData.Size());
+    ComPtr<ID3D12Resource> readback;
+    RequireHR(m_Context->m_Device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
+        D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(sizeof(data)), D3D12_RESOURCE_STATE_COPY_DEST, 0, IID_PPV_ARGS(&readback)));
+    D3D12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(resource,
+        D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_INDEX_BUFFER, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    m_Context->m_CommandList->ResourceBarrier(1, &barrier);
+    m_Context->m_CommandList->CopyResource(readback.Get(), resource);
+    SubmitAndWait();
+    uint32_t* actual;
+    RequireHR(readback->Map(0, 0, (void**)&actual));
+    ASSERT_EQ(1u, actual[0]);
+    ASSERT_EQ(9u, actual[1]);
+    ASSERT_EQ(3u, actual[2]);
+    ASSERT_EQ(4u, actual[3]);
+    readback->Unmap(0, 0);
+}
+
+// Verifies descriptor hits, sampler changes, and frame resets never reuse stale bindings.
+TEST_F(DX12Test, DescriptorReuseAndFrameReset)
+{
+    D3D12_DESCRIPTOR_RANGE ranges[2] = {};
+    ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+    D3D12_ROOT_PARAMETER parameters[2] = {};
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        ranges[i].NumDescriptors = 1;
+        parameters[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+        parameters[i].DescriptorTable.NumDescriptorRanges = 1;
+        parameters[i].DescriptorTable.pDescriptorRanges = &ranges[i];
+    }
+    D3D12_ROOT_SIGNATURE_DESC desc = {};
+    desc.NumParameters = 2;
+    desc.pParameters = parameters;
+    ComPtr<ID3DBlob> signature, errors;
+    RequireHR(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &errors));
+    ComPtr<ID3D12RootSignature> root;
+    RequireHR(m_Context->m_Device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&root)));
+    HTexture texture = CreateTestTexture(TEXTURE_TYPE_2D, 1, 1, 1, 1);
+    uint32_t pixel = ~0u;
+    TextureParams params;
+    params.m_Width = params.m_Height = 1;
+    params.m_Format = TEXTURE_FORMAT_RGBA;
+    params.m_Data = &pixel;
+    params.m_DataSize = sizeof(pixel);
+    SetTexture(GetContext(), texture, params);
+    DX12ScratchBuffer& scratch = GetFrame().m_ScratchBuffer;
+    for (uint32_t frame = 0; frame < 2; ++frame)
+    {
+        m_Context->m_CommandList->SetComputeRootSignature(root.Get());
+        for (uint32_t draw = 0; draw < 20; ++draw)
+        {
+            ASSERT_TRUE(scratch.Prepare(m_Context, 1, 1));
+            scratch.AllocateTexture2D(m_Context, PIPELINE_TYPE_COMPUTE, GetTextureData(texture), 0);
+            scratch.AllocateSampler(m_Context, PIPELINE_TYPE_COMPUTE, m_Context->m_TextureSamplers[0], 1);
+        }
+        ASSERT_EQ(1u, scratch.m_DescriptorPools[0].m_ResourceCursor);
+        ASSERT_EQ(1u, scratch.m_DescriptorPools[0].m_SamplerCursor);
+        DX12TextureSampler changed = m_Context->m_TextureSamplers[0];
+        changed.m_Desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        scratch.AllocateSampler(m_Context, PIPELINE_TYPE_COMPUTE, changed, 1);
+        ASSERT_EQ(2u, scratch.m_DescriptorPools[0].m_SamplerCursor);
+        SubmitAndWait();
+        scratch.Reset(m_Context);
+    }
 }
 
 // Verifies sampler modes and supported format capabilities match DX12 settings.
