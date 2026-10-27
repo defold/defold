@@ -39,7 +39,7 @@
 
 (defn- make-mock-build-target
   [workspace id dep-resources & deps]
-  (let [build-resource (workspace/make-build-resource (workspace/file-resource workspace (str "/resource-" id)))
+  (let [build-resource (workspace/make-build-resource (workspace/file-resource workspace (str "/resource-" id ".txt")))
         user-data (str id)]
     (bt/with-content-hash
       {:resource build-resource
@@ -80,6 +80,7 @@
   `(ts/with-clean-system
      (let [~'workspace (test-util/setup-scratch-workspace! project-path)
            ~'project (test-util/setup-project! ~'workspace)]
+       (g/transact (workspace/register-resource-type ~'workspace :ext "txt"))
        ~@forms)))
 
 (defn- content-bytes

@@ -21,9 +21,6 @@
 
 namespace dmImage
 {
-    // Internal float image type used by the texture build pipeline.
-    static const Type TYPE_RGBA32F = (Type)4;
-
     // https://chromium.googlesource.com/external/github.com/ARM-software/astc-encoder/+/HEAD/Docs/FileFormat.md
     struct AstcHeader
     {

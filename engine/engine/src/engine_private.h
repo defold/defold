@@ -40,8 +40,6 @@
 #include <gamesys/gamesys.h>
 #include <gamesys/component_render.h>
 
-#include <record/record.h>
-
 #include "engine.h"
 #include "engine_service.h"
 #include "engine.h"
@@ -94,20 +92,6 @@ namespace dmEngine
 
         uint32_t m_FrameCount;
         float    m_TotalTime;   // Total running time of the game
-    };
-
-    struct RecordData
-    {
-        RecordData()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-
-        dmRecord::HRecorder m_Recorder;
-        char*               m_Buffer;
-        uint32_t            m_FrameCount;
-        uint32_t            m_FramePeriod;
-        uint32_t            m_Fps;
     };
 
     struct Engine
@@ -188,7 +172,6 @@ namespace dmEngine
         float                                       m_ThrottleCooldown;
         bool                                        m_ThrottleEnabled;
 
-        RecordData                                  m_RecordData;
         void*                                       m_DependenciesJsonResource;
         uint32_t                                    m_DependenciesJsonSize;
         uint8_t                                     m_GuiSafeAreaMode;

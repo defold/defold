@@ -220,11 +220,14 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
 
 static void ExtractURL(const dmMessage::StringURL& url, char* socket, char* path, char* fragment)
 {
-    memcpy(socket, url.m_Socket, url.m_SocketSize);
+    if (url.m_SocketSize)
+        memcpy(socket, url.m_Socket, url.m_SocketSize);
     socket[url.m_SocketSize] = 0;
-    memcpy(path, url.m_Path, url.m_PathSize);
+    if (url.m_PathSize)
+        memcpy(path, url.m_Path, url.m_PathSize);
     path[url.m_PathSize] = 0;
-    memcpy(fragment, url.m_Fragment, url.m_FragmentSize);
+    if (url.m_FragmentSize)
+        memcpy(fragment, url.m_Fragment, url.m_FragmentSize);
     fragment[url.m_FragmentSize] = 0;
 }
 

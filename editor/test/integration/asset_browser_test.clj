@@ -20,6 +20,7 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
+            [editor.gl :as gl]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -34,30 +35,31 @@
       (let [root (g/node-value workspace :resource-tree)]
         (is (= (resource/proj-path root) "/"))))))
 
-(deftest asset-browser-search
-  (testing "Searching for a resource produces a hit and renders a preview"
-    (let [queries ["**/atlas.atlas" "**/env.cubemap"
-                   "**/atlas.sprite" "**/atlas_sprite.go" "**/atlas_sprite.collection"]]
-      (test-util/with-loaded-project
-        (doseq [query queries
-                :let [results (project/find-resources project query)]]
-          (is (= 1 (count results)))
-          (let [resource-node (get (first results) 1)
-                resource (resource-node/resource resource-node)
-                resource-type (resource/resource-type resource)
-                view-type (first (:view-types resource-type))
-                make-preview-fn (:make-preview-fn view-type)
-                view-opts (assoc ((:id view-type) (:view-opts resource-type))
-                            :app-view app-view
-                            :project project)
-                preview (make-preview-fn resource-node view-opts 128 128)]
-            (try
-              (let [image (g/node-value preview :frame)]
-                (is (some? image)))
-              (finally
-                (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
-                  (dispose-preview-fn preview))
-                (g/transact {:undoable false} (g/delete-node preview))))))))))
+(when (gl/supported?)
+  (deftest asset-browser-search
+    (testing "Searching for a resource produces a hit and renders a preview"
+      (let [queries ["**/atlas.atlas" "**/env.cubemap"
+                     "**/atlas.sprite" "**/atlas_sprite.go" "**/atlas_sprite.collection"]]
+        (test-util/with-loaded-project
+          (doseq [query queries
+                  :let [results (project/find-resources project query)]]
+            (is (= 1 (count results)))
+            (let [resource-node (get (first results) 1)
+                  resource (resource-node/resource resource-node)
+                  resource-type (resource/resource-type resource)
+                  view-type (first (:view-types resource-type))
+                  make-preview-fn (:make-preview-fn view-type)
+                  view-opts (assoc ((:id view-type) (:view-opts resource-type))
+                              :app-view app-view
+                              :project project)
+                  preview (make-preview-fn resource-node view-opts 128 128)]
+              (try
+                (let [image (g/node-value preview :frame)]
+                  (is (some? image)))
+                (finally
+                  (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
+                    (dispose-preview-fn preview))
+                  (g/transact {:undoable false} (g/delete-node preview)))))))))))
 
 (deftest allow-resource-move
   (test-util/with-loaded-project

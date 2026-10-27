@@ -59,6 +59,8 @@ struct ResourceDescriptor
     uint32_t        m_ResourceSizeOnDisc;
     uint32_t        m_ReferenceCount;
     uint16_t        m_Version;
+
+    dmResource::LoadTimings m_LoadTimings;
 };
 
 struct ResourceType
@@ -86,21 +88,69 @@ struct ResourceTypeContext
     dmHashTable64<void*>*   m_Contexts;
 };
 
+namespace dmResource
+{
+    struct LoadContext;
+    struct RecreateContext;
+} // namespace dmResource
+
 struct ResourcePreloadHintInfo
 {
-    HResourcePreloader      m_Preloader;
-    int32_t                 m_Parent;
+    dmResource::LoadContext* m_Context;
+    uint32_t                m_Node;
 };
 
 namespace dmResource
 {
 
+    enum LoadProfileStage
+    {
+        LOAD_PROFILE_QUEUE,
+        LOAD_PROFILE_READ,
+        LOAD_PROFILE_PRELOAD,
+        LOAD_PROFILE_CREATE,
+        LOAD_PROFILE_POST_CREATE,
+        LOAD_PROFILE_STAGE_COUNT
+    };
+
+    // Passed with a load request through the worker and any pending PostCreate calls.
+    struct LoadProfile
+    {
+        uint64_t m_StartTime;
+        uint64_t m_Time[LOAD_PROFILE_STAGE_COUNT];
+        uint32_t m_PostCreateCount;
+    };
+
+    uint64_t LoadProfileTime(const LoadProfile* profile);
+    void     LoadProfileBegin(LoadProfile* profile, bool enabled);
+    void     LoadProfileAddTime(LoadProfile* profile, LoadProfileStage stage, uint64_t start);
+    void     LogLoadProfile(const LoadProfile* profile, const char* name, Result result, LoadTimings* timings = 0);
+
+    bool   IsLoadProfilingEnabled(HFactory factory);
+
     Result CheckSuppliedResourcePath(const char* name);
 
-#if !defined(DM_HAS_THREADS)
-    // Only use for single threaded loading! (used in load_queue_sync.cpp)
-    LoadBufferType* GetGlobalLoadBuffer(HFactory factory);
-#endif
+    // Called under the factory load lock. The factory owns any fallback context.
+    HJobContext GetPreloadJobContext(HFactory factory);
+
+    LoadContext* GetLoadContext(HFactory factory);
+    LoadContext* NewLoadContext(HFactory factory);
+    void DeleteLoadContext(LoadContext* context);
+    bool RetainResourceLoadReference(LoadContext* context, dmhash_t path, void* resource);
+    // Internal references follow the resident descriptor across pointer replacement.
+    // The caller must already retain the descriptor through a load hold or reference.
+    void* AcquireResourceReference(HFactory factory, dmhash_t path);
+    void ReleaseResourceReference(HFactory factory, dmhash_t path);
+    // Recreate owns callback scheduling until End. Commit replaces dependencies
+    // on success and restores the previous graph on failure, under the factory
+    // table lock before notifications, allowing pending PostCreate to proceed.
+    // End releases pins outside table locks. Begin returns null during PostCreate
+    // or an ongoing recreation, including notifications and previous-resource destruction.
+    RecreateContext* BeginResourceRecreate(LoadContext* context, dmhash_t path);
+    void CommitResourceRecreate(RecreateContext* recreate, Result result, const ResourceDescriptor* descriptor);
+    void EndResourceRecreate(RecreateContext* recreate);
+    Result RecordResourceLoadGet(LoadContext* context, dmhash_t path);
+    Result LoadResourceSync(HFactory factory, const char* path, HResourceType type, const void* data, uint32_t size, uint32_t file_size, bool provided, void** resource);
 
     // load with default internal buffer and its management, returns buffer ptr in 'buffer'
     Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size);

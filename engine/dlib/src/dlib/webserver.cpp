@@ -62,6 +62,19 @@ namespace dmWebServer
         server->m_StringBytesAllocated = 0;
     }
 
+    static uint32_t HashHeaderName(const char* name)
+    {
+        HashState32 state;
+        dmHashInit32(&state, false);
+        for (; *name; ++name)
+        {
+            // HTTP field names are ASCII and case-insensitive, regardless of locale.
+            char c = *name >= 'A' && *name <= 'Z' ? *name + ('a' - 'A') : *name;
+            dmHashUpdateBuffer32(&state, &c, sizeof(c));
+        }
+        return dmHashFinal32(&state);
+    }
+
     static void AddHeader(Server* server, const char* name, const char* value)
     {
         if (server->m_Headers.Full())
@@ -75,7 +88,7 @@ namespace dmWebServer
         {
             char* p = server->m_StringBuffer + server->m_StringBytesAllocated;
             memcpy(p, value, value_buf_length);
-            uint32_t name_hash = dmHashBufferNoReverse32(name, strlen(name));
+            uint32_t name_hash = HashHeaderName(name);
             server->m_Headers.Put(name_hash, p);
             server->m_StringBytesAllocated += value_buf_length;
         }
@@ -104,6 +117,8 @@ namespace dmWebServer
             return RESULT_INVALID_REQUEST;
         case dmHttpServer::RESULT_ERROR_INVAL:
             return RESULT_ERROR_INVAL;
+        case dmHttpServer::RESULT_TRY_AGAIN:
+            return RESULT_TRY_AGAIN;
         case dmHttpServer::RESULT_INTERNAL_ERROR:
             return RESULT_INTERNAL_ERROR;
         case dmHttpServer::RESULT_UNKNOWN:
@@ -336,9 +351,15 @@ namespace dmWebServer
         return TranslateResult(r);
     }
 
+    Result CloseConnection(Request* request)
+    {
+        InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
+        return TranslateResult(dmHttpServer::CloseConnection(internal_request->m_Request));
+    }
+
     const char* GetHeader(Request* request, const char* name)
     {
-        uint32_t name_hash = dmHashBufferNoReverse32(name, strlen(name));
+        uint32_t name_hash = HashHeaderName(name);
         InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
         const char** value = internal_request->m_Server->m_Headers.Get(name_hash);
         if (value)
@@ -358,11 +379,23 @@ namespace dmWebServer
         return TranslateResult(r);
     }
 
+    Result SendStream(Request* request, uint64_t length, StreamRead read, StreamClose close, void* context)
+    {
+        InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
+        return TranslateResult(dmHttpServer::SendStream(internal_request->m_Request, length, read, close, context));
+    }
+
     Result Receive(Request* request, void* buffer, uint32_t buffer_size, uint32_t* received_bytes)
     {
         InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
         dmHttpServer::Result r = dmHttpServer::Receive(internal_request->m_Request, buffer, buffer_size, received_bytes);
         return TranslateResult(r);
+    }
+
+    Result ReceiveBuffered(Request* request, void* buffer, uint32_t buffer_size)
+    {
+        InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
+        return TranslateResult(dmHttpServer::ReceiveBuffered(internal_request->m_Request, buffer, buffer_size));
     }
 
     Result Update(HServer server)

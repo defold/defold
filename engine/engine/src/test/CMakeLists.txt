@@ -9,6 +9,21 @@ get_filename_component(ENGINE_TEST_ENGINE_ROOT "${ENGINE_TEST_ROOT}/../.." ABSOL
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_package(Java REQUIRED COMPONENTS Runtime)
 
+_defold_find_wasm_runner(_engine_profiler_js_runner)
+if(_engine_profiler_js_runner)
+  set(_engine_profiler_js_command
+    "${_engine_profiler_js_runner}" "${ENGINE_TEST_ROOT}/test_resource_profiler.js")
+  add_custom_target(run_test_resource_profiler_js
+    COMMAND ${_engine_profiler_js_command}
+    USES_TERMINAL VERBATIM)
+  defold_add_to_run_tests(run_test_resource_profiler_js
+    COMMAND ${_engine_profiler_js_command})
+  defold_register_sequential_test_command(resource_profiler_js
+    COMMAND ${_engine_profiler_js_command})
+else()
+  message(WARNING "Bun or Node.js not found; run_test_resource_profiler_js is unavailable")
+endif()
+
 set(ENGINE_PROFILEREXT_LUA_EXPORTS
   ProfilerExt
   ProfilerBasic

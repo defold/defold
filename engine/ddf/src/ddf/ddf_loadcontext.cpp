@@ -33,6 +33,7 @@ namespace dmDDF
         }
         m_DynamicOffsetCursor = 0;
         m_DynamicTypeMemoryTotal = 0;
+        m_DynamicTypeOffset = 0;
     }
 
     Message LoadContext::AllocMessage(const Descriptor* desc)

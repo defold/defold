@@ -902,10 +902,14 @@ void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
                                    config.m_OutlineWidth > 0.0f;
     const float   outline_alpha = !has_base_outline && !markup_outline ? 0.0f : config.m_OutlineColor.getW() * render_data.m_OutlineColor[3];
     const bool    markup_outline_color = markup_outline && (render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_COLOR) != 0;
-    const Vector4 outline_color(markup_outline_color ? render_data.m_OutlineColor[0] : config.m_OutlineColor.getX(),
-                                markup_outline_color ? render_data.m_OutlineColor[1] : config.m_OutlineColor.getY(),
-                                markup_outline_color ? render_data.m_OutlineColor[2] : config.m_OutlineColor.getZ(),
-                                outline_alpha);
+    Vector4 outline_color(0.0f);
+    if (has_base_outline || markup_outline)
+    {
+        outline_color = Vector4(markup_outline_color ? render_data.m_OutlineColor[0] : config.m_OutlineColor.getX(),
+                                    markup_outline_color ? render_data.m_OutlineColor[1] : config.m_OutlineColor.getY(),
+                                    markup_outline_color ? render_data.m_OutlineColor[2] : config.m_OutlineColor.getZ(),
+                                    outline_alpha);
+    }
     layer_data->m_SdfOutline = config.m_SdfOutline;
     layer_data->m_OutlineWidth = 0.0f;
 
@@ -941,10 +945,14 @@ void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
         shadow_alpha = config.m_ShadowColor.getW() * config.m_BaseShadowAlpha * render_data.m_ShadowColor[3];
     }
     const bool    markup_shadow_color = markup_shadow && (render_data.m_StyleFlags & TEXT_RENDER_STYLE_SHADOW_COLOR) != 0;
-    const Vector4 shadow_color(markup_shadow_color ? render_data.m_ShadowColor[0] : config.m_ShadowColor.getX(),
-                               markup_shadow_color ? render_data.m_ShadowColor[1] : config.m_ShadowColor.getY(),
-                               markup_shadow_color ? render_data.m_ShadowColor[2] : config.m_ShadowColor.getZ(),
-                               shadow_alpha);
+    Vector4 shadow_color(0.0f);
+    if (has_base_shadow || markup_shadow)
+    {
+        shadow_color = Vector4(markup_shadow_color ? render_data.m_ShadowColor[0] : config.m_ShadowColor.getX(),
+                                   markup_shadow_color ? render_data.m_ShadowColor[1] : config.m_ShadowColor.getY(),
+                                   markup_shadow_color ? render_data.m_ShadowColor[2] : config.m_ShadowColor.getZ(),
+                                   shadow_alpha);
+    }
     layer_data->m_SdfShadow = config.m_SdfShadow;
 
     if (markup_shadow)
