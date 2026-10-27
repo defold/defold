@@ -12,6 +12,8 @@ endif()
 set(BASISU_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/package/basis_universal-2.50")
 
 # Patch a build copy so the vendored upstream sources remain unchanged.
+# Run Git from the repository root so its subdirectory filter does not skip
+# the absolute build paths used by either patch command.
 find_package(Git REQUIRED)
 set(BASISU_RUNTIME_SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/runtime")
 set(BASISU_RUNTIME_SOURCE "${BASISU_RUNTIME_SOURCE_DIR}/transcoder/basisu_transcoder.cpp")
@@ -24,7 +26,7 @@ add_custom_command(OUTPUT "${BASISU_RUNTIME_SOURCE}" "${BASISU_RUNTIME_HEADER}"
   COMMAND "${GIT_EXECUTABLE}" apply --unsafe-paths
     "--directory=${BASISU_RUNTIME_SOURCE_DIR}" "${CMAKE_CURRENT_LIST_DIR}/defold.patch"
   DEPENDS ${BASISU_RUNTIME_INPUTS} "${CMAKE_CURRENT_LIST_DIR}/defold.patch"
-  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+  WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/../.."
   COMMENT "Applying Basis Universal runtime patches"
   VERBATIM)
 
@@ -60,7 +62,7 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
       "--directory=${BASISU_OFFLINE_SOURCE_DIR}" "${CMAKE_CURRENT_LIST_DIR}/defold-encoder.patch"
     DEPENDS "${BASISU_SOURCE_DIR}/encoder/basisu_comp.cpp"
             "${CMAKE_CURRENT_LIST_DIR}/defold-encoder.patch"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/../.."
     COMMENT "Applying Basis Universal UASTC color metadata fix"
     VERBATIM)
 
