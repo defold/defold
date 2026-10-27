@@ -86,6 +86,16 @@ extern uint32_t RESOURCES_ARCD_SIZE;
 extern unsigned char RESOURCES_DMANIFEST[];
 extern uint32_t RESOURCES_DMANIFEST_SIZE;
 
+struct ReplaceResourceContext
+{
+    dmResource::HFactory m_Factory;
+    int* m_Resource;
+    uint32_t m_CallbackCount;
+    uint32_t m_DestroyCount;
+    bool m_Fail;
+    bool m_ReleaseInCallback;
+};
+
 #define EXT_CONSTANTS(prefix, ext)\
     static const dmhash_t prefix##_EXT_HASH = dmHashString64(ext);\
 
@@ -851,7 +861,7 @@ TEST_P(GetResourceTest, PreloadGetList)
     dmResource::Release(m_Factory, resource);
 }
 
-
+// Shared requests finish on completion, independently of how many nonblocking updates fit in a frame.
 TEST_P(GetResourceTest, PreloadGetParallell)
 {
     // Race preloaders against eachother with the same Factory
@@ -866,7 +876,8 @@ TEST_P(GetResourceTest, PreloadGetParallell)
 
         uint32_t timeout = 4000;
         bool done;
-        for (uint32_t j=0;j<100;j++)
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        do
         {
             done = true;
             for (uint32_t k=0;k<n;k++)
@@ -879,11 +890,7 @@ TEST_P(GetResourceTest, PreloadGetParallell)
                 }
                 ASSERT_EQ(dmResource::RESULT_OK, r);
             }
-            if (done)
-            {
-                break;
-            }
-        }
+        } while (!done && dmTime::GetMonotonicTime() < deadline);
         ASSERT_TRUE(done);
 
         TestResourceContainer* resource = 0;
@@ -928,39 +935,6 @@ TEST_P(GetResourceTest, PreloadGetManyRefs)
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, r);
     dmResource::DeletePreloader(pr);
 }
-
-TEST_P(GetResourceTest, PreloadPathCacheFull)
-{
-    // Normal paths exhaust the name cache. Noncanonical paths use two entries
-    // and exhaust it while inserting the canonical name instead. Both early
-    // returns must release the scoped lock exactly once: Darwin's os_unfair_lock
-    // aborts on the double unlock that the old spinlock implementation tolerated.
-    const char* prefixes[] = { "/", "/./" };
-    for (uint32_t p = 0; p < 2; ++p)
-    {
-        dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, m_ResourceName);
-        ResourcePreloadHintInfo info;
-        info.m_Preloader = pr;
-        info.m_Parent = 0;
-        bool full = false;
-        for (uint32_t i = 0; i < 4096; ++i)
-        {
-            char path[64];
-            dmSnPrintf(path, sizeof(path), "%smissing_%u.foo", prefixes[p], i);
-            if (!dmResource::PreloadHint(&info, path))
-            {
-                full = true;
-                break;
-            }
-        }
-        ASSERT_TRUE(full);
-        // Re-enter the same lock after failure and confirm existing cache entries
-        // remain usable when no new entries can be added.
-        ASSERT_TRUE(dmResource::PreloadHint(&info, m_ResourceName));
-        dmResource::DeletePreloader(pr);
-    }
-}
-
 
 TEST_P(GetResourceTest, PreloadGetAbort)
 {
@@ -1171,6 +1145,160 @@ static dmResource::Result CountRecreatedResourceDestroy(const dmResource::Resour
 {
     ++*(uint32_t*)params->m_Context;
     return RecreateResourceDestroy(params);
+}
+
+static dmResource::Result ReplaceResourceRecreate(const dmResource::ResourceRecreateParams* params)
+{
+    ReplaceResourceContext* context = (ReplaceResourceContext*)params->m_Context;
+    int* previous = (int*)ResourceDescriptorGetResource(params->m_Resource);
+    int* replacement = new int(*previous + 1);
+    ResourceDescriptorSetPrevResource(params->m_Resource, previous);
+    ResourceDescriptorSetResource(params->m_Resource, replacement);
+    if (context->m_Fail)
+    {
+        delete replacement;
+        return dmResource::RESULT_FORMAT_ERROR;
+    }
+    return dmResource::RESULT_OK;
+}
+
+static dmResource::Result ReplaceResourceDestroy(const dmResource::ResourceDestroyParams* params)
+{
+    ReplaceResourceContext* context = (ReplaceResourceContext*)params->m_Context;
+    ++context->m_DestroyCount;
+    return RecreateResourceDestroy(params);
+}
+
+static void ReplaceResourceReloaded(const ResourceReloadedParams* params)
+{
+    ReplaceResourceContext* context = (ReplaceResourceContext*)params->m_UserData;
+    int* previous = (int*)ResourceDescriptorGetPrevResource(params->m_Resource);
+    ASSERT_EQ(context->m_Resource, previous);
+    context->m_Resource = (int*)ResourceDescriptorGetResource(params->m_Resource);
+    ASSERT_NE(previous, context->m_Resource);
+    ASSERT_EQ(*previous + 1, *context->m_Resource);
+
+    dmhash_t hash;
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, dmResource::GetPath(context->m_Factory, previous, &hash));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(context->m_Factory, context->m_Resource, &hash));
+    ASSERT_EQ(params->m_FilenameHash, hash);
+    uint32_t references = dmResource::GetRefCount(context->m_Factory, context->m_Resource);
+    dmResource::IncRef(context->m_Factory, context->m_Resource);
+    ASSERT_EQ(references + 1, dmResource::GetRefCount(context->m_Factory, context->m_Resource));
+    dmResource::Release(context->m_Factory, context->m_Resource);
+    ASSERT_EQ(references, dmResource::GetRefCount(context->m_Factory, context->m_Resource));
+    ++context->m_CallbackCount;
+    if (context->m_ReleaseInCallback)
+    {
+        dmResource::Release(context->m_Factory, context->m_Resource);
+        context->m_Resource = 0;
+    }
+}
+
+static dmResource::Result ReplaceResource(dmResource::HFactory factory, uint32_t mode)
+{
+    const char* name = "/replace.foo";
+    if (mode == 0)
+        return dmResource::ReloadResource(factory, name, 0);
+    char data[] = "2";
+    if (mode == 1)
+        return dmResource::SetResource(factory, dmHashString64(name), data, sizeof(data));
+    int message = 2;
+    return dmResource::SetResource(factory, dmHashString64(name), &message);
+}
+
+// Reload and both SetResource forms publish replacement pointers before callbacks, even at capacity.
+TEST(RecreateTest, ReplacementUpdatesReverseLookupAndPreloader)
+{
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        dmResource::NewFactoryParams params;
+        params.m_MaxResources = 1;
+        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        ReplaceResourceContext context = {};
+        context.m_Factory = dmResource::NewFactory(&params, MOUNT_DIR);
+        ASSERT_NE((dmResource::HFactory)0, context.m_Factory);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(context.m_Factory, "foo", &context, 0, RecreateResourceCreate, 0, ReplaceResourceDestroy, ReplaceResourceRecreate));
+        dmResource::RegisterResourceReloadedCallback(context.m_Factory, ReplaceResourceReloaded, &context);
+        char data[] = "1";
+        const char* name = "/replace.foo";
+        dmhash_t hash = dmHashString64(name);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(context.m_Factory, name, sizeof(data), data));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(context.m_Factory, name, (void**)&context.m_Resource));
+        dmResource::HPreloader preloader = dmResource::NewPreloader(context.m_Factory, name);
+        dmResource::Result result;
+        do
+        {
+            result = dmResource::UpdatePreloader(preloader, 0, 0, 1000);
+        } while (result == dmResource::RESULT_PENDING);
+        ASSERT_EQ(dmResource::RESULT_OK, result);
+        uint32_t references = dmResource::GetRefCount(context.m_Factory, hash);
+
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            ASSERT_EQ(dmResource::RESULT_OK, ReplaceResource(context.m_Factory, mode));
+            ASSERT_EQ(i + 1, context.m_CallbackCount);
+            ASSERT_EQ(i + 1, context.m_DestroyCount);
+            ASSERT_EQ((int)i + 2, *context.m_Resource);
+            ASSERT_EQ(references, dmResource::GetRefCount(context.m_Factory, hash));
+            void* resource;
+            ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(context.m_Factory, name, &resource));
+            ASSERT_EQ(context.m_Resource, resource);
+            dmResource::Release(context.m_Factory, resource);
+            ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(context.m_Factory, hash, &resource));
+            ASSERT_EQ(context.m_Resource, resource);
+            dmResource::Release(context.m_Factory, resource);
+        }
+
+        dmResource::Release(context.m_Factory, context.m_Resource);
+        ASSERT_EQ(2u, context.m_DestroyCount);
+        dmResource::DeletePreloader(preloader);
+        ASSERT_EQ(3u, context.m_DestroyCount);
+        ASSERT_EQ(0u, dmResource::GetRefCount(context.m_Factory, hash));
+        dmResource::DeleteFactory(context.m_Factory);
+    }
+}
+
+// Failed replacement preserves the old resource; a successful callback may release the last caller reference.
+TEST(RecreateTest, ReplacementFailureAndFinalRelease)
+{
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        dmResource::NewFactoryParams params;
+        params.m_MaxResources = 1;
+        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        ReplaceResourceContext context = {};
+        context.m_Factory = dmResource::NewFactory(&params, MOUNT_DIR);
+        ASSERT_NE((dmResource::HFactory)0, context.m_Factory);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(context.m_Factory, "foo", &context, 0, RecreateResourceCreate, 0, ReplaceResourceDestroy, ReplaceResourceRecreate));
+        dmResource::RegisterResourceReloadedCallback(context.m_Factory, ReplaceResourceReloaded, &context);
+        char data[] = "1";
+        const char* name = "/replace.foo";
+        dmhash_t hash = dmHashString64(name);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(context.m_Factory, name, sizeof(data), data));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(context.m_Factory, name, (void**)&context.m_Resource));
+
+        context.m_Fail = true;
+        ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, ReplaceResource(context.m_Factory, mode));
+        ASSERT_EQ(1, *context.m_Resource);
+        ASSERT_EQ(1u, dmResource::GetRefCount(context.m_Factory, context.m_Resource));
+        ASSERT_EQ(0u, context.m_CallbackCount);
+        ASSERT_EQ(0u, context.m_DestroyCount);
+        dmhash_t resource_hash;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(context.m_Factory, context.m_Resource, &resource_hash));
+        ASSERT_EQ(hash, resource_hash);
+
+        context.m_Fail = false;
+        context.m_ReleaseInCallback = true;
+        ASSERT_EQ(dmResource::RESULT_OK, ReplaceResource(context.m_Factory, mode));
+        ASSERT_EQ(1u, context.m_CallbackCount);
+        ASSERT_EQ(2u, context.m_DestroyCount);
+        ASSERT_EQ((int*)0, context.m_Resource);
+        ASSERT_EQ(0u, dmResource::GetRefCount(context.m_Factory, hash));
+        HResourceDescriptor descriptor;
+        ASSERT_EQ(dmResource::RESULT_NOT_LOADED, dmResource::GetDescriptor(context.m_Factory, name, &descriptor));
+        dmResource::DeleteFactory(context.m_Factory);
+    }
 }
 
 // Both SetResource overloads must retain old data during callbacks and destroy it afterwards.

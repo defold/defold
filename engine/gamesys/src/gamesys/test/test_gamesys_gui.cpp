@@ -17,6 +17,11 @@
 
 using namespace dmVMath;
 
+struct PreloadedFont
+{
+    dmGameSystem::FontResource* m_Font;
+};
+
 static FontResult GetGlyph(dmRender::HFontMap font_map, HFont font, uint32_t codepoint, FontGlyph** glyph)
 {
     if (!font)
@@ -1020,6 +1025,216 @@ static bool WaitForDynamicFontJobCallbacks(HJobContext job_context, DynamicFontJ
         dmTime::Sleep(1000);
     }
     return state->m_CallbackCount >= callback_count;
+}
+
+static int32_t FontLoadUnrelatedProcess(HJobContext, HJob, void*, void*)
+{
+    return 0;
+}
+
+static void FontLoadUnrelatedCallback(HJobContext, HJob, JobSystemStatus, void* context, void*, int32_t)
+{
+    ++*(uint32_t*)context;
+}
+
+static dmResource::Result FontLoadPreload(const dmResource::ResourcePreloadParams* params)
+{
+    PreloadedFont* resource = new PreloadedFont;
+    dmResource::Result result = dmResource::Get(params->m_Factory, "/font/dyn_negative_ascent.fontc", (void**)&resource->m_Font);
+    if (result != dmResource::RESULT_OK)
+    {
+        delete resource;
+        return result;
+    }
+    *params->m_PreloadData = resource;
+    return dmResource::RESULT_OK;
+}
+
+static dmResource::Result FontLoadCreate(const dmResource::ResourceCreateParams* params)
+{
+    dmResource::SetResource(params->m_Resource, params->m_PreloadData);
+    return dmResource::RESULT_OK;
+}
+
+static dmResource::Result FontLoadDestroy(const dmResource::ResourceDestroyParams* params)
+{
+    PreloadedFont* resource = (PreloadedFont*)dmResource::GetResource(params->m_Resource);
+    dmResource::Release(params->m_Factory, resource->m_Font);
+    delete resource;
+    return dmResource::RESULT_OK;
+}
+
+// A Preload callback occupying the only job worker can synchronously load and prewarm a font.
+TEST_F(FontTest, SynchronousPrewarmFromPreloadJob)
+{
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(m_Factory, "preloadfont", 0, FontLoadPreload, FontLoadCreate, 0, FontLoadDestroy, 0));
+    const char data = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, "/test.preloadfont", sizeof(data), &data));
+    dmResource::HPreloader preloader = dmResource::NewPreloader(m_Factory, "/test.preloadfont");
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    dmResource::Result result = dmResource::RESULT_PENDING;
+    while (result == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() < deadline)
+        result = dmResource::UpdatePreloader(preloader, 0, 0, 1000);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    PreloadedFont* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test.preloadfont", (void**)&resource));
+    ASSERT_TRUE(resource->m_Font->m_PrewarmDone);
+    ASSERT_TRUE(resource->m_Font->m_PendingJobs.Empty());
+    dmResource::DeletePreloader(preloader);
+    dmResource::Release(m_Factory, resource);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, "/test.preloadfont"));
+}
+
+// Loading and prewarming a dynamic font completes without dispatching unrelated shared callbacks.
+TEST_F(FontTest, SynchronousPrewarmLeavesSharedCallbacksToOwner)
+{
+    uint32_t callbacks = 0;
+    Job job = {};
+    job.m_Process = FontLoadUnrelatedProcess;
+    job.m_Callback = FontLoadUnrelatedCallback;
+    job.m_Context = &callbacks;
+    JobSystemPushJob(m_JobContext, JobSystemCreateJob(m_JobContext, &job));
+
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_negative_ascent.fontc", (void**)&font));
+    ASSERT_EQ(0u, callbacks);
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_EQ((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+    HFont hfont = FontCollectionGetFont(dmRender::GetFontCollection(font_map), 0);
+    for (uint32_t codepoint = '!'; codepoint <= '~'; ++codepoint)
+    {
+        FontGlyph* glyph = 0;
+        ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, codepoint, &glyph));
+        ASSERT_NE((FontGlyph*)0, glyph);
+    }
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    dmResource::Release(m_Factory, font);
+
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!callbacks && dmTime::GetMonotonicTime() < deadline)
+        JobSystemUpdate(m_JobContext, 0);
+    ASSERT_EQ(1u, callbacks);
+}
+
+// Asynchronous preloading consumes font results through PostCreate without any shared job-system updates.
+TEST_F(FontTest, AsyncPrewarmCompletesThroughResourceUpdates)
+{
+    dmResource::HPreloader preloader = dmResource::NewPreloader(m_Factory, "/font/dyn_negative_ascent.fontc");
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    dmResource::Result result = dmResource::RESULT_PENDING;
+    while (result == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() < deadline)
+        result = dmResource::UpdatePreloader(preloader, 0, 0, 1000);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_negative_ascent.fontc", (void**)&font));
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    dmResource::Release(m_Factory, font);
+    dmResource::DeletePreloader(preloader);
+}
+
+// Reloading before PostCreate replaces the pending batch without making the load depend on shared callbacks.
+TEST_F(FontTest, ReloadDuringPrewarmKeepsResourceOwnedCompletion)
+{
+    const char* path = "/font/dyn_negative_ascent.fontc";
+    dmResource::HPreloader preloader = dmResource::NewPreloader(m_Factory, path);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    ResourceDescriptor* descriptor = 0;
+    while (!descriptor && dmTime::GetMonotonicTime() < deadline)
+    {
+        dmResource::UpdatePreloader(preloader, 0, 0, 0);
+        descriptor = dmResource::FindByHash(m_Factory, dmHashString64(path));
+    }
+    ASSERT_NE((ResourceDescriptor*)0, descriptor);
+    dmGameSystem::FontResource* font = (dmGameSystem::FontResource*)dmResource::GetResource(descriptor);
+    ASSERT_NE((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path, 0));
+    ASSERT_NE((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+
+    dmResource::Result result = dmResource::RESULT_PENDING;
+    while (result == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() < deadline)
+        result = dmResource::UpdatePreloader(preloader, 0, 0, 1000);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    dmResource::DeletePreloader(preloader);
+}
+
+// Adding characters before the first PostCreate must retain resource-owned completion even without an old batch.
+TEST_F(FontTest, RecreateAddsPrewarmBeforePostCreate)
+{
+    const char* path = "/font/dyn_negative_ascent_empty.fontc";
+    dmResource::HPreloader preloader = dmResource::NewPreloader(m_Factory, path);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    ResourceDescriptor* descriptor = 0;
+    while (!descriptor && dmTime::GetMonotonicTime() < deadline)
+    {
+        dmResource::UpdatePreloader(preloader, 0, 0, 0);
+        descriptor = dmResource::FindByHash(m_Factory, dmHashString64(path));
+    }
+    ASSERT_NE((ResourceDescriptor*)0, descriptor);
+    dmGameSystem::FontResource* font = (dmGameSystem::FontResource*)dmResource::GetResource(descriptor);
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_EQ((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+
+    dmRenderDDF::FontMap replacement = *font->m_DDF;
+    replacement.m_Characters = "A";
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&replacement, dmRenderDDF::FontMap::m_DDFDescriptor, buffer));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    ASSERT_FALSE(font->m_PrewarmDone);
+    ASSERT_NE((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+
+    dmResource::Result result = dmResource::RESULT_PENDING;
+    while (result == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() < deadline)
+        result = dmResource::UpdatePreloader(preloader, 0, 0, 1000);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    HFont hfont = FontCollectionGetFont(dmGameSystem::ResFontGetFontCollection(font), 0);
+    FontGlyph* glyph = 0;
+    ASSERT_EQ(FONT_RESULT_OK, GetGlyph(dmGameSystem::ResFontGetHandle(font), hfont, 'A', &glyph));
+    ASSERT_NE((FontGlyph*)0, glyph);
+    ASSERT_GT(glyph->m_Bitmap.m_Height, 0u);
+
+    // Once PostCreate has finished, recreation uses the normal runtime job callbacks.
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    ASSERT_EQ((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+    while (!font->m_PrewarmDone && dmTime::GetMonotonicTime() < deadline)
+        JobSystemUpdate(m_JobContext, 0);
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    dmResource::DeletePreloader(preloader);
+}
+
+// An empty font still finishes PostCreate, so later recreation must use runtime callbacks for new characters.
+TEST_F(FontTest, RecreateAddsPrewarmAfterEmptyPostCreate)
+{
+    const char* path = "/font/dyn_negative_ascent_empty.fontc";
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, (void**)&font));
+    ASSERT_TRUE(font->m_PrewarmDone);
+
+    dmRenderDDF::FontMap replacement = *font->m_DDF;
+    replacement.m_Characters = "A";
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&replacement, dmRenderDDF::FontMap::m_DDFDescriptor, buffer));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    ASSERT_FALSE(font->m_PrewarmDone);
+    ASSERT_EQ((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!font->m_PrewarmDone && dmTime::GetMonotonicTime() < deadline)
+        JobSystemUpdate(m_JobContext, 0);
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    HFont hfont = FontCollectionGetFont(dmGameSystem::ResFontGetFontCollection(font), 0);
+    FontGlyph* glyph = 0;
+    ASSERT_EQ(FONT_RESULT_OK, GetGlyph(dmGameSystem::ResFontGetHandle(font), hfont, 'A', &glyph));
+    ASSERT_NE((FontGlyph*)0, glyph);
+    ASSERT_GT(glyph->m_Bitmap.m_Height, 0u);
+    dmResource::Release(m_Factory, font);
 }
 
 TEST_F(FontTest, DynamicFontPrewarmedGlyphsFitCacheRows)
