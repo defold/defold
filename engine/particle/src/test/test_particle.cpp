@@ -2439,8 +2439,10 @@ TEST_F(ParticleTest, PackedVertexWriterMatchesGeneric)
                 {
                     const uint8_t* a = actual + v * infos.m_VertexStride;
                     const uint8_t* e = expected + v * infos.m_VertexStride;
-                    // Point3's fourth lane is padding, not a position component.
-                    ASSERT_EQ(0, memcmp(a, e, 3 * sizeof(float)));
+                    float position_w;
+                    memcpy(&position_w, a + 3 * sizeof(float), sizeof(position_w));
+                    ASSERT_EQ(1.0f, position_w);
+                    ASSERT_EQ(0, memcmp(a, e, 4 * sizeof(float)));
                     ASSERT_EQ(0, memcmp(a + 16, e + 20, 2 * sizeof(float)));
                     ASSERT_EQ(0, memcmp(a + 24, e + 16, 4));
                     if (paged)
@@ -2457,7 +2459,7 @@ TEST_F(ParticleTest, PackedVertexWriterMatchesGeneric)
                 for (uint32_t v = 0; v < 12; ++v)
                 {
                     uint32_t offset = v * infos.m_VertexStride;
-                    ASSERT_EQ(0, memcmp(actual + offset, truncated + offset, 3 * sizeof(float)));
+                    ASSERT_EQ(0, memcmp(actual + offset, truncated + offset, 4 * sizeof(float)));
                     ASSERT_EQ(0, memcmp(actual + offset + 16, truncated + offset + 16, infos.m_VertexStride - 16));
                 }
                 ASSERT_EQ(0xcd, truncated[truncated_size]);
@@ -2523,8 +2525,8 @@ TEST_F(ParticleTest, GenericNormalizedColorVertexData)
             {
                 const float* expected = reference + v * (10 + paged);
                 const uint8_t* actual = packed + batch * particle_size + v * infos.m_VertexStride;
-                // Point3 padding is not a position component; builtin shaders use xyz.
-                ASSERT_EQ(0, memcmp(expected, actual, 3 * sizeof(float)));
+                ASSERT_EQ(1.0f, expected[3]);
+                ASSERT_EQ(0, memcmp(expected, actual, 4 * sizeof(float)));
                 ASSERT_EQ(0, memcmp(expected + 8, actual + 20, (2 + paged) * sizeof(float)));
                 for (uint32_t c = 0; c < 4; ++c)
                     ASSERT_NEAR(expected[4 + c], actual[16 + c] / 255.0f, 0.5f / 255.0f);
@@ -2586,6 +2588,7 @@ TEST_F(ParticleTest, UpdateRenderDataRefreshesTransformChangesInFrame)
 /**
  * Verify that local position vertex attributes are unaffected by the instance transform.
  * World positions should change when we move the instance; local positions must stay the same.
+ * Both vec4 position attributes must have w = 1, never uninitialized Point3 padding.
  */
 TEST_F(ParticleTest, LocalPositionUnaffectedByTransform)
 {
@@ -2619,6 +2622,8 @@ TEST_F(ParticleTest, LocalPositionUnaffectedByTransform)
     float local_pos_first[6 * 4];
     for (uint32_t i = 0; i < 6; ++i)
     {
+        ASSERT_EQ(1.0f, vertex_buffer[i].m_WorldW);
+        ASSERT_EQ(1.0f, vertex_buffer[i].m_LocalW);
         local_pos_first[i*4 + 0] = vertex_buffer[i].m_LocalX;
         local_pos_first[i*4 + 1] = vertex_buffer[i].m_LocalY;
         local_pos_first[i*4 + 2] = vertex_buffer[i].m_LocalZ;
@@ -2632,6 +2637,8 @@ TEST_F(ParticleTest, LocalPositionUnaffectedByTransform)
 
     for (uint32_t v = 0; v < 6; ++v)
     {
+        ASSERT_EQ(1.0f, vertex_buffer[v].m_WorldW);
+        ASSERT_EQ(1.0f, vertex_buffer[v].m_LocalW);
         ASSERT_NEAR(local_pos_first[v*4+0], vertex_buffer[v].m_LocalX, EPSILON);
         ASSERT_NEAR(local_pos_first[v*4+1], vertex_buffer[v].m_LocalY, EPSILON);
         ASSERT_NEAR(local_pos_first[v*4+2], vertex_buffer[v].m_LocalZ, EPSILON);
