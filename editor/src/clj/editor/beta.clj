@@ -23,6 +23,7 @@
             [editor.markdown-view :as markdown-view]
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
+            [editor.progress :as progress]
             [editor.system :as system]
             [editor.ui :as ui]
             [editor.updater :as updater]
@@ -78,6 +79,8 @@
 
 (defonce ^:private busy (atom false))
 
+(defonce ^:private cached-offer (atom nil))
+
 (defn try-active? []
   (eligible? (Platform/getHostPlatform)))
 
@@ -124,14 +127,20 @@
 (defn try!
   "Offers to open the beta download link in the web browser. Returns the future
   doing so, or nil if disabled or already busy."
-  [^Stage stage notifications-node project prefs localization]
+  [^Stage stage notifications-node project prefs localization render-progress!]
   (when (and (try-enabled?) (compare-and-set! busy false true))
     (future
       (try
+        (render-progress! (progress/make-indeterminate (localization/message "progress.checking-beta")))
         (let [info (fetch-info!)
               version (:version info)
               newer (and info (newer-than-running? version))
-              markdown (when newer (fetch-release-notes! version))]
+              cached @cached-offer
+              markdown (when newer
+                         (or (when (= version (:version (:info cached)))
+                               (:markdown cached))
+                             (fetch-release-notes! version)))]
+          (render-progress! progress/done)
           (ui/run-later
             (try
               (when (.isShowing stage)
@@ -160,15 +169,18 @@
               (finally
                 (reset! busy false)))))
         (catch Throwable e
+          (render-progress! progress/done)
           (reset! busy false)
           (log/warn :message "Failed to check for beta" :exception e))))))
 
-(defn suggest! [^Stage stage notifications-node project git prefs localization]
+(defn suggest! [^Stage stage notifications-node project git prefs localization render-progress!]
   (when (= "beta" (system/defold-channel))
     (prefs/set! prefs [:versioning :ran-beta] true))
   (when git
     (future
       (when-let [info (check-once! prefs (Platform/getHostPlatform))]
+        (reset! cached-offer {:info info
+                              :markdown (fetch-release-notes! (:version info))})
         (ui/run-later
           (when (and (.isShowing stage)
                      (not (prefs/get prefs [:versioning :beta-suggestions-disabled])))
@@ -178,6 +190,6 @@
                :id ::suggestion
                :message (localization/message "beta.notification.available" {"version" (:version info)})
                :actions [{:message (localization/message "beta.notification.try-it")
-                          :on-action #(try! stage notifications-node project prefs localization)}
+                          :on-action #(try! stage notifications-node project prefs localization render-progress!)}
                          {:message (localization/message "beta.button.do-not-suggest")
                           :on-action #(prefs/set! prefs [:versioning :beta-suggestions-disabled] true)}]})))))))

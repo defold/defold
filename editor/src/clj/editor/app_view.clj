@@ -787,7 +787,8 @@
    :resource-sync progress/done
    :save-all progress/done
    :fetch-libraries progress/done
-   :download-update progress/done})
+   :download-update progress/done
+   :beta-check progress/done})
 
 (def ^:private app-task-state
   (atom {:progress initial-app-task-progress
@@ -795,7 +796,7 @@
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
-  [:save-all :resource-sync :fetch-libraries :build :download-update :main])
+  [:save-all :resource-sync :fetch-libraries :build :download-update :beta-check :main])
 
 (def status-bar-controls-delay
   (delay
@@ -2914,7 +2915,7 @@
          (some? (g/node-value changes-view :git evaluation-context))))
   (enabled? [] (beta/try-enabled?))
   (run [workspace project main-stage prefs localization]
-    (beta/try! main-stage (workspace/notifications workspace) project prefs localization)))
+    (beta/try! main-stage (workspace/notifications workspace) project prefs localization (make-render-task-progress :beta-check))))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
   (let [basis (:basis evaluation-context)
