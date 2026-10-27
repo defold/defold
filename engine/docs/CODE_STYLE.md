@@ -10,7 +10,7 @@ uncrustify -c engine/.uncrustify.cfg -l CPP --replace --no-backup path/to/file.c
 
 Use `-l C` for C sources and C API headers, including public `dmsdk` headers intended for C. Use `-l CPP` for C++ or mixed C/C++ headers. Choose by the header's contents; `.h` is used for both languages.
 
-Always format new files in full. For existing files, format a temporary copy of the whole file and apply only formatting changes around the lines you edited. Uncrustify has no native changed-line mode. Preserve intentional alignment and manual line breaks.
+Always format new files in full. For existing files, format a temporary copy of the whole file and apply only formatting changes around the lines you edited. Uncrustify has no native changed-line mode. Preserve existing local declaration spacing, intentional alignment, and manual line breaks.
 
 ## C-like C++
 
