@@ -741,6 +741,7 @@ namespace dmGraphics
 
     void HashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
     {
+        // Exclude uninitialized padding inserted by the compiler for struct alignment.
         for (uint32_t i = 0; i < vertex_declaration->m_StreamCount; ++i)
         {
             const VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
