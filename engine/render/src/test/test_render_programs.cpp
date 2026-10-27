@@ -38,6 +38,20 @@ namespace dmGraphics
     extern const Vector4& GetConstantV4Ptr(dmGraphics::HContext context, dmGraphics::HUniformLocation base_register);
 }
 
+// Reinitialized stencil state must produce the same text batch key despite old padding bits.
+TEST(StencilTestParams, StableBatchKey)
+{
+    dmRender::StencilTestParams first;
+    dmRender::StencilTestParams second;
+    memset(&first, 0x55, sizeof(first));
+    memset(&second, 0xaa, sizeof(second));
+    first.Init();
+    second.Init();
+    ASSERT_EQ(dmHashBuffer64(&first, sizeof(first)), dmHashBuffer64(&second, sizeof(second)));
+    second.m_Ref = 1;
+    ASSERT_NE(dmHashBuffer64(&first, sizeof(first)), dmHashBuffer64(&second, sizeof(second)));
+}
+
 class RenderProgramTestBase : public jc_test_base_class
 {
 public:
