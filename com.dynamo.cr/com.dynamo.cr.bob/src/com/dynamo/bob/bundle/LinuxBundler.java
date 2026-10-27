@@ -91,6 +91,8 @@ public class LinuxBundler implements IBundler {
 
     // The unstripped engine is placed next to the app folder, so it isn't shipped with the game
     public static void copySymbols(Project project, Platform platform, File binaryDir, File bundleDir, String exeName) throws IOException {
+        File symbolsOut = new File(bundleDir, getExeFilename(platform, exeName) + ".debug");
+        FileUtils.deleteQuietly(symbolsOut);
         if (!project.hasOption("with-symbols")) {
             return;
         }
@@ -99,7 +101,6 @@ public class LinuxBundler implements IBundler {
             logger.warning("Debug symbols not found: %s", unstripped.getAbsolutePath());
             return;
         }
-        File symbolsOut = new File(bundleDir, getExeFilename(platform, exeName) + ".debug");
         logger.info("Copy debug symbols " + symbolsOut);
         FileUtils.copyFile(unstripped, symbolsOut);
     }

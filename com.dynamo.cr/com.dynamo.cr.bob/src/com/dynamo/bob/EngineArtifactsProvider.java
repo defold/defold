@@ -85,6 +85,10 @@ public final class EngineArtifactsProvider {
                 String symbolsFilename = getSymbolsFilenameForPlatform(p, variantSuffix);
 
                 if (symbolsFilename != null) {
+                    if (p.getOsID() == OS.OS_ID_LINUX) {
+                        // Not removed by cleanEngines(), so a failed download must not leave symbols from an earlier build
+                        FileUtils.deleteQuietly(new File(new File(project.getBinaryOutputDirectory(), p.getExtenderPair()), LINUX_UNSTRIPPED_ENGINE_NAME));
+                    }
                     try {
                         String fallbackKey = (p != null) ? p.getOs() : null;
                         File cached = getOrDownloadArtifact(Bob.ARTIFACTS_URL, platformKey, symbolsFilename, fallbackKey, false);
