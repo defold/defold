@@ -107,7 +107,7 @@ public class PluginScanner {
 		
 		List<T> plugins = new ArrayList<>();
 		Set<String> classNames = scanner.scan(packageName);
-		for (String className : classNames) {
+		for (String className : Project.filterClassNames(classNames)) {
 			try {
 				Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
 				// check that the class extends or is of type pluginBaseClass and that it is not abstract

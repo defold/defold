@@ -408,11 +408,10 @@ public class Project implements AutoCloseable {
         return null;
     }
 
-    @SuppressWarnings("unchecked")
-    private void doScan(IClassScanner scanner, Set<String> classNames) {
-        TimeProfiler.start("doScan");
+    // Builder and plugin discovery must exclude the same unavailable classes in Bob Light.
+    public static List<String> filterClassNames(Set<String> classNames) {
         boolean is_bob_light = getManifestInfo("is-bob-light") != null;
-        List<String> filteredClassNames = classNames.stream()
+        return classNames.stream()
                 .filter(className ->
                         // classes with static initializers we don't want to initialize on this stage
                         !className.startsWith("com.dynamo.bob.pipeline.TexcLibrary") &&
@@ -427,7 +426,12 @@ public class Project implements AutoCloseable {
                         !(is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) &&
                         !(is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper")))
                 .toList();
-        for (String className : filteredClassNames) {
+    }
+
+    @SuppressWarnings("unchecked")
+    private void doScan(IClassScanner scanner, Set<String> classNames) {
+        TimeProfiler.start("doScan");
+        for (String className : filterClassNames(classNames)) {
             try {
                 TimeProfiler.start(className);
                 Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
