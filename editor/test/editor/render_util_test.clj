@@ -45,7 +45,7 @@
         #"Expected Pose or Matrix4d"
         (render-util/make-outlined-textured-quad-scene #{} ::invalid 10 20 @texture/white-pixel 0))))
 
-;; Tone-mapped previews use separate batches so LDR quads keep their own shader.
+;; Tone-mapped previews use separate batches so SDR quads keep their own shader.
 (deftest tone-mapped-textured-quad-uses-separate-shader-test
   (let [regular-scene (render-util/make-outlined-textured-quad-scene #{} pose/default 10 20 @texture/white-pixel 0)
         tone-mapped-scene (render-util/make-outlined-tone-mapped-textured-quad-scene #{} pose/default 10 20 @texture/white-pixel 0)]

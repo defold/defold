@@ -246,12 +246,12 @@
   [^GL3 gl render-args renderables _renderable-count]
   (let [first-renderable (first renderables)
         user-data (:user-data first-renderable)
-        textured-quad-shader (:shader user-data)
+        shader (:shader user-data)
         gpu-texture (:gpu-texture user-data @texture/white-pixel)
         vertex-buffer (make-textured-quad-vertex-buffer renderables)
-        vertex-binding (vtx/use-with ::textured-quad vertex-buffer textured-quad-shader)]
-    (gl/with-gl-bindings gl render-args [textured-quad-shader vertex-binding gpu-texture]
-      (shader/set-samplers-by-index textured-quad-shader gl 0 (:texture-units gpu-texture))
+        vertex-binding (vtx/use-with ::textured-quad vertex-buffer shader)]
+    (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
+      (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
       (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vertex-buffer)))))
 
 (defn- make-textured-quad-renderable

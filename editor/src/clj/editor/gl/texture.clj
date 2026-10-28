@@ -569,15 +569,15 @@
          texture-data
          (if (= GL/GL_UNSIGNED_BYTE pixel-type)
            (TextureData.
-             nil                 ; raw pixel data does not need a profile
+             nil ; raw pixel data does not need a profile
              (int internal-format)
              (.getWidth image)
              (.getHeight image)
-             0                   ; border
+             0 ; border
              (int pixel-format)
              (int pixel-type)
-             false               ; compressed?
-             false               ; flip vertically?
+             false ; compressed?
+             false ; flip vertically?
              mipmap-buffers
              nil)
            (RawTextureData.
@@ -696,17 +696,17 @@
 
 (defn- update-raw-texture [^GL3 gl ^Texture texture ^RawTextureData texture-data]
   (.bind texture gl)
-  (let [target (int (.getTarget texture))
-        internal-format (int (.-internal-format texture-data))
-        pixel-format (int (.-pixel-format texture-data))
-        pixel-type (int (.-pixel-type texture-data))
-        width (int (.-width texture-data))
-        height (int (.-height texture-data))
+  (let [target (.getTarget texture)
+        internal-format (.-internal-format texture-data)
+        pixel-format (.-pixel-format texture-data)
+        pixel-type (.-pixel-type texture-data)
+        width (.-width texture-data)
+        height (.-height texture-data)
         ^"[Ljava.nio.Buffer;" mipmap-data (.-mipmap-data texture-data)]
     (dotimes [mipmap-level (alength mipmap-data)]
       (let [mipmap-level (int mipmap-level)
-            mipmap-width (int (max 1 (bit-shift-right width (int mipmap-level))))
-            mipmap-height (int (max 1 (bit-shift-right height (int mipmap-level))))
+            mipmap-width (int (max 1 (bit-shift-right width mipmap-level)))
+            mipmap-height (int (max 1 (bit-shift-right height mipmap-level)))
             ^Buffer mipmap-buffer (aget mipmap-data mipmap-level)]
         (.glTexImage2D gl
                        target

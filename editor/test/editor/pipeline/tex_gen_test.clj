@@ -58,7 +58,6 @@
 (deftest make-hdr-texture-image-test
   (let [image-bytes (with-open [input-stream (io/input-stream (io/resource "test_project/graphics/hdr_2x2.hdr"))]
                       (.readAllBytes input-stream))
-        ^TextureGenerator$GenerateResult
         generate-result (tex-gen/make-texture-image image-bytes nil false false)
         ^Graphics$TextureImage texture-image (.-textureImage generate-result)
         alternative (.getAlternatives texture-image 0)]
@@ -67,7 +66,7 @@
     (is (= 2 (.getWidth alternative)))
     (is (= 2 (.getHeight alternative)))))
 
-;; Preview selection skips LDR alternatives and preserves float formats.
+;; Preview selection skips SDR alternatives and preserves float formats.
 (deftest make-hdr-preview-texture-image-test
   (let [image-bytes (with-open [input-stream (io/input-stream (io/resource "test_project/graphics/hdr_2x2.hdr"))]
                       (.readAllBytes input-stream))]
@@ -89,7 +88,7 @@
   (let [image-bytes (with-open [stream (io/input-stream (io/resource "test_project/graphics/hdr_2x2.hdr"))]
                       (.readAllBytes stream))]
     ;; The fixture starts with a red pixel. Double its RGBE exponent to make
-    ;; its red component 2.0, which an LDR conversion would clamp.
+    ;; its red component 2.0, which an SDR conversion would clamp.
     (aset-byte image-bytes 48 (unchecked-byte 130))
     (doseq [flip-y [false true]]
       (let [^TextureGenerator$GenerateResult result (tex-gen/make-preview-texture-image image-bytes nil flip-y)
