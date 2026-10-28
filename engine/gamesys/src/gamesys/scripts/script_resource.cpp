@@ -3083,7 +3083,7 @@ static int CreateBuffer(lua_State* L)
     dmBuffer::GetContentVersion(buffer, &resource->m_Version);
 
     HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, canonical_path_hash);
-    dmResource::SetResourceSize(rd, GetBufferResourceSize(resource));
+    dmResource::SetResourceSize(rd, sizeof(BufferResource) + resource->m_ElementCount * resource->m_Stride);
 
     if (transfer_ownership)
     {
@@ -3297,6 +3297,7 @@ static int SetBuffer(lua_State* L)
             dmBuffer::Destroy(buffer_resource->m_Buffer);
             buffer_resource->m_Buffer       = dst_buffer;
             buffer_resource->m_ElementCount = src_count;
+            buffer_resource->m_Stride       = dmBuffer::GetStructSize(dst_buffer);
         }
         else
         {
@@ -3317,7 +3318,7 @@ static int SetBuffer(lua_State* L)
     if (buffer_resource->m_Buffer != dst_buffer)
     {
         HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
-        dmResource::SetResourceSize(rd, GetBufferResourceSize(buffer_resource));
+        dmResource::SetResourceSize(rd, sizeof(BufferResource) + buffer_resource->m_ElementCount * buffer_resource->m_Stride);
     }
 
     assert(top == lua_gettop(L));

@@ -20,9 +20,6 @@
 
 namespace dmGameSystem
 {
-    // Counts the wrapper and payload of a valid buffer, excluding dmBuffer's internal allocations.
-    uint32_t GetBufferResourceSize(const BufferResource* resource);
-
     dmResource::Result ResBufferPreload(const dmResource::ResourcePreloadParams* params);
 
     dmResource::Result ResBufferCreate(const dmResource::ResourceCreateParams* params);

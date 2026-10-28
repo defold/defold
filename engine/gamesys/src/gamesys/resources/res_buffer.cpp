@@ -18,7 +18,6 @@
 #include <dlib/endian.h>
 #include <dlib/log.h>
 
-#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -170,15 +169,6 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    uint32_t GetBufferResourceSize(const BufferResource* resource)
-    {
-        void* bytes;
-        uint32_t size = 0;
-        dmBuffer::Result result = dmBuffer::GetBytes(resource->m_Buffer, &bytes, &size);
-        assert(result == dmBuffer::RESULT_OK);
-        return sizeof(BufferResource) + size;
-    }
-
     dmResource::Result ResBufferCreate(const dmResource::ResourceCreateParams* params)
     {
         BufferPreloadData* preload = (BufferPreloadData*)params->m_PreloadData;
@@ -196,7 +186,7 @@ namespace dmGameSystem
             return result;
         }
         ResourceDescriptorSetResource(params->m_Resource, resource);
-        dmResource::SetResourceSize(params->m_Resource, GetBufferResourceSize(resource));
+        dmResource::SetResourceSize(params->m_Resource, sizeof(BufferResource) + resource->m_ElementCount * resource->m_Stride);
         return dmResource::RESULT_OK;
     }
 
@@ -227,7 +217,7 @@ namespace dmGameSystem
         resource->m_ElementCount = replacement.m_ElementCount;
         resource->m_Stride = replacement.m_Stride;
         dmBuffer::UpdateContentVersion(resource->m_Buffer);
-        dmResource::SetResourceSize(params->m_Resource, GetBufferResourceSize(resource));
+        dmResource::SetResourceSize(params->m_Resource, sizeof(BufferResource) + resource->m_ElementCount * resource->m_Stride);
         return dmResource::RESULT_OK;
     }
 }
