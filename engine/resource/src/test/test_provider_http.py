@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 import threading
-from urllib.parse import unquote, urlsplit
+from urllib.parse import quote_plus, unquote, urlsplit
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -20,6 +20,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
     resource_requests = 0
     verification_requests = 0
     verification_entries = 0
+    index_mode = "unavailable"
+    index_prefix = ""
+    index_requests = 0
+    download_mode = "unavailable"
+    download_requests = 0
+    download_bytes = 0
+    download_max_bytes = 0
+    download_first_size = 0
+    download_sorted = 1
 
     def log_message(self, *_):
         pass
@@ -31,6 +40,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.respond(head=False)
 
     def do_POST(self):
+        if self.path == "/__resource_batch__":
+            self.respond_batch()
+            return
         if self.path != "/__verify_etags__":
             self.send_error(404)
             return
@@ -60,21 +72,128 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     @staticmethod
     def batch_tag(path):
-        revision = Handler.revision if path.endswith(("/changed.bin", "/space file.bin")) else 1
+        revision = Handler.revision if path.endswith(("/changed.bin", "/space file.bin", "/shrink.bin")) else 1
         return f'"version-{revision}"'
+
+    @staticmethod
+    def batch_size(path):
+        if path.endswith("/empty.bin"):
+            return 0
+        if path.endswith("/huge.bin"):
+            return 1024 * 1024 * 1024
+        if path.endswith("/over-limit.bin"):
+            return 1024 * 1024 + 1
+        if path.rsplit("/", 1)[-1].startswith("limit-"):
+            return 1024 * 1024
+        size = 12 if Handler.batch_tag(path) == '"version-2"' else 8
+        return 20 - size if path.endswith("/shrink.bin") else size
+
+    @staticmethod
+    def batch_data(size):
+        return (bytes(range(251)) * ((size + 250) // 251))[:size]
+
+    def respond_batch(self):
+        Handler.download_requests += 1
+        if Handler.download_mode == "unavailable":
+            self.send_error(404)
+            return
+        records = self.rfile.read(int(self.headers["Content-Length"])).decode().splitlines()
+        entries = [record.split("\t") for record in records]
+        sizes = [self.batch_size(unquote(key)) for key, _ in entries]
+        Handler.download_first_size = sizes[0]
+        Handler.download_sorted = int(sizes[1:] == sorted(sizes[1:]))
+        Handler.download_bytes += sum(sizes)
+        Handler.download_max_bytes = max(Handler.download_max_bytes, sum(sizes))
+        if max(sizes) > 1024 * 1024 or sum(sizes) > 4 * 1024 * 1024:
+            self.send_error(413)
+            return
+        if Handler.download_mode == "stale" or any(tag != self.batch_tag(unquote(key)) for key, tag in entries):
+            self.send_error(409)
+            return
+        data = bytearray(b"DM_RESOURCE_BATCH 1\n")
+        first_body = 0
+        for i, ((key, tag), size) in enumerate(zip(entries, sizes)):
+            if i == 0:
+                if Handler.download_mode == "invalid-tag":
+                    tag = "wrong"
+                elif Handler.download_mode == "invalid-size":
+                    size += 1
+                elif Handler.download_mode == "invalid-path":
+                    key += ".wrong"
+            data.extend(f"{key}\t{size}\t{tag}\n".encode())
+            if i == 0:
+                first_body = len(data)
+            data.extend(self.batch_data(size))
+        content_length = len(data)
+        if Handler.download_mode == "truncated-first":
+            data = data[:first_body + sizes[0] // 2]
+        elif Handler.download_mode == "truncated-last":
+            data = data[:-3]
+        self.send_response(200)
+        self.send_header("Content-Length", str(content_length))
+        self.send_header("Connection", "close")
+        self.close_connection = True
+        self.end_headers()
+        # Cross both text-header and binary-body boundaries on short fixtures.
+        stride = 7 if len(data) < 4096 else 4093
+        for offset in range(0, len(data), stride):
+            self.wfile.write(data[offset:offset + stride])
 
     def respond(self, head):
         path = self.path
+        if path == "/__resource_index__":
+            Handler.index_requests += 1
+            if Handler.index_mode == "unavailable":
+                self.send_error(404)
+                return
+            files = ["unchanged.bin", "changed.bin", "empty.bin", "huge.bin", "shrink.bin",
+                     "space file.bin", "space%20file.bin", "a+b.bin"]
+            if Handler.download_mode == "large":
+                files += [f"limit-{i}.bin" for i in range(8)] + ["over-limit.bin"]
+            records = ["DM_RESOURCE_INDEX 1\n"]
+            for name in files:
+                file_path = Handler.index_prefix + "/" + name
+                size = self.batch_size(file_path)
+                records.append(f"{quote_plus(file_path)}\t{size}\t{self.batch_tag(file_path)}\n")
+            records.append(f"{quote_plus(Handler.index_prefix + '-other/outside.bin')}\t999\tother\n")
+            data = "".join(records).encode()
+            if Handler.index_mode == "oversized":
+                data += b"x" * 4096 + b"\n"
+            elif Handler.index_mode == "invalid-size":
+                data += b"%2Fbuild%2Fbad.bin\t4294967296\ttag\n"
+            elif Handler.index_mode == "invalid-path":
+                data += b"%2Fbuild%2Fbad%00.bin\t8\ttag\n"
+            elif Handler.index_mode == "duplicate":
+                data += records[1].encode()
+            elif Handler.index_mode == "incomplete":
+                data = data[:-1]
+            elif Handler.index_mode == "version":
+                data = data.replace(b"DM_RESOURCE_INDEX 1", b"DM_RESOURCE_INDEX 2")
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(data) + (3 if Handler.index_mode == "truncated" else 0)))
+            self.send_header("Connection", "close")
+            self.close_connection = True
+            self.end_headers()
+            for offset in range(0, len(data), 17):
+                self.wfile.write(data[offset:offset + 17])
+            return
         if path.startswith("/__test/"):
             command = path[len("/__test/"):]
             value = 0
             if command == "reset":
                 Handler.batch_mode = "normal"
                 Handler.revision = 1
+                Handler.index_mode = "unavailable"
+                Handler.download_mode = "unavailable"
             elif command == "counts-reset":
                 Handler.resource_requests = 0
                 Handler.verification_requests = 0
                 Handler.verification_entries = 0
+                Handler.index_requests = 0
+                Handler.download_requests = 0
+                Handler.download_bytes = 0
+                Handler.download_max_bytes = 0
+                Handler.download_first_size = 0
             elif command == "change":
                 Handler.revision = 2
             elif command == "requests":
@@ -83,6 +202,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 value = Handler.verification_requests
             elif command == "entries":
                 value = Handler.verification_entries
+            elif command == "indices":
+                value = Handler.index_requests
+            elif command == "downloads":
+                value = Handler.download_requests
+            elif command == "download-called":
+                value = int(Handler.download_requests > 0)
+            elif command == "download-bytes":
+                value = Handler.download_bytes
+            elif command == "download-max-bytes":
+                value = Handler.download_max_bytes
+            elif command == "download-first-size":
+                value = Handler.download_first_size
+            elif command == "download-sorted":
+                value = Handler.download_sorted
+            elif command.startswith("download-"):
+                Handler.download_mode = command[len("download-"):]
+            elif command.startswith("index/"):
+                Handler.index_prefix = command[len("index"):]
+                Handler.index_mode = "normal"
+            elif command.startswith("index-"):
+                Handler.index_mode = command[len("index-"):]
             else:
                 Handler.batch_mode = command
             data = str(value).encode()
@@ -100,7 +240,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send_header("ETag", tag)
                 self.end_headers()
                 return
-            data = bytes(range(12 if tag == '"version-2"' else 8))
+            data = self.batch_data(self.batch_size(path))
             self.send_response(200)
             self.send_header("Content-Length", str(len(data)))
             self.send_header("ETag", tag)

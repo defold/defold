@@ -16,6 +16,7 @@
 #include "provider_private.h"
 #include "../resource_util.h"
 
+#include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
@@ -27,12 +28,28 @@
 #include <dlib/http/http_cache.h>
 #include <dlib/http_cache_verify.h>
 
+#include <ctype.h>
 #include <stdio.h> // debug printf
+#include <stdlib.h>
 
 namespace dmResourceProviderHttp
 {
 
 static dmHttpCache::HCache g_HttpCache = 0;
+
+static const uint32_t MAX_BATCH_FILE_SIZE = 1024U * 1024U;
+static const uint32_t MAX_BATCH_SIZE = 4U * 1024U * 1024U;
+static const uint32_t MAX_BATCH_FILES = 4096;
+static const uint32_t MAX_BATCH_REQUEST_SIZE = 1024U * 1024U;
+
+struct IndexedResource
+{
+    char*    m_Path;
+    char*    m_Key;
+    char     m_ETag[dmHttpCache::MAX_TAG_LEN];
+    dmhash_t m_KeyHash;
+    uint32_t m_Size;
+};
 
 struct HttpRead
 {
@@ -56,6 +73,9 @@ struct HttpProviderContext
     dmHttpCache::HCache   m_HttpCache;
     HttpRead*            m_Read; // Only set during a synchronous request.
     dmHashTable64<uint64_t> m_VerifiedEntries; // Cache key -> validated URI/ETag identity, owned by this mount.
+    dmHashTable64<uint32_t> m_ResourceSizes; // Complete-file sizes from this mount's build snapshot.
+    dmArray<IndexedResource> m_ResourceIndex; // Sorted by size for bounded, on-demand prefetch.
+    bool m_BatchSupported;
 };
 
 static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length,
@@ -144,6 +164,17 @@ static char* CreateEncodedUri(const dmURI::Parts* uri, const char* path, char* b
     return buffer;
 }
 
+static void ClearResourceIndex(HttpProviderContext* archive)
+{
+    for (uint32_t i = 0; i < archive->m_ResourceIndex.Size(); ++i)
+    {
+        free(archive->m_ResourceIndex[i].m_Path);
+        free(archive->m_ResourceIndex[i].m_Key);
+    }
+    archive->m_ResourceIndex.SetSize(0);
+    archive->m_ResourceSizes.Clear();
+}
+
 static void DeleteHttpArchiveInternal(dmResourceProvider::HArchiveInternal _archive)
 {
     HttpProviderContext* archive = (HttpProviderContext*)_archive;
@@ -151,6 +182,7 @@ static void DeleteHttpArchiveInternal(dmResourceProvider::HArchiveInternal _arch
         dmHttpClient::Delete(archive->m_HttpClient);
 
     archive->m_HttpClient = 0;
+    ClearResourceIndex(archive);
     delete archive;
 }
 
@@ -162,6 +194,400 @@ static void OnCacheEntryVerified(void* user_data, const dmHttpCache::EntryInfo* 
     archive->m_VerifiedEntries.Put(dmHashString64(entry->m_URI), entry->m_IdentifierHash);
 }
 
+struct ResourceIndexContext
+{
+    HttpProviderContext* m_Archive;
+    char                m_Prefix[dmResource::RESOURCE_PATH_MAX * 2];
+    char                m_Line[dmURI::MAX_URI_LEN * 3 + dmHttpCache::MAX_TAG_LEN + 12];
+    uint32_t            m_LineSize;
+    uint64_t            m_Received;
+    int                 m_Status;
+    bool                m_Header;
+    bool                m_Invalid;
+};
+
+static bool ParseIndexLine(ResourceIndexContext* ctx)
+{
+    ctx->m_Line[ctx->m_LineSize] = '\0';
+    if (!ctx->m_Header)
+    {
+        ctx->m_Header = strcmp(ctx->m_Line, "DM_RESOURCE_INDEX 1") == 0;
+        return ctx->m_Header;
+    }
+
+    // Records are form-encoded URL path, decimal size and ETag, separated by
+    // tabs. Decode once, then use the same URL encoding as resource requests.
+    char* size = strchr(ctx->m_Line, '\t');
+    char* etag = size ? strchr(size + 1, '\t') : 0;
+    if (!size || !etag)
+        return false;
+    *size++ = '\0';
+    *etag++ = '\0';
+    if (!size[0] || !etag[0] || strlen(etag) >= dmHttpCache::MAX_TAG_LEN)
+        return false;
+    for (const char* p = etag; *p; ++p)
+        if ((unsigned char)*p < 32 || (unsigned char)*p >= 127)
+            return false;
+
+    uint64_t file_size = 0;
+    for (const char* p = size; *p; ++p)
+    {
+        if (*p < '0' || *p > '9')
+            return false;
+        file_size = file_size * 10 + (*p - '0');
+        if (file_size > UINT32_MAX)
+            return false;
+    }
+    for (const char* p = ctx->m_Line; *p; ++p)
+    {
+        if (*p == '%')
+        {
+            if (!p[1] || !p[2] || !isxdigit((unsigned char)p[1]) || !isxdigit((unsigned char)p[2]) ||
+                (p[1] == '0' && p[2] == '0'))
+                return false;
+            p += 2;
+        }
+    }
+    char decoded_path[sizeof(ctx->m_Line)];
+    dmURI::Decode(ctx->m_Line, decoded_path);
+    char encoded_path[dmResource::RESOURCE_PATH_MAX * 2];
+    if (decoded_path[0] != '/' || dmURI::Encode(decoded_path, encoded_path, sizeof(encoded_path), 0) != dmURI::RESULT_OK)
+        return false;
+    if (strncmp(encoded_path, ctx->m_Prefix, strlen(ctx->m_Prefix)) != 0)
+        return true;
+
+    HttpProviderContext* archive = ctx->m_Archive;
+    char key[dmURI::MAX_URI_LEN];
+    if (dmHttpClient::GetURI(archive->m_HttpClient, encoded_path, key, sizeof(key)) != dmHttpClient::RESULT_OK)
+        return false;
+    dmhash_t key_hash = dmHashString64(key);
+    if (archive->m_ResourceSizes.Get(key_hash))
+        return false;
+    if (archive->m_ResourceSizes.Full())
+        archive->m_ResourceSizes.SetCapacity(dmMath::Max(128U, archive->m_ResourceSizes.Capacity() * 2));
+    archive->m_ResourceSizes.Put(key_hash, (uint32_t)file_size);
+    if (archive->m_ResourceIndex.Full())
+        archive->m_ResourceIndex.SetCapacity(dmMath::Max(128U, archive->m_ResourceIndex.Capacity() * 2));
+    IndexedResource resource;
+    resource.m_Path = strdup(encoded_path);
+    resource.m_Key = strdup(key);
+    resource.m_KeyHash = key_hash;
+    resource.m_Size = (uint32_t)file_size;
+    dmStrlCpy(resource.m_ETag, etag, sizeof(resource.m_ETag));
+    archive->m_ResourceIndex.Push(resource);
+
+    dmHttpCache::EntryInfo info;
+    if (archive->m_HttpCache && dmHttpCache::GetInfo(archive->m_HttpCache, key, &info) == dmHttpCache::RESULT_OK &&
+        strcmp(info.m_ETag, etag) == 0 && info.m_RangeStart == 0 && info.m_DocumentSize == file_size)
+        OnCacheEntryVerified(archive, &info);
+    return true;
+}
+
+static void ResourceIndexContent(dmHttpClient::HResponse, void* user_data, int status, const void* data, uint32_t size,
+                                 int32_t, uint32_t, uint32_t, uint32_t, const char* method)
+{
+    ResourceIndexContext* ctx = (ResourceIndexContext*)user_data;
+    ctx->m_Status = status;
+    if (!data && !size && !method)
+    {
+        ctx->m_LineSize = 0;
+        ctx->m_Received = 0;
+        ctx->m_Header = false;
+        ctx->m_Invalid = false;
+        ClearResourceIndex(ctx->m_Archive);
+        ctx->m_Archive->m_VerifiedEntries.Clear();
+    }
+    ctx->m_Received += size;
+    if (ctx->m_Received > 64U * 1024U * 1024U)
+        ctx->m_Invalid = true;
+    if (status != 200 || ctx->m_Invalid)
+        return;
+    const char* bytes = (const char*)data;
+    for (uint32_t i = 0; i < size && !ctx->m_Invalid; ++i)
+    {
+        if (bytes[i] == '\n')
+        {
+            ctx->m_Invalid = !ParseIndexLine(ctx);
+            ctx->m_LineSize = 0;
+        }
+        else if (bytes[i] && ctx->m_LineSize < sizeof(ctx->m_Line) - 1)
+            ctx->m_Line[ctx->m_LineSize++] = bytes[i];
+        else
+            ctx->m_Invalid = true;
+    }
+}
+
+static int CompareResourceSize(const void* a, const void* b)
+{
+    const IndexedResource* first = (const IndexedResource*)a;
+    const IndexedResource* second = (const IndexedResource*)b;
+    if (first->m_Size != second->m_Size)
+        return first->m_Size < second->m_Size ? -1 : 1;
+    return strcmp(first->m_Path, second->m_Path);
+}
+
+static bool LoadResourceIndex(HttpProviderContext* archive)
+{
+    ResourceIndexContext ctx = {};
+    ctx.m_Archive = archive;
+    CreateEncodedUri(&archive->m_BaseUri, "/", ctx.m_Prefix, sizeof(ctx.m_Prefix));
+    dmHttpClient::NewParams params;
+    params.m_HttpContent = ResourceIndexContent;
+    params.m_Userdata = &ctx;
+    params.m_RequestTimeout = 5 * 1000 * 1000;
+    dmHttpClient::HClient client = dmHttpClient::New(&params, &archive->m_BaseUri);
+    if (!client)
+        return false;
+    dmHttpClient::Result result = dmHttpClient::Get(client, "/__resource_index__");
+    dmHttpClient::Delete(client);
+    if (result == dmHttpClient::RESULT_OK && ctx.m_Status == 200 && ctx.m_Header && !ctx.m_Invalid && !ctx.m_LineSize)
+    {
+        if (archive->m_ResourceIndex.Size() > 1)
+            qsort(archive->m_ResourceIndex.Begin(), archive->m_ResourceIndex.Size(), sizeof(IndexedResource), CompareResourceSize);
+        return true;
+    }
+
+    // A partial or invalid index must grant neither size metadata nor cache
+    // trust. Generic HTTP servers retain ordinary HEAD/GET and verification.
+    ClearResourceIndex(archive);
+    archive->m_VerifiedEntries.Clear();
+    return false;
+}
+
+struct ResourceBatchContext
+{
+    HttpProviderContext*             m_Archive;
+    dmArray<const IndexedResource*> m_Resources;
+    dmArray<char>                   m_Request;
+    dmHttpCache::HCacheCreator       m_Creator;
+    uint32_t                        m_PayloadSize;
+    uint32_t                        m_Entry;
+    uint32_t                        m_Remaining;
+    uint32_t                        m_LineSize;
+    char                            m_Line[dmURI::MAX_URI_LEN + dmHttpCache::MAX_TAG_LEN + 12];
+    int                             m_Status;
+    bool                            m_Header;
+    bool                            m_Invalid;
+};
+
+static bool AddBatchResource(ResourceBatchContext* ctx, const IndexedResource* resource)
+{
+    uint32_t path_size = strlen(resource->m_Path);
+    uint32_t tag_size = strlen(resource->m_ETag);
+    uint32_t record_size = path_size + tag_size + 2;
+    if (ctx->m_Resources.Size() == MAX_BATCH_FILES || ctx->m_PayloadSize + resource->m_Size > MAX_BATCH_SIZE ||
+        ctx->m_Request.Size() + record_size > MAX_BATCH_REQUEST_SIZE)
+        return false;
+    if (ctx->m_Resources.Full())
+        ctx->m_Resources.SetCapacity(dmMath::Max(64U, ctx->m_Resources.Capacity() * 2));
+    ctx->m_Resources.Push(resource);
+    ctx->m_PayloadSize += resource->m_Size;
+    if (ctx->m_Request.Remaining() < record_size)
+        ctx->m_Request.OffsetCapacity(dmMath::Max(record_size, 16U * 1024U));
+    uint32_t offset = ctx->m_Request.Size();
+    ctx->m_Request.SetSize(offset + record_size);
+    char* out = ctx->m_Request.Begin() + offset;
+    memcpy(out, resource->m_Path, path_size);
+    out[path_size] = '\t';
+    memcpy(out + path_size + 1, resource->m_ETag, tag_size);
+    out[record_size - 1] = '\n';
+    return true;
+}
+
+static void AbortBatchEntry(ResourceBatchContext* ctx)
+{
+    if (ctx->m_Creator)
+    {
+        dmHttpCache::SetError(ctx->m_Archive->m_HttpCache, ctx->m_Creator);
+        dmHttpCache::End(ctx->m_Archive->m_HttpCache, ctx->m_Creator);
+        ctx->m_Creator = 0;
+    }
+}
+
+static void FinishBatchEntry(ResourceBatchContext* ctx)
+{
+    HttpProviderContext* archive = ctx->m_Archive;
+    if (ctx->m_Creator)
+    {
+        dmHttpCache::Result result = dmHttpCache::End(archive->m_HttpCache, ctx->m_Creator);
+        ctx->m_Creator = 0;
+        if (result != dmHttpCache::RESULT_OK)
+        {
+            ctx->m_Invalid = true;
+            return;
+        }
+    }
+    const IndexedResource* resource = ctx->m_Resources[ctx->m_Entry];
+    dmHttpCache::EntryInfo info;
+    if (dmHttpCache::GetInfo(archive->m_HttpCache, resource->m_Key, &info) != dmHttpCache::RESULT_OK ||
+        strcmp(info.m_ETag, resource->m_ETag) != 0 || info.m_RangeStart != 0 || info.m_DocumentSize != resource->m_Size)
+    {
+        ctx->m_Invalid = true;
+        return;
+    }
+    OnCacheEntryVerified(archive, &info);
+    ++ctx->m_Entry;
+}
+
+static void ParseBatchHeader(ResourceBatchContext* ctx)
+{
+    ctx->m_Line[ctx->m_LineSize] = '\0';
+    if (!ctx->m_Header)
+    {
+        ctx->m_Header = strcmp(ctx->m_Line, "DM_RESOURCE_BATCH 1") == 0;
+        ctx->m_Invalid = !ctx->m_Header;
+        return;
+    }
+    if (ctx->m_Entry == ctx->m_Resources.Size())
+    {
+        ctx->m_Invalid = true;
+        return;
+    }
+    const IndexedResource* resource = ctx->m_Resources[ctx->m_Entry];
+    char expected[sizeof(ctx->m_Line)];
+    dmSnPrintf(expected, sizeof(expected), "%s\t%u\t%s", resource->m_Path, resource->m_Size, resource->m_ETag);
+    if (strcmp(expected, ctx->m_Line) != 0)
+    {
+        ctx->m_Invalid = true;
+        return;
+    }
+    dmHttpCache::Result result = dmHttpCache::Begin(ctx->m_Archive->m_HttpCache, resource->m_Key, resource->m_ETag, 0,
+                                                  0, resource->m_Size ? resource->m_Size - 1 : 0, resource->m_Size, &ctx->m_Creator);
+    if (result != dmHttpCache::RESULT_OK && result != dmHttpCache::RESULT_ALREADY_CACHED)
+    {
+        ctx->m_Invalid = true;
+        return;
+    }
+    ctx->m_Remaining = resource->m_Size;
+    if (!ctx->m_Remaining)
+        FinishBatchEntry(ctx);
+}
+
+static void ResourceBatchContent(dmHttpClient::HResponse, void* user_data, int status, const void* data, uint32_t size,
+                                 int32_t, uint32_t, uint32_t, uint32_t, const char* method)
+{
+    ResourceBatchContext* ctx = (ResourceBatchContext*)user_data;
+    ctx->m_Status = status;
+    if (!data && !size && !method)
+    {
+        AbortBatchEntry(ctx);
+        ctx->m_Entry = 0;
+        ctx->m_Remaining = 0;
+        ctx->m_LineSize = 0;
+        ctx->m_Header = false;
+        ctx->m_Invalid = false;
+    }
+    if (status != 200)
+        return;
+    const char* bytes = (const char*)data;
+    while (size && !ctx->m_Invalid)
+    {
+        if (ctx->m_Remaining)
+        {
+            uint32_t count = dmMath::Min(size, ctx->m_Remaining);
+            if (ctx->m_Creator && dmHttpCache::Add(ctx->m_Archive->m_HttpCache, ctx->m_Creator, bytes, count) != dmHttpCache::RESULT_OK)
+            {
+                ctx->m_Invalid = true;
+                break;
+            }
+            bytes += count;
+            size -= count;
+            ctx->m_Remaining -= count;
+            if (!ctx->m_Remaining)
+                FinishBatchEntry(ctx);
+        }
+        else
+        {
+            if (*bytes == '\n')
+            {
+                ParseBatchHeader(ctx);
+                ctx->m_LineSize = 0;
+            }
+            else if (*bytes && ctx->m_LineSize < sizeof(ctx->m_Line) - 1)
+                ctx->m_Line[ctx->m_LineSize++] = *bytes;
+            else
+                ctx->m_Invalid = true;
+            ++bytes;
+            --size;
+        }
+    }
+}
+
+static uint32_t BatchContentLength(dmHttpClient::HResponse, void* user_data)
+{
+    return ((ResourceBatchContext*)user_data)->m_Request.Size();
+}
+
+static dmHttpClient::Result WriteBatchRequest(dmHttpClient::HResponse response, uint32_t offset, uint32_t length, void* user_data)
+{
+    return dmHttpClient::Write(response, ((ResourceBatchContext*)user_data)->m_Request.Begin() + offset, length);
+}
+
+static void FetchResourceBatch(HttpProviderContext* archive, dmhash_t requested_key)
+{
+    ResourceBatchContext ctx = {};
+    ctx.m_Archive = archive;
+    for (uint32_t i = 0; i < archive->m_ResourceIndex.Size(); ++i)
+    {
+        const IndexedResource* resource = &archive->m_ResourceIndex[i];
+        if (resource->m_Size > MAX_BATCH_FILE_SIZE)
+            break;
+        if (resource->m_KeyHash == requested_key)
+        {
+            AddBatchResource(&ctx, resource);
+            break;
+        }
+    }
+    if (!ctx.m_Resources.Size())
+        return;
+
+    // Lead with the requested resource, then fill the payload budget from the
+    // smallest uncached resources. Invalidated metadata cannot drive prefetch.
+    for (uint32_t i = 0; i < archive->m_ResourceIndex.Size(); ++i)
+    {
+        const IndexedResource* resource = &archive->m_ResourceIndex[i];
+        if (resource->m_Size > MAX_BATCH_FILE_SIZE)
+            break;
+        if (resource->m_KeyHash != requested_key && archive->m_ResourceSizes.Get(resource->m_KeyHash) &&
+            !archive->m_VerifiedEntries.Get(resource->m_KeyHash) && !AddBatchResource(&ctx, resource))
+            break;
+    }
+
+    dmHttpClient::NewParams params;
+    params.m_HttpSendContentLength = BatchContentLength;
+    params.m_HttpWrite = WriteBatchRequest;
+    params.m_HttpContent = ResourceBatchContent;
+    params.m_Userdata = &ctx;
+    params.m_RequestTimeout = 30 * 1000 * 1000;
+    dmHttpClient::HClient client = dmHttpClient::New(&params, &archive->m_BaseUri);
+    if (!client)
+        return;
+    dmHttpClient::Result result = dmHttpClient::Post(client, "/__resource_batch__");
+    dmHttpClient::Delete(client);
+    AbortBatchEntry(&ctx);
+    // Complete entries remain usable if a later entry failed. The incomplete
+    // entry is discarded, and future misses use individual resource requests.
+    if (result != dmHttpClient::RESULT_OK || ctx.m_Status != 200 || ctx.m_Invalid ||
+        !ctx.m_Header || ctx.m_LineSize || ctx.m_Entry != ctx.m_Resources.Size())
+        archive->m_BatchSupported = false;
+}
+
+static dmHttpClient::Result RequestVerified(HttpProviderContext* archive, const char* method, const char* cache_key)
+{
+    dmhash_t key_hash = dmHashString64(cache_key);
+    uint64_t* verified = archive->m_VerifiedEntries.Get(key_hash);
+    dmHttpClient::Result result = dmHttpClient::RESULT_IO_ERROR;
+    if (verified)
+    {
+        dmHttpCache::EntryInfo info;
+        if (dmHttpCache::GetInfo(archive->m_HttpCache, cache_key, &info) == dmHttpCache::RESULT_OK && info.m_IdentifierHash == *verified)
+            result = dmHttpClient::RequestCached(archive->m_HttpClient, method, info.m_ETag);
+        if (result != dmHttpClient::RESULT_NOT_200_OK)
+            archive->m_VerifiedEntries.Erase(key_hash);
+    }
+    return result;
+}
+
 static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvider::HArchive base_archive, dmResourceProvider::HArchiveInternal* out_archive)
 {
     if (!MatchesUri(uri))
@@ -171,6 +597,7 @@ static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvi
     memcpy(&archive->m_BaseUri, uri, sizeof(dmURI::Parts));
     archive->m_HttpCache = g_HttpCache;
     archive->m_Read = 0;
+    archive->m_BatchSupported = true;
 
     dmHttpClient::NewParams http_params;
     http_params.m_HttpContent = &HttpContent;
@@ -186,7 +613,7 @@ static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvi
         return dmResourceProvider::RESULT_ERROR_UNKNOWN;
     }
 
-    if (archive->m_HttpCache)
+    if (!LoadResourceIndex(archive) && archive->m_HttpCache)
     {
         char path[dmResource::RESOURCE_PATH_MAX * 2];
         CreateEncodedUri(uri, "/", path, sizeof(path));
@@ -238,6 +665,14 @@ static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive
     if (dmHttpClient::GetURI(archive->m_HttpClient, encoded_uri, cache_key, sizeof(cache_key)) != dmHttpClient::RESULT_OK)
         return dmResourceProvider::RESULT_INVAL_ERROR;
 
+    dmhash_t file_key_hash = dmHashString64(cache_key);
+    uint32_t* indexed_size = archive->m_ResourceSizes.Get(file_key_hash);
+    if (read.m_Head && indexed_size)
+    {
+        *nread = *indexed_size;
+        return dmResourceProvider::RESULT_OK;
+    }
+
     if (partial)
     {
         char range[128];
@@ -248,20 +683,26 @@ static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive
     dmHttpClient::SetCacheKey(archive->m_HttpClient, cache_key);
 
     archive->m_Read = &read;
-    dmHttpClient::Result http_result = dmHttpClient::RESULT_IO_ERROR;
-    uint64_t* verified = archive->m_VerifiedEntries.Get(dmHashString64(cache_key));
-    if (verified)
+    dmHttpClient::Result http_result = RequestVerified(archive, method, cache_key);
+    if (http_result != dmHttpClient::RESULT_NOT_200_OK && !partial && !read.m_Head && indexed_size &&
+        *indexed_size <= MAX_BATCH_FILE_SIZE && archive->m_BatchSupported && archive->m_HttpCache)
     {
-        dmHttpCache::EntryInfo info;
-        if (dmHttpCache::GetInfo(archive->m_HttpCache, cache_key, &info) == dmHttpCache::RESULT_OK &&
-            info.m_IdentifierHash == *verified)
-            http_result = dmHttpClient::RequestCached(archive->m_HttpClient, method, info.m_ETag);
-        if (http_result != dmHttpClient::RESULT_NOT_200_OK)
-            archive->m_VerifiedEntries.Erase(dmHashString64(cache_key));
+        FetchResourceBatch(archive, file_key_hash);
+        http_result = RequestVerified(archive, method, cache_key);
     }
     if (http_result != dmHttpClient::RESULT_NOT_200_OK)
         http_result = dmHttpClient::Request(archive->m_HttpClient, method, encoded_uri);
     archive->m_Read = 0;
+
+    if (indexed_size && (http_result == dmHttpClient::RESULT_OK || http_result == dmHttpClient::RESULT_NOT_200_OK) &&
+        !partial && !read.m_Head && read.m_Received != *indexed_size)
+        read.m_Error = true;
+    if (indexed_size && (read.m_Error || (read.m_Status != 200 && read.m_Status != 206 && read.m_Status != 304)))
+    {
+        archive->m_ResourceSizes.Erase(file_key_hash);
+        if (archive->m_VerifiedEntries.Get(file_key_hash))
+            archive->m_VerifiedEntries.Erase(file_key_hash);
+    }
 
     bool http_result_ok = http_result == dmHttpClient::RESULT_OK ||
                          (http_result == dmHttpClient::RESULT_NOT_200_OK &&
@@ -362,6 +803,8 @@ static void InvalidateFileCache(dmResourceProvider::HArchiveInternal _archive, d
         dmhash_t key_hash = dmHashString64(key);
         if (archive->m_VerifiedEntries.Get(key_hash))
             archive->m_VerifiedEntries.Erase(key_hash);
+        if (archive->m_ResourceSizes.Get(key_hash))
+            archive->m_ResourceSizes.Erase(key_hash);
     }
 }
 
