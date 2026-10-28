@@ -176,6 +176,8 @@ def install_linux(args):
         "libtool",
         "libxi-dev",
         "libx11-xcb-dev",
+        "libxcursor-dev",
+        "libxinerama-dev",
         "libxrandr-dev",
         "libopenal-dev",
         "libgl1-mesa-dev",
