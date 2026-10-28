@@ -11,6 +11,7 @@ import unittest
 from unittest import mock
 
 import run_graphics_images as report
+import run_graphics_texture_upload as texture_upload
 
 
 def cubemap_fixture():
@@ -585,6 +586,58 @@ class GraphicsImagesTest(unittest.TestCase):
             with self.subTest(args=args):
                 process = subprocess.run([executable, *args], capture_output=True, text=True, timeout=60)
                 self.assertNotEqual(0, process.returncode)
+
+
+class TextureUploadRunnerTest(unittest.TestCase):
+    arguments = ['--executable', 'graphics-test', '--target-platform', 'arm64-macos', '--available', 'metal']
+
+    # The runner must execute both budgets with zero/multiple workers and the shutdown regression.
+    def test_runs_budget_worker_matrix_and_shutdown(self):
+        process = subprocess.CompletedProcess([], 0, 'GRAPHICS_TEXTURE_UPLOAD_RESULT=0\n')
+        with mock.patch.object(texture_upload.subprocess, 'run', return_value=process) as run, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(0, texture_upload.main(self.arguments))
+        self.assertEqual({
+            ('texture-upload-batch',),
+            ('texture-upload-batch', 'upload-no-workers'),
+            ('texture-upload-batch', 'upload-small-budget'),
+            ('texture-upload-batch', 'upload-small-budget', 'upload-no-workers'),
+            ('issue-12878',),
+        }, {tuple(call.args[0][2:]) for call in run.call_args_list})
+        self.assertEqual(5, run.call_count)
+        self.assertTrue(all(call.kwargs['timeout'] == 60 for call in run.call_args_list))
+
+    # Exit success cannot hide a missing/duplicate result, assertion failure, or GPU diagnostic.
+    def test_rejects_incomplete_or_failed_runs(self):
+        for code, output in (
+            (0, ''), (0, 'GRAPHICS_TEXTURE_UPLOAD_RESULT=0\n' * 2),
+            (1, 'GRAPHICS_TEXTURE_UPLOAD_RESULT=0\n'),
+            (0, 'GRAPHICS_TEXTURE_UPLOAD_RESULT=1\n'),
+            (0, 'ERROR:GRAPHICS: upload failed\nGRAPHICS_TEXTURE_UPLOAD_RESULT=0\n'),
+        ):
+            with self.subTest(code=code, output=output), mock.patch.object(texture_upload.subprocess, 'run', return_value=subprocess.CompletedProcess([], code, output)), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(1, texture_upload.main(self.arguments))
+        with mock.patch.object(texture_upload.subprocess, 'run', side_effect=subprocess.TimeoutExpired('graphics-test', 60)), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(1, texture_upload.main(self.arguments))
+
+    # Unsupported backends and the hosted-CI skip policy must not launch a GPU process.
+    def test_skip_policy_does_not_launch(self):
+        for arguments in (self.arguments[:-1] + ['vulkan'], self.arguments + ['--skip-all', 'CI policy']):
+            with self.subTest(arguments=arguments), mock.patch.object(texture_upload.subprocess, 'run') as run, contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(0, texture_upload.main(arguments))
+                run.assert_not_called()
+
+    # Simulator success must use the upload completion marker instead of simctl's exit code alone.
+    def test_simulator_uses_upload_result_marker(self):
+        launcher = mock.Mock()
+        launcher.run.return_value = subprocess.CompletedProcess([], 0, 'GRAPHICS_TEXTURE_UPLOAD_RESULT=0\n')
+        simulator = mock.Mock()
+        simulator.simulator_capture.return_value = contextlib.nullcontext(launcher)
+        arguments = self.arguments.copy()
+        arguments[arguments.index('arm64-macos')] = 'arm64_sim-ios'
+        with mock.patch.dict('sys.modules', {'graphics_capture_simulator': simulator}), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(0, texture_upload.main(arguments))
+        self.assertEqual(5, launcher.run.call_count)
+        self.assertTrue(all(call.kwargs['result_key'] == 'GRAPHICS_TEXTURE_UPLOAD_RESULT' for call in launcher.run.call_args_list))
 
 
 if __name__ == '__main__':

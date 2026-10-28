@@ -35,6 +35,10 @@ namespace dmGraphics
     struct MetalResourceToDestroy;
     struct MetalTextureUpload;
 
+    // Optional private diagnostic observer, called under the staging mutex.
+    // Install before submitting uploads; the observer and user data must outlive them.
+    typedef void (*MetalTextureUploadObserver)(void* user_data, uint64_t total_bytes, uint32_t in_flight, uint64_t batch_bytes, uint32_t mip_count);
+
     typedef dmHashTable64<MetalPipeline> PipelineCache;
     typedef dmArray<MetalResourceToDestroy>   MetalResourcesToDestroyList;
 
@@ -355,6 +359,8 @@ namespace dmGraphics
         uint64_t                           m_TextureUploadMemoryLimit;
         uint32_t                           m_InFlightTextureUploads;
         bool                               m_TextureUploadJobQueued;
+        MetalTextureUploadObserver         m_TextureUploadObserver;
+        void*                              m_TextureUploadObserverData;
         dispatch_semaphore_t               m_FrameBoundarySemaphore;
 
         // Per-frame render state

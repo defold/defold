@@ -138,6 +138,7 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
     endif()
     if("GraphicsAdapterMetal" IN_LIST _graphics_app_symbols)
       target_compile_definitions(test_app_graphics PRIVATE DM_TEST_APP_GRAPHICS_HAS_METAL=1)
+      target_sources(test_app_graphics PRIVATE "${GRAPHICS_TEST_SRC_DIR}/test_app_graphics_metal.mm")
     endif()
     if("GraphicsAdapterWebGPU" IN_LIST _graphics_app_symbols AND TARGET_PLATFORM STREQUAL "arm64-macos")
       target_sources(test_app_graphics PRIVATE "${GRAPHICS_TEST_SRC_DIR}/test_app_graphics_webgpu_macos.mm")
@@ -284,9 +285,13 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
       set(_graphics_buffer_command ${_graphics_test_command} "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_buffer_replacement.py"
         --executable "$<TARGET_FILE:test_app_graphics>" --target-platform "${TARGET_PLATFORM}"
         --available ${_graphics_available})
+      set(_graphics_upload_command ${_graphics_test_command} "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_texture_upload.py"
+        --executable "$<TARGET_FILE:test_app_graphics>" --target-platform "${TARGET_PLATFORM}"
+        --available ${_graphics_available})
       if(DEFINED ENV{GITHUB_ACTIONS} AND NOT TARGET_PLATFORM MATCHES "linux$|^arm64_sim-ios$")
         list(APPEND _graphics_ci_command --skip-all "Hosted CI graphics captures explicitly disabled for ${TARGET_PLATFORM}")
         list(APPEND _graphics_buffer_command --skip-all "Hosted CI graphics tests explicitly disabled for ${TARGET_PLATFORM}")
+        list(APPEND _graphics_upload_command --skip-all "Hosted CI graphics tests explicitly disabled for ${TARGET_PLATFORM}")
         message(STATUS "Graphics captures skipped on hosted ${TARGET_PLATFORM} CI; manual target remains available")
       endif()
       add_custom_target(run_graphics_test_images
@@ -299,7 +304,15 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
         ${_graphics_run_options} COMMENT "Running graphics buffer replacement tests")
       defold_register_sequential_test_command(graphics_buffer_replacement
         COMMAND ${_graphics_buffer_command} DEPENDS test_app_graphics)
+      add_custom_target(run_graphics_texture_upload
+        COMMAND ${_graphics_runner} ${_graphics_upload_command}
+        DEPENDS test_app_graphics
+        ${_graphics_run_options} COMMENT "Running Metal texture upload and memory budget tests")
+      defold_register_sequential_test_command(graphics_texture_upload
+        COMMAND ${_graphics_upload_command} DEPENDS test_app_graphics)
       if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+        defold_add_to_run_tests(run_graphics_texture_upload RUN_GROUP graphics
+          COMMAND ${_graphics_upload_command} DEPENDS test_app_graphics)
         defold_add_to_run_tests(run_graphics_buffer_replacement RUN_GROUP graphics
           COMMAND ${_graphics_buffer_command} DEPENDS test_app_graphics)
         defold_add_to_run_tests(run_test_graphics_images_python RUN_GROUP graphics

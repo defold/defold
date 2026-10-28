@@ -5235,7 +5235,7 @@ namespace dmGraphics
         return dmMath::Max(1U, (uint32_t) texture->m_LayerCount);
     }
 
-    static void ReserveTextureUploadStaging(MetalContext* context, uint64_t staging_bytes)
+    static void ReserveTextureUploadStaging(MetalContext* context, uint64_t staging_bytes, uint32_t mip_count)
     {
         if (!context->m_TextureUploadMutex)
             return;
@@ -5250,6 +5250,8 @@ namespace dmGraphics
         }
         context->m_InFlightTextureUploads++;
         context->m_InFlightTextureUploadBytes += staging_bytes;
+        if (context->m_TextureUploadObserver)
+            context->m_TextureUploadObserver(context->m_TextureUploadObserverData, context->m_InFlightTextureUploadBytes, context->m_InFlightTextureUploads, staging_bytes, mip_count);
     }
 
     static void ReleaseTextureUploadStaging(MetalContext* context, uint64_t staging_bytes)
@@ -5566,7 +5568,7 @@ namespace dmGraphics
         }
         // Wait without the asset mutex: asynchronous completions need that mutex.
         uint64_t staging_bytes = GetMetalTextureUploadStagingSize(&snapshot, params);
-        ReserveTextureUploadStaging(context, staging_bytes);
+        ReserveTextureUploadStaging(context, staging_bytes, 1);
         MetalUploadTextureData(context, &snapshot, params, 0, 0, 0);
         snapshot.m_Texture->release();
         ReleaseTextureUploadStaging(context, staging_bytes);
@@ -5736,7 +5738,7 @@ namespace dmGraphics
 
     static void SubmitTextureUploadBatch(MetalContext* context, MetalTextureUpload* upload, uint32_t first, uint32_t end, uint64_t staging_bytes, bool last)
     {
-        ReserveTextureUploadStaging(context, staging_bytes);
+        ReserveTextureUploadStaging(context, staging_bytes, end - first);
 
         NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
         // Own staging resources until GPU completion, then release them before
