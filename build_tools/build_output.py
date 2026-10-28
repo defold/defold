@@ -167,6 +167,7 @@ class GradleOutput(BuildOutput):
         self.summary_section = False
         self.summary = []
         self.current_task = None
+        self.unattributed_stderr = deque(maxlen=100)
 
     def on_output(self, line):
         self._on_output(line, False)
@@ -242,11 +243,17 @@ class GradleOutput(BuildOutput):
         elif self.in_error:
             if not re.match(r'^\d+ actionable tasks?:', plain):
                 self.errors.append(plain)
+        elif is_stderr and self.current_task is None:
+            # The stderr reader can receive diagnostics before stdout's first task header.
+            self.unattributed_stderr.append(plain)
         else:
             self.edge_output.append(plain)
 
     def failure_output(self):
-        return '\n'.join(self.errors + self.summary or self.tail).strip()
+        diagnostics = self.errors + self.summary
+        if diagnostics:
+            diagnostics = list(self.unattributed_stderr) + diagnostics
+        return '\n'.join(diagnostics or self.tail).strip()
 
 
 def command(env, args, title, log_path, cwd=None, verbose=False, stream=None, gradle=False):

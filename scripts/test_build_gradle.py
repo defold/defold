@@ -135,6 +135,49 @@ class GradleOutputTests(unittest.TestCase):
                 self.assertNotIn('Deprecated Gradle', text)
                 self.assertNotIn('--warning-mode', text)
 
+    # Separate pipe readers can deliver stderr before Gradle attributes output to its first task.
+    def test_stderr_diagnostics_before_first_task_header(self):
+        for task_started in (False, True):
+            for summary_first in (False, True):
+                with self.subTest(task_started=task_started, summary_first=summary_first):
+                    output, stream, log = self.reporter()
+                    output.on_output('Daemon will be stopped at the end of the build')
+                    for line in ('REVIEW_ROOT_CAUSE: missing native library', '    searched /sdk/lib'):
+                        output.on_stderr(line)
+                    if task_started:
+                        output.on_output('> Task :broken')
+                    summary = ('FAILURE: Build failed with an exception.', '* What went wrong:',
+                               "Execution failed for task ':broken'.", '> subprocess exited with code 1')
+                    if summary_first:
+                        for line in summary:
+                            output.on_stderr(line)
+                    output.on_output('> Task :broken FAILED')
+                    if not summary_first:
+                        for line in summary:
+                            output.on_stderr(line)
+                    output.on_output('> Task :other')
+                    output.on_output('unrelated successful output')
+                    output.finish(False)
+                    text = stream.getvalue()
+                    for diagnostic in ('REVIEW_ROOT_CAUSE: missing native library', '    searched /sdk/lib'):
+                        self.assertEqual(1, text.count(diagnostic))
+                        self.assertIn(diagnostic, log.getvalue())
+                    self.assertIn('> Task :broken FAILED', text)
+                    self.assertIn('> subprocess exited with code 1', text)
+                    self.assertNotIn('Daemon', text)
+                    self.assertNotIn('unrelated successful output', text)
+
+    # Unattributed stderr remains available in the log without adding noise to successful compact builds.
+    def test_stderr_before_first_task_stays_quiet_on_success(self):
+        output, stream, log = self.reporter()
+        output.on_stderr('early tool diagnostic')
+        output.on_output('> Task :successful')
+        output.on_output('│████████│ 100% EXECUTING')
+        output.finish(True)
+        self.assertNotIn('early tool diagnostic', stream.getvalue())
+        self.assertIn('early tool diagnostic', log.getvalue())
+        self.assertIn('100% executing', stream.getvalue())
+
     # Bob's passed-test and standard-output logging must not bury failed tests and their assertions.
     def test_failed_tests_exclude_successful_test_logs(self):
         output, stream, log = self.reporter()
@@ -167,11 +210,15 @@ class GradleOutputTests(unittest.TestCase):
     # A launcher or daemon failure without standard Gradle headings still gets a bounded useful diagnostic.
     def test_unrecognized_failure_uses_bounded_tail(self):
         output, stream, _ = self.reporter()
+        output.on_stderr('early JVM warning')
         for index in range(250):
             output.on_output(f'bootstrap output {index}')
         output.on_stderr('Could not reserve enough space for the JVM')
+        output.on_output('Gradle launcher failed before task execution')
         output.finish(False)
         self.assertIn('Could not reserve enough space for the JVM', stream.getvalue())
+        self.assertIn('Gradle launcher failed before task execution', stream.getvalue())
+        self.assertNotIn('early JVM warning', stream.getvalue())
         self.assertNotIn('bootstrap output 0\n', stream.getvalue())
         self.assertLess(len(stream.getvalue().splitlines()), 110)
 
