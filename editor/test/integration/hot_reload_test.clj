@@ -82,17 +82,19 @@
                 "https://localhost:8443/build/other.bin"
                 "/build/other.bin"
                 "http://localhost:8000/build/folder/a%2520b.bin"]
-          request (coll/join-to-string "\n"
-                                       [(str (keys 0) " tag-a")
-                                        (str (keys 1) " tag-b")
-                                        (str (keys 2) " tag-b")
-                                        (str (keys 3) " tag-percent")
-                                        "http://localhost:8000/build/other.bin stale"
-                                        "http://localhost:8000/build/missing.bin"
-                                        "http://localhost:8000/build/missing.bin "
-                                        "http://localhost:8000/build-other/other.bin tag-b"
-                                        "http://localhost:8000/build/../other.bin tag-b"
-                                        "invalid%url tag-b"])]
+
+          request
+          (coll/join-to-string "\n"
+                               [(str (keys 0) " tag-a")
+                                (str (keys 1) " tag-b")
+                                (str (keys 2) " tag-b")
+                                (str (keys 3) " tag-percent")
+                                "http://localhost:8000/build/other.bin stale"
+                                "http://localhost:8000/build/missing.bin"
+                                "http://localhost:8000/build/missing.bin "
+                                "http://localhost:8000/build-other/other.bin tag-b"
+                                "http://localhost:8000/build/../other.bin tag-b"
+                                "invalid%url tag-b"])]
       (is (= keys (#'hot-reload/body->valid-entries workspace request))))))
 
 ;; The index must report one coherent build snapshot, including custom resource
@@ -124,9 +126,13 @@
     (let [files [["/space file.bin" "/build/space%20file.bin" (byte-array [0 10 13 127])]
                  ["/space%20file.bin" "/build/space%2520file.bin" (byte-array [1 2 3])]
                  ["/empty.bin" "/build/empty.bin" (byte-array 0)]]
-          artifacts (coll/into-> files {}
-                      (map (fn [[path _ data]]
-                             [path {:size (alength ^bytes data) :etag (digest/sha1-hex data)}])))
+
+          artifacts
+          (coll/into-> files {}
+            (map (fn [[path _ data]]
+                   [path {:size (alength ^bytes data)
+                          :etag (digest/sha1-hex data)}])))
+
           empty-etag (:etag (artifacts "/empty.bin"))]
       (doseq [[path _ data] files]
         (let [file (workspace/build-path workspace path)]
@@ -136,11 +142,14 @@
       (workspace/artifact-map! workspace artifacts)
       (with-open [server (http-server/start! (http-server/router-handler (hot-reload/routes workspace)))]
         (let [url (str (http-server/url server) "/__resource_batch__")
-              request (coll/join-to-string
-                        ""
-                        (eduction
-                          (map (fn [[path encoded _]] (str encoded \tab (:etag (artifacts path)) \newline)))
-                          files))
+
+              request
+              (coll/join-to-string
+                (eduction
+                  (map (fn [[path encoded _]]
+                         (str encoded \tab (:etag (artifacts path)) \newline)))
+                  files))
+
               response @(http/request url :method "POST" :body request :as :byte-array)]
           (is (= 200 (:status response)))
           (with-open [stream (ByteArrayInputStream. (:body response))]
@@ -159,8 +168,8 @@
             (is (= expected (:status @(http/request url :method "POST" :body request)))))
           (spit (workspace/build-path workspace "/space file.bin") "changed")
           (is (= 409 (:status @(http/request url
-                                            :method "POST"
-                                            :body (str "/build/space%20file.bin\t" (:etag (artifacts "/space file.bin")) \newline))))))))))
+                                             :method "POST"
+                                             :body (str "/build/space%20file.bin\t" (:etag (artifacts "/space file.bin")) \newline))))))))))
 
 ;; Changed or deleted files must not emit an invalid batch entry, and completed
 ;; entries must survive even when their bytes are still buffered.
@@ -172,16 +181,24 @@
             files [["/completed.bin" completed-data]
                    ["/changed.bin" original-data]
                    ["/following.bin" (byte-array [8 9])]]
-            artifacts (coll/into-> files {}
-                        (map (fn [[path data]]
-                               [path {:size (alength ^bytes data) :etag (digest/sha1-hex data)}])))
-            request (coll/join-to-string
-                      ""
-                      (eduction
-                        (map (fn [[path _]] (str "/build" path \tab (:etag (artifacts path)) \newline)))
-                        files))
-            completed-header (str "DM_RESOURCE_BATCH 1\n/build/completed.bin\t"
-                                  (alength completed-data) \tab (:etag (artifacts "/completed.bin")) \newline)
+
+            artifacts
+            (coll/into-> files {}
+              (map (fn [[path data]]
+                     [path {:size (alength ^bytes data)
+                            :etag (digest/sha1-hex data)}])))
+
+            request
+            (coll/join-to-string
+              (eduction
+                (map (fn [[path _]]
+                       (str "/build" path \tab (:etag (artifacts path)) \newline)))
+                files))
+
+            completed-header
+            (str "DM_RESOURCE_BATCH 1\n/build/completed.bin\t"
+                 (alength completed-data) \tab (:etag (artifacts "/completed.bin")) \newline)
+
             changed-file (workspace/build-path workspace "/changed.bin")
             handler (get-in (hot-reload/routes workspace) ["/__resource_batch__" "POST"])]
         (doseq [[path data] files]
@@ -191,9 +208,9 @@
               (.write out ^bytes data))))
         (workspace/artifact-map! workspace artifacts)
         (doseq [[label changed-data] [["shrinking" (byte-array [0 1 2])]
-                                     ["growing" (byte-array [0 1 2 3 4 5 6 7 8])]
-                                     ["rewriting without resizing" (byte-array [7 6 5 4 3 2 1 0])]
-                                     ["deleting" nil]]]
+                                      ["growing" (byte-array [0 1 2 3 4 5 6 7 8])]
+                                      ["rewriting without resizing" (byte-array [7 6 5 4 3 2 1 0])]
+                                      ["deleting" nil]]]
           (testing (str label " with completed file size " completed-size)
             (with-open [out (io/output-stream changed-file)]
               (.write out original-data))
@@ -238,7 +255,7 @@
           (is (= (+ 20 (* 4 (+ file-size (count header)))) (alength ^bytes (:body response))))
           (is (= 413 (:status @(http/request url :method "POST" :body (.repeat record 5)))))
           (is (= 413 (:status @(http/request url
-                                            :method "POST"
-                                            :body (str "/build/too-big.bin\t" (:etag (artifacts "/too-big.bin")) \newline)))))
+                                             :method "POST"
+                                             :body (str "/build/too-big.bin\t" (:etag (artifacts "/too-big.bin")) \newline)))))
           (is (= 400 (:status @(http/request url :method "POST" :body (.repeat record 4097)))))
           (is (= 413 (:status @(http/request url :method "POST" :body (String. (char-array (inc file-size) \x)))))))))))
