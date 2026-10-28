@@ -21,9 +21,6 @@ DYNAMO_HOME=os.environ.get('DYNAMO_HOME', os.path.join(os.getcwd(), 'tmp', 'dyna
 
 SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 
-# Python's leading version component is language-specific; the remainder is the protoc release.
-VERSION_PYTHON_PROTOBUF="7.35.1"
-
 ## **********************************************************************************************
 # Editor
 

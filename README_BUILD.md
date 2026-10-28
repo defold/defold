@@ -165,16 +165,17 @@ This step also installs some Python dependencies:
 
 * `boto` - For interacting with AWS. Installed from wheel package in `packages/`.
 * `markdown` - Used when generating script API docs. Installed from wheel package in `packages/`.
-* `protobuf` - Installed from the pinned wheel in `packages/python`, matching the source-built Protoc compiler.
+* `protobuf` - Installed from the pinned wheel in `packages/python`.
 * `Pygments` - For use by the `CodeHilite` extension used by `markdown` in `script_doc.py`. Installed from wheel package in `packages/`.
 * `requests` - Installed using pip
 * `pyaml` - Installed using pip
 
 DDF generators use these bundled Python dependencies without loading host
-site-packages. `install_ext` validates the Python Protobuf runtime after installation,
-and `check_sdk` checks both the runtime and the matching Protoc version. CMake
-prefers the installed SDK compiler over a compiler on `PATH`, including when
-reconfiguring an existing build.
+site-packages. `install_ext` checks that the bundled Python Protobuf runtime loads,
+and `check_sdk` checks both the runtime and Protoc. CMake first searches
+`tmp/dynamo_home/ext/bin/<host-platform>/` for Protoc and falls back to `PATH`
+when the host compiler is absent. Reconfiguring an existing build replaces any
+previously cached local compiler with the SDK compiler.
 
 `./scripts/build.py check_sdk` shows tool versions and status. Add `--verbose`
 to include tool paths and per-check timings.

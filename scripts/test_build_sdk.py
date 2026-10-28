@@ -303,7 +303,7 @@ class SdkCheckTests(unittest.TestCase):
         self.configuration.build_tracker = build.BuildTimeTracker(logger=lambda message: None)
         self.configuration._form_env = lambda: os.environ.copy()
         self.protobuf_output = json.dumps({
-            'version': build.sdk.VERSION_PYTHON_PROTOBUF,
+            'version': '7.35.1',
             'path': '/test-sdk/ext/lib/python/google/protobuf/__init__.py',
         })
         self.cmake_output = '\n'.join((
@@ -683,7 +683,6 @@ set(CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH OFF)
 set(CMAKE_FIND_USE_CMAKE_SYSTEM_PATH OFF)
 set(CMAKE_FIND_USE_INSTALL_PREFIX OFF)
 message("DEFOLD_SDK_CHECK\\tProtoc")
-include("${DEFOLD_HOME}/scripts/cmake/functions_sdk.cmake")
 include("${DEFOLD_HOME}/scripts/cmake/tools_protoc.cmake")
 message("DEFOLD_SDK_CHECK\\tProtoc\\t${_protoc_ver}\\t${_DEFOLD_PROTOC_REAL}")
 ''')

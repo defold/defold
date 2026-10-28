@@ -24,7 +24,8 @@ class PythonProtobufTests(unittest.TestCase):
         self.root = Path(directory).resolve()
         self.ext = self.root / 'sdk' / 'ext'
         self.packages = self.ext / 'lib' / 'python'
-        self.wheel = REPOSITORY / 'packages' / 'python' / f'protobuf-{build.sdk.VERSION_PYTHON_PROTOBUF}-py3-none-any.whl'
+        self.protobuf_version = '7.35.1'
+        self.wheel = REPOSITORY / 'packages' / 'python' / f'protobuf-{self.protobuf_version}-py3-none-any.whl'
         with zipfile.ZipFile(self.wheel) as wheel:
             wheel.extractall(self.packages)
 
@@ -82,14 +83,14 @@ class PythonProtobufTests(unittest.TestCase):
     # SDK preflight must import the actual bundled runtime without being affected by host packages.
     def test_preflight_loads_bundled_runtime(self):
         info = self.configuration._check_python_protobuf()
-        self.assertEqual(build.sdk.VERSION_PYTHON_PROTOBUF, info['version'])
+        self.assertEqual(self.protobuf_version, info['version'])
         self.assertEqual(self.packages / 'google' / 'protobuf' / '__init__.py', Path(info['path']))
 
-    # Missing and mismatched runtimes must fail during setup with a concrete repair command.
-    def test_preflight_rejects_missing_or_wrong_runtime(self):
+    # Missing or broken bundled runtimes must fail during setup with a concrete repair command.
+    def test_preflight_rejects_missing_or_broken_runtime(self):
         init = self.packages / 'google' / 'protobuf' / '__init__.py'
-        init.write_text("__version__ = '0.0.0'\n")
-        with self.assertRaisesRegex(build.sdk.SDKException, '0.0.0.*required.*install_ext'):
+        init.write_text("raise ImportError('broken bundled runtime')\n")
+        with self.assertRaisesRegex(build.sdk.SDKException, 'Could not load.*install_ext'):
             self.configuration._check_python_protobuf()
         shutil.rmtree(self.packages)
         with self.assertRaisesRegex(build.sdk.SDKException, 'Could not load.*install_ext'):
@@ -99,9 +100,9 @@ class PythonProtobufTests(unittest.TestCase):
     @unittest.skipUnless(importlib.util.find_spec('pip'), 'pip is required for installation')
     def test_setup_installs_and_validates_pinned_wheel(self):
         shutil.rmtree(self.packages)
-        self.configuration._install_python_packages([f'protobuf=={build.sdk.VERSION_PYTHON_PROTOBUF}'])
+        self.configuration._install_python_packages([f'protobuf=={self.protobuf_version}'])
         info = self.configuration._check_python_protobuf()
-        self.assertEqual(build.sdk.VERSION_PYTHON_PROTOBUF, info['version'])
+        self.assertEqual(self.protobuf_version, info['version'])
         self.assertTrue(Path(info['path']).is_relative_to(self.packages))
 
 
@@ -115,7 +116,6 @@ class ProtocSelectionTests(unittest.TestCase):
         self.sdk.mkdir()
         self.programs = self.root / 'bin'
         self.programs.mkdir()
-        self.expected_version = build.sdk.VERSION_PYTHON_PROTOBUF.split('.', 1)[1]
         self.project = self.root / 'project'
         self.project.mkdir()
         (self.project / 'CMakeLists.txt').write_text('''
@@ -127,7 +127,6 @@ set(HOST_PLATFORM test-host)
 set(CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH OFF)
 set(CMAKE_FIND_USE_CMAKE_SYSTEM_PATH OFF)
 set(CMAKE_FIND_USE_INSTALL_PREFIX OFF)
-include("${DEFOLD_HOME}/scripts/cmake/functions_sdk.cmake")
 include("${DEFOLD_HOME}/scripts/cmake/tools_protoc.cmake")
 file(WRITE "${CMAKE_BINARY_DIR}/selected_protoc.txt" "${DEFOLD_PROTOC_EXECUTABLE}")
 ''')
@@ -152,28 +151,40 @@ file(WRITE "${CMAKE_BINARY_DIR}/selected_protoc.txt" "${DEFOLD_PROTOC_EXECUTABLE
 
     # Installing the SDK compiler must replace a previously cached PATH compiler during reconfiguration.
     def test_reconfiguration_replaces_cached_path_compiler(self):
-        path_compiler = self.protoc(self.programs, self.expected_version)
+        path_compiler = self.protoc(self.programs, '36.2')
         initial = self.configure()
         self.assertEqual(0, initial.returncode, initial.stdout + initial.stderr)
         selected = self.root / 'build' / 'selected_protoc.txt'
         self.assertEqual(str(path_compiler), selected.read_text())
-        self.protoc(self.programs, '36.2')
-        sdk_compiler = self.protoc(self.sdk / 'ext' / 'bin' / 'test-host', self.expected_version)
-        updated = self.configure()
+        sdk_compiler = self.protoc(self.sdk / 'ext' / 'bin' / 'test-host', '35.1')
+        updated = self.configure(f'-D_DEFOLD_PROTOC_EXECUTABLE:FILEPATH={path_compiler}')
         self.assertEqual(0, updated.returncode, updated.stdout + updated.stderr)
         self.assertEqual(str(sdk_compiler), selected.read_text())
         cache = (self.root / 'build' / 'CMakeCache.txt').read_text()
         self.assertIn(f'DEFOLD_PROTOC_EXECUTABLE:FILEPATH={sdk_compiler}', cache)
 
-    # A newer host Protoc must fail at preflight instead of generating code the bundled runtime cannot load.
-    def test_incompatible_path_compiler_is_rejected(self):
+    # An installed SDK compiler must take priority over a different local compiler on the first configure.
+    def test_sdk_compiler_is_preferred_over_path(self):
         self.protoc(self.programs, '36.2')
+        sdk_compiler = self.protoc(self.sdk / 'ext' / 'bin' / 'test-host', '35.1')
+        result = self.configure(f'-DCMAKE_PROGRAM_PATH={self.programs}')
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(str(sdk_compiler), (self.root / 'build' / 'selected_protoc.txt').read_text())
+
+    # PATH remains available when no SDK host compiler is installed, without a Python-derived version restriction.
+    def test_path_fallback_when_sdk_compiler_is_missing(self):
+        path_compiler = self.protoc(self.programs, '36.2')
         result = self.configure()
-        self.assertNotEqual(0, result.returncode)
-        diagnostic = ' '.join(result.stderr.split())
-        self.assertIn('libprotoc 36.2', diagnostic)
-        self.assertIn(f'requires protoc {self.expected_version}', diagnostic)
-        self.assertIn('./scripts/build.py install_ext', diagnostic)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(str(path_compiler), (self.root / 'build' / 'selected_protoc.txt').read_text())
+
+    # A compiler installed for another platform must not hide a runnable host compiler on PATH.
+    def test_other_platform_compiler_does_not_hide_path_compiler(self):
+        self.protoc(self.sdk / 'ext' / 'bin' / 'other-host', '35.1')
+        path_compiler = self.protoc(self.programs, '36.2')
+        result = self.configure()
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(str(path_compiler), (self.root / 'build' / 'selected_protoc.txt').read_text())
 
 
 if __name__ == '__main__':

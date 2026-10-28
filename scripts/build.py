@@ -1022,7 +1022,7 @@ class Configuration(object):
             'Pygments==2.12.0',
             'Pillow==11.3.0',
             'boto3==1.36.3',
-            f'protobuf=={sdk.VERSION_PYTHON_PROTOBUF}',
+            'protobuf==7.35.1',
             'PyYAML==6.0.3',
             'pystache==0.6.8',
             'rangehttpserver==1.4.0',
@@ -1117,12 +1117,7 @@ class Configuration(object):
         except run.ExecException as error:
             raise sdk.SDKException(
                 'Could not load the bundled Python Protobuf runtime. Run ./scripts/build.py install_ext.\n' + error.output) from error
-        info = json.loads(output)
-        if info['version'] != sdk.VERSION_PYTHON_PROTOBUF:
-            raise sdk.SDKException(
-                f"Python Protobuf {info['version']} does not match the required {sdk.VERSION_PYTHON_PROTOBUF}. "
-                'Run ./scripts/build.py install_ext.')
-        return info
+        return json.loads(output)
 
     def _log_sdk_check(self, name, status, passed=True, path=None, elapsed=None):
         message = f"{name}: {status}"
