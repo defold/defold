@@ -65,27 +65,48 @@ namespace dmGameSystem
     dmGameObject::Result RegisterComponentRenderType(HComponentRenderContext context, uint32_t component_index, const ComponentRenderType& type);
 
     /**
-     * Run existing render traversal plus capture/consume for opted-in components, inline only.
+     * Acquire a frame before simulation. The renderer handles backpressure and any wait.
+     * With no registered render types, does not allocate/reserve frame storage.
+     * @param context Component rendering bridge
+     * @return RENDER_FRAME_OK, or an admission/component error
+     */
+    dmRender::RenderFrameResult BeginComponentRenderFrame(HComponentRenderContext context);
+
+    /**
+     * Capture into the admitted frame, then submit the same inputs despite backpressure.
+     * Inline consumes now; threaded execution consumes on its render owner.
      * With no registered render types, calls the existing game-object Render path.
-     * @param context Component rendering bridge with inline execution
+     * @param context Component rendering bridge with an admitted frame
      * @param collection Root collection to render/capture
      * @return True on success; false on traversal, capture or renderer failure
      */
-    bool RenderComponentsInline(HComponentRenderContext context, dmGameObject::HCollection collection);
+    bool RenderComponents(HComponentRenderContext context, dmGameObject::HCollection collection);
 
     /**
      * Retire completed frame references on the game owner. Call after surrounding
-     * render-script/draw work, before destructive PostUpdate. No queue means no work.
+     * render-script/draw work, before destructive PostUpdate. Cancels unused capture on
+     * non-drawing updates/early exits. No queue means no work.
      * @param context Component rendering bridge
      */
-    void RetireComponentRenderFrames(HComponentRenderContext context);
+    void EndComponentRenderFrame(HComponentRenderContext context);
 
     /**
-     * Service deferred world destruction on the render owner without drawing a frame.
-     * Call on non-drawing frames too, including after PostUpdate in inline execution.
+     * Service deferred world destruction from the game owner without drawing a frame.
+     * Inline pumps now; threaded execution wakes the render owner. Call after PostUpdate,
+     * including non-drawing updates.
      * @param context Component rendering bridge
+     * @return First component renderer or service scheduling error
      */
-    void ServiceComponentRenderContext(HComponentRenderContext context);
+    dmRender::RenderFrameResult ServiceComponentRenderContext(HComponentRenderContext context);
+
+    /**
+     * Drain accepted frames, retire references and finish service, then shut down the
+     * registered executor before deleting callback state. All collections must be deleted.
+     * Cancels only unpublished work. The renderer owns the executor shutdown contract.
+     * @param context Component rendering bridge on the game owner
+     * @return RENDER_FRAME_OK when safe to delete, otherwise a queue shutdown error
+     */
+    dmRender::RenderFrameResult ShutdownComponentRenderContext(HComponentRenderContext context);
 
     /**
      * Get the shared frame queue for internal executor/test integration.
@@ -110,10 +131,9 @@ namespace dmGameSystem
     uint32_t GetComponentRenderWorldCount(HComponentRenderContext context);
 
     /**
-     * Delete the bridge on the game owner after all collections are destroyed.
-     * Inline drains remaining cleanup. Threaded callers must first consume/retire frames,
-     * service worlds to zero, then stop/drain/join the executor. Individual DeleteWorld
-     * calls never block to drain. Callback contexts, rendering and resources must remain alive.
+     * Delete the bridge on the game owner after ShutdownComponentRenderContext.
+     * Individual DeleteWorld calls never block to drain. Callback contexts,
+     * rendering and resources must remain alive through draining.
      * @param context Component rendering bridge ready for final teardown
      */
     void DeleteComponentRenderContext(HComponentRenderContext context);

@@ -30,7 +30,6 @@
 
 #include <input/input.h>
 #include <render/render.h>
-#include <render/render_frame.h>
 #include <physics/physics.h>
 #include <platform/window.h>
 
@@ -356,36 +355,45 @@ namespace dmGameSystem
     dmGameObject::Result RegisterComponentType(HContext context, const dmGameObject::ComponentType& type, const ComponentRenderType* render_type = 0);
 
     /**
-     * Run the current inline render traversal and capture opted-in components.
-     * @param context Game-system instance using inline execution
+     * Begin a game-system frame before jobs, resource reloads, scripts and simulation.
+     * Handles outstanding work internally so simulation cannot run ahead of rendering.
+     * Finish with PostUpdate even when drawing is skipped, or Finalize when exiting.
+     * @param context Game-system instance
+     * @return True if the frame can begin; errors are logged internally
+     */
+    bool BeginFrame(HContext context);
+
+    /**
+     * Render components after final transforms/PreRender, before destructive PostUpdate.
+     * Requires successful BeginFrame. Rendering and handoff use the selected execution
+     * mode internally; callers use the same frame phases in either mode. Capture failures
+     * are logged and cancel that frame; persistent renderer errors also fail PostUpdate.
+     * @param context Game-system instance
      * @param collection Root collection to render
      * @return True on success, false on capture or consumer failure
      */
-    bool RenderComponentsInline(HContext context, dmGameObject::HCollection collection);
+    bool Render(HContext context, dmGameObject::HCollection collection);
 
     /**
-     * Release completed frame references after drawing, before destructive PostUpdate.
+     * Finish the frame after drawing, including frames where drawing was skipped. Performs
+     * collection and register PostUpdate, with internal frame retirement before game-world
+     * cleanup and deferred renderer cleanup afterwards. Game-object callback errors retain
+     * their existing non-fatal policy; service or persistent renderer errors return false.
      * @param context Game-system instance
+     * @param collection Root collection, or null when only register cleanup is needed
+     * @return True if frame processing can continue; errors are logged internally
      */
-    void RetireComponentRenderFrames(HContext context);
+    bool PostUpdate(HContext context, dmGameObject::HCollection collection);
 
     /**
-     * Service deferred renderer cleanup after PostUpdate, including non-drawing frames.
-     * Like RenderComponentsInline, this currently requires inline execution so the game
-     * owner can both pump renderer cleanup and read its result on the same thread.
-     * @param context Game-system instance using inline execution
-     * @return First component-rendering error, or RENDER_FRAME_OK
-     */
-    dmRender::RenderFrameResult ServiceComponentRendering(HContext context);
-
-    /**
-     * Finish renderer lifetimes after collections are deleted, before resource/type teardown.
-     * Inline execution drains cleanup; threaded test executors must already be drained/joined.
+     * Finish pending work and release internal rendering state after all collections have
+     * been deleted. Coordinates executor shutdown internally before deleting callback state.
      * Keeps built-in context storage alive for resource destruction. Also used after failed
-     * initialization. No component registration or frame work is allowed afterwards.
-     * @param context Game-system instance
+     * initialization or an unfinished frame. No frame work is allowed afterwards.
+     * @param context Game-system instance on the game owner
+     * @return True when finalized; false leaves state alive and logs the shutdown error
      */
-    void Finalize(HContext context);
+    bool Finalize(HContext context);
 
     /**
      * Free context storage after Finalize and destruction of the resource factory/register.

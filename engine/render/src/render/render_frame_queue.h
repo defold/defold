@@ -59,6 +59,15 @@ namespace dmRender
      */
     typedef void (*FRenderFrameService)(void* context);
 
+    /**
+     * Quiesce the executor after draining, on the game owner and outside the queue lock.
+     * Join a native thread, or detach the external/browser-main pump and wait for its
+     * acknowledgement. Return only when no pump can access the queue or callback state.
+     * Never wait on browser main or reenter queue shutdown from this callback.
+     * @param context Context supplied when registering the executor
+     */
+    typedef void (*FRenderFrameExecutorShutdown)(void* context);
+
     /** Copied at creation; execution outlives queue and callback contexts outlive all pumps. */
     struct RenderFrameQueueParams
     {
@@ -105,7 +114,8 @@ namespace dmRender
 
     /**
      * Delete on the game owner after stopping/draining, stopping or joining the executor,
-     * and retiring every slot. No callback or other owner may still access the queue.
+     * and retiring every slot. A registered executor must have completed Shutdown first.
+     * No callback or other owner may still access the queue.
      * @param queue Stopped queue with all slots Free
      */
     void DeleteRenderFrameQueue(HRenderFrameQueue queue);
@@ -117,6 +127,68 @@ namespace dmRender
      * @return Fixed storage budget in bytes
      */
     uint64_t GetRenderFrameQueueStorageSize(const RenderFrameLimits& limits);
+
+    /**
+     * Acquire capture storage before simulation using the same call in either mode. Retires
+     * completed slots first; threaded waits for progress without dropping frames, while
+     * inline returns WOULD_BLOCK if no slot is available. No capture may already be open.
+     * @param queue Game-owner queue with a running executor in threaded mode
+     * @param ticket Output capture access, assigned only on success
+     * @return OK, WOULD_BLOCK inline, STOPPED, or a capacity error
+     */
+    RenderFrameResult AcquireRenderFrame(HRenderFrameQueue queue, RenderFrameTicket* ticket);
+
+    /**
+     * Submit the captured frame using the same call in either mode. Threaded waits until
+     * the earlier reader completes, then retries the same ticket; inline consumes before
+     * returning. Does not cancel, replace or recapture work when the queue is full.
+     * @param queue Game-owner queue with a running executor in threaded mode
+     * @param ticket Current capture; all mutable access ends on success
+     * @return OK, WOULD_BLOCK inline, STOPPED, or a capture/state error
+     */
+    RenderFrameResult SubmitRenderFrame(HRenderFrameQueue queue, const RenderFrameTicket& ticket);
+
+    /**
+     * Service persistent renderer work from the game owner. Inline pumps service without
+     * consuming a frame; threaded requests a coalesced executor wake and returns immediately.
+     * @param queue Queue with a service callback
+     * @return OK, STOPPED, or INVALID_STATE if no service callback is installed
+     */
+    RenderFrameResult ServiceRenderFrameQueue(HRenderFrameQueue queue);
+
+    /**
+     * Finish game-owner shutdown with the same call in either mode: cancel only unpublished
+     * capture, consume every accepted frame, retire its references, and finish requested
+     * service callbacks before closing admission. Threaded waits on progress; its executor
+     * must keep pumping until this returns. Stop external request producers before draining.
+     * Does not join an executor: stop/join all pumps before deleting the queue or callbacks.
+     * A previously stopped, fully retired and service-acknowledged queue is already drained.
+     * @param queue Queue owned by this game owner, not browser main in threaded mode
+     * @return OK, or INVALID_STATE if previously stopped with unfinished work
+     */
+    RenderFrameResult DrainRenderFrameQueue(HRenderFrameQueue queue);
+
+    /**
+     * Register the threaded executor's shutdown hook once, on the game owner during
+     * setup, before starting its pump or accepting capture/service work. The context
+     * must remain valid until Shutdown returns. Inline execution needs no registration.
+     * @param queue Threaded queue owned by this game owner
+     * @param shutdown Non-null hook that joins or quiesces the executor
+     * @param context Executor-owned context passed to the hook
+     * @return OK, or INVALID_STATE for inline, duplicate, missing or late registration
+     */
+    RenderFrameResult SetRenderFrameExecutorShutdown(HRenderFrameQueue queue,
+        FRenderFrameExecutorShutdown shutdown, void* context);
+
+    /**
+     * Drain work and then quiesce its executor before callback state can be deleted.
+     * Threaded requires a registered shutdown hook; missing registration fails before
+     * touching queued work. Inline drains directly without synchronization or a hook.
+     * Stop external request producers first. Successful repeated calls have no effect.
+     * @param queue Queue owned by this game owner, not browser main in threaded mode
+     * @return OK, or INVALID_STATE for missing executor registration or unfinished Stop
+     */
+    RenderFrameResult ShutdownRenderFrameQueue(HRenderFrameQueue queue);
 
     /**
      * Reserve on the game owner BEFORE simulation to bound its lead: at most one Building

@@ -29,6 +29,7 @@ namespace dmGameSystem
     // Bindings remain stable until all worlds/frames and renderer callbacks have drained.
     struct ComponentRenderContext
     {
+        dmRender::RenderFrameTicket       m_Capture;
         dmRender::RenderFrameLimits       m_Limits;
         uint64_t                          m_NextWorldId;
         dmGameObject::HRegister           m_Register;
@@ -241,52 +242,87 @@ namespace dmGameSystem
         return FinishComponentRenderRegistration(context, binding, created_queue, result);
     }
 
-    bool RenderComponentsInline(HComponentRenderContext context, dmGameObject::HCollection collection)
+    dmRender::RenderFrameResult BeginComponentRenderFrame(HComponentRenderContext context)
     {
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
-        assert(dmRender::GetRenderExecutionMode(context->m_Execution) == dmRender::EXECUTION_MODE_INLINE);
+        dmRender::RenderFrameResult result = GetComponentRenderResult(context);
+        if (result != dmRender::RENDER_FRAME_OK)
+            return result;
+        if (!context->m_Queue)
+            return dmRender::RENDER_FRAME_OK;
+        if (context->m_Capture.m_Frame)
+            return dmRender::RENDER_FRAME_INVALID_STATE;
 
-        if (!context->m_Types)
-        {
-            return dmGameObject::Render(collection);
-        }
-        if (GetComponentRenderResult(context) != dmRender::RENDER_FRAME_OK)
-        {
-            return false;
-        }
-
-        dmRender::RenderFrameTicket ticket;
-        dmRender::RenderFrameResult result = dmRender::BeginRenderFrameCapture(context->m_Queue, &ticket);
+        // Reserve before simulation. The renderer owns any wait for producer credit;
+        // gamesys uses the same admission path with inline and external consumers.
+        result = dmRender::AcquireRenderFrame(context->m_Queue, &context->m_Capture);
+        if (result != dmRender::RENDER_FRAME_OK)
+            return result;
+        // The previous consumer may have failed while admission waited for its slot.
+        result = GetComponentRenderResult(context);
         if (result != dmRender::RENDER_FRAME_OK)
         {
-            return false;
+            dmRender::CancelRenderFrameCapture(context->m_Queue, context->m_Capture);
+            context->m_Capture.m_Frame = 0;
         }
-
-        if (!dmGameObject::CaptureRenderData(collection, ticket.m_Frame))
-        {
-            dmRender::CancelRenderFrameCapture(context->m_Queue, ticket);
-            return false;
-        }
-
-        result = dmRender::PublishRenderFrame(context->m_Queue, ticket);
-        if (result != dmRender::RENDER_FRAME_OK)
-        {
-            dmRender::CancelRenderFrameCapture(context->m_Queue, ticket);
-            return false;
-        }
-        return GetComponentRenderResult(context) == dmRender::RENDER_FRAME_OK;
+        return result;
     }
 
-    void RetireComponentRenderFrames(HComponentRenderContext context)
+    bool RenderComponents(HComponentRenderContext context, dmGameObject::HCollection collection)
     {
+        assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
+        if (!context->m_Types)
+            return dmGameObject::Render(collection);
+        if (!context->m_Capture.m_Frame)
+            return false;
+
+        if (!dmGameObject::CaptureRenderData(collection, context->m_Capture.m_Frame))
+        {
+            dmRender::CancelRenderFrameCapture(context->m_Queue, context->m_Capture);
+            context->m_Capture.m_Frame = 0;
+            return false;
+        }
+
+        // A slow reader delays publication of this exact snapshot. Never recapture
+        // or discard it just because the previous accepted frame is still in use.
+        dmRender::RenderFrameResult result = dmRender::SubmitRenderFrame(context->m_Queue, context->m_Capture);
+        if (result != dmRender::RENDER_FRAME_OK)
+            dmRender::CancelRenderFrameCapture(context->m_Queue, context->m_Capture);
+        context->m_Capture.m_Frame = 0;
+        return result == dmRender::RENDER_FRAME_OK && GetComponentRenderResult(context) == dmRender::RENDER_FRAME_OK;
+    }
+
+    void EndComponentRenderFrame(HComponentRenderContext context)
+    {
+        // Non-drawing updates still acquired producer credit before simulation.
+        if (context->m_Capture.m_Frame)
+        {
+            dmRender::CancelRenderFrameCapture(context->m_Queue, context->m_Capture);
+            context->m_Capture.m_Frame = 0;
+        }
         if (context->m_Queue)
             dmRender::RetireRenderFrames(context->m_Queue);
     }
 
-    void ServiceComponentRenderContext(HComponentRenderContext context)
+    dmRender::RenderFrameResult ServiceComponentRenderContext(HComponentRenderContext context)
     {
         if (context->m_Queue)
-            dmRender::PumpRenderFrameQueue(context->m_Queue, false);
+        {
+            dmRender::RenderFrameResult result = dmRender::ServiceRenderFrameQueue(context->m_Queue);
+            if (result != dmRender::RENDER_FRAME_OK)
+                return result;
+        }
+        return GetComponentRenderResult(context);
+    }
+
+    dmRender::RenderFrameResult ShutdownComponentRenderContext(HComponentRenderContext context)
+    {
+        if (!context->m_Queue)
+            return dmRender::RENDER_FRAME_OK;
+        dmRender::RenderFrameResult result = dmRender::ShutdownRenderFrameQueue(context->m_Queue);
+        if (result == dmRender::RENDER_FRAME_OK)
+            context->m_Capture.m_Frame = 0;
+        return result;
     }
 
     dmRender::HRenderFrameQueue GetComponentRenderQueue(HComponentRenderContext context)
@@ -307,15 +343,6 @@ namespace dmGameSystem
     void DeleteComponentRenderContext(HComponentRenderContext context)
     {
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
-        if (context->m_Queue && dmRender::GetRenderExecutionMode(context->m_Execution) == dmRender::EXECUTION_MODE_INLINE)
-        {
-            dmRender::RetireRenderFrames(context->m_Queue);
-            // Final reference releases must still be allowed to wake renderer cleanup.
-            dmRender::PumpRenderFrameQueue(context->m_Queue, false);
-            dmRender::StopRenderFrameQueue(context->m_Queue);
-            dmRender::PumpRenderFrameQueue(context->m_Queue, false);
-        }
-
         DeleteComponentRenderStateContext(context->m_StateContext);
         if (context->m_Queue)
         {

@@ -104,6 +104,8 @@ namespace dmGameSystem
             return 0;
 
         context->m_Execution = execution;
+        // This lock protects gamesys-owned lifetime metadata, not scheduling policy.
+        // Both modes use the same lifecycle API; inline avoids synchronization entirely.
         if (dmRender::GetRenderExecutionMode(execution) == dmRender::EXECUTION_MODE_THREADED)
         {
             context->m_WorldsPendingDestroyMutex = dmMutex::New();

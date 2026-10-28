@@ -12,6 +12,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <dlib/log.h>
+#include <gameobject/gameobject.h>
+
 #include "gamesys_context_private.h"
 
 namespace dmGameSystem
@@ -42,26 +45,49 @@ namespace dmGameSystem
         return RegisterComponentType(context->m_ComponentRenderContext, type, render_type);
     }
 
-    bool RenderComponentsInline(HContext context, dmGameObject::HCollection collection)
+    static bool CheckRenderResult(dmRender::RenderFrameResult result, const char* operation)
     {
-        return RenderComponentsInline(context->m_ComponentRenderContext, collection);
+        if (result == dmRender::RENDER_FRAME_OK)
+            return true;
+        dmLogError("Unable to %s game-system frame (%d)", operation, result);
+        return false;
     }
 
-    void RetireComponentRenderFrames(HContext context)
+    bool BeginFrame(HContext context)
     {
-        RetireComponentRenderFrames(context->m_ComponentRenderContext);
+        return CheckRenderResult(BeginComponentRenderFrame(context->m_ComponentRenderContext), "begin");
     }
 
-    dmRender::RenderFrameResult ServiceComponentRendering(HContext context)
+    bool Render(HContext context, dmGameObject::HCollection collection)
     {
-        ServiceComponentRenderContext(context->m_ComponentRenderContext);
-        return GetComponentRenderResult(context->m_ComponentRenderContext);
+        if (RenderComponents(context->m_ComponentRenderContext, collection))
+            return true;
+        dmLogError("Component rendering or render-input capture failed.");
+        return false;
     }
 
-    void Finalize(HContext context)
+    bool PostUpdate(HContext context, dmGameObject::HCollection collection)
     {
+        // Keep dependencies alive through drawing, then allow destructive game cleanup.
+        EndComponentRenderFrame(context->m_ComponentRenderContext);
+        if (collection)
+            dmGameObject::PostUpdate(collection);
+        dmGameObject::PostUpdate(context->m_Params.m_Register);
+        return CheckRenderResult(ServiceComponentRenderContext(context->m_ComponentRenderContext), "finish");
+    }
+
+    bool Finalize(HContext context)
+    {
+        dmRender::RenderFrameResult result = ShutdownComponentRenderContext(context->m_ComponentRenderContext);
+        if (result != dmRender::RENDER_FRAME_OK)
+        {
+            dmLogError("Unable to finalize game system (%d)", result);
+            return false;
+        }
+
         DeleteComponentRenderContext(context->m_ComponentRenderContext);
         context->m_ComponentRenderContext = 0;
+        return true;
     }
 
     void DeleteContext(HContext context)

@@ -538,8 +538,8 @@ namespace dmEngine
         dmGameObject::DeleteCollections(engine->m_Register); // Delete all collections and game objects
 
         // Finish deferred game-system work before resource/type teardown.
-        if (engine->m_GameSystem)
-            dmGameSystem::Finalize(engine->m_GameSystem);
+        if (engine->m_GameSystem && !dmGameSystem::Finalize(engine->m_GameSystem))
+            return;
 
         dmHttpClient::ShutdownConnectionPool();
 
@@ -2073,6 +2073,13 @@ bail:
                         return;
                     }
                 }
+
+                if (!dmGameSystem::BeginFrame(engine->m_GameSystem))
+                {
+                    Exit(engine, 1);
+                    ProfileFrameEnd(profile);
+                    return;
+                }
 #if defined(DM_HAS_THREADS)
                 uint64_t jobthread_max_time_us = 0;
 #else
@@ -2116,6 +2123,7 @@ bail:
                 if (esc_pressed || !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_OPENED))
                 {
                     Exit(engine, 0);
+                    ProfileFrameEnd(profile);
                     return;
                 }
 
@@ -2168,10 +2176,7 @@ bail:
 
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
-                    // Capture opted-in component inputs after final transforms/PreRender,
-                    // before destructive PostUpdate. Legacy types retain their render path.
-                    if (!dmGameSystem::RenderComponentsInline(engine->m_GameSystem, GetMainCollection(engine)))
-                        dmLogError("Component rendering or render-input capture failed.");
+                    dmGameSystem::Render(engine->m_GameSystem, GetMainCollection(engine));
 
                     // Make sure we dispatch messages to the render script
                     // since it could have some "draw_text" messages waiting.
@@ -2201,19 +2206,8 @@ bail:
                     }
                 }
 
-                // Keep captured dependencies through render-script/list dispatch, even
-                // while this foundation's component consumer is still invoked inline.
-                dmGameSystem::RetireComponentRenderFrames(engine->m_GameSystem);
-                dmGameObject::PostUpdate(GetMainCollection(engine));
-                dmGameObject::PostUpdate(engine->m_Register);
-                // World deletion may enqueue renderer cleanup even on a non-drawing frame.
-                dmRender::RenderFrameResult component_render_result = dmGameSystem::ServiceComponentRendering(engine->m_GameSystem);
-
-                if (component_render_result != dmRender::RENDER_FRAME_OK)
-                {
-                    dmLogError("Component renderer failed (%d); stopping the engine.", component_render_result);
+                if (!dmGameSystem::PostUpdate(engine->m_GameSystem, GetMainCollection(engine)))
                     Exit(engine, 1);
-                }
 
                 if (do_render)
                 {

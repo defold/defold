@@ -96,9 +96,149 @@ namespace dmRender
         return sizeof(RenderFrameQueueContext) + 2 * GetRenderFrameStorageSize(limits);
     }
 
+    static uint64_t GetProgressRevision(HRenderFrameQueue queue)
+    {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue->m_Mutex);
+        return queue->m_Revision;
+    }
+
+    RenderFrameResult AcquireRenderFrame(HRenderFrameQueue queue, RenderFrameTicket* ticket)
+    {
+        for (;;)
+        {
+            // Sample before retirement/reservation so a completion between those steps
+            // cannot be missed when the threaded producer goes to sleep.
+            uint64_t revision = GetProgressRevision(queue);
+            RetireRenderFrames(queue);
+            RenderFrameResult result = BeginRenderFrameCapture(queue, ticket);
+            if (result != RENDER_FRAME_WOULD_BLOCK || !queue->m_Mutex)
+                return result;
+            WaitForRenderFrameProgress(queue, revision);
+        }
+    }
+
+    RenderFrameResult SubmitRenderFrame(HRenderFrameQueue queue, const RenderFrameTicket& ticket)
+    {
+        for (;;)
+        {
+            uint64_t revision = GetProgressRevision(queue);
+            RenderFrameResult result = PublishRenderFrame(queue, ticket);
+            if (result != RENDER_FRAME_WOULD_BLOCK || !queue->m_Mutex)
+                return result;
+            WaitForRenderFrameProgress(queue, revision);
+        }
+    }
+
+    RenderFrameResult ServiceRenderFrameQueue(HRenderFrameQueue queue)
+    {
+        assert(IsRenderExecutionOwner(queue->m_Params.m_Execution, EXECUTION_OWNER_GAME));
+        RenderFrameResult result = RequestRenderFrameService(queue);
+        if (result == RENDER_FRAME_OK && !queue->m_Mutex)
+            PumpRenderFrameQueue(queue, false);
+        return result;
+    }
+
+    static bool AllSlotsFree(HRenderFrameQueue queue)
+    {
+        return queue->m_Slots[0].m_State == RENDER_FRAME_FREE &&
+               queue->m_Slots[1].m_State == RENDER_FRAME_FREE;
+    }
+
+    RenderFrameResult DrainRenderFrameQueue(HRenderFrameQueue queue)
+    {
+        assert(IsRenderExecutionOwner(queue->m_Params.m_Execution, EXECUTION_OWNER_GAME));
+        assert(!queue->m_InRetire);
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue->m_Mutex);
+            // Legacy callers may already have drained and joined their executor. Never
+            // request new work or wait on that stopped executor.
+            if (queue->m_Stopping)
+                return AllSlotsFree(queue) && queue->m_ServiceRequested == queue->m_ServiceAcknowledged ?
+                    RENDER_FRAME_OK : RENDER_FRAME_INVALID_STATE;
+            if (queue->m_Building != -1)
+            {
+                queue->m_Slots[queue->m_Building].m_State = RENDER_FRAME_RETIRED;
+                queue->m_Building = -1;
+                ++queue->m_Cancelled;
+                Changed(queue);
+            }
+        }
+
+        for (;;)
+        {
+            uint64_t revision = GetProgressRevision(queue);
+            // Keep requests open: releasing the last reference can enqueue renderer
+            // destruction, which must complete before the executor is stopped.
+            RetireRenderFrames(queue);
+            {
+                DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue->m_Mutex);
+                if (AllSlotsFree(queue))
+                    break;
+            }
+            if (queue->m_Mutex)
+                WaitForRenderFrameProgress(queue, revision);
+            else
+                PumpRenderFrameQueue(queue, true);
+        }
+
+        if (queue->m_Params.m_Service)
+            RequestRenderFrameService(queue);
+        for (;;)
+        {
+            uint64_t revision = GetProgressRevision(queue);
+            if (!queue->m_Mutex && queue->m_Params.m_Service)
+                PumpRenderFrameQueue(queue, false);
+            {
+                DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue->m_Mutex);
+                if (queue->m_ServiceRequested == queue->m_ServiceAcknowledged)
+                {
+                    // Close under the same lock as the final completion check so every
+                    // request accepted before Stop has finished, not merely started.
+                    queue->m_Stopping = true;
+                    Changed(queue);
+                    return RENDER_FRAME_OK;
+                }
+            }
+            WaitForRenderFrameProgress(queue, revision);
+        }
+    }
+
+    RenderFrameResult SetRenderFrameExecutorShutdown(HRenderFrameQueue queue,
+        FRenderFrameExecutorShutdown shutdown, void* context)
+    {
+        assert(IsRenderExecutionOwner(queue->m_Params.m_Execution, EXECUTION_OWNER_GAME));
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue->m_Mutex);
+        if (!queue->m_Mutex || !shutdown || queue->m_ExecutorShutdown || queue->m_Stopping ||
+            queue->m_NextFrameId != 1 || queue->m_ServiceRequested != 0)
+            return RENDER_FRAME_INVALID_STATE;
+        queue->m_ExecutorShutdown = shutdown;
+        queue->m_ExecutorShutdownContext = context;
+        return RENDER_FRAME_OK;
+    }
+
+    RenderFrameResult ShutdownRenderFrameQueue(HRenderFrameQueue queue)
+    {
+        assert(IsRenderExecutionOwner(queue->m_Params.m_Execution, EXECUTION_OWNER_GAME));
+        if (queue->m_ExecutorShutdownComplete)
+            return RENDER_FRAME_OK;
+        // Drain completion acknowledges work, not the executor's final queue access.
+        // Require the owner handshake before changing any state on this higher-level path.
+        if (queue->m_Mutex && !queue->m_ExecutorShutdown)
+            return RENDER_FRAME_INVALID_STATE;
+        RenderFrameResult result = DrainRenderFrameQueue(queue);
+        if (result != RENDER_FRAME_OK)
+            return result;
+        if (queue->m_ExecutorShutdown)
+            queue->m_ExecutorShutdown(queue->m_ExecutorShutdownContext);
+        queue->m_ExecutorShutdownComplete = true;
+        return RENDER_FRAME_OK;
+    }
+
     void DeleteRenderFrameQueue(HRenderFrameQueue queue)
     {
         assert(IsRenderExecutionOwner(queue->m_Params.m_Execution, EXECUTION_OWNER_GAME));
+        // Registered owners must complete their join/detach hook before it is discarded.
+        assert(!queue->m_ExecutorShutdown || queue->m_ExecutorShutdownComplete);
         assert(queue->m_Stopping && !queue->m_InRetire && !queue->m_InPump);
         // Caller has stopped/joined the render executor; no concurrent queue access remains.
         for (uint32_t i = 0; i < 2; ++i)
@@ -220,14 +360,21 @@ namespace dmRender
 
     static void AcknowledgeCompleted(HRenderFrameQueue queue)
     {
-        if (queue->m_Completed == -1)
-            return;
-        queue->m_Slots[queue->m_Completed].m_State = RENDER_FRAME_RETIRED;
-        queue->m_Completed = -1;
-        queue->m_Active = -1;
-        queue->m_LeadReserved = false;
-        ++queue->m_Consumed;
-        Changed(queue);
+        if (queue->m_Completed != -1)
+        {
+            queue->m_Slots[queue->m_Completed].m_State = RENDER_FRAME_RETIRED;
+            queue->m_Completed = -1;
+            queue->m_Active = -1;
+            queue->m_LeadReserved = false;
+            ++queue->m_Consumed;
+            Changed(queue);
+        }
+        if (queue->m_ServiceCompletionPending)
+        {
+            queue->m_ServiceAcknowledged = queue->m_CompletedService;
+            queue->m_ServiceCompletionPending = false;
+            Changed(queue);
+        }
     }
 
     RenderFramePumpResult PumpRenderFrameQueue(HRenderFrameQueue queue, bool consume_frame)
@@ -238,6 +385,8 @@ namespace dmRender
             return RENDER_FRAME_PUMP_BUSY;
         AcknowledgeCompleted(queue);
         // Clear before invoking the service: a concurrent new request remains pending.
+        uint64_t service_generation = queue->m_ServiceRequested;
+        bool acknowledge_service = service_generation != queue->m_ServiceAcknowledged;
         queue->m_ServicePending = false;
         int32_t index = consume_frame ? queue->m_Active : -1;
         if (index != -1)
@@ -251,13 +400,21 @@ namespace dmRender
         queue->m_InPump = true;
         if (queue->m_Params.m_Service)
             queue->m_Params.m_Service(queue->m_Params.m_ServiceContext);
+        if (acknowledge_service)
+        {
+            queue->m_CompletedService = service_generation;
+            queue->m_ServiceCompletionPending = true;
+        }
         if (index != -1)
         {
             const RenderFrameView* frame = GetRenderFrameView(queue->m_Slots[index].m_Frame);
             queue->m_Params.m_Consume(queue->m_Params.m_ConsumeContext, *frame);
             queue->m_Completed = index;
+        }
+        if (index != -1 || acknowledge_service)
+        {
             // Browser main must not wait even to acknowledge completion. Keep Reading
-            // until a later pump can publish the acknowledgement; never consume twice.
+            // and service completion pending until a later pump can publish them.
             if (TryLock(queue))
             {
                 AcknowledgeCompleted(queue);
@@ -267,6 +424,8 @@ namespace dmRender
         queue->m_InPump = false;
         if (index != -1)
             return RENDER_FRAME_PUMP_CONSUMED;
+        if (drained && queue->m_ServiceCompletionPending)
+            return RENDER_FRAME_PUMP_BUSY;
         return drained ? RENDER_FRAME_PUMP_DRAINED : RENDER_FRAME_PUMP_IDLE;
     }
 
@@ -284,7 +443,11 @@ namespace dmRender
             return RENDER_FRAME_STOPPED;
         if (!queue->m_Params.m_Service)
             return RENDER_FRAME_INVALID_STATE;
-        queue->m_ServicePending = true;
+        if (!queue->m_ServicePending)
+        {
+            ++queue->m_ServiceRequested;
+            queue->m_ServicePending = true;
+        }
         Changed(queue);
         return RENDER_FRAME_OK;
     }
@@ -340,7 +503,7 @@ namespace dmRender
         assert(IsRenderExecutionOwner(queue->m_Params.m_Execution, EXECUTION_OWNER_RENDER));
         assert(queue->m_Mutex); // Dedicated native executor only, not the external-owner pump.
         DM_MUTEX_SCOPED_LOCK(queue->m_Mutex);
-        while (!queue->m_Stopping && !queue->m_ServicePending && queue->m_Active == -1)
+        while (!queue->m_Stopping && !queue->m_ServicePending && !queue->m_ServiceCompletionPending && queue->m_Active == -1)
             dmConditionVariable::Wait(queue->m_Changed, queue->m_Mutex);
     }
 }

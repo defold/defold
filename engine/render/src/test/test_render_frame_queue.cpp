@@ -54,6 +54,7 @@ struct QueueProbe
     uint32_t                                m_Consumed;
     uint32_t                                m_Released;
     uint32_t                                m_ServiceCount;
+    uint32_t                                m_ReleasedAtService;
     // Configuration is set before starting the executor; later flag writes use m_Mutex.
     uint8_t                                 m_WrongOwner : 1;
     uint8_t                                 m_InvalidInput : 1;
@@ -124,6 +125,7 @@ static void ServiceOwner(void* context)
         while (!probe->m_ReleaseFirstService)
             dmConditionVariable::Wait(probe->m_Changed, probe->m_Mutex);
     }
+    probe->m_ReleasedAtService = probe->m_Released;
     dmConditionVariable::Broadcast(probe->m_Changed);
     dmMutex::Unlock(probe->m_Mutex);
 }
@@ -197,6 +199,9 @@ struct TestExecutor
     // The startup/run flags share m_Mutex; the observations below use distinct barriers.
     uint8_t m_Started;
     uint8_t m_Run;
+    uint8_t m_HoldExit;
+    uint8_t m_ExitReached;
+    uint8_t m_ReleaseExit;
     // Published by the startup barrier, never modified afterwards.
     uint8_t m_Bound;
     // Worker-owned until Join; do not share storage with startup observations.
@@ -222,15 +227,22 @@ static void RunExecutor(void* context)
         if (result == RENDER_FRAME_PUMP_IDLE || result == RENDER_FRAME_PUMP_BUSY)
             WaitForRenderFrameWork(executor->m_Fixture->m_Queue);
     }
+    dmMutex::Lock(executor->m_Mutex);
+    executor->m_ExitReached = true;
+    dmConditionVariable::Broadcast(executor->m_Changed);
+    while (executor->m_HoldExit && !executor->m_ReleaseExit)
+        dmConditionVariable::Wait(executor->m_Changed, executor->m_Mutex);
+    dmMutex::Unlock(executor->m_Mutex);
     ReleaseRenderExecutionOwner(executor->m_Fixture->m_Execution);
     executor->m_Released = !IsRenderExecutionOwner(executor->m_Fixture->m_Execution, EXECUTION_OWNER_RENDER);
 }
 
-static void StartExecutor(TestExecutor* executor, QueueFixture* fixture, bool run)
+static void StartExecutor(TestExecutor* executor, QueueFixture* fixture, bool run, bool hold_exit = false)
 {
     memset(executor, 0, sizeof(*executor));
     executor->m_Fixture = fixture;
     executor->m_Run = run;
+    executor->m_HoldExit = hold_exit;
     executor->m_Mutex = dmMutex::New();
     executor->m_Changed = dmConditionVariable::New();
     executor->m_Thread = dmThread::New(RunExecutor, 0x80000, executor, "frame-reader");
@@ -255,6 +267,41 @@ static void JoinExecutor(TestExecutor* executor)
     assert(executor->m_Released);
     dmConditionVariable::Delete(executor->m_Changed);
     dmMutex::Delete(executor->m_Mutex);
+}
+
+// The shutdown hook observes drained work before releasing a deliberately held executor
+// tail. The queue and callback context must survive until the subsequent join completes.
+struct ExecutorShutdownProbe
+{
+    TestExecutor* m_Executor;
+    uint32_t m_Calls;
+    uint32_t m_ReferencesBeforeJoin;
+    uint8_t m_DrainedBeforeJoin : 1;
+    uint8_t m_HeldAfterDrain : 1;
+    uint8_t m_GameOwner : 1;
+};
+
+static void ShutdownExecutor(void* context)
+{
+    ExecutorShutdownProbe* probe = (ExecutorShutdownProbe*)context;
+    TestExecutor* executor = probe->m_Executor;
+    QueueFixture* fixture = executor->m_Fixture;
+    ++probe->m_Calls;
+    probe->m_GameOwner = IsRenderExecutionOwner(fixture->m_Execution, EXECUTION_OWNER_GAME);
+    // This locking query also verifies that shutdown hooks run outside the queue lock.
+    RenderFrameQueueStatus status = GetRenderFrameQueueStatus(fixture->m_Queue);
+    probe->m_DrainedBeforeJoin = status.m_Stopping &&
+        status.m_States[0] == RENDER_FRAME_FREE && status.m_States[1] == RENDER_FRAME_FREE;
+    probe->m_ReferencesBeforeJoin = fixture->m_Probe.m_Released;
+
+    dmMutex::Lock(executor->m_Mutex);
+    while (!executor->m_ExitReached)
+        dmConditionVariable::Wait(executor->m_Changed, executor->m_Mutex);
+    probe->m_HeldAfterDrain = executor->m_HoldExit && !executor->m_ReleaseExit;
+    executor->m_ReleaseExit = true;
+    dmConditionVariable::Broadcast(executor->m_Changed);
+    dmMutex::Unlock(executor->m_Mutex);
+    JoinExecutor(executor);
 }
 
 static SampleInput MakeSample(uint32_t sequence)
@@ -284,19 +331,6 @@ static void WaitForConsumed(QueueFixture* fixture, uint32_t count)
         RenderFrameQueueStatus status = GetRenderFrameQueueStatus(fixture->m_Queue);
         if (status.m_Consumed >= count)
             return;
-        WaitForRenderFrameProgress(fixture->m_Queue, status.m_Revision);
-    }
-}
-
-static RenderFrameResult BeginWhenAvailable(QueueFixture* fixture, RenderFrameTicket* ticket)
-{
-    for (;;)
-    {
-        RenderFrameQueueStatus status = GetRenderFrameQueueStatus(fixture->m_Queue);
-        RetireRenderFrames(fixture->m_Queue);
-        RenderFrameResult result = BeginRenderFrameCapture(fixture->m_Queue, ticket);
-        if (result != RENDER_FRAME_WOULD_BLOCK)
-            return result;
         WaitForRenderFrameProgress(fixture->m_Queue, status.m_Revision);
     }
 }
@@ -361,8 +395,139 @@ TEST(RenderFrameQueue, InlineCaptureAndRetirement)
     DeleteFixture(&fixture);
 }
 
-// Verify inline and a distinct native owner consume identical snapshots and retire the
-// same references; frame source lifetime is independent of the chosen execution mode.
+// Verify inline scheduling retires before the next reservation, services without a
+// frame, and drains partial capture cleanup without allocating or waiting for a worker.
+TEST(RenderFrameQueue, InlineHelpersRetireServiceAndDrain)
+{
+    QueueFixture fixture;
+    CreateFixture(&fixture, EXECUTION_MODE_INLINE);
+    uint32_t resources[] = { 1, 2 };
+    RenderFrameTicket first, partial, extra;
+
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &first));
+    ASSERT_EQ(RENDER_FRAME_OK, CaptureSample(first, 1));
+    ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(first.m_Frame, &resources[0], ReleaseReference, &fixture.m_Probe));
+    ASSERT_EQ(RENDER_FRAME_OK, SubmitRenderFrame(fixture.m_Queue, first));
+    ASSERT_EQ(1u, fixture.m_Probe.m_Consumed);
+    ASSERT_EQ(0u, fixture.m_Probe.m_Released);
+
+    uint32_t service_count = fixture.m_Probe.m_ServiceCount;
+    ASSERT_EQ(RENDER_FRAME_OK, ServiceRenderFrameQueue(fixture.m_Queue));
+    ASSERT_EQ(service_count + 1, fixture.m_Probe.m_ServiceCount);
+    ASSERT_EQ(1u, fixture.m_Probe.m_Consumed);
+
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &partial));
+    ASSERT_EQ(1u, fixture.m_Probe.m_Released);
+    ASSERT_EQ(RENDER_FRAME_WOULD_BLOCK, AcquireRenderFrame(fixture.m_Queue, &extra));
+    ASSERT_EQ(RENDER_FRAME_OK, CaptureSample(partial, 2));
+    ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(partial.m_Frame, &resources[1], ReleaseReference, &fixture.m_Probe));
+
+    ASSERT_EQ(RENDER_FRAME_OK, DrainRenderFrameQueue(fixture.m_Queue));
+    ASSERT_EQ(RENDER_FRAME_OK, DrainRenderFrameQueue(fixture.m_Queue));
+    RenderFrameQueueStatus status = GetRenderFrameQueueStatus(fixture.m_Queue);
+    ASSERT_TRUE(status.m_Stopping);
+    ASSERT_EQ((uint64_t)1, status.m_Consumed);
+    ASSERT_EQ((uint64_t)1, status.m_Cancelled);
+    ASSERT_EQ((uint64_t)2, status.m_Retired);
+    ASSERT_EQ(2u, fixture.m_Probe.m_Released);
+    ASSERT_EQ(2u, fixture.m_Probe.m_ReleasedAtService);
+    ASSERT_EQ(RENDER_FRAME_STOPPED, AcquireRenderFrame(fixture.m_Queue, &extra));
+    ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
+    DeleteFixture(&fixture);
+}
+
+// Verify unified shutdown cancels an unfinished inline capture and retires all references
+// without an executor hook or synchronization objects; repeated calls do no further work.
+TEST(RenderFrameQueue, InlineShutdownNeedsNoExecutor)
+{
+    QueueFixture fixture;
+    CreateFixture(&fixture, EXECUTION_MODE_INLINE);
+    uint32_t resources[] = { 1, 2 };
+    RenderFrameTicket accepted, partial;
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &accepted));
+    ASSERT_EQ(RENDER_FRAME_OK, CaptureSample(accepted, 1));
+    ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(accepted.m_Frame, &resources[0], ReleaseReference, &fixture.m_Probe));
+    ASSERT_EQ(RENDER_FRAME_OK, SubmitRenderFrame(fixture.m_Queue, accepted));
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &partial));
+    ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(partial.m_Frame, &resources[1], ReleaseReference, &fixture.m_Probe));
+
+    ASSERT_EQ(RENDER_FRAME_OK, ShutdownRenderFrameQueue(fixture.m_Queue));
+    uint32_t service_count = fixture.m_Probe.m_ServiceCount;
+    ASSERT_EQ(RENDER_FRAME_OK, ShutdownRenderFrameQueue(fixture.m_Queue));
+    ASSERT_EQ(service_count, fixture.m_Probe.m_ServiceCount);
+    ASSERT_EQ(1u, fixture.m_Probe.m_Consumed);
+    ASSERT_EQ(2u, fixture.m_Probe.m_Released);
+    ASSERT_EQ(2u, fixture.m_Probe.m_ReleasedAtService);
+    ASSERT_EQ((uint64_t)1, GetRenderFrameQueueStatus(fixture.m_Queue).m_Cancelled);
+    ASSERT_EQ((dmMutex::HMutex)0, fixture.m_Queue->m_Mutex);
+    ASSERT_EQ((dmConditionVariable::HConditionVariable)0, fixture.m_Queue->m_Changed);
+    DeleteFixture(&fixture);
+}
+
+// Verify missing threaded executor ownership fails before changing queued work, and
+// registration cannot be installed late to disguise an already-running queue lifecycle.
+TEST(RenderFrameQueue, ShutdownRequiresExecutorRegistration)
+{
+    if (!HasThreadedExecution())
+        return;
+    QueueFixture fixture;
+    CreateFixture(&fixture, EXECUTION_MODE_THREADED);
+    ASSERT_EQ(RENDER_FRAME_INVALID_STATE, SetRenderFrameExecutorShutdown(fixture.m_Queue, 0, 0));
+    ASSERT_EQ(RENDER_FRAME_INVALID_STATE, ShutdownRenderFrameQueue(fixture.m_Queue));
+    ASSERT_FALSE(GetRenderFrameQueueStatus(fixture.m_Queue).m_Stopping);
+
+    RenderFrameTicket partial;
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &partial));
+    ASSERT_EQ(RENDER_FRAME_INVALID_STATE, ShutdownRenderFrameQueue(fixture.m_Queue));
+    ASSERT_EQ(RENDER_FRAME_BUILDING, GetRenderFrameQueueStatus(fixture.m_Queue).m_States[0]);
+    ASSERT_EQ(RENDER_FRAME_INVALID_STATE, SetRenderFrameExecutorShutdown(fixture.m_Queue, ShutdownExecutor, 0));
+    ASSERT_EQ(RENDER_FRAME_OK, CancelRenderFrameCapture(fixture.m_Queue, partial));
+    StopRenderFrameQueue(fixture.m_Queue);
+    DeleteFixture(&fixture);
+}
+
+// Verify drain completes accepted work and partial cleanup before the one shutdown hook,
+// while a held executor tail proves that draining alone is not permission to delete state.
+TEST(RenderFrameQueue, ShutdownJoinsExecutorAfterDraining)
+{
+    if (!HasThreadedExecution())
+        return;
+    QueueFixture fixture;
+    CreateFixture(&fixture, EXECUTION_MODE_THREADED);
+    TestExecutor executor;
+    ExecutorShutdownProbe shutdown = {};
+    shutdown.m_Executor = &executor;
+    ASSERT_EQ(RENDER_FRAME_OK, SetRenderFrameExecutorShutdown(fixture.m_Queue, ShutdownExecutor, &shutdown));
+    ASSERT_EQ(RENDER_FRAME_INVALID_STATE, SetRenderFrameExecutorShutdown(fixture.m_Queue, ShutdownExecutor, &shutdown));
+    StartExecutor(&executor, &fixture, false, true);
+
+    uint32_t resources[] = { 1, 2 };
+    RenderFrameTicket accepted, partial;
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &accepted));
+    ASSERT_EQ(RENDER_FRAME_OK, CaptureSample(accepted, 1));
+    ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(accepted.m_Frame, &resources[0], ReleaseReference, &fixture.m_Probe));
+    ASSERT_EQ(RENDER_FRAME_OK, SubmitRenderFrame(fixture.m_Queue, accepted));
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &partial));
+    ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(partial.m_Frame, &resources[1], ReleaseReference, &fixture.m_Probe));
+    ResumeExecutor(&executor);
+
+    ASSERT_EQ(RENDER_FRAME_OK, ShutdownRenderFrameQueue(fixture.m_Queue));
+    ASSERT_EQ(RENDER_FRAME_OK, ShutdownRenderFrameQueue(fixture.m_Queue));
+    ASSERT_EQ(1u, shutdown.m_Calls);
+    ASSERT_EQ(2u, shutdown.m_ReferencesBeforeJoin);
+    ASSERT_TRUE(shutdown.m_GameOwner);
+    ASSERT_TRUE(shutdown.m_DrainedBeforeJoin);
+    ASSERT_TRUE(shutdown.m_HeldAfterDrain);
+    ASSERT_TRUE(executor.m_Released);
+    ASSERT_EQ(1u, fixture.m_Probe.m_Consumed);
+    ASSERT_EQ(2u, fixture.m_Probe.m_ReleasedAtService);
+    ASSERT_EQ((uint64_t)1, GetRenderFrameQueueStatus(fixture.m_Queue).m_Cancelled);
+    ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
+    DeleteFixture(&fixture);
+}
+
+// Verify the mode-independent helpers consume identical snapshots and retire the same
+// references; callers do not choose a different scheduling path for a native owner.
 TEST(RenderFrameQueue, InlineAndThreadedEquivalent)
 {
     if (!HasThreadedExecution())
@@ -380,20 +545,18 @@ TEST(RenderFrameQueue, InlineAndThreadedEquivalent)
         for (uint32_t i = 0; i < 3; ++i)
         {
             RenderFrameTicket ticket;
-            ASSERT_EQ(RENDER_FRAME_OK, BeginWhenAvailable(&fixture, &ticket));
+            ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &ticket));
             ASSERT_EQ(RENDER_FRAME_OK, CaptureSample(ticket, i + 1));
             ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(ticket.m_Frame, &resources[i], ReleaseReference, &fixture.m_Probe));
-            ASSERT_EQ(RENDER_FRAME_OK, PublishWhenAvailable(&fixture, ticket));
+            ASSERT_EQ(RENDER_FRAME_OK, SubmitRenderFrame(fixture.m_Queue, ticket));
             WaitForConsumed(&fixture, i + 1);
-            RetireRenderFrames(fixture.m_Queue);
         }
-        StopRenderFrameQueue(fixture.m_Queue);
+        ASSERT_EQ(RENDER_FRAME_OK, DrainRenderFrameQueue(fixture.m_Queue));
         if (mode == 1)
             JoinExecutor(&executor);
-        else
-            ASSERT_EQ(RENDER_FRAME_PUMP_DRAINED, PumpRenderFrameQueue(fixture.m_Queue, true));
         ASSERT_EQ(3u, fixture.m_Probe.m_Consumed);
         ASSERT_EQ(3u, fixture.m_Probe.m_Released);
+        ASSERT_EQ(3u, fixture.m_Probe.m_ReleasedAtService);
         ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
         ASSERT_FALSE(fixture.m_Probe.m_InvalidInput);
         memcpy(inputs[mode], fixture.m_Probe.m_Inputs, sizeof(inputs[mode]));
@@ -494,16 +657,15 @@ TEST(RenderFrameQueue, AcceptedFramesDrainInOrder)
     for (uint32_t i = 0; i < 12; ++i)
     {
         RenderFrameTicket ticket;
-        ASSERT_EQ(RENDER_FRAME_OK, BeginWhenAvailable(&fixture, &ticket));
+        ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &ticket));
         ids[i] = ticket.m_FrameId;
         resources[i] = i;
         ASSERT_EQ(RENDER_FRAME_OK, CaptureSample(ticket, i));
         ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(ticket.m_Frame, &resources[i], ReleaseReference, &fixture.m_Probe));
-        ASSERT_EQ(RENDER_FRAME_OK, PublishWhenAvailable(&fixture, ticket));
+        ASSERT_EQ(RENDER_FRAME_OK, SubmitRenderFrame(fixture.m_Queue, ticket));
     }
-    StopRenderFrameQueue(fixture.m_Queue);
+    ASSERT_EQ(RENDER_FRAME_OK, DrainRenderFrameQueue(fixture.m_Queue));
     JoinExecutor(&executor);
-    RetireRenderFrames(fixture.m_Queue);
     RenderFrameQueueStatus status = GetRenderFrameQueueStatus(fixture.m_Queue);
     ASSERT_EQ((uint64_t)12, status.m_Published);
     ASSERT_EQ((uint64_t)12, status.m_Consumed);
@@ -511,6 +673,7 @@ TEST(RenderFrameQueue, AcceptedFramesDrainInOrder)
     ASSERT_EQ((uint64_t)0, status.m_Cancelled);
     ASSERT_EQ(12u, fixture.m_Probe.m_Consumed);
     ASSERT_EQ(12u, fixture.m_Probe.m_Released);
+    ASSERT_EQ(12u, fixture.m_Probe.m_ReleasedAtService);
     uint32_t released_mask = 0;
     for (uint32_t i = 0; i < 12; ++i)
     {
@@ -685,6 +848,7 @@ enum MainRenderPhase
     MAIN_RENDER_INITIAL,
     MAIN_RENDER_CREATED,
     MAIN_RENDER_BOUND,
+    MAIN_RENDER_CAPTURED_BEHIND_READER,
     MAIN_RENDER_SERVICE_REQUESTED,
     MAIN_RENDER_SERVICED,
     MAIN_RENDER_PUBLISHED,
@@ -699,6 +863,9 @@ struct MainRenderProbe
     dmMutex::HMutex m_Mutex;
     dmConditionVariable::HConditionVariable m_Changed;
     MainRenderPhase m_Phase;
+    RenderFrameResult m_BackpressureResult;
+    uint32_t m_Captured;
+    uint32_t m_ShutdownCalls;
     uint8_t m_GameOwner : 1;
     uint8_t m_ReferenceReleased : 1;
 };
@@ -806,6 +973,109 @@ TEST(RenderFrameQueue, MainRenderOwnerServiceOnlyDoesNotConsume)
     ASSERT_EQ(RENDER_FRAME_PUMP_CONSUMED, draw);
     ASSERT_EQ(1u, consumed_after_draw);
     ASSERT_EQ(RENDER_FRAME_PUMP_DRAINED, drain);
+}
+
+static void ShutdownMainRenderOwner(void* context)
+{
+    MainRenderProbe* probe = (MainRenderProbe*)context;
+    ++probe->m_ShutdownCalls;
+    // Native simulation of external-pump detachment: the game worker waits until main
+    // has stopped pumping and released its binding, without trying to join main itself.
+    SetMainRenderPhase(probe, MAIN_RENDER_STOPPED);
+    WaitMainRenderPhase(probe, MAIN_RENDER_RELEASED);
+}
+
+static void RunScheduledGameWithMainRenderOwner(void* context)
+{
+    MainRenderProbe* probe = (MainRenderProbe*)context;
+    QueueFixture* fixture = &probe->m_Fixture;
+    CreateFixture(fixture, EXECUTION_MODE_THREADED);
+    RenderFrameResult result = SetRenderFrameExecutorShutdown(fixture->m_Queue, ShutdownMainRenderOwner, probe);
+    assert(result == RENDER_FRAME_OK);
+    SetMainRenderPhase(probe, MAIN_RENDER_CREATED);
+    WaitMainRenderPhase(probe, MAIN_RENDER_BOUND);
+
+    uint32_t resources[] = { 41, 42 };
+    RenderFrameTicket tickets[2];
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        result = AcquireRenderFrame(fixture->m_Queue, &tickets[i]);
+        assert(result == RENDER_FRAME_OK);
+        result = CaptureSample(tickets[i], resources[i]);
+        assert(result == RENDER_FRAME_OK);
+        ++probe->m_Captured;
+        result = AddRenderFrameReference(tickets[i].m_Frame, &resources[i], ReleaseReference, &fixture->m_Probe);
+        assert(result == RENDER_FRAME_OK);
+        if (i == 1)
+        {
+            // The render owner has not pumped yet. The next capture must stay intact
+            // across publication backpressure; no second simulation/capture is needed.
+            probe->m_BackpressureResult = PublishRenderFrame(fixture->m_Queue, tickets[i]);
+            SetMainRenderPhase(probe, MAIN_RENDER_CAPTURED_BEHIND_READER);
+        }
+        result = SubmitRenderFrame(fixture->m_Queue, tickets[i]);
+        assert(result == RENDER_FRAME_OK);
+        (void)result;
+    }
+    SetMainRenderPhase(probe, MAIN_RENDER_PUBLISHED);
+
+    result = ShutdownRenderFrameQueue(fixture->m_Queue);
+    assert(result == RENDER_FRAME_OK);
+    result = ShutdownRenderFrameQueue(fixture->m_Queue);
+    assert(result == RENDER_FRAME_OK);
+    (void)result;
+    probe->m_ReferenceReleased = fixture->m_Probe.m_Released == 2 &&
+        fixture->m_Probe.m_ReleasedAtService == 2;
+    DeleteFixture(fixture);
+}
+
+// Verify a game worker uses the same helpers with an external render owner: a blocked
+// submission keeps its captured input, shutdown preserves the last accepted frame, and
+// deletion waits for the external owner's detach acknowledgement without joining main.
+TEST(RenderFrameQueue, SchedulingHelpersPreserveBackpressuredInput)
+{
+    if (!HasThreadedExecution())
+        return;
+    MainRenderProbe probe = {};
+    probe.m_Mutex = dmMutex::New();
+    probe.m_Changed = dmConditionVariable::New();
+    dmThread::Thread game = dmThread::New(RunScheduledGameWithMainRenderOwner, 0x80000, &probe, "scheduled-game");
+    WaitMainRenderPhase(&probe, MAIN_RENDER_CREATED);
+    HRenderFrameQueue queue = probe.m_Fixture.m_Queue;
+    HRenderExecution execution = probe.m_Fixture.m_Execution;
+    bool bound = BindRenderExecutionOwner(execution);
+    assert(bound);
+    SetMainRenderPhase(&probe, MAIN_RENDER_BOUND);
+    WaitMainRenderPhase(&probe, MAIN_RENDER_CAPTURED_BEHIND_READER);
+
+    // This is the same event-driven pump used by a native executor; the game-side
+    // helper must wait for these acknowledgements instead of dropping its next frame.
+    for (;;)
+    {
+        RenderFramePumpResult result = PumpRenderFrameQueue(queue, true);
+        if (result == RENDER_FRAME_PUMP_DRAINED)
+            break;
+        if (result == RENDER_FRAME_PUMP_IDLE || result == RENDER_FRAME_PUMP_BUSY)
+            WaitForRenderFrameWork(queue);
+    }
+    WaitMainRenderPhase(&probe, MAIN_RENDER_STOPPED);
+    uint32_t consumed = probe.m_Fixture.m_Probe.m_Consumed;
+    bool valid_inputs = probe.m_Fixture.m_Probe.m_Inputs[0].m_Sequence == 41 &&
+        probe.m_Fixture.m_Probe.m_Inputs[1].m_Sequence == 42 &&
+        !probe.m_Fixture.m_Probe.m_InvalidInput && !probe.m_Fixture.m_Probe.m_WrongOwner;
+    ReleaseRenderExecutionOwner(execution);
+    SetMainRenderPhase(&probe, MAIN_RENDER_RELEASED);
+    dmThread::Join(game);
+    dmConditionVariable::Delete(probe.m_Changed);
+    dmMutex::Delete(probe.m_Mutex);
+
+    ASSERT_TRUE(bound);
+    ASSERT_EQ(RENDER_FRAME_WOULD_BLOCK, probe.m_BackpressureResult);
+    ASSERT_EQ(2u, probe.m_Captured);
+    ASSERT_EQ(1u, probe.m_ShutdownCalls);
+    ASSERT_EQ(2u, consumed);
+    ASSERT_TRUE(valid_inputs);
+    ASSERT_TRUE(probe.m_ReferenceReleased);
 }
 
 // Verify stale tickets cannot publish or cancel the next capture reusing their slot.
@@ -1068,6 +1338,47 @@ TEST(RenderFrameQueue, CompletionAcknowledgementNeverWaits)
     ASSERT_EQ(RENDER_FRAME_PUMP_DRAINED, WaitPumpStep(&executor));
     JoinPumpSteps(&executor);
     ASSERT_EQ(1u, fixture.m_Probe.m_Consumed);
+    DeleteFixture(&fixture);
+}
+
+// Verify service-only completion survives a contended acknowledgement after Stop.
+// The owner must not report drained until the held callback's completion is visible.
+TEST(RenderFrameQueue, ServiceCompletionAcknowledgementNeverWaits)
+{
+    if (!HasThreadedExecution())
+        return;
+    QueueFixture fixture;
+    CreateFixture(&fixture, EXECUTION_MODE_THREADED);
+    fixture.m_Probe.m_HoldFirstService = true;
+    PumpStepExecutor executor;
+    StartPumpSteps(&executor, &fixture);
+    ASSERT_EQ(RENDER_FRAME_OK, ServiceRenderFrameQueue(fixture.m_Queue));
+    StopRenderFrameQueue(fixture.m_Queue);
+    RequestPumpStep(&executor, false);
+
+    dmMutex::Lock(fixture.m_Probe.m_Mutex);
+    while (!fixture.m_Probe.m_FirstServiceEntered)
+        dmConditionVariable::Wait(fixture.m_Probe.m_Changed, fixture.m_Probe.m_Mutex);
+    dmMutex::Unlock(fixture.m_Probe.m_Mutex);
+    dmMutex::Lock(fixture.m_Queue->m_Mutex);
+    dmMutex::Lock(fixture.m_Probe.m_Mutex);
+    fixture.m_Probe.m_ReleaseFirstService = true;
+    dmConditionVariable::Broadcast(fixture.m_Probe.m_Changed);
+    dmMutex::Unlock(fixture.m_Probe.m_Mutex);
+    RenderFramePumpResult deferred = WaitPumpStep(&executor);
+    uint64_t requested = fixture.m_Queue->m_ServiceRequested;
+    uint64_t acknowledged = fixture.m_Queue->m_ServiceAcknowledged;
+    dmMutex::Unlock(fixture.m_Queue->m_Mutex);
+
+    ASSERT_EQ(RENDER_FRAME_PUMP_BUSY, deferred);
+    ASSERT_EQ((uint64_t)1, requested);
+    ASSERT_EQ((uint64_t)0, acknowledged);
+    RequestPumpStep(&executor, false);
+    ASSERT_EQ(RENDER_FRAME_PUMP_DRAINED, WaitPumpStep(&executor));
+    JoinPumpSteps(&executor);
+    ASSERT_EQ(requested, fixture.m_Queue->m_ServiceAcknowledged);
+    ASSERT_EQ(0u, fixture.m_Probe.m_Consumed);
+    ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
     DeleteFixture(&fixture);
 }
 
