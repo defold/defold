@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.app-view-test
-  (:require [clojure.set :as set]
+  (:require [clojure.java.io :as io]
+            [clojure.set :as set]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
@@ -21,13 +22,43 @@
             [editor.build :as build]
             [editor.defold-project :as project]
             [editor.git :as git]
+            [editor.os :as os]
+            [editor.prefs :as prefs]
+            [editor.process :as process]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.graph.types :as gt]
             [internal.node :as in]
-            [support.test-support :refer [spit-until-new-mtime with-clean-system]]))
+            [support.test-support :refer [spit-until-new-mtime with-clean-system]])
+  (:import [java.util.concurrent CompletableFuture TimeUnit]))
+
+;; Local engine completion opens the saved trace only when enabled, passing the
+;; path as a single argument without interpreting shell characters.
+(deftest open-completed-trace-test
+  (when (os/is-mac-os?)
+    (test-util/with-temp-dir! directory
+      (let [settings (prefs/make :scopes {:global (io/file directory "preferences")} :schemas [:default])
+            sink (#'app-view/make-launched-log-sink {:log-stream ::trace-stream} (constantly nil) settings)
+            path "/tmp/user's \"trace\" $HOME `name` \\!.trace"
+            completion (str "INFO:ENGINE: Native trace complete: " path)
+            launches (atom [])]
+        ;; Capture the OS launch without opening Instruments in automated tests.
+        #_{:clj-kondo/ignore [:discouraged-var]}
+        (with-redefs [process/exec! (fn record-launch [& args] (swap! launches conj args))]
+          (is (nil? (sink completion)))
+          (prefs/set! settings [:profile :xctrace :open-in-instruments] true)
+          (doseq [line [(str "INFO:ENGINE: Native trace output: " path)
+                        "ERROR:ENGINE: Native trace: Recording failed"
+                        "DEBUG:SCRIPT: Game output"]]
+            (is (nil? (sink line))))
+          (is (= [] @launches))
+          (.get ^CompletableFuture (sink completion) 5 TimeUnit/SECONDS)
+          (is (= [[{:err :stdout} "/usr/bin/open" "-a" "Instruments" path]] @launches))
+          (prefs/set! settings [:profile :xctrace :open-in-instruments] false)
+          (is (nil? (sink completion)))
+          (is (= 1 (count @launches))))))))
 
 (deftest open-editor
   (testing "Opening editor only alters undo by selection"

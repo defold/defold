@@ -40,6 +40,12 @@ namespace dmEngineService
 {
     typedef struct EngineService* HEngineService;
 
+    // Process-wide service facilities. Initialize after ProfileInitialize and before
+    // engine startup; DM_PROFILE_NATIVE_TRACE can wait for recording readiness.
+    void Initialize();
+    // Stop and save recordings before profiling and logging are finalized.
+    void Finalize();
+
     // Parses the environment flag DM_SERVICE_PORT=xxxx for a port, or returns the default port
     uint16_t GetServicePort(uint16_t default_port);
 

@@ -74,6 +74,7 @@
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
             [editor.process :as process]
+            [editor.profiler-xctrace :as profiler-xctrace]
             [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.recent-files :as recent-files]
@@ -992,7 +993,7 @@
       (report-build-launch-progress! (localization/message "progress.engine-launch-failed"))
       (throw e))))
 
-(defn- make-launched-log-sink [launched-target on-service-url-found]
+(defn- make-launched-log-sink [launched-target on-service-url-found prefs]
   (let [version-line (atom nil)
         updated-target (atom nil)]
     (fn [line]
@@ -1016,7 +1017,8 @@
                   (Thread/sleep step-ms)
                   (recur)))))))
       (when (console/current-stream? (:log-stream launched-target))
-        (console/append-console-line! line)))))
+        (console/append-console-line! line))
+      (profiler-xctrace/open-completed-trace! prefs line))))
 
 (defn- reboot-engine! [target web-server debug focus]
   (try
@@ -1060,7 +1062,7 @@
                                                      (on-launched-hook! project (:process launched-target) url)))
                                  (console/start-log-pump!
                                    (:log-stream launched-target)
-                                   (make-launched-log-sink launched-target (partial on-service-url-found prefs))))
+                                   (make-launched-log-sink launched-target (partial on-service-url-found prefs) prefs)))
                                last-launched-target))]
     (try
       {:target

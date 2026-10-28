@@ -22,6 +22,82 @@
 
 namespace dmEngineService
 {
+    // Register the Darwin signpost listener when enabled during service initialization, after ProfileInitialize.
+    // The profile_native build feature enables it by default; DM_PROFILE_NATIVE_ENABLE overrides it.
+    void InitializeXcTraceProfiler();
+    // Register the listener for a recording request. Call on the engine thread.
+    bool EnableXcTraceProfiler();
+
+    enum XcTraceState
+    {
+        XCTRACE_IDLE,
+        XCTRACE_SCHEDULED,
+        XCTRACE_STARTING,
+        XCTRACE_RECORDING,
+        XCTRACE_STOPPING,
+        XCTRACE_COMPLETE,
+        XCTRACE_CANCELLED,
+        XCTRACE_ERROR,
+        XCTRACE_UNSUPPORTED
+    };
+
+    enum XcTraceResult
+    {
+        XCTRACE_OK,
+        XCTRACE_BUSY,
+        XCTRACE_INVALID,
+        XCTRACE_UNAVAILABLE
+    };
+
+    struct XcTraceParams
+    {
+        // Optional absolute .trace path or directory; copied by StartXcTrace.
+        const char* m_Path;
+        uint32_t    m_DelayMs;
+        uint32_t    m_DurationMs; // Zero records until StopXcTrace or engine shutdown.
+        bool        m_Energy;     // Collect powermetrics samples with administrator authorization.
+        XcTraceParams()
+            : m_Path(0)
+            , m_DelayMs(0)
+            , m_DurationMs(5000)
+            , m_Energy(true)
+        {
+        }
+    };
+
+    struct XcTraceStatus
+    {
+        XcTraceState m_State;
+        char         m_Path[1024];
+        char         m_Error[256];
+    };
+
+    // Commands run on the engine thread; the process-wide recorder runs in a worker.
+    // Schedule a capture; busy includes the delay, recorder startup and saving.
+    // Accepted requests may fail asynchronously; inspect GetXcTraceStatus.
+    XcTraceResult StartXcTrace(const XcTraceParams& params);
+    // Request cancellation or stop/save without blocking. Idle calls do nothing.
+    void StopXcTrace();
+    // Copy a consistent snapshot. The returned strings are owned by the caller.
+    void GetXcTraceStatus(XcTraceStatus* status);
+
+    static inline bool ParseTraceTime(const char* text, uint32_t* value)
+    {
+        if (!text[0])
+            return false;
+        uint64_t number = 0;
+        for (const char* p = text; *p; ++p)
+        {
+            if (*p < '0' || *p > '9')
+                return false;
+            number = number * 10 + (*p - '0');
+            if (number > UINT32_MAX)
+                return false;
+        }
+        *value = (uint32_t)number;
+        return true;
+    }
+
     // DNS-SD instance names are a single DNS label (RFC 6763, Section 4.1.1),
     // so they inherit the DNS label limit of 63 octets from RFC 1035, Section 2.3.4.
     static const uint32_t MDNS_MAX_LABEL_LENGTH = 63;

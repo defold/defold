@@ -275,7 +275,7 @@ TEST_F(EngineServiceOpenAPITest, BuiltinDocument)
     ASSERT_EQ(200, m_Status);
     ASSERT_STREQ("application/json", m_ContentType);
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"openapi\":\"3.0.3\""));
-    const char* paths[] = {"/ping", "/info", "/state", "/openapi.json", "/scene_graph", "/resources_data", "/gameobjects_data", "/",
+    const char* paths[] = {"/ping", "/info", "/state", "/openapi.json", "/profiler/trace", "/scene_graph", "/resources_data", "/gameobjects_data", "/",
         "/post/{socket}/{message_type}", "/post/@system/reboot", "/post/@system/exit", "/post/@system/run_script",
         "/post/@render/resize", "/post/@resource/reload"};
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
@@ -289,6 +289,26 @@ TEST_F(EngineServiceOpenAPITest, BuiltinDocument)
     Fetch("GET", "/");
     ASSERT_EQ(200, m_Status);
     ASSERT_STREQ("text/html", m_ContentType);
+}
+
+// Invalid methods, paths, timing and energy values must never start a native capture.
+TEST_F(EngineServiceOpenAPITest, TraceRequestValidation)
+{
+    dmEngineService::InitProfiler(m_Service, 0, 0);
+    Fetch("PUT", "/profiler/trace");
+    ASSERT_EQ(405, m_Status);
+    ASSERT_STREQ("GET, POST, DELETE", m_Allow);
+    Fetch("GET", "/profiler/trace/unknown");
+    ASSERT_EQ(404, m_Status);
+    Fetch("POST", "/profiler/trace?duration_ms=1");
+    ASSERT_EQ(400, m_Status);
+    const char* invalid[] = { "duration_ms=-1", "delay_ms=4294967296", "duration_ms=1.5", "delay_ms=", "delay_ms=1&delay_ms=2", "energy=2", "energy=", "energy=1&energy=0", "path=%00", "path=%GG", "unknown=1" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(invalid); ++i)
+    {
+        Fetch("POST", "/profiler/trace", invalid[i]);
+        ASSERT_EQ(400, m_Status);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "invalid_request"));
+    }
 }
 
 // Register and advertise GPU tracing only when its platform implementation is built.
