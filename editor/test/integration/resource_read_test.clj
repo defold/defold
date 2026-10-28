@@ -35,6 +35,46 @@
 
 (set! *warn-on-reflection* true)
 
+;; Embedded collision objects in game objects and collections must connect to
+;; the project and invalidate its cached collision groups when materialized.
+(deftest embedded-resource-connections-test
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_ (test-util/make-directory-deleter project-path)]
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! project-path)
+              prototype-desc (fn prototype-desc [group]
+                               {:embedded-components
+                                [{:id "collision"
+                                  :type "collisionobject"
+                                  :data {:type :collision-object-type-static
+                                         :mass 0.0
+                                         :friction 0.1
+                                         :restitution 0.5
+                                         :group group}}]})]
+          (test-util/write-file-resource! workspace "/embedded.go"
+            (prototype-desc "embedded"))
+          (test-util/write-file-resource! workspace "/nested.collection"
+            {:name "nested"
+             :embedded-instances [{:id "go" :data (prototype-desc "nested")}]})
+          (workspace/resource-sync! workspace)
+          (let [project (test-util/setup-project! workspace)
+                initial-groups (g/node-value project :collision-groups)]
+            (is (coll/not-any? initial-groups ["embedded" "nested"]))
+            (doseq [[proj-path expected-groups]
+                    [["/embedded.go" #{"embedded"}]
+                     ["/nested.collection" #{"embedded" "nested"}]]]
+              (let [owner (test-util/resource-node project proj-path)]
+                (is (not (g/error? (g/node-value owner :save-value))))
+                (is (= (into initial-groups expected-groups)
+                       (g/node-value project :collision-groups)))))
+            (let [connections (filterv #(= :group (:source-label %))
+                                       (g/inputs (g/now) project :collision-groups))]
+              (is (= 2 (count connections)))
+              (doseq [{:keys [source-id]} connections]
+                (g/set-property! source-id :group "changed"))
+              (is (= (conj initial-groups "changed")
+                     (g/node-value project :collision-groups))))))))))
+
 (defn- read-node-load-infos-without-graph-queries [read-opts resources]
   (let [resource-count (count resources)
         node-ids (g/take-node-ids resource-count)

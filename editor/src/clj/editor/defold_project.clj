@@ -162,11 +162,14 @@
    :resource-type (resource/resource-type embedded-resource)
    :source-value source-value})
 
-(defn load-embedded-resource-node [load-opts owner-resource embedded-resource-node-id embedded-resource source-value]
+(defn load-embedded-resource-node [{:keys [project] :as load-opts} owner-resource embedded-resource-node-id embedded-resource source-value]
   (let [embedded-resource-type (resource/resource-type embedded-resource)
         load-fn (:load-fn embedded-resource-type)
         node-load-info (embedded-node-load-info owner-resource embedded-resource embedded-resource-node-id source-value)]
-    (load-fn load-opts node-load-info)))
+    (e/concat
+      (when-let [connect-fn (:connect-fn embedded-resource-type)]
+        (connect-fn project embedded-resource-node-id embedded-resource))
+      (load-fn load-opts node-load-info))))
 
 (defn- make-file-not-found-error [node-id resource]
   (resource-io/file-not-found-error node-id nil :fatal resource))
