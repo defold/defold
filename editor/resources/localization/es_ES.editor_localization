@@ -323,7 +323,7 @@ dialog.save-and-upgrade.button.upgrade-editable-files = Mejorar archivos editabl
 dialog.save-and-upgrade.button.upgrade-project-files = Mejorar archivos del proyecto
 dialog.save-and-upgrade.button.upgrade-all-files = Mejorar todos los archivos
 
-# Plugin load error dialog
+# Plugin error dialogs
 
 dialog.plugin-load-error.title = Incapaz de cargar el plugin
 dialog.plugin-load-error.header = El plugin del editor "{plugin}" no es compatible con esta versión del editor. Por favor, edite las dependencias de su proyecto para referirse a una versión adecuada.
