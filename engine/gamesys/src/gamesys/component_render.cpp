@@ -17,6 +17,7 @@
 
 #include <gameobject/component.h>
 #include <gameobject/component_render.h>
+#include <render/render.h>
 
 #include "component_render.h"
 #include "component_render_state_private.h"
@@ -52,7 +53,7 @@ namespace dmGameSystem
     struct ComponentRenderCaptureContext
     {
         ComponentRenderCaptureParams m_Params;
-        ComponentRenderCapture       m_Capture;
+        FComponentRenderCapture      m_Capture;
     };
 
     static bool CreateWorld(void* context, uint32_t component_index, uint32_t max_instances, uint32_t max_components, void** render_world)
@@ -96,6 +97,12 @@ namespace dmGameSystem
         capture.m_Params.m_World = params.m_World;
         capture.m_Params.m_Context = params.m_Context;
         return CaptureComponentRenderWorld((HComponentRenderWorld)render_world, (dmRender::HRenderFrame)params.m_Frame, WriteInputs, &capture) == dmRender::RENDER_FRAME_OK;
+    }
+
+    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist,
+        dmRender::HRenderContext render_context, const dmRender::RenderFrameLimits& limits)
+    {
+        return NewComponentRenderContext(regist, dmRender::GetRenderExecution(render_context), limits);
     }
 
     HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist,

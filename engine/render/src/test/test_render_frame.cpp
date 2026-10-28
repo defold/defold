@@ -413,7 +413,7 @@ TEST(RenderFrame, StorageBudget)
     ASSERT_GT(overhead, (uint64_t)0);
     ASSERT_EQ(overhead + 100, GetRenderFrameStorageSize(payload));
     ASSERT_EQ(overhead + 3 * sizeof(RenderFrameTable), GetRenderFrameStorageSize(tables));
-    ASSERT_GE(reference_size, (uint64_t)(2 * sizeof(void*) + sizeof(RenderFrameRelease)));
+    ASSERT_GE(reference_size, (uint64_t)(2 * sizeof(void*) + sizeof(FRenderFrameRelease)));
     ASSERT_EQ(overhead + 100 + 3 * sizeof(RenderFrameTable) + 4 * reference_size, GetRenderFrameStorageSize(combined));
     RenderFrameLimits oversized_tables = { 0, UINT32_MAX, 0 };
     RenderFrameLimits oversized_references = { 0, 0, UINT32_MAX };

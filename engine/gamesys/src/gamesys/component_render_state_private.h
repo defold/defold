@@ -28,13 +28,23 @@ namespace dmGameSystem
     typedef ComponentRenderWorld* HComponentRenderWorld;
 
     /**
+     * Internal bridge setup for execution tests without a graphics renderer.
+     * Borrows execution, which must outlive the bridge; not part of the public interface.
+     * @param regist Game-object register, which must outlive the bridge
+     * @param execution Borrowed execution context
+     * @param limits Per-slot storage limits used when the first component opts in
+     * @return New bridge, or null on allocation failure
+     */
+    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits);
+
+    /**
      * Write owned input tables/references on the game owner. Do not publish/reset the frame
      * or reenter the manager. UINT32_MAX is reserved for internal dispatch table types.
      * @param frame Building frame to append inputs to
      * @param producer_context Borrowed producer data, never stored in the frame
      * @return dmRender::RENDER_FRAME_OK on success; any error rejects the complete capture
      */
-    typedef dmRender::RenderFrameResult (*ComponentRenderWriteInputs)(dmRender::HRenderFrame frame, void* producer_context);
+    typedef dmRender::RenderFrameResult (*FComponentRenderWriteInputs)(dmRender::HRenderFrame frame, void* producer_context);
 
     /**
      * Create a component lifetime manager on the game owner. Creates no thread.
@@ -89,7 +99,7 @@ namespace dmGameSystem
      * @param producer_context Borrowed capture context, used only during this call
      * @return dmRender::RENDER_FRAME_OK on success; any error poisons the frame, which must be cancelled
      */
-    dmRender::RenderFrameResult CaptureComponentRenderWorld(HComponentRenderWorld world, dmRender::HRenderFrame frame, ComponentRenderWriteInputs write_inputs, void* producer_context);
+    dmRender::RenderFrameResult CaptureComponentRenderWorld(HComponentRenderWorld world, dmRender::HRenderFrame frame, FComponentRenderWriteInputs write_inputs, void* producer_context);
 
     /**
      * Queue-compatible render-owner callback dispatching immutable component inputs.

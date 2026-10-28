@@ -50,24 +50,24 @@ namespace dmRender
      * @param context Context supplied in RenderFrameQueueParams
      * @param frame Borrowed immutable inputs, valid only for this call
      */
-    typedef void (*RenderFrameConsume)(void* context, const RenderFrameView& frame);
+    typedef void (*FRenderFrameConsume)(void* context, const RenderFrameView& frame);
     /**
      * Service persistent render-owner work, even without a frame or explicit wake request.
      * Not a draw callback or owned task queue. Do not reenter queue APIs or block browser
      * main on game work/GPU completion.
      * @param context Context supplied in RenderFrameQueueParams
      */
-    typedef void (*RenderFrameService)(void* context);
+    typedef void (*FRenderFrameService)(void* context);
 
     /** Copied at creation; execution outlives queue and callback contexts outlive all pumps. */
     struct RenderFrameQueueParams
     {
-        RenderFrameLimits  m_Limits;
-        HRenderExecution   m_Execution;
-        RenderFrameConsume m_Consume;
-        void*              m_ConsumeContext;
-        RenderFrameService m_Service;
-        void*              m_ServiceContext;
+        RenderFrameLimits   m_Limits;
+        HRenderExecution    m_Execution;
+        FRenderFrameConsume m_Consume;
+        void*               m_ConsumeContext;
+        FRenderFrameService m_Service;
+        void*               m_ServiceContext;
     };
 
     /** Game-owner diagnostic snapshot; revision supports event-driven waits without lost wakes. */

@@ -21,13 +21,14 @@
 
 namespace dmRender
 {
-    // Engine-owned execution/ownership context, not the renderer or its scene data.
+    // Renderer-owned execution/ownership context, separate from its mutable scene data.
     // Records the selected mode and uses per-context TLS to identify the game and
     // render owners so call sites can assert that work runs on the correct thread.
     // Inline mode assigns both roles to the caller; threaded mode allows one distinct
     // render owner to bind. Graphics operations belong to that render owner as well.
-    // Created during engine startup and destroyed by the game owner after all other
-    // users have stopped and any separate render owner has released its binding.
+    // The render context creates and deletes it on the game owner. Standalone queues
+    // may own one directly. Destruction follows all users stopping and any separate
+    // render owner releasing its binding.
     //
     // This context creates no threads, schedules no jobs and stores no frames.
     // The separate frame queue and its executors build around this ownership contract:

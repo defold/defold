@@ -34,6 +34,7 @@
 #include <testmain/testmain.h>
 
 #include "gamesys/component_render.h"
+#include "gamesys/component_render_state_private.h"
 
 namespace
 {

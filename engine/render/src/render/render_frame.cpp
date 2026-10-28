@@ -36,9 +36,9 @@ namespace dmRender
     // One adopted reference. The producer is responsible for retaining before insertion.
     struct RenderFrameReference
     {
-        RenderFrameRelease m_Release;
-        void*              m_Resource;
-        void*              m_Context;
+        FRenderFrameRelease m_Release;
+        void*               m_Resource;
+        void*               m_Context;
     };
 
     // Fixed storage reused across captures without clearing payload bytes or allocating.
@@ -187,7 +187,7 @@ namespace dmRender
     }
 
     RenderFrameResult AddRenderFrameReference(HRenderFrame frame, void* resource,
-        RenderFrameRelease release, void* context)
+        FRenderFrameRelease release, void* context)
     {
         RenderFrameResult result = CheckCapture(frame);
         if (result != RENDER_FRAME_OK)

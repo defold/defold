@@ -42,15 +42,15 @@ namespace dmGameObject
      * @param render_world Output lifetime handle; leave null and clean up partial work on failure
      * @return True on success with a non-null lifetime handle, false on failure
      */
-    typedef bool (*ComponentRenderCreateWorld)(void* context, uint32_t component_index, uint32_t max_instances, uint32_t max_components, void** render_world);
+    typedef bool (*FComponentRenderCreateWorld)(void* context, uint32_t component_index, uint32_t max_instances, uint32_t max_components, void** render_world);
 
     /**
      * Release the game's ownership without waiting for accepted frames to finish.
      * The bridge keeps renderer state alive until all outstanding references are released.
      * @param context Registered bridge context
-     * @param render_world Lifetime handle returned by ComponentRenderCreateWorld
+     * @param render_world Lifetime handle returned by FComponentRenderCreateWorld
      */
-    typedef void (*ComponentRenderDeleteWorld)(void* context, void* render_world);
+    typedef void (*FComponentRenderDeleteWorld)(void* context, void* render_world);
 
     /**
      * Capture owned render inputs on the game owner.
@@ -59,7 +59,7 @@ namespace dmGameObject
      * @param params Borrowed game inputs and the current capture frame
      * @return True on success; false rejects the frame capture
      */
-    typedef bool (*ComponentRenderCapture)(void* context, void* render_world, const ComponentRenderCaptureParams& params);
+    typedef bool (*FComponentRenderCapture)(void* context, void* render_world, const ComponentRenderCaptureParams& params);
 
     /**
      * Game-owner bridge callbacks, separate from the component's existing world hooks.
@@ -67,10 +67,10 @@ namespace dmGameObject
      */
     struct ComponentRenderCallbacks
     {
-        void*                      m_Context;
-        ComponentRenderCreateWorld m_CreateWorld;
-        ComponentRenderDeleteWorld m_DeleteWorld;
-        ComponentRenderCapture     m_Capture;
+        void*                       m_Context;
+        FComponentRenderCreateWorld m_CreateWorld;
+        FComponentRenderDeleteWorld m_DeleteWorld;
+        FComponentRenderCapture     m_Capture;
     };
 
     /**

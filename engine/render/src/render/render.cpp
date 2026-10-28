@@ -120,6 +120,7 @@ namespace dmRender
     , m_MaxCharacters(0)
     , m_CommandBufferSize(1024)
     , m_MaxDebugVertexCount(0)
+    , m_ExecutionMode(EXECUTION_MODE_INLINE)
     {
 
     }
@@ -133,7 +134,18 @@ namespace dmRender
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params)
     {
+        // No production executor is available yet. Standalone queue/executor tests
+        // create their own execution context without initializing renderer state.
+        ExecutionSelection selection;
+        HRenderExecution execution = NewRenderExecution(params.m_ExecutionMode, false, &selection);
+        if (!execution)
+        {
+            dmLogError("Unable to create render context: %s", GetExecutionResultString(selection.m_ExecutionResult));
+            return 0;
+        }
+
         RenderContext* context = new RenderContext;
+        context->m_Execution = execution;
 
         context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
         context->m_RenderObjects.SetSize(0);
@@ -225,9 +237,15 @@ namespace dmRender
         for (uint32_t i = 0; i < render_context->m_RenderItemDispatches.Size(); ++i)
             delete render_context->m_RenderItemDispatches[i];
         dmMessage::DeleteSocket(render_context->m_Socket);
+        DeleteRenderExecution(render_context->m_Execution);
         delete render_context;
 
         return RESULT_OK;
+    }
+
+    HRenderExecution GetRenderExecution(HRenderContext render_context)
+    {
+        return render_context->m_Execution;
     }
 
     dmScript::HContext GetScriptContext(HRenderContext render_context)

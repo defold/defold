@@ -285,16 +285,17 @@ TEST_F(EngineTest, RenderExecutionBuildGateStartupCleanup)
         bool initialized = dmEngine::Init(partial, DM_ARRAY_SIZE(argv), (char**)argv);
         // A missing project must not masquerade as execution-mode rejection.
         rejected_before_graphics = !initialized && partial->m_Config && !partial->m_ConnectionAppMode && !partial->m_Window &&
-            !partial->m_GraphicsContext && !partial->m_RenderExecution;
+            !partial->m_GraphicsContext && !partial->m_RenderContext;
         dmEngine::Delete(partial);
     }
 
     // Exercise the public creation path too: it owns cleanup on initialization failure.
     dmEngine::HEngine engine = dmEngineCreate(DM_ARRAY_SIZE(argv), (char**)argv);
     bool created = engine != 0;
-    bool owns_all_roles = engine && engine->m_RenderExecution &&
-        dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GAME) &&
-        dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_RENDER);
+    dmRender::HRenderExecution execution = engine && engine->m_RenderContext ? dmRender::GetRenderExecution(engine->m_RenderContext) : 0;
+    bool owns_all_roles = execution &&
+        dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_GAME) &&
+        dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_RENDER);
 
     if (engine)
         dmEngineDestroy(engine);

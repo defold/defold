@@ -454,7 +454,6 @@ namespace dmEngine
     , m_JobThreadContext(0)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
-    , m_RenderExecution(0)
     , m_ComponentRenderContext(0)
     , m_ScriptContext(0x0)
     , m_Factory(0x0)
@@ -525,12 +524,6 @@ namespace dmEngine
 
     void Delete(HEngine engine)
     {
-        if (engine->m_RenderExecution)
-        {
-            assert(dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GAME));
-            assert(dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_RENDER));
-        }
-
         if (engine->m_EngineService)
             dmEngineService::OnEngineDelete(engine->m_EngineService);
 
@@ -672,9 +665,6 @@ namespace dmEngine
         free(engine->m_DependenciesJsonResource);
         engine->m_DependenciesJsonResource = 0;
         engine->m_DependenciesJsonSize = 0;
-
-        if (engine->m_RenderExecution)
-            dmRender::DeleteRenderExecution(engine->m_RenderExecution);
 
         delete engine;
     }
@@ -1188,9 +1178,8 @@ namespace dmEngine
 #else
         dmRender::ExecutionMode execution_mode = dmRender::EXECUTION_MODE_INLINE;
 #endif
-        dmRender::ExecutionSelection execution_selection;
-        engine->m_RenderExecution = dmRender::NewRenderExecution(execution_mode, false, &execution_selection);
-        if (!engine->m_RenderExecution)
+        dmRender::ExecutionSelection execution_selection = dmRender::ResolveExecutionMode(execution_mode, dmRender::GetExecutionCapabilities(false));
+        if (execution_selection.m_ExecutionMode == dmRender::EXECUTION_MODE_INVALID)
         {
             dmLogError("Render execution: %s (%s)", dmRender::GetExecutionModeName(execution_selection.m_ExecutionMode),
                 dmRender::GetExecutionResultString(execution_selection.m_ExecutionResult));
@@ -1416,7 +1405,6 @@ namespace dmEngine
             graphics_context_params.m_GraphicsApiVersionMinorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_minor", 0);
         }
 
-        assert(dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_RENDER));
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
         {
@@ -1521,6 +1509,7 @@ namespace dmEngine
         dmGameObject::SetInputStackDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY, dmGameObject::DEFAULT_MAX_INPUT_STACK_CAPACITY));
 
         dmRender::RenderContextParams render_params;
+        render_params.m_ExecutionMode = execution_selection.m_ExecutionMode;
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
         render_params.m_MaxRenderTargets = 32;
@@ -1536,6 +1525,8 @@ namespace dmEngine
 #endif
         render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
+        if (!engine->m_RenderContext)
+            return false;
         FlushPendingWindowResize(engine);
         PopulateContextRegistry(engine);
 
@@ -1698,7 +1689,7 @@ namespace dmEngine
             // Internal foundation budget; no buffers are allocated until a component opts
             // in. Component migration will size these limits for real captured workloads.
             dmRender::RenderFrameLimits limits = { 256 * 1024, 1024, 1024 };
-            engine->m_ComponentRenderContext = dmGameSystem::NewComponentRenderContext(engine->m_Register, engine->m_RenderExecution, limits);
+            engine->m_ComponentRenderContext = dmGameSystem::NewComponentRenderContext(engine->m_Register, engine->m_RenderContext, limits);
 
             if (!engine->m_ComponentRenderContext)
                 goto bail;
@@ -2049,7 +2040,6 @@ bail:
 
     static void StepFrame(HEngine engine, float dt)
     {
-        assert(dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_GAME));
         dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
 
         if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED)
@@ -2201,7 +2191,6 @@ bail:
 
                     // Begin the renderer frame with current time since engine start and frame delta-time.
                     // Use the same dt that is passed into script updates and the accumulated engine time.
-                    assert(dmRender::IsRenderExecutionOwner(engine->m_RenderExecution, dmRender::EXECUTION_OWNER_RENDER));
                     dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
 
                     // Call pre render functions for extensions, if available.

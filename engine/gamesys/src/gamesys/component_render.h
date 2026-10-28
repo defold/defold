@@ -15,6 +15,7 @@
 #ifndef DM_GAMESYS_COMPONENT_RENDER_H
 #define DM_GAMESYS_COMPONENT_RENDER_H
 
+#include <dmsdk/render/render.h>
 #include <gameobject/gameobject.h>
 #include <render/render_frame_queue.h>
 
@@ -33,7 +34,7 @@ namespace dmGameSystem
      * @param state Output renderer state; null is allowed on success
      * @return RENDER_FRAME_OK on success, or a fatal initialization error
      */
-    typedef dmRender::RenderFrameResult (*ComponentRenderInitialize)(void* renderer_context, const void* init_data, uint32_t init_size, void** state);
+    typedef dmRender::RenderFrameResult (*FComponentRenderInitialize)(void* renderer_context, const void* init_data, uint32_t init_size, void** state);
 
     /**
      * Consume published component inputs on the render owner, without accessing mutable game data.
@@ -45,7 +46,7 @@ namespace dmGameSystem
      * @param table_count Number of contiguous input tables for this capture
      * @return RENDER_FRAME_OK on success, or a fatal consumption error
      */
-    typedef dmRender::RenderFrameResult (*ComponentRenderConsume)(void* renderer_context, void* state, const dmRender::RenderFrameView& frame, uint32_t first_table, uint32_t table_count);
+    typedef dmRender::RenderFrameResult (*FComponentRenderConsume)(void* renderer_context, void* state, const dmRender::RenderFrameView& frame, uint32_t first_table, uint32_t table_count);
 
     /**
      * Destroy component renderer state on the render owner after its final frame reference is released.
@@ -53,7 +54,7 @@ namespace dmGameSystem
      * @param renderer_context Registered renderer-owned/read-safe context
      * @param state State returned by initialization
      */
-    typedef void (*ComponentRenderDestroy)(void* renderer_context, void* state);
+    typedef void (*FComponentRenderDestroy)(void* renderer_context, void* state);
 
     /**
      * Component renderer callbacks copied on world creation; all are required. Callback code
@@ -62,9 +63,9 @@ namespace dmGameSystem
      */
     struct ComponentRenderCallbacks
     {
-        ComponentRenderInitialize m_Initialize;
-        ComponentRenderConsume    m_Consume;
-        ComponentRenderDestroy    m_Destroy;
+        FComponentRenderInitialize m_Initialize;
+        FComponentRenderConsume    m_Consume;
+        FComponentRenderDestroy    m_Destroy;
     };
 
     /**
@@ -99,7 +100,7 @@ namespace dmGameSystem
      * @param params Borrowed game state and building frame
      * @return RENDER_FRAME_OK on success; any error rejects the complete frame capture
      */
-    typedef dmRender::RenderFrameResult (*ComponentRenderCapture)(const ComponentRenderCaptureParams& params);
+    typedef dmRender::RenderFrameResult (*FComponentRenderCapture)(const ComponentRenderCaptureParams& params);
 
     /**
      * Internal component opt-in, not an SDK interface. m_RenderContext must be
@@ -109,7 +110,7 @@ namespace dmGameSystem
     struct ComponentRenderType
     {
         ComponentRenderCallbacks m_RenderCallbacks;
-        ComponentRenderCapture   m_Capture;
+        FComponentRenderCapture  m_Capture;
         void*                    m_RenderContext;
     };
 
@@ -117,11 +118,11 @@ namespace dmGameSystem
      * Create the game-owner bridge between collection lifecycle and component rendering.
      * One context per register. Creates no production thread or frame buffers.
      * @param regist Game-object register, which must outlive this context
-     * @param execution Execution context, which must outlive this context
+     * @param render_context Renderer, which must outlive this context
      * @param limits Per-slot storage limits used when the first component opts in
      * @return New context, or null on allocation failure
      */
-    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits);
+    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderContext render_context, const dmRender::RenderFrameLimits& limits);
 
     /**
      * Register component render callbacks on the game owner, before world creation or pumping.

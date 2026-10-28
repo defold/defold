@@ -208,7 +208,7 @@ namespace dmGameSystem
     }
 
     dmRender::RenderFrameResult CaptureComponentRenderWorld(HComponentRenderWorld world, dmRender::HRenderFrame frame,
-        ComponentRenderWriteInputs write_inputs, void* producer_context)
+        FComponentRenderWriteInputs write_inputs, void* producer_context)
     {
         HComponentRenderStateContext context = world->m_Context;
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));

@@ -87,7 +87,7 @@ namespace dmRender
      * @param context Caller context supplied when the reference was added
      * @param resource Already-retained dependency being released
      */
-    typedef void (*RenderFrameRelease)(void* context, void* resource);
+    typedef void (*FRenderFrameRelease)(void* context, void* resource);
 
     // Storage lifecycle used by the frame queue (or isolated storage tests), never by readers.
     /**
@@ -169,7 +169,7 @@ namespace dmRender
      * @param context Release callback context, valid until the reference is released
      * @return RENDER_FRAME_OK, or a sticky argument/state/capacity error
      */
-    RenderFrameResult AddRenderFrameReference(HRenderFrame frame, void* resource, RenderFrameRelease release, void* context);
+    RenderFrameResult AddRenderFrameReference(HRenderFrame frame, void* resource, FRenderFrameRelease release, void* context);
 
     /**
      * Access immutable published inputs. Readers must not retain the view or its pointers after

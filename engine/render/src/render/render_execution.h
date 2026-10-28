@@ -22,8 +22,9 @@ namespace dmRender
     struct RenderExecutionContext;
 
     /**
-     * Engine-owned mode and thread-ownership context. Creates no threads or frames.
-     * The context must outlive its frame queues and all callers.
+     * Low-level mode and thread-ownership context. Owned by the render context in
+     * engine integration, or directly by standalone queue/executor callers. Creates
+     * no threads or frames and must outlive its frame queues and all callers.
      */
     typedef RenderExecutionContext* HRenderExecution;
 
@@ -115,7 +116,8 @@ namespace dmRender
     const char* GetExecutionResultString(ExecutionResult result);
 
     /**
-     * Resolve and create a context before extension, graphics and bootstrap initialization.
+     * Resolve and create execution state. Engine startup validates the requested mode
+     * separately before extension/graphics initialization; the renderer owns this state.
      * The caller becomes the game owner; inline also assigns rendering to this caller.
      * No thread is created. Executor availability comes from engine integration, not
      * project configuration, and remains false until migrated paths can be executed.
