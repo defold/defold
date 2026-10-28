@@ -827,9 +827,50 @@ bail:
     }
 
 #if !defined(DM_NO_HTTP_CACHE)
-    static Result HandleCached(HClient client, const char* path, Response* response, bool method_is_head)
+    static void StartCachedResponse(HClient client, Response* response)
     {
         client->m_HttpContent(response, client->m_Userdata, response->m_Status, 0, 0, 0, 0, 0, 0, 0);
+    }
+
+    static Result ReplayCachedBody(HClient client, Response* response, const char* etag, bool method_is_head)
+    {
+        FILE* file = 0;
+        uint32_t file_size = 0;
+        uint64_t checksum;
+        uint32_t range_start;
+        uint32_t range_end;
+        uint32_t document_size;
+        dmHttpCache::Result cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_CacheKey, etag, &file, &file_size, &checksum,
+                                                           &range_start, &range_end, &document_size);
+        if (cache_result != dmHttpCache::RESULT_OK)
+            return RESULT_IO_ERROR;
+
+        if (method_is_head)
+        {
+            client->m_HttpContent(response, client->m_Userdata, response->m_Status, 0, 0, file_size,
+                                  range_start, range_end, document_size, "HEAD");
+        }
+        else
+        {
+            size_t nread;
+            do
+            {
+                nread = fread(client->m_Buffer, 1, BUFFER_SIZE, file);
+                // The buffer has an extra byte for null-termination.
+                client->m_Buffer[nread] = '\0';
+                client->m_HttpContent(response, client->m_Userdata, response->m_Status, client->m_Buffer, nread, file_size,
+                                      range_start, range_end, document_size, "GET");
+            }
+            while (nread > 0);
+        }
+        bool read_error = ferror(file) != 0;
+        dmHttpCache::Release(client->m_HttpCache, client->m_CacheKey, etag, file);
+        return read_error ? RESULT_IO_ERROR : RESULT_OK;
+    }
+
+    static Result HandleCached(HClient client, Response* response, bool method_is_head)
+    {
+        StartCachedResponse(client, response);
         client->m_Statistics.m_CachedResponses++;
         if (client->m_IgnoreCache)
         {
@@ -869,44 +910,9 @@ bail:
             }
         }
 
-        FILE* file = 0;
-        uint32_t file_size = 0;
-        uint64_t checksum;
-        uint32_t range_start;
-        uint32_t range_end;
-        uint32_t document_size;
-        cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_CacheKey, cache_etag, &file, &file_size, &checksum,
-                                        &range_start, &range_end, &document_size);
-        if (cache_result == dmHttpCache::RESULT_OK)
-        {
-            // If the request is a "HEAD" request, and the URI is cached (i.e the file exists),
-            // then we should return the meta-data about the file (including triggering the progress callback).
-            if (method_is_head)
-            {
-                client->m_HttpContent(response, client->m_Userdata, response->m_Status, 0, 0, file_size,
-                                        range_start, range_end, document_size,
-                                        "HEAD");
-            }
-            else
-            {
-                // NOTE: We have an extra byte for null-termination so no buffer overrun here.
-                size_t nread;
-                do
-                {
-                    nread = fread(client->m_Buffer, 1, BUFFER_SIZE, file);
-                    client->m_Buffer[nread] = '\0';
-                    client->m_HttpContent(response, client->m_Userdata, response->m_Status, client->m_Buffer, nread, file_size,
-                                        range_start, range_end, document_size,
-                                        0);
-                }
-                while (nread > 0);
-            }
-            dmHttpCache::Release(client->m_HttpCache, client->m_CacheKey, cache_etag, file);
-        }
-        else
-        {
-            return RESULT_IO_ERROR;
-        }
+        Result result = ReplayCachedBody(client, response, cache_etag, method_is_head);
+        if (result != RESULT_OK)
+            return result;
 
         dmHttpCache::SetVerified(client->m_HttpCache, client->m_CacheKey, true);
 
@@ -1067,7 +1073,7 @@ bail:
 #if !defined(DM_NO_HTTP_CACHE)
                 if (!client->m_IgnoreCache && client->m_HttpCache)
                 {
-                    r = HandleCached(client, path, &response, method_is_head);
+                    r = HandleCached(client, &response, method_is_head);
                 }
 #endif
                 response.m_TotalReceived = 0;
@@ -1263,47 +1269,13 @@ bail:
     static Result HandleCachedVerified(HClient client, const char* etag, bool method_is_head)
     {
         Response response(client);
-        client->m_HttpContent(&response, client->m_Userdata, 304, 0, 0, 0, 0, 0, 0, 0);
+        response.m_Status = 304;
+        StartCachedResponse(client, &response);
         client->m_Statistics.m_DirectFromCache++;
-
-        FILE* file = 0;
-        uint32_t file_size = 0;
-        uint64_t checksum;
-        uint32_t range_start;
-        uint32_t range_end;
-        uint32_t document_size;
-
-        dmHttpCache::Result cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_CacheKey, etag, &file, &file_size, &checksum,
-                                                            &range_start, &range_end, &document_size);
-        if (cache_result == dmHttpCache::RESULT_OK)
-        {
-            // NOTE: We have an extra byte for null-termination so no buffer overrun here.
-            if (method_is_head)
-            {
-                client->m_HttpContent(&response, client->m_Userdata, 304, 0, 0, file_size,
-                                      range_start, range_end, document_size, "HEAD");
-            }
-            else
-            {
-                size_t nread;
-                do
-                {
-                    nread = fread(client->m_Buffer, 1, BUFFER_SIZE, file);
-                    client->m_Buffer[nread] = '\0';
-                    client->m_HttpContent(&response, client->m_Userdata, 304, client->m_Buffer, nread, file_size,
-                                          range_start, range_end, document_size, "GET");
-                }
-                while (nread > 0);
-            }
-            bool read_error = ferror(file) != 0;
-            dmHttpCache::Release(client->m_HttpCache, client->m_CacheKey, etag, file);
-            return read_error ? RESULT_IO_ERROR : RESULT_NOT_200_OK;
-        }
-        else
-        {
-            return RESULT_IO_ERROR;
-        }
+        Result result = ReplayCachedBody(client, &response, etag, method_is_head);
+        return result == RESULT_OK ? RESULT_NOT_200_OK : result;
     }
+
 #endif
 
     Result SetCacheKey(HClient client, const char* key)

@@ -937,12 +937,17 @@ TEST_P(dmHttpClientTest, Cache)
 struct StartedBody
 {
     uint32_t m_Starts;
+    uint32_t m_Heads;
+    int32_t m_ContentLength;
+    uint32_t m_RangeStart;
+    uint32_t m_RangeEnd;
+    uint32_t m_DocumentSize;
     bool m_Valid;
     std::string m_Content;
 };
 
-static void ReadStartedBody(dmHttpClient::HResponse, void* userdata, int, const void* data, uint32_t size, int32_t,
-                            uint32_t, uint32_t, uint32_t, const char* method)
+static void ReadStartedBody(dmHttpClient::HResponse, void* userdata, int, const void* data, uint32_t size, int32_t content_length,
+                            uint32_t range_start, uint32_t range_end, uint32_t document_size, const char* method)
 {
     StartedBody* body = (StartedBody*)userdata;
     if (!data && !size && !method)
@@ -953,6 +958,12 @@ static void ReadStartedBody(dmHttpClient::HResponse, void* userdata, int, const 
     else
     {
         body->m_Valid = body->m_Valid && body->m_Starts == 1;
+        body->m_ContentLength = content_length;
+        body->m_RangeStart = range_start;
+        body->m_RangeEnd = range_end;
+        body->m_DocumentSize = document_size;
+        if (method && strcmp(method, "HEAD") == 0)
+            ++body->m_Heads;
         if (size)
             body->m_Content.append((const char*)data, size);
     }
@@ -963,7 +974,7 @@ static void ReadStartedBody(dmHttpClient::HResponse, void* userdata, int, const 
 TEST_P(dmHttpClientTest, CachedResponseStart)
 {
     dmHttpClient::Delete(m_Client);
-    StartedBody body;
+    StartedBody body = {};
     dmHttpClient::NewParams params;
     params.m_Userdata = &body;
     params.m_HttpContent = ReadStartedBody;
@@ -985,6 +996,47 @@ TEST_P(dmHttpClientTest, CachedResponseStart)
         ASSERT_EQ(1U, body.m_Starts);
         ASSERT_TRUE(body.m_Valid);
         ASSERT_EQ(std::string("cached_content"), body.m_Content);
+    }
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Close(params.m_HttpCache));
+}
+
+// Both conditional and direct cached HEAD replay must start once, report the
+// cached metadata without body bytes, and release the entry for another replay.
+TEST_P(dmHttpClientTest, CachedResponseStartHead)
+{
+    dmHttpClient::Delete(m_Client);
+    StartedBody body = {};
+    body.m_Valid = true;
+    dmHttpClient::NewParams params;
+    params.m_Userdata = &body;
+    params.m_HttpContent = ReadStartedBody;
+    dmHttpCache::NewParams cache_params;
+    cache_params.m_Path = m_CacheDir;
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Open(&cache_params, &params.m_HttpCache));
+    m_Client = dmHttpClient::New(&params, &m_URI, 0);
+    ASSERT_NE((void*)0, m_Client);
+    dmHttpClient::SetCacheKey(m_Client, "/cached/0");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, dmHttpClient::Get(m_Client, "/cached/0"));
+    char etag[dmHttpCache::MAX_TAG_LEN];
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::GetETag(params.m_HttpCache, "/cached/0", etag, sizeof(etag)));
+    const uint32_t content_size = sizeof("cached_content") - 1;
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        body.m_Starts = 0;
+        body.m_Heads = 0;
+        body.m_Valid = true;
+        body.m_Content = "stale";
+        dmHttpClient::Result result = i == 0 ? dmHttpClient::Request(m_Client, "HEAD", "/cached/0") :
+                                             dmHttpClient::RequestCached(m_Client, "HEAD", etag);
+        ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, result);
+        ASSERT_EQ(1U, body.m_Starts);
+        ASSERT_EQ(1U, body.m_Heads);
+        ASSERT_TRUE(body.m_Valid);
+        ASSERT_EQ(std::string(""), body.m_Content);
+        ASSERT_EQ((int32_t)content_size, body.m_ContentLength);
+        ASSERT_EQ(0U, body.m_RangeStart);
+        ASSERT_EQ(content_size - 1, body.m_RangeEnd);
+        ASSERT_EQ(content_size, body.m_DocumentSize);
     }
     ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Close(params.m_HttpCache));
 }
