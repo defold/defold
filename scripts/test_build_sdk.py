@@ -266,6 +266,11 @@ class SdkCheckTests(unittest.TestCase):
         self.configuration.target_platform = 'arm64-macos'
         self.configuration.skip_tests = False
         self.configuration.build_tracker = build.BuildTimeTracker(logger=lambda message: None)
+        self.configuration._form_env = lambda: os.environ.copy()
+        self.protobuf_output = json.dumps({
+            'version': build.sdk.VERSION_PYTHON_PROTOBUF,
+            'path': '/test-sdk/ext/lib/python/google/protobuf/__init__.py',
+        })
         self.cmake_output = '\n'.join((
             '-- check_install: diagnostic noise',
             'DEFOLD_SDK_CHECK\tJava',
@@ -291,7 +296,10 @@ class SdkCheckTests(unittest.TestCase):
             self.addCleanup(patch.stop)
 
     def run_command(self, env, args, **kwargs):
-        result = 'cmake version 4.4.0\nCMake suite' if args[-1] == '--version' else self.cmake_output
+        if '-S' in args and '-c' in args:
+            result = self.protobuf_output
+        else:
+            result = 'cmake version 4.4.0\nCMake suite' if args[-1] == '--version' else self.cmake_output
         return self.command_result(result, **kwargs)
 
     def command_result(self, result, **kwargs):
@@ -333,7 +341,8 @@ class SdkCheckTests(unittest.TestCase):
             self.assertEqual(report, saved is not None)
             if report:
                 checks = saved['commands']['check_sdk']['checks']
-                self.assertEqual({'Python', 'SDK', 'Compiler', 'CMake', 'Java', 'Ninja', 'Protoc', 'Toolchain'}, set(checks))
+                self.assertEqual({'Python', 'SDK', 'Compiler', 'CMake', 'Java', 'Ninja', 'Protoc',
+                                  'Toolchain', 'Python Protobuf'}, set(checks))
                 summary = messages.split('BUILD TIME SUMMARY', 1)[1]
                 for name, timing in checks.items():
                     self.assertRegex(summary, rf'(?m)^\s+{name}\s+{timing["duration"]:.2f} s$')
@@ -375,7 +384,7 @@ class SdkCheckTests(unittest.TestCase):
         self.assertRegex(messages, r'  ✓ Java: Java 25\.0\.1 \[\d+\.\d{2} s\]\n')
         self.assertRegex(messages, r'  ✓ SDK: arm64-macos 27\.0 \[\d+\.\d{2} s\]\n')
         rows = messages.splitlines()[:-1]
-        self.assertEqual(8, len(rows))
+        self.assertEqual(9, len(rows))
         for row in rows:
             self.assertRegex(row, r'\[\d+\.\d{2} s\]$')
         self.assertNotIn('/tools/', messages)
@@ -535,7 +544,7 @@ Call Stack (most recent call first):
     def test_macos_armv7_generator_sdk_failure_is_not_ignored(self):
         self.configuration.host = 'arm64-macos'
         self.configuration.target_platform = 'armv7-android'
-        results = iter(['cmake version 4.4.0', self.cmake_output, build.run.ExecException(7)])
+        results = iter(['cmake version 4.4.0', self.cmake_output, self.protobuf_output, build.run.ExecException(7)])
         with mock.patch.object(build.run, 'env_command',
                                side_effect=lambda env, args, **kwargs: self.command_result(next(results), **kwargs)):
             with self.assertRaises(SystemExit) as error:
@@ -629,6 +638,7 @@ set(CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH OFF)
 set(CMAKE_FIND_USE_CMAKE_SYSTEM_PATH OFF)
 set(CMAKE_FIND_USE_INSTALL_PREFIX OFF)
 message("DEFOLD_SDK_CHECK\\tProtoc")
+include("${DEFOLD_HOME}/scripts/cmake/functions_sdk.cmake")
 include("${DEFOLD_HOME}/scripts/cmake/tools_protoc.cmake")
 message("DEFOLD_SDK_CHECK\\tProtoc\\t${_protoc_ver}\\t${_DEFOLD_PROTOC_REAL}")
 ''')

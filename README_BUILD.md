@@ -165,10 +165,16 @@ This step also installs some Python dependencies:
 
 * `boto` - For interacting with AWS. Installed from wheel package in `packages/`.
 * `markdown` - Used when generating script API docs. Installed from wheel package in `packages/`.
-* `protobuf` - Installed from wheel package in `packages/`
+* `protobuf` - Installed from the pinned wheel in `packages/python`, matching the source-built Protoc compiler.
 * `Pygments` - For use by the `CodeHilite` extension used by `markdown` in `script_doc.py`. Installed from wheel package in `packages/`.
 * `requests` - Installed using pip
 * `pyaml` - Installed using pip
+
+DDF generators use these bundled Python dependencies without loading host
+site-packages. `install_ext` validates the Python Protobuf runtime after installation,
+and `check_sdk` checks both the runtime and the matching Protoc version. CMake
+prefers the installed SDK compiler over a compiler on `PATH`, including when
+reconfiguring an existing build.
 
 ### STEP 4 - Build the engine
 

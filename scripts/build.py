@@ -918,6 +918,8 @@ class Configuration(object):
                 '--no-compile',
                 '-t', target,
             ] + packages)
+            if any(package.split('==', 1)[0].lower() == 'protobuf' for package in packages):
+                self._check_python_protobuf()
 
     def install_release_dependencies(self):
         print("Installing release python dependencies")
@@ -1012,7 +1014,7 @@ class Configuration(object):
             'Pygments==2.12.0',
             'Pillow==11.3.0',
             'boto3==1.36.3',
-            'protobuf==7.35.1',
+            f'protobuf=={sdk.VERSION_PYTHON_PROTOBUF}',
             'PyYAML==6.0.3',
             'pystache==0.6.8',
             'rangehttpserver==1.4.0',
@@ -1095,6 +1097,24 @@ class Configuration(object):
         if errors:
             message += "\nChecked runners:\n  " + "\n  ".join(errors)
         return message
+
+    def _check_python_protobuf(self):
+        env = self._form_env()
+        env['PYTHONPATH'] = join(self.ext, 'lib', 'python')
+        probe = ('import json; import google.protobuf; '
+                 'from google.protobuf.compiler import plugin_pb2; '
+                 'print(json.dumps({"version": google.protobuf.__version__, "path": google.protobuf.__file__}))')
+        try:
+            output = run.env_command(env, self.get_python() + ['-S', '-c', probe], silent=True)
+        except run.ExecException as error:
+            raise sdk.SDKException(
+                'Could not load the bundled Python Protobuf runtime. Run ./scripts/build.py install_ext.\n' + error.output) from error
+        info = json.loads(output)
+        if info['version'] != sdk.VERSION_PYTHON_PROTOBUF:
+            raise sdk.SDKException(
+                f"Python Protobuf {info['version']} does not match the required {sdk.VERSION_PYTHON_PROTOBUF}. "
+                'Run ./scripts/build.py install_ext.')
+        return info
 
     def _log_sdk_check(self, name, status, passed=True, path=None, elapsed=None):
         message = f"{name}: {status}"
@@ -1233,6 +1253,10 @@ class Configuration(object):
         if self.verbose:
             args.insert(1, '-DDEFOLD_VERBOSE=ON')
         self._check_sdk_cmake(args)
+
+        if require_protoc:
+            info, elapsed = self._run_sdk_check('Python Protobuf', self._check_python_protobuf)
+            self._log_sdk_check('Python Protobuf', f"Protobuf {info['version']}", path=info['path'], elapsed=elapsed)
 
         if self.target_platform == 'armv7-android' and self.host.endswith('-macos'):
             args = [cmake, f"-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}", "-DLUAJIT_CHECK_SDK=ON",

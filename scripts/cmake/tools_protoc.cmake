@@ -54,15 +54,27 @@ if(NOT _DEFOLD_PROTOC_EXECUTABLE)
 endif()
 
 file(REAL_PATH "${_DEFOLD_PROTOC_EXECUTABLE}" _DEFOLD_PROTOC_REAL)
-set(DEFOLD_PROTOC_EXECUTABLE "${_DEFOLD_PROTOC_REAL}" CACHE FILEPATH "Path to protoc executable used by Defold")
 
-# Optional: Print protoc version
+# Match the compiler to the bundled Python runtime and source-built Protobuf libraries.
+defold_set_from_sdk_py(SOURCE VERSION_PYTHON_PROTOBUF TARGET SDK_VERSION_PYTHON_PROTOBUF)
+string(REGEX REPLACE "^[0-9]+[.]([0-9]+[.][0-9]+)$" "\\1" _DEFOLD_PROTOC_VERSION "${SDK_VERSION_PYTHON_PROTOBUF}")
 execute_process(
   COMMAND "${_DEFOLD_PROTOC_EXECUTABLE}" --version
+  RESULT_VARIABLE _protoc_result
   OUTPUT_VARIABLE _protoc_ver
   ERROR_VARIABLE _protoc_err
   OUTPUT_STRIP_TRAILING_WHITESPACE
   ERROR_STRIP_TRAILING_WHITESPACE)
+if(NOT _protoc_result EQUAL 0)
+  message(FATAL_ERROR "Could not run protoc. Run ./scripts/build.py install_ext to build and install it.\n\n${_DEFOLD_PROTOC_REAL}: ${_protoc_err}")
+endif()
+string(REGEX MATCH "libprotoc[ \t]+([0-9]+(\\.[0-9]+)*)" _protoc_version_match "${_protoc_ver}")
+if(NOT _protoc_version_match OR NOT "${CMAKE_MATCH_1}" VERSION_EQUAL "${_DEFOLD_PROTOC_VERSION}")
+  message(FATAL_ERROR "Found ${_protoc_ver}, but Defold requires protoc ${_DEFOLD_PROTOC_VERSION}. Run ./scripts/build.py install_ext to build and install the matching compiler.\n\nSelected compiler: ${_DEFOLD_PROTOC_REAL}")
+endif()
+
+# Reconfiguration must replace a previously cached PATH compiler with the installed SDK compiler.
+set(DEFOLD_PROTOC_EXECUTABLE "${_DEFOLD_PROTOC_REAL}" CACHE FILEPATH "Path to protoc executable used by Defold" FORCE)
 if(_protoc_ver)
   defold_log("tools_protoc: protoc ${_protoc_ver} at ${_DEFOLD_PROTOC_REAL}")
 else()
