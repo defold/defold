@@ -64,8 +64,8 @@
   (inherits outline/OutlineNode)
   (input read-only g/Bool)
   (input package-targets g/Any)
-  (input reference-errors g/Any)
-  (display-order [:target :id :operation :path :package])
+  (input rule-diagnostics g/Any)
+  (display-order [:target :id :operation :path :no-match :package])
   (property id g/Str (default "Rule")
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic visible (g/fnk [target] (not= :package target)))
@@ -88,7 +88,21 @@
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-rule :path))
             (dynamic visible (g/fnk [target] (not= :package target)))
-            (dynamic error (g/fnk [_node-id target path] (when (and (not= :package target) path) (regex-error _node-id path)))))
+            (dynamic error (g/fnk [_node-id target path rule-diagnostics]
+                             (when (and (not= :package target) path)
+                               (or (regex-error _node-id path)
+                                   (when-let [^PackageResolver$Diagnostic diagnostic (get rule-diagnostics _node-id)]
+                                     (g/->error _node-id :path
+                                                (if (= PackageResolver$Severity/ERROR (.severity diagnostic)) :fatal :warning)
+                                                path (.message diagnostic))))))))
+  (property no-match g/Keyword (default :warn)
+            (dynamic read-only? (g/fnk [read-only] read-only))
+            (dynamic label (properties/label-dynamic :liveupdate-rule :no-match))
+            (dynamic visible (g/fnk [target] (not= :package target)))
+            (dynamic edit-type (g/constantly {:type :radio-group
+                                            :options [[:warn (localization/message "liveupdate.no-match.warn")]
+                                                      [:error (localization/message "liveupdate.no-match.error")]
+                                                      [:ignore (localization/message "liveupdate.no-match.ignore")]]})))
   (property package g/Str (default "")
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-rule :package))
@@ -96,35 +110,38 @@
             (dynamic edit-type (g/fnk [package-targets]
                                  {:type :choicebox
                                   :options (mapv (juxt identity identity) package-targets)}))
-            (dynamic error (g/fnk [_node-id target package reference-errors]
+            (dynamic error (g/fnk [_node-id target package rule-diagnostics]
                              (when (not= :path target)
-                               (when-let [^PackageResolver$Diagnostic diagnostic (get reference-errors _node-id)]
+                               (when-let [^PackageResolver$Diagnostic diagnostic (get rule-diagnostics _node-id)]
                                  (g/->error _node-id :package :fatal package (.message diagnostic)))))))
   (output data g/Any :cached
-          (g/fnk [_node-id id order operation target path package]
+          (g/fnk [_node-id id order operation target path no-match package]
             {:node-id _node-id
              :order order
              :value (cond-> {:name id}
                       (not= :add operation) (assoc :operation operation)
                       (and (not= :package target) path) (assoc :path path)
+                      (and (not= :package target) (not= :warn no-match)) (assoc :no-match no-match)
                       (not= :path target) (assoc :package package))}))
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id id order operation target package read-only]
-            {:node-id _node-id
-             :node-outline-key (str order)
-             :label (if (= :package target)
-                      (localization/message "liveupdate.package-rule"
-                                            {"operation" (if (= :add operation) "+" "−")
-                                             "name" package})
-                      (str (if (= :add operation) "+ " "− ") id))
-             :read-only (boolean read-only)
-             :order order
-             :icon (if (= :package target) package-icon icon)})))
+          (g/fnk [_node-id id order operation target package read-only rule-diagnostics]
+            (let [^PackageResolver$Diagnostic diagnostic (get rule-diagnostics _node-id)]
+              {:node-id _node-id
+               :node-outline-key (str order)
+               :label (if (= :package target)
+                        (localization/message "liveupdate.package-rule"
+                                              {"operation" (if (= :add operation) "+" "−")
+                                               "name" package})
+                        (str (if (= :add operation) "+ " "− ") id))
+               :read-only (boolean read-only)
+               :order order
+               :outline-error? (= PackageResolver$Severity/ERROR (when diagnostic (.severity diagnostic)))
+               :icon (if (= :package target) package-icon icon)}))))
 
 (defn- attach-rule [parent child]
   [(g/connect parent :read-only child :read-only)
    (g/connect parent :package-targets child :package-targets)
-   (g/connect parent :reference-errors child :reference-errors)
+   (g/connect parent :rule-diagnostics child :rule-diagnostics)
    (g/connect child :_node-id parent :nodes)
    (g/connect child :data parent :rule-data)
    (g/connect child :node-outline parent :child-outlines)])
@@ -142,6 +159,7 @@
   (inherits outline/OutlineNode)
   (input read-only g/Bool)
   (input package-references g/Any)
+  (input diagnostics g/Any)
   (output read-only g/Bool (g/fnk [read-only] (boolean read-only)))
   (property id g/Str (default "package")
             (dynamic read-only? (g/fnk [read-only] read-only))
@@ -167,10 +185,10 @@
   (output package-targets g/Any
           (g/fnk [id package-references]
             (get (.targets ^PackageResolver$PackageReferences package-references) id)))
-  (output reference-errors g/Any :cached
-          (g/fnk [id rule-data package-references]
+  (output rule-diagnostics g/Any :cached
+          (g/fnk [id rule-data diagnostics]
             (let [rules (vec (sort-by :order rule-data))]
-              (coll/into-> (.diagnostics ^PackageResolver$PackageReferences package-references) {}
+              (coll/into-> diagnostics {}
                 (keep (fn [^PackageResolver$Diagnostic diagnostic]
                         (when (= id (.packageName diagnostic))
                           (when-let [rule (get rules (.rule diagnostic))]
@@ -208,6 +226,7 @@
 (defn- attach-package [parent child]
   [(g/connect parent :read-only child :read-only)
    (g/connect parent :package-references child :package-references)
+   (g/connect parent :diagnostics child :diagnostics)
    (g/connect child :_node-id parent :nodes)
    (g/connect child :_node-id parent :package-nodes)
    (g/connect child :data parent :package-data)
@@ -389,6 +408,7 @@
                                  (contains? rule :package) :package
                                  :else :path)
                        :path (:path rule)
+                       :no-match (:no-match rule :warn)
                        :package (:package rule "")]]
     (attach-rule parent child)))
 

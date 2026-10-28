@@ -1628,6 +1628,41 @@ public class ProjectBuildTest {
         return manifest.getResourcesList().stream().map(Manifest.ResourceEntry::getUrl).collect(Collectors.toSet());
     }
 
+    // Missing custom files warn or are ignored, while Error prevents writing until a new matching file appears.
+    @Test
+    public void testPackageNoMatchPolicies() throws Exception {
+        createPackageProject();
+        var required = addPath("Required file", "/extra/required[.]txt").toBuilder();
+        for (var policy : List.of(LiveUpdateManifest.NoMatchPolicy.WARN, LiveUpdateManifest.NoMatchPolicy.IGNORE)) {
+            savePackages(livePackage("episode", "zip", addPath("Data", "/extra/data[.]json"), required.setNoMatch(policy).build()));
+            var plan = buildPackageProject(true, false);
+            var diagnostics = plan.diagnostics().stream().filter(d -> d.packageName().equals("episode") && d.rule() == 1).toList();
+            if (policy == LiveUpdateManifest.NoMatchPolicy.WARN) {
+                assertEquals(1, diagnostics.size());
+                assertEquals(PackageResolver.Severity.WARNING, diagnostics.get(0).severity());
+            } else {
+                assertTrue(diagnostics.isEmpty());
+            }
+            assertEquals(Set.of("/extra/data.json"), manifestPaths(zipManifest("episode")));
+        }
+        Path archive = Path.of(contentRoot, "packages/episode.zip");
+        byte[] previous = Files.readAllBytes(archive);
+        savePackages(livePackage("episode", "zip", addPath("Data", "/extra/data[.]json"),
+                required.setNoMatch(LiveUpdateManifest.NoMatchPolicy.ERROR).build()));
+        try {
+            buildPackageProject(true, false);
+            org.junit.Assert.fail("Required custom file should fail when absent");
+        } catch (CompileExceptionError expected) {
+            assertEquals("Rule 'Required file' in package 'episode' matches no source files for Path '/extra/required[.]txt'. "
+                    + "Patterns match the entire source path, including its leading '/'.", expected.getMessage());
+        }
+        assertArrayEquals(previous, Files.readAllBytes(archive));
+        createFile(contentRoot, "extra/required.txt", "Required custom content\n");
+        var plan = buildPackageProject(true, false);
+        assertFalse(plan.hasErrors());
+        assertEquals(Set.of("/extra/data.json", "/extra/required.txt"), manifestPaths(zipManifest("episode")));
+    }
+
     // Manifest packages have exact local manifests and identical ZIP/folder payloads, including unreachable custom files.
     @Test
     public void testPackageZipFolderAndBaseContents() throws Exception {

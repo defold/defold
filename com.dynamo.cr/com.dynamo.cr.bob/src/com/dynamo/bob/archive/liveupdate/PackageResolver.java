@@ -15,6 +15,7 @@
 package com.dynamo.bob.archive.liveupdate;
 
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.ManifestDesc;
+import com.dynamo.liveupdate.proto.LiveUpdateManifest.NoMatchPolicy;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.PackageDesc;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.RuleDesc;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.RuleOperation;
@@ -184,9 +185,12 @@ public final class PackageResolver {
                         Pattern pattern = Pattern.compile(rule.getPath());
                         List<String> selected = inventory.stream().filter(p -> pattern.matcher(p).matches()).toList();
                         matches.put(id, selected);
-                        if (selected.isEmpty()) diagnostics.add(new Diagnostic(Severity.WARNING, name, i, "",
-                                "Rule '" + rule.getName() + "' in package '" + name + "' matches no source files for Path '" + rule.getPath()
-                                        + "'. Patterns match the entire source path, including its leading '/'."));
+                        if (selected.isEmpty() && rule.getNoMatch() != NoMatchPolicy.IGNORE) {
+                            Severity severity = rule.getNoMatch() == NoMatchPolicy.ERROR ? Severity.ERROR : Severity.WARNING;
+                            diagnostics.add(new Diagnostic(severity, name, i, "",
+                                    "Rule '" + rule.getName() + "' in package '" + name + "' matches no source files for Path '" + rule.getPath()
+                                            + "'. Patterns match the entire source path, including its leading '/'."));
+                        }
                     } catch (PatternSyntaxException e) {
                         String location = e.getIndex() < 0 ? "" : " at column " + (e.getIndex() + 1);
                         diagnostics.add(new Diagnostic(Severity.ERROR, name, i, "",

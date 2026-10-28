@@ -137,7 +137,11 @@ including its leading slash. Selected sources contribute their actual compiled
 outputs and runtime dependencies; unrecognized source files are copied unchanged.
 A package reference uses the referenced package's final contents, including
 forward references. Reference cycles, missing packages, invalid regexes, and
-missing dependencies are errors. An expression matching no files is a warning.
+missing dependencies are errors. Each Path rule has a **No matches** policy:
+**Warn** (the default), **Error** (fail the build), or **Ignore**. In protobuf text,
+set `no_match: WARN`, `no_match: ERROR`, or `no_match: IGNORE` on the rule.
+This applies to Add and Remove rules and only controls a valid pattern matching
+no source files. It does not suppress invalid regexes or missing dependencies.
 Regex errors identify the package, rule, and 1-based column in the Path expression.
 Resources may belong to several packages. Startup-required resources remain in
 the base even when selected by a package. Proxies are deferred boundaries;

@@ -23,11 +23,18 @@ enum RuleOperation {
     REMOVE = 1;
 }
 
+enum NoMatchPolicy {
+    WARN = 0;
+    ERROR = 1;
+    IGNORE = 2;
+}
+
 message RuleDesc {
     required string name = 1;
     optional RuleOperation operation = 2 [default = ADD];
     optional string path = 3;
     optional string package = 4;
+    optional NoMatchPolicy no_match = 5 [default = WARN];
 }
 
 message PackageDesc {

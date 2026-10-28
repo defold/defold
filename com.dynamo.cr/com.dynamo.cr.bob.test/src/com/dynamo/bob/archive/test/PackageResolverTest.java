@@ -18,6 +18,7 @@ import com.dynamo.bob.archive.liveupdate.PackageResolver;
 import com.dynamo.bob.archive.liveupdate.PackageResolver.Loading;
 import com.dynamo.bob.archive.liveupdate.PackageResolver.Resource;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.ManifestDesc;
+import com.dynamo.liveupdate.proto.LiveUpdateManifest.NoMatchPolicy;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.PackageDesc;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.RuleDesc;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.RuleOperation;
@@ -101,6 +102,46 @@ public class PackageResolverTest {
                 errors.stream().map(PackageResolver.Diagnostic::message).toList());
     }
 
+    // No-match policies apply to both Add and Remove rules and do not affect a successful match.
+    @Test
+    public void noMatchPolicies() {
+        for (RuleOperation operation : List.of(RuleOperation.ADD, RuleOperation.REMOVE)) {
+            for (NoMatchPolicy policy : List.of(NoMatchPolicy.WARN, NoMatchPolicy.ERROR, NoMatchPolicy.IGNORE)) {
+                var rule = path("Config", operation, "/data/config[.]txt").toBuilder().setNoMatch(policy).build();
+                var manifest = manifest(pkg("data", rule));
+                var plan = PackageResolver.resolve(manifest, Map.of(), Map.of(), List.of(), List.of(), true);
+                assertEquals(policy == NoMatchPolicy.ERROR, plan.hasErrors());
+                if (policy == NoMatchPolicy.IGNORE) {
+                    assertTrue(plan.diagnostics().isEmpty());
+                } else {
+                    var severity = policy == NoMatchPolicy.ERROR ? PackageResolver.Severity.ERROR : PackageResolver.Severity.WARNING;
+                    assertEquals(List.of(new PackageResolver.Diagnostic(severity, "data", 0, "",
+                            "Rule 'Config' in package 'data' matches no source files for Path '/data/config[.]txt'. "
+                                    + "Patterns match the entire source path, including its leading '/'.")), plan.diagnostics());
+                }
+                var matched = PackageResolver.select(manifest, List.of("/data/config.txt"));
+                assertTrue(matched.diagnostics().isEmpty());
+                assertEquals(List.of("/data/config.txt"), matched.matches().get(new PackageResolver.RuleId("data", 0)));
+            }
+        }
+    }
+
+    // Ignoring absent matches must not hide invalid expressions or missing package references.
+    @Test
+    public void noMatchPoliciesPreserveValidationErrors() {
+        for (NoMatchPolicy policy : List.of(NoMatchPolicy.WARN, NoMatchPolicy.ERROR, NoMatchPolicy.IGNORE)) {
+            var selection = PackageResolver.select(manifest(pkg("data",
+                    path("Bad regex", RuleOperation.ADD, "/data/[").toBuilder().setNoMatch(policy).build(),
+                    reference("Missing package", "missing").toBuilder().setNoMatch(policy).build())), List.of());
+            assertEquals(2, selection.diagnostics().size());
+            assertTrue(selection.diagnostics().stream().allMatch(d -> d.severity() == PackageResolver.Severity.ERROR));
+            assertEquals("Invalid regex in rule 'Bad regex' of package 'data' at column 7: Unclosed character class. Path: /data/[",
+                    selection.diagnostics().get(0).message());
+            assertEquals("Unknown package 'missing' in rule 'Missing package' of package 'data'",
+                    selection.diagnostics().get(1).message());
+        }
+    }
+
     // Choices exclude the current package and direct/transitive referrers, including Remove rules and forward references.
     @Test
     public void packageReferenceChoices() {
@@ -181,9 +222,13 @@ public class PackageResolverTest {
         assertFalse(plan.hasErrors());
         var baseSupplies = PackageResolver.resolve(descriptions, mappings, graph, List.of("/sharedc"), List.of(), true);
         assertTrue(baseSupplies.requirements().get("level").isEmpty());
-        var missing = PackageResolver.resolve(manifest(descriptions.getPackages(0)), mappings, graph, List.of(), List.of(), true);
-        assertTrue(missing.hasErrors());
-        assertTrue(missing.diagnostics().stream().anyMatch(d -> d.message().contains("Required by /levelc")));
+        for (NoMatchPolicy policy : List.of(NoMatchPolicy.WARN, NoMatchPolicy.ERROR, NoMatchPolicy.IGNORE)) {
+            var level = descriptions.getPackages(0).toBuilder();
+            level.getRulesBuilderList().forEach(rule -> rule.setNoMatch(policy));
+            var missing = PackageResolver.resolve(manifest(level.build()), mappings, graph, List.of(), List.of(), true);
+            assertTrue(missing.hasErrors());
+            assertTrue(missing.diagnostics().stream().anyMatch(d -> d.message().contains("Required by /levelc")));
+        }
     }
 
     // Actual source mappings can name several generated outputs and opaque custom files without extension substitution.

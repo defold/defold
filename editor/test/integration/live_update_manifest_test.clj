@@ -87,6 +87,8 @@
                    (g/set-property package-node :custom-provider "studio-package")])
       (is (= "studio-package" (get-in (g/node-value node :save-value) [:packages 0 :provider])))
       (is (= "renamed" (#'manifest-view/selection-package (g/node-value node :packages) #{(:node-id episode)})))
+      (g/transact (g/set-property (:node-id episode) :no-match :error))
+      (is (= :error (get-in (g/node-value node :save-value) [:packages 0 :rules 1 :no-match])))
       (let [value (g/node-value node :save-value)
             text (resource-node/save-data-content (g/node-value node :save-data))]
         (is (= value (protobuf/read-map-without-defaults LiveUpdateManifest$ManifestDesc (java.io.StringReader. text))))
@@ -246,16 +248,17 @@
           path-rule (get-in packages [0 :rules 0 :node-id])
           package-rule (get-in packages [1 :rules 0 :node-id])
           original (g/node-value node :save-value)]
-      (is (= [:target :id :operation :path]
+      (is (= [:target :id :operation :path :no-match]
              (:display-order (properties/coalesce [(g/node-value path-rule :_properties)]))))
       (is (= [:target :operation :package]
              (:display-order (properties/coalesce [(g/node-value package-rule :_properties)]))))
       (is (= "+ Package: levels" (@test-util/localization (:label (g/node-value package-rule :node-outline)))))
       (ui/run-now
-        (doseq [[prop-kw node-ids labels initial-values initial-selection choice]
-                [[:operation [path-rule] ["Add" "Remove"] [:add] [true false] :remove]
-                 [:target [path-rule] ["Path" "Package"] [:path] [true false] :package]
-                 [:target [path-rule package-rule] ["Path" "Package"] [:path :package] [false false] :package]]]
+        (doseq [[prop-kw node-ids labels initial-values initial-selection choice choice-selection]
+                [[:operation [path-rule] ["Add" "Remove"] [:add] [true false] :remove [false true]]
+                 [:target [path-rule] ["Path" "Package"] [:path] [true false] :package [false true]]
+                 [:target [path-rule package-rule] ["Path" "Package"] [:path :package] [false false] :package [false true]]
+                 [:no-match [path-rule] ["Warn" "Error" "Ignore"] [:warn] [true false false] :error [false true false]]]]
           (let [description (fn []
                               (properties-view/make-control-view
                                 (get-in (properties/coalesce (mapv #(g/node-value % :_properties) node-ids))
@@ -274,23 +277,24 @@
               (let [saved-rule (get-in (g/node-value node :save-value) [:packages 0 :rules 0])]
                 (case prop-kw
                   :operation (is (= :remove (:operation saved-rule)))
+                  :no-match (is (= :error (:no-match saved-rule)))
                   :target (do (is (= "" (:package saved-rule)))
                               (is (not (contains? saved-rule :path)))
                               (is (= [:target :operation :package]
                                      (:display-order (properties/coalesce [(g/node-value path-rule :_properties)])))))))
               (vswap! component fx/advance-component (description))
-              (is (= [false true] (selected)))
+              (is (= choice-selection (selected)))
               (g/undo! :undo/global)
               (vswap! component fx/advance-component (description))
               (is (= initial-values (mapv #(g/node-value % prop-kw) node-ids)))
               (is (= initial-selection (selected)))
               (is (= original (g/node-value node :save-value)))
-              (is (= [:target :id :operation :path]
+              (is (= [:target :id :operation :path :no-match]
                      (:display-order (properties/coalesce [(g/node-value path-rule :_properties)]))))
               (is (= "+ Episode" (:label (g/node-value path-rule :node-outline))))
               (g/redo! :undo/global)
               (vswap! component fx/advance-component (description))
-              (is (= [false true] (selected)))
+              (is (= choice-selection (selected)))
               (g/undo! :undo/global)
               (finally
                 (fx/delete-component @component)))))))))
@@ -430,8 +434,8 @@
             (is (= [second-rule rule] (mapv :node-id (get-in (g/node-value node :packages) [2 :rules]))))))))))
 
 ;; Resolver diagnostics and local build roots must follow unsaved manifest and
-;; raw-file edits. Regex errors expose one-based columns in localized
-;; properties.
+;; raw-file edits. No-match policies update property and outline diagnostics
+;; when files appear or disappear; regex errors expose one-based columns.
 (deftest validation-and-local-build
   (test-util/with-scratch-project "test/resources/live_update_project"
     (let [node (project/get-resource-node project "/packages.lumanifest")
@@ -452,9 +456,29 @@
       (g/transact (g/set-property rule :path "/absent/.*"))
       (is (coll/any? #(= PackageResolver$Severity/WARNING (.severity ^com.dynamo.bob.archive.liveupdate.PackageResolver$Diagnostic %))
                     (g/node-value node :diagnostics)))
-      (is (nil? (test-util/prop-error rule :path)))
+      (is (g/error-warning? (test-util/prop-error rule :path)))
+      (is (= "icons/32/Icons_04-Project-file.png" (:icon (g/node-value rule :node-outline))))
       (is (= "Rule 'Episode' in package 'levels' matches no source files for Path '/absent/.*'. Patterns match the entire source path, including its leading '/'."
              (.message ^com.dynamo.bob.archive.liveupdate.PackageResolver$Diagnostic (first (g/node-value node :diagnostics)))))
+      (doseq [[policy fatal warning] [[:error true false] [:ignore false false] [:warn false true]]]
+        (g/transact (g/set-property rule :no-match policy))
+        (let [error (test-util/prop-error rule :path)]
+          (is (= fatal (g/error-fatal? error)))
+          (is (= warning (g/error-warning? error))))
+        (is (= fatal (:outline-error? (g/node-value rule :node-outline))))
+        (is (= fatal (g/error-value? (g/node-value node :selected-paths)))))
+      (g/transact (g/set-property rule :no-match :error))
+      (let [file (io/file (workspace/project-directory workspace) "absent/config.txt")]
+        (io/make-parents file)
+        (spit file "Custom configuration")
+        (workspace/resource-sync! workspace)
+        (is (nil? (test-util/prop-error rule :path)))
+        (is (false? (:outline-error? (g/node-value rule :node-outline))))
+        (is (contains? (g/node-value node :selected-paths) "/absent/config.txt"))
+        (is (.delete file))
+        (workspace/resource-sync! workspace)
+        (is (g/error-fatal? (test-util/prop-error rule :path))))
+      (g/transact (g/set-property rule :no-match :warn))
       (g/transact (g/set-property rule :path "/episode[.]collection"))
       (test-util/set-code-editor-source! raw "{\"unsaved\":true}")
       (let [targets (build/resolve-node-dependencies game-project project)]
@@ -1163,7 +1187,7 @@
           (is (get-in (g/node-value (:node-id package) :_properties) [:properties :provider :read-only?]))
           (is (get-in (g/node-value (:node-id rule) :_properties) [:properties :path :read-only?]))
           (ui/run-now
-            (doseq [prop-kw [:operation :target]]
+            (doseq [prop-kw [:operation :target :no-match]]
               (let [property (get-in (properties/coalesce [(g/node-value (:node-id rule) :_properties)]) [:properties prop-kw])
                     component (fx/create-component (properties-view/make-control-view property {} @test-util/localization))
                     buttons (.getChildren ^Pane (fx/instance component))
