@@ -54,6 +54,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.NoHttpResponseException;
 
+import com.defold.extender.client.ExtenderBuildStage;
 import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderClientException;
 import com.defold.extender.client.ExtenderProgressListener;
@@ -841,9 +842,9 @@ public class BundleHelper {
             progress.message(new IProgress.Message.BuildingEngineStage(platform, stage, detail, currentFile, totalFiles));
             synchronized (reportedPercent) {
                 int nextPercent = Math.max(0, Math.min(100, percent));
-                if ("SUCCESS".equals(stage)) {
+                if (ExtenderBuildStage.SUCCESS.equals(stage)) {
                     nextPercent = 100;
-                } else if ("COMPILING".equals(stage)) {
+                } else if (ExtenderBuildStage.COMPILING.equals(stage)) {
                     if (totalFiles >= 0) {
                         // Detail names the extension being compiled
                         compiledFiles.merge(Objects.requireNonNullElse(detail, ""), Math.max(0, currentFile), Math::max);
