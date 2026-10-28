@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1260" viewBox="0 0 1200 1260" role="img" aria-labelledby="title description">
 <title id="title">DMMB version 2 model buffer file format</title>
-<desc id="description">A 36-byte header and N 28-byte mesh range descriptors precede aligned vertex and index payloads. Header offsets address the file; range offsets address their respective payload. Static vertices use 72 bytes and skinned vertices 104 bytes. Numeric fields are little-endian.</desc>
+<desc id="description">A 36-byte header and N 28-byte mesh range descriptors precede aligned vertex and index payloads. Magic is char[4]; numeric header and descriptor fields are little-endian uint32_t. Vertex attributes are float32, and draw indices are uint16_t or uint32_t. Static vertices use 72 bytes and skinned vertices 104 bytes.</desc>
 <defs>
   <pattern id="padding" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
     <rect width="8" height="8" fill="#fff6dc"/>
@@ -22,7 +22,7 @@
 <rect x="1000" y="55" width="144" height="42" rx="21" fill="#e8e8ff"/>
 <text x="1072" y="82" font-size="19" font-weight="650" text-anchor="middle" style="fill:#5144a8" class="mono">DMMB / v2</text>
 <text x="56" y="184" font-size="16" font-weight="650" text-anchor="start" style="fill:#57677c">ON-DISK LAYOUT</text>
-<text x="1144" y="184" font-size="16" font-weight="400" text-anchor="end" style="fill:#57677c">Byte offsets · schematic, not to scale</text>
+<text x="1144" y="184" font-size="16" font-weight="400" text-anchor="end" style="fill:#57677c">Stored order · schematic, not to scale</text>
 <g clip-path="url(#file-clip)">
 <rect x="56" y="204" width="140" height="108" rx="0" fill="#eeeaff"/>
 <rect x="56" y="204" width="140" height="6" rx="0" fill="#7664d4"/>
@@ -40,13 +40,15 @@
 <line x1="448" y1="210" x2="448" y2="312" stroke="#ffffff" stroke-width="2"/>
 <rect x="508" y="204" width="368" height="108" rx="0" fill="#dff5ee"/>
 <rect x="508" y="204" width="368" height="6" rx="0" fill="#288c76"/>
-<text x="692.0" y="250" font-size="22" font-weight="650" text-anchor="middle" style="fill:#182539">Vertex payload</text>
-<text x="692.0" y="281" font-size="18" font-weight="400" text-anchor="middle" style="fill:#57677c">one shared VBO</text>
+<text x="692.0" y="240" font-size="22" font-weight="650" text-anchor="middle" style="fill:#182539">Vertex payload</text>
+<text x="692.0" y="267" font-size="17" font-weight="400" text-anchor="middle" style="fill:#57677c">one shared VBO</text>
+<text x="692.0" y="294" font-size="17" font-weight="500" text-anchor="middle" style="fill:#288c76" class="mono">float32</text>
 <line x1="508" y1="210" x2="508" y2="312" stroke="#ffffff" stroke-width="2"/>
 <rect x="876" y="204" width="268" height="108" rx="0" fill="#fce9df"/>
 <rect x="876" y="204" width="268" height="6" rx="0" fill="#cf7855"/>
-<text x="1010.0" y="250" font-size="22" font-weight="650" text-anchor="middle" style="fill:#182539">Index payload</text>
-<text x="1010.0" y="281" font-size="18" font-weight="400" text-anchor="middle" style="fill:#57677c">one shared IBO</text>
+<text x="1010.0" y="240" font-size="22" font-weight="650" text-anchor="middle" style="fill:#182539">Index payload</text>
+<text x="1010.0" y="267" font-size="17" font-weight="400" text-anchor="middle" style="fill:#57677c">one shared IBO</text>
+<text x="1010.0" y="294" font-size="17" font-weight="500" text-anchor="middle" style="fill:#cf7855" class="mono">uint16_t / uint32_t</text>
 <line x1="876" y1="210" x2="876" y2="312" stroke="#ffffff" stroke-width="2"/>
 </g>
 <rect x="56" y="204" width="1088" height="108" rx="12" fill="none" stroke="#d3dce8"/>
@@ -68,126 +70,126 @@
 <rect x="80" y="438" width="5" height="25" rx="2" fill="#7664d4"/>
 <text x="98" y="458" font-size="25" font-weight="650" text-anchor="start" style="fill:#182539">File header</text>
 <text x="80" y="486" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c">Fixed prefix · 36 bytes</text>
-<text x="80" y="520" font-size="14" font-weight="650" text-anchor="start" style="fill:#57677c">OFFSET</text>
-<text x="161" y="520" font-size="14" font-weight="650" text-anchor="start" style="fill:#57677c">FIELD</text>
+<text x="80" y="520" font-size="14" font-weight="650" text-anchor="start" style="fill:#57677c">TYPE</text>
+<text x="188" y="520" font-size="14" font-weight="650" text-anchor="start" style="fill:#57677c">FIELD</text>
 <text x="564" y="520" font-size="14" font-weight="650" text-anchor="end" style="fill:#57677c">VALUE / UNIT</text>
 <line x1="80" y1="533" x2="564" y2="533" stroke="#dbe3ec" stroke-width="1"/>
 <rect x="612" y="413" width="532" height="441" rx="14" fill="#ffffff" stroke="#dbe3ec"/>
 <rect x="636" y="438" width="5" height="25" rx="2" fill="#3f82bd"/>
 <text x="654" y="458" font-size="25" font-weight="650" text-anchor="start" style="fill:#182539">Mesh range descriptor</text>
 <text x="636" y="486" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c">28 bytes · descriptor i at file offset 36 + 28 × i</text>
-<text x="636" y="520" font-size="14" font-weight="650" text-anchor="start" style="fill:#57677c">OFFSET</text>
-<text x="717" y="520" font-size="14" font-weight="650" text-anchor="start" style="fill:#57677c">FIELD</text>
+<text x="636" y="520" font-size="14" font-weight="650" text-anchor="start" style="fill:#57677c">TYPE</text>
+<text x="744" y="520" font-size="14" font-weight="650" text-anchor="start" style="fill:#57677c">FIELD</text>
 <text x="1120" y="520" font-size="14" font-weight="650" text-anchor="end" style="fill:#57677c">VALUE / UNIT</text>
 <line x1="636" y1="533" x2="1120" y2="533" stroke="#dbe3ec" stroke-width="1"/>
-<text x="80" y="563" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+00</text>
-<text x="161" y="563" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">magic</text>
+<text x="80" y="563" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">char[4]</text>
+<text x="188" y="563" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">magic</text>
 <text x="564" y="563" font-size="17" font-weight="500" text-anchor="end" style="fill:#5144a8" class="mono">DMMB</text>
-<text x="80" y="594" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+04</text>
-<text x="161" y="594" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">version</text>
+<text x="80" y="594" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">uint32_t</text>
+<text x="188" y="594" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">version</text>
 <text x="564" y="594" font-size="17" font-weight="500" text-anchor="end" style="fill:#5144a8" class="mono">2</text>
-<text x="80" y="625" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+08</text>
-<text x="161" y="625" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">compression</text>
+<text x="80" y="625" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">uint32_t</text>
+<text x="188" y="625" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">compression</text>
 <text x="564" y="625" font-size="17" font-weight="500" text-anchor="end" style="fill:#5144a8" class="mono">0</text>
-<text x="80" y="656" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+12</text>
-<text x="161" y="656" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">decoded payload size</text>
+<text x="80" y="656" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">uint32_t</text>
+<text x="188" y="656" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">decoded payload size</text>
 <text x="564" y="656" font-size="17" font-weight="500" text-anchor="end" style="fill:#5144a8" class="mono">Vsize + Isize</text>
-<text x="80" y="687" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+16</text>
-<text x="161" y="687" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">range count</text>
+<text x="80" y="687" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">uint32_t</text>
+<text x="188" y="687" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">range count</text>
 <text x="564" y="687" font-size="17" font-weight="500" text-anchor="end" style="fill:#5144a8" class="mono">N</text>
-<text x="80" y="718" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+20</text>
-<text x="161" y="718" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">vertex payload offset</text>
+<text x="80" y="718" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">uint32_t</text>
+<text x="188" y="718" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">vertex payload offset</text>
 <text x="564" y="718" font-size="17" font-weight="500" text-anchor="end" style="fill:#5144a8" class="mono">V</text>
-<text x="80" y="749" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+24</text>
-<text x="161" y="749" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">vertex payload size</text>
+<text x="80" y="749" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">uint32_t</text>
+<text x="188" y="749" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">vertex payload size</text>
 <text x="564" y="749" font-size="17" font-weight="500" text-anchor="end" style="fill:#5144a8" class="mono">Vsize</text>
-<text x="80" y="780" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+28</text>
-<text x="161" y="780" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">index payload offset</text>
+<text x="80" y="780" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">uint32_t</text>
+<text x="188" y="780" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">index payload offset</text>
 <text x="564" y="780" font-size="17" font-weight="500" text-anchor="end" style="fill:#5144a8" class="mono">I</text>
-<text x="80" y="811" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+32</text>
-<text x="161" y="811" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">index payload size</text>
+<text x="80" y="811" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">uint32_t</text>
+<text x="188" y="811" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">index payload size</text>
 <text x="564" y="811" font-size="17" font-weight="500" text-anchor="end" style="fill:#5144a8" class="mono">Isize</text>
-<text x="80" y="838" font-size="16" font-weight="400" text-anchor="start" style="fill:#57677c">Numeric fields: little-endian uint32.</text>
-<text x="636" y="563" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+00</text>
-<text x="717" y="563" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">vertex offset</text>
+<text x="80" y="838" font-size="16" font-weight="400" text-anchor="start" style="fill:#57677c">Numeric fields: little-endian uint32_t.</text>
+<text x="636" y="563" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">uint32_t</text>
+<text x="744" y="563" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">vertex offset</text>
 <text x="1120" y="563" font-size="17" font-weight="500" text-anchor="end" style="fill:#2c6f9f" class="mono">within V</text>
-<text x="636" y="594" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+04</text>
-<text x="717" y="594" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">vertex count</text>
+<text x="636" y="594" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">uint32_t</text>
+<text x="744" y="594" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">vertex count</text>
 <text x="1120" y="594" font-size="17" font-weight="500" text-anchor="end" style="fill:#2c6f9f" class="mono">vertices</text>
-<text x="636" y="625" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+08</text>
-<text x="717" y="625" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">vertex stride</text>
+<text x="636" y="625" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">uint32_t</text>
+<text x="744" y="625" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">vertex stride</text>
 <text x="1120" y="625" font-size="17" font-weight="500" text-anchor="end" style="fill:#2c6f9f" class="mono">72 / 104 B</text>
-<text x="636" y="656" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+12</text>
-<text x="717" y="656" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">index offset</text>
+<text x="636" y="656" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">uint32_t</text>
+<text x="744" y="656" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">index offset</text>
 <text x="1120" y="656" font-size="17" font-weight="500" text-anchor="end" style="fill:#2c6f9f" class="mono">within I</text>
-<text x="636" y="687" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+16</text>
-<text x="717" y="687" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">index count</text>
+<text x="636" y="687" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">uint32_t</text>
+<text x="744" y="687" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">index count</text>
 <text x="1120" y="687" font-size="17" font-weight="500" text-anchor="end" style="fill:#2c6f9f" class="mono">indices</text>
-<text x="636" y="718" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+20</text>
-<text x="717" y="718" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">index element size</text>
+<text x="636" y="718" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">uint32_t</text>
+<text x="744" y="718" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">index element size</text>
 <text x="1120" y="718" font-size="17" font-weight="500" text-anchor="end" style="fill:#2c6f9f" class="mono">2 / 4 B</text>
-<text x="636" y="749" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+24</text>
-<text x="717" y="749" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">source-attribute mask</text>
+<text x="636" y="749" font-size="17" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">uint32_t</text>
+<text x="744" y="749" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">source-attribute mask</text>
 <text x="1120" y="749" font-size="17" font-weight="500" text-anchor="end" style="fill:#2c6f9f" class="mono">bits 0–7</text>
 <line x1="636" y1="773" x2="1120" y2="773" stroke="#dbe3ec" stroke-width="1"/>
 <text x="636" y="805" font-size="18" font-weight="500" text-anchor="start" style="fill:#227c6a" class="mono">vertex address = V + vertex_offset</text>
 <text x="636" y="834" font-size="18" font-weight="500" text-anchor="start" style="fill:#ad5e3e" class="mono">index address  = I + index_offset</text>
 <text x="56" y="903" font-size="16" font-weight="650" text-anchor="start" style="fill:#57677c">VERTEX LAYOUTS</text>
-<text x="1144" y="903" font-size="17" font-weight="400" text-anchor="end" style="fill:#57677c">Stored as float32 · component counts shown below</text>
+<text x="1144" y="903" font-size="17" font-weight="400" text-anchor="end" style="fill:#57677c">f32 = float32 · array lengths shown in brackets</text>
 <text x="56" y="955" font-size="23" font-weight="650" text-anchor="start" style="fill:#182539">Static</text>
 <text x="56" y="984" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">72 bytes</text>
 <rect x="264.0" y="926" width="98.54" height="71" rx="7" fill="#e5f3fa" stroke="#c0d7e7"/>
 <text x="313.27" y="955" font-size="17" font-weight="600" text-anchor="middle" style="fill:#182539">Position</text>
-<text x="313.27" y="980" font-size="19" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">3</text>
+<text x="313.27" y="980" font-size="15" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">f32[3]</text>
 <rect x="365.54" y="926" width="98.54" height="71" rx="7" fill="#e5f3fa" stroke="#c0d7e7"/>
 <text x="414.81" y="955" font-size="17" font-weight="600" text-anchor="middle" style="fill:#182539">Normal</text>
-<text x="414.81" y="980" font-size="19" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">3</text>
+<text x="414.81" y="980" font-size="15" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">f32[3]</text>
 <rect x="467.08" y="926" width="132.38" height="71" rx="7" fill="#e5f3fa" stroke="#c0d7e7"/>
 <text x="533.27" y="955" font-size="17" font-weight="600" text-anchor="middle" style="fill:#182539">Tangent</text>
-<text x="533.27" y="980" font-size="19" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">4</text>
+<text x="533.27" y="980" font-size="15" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">f32[4]</text>
 <rect x="602.46" y="926" width="132.38" height="71" rx="7" fill="#e5f3fa" stroke="#c0d7e7"/>
 <text x="668.65" y="955" font-size="17" font-weight="600" text-anchor="middle" style="fill:#182539">Color</text>
-<text x="668.65" y="980" font-size="19" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">4</text>
+<text x="668.65" y="980" font-size="15" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">f32[4]</text>
 <rect x="737.85" y="926" width="64.69" height="71" rx="7" fill="#e5f3fa" stroke="#c0d7e7"/>
 <text x="770.19" y="955" font-size="17" font-weight="600" text-anchor="middle" style="fill:#182539">UV0</text>
-<text x="770.19" y="980" font-size="19" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">2</text>
+<text x="770.19" y="980" font-size="15" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">f32[2]</text>
 <rect x="805.54" y="926" width="64.69" height="71" rx="7" fill="#e5f3fa" stroke="#c0d7e7"/>
 <text x="837.88" y="955" font-size="17" font-weight="600" text-anchor="middle" style="fill:#182539">UV1</text>
-<text x="837.88" y="980" font-size="19" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">2</text>
+<text x="837.88" y="980" font-size="15" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">f32[2]</text>
 <text x="895.23" y="967" font-size="18" font-weight="500" text-anchor="start" style="fill:#227c6a">+ 32 bytes for skinning</text>
 <text x="56" y="1055" font-size="23" font-weight="650" text-anchor="start" style="fill:#182539">Skinned</text>
 <text x="56" y="1084" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">104 bytes</text>
 <rect x="264.0" y="1026" width="98.54" height="71" rx="7" fill="#e5f3fa" stroke="#c0d7e7"/>
 <text x="313.27" y="1055" font-size="17" font-weight="600" text-anchor="middle" style="fill:#182539">Position</text>
-<text x="313.27" y="1080" font-size="19" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">3</text>
+<text x="313.27" y="1080" font-size="15" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">f32[3]</text>
 <text x="313.27" y="1122" font-size="16" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">bit 0</text>
 <rect x="365.54" y="1026" width="98.54" height="71" rx="7" fill="#e5f3fa" stroke="#c0d7e7"/>
 <text x="414.81" y="1055" font-size="17" font-weight="600" text-anchor="middle" style="fill:#182539">Normal</text>
-<text x="414.81" y="1080" font-size="19" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">3</text>
+<text x="414.81" y="1080" font-size="15" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">f32[3]</text>
 <text x="414.81" y="1122" font-size="16" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">bit 1</text>
 <rect x="467.08" y="1026" width="132.38" height="71" rx="7" fill="#e5f3fa" stroke="#c0d7e7"/>
 <text x="533.27" y="1055" font-size="17" font-weight="600" text-anchor="middle" style="fill:#182539">Tangent</text>
-<text x="533.27" y="1080" font-size="19" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">4</text>
+<text x="533.27" y="1080" font-size="15" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">f32[4]</text>
 <text x="533.27" y="1122" font-size="16" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">bit 2</text>
 <rect x="602.46" y="1026" width="132.38" height="71" rx="7" fill="#e5f3fa" stroke="#c0d7e7"/>
 <text x="668.65" y="1055" font-size="17" font-weight="600" text-anchor="middle" style="fill:#182539">Color</text>
-<text x="668.65" y="1080" font-size="19" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">4</text>
+<text x="668.65" y="1080" font-size="15" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">f32[4]</text>
 <text x="668.65" y="1122" font-size="16" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">bit 3</text>
 <rect x="737.85" y="1026" width="64.69" height="71" rx="7" fill="#e5f3fa" stroke="#c0d7e7"/>
 <text x="770.19" y="1055" font-size="17" font-weight="600" text-anchor="middle" style="fill:#182539">UV0</text>
-<text x="770.19" y="1080" font-size="19" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">2</text>
+<text x="770.19" y="1080" font-size="15" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">f32[2]</text>
 <text x="770.19" y="1122" font-size="16" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">bit 4</text>
 <rect x="805.54" y="1026" width="64.69" height="71" rx="7" fill="#e5f3fa" stroke="#c0d7e7"/>
 <text x="837.88" y="1055" font-size="17" font-weight="600" text-anchor="middle" style="fill:#182539">UV1</text>
-<text x="837.88" y="1080" font-size="19" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">2</text>
+<text x="837.88" y="1080" font-size="15" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">f32[2]</text>
 <text x="837.88" y="1122" font-size="16" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">bit 5</text>
 <rect x="873.23" y="1026" width="132.38" height="71" rx="7" fill="#dff5ee" stroke="#a9daca"/>
 <text x="939.42" y="1055" font-size="17" font-weight="600" text-anchor="middle" style="fill:#182539">Weights</text>
-<text x="939.42" y="1080" font-size="19" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">4</text>
+<text x="939.42" y="1080" font-size="15" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">f32[4]</text>
 <text x="939.42" y="1122" font-size="16" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">bit 6</text>
 <rect x="1008.62" y="1026" width="132.38" height="71" rx="7" fill="#dff5ee" stroke="#a9daca"/>
 <text x="1074.81" y="1055" font-size="17" font-weight="600" text-anchor="middle" style="fill:#182539">Bone ids</text>
-<text x="1074.81" y="1080" font-size="19" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">4</text>
+<text x="1074.81" y="1080" font-size="15" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">f32[4]</text>
 <text x="1074.81" y="1122" font-size="16" font-weight="400" text-anchor="middle" style="fill:#57677c" class="mono">bit 7</text>
 <line x1="56" y1="1154" x2="1144" y2="1154" stroke="#dbe3ec" stroke-width="1"/>
 <text x="56" y="1188" font-size="14" font-weight="700" text-anchor="start" style="fill:#57677c">ALIGNMENT</text>
