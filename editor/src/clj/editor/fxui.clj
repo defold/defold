@@ -77,7 +77,7 @@
            [javafx.scene.layout Region StackPane]
            [javafx.scene.paint Color]
            [javafx.scene.shape SVGPath]
-           [javafx.stage PopupWindow Window]
+           [javafx.stage PopupWindow PopupWindow$AnchorLocation Window]
            [javafx.util Callback Duration]))
 
 (set! *warn-on-reflection* true)
@@ -597,8 +597,36 @@
     (Bindings/valueAt (.getProperties node) custom-tooltip-node-showing-key)))
 
 (defn- show-tooltip! [^Tooltip tooltip ^Node node]
-  (let [screen-bounds (.localToScreen node (.getBoundsInLocal node))]
-    (.show tooltip node (.getMinX screen-bounds) (+ 8.0 (.getMaxY screen-bounds)))))
+  (let [screen-bounds (.localToScreen node (.getBoundsInLocal node))
+        below-y (+ 8.0 (.getMaxY screen-bounds))
+
+        place-above-if-needed!
+        (fn place-above-if-needed! []
+          (when (and (= PopupWindow$AnchorLocation/WINDOW_TOP_LEFT (.getAnchorLocation tooltip))
+                     (< (.getAnchorY tooltip) below-y))
+            ;; Auto-fix can move the popup over its owner, causing a mouse exit
+            ;; that hides it and starts another hover. Anchor above the owner so
+            ;; subsequent layout changes grow the tooltip away from the pointer.
+            (.setAnchorLocation tooltip PopupWindow$AnchorLocation/WINDOW_BOTTOM_LEFT)
+            (.setAnchorY tooltip (- (.getMinY screen-bounds) 8.0))))
+
+        ^ChangeListener anchor-listener
+        (fn [_ _ _] (place-above-if-needed!))
+
+        hide-listener
+        (reify ChangeListener
+          (changed [this observable _ showing]
+            (when-not showing
+              (.removeListener observable this)
+              (.removeListener (.anchorYProperty tooltip) anchor-listener))))]
+    (.setAnchorLocation tooltip PopupWindow$AnchorLocation/WINDOW_TOP_LEFT)
+
+    ;; Observe both initial auto-fix and later Markdown layout changes.
+    (.addListener (.anchorYProperty tooltip) anchor-listener)
+    (.addListener (.showingProperty tooltip) hide-listener)
+
+    (.show tooltip node (.getMinX screen-bounds) below-y)
+    (place-above-if-needed!)))
 
 (def prop-immediate-tooltip
   (fx/make-binding-prop
