@@ -51,7 +51,6 @@ _CMAKE_FEATURE_FLAG_MAP = {
     '--with-hwasan': 'WITH_HWASAN',
     '--with-ubsan': 'WITH_UBSAN',
     '--with-tsan': 'WITH_TSAN',
-    '--with-valgrind': 'WITH_VALGRIND',
     '--with-openal': 'WITH_OPENAL',
     '--with-opengl': 'WITH_OPENGL',
     '--with-vulkan': 'WITH_VULKAN',
@@ -161,7 +160,6 @@ PACKAGES_ALL=[
     "openal-1.1",
     "maven-3.0.1",
     "vecmath",
-    "vpx-1.7.0",
     "tremolo-b0cb4d1",
     "defold-robot-0.7.0",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
@@ -169,7 +167,6 @@ PACKAGES_ALL=[
     "vulkan-v1.4.307"]
 
 PACKAGES_HOST=[
-    "vpx-1.7.0",
     "tremolo-b0cb4d1"]
 
 PACKAGES_IOS_SIMULATOR=[
@@ -180,7 +177,6 @@ PACKAGES_IOS_64=[
     "moltenvk-1474891"]
 
 PACKAGES_MACOS_X86_64=[
-    "vpx-1.7.0",
     "tremolo-b0cb4d1",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
@@ -200,7 +196,6 @@ PACKAGES_MACOS_X86_64=[
 
 PACKAGES_MACOS_ARM64=[
     "dawn-67d4d6e",
-    "vpx-1.7.0",
     "tremolo-b0cb4d1",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
@@ -238,7 +233,6 @@ PACKAGES_LINUX_X86_64=[
     "glslang-ba5c010c",
     "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
-    "vpx-1.7.0",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
@@ -256,7 +250,6 @@ PACKAGES_LINUX_ARM64=[
     "glslang-2fed4fc0",
     "spirv-cross-97709575",
     "spirv-tools-4fab7435",
-    "vpx-1.7.0",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",

@@ -210,6 +210,14 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
         out_doc = gen_doc(docs, enum_type.name, renamed)
         l(out_doc)
+        if n in info.get('enum_aliases', []):
+            # Callback return types must retain their C type identity in C++.
+            l('    typedef ::%s %s;' % (n, renamed))
+            for enum_value in enum_type.values:
+                value_name = enum_value['name']
+                l('    static const %s %s = ::%s;' % (renamed, rename_symbols(prefixes, value_name), value_name))
+            l('')
+            continue
         l('    enum %s {' % renamed)
         for enum_value in enum_type.values:
             n = enum_value['name']

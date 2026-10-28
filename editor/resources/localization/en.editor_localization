@@ -323,10 +323,12 @@ dialog.save-and-upgrade.button.upgrade-editable-files = Upgrade Editable Files
 dialog.save-and-upgrade.button.upgrade-project-files = Upgrade Project Files
 dialog.save-and-upgrade.button.upgrade-all-files = Upgrade All Files
 
-# Plugin load error dialog
+# Plugin error dialogs
 
 dialog.plugin-load-error.title = Unable to Load Plugin
 dialog.plugin-load-error.header = The editor plugin "{plugin}" is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version.
+dialog.plugin-resource-type-error.title = Plugin Resource Type Error
+dialog.plugin-resource-type-error.header = The editor plugin resource type "{ext}" is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version.
 
 # Desktop entry dialogs
 
@@ -1224,7 +1226,7 @@ property.appmanifest.physics-3d.tooltip = Include the Bullet 3D physics engine. 
 property.appmanifest.rig+model = Rig + Model
 property.appmanifest.rig+model.tooltip = Choose whether to include both model rendering and rig animation, rig functionality only, or neither. Excluding unused functionality reduces the engine size.
 property.appmanifest.exclude-record = Exclude Record
-property.appmanifest.exclude-record.tooltip = Remove desktop video-recording support used by the `start_record` system message. Enable this when the project does not record gameplay to reduce the engine size.
+property.appmanifest.exclude-record.tooltip = Remove the `recorder` Lua API and desktop video-recording HTTP service. Enable this when the project does not record gameplay to reduce the engine size.
 property.appmanifest.profiler = Profiler
 property.appmanifest.profiler.tooltip = Choose which builds include profiler functionality. **Debug Only** excludes it from release builds, **None** excludes it entirely, and **Always** also includes it in release builds.
 property.appmanifest.exclude-sound = Exclude Sound
@@ -2091,6 +2093,10 @@ form.label.project.html5.show_console_banner = Show Console Banner
 form.help.project.html5.show_console_banner = Prints the **Made with Defold** banner in the browser developer console when the engine starts.
 form.label.project.html5.scale_mode = Scale Mode
 form.help.project.html5.scale_mode = Controls canvas resizing. **Downscale Fit** preserves aspect ratio and only shrinks. **Fit** preserves aspect ratio and can shrink or grow. **Stretch** fills the page and may distort. **No Scale** keeps the configured display dimensions.
+form.label.project.html5.min_pixel_ratio = Min Pixel Ratio
+form.help.project.html5.min_pixel_ratio = Minimum number of canvas pixels per CSS pixel when **Display > High DPI** is enabled. `0` means no lower bound. Values above the browser's pixel ratio enable supersampling. Must not exceed **Max Pixel Ratio** when both bounds are enabled.
+form.label.project.html5.max_pixel_ratio = Max Pixel Ratio
+form.help.project.html5.max_pixel_ratio = Maximum number of canvas pixels per CSS pixel when **Display > High DPI** is enabled. `0` means no upper bound. Lower values reduce rendering resolution without changing the displayed canvas size. Fractional values, including values below `1`, are supported.
 form.label.project.html5.retry_count = Retry Count
 form.help.project.html5.retry_count = Number of retries after a network error or a failed HTTP status while loading bundle files. The initial request is separate.
 form.label.project.html5.retry_time = Retry Time
@@ -2100,6 +2106,8 @@ form.help.project.html5.transparent_graphics_context = Requests an alpha channel
 
 form.label.project.ios = iOS
 form.help.project.ios = iOS related settings
+form.label.project.ios.home_indicator_mode = Home Indicator Mode
+form.help.project.ios.home_indicator_mode = **Deferred** preserves the default protection for all screen edges and requires two swipes to return Home. **System** allows normal system gestures, including a single swipe to return Home. **Auto Hide** also allows a single swipe and asks iOS to hide the Home Indicator automatically; iOS controls its visibility and may show it again when the screen is touched. System and Auto Hide also remove gesture protection from the other screen edges. On iOS 26 and later, the system may hide the Home Indicator in both System and Auto Hide modes.
 form.label.project.ios.app_icon_76x76 = App Icon 76x76
 form.help.project.ios.app_icon_76x76 = Square **76 × 76 px PNG** used for the iPad home-screen icon. If omitted, Defold scales the largest configured iOS icon — or its built-in icon — to this size.
 form.label.project.ios.app_icon_120x120 = App Icon 120x120
@@ -2459,6 +2467,8 @@ form.label.project.resource.uri = URI
 form.help.project.resource.uri = Base URI from which the running engine loads compiled project resources. Leave it unset to use the project build location or bundled archive; an explicitly empty value can override fallback behavior. Use a network URI only when serving build data remotely.
 form.label.project.resource.max_resources = Max Resources
 form.help.project.resource.max_resources = Maximum number of distinct resources the engine can keep loaded at once. Further resource loads fail with **Out of Resources** when the limit is reached. Increasing it allows more resources at the cost of additional memory.
+form.label.project.resource.profile = Profile
+form.help.project.resource.profile = Records initial resource loading times for the resource profiler and logs total and per-stage timings at INFO level. Enable before launching to capture startup loads. Adds profiling and logging overhead.
 
 form.label.project.shader = Shader
 form.help.project.shader = Shader related settings
@@ -2842,6 +2852,7 @@ error.property-resource-is-a-broken-symlink = {property} symlink "{resource}" re
 error.resource-not-found = "{resource}" could not be found.
 error.resource-is-a-broken-symlink = Symlink "{resource}" refers to missing path "{path}".
 error.resource-not-loaded = The file "{resource}" could not be loaded.
+error.resource-not-loaded-update-extension = The file "{resource}" could not be loaded because the plugin is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version.
 error.resource-not-loaded-with-error = The file "{resource}" could not be loaded: {error}
 error.resource-assignment-not-of-type = {property} "{resource}" is not of type {type}.
 error.no-file-extension = no file extension

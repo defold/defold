@@ -184,7 +184,6 @@ def install_linux(args):
         "openssl",
         "tofrodos",
         "tree",
-        "valgrind",
         "uuid-dev",
         "xvfb",
         "xauth"
@@ -302,8 +301,6 @@ def build_engine(channel, platform, args):
     if args.codesign and args.gcloud_service_key:
         cmd_opts.extend(create_gcloud_options(args.gcloud_service_key))
 
-    if args.with_valgrind:
-        build_opts.append('--with-valgrind')
     if args.with_asan:
         build_opts.append('--with-asan')
     if args.with_ubsan:
@@ -321,6 +318,11 @@ def build_engine(channel, platform, args):
     # Add build arguments after a double-dash
     if build_opts:
         cmd += ' -- ' + ' '.join(build_opts)
+
+    if args.with_tsan and platform in ('x86_64-linux', 'arm64-linux'):
+        # Mesa's software renderer reports internal fence teardown races under TSAN.
+        # Render serially in Mesa; the engine's own threads remain instrumented.
+        cmd = 'LP_NUM_THREADS=0 ' + cmd
 
     call(cmd)
 
@@ -570,7 +572,6 @@ def main(argv):
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
     parser.add_argument("--with-tsan", dest="with_tsan", action='store_true', help="")
-    parser.add_argument("--with-valgrind", dest="with_valgrind", action='store_true', help="")
     parser.add_argument("--with-vanilla-lua", dest="with_vanilla_lua", action='store_true', help="")
     parser.add_argument("--archive", dest="archive", action='store_true', help="Archive engine artifacts to S3")
     parser.add_argument("--skip-archive", dest="skip_archive", action='store_true', help="Build bob without reading from or writing to the S3 archive")

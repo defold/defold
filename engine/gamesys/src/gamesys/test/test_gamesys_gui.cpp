@@ -17,6 +17,11 @@
 
 using namespace dmVMath;
 
+struct PreloadedFont
+{
+    dmGameSystem::FontResource* m_Font;
+};
+
 static FontResult GetGlyph(dmRender::HFontMap font_map, HFont font, uint32_t codepoint, FontGlyph** glyph)
 {
     if (!font)
@@ -1022,6 +1027,216 @@ static bool WaitForDynamicFontJobCallbacks(HJobContext job_context, DynamicFontJ
     return state->m_CallbackCount >= callback_count;
 }
 
+static int32_t FontLoadUnrelatedProcess(HJobContext, HJob, void*, void*)
+{
+    return 0;
+}
+
+static void FontLoadUnrelatedCallback(HJobContext, HJob, JobSystemStatus, void* context, void*, int32_t)
+{
+    ++*(uint32_t*)context;
+}
+
+static dmResource::Result FontLoadPreload(const dmResource::ResourcePreloadParams* params)
+{
+    PreloadedFont* resource = new PreloadedFont;
+    dmResource::Result result = dmResource::Get(params->m_Factory, "/font/dyn_negative_ascent.fontc", (void**)&resource->m_Font);
+    if (result != dmResource::RESULT_OK)
+    {
+        delete resource;
+        return result;
+    }
+    *params->m_PreloadData = resource;
+    return dmResource::RESULT_OK;
+}
+
+static dmResource::Result FontLoadCreate(const dmResource::ResourceCreateParams* params)
+{
+    dmResource::SetResource(params->m_Resource, params->m_PreloadData);
+    return dmResource::RESULT_OK;
+}
+
+static dmResource::Result FontLoadDestroy(const dmResource::ResourceDestroyParams* params)
+{
+    PreloadedFont* resource = (PreloadedFont*)dmResource::GetResource(params->m_Resource);
+    dmResource::Release(params->m_Factory, resource->m_Font);
+    delete resource;
+    return dmResource::RESULT_OK;
+}
+
+// A Preload callback occupying the only job worker can synchronously load and prewarm a font.
+TEST_F(FontTest, SynchronousPrewarmFromPreloadJob)
+{
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(m_Factory, "preloadfont", 0, FontLoadPreload, FontLoadCreate, 0, FontLoadDestroy, 0));
+    const char data = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, "/test.preloadfont", sizeof(data), &data));
+    dmResource::HPreloader preloader = dmResource::NewPreloader(m_Factory, "/test.preloadfont");
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    dmResource::Result result = dmResource::RESULT_PENDING;
+    while (result == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() < deadline)
+        result = dmResource::UpdatePreloader(preloader, 0, 0, 1000);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    PreloadedFont* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test.preloadfont", (void**)&resource));
+    ASSERT_TRUE(resource->m_Font->m_PrewarmDone);
+    ASSERT_TRUE(resource->m_Font->m_PendingJobs.Empty());
+    dmResource::DeletePreloader(preloader);
+    dmResource::Release(m_Factory, resource);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, "/test.preloadfont"));
+}
+
+// Loading and prewarming a dynamic font completes without dispatching unrelated shared callbacks.
+TEST_F(FontTest, SynchronousPrewarmLeavesSharedCallbacksToOwner)
+{
+    uint32_t callbacks = 0;
+    Job job = {};
+    job.m_Process = FontLoadUnrelatedProcess;
+    job.m_Callback = FontLoadUnrelatedCallback;
+    job.m_Context = &callbacks;
+    JobSystemPushJob(m_JobContext, JobSystemCreateJob(m_JobContext, &job));
+
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_negative_ascent.fontc", (void**)&font));
+    ASSERT_EQ(0u, callbacks);
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_EQ((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+    HFont hfont = FontCollectionGetFont(dmRender::GetFontCollection(font_map), 0);
+    for (uint32_t codepoint = '!'; codepoint <= '~'; ++codepoint)
+    {
+        FontGlyph* glyph = 0;
+        ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, codepoint, &glyph));
+        ASSERT_NE((FontGlyph*)0, glyph);
+    }
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    dmResource::Release(m_Factory, font);
+
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!callbacks && dmTime::GetMonotonicTime() < deadline)
+        JobSystemUpdate(m_JobContext, 0);
+    ASSERT_EQ(1u, callbacks);
+}
+
+// Asynchronous preloading consumes font results through PostCreate without any shared job-system updates.
+TEST_F(FontTest, AsyncPrewarmCompletesThroughResourceUpdates)
+{
+    dmResource::HPreloader preloader = dmResource::NewPreloader(m_Factory, "/font/dyn_negative_ascent.fontc");
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    dmResource::Result result = dmResource::RESULT_PENDING;
+    while (result == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() < deadline)
+        result = dmResource::UpdatePreloader(preloader, 0, 0, 1000);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_negative_ascent.fontc", (void**)&font));
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    dmResource::Release(m_Factory, font);
+    dmResource::DeletePreloader(preloader);
+}
+
+// Reloading before PostCreate replaces the pending batch without making the load depend on shared callbacks.
+TEST_F(FontTest, ReloadDuringPrewarmKeepsResourceOwnedCompletion)
+{
+    const char* path = "/font/dyn_negative_ascent.fontc";
+    dmResource::HPreloader preloader = dmResource::NewPreloader(m_Factory, path);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    ResourceDescriptor* descriptor = 0;
+    while (!descriptor && dmTime::GetMonotonicTime() < deadline)
+    {
+        dmResource::UpdatePreloader(preloader, 0, 0, 0);
+        descriptor = dmResource::FindByHash(m_Factory, dmHashString64(path));
+    }
+    ASSERT_NE((ResourceDescriptor*)0, descriptor);
+    dmGameSystem::FontResource* font = (dmGameSystem::FontResource*)dmResource::GetResource(descriptor);
+    ASSERT_NE((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path, 0));
+    ASSERT_NE((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+
+    dmResource::Result result = dmResource::RESULT_PENDING;
+    while (result == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() < deadline)
+        result = dmResource::UpdatePreloader(preloader, 0, 0, 1000);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    dmResource::DeletePreloader(preloader);
+}
+
+// Adding characters before the first PostCreate must retain resource-owned completion even without an old batch.
+TEST_F(FontTest, RecreateAddsPrewarmBeforePostCreate)
+{
+    const char* path = "/font/dyn_negative_ascent_empty.fontc";
+    dmResource::HPreloader preloader = dmResource::NewPreloader(m_Factory, path);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    ResourceDescriptor* descriptor = 0;
+    while (!descriptor && dmTime::GetMonotonicTime() < deadline)
+    {
+        dmResource::UpdatePreloader(preloader, 0, 0, 0);
+        descriptor = dmResource::FindByHash(m_Factory, dmHashString64(path));
+    }
+    ASSERT_NE((ResourceDescriptor*)0, descriptor);
+    dmGameSystem::FontResource* font = (dmGameSystem::FontResource*)dmResource::GetResource(descriptor);
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_EQ((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+
+    dmRenderDDF::FontMap replacement = *font->m_DDF;
+    replacement.m_Characters = "A";
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&replacement, dmRenderDDF::FontMap::m_DDFDescriptor, buffer));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    ASSERT_FALSE(font->m_PrewarmDone);
+    ASSERT_NE((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+
+    dmResource::Result result = dmResource::RESULT_PENDING;
+    while (result == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() < deadline)
+        result = dmResource::UpdatePreloader(preloader, 0, 0, 1000);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    HFont hfont = FontCollectionGetFont(dmGameSystem::ResFontGetFontCollection(font), 0);
+    FontGlyph* glyph = 0;
+    ASSERT_EQ(FONT_RESULT_OK, GetGlyph(dmGameSystem::ResFontGetHandle(font), hfont, 'A', &glyph));
+    ASSERT_NE((FontGlyph*)0, glyph);
+    ASSERT_GT(glyph->m_Bitmap.m_Height, 0u);
+
+    // Once PostCreate has finished, recreation uses the normal runtime job callbacks.
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    ASSERT_EQ((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+    while (!font->m_PrewarmDone && dmTime::GetMonotonicTime() < deadline)
+        JobSystemUpdate(m_JobContext, 0);
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    dmResource::DeletePreloader(preloader);
+}
+
+// An empty font still finishes PostCreate, so later recreation must use runtime callbacks for new characters.
+TEST_F(FontTest, RecreateAddsPrewarmAfterEmptyPostCreate)
+{
+    const char* path = "/font/dyn_negative_ascent_empty.fontc";
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, (void**)&font));
+    ASSERT_TRUE(font->m_PrewarmDone);
+
+    dmRenderDDF::FontMap replacement = *font->m_DDF;
+    replacement.m_Characters = "A";
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&replacement, dmRenderDDF::FontMap::m_DDFDescriptor, buffer));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    ASSERT_FALSE(font->m_PrewarmDone);
+    ASSERT_EQ((dmGameSystem::FontJobResourceInfo*)0, font->m_PrewarmJob);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!font->m_PrewarmDone && dmTime::GetMonotonicTime() < deadline)
+        JobSystemUpdate(m_JobContext, 0);
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    HFont hfont = FontCollectionGetFont(dmGameSystem::ResFontGetFontCollection(font), 0);
+    FontGlyph* glyph = 0;
+    ASSERT_EQ(FONT_RESULT_OK, GetGlyph(dmGameSystem::ResFontGetHandle(font), hfont, 'A', &glyph));
+    ASSERT_NE((FontGlyph*)0, glyph);
+    ASSERT_GT(glyph->m_Bitmap.m_Height, 0u);
+    dmResource::Release(m_Factory, font);
+}
+
 TEST_F(FontTest, DynamicFontPrewarmedGlyphsFitCacheRows)
 {
     dmGameSystem::FontResource* font = 0;
@@ -1721,6 +1936,7 @@ TEST_F(FontTest, OpenTypeResource)
 
 // Test that a GUI with mixed nodes (box + multiple text nodes) produces a single font
 // dispatch for all text (not one per text node), and that text render order is preserved.
+// Empty frames must disable pooled items, and resuming must reuse their handles.
 TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
 {
     const char* go_path = "/gui/gui_text_flush_test.goc";
@@ -1736,6 +1952,8 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
     dmRender::RenderListBegin(m_RenderContext);
     dmGameObject::Render(m_Collection);
     dmRender::RenderListEnd(m_RenderContext);
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
 
     dmRender::RenderContext* render_context_ptr = (dmRender::RenderContext*)m_RenderContext;
 
@@ -1796,6 +2014,22 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
     for (uint32_t i = 1; i < num_text_orders; ++i)
     {
         ASSERT_LT(text_orders[i - 1], text_orders[i]);
+    }
+
+    const uint32_t              item_count = render_context_ptr->m_PersistentRenderItems.Size();
+    const uint32_t              drawn_count = render_context_ptr->m_RenderListSortBuffer.Size();
+    dmGameSystem::GuiComponent* component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0, component);
+    for (uint32_t frame = 0; frame < 4; ++frame)
+    {
+        component->m_Enabled = frame & 1;
+        dmRender::ClearRenderObjects(m_RenderContext);
+        dmRender::RenderListBegin(m_RenderContext);
+        dmGameObject::Render(m_Collection);
+        dmRender::RenderListEnd(m_RenderContext);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+        ASSERT_EQ(component->m_Enabled ? drawn_count : 0u, render_context_ptr->m_RenderListSortBuffer.Size());
+        ASSERT_EQ(item_count, render_context_ptr->m_PersistentRenderItems.Size());
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -3027,7 +3261,6 @@ TEST_F(GuiTest, SharedVertexBufferUpload)
         EXPECT_EQ((uint64_t)expected_bytes, buffer->m_DataSetBytes - bytes_before);
         ASSERT_EQ(expected_vertices, world->m_ClientVertexBuffer.Size());
         ASSERT_EQ(expected_boxes, world->m_GuiRenderObjects.Size());
-        ASSERT_EQ(expected_boxes + enabled_scenes[frame] * 5, render_context->m_RenderList.Size());
         if (expected_vertices)
         {
             ASSERT_EQ(expected_bytes, dmGraphics::GetVertexBufferSize(world->m_VertexBuffer));
@@ -3044,6 +3277,8 @@ TEST_F(GuiTest, SharedVertexBufferUpload)
         }
 
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+        // Retained slots survive disabled frames; count entries selected for this draw.
+        ASSERT_EQ(expected_boxes + enabled_scenes[frame] * 5, render_context->m_RenderListSortBuffer.Size());
         if (enabled_scenes[frame])
             ASSERT_GT(dmGraphics::GetDrawCount(), 0U);
         else
@@ -3588,6 +3823,20 @@ TEST_F(GuiLayoutChangedTest, InitialLayoutWithoutResize)
     ASSERT_TRUE(RunString(m_L, "assert(#layout_changed_test.messages == 0)"));
 }
 
+// Layout callbacks must dispatch the correct payload using aligned message storage under UBSan.
+TEST_F(GuiLayoutChangedTest, LayoutCallbackAfterInit)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    m_Scene->m_ApplyLayoutCallback(m_Scene, dmHashString64("Square"));
+    ASSERT_TRUE(RunString(m_L,
+        "assert(#layout_changed_test.messages == 1)\n"
+        "local message = layout_changed_test.messages[1]\n"
+        "assert(message.initialized)\n"
+        "assert(message.previous_id == hash('Landscape'))\n"
+        "assert(message.id == hash('Square'))\n"
+        "assert(message.position == 40)"));
+}
+
 // Coalesce pre-init resizes without calling Lua early or overwriting init's node changes (#8250).
 TEST_F(GuiLayoutChangedTest, ResizeBeforeInit)
 {
@@ -3703,6 +3952,34 @@ TEST_F(GuiLayoutChangedTest, FinalAndReload)
     ASSERT_TRUE(RunString(m_L,
         "assert(layout_changed_test.final_count == 2)\n"
         "assert(#layout_changed_test.messages == 1)"));
+}
+
+// Shared GUI resources must keep old layout descriptors alive through every final() on repeated reloads.
+TEST_F(GuiLayoutChangedTest, ReloadSharedSceneKeepsFinalLayoutsAlive)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/gui/layout_changed.goc");
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(RunString(m_L, "layout_changed_test.layout_in_init = 'Square'"));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(RunString(m_L,
+        "assert(layout_changed_test.init_count == 2)\n"
+        "layout_changed_test.messages = {}\n"
+        "layout_changed_test.layout_in_final = 'Portrait'"));
+
+    for (uint32_t i = 0; i < 2; ++i)
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/gui/layout_changed.guic", 0));
+
+    ASSERT_TRUE(RunString(m_L,
+        "assert(layout_changed_test.init_count == 6)\n"
+        "assert(layout_changed_test.final_count == 4)\n"
+        "assert(#layout_changed_test.messages == 4)\n"
+        "for _, message in ipairs(layout_changed_test.messages) do\n"
+        "    assert(message.initialized)\n"
+        "    assert(message.id == hash('Square'))\n"
+        "    assert(message.position == 99)\n"
+        "end"));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    ASSERT_TRUE(RunString(m_L, "assert(layout_changed_test.final_count == 6)"));
 }
 
 TEST_F(GuiTest, GuiCustomPropertiesFromDDF)

@@ -211,11 +211,11 @@ endif()
 file(GLOB DLIB_ZIP_SOURCES CONFIGURE_DEPENDS "${DLIB_SRC_DIR}/zip/*.c")
 defold_add_library(zip STATIC ${DLIB_ZIP_SOURCES})
 target_include_directories(zip PUBLIC "${DLIB_SRC_DIR}" "${DLIB_SRC_DIR}/zip")
-target_compile_definitions(zip PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES})
+target_compile_definitions(zip PUBLIC ${DLIB_EXTRA_DEFINES})
 
 defold_add_library(zip_noasan STATIC ${DLIB_ZIP_SOURCES})
 target_include_directories(zip_noasan PUBLIC "${DLIB_SRC_DIR}" "${DLIB_SRC_DIR}/zip")
-target_compile_definitions(zip_noasan PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES})
+target_compile_definitions(zip_noasan PUBLIC ${DLIB_EXTRA_DEFINES})
 
 if(TARGET_PLATFORM STREQUAL "wasm-web")
   set(DLIB_MBEDTLS_SOURCES
@@ -255,9 +255,9 @@ target_compile_definitions(mbedtls_noasan PUBLIC ${DLIB_MBEDTLS_DEFINES})
 defold_add_library(dlib STATIC ${DLIB_SOURCES})
 target_include_directories(dlib PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
 target_compile_definitions(dlib
-  PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
+  PUBLIC ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
   PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
-target_link_libraries(dlib PUBLIC ${DLIB_DEPENDENCIES})
+defold_target_link_libraries(dlib "${TARGET_PLATFORM}" SCOPE PUBLIC ${DLIB_DEPENDENCIES})
 defold_target_link_socket(dlib "${TARGET_PLATFORM}" SCOPE PUBLIC)
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|arm64_sim-ios)$")
   foreach(_fw IN ITEMS CFNetwork Security)
@@ -268,9 +268,9 @@ endif()
 defold_add_library(dlib_noasan STATIC ${DLIB_SOURCES})
 target_include_directories(dlib_noasan PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
 target_compile_definitions(dlib_noasan
-  PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
+  PUBLIC ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
   PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
-target_link_libraries(dlib_noasan PUBLIC ${DLIB_NOASAN_DEPENDENCIES})
+defold_target_link_libraries(dlib_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC ${DLIB_NOASAN_DEPENDENCIES})
 set_target_properties(dlib_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 defold_target_link_socket(dlib_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC)
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|arm64_sim-ios)$")
@@ -282,24 +282,24 @@ endif()
 defold_add_library(image STATIC "${DLIB_CORE_DIR}/image.cpp")
 target_include_directories(image PUBLIC "${DLIB_SRC_DIR}")
 target_compile_definitions(image
-  PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES}
+  PUBLIC ${DLIB_EXTRA_DEFINES}
   PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 
 defold_add_library(image_noasan STATIC "${DLIB_CORE_DIR}/image.cpp")
 target_include_directories(image_noasan PUBLIC "${DLIB_SRC_DIR}")
 target_compile_definitions(image_noasan
-  PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES}
+  PUBLIC ${DLIB_EXTRA_DEFINES}
   PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 set_target_properties(image_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 
 defold_add_library(image_null STATIC "${DLIB_CORE_DIR}/image_null.cpp")
 target_include_directories(image_null PUBLIC "${DLIB_SRC_DIR}")
-target_compile_definitions(image_null PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES})
+target_compile_definitions(image_null PUBLIC ${DLIB_EXTRA_DEFINES})
 set_target_properties(image_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 
 defold_add_library(image_null_noasan STATIC "${DLIB_CORE_DIR}/image_null.cpp")
 target_include_directories(image_null_noasan PUBLIC "${DLIB_SRC_DIR}")
-target_compile_definitions(image_null_noasan PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES})
+target_compile_definitions(image_null_noasan PUBLIC ${DLIB_EXTRA_DEFINES})
 set_target_properties(image_null_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 
 defold_add_library(profile_null STATIC "${DLIB_CORE_DIR}/profile/profile_null.cpp")
@@ -329,9 +329,9 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
   defold_target_skip_sanitizer(dlib_shared)
   target_include_directories(dlib_shared PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
   target_compile_definitions(dlib_shared
-    PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
+    PUBLIC ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
     PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
-  target_link_libraries(dlib_shared PRIVATE ${DLIB_SHARED_DEPENDENCIES})
+  defold_target_link_libraries(dlib_shared "${TARGET_PLATFORM}" ${DLIB_SHARED_DEPENDENCIES})
   set_target_properties(dlib_shared PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
   defold_target_link_socket(dlib_shared "${TARGET_PLATFORM}" PRIVATE)
   if(TARGET_PLATFORM MATCHES "macos$")
