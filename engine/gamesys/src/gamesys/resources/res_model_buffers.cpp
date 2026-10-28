@@ -28,6 +28,19 @@ namespace dmGameSystem
         RANGE_SIZE = 28,
         ATTRIBUTE_COUNT = 8
     };
+    enum
+    {
+        ATTRIBUTE_POSITION = 1 << 0,
+        ATTRIBUTE_NORMAL = 1 << 1,
+        ATTRIBUTE_TANGENT = 1 << 2,
+        ATTRIBUTE_COLOR = 1 << 3,
+        ATTRIBUTE_TEXCOORD0 = 1 << 4,
+        ATTRIBUTE_TEXCOORD1 = 1 << 5,
+        ATTRIBUTE_WEIGHTS = 1 << 6,
+        ATTRIBUTE_BONE_INDICES = 1 << 7,
+        ATTRIBUTE_MASK_SKINNING = ATTRIBUTE_WEIGHTS | ATTRIBUTE_BONE_INDICES,
+        ATTRIBUTE_MASK_ALL = ATTRIBUTE_POSITION | ATTRIBUTE_NORMAL | ATTRIBUTE_TANGENT | ATTRIBUTE_COLOR | ATTRIBUTE_TEXCOORD0 | ATTRIBUTE_TEXCOORD1 | ATTRIBUTE_MASK_SKINNING
+    };
     static const uint32_t COMPONENTS[ATTRIBUTE_COUNT] = { 3, 3, 4, 4, 2, 2, 4, 4 };
     static const uint32_t OFFSETS[ATTRIBUTE_COUNT] = { 0, 12, 24, 40, 56, 64, 72, 88 };
 
@@ -118,9 +131,9 @@ namespace dmGameSystem
             descriptor.m_IndexCount = ReadInteger(range + 16);
             descriptor.m_IndexElementSize = ReadInteger(range + 20);
             descriptor.m_AttributeMask = ReadInteger(range + 24);
-            bool skinned = (descriptor.m_AttributeMask & 192) == 192;
-            if (descriptor.m_AttributeMask > 255 || !(descriptor.m_AttributeMask & 1) ||
-                ((descriptor.m_AttributeMask & 192) != 0 && !skinned) ||
+            bool skinned = (descriptor.m_AttributeMask & ATTRIBUTE_MASK_SKINNING) == ATTRIBUTE_MASK_SKINNING;
+            if (descriptor.m_AttributeMask > ATTRIBUTE_MASK_ALL || !(descriptor.m_AttributeMask & ATTRIBUTE_POSITION) ||
+                ((descriptor.m_AttributeMask & ATTRIBUTE_MASK_SKINNING) != 0 && !skinned) ||
                 descriptor.m_Stride != (skinned ? sizeof(dmRig::RigModelSkinnedVertex) : sizeof(dmRig::RigModelVertex)) ||
                 descriptor.m_VertexOffset != Align(vertex_end, 16) || descriptor.m_IndexOffset != Align(index_end, 4) ||
                 (descriptor.m_IndexElementSize != 2 && descriptor.m_IndexElementSize != 4))

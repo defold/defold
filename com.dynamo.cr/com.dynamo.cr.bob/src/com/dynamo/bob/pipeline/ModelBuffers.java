@@ -33,6 +33,15 @@ public final class ModelBuffers {
     static final int VERSION = 2;
     private static final int HEADER_SIZE = 36;
     private static final int RANGE_SIZE = 28;
+    private static final int ATTRIBUTE_POSITION = 1 << 0;
+    private static final int ATTRIBUTE_NORMAL = 1 << 1;
+    private static final int ATTRIBUTE_TANGENT = 1 << 2;
+    private static final int ATTRIBUTE_COLOR = 1 << 3;
+    private static final int ATTRIBUTE_TEXCOORD0 = 1 << 4;
+    private static final int ATTRIBUTE_TEXCOORD1 = 1 << 5;
+    private static final int ATTRIBUTE_WEIGHTS = 1 << 6;
+    private static final int ATTRIBUTE_BONE_INDICES = 1 << 7;
+    private static final int ATTRIBUTE_MASK_SKINNING = ATTRIBUTE_WEIGHTS | ATTRIBUTE_BONE_INDICES;
     private static final int[] COMPONENTS = {3, 3, 4, 4, 2, 2, 4, 4};
 
     private ModelBuffers() {}
@@ -42,14 +51,14 @@ public final class ModelBuffers {
     }
 
     private static int attributeMask(Mesh mesh) {
-        int mask = 1;
-        if (mesh.getNormalsCount() != 0) mask |= 2;
-        if (mesh.getTangentsCount() != 0) mask |= 4;
-        if (mesh.getColorsCount() != 0) mask |= 8;
-        if (mesh.getTexcoord0Count() != 0) mask |= 16;
-        if (mesh.getTexcoord1Count() != 0) mask |= 32;
-        if (mesh.getWeightsCount() != 0) mask |= 64;
-        if (mesh.getBoneIndicesCount() != 0) mask |= 128;
+        int mask = ATTRIBUTE_POSITION;
+        if (mesh.getNormalsCount() != 0) mask |= ATTRIBUTE_NORMAL;
+        if (mesh.getTangentsCount() != 0) mask |= ATTRIBUTE_TANGENT;
+        if (mesh.getColorsCount() != 0) mask |= ATTRIBUTE_COLOR;
+        if (mesh.getTexcoord0Count() != 0) mask |= ATTRIBUTE_TEXCOORD0;
+        if (mesh.getTexcoord1Count() != 0) mask |= ATTRIBUTE_TEXCOORD1;
+        if (mesh.getWeightsCount() != 0) mask |= ATTRIBUTE_WEIGHTS;
+        if (mesh.getBoneIndicesCount() != 0) mask |= ATTRIBUTE_BONE_INDICES;
         return mask;
     }
 
@@ -111,7 +120,7 @@ public final class ModelBuffers {
         int indexSize = 0;
         for (int i = 0; i < count; ++i) {
             Mesh mesh = geometries.get(i);
-            int stride = (attributeMask(mesh) & 192) == 192 ? 104 : 72;
+            int stride = (attributeMask(mesh) & ATTRIBUTE_MASK_SKINNING) == ATTRIBUTE_MASK_SKINNING ? 104 : 72;
             vertexOffsets[i] = align(vertexSize, 16);
             indexOffsets[i] = align(indexSize, 4);
             vertexSize = Math.addExact(vertexOffsets[i], Math.multiplyExact(mesh.getPositionsCount() / 3, stride));
@@ -128,7 +137,7 @@ public final class ModelBuffers {
         for (int i = 0; i < count; ++i) {
             Mesh mesh = geometries.get(i);
             int mask = attributeMask(mesh);
-            boolean skinned = (mask & 192) == 192;
+            boolean skinned = (mask & ATTRIBUTE_MASK_SKINNING) == ATTRIBUTE_MASK_SKINNING;
             int vertexCount = mesh.getPositionsCount() / 3;
             int stride = skinned ? 104 : 72;
             int indexElementSize = mesh.getIndicesFormat().getNumber() == 0 ? 2 : 4;
