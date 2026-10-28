@@ -984,6 +984,7 @@ TEST_P(dmHttpClientTest, CachedResponseStart)
     m_Client = dmHttpClient::New(&params, &m_URI, 0);
     ASSERT_NE((void*)0, m_Client);
     dmHttpClient::SetCacheKey(m_Client, "/cached/0");
+    dmHttpClient::Statistics network_stats = {};
     for (uint32_t i = 0; i < 3; ++i)
     {
         if (i == 2)
@@ -996,7 +997,15 @@ TEST_P(dmHttpClientTest, CachedResponseStart)
         ASSERT_EQ(1U, body.m_Starts);
         ASSERT_TRUE(body.m_Valid);
         ASSERT_EQ(std::string("cached_content"), body.m_Content);
+        if (i == 1)
+            dmHttpClient::GetStatistics(m_Client, &network_stats);
     }
+    dmHttpClient::Statistics stats;
+    dmHttpClient::GetStatistics(m_Client, &stats);
+    ASSERT_EQ(1U, stats.m_DirectFromCache);
+    ASSERT_EQ(network_stats.m_Responses, stats.m_Responses);
+    ASSERT_EQ(network_stats.m_CachedResponses, stats.m_CachedResponses);
+    ASSERT_EQ(network_stats.m_Reconnections, stats.m_Reconnections);
     ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Close(params.m_HttpCache));
 }
 
