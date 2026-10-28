@@ -611,7 +611,7 @@
             (.setAnchorY tooltip (- (.getMinY screen-bounds) 8.0))))
 
         ^ChangeListener anchor-listener
-        (fn [_ _ _] (place-above-if-needed!))
+        (fn on-tooltip-anchor-changed [_ _ _] (place-above-if-needed!))
 
         hide-listener
         (reify ChangeListener
