@@ -1359,6 +1359,7 @@ namespace dmEngine
             swap_interval = 0;
         }
 
+        int texture_upload_memory_limit = dmConfigFile::GetInt(engine->m_Config, "graphics.texture_upload_memory_limit", 64);
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
         graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
@@ -1371,6 +1372,8 @@ namespace dmEngine
         graphics_context_params.m_PrintDeviceInfo         = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
         graphics_context_params.m_JobContext              = engine->m_JobThreadContext;
         graphics_context_params.m_SwapInterval            = swap_interval;
+
+        graphics_context_params.m_TextureUploadMemoryLimit = texture_upload_memory_limit > 0 ? (uint64_t)texture_upload_memory_limit * 1024 * 1024 : 0;
 
         if (window_params.m_GraphicsApi == WINDOW_GRAPHICS_API_VULKAN)
         {

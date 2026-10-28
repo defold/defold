@@ -2358,6 +2358,8 @@ form.label.project.graphics.vulkan_version_minor = Vulkan Version Minor
 form.help.project.graphics.vulkan_version_minor = Minor part of the requested Vulkan API version. It is combined with **Vulkan Version Major** and used only with the Vulkan backend. Requesting an unsupported version can prevent startup.
 form.label.project.graphics.memory_size = Memory Size
 form.help.project.graphics.memory_size = Maximum memory, in MB, that the graphics driver may use on Nintendo Switch. `0` uses the platform default with no explicit limit.
+form.label.project.graphics.texture_upload_memory_limit = Texture Upload CPU Memory Limit
+form.help.project.graphics.texture_upload_memory_limit = Target maximum CPU-side texture upload staging memory in **MiB** on Metal. Source/transcoded data and GPU textures are excluded. Mip chains are split into batches to fit this budget. An individual mip larger than the budget is uploaded alone. Lower values reduce staging memory at the cost of more submissions.
 
 form.label.project.input = Input
 form.help.project.input = Input related settings

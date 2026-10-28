@@ -39,6 +39,13 @@
 #define WIDTH 8u
 #define HEIGHT 4u
 
+// Context creation must retain the documented default texture staging budget.
+TEST(Graphics, TextureUploadMemoryLimitDefault)
+{
+    dmGraphics::ContextParams params;
+    ASSERT_EQ(64ULL * 1024 * 1024, params.m_TextureUploadMemoryLimit);
+}
+
 // Byte colors saturate outside [0, 1], avoiding undefined float-to-byte conversions.
 TEST(GraphicsUtil, PackRGBAClampsComponents)
 {

@@ -335,6 +335,7 @@ namespace dmGraphics
     , m_VerifyGraphicsCalls(0)
     , m_PrintDeviceInfo(0)
     , m_UseValidationLayers(0)
+    , m_TextureUploadMemoryLimit(64 * 1024 * 1024)
     {}
 
     HContext NewContext(const ContextParams& params)

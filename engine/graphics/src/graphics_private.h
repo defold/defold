@@ -42,7 +42,7 @@ namespace dmGraphics
         uint16_t       m_NumTextureIds;
         uint32_t       m_ResourceSize;
         uint32_t       m_Mip0ResourceSize;
-        int32_atomic_t m_DataState; // mip bits for upload pending; mutable so const Texture* can pass &m_DataState to atomics
+        int32_atomic_t m_DataState; // backend upload-pending state; mutable so const Texture* can pass &m_DataState to atomics
     };
 
     struct Buffer

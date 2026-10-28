@@ -22,6 +22,7 @@
 #include <dmsdk/dlib/atomic.h>
 
 #include <dlib/hashtable.h>
+#include <dlib/condition_variable.h>
 #include <dlib/opaque_handle_container.h>
 
 #include "../graphics_private.h"
@@ -32,6 +33,7 @@ namespace dmGraphics
     struct MetalContext;
     struct MetalPipeline;
     struct MetalResourceToDestroy;
+    struct MetalTextureUpload;
 
     typedef dmHashTable64<MetalPipeline> PipelineCache;
     typedef dmArray<MetalResourceToDestroy>   MetalResourcesToDestroyList;
@@ -344,6 +346,15 @@ namespace dmGraphics
         SetTextureAsyncState               m_SetTextureAsyncState;
         int32_atomic_t                     m_DeleteContextRequested;
         int32_atomic_t                     m_PendingAsyncTextureJobs;
+        int32_atomic_t                     m_PendingAsyncTextureWorkers;
+        dmMutex::HMutex                    m_TextureUploadMutex;
+        dmConditionVariable::HConditionVariable m_TextureUploadCondition;
+        MetalTextureUpload*                m_TextureUploadHead;
+        MetalTextureUpload*                m_TextureUploadTail;
+        uint64_t                           m_InFlightTextureUploadBytes;
+        uint64_t                           m_TextureUploadMemoryLimit;
+        uint32_t                           m_InFlightTextureUploads;
+        bool                               m_TextureUploadJobQueued;
         dispatch_semaphore_t               m_FrameBoundarySemaphore;
 
         // Per-frame render state
