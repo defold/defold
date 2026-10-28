@@ -72,86 +72,94 @@
                     ;; escaping. The engine validates exact keys.
                     url-string))))))))
 
-(defn- resource-batch-response [workspace build-path ^InputStream body]
+(defn- validate-resource-batch-entry [artifacts build-path line]
+  (let [[^String encoded-path requested-etag :as parts] (string/split line #"\t" -1)]
+    (when-not (= 2 (count parts))
+      (throw (http-server/error (http-server/response 400 "Invalid batch record\n"))))
+    (let [decoded-path (URLDecoder/decode encoded-path StandardCharsets/UTF_8)]
+      (when-not (string/starts-with? decoded-path (str url-prefix "/"))
+        (throw (http-server/error http-server/not-found)))
+      (let [proj-path (subs decoded-path (count url-prefix))
+            full-path (path/resolve-normalized build-path (subs proj-path 1))
+            {:keys [size etag] :as artifact} (get artifacts proj-path)]
+        (when-not (and artifact
+                       (path/starts-with? full-path build-path)
+                       (path/file? full-path))
+          (throw (http-server/error http-server/not-found)))
+        (when (or (not= etag requested-etag)
+                  (not= size (path/byte-size full-path)))
+          (throw (http-server/error (http-server/response 409 "Resource changed\n"))))
+        (when (> size max-batch-file-size)
+          (throw (http-server/error (http-server/response 413 "Resource exceeds batch limit\n"))))
+        {:path full-path
+         :size size
+         :etag etag
+
+         :header
+         (.getBytes (str encoded-path \tab size \tab etag \newline)
+                    StandardCharsets/UTF_8)}))))
+
+(defn- validate-resource-batch-request [workspace build-path ^InputStream body]
+  (let [request-bytes (.readNBytes body (inc max-batch-request-size))]
+    (when (> (alength request-bytes) max-batch-request-size)
+      (throw (http-server/error (http-server/response 413 "Batch request too large\n"))))
+    (let [lines (string/split-lines (String. request-bytes StandardCharsets/UTF_8))
+          artifacts (workspace/artifact-map workspace)]
+      (when-not (<= 1 (count lines) max-batch-files)
+        (throw (http-server/error (http-server/response 400 "Invalid batch file count\n"))))
+      (let [entries (mapv #(validate-resource-batch-entry artifacts build-path %) lines)
+            payload-size (transduce (map :size) + entries)]
+        (when (> payload-size max-batch-size)
+          (throw (http-server/error (http-server/response 413 "Batch payload too large\n"))))
+        {:entries entries
+         :payload-size payload-size}))))
+
+(defn- resource-batch-body [{:keys [entries payload-size]}]
+  (let [preamble (.getBytes "DM_RESOURCE_BATCH 1\n" StandardCharsets/UTF_8)
+
+        content-length
+        (+ payload-size
+           (alength preamble)
+           (transduce (map #(alength ^bytes (:header %))) + entries))]
+    (reify
+      http-server.types/ContentLength
+      (content-length [_] content-length)
+
+      http-server.types/ConnectionWrite
+      (connection-write! [_ output-stream]
+        ;; Coalesce small headers and files into bounded writes.
+        (let [out (BufferedOutputStream. ^OutputStream output-stream (* 64 1024))]
+          (.write out preamble)
+          (doseq [{:keys [path size etag header]} entries]
+            ;; Builds rewrite these files in place. Validate a bounded snapshot
+            ;; before emitting any part of its entry. Read one extra byte to
+            ;; detect growth. A failure here must abort the response stream.
+            (let [^bytes content
+                  (try
+                    (let [^bytes content
+                          (with-open [input-stream (io/input-stream path)]
+                            (.readNBytes input-stream (inc (long size))))]
+                      (when (or (not= size (alength content))
+                                (not= etag (digest/sha1-hex content)))
+                        (throw (IOException. "Resource changed during batch transfer")))
+                      content)
+                    (catch IOException error
+                      ;; Preserve completed entries.
+                      (.flush out)
+                      (throw error)))]
+              (.write out ^bytes header)
+              (.write out content)))
+          (.flush out))))))
+
+(defn- resource-batch-response [workspace build-path body]
+  ;; Validation finishes before a streaming body is returned, so failures at
+  ;; this boundary can still be reported as HTTP errors.
   (try
-    (let [request-bytes (.readNBytes body (inc max-batch-request-size))]
-      (when (> (alength request-bytes) max-batch-request-size)
-        (throw (http-server/error (http-server/response 413 "Batch request too large\n"))))
-      (let [lines (string/split-lines (String. request-bytes StandardCharsets/UTF_8))
-            artifacts (workspace/artifact-map workspace)]
-        (when-not (<= 1 (count lines) max-batch-files)
-          (throw (http-server/error (http-server/response 400 "Invalid batch file count\n"))))
-        (let [entries
-              (coll/into-> lines []
-                (map (fn [line]
-                       (let [[^String encoded-path requested-etag :as parts] (string/split line #"\t" -1)]
-                         (when-not (= 2 (count parts))
-                           (throw (http-server/error (http-server/response 400 "Invalid batch record\n"))))
-                         (let [decoded-path (URLDecoder/decode encoded-path StandardCharsets/UTF_8)]
-                           (when-not (string/starts-with? decoded-path (str url-prefix "/"))
-                             (throw (http-server/error http-server/not-found)))
-                           (let [proj-path (subs decoded-path (count url-prefix))
-                                 full-path (path/resolve-normalized build-path (subs proj-path 1))
-                                 {:keys [size etag] :as artifact} (get artifacts proj-path)]
-                             (when-not (and artifact
-                                            (path/starts-with? full-path build-path)
-                                            (path/file? full-path))
-                               (throw (http-server/error http-server/not-found)))
-                             (when (or (not= etag requested-etag)
-                                       (not= size (path/byte-size full-path)))
-                               (throw (http-server/error (http-server/response 409 "Resource changed\n"))))
-                             (when (> size max-batch-file-size)
-                               (throw (http-server/error (http-server/response 413 "Resource exceeds batch limit\n"))))
-                             {:path full-path
-                              :size size
-                              :etag etag
-
-                              :header
-                              (.getBytes (str encoded-path \tab size \tab etag \newline)
-                                         StandardCharsets/UTF_8)}))))))
-
-              payload-size (transduce (map :size) + entries)]
-          (when (> payload-size max-batch-size)
-            (throw (http-server/error (http-server/response 413 "Batch payload too large\n"))))
-          (let [preamble (.getBytes "DM_RESOURCE_BATCH 1\n" StandardCharsets/UTF_8)
-
-                content-length
-                (+ payload-size
-                   (alength preamble)
-                   (transduce (map #(alength ^bytes (:header %))) + entries))]
-            (http-server/response
-              200
-              {"content-type" "application/octet-stream"
-               "cache-control" "no-store"}
-              (reify
-                http-server.types/ContentLength
-                (content-length [_] content-length)
-
-                http-server.types/ConnectionWrite
-                (connection-write! [_ output-stream]
-                  ;; Coalesce small headers and files into bounded writes.
-                  (let [out (BufferedOutputStream. ^OutputStream output-stream (* 64 1024))]
-                    (.write out preamble)
-                    (doseq [{:keys [path size etag header]} entries]
-                      ;; Builds rewrite these files in place. Validate a bounded
-                      ;; snapshot before emitting any part of its batch entry.
-                      ;; Read one extra byte to detect growth.
-                      (let [^bytes content
-                            (try
-                              (let [^bytes content
-                                    (with-open [input-stream (io/input-stream path)]
-                                      (.readNBytes input-stream (inc (long size))))]
-                                (when (or (not= size (alength content))
-                                          (not= etag (digest/sha1-hex content)))
-                                  (throw (IOException. "Resource changed during batch transfer")))
-                                content)
-                              (catch IOException error
-                                ;; Preserve completed entries.
-                                (.flush out)
-                                (throw error)))]
-                        (.write out ^bytes header)
-                        (.write out content)))
-                    (.flush out)))))))))
+    (http-server/response
+      200
+      {"content-type" "application/octet-stream"
+       "cache-control" "no-store"}
+      (resource-batch-body (validate-resource-batch-request workspace build-path body)))
     (catch IllegalArgumentException _
       (http-server/response 400 "Invalid batch path\n"))
     (catch IOException _
