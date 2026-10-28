@@ -21,13 +21,13 @@
 
 namespace dmGameSystem
 {
-    // MBFC v2 is little-endian. See ModelBuffers.java for the build-time writer.
+    // DMMB v2 is little-endian. See ModelBuffers.java for the build-time writer.
     enum
     {
         HEADER_SIZE = 36,
         RANGE_SIZE = 28
     };
-    // Attribute indices are also the MBFC mask bit positions.
+    // Attribute indices are also the DMMB mask bit positions.
     enum
     {
         ATTRIBUTE_POSITION = 0,
@@ -107,7 +107,7 @@ namespace dmGameSystem
     static dmResource::Result ParseBuffers(const void* data, uint32_t size, ModelBuffersResource* output, const ModelBuffersResource* expected)
     {
         const uint8_t* bytes = (const uint8_t*)data;
-        if (size < HEADER_SIZE || memcmp(bytes, "MBFC", 4) != 0 || ReadInteger(bytes + 4) != 2 || ReadInteger(bytes + 8) != 0)
+        if (size < HEADER_SIZE || memcmp(bytes, "DMMB", 4) != 0 || ReadInteger(bytes + 4) != 2 || ReadInteger(bytes + 8) != 0)
             return dmResource::RESULT_INVALID_DATA;
         ModelBuffersHeader header;
         header.m_RangeCount = ReadInteger(bytes + 16);

@@ -30,6 +30,7 @@
   (:import [com.dynamo.bob.pipeline ModelBuffers]
            [com.dynamo.gamesys.proto ModelProto$Model ModelProto$ModelDesc]
            [com.dynamo.rig.proto Rig$MeshSet Rig$Model]
+           [java.nio.charset StandardCharsets]
            [javax.vecmath Point3d]))
 
 (defn- find-mesh-set-build-target
@@ -133,6 +134,7 @@
           mesh-set-output ((:build-fn target) (:resource target) {} (:user-data target))
           compiled (Rig$MeshSet/parseFrom ^bytes (:content mesh-set-output))]
       (is (= 1 (count (:deps target))))
+      (is (= "DMMB" (String. ^bytes (:content buffer-output) 0 4 StandardCharsets/US_ASCII)))
       (is (java.util.Arrays/equals ^bytes (:content buffer-output)
                                   ^bytes (ModelBuffers/compile (ModelBuffers/geometries (protobuf/map->pb Rig$MeshSet mesh-set)))))
       (is (= (:id source-model) (.getId (.getModels compiled 0))))

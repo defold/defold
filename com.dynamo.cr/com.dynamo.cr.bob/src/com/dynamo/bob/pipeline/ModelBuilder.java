@@ -167,7 +167,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
             taskBuilder.addInput(bufferTask.output(0));
             bufferPath = BuilderUtil.getRelativePath(project, bufferTask.output(0));
         }
-        taskBuilder.addExtraCacheKey("model-buffers-v" + ModelBuffers.VERSION + "-canonical-input-material-bindings");
+        taskBuilder.addExtraCacheKey(ModelBuffers.FORMAT_ID + "-canonical-input-material-bindings");
 
         if(!modelDescBuilder.getSkeleton().isEmpty()) {
             String suffix = BuilderUtil.getSuffix(modelDescBuilder.getSkeleton()).toLowerCase();

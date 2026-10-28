@@ -145,7 +145,7 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
             Model second = Model.parseFrom(getProject().getResource("/second.model").changeExt(".modelc").getContent());
             assertEquals(first.getBuffers(), second.getBuffers());
             byte[] bytes = getProject().getResource(first.getBuffers()).output().getContent();
-            assertEquals('M', bytes[0]);
+            assertEquals("DMMB", new String(bytes, 0, 4, StandardCharsets.US_ASCII));
             if (packed != null) {
                 assertEquals(bufferPath, first.getBuffers());
                 assertArrayEquals(packed, bytes);

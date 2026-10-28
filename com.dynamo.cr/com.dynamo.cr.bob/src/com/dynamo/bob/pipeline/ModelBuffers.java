@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,13 +43,16 @@ import com.dynamo.rig.proto.Rig.Model;
  * format and attribute layout in sync with that reader and the rig vertex structs.
  */
 public final class ModelBuffers {
+    private static final String MAGIC = "DMMB";
     static final int VERSION = 2;
+    /** Identifies the serialized format in Bob and editor build-cache keys. */
+    public static final String FORMAT_ID = MAGIC + "-v" + VERSION;
     private static final int HEADER_SIZE = 36;
     private static final int RANGE_SIZE = 28;
     private static final int STATIC_VERTEX_STRIDE = 72;
     private static final int SKINNED_VERTEX_STRIDE = 104;
 
-    // Attribute indices are also the MBFC mask bit positions.
+    // Attribute indices are also the DMMB mask bit positions.
     private static final int ATTRIBUTE_POSITION = 0;
     private static final int ATTRIBUTE_NORMAL = 1;
     private static final int ATTRIBUTE_TANGENT = 2;
@@ -140,7 +144,7 @@ public final class ModelBuffers {
     }
 
     /**
-     * MBFC v2: a 36-byte header, 28-byte range descriptors, then vertex and index
+     * DMMB v2: a 36-byte header, 28-byte range descriptors, then vertex and index
      * payloads. All meshes share one GPU vertex buffer and one GPU index buffer.
      * Each range describes its byte offsets, vertex count/stride, index count/type
      * and source-attribute mask. Node identity and bindings remain in .modelc.
@@ -149,7 +153,7 @@ public final class ModelBuffers {
      * and sizes are bytes.
      * <pre>
      * File header:
-     *   +0  magic: four literal bytes "MBFC"
+     *   +0  magic: four literal bytes "DMMB"
      *   +4  format version
      *   +8  compression: 0 (archive compression is handled by the resource loader)
      *   +12 decoded payload size: vertex size + index size
@@ -197,7 +201,7 @@ public final class ModelBuffers {
         int vertexStart = align(Math.addExact(HEADER_SIZE, Math.multiplyExact(count, RANGE_SIZE)), 16);
         int indexStart = Math.addExact(vertexStart, vertexSize);
         ByteBuffer out = ByteBuffer.allocate(Math.addExact(indexStart, indexSize)).order(ByteOrder.LITTLE_ENDIAN);
-        out.put(new byte[]{'M', 'B', 'F', 'C'}).putInt(VERSION);
+        out.put(MAGIC.getBytes(StandardCharsets.US_ASCII)).putInt(VERSION);
         out.putInt(0); // Archive compression is handled by the resource loader.
         out.putInt(Math.addExact(vertexSize, indexSize));
         out.putInt(count).putInt(vertexStart).putInt(vertexSize).putInt(indexStart).putInt(indexSize);

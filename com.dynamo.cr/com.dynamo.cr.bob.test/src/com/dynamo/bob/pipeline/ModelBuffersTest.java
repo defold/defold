@@ -41,10 +41,11 @@ public class ModelBuffersTest {
         return MeshSet.newBuilder().addModels(Model.newBuilder().setId(1).setLocal(Transform.getDefaultInstance()).addMeshes(mesh)).build();
     }
 
-    // GPU bytes must match the engine layout, including absent-attribute defaults.
+    // The file prefix and GPU bytes must match the engine format, including absent-attribute defaults.
     @Test
     public void staticLayout() {
         ByteBuffer data = ByteBuffer.wrap(ModelBuffers.compile(List.of(mesh().build()))).order(ByteOrder.LITTLE_ENDIAN);
+        assertArrayEquals(new byte[]{'D', 'M', 'M', 'B'}, Arrays.copyOf(data.array(), 4));
         assertEquals(2, data.getInt(4));
         assertEquals(1, data.getInt(16));
         assertEquals(1, data.getInt(40));

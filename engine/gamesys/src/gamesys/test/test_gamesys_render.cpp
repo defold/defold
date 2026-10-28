@@ -2237,7 +2237,7 @@ TEST_F(ModelTest, ModelBuffersSkinData)
     dmResource::Release(m_Factory, model);
 }
 
-// Malformed offsets, unsupported versions and truncated geometry must fail before upload.
+// Invalid magic, malformed offsets, unsupported versions and truncated geometry must fail before upload.
 TEST_F(ModelTest, ModelBuffersValidation)
 {
     dmGameSystem::ModelResource* model;
@@ -2245,12 +2245,13 @@ TEST_F(ModelTest, ModelBuffersValidation)
     void* bytes;
     uint32_t size;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(m_Factory, model->m_Model->m_Buffers, &bytes, &size));
+    ASSERT_EQ(0, memcmp(bytes, "DMMB", 4));
     void* preload = 0;
     dmResource::ResourcePreloadParams params = {};
     params.m_Buffer = bytes;
     params.m_BufferSize = size;
     params.m_PreloadData = &preload;
-    const uint32_t offsets[] = { 4, 8, 20, 28, 36 };
+    const uint32_t offsets[] = { 0, 1, 2, 3, 4, 8, 20, 28, 36 };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(offsets); ++i)
     {
         uint8_t* value = (uint8_t*)bytes + offsets[i];

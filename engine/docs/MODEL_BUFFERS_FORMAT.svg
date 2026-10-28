@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1260" viewBox="0 0 1200 1260" role="img" aria-labelledby="title description">
-<title id="title">MBFC version 2 model buffer file format</title>
+<title id="title">DMMB version 2 model buffer file format</title>
 <desc id="description">A 36-byte header and N 28-byte mesh range descriptors precede aligned vertex and index payloads. Header offsets address the file; range offsets address their respective payload. Static vertices use 72 bytes and skinned vertices 104 bytes. Numeric fields are little-endian.</desc>
 <defs>
   <pattern id="padding" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
@@ -20,7 +20,7 @@
 <text x="56" y="99" font-size="40" font-weight="700" text-anchor="start" style="fill:#182539">Model buffer file format</text>
 <text x="56" y="139" font-size="20" font-weight="400" text-anchor="start" style="fill:#57677c">.modelbuffersc  ·  GPU-ready geometry shared by model resources</text>
 <rect x="1000" y="55" width="144" height="42" rx="21" fill="#e8e8ff"/>
-<text x="1072" y="82" font-size="19" font-weight="650" text-anchor="middle" style="fill:#5144a8" class="mono">MBFC / v2</text>
+<text x="1072" y="82" font-size="19" font-weight="650" text-anchor="middle" style="fill:#5144a8" class="mono">DMMB / v2</text>
 <text x="56" y="184" font-size="16" font-weight="650" text-anchor="start" style="fill:#57677c">ON-DISK LAYOUT</text>
 <text x="1144" y="184" font-size="16" font-weight="400" text-anchor="end" style="fill:#57677c">Byte offsets · schematic, not to scale</text>
 <g clip-path="url(#file-clip)">
@@ -82,7 +82,7 @@
 <line x1="636" y1="533" x2="1120" y2="533" stroke="#dbe3ec" stroke-width="1"/>
 <text x="80" y="563" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+00</text>
 <text x="161" y="563" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">magic</text>
-<text x="564" y="563" font-size="17" font-weight="500" text-anchor="end" style="fill:#5144a8" class="mono">MBFC</text>
+<text x="564" y="563" font-size="17" font-weight="500" text-anchor="end" style="fill:#5144a8" class="mono">DMMB</text>
 <text x="80" y="594" font-size="18" font-weight="400" text-anchor="start" style="fill:#57677c" class="mono">+04</text>
 <text x="161" y="594" font-size="18" font-weight="400" text-anchor="start" style="fill:#182539">version</text>
 <text x="564" y="594" font-size="17" font-weight="500" text-anchor="end" style="fill:#5144a8" class="mono">2</text>

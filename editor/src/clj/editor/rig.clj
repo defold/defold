@@ -120,7 +120,8 @@
                                {:node-id node-id
                                 :resource (workspace/make-placeholder-build-resource workspace "modelbuffers")
                                 :build-fn build-model-buffers
-                                :user-data {:geometries geometries}})
+                                :user-data {:format-id ModelBuffers/FORMAT_ID
+                                            :geometries geometries}})
         referenced-texture-tokens (referenced-morph-target-texture-tokens mesh-set)
         morph-target-textures (into []
                                     (filter #(contains? referenced-texture-tokens (:token %)))

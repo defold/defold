@@ -28,7 +28,7 @@ public class ModelBuffersBuilder extends Builder {
     public Task create(IResource input) {
         return Task.newBuilder(this).setName(params.name()).addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
-                .addExtraCacheKey("model-buffers-v" + ModelBuffers.VERSION).build();
+                .addExtraCacheKey(ModelBuffers.FORMAT_ID).build();
     }
 
     @Override
