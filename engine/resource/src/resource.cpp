@@ -962,26 +962,21 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
     return result;
 }
 
-static Result DestroyPreviousResource(HFactory factory, ResourceDescriptor* rd)
+static Result DestroyPreviousResource(HFactory factory, ResourceDescriptor* descriptor)
 {
-    if (!rd->m_PrevResource)
-        return RESULT_OK;
-
-    ResourceType* resource_type = rd->m_ResourceType;
-    ResourceDescriptor tmp_resource = *rd;
-    tmp_resource.m_Resource = rd->m_PrevResource;
+    ResourceType* resource_type = descriptor->m_ResourceType;
+    descriptor->m_Resource = descriptor->m_PrevResource;
     ResourceDestroyParams params;
     params.m_Factory = factory;
     params.m_Type = resource_type;
     params.m_Context = resource_type->m_Context;
-    params.m_Resource = &tmp_resource;
+    params.m_Resource = descriptor;
     Result result;
     {
         DM_PROFILE("ResourceDestroy");
         DM_PROFILE_DYN(resource_type->m_Extension, 0);
         result = (Result)resource_type->m_DestroyFunction(&params);
     }
-    rd->m_PrevResource = 0;
     return result;
 }
 
@@ -1089,7 +1084,14 @@ static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const cha
                 pair.m_Callback(&params);
             }
         }
-        result = DestroyPreviousResource(factory, rd);
+        if (rd->m_PrevResource)
+        {
+            // Reload callbacks can update the published descriptor before destruction.
+            descriptor.m_PrevResource = rd->m_PrevResource;
+            descriptor.m_ResourceSize = rd->m_ResourceSize;
+            result = DestroyPreviousResource(factory, &descriptor);
+            rd->m_PrevResource = 0;
+        }
     }
     // The temporary reference belongs to the descriptor. Its current resource
     // now has the reverse lookup, including when Recreate replaced the pointer.
