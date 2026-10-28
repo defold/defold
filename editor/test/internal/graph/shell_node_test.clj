@@ -611,6 +611,155 @@
         (is (= 23 (g/node-value parent :result)))
         (is (= 23 (g/node-value child :result)))))))
 
+(g/defnode MaterializationCacheProbe
+  (property evaluations g/Any)
+  (input values g/Int :array)
+  (output cached-total g/Int :cached
+          (g/fnk [evaluations values]
+            (swap! evaluations update :cached-total (fnil inc 0))
+            (reduce + 0 values)))
+  (output uncached-total g/Int
+          (g/fnk [evaluations values]
+            (swap! evaluations update :uncached-total (fnil inc 0))
+            (reduce + 0 values))))
+
+;; Materializers reuse real cached and temporary values across a dependency
+;; trace, even when the trace has already cached placeholders for those outputs.
+(deftest tracing-materialization-reuses-real-caches-test
+  (doseq [[output-label evaluation-context-options]
+          [[:cached-total {}]
+           [:cached-total {:no-local-temp true}]
+           [:uncached-total {}]]
+          warm-cache [false true]]
+    (with-clean-system
+      (let [evaluations (atom {})
+            lookup (g/make-node! MaterializationCacheProbe :evaluations evaluations)
+            source (g/make-node! ShellTestNode :value 7)
+            collector (g/make-node! MaterializationCacheProbe :evaluations (atom {}))
+            shells (vec (g/take-node-ids 8))]
+        (g/transact
+          [(g/connect source :result lookup :values)
+           ;; Visit the lookup before the shells, so a cold trace caches a
+           ;; placeholder before the first materializer needs its real value.
+           (g/connect lookup output-label collector :values)
+           (mapv (fn [shell]
+                   [(g/add-node
+                      (g/construct-shell ShellTestNode {:_node-id shell}
+                        (fn materialize-fn [self evaluation-context]
+                          (let [value (g/node-value lookup output-label evaluation-context)]
+                            (is (= 7 value))
+                            (g/set-property self :value value)))))
+                    (g/connect shell :result collector :values)])
+                 shells)])
+        (let [evaluation-context (g/make-evaluation-context evaluation-context-options)]
+          (when warm-cache
+            (is (= 7 (g/node-value lookup output-label evaluation-context))))
+          (g/node-value collector :cached-total (assoc evaluation-context :dry-run true))
+          (is (= {output-label 1} @evaluations))
+          (is (= 63 (g/node-value collector :cached-total evaluation-context)))
+          (is (= {output-label 1} @evaluations))
+          (g/update-system-from-evaluation-context! evaluation-context)
+          (is (= 63 (g/node-value collector :cached-total))))))))
+
+;; Both newly realized and shared materializations invalidate the caller's real
+;; caches, so tracing cannot publish stale values when its context is committed.
+(deftest tracing-materialization-invalidates-real-caches-test
+  (doseq [replay [:none :evaluation-context :system]
+          system-cache [false true]]
+    (with-clean-system
+      (let [collector (g/make-node! MaterializationCacheProbe :evaluations (atom {}))
+            shells (vec (g/take-node-ids 2))
+            calls (atom [])]
+        (g/transact
+          (mapv (fn [shell value]
+                  (g/add-node
+                    (g/construct-shell ShellTestNode {:_node-id shell}
+                      (fn materialize-contributor [self _evaluation-context]
+                        (swap! calls conj self)
+                        [(g/set-property self :value value)
+                         (g/connect self :result collector :values)]))))
+                shells [7 11]))
+        (when system-cache
+          (is (= 0 (g/node-value collector :cached-total))))
+        (let [evaluation-context (g/make-evaluation-context)]
+          (doseq [output-label [:cached-total :uncached-total]]
+            (is (= 0 (g/node-value collector output-label evaluation-context))))
+          (when (not= :none replay)
+            (let [other-evaluation-context (g/make-evaluation-context)]
+              (doseq [shell shells]
+                (g/materialize-node! shell other-evaluation-context))
+              (when (= :system replay)
+                (g/update-system-from-evaluation-context! other-evaluation-context))))
+          (doseq [[shell expected-total] (mapv vector shells [7 18])]
+            (g/node-value shell :result (assoc evaluation-context :dry-run true))
+            (doseq [output-label [:cached-total :uncached-total]]
+              (is (= expected-total (g/node-value collector output-label evaluation-context)))))
+          (g/update-system-from-evaluation-context! evaluation-context)
+          (doseq [output-label [:cached-total :uncached-total]]
+            (is (= 18 (g/node-value collector output-label))))
+          (is (= shells @calls)))))))
+
+;; Invalidation reaches the active tracing caches, and a failed prerequisite
+;; restores those caches before its owner catches the failure and tracing
+;; resumes.
+(deftest tracing-materialization-invalidates-and-restores-tracing-caches-test
+  (doseq [output-label [:cached-total :uncached-total]
+          fail [false true]]
+    (with-clean-system
+      (let [lookup (g/make-node! MaterializationCacheProbe :evaluations (atom {}))
+            collector (g/make-node! MaterializationCacheProbe :evaluations (atom {}))
+            consumers [(g/make-node! ShellTestNode) (g/make-node! ShellTestNode)]
+            [parent child] (g/take-node-ids 2)
+            caught-errors (atom [])]
+        (g/transact
+          [(g/add-node
+             (g/construct-shell ShellTestNode {:_node-id child}
+               (fn materialize-child [self _evaluation-context]
+                 [(g/set-property self :value 7)
+                  (g/connect self :result lookup :values)])))
+           (g/add-node
+             (g/construct-shell ShellTestNode {:_node-id parent}
+               (fn materialize-parent [self evaluation-context]
+                 (try
+                   (g/materialize-prerequisites! self #{child} evaluation-context)
+                   (catch ExceptionInfo error
+                     (swap! caught-errors conj (ex-message error))))
+                 (g/set-property self :value 1))))
+           (mapv #(g/connect lookup output-label % :dependency) consumers)
+           (mapv #(g/connect % :result collector :values)
+                 [(first consumers) parent (second consumers)])])
+        (let [evaluation-context (g/make-evaluation-context)
+              local-temp-atom (:local-temp-atom evaluation-context)
+              cached-endpoint (g/endpoint lookup :uncached-total)
+              traced-output-types (atom [])
+              tracer (fn trace-lookup [state node-id output-type label]
+                       (when (and (= :begin state) (= lookup node-id) (= output-label label))
+                         (swap! traced-output-types conj output-type)))]
+          (doseq [label [:cached-total :uncached-total]]
+            (is (= 0 (g/node-value lookup label evaluation-context))))
+          (when fail
+            ;; Fail after eviction from the real temporary cache. The owner
+            ;; catches the error, so the same dependency trace must continue.
+            (add-watch local-temp-atom ::fail-after-tracing-cache-eviction
+                       (fn fail-after-eviction [watch-key watched-atom old-cache new-cache]
+                         (when (and (contains? old-cache cached-endpoint)
+                                    (not (contains? new-cache cached-endpoint)))
+                           (remove-watch watched-atom watch-key)
+                           (throw (ex-info "materialization failed" {}))))))
+          (try
+            (g/node-value collector :cached-total (assoc evaluation-context :dry-run true :tracer tracer))
+            (is (= (if fail [:cache :cache] [:cache :output]) @traced-output-types))
+            (is (= (if fail ["materialization failed"] []) @caught-errors))
+            (is (= fail (in/shell-node? (g/node-by-id @(:basis-ref evaluation-context) child))))
+            (doseq [label [:cached-total :uncached-total]]
+              (is (= (if fail 0 7) (g/node-value lookup label evaluation-context))))
+            (is (= 7 (g/node-value child :result evaluation-context)))
+            (is (= 15 (g/node-value collector :cached-total evaluation-context)))
+            (g/update-system-from-evaluation-context! evaluation-context)
+            (is (= 15 (g/node-value collector :cached-total)))
+            (finally
+              (remove-watch local-temp-atom ::fail-after-tracing-cache-eviction))))))))
+
 ;; Editing even an unjammable property materializes first, so shells remain immutable.
 (deftest editing-unjammable-property-materializes-shell-test
   (with-clean-system

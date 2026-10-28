@@ -17,6 +17,7 @@
             [clojure.java.io :as io]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.build :as build]
             [editor.data :as data]
             [editor.defold-project :as project]
             [editor.defold-project-search :as project-search]
@@ -28,12 +29,36 @@
             [integration.test-util :as test-util]
             [service.log :as log]
             [support.test-support :as test-support :refer [with-clean-system]]
-            [util.coll :as coll :refer [pair]])
+            [util.coll :as coll :refer [pair]]
+            [util.fn :as fn])
   (:import [internal.node NodeImpl ShellNode]
            [java.io InputStream]
            [java.util.concurrent CountDownLatch TimeUnit]))
 
 (set! *warn-on-reflection* true)
+
+;; Build dependency tracing can create nodes for missing resources. Its caller
+;; must see and commit the updated resource lookup map, not the pre-trace cache.
+(deftest build-tracing-updates-resource-lookup-cache-test
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! "test/resources/empty_project")
+          project (test-util/setup-project! workspace)
+          evaluation-context (g/make-evaluation-context)
+          initial-resource-nodes (g/node-value project :nodes-by-resource-path evaluation-context)]
+      (build/node-build-targets (initial-resource-nodes "/game.project")
+                                (build/make-node-id->resource-path project evaluation-context)
+                                progress/null-render-progress!
+                                fn/constantly-false
+                                evaluation-context)
+      (let [basis @(:basis-ref evaluation-context)
+            expected-resource-nodes
+            (coll/into-> (g/inputs basis project :node-id+resources) {}
+              (map (fn [{:keys [source-id]}]
+                     (pair (resource/proj-path (resource-node/resource basis source-id)) source-id))))]
+        (is (< (count initial-resource-nodes) (count expected-resource-nodes)))
+        (is (= expected-resource-nodes (g/node-value project :nodes-by-resource-path evaluation-context)))
+        (g/update-system-from-evaluation-context! evaluation-context)
+        (is (= expected-resource-nodes (g/node-value project :nodes-by-resource-path)))))))
 
 ;; Embedded collision objects in game objects and collections must connect to
 ;; the project and invalidate its cached collision groups when materialized.

@@ -2164,6 +2164,8 @@
     (swap! invalidated-endpoints-atom into outputs-modified)
     (when-let [cache-atom (:cache-atom evaluation-context)]
       (swap! cache-atom c/cache-invalidate outputs-modified))
+    (doseq [cache-atom (:dry-run-cache-atoms evaluation-context)]
+      (swap! cache-atom #(reduce dissoc % outputs-modified)))
     (swap! (:local-atom evaluation-context) #(reduce dissoc % outputs-modified))
     (when-let [local-temp-atom (:local-temp-atom evaluation-context)]
       (swap! local-temp-atom #(reduce dissoc % outputs-modified)))
@@ -2304,19 +2306,19 @@
         ;; Keep our declaration even if another shell replaces the registry
         ;; entry before this materialization finishes.
         prerequisite-shell-node-ids @(:prerequisite-node-ids active-materialization)
-        evaluation-context-atoms (into []
-                                       (keep evaluation-context)
-                                       [:basis-ref
-                                        :cache-atom
-                                        :changes-atom
-                                        :hits-atom
-                                        :invalidated-endpoints-atom
-                                        :local-atom
-                                        :local-temp-atom
-                                        :materialization-results-atom
-                                        :nodes-added-atom
-                                        :nodes-deleted-atom
-                                        :tx-data-context-atom])
+        evaluation-context-atoms (coll/into-> [:basis-ref
+                                               :cache-atom
+                                               :changes-atom
+                                               :hits-atom
+                                               :invalidated-endpoints-atom
+                                               :local-atom
+                                               :local-temp-atom
+                                               :materialization-results-atom
+                                               :nodes-added-atom
+                                               :nodes-deleted-atom
+                                               :tx-data-context-atom]
+                                   (or (:dry-run-cache-atoms evaluation-context) [])
+                                   (keep evaluation-context))
         previous-evaluation-context-atom-values (mapv deref evaluation-context-atoms)
         previous-basis @basis-ref
         previous-materialization-results @materialization-results-atom]
@@ -2348,16 +2350,17 @@
 (defn materialize-node! [node-id {:keys [active-materialization] :as evaluation-context}]
   (assert @(:basis-ref evaluation-context) "Evaluation context is closed.")
   ;; Dependency tracing skips output functions and caches placeholder values.
-  ;; Materialization needs actual values even when triggered by such a
-  ;; traversal.
-  (let [evaluation-context (cond-> evaluation-context
-                             (:dry-run evaluation-context)
-                             (assoc :dry-run false
-                                    :tracer nil
-                                    :in-production #{}
-                                    :local-atom (atom {})
-                                    :local-temp-atom (atom {})
-                                    :hits-atom (atom #{})))
+  ;; Materialization must use the caller's real caches so successive shells
+  ;; reuse computed values and invalidate entries the caller could later commit.
+  ;; Retain the tracing cache atoms too: their values describe the same basis.
+  (let [evaluation-context (if-not (:dry-run evaluation-context)
+                             evaluation-context
+                             (-> evaluation-context
+                                 (merge (:real-cache evaluation-context))
+                                 (dissoc :real-cache)
+                                 (assoc :dry-run false
+                                        :tracer nil
+                                        :in-production #{})))
         basis-ref (:basis-ref evaluation-context)
         shared-materialization-registry-atom (:shared-materialization-registry-atom evaluation-context)
         node (ig/node-by-id-at @basis-ref node-id)]

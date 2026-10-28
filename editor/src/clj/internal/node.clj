@@ -613,11 +613,23 @@
     (assert (some? (:hits-atom evaluation-context)))))
 
 (defn- apply-dry-run-cache [evaluation-context]
-  (cond-> evaluation-context
-    (:dry-run evaluation-context)
-    (assoc :local-atom (atom @(:local-atom evaluation-context))
-           :local-temp-atom (some-> (:local-temp-atom evaluation-context) deref atom)
-           :hits-atom (atom @(:hits-atom evaluation-context)))))
+  (if-not (:dry-run evaluation-context)
+    evaluation-context
+    (let [local-atom (atom @(:local-atom evaluation-context))
+          local-temp-atom (some-> (:local-temp-atom evaluation-context) deref atom)]
+      ;; Tracing caches placeholders instead of real output values. Preserve the
+      ;; original cache atoms so materializers can reuse and invalidate real
+      ;; values without seeing those placeholders. Keep every active tracing
+      ;; cache reachable for invalidation and rollback when materialization
+      ;; changes the shared basis, including inside nested dependency traces.
+      (assoc evaluation-context
+        :real-cache (or (:real-cache evaluation-context)
+                        (select-keys evaluation-context [:local-atom :local-temp-atom :hits-atom]))
+        :dry-run-cache-atoms (cond-> (conj (or (:dry-run-cache-atoms evaluation-context) []) local-atom)
+                               local-temp-atom (conj local-temp-atom))
+        :local-atom local-atom
+        :local-temp-atom local-temp-atom
+        :hits-atom (atom @(:hits-atom evaluation-context))))))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
