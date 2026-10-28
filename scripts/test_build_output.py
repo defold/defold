@@ -3,6 +3,7 @@ import io
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -333,6 +334,10 @@ install(FILES "${CMAKE_BINARY_DIR}/step1.stamp" DESTINATION share)
     # Ninja must preserve compiler colors through the internal pipe only for terminals, including verbose builds.
     def test_compiler_colors_follow_terminal_and_color_opt_outs(self):
         self.command(self.configure, 'configure')
+        args = [self.cmake, '--build', str(self.builddir), '--target', 'color_failure']
+        expected_status = subprocess.run(args, env=self.env, stdout=subprocess.DEVNULL,
+                                         stderr=subprocess.STDOUT).returncode
+        self.assertNotEqual(0, expected_status)
         cases = ((True, {}, True), (False, {}, False), (False, {'CLICOLOR_FORCE': '1'}, False),
                  (True, {'NO_COLOR': ''}, False), (True, {'NO_COLOR': '1'}, False),
                  (True, {'NOCOLOR': '1'}, False), (True, {'CLICOLOR': '0'}, False))
@@ -358,7 +363,7 @@ install(FILES "${CMAKE_BINARY_DIR}/step1.stamp" DESTINATION share)
                         self.assertNotIn('\x1b[', text)
                     self.assertNotIn('\x1b[', path.read_text())
                     self.assertEqual(original_env, env)
-                    self.assertEqual(1, raised.exception.retcode)
+                    self.assertEqual(expected_status, raised.exception.retcode)
 
     # CMake's own configure errors must also retain their native colors through output capture on a terminal.
     def test_cmake_configuration_errors_keep_terminal_colors(self):
@@ -383,10 +388,13 @@ install(FILES "${CMAKE_BINARY_DIR}/step1.stamp" DESTINATION share)
             with self.subTest(target=target):
                 stream = io.StringIO()
                 log = self.builddir / 'logs' / f'{target}.log'
+                args = [self.cmake, '--build', str(self.builddir), '--target', target]
+                expected_status = subprocess.run(args, env=self.env, stdout=subprocess.DEVNULL,
+                                                 stderr=subprocess.STDOUT).returncode
+                self.assertNotEqual(0, expected_status)
                 with self.assertRaises(run.ExecException) as raised:
-                    build_output.command(self.env, [self.cmake, '--build', str(self.builddir), '--target', target],
-                                         target, log, stream=stream)
-                self.assertEqual(1, raised.exception.retcode)
+                    build_output.command(self.env, args, target, log, stream=stream)
+                self.assertEqual(expected_status, raised.exception.retcode)
                 text = stream.getvalue()
                 self.assertIn('fixture.cpp:7: error: missing semicolon', text)
                 self.assertIn('stdout from failing tool', text)
