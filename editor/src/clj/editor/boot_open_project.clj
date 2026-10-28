@@ -39,7 +39,6 @@
             [editor.http-server.prefs :as http-server.prefs]
             [editor.icons :as icons]
             [editor.live-update-manifest-view :as live-update-manifest-view]
-            [editor.live-update-migration :as live-update-migration]
             [editor.localization :as localization]
             [editor.lsp.project :as lsp.project]
             [editor.mouse-binding :as mouse-binding]
@@ -66,7 +65,7 @@
             [service.smoke-log :as slog]
             [util.debug-util :as du]
             [util.http-server :as http-server])
-  (:import [java.io File IOException]
+  (:import [java.io File]
            [javafx.scene Node Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
            [javafx.scene.input DragEvent InputEvent KeyCombination KeyEvent MouseEvent]
@@ -492,13 +491,6 @@
           game-project-res (workspace/file-resource workspace "/game.project")
           extensions (extensions/make)
           project (project/open-project! extensions workspace game-project-res render-progress!)]
-      (try
-        (live-update-migration/migrate! project)
-        (catch IOException error
-          (log/warn :exception error)
-          (notifications/show! (workspace/notifications workspace)
-                               {:type :warning
-                                :message (localization/message "liveupdate.migration-failed" {"error" (.getMessage error)})})))
       (ui/run-now
         (icons/initialize! workspace)
         (load-stage! workspace project prefs localization project-path cli-options updater newly-created?))

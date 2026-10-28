@@ -110,31 +110,6 @@ public final class PackageResolver {
         return normalized.startsWith("/") ? normalized : "/" + normalized;
     }
 
-    /**
-     * Creates editable rules for legacy proxy exclusions. Subtract unchecked
-     * collections last so mixed proxy routes and shared dependencies stay in
-     * the base. Their complete closures are retained conservatively, including
-     * any nested proxies, without retaining Exclude as a packaging control.
-     */
-    public static ManifestDesc migrationManifest(String name, String provider,
-                                                 Collection<String> excluded, Collection<String> included) {
-        PackageDesc.Builder pkg = PackageDesc.newBuilder().setName(name).setProvider(provider);
-        for (String path : new TreeSet<>(excluded)) {
-            pkg.addRules(RuleDesc.newBuilder().setName(path).setPath(Pattern.quote(normalize(path))));
-        }
-        for (String path : new TreeSet<>(included)) {
-            pkg.addRules(RuleDesc.newBuilder().setName(path).setOperation(RuleOperation.REMOVE)
-                    .setPath(Pattern.quote(normalize(path))));
-        }
-        ManifestDesc manifest = ManifestDesc.newBuilder().addPackages(pkg).build();
-        Set<String> paths = new TreeSet<>(excluded);
-        paths.addAll(included);
-        if (select(manifest, paths).diagnostics().stream().anyMatch(d -> d.severity() == Severity.ERROR)) {
-            manifest = manifest.toBuilder().setPackages(0, pkg.setName("liveupdate")).build();
-        }
-        return manifest;
-    }
-
     /** Validates Add/Remove references and supplies cycle-free choices for each package in authoring order. */
     public static PackageReferences packageReferences(ManifestDesc manifest) {
         Map<String, Set<String>> referrers = new LinkedHashMap<>();

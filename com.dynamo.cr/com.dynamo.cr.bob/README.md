@@ -319,14 +319,17 @@ stop active preview work and remove its cache; obsolete completions cannot
 replace a newer result. Ordinary editor builds
 also include manifest-selected resources. Bundling always resolves and validates
 the manifest again. Proxy `Exclude` values remain serialized, but the manifest
-controls packaging when selected. When opening a project without a configured
-manifest, the editor migrates checked proxy `Exclude` values into exact collection
-path rules in one package. Remove rules for unchecked proxy targets preserve
+controls packaging when selected. When opening a bundle dialog without a configured
+manifest, the editor offers to migrate existing Live Update settings and checked
+proxy `Exclude` values into a manifest. Choosing **Not Now** leaves the project
+unchanged. Accepting creates exact collection path rules in one package.
+Remove rules for unchecked proxy targets preserve
 their content and shared dependencies in the base. This conservatively retains
 their entire closures, including nested proxy content; the generated rules can
 be refined afterward. It creates `liveupdate.lumanifest` (with a numeric suffix
-if that path is occupied) and saves the `liveupdate.manifest` setting in
-`game.project`. Proxy files remain unchanged. Existing manifests are not migrated.
+if that path is occupied) and selects it in `game.project` through an undoable edit.
+The normal save and bundle workflow saves that setting. The legacy settings file
+and proxy files remain unchanged. Existing manifests are not migrated.
 The migration retains the ZIP or folder provider, defaulting to ZIP for other
 modes. Amazon publishing settings remain in `liveupdate.settings` for the final
 publishing phase. It keeps valid output names and uses `liveupdate` otherwise,

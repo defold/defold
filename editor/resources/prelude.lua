@@ -258,6 +258,26 @@ end
 
 -- Bundling: flow
 
+function editor.bundle.migrate_live_update()
+    local migration = editor.bundle.live_update_migration()
+    if not migration then
+        return
+    end
+    local migrate = editor.ui.show_dialog(editor.ui.dialog({
+        title = localization.message("liveupdate.migration-title"),
+        content = editor.ui.paragraph({text = localization.message("liveupdate.migration-description")}),
+        buttons = {
+            editor.ui.dialog_button({text = localization.message("liveupdate.migration-later"), cancel = true}),
+            editor.ui.dialog_button({text = localization.message("liveupdate.migration-confirm"), default = true, result = true})
+        }
+    }))
+    if migrate then
+        editor.create_resources({{migration.path, migration.content}})
+        editor.transact({editor.tx.set("/game.project", "liveupdate.manifest", migration.path)})
+        return migration.path
+    end
+end
+
 function editor.bundle.config(requested_dialog, prefs_key, dialog_component, errors_fn)
     -- TODO: remove migration from legacy prefs after sufficient time has passed (e.g. after 2026-01-13)
     if not editor.prefs.is_set(prefs_key .. ".variant") and editor.prefs.is_set("bundle.variant") then
@@ -272,6 +292,7 @@ function editor.bundle.config(requested_dialog, prefs_key, dialog_component, err
     local errors = errors_fn and errors_fn(config)
     local show_dialog = requested_dialog or errors
     if show_dialog then
+        editor.bundle.migrate_live_update()
         config = editor.ui.show_dialog(dialog_component({config = config, errors = errors}))
         if not config then
             error(editor.bundle.abort_message)

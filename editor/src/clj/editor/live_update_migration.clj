@@ -18,19 +18,16 @@
             [dynamo.graph :as g]
             [editor.collection-proxy :as collection-proxy]
             [editor.defold-project :as project]
-            [editor.disk :as disk]
-            [editor.form :as form]
-            [editor.localization :as localization]
-            [editor.notifications :as notifications]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [util.coll :as coll])
-  (:import [com.dynamo.bob.archive.liveupdate PackageOutputPath PackageResolver]
+  (:import [com.dynamo.bob.archive.liveupdate PackageOutputPath PackageResolver PackageResolver$Diagnostic PackageResolver$Severity]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc]
            [java.io File]
-           [java.nio.file FileAlreadyExistsException Files LinkOption OpenOption Path StandardOpenOption]
-           [java.util.function Function]))
+           [java.nio.file Files LinkOption Path]
+           [java.util.function Function]
+           [java.util.regex Pattern]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -63,8 +60,15 @@
                             ;; Leave unresolved paths for manifest validation.
                             (catch IllegalArgumentException _ nil))
         compression-level (get settings ["liveupdate" "zip-compression-level"])
-        manifest (protobuf/pb->map-without-defaults (PackageResolver/migrationManifest package-name provider excluded included))
-        base-name (get-in manifest [:packages 0 :name])
+        rules (coll/into-> included (mapv (fn [path] {:name path :path (Pattern/quote path)}) excluded)
+                (map (fn [path] {:name path :operation :remove :path (Pattern/quote path)})))
+        manifest {:packages [{:name package-name :provider provider :rules rules}]}
+        selection (PackageResolver/select (protobuf/map->pb LiveUpdateManifest$ManifestDesc manifest)
+                                          (into (vec excluded) included))
+        base-name (if (coll/any? #(= PackageResolver$Severity/ERROR (.severity ^PackageResolver$Diagnostic %))
+                                (.diagnostics selection))
+                    "liveupdate"
+                    package-name)
         package-name (loop [suffix 0]
                        (let [candidate (str base-name (when (pos? suffix) suffix))]
                          (if (and output-root
@@ -78,54 +82,36 @@
       (and (= "zip" provider) (some? compression-level))
       (assoc :providers [{:provider "zip" :properties [{:name "compression-level" :value (str compression-level)}]}]))))
 
-(defn- create-manifest! [workspace resource-map content]
+(defn- available-manifest-path [workspace resource-map]
   (loop [suffix 0]
     (let [proj-path (str "/liveupdate" (when (pos? suffix) suffix) ".lumanifest")
           manifest-resource (workspace/file-resource workspace proj-path)
-          created (when-not (contains? resource-map proj-path)
-                    (try
-                      ;; CREATE_NEW also protects ignored files and symlinks
-                      ;; absent from the workspace resource map.
-                      (Files/writeString (.toPath (io/file manifest-resource)) ^String content
-                                         (into-array OpenOption [StandardOpenOption/CREATE_NEW StandardOpenOption/WRITE]))
-                      manifest-resource
-                      (catch FileAlreadyExistsException _ nil)))]
-      (if created
-        created
-        (recur (inc suffix))))))
+          occupied (or (contains? resource-map proj-path)
+                       (Files/exists (.toPath (io/file manifest-resource))
+                                     (into-array LinkOption [LinkOption/NOFOLLOW_LINKS])))]
+      (if occupied
+        (recur (inc suffix))
+        proj-path))))
 
-(defn migrate!
-  "Migrate checked collection proxies once, after loading the project and before
-  starting its UI. Save only the new manifest and its game.project setting."
-  [project]
-  (g/let-ec [workspace (project/workspace project evaluation-context)
-             localization (workspace/localization workspace evaluation-context)
-             game-project (project/get-resource-node project "/game.project" evaluation-context)
-             game-project-resource (g/node-value game-project :resource evaluation-context)
-             settings (g/node-value game-project :settings-map evaluation-context)
-             manifest (when (and (not (g/error? settings))
-                                 (not (get settings ["liveupdate" "manifest"]))
-                                 (not (resource/read-only? game-project-resource)))
-                        (let [collection-paths (proxy-collection-paths evaluation-context)]
-                          (when (coll/not-empty (:excluded collection-paths))
-                            (let [settings-resource (get settings ["liveupdate" "settings"])
-                                  legacy-settings (when (and settings-resource (resource/exists? settings-resource))
-                                                    (g/node-value (project/get-resource-node project settings-resource evaluation-context)
-                                                                  :settings-map evaluation-context))]
-                              (migration-manifest (workspace/project-directory (:basis evaluation-context) workspace)
-                                                  collection-paths legacy-settings)))))
-             resource-map (when manifest (g/node-value workspace :resource-map evaluation-context))]
-    (when manifest
-      (let [manifest-resource (create-manifest! workspace resource-map (protobuf/map->str LiveUpdateManifest$ManifestDesc manifest))]
-        (workspace/resource-sync! workspace)
-        (g/let-ec [tx-data (form/set-value (:form-ops (g/node-value game-project :form-data evaluation-context))
-                                          ["liveupdate" "manifest"] manifest-resource)]
-          (g/transact {:undoable false} tx-data))
-        (disk/process-post-save-actions!
-          workspace
-          (disk/write-save-data-to-disk! [(g/node-value game-project :save-data)] nil localization nil))
-        (notifications/show! (workspace/notifications workspace)
-                             {:type :info
-                              :id ::migration
-                              :message (localization/message "liveupdate.migrated" {"manifest" (resource/proj-path manifest-resource)})})
-        manifest-resource))))
+(defn prepare
+  "Prepare manifest content for the bundle script
+  without modifying the project."
+  [project evaluation-context]
+  (let [workspace (project/workspace project evaluation-context)
+        game-project (project/get-resource-node project "/game.project" evaluation-context)
+        game-project-resource (g/node-value game-project :resource evaluation-context)
+        settings (g/node-value game-project :settings-map evaluation-context)]
+    (when (and (not (g/error? settings))
+               (not (get settings ["liveupdate" "manifest"]))
+               (not (resource/read-only? game-project-resource)))
+      (let [collection-paths (proxy-collection-paths evaluation-context)
+            settings-resource (get settings ["liveupdate" "settings"])
+            legacy-settings (when (and settings-resource (resource/exists? settings-resource))
+                              (g/node-value (project/get-resource-node project settings-resource evaluation-context)
+                                            :settings-map evaluation-context))]
+        (when (and (not (g/error? legacy-settings))
+                   (or legacy-settings (coll/not-empty (:excluded collection-paths))))
+          {:path (available-manifest-path workspace (g/node-value workspace :resource-map evaluation-context))
+           :content (protobuf/map->str LiveUpdateManifest$ManifestDesc
+                                      (migration-manifest (workspace/project-directory (:basis evaluation-context) workspace)
+                                                          collection-paths legacy-settings))})))))

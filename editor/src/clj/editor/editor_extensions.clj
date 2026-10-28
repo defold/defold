@@ -44,6 +44,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.library :as library]
+            [editor.live-update-migration :as live-update-migration]
             [editor.localization :as localization]
             [editor.lsp.async :as lsp.async]
             [editor.os :as os]
@@ -1109,7 +1110,9 @@
                                    (future/then (reload-resources!) rt/and-refresh-context))
                   :out (line-writer #(display-output! :out %))
                   :err (line-writer #(display-output! :err %))
-                  :env {"editor" {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!
+                  :env {"editor" {"bundle" {"project_binary_name" ext-project-binary-name ;; undocumented, hidden API!
+                                            "live_update_migration" (rt/lua-fn [{:keys [evaluation-context]}]
+                                                                      (live-update-migration/prepare project evaluation-context))}
                                   "get" (make-ext-get-fn project localization)
                                   "can_add" (graph/make-ext-can-add-fn project)
                                   "can_get" (make-ext-can-get-fn project)

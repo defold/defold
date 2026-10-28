@@ -17,15 +17,20 @@
             [clojure.test :refer [deftest is]]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
+            [editor.editor-extensions :as extensions]
+            [editor.editor-extensions.runtime :as rt]
+            [editor.future :as future]
             [editor.live-update-manifest :as manifest]
             [editor.live-update-migration :as migration]
             [editor.live-update-preview :as preview]
             [editor.resource :as resource]
             [editor.settings-core :as settings-core]
+            [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :as test-support]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.http-server :as http-server])
   (:import [com.dynamo.bob ClassLoaderResourceScanner Platform Progress Project TaskResult]
            [com.dynamo.bob.archive.liveupdate PackagePreview$Result PackageResolver$Package PackageResolver$Plan]
            [com.dynamo.bob.fs DefaultFileSystem]
@@ -35,6 +40,38 @@
            [java.util.zip ZipEntry ZipOutputStream]))
 
 (set! *warn-on-reflection* true)
+
+(def ^:private stopped-server
+  (http-server/stop! (http-server/start! (web-server/make-dynamic-handler []) 0)))
+
+(defn- offer-migration! [project accept]
+  (let [workspace (project/workspace project)]
+    (extensions/reload! project :all
+                        :prefs (test-util/make-test-prefs)
+                        :localization test-util/localization
+                        :web-server stopped-server
+                        :display-output! (fn [_ message] (print message))
+                        :reload-resources! (bound-fn []
+                                             (workspace/resource-sync! workspace)
+                                             (future/completed nil))
+                        :save! (bound-fn []
+                                 (test-util/save-project! project)
+                                 (future/completed nil))
+                        :open-resource! (fn [_ _] (future/completed nil))
+                        :fetch-libraries! (fn [] (future/completed [[] true]))
+                        :invoke-bob! (fn [_ _] (throw (AssertionError. "Migration must not invoke Bob"))))
+    (let [rt (:rt (g/with-auto-evaluation-context evaluation-context
+                   (extensions/ext-state project evaluation-context)))
+          offer (rt/invoke-immediate-1 rt
+                  (rt/bind rt (rt/read "return function(accept)
+                                         editor.ui.show_dialog = function() return accept end
+                                         local path = editor.bundle.migrate_live_update()
+                                         if path then editor.save() end
+                                         return path
+                                       end")))
+          path (rt/->clj rt @(rt/invoke-suspending-1 rt offer (rt/->lua accept)))]
+      (when path
+        (workspace/file-resource workspace path)))))
 
 (defn- build-preview! [resources contents manifest-path options cancelled?]
   (let [controller (preview/controller)]
@@ -83,7 +120,7 @@
           (let [original-files (coll/into-> ["/main.collection" "/checked.collectionproxy" "/duplicate.collectionproxy"
                                             "/unchecked.collectionproxy" "/liveupdate.lumanifest"] {}
                                  (map (fn [path] [path (slurp (workspace/file-resource workspace path))])))
-                manifest-resource (migration/migrate! project)
+                manifest-resource (offer-migration! project true)
                 manifest-node (project/get-resource-node project manifest-resource)
                 game-project (project/get-resource-node project "/game.project")]
             (is (= "/liveupdate1.lumanifest" (resource/proj-path manifest-resource)))
@@ -100,7 +137,7 @@
               (is (= content (slurp (workspace/file-resource workspace path))) path))
             (test-util/clear-cached-save-data! project)
             (is (= #{} (test-util/dirty-proj-paths project)))
-            (is (nil? (migration/migrate! project)))
+            (is (nil? (offer-migration! project true)))
             (let [^PackagePreview$Result result (build-preview! (manifest/source-resources (g/node-value workspace :resource-map)
                                                                                            (g/node-value workspace :live-update-output-paths))
                                                                {} "/liveupdate1.lumanifest" {} (constantly false))
@@ -111,7 +148,7 @@
               (is (contains? (.base plan) "/unchecked.collectionc"))))
           (str (workspace/project-directory workspace)))]
     (test-util/with-loaded-project migrated-project-path
-      (is (nil? (migration/migrate! project)))
+      (is (nil? (offer-migration! project true)))
       (is (nil? (project/get-resource-node project "/liveupdate2.lumanifest")))
       (is (= #{} (test-util/dirty-proj-paths project))))))
 
@@ -135,7 +172,7 @@
                                                              {:id "excluded" :type "collectionproxy" :data {:collection "/excluded.collection" :exclude true}}]}}]})
     (workspace/resource-sync! workspace)
     (let [original (slurp (workspace/file-resource workspace "/main.collection"))
-          migrated (migration/migrate! project)
+          migrated (offer-migration! project true)
           ^PackagePreview$Result result (build-preview! (manifest/source-resources (g/node-value workspace :resource-map)
                                                                                    (g/node-value workspace :live-update-output-paths))
                                                        {} (resource/proj-path migrated) {} (constantly false))
@@ -154,17 +191,17 @@
     (let [game-project (project/get-resource-node project "/game.project")
           proxy (project/get-resource-node project "/proxy.collectionproxy")]
       (test-util/set-setting! game-project ["liveupdate" "manifest"] nil)
-      (is (nil? (migration/migrate! project)))
+      (is (nil? (offer-migration! project true)))
       (g/set-property! proxy :exclude true)
       (doseq [path ["/packages.lumanifest" "/missing.lumanifest"]]
         (test-util/set-setting! game-project ["liveupdate" "manifest"] (workspace/file-resource workspace path))
-        (is (nil? (migration/migrate! project)))
+        (is (nil? (offer-migration! project true)))
         (is (= path (resource/proj-path (test-util/get-setting game-project ["liveupdate" "manifest"])))))
       (test-util/set-setting! game-project ["liveupdate" "manifest"] nil)
       (let [file (io/file (workspace/file-resource workspace "/game.project"))]
         (try
           (is (.setWritable file false))
-          (is (nil? (migration/migrate! project)))
+          (is (nil? (offer-migration! project true)))
           (finally
             (.setWritable file true))))
       (is (nil? (project/get-resource-node project "/liveupdate.lumanifest"))))))
@@ -185,7 +222,7 @@
       (workspace/resource-sync! workspace)
       (test-util/set-setting! (project/get-resource-node project "/game.project") ["liveupdate" "manifest"] nil)
       (let [settings-before (slurp (workspace/file-resource workspace "/liveupdate.settings"))
-            node (project/get-resource-node project (migration/migrate! project))
+            node (project/get-resource-node project (offer-migration! project true))
             package (first (:packages (g/node-value node :save-value)))]
         (is (= expected-provider (get package :provider "zip")))
         (is (= expected-name (:name package)))
@@ -195,6 +232,34 @@
                  [{:provider "zip" :properties [{:name "compression-level" :value "8"}]}])
                (:providers (g/node-value node :save-value))))
         (is (= settings-before (slurp (workspace/file-resource workspace "/liveupdate.settings"))))))))
+
+;; Opening the bundle dialog can migrate configured settings without excluded
+;; proxies. Declining has no side effects, and accepting retains the old file.
+(deftest offer-settings-migration
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (let [game-project (project/get-resource-node project "/game.project")
+          legacy-resource (workspace/file-resource workspace "/deployment.settings")
+          legacy-content "[liveupdate]\nmode = Folder\noutput-folder-name = episodes\noutput-directory = packages\n"
+          project-content (slurp (workspace/file-resource workspace "/game.project"))]
+      (spit legacy-resource legacy-content)
+      (workspace/resource-sync! workspace)
+      (test-util/set-setting! game-project ["liveupdate" "manifest"] nil)
+      (test-util/set-setting! game-project ["liveupdate" "settings"] legacy-resource)
+      (is (= "/liveupdate.lumanifest"
+             (:path (g/with-auto-evaluation-context evaluation-context
+                      (migration/prepare project evaluation-context)))))
+      (is (nil? (project/get-resource-node project "/liveupdate.lumanifest")))
+      (is (nil? (offer-migration! project false)))
+      (is (nil? (test-util/get-setting game-project ["liveupdate" "manifest"])))
+      (is (= project-content (slurp (workspace/file-resource workspace "/game.project"))))
+      (let [manifest-resource (offer-migration! project true)
+            value (g/node-value (project/get-resource-node project manifest-resource) :save-value)]
+        (is (= "folder" (get-in value [:packages 0 :provider])))
+        (is (= "episodes" (get-in value [:packages 0 :name])))
+        (is (= "packages" (:output-directory value)))
+        (is (= legacy-resource (test-util/get-setting game-project ["liveupdate" "settings"])))
+        (is (= legacy-content (slurp legacy-resource)))
+        (is (nil? (offer-migration! project true)))))))
 
 ;; Migrating a previously built project must produce usable packages without
 ;; overwriting its legacy ZIP/folder or other files occupying candidate names.
@@ -219,7 +284,7 @@
             occupied (io/file directory (str "episodes1" extension))]
         (spit occupied "Existing user file")
         (workspace/resource-sync! workspace)
-        (let [node (project/get-resource-node project (migration/migrate! project))]
+        (let [node (project/get-resource-node project (offer-migration! project true))]
           (is (= "episodes2" (get-in (g/node-value node :save-value) [:packages 0 :name])))
           (is (= "packages" (:output-directory (g/node-value node :save-value)))))
         (let [plan (build-packages! workspace)]
@@ -247,6 +312,6 @@
         (workspace/resource-sync! workspace)
         (test-util/set-setting! (project/get-resource-node project "/game.project") ["liveupdate" "manifest"] nil)
         (let [archive-before (vec (java.nio.file.Files/readAllBytes (.toPath library)))
-              manifest-node (project/get-resource-node project (migration/migrate! project))]
+              manifest-node (project/get-resource-node project (offer-migration! project true))]
           (is (= #{"/packages/level.collection"} (g/node-value manifest-node :selected-paths)))
           (is (= archive-before (vec (java.nio.file.Files/readAllBytes (.toPath library))))))))))

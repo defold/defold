@@ -42,30 +42,6 @@ public class PackageResolverTest {
     }
     private static Resource leaf() { return new Resource(Map.of()); }
 
-    // Migration retains mixed targets and shared content reached through unchecked proxies in the base.
-    @Test
-    public void migrationPreservesIncludedCollections() {
-        var manifest = PackageResolver.migrationManifest("legacy.zip", "zip",
-                List.of("/mixed+[1].collection", "/excluded.collection"),
-                List.of("/mixed+[1].collection", "/included.collection"));
-        var plan = PackageResolver.resolve(manifest,
-                Map.of("/mixed+[1].collection", List.of("/mixed.collectionc"),
-                       "/included.collection", List.of("/included.collectionc"),
-                       "/excluded.collection", List.of("/excluded.collectionc")),
-                Map.of("/main.collectionc", new Resource(Map.of("/mixed.collectionc", Loading.DEFERRED,
-                                "/included.collectionc", Loading.DEFERRED, "/excluded.collectionc", Loading.DEFERRED)),
-                       "/mixed.collectionc", leaf(),
-                       "/included.collectionc", new Resource(Map.of("/shared.scriptc", Loading.EAGER)),
-                       "/excluded.collectionc", new Resource(Map.of("/shared.scriptc", Loading.EAGER)),
-                       "/shared.scriptc", leaf()),
-                List.of("/main.collectionc"), List.of(), true);
-        assertFalse(plan.hasErrors());
-        assertEquals(Set.of("/excluded.collectionc"), plan.packages().get("legacy.zip").resources());
-        assertEquals(Set.of("/main.collectionc", "/mixed.collectionc", "/included.collectionc", "/shared.scriptc"), plan.base());
-        assertEquals(List.of(RuleOperation.ADD, RuleOperation.ADD, RuleOperation.REMOVE, RuleOperation.REMOVE),
-                manifest.getPackages(0).getRulesList().stream().map(RuleDesc::getOperation).toList());
-    }
-
     // Ordered removal discards previous provenance and a subsequent add restores membership with its own rule.
     @Test
     public void orderedRulesAndProvenance() {
