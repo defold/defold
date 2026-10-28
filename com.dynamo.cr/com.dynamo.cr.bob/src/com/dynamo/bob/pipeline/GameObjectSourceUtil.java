@@ -22,7 +22,6 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.gameobject.proto.GameObjectSource;
 import com.dynamo.gamesys.proto.DataProto.Data;
-import com.dynamo.proto.DdfStruct.Value;
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Descriptors.OneofDescriptor;
@@ -110,11 +109,11 @@ public final class GameObjectSourceUtil {
         requireNonEmpty(input, desc.getType(), "type");
 
         FieldDescriptor selected = selectedPayload(input, desc, "Embedded component '" + desc.getId() + "'");
+        if (selected.getName().equals("legacy_data")) {
+            return legacyInput(desc.getLegacyData());
+        }
         if (selected.getName().equals("component_data")) {
             Data data = desc.getComponentData();
-            if (data.getData().getKindCase() == Value.KindCase.STRING) {
-                return legacyInput(data.getData().getString());
-            }
             Message.Builder builder = ProtoBuilder.newBuilder("." + desc.getType());
             if (builder.getDescriptorForType() == Data.getDescriptor()) {
                 return typedInput(data);

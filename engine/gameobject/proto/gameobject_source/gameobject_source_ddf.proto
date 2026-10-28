@@ -47,6 +47,9 @@ message EmbeddedComponentDesc
         // Shared by lights and extension components, whose schemas are not
         // available when this authoring format is generated.
         dmGameSystemDDF.Data component_data = 17;
+        // Text for legacy files and components without a protobuf schema.
+        // Keep it separate so component_data can contain any Value kind.
+        string legacy_data = 18;
     }
 }
 

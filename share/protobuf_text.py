@@ -76,7 +76,7 @@ def _copy_source(parsed, target):
                     merge_gameobject_source_text(value, target.prototype)
                     target.prototype.SetInParent()
                 else:
-                    target.component_data.data.string = value
+                    target.legacy_data = value
         elif field.message_type is None:
             if field.is_repeated:
                 getattr(target, field.name).extend(value)
@@ -111,8 +111,6 @@ def merge_gameobject_source_text(text, message):
 
 def component_data_message(data, message):
     """Decode shared component data using the component's own protobuf schema."""
-    if data.data.WhichOneof("kind") == "string":
-        return merge_gameobject_source_text(data.data.string, message)
     if message.DESCRIPTOR.full_name == "dmGameSystemDDF.Data":
         message.CopyFrom(data)
         return message

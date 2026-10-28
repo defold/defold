@@ -125,7 +125,7 @@
         legacy-text
         (case payload-key
           :data (when (string? payload) payload)
-          :component-data (get-in payload [:data :string])
+          :legacy-data payload
           nil)
 
         component-data
@@ -201,7 +201,7 @@
                                               (:data embedded-instance-desc)))))))
 
 (defn source-encode-embedded-component-desc
-  "Projects canonical :data to a built-in payload or shared component data."
+  "Projects canonical :data to a typed, shared, or legacy text payload."
   [ext->embedded-component-resource-type embedded-component-desc]
   (let [component-type (:type embedded-component-desc)
         component-resource-type (ext->embedded-component-resource-type component-type)
@@ -209,17 +209,22 @@
         typed-field-info (typed-payload-field-info component-type component-resource-type)
         source-embedded-component-desc (strip-embedded-component-payload embedded-component-desc)
         component-data (:data embedded-component-desc)]
-    (if typed-field-info
+    (cond
+      typed-field-info
       (assoc source-embedded-component-desc
         (component-type->payload-key component-type) ((:encode-pb-map-fn component-resource-type) component-data))
+
+      ddf-type
       (assoc source-embedded-component-desc
         :component-data
-        (if-not ddf-type
-          {:data {:string ((:write-fn component-resource-type) component-data)}}
-          (let [pb-map ((:encode-pb-map-fn component-resource-type) component-data)]
-            (if (= DataProto$Data ddf-type)
-              pb-map
-              (protobuf/pb-map->data ddf-type pb-map))))))))
+        (let [pb-map ((:encode-pb-map-fn component-resource-type) component-data)]
+          (if (= DataProto$Data ddf-type)
+            pb-map
+            (protobuf/pb-map->data ddf-type pb-map))))
+
+      :else
+      (assoc source-embedded-component-desc
+        :legacy-data ((:write-fn component-resource-type) component-data)))))
 
 (defn source-encode-prototype-desc
   [ext->embedded-component-resource-type prototype-desc]

@@ -2037,15 +2037,16 @@ object {
 ;; Verifies that repeated occurrences of one source payload arm overwrite or merge normally.
 (deftest strict-text-format-parser-allows-same-source-payload-field-test
   (testing "Allows repeated scalar payload fields."
-    (is (= {:id "component"
-            :type "extension"
-            :component-data {:data {:string "second"}}}
-           (protobuf/str->map-without-defaults-strict
-             GameObjectSource$EmbeddedComponentDesc
-             (str "id: 'component'\n"
-                  "type: 'extension'\n"
-                  "data: 'first'\n"
-                  "data: 'second'\n")))))
+    (doseq [field-name ["data" "legacy_data"]]
+      (is (= {:id "component"
+              :type "extension"
+              :legacy-data "second"}
+             (protobuf/str->map-without-defaults-strict
+               GameObjectSource$EmbeddedComponentDesc
+               (str "id: 'component'\n"
+                    "type: 'extension'\n"
+                    field-name ": 'first'\n"
+                    field-name ": 'second'\n"))))))
 
   (testing "Merges repeated message payload fragments."
     (is (= {:id "component"

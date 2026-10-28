@@ -49,6 +49,11 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    @com.dynamo.bob.BuilderParams(name = "DataExtensionTest", inExts = ".test_data_component", outExt = ".datac")
+    @com.dynamo.bob.ProtoParams(srcClass = Data.class, messageClass = Data.class)
+    public static class DataExtensionBuilder extends com.dynamo.bob.ProtoBuilder<Data.Builder> {
+    }
+
     private static String escapeProtobufString(String value) {
         return value.replace("\\", "\\\\")
                 .replace("\"", "\\\"")
@@ -214,13 +219,35 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
         GameObjectSource.EmbeddedComponentDesc legacy = GameObjectSource.EmbeddedComponentDesc.newBuilder()
                 .setId("light")
                 .setType("point_light")
-                .setComponentData(Data.newBuilder().setData(Value.newBuilder().setString(legacyText)))
+                .setLegacyData(legacyText)
                 .build();
         GameObjectSourceUtil.GeneratedInput legacyInput = GameObjectSourceUtil.getEmbeddedComponentInput(
                 getProject().getResource("/test.go"), legacy);
 
         Assert.assertFalse(legacyInput.isTyped());
         Assert.assertArrayEquals(legacyText.getBytes(StandardCharsets.UTF_8), legacyInput.getContent());
+    }
+
+    // Verifies that string-valued Data compiles unchanged and remains distinct from legacy source text.
+    @Test
+    public void testStringDataExtensionPayloads() throws Exception {
+        String[] values = {"", "hello", "data { number: 1.0 }", "Spelare åäö \ud83d\ude00"};
+        for (int i = 0; i < values.length; ++i) {
+            Data data = Data.newBuilder().setData(Value.newBuilder().setString(values[i])).build();
+            GameObjectSource.PrototypeDesc source = GameObjectSource.PrototypeDesc.newBuilder()
+                    .addEmbeddedComponents(GameObjectSource.EmbeddedComponentDesc.newBuilder()
+                            .setId("extension").setType("test_data_component").setComponentData(data))
+                    .build();
+            String text = com.google.protobuf.TextFormat.printer().printToString(source);
+            Assert.assertEquals(data, getMessage(build("/data-string-" + i + ".go", text), Data.class));
+
+            String legacyText = com.google.protobuf.TextFormat.printer().printToString(data);
+            for (String field : new String[] {"data", "legacy_data"}) {
+                String legacySource = "embedded_components { id: 'extension' type: 'test_data_component' "
+                        + field + ": \"" + escapeProtobufString(legacyText) + "\" }";
+                Assert.assertEquals(data, getMessage(build("/" + field + "-string-" + i + ".go", legacySource), Data.class));
+            }
+        }
     }
 
     @Test

@@ -18,8 +18,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.dynamo.gameobject.proto.GameObjectSource;
-import com.dynamo.gamesys.proto.DataProto.Data;
-import com.dynamo.proto.DdfStruct.Value;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
@@ -71,10 +69,7 @@ final class GameObjectSourceFormat {
                         ProtoUtil.mergeStrictText(text, prototype);
                         target.setField(target.getDescriptorForType().findFieldByName("prototype"), prototype.buildPartial());
                     } else {
-                        // A transient text value keeps legacy component bytes intact
-                        // until the component's registered reader handles them.
-                        target.setField(target.getDescriptorForType().findFieldByName("component_data"),
-                                Data.newBuilder().setData(Value.newBuilder().setString(text)).build());
+                        target.setField(target.getDescriptorForType().findFieldByName("legacy_data"), text);
                     }
                 }
             } else if (field.isRepeated()) {

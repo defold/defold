@@ -126,10 +126,12 @@ def embedded_component_message(embedded):
     payload = embedded.WhichOneof("payload")
     if payload is None:
         return None
-    if payload == "component_data":
+    if payload in ("component_data", "legacy_data"):
         message_cls = EMBEDDED_PROTO_BY_TYPE.get(embedded.type)
         if message_cls is None:
             return None
+        if payload == "legacy_data":
+            return merge_gameobject_source_text(embedded.legacy_data, message_cls())
         return component_data_message(embedded.component_data, message_cls())
     return getattr(embedded, payload)
 

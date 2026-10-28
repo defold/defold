@@ -33,8 +33,43 @@ class SourceFormatTest(unittest.TestCase):
         source = merge_gameobject_source_text(text_format.MessageToString(collection), gameobject_source_ddf_pb2.CollectionDesc())
         embedded = source.embedded_instances[0]
         self.assertEqual("prototype", embedded.WhichOneof("payload"))
-        self.assertEqual(sprite, component_data_message(embedded.prototype.embedded_components[0].component_data,
-                                                       sprite_ddf_pb2.SpriteDesc()))
+        component = embedded.prototype.embedded_components[0]
+        self.assertEqual("legacy_data", component.WhichOneof("payload"))
+        self.assertEqual(sprite, merge_gameobject_source_text(component.legacy_data, sprite_ddf_pb2.SpriteDesc()))
+
+    # String-valued Data must round-trip without being parsed as legacy protobuf source.
+    def test_string_data_roundtrip(self):
+        for value in ("", "hello", "data { number: 1.0 }", "Spelare åäö 😀"):
+            with self.subTest(value=value):
+                message = data_ddf_pb2.Data()
+                message.data.string = value
+                embedded = gameobject_source_ddf_pb2.EmbeddedComponentDesc(id="extension", type="data_extension")
+                message_to_component_data(message, embedded.component_data)
+                parsed = merge_gameobject_source_text(text_format.MessageToString(embedded),
+                                                     gameobject_source_ddf_pb2.EmbeddedComponentDesc())
+                self.assertEqual(message, component_data_message(parsed.component_data, data_ddf_pb2.Data()))
+
+    # Released string payloads remain distinguishable from structured string-valued Data.
+    def test_released_string_data(self):
+        message = data_ddf_pb2.Data()
+        message.data.string = "hello"
+        legacy = gameobject_ddf_pb2.EmbeddedComponentDesc(id="extension", type="data_extension",
+                                                       data=text_format.MessageToString(message))
+        parsed = merge_gameobject_source_text(text_format.MessageToString(legacy),
+                                             gameobject_source_ddf_pb2.EmbeddedComponentDesc())
+        self.assertEqual("legacy_data", parsed.WhichOneof("payload"))
+        self.assertEqual(message, merge_gameobject_source_text(parsed.legacy_data, data_ddf_pb2.Data()))
+
+    # Resource migration must still rewrite paths inside the distinct legacy payload.
+    def test_legacy_resource_path_conversion(self):
+        from fix_resource_paths import fix_source_prototype
+
+        source = gameobject_source_ddf_pb2.PrototypeDesc()
+        source.embedded_components.add(id="factory", type="factory", legacy_data='prototype: "player.go"')
+        fix_source_prototype(source)
+        component = source.embedded_components[0]
+        self.assertEqual("factory", component.WhichOneof("payload"))
+        self.assertEqual("/player.go", component.factory.prototype)
 
     def test_structured_extension_fields(self):
         for message in (sprite_ddf_pb2.SpriteDesc(default_animation="idle", blend_mode=sprite_ddf_pb2.SpriteDesc.BLEND_MODE_ADD),
@@ -80,7 +115,9 @@ class SourceFormatTest(unittest.TestCase):
 
     def test_rejects_conflicting_payloads(self):
         for text in ('id: "sprite" type: "sprite" data: "" sprite {}',
-                     'id: "sprite" type: "sprite" component_data {} sprite {}'):
+                     'id: "sprite" type: "sprite" component_data {} sprite {}',
+                     'id: "sprite" type: "sprite" data: "" legacy_data: ""',
+                     'id: "sprite" type: "sprite" legacy_data: "" component_data {}'):
             with self.assertRaises(text_format.ParseError):
                 merge_gameobject_source_text(text, gameobject_source_ddf_pb2.EmbeddedComponentDesc())
 

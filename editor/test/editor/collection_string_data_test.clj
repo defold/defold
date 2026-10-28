@@ -299,3 +299,53 @@
            (get-in source [:component-data :data :struct :fields "prototype" :string])))
     (is (= canonical
            (collection-string-data/source-decode-embedded-component-desc ext->resource-type source)))))
+
+;; String-valued Data must survive saving and loading without being mistaken for legacy source text.
+(deftest string-data-extension-roundtrip-test
+  (let [resource-type
+        {:ddf-type DataProto$Data
+         :sanitize-pb-map-fn data/data-desc-pb-map->data-desc
+         :encode-pb-map-fn data/data-desc->data-desc-pb-map
+         :read-fn (partial read-pb-map DataProto$Data data/data-desc-pb-map->data-desc)
+         :write-fn (partial write-pb-map DataProto$Data data/data-desc->data-desc-pb-map)}
+
+        resource-types {"data_extension" resource-type}]
+    (doseq [value ["" "hello" "data { number: 1.0 }" "Spelare åäö 😀"]]
+      (let [canonical
+            {:embedded-components [{:id "extension"
+                                    :type "data_extension"
+                                    :data {:data value}}]}
+
+            source (collection-string-data/source-encode-prototype-desc resource-types canonical)
+            source-text (protobuf/map->str GameObjectSource$PrototypeDesc source)
+
+            legacy-text
+            (protobuf/map->str GameObject$PrototypeDesc
+                               (collection-string-data/string-encode-prototype-desc resource-types canonical))]
+        (is (= value
+               (get-in source [:embedded-components 0 :component-data :data :string])))
+        (doseq [text [source-text legacy-text]]
+          (is (= canonical
+                 (collection-string-data/source-decode-prototype-desc
+                   resource-types
+                   (protobuf/str->map-without-defaults-strict GameObjectSource$PrototypeDesc text)))))))))
+
+;; Components without protobuf schemas keep their text in a distinct payload, including empty text.
+(deftest non-protobuf-component-roundtrip-test
+  (let [resource-types {"script" {:read-fn (fn [reader] {:text (slurp reader)})
+                                 :write-fn :text}}]
+    (doseq [text ["" "print(\"Spelare åäö 😀\")\n"]]
+      (let [canonical
+            {:embedded-components [{:id "script"
+                                    :type "script"
+                                    :data {:text text}}]}
+
+            source (collection-string-data/source-encode-prototype-desc resource-types canonical)]
+        (is (= text
+               (get-in source [:embedded-components 0 :legacy-data])))
+        (is (= canonical
+               (collection-string-data/source-decode-prototype-desc
+                 resource-types
+                 (protobuf/str->map-without-defaults-strict
+                   GameObjectSource$PrototypeDesc
+                   (protobuf/map->str GameObjectSource$PrototypeDesc source)))))))))

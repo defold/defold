@@ -98,7 +98,10 @@ def fix_shared_embedded_component(embedded):
         return
 
     embedded_message = embedded_type.new_message()
-    component_data_message(embedded.component_data, embedded_message)
+    if embedded.WhichOneof('payload') == 'legacy_data':
+        merge_gameobject_source_text(embedded.legacy_data, embedded_message)
+    else:
+        component_data_message(embedded.component_data, embedded_message)
     fix_resource_files(embedded_message)
     payload_field = embedded.DESCRIPTOR.fields_by_name.get(embedded.type)
     if payload_field is not None and payload_field.message_type == embedded_message.DESCRIPTOR:
@@ -109,7 +112,7 @@ def fix_shared_embedded_component(embedded):
 
 def fix_source_prototype(prototype):
     for embedded in prototype.embedded_components:
-        if embedded.WhichOneof('payload') == 'component_data':
+        if embedded.WhichOneof('payload') in ('component_data', 'legacy_data'):
             fix_shared_embedded_component(embedded)
 
 
