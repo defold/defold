@@ -111,6 +111,8 @@
                           (map resource/proj-path))]
               (is (.hasMeshSet compiled))
               (is (= "" (.getRigScene compiled)))
+              (is (not (.hasSkeleton compiled)))
+              (is (not (.hasAnimationSet compiled)))
               (is (pos? (.getVertexCount mesh)))
               (is (zero? (.getPositionsCount mesh)))
               (is (string/ends-with? (.getBuffers compiled) ".modelbuffersc"))

@@ -355,11 +355,15 @@
                                                 (:morph-target-textures mesh-content))))
             animation-set-build-target (if (nil? animation-set-build-target-single) animation-set-build-target animation-set-build-target-single)
             rt-pb-msg (cond-> {:buffers (get-in mesh-set-build-target [:user-data :model-buffers])
-                               :skeleton (:resource skeleton-build-target)
-                               :animation-set (:resource animation-set-build-target)
                                :default-animation default-animation
                                :materials (:materials pb-msg)
                                :create-go-bones create-go-bones}
+                        skeleton-build-target
+                        (assoc :skeleton (:resource skeleton-build-target))
+
+                        animation-set-build-target
+                        (assoc :animation-set (:resource animation-set-build-target))
+
                         (not (str/blank? mesh-name))
                         (assoc :mesh-index mesh-index)
 
