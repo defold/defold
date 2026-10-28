@@ -25,21 +25,25 @@ namespace dmGameSystem
     enum
     {
         HEADER_SIZE = 36,
-        RANGE_SIZE = 28,
-        ATTRIBUTE_COUNT = 8
+        RANGE_SIZE = 28
+    };
+    // Attribute indices are also the MBFC mask bit positions.
+    enum
+    {
+        ATTRIBUTE_POSITION = 0,
+        ATTRIBUTE_NORMAL = 1,
+        ATTRIBUTE_TANGENT = 2,
+        ATTRIBUTE_COLOR = 3,
+        ATTRIBUTE_TEXCOORD0 = 4,
+        ATTRIBUTE_TEXCOORD1 = 5,
+        ATTRIBUTE_WEIGHTS = 6,
+        ATTRIBUTE_BONE_INDICES = 7,
+        ATTRIBUTE_COUNT
     };
     enum
     {
-        ATTRIBUTE_POSITION = 1 << 0,
-        ATTRIBUTE_NORMAL = 1 << 1,
-        ATTRIBUTE_TANGENT = 1 << 2,
-        ATTRIBUTE_COLOR = 1 << 3,
-        ATTRIBUTE_TEXCOORD0 = 1 << 4,
-        ATTRIBUTE_TEXCOORD1 = 1 << 5,
-        ATTRIBUTE_WEIGHTS = 1 << 6,
-        ATTRIBUTE_BONE_INDICES = 1 << 7,
-        ATTRIBUTE_MASK_SKINNING = ATTRIBUTE_WEIGHTS | ATTRIBUTE_BONE_INDICES,
-        ATTRIBUTE_MASK_ALL = ATTRIBUTE_POSITION | ATTRIBUTE_NORMAL | ATTRIBUTE_TANGENT | ATTRIBUTE_COLOR | ATTRIBUTE_TEXCOORD0 | ATTRIBUTE_TEXCOORD1 | ATTRIBUTE_MASK_SKINNING
+        ATTRIBUTE_MASK_SKINNING = (1 << ATTRIBUTE_WEIGHTS) | (1 << ATTRIBUTE_BONE_INDICES),
+        ATTRIBUTE_MASK_ALL = (1 << ATTRIBUTE_COUNT) - 1
     };
     // Indexed by attribute-mask bit position: position, normal, tangent, color,
     // texcoord0, texcoord1, skin weights, bone indices. Counts are scalar values
@@ -138,7 +142,7 @@ namespace dmGameSystem
             descriptor.m_IndexElementSize = ReadInteger(range + 20);
             descriptor.m_AttributeMask = ReadInteger(range + 24);
             bool skinned = (descriptor.m_AttributeMask & ATTRIBUTE_MASK_SKINNING) == ATTRIBUTE_MASK_SKINNING;
-            if (descriptor.m_AttributeMask > ATTRIBUTE_MASK_ALL || !(descriptor.m_AttributeMask & ATTRIBUTE_POSITION) ||
+            if (descriptor.m_AttributeMask > ATTRIBUTE_MASK_ALL || !(descriptor.m_AttributeMask & (1u << ATTRIBUTE_POSITION)) ||
                 ((descriptor.m_AttributeMask & ATTRIBUTE_MASK_SKINNING) != 0 && !skinned) ||
                 descriptor.m_Stride != (skinned ? sizeof(dmRig::RigModelSkinnedVertex) : sizeof(dmRig::RigModelVertex)) ||
                 descriptor.m_VertexOffset != Align(vertex_end, 16) || descriptor.m_IndexOffset != Align(index_end, 4) ||
@@ -276,7 +280,7 @@ namespace dmGameSystem
                 {
                     if (!(descriptor.m_AttributeMask & (1u << a)))
                         continue;
-                    if (a == 7)
+                    if (a == ATTRIBUTE_BONE_INDICES)
                         cpu_mesh.m_BoneIndices.m_Data = (uint32_t*)write;
                     else
                         *streams[a] = (float*)write;
@@ -289,7 +293,7 @@ namespace dmGameSystem
                             uint32_t bits = ReadInteger(vertex + c * sizeof(float));
                             float value;
                             memcpy(&value, &bits, sizeof(value));
-                            if (a == 7)
+                            if (a == ATTRIBUTE_BONE_INDICES)
                                 ((uint32_t*)write)[c] = (uint32_t)value;
                             else
                                 ((float*)write)[c] = value;

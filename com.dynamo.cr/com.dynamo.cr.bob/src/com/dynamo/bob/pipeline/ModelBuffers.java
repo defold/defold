@@ -23,6 +23,7 @@ import java.util.TreeMap;
 
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.rig.proto.Rig.IndexBufferFormat;
 import com.dynamo.rig.proto.Rig.Material;
 import com.dynamo.rig.proto.Rig.Mesh;
 import com.dynamo.rig.proto.Rig.MeshSet;
@@ -44,15 +45,19 @@ public final class ModelBuffers {
     static final int VERSION = 2;
     private static final int HEADER_SIZE = 36;
     private static final int RANGE_SIZE = 28;
-    private static final int ATTRIBUTE_POSITION = 1 << 0;
-    private static final int ATTRIBUTE_NORMAL = 1 << 1;
-    private static final int ATTRIBUTE_TANGENT = 1 << 2;
-    private static final int ATTRIBUTE_COLOR = 1 << 3;
-    private static final int ATTRIBUTE_TEXCOORD0 = 1 << 4;
-    private static final int ATTRIBUTE_TEXCOORD1 = 1 << 5;
-    private static final int ATTRIBUTE_WEIGHTS = 1 << 6;
-    private static final int ATTRIBUTE_BONE_INDICES = 1 << 7;
-    private static final int ATTRIBUTE_MASK_SKINNING = ATTRIBUTE_WEIGHTS | ATTRIBUTE_BONE_INDICES;
+    private static final int STATIC_VERTEX_STRIDE = 72;
+    private static final int SKINNED_VERTEX_STRIDE = 104;
+
+    // Attribute indices are also the MBFC mask bit positions.
+    private static final int ATTRIBUTE_POSITION = 0;
+    private static final int ATTRIBUTE_NORMAL = 1;
+    private static final int ATTRIBUTE_TANGENT = 2;
+    private static final int ATTRIBUTE_COLOR = 3;
+    private static final int ATTRIBUTE_TEXCOORD0 = 4;
+    private static final int ATTRIBUTE_TEXCOORD1 = 5;
+    private static final int ATTRIBUTE_WEIGHTS = 6;
+    private static final int ATTRIBUTE_BONE_INDICES = 7;
+    private static final int ATTRIBUTE_MASK_SKINNING = (1 << ATTRIBUTE_WEIGHTS) | (1 << ATTRIBUTE_BONE_INDICES);
     // Scalar values per vertex attribute in the packed layout. Array indices match
     // attribute-mask bit positions, not the flag values themselves. Missing source
     // attributes within the selected layout still occupy fixed-width GPU slots;
@@ -77,14 +82,14 @@ public final class ModelBuffers {
     // Tracks source streams, including the paired skinning streams that select
     // the larger vertex layout. It does not strip unused GPU attribute slots.
     private static int attributeMask(Mesh mesh) {
-        int mask = ATTRIBUTE_POSITION;
-        if (mesh.getNormalsCount() != 0) mask |= ATTRIBUTE_NORMAL;
-        if (mesh.getTangentsCount() != 0) mask |= ATTRIBUTE_TANGENT;
-        if (mesh.getColorsCount() != 0) mask |= ATTRIBUTE_COLOR;
-        if (mesh.getTexcoord0Count() != 0) mask |= ATTRIBUTE_TEXCOORD0;
-        if (mesh.getTexcoord1Count() != 0) mask |= ATTRIBUTE_TEXCOORD1;
-        if (mesh.getWeightsCount() != 0) mask |= ATTRIBUTE_WEIGHTS;
-        if (mesh.getBoneIndicesCount() != 0) mask |= ATTRIBUTE_BONE_INDICES;
+        int mask = 1 << ATTRIBUTE_POSITION;
+        if (mesh.getNormalsCount() != 0) mask |= 1 << ATTRIBUTE_NORMAL;
+        if (mesh.getTangentsCount() != 0) mask |= 1 << ATTRIBUTE_TANGENT;
+        if (mesh.getColorsCount() != 0) mask |= 1 << ATTRIBUTE_COLOR;
+        if (mesh.getTexcoord0Count() != 0) mask |= 1 << ATTRIBUTE_TEXCOORD0;
+        if (mesh.getTexcoord1Count() != 0) mask |= 1 << ATTRIBUTE_TEXCOORD1;
+        if (mesh.getWeightsCount() != 0) mask |= 1 << ATTRIBUTE_WEIGHTS;
+        if (mesh.getBoneIndicesCount() != 0) mask |= 1 << ATTRIBUTE_BONE_INDICES;
         return mask;
     }
 
@@ -182,10 +187,10 @@ public final class ModelBuffers {
         int indexSize = 0;
         for (int i = 0; i < count; ++i) {
             Mesh mesh = geometries.get(i);
-            int stride = (attributeMask(mesh) & ATTRIBUTE_MASK_SKINNING) == ATTRIBUTE_MASK_SKINNING ? 104 : 72;
+            int stride = (attributeMask(mesh) & ATTRIBUTE_MASK_SKINNING) == ATTRIBUTE_MASK_SKINNING ? SKINNED_VERTEX_STRIDE : STATIC_VERTEX_STRIDE;
             vertexOffsets[i] = align(vertexSize, 16);
             indexOffsets[i] = align(indexSize, 4);
-            vertexSize = Math.addExact(vertexOffsets[i], Math.multiplyExact(mesh.getPositionsCount() / 3, stride));
+            vertexSize = Math.addExact(vertexOffsets[i], Math.multiplyExact(mesh.getPositionsCount() / ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_POSITION], stride));
             indexSize = Math.addExact(indexOffsets[i], mesh.getIndices().size());
         }
         vertexSize = align(vertexSize, 16);
@@ -200,23 +205,24 @@ public final class ModelBuffers {
             Mesh mesh = geometries.get(i);
             int mask = attributeMask(mesh);
             boolean skinned = (mask & ATTRIBUTE_MASK_SKINNING) == ATTRIBUTE_MASK_SKINNING;
-            int vertexCount = mesh.getPositionsCount() / 3;
-            int stride = skinned ? 104 : 72;
-            int indexElementSize = mesh.getIndicesFormat().getNumber() == 0 ? 2 : 4;
+            int vertexCount = mesh.getPositionsCount() / ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_POSITION];
+            int stride = skinned ? SKINNED_VERTEX_STRIDE : STATIC_VERTEX_STRIDE;
+            int indexElementSize = mesh.getIndicesFormat() == IndexBufferFormat.INDEXBUFFER_FORMAT_16 ? Short.BYTES : Integer.BYTES;
             out.position(HEADER_SIZE + i * RANGE_SIZE);
             out.putInt(vertexOffsets[i]).putInt(vertexCount).putInt(stride);
             out.putInt(indexOffsets[i]).putInt(mesh.getIndices().size() / indexElementSize).putInt(indexElementSize).putInt(mask);
             out.position(vertexStart + vertexOffsets[i]);
             for (int v = 0; v < vertexCount; ++v) {
-                putAttribute(out, mesh.getPositionsList(), v, ATTRIBUTE_COMPONENT_COUNTS[0], 0);
-                putAttribute(out, mesh.getNormalsList(), v, ATTRIBUTE_COMPONENT_COUNTS[1], 0);
-                putAttribute(out, mesh.getTangentsList(), v, ATTRIBUTE_COMPONENT_COUNTS[2], 0);
-                putAttribute(out, mesh.getColorsList(), v, ATTRIBUTE_COMPONENT_COUNTS[3], 1);
-                putAttribute(out, mesh.getTexcoord0List(), v, ATTRIBUTE_COMPONENT_COUNTS[4], 0);
-                putAttribute(out, mesh.getTexcoord1List(), v, ATTRIBUTE_COMPONENT_COUNTS[5], 0);
+                putAttribute(out, mesh.getPositionsList(), v, ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_POSITION], 0);
+                putAttribute(out, mesh.getNormalsList(), v, ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_NORMAL], 0);
+                putAttribute(out, mesh.getTangentsList(), v, ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_TANGENT], 0);
+                putAttribute(out, mesh.getColorsList(), v, ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_COLOR], 1);
+                putAttribute(out, mesh.getTexcoord0List(), v, ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_TEXCOORD0], 0);
+                putAttribute(out, mesh.getTexcoord1List(), v, ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_TEXCOORD1], 0);
                 if (skinned) {
-                    putAttribute(out, mesh.getWeightsList(), v, ATTRIBUTE_COMPONENT_COUNTS[6], 0);
-                    for (int c = 0; c < ATTRIBUTE_COMPONENT_COUNTS[7]; ++c) out.putFloat(mesh.getBoneIndices(v * 4 + c));
+                    putAttribute(out, mesh.getWeightsList(), v, ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_WEIGHTS], 0);
+                    int boneIndexComponents = ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_BONE_INDICES];
+                    for (int c = 0; c < boneIndexComponents; ++c) out.putFloat(mesh.getBoneIndices(v * boneIndexComponents + c));
                 }
             }
             mesh.getIndices().copyTo(out.array(), indexStart + indexOffsets[i]);
@@ -245,7 +251,7 @@ public final class ModelBuffers {
                     Mesh mesh = model.getMeshes(i);
                     model.setMeshes(i, mesh.toBuilder()
                             .setBufferIndex(indices.get(geometry(mesh)))
-                            .setVertexCount(mesh.getPositionsCount() / 3)
+                            .setVertexCount(mesh.getPositionsCount() / ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_POSITION])
                             .clearPositions().clearNormals().clearTangents().clearColors()
                             .clearTexcoord0().clearTexcoord1().clearWeights().clearBoneIndices().clearIndices());
                 }
