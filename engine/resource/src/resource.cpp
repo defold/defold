@@ -962,15 +962,15 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
     return result;
 }
 
-static Result DestroyPreviousResource(HFactory factory, ResourceDescriptor* descriptor)
+static Result DestroyPreviousResource(HFactory factory, ResourceDescriptor* rd)
 {
-    ResourceType* resource_type = descriptor->m_ResourceType;
-    descriptor->m_Resource = descriptor->m_PrevResource;
+    ResourceType* resource_type = rd->m_ResourceType;
+    rd->m_Resource = rd->m_PrevResource;
     ResourceDestroyParams params;
     params.m_Factory = factory;
     params.m_Type = resource_type;
     params.m_Context = resource_type->m_Context;
-    params.m_Resource = descriptor;
+    params.m_Resource = rd;
     Result result;
     {
         DM_PROFILE("ResourceDestroy");
