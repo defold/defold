@@ -3,6 +3,8 @@ import os
 import json
 import time
 from datetime import datetime
+import build_console
+from build_console import Style
 
 class BuildTimeTracker:
     """
@@ -10,7 +12,7 @@ class BuildTimeTracker:
     Provides functionality to log, save, and analyze build performance.
     """
     
-    def __init__(self, output_file=None, logger=None):
+    def __init__(self, output_file=None, logger=None, colorize=None):
         self.start_times = {}
         self.end_times = {}
         self.component_times = {}
@@ -19,18 +21,24 @@ class BuildTimeTracker:
         self.output_file = output_file or "build_times.json"
         self.current_command = None
         self.logger = logger or print
+        self.colorize = colorize or build_console.colorize
+
+    def _log_step(self, message, color):
+        self.logger(build_console.format_step(message, color, self.colorize))
         
-    def start_command(self, command_name):
+    def start_command(self, command_name, quiet=False):
         """Start timing a build command"""
         self.current_command = command_name
         self.check_times.pop(command_name, None)
         self.start_times[command_name] = time.time()
-        self.logger(f"Starting '{command_name}' at {datetime.now().strftime('%H:%M:%S')}")
+        if not quiet:
+            self._log_step(f"Starting '{command_name}' at {datetime.now().strftime('%H:%M:%S')}", Style.HEADING)
         
-    def end_command(self, command_name):
+    def end_command(self, command_name, quiet=False):
         """End timing a build command"""
         if command_name in self.start_times:
             end_time = time.time()
+            self.end_times[command_name] = end_time
             duration = end_time - self.start_times[command_name]
             self.command_times[command_name] = {
                 'start_time': self.start_times[command_name],
@@ -41,7 +49,8 @@ class BuildTimeTracker:
             checks = self.check_times.pop(command_name, None)
             if checks:
                 self.command_times[command_name]['checks'] = checks
-            self.logger(f"'{command_name}' completed in {duration:.2f} s")
+            if not quiet:
+                self._log_step(f"'{command_name}' completed in {duration:.2f} s", Style.SUCCESS)
 
     def record_check_time(self, check_name, duration):
         """Record a measured check under the current command."""
@@ -94,7 +103,7 @@ class BuildTimeTracker:
         
         # Log the start of component build
         platform_str = f" for {platform}" if platform else ""
-        self.logger(f"Building {component_name}{platform_str}")
+        self._log_step(f"Building {component_name}{platform_str}", Style.COMPONENT)
         
     def end_component(self, component_name, platform=None):
         """End timing an engine component build"""
@@ -113,15 +122,22 @@ class BuildTimeTracker:
                 'timestamp': datetime.now().isoformat()
             }
             
-            self.logger(f"  {component_name} ({platform}) completed in {duration:.2f} s")
+            self._log_step(f"  {component_name} ({platform}) completed in {duration:.2f} s", Style.SUCCESS)
             
     def get_summary(self):
         """Get a summary of all build times"""
+        # CMake and Gradle commands run inside their build.py command. Count overlapping
+        # intervals once, while still excluding gaps between separate commands.
+        total_duration = 0
+        previous_end = float('-inf')
+        for command in sorted(self.command_times.values(), key=lambda timing: timing['start_time']):
+            total_duration += max(0, command['end_time'] - max(command['start_time'], previous_end))
+            previous_end = max(previous_end, command['end_time'])
         summary = {
             'build_session': {
                 'start_time': min(self.start_times.values()) if self.start_times else None,
                 'end_time': max(self.end_times.values()) if self.end_times else None,
-                'total_duration': sum(cmd['duration'] for cmd in self.command_times.values()) if self.command_times else 0,
+                'total_duration': total_duration,
                 'timestamp': datetime.now().isoformat()
             },
             'commands': self.command_times,
@@ -150,30 +166,32 @@ class BuildTimeTracker:
         with open(output_file, 'w') as f:
             json.dump(summary, f, indent=2)
             
-        self.logger(f"Build times saved to {output_file}")
+        self._log_step(f"Build times saved to {output_file}", Style.INFO)
         
     def print_summary(self):
         """Print a formatted summary of build times"""
         summary = self.get_summary()
         
-        self.logger("\n" + "="*60)
-        self.logger("BUILD TIME SUMMARY")
-        self.logger("="*60)
+        self.logger(self.colorize("\n" + "="*60, Style.HEADING))
+        self._log_step("BUILD TIME SUMMARY", Style.HEADING)
+        self.logger(self.colorize("="*60, Style.HEADING))
         
         # Command times
-        if self.command_times:
-            self.logger("COMMAND TIMES:")
-            command_width = max(20, max(len(command) for command in self.command_times))
-            for cmd, data in sorted(self.command_times.items(), key=lambda x: x[1]['duration'], reverse=True):
+        # Engine phases already have their own rows; omit the aggregate and its SDK checks.
+        commands = {name: timing for name, timing in self.command_times.items() if name != 'build_engine'}
+        if commands:
+            self.logger(self.colorize("COMMAND TIMES:", Style.HEADING))
+            command_width = max(20, max(len(command) for command in commands))
+            for cmd, data in sorted(commands.items(), key=lambda x: x[1]['duration'], reverse=True):
                 self.logger(f"  {cmd:<{command_width}} {data['duration']:>8.2f} s")
                 if data.get('checks'):
-                    self.logger("    Checks")
+                    self.logger(self.colorize("    Checks", Style.HEADING))
                     for check, timing in sorted(data['checks'].items(), key=lambda item: item[1]['duration'], reverse=True):
                         self.logger(f"      {check:<20} {timing['duration']:>8.2f} s")
                 if 'libraries' in data:
                     libraries = data['libraries']
                     if libraries:
-                        self.logger("    Libraries")
+                        self.logger(self.colorize("    Libraries", Style.HEADING))
                         for library, timing in sorted(libraries.items(), key=lambda item: item[1]['elapsed_span'], reverse=True):
                             self.logger(f"      {library:<20} {timing['elapsed_span']:>8.2f} s")
                     else:
@@ -191,7 +209,7 @@ class BuildTimeTracker:
                 sorted_platforms = sorted(all_platforms)
                 
                 # Calculate column widths
-                component_width = 15
+                component_width = max(15, max(len(component) for component in self.component_times))
                 platform_width = 12  # "8.2f s" = 8 chars + 2 chars = 10, plus 2 for spacing
                 
                 # Create header with all platforms
@@ -199,7 +217,7 @@ class BuildTimeTracker:
                 for platform in sorted_platforms:
                     header += f"{platform:<{platform_width}} "
                 header += "TOTAL    AVERAGE"
-                self.logger(f"\n{header}")
+                self.logger(self.colorize(f"\n{header}", Style.COMPONENT))
                 
                 # Get all components that have data for any platform
                 all_components = set()
@@ -230,4 +248,4 @@ class BuildTimeTracker:
                     
                     self.logger(line)
         
-        self.logger("="*60)
+        self.logger(self.colorize("="*60, Style.HEADING))

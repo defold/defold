@@ -12,6 +12,9 @@ import build_android
 import build_ios
 import codesigning
 import run
+import build_output
+import build_console
+from build_console import Style
 import s3
 import sdk
 from cross_build import DEFOLD_PLATFORMS_FILE, get_configured_platforms, get_platform_root, get_platforms_config_path, load_platforms_config, save_platforms_config, write_merged_platform_sdks
@@ -537,7 +540,7 @@ class Configuration(object):
         self.gcloud_certfile = gcloud_certfile
         self.gcloud_keyfile = gcloud_keyfile
         self.verbose = verbose
-        self.build_tracker = BuildTimeTracker(logger=self._log)
+        self.build_tracker = BuildTimeTracker(logger=self._log, colorize=self._colorize)
         self._cmake_configure_inputs_mtime_cache = {}
 
         if self.github_token is None:
@@ -660,10 +663,10 @@ class Configuration(object):
         self._mkdirs(build_dir)
 
         # Generate solution
-        self._log(f'CMake solution settings: platform={tp}, build_type={build_type}, build_tests={build_tests}')
+        self._log_step(f'CMake solution settings: platform={tp}, build_type={build_type}, build_tests={build_tests}')
         if solution_msvs.is_visual_studio_generator(generator):
             solution_msvs.log_selection(self._log, generator, msvs_instance, windows_sdk_version)
-        self._log('Generating solution with command: %s' % ' '.join(cmake_cmd))
+        self._log_step('Generating solution with command: %s' % ' '.join(cmake_cmd))
         run.env_command(self._form_env(), cmake_cmd)
         with open(cmake_configure_state_path, 'w') as f:
             json.dump(cmake_configure_state, f, indent=2, sort_keys=True)
@@ -723,7 +726,7 @@ class Configuration(object):
                 self.dynamo_home,
                 self._log)
 
-        self._log(f'Solution generated: {final_path}')
+        self._log_step(f'Solution generated: {final_path}', Style.SUCCESS)
 
     def __del__(self):
         if len(getattr(self, "futures", [])) > 0:
@@ -748,12 +751,17 @@ class Configuration(object):
         sys.stderr.flush()
 
     def _colorize(self, msg, color_code):
-        if self.no_colors or os.environ.get('NOCOLOR'):
-            return msg
-        return '\033[%sm%s\033[0m' % (color_code, msg)
+        return build_console.colorize(msg, color_code,
+                                      enabled=not getattr(self, 'no_colors', False) and build_console.use_colors())
+
+    def _log_step(self, msg, color_code=Style.HEADING):
+        self._log(build_console.format_step(msg, color_code, self._colorize))
+
+    def _log_command(self, args, environment=None):
+        self._log_step(build_console.format_shell_command(args, environment, self._colorize), None)
 
     def _warn(self, msg):
-        self._log(self._colorize(msg, '33'))
+        self._log_step(msg, Style.WARNING)
 
     def _remove_tree(self, path):
         if os.path.exists(path):
@@ -1125,8 +1133,8 @@ class Configuration(object):
             self.build_tracker.record_check_time(name, elapsed)
         mark = '✓' if passed else '✗'
         if sys.stdout.isatty() and 'NO_COLOR' not in os.environ:
-            mark = self._colorize(mark, '32' if passed else '31')
-            message = self._colorize(message, '32' if passed else '38;5;208')
+            mark = self._colorize(mark, Style.SUCCESS if passed else Style.ERROR)
+            message = self._colorize(message, Style.SUCCESS if passed else Style.FAILED_CHECK)
         encoding = sys.stdout.encoding or 'utf-8'
         try:
             mark.encode(encoding)
@@ -1264,7 +1272,7 @@ class Configuration(object):
             _, elapsed = self._run_sdk_check('LuaJIT generator', lambda: run.env_command(os.environ, args, silent=True))
             self._log_sdk_check('LuaJIT generator', 'OK', elapsed=elapsed)
 
-        self._log(f"All checks passed: {self.target_platform}")
+        self._log(self._colorize(f"All checks passed: {self.target_platform}", Style.SUCCESS))
 
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
@@ -1953,7 +1961,7 @@ class Configuration(object):
             if feature:
                 feature_flags[feature] = 'ON'
             else:
-                self._log(f"Warning: CMake build currently ignores '{option}'")
+                self._warn(f"Warning: CMake build currently ignores '{option}'")
             index += 1
         for feature, value in sorted(feature_flags.items()):
             defines.append(f"-D{feature}:BOOL={value}")
@@ -2126,7 +2134,7 @@ class Configuration(object):
                 actual = normpath(actual) if actual else actual
                 expected = normpath(expected) if expected else expected
             if actual != expected:
-                self._log(f'CMake cache mismatch for {key}: expected {expected}, got {actual}')
+                self._log_step(f'CMake cache mismatch for {key}: expected {expected}, got {actual}', Style.WARNING)
                 return False
 
         return True
@@ -2173,10 +2181,10 @@ class Configuration(object):
 
             stale_config_dir = next((path for path in stale_config_dirs if path in content), None)
             if stale_config_dir:
-                self._log('CMake generated install mismatch for %s: stale multi-config output path found' % install_script)
+                self._log_step('CMake generated install mismatch for %s: stale multi-config output path found' % install_script, Style.WARNING)
                 return False
             if build_tests == 'OFF' and '/src/test/cmake_install.cmake' in content:
-                self._log('CMake generated install mismatch for %s: stale test install rules found' % install_script)
+                self._log_step('CMake generated install mismatch for %s: stale test install rules found' % install_script, Style.WARNING)
                 return False
 
         return True
@@ -2223,7 +2231,7 @@ class Configuration(object):
                 except OSError:
                     continue
                 if 'set(CMAKE_SYSTEM_NAME "Generic")' not in system_content:
-                    self._log('CMake generated system mismatch for %s: expected Generic for %s' % (system_file, platform))
+                    self._log_step('CMake generated system mismatch for %s: expected Generic for %s' % (system_file, platform), Style.WARNING)
                     return False
 
         try:
@@ -2244,7 +2252,7 @@ class Configuration(object):
             path = match.group(0).replace('$:', ':')
             normalized_path = normpath(path).replace('\\', '/').lower()
             if not normalized_path.startswith(expected_engine_root + '/'):
-                self._log('CMake generated output mismatch: stale generated build path found: %s' % path)
+                self._log_step('CMake generated output mismatch: stale generated build path found: %s' % path, Style.WARNING)
                 return False
 
         return True
@@ -2258,6 +2266,15 @@ class Configuration(object):
                 self._remove_tree(join(engine_root, lib, 'build', platform))
 
         self._remove_tree(join(build_home, 'share', 'extender', 'build', platform))
+
+    def _run_cmake(self, args, builddir, name, phase, cwd=None):
+        verbose = self.verbose or '-v' in self.build_options or '--verbose' in self.build_options
+        log_path = join(builddir, 'logs', f'{name}-{phase}.log')
+        try:
+            build_output.command(self._form_env(), args, f'CMake {phase} {name}', log_path,
+                                 cwd=cwd or self.defold_root, verbose=verbose)
+        except run.ExecException as error:
+            sys.exit(error.retcode)
 
     def _build_engine_libs_cmake(self, name, lib_set, platform, skip_build_tests = False, reuse_builddir = False, allow_compatible_configure = False, use_existing_bob_light = False):
         build_home = self._platform_build_home(platform)
@@ -2276,7 +2293,7 @@ class Configuration(object):
         test = 'run_tests' if build_tests and not self.skip_tests and self._can_run_tests() else ''
         build_test = 'build_tests' if build_tests else ''
         cmake_build_tests = 'ON' if build_tests else 'OFF'
-        self._log(f"CMake lib set for {name}: {lib_set}")
+        self._log_step(f"CMake lib set for {name}: {lib_set}")
 
         trace = '' #'--trace-expand'
 
@@ -2286,7 +2303,7 @@ class Configuration(object):
         self.build_tracker.start_command(log_cmd_config)
 
         run_tests = 'ON' if test else 'OFF'
-        self._log(f'CMake settings for {name}: platform={platform}, build_type={build_type}, build_tests={cmake_build_tests}, run_tests={run_tests}')
+        self._log_step(f'CMake settings for {name}: platform={platform}, build_type={build_type}, build_tests={cmake_build_tests}, run_tests={run_tests}')
         cmake_configure_args = ['cmake', '-S', self.defold_root, '-B', builddir, '-GNinja']
         if trace:
             cmake_configure_args.append(trace)
@@ -2325,7 +2342,7 @@ class Configuration(object):
         cmake_cache = join(builddir, 'CMakeCache.txt')
         generated_outputs_match = self._cmake_generated_outputs_match_configure_state(cmake_configure_state)
         if not generated_outputs_match:
-            self._log(f'Removing stale CMake build outputs for {platform}; generated files point outside {build_home}')
+            self._log_step(f'Removing stale CMake build outputs for {platform}; generated files point outside {build_home}', Style.WARNING)
             self._remove_cmake_build_dirs_for_platform(build_home, platform, builddir)
             os.makedirs(builddir, exist_ok=True)
             previous_cmake_configure_state = None
@@ -2345,9 +2362,9 @@ class Configuration(object):
             and self._cmake_generated_install_matches_configure_state(validation_configure_state)
             and generated_outputs_match)
         if skip_configure:
-            self._log(f'Skipping CMake configure {name}; configure state is unchanged')
+            self._log_step(f'Skipping CMake configure {name}; configure state is unchanged')
         else:
-            run.env_command(self._form_env(), cmake_configure_args, cwd = self.defold_root)
+            self._run_cmake(cmake_configure_args, builddir, name, 'configure')
             with open(cmake_configure_state_path, 'w') as f:
                 json.dump(cmake_configure_state, f, indent = 2, sort_keys = True)
 
@@ -2363,7 +2380,7 @@ class Configuration(object):
             cmake_build_args.append(build_test)
         if is_verbose:
             cmake_build_args.append('--verbose')
-        run.env_command(self._form_env(), cmake_build_args, cwd = self.defold_root)
+        self._run_cmake(cmake_build_args, builddir, name, 'build')
 
         self.build_tracker.end_command(log_cmd_build)
 
@@ -2374,7 +2391,7 @@ class Configuration(object):
             cmake_stage_args = ['cmake', '--build', builddir, '--target', 'stage_bob_light_dependencies']
             if is_verbose:
                 cmake_stage_args.append('--verbose')
-            run.env_command(self._form_env(), cmake_stage_args, cwd = self.defold_root)
+            self._run_cmake(cmake_stage_args, builddir, name, 'stage')
 
             self.build_tracker.end_command(log_cmd_stage)
 
@@ -2384,7 +2401,7 @@ class Configuration(object):
         # defer installation until the subsequent engine pass has built every
         # target referenced by the full graph's install rules.
         if compatible_configure:
-            self._log(f'Deferring CMake install {name}; reusing full engine configuration')
+            self._log_step(f'Deferring CMake install {name}; reusing full engine configuration')
         else:
             log_cmd_install = f'CMake install {name}'
             self.build_tracker.start_command(log_cmd_install)
@@ -2392,7 +2409,7 @@ class Configuration(object):
             cmake_install_args = ['cmake', '--install', builddir, '--config', build_type]
             if is_verbose:
                 cmake_install_args.append('--verbose')
-            run.env_command(self._form_env(), cmake_install_args, cwd = self.defold_root)
+            self._run_cmake(cmake_install_args, builddir, name, 'install')
 
             self.build_tracker.end_command(log_cmd_install)
 
@@ -2405,7 +2422,7 @@ class Configuration(object):
             cmake_test_args = ['cmake', '--build', builddir, '--target', 'run_tests']
             if is_verbose:
                 cmake_test_args.append('--verbose')
-            run.env_command(self._form_env(), cmake_test_args, cwd = self.defold_root)
+            self._run_cmake(cmake_test_args, builddir, name, 'tests')
 
             self.build_tracker.end_command(log_cmd_tests)
 
@@ -2419,11 +2436,27 @@ class Configuration(object):
         else:  # Linux, macOS, or other Unix-like OS
             return join('.', 'gradlew')
 
+    def _run_gradle(self, args, directory, name, env):
+        verbose = self.verbose or '-v' in self.build_options or '--verbose' in self.build_options
+        args = list(args) + ['--console=plain' if verbose else '--console=rich']
+        if verbose:
+            args.append('--info')
+        if os.name == 'nt':
+            shell = subprocess.list2cmdline([env.get('COMSPEC', 'cmd.exe')])
+            args = f'{shell} /d /s /c "{subprocess.list2cmdline(args)}"'
+        log_path = join(directory, 'logs', f'{name}-{self.target_platform}.log')
+        command_name = f'Gradle {name}'
+        self.build_tracker.start_command(command_name, quiet=True)
+        try:
+            build_output.command(env, args, command_name, log_path, cwd=directory,
+                                 verbose=verbose, gradle=True)
+        except run.ExecException as error:
+            sys.exit(error.retcode)
+        finally:
+            self.build_tracker.end_command(command_name, quiet=True)
+
     def build_bob_plugins(self):
         gradle = join('..', 'com.dynamo.cr.bob', os.name == 'nt' and 'gradlew.bat' or 'gradlew')
-        gradle_args = []
-        if self.verbose:
-            gradle_args += ['--info']
 
         env = self._form_env()
         env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}'
@@ -2435,15 +2468,12 @@ class Configuration(object):
 
             self.build_tracker.start_component('bob_plugin_%s' % plugin_name, self.host)
 
-            s = run.command(" ".join([gradle, 'clean', 'install'] + gradle_args), cwd=plugin_dir, shell=True, env=env)
-            if self.verbose:
-                print(s)
+            self._run_gradle([gradle, 'clean', 'install'], plugin_dir, f'bob-plugin-{plugin_name}', env)
 
             self.build_tracker.end_component('bob_plugin_%s' % plugin_name, self.host)
 
     def build_bob_light(self):
         self.build_tracker.start_component('bob_light', self.host)
-        log_cmd_build = 'Gradle build bob_light'
 
         try:
             bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
@@ -2454,18 +2484,10 @@ class Configuration(object):
             gradle_args = ['-Ptarget-platform=%s' % self.target_platform]
             if self.channel:
                 gradle_args.append('-Pchannel=%s' % self.channel)
-            if self.verbose:
-                gradle_args += ['--info']
-
             env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
 
-            self.build_tracker.start_command(log_cmd_build)
-            try:
-                s = run.command(" ".join([gradle, '-Pkeep-bob-uncompressed'] + gradle_args + ['installBobLight']), cwd = bob_dir, shell = True, env = env)
-            finally:
-                self.build_tracker.end_command(log_cmd_build)
-            if self.verbose:
-                print (s)
+            self._run_gradle([gradle, '-Pkeep-bob-uncompressed'] + gradle_args + ['installBobLight'],
+                             bob_dir, 'bob-light', env)
             self.build_bob_plugins()
         finally:
             self.build_tracker.end_component('bob_light', self.host)
@@ -2476,11 +2498,11 @@ class Configuration(object):
         # We want random folder to thoroughly test bob-light
         # We dont' want it to unpack for _every_ single invocation during the build
         os.environ['DM_BOB_ROOTFOLDER'] = tempfile.mkdtemp(prefix='bob-light-')
-        self._log("env DM_BOB_ROOTFOLDER=" + os.environ['DM_BOB_ROOTFOLDER'])
+        self._log_command([], environment={'DM_BOB_ROOTFOLDER': os.environ['DM_BOB_ROOTFOLDER']})
 
         host = self.host
         target_platform = self.target_platform
-        self._log('Building engine libs with top-level CMake (incremental by default)')
+        self._log_step('Building engine libs with top-level CMake (incremental by default)')
 
         # Make sure we build these for the host platform for the toolchain (bob light)
         self.build_tracker.start_component('cmake_host_libs', host)
@@ -2509,11 +2531,11 @@ class Configuration(object):
         if self.generate_compile_commands:
             self.generate_global_compile_commands_json()
 
-        self._log("Write platform.sdks.json")
+        self._log_step("Write platform.sdks.json")
         write_merged_platform_sdks(self.defold_root, self.target_platform, join(self.dynamo_home, "platform.sdks.json"))
 
         if os.path.exists(os.environ['DM_BOB_ROOTFOLDER']):
-            print ("Removing", os.environ['DM_BOB_ROOTFOLDER'])
+            self._log_step("Removing " + os.environ['DM_BOB_ROOTFOLDER'], Style.INFO)
             shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
 
     def build_ext(self):
@@ -2539,7 +2561,7 @@ class Configuration(object):
         command = 'CMake configure ext (%s)' % platform
         self.build_tracker.start_command(command)
         try:
-            run.env_command(self._form_env(), configure_args, cwd=self.defold_root)
+            self._run_cmake(configure_args, build_dir, 'ext', 'configure')
         finally:
             self.build_tracker.end_command(command)
         return build_dir, build_type
@@ -2563,7 +2585,7 @@ class Configuration(object):
                     previous_ninja_log = self.build_tracker.read_ninja_log(build_dir)
                 self.build_tracker.start_command(command)
                 try:
-                    run.env_command(self._form_env(), args, cwd=self.defold_root)
+                    self._run_cmake(args, build_dir, 'ext', name)
                 finally:
                     self.build_tracker.end_command(command)
                     if name == 'build':
@@ -2630,13 +2652,13 @@ class Configuration(object):
         try:
             self.build_tracker.start_command('CMake configure external %s' % lib)
             try:
-                run.env_command(self._form_env(), configure_args, cwd=source_dir)
+                self._run_cmake(configure_args, build_dir, lib, 'configure', cwd=source_dir)
             finally:
                 self.build_tracker.end_command('CMake configure external %s' % lib)
 
             self.build_tracker.start_command('CMake build external %s' % lib)
             try:
-                run.env_command(self._form_env(), build_args, cwd=source_dir)
+                self._run_cmake(build_args, build_dir, lib, 'build', cwd=source_dir)
             finally:
                 self.build_tracker.end_command('CMake build external %s' % lib)
 
@@ -2685,9 +2707,6 @@ class Configuration(object):
         gradle_args = ['-Ptarget-platform=%s' % self.target_platform]
         if self.channel:
             gradle_args.append('-Pchannel=%s' % self.channel)
-        if self.verbose:
-            gradle_args += ['--info']
-
         env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
         flags = []
         if self.keep_bob_uncompressed:
@@ -2695,10 +2714,11 @@ class Configuration(object):
 
         if self.skip_tests:
             # Clean and build the project
-            run.command(" ".join([gradle] + flags + gradle_args + ['clean', 'install']), cwd=bob_dir, shell = True, env = env)
+            self._run_gradle([gradle] + flags + gradle_args + ['clean', 'install'], bob_dir, 'bob', env)
         else:
             # Build, install and test Bob in one Gradle graph so shared dependencies such as distBob run only once.
-            run.command(" ".join([gradle] + flags + gradle_args + ['clean', 'install', 'testJar']), cwd = test_dir, shell = True, env = env, stdout = None)
+            self._run_gradle([gradle] + flags + gradle_args + ['clean', 'install', 'testJar'],
+                             test_dir, 'bob-build-tests', env)
 
         self.build_bob_plugins()
 
@@ -2713,14 +2733,11 @@ class Configuration(object):
 
         gradle = self.get_gradle_wrapper()
         gradle_args = ['-Ptarget-platform=%s' % self.target_platform]
-        if self.verbose:
-            gradle_args += ['--info']
-
         env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
 
         # compileTest only needs bob.jar on disk. Exclude distBob so this job tests the artifact
         # produced by build-bob instead of rebuilding it.
-        run.command(" ".join([gradle] + gradle_args + ['testJar', '-x', 'distBob']), cwd = test_dir, shell = True, env = env, stdout = None)
+        self._run_gradle([gradle] + gradle_args + ['testJar', '-x', 'distBob'], test_dir, 'bob-tests', env)
 
 
     def build_sdk_headers(self):
@@ -2812,7 +2829,7 @@ class Configuration(object):
         print ("Removed", tempdir)
 
     def build_docs(self, incremental = None):
-        self._log('Building API docs')
+        self._log_step('Building API docs')
         docs_dir = join(self.defold_root, 'engine/docs')
         builddir = join(docs_dir, 'build')
         platform = self.target_platform
@@ -2849,9 +2866,9 @@ class Configuration(object):
             cmake_cache = join(builddir, 'CMakeCache.txt')
             skip_configure = os.path.exists(cmake_cache) and self._cmake_configure_state_matches(cmake_configure_state, previous_cmake_configure_state, False)
             if skip_configure:
-                self._log('Skipping CMake configure build_docs; configure state is unchanged')
+                self._log_step('Skipping CMake configure build_docs; configure state is unchanged')
             else:
-                run.env_command(self._form_env(), cmake_configure_args, cwd = self.defold_root)
+                self._run_cmake(cmake_configure_args, builddir, 'build_docs', 'configure')
                 with open(cmake_configure_state_path, 'w') as f:
                     json.dump(cmake_configure_state, f, indent = 2, sort_keys = True)
 
@@ -2863,7 +2880,7 @@ class Configuration(object):
             cmake_build_args = ['cmake', '--build', builddir, '--target', 'build_docs']
             if is_verbose:
                 cmake_build_args.append('--verbose')
-            run.env_command(self._form_env(), cmake_build_args, cwd = self.defold_root)
+            self._run_cmake(cmake_build_args, builddir, 'build_docs', 'build')
 
             self.build_tracker.end_command(log_cmd_build)
         finally:
@@ -3106,8 +3123,8 @@ class Configuration(object):
             sys.exit(process.returncode)
 
     def fatal(self, msg):
-        self._log("****************************************************")
-        self._log(msg)
+        self._log(self._colorize("****************************************************", Style.ERROR_HEADING))
+        self._log_step(msg, Style.ERROR)
         sys.exit(1)
 
 # ------------------------------------------------------------
@@ -4136,4 +4153,4 @@ To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
     if not quiet_sdk_check:
         c.build_tracker.print_summary()
         c.build_tracker.save_times()
-        print('Done')
+        c._log_step('Done', Style.SUCCESS_HEADING)

@@ -1,6 +1,15 @@
 from log import log
+import codecs
+import os
+from queue import Full, Queue
+import re
+import signal
 import subprocess
 import sys
+from threading import Event, Thread
+import build_console
+
+_ANSI = re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
 
 class ExecException(Exception):
     def __init__(self, retcode, output):
@@ -43,6 +52,13 @@ def _sanitize_text(text, secrets):
     for secret in secrets:
         if secret:
             text = text.replace(secret, '***')
+    # Styling can split a secret into pieces which become contiguous in plain logs.
+    # Drop styling on these sensitive lines; leave other native diagnostic colors intact.
+    if secrets and '\x1b' in text:
+        plain = _ANSI.sub('', text)
+        for secret in secrets:
+            if secret and secret in plain:
+                text = plain = plain.replace(secret, '***')
     return text
 
 def _redact_args(arg_list, redact_flags, secrets):
@@ -79,9 +95,108 @@ def _redact_args(arg_list, redact_flags, secrets):
 
     return redacted, secrets
 
+def _terminal_lines(stream):
+    # Gradle redraws rows with cursor movements, often without a newline or carriage return.
+    separator = re.compile(r'\r\n|[\r\n]|\x1b\[[0-9;]*[AB]')
+    decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
+    pending = ''
+    while chunk := stream.read1(65536):
+        pending += decoder.decode(chunk)
+        records = separator.split(pending)
+        pending = records.pop()
+        for record in records:
+            if record:
+                yield record + '\n'
+    pending += decoder.decode(b'', final=True)
+    if pending:
+        yield pending + '\n'
+
+def _stop_process(process, kill_process_tree=False):
+    if kill_process_tree and os.name == 'nt' and process.poll() is None:
+        try:
+            subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    isolated = kill_process_tree and os.name != 'nt'
+    if isolated:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    if process.poll() is None:
+        if not isolated:
+            try:
+                process.terminate()
+            except ProcessLookupError:
+                pass
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+    if isolated:
+        # A worker can outlive the launcher and keep the output readers blocked.
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+def _separate_output_lines(process, kill_process_tree=False):
+    # Keep each stream's records intact; merging rich-console fragments corrupts diagnostics.
+    records = Queue(maxsize=128)
+    stopped = Event()
+
+    def put(record):
+        while not stopped.is_set():
+            try:
+                records.put(record, timeout=0.1)
+                return True
+            except Full:
+                pass
+        return False
+
+    def read_stream(stream, is_stderr):
+        try:
+            with stream:
+                for line in _terminal_lines(stream):
+                    if not put((line, is_stderr)):
+                        return
+        except BaseException as error:
+            put(error)
+        finally:
+            put(None)
+
+    readers = [Thread(target=read_stream, args=(stream, is_stderr), daemon=True)
+               for stream, is_stderr in ((process.stdout, False), (process.stderr, True))]
+    finished = 0
+    started = []
+    try:
+        for reader in readers:
+            reader.start()
+            started.append(reader)
+        while finished < len(readers):
+            record = records.get()
+            if record is None:
+                finished += 1
+            elif isinstance(record, BaseException):
+                raise record
+            else:
+                yield record
+    finally:
+        stopped.set()
+        if finished < len(readers):
+            _stop_process(process, kill_process_tree)
+        for reader in started:
+            reader.join()
+
 def _exec_command(arg_list, **kwargs):
     # Report streamed lines even when command logging is disabled.
     on_output = kwargs.pop('on_output', None)
+    on_stderr = kwargs.pop('on_stderr', None)
+    capture_output = kwargs.pop('capture_output', True)
+    terminal_output = kwargs.pop('terminal_output', False)
+    kill_process_tree = kwargs.pop('kill_process_tree', False)
     silent = False
     if 'silent' in kwargs:
         silent = True
@@ -96,10 +211,16 @@ def _exec_command(arg_list, **kwargs):
     if not isinstance(arg_str, str):
         arg_list = [_to_str(x) for x in arg_list]
         redacted_args, secrets = _redact_args(arg_list, redact_flags, secrets)
+        redacted_args = [_sanitize_text(arg, secrets) for arg in redacted_args]
         arg_str = ' '.join(redacted_args)
     else:
         arg_str = _sanitize_text(arg_str, secrets)
-    if not silent: log('[exec] %s' % arg_str)
+    if not silent:
+        display = arg_str
+        if not isinstance(arg_list, str) and build_console.use_colors(env=kwargs.get('env')):
+            paint = lambda text, code: build_console.colorize(text, code, enabled=True)
+            display = build_console.format_shell_command(redacted_args, colorize_fn=paint)
+        log('[exec] %s' % display)
 
     # Keep stdout and stderr in their original order. In particular, Ninja may
     # print the failed command on stdout while the compiler or linker writes the
@@ -107,26 +228,43 @@ def _exec_command(arg_list, **kwargs):
     stream_output = 'stdout' not in kwargs and 'stderr' not in kwargs
     if stream_output:
         kwargs['stdout'] = subprocess.PIPE
-        kwargs['stderr'] = subprocess.STDOUT
+        kwargs['stderr'] = subprocess.PIPE if terminal_output else subprocess.STDOUT
+    if kill_process_tree and os.name != 'nt':
+        # Isolate build workers so cancellation cannot signal this Python process.
+        kwargs['start_new_session'] = True
 
     process = subprocess.Popen(arg_list, **kwargs)
     output = ''
-    if stream_output:
-        while True:
-            line = _to_output_str(process.stdout.readline())
-            if line == '':
-                break
-            output += line
-            if on_output:
-                on_output(_sanitize_text(line, secrets).rstrip('\r\n'))
-            if not silent:
-                log(_sanitize_text(line, secrets).rstrip('\r\n'))
-        process.stdout.close()
-    else:
-        captured_stdout, captured_stderr = process.communicate()
-        output = _to_output_str(captured_stdout) + _to_output_str(captured_stderr)
+    lines = None
+    try:
+        if stream_output:
+            lines = (_separate_output_lines(process, kill_process_tree) if terminal_output else
+                     ((line, False) for line in iter(lambda: _to_output_str(process.stdout.readline()), '')))
+            for line, is_stderr in lines:
+                line = _to_output_str(line)
+                if capture_output:
+                    output += line
+                callback = on_stderr if is_stderr and on_stderr else on_output
+                sanitized = _sanitize_text(line, secrets).rstrip('\r\n')
+                if callback:
+                    callback(sanitized)
+                if not silent:
+                    log(sanitized)
+        else:
+            captured_stdout, captured_stderr = process.communicate()
+            if capture_output:
+                output = _to_output_str(captured_stdout) + _to_output_str(captured_stderr)
+        retcode = process.wait()
+    except BaseException:
+        _stop_process(process, kill_process_tree)
+        raise
+    finally:
+        if lines is not None:
+            lines.close()
+        for pipe in (process.stdin, process.stdout, process.stderr):
+            if pipe is not None:
+                pipe.close()
 
-    retcode = process.wait()
     output = _sanitize_text(output, secrets)
     if retcode != 0:
         e = ExecException(retcode)

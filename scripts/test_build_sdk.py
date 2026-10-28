@@ -75,10 +75,39 @@ class BuildStartupTests(unittest.TestCase):
 
 
 class BuildTimeTrackerTests(unittest.TestCase):
-    # Check timings belong to their command in console and JSON summaries without inflating the total duration.
+    # Nested build-tool commands remain visible without adding their durations again to the session total.
+    def test_nested_command_times_do_not_inflate_session_duration(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(build.time, 'time', side_effect=[10, 11, 12, 13, 14, 16, 20, 23]):
+            path = Path(directory) / 'build_times.json'
+            messages = []
+            tracker = build.BuildTimeTracker(output_file=str(path), logger=messages.append)
+            tracker.start_command('build_bob')
+            tracker.start_command('Gradle bob', quiet=True)
+            tracker.end_command('Gradle bob', quiet=True)
+            tracker.start_command('Gradle bob-plugin-xbox', quiet=True)
+            tracker.end_command('Gradle bob-plugin-xbox', quiet=True)
+            tracker.end_command('build_bob')
+            tracker.start_command('check_sdk')
+            tracker.end_command('check_sdk')
+            tracker.print_summary()
+            tracker.save_times()
+            summary = json.loads(path.read_text())
+
+        self.assertEqual(9, summary['build_session']['total_duration'])
+        self.assertEqual(10, summary['build_session']['start_time'])
+        self.assertEqual(23, summary['build_session']['end_time'])
+        self.assertEqual(1, summary['commands']['Gradle bob']['duration'])
+        self.assertEqual(1, summary['commands']['Gradle bob-plugin-xbox']['duration'])
+        output = '\n'.join(messages)
+        self.assertIn('Gradle bob-plugin-xbox', output)
+        self.assertNotIn("Starting 'Gradle", output)
+        self.assertNotIn("'Gradle bob' completed", output)
+
+    # Standalone SDK timings remain visible; the engine aggregate and preflight checks stay only in JSON.
     def test_check_timings_are_included_in_summary_and_json(self):
         with tempfile.TemporaryDirectory() as directory, \
-                mock.patch.object(build.time, 'time', side_effect=[10, 11, 11, 13]):
+                mock.patch.object(build.time, 'time', side_effect=[10, 11, 11, 12, 12.25, 13]):
             path = Path(directory) / 'build_times.json'
             messages = []
             tracker = build.BuildTimeTracker(output_file=str(path), logger=messages.append)
@@ -88,6 +117,9 @@ class BuildTimeTrackerTests(unittest.TestCase):
             tracker.record_check_time('Java', 0.25)
             tracker.end_command('check_sdk')
             tracker.start_command('build_engine')
+            tracker.record_check_time('SDK', 0.1)
+            tracker.start_command('CMake build engine_libs')
+            tracker.end_command('CMake build engine_libs')
             tracker.end_command('build_engine')
             tracker.print_summary()
             tracker.save_times()
@@ -95,12 +127,15 @@ class BuildTimeTrackerTests(unittest.TestCase):
 
         checks = summary['commands']['check_sdk']['checks']
         self.assertEqual({'Python': {'duration': 0.125}, 'Java': {'duration': 0.25}}, checks)
-        self.assertNotIn('checks', summary['commands']['build_engine'])
+        self.assertEqual({'SDK': {'duration': 0.1}}, summary['commands']['build_engine']['checks'])
         self.assertEqual(3, summary['build_session']['total_duration'])
         output = '\n'.join(messages)
         self.assertIn('    Checks', output)
         self.assertRegex(output, r'(?m)^\s+Python\s+0\.12 s$')
         self.assertRegex(output, r'(?m)^\s+Java\s+0\.25 s$')
+        self.assertNotRegex(output, r'(?m)^\s+build_engine\s+\d')
+        self.assertNotRegex(output, r'(?m)^\s+SDK\s+0\.10 s$')
+        self.assertRegex(output, r'(?m)^\s+CMake build engine_libs\s+0\.25 s$')
 
 
 class BuildSdkTests(unittest.TestCase):

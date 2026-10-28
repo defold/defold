@@ -181,9 +181,9 @@ def build_dependencies(configuration):
                 else:
                     configuration._log('External cache hit: %s' % platform)
                     build_type = configuration._find_cmake_build_type(configuration.build_options)
-                    build.run.env_command(configuration._form_env(), [
+                    configuration._run_cmake([
                         'cmake', '--install', str(build_dir), '--config', build_type,
-                        '--component', 'defold_sdk_headers'], cwd=configuration.defold_root)
+                        '--component', 'defold_sdk_headers'], str(build_dir), 'ext', 'headers')
                     continue
             # Discard an incomplete download before staging a successful build.
             configuration._remove_tree(cache_path)
