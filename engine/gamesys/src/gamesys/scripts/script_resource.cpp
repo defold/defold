@@ -3313,8 +3313,12 @@ static int SetBuffer(lua_State* L)
     dmBuffer::GetContentVersion(buffer_resource->m_Buffer, &buffer_resource->m_Version);
     buffer_resource->m_NameHash = path_hash;
 
-    HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
-    dmResource::SetResourceSize(rd, GetBufferResourceSize(buffer_resource));
+    // Copies into the existing buffer keep its resident size.
+    if (buffer_resource->m_Buffer != dst_buffer)
+    {
+        HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
+        dmResource::SetResourceSize(rd, GetBufferResourceSize(buffer_resource));
+    }
 
     assert(top == lua_gettop(L));
     return 0;
