@@ -6,11 +6,11 @@ defold_log("tools_protoc.cmake:")
 #   ${DEFOLD_SDK_ROOT}/bin/ddfc_cxx (protoc plugin)
 
 if(NOT DEFINED DEFOLD_SDK_ROOT OR NOT EXISTS "${DEFOLD_SDK_ROOT}")
-  message(FATAL_ERROR "tools_protoc: DEFOLD_SDK_ROOT is not set or does not exist. Cannot locate protoc.")
+  message(FATAL_ERROR "Could not find protoc. Run ./scripts/build.py install_ext to build and install it.\n\nDEFOLD_SDK_ROOT is not set or does not exist: ${DEFOLD_SDK_ROOT}")
 endif()
 
 # Prefer packaged protoc from DEFOLD_SDK_ROOT/ext/bin/<host-platform>/protoc
-set(_DEFOLD_PROTOC_EXECUTABLE "")
+set(_DEFOLD_PROTOC_EXECUTABLE "_DEFOLD_PROTOC_EXECUTABLE-NOTFOUND")
 
 # Ensure HOST_PLATFORM is known
 if(NOT DEFINED HOST_PLATFORM)
@@ -50,7 +50,7 @@ else()
 endif()
 
 if(NOT _DEFOLD_PROTOC_EXECUTABLE)
-  message(FATAL_ERROR "tools_protoc: Could not find protoc. Expected in ${DEFOLD_SDK_ROOT}/ext/bin/<host-platform>/ or on PATH.")
+  message(FATAL_ERROR "Could not find protoc. Run ./scripts/build.py install_ext to build and install it.\n\nExpected in ${_host_bin}/ or on PATH.")
 endif()
 
 file(REAL_PATH "${_DEFOLD_PROTOC_EXECUTABLE}" _DEFOLD_PROTOC_REAL)

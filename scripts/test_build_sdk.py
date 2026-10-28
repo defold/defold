@@ -605,6 +605,55 @@ set(Java_JAVA_EXECUTABLE "${TOOLS_ROOT}/Java (test)/java")
                     self.assertEqual(require_protoc, '✓ Protoc: libprotoc 30.2' in messages)
                     self.assertIn('✓ Toolchain: arm64-macos', messages)
 
+    # The real protoc module must give a repair command when missing and find a compiler supplied on PATH.
+    @unittest.skipIf(os.name == 'nt', 'The protoc fixture uses a POSIX launcher')
+    def test_protoc_failure_and_path_fallback(self):
+        repository = Path(__file__).resolve().parents[1]
+        cmake = build.shutil.which('cmake')
+        for on_path, verbose in ((False, False), (False, True), (True, False)):
+            with self.subTest(on_path=on_path, verbose=verbose), tempfile.TemporaryDirectory(prefix='protoc check ') as directory:
+                root = Path(directory)
+                programs = root / 'bin'
+                programs.mkdir()
+                if on_path:
+                    protoc = programs / 'protoc'
+                    protoc.write_text("#!/bin/sh\nprintf 'libprotoc 35.1\\n'\n")
+                    protoc.chmod(0o755)
+                script = root / 'check_protoc.cmake'
+                script.write_text('''
+cmake_minimum_required(VERSION 4.0)
+function(defold_log)
+endfunction()
+set(HOST_PLATFORM arm64-macos)
+set(CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH OFF)
+set(CMAKE_FIND_USE_CMAKE_SYSTEM_PATH OFF)
+set(CMAKE_FIND_USE_INSTALL_PREFIX OFF)
+message("DEFOLD_SDK_CHECK\\tProtoc")
+include("${DEFOLD_HOME}/scripts/cmake/tools_protoc.cmake")
+message("DEFOLD_SDK_CHECK\\tProtoc\\t${_protoc_ver}\\t${_DEFOLD_PROTOC_REAL}")
+''')
+                configuration = build.Configuration.__new__(build.Configuration)
+                configuration.verbose = verbose
+                configuration.no_colors = True
+                configuration.build_tracker = build.BuildTimeTracker(logger=lambda message: None)
+                configuration._log = mock.Mock()
+                args = [cmake, f'-DDEFOLD_HOME={repository.as_posix()}',
+                        f'-DDEFOLD_SDK_ROOT={root.as_posix()}', '-P', str(script)]
+                with mock.patch.dict(os.environ, {'PATH': str(programs)}):
+                    if on_path:
+                        configuration._check_sdk_cmake(args)
+                    else:
+                        with self.assertRaises(SystemExit):
+                            configuration._check_sdk_cmake(args)
+                messages = '\n'.join(call.args[0] for call in configuration._log.call_args_list)
+                if on_path:
+                    self.assertIn('✓ Protoc: libprotoc 35.1', messages)
+                    self.assertNotIn('install_ext', messages)
+                else:
+                    self.assertIn('✗ Protoc: Could not find protoc. Run ./scripts/build.py install_ext to build and install it.', messages)
+                    self.assertEqual(verbose, 'CMake Error' in messages)
+                    self.assertEqual(verbose, 'Expected in' in messages)
+
 
 class PlatformSdkPackagingTests(unittest.TestCase):
     # Both SDK archive formats must include the header used by Extender's Android entry point.
