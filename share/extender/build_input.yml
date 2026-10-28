@@ -512,9 +512,6 @@ platforms:
     context:
         optLevel: 3
         stackSize: 5242880
-        minFirefoxVersion: 40
-        minChromeVersion: 45
-        minSafariVersion: 101000
         initialMemory: 33554432
         engineJsLibs:   ["sys", "script", "sound", "render", "profile", "platform"]
         externalJsLibs: []
@@ -546,6 +543,11 @@ platforms:
   wasm-web:
     context:
         optLevel: 3
+        # dmloader.js uses Promise.finally; optional WASM streaming also uses AbortController.
+        # Keep in sync with scripts/cmake/platform_html5.cmake.
+        minFirefoxVersion: 58
+        minChromeVersion: 66
+        minSafariVersion: 110100
         libPaths:   ["{{dynamo_home}}/lib/wasm-web", "{{dynamo_home}}/ext/lib/wasm-web"]
         emscriptenLinkFlags: ["ALLOW_MEMORY_GROWTH=1", "WASM=1"]
 

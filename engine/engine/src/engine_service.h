@@ -51,6 +51,13 @@ namespace dmEngineService
 
     void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist);
 
+    // Notify the service before rendering and after command submission in Flip().
+    void BeginFrame(HEngineService engine_service);
+    void EndFrame(HEngineService engine_service);
+    // Finish service operations that depend on the engine before its contexts are destroyed.
+    // Called on shutdown and reboot; the service itself remains alive across reboots.
+    void OnEngineDelete(HEngineService engine_service);
+
     struct ResourceHandlerParams
     {
         dmResource::HFactory      m_Factory;

@@ -80,6 +80,8 @@ namespace dmRender
     }
 
     void StencilTestParams::Init() {
+        // Text batching hashes the full representation, including padding bits.
+        memset(this, 0, sizeof(*this));
         m_Front.m_Func = dmGraphics::COMPARE_FUNC_ALWAYS;
         m_Front.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
         m_Front.m_OpDPFail = dmGraphics::STENCIL_OP_KEEP;
@@ -291,7 +293,8 @@ namespace dmRender
 
         // If we push new items after the last frustum culling, we need to reevaluate them.
         RenderListEntry* start = render_list.Begin() + size;
-        memset(start, 0, entries * sizeof(RenderListEntry));
+        if (entries)
+            memset(start, 0, entries * sizeof(RenderListEntry));
 
         return start;
     }

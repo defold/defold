@@ -446,50 +446,51 @@ namespace dmEngine
     }
 
     Engine::Engine(dmEngineService::HEngineService engine_service)
-        : m_Config(0)
-        , m_Window(0)
-        , m_Alive(true)
-        , m_MainCollectionResource(0)
-        , m_LastReloadMTime(0)
-        , m_MouseSensitivity(1.0f)
-        , m_DataStore(0)
-        , m_DataStoreJobs(0)
-        , m_GraphicsContext(0)
-        , m_RenderContext(0)
-        , m_ScriptContext(0x0)
-        , m_Factory(0x0)
-        , m_SystemSocket(0x0)
-        , m_SystemFont(0x0)
-        , m_HidContext(0x0)
-        , m_InputContext(0x0)
-        , m_GameInputBinding(0x0)
-        , m_DisplayProfiles(0x0)
-        , m_RenderScriptPrototype(0x0)
-        , m_Stats()
-        , m_WasIconified(true)
-        , m_QuitOnEsc(false)
-        , m_ConnectionAppMode(false)
-        , m_RunWhileIconified(false)
-        , m_SwapInterval(0)
-        , m_EffectiveSwapInterval(~0U)
-        , m_PreviousFrameTime(dmTime::GetMonotonicTime())
-        , m_NextFrameTime(0)
-        , m_FramePacingFrequency(0)
-        , m_FrameTimeRemainder(0)
-        , m_PacedFrameTimeDebt(0.0f)
-        , m_AccumFrameTime(0.0f)
-        , m_UpdateFrequency(0)
-        , m_FixedUpdateFrequency(0)
-        , m_Width(960)
-        , m_Height(640)
-        , m_InvPhysicalWidth(1.0f / 960)
-        , m_InvPhysicalHeight(1.0f / 640)
-        , m_PendingWindowResizeWidth(0)
-        , m_PendingWindowResizeHeight(0)
-        , m_HasPendingWindowResize(false)
-        , m_ThrottleCooldownMax(0.0f)
-        , m_ThrottleCooldown(0.0f)
-        , m_ThrottleEnabled(false)
+    : m_Config(0)
+    , m_Window(0)
+    , m_Alive(true)
+    , m_MainCollectionResource(0)
+    , m_LastReloadMTime(0)
+    , m_MouseSensitivity(1.0f)
+    , m_JobThreadContext(0)
+    , m_DataStore(0)
+    , m_DataStoreJobs(0)
+    , m_GraphicsContext(0)
+    , m_RenderContext(0)
+    , m_ScriptContext(0x0)
+    , m_Factory(0x0)
+    , m_SystemSocket(0x0)
+    , m_SystemFont(0x0)
+    , m_HidContext(0x0)
+    , m_InputContext(0x0)
+    , m_GameInputBinding(0x0)
+    , m_DisplayProfiles(0x0)
+    , m_RenderScriptPrototype(0x0)
+    , m_Stats()
+    , m_WasIconified(true)
+    , m_QuitOnEsc(false)
+    , m_ConnectionAppMode(false)
+    , m_RunWhileIconified(false)
+    , m_SwapInterval(0)
+    , m_EffectiveSwapInterval(~0U)
+    , m_PreviousFrameTime(dmTime::GetMonotonicTime())
+    , m_NextFrameTime(0)
+    , m_FramePacingFrequency(0)
+    , m_FrameTimeRemainder(0)
+    , m_PacedFrameTimeDebt(0.0f)
+    , m_AccumFrameTime(0.0f)
+    , m_UpdateFrequency(0)
+    , m_FixedUpdateFrequency(0)
+    , m_Width(960)
+    , m_Height(640)
+    , m_InvPhysicalWidth(1.0f/960)
+    , m_InvPhysicalHeight(1.0f/640)
+    , m_PendingWindowResizeWidth(0)
+    , m_PendingWindowResizeHeight(0)
+    , m_HasPendingWindowResize(false)
+    , m_ThrottleCooldownMax(0.0f)
+    , m_ThrottleCooldown(0.0f)
+    , m_ThrottleEnabled(false)
     {
         m_EngineService = engine_service;
         m_Register = dmGameObject::NewRegister();
@@ -497,8 +498,10 @@ namespace dmEngine
         m_ResourceTypeContexts.SetCapacity(31, 64);
         m_PhysicsContextBox2D.m_Context = 0x0;
         m_PhysicsContextBox2D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BOX2D;
+        m_PhysicsContextBox2D.m_BaseContext.m_Debug = false;
         m_PhysicsContextBullet3D.m_Context = 0x0;
         m_PhysicsContextBullet3D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BULLET3D;
+        m_PhysicsContextBullet3D.m_BaseContext.m_Debug = false;
         m_GuiContext = 0x0;
         m_SpriteContext.m_RenderContext = 0x0;
         m_SpriteContext.m_MaxSpriteCount = 0;
@@ -535,6 +538,9 @@ namespace dmEngine
 
     void Delete(HEngine engine)
     {
+        if (engine->m_EngineService)
+            dmEngineService::OnEngineDelete(engine->m_EngineService);
+
         {
             ScopedExtensionParams params(engine);
 
@@ -609,13 +615,6 @@ namespace dmEngine
             dmResource::DeleteFactory(engine->m_Factory);
         }
 
-// TODO: Temporarily disabled as it hangs the shutdown procedure
-        // // Stop processing graphics requests before deleting the graphics context
-        // if (engine->m_JobThreadContext)
-        // {
-        //     JobSystemDestroy(engine->m_JobThreadContext);
-        // }
-
         if (engine->m_GraphicsContext)
         {
             dmGraphics::CloseWindow(engine->m_GraphicsContext);
@@ -652,6 +651,18 @@ namespace dmEngine
             JobSystemDestroy(engine->m_DataStoreJobs);
         if (engine->m_DataStore)
             DSStoreDestroy(engine->m_DataStore);
+
+        // TODO: Job-system shutdown on threaded platforms was disabled because it hung.
+        // Resolve the hang and graphics teardown ordering before enabling it.
+        // if (engine->m_JobThreadContext)
+        // {
+        //     JobSystemDestroy(engine->m_JobThreadContext);
+        // }
+#if !defined(DM_HAS_THREADS)
+        // Single-threaded builds have no workers to join. Keep the job context alive
+        // through graphics and extension shutdown, then release its queues.
+        JobSystemDestroy(engine->m_JobThreadContext);
+#endif
 
         ContextRegistryDestroy(engine->m_ContextRegistry);
         engine->m_ContextRegistry = 0;
@@ -2061,6 +2072,7 @@ bail:
             DM_PROFILE("Frame");
 
             bool do_render = g_EngineRenderEnabled && !dmRender::IsRenderPaused(engine->m_RenderContext);
+            bool frame_rendered = false;
 
             {
                 DM_PROFILE("Sim");
@@ -2183,6 +2195,10 @@ bail:
                 // Don't render while iconified
                 if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED) && do_render)
                 {
+                    frame_rendered = true;
+                    if (engine->m_EngineService)
+                        dmEngineService::BeginFrame(engine->m_EngineService);
+
                     // Begin the renderer frame with current time since engine start and frame delta-time.
                     // Use the same dt that is passed into script updates and the accumulated engine time.
                     dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
@@ -2268,6 +2284,9 @@ bail:
                 }
 
                 dmGraphics::Flip(engine->m_GraphicsContext);
+
+                if (engine->m_EngineService && frame_rendered)
+                    dmEngineService::EndFrame(engine->m_EngineService);
             }
         }
         ProfileFrameEnd(profile);

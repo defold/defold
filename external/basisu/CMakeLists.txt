@@ -6,9 +6,14 @@ include(defold)
 project(basisu LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 
 set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}/ext" CACHE PATH "External library install prefix" FORCE)
+if(DEFOLD_EXTERNAL_INSTALL_PREFIX)
+  set(CMAKE_INSTALL_PREFIX "${DEFOLD_EXTERNAL_INSTALL_PREFIX}" CACHE PATH "External library install prefix" FORCE)
+endif()
 set(BASISU_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/package/basis_universal-2.50")
 
 # Patch a build copy so the vendored upstream sources remain unchanged.
+# Run Git from the repository root so its subdirectory filter does not skip
+# the absolute build paths used by either patch command.
 find_package(Git REQUIRED)
 set(BASISU_RUNTIME_SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/runtime")
 set(BASISU_RUNTIME_SOURCE "${BASISU_RUNTIME_SOURCE_DIR}/transcoder/basisu_transcoder.cpp")
@@ -99,6 +104,12 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
     "${BASISU_OFFLINE_SOURCE}"
     "${BASISU_SOURCE_DIR}/transcoder/basisu_transcoder.cpp"
     "${BASISU_SOURCE_DIR}/zstd/zstd.c")
+  if(WITH_MSAN)
+    # Request stdint in the first inlined zstd_deps.h. The amalgamation skips
+    # its later MSan request, leaving intptr_t undefined on some systems.
+    set_property(SOURCE "${BASISU_SOURCE_DIR}/zstd/zstd.c" APPEND PROPERTY
+      COMPILE_DEFINITIONS ZSTD_DEPS_NEED_STDINT=)
+  endif()
   target_include_directories(basis_encoder PRIVATE "${BASISU_SOURCE_DIR}/encoder")
   target_compile_definitions(basis_encoder PRIVATE
     BASISD_SUPPORT_KTX2=1 BASISD_SUPPORT_KTX2_ZSTD=1
@@ -135,15 +146,17 @@ defold_install_targets(TARGETS ${BASISU_INSTALL_TARGETS}
 
 # Retire dlib's generated archives after installing their replacements. Otherwise
 # Waf and SDK consumers can find the old version first in SDK/lib.
-foreach(_target IN ITEMS basis_transcoder basis_encoder basis_encoder_noasan)
-  install(CODE "file(REMOVE \"\$ENV{DESTDIR}${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}/${CMAKE_STATIC_LIBRARY_PREFIX}${_target}${CMAKE_STATIC_LIBRARY_SUFFIX}\")")
-  if(TARGET_PLATFORM MATCHES "win32$")
-    install(CODE "file(REMOVE \"\$ENV{DESTDIR}${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}/lib${_target}.lib\")")
-  endif()
-endforeach()
+if(NOT WITH_MSAN)
+  foreach(_target IN ITEMS basis_transcoder basis_encoder basis_encoder_noasan)
+    install(CODE "file(REMOVE \"\$ENV{DESTDIR}${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}/${CMAKE_STATIC_LIBRARY_PREFIX}${_target}${CMAKE_STATIC_LIBRARY_SUFFIX}\")")
+    if(TARGET_PLATFORM MATCHES "win32$")
+      install(CODE "file(REMOVE \"\$ENV{DESTDIR}${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}/lib${_target}.lib\")")
+    endif()
+  endforeach()
 
-# The uninstrumented encoder is shared by tools and editor JNI.
-install(CODE "file(REMOVE \"\$ENV{DESTDIR}${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}/${CMAKE_STATIC_LIBRARY_PREFIX}basis_encoder_noasan${CMAKE_STATIC_LIBRARY_SUFFIX}\")")
+  # The uninstrumented encoder is shared by tools and editor JNI.
+  install(CODE "file(REMOVE \"\$ENV{DESTDIR}${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}/${CMAKE_STATIC_LIBRARY_PREFIX}basis_encoder_noasan${CMAKE_STATIC_LIBRARY_SUFFIX}\")")
+endif()
 
 install(DIRECTORY "${BASISU_SOURCE_DIR}/encoder"
                   "${BASISU_RUNTIME_SOURCE_DIR}/transcoder"

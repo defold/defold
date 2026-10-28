@@ -74,6 +74,11 @@ set(protobuf_BUILD_CONFORMANCE OFF)
 set(protobuf_BUILD_EXAMPLES OFF)
 set(protobuf_BUILD_SHARED_LIBS OFF)
 set(protobuf_BUILD_PROTOC_BINARIES ON)
+if(WITH_MSAN)
+  # Code generators run on the host using the normal build_ext installation.
+  # Only the runtime used by test_ddf needs an instrumented copy.
+  set(protobuf_BUILD_PROTOC_BINARIES OFF)
+endif()
 set(protobuf_BUILD_LIBUPB OFF)
 set(protobuf_DISABLE_RTTI ON)
 set(protobuf_LOCAL_DEPENDENCIES_ONLY ON)

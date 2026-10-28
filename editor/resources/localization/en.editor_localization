@@ -323,10 +323,12 @@ dialog.save-and-upgrade.button.upgrade-editable-files = Upgrade Editable Files
 dialog.save-and-upgrade.button.upgrade-project-files = Upgrade Project Files
 dialog.save-and-upgrade.button.upgrade-all-files = Upgrade All Files
 
-# Plugin load error dialog
+# Plugin error dialogs
 
 dialog.plugin-load-error.title = Unable to Load Plugin
 dialog.plugin-load-error.header = The editor plugin "{plugin}" is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version.
+dialog.plugin-resource-type-error.title = Plugin Resource Type Error
+dialog.plugin-resource-type-error.header = The editor plugin resource type "{ext}" is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version.
 
 # Desktop entry dialogs
 
@@ -2851,6 +2853,7 @@ error.property-resource-is-a-broken-symlink = {property} symlink "{resource}" re
 error.resource-not-found = "{resource}" could not be found.
 error.resource-is-a-broken-symlink = Symlink "{resource}" refers to missing path "{path}".
 error.resource-not-loaded = The file "{resource}" could not be loaded.
+error.resource-not-loaded-update-extension = The file "{resource}" could not be loaded because the plugin is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version.
 error.resource-not-loaded-with-error = The file "{resource}" could not be loaded: {error}
 error.resource-assignment-not-of-type = {property} "{resource}" is not of type {type}.
 error.no-file-extension = no file extension

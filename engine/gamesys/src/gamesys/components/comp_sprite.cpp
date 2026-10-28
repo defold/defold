@@ -175,6 +175,8 @@ namespace dmGameSystem
         uint8_t                     m_RenderItemEnabled : 1;
         uint8_t                     m_BoundsDirty : 1;
         uint8_t                     m_LocalPoseIsIdentity : 1; // Fixed component position/rotation; scale is checked separately.
+        uint8_t                     m_GeometryFlipHorizontal : 1; // Animation flips that also mirror the pivot (polygon geometry only)
+        uint8_t                     m_GeometryFlipVertical : 1;
     };
 
     struct SpriteWorld
@@ -281,7 +283,8 @@ namespace dmGameSystem
         sprite_world->m_Components.SetCapacity(comp_count);
         sprite_world->m_AnimationDataCache.m_Cache.SetCapacity(MINIMUM_CACHE_CAPACITY);
         dmDoubleLinkedList::ListInit(&sprite_world->m_AnimationDataCache.m_LRU);
-        memset(sprite_world->m_Components.GetRawObjects().Begin(), 0, sizeof(SpriteComponent) * comp_count);
+        if (comp_count)
+            memset(sprite_world->m_Components.GetRawObjects().Begin(), 0, sizeof(SpriteComponent) * comp_count);
         sprite_world->m_RenderObjectsInUse   = 0;
         sprite_world->m_VertexBuffer         = 0;
         sprite_world->m_VertexBufferData     = 0;
@@ -925,6 +928,13 @@ namespace dmGameSystem
         }
     }
 
+    // The component flips mirror the pivot, so flipping matches a negative scale on the unflipped sprite.
+    static inline void GetFlippedPivot(const SpriteComponent* component, float* out_x_pivot, float* out_y_pivot)
+    {
+        *out_x_pivot = component->m_FlipHorizontal ? -component->m_PivotX : component->m_PivotX;
+        *out_y_pivot = component->m_FlipVertical ? -component->m_PivotY : component->m_PivotY;
+    }
+
     static inline void UpdateVertexMetricsCache(SpriteComponent* component, const AnimationData* anim_data, dmRender::HRenderContext render_context)
     {
         dmRender::HMaterial material           = GetRenderMaterial(render_context, component);
@@ -1127,6 +1137,8 @@ namespace dmGameSystem
 
         uint32_t sp_width = sprite_size.getX();
         uint32_t sp_height = sprite_size.getY();
+        float pivot_x, pivot_y;
+        GetFlippedPivot(component, &pivot_x, &pivot_y);
         uint32_t vertex_index = 0;
         for (int y=0; y<4; y++)
         {
@@ -1137,7 +1149,7 @@ namespace dmGameSystem
                     // convert from [0,1] to [-0.5, 0.5]
                     float px = xs[x] - 0.5f;
                     float py = ys[y] - 0.5f;
-                    Point3 p = Point3(px - component->m_PivotX, py - component->m_PivotY, 0);
+                    Point3 p = Point3(px - pivot_x, py - pivot_y, 0);
 
                     // Local space has size applied; world = mtx_world * local (mtx_world has no scale)
                     Vector4 local_pos(p.getX() * sp_width, p.getY() * sp_height, 0.0f, 1.0f);
@@ -1764,10 +1776,12 @@ namespace dmGameSystem
                     //    for any subsequent geometry would yield a quad anyways.
                     ResolveUVDataFromQuads(component, animations, sprite_world->m_ScratchUVs, scratch_uv_ptrs, scratch_pi_ptrs, scratch_tt_ptrs);
 
-                    float x0 = -0.5f - component->m_PivotX;
-                    float x1 =  0.5f - component->m_PivotX;
-                    float y0 = -0.5f - component->m_PivotY;
-                    float y1 =  0.5f - component->m_PivotY;
+                    float pivot_x, pivot_y;
+                    GetFlippedPivot(component, &pivot_x, &pivot_y);
+                    float x0 = -0.5f - pivot_x;
+                    float x1 =  0.5f - pivot_x;
+                    float y0 = -0.5f - pivot_y;
+                    float y1 =  0.5f - pivot_y;
 
                     if (has_default_quad_vertex_format && has_default_attribute_infos)
                     {
@@ -2209,6 +2223,10 @@ namespace dmGameSystem
             if (is_component_changed)
             {
                 GetPivot(anim_data, &component->m_PivotX, &component->m_PivotY);
+                const dmGameSystemDDF::TextureSetAnimation* animation_ddf = anim_data->m_Animations[0];
+                bool uses_geometry = component->m_NumTextures != 0 && !anim_data->m_CanUseQuads && animation_ddf;
+                component->m_GeometryFlipHorizontal = uses_geometry && animation_ddf->m_FlipHorizontal;
+                component->m_GeometryFlipVertical = uses_geometry && animation_ddf->m_FlipVertical;
                 UpdateVertexMetricsCache(component, anim_data, render_context);
                 component->m_BoundsDirty = 1;
                 UpdateRenderItemEnabled(render_context, world, component);
@@ -2265,7 +2283,9 @@ namespace dmGameSystem
                 Vector3 half_diagonal = (component->m_World.getCol(0).getXYZ() * size.getX() + component->m_World.getCol(1).getXYZ() * size.getY()) * 0.5f;
                 float   radius = dmVMath::Length(half_diagonal);
 
-                Point3 pivot_scaled(-component->m_PivotX * size.getX(), -component->m_PivotY * size.getY(), 0.f);
+                float pivot_x = (component->m_FlipHorizontal ^ component->m_GeometryFlipHorizontal) ? -component->m_PivotX : component->m_PivotX;
+                float pivot_y = (component->m_FlipVertical ^ component->m_GeometryFlipVertical) ? -component->m_PivotY : component->m_PivotY;
+                Point3 pivot_scaled(-pivot_x * size.getX(), -pivot_y * size.getY(), 0.f);
                 Vector3 world_pos = (component->m_World * pivot_scaled).getXYZ();
 
                 dmRender::SetBoundingSphere(sprite_context->m_RenderContext, component->m_RenderItem, Point3(world_pos), radius);
@@ -2486,11 +2506,13 @@ namespace dmGameSystem
             {
                 dmGameSystemDDF::SetFlipHorizontal* ddf = (dmGameSystemDDF::SetFlipHorizontal*)params.m_Message->m_Data;
                 component->m_FlipHorizontal = ddf->m_Flip != 0 ? 1 : 0;
+                component->m_BoundsDirty = 1;
             }
             else if (message_id == dmGameSystemDDF::SetFlipVertical::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SetFlipVertical* ddf = (dmGameSystemDDF::SetFlipVertical*)params.m_Message->m_Data;
                 component->m_FlipVertical = ddf->m_Flip != 0 ? 1 : 0;
+                component->m_BoundsDirty = 1;
             }
             else if (message_id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {

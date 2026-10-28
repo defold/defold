@@ -870,6 +870,7 @@ namespace dmPhysics
 
         if (shape->m_type != b2Shape::e_circle)
             ret->m_creationScale = scale;
+        ret->m_lastScale = scale;
         return ret;
     }
 
