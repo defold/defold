@@ -29,7 +29,7 @@
             [editor.yaml :as yaml]
             [util.coll :as coll])
   (:import [com.defold.extender.client ExtenderClient ExtenderClientCache ExtenderResource]
-           [com.dynamo.bob IProgress Platform]
+           [com.dynamo.bob IProgress IProgress$Message$BuildingEngine Platform]
            [com.dynamo.bob.bundle BundleHelper]
            [java.io File]
            [java.net URI]
@@ -336,8 +336,10 @@
                (.setHeader extender-client "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes auth StandardCharsets/UTF_8)))))
              (when (pos? (count headers))
                (.setHeaders extender-client headers))
+             (when progress
+               (.message progress IProgress$Message$BuildingEngine/INSTANCE))
              (.build extender-client extender-platform sdk-version extender-resources destination-file log-file
-                     (when progress (BundleHelper/createProgressListener progress extender-platform)))
+                     (when progress (BundleHelper/createProgressListener progress extender-platform extender-resources)))
              {:id {:type :custom :version cache-key}
               :engine-archive destination-file
               :extender-platform extender-platform}

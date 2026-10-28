@@ -30,7 +30,9 @@ import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.HashSet;
@@ -38,7 +40,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -800,20 +801,64 @@ public class BundleHelper {
         }
     }
 
+    // Percent range of the compile stage in the extender progress estimate
+    private static final int COMPILING_START_PERCENT = 35;
+    private static final int COMPILING_END_PERCENT = 80;
+    private static final Pattern EXTENDER_SOURCE_PATTERN = Pattern.compile("(?i)(?:.*/)?(?:src|commonsrc)/.+\\.(cpp|c|cc|cxx|c\\+\\+|mm|m|swift|zig)");
+
+    /// Counts the uploaded files the extender is expected to compile for `platform`
+    public static int countExtenderSourceFiles(List<ExtenderResource> sources, String platform) {
+        boolean apple = platform.contains("osx") || platform.contains("ios");
+        int count = 0;
+        for (ExtenderResource source : sources) {
+            Matcher matcher = EXTENDER_SOURCE_PATTERN.matcher(source.getPath());
+            if (matcher.matches()) {
+                String extension = matcher.group(1).toLowerCase(Locale.ROOT);
+                if (apple || !(extension.equals("m") || extension.equals("mm") || extension.equals("swift"))) {
+                    ++count;
+                }
+            }
+        }
+        return count;
+    }
+
     /// Creates a listener that forwards extender build progress into `progress`.
     ///
-    /// Callbacks arrive on a background thread; the server percent estimate is clamped to
-    /// never decrease and mapped onto the first 90% of `progress`. The rest is left for
-    /// downloading and unpacking the result, and is filled when `progress` is closed.
-    public static ExtenderProgressListener createProgressListener(IProgress progress, String platform) {
-        IProgress.ISplit split = progress.split(10).subtask(9).split(100);
-        AtomicInteger lastPercent = new AtomicInteger(0);
+    /// Callbacks arrive on a background thread. The server percent estimate is clamped to
+    /// never decrease and `progress` is filled once the server reports success.
+    ///
+    /// The server interpolates the compile stage over the files of the extensions it has
+    /// started so far, so its estimate stalls after the first extension. While compiling,
+    /// the percent is instead derived from the files compiled so far and the number of
+    /// uploaded `sources` that will be compiled.
+    public static ExtenderProgressListener createProgressListener(IProgress progress, String platform, List<ExtenderResource> sources) {
+        IProgress.ISplit split = progress.split(100);
+        int expectedSourceFiles = countExtenderSourceFiles(sources, platform);
+        Map<String, Integer> compiledFiles = new HashMap<>();
+        Map<String, Integer> batchFiles = new HashMap<>();
+        int[] reportedPercent = {0};
         return (stage, detail, percent, currentFile, totalFiles) -> {
             progress.message(new IProgress.Message.BuildingEngineStage(platform, stage, detail, currentFile, totalFiles));
-            int clamped = Math.max(0, Math.min(100, percent));
-            int previous = lastPercent.getAndAccumulate(clamped, Math::max);
-            if (clamped > previous) {
-                split.worked(clamped - previous);
+            synchronized (reportedPercent) {
+                int nextPercent = Math.max(0, Math.min(100, percent));
+                if ("SUCCESS".equals(stage)) {
+                    nextPercent = 100;
+                } else if ("COMPILING".equals(stage)) {
+                    if (totalFiles >= 0) {
+                        // Detail names the extension being compiled
+                        compiledFiles.merge(Objects.requireNonNullElse(detail, ""), Math.max(0, currentFile), Math::max);
+                        batchFiles.put(Objects.requireNonNullElse(detail, ""), totalFiles);
+                    }
+                    int compiled = compiledFiles.values().stream().mapToInt(Integer::intValue).sum();
+                    int total = Math.max(expectedSourceFiles, batchFiles.values().stream().mapToInt(Integer::intValue).sum());
+                    nextPercent = total > 0
+                            ? COMPILING_START_PERCENT + (COMPILING_END_PERCENT - COMPILING_START_PERCENT) * Math.min(compiled, total) / total
+                            : COMPILING_START_PERCENT;
+                }
+                if (nextPercent > reportedPercent[0]) {
+                    split.worked(nextPercent - reportedPercent[0]);
+                    reportedPercent[0] = nextPercent;
+                }
             }
         };
     }
@@ -834,7 +879,7 @@ public class BundleHelper {
         checkForDuplicates(allSource);
 
         try {
-            extender.build(platform, sdkVersion, allSource, zipFile, logFile, createProgressListener(progress, platform));
+            extender.build(platform, sdkVersion, allSource, zipFile, logFile, createProgressListener(progress, platform, allSource));
         } catch (ExtenderClientException e) {
             if (e.getCause() instanceof ConnectException) {
                 throw (ConnectException)e.getCause();

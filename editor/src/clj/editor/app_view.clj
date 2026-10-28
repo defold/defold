@@ -1199,6 +1199,22 @@
                      :message (or (ex-message error)
                                   (.getName (class error)))})})))))
 
+(defn- combined-build-progress
+  "Returns a progress for the single build progress bar that combines the
+  project and the engine build. Once a remote engine build has started, it
+  takes up 30% of the bar. The bar never moves backwards, and is indeterminate
+  before there is determinate progress to show and once everything is built
+  while we wait for the remaining phases, e.g. the engine download."
+  [{:keys [project-fraction engine-active engine-fraction fraction]} message cancel-state]
+  (let [fraction (when (or project-fraction engine-active)
+                   (let [engine-share (if engine-active 0.3 0.0)]
+                     (max (double (or fraction 0.0))
+                          (+ (* (- 1.0 engine-share) (double (or project-fraction 0.0)))
+                             (* engine-share (double engine-fraction))))))]
+    (if (and fraction (< (double fraction) 1.0))
+      (progress/->progress message 1000 (long (* 1000.0 (double fraction))) cancel-state)
+      (progress/->progress message 0 0 cancel-state))))
+
 (defn async-build!
   "Asynchronously build the project and notify the :result-fn with results
 
@@ -1253,25 +1269,83 @@
         ;; engine build in the final phase.
         engine-build-future-atom (atom nil)
 
-        ;; The engine build reports progress concurrently with the project build
-        ;; phases, so its progress is only rendered once we are waiting for it.
-        ;; The lock keeps the engine thread and the UI thread from rendering
-        ;; each other's stale progress.
-        engine-progress-lock (Object.)
-        engine-progress-atom (atom nil)
-        engine-progress-visible-atom (atom false)
+        ;; The project and the engine are built concurrently, but their progress
+        ;; is rendered on a single bar. Engine messages are only shown once we
+        ;; are waiting for the engine. The lock keeps the engine thread and the
+        ;; build threads from rendering each other's stale progress.
+        build-progress-lock (Object.)
+        build-progress-state-atom (atom {:engine-fraction 0.0})
+
+        render-build-progress!
+        (fn render-build-progress! [update-state message-fn cancel-state]
+          (locking build-progress-lock
+            (let [state (update-state @build-progress-state-atom)]
+              (if (:finished state)
+                (reset! build-progress-state-atom state)
+                (let [message (message-fn state)
+                      progress (when message
+                                 (combined-build-progress state message cancel-state))]
+                  (reset! build-progress-state-atom
+                          (cond-> state
+                            (some-> progress progress/fraction)
+                            (assoc :fraction (progress/fraction progress))))
+                  (when progress
+                    (render-progress! progress)))))))
+
+        render-project-progress!
+        (fn render-project-progress! [progress]
+          ;; The project build reports done when finished, but the build as a
+          ;; whole continues.
+          (when-not (= progress/done progress)
+            (render-build-progress!
+              (fn [state]
+                (cond-> (assoc state :project-message (progress/message progress))
+                  (progress/fraction progress)
+                  (assoc :project-fraction (progress/fraction progress))))
+              :project-message
+              (:cancel-state progress))))
 
         render-engine-progress!
         (fn render-engine-progress! [progress]
-          (let [progress (when-not (= progress/done progress) progress)]
-            (locking engine-progress-lock
-              (reset! engine-progress-atom progress)
-              (when (and progress @engine-progress-visible-atom)
-                (render-progress! progress)))))
+          (render-build-progress!
+            (fn [state]
+              ;; A cached engine reports completion right away, it only
+              ;; takes up a share of the bar while it is being built.
+              (if (progress/done? progress)
+                (cond-> (assoc state :engine-fraction 1.0)
+                  (and (:engine-active state) (not= progress/done progress))
+                  (assoc :engine-message (progress/message progress)))
+                (assoc state
+                  :engine-active true
+                  :engine-fraction (progress/fraction progress)
+                  :engine-message (progress/message progress))))
+            (fn [{:keys [engine-visible engine-message project-message]}]
+              (if engine-visible engine-message project-message))
+            (:cancel-state progress)))
+
+        show-engine-progress!
+        (fn show-engine-progress! []
+          (render-build-progress!
+            (fn [state]
+              (-> state
+                  (assoc :engine-visible true)
+                  (update :engine-message #(or % (localization/message "progress.fetching-engine")))))
+            :engine-message
+            :cancellable))
+
+        complete-project-progress!
+        (fn complete-project-progress! []
+          (locking build-progress-lock
+            (swap! build-progress-state-atom assoc :project-fraction 1.0)))
+
+        render-build-done!
+        (fn render-build-done! []
+          (locking build-progress-lock
+            (swap! build-progress-state-atom assoc :finished true)
+            (render-progress! progress/done)))
 
         cancel-engine-build!
         (fn cancel-engine-build! []
-          (reset! engine-progress-visible-atom false)
           (when-some [engine-build-future (thread-util/preset! engine-build-future-atom nil)]
             (future-cancel engine-build-future)
             nil))
@@ -1313,13 +1387,13 @@
                     (ui-thread-fn return-value)
                     (catch Throwable error
                       (reset! build-in-progress-atom false)
-                      (render-progress! progress/done)
+                      (render-build-done!)
                       (cancel-engine-build!)
                       (future/fail! result-future error)
                       (throw error)))))
               (catch Throwable error
                 (reset! build-in-progress-atom false)
-                (render-progress! progress/done)
+                (render-build-done!)
                 (cancel-engine-build!)
                 (ui/run-later (future/fail! result-future error))
                 (error-reporting/report-exception! error))))
@@ -1328,7 +1402,7 @@
         finish-with-result!
         (fn finish-with-result! [project-build-results]
           (reset! build-in-progress-atom false)
-          (render-progress! progress/done)
+          (render-build-done!)
           (cancel-engine-build!)
           (future/complete! result-future project-build-results)
           nil)
@@ -1337,7 +1411,7 @@
         (fn phase-7-await-lint! [project-build-results]
           (if lint
             (do
-              (render-progress! (progress/make-indeterminate (localization/message "progress.linting")))
+              (render-project-progress! (progress/make-indeterminate (localization/message "progress.linting")))
               (run-on-background-thread!
                 (fn await-lint-on-background-thread! []
                   (deref lint-promise))
@@ -1380,10 +1454,7 @@
             (if (nil? engine-build-future)
               (phase-7-await-lint! project-build-results)
               (do
-                (locking engine-progress-lock
-                  (reset! engine-progress-visible-atom true)
-                  (render-progress! (or @engine-progress-atom
-                                        (progress/make-indeterminate (localization/message "progress.fetching-engine")))))
+                (show-engine-progress!)
                 (run-on-background-thread!
                   (fn run-engine-build-on-background-thread! []
                     (deref engine-build-future))
@@ -1398,7 +1469,7 @@
 
         phase-5-run-post-build-hook!
         (fn phase-5-run-post-build-hook! [project-build-results]
-          (render-progress! (progress/make-indeterminate (localization/message "progress.executing-post-build-hooks")))
+          (render-project-progress! (progress/make-indeterminate (localization/message "progress.executing-post-build-hooks")))
           (let [platform (engine/current-platform)
                 project-build-successful (nil? (:error project-build-results))]
             (run-on-background-thread!
@@ -1423,7 +1494,7 @@
           ;; risk evicting the previous build targets as the cache fills up.
           (assert (ui/on-ui-thread?))
           (let [evaluation-context (g/make-evaluation-context)]
-            (render-progress! (progress/make (localization/message "progress.building-project") 1))
+            (render-project-progress! (progress/make (localization/message "progress.building-project") 1))
             (run-on-background-thread!
               (fn run-project-build-on-background-thread! []
                 (let [extra-build-targets
@@ -1432,10 +1503,11 @@
 
                       opts
                       {:extra-build-targets extra-build-targets
-                       :render-progress! render-progress!
+                       :render-progress! render-project-progress!
                        :task-cancelled? task-cancelled?}]
                   (build-project! project old-artifact-map opts evaluation-context)))
               (fn process-project-build-results-on-ui-thread! [project-build-results]
+                (complete-project-progress!)
                 (project/update-system-cache-build-targets! evaluation-context)
                 (project/log-cache-info! (g/cache) "Cached compiled build targets in system cache.")
                 (cond
@@ -1451,7 +1523,7 @@
 
         phase-2-run-pre-build-hook!
         (fn phase-2-run-pre-build-hook! []
-          (render-progress! (progress/make-indeterminate (localization/message "progress.executing-pre-build-hooks")))
+          (render-project-progress! (progress/make-indeterminate (localization/message "progress.executing-pre-build-hooks")))
           (let [platform (engine/current-platform)]
             (run-on-background-thread!
               (fn run-pre-build-hook-on-background-thread! []
@@ -1463,7 +1535,7 @@
                   ;; with the project build. But we still want to report the build
                   ;; failure to any post-build hooks that might need to know.
                   (when (some? extension-error)
-                    (render-progress! (progress/make-indeterminate (localization/message "progress.executing-post-build-hooks")))
+                    (render-project-progress! (progress/make-indeterminate (localization/message "progress.executing-post-build-hooks")))
                     @(extensions/execute-hook! project
                                                :on_build_finished
                                                {:success false :platform platform}
