@@ -271,8 +271,8 @@ struct FontcContext
     bool                     m_HasShadow;
     bool                     m_UseTextShaping;
     FontcMode                m_Mode;
-    uint8_t                  m_VectorDataDirty : 1; // Glyph changes require repacking the curve/band textures.
-    uint8_t : 7;
+    uint8_t                  m_VectorDataDirty:1; // Glyph changes require repacking the curve/band textures.
+    uint8_t              :7;
 };
 
 struct VectorPreviewVertex
