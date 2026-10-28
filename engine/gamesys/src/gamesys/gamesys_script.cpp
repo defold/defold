@@ -114,7 +114,7 @@ namespace dmGameSystem
         return luaL_error(L, "%s (%d): %s, %s", message, (int)result, path_hash_buffer, dmHashReverseSafe64(path_hash));
     }
 
-    void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
+    HResourceDescriptor CheckResourceDescriptor(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
     {
         if (path_hash == 0)
         {
@@ -143,7 +143,7 @@ namespace dmGameSystem
             return 0;
         }
 
-        return dmResource::GetResource(rd);
+        return rd;
     }
 
     void PushTextureInfo(lua_State* L, dmGraphics::HContext graphics_context, dmGraphics::HTexture texture_handle, dmhash_t texture_resource_path)

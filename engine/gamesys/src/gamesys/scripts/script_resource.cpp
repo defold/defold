@@ -3228,7 +3228,8 @@ static int SetBuffer(lua_State* L)
     }
 
     dmBuffer::HBuffer src_buffer                  = dmGameSystem::UnpackLuaBuffer(luabuf);
-    void* resource                                = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
+    HResourceDescriptor rd                        = CheckResourceDescriptor(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
+    void* resource                                = dmResource::GetResource(rd);
     dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)resource;
     dmBuffer::HBuffer dst_buffer                  = buffer_resource->m_Buffer;
 
@@ -3317,7 +3318,6 @@ static int SetBuffer(lua_State* L)
     // Copies into the existing buffer keep its resident size.
     if (buffer_resource->m_Buffer != dst_buffer)
     {
-        HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
         dmResource::SetResourceSize(rd, sizeof(BufferResource) + buffer_resource->m_ElementCount * buffer_resource->m_Stride);
     }
 
