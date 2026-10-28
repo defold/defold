@@ -1375,8 +1375,9 @@ struct TextureUploadBatchTest : ITest
                     params.m_LayerCount = tc.m_Layers;
                     params.m_Format = formats[c];
                     params.m_DataSize = dmGraphics::GetTextureFormatDataSize(params.m_Format, params.m_Width, params.m_Height) * params.m_Depth;
-                    tc.m_Data[stage][mip].SetCapacity(params.m_DataSize * tc.m_Layers);
-                    tc.m_Data[stage][mip].SetSize(params.m_DataSize * tc.m_Layers);
+                    const uint32_t trailing_bytes = c == 7 && dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_VULKAN ? 8 : 0;
+                    tc.m_Data[stage][mip].SetCapacity(params.m_DataSize * tc.m_Layers + trailing_bytes);
+                    tc.m_Data[stage][mip].SetSize(params.m_DataSize * tc.m_Layers + trailing_bytes);
                     bool float32 = formats[c] == dmGraphics::TEXTURE_FORMAT_RGB32F || formats[c] == dmGraphics::TEXTURE_FORMAT_RGBA32F;
                     bool float16 = formats[c] == dmGraphics::TEXTURE_FORMAT_RGB16F || formats[c] == dmGraphics::TEXTURE_FORMAT_RGBA16F;
                     if (float32)
@@ -1406,6 +1407,10 @@ struct TextureUploadBatchTest : ITest
                 memcpy(batch, tc.m_Params[stage], sizeof(batch));
                 for (uint32_t mip = 0; mip < MIP_COUNT; ++mip)
                 {
+                    // Lua array uploads can report the whole buffer size, including
+                    // unused trailing bytes. Layers still use tightly packed pixels.
+                    if (c == 7 && dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_VULKAN)
+                        batch[mip].m_DataSize = tc.m_Data[stage][mip].Size();
                     m_ExpectedStagingBytes += ExpectedStagingBytes(context, tc, tc.m_Params[stage][0], tc.m_Params[stage][mip]);
                     if (mip > 0)
                     {

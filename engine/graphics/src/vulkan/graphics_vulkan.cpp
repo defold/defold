@@ -5204,11 +5204,12 @@ bail:
         result = staging->MapMemory(device);
         CHECK_VK_ERROR(result);
         const uint32_t source_slice_size = GetTextureFormatDataSize(params.m_Format, params.m_Width, params.m_Height) * params.m_Depth;
-        const uint32_t source_stride = params.m_DataSize && params.m_DataSize != source_slice_size * footprint.m_Layers ? params.m_DataSize : source_slice_size;
+        // Array sources remain tightly packed when m_DataSize describes a Lua
+        // buffer with unused trailing bytes instead of one layer's size.
         for (uint32_t layer = 0; layer < footprint.m_Layers; ++layer)
         {
             uint8_t* destination = (uint8_t*)staging->m_MappedDataPtr + layer * footprint.m_LayerStride;
-            const uint8_t* source = params.m_Data ? (const uint8_t*)params.m_Data + layer * source_stride : 0;
+            const uint8_t* source = params.m_Data ? (const uint8_t*)params.m_Data + layer * source_slice_size : 0;
             if (!source)
                 memset(destination, 0, footprint.m_SliceSize);
             else if (params.m_Format == TEXTURE_FORMAT_RGB)
