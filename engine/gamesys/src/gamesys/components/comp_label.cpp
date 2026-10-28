@@ -158,7 +158,8 @@ namespace dmGameSystem
         uint32_t      comp_count = dmMath::Min(params.m_MaxComponentInstances, label_context->m_MaxLabelCount);
         label_context->m_ComponentTypeIndex = params.m_ComponentIndex;
         world->m_Components.SetCapacity(comp_count);
-        memset(world->m_Components.GetRawObjects().Begin(), 0, sizeof(LabelComponent) * comp_count);
+        if (comp_count)
+            memset(world->m_Components.GetRawObjects().Begin(), 0, sizeof(LabelComponent) * comp_count);
 
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;

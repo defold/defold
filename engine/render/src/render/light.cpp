@@ -536,7 +536,8 @@ namespace dmRender
             render_context->m_LightBufferSubmitted.SetCapacity(max_lights);
         }
         render_context->m_LightBufferSubmitted.SetSize(max_lights);
-        memset(render_context->m_LightBufferSubmitted.Begin(), 0, max_lights);
+        if (max_lights)
+            memset(render_context->m_LightBufferSubmitted.Begin(), 0, max_lights);
     }
 
     void FinalizeLightData(HRenderContext render_context)

@@ -418,6 +418,11 @@ namespace dmPlatform
 #endif
 
 #if defined(DM_PLATFORM_IOS)
+    void SetiOSHomeIndicatorMode(const char* mode)
+    {
+        (void) mode;
+    }
+
     void RegisteriOSApplicationDelegate(void* delegate)
     {
         (void) delegate;

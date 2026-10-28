@@ -80,6 +80,9 @@ typedef struct HttpTestResponse
     uint32_t     m_HasContentLengthHeader;
     uint32_t     m_ContentLengthHeaderValue;
     uint32_t     m_CancelOnDataEvent;
+    uint32_t     m_BlockOnDataEvent;
+    TestAtomic32 m_DataEntered;
+    TestAtomic32 m_ResumeData;
     TestAtomic32 m_Complete;
 } HttpTestResponse;
 
@@ -106,6 +109,7 @@ JC_TEST_FIXTURE_SETUP(Http)
 
 JC_TEST_FIXTURE_TEARDOWN(Http)
 {
+    TestAtomicStore32(&jc_test_fixture->m_Response.m_ResumeData, 1);
     HttpDeleteServiceInternal(jc_test_fixture->m_Service);
     HttpDeleteRequest(jc_test_fixture->m_Request);
 }
@@ -319,6 +323,13 @@ static HttpCallbackResult HttpResponse(HttpRequest* request, void* user_data, co
         test_response->m_DataSize += size;
         test_response->m_Data[test_response->m_DataSize] = 0;
 
+        if (test_response->m_BlockOnDataEvent)
+        {
+            TestAtomicStore32(&test_response->m_DataEntered, 1);
+            while (!TestAtomicGet32(&test_response->m_ResumeData))
+                TestSleep(1);
+        }
+
         if (test_response->m_CancelOnDataEvent)
         {
             return HTTP_CALLBACK_RESULT_CANCEL;
@@ -343,10 +354,10 @@ static HttpCallbackResult HttpResponse(HttpRequest* request, void* user_data, co
     return HTTP_CALLBACK_RESULT_CONTINUE;
 }
 
-static int WaitForComplete(HttpTestResponse* response, uint32_t timeout_seconds)
+static int WaitForSignal(TestAtomic32* signal, uint32_t timeout_seconds)
 {
     time_t start = time(0);
-    while (TestAtomicGet32(&response->m_Complete) == 0)
+    while (TestAtomicGet32(signal) == 0)
     {
         if ((uint32_t)(time(0) - start) >= timeout_seconds)
         {
@@ -356,6 +367,11 @@ static int WaitForComplete(HttpTestResponse* response, uint32_t timeout_seconds)
         TestSleep(1);
     }
     return 0;
+}
+
+static int WaitForComplete(HttpTestResponse* response, uint32_t timeout_seconds)
+{
+    return WaitForSignal(&response->m_Complete, timeout_seconds);
 }
 
 TEST_F(Http, RequestConfiguration)
@@ -620,6 +636,26 @@ TEST_F(Http, CancelRequest)
     ASSERT_EQ(0, WaitForComplete(response, 10));
 
     ASSERT_EQ(HTTP_RESULT_INVAL, response->m_Result);
+}
+
+// Cancel from another thread after an explicit callback signal, without holding the service lock across callbacks.
+TEST_F(Http, CancelWhileReceiving)
+{
+    HttpRequest* request = jc_test_fixture->m_Request;
+    HttpTestResponse* response = &jc_test_fixture->m_Response;
+    HttpRequestHandle request_handle;
+    char url[256];
+    response->m_BlockOnDataEvent = 1;
+    snprintf(url, sizeof(url), "http://%s:%d/arb/131072", g_ServerConfig.m_ServerIP, g_ServerConfig.m_ServerPort);
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetURL(request, url));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpSetResponseCallback(request, HttpResponse, response));
+    ASSERT_EQ(HTTP_RESULT_OK, PushRequest(jc_test_fixture, &request_handle));
+    ASSERT_EQ(0, WaitForSignal(&response->m_DataEntered, 10));
+    ASSERT_EQ(HTTP_RESULT_OK, HttpCancelRequest(jc_test_fixture->m_Service, request_handle));
+    TestAtomicStore32(&response->m_ResumeData, 1);
+    ASSERT_EQ(0, WaitForComplete(response, 10));
+    ASSERT_EQ(HTTP_RESULT_INVAL, response->m_Result);
+    ASSERT_EQ(1, response->m_DataEventCount);
 }
 
 // Verifies callback cancellation stops further data events and reports failure.

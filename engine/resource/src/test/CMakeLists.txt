@@ -329,6 +329,9 @@ function(resource_configure_test target run_test)
       "build/src/test" "build/src/test")
 endfunction()
 
+defold_add_executable(test_resource_loader "${RESOURCE_TEST_ROOT}/test_resource_loader.cpp")
+resource_configure_test(test_resource_loader ON ResourceProviderFile)
+
 defold_add_executable(test_block_allocator "${RESOURCE_TEST_ROOT}/test_block_allocator.cpp")
 resource_configure_test(test_block_allocator ON)
 

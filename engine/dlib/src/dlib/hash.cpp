@@ -188,7 +188,8 @@ struct ReverseHashContainer
         uint32_t length = source_state->m_Length;
         state->m_Value = malloc(DM_ALIGN(length + 1, 16));
         uint8_t* p = (uint8_t*) state->m_Value;
-        memcpy(p, source_state->m_Value, length);
+        if (length)
+            memcpy(p, source_state->m_Value, length);
         p[length] = '\0';
         state->m_Length = length;
         return true;
@@ -205,7 +206,8 @@ struct ReverseHashContainer
         size_t length = entry->m_Length + buffer_len;
         entry->m_Value = realloc(entry->m_Value, DM_ALIGN(length + 1, 16) + 16);
         uint8_t* p = (uint8_t*) entry->m_Value;
-        memcpy(&p[entry->m_Length], buffer, buffer_len);
+        if (buffer_len)
+            memcpy(&p[entry->m_Length], buffer, buffer_len);
         p[length] = '\0';
         entry->m_Length = length;
         return true;
@@ -332,7 +334,8 @@ uint32_t dmHashBuffer32(const void * key, uint32_t len)
                 IncreaseTableCapacity(hash_table, dmHashContainer().m_HashTableCapacityIncrement);
             }
             char* copy = (char*) malloc(len + 1);
-            memcpy(copy, key, len);
+            if (len)
+                memcpy(copy, key, len);
             copy[len] = '\0';
             hash_table->Put(h, ReverseHashEntry(copy, len));
         }
@@ -409,7 +412,8 @@ uint64_t dmHashBuffer64(const void * key, uint32_t len)
                 IncreaseTableCapacity(hash_table, dmHashContainer().m_HashTableCapacityIncrement);
             }
             char* copy = (char*) malloc(len + 1);
-            memcpy(copy, key, len);
+            if (len)
+                memcpy(copy, key, len);
             copy[len] = '\0';
             hash_table->Put(h, ReverseHashEntry(copy, len));
         }

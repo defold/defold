@@ -25,6 +25,10 @@
 #include "../platform_window_android.h"
 #endif
 
+#if defined(DM_PLATFORM_IOS)
+#include "../platform_window_ios.h"
+#endif
+
 #define APP_TITLE "PlatformTest"
 #define WIDTH 8u
 #define HEIGHT 4u
@@ -239,6 +243,14 @@ TEST(AndroidPlatform, LinkPlatformWindowAndroidSymbols)
 #endif
 
 #if defined(DM_PLATFORM_IOS)
+// Verifies home indicator configuration links and runs with platform_null, guarding against headless iOS link failures.
+TEST(iOSPlatform, NullPlatformHomeIndicatorMode)
+{
+    dmPlatform::SetiOSHomeIndicatorMode("deferred");
+    dmPlatform::SetiOSHomeIndicatorMode("system");
+    dmPlatform::SetiOSHomeIndicatorMode("auto_hide");
+}
+
 // Verifies platform_null provides the iOS delegate registration functions used by
 // dmExtension::RegisteriOSUI*Delegate, guarding against headless iOS link failures.
 TEST(iOSPlatform, NullPlatformDelegateRegistration)

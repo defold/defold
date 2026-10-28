@@ -61,8 +61,14 @@ HJob FontGenAddGlyphs(FontGenJobData*, TextGlyph*, uint32_t)
     return 0;
 }
 
-void FontGenFlushFinishedJobs(HJobContext, uint64_t)
+bool FontGenStartGlyphs(FontGenJobData*, TextGlyph*, uint32_t)
 {
+    return false;
+}
+
+bool FontGenUpdateGlyphs(FontGenJobData*, uint64_t)
+{
+    return true;
 }
 
 HFont FontLoadFromMemoryTTF(const char*, const void*, uint32_t, bool)
