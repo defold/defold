@@ -2020,6 +2020,42 @@ class dmGraphicsJobQueueTest : public dmGraphicsTestT<true, 0>
 {
 };
 
+// Adapters without batching must keep every mip pending until its individual upload completes.
+TEST_F(dmGraphicsJobQueueTest, TestTextureAsyncBatchFallback)
+{
+    m_NullContext->m_UseAsyncTextureLoad = 1;
+    dmGraphics::TextureCreationParams creation;
+    creation.m_Width = 4;
+    creation.m_Height = 4;
+    creation.m_MipMapCount = 3;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation);
+    uint8_t pixels[3][64] = {};
+    dmGraphics::TextureParams params[3];
+    for (uint32_t mip = 0; mip < 3; ++mip)
+    {
+        memset(pixels[mip], 17 + mip, sizeof(pixels[mip]));
+        params[mip].m_Width = 4 >> mip;
+        params[mip].m_Height = 4 >> mip;
+        params[mip].m_MipMap = mip;
+        params[mip].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+        params[mip].m_Data = pixels[mip];
+        params[mip].m_DataSize = params[mip].m_Width * params[mip].m_Height * 4;
+    }
+    dmGraphics::SetTextureAsyncBatch(m_Context, texture, params, 3);
+    for (uint32_t mip = 0; mip < 3; ++mip)
+    {
+        params[mip].m_Data = 0;
+        ASSERT_TRUE(dmGraphics::GetTextureStatusFlags(m_Context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING);
+        JobSystemUpdate(m_JobContext, 0);
+    }
+    ASSERT_FALSE(dmGraphics::GetTextureStatusFlags(m_Context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING);
+    ASSERT_EQ(3, dmGraphics::GetTextureMipmapCount(m_Context, texture));
+    void* handle = 0;
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK, dmGraphics::GetTextureHandle(texture, &handle));
+    ASSERT_EQ(0, memcmp(handle, pixels[2], 4));
+    dmGraphics::DeleteTexture(m_Context, texture);
+}
+
 // Queued texture deletion must remain asynchronous and survive cancellation at shutdown.
 TEST_F(dmGraphicsJobQueueTest, TestTextureDeleteBeforeJobSystemShutdown)
 {

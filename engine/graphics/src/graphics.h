@@ -497,6 +497,11 @@ namespace dmGraphics
     uint32_t    GetTextureFormatDataSize(TextureFormat format, uint32_t width, uint32_t height);
     uint8_t     GetTexturePageCount(HTexture texture);
 
+    // Submit one texture's mip/slice updates together. The parameter array is copied,
+    // but the caller owns its image data until TEXTURE_STATUS_DATA_PENDING clears.
+    // Adapters without batching support use the individual asynchronous upload path.
+    void SetTextureAsyncBatch(HContext context, HTexture texture, const TextureParams* params, uint32_t count);
+
     // Calculating mipmap info helpers
     uint16_t    GetMipmapSize(uint16_t size_0, uint8_t mipmap);
     uint8_t     GetMipmapCount(uint16_t size);

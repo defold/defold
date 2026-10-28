@@ -2555,6 +2555,18 @@ namespace dmGraphics
     {
         g_functions.m_SetTextureAsync(context, texture, params, callback, user_data);
     }
+    void SetTextureAsyncBatch(HContext context, HTexture texture, const TextureParams* params, uint32_t count)
+    {
+        if (g_functions.m_SetTextureAsyncBatch)
+        {
+            g_functions.m_SetTextureAsyncBatch(context, texture, params, count);
+            return;
+        }
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            SetTextureAsync(context, texture, params[i], 0, 0);
+        }
+    }
     void SetTextureParams(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         SetTextureParams(context, texture, minfilter, magfilter, uwrap, vwrap, uwrap, max_anisotropy);
