@@ -317,7 +317,7 @@ dialog.save-and-upgrade.button.upgrade-editable-files = 升级可编辑文件
 dialog.save-and-upgrade.button.upgrade-project-files = 升级项目文件
 dialog.save-and-upgrade.button.upgrade-all-files = 升级所有文件
 
-# Plugin load error dialog
+# Plugin error dialogs
 
 dialog.plugin-load-error.title = 无法加载插件
 dialog.plugin-load-error.header = 编辑器插件"{plugin}"与此版本的编辑器不兼容。请编辑您的项目依赖项以引用合适的版本。
