@@ -29,6 +29,7 @@
 #include <dlib/image.h>
 
 #include <dmsdk/dlib/atomic.h>
+#include <dmsdk/dlib/static_assert.h>
 
 DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics", 0);
 DM_PROPERTY_U32(rmtp_DrawCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Graphics);
@@ -741,21 +742,8 @@ namespace dmGraphics
 
     void HashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
     {
-        // Exclude uninitialized padding inserted by the compiler for struct alignment.
-        for (uint32_t i = 0; i < vertex_declaration->m_StreamCount; ++i)
-        {
-            const VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
-            // An integer array has no padding, so all fields can be hashed at once.
-            const uint64_t fields[] = {
-                stream.m_NameHash,
-                (uint64_t) stream.m_Location,
-                stream.m_Size,
-                stream.m_Offset,
-                stream.m_Type,
-                stream.m_Normalize,
-            };
-            dmHashUpdateBuffer32(state, fields, sizeof(fields));
-        }
+        DM_STATIC_ASSERT(sizeof(VertexDeclaration::Stream) == sizeof(dmhash_t) + sizeof(Type) + 4 * sizeof(uint16_t) + sizeof(bool) + 3 * sizeof(uint8_t), Vertex_declaration_stream_has_padding);
+        dmHashUpdateBuffer32(state, vertex_declaration->m_Streams, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
     }
 
     bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)

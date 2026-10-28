@@ -2811,6 +2811,8 @@ static VertexDeclaration* CreateAndFillVertexDeclaration(HashState64* hash, HVer
         vd->m_Streams[i].m_Normalize = stream.m_Normalize;
         vd->m_Streams[i].m_Offset    = vd->m_Stride;
         vd->m_Streams[i].m_Location  = -1;
+        vd->m_Streams[i].m_Reserved0 = 0;
+        memset(vd->m_Streams[i].m_Reserved1, 0, sizeof(vd->m_Streams[i].m_Reserved1));
         vd->m_Stride += DM_ALIGN(stream.m_Size * GetTypeSize(stream.m_Type), 4);
 
         dmHashUpdateBuffer64(hash, &stream.m_Size, sizeof(stream.m_Size));

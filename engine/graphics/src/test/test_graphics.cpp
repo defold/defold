@@ -534,36 +534,45 @@ TEST_F(dmGraphicsTest, VertexStreamDeclaration)
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 }
 
-// Identical stream fields must batch together regardless of allocation padding.
-TEST(VertexDeclaration, HashIgnoresPadding)
+// Created declarations must initialize reserved bytes and hash identical layouts equally.
+TEST_F(dmGraphicsTest, HashInitializedVertexDeclarations)
 {
-    dmGraphics::VertexDeclaration::Stream streams[2];
-    memset(&streams[0], 0x11, sizeof(streams[0]));
-    memset(&streams[1], 0x22, sizeof(streams[1]));
+    dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(m_Context);
+    dmGraphics::AddVertexStream(stream_declaration, "position", 3, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::HVertexDeclaration declarations[] = {
+        dmGraphics::NewVertexDeclaration(m_Context, stream_declaration),
+        dmGraphics::NewVertexDeclaration(m_Context, stream_declaration),
+    };
     for (uint32_t i = 0; i < 2; ++i)
     {
-        streams[i].m_NameHash = dmHashString64("position");
-        streams[i].m_Location = -1;
-        streams[i].m_Size = 3;
-        streams[i].m_Offset = 0;
-        streams[i].m_Type = dmGraphics::TYPE_FLOAT;
-        streams[i].m_Normalize = false;
+        ASSERT_EQ(2u, declarations[i]->m_StreamCount);
+        for (uint32_t j = 0; j < declarations[i]->m_StreamCount; ++j)
+        {
+            const dmGraphics::VertexDeclaration::Stream& stream = declarations[i]->m_Streams[j];
+            ASSERT_EQ(0u, stream.m_Reserved0);
+            for (uint32_t k = 0; k < DM_ARRAY_SIZE(stream.m_Reserved1); ++k)
+                ASSERT_EQ(0u, stream.m_Reserved1[k]);
+        }
     }
-    dmGraphics::VertexDeclaration declaration = {};
-    declaration.m_StreamCount = 1;
+
     uint32_t hashes[3];
     for (uint32_t i = 0; i < 3; ++i)
     {
-        declaration.m_Streams = &streams[i == 0 ? 0 : 1];
+        dmGraphics::HVertexDeclaration declaration = declarations[i == 0 ? 0 : 1];
         if (i == 2)
-            streams[1].m_Offset = 4;
+            ASSERT_TRUE(dmGraphics::SetStreamOffset(declaration, 1, 16));
         HashState32 state;
         dmHashInit32(&state, false);
-        dmGraphics::HashVertexDeclaration(&state, &declaration);
+        dmGraphics::HashVertexDeclaration(&state, declaration);
         hashes[i] = dmHashFinal32(&state);
     }
     ASSERT_EQ(hashes[0], hashes[1]);
     ASSERT_NE(hashes[1], hashes[2]);
+
+    dmGraphics::DeleteVertexDeclaration(declarations[0]);
+    dmGraphics::DeleteVertexDeclaration(declarations[1]);
+    dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 }
 
 // Each stream field must affect batching, including the upper bits of its name hash.
