@@ -425,6 +425,33 @@ TEST_F(HttpProviderBatch, WarmMount)
     ASSERT_EQ(dmHttpCache::CONSISTENCY_POLICY_VERIFY, dmHttpCache::GetConsistencyPolicy(m_Cache));
 }
 
+// A large verification snapshot must preserve every key and body across
+// multiple growth boundaries in the entry array, lookup table and request.
+TEST_F(HttpProviderBatch, LargeVerificationSnapshot)
+{
+    const uint32_t count = 1025;
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        char key[256];
+        dmSnPrintf(key, sizeof(key), "http://localhost:%d%s/entry-%u.bin", PORT, m_MountPath, i);
+        dmHttpCache::HCacheCreator creator;
+        ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Begin(m_Cache, key, "\"version-1\"", 0, 0, 7, 8, &creator));
+        ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Add(m_Cache, creator, SOMEDATA, 8));
+        ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::End(m_Cache, creator));
+    }
+    Control("counts-reset", 0);
+    Remount();
+    Control("verifications", 1);
+    Control("entries", count);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        char path[64];
+        dmSnPrintf(path, sizeof(path), "/entry-%u.bin", i);
+        Read(path, 8);
+    }
+    Control("requests", 0);
+}
+
 // A new build must revalidate even with the same live cache, downloading only
 // the changed file and using its new size instead of old cached metadata.
 TEST_F(HttpProviderBatch, ChangedBuild)

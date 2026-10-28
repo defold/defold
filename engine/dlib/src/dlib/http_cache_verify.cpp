@@ -66,9 +66,9 @@ namespace dmHttpCacheVerify
         // Snapshot keys and tags while the cache is locked. Network I/O must
         // not hold that lock or validate entries added during the request.
         if (ctx->m_Entries.Full())
-            ctx->m_Entries.OffsetCapacity(64);
+            ctx->m_Entries.SetCapacity(dmMath::Max(64U, ctx->m_Entries.Capacity() * 2));
         if (ctx->m_EntryIndices.Full())
-            ctx->m_EntryIndices.SetCapacity(ctx->m_EntryIndices.Capacity() + 64);
+            ctx->m_EntryIndices.SetCapacity(dmMath::Max(64U, ctx->m_EntryIndices.Capacity() * 2));
         dmHttpCache::EntryInfo copy = *entry;
         copy.m_URI = strdup(entry->m_URI);
         copy.m_Verified = false;
@@ -79,7 +79,8 @@ namespace dmHttpCacheVerify
         uint32_t tag_size = strlen(copy.m_ETag);
         uint32_t size = uri_size + tag_size + 2;
         if (ctx->m_Request.Remaining() < size)
-            ctx->m_Request.OffsetCapacity(dmMath::Max(size, 16U * 1024U));
+            ctx->m_Request.SetCapacity(dmMath::Max(ctx->m_Request.Size() + size,
+                                                  dmMath::Max(16U * 1024U, ctx->m_Request.Capacity() * 2)));
         uint32_t offset = ctx->m_Request.Size();
         ctx->m_Request.SetSize(offset + size);
         char* out = ctx->m_Request.Begin() + offset;
