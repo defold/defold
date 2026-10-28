@@ -19,6 +19,15 @@ import cross_build
 
 
 class BuildStartupTests(unittest.TestCase):
+    # SDK timing callbacks must receive the same redacted output as the command log.
+    def test_streamed_command_output_is_redacted(self):
+        lines = []
+        output = build.run.env_command(
+            os.environ, [sys.executable, '-c', 'import sys; print(sys.argv[1])', 'test-secret'],
+            silent=True, redacted_values=['test-secret'], on_output=lines.append)
+        self.assertEqual(['***'], lines)
+        self.assertEqual('***', output)
+
     # Loading build.py for SDK and build commands must not resolve release settings or run Git.
     def test_import_does_not_query_git(self):
         with mock.patch.dict(os.environ), \
@@ -63,6 +72,35 @@ class BuildStartupTests(unittest.TestCase):
                     get_current_repo.assert_called_once_with()
                 else:
                     get_current_repo.assert_not_called()
+
+
+class BuildTimeTrackerTests(unittest.TestCase):
+    # Check timings belong to their command in console and JSON summaries without inflating the total duration.
+    def test_check_timings_are_included_in_summary_and_json(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(build.time, 'time', side_effect=[10, 11, 11, 13]):
+            path = Path(directory) / 'build_times.json'
+            messages = []
+            tracker = build.BuildTimeTracker(output_file=str(path), logger=messages.append)
+            tracker.record_check_time('Untracked', 99)
+            tracker.start_command('check_sdk')
+            tracker.record_check_time('Python', 0.125)
+            tracker.record_check_time('Java', 0.25)
+            tracker.end_command('check_sdk')
+            tracker.start_command('build_engine')
+            tracker.end_command('build_engine')
+            tracker.print_summary()
+            tracker.save_times()
+            summary = json.loads(path.read_text())
+
+        checks = summary['commands']['check_sdk']['checks']
+        self.assertEqual({'Python': {'duration': 0.125}, 'Java': {'duration': 0.25}}, checks)
+        self.assertNotIn('checks', summary['commands']['build_engine'])
+        self.assertEqual(3, summary['build_session']['total_duration'])
+        output = '\n'.join(messages)
+        self.assertIn('    Checks', output)
+        self.assertRegex(output, r'(?m)^\s+Python\s+0\.12 s$')
+        self.assertRegex(output, r'(?m)^\s+Java\s+0\.25 s$')
 
 
 class BuildSdkTests(unittest.TestCase):
@@ -217,29 +255,273 @@ class SdkInstallationTests(unittest.TestCase):
 
 class SdkCheckTests(unittest.TestCase):
     def setUp(self):
+        self.enterContext(contextlib.redirect_stdout(io.StringIO()))
         self.configuration = build.Configuration.__new__(build.Configuration)
         self.configuration.defold_root = str(Path(__file__).resolve().parents[1])
         self.configuration.dynamo_home = '/test-sdk'
         self.configuration.ext = '/test-sdk/ext'
         self.configuration.verbose = False
+        self.configuration.no_colors = False
+        self.configuration.host = 'arm64-macos'
+        self.configuration.target_platform = 'arm64-macos'
+        self.configuration.skip_tests = False
+        self.configuration.build_tracker = build.BuildTimeTracker(logger=lambda message: None)
+        self.cmake_output = '\n'.join((
+            '-- check_install: diagnostic noise',
+            'DEFOLD_SDK_CHECK\tJava',
+            'DEFOLD_SDK_CHECK\tJava\tJava 25.0.1\t/tools/java',
+            'DEFOLD_SDK_CHECK\tNinja',
+            'DEFOLD_SDK_CHECK\tNinja\tNinja 1.12.1\t/tools/ninja',
+            'DEFOLD_SDK_CHECK\tProtoc',
+            'DEFOLD_SDK_CHECK\tProtoc\tlibprotoc 30.2\t/tools/protoc',
+            'DEFOLD_SDK_CHECK\tToolchain',
+            'DEFOLD_SDK_CHECK\tToolchain\tarm64-macos\t/tools/toolchain.cmake',
+        ))
         for patch in (
                 mock.patch.object(self.configuration, 'check_python'),
                 mock.patch.object(self.configuration, '_log'),
-                mock.patch.object(build.sdk, 'get_sdk_info', return_value={'ndk': '/android-ndk'}),
+                mock.patch.object(build.sdk, 'get_sdk_info', return_value={
+                    'arm64-macos': {'version': '27.0', 'path': '/tools/MacOSX27.0.sdk'},
+                    'clang-version': '21.0.0', 'clang': '/tools/clang++',
+                }),
                 mock.patch.object(build.sdk, 'test_sdk', return_value=True),
+                mock.patch.object(build.run, 'env_command', side_effect=self.run_command),
                 mock.patch.object(build.shutil, 'which', return_value='/tools/tool')):
             patch.start()
             self.addCleanup(patch.stop)
+
+    def run_command(self, env, args, **kwargs):
+        result = 'cmake version 4.4.0\nCMake suite' if args[-1] == '--version' else self.cmake_output
+        return self.command_result(result, **kwargs)
+
+    def command_result(self, result, **kwargs):
+        output = result.output if isinstance(result, build.run.ExecException) else result
+        if kwargs.get('on_output'):
+            for line in output.splitlines():
+                kwargs['on_output'](line)
+        if isinstance(result, build.run.ExecException):
+            raise result
+        return output
+
+    def messages(self):
+        return '\n'.join(call.args[0] for call in self.configuration._log.call_args_list)
+
+    # A standalone SDK check stays concise; verbose and multi-command runs retain overall build reporting.
+    def test_cli_summary_requires_verbose_for_standalone_check(self):
+        repository = str(Path(__file__).resolve().parents[1])
+        cases = ((False, ['check_sdk'], False), (True, ['check_sdk'], True),
+                 (False, ['check_sdk', 'check_python'], True))
+        for verbose, commands, report in cases:
+            with self.subTest(verbose=verbose, commands=commands), tempfile.TemporaryDirectory() as directory, \
+                    mock.patch.dict(os.environ, {'DEFOLD_HOME': repository, 'DYNAMO_HOME': directory,
+                                                 'PYTHONPATH': repository, 'JAVA_HOME': directory}), \
+                    mock.patch.object(sys, 'path', sys.path.copy()), \
+                    mock.patch.object(sys, 'argv', [build.__file__, '--platform=arm64-macos',
+                                                   *(['--verbose'] if verbose else []), *commands]), \
+                    mock.patch('BuildTimeTracker.BuildTimeTracker') as tracker_type, \
+                    contextlib.redirect_stdout(io.StringIO()) as output:
+                timing_file = Path(directory) / 'build_times.json'
+                tracker = build.BuildTimeTracker(output_file=str(timing_file))
+                tracker_type.return_value = tracker
+                runpy.run_path(build.__file__, run_name='__main__')
+                saved = json.loads(timing_file.read_text()) if timing_file.exists() else None
+            messages = output.getvalue()
+            self.assertEqual(report, 'BUILD TIME SUMMARY' in messages)
+            self.assertEqual(report, 'Build times saved' in messages)
+            self.assertEqual(report, messages.endswith('Done\n'))
+            self.assertEqual(report, bool(tracker.command_times))
+            self.assertEqual(report, saved is not None)
+            if report:
+                checks = saved['commands']['check_sdk']['checks']
+                self.assertEqual({'Python', 'SDK', 'Compiler', 'CMake', 'Java', 'Ninja', 'Protoc', 'Toolchain'}, set(checks))
+                summary = messages.split('BUILD TIME SUMMARY', 1)[1]
+                for name, timing in checks.items():
+                    self.assertRegex(summary, rf'(?m)^\s+{name}\s+{timing["duration"]:.2f} s$')
+            else:
+                self.assertTrue(messages.rstrip().endswith('All checks passed: arm64-macos'))
+
+    # Python-side check durations use a monotonic clock and remain visible on failures.
+    def test_check_timing_includes_successes_and_failures(self):
+        for passed in (True, False):
+            with self.subTest(passed=passed), mock.patch.object(build.time, 'perf_counter', side_effect=[10, 10.25]):
+                self.configuration._log.reset_mock()
+                if passed:
+                    result, elapsed = self.configuration._run_sdk_check('Python', lambda: True)
+                    self.assertTrue(result)
+                    self.assertEqual(0.25, elapsed)
+                    self.configuration._log_sdk_check('Python', 'OK', elapsed=elapsed)
+                else:
+                    with self.assertRaises(SystemExit):
+                        self.configuration._run_sdk_check('Python', lambda: False)
+            self.assertIn(f'Python: {"OK" if passed else "Failed"} [0.25 s]', self.messages())
+
+    # Successful checks stay on one line without paths, raw SDK logs, or duplicate CMake output.
+    def test_concise_output_for_redirected_stdout(self):
+        def find_sdk(*args):
+            build.sdk.log.log('SDK discovery noise')
+            return {'arm64-macos': {'version': '27.0', 'path': '/tools/MacOSX27.0.sdk'}}
+
+        def test_sdk(*args, **kwargs):
+            build.sdk.log.log('Compiler command noise')
+            print('Compiler output noise')
+            return True
+
+        with contextlib.redirect_stdout(io.StringIO()) as output, \
+                mock.patch.object(build.sdk, 'get_sdk_info', side_effect=find_sdk), \
+                mock.patch.object(build.sdk, 'test_sdk', side_effect=test_sdk):
+            self.configuration.check_sdk()
+        messages = self.messages()
+        self.assertEqual('', output.getvalue())
+        self.assertRegex(messages, r'  ✓ Java: Java 25\.0\.1 \[\d+\.\d{2} s\]\n')
+        self.assertRegex(messages, r'  ✓ SDK: arm64-macos 27\.0 \[\d+\.\d{2} s\]\n')
+        rows = messages.splitlines()[:-1]
+        self.assertEqual(8, len(rows))
+        for row in rows:
+            self.assertRegex(row, r'\[\d+\.\d{2} s\]$')
+        self.assertNotIn('/tools/', messages)
+        self.assertNotIn('noise', messages)
+        self.assertNotIn('\033[', messages)
+        self.assertEqual(1, messages.count('Java:'))
+        self.assertTrue(messages.endswith('All checks passed: arm64-macos'))
+
+    # Verbose output adds paths to the same concise rows instead of dumping SDK dictionaries.
+    def test_verbose_output_includes_paths(self):
+        self.configuration.verbose = True
+        self.configuration.check_sdk()
+        messages = self.messages()
+        self.assertIn('Java: Java 25.0.1 (/tools/java)', messages)
+        self.assertIn('SDK: arm64-macos 27.0 (/tools/MacOSX27.0.sdk)', messages)
+        self.assertIn('Compiler: Clang 21.0.0 (/tools/clang++)', messages)
+        self.assertNotIn('SDK info:', messages)
+
+    # A terminal uses green checks and orange failures with red crosses.
+    def test_terminal_colors_distinguish_passes_and_failures(self):
+        with mock.patch.object(build.sys.stdout, 'isatty', return_value=True), \
+                mock.patch.dict(os.environ, {'NOCOLOR': ''}):
+            os.environ.pop('NO_COLOR', None)
+            self.configuration._log_sdk_check('Java', 'Java 25.0.1')
+            self.configuration._log_sdk_check('Ninja', 'Not found', passed=False)
+        messages = self.messages()
+        self.assertIn('\033[32m✓\033[0m \033[32mJava: Java 25.0.1\033[0m', messages)
+        self.assertIn('\033[31m✗\033[0m \033[38;5;208mNinja: Not found\033[0m', messages)
+
+    # Existing color opt-outs and NO_COLOR must also apply to the SDK report on a terminal.
+    def test_terminal_respects_color_opt_outs(self):
+        for no_colors, environment in ((True, {}), (False, {'NOCOLOR': '1'}), (False, {'NO_COLOR': ''})):
+            with self.subTest(no_colors=no_colors, environment=environment), \
+                    mock.patch.object(build.sys.stdout, 'isatty', return_value=True), \
+                    mock.patch.dict(os.environ):
+                os.environ.pop('NOCOLOR', None)
+                os.environ.pop('NO_COLOR', None)
+                os.environ.update(environment)
+                self.configuration.no_colors = no_colors
+                self.configuration._log_sdk_check('Java', 'Java 25.0.1')
+        self.assertNotIn('\033[', self.messages())
+
+    # A failed compiler test must reveal its diagnostics and suppress the success summary.
+    def test_compiler_failure_preserves_diagnostics(self):
+        def test_sdk(*args, **kwargs):
+            build.sdk.log.log('Clang is too old')
+            return False
+
+        with mock.patch.object(build.sdk, 'test_sdk', side_effect=test_sdk), self.assertRaises(SystemExit):
+            self.configuration.check_sdk()
+        messages = self.messages()
+        self.assertIn('✗ Compiler: Failed', messages)
+        self.assertIn('Clang is too old', messages)
+        self.assertNotIn('All checks passed', messages)
+
+    # Failed SDK discovery runs only once and retains the setup instructions.
+    def test_missing_sdk_reports_failure(self):
+        with mock.patch.object(build.sdk, 'get_sdk_info', return_value=None) as find_sdk, self.assertRaises(SystemExit):
+            self.configuration.check_sdk()
+        find_sdk.assert_called_once()
+        self.assertIn('✗ SDK: Failed', self.messages())
+        self.assertIn('run install_sdk', self.messages())
+        self.assertNotIn('All checks passed', self.messages())
+
+    # A CMake failure must put the actual reason on the failed row and preserve the exit status.
+    def test_cmake_failure_names_the_failed_check(self):
+        error = build.run.ExecException(2)
+        error.output = 'DEFOLD_SDK_CHECK\tJava\nCMake Error: Java 25 or newer is required'
+        self.cmake_output = error
+        with self.assertRaises(SystemExit) as raised:
+            self.configuration.check_sdk()
+        self.assertEqual(2, raised.exception.code)
+        self.assertIn('✗ Java: Java 25 or newer is required', self.messages())
+        self.assertNotIn('All checks passed', self.messages())
+
+    # Verbose failures retain the failing tool's diagnostics without replaying setup or earlier checks.
+    def test_cmake_failure_summarizes_wrapped_errors(self):
+        error = build.run.ExecException(1)
+        error.output = '''-- check_install: DEFOLD_SDK_ROOT=/test-sdk
+-- HOST_PLATFORM: arm64-macos
+DEFOLD_SDK_CHECK\tJava
+-- tools_java.cmake:
+-- Found Java: /tools/java (found suitable version "25.0.1")
+DEFOLD_SDK_CHECK\tJava\tJava 25.0.1\t/tools/java
+DEFOLD_SDK_CHECK\tNinja
+-- tools_ninja.cmake:
+-- tools_ninja: ninja 1.12.1 at /tools/ninja
+DEFOLD_SDK_CHECK\tNinja\tNinja 1.12.1\t/tools/ninja
+DEFOLD_SDK_CHECK\tProtoc
+-- tools_protoc.cmake:
+CMake Error at scripts/cmake/tools_protoc.cmake:53 (message):
+  Could not find protoc. Run ./scripts/build.py install_ext to build and
+  install it.
+
+  Expected in /test-sdk/ext/bin/arm64-macos/ or on PATH.
+Call Stack (most recent call first):
+  scripts/cmake/check_install.cmake:63 (include)
+'''
+        self.cmake_output = error
+        for verbose in (False, True):
+            with self.subTest(verbose=verbose), \
+                    mock.patch.object(build.time, 'perf_counter', side_effect=[100, 101, 101.25, 102, 102.125, 103, 103.5]), \
+                    self.assertRaises(SystemExit):
+                self.configuration.verbose = verbose
+                self.configuration._log.reset_mock()
+                self.configuration._check_sdk_cmake(['cmake'])
+            messages = self.messages()
+            self.assertIn('✓ Java: Java 25.0.1', messages)
+            self.assertIn('✓ Ninja: Ninja 1.12.1', messages)
+            self.assertIn('✗ Protoc: Could not find protoc. Run ./scripts/build.py install_ext to build and install it. [0.50 s]', messages)
+            self.assertRegex(messages, r'✓ Java: Java 25\.0\.1[^\n]* \[0\.25 s\]')
+            self.assertEqual(verbose, 'Call Stack' in messages)
+            self.assertEqual(verbose, '-- tools_protoc.cmake:' in messages)
+            self.assertEqual(verbose, '/test-sdk/' in messages)
+            for unrelated in ('DEFOLD_SDK_ROOT', 'HOST_PLATFORM', 'Found Java', 'tools_java', 'tools_ninja'):
+                self.assertNotIn(unrelated, messages)
+            self.assertNotIn('DEFOLD_SDK_CHECK', messages)
+
+    # Missing web runners fail required tests while --skip-tests still permits SDK checks to finish.
+    def test_missing_web_runner_respects_skip_tests(self):
+        self.configuration.target_platform = 'wasm-web'
+        for skip_tests in (False, True):
+            with self.subTest(skip_tests=skip_tests), \
+                    mock.patch.object(self.configuration, '_find_wasm_test_runner', return_value=(None, ['node failed'])):
+                self.configuration.skip_tests = skip_tests
+                self.configuration._log.reset_mock()
+                if skip_tests:
+                    self.configuration.check_sdk()
+                    self.assertIn('Wasm test runner: Not required (--skip-tests)', self.messages())
+                    self.assertIn('All checks passed: wasm-web', self.messages())
+                else:
+                    with self.assertRaises(SystemExit):
+                        self.configuration.check_sdk()
+                    self.assertIn('✗ Wasm test runner: Not found', self.messages())
+                    self.assertNotIn('All checks passed', self.messages())
 
     # ARMv7 on macOS must check its generator SDK as well as Android; other Android builds need only Android.
     def test_android_checks_generator_sdk_only_for_macos_armv7(self):
         for host in ('arm64-macos', 'x86_64-macos', 'x86_64-linux', 'x86_64-win32'):
             for target in ('armv7-android', 'arm64-android', 'x86_64-android'):
-                with self.subTest(host=host, target=target), mock.patch.object(build.run, 'command', return_value='') as command:
+                with self.subTest(host=host, target=target), \
+                        mock.patch.object(build.run, 'env_command', side_effect=self.run_command) as command:
                     self.configuration.host = host
                     self.configuration.target_platform = target
                     self.configuration.check_sdk()
-                    checks = [call.args[0] for call in command.call_args_list]
+                    checks = [call.args[1] for call in command.call_args_list if '-P' in call.args[1]]
                     self.assertTrue(checks[0][-1].endswith('scripts/cmake/check_install.cmake'))
                     if target == 'armv7-android' and host.endswith('-macos'):
                         self.assertEqual(2, len(checks))
@@ -253,10 +535,75 @@ class SdkCheckTests(unittest.TestCase):
     def test_macos_armv7_generator_sdk_failure_is_not_ignored(self):
         self.configuration.host = 'arm64-macos'
         self.configuration.target_platform = 'armv7-android'
-        with mock.patch.object(build.run, 'command', side_effect=['', SystemExit(1)]):
+        results = iter(['cmake version 4.4.0', self.cmake_output, build.run.ExecException(7)])
+        with mock.patch.object(build.run, 'env_command',
+                               side_effect=lambda env, args, **kwargs: self.command_result(next(results), **kwargs)):
             with self.assertRaises(SystemExit) as error:
                 self.configuration.check_sdk()
-            self.assertEqual(1, error.exception.code)
+            self.assertEqual(7, error.exception.code)
+        self.assertIn('✗ LuaJIT generator: Failed', self.messages())
+        self.assertNotIn('All checks passed', self.messages())
+
+
+@unittest.skipUnless(build.shutil.which('cmake'), 'CMake is required')
+class CmakeSdkCheckTests(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(contextlib.redirect_stdout(io.StringIO()))
+
+    # Real CMake execution must report individual successes and the failed check, including optional protoc.
+    def test_check_install_reports_results_and_failures(self):
+        repository = Path(__file__).resolve().parents[1]
+        for require_protoc, fail_java in ((True, False), (False, False), (True, True)):
+            with self.subTest(require_protoc=require_protoc, fail_java=fail_java), \
+                    tempfile.TemporaryDirectory(prefix='sdk check ') as directory:
+                root = Path(directory)
+                modules = {
+                    'functions': '',
+                    'platform_host': 'set(HOST_PLATFORM arm64-macos)',
+                    'tools_clang': '',
+                    'tools_java': '''
+if(FAIL_JAVA)
+  message(FATAL_ERROR "Java 25 or newer is required")
+endif()
+set(Java_VERSION 25.0.1)
+set(Java_JAVA_EXECUTABLE "${TOOLS_ROOT}/Java (test)/java")
+''',
+                    'tools_ninja': 'set(_ninja_ver 1.12.1)\nset(_DEFOLD_NINJA_EXECUTABLE "${TOOLS_ROOT}/ninja")',
+                    'tools_protoc': 'set(_protoc_ver "libprotoc 30.2")\nset(_DEFOLD_PROTOC_REAL "${TOOLS_ROOT}/protoc")',
+                    'sdk': 'set(CMAKE_TOOLCHAIN_FILE "${TOOLS_ROOT}/toolchain.cmake")',
+                }
+                for name, source in modules.items():
+                    (root / f'{name}.cmake').write_text(source)
+                configuration = build.Configuration.__new__(build.Configuration)
+                configuration.verbose = True
+                configuration.no_colors = True
+                configuration.build_tracker = build.BuildTimeTracker(logger=lambda message: None)
+                configuration._log = mock.Mock()
+                args = [
+                    build.shutil.which('cmake'), '-DDEFOLD_SDK_CHECK=ON',
+                    f'-DCMAKE_MODULE_PATH={root.as_posix()}', f'-DTOOLS_ROOT={root.as_posix()}',
+                    '-DTARGET_PLATFORM=arm64-macos',
+                    f'-DDEFOLD_REQUIRE_PROTOC={"ON" if require_protoc else "OFF"}',
+                    f'-DFAIL_JAVA={"ON" if fail_java else "OFF"}',
+                    '-P', str(repository / 'scripts/cmake/check_install.cmake'),
+                ]
+                if fail_java:
+                    with self.assertRaises(SystemExit) as error:
+                        configuration._check_sdk_cmake(args)
+                    self.assertNotEqual(0, error.exception.code)
+                else:
+                    configuration._check_sdk_cmake(args)
+                messages = '\n'.join(call.args[0] for call in configuration._log.call_args_list)
+                self.assertNotIn('DEFOLD_SDK_CHECK', messages)
+                if fail_java:
+                    self.assertIn('✗ Java: Java 25 or newer is required', messages)
+                    self.assertNotIn('✓ Java:', messages)
+                    self.assertNotIn('Ninja:', messages)
+                else:
+                    self.assertIn(f'✓ Java: Java 25.0.1 ({root.as_posix()}/Java (test)/java)', messages)
+                    self.assertIn('✓ Ninja: Ninja 1.12.1', messages)
+                    self.assertEqual(require_protoc, '✓ Protoc: libprotoc 30.2' in messages)
+                    self.assertIn('✓ Toolchain: arm64-macos', messages)
 
 
 class PlatformSdkPackagingTests(unittest.TestCase):

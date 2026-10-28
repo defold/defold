@@ -15,6 +15,7 @@ class BuildTimeTracker:
         self.end_times = {}
         self.component_times = {}
         self.command_times = {}
+        self.check_times = {}
         self.output_file = output_file or "build_times.json"
         self.current_command = None
         self.logger = logger or print
@@ -22,6 +23,7 @@ class BuildTimeTracker:
     def start_command(self, command_name):
         """Start timing a build command"""
         self.current_command = command_name
+        self.check_times.pop(command_name, None)
         self.start_times[command_name] = time.time()
         self.logger(f"Starting '{command_name}' at {datetime.now().strftime('%H:%M:%S')}")
         
@@ -36,7 +38,15 @@ class BuildTimeTracker:
                 'duration': duration,
                 'timestamp': datetime.now().isoformat()
             }
+            checks = self.check_times.pop(command_name, None)
+            if checks:
+                self.command_times[command_name]['checks'] = checks
             self.logger(f"'{command_name}' completed in {duration:.2f} s")
+
+    def record_check_time(self, check_name, duration):
+        """Record a measured check under the current command."""
+        if self.current_command is not None:
+            self.check_times.setdefault(self.current_command, {})[check_name] = {'duration': duration}
 
     @staticmethod
     def read_ninja_log(build_dir):
@@ -156,6 +166,10 @@ class BuildTimeTracker:
             command_width = max(20, max(len(command) for command in self.command_times))
             for cmd, data in sorted(self.command_times.items(), key=lambda x: x[1]['duration'], reverse=True):
                 self.logger(f"  {cmd:<{command_width}} {data['duration']:>8.2f} s")
+                if data.get('checks'):
+                    self.logger("    Checks")
+                    for check, timing in sorted(data['checks'].items(), key=lambda item: item[1]['duration'], reverse=True):
+                        self.logger(f"      {check:<20} {timing['duration']:>8.2f} s")
                 if 'libraries' in data:
                     libraries = data['libraries']
                     if libraries:

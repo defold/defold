@@ -6,6 +6,7 @@ sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "
 
 import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
 import optparse, pprint, subprocess, urllib, urllib.parse, tempfile, time
+import contextlib, io
 import github
 import build_android
 import build_ios
@@ -1095,68 +1096,151 @@ class Configuration(object):
             message += "\nChecked runners:\n  " + "\n  ".join(errors)
         return message
 
+    def _log_sdk_check(self, name, status, passed=True, path=None, elapsed=None):
+        message = f"{name}: {status}"
+        if self.verbose and path:
+            message += f" ({path})"
+        if elapsed is not None:
+            message += f" [{elapsed:.2f} s]"
+            self.build_tracker.record_check_time(name, elapsed)
+        mark = '✓' if passed else '✗'
+        if sys.stdout.isatty() and 'NO_COLOR' not in os.environ:
+            mark = self._colorize(mark, '32' if passed else '31')
+            message = self._colorize(message, '32' if passed else '38;5;208')
+        encoding = sys.stdout.encoding or 'utf-8'
+        try:
+            mark.encode(encoding)
+        except UnicodeEncodeError:
+            mark = '+' if passed else 'x'
+        self._log(f"  {mark} {message}")
+
+    def _run_sdk_check(self, name, check):
+        started = time.perf_counter()
+        output = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                result = check()
+                if result is False:
+                    raise sdk.SDKException("SDK validation failed")
+            return result, time.perf_counter() - started
+        except (Exception, SystemExit) as error:
+            self._log_sdk_check(name, 'Failed', passed=False, elapsed=time.perf_counter() - started)
+            diagnostic = output.getvalue().strip()
+            if diagnostic:
+                self._log(diagnostic)
+            if isinstance(error, SystemExit):
+                raise
+            self._log(getattr(error, 'output', '') or str(error))
+            sys.exit(getattr(error, 'retcode', 1))
+
+    def _check_sdk_cmake(self, args):
+        current_check = 'CMake environment'
+        diagnostics = []
+        started = time.perf_counter()
+
+        def on_output(line):
+            nonlocal current_check, started
+            if line.startswith('DEFOLD_SDK_CHECK\t'):
+                now = time.perf_counter()
+                diagnostics.clear()
+                fields = line.split('\t', 3)
+                current_check = fields[1]
+                if len(fields) >= 3:
+                    self._log_sdk_check(current_check, fields[2], path=fields[3] if len(fields) == 4 else None,
+                                        elapsed=now - started)
+                    current_check = 'CMake environment'
+                started = now
+            else:
+                diagnostics.append(line)
+
+        try:
+            run.env_command(os.environ, args, silent=True, on_output=on_output)
+        except run.ExecException as error:
+            self._log_sdk_check(current_check, self._format_sdk_cmake_error(diagnostics), passed=False,
+                                elapsed=time.perf_counter() - started)
+            if self.verbose:
+                self._log('\n'.join(diagnostics).strip())
+            sys.exit(error.retcode)
+
+    def _format_sdk_cmake_error(self, diagnostics):
+        for index, line in enumerate(diagnostics):
+            if line.startswith('CMake Error:'):
+                return line.partition(':')[2].strip()
+            if line.startswith('CMake Error'):
+                message = []
+                for line in diagnostics[index + 1:]:
+                    if not line.strip():
+                        if message:
+                            break
+                        continue
+                    if not line.startswith((' ', '\t')):
+                        break
+                    message.extend(line.split())
+                if message:
+                    return ' '.join(message)
+        return 'Failed (use --verbose for details)'
+
     def check_sdk(self, require_protoc=True):
-        self.check_python(print_check = True)
+        _, elapsed = self._run_sdk_check('Python', self.check_python)
+        self._log_sdk_check('Python', f"Python {self._get_python_version()}", path=sys.executable, elapsed=elapsed)
 
         sdkfolder = join(self.ext, 'SDKs')
 
-        self.sdk_info = sdk.get_sdk_info(sdkfolder, self.target_platform, True)
+        def find_sdk():
+            info = sdk.get_sdk_info(sdkfolder, self.target_platform, True)
+            if not info:
+                raise sdk.SDKException(
+                    f"No SDK found for {self.target_platform}. Check the local SDK setup or run install_sdk.\n"
+                    "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks")
+            return info
 
-        # TODO: Make sure this check works for all platforms
-        if not self.sdk_info:
-            if not self.verbose:
-                # Do it again, with verbose on, so that we can get more info straight away:
-                sdk.get_sdk_info(sdkfolder, self.target_platform, True)
+        self.sdk_info, elapsed = self._run_sdk_check('SDK', find_sdk)
+        target_info = self.sdk_info.get(self.target_platform, {})
+        sdk_version = target_info.get('version', self.sdk_info.get('version', ''))
+        sdk_path = target_info.get('path') or self.sdk_info.get('sdk') or self.sdk_info.get('emsdk', {}).get('path')
+        self._log_sdk_check('SDK', f"{self.target_platform} {sdk_version}".strip(), path=sdk_path, elapsed=elapsed)
 
-            url = "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks"
-            self._log(f"Failed to get sdk info for platform {self.target_platform}.")
-            self._log(f" * Is the local sdk setup correctly?")
-            self._log(f" * Or have you called `install_sdk`?")
-            self._log(f"We recommend you follow the setup guide found here: {url}")
-            sys.exit(1)
-
-        if self.verbose:
-            print("SDK info:")
-            pprint.pprint(self.sdk_info)
-
-
-        result = sdk.test_sdk(self.target_platform, self.sdk_info, verbose = self.verbose)
-        if not result:
-            self.fatal("Failed sdk check")
+        _, elapsed = self._run_sdk_check('Compiler', lambda: sdk.test_sdk(self.target_platform, self.sdk_info, verbose=self.verbose))
+        clang_version = self.sdk_info.get('clang-version')
+        compiler_path = self.sdk_info.get('clang')
+        if not compiler_path and self.sdk_info.get('clangname'):
+            compiler_path = join(self.sdk_info['bintools'], self.sdk_info['clangname'])
+        self._log_sdk_check('Compiler', f"Clang {clang_version}" if clang_version else 'OK', path=compiler_path, elapsed=elapsed)
 
         if wasm_runner.is_web_platform(self.target_platform):
-            runner, errors = self._find_wasm_test_runner()
+            (runner, errors), elapsed = self._run_sdk_check('Wasm test runner', self._find_wasm_test_runner)
             if runner:
-                self._log("Found wasm test runner: %s" % runner.description())
+                self._log_sdk_check('Wasm test runner', runner.name, path=runner.path, elapsed=elapsed)
             elif self.skip_tests:
-                self._log("Warning: %s" % self._format_wasm_runner_error(errors))
+                self._log_sdk_check('Wasm test runner', 'Not required (--skip-tests)', elapsed=elapsed)
             else:
-                self.fatal(self._format_wasm_runner_error(errors))
+                self._log_sdk_check('Wasm test runner', 'Not found', passed=False, elapsed=elapsed)
+                self._log(self._format_wasm_runner_error(errors))
+                sys.exit(1)
 
+        started = time.perf_counter()
         cmake = shutil.which('cmake')
         if not cmake:
-            self.fatal("CMake not found in PATH")
-        self._log(f"Found CMake: {cmake}")
+            self._log_sdk_check('CMake', 'Not found in PATH', passed=False, elapsed=time.perf_counter() - started)
+            sys.exit(1)
+        cmake_version, elapsed = self._run_sdk_check('CMake', lambda: run.env_command(os.environ, [cmake, '--version'], silent=True))
+        self._log_sdk_check('CMake', cmake_version.splitlines()[0].replace('cmake version', 'CMake'), path=cmake, elapsed=elapsed)
 
-        ninja = shutil.which('ninja')
-        if not ninja:
-            self.fatal("Ninja not found in PATH")
-        self._log(f"Found Ninja: {ninja}")
-
-        args = ["cmake", f"-DTARGET_PLATFORM={self.target_platform}", "-P", join(self.defold_root, "scripts/cmake/check_install.cmake")]
+        args = [cmake, '-DDEFOLD_SDK_CHECK=ON', f"-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}",
+                f"-DTARGET_PLATFORM={self.target_platform}", "-P", join(self.defold_root, "scripts/cmake/check_install.cmake")]
         if not require_protoc:
             args.insert(1, '-DDEFOLD_REQUIRE_PROTOC=OFF')
         if self.verbose:
             args.insert(1, '-DDEFOLD_VERBOSE=ON')
-
-        output = run.command(args)
-        self._log(output)
+        self._check_sdk_cmake(args)
 
         if self.target_platform == 'armv7-android' and self.host.endswith('-macos'):
-            args = ["cmake", f"-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}", "-DLUAJIT_CHECK_SDK=ON",
+            args = [cmake, f"-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}", "-DLUAJIT_CHECK_SDK=ON",
                     "-P", join(self.defold_root, "external/luajit/host/emscripten.cmake")]
-            output = run.command(args)
-            self._log(output)
+            _, elapsed = self._run_sdk_check('LuaJIT generator', lambda: run.env_command(os.environ, args, silent=True))
+            self._log_sdk_check('LuaJIT generator', 'OK', elapsed=elapsed)
+
+        self._log(f"All checks passed: {self.target_platform}")
 
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
@@ -4011,18 +4095,21 @@ To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
                 msg = f"{env_var} was not found in environment.\nDid you use './scripts/build.py shell'?"
                 c.fatal(msg)
 
+    quiet_sdk_check = args == ['check_sdk'] and not c.verbose
     for cmd in args:
         f = getattr(c, cmd, None)
         if not f:
             parser.error('Unknown command %s' % cmd)
         else:
-            c.build_tracker.start_command(cmd)
+            if not quiet_sdk_check:
+                c.build_tracker.start_command(cmd)
             f()
             c.wait_uploads()
-            c.build_tracker.end_command(cmd)
+            if not quiet_sdk_check:
+                c.build_tracker.end_command(cmd)
 
     # Print and save build time summary
-    c.build_tracker.print_summary()
-    c.build_tracker.save_times()
-
-    print('Done')
+    if not quiet_sdk_check:
+        c.build_tracker.print_summary()
+        c.build_tracker.save_times()
+        print('Done')

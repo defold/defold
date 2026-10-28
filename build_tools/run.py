@@ -80,6 +80,8 @@ def _redact_args(arg_list, redact_flags, secrets):
     return redacted, secrets
 
 def _exec_command(arg_list, **kwargs):
+    # Report streamed lines even when command logging is disabled.
+    on_output = kwargs.pop('on_output', None)
     silent = False
     if 'silent' in kwargs:
         silent = True
@@ -115,6 +117,8 @@ def _exec_command(arg_list, **kwargs):
             if line == '':
                 break
             output += line
+            if on_output:
+                on_output(_sanitize_text(line, secrets).rstrip('\r\n'))
             if not silent:
                 log(_sanitize_text(line, secrets).rstrip('\r\n'))
         process.stdout.close()
