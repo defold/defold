@@ -147,7 +147,13 @@
                                 "http://localhost:8000/build-other/other.bin tag-b"
                                 "http://localhost:8000/build/../other.bin tag-b"
                                 "invalid%url tag-b"])]
-      (is (= keys (#'hot-reload/body->valid-entries workspace request))))))
+      (with-open [server (http-server/start! (http-server/router-handler (hot-reload/routes workspace)))]
+        (let [response @(http/request (str (http-server/url server) hot-reload/verify-etags-url-prefix)
+                                      :method "POST"
+                                      :body request
+                                      :as :string)]
+          (is (= 200 (:status response)))
+          (is (= keys (string/split-lines (:body response)))))))))
 
 ;; The index must report one coherent build snapshot, including custom resource
 ;; sizes, while preserving spaces, literal percent escapes and other URL data.
