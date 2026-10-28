@@ -15,14 +15,13 @@
 (ns editor.rig
   (:require [clojure.string :as string]
             [editor.build-target :as bt]
-            [editor.pipeline :as pipeline]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [util.coll :as coll])
-  (:import [com.dynamo.bob.pipeline ModelUtil$PackedMorphTargetTexture]
-           [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$RigScene Rig$Skeleton]))
+  (:import [com.dynamo.bob.pipeline ModelBuffers ModelUtil$PackedMorphTargetTexture]
+           [com.dynamo.rig.proto Rig$AnimationSet Rig$Mesh Rig$MeshSet Rig$Skeleton]))
 
 (defn- build-skeleton
   [resource _dep-resources {:keys [skeleton] :as _user-data}]
@@ -84,12 +83,26 @@
      :write-content-fn tex-gen/write-texturec-content-fn
      :user-data {:texture-generator-result (.toGenerateResult texture)}}))
 
-(defn- build-mesh-set
-  [resource dep-resources {:keys [mesh-set morph-target-textures] :as _user-data}]
+(defn- build-model-buffers
+  [resource _dep-resources {:keys [geometries] :as _user-data}]
+  {:resource resource
+   :content (ModelBuffers/compile (coll/mapv-> geometries #(protobuf/map->pb Rig$Mesh %)))})
+
+(defn compile-mesh-set
+  "Builds metadata referencing shared geometry ranges and morph textures."
+  [dep-resources {:keys [mesh-set geometries morph-target-textures] :as _user-data}]
   (let [mesh-set (cond-> mesh-set
                    (coll/not-empty morph-target-textures)
                    (replace-morph-target-texture-tokens morph-target-textures dep-resources))]
-    {:resource resource :content (protobuf/map->bytes Rig$MeshSet mesh-set)}))
+    (protobuf/pb->map-without-defaults
+      (ModelBuffers/metadata
+        (protobuf/map->pb Rig$MeshSet mesh-set)
+        (coll/mapv-> geometries #(protobuf/map->pb Rig$Mesh %))))))
+
+(defn- build-mesh-set
+  [resource dep-resources user-data]
+  {:resource resource
+   :content (protobuf/map->bytes Rig$MeshSet (compile-mesh-set dep-resources user-data))})
 
 (defn- make-morph-target-texture-build-target
   [workspace node-id {:keys [packed-texture]}]
@@ -101,7 +114,14 @@
 
 (defn make-mesh-set-build-target
   [workspace node-id mesh-set morph-target-textures]
-  (let [referenced-texture-tokens (referenced-morph-target-texture-tokens mesh-set)
+  (let [geometries (coll/into-> (ModelBuffers/geometries (protobuf/map->pb Rig$MeshSet mesh-set)) []
+                     (map protobuf/pb->map-without-defaults))
+        model-buffers-target (bt/with-content-hash
+                               {:node-id node-id
+                                :resource (workspace/make-placeholder-build-resource workspace "modelbuffers")
+                                :build-fn build-model-buffers
+                                :user-data {:geometries geometries}})
+        referenced-texture-tokens (referenced-morph-target-texture-tokens mesh-set)
         morph-target-textures (into []
                                     (filter #(contains? referenced-texture-tokens (:token %)))
                                     morph-target-textures)
@@ -114,39 +134,20 @@
               morph-target-textures
               morph-target-texture-build-targets)]
     (bt/with-content-hash
-      (cond-> {:node-id node-id
-               :resource (workspace/make-placeholder-build-resource workspace "meshset")
-               :build-fn build-mesh-set
-               :user-data {:mesh-set mesh-set
-                           :morph-target-textures morph-target-textures}}
-        (coll/not-empty morph-target-texture-build-targets)
-        (assoc :deps morph-target-texture-build-targets)))))
-
-(defn make-rig-scene-build-target
-  ([workspace node-id pb dep-build-targets]
-   (let [skeleton-target (make-skeleton-build-target workspace node-id (:skeleton pb))
-         animation-set-target (make-animation-set-build-target workspace node-id (:animation-set pb))
-         mesh-set-target (make-mesh-set-build-target workspace node-id (:mesh-set pb) nil)
-         build-targets {:skeleton skeleton-target
-                        :animation-set animation-set-target
-                        :mesh-set mesh-set-target}]
-     (make-rig-scene-build-target workspace node-id pb dep-build-targets build-targets)))
-  ([workspace node-id pb dep-build-targets build-targets]
-   (let [dep-build-targets (into []
-                                 (concat (remove nil? (vals build-targets))
-                                         (flatten dep-build-targets)))
-         pb-map (reduce (fn [pb key]
-                          (if-let [build-target (build-targets key)]
-                            (assoc pb key (-> build-target :resource :resource))
-                            (dissoc pb key)))
-                        pb
-                        [:skeleton :animation-set :mesh-set :texture-set])
-         resource (workspace/make-placeholder-resource workspace "rigscene")]
-     (pipeline/make-protobuf-build-target node-id resource Rig$RigScene pb-map dep-build-targets))))
+      {:node-id node-id
+       :resource (workspace/make-placeholder-build-resource workspace "meshset")
+       :build-fn build-mesh-set
+       :user-data {:metadata-version 1
+                   :mesh-set mesh-set
+                   :geometries geometries
+                   :model-buffers (:resource model-buffers-target)
+                   :morph-target-textures morph-target-textures}
+       :deps (into [model-buffers-target] morph-target-texture-build-targets)})))
 
 (defn register-resource-types
   [workspace]
   (concat
     (workspace/register-resource-type workspace :ext "rigscene")
     (workspace/register-resource-type workspace :ext "skeleton")
+    (workspace/register-resource-type workspace :ext "modelbuffers")
     (workspace/register-resource-type workspace :ext "meshset")))

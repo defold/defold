@@ -17,6 +17,7 @@
             [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.animation-set :as animation-set]
+            [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.geom :as geom]
@@ -315,6 +316,12 @@
       coll/not-empty
       g/error-aggregate)))
 
+(defn- build-model
+  [resource dep-resources {:keys [pb-map] :as user-data}]
+  (pipeline/build-protobuf resource dep-resources
+                           {:pb-class ModelProto$Model
+                            :pb-map (assoc pb-map :mesh-set (rig/compile-mesh-set dep-resources user-data))}))
+
 (g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target animation-set-build-target-single mesh-content mesh-set-build-target materials material-binding-infos material-skinning-infos skeleton-build-target animations mesh mesh-name mesh-index collision-meshes skeleton create-go-bones]
   (or (some->> (into [(prop-resource-error :fatal _node-id :mesh mesh scene-message)
                       (prop-resource-format-error _node-id :mesh mesh scene-message model-scene/model-file-types)
@@ -347,12 +354,9 @@
                                                 selected-mesh-set
                                                 (:morph-target-textures mesh-content))))
             animation-set-build-target (if (nil? animation-set-build-target-single) animation-set-build-target animation-set-build-target-single)
-            rig-scene-dep-build-targets {:animation-set animation-set-build-target
-                                         :mesh-set mesh-set-build-target
-                                         :skeleton skeleton-build-target}
-            rig-scene-pb-msg {}
-            rig-scene-build-target (rig/make-rig-scene-build-target workspace _node-id rig-scene-pb-msg dep-build-targets rig-scene-dep-build-targets)
-            rt-pb-msg (cond-> {:rig-scene (:resource rig-scene-build-target)
+            rt-pb-msg (cond-> {:buffers (get-in mesh-set-build-target [:user-data :model-buffers])
+                               :skeleton (:resource skeleton-build-target)
+                               :animation-set (:resource animation-set-build-target)
                                :default-animation default-animation
                                :materials (:materials pb-msg)
                                :create-go-bones create-go-bones}
@@ -361,8 +365,14 @@
 
                         true
                         (update-build-target-vertex-attributes material-binding-infos))
-            dep-build-targets (into [rig-scene-build-target] (flatten dep-build-targets))]
-        [(pipeline/make-protobuf-build-target _node-id resource ModelProto$Model rt-pb-msg dep-build-targets)])))
+            dep-build-targets (coll/into-> [skeleton-build-target animation-set-build-target (:deps mesh-set-build-target) dep-build-targets] []
+                                coll/flatten-xf)]
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-model
+            :user-data (assoc (:user-data mesh-set-build-target) :pb-map rt-pb-msg)
+            :deps dep-build-targets})])))
 
 (g/defnk produce-scene [_node-id scene mesh-name mesh-index ^:try collision-meshes material-name->material-scene-info skeleton-resource]
   (if scene
