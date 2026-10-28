@@ -32,15 +32,8 @@ namespace dmGameSystem
             dmDDF::FreeMessage(resource->m_MeshSet);
     }
 
-    dmResource::Result ResMeshSetPreload(const dmResource::ResourcePreloadParams* params)
+    void PreloadMeshSetResources(const dmResource::ResourcePreloadParams* params, const dmRigDDF::MeshSet* MeshSet)
     {
-        dmRigDDF::MeshSet* MeshSet;
-        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmRigDDF_MeshSet_DESCRIPTOR, (void**) &MeshSet);
-        if (e != dmDDF::RESULT_OK)
-        {
-            return dmResource::RESULT_DDF_ERROR;
-        }
-
         for (uint32_t mi = 0; mi < MeshSet->m_Models.m_Count; ++mi)
         {
             const dmRigDDF::Model* model = &MeshSet->m_Models[mi];
@@ -54,7 +47,26 @@ namespace dmGameSystem
             }
         }
 
-        *params->m_PreloadData = MeshSet;
+        for (uint32_t mi = 0; mi < MeshSet->m_RawModels.m_Count; ++mi)
+        {
+            const dmRigDDF::Model* model = &MeshSet->m_RawModels[mi];
+            for (uint32_t mesh_i = 0; mesh_i < model->m_Meshes.m_Count; ++mesh_i)
+            {
+                const dmRigDDF::Mesh* mesh = &model->m_Meshes[mesh_i];
+                if (mesh->m_MorphTargetTexture[0])
+                    dmResource::PreloadHint(params->m_HintInfo, mesh->m_MorphTargetTexture);
+            }
+        }
+    }
+
+    dmResource::Result ResMeshSetPreload(const dmResource::ResourcePreloadParams* params)
+    {
+        dmRigDDF::MeshSet* mesh_set;
+        dmDDF::Result result = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmRigDDF_MeshSet_DESCRIPTOR, (void**)&mesh_set);
+        if (result != dmDDF::RESULT_OK)
+            return dmResource::RESULT_DDF_ERROR;
+        PreloadMeshSetResources(params, mesh_set);
+        *params->m_PreloadData = mesh_set;
         return dmResource::RESULT_OK;
     }
 

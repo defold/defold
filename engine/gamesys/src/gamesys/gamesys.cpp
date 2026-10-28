@@ -48,6 +48,7 @@
 #include "resources/res_textureset.h"
 #include "resources/res_tilegrid.h"
 #include "resources/res_meshset.h"
+#include "resources/res_model_buffers.h"
 #include "resources/res_skeleton.h"
 #include "resources/res_rig_scene.h"
 #include "resources/res_display_profiles.h"
@@ -142,6 +143,7 @@ namespace dmGameSystem
         // datac: res_data.cpp
         REGISTER_RESOURCE_TYPE("meshc", graphics_context, ResMeshPreload, ResMeshCreate, 0, ResMeshDestroy, ResMeshRecreate);
         REGISTER_RESOURCE_TYPE("modelc", model_context, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate);
+        REGISTER_RESOURCE_TYPE("modelbuffersc", graphics_context, ResModelBuffersPreload, ResModelBuffersCreate, 0, ResModelBuffersDestroy, ResModelBuffersRecreate);
         REGISTER_RESOURCE_TYPE("materialc", render_context, ResMaterialPreload, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate);
         REGISTER_RESOURCE_TYPE("computec", render_context, ResComputePreload, ResComputeCreate, 0, ResComputeDestroy, ResComputeRecreate);
 

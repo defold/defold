@@ -1051,7 +1051,7 @@ namespace dmRig
             {
                 const dmRigDDF::Mesh& mesh = model->m_Meshes[i];
 
-                vertex_count += mesh.m_Positions.m_Count/3;
+                vertex_count += mesh.m_VertexCount ? mesh.m_VertexCount : mesh.m_Positions.m_Count / 3;
             }
         }
 

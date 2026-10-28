@@ -18,7 +18,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
@@ -27,8 +29,11 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.TextureUtil;
 
+import com.dynamo.proto.DdfMath.Transform;
+import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
@@ -39,6 +44,42 @@ import com.dynamo.rig.proto.Rig.Skeleton;
         "model-max-morph-target-texture-width",
         "model-max-morph-target-texture-height"})
 public class MeshsetBuilder extends Builder  {
+    private MeshSet meshSet;
+    private final Map<Integer, ModelGeometry> modelGeometry = new HashMap<>();
+
+    record ModelGeometry(List<Rig.Mesh> meshes, IResource source) {}
+
+    MeshSet getMeshSet() {
+        return meshSet;
+    }
+
+    // A source/selection pair shares one canonical input for the cacheable buffer task.
+    ModelGeometry getModelGeometry(int meshIndex) throws IOException {
+        ModelGeometry geometry = modelGeometry.get(meshIndex);
+        if (geometry == null) {
+            List<Rig.Mesh> meshes = ModelBuffers.geometries(ModelBuffers.selectMeshes(meshSet, meshIndex));
+            // The fixed model wrapper only stores the unique meshes in this build-time input.
+            byte[] data = Rig.Model.newBuilder().setId(0).setLocal(Transform.getDefaultInstance())
+                    .addAllMeshes(meshes).build().toByteArray();
+            long hash = MurmurHash.hash64(data, data.length);
+            IResource source = project.getGeneratedResource(hash, "modelbuffers");
+            if (source == null) {
+                source = project.createGeneratedResource("model_buffers_v" + ModelBuffers.VERSION, hash, "modelbuffers");
+                source.setContent(data);
+            }
+            geometry = new ModelGeometry(meshes, source);
+            modelGeometry.put(meshIndex, geometry);
+        }
+        return geometry;
+    }
+
+    @Override
+    public void clearState() {
+        super.clearState();
+        meshSet = null;
+        modelGeometry.clear();
+    }
+
     private static IResource resolveExternalBuffer(IResource sceneResource, String uri) {
         if (!ModelUtil.isExternalBufferUri(uri)) {
             return null;
@@ -121,7 +162,8 @@ public class MeshsetBuilder extends Builder  {
             .addInput(input)
             .addOutput(input.changeExt(params.outExt()))
             .addOutput(input.changeExt(".skeletonc"))
-            .addOutput(input.changeExt("_generated_0.animationsetc"));
+            .addOutput(input.changeExt("_generated_0.animationsetc"))
+            .addExtraCacheKey("model-source-meshset-v2");
 
         byte[] sceneContent;
         ModelUtil.ModelMetadata metadata;
@@ -139,16 +181,27 @@ public class MeshsetBuilder extends Builder  {
         }
 
         int morphTargetTextureCount = 0;
-        if (metadata.hasMorphTargets()) {
+        MeshSet.Builder meshes = null;
+        {
             Modelimporter.Scene scene = null;
             try {
                 scene = ModelUtil.loadScene(sceneContent, input.getPath(), new Modelimporter.Options(),
                         new ResourceDataResolver(input));
                 ModelUtil.releaseSceneBuffers(scene);
-                if (this.project.option("model-split-large-meshes", "false").equals("true")) {
+                boolean splitMeshes = this.project.option("model-split-large-meshes", "false").equals("true");
+                List<Integer> splitModelIndices = splitMeshes ? ModelUtil.getModelsNeedingLargeMeshSplit(scene) : List.of();
+                if (splitMeshes) {
                     ModelUtil.splitMeshes(scene);
                 }
                 morphTargetTextureCount = ModelUtil.getNumMorphTargetTextures(scene);
+                meshes = MeshSet.newBuilder();
+                meshes.addAllSplitModelIndices(splitModelIndices);
+                BobProjectProperties properties = project.getProjectProperties();
+                ModelUtil.loadModels(scene, meshes,
+                        properties.getIntValue("model", "max_morph_target_texture_width", 1024),
+                        properties.getIntValue("model", "max_morph_target_texture_height", 1024), null);
+            } catch (LoaderException e) {
+                throw new CompileExceptionError(input, -1, e.getMessage(), e);
             } catch (IOException e) {
                 // Defer import and validation errors to build(), where existing glTF
                 // diagnostics are reported.
@@ -157,6 +210,10 @@ public class MeshsetBuilder extends Builder  {
                     ModelUtil.unloadScene(scene);
                 }
             }
+        }
+
+        if (meshes != null) {
+            meshSet = meshes.build();
         }
 
         for (int i = 0; i < morphTargetTextureCount; ++i) {

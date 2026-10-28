@@ -41,6 +41,7 @@ namespace dmGameSystem
     struct RigSceneResource;
     struct TextureResource;
     struct RenderTargetResource;
+    struct ModelBuffersResource;
 
     enum RigModelVertexFormat
     {
@@ -54,6 +55,8 @@ namespace dmGameSystem
         dmGraphics::HIndexBuffer    m_IndexBuffer;
         uint32_t                    m_VertexCount;
         uint32_t                    m_IndexCount;
+        uint32_t                    m_VertexBufferOffset; // Byte offset of this mesh's vertex range.
+        uint32_t                    m_IndexBufferOffset;  // Byte offset of this mesh's index range.
         dmGraphics::Type            m_IndexBufferElementType;
         RigModelVertexFormat        m_RigModelVertexFormat;
         uint8_t                     m_LastUsedFrame; // Used for statistics
@@ -61,7 +64,7 @@ namespace dmGameSystem
 
     struct MeshInfo
     {
-        ModelResourceBuffers*   m_Buffers; // Currently a vertex+index buffer per mesh
+        ModelResourceBuffers*   m_Buffers; // Draw range in shared vertex/index buffers.
         dmRigDDF::Model*        m_Model;   // For the transform
         dmRigDDF::Mesh*         m_Mesh;
         TextureResource*        m_MorphTargetTexture;
@@ -90,7 +93,8 @@ namespace dmGameSystem
     {
         dmModelDDF::Model*       m_Model;
         uint32_t                 m_ModelsCount;
-        RigSceneResource*        m_RigScene;
+        RigSceneResource*        m_RigScene;    // Model-owned metadata view, or a factory resource for legacy content.
+        ModelBuffersResource*    m_Buffers;     // One factory reference owning the shared geometry; null for legacy content.
 
         dmArray<MeshInfo>        m_Meshes;
         dmArray<MaterialInfo>    m_Materials;    // List matches the list of material names in the dmRigDDF::Model

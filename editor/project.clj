@@ -137,6 +137,7 @@
                       "../engine/script/src"]
 
   :protobuf-includes ["../engine/gameobject/proto"
+                      "../engine/rig/proto"
                       "../engine/gamesys/proto"
                       "../engine/graphics/proto"
                       "../engine/ddf/src"

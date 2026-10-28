@@ -36,13 +36,15 @@ import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.MeshSet;
-import com.dynamo.rig.proto.Rig.RigScene;
 
 // for editing we use ModelDesc but in runtime Model
 // make sure '.model' and '.modelc' corresponds to right classes
 @ProtoParams(srcClass = ModelDesc.class, messageClass = Model.class)
 @BuilderParams(name="Model", inExts=".model", outExt=".modelc")
 public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
+    private List<Rig.Mesh> bufferGeometry;
+    private String bufferPath;
+
 
     private Task createSubTaskOutput(String inputPath, String field, Task.TaskBuilder taskBuilder,
                                      int outputIndex) throws CompileExceptionError {
@@ -56,7 +58,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         return subTask;
     }
 
-    private int resolveMeshIndex(ModelDesc.Builder modelDescBuilder, IResource modelResource) throws CompileExceptionError {
+    private int resolveMeshIndex(ModelDesc.Builder modelDescBuilder, IResource modelResource, MeshSet meshSet) throws CompileExceptionError {
         String meshName = modelDescBuilder.getMeshName();
         if (meshName.isEmpty()) {
             if (modelDescBuilder.getMeshIndex() != ModelDesc.getDefaultInstance().getMeshIndex()) {
@@ -73,14 +75,10 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
 
         IResource sceneResource = BuilderUtil.checkResource(project, modelResource, "mesh", meshPath);
         try {
-            IResource meshSetResource = sceneResource.changeExt(".meshsetc");
-            MeshSet meshSet = MeshSet.parseFrom(meshSetResource.getContent());
             int requestedMeshIndex = modelDescBuilder.getMeshIndex();
             return ModelUtil.resolveNamedMesh(meshSet, meshName, requestedMeshIndex).getMeshIndex();
         } catch (IllegalArgumentException e) {
             throw new CompileExceptionError(sceneResource, 0, e.getMessage());
-        } catch (IOException e) {
-            throw new CompileExceptionError(sceneResource, 0, e.getMessage(), e);
         }
     }
 
@@ -91,8 +89,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
     // - Resolve legacy materials as a single default binding. Match runtime assignment by padding missing
     //   bindings with binding zero, then sorting by mesh-set material index (-1 for unmatched names).
     // - Check every binding with the same sort key, since runtime qsort can reorder ties.
-    private void validateSkinnedMaterials(ModelDesc.Builder model, IResource resource, int selectedMeshIndex) throws IOException, CompileExceptionError {
-        MeshSet meshSet = MeshSet.parseFrom(project.getResource(model.getMesh()).changeExt(".meshsetc").getContent());
+    private void validateSkinnedMaterials(ModelDesc.Builder model, IResource resource, int selectedMeshIndex, MeshSet meshSet) throws IOException, CompileExceptionError {
         List<Material> materials = model.getMaterialsList();
         if (materials.isEmpty() && !model.getMaterial().isEmpty()) {
             materials = List.of(Material.newBuilder().setName("default").setMaterial(model.getMaterial()).build());
@@ -157,10 +154,20 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         Task.TaskBuilder taskBuilder = Task.newBuilder(this)
             .setName(params.name())
             .addInput(input)
-            .addOutput(input.changeExt(params.outExt()))
-            .addOutput(input.changeExt(".rigscenec"));
+            .addOutput(input.changeExt(params.outExt()));
 
-        createSubTaskOutput(modelDescBuilder.getMesh(), "mesh", taskBuilder, 0);
+        Task meshTask = createSubTaskOutput(modelDescBuilder.getMesh(), "mesh", taskBuilder, 0);
+        MeshsetBuilder meshsetBuilder = (MeshsetBuilder)meshTask.getBuilder();
+        MeshSet sourceGeometry = meshsetBuilder.getMeshSet();
+        if (sourceGeometry != null) {
+            int meshIndex = resolveMeshIndex(modelDescBuilder, input, sourceGeometry);
+            MeshsetBuilder.ModelGeometry geometry = meshsetBuilder.getModelGeometry(meshIndex);
+            bufferGeometry = geometry.meshes();
+            Task bufferTask = project.createTask(geometry.source());
+            taskBuilder.addInput(bufferTask.output(0));
+            bufferPath = BuilderUtil.getRelativePath(project, bufferTask.output(0));
+        }
+        taskBuilder.addExtraCacheKey("model-buffers-v" + ModelBuffers.VERSION + "-canonical-input-material-bindings");
 
         if(!modelDescBuilder.getSkeleton().isEmpty()) {
             String suffix = BuilderUtil.getSuffix(modelDescBuilder.getSkeleton()).toLowerCase();
@@ -205,14 +212,17 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         ModelDesc.Builder modelDescBuilder = getSrcBuilder(task.firstInput());
-        int selectedMeshIndex = resolveMeshIndex(modelDescBuilder, task.firstInput());
-        validateSkinnedMaterials(modelDescBuilder, task.firstInput(), selectedMeshIndex);
+        MeshSet sourceGeometry = MeshSet.parseFrom(project.getResource(modelDescBuilder.getMesh()).changeExt(".meshsetc").getContent());
+        int selectedMeshIndex = resolveMeshIndex(modelDescBuilder, task.firstInput(), sourceGeometry);
+        validateSkinnedMaterials(modelDescBuilder, task.firstInput(), selectedMeshIndex, sourceGeometry);
 
-        // Rigscene
-        RigScene.Builder rigBuilder = RigScene.newBuilder();
-        rigBuilder.setMeshSet(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getMesh(), ".meshsetc"));
+        IResource resource = task.firstInput();
+        Model.Builder model = Model.newBuilder();
+        model.setRigScene("");
+        model.setBuffers(bufferPath);
+        model.setMeshSet(ModelBuffers.metadata(ModelBuffers.selectMeshes(sourceGeometry, selectedMeshIndex), bufferGeometry));
         if(!modelDescBuilder.getSkeleton().isEmpty()) {
-            rigBuilder.setSkeleton(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getSkeleton(), ".skeletonc"));
+            model.setSkeleton(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getSkeleton(), ".skeletonc"));
         }
 
         if (modelDescBuilder.getAnimations().isEmpty()) {
@@ -220,27 +230,17 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         }
         else if(modelDescBuilder.getAnimations().endsWith(".animationset")) {
             // if an animsetdesc file is animation input, use animations and skeleton from that file(s) and other related data (weights, boneindices..) from the mesh scene file
-            rigBuilder.setAnimationSet(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getAnimations(), ".animationsetc"));
+            model.setAnimationSet(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getAnimations(), ".animationsetc"));
         }
         else if(!modelDescBuilder.getAnimations().isEmpty()) {
             // if a model scene file is animation input, use animations from that file and other related data (weights, boneindices..) from the mesh scene file
             // we define this a generated file as the animation set does not come from an .animationset resource, but is exported directly from this model scene file
             // and because we also avoid possible resource name collision (ref: atlas <-> texture).
-            rigBuilder.setAnimationSet(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getAnimations(), "_generated_0.animationsetc"));
+            model.setAnimationSet(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getAnimations(), "_generated_0.animationsetc"));
         } else {
             throw new CompileExceptionError(task.firstInput(), -1, "No animation set in model!");
         }
 
-        rigBuilder.setTextureSet(""); // this is set in the model
-        ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
-        rigBuilder.build().writeTo(out);
-        out.close();
-        task.output(1).setContent(out.toByteArray());
-
-        // Model
-        IResource resource = task.firstInput();
-        Model.Builder model = Model.newBuilder();
-        model.setRigScene(BuilderUtil.getRelativePath(this.project, task.output(1)));
         if (selectedMeshIndex >= 0) {
             model.setMeshIndex(selectedMeshIndex);
         }
@@ -321,9 +321,16 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         model.setDefaultAnimation(modelDescBuilder.getDefaultAnimation());
         model.setCreateGoBones(modelDescBuilder.getCreateGoBones());
 
-        out = new ByteArrayOutputStream(64 * 1024);
+        ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
         model.build().writeTo(out);
         out.close();
         task.output(0).setContent(out.toByteArray());
+    }
+
+    @Override
+    public void clearState() {
+        super.clearState();
+        bufferGeometry = null;
+        bufferPath = null;
     }
 }
