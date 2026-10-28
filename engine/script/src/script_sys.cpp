@@ -30,7 +30,10 @@
 
 #ifdef _WIN32
 #include <direct.h>
+#include <io.h>
 #include <malloc.h>
+#elif defined(__linux__) || defined(__MACH__)
+#include <unistd.h>
 #endif
 
 #include <dlib/dstrings.h>
@@ -233,7 +236,32 @@ union SaveLoadBuffer
         }
 
         bool result = fwrite(buffer, 1, n_used, file) == n_used;
-        result = (fclose(file) == 0) && result;
+        // Flush stdio before syncing the temporary file and replacing the previous save.
+        result = result && (fflush(file) == 0);
+    #if defined(_WIN32)
+        result = result && (_commit(_fileno(file)) == 0);
+    #elif defined(__linux__) || defined(__MACH__)
+        if (result)
+        {
+            int sync_result;
+            do
+            {
+                sync_result = fsync(fileno(file));
+            } while (sync_result != 0 && errno == EINTR);
+            result = sync_result == 0;
+        }
+    #endif
+    #if !defined(DM_NO_ERRNO)
+        int save_errno = result ? 0 : errno;
+    #endif
+        int close_result = fclose(file);
+    #if !defined(DM_NO_ERRNO)
+        if (result && close_result != 0)
+        {
+            save_errno = errno;
+        }
+    #endif
+        result = result && (close_result == 0);
         Sys_FreeTableSerializationBuffer(buffer);
 
         if (!result)
@@ -244,7 +272,7 @@ union SaveLoadBuffer
             return luaL_error(L, "Could not write to the file %s.", filename);
         #else
             char errmsg[128] = {};
-            dmStrError(errmsg, sizeof(errmsg), errno);
+            dmStrError(errmsg, sizeof(errmsg), save_errno);
             return luaL_error(L, "Could not write to the file %s, reason: %s.", filename, errmsg);
         #endif
         }
