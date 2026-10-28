@@ -155,15 +155,15 @@ namespace dmGameSystem
                 return dmResource::RESULT_RESOURCE_NOT_FOUND;
             }
 
-            fseek(file, 0L, SEEK_END);
-            uint32_t file_size = ftell(file);
-            fseek(file, 0L, SEEK_SET);
-
-            buffer->SetCapacity(file_size);
-            buffer->SetSize(file_size);
-
-            fread(buffer->Begin(), 1, file_size, file);
-            bool result = ferror(file) == 0;
+            bool result = fseek(file, 0L, SEEK_END) == 0;
+            long file_size = result ? ftell(file) : -1;
+            result = result && file_size >= 0 && (uint64_t)file_size <= UINT32_MAX && fseek(file, 0L, SEEK_SET) == 0;
+            if (result)
+            {
+                buffer->SetCapacity((uint32_t)file_size);
+                buffer->SetSize((uint32_t)file_size);
+                result = fread(buffer->Begin(), 1, file_size, file) == (size_t)file_size && ferror(file) == 0;
+            }
             fclose(file);
 
             if (!result)

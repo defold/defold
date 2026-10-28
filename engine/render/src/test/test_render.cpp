@@ -6410,8 +6410,8 @@ TEST_F(dmRenderTest, LightBufferTestSimple)
         dmRender::HLightInstance light0 = dmRender::NewLightInstance(m_Context, light_prototype);
         ASSERT_NE((dmRender::HLightInstance)0, light0);
 
-        dmVMath::Point3 p0;
-        dmVMath::Quat r0;
+        dmVMath::Point3 p0(0.0f, 0.0f, 0.0f);
+        dmVMath::Quat r0 = dmVMath::Quat::identity();
         dmRender::SetLightInstance(m_Context, light0, p0, r0, 1.0f);
         dmRender::DeleteLightInstance(m_Context, light0);
     }
