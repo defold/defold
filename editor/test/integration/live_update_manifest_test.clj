@@ -47,7 +47,7 @@
            [java.util.zip ZipEntry ZipOutputStream]
            [javafx.animation AnimationTimer]
            [javafx.event EventHandler]
-           [javafx.scene.control Label MenuItem RadioButton Tab TabPane TreeItem TreeTableCell TreeTableColumn TreeTableView]
+           [javafx.scene.control Label MenuItem RadioButton Tab TabPane TreeItem TreeTableColumn TreeTableView]
            [javafx.scene.input Clipboard]
            [javafx.scene.layout AnchorPane Pane]
            [javax.tools ToolProvider]))
@@ -658,7 +658,7 @@
             (try
               (frame!)
               (ui/run-now
-                (is (identical? (.lookup ^AnchorPane parent "#liveupdate-filter")
+                (is (identical? (.lookup ^AnchorPane parent "#liveupdate-search")
                                 (first (.getChildren ^Pane (first (.getChildren ^AnchorPane parent)))))))
               (let [result (completed! controller)]
                 (is (= #{"/episode.collectionc" "/extra.json"}
@@ -672,14 +672,15 @@
               (completed! controller)
               (ui/run-now
                 (let [^Label path-label (.lookup ^AnchorPane parent "#liveupdate-export-path")
+                      absolute-path (str (io/file (workspace/project-directory workspace) "exports/packages/levels.zip"))
                       [^MenuItem copy ^MenuItem open] (.getItems (.getContextMenu path-label))
                       clipboard (Clipboard/getSystemClipboard)
                       previous (coll/pair-map-by identity #(.getContent clipboard %) (.getContentTypes clipboard))
                       opened (atom nil)]
-                  (is (= (str (io/file (workspace/project-directory workspace) "exports/packages/levels.zip")) (.getText path-label)))
+                  (is (= "exports/packages/levels.zip" (.getText path-label)))
                   (try
                     (.fire copy)
-                    (is (= (.getText path-label) (.getString clipboard)))
+                    (is (= absolute-path (.getString clipboard)))
                     (finally
                       (.setContent clipboard previous)))
                   (with-redefs [ui/open-file #(reset! opened %)]
@@ -723,7 +724,7 @@
                     rows (#'manifest-view/resource-rows result "levels" (g/node-value node :packages))]
                 (is (= 1 (count rows)))
                 (is (= "/extra.json" (:path (first rows))))
-                (is (= 16 (:size (first rows))))
+                (is (= 16 (get (.compiledSizes ^PackagePreview$Result result) "/extra.json")))
                 (is (= "/extra.json" (:source (first rows))))
                 (is (= [(get-in packages [0 :rules 1 :node-id])] (:rule-nodes (first rows))))
                 (is (= "Data" (:added-by (first rows))))
@@ -879,7 +880,7 @@
 ;; Package views retain dependency hierarchies. Global searches show each match
 ;; once with every supplying package, including Base, and the contributing
 ;; rules. Background refreshes and error messages preserve the controls and
-;; selected resource. Recycled size cells tolerate empty rows.
+;; selected resource.
 (deftest compiled-preview-tree
   (test-util/with-scratch-project "test/resources/live_update_project"
     (test-util/make-resource! workspace "/shared.script")
@@ -916,7 +917,10 @@
         (let [parent (AnchorPane.)
               props {:fx/type @#'manifest-view/view-desc
                      :parent parent
-                     :model {:resource-node node :packages packages :selection [(:node-id (first packages))]}
+                     :model {:resource-node node
+                             :project-directory (workspace/project-directory workspace)
+                             :packages packages
+                             :selection [(:node-id (first packages))]}
                      :preview-state {:result {:value {:compiled result :packages packages}}}
                      :ui-state {}
                      :localization-state @test-util/localization}
@@ -932,22 +936,15 @@
             (try
               (is (false? (.isShowRoot table)))
               (is (= expected (children (.getRoot table))))
-              (let [^TreeTableColumn size-column (nth (.getColumns table) 1)
-                    ^TreeTableCell cell (.call (.getCellFactory size-column) size-column)]
-                (.updateTreeTableView cell table)
-                (.updateTreeTableColumn cell size-column)
-                (.updateIndex cell 0)
-                (is (string? (.getText cell)))
-                (.updateIndex cell -1)
-                (is (= "" (.getText cell))))
               (is (= "Package: levels" (.getText ^Label (.lookup parent "#liveupdate-package-heading"))))
-              (let [^Label export-path (.lookup parent "#liveupdate-export-path")]
-                (is (= (str (io/file (workspace/project-directory workspace) "build/packages/levels.zip")) (.getText export-path)))
+              (let [^Label export-path (.lookup parent "#liveupdate-export-path")
+                    absolute-path (str (io/file (workspace/project-directory workspace) "build/packages/levels.zip"))]
+                (is (= "build/packages/levels.zip" (.getText export-path)))
                 (is (= ["Copy Path" "Open Folder"] (mapv #(.getText ^MenuItem %) (.getItems (.getContextMenu export-path)))))
                 (.fire ^MenuItem (first (.getItems (.getContextMenu export-path))))
-                (is (= {:event/type :copy-path :path (.getText export-path)} (dissoc (last @events) :fx/event)))
+                (is (= {:event/type :copy-path :path absolute-path} (dissoc (last @events) :fx/event)))
                 (.fire ^MenuItem (second (.getItems (.getContextMenu export-path))))
-                (is (= {:event/type :open-folder :path (.getText export-path)} (dissoc (last @events) :fx/event)))
+                (is (= {:event/type :open-folder :path absolute-path} (dissoc (last @events) :fx/event)))
                 (is (.contains (.getStyle export-path) "italic")))
               (let [^TreeItem collection (first (.getChildren (.getRoot table)))
                     ^TreeItem go (first (.getChildren collection))
@@ -979,9 +976,9 @@
               (is (= [["/shared.scriptc" []]] (children (.getRoot table))))
               (is (= "Search results" (.getText ^Label (.lookup parent "#liveupdate-package-heading"))))
               (is (nil? (.lookup parent "#liveupdate-export-path")))
-              (is (.startsWith (.getText ^Label (.lookup parent "#liveupdate-resource-summary")) "1 resources · "))
+              (is (= "1 resource" (.getText ^Label (.lookup parent "#liveupdate-resource-summary"))))
               (let [^TreeItem match (first (.getChildren (.getRoot table)))
-                    ^TreeTableColumn packages-column (nth (.getColumns table) 2)]
+                    ^TreeTableColumn packages-column (nth (.getColumns table) 1)]
                 (is (= ["base" "copy" "levels"] (:packages (.getValue match))))
                 (is (= "Base, copy, levels" (.getCellData packages-column match)))
                 (is (= "/shared.script" (:source (.getValue match))))
@@ -999,7 +996,7 @@
               (advance! (assoc-in props [:model :selection] [(:node-id (second packages))]))
               (is (= expected (children (.getRoot table))))
               (is (= "Package: copy" (.getText ^Label (.lookup parent "#liveupdate-package-heading"))))
-              (is (= (str (io/file (workspace/project-directory workspace) "build/packages/copy"))
+              (is (= "build/packages/copy"
                      (.getText ^Label (.lookup parent "#liveupdate-export-path"))))
               (is (nil? (.getSelectedItem (.getSelectionModel table))))
               (advance! (assoc-in props [:model :selection] []))
@@ -1019,7 +1016,7 @@
               (is (= ["copy" "levels"] (:packages (.getValue ^TreeItem (first (.getChildren (.getRoot table)))))))
               (advance! (assoc-in props [:ui-state :filter] "no-match"))
               (is (coll/empty? (.getChildren (.getRoot table))))
-              (is (= "0 resources · 0 B compiled" (.getText ^Label (.lookup parent "#liveupdate-resource-summary"))))
+              (is (= "0 resources" (.getText ^Label (.lookup parent "#liveupdate-resource-summary"))))
               (finally
                 (fx/delete-component @component)))))))))
 

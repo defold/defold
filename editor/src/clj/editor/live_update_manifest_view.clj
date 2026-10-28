@@ -18,6 +18,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.fs :as fs]
             [editor.fxui :as fxui]
             [editor.live-update-manifest :as manifest]
             [editor.live-update-preview :as preview]
@@ -29,11 +30,11 @@
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
-            [util.coll :as coll]
-            [util.debug-util :as debug-util])
+            [util.coll :as coll])
   (:import [clojure.lang PersistentQueue]
            [com.dynamo.bob.archive.liveupdate PackagePreview$Result PackageResolver$Contribution PackageResolver$Diagnostic PackageResolver$Package PackageResolver$Plan PackageResolver$Resource PackageResolver$RuleId]
            [java.io File]
+           [javafx.event Event]
            [javafx.scene Parent]
            [javafx.scene.control Tab TreeItem TreeTableView]
            [javafx.scene.input Clipboard ClipboardContent]))
@@ -44,6 +45,7 @@
 (g/defnode ManifestView
   (inherits view/WorkbenchView)
   (input manifest-resource resource/Resource)
+  (input project-root g/Str)
   (input packages g/Any)
   (input diagnostics g/Any)
   (input resource-map g/Any)
@@ -54,9 +56,10 @@
   (output fingerprint g/Any :cached
           (g/fnk [resource-snapshot save-data generated-paths] [resource-snapshot save-data generated-paths]))
   (output model g/Any :cached
-          (g/fnk [resource-node manifest-resource packages diagnostics resource-map generated-paths save-data selected-nodes fingerprint]
+          (g/fnk [resource-node manifest-resource project-root packages diagnostics resource-map generated-paths save-data selected-nodes fingerprint]
             {:resource-node resource-node
              :resource manifest-resource
+             :project-directory (File. ^String project-root)
              :packages packages
              :diagnostics diagnostics
              :resource-map resource-map
@@ -127,7 +130,6 @@
                     source (or (get (.primarySources plan) path)
                                (when-let [^PackageResolver$Contribution contribution (first contributions)] (.source contribution)))]
                 {:path path
-                 :size (get (.compiledSizes result) path 0)
                  :packages (get memberships path)
                  :source source
                  :rule-nodes (coll/into-> rules [] (keep #(get-in rule-map [% :node-id])))
@@ -219,11 +221,15 @@
         (when (<= 0.2 (- (double elapsed-time) (double (:since @pending))))
           (update-preview! controller model options))))))
 
-(defn- handle-event! [{:keys [view-node app-view ui-state]} {:keys [event/type fx/event package path]}]
+(defn- handle-event! [{:keys [view-node app-view ui-state parent]} {:keys [event/type fx/event package path]}]
   (let [model (g/node-value view-node :model)
         root (:resource-node model)]
     (case type
       :filter (swap! ui-state assoc :filter event :row nil)
+      :clear-filter (do
+                      (swap! ui-state assoc :filter "" :row nil)
+                      (ui/request-focus! (.lookup ^Parent parent "#liveupdate-filter")))
+      :open-source (ui/run-command (.getTarget ^Event event) :file.open path)
       :copy-path (.setContent (Clipboard/getSystemClipboard) (doto (ClipboardContent.) (.putString path)))
       :open-folder (loop [directory (File. ^String path)]
                      (when directory
@@ -270,12 +276,18 @@
                (filterv some?
                 [(when status
                    {:fx/type fxui/label :fx/key :status :text status :wrap-text true :min-width 0})
-                {:fx/type fxui/text-field :fx/key :filter :id "liveupdate-filter" :prompt-text (message "liveupdate.search")
-                 :text (:filter ui-state "") :on-text-changed {:event/type :filter}}
-                {:fx/type :h-box :fx/key :heading :spacing 8 :alignment :baseline-left :style {:-fx-font-size 18}
+                {:fx/type :h-box :fx/key :filter :id "liveupdate-search" :spacing 4
+                 :children [{:fx/type fxui/text-field :id "liveupdate-filter" :h-box/hgrow :always
+                             :prompt-text (message "liveupdate.search")
+                             :text (:filter ui-state "") :on-text-changed {:event/type :filter}}
+                            {:fx/type fxui/button :id "liveupdate-clear-search"
+                             :text (message "liveupdate.clear-search")
+                             :disable (coll/empty? (:filter ui-state))
+                             :on-action {:event/type :clear-filter}}]}
+                {:fx/type :v-box :fx/key :heading :spacing 4
                  :children
                  (cond-> [(cond-> {:fx/type fxui/label :id "liveupdate-package-heading"
-                                  :style {:-fx-text-fill "-df-text-selected"}
+                                  :style {:-fx-font-size 18 :-fx-text-fill "-df-text-selected"}
                                   :text (if searching
                                           (message "liveupdate.search-results")
                                           (localization-state
@@ -288,22 +300,24 @@
                                              :style {:-fx-background-color "-df-text-selected"}}))]
                    (coll/not-empty export-paths)
                    (into (mapv (fn [path]
-                                 {:fx/type fxui/label :fx/key path :id "liveupdate-export-path"
-                                  :style {:-fx-font-style "italic" :-fx-text-fill "-df-text-selected"}
-                                  :min-width 0 :text-overrun :center-ellipsis
-                                  :text path
-                                  :tooltip {:fx/type :tooltip :text path}
-                                  :context-menu {:fx/type :context-menu
-                                                 :items [{:fx/type :menu-item :text (message "liveupdate.copy-path")
-                                                          :on-action {:event/type :copy-path :path path}}
-                                                         {:fx/type :menu-item :text (message "liveupdate.open-folder")
-                                                          :on-action {:event/type :open-folder :path path}}]}})
+                                 (let [file (File. ^String path)
+                                       project-directory (:project-directory model)]
+                                   {:fx/type fxui/label :fx/key path :id "liveupdate-export-path"
+                                    :color :text :style {:-fx-font-style "italic"}
+                                    :min-width 0 :text-overrun :center-ellipsis
+                                    :text (if (fs/below-directory? file project-directory)
+                                            (resource/relative-path project-directory file)
+                                            path)
+                                    :context-menu {:fx/type :context-menu
+                                                   :items [{:fx/type :menu-item :text (message "liveupdate.copy-path")
+                                                            :on-action {:event/type :copy-path :path path}}
+                                                           {:fx/type :menu-item :text (message "liveupdate.open-folder")
+                                                            :on-action {:event/type :open-folder :path path}}]}}))
                                export-paths)))}
                 {:fx/type fxui/label :fx/key :summary :id "liveupdate-resource-summary"
                  :style {:-fx-text-fill "-df-text-selected"}
                  :text (localization-state (localization/message "liveupdate.resource-summary"
-                                             {"count" (count rows)
-                                              "size" (debug-util/bytes->string (reduce + 0 (mapv :size rows)))}))}
+                                             {"count" (count rows)}))}
                 {:fx/type fx.ext.tree-table-view/with-selection-props
                  :fx/key :resources
                  :v-box/vgrow :always
@@ -316,20 +330,22 @@
                                       :children (mapv resource-tree-item displayed-rows)}}
                         :column-resize-policy TreeTableView/CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS
                         :placeholder {:fx/type fxui/label :text (message "liveupdate.empty")}
-                        :columns [{:fx/type :tree-table-column :text (message "liveupdate.resource") :pref-width 340
+                        :columns [{:fx/type :tree-table-column :text (message "liveupdate.resource")
+                                   :min-width 240 :pref-width 600
                                    :cell-value-factory :path}
-                                  {:fx/type :tree-table-column :text (message "liveupdate.compiled-size") :pref-width 130
-                                   :cell-value-factory :size
-                                   :cell-factory {:fx/cell-type :tree-table-cell
-                                                  :describe (fn [size] {:text (when size (debug-util/bytes->string size))})}}
-                                  {:fx/type :tree-table-column :text (message "liveupdate.packages") :pref-width 160
+                                  {:fx/type :tree-table-column :text (message "liveupdate.packages")
+                                   :min-width 160 :pref-width 180 :max-width 240
                                    :cell-value-factory (fn [row]
                                                          (coll/join-to-string ", " (mapv #(if (= "base" %) (message "liveupdate.base") %)
                                                                                       (:packages row))))}
-                                  {:fx/type :tree-table-column :text (message "liveupdate.added-by") :pref-width 240
+                                  {:fx/type :tree-table-column :text (message "liveupdate.added-by")
+                                   :min-width 80 :pref-width 120 :max-width 180
                                    :cell-value-factory :added-by}]}}
-                (when row
-                  {:fx/type fxui/label :fx/key :source :text (str (message "liveupdate.source") " " (:source row ""))})
+                (when-let [source (:source row)]
+                  {:fx/type :h-box :fx/key :source :spacing 4 :alignment :baseline-left
+                   :children [{:fx/type fxui/label :text (message "liveupdate.source")}
+                              {:fx/type :hyperlink :id "liveupdate-source" :text source
+                               :on-action {:event/type :open-source :path source}}]})
                 (when (coll/not-empty (:trace row))
                   {:fx/type :scroll-pane :fx/key :trace :fit-to-width true :max-height 64
                    :content {:fx/type fxui/label :wrap-text true :text (:trace row)}})
@@ -353,6 +369,7 @@
                           (g/transact {:undoable false}
                                       (g/make-nodes [view ManifestView]
                                         (g/connect manifest-node :resource view :manifest-resource)
+                                        (g/connect workspace :root view :project-root)
                                         (g/connect manifest-node :packages view :packages)
                                         (g/connect manifest-node :diagnostics view :diagnostics)
                                         (g/connect workspace :resource-map view :resource-map)
@@ -364,7 +381,7 @@
         update-preview! (make-update-preview! controller)
         update-progress! (make-update-progress!)
         ui-state (atom {})
-        environment {:view-node view-node :ui-state ui-state :app-view app-view}
+        environment {:view-node view-node :ui-state ui-state :app-view app-view :parent parent}
         renderer (fx/create-renderer
                    :opts {:fx.opt/map-event-handler #(handle-event! environment %)}
                    :middleware (comp fxui/wrap-dedupe-desc
