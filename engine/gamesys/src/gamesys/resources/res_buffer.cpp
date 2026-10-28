@@ -186,7 +186,7 @@ namespace dmGameSystem
             return result;
         }
         ResourceDescriptorSetResource(params->m_Resource, resource);
-        dmResource::SetResourceSize(params->m_Resource, sizeof(BufferResource) + resource->m_ElementCount * resource->m_Stride);
+        dmResource::SetResourceSize(params->m_Resource, sizeof(BufferResource) + (size_t)resource->m_ElementCount * resource->m_Stride);
         return dmResource::RESULT_OK;
     }
 
@@ -217,7 +217,7 @@ namespace dmGameSystem
         resource->m_ElementCount = replacement.m_ElementCount;
         resource->m_Stride = replacement.m_Stride;
         dmBuffer::UpdateContentVersion(resource->m_Buffer);
-        dmResource::SetResourceSize(params->m_Resource, sizeof(BufferResource) + resource->m_ElementCount * resource->m_Stride);
+        dmResource::SetResourceSize(params->m_Resource, sizeof(BufferResource) + (size_t)resource->m_ElementCount * resource->m_Stride);
         return dmResource::RESULT_OK;
     }
 }
