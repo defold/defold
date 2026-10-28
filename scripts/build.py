@@ -1129,7 +1129,8 @@ class Configuration(object):
         if self.verbose and path:
             message += f" ({path})"
         if elapsed is not None:
-            message += f" [{elapsed:.2f} s]"
+            if self.verbose:
+                message += f" [{elapsed:.2f} s]"
             self.build_tracker.record_check_time(name, elapsed)
         mark = '✓' if passed else '✗'
         if sys.stdout.isatty() and 'NO_COLOR' not in os.environ:

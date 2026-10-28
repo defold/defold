@@ -384,20 +384,27 @@ class SdkCheckTests(unittest.TestCase):
             else:
                 self.assertTrue(messages.rstrip().endswith('All checks passed: arm64-macos'))
 
-    # Python-side check durations use a monotonic clock and remain visible on failures.
+    # Success and failure timings use a monotonic clock, stay recorded, and appear only in verbose output.
     def test_check_timing_includes_successes_and_failures(self):
-        for passed in (True, False):
-            with self.subTest(passed=passed), mock.patch.object(build.time, 'perf_counter', side_effect=[10, 10.25]):
-                self.configuration._log.reset_mock()
-                if passed:
-                    result, elapsed = self.configuration._run_sdk_check('Python', lambda: True)
-                    self.assertTrue(result)
-                    self.assertEqual(0.25, elapsed)
-                    self.configuration._log_sdk_check('Python', 'OK', elapsed=elapsed)
-                else:
-                    with self.assertRaises(SystemExit):
-                        self.configuration._run_sdk_check('Python', lambda: False)
-            self.assertIn(f'Python: {"OK" if passed else "Failed"} [0.25 s]', self.messages())
+        for verbose in (False, True):
+            for passed in (True, False):
+                with self.subTest(verbose=verbose, passed=passed), \
+                        mock.patch.object(build.time, 'perf_counter', side_effect=[10, 10.25]):
+                    self.configuration.verbose = verbose
+                    self.configuration._log.reset_mock()
+                    self.configuration.build_tracker.start_command('check_sdk', quiet=True)
+                    if passed:
+                        result, elapsed = self.configuration._run_sdk_check('Python', lambda: True)
+                        self.assertTrue(result)
+                        self.assertEqual(0.25, elapsed)
+                        self.configuration._log_sdk_check('Python', 'OK', elapsed=elapsed)
+                    else:
+                        with self.assertRaises(SystemExit):
+                            self.configuration._run_sdk_check('Python', lambda: False)
+                    self.assertIn(f'Python: {"OK" if passed else "Failed"}', self.messages())
+                    self.assertEqual(verbose, '[0.25 s]' in self.messages())
+                    self.assertEqual({'Python': {'duration': 0.25}},
+                                     self.configuration.build_tracker.check_times['check_sdk'])
 
     # Successful checks stay on one line without paths, raw SDK logs, or duplicate CMake output.
     def test_concise_output_for_redirected_stdout(self):
@@ -416,19 +423,19 @@ class SdkCheckTests(unittest.TestCase):
             self.configuration.check_sdk()
         messages = self.messages()
         self.assertEqual('', output.getvalue())
-        self.assertRegex(messages, r'  ✓ Java: Java 25\.0\.1 \[\d+\.\d{2} s\]\n')
-        self.assertRegex(messages, r'  ✓ SDK: arm64-macos 27\.0 \[\d+\.\d{2} s\]\n')
+        self.assertRegex(messages, r'(?m)^  ✓ Java: Java 25\.0\.1$')
+        self.assertRegex(messages, r'(?m)^  ✓ SDK: arm64-macos 27\.0$')
         rows = messages.splitlines()[:-1]
         self.assertEqual(9, len(rows))
         for row in rows:
-            self.assertRegex(row, r'\[\d+\.\d{2} s\]$')
+            self.assertNotRegex(row, r'\[\d+\.\d{2} s\]$')
         self.assertNotIn('/tools/', messages)
         self.assertNotIn('noise', messages)
         self.assertNotIn('\033[', messages)
         self.assertEqual(1, messages.count('Java:'))
         self.assertTrue(messages.endswith('All checks passed: arm64-macos'))
 
-    # Verbose output adds paths to the same concise rows instead of dumping SDK dictionaries.
+    # Verbose output adds paths and per-check timings to the concise rows without dumping SDK dictionaries.
     def test_verbose_output_includes_paths(self):
         self.configuration.verbose = True
         self.configuration.check_sdk()
@@ -436,6 +443,8 @@ class SdkCheckTests(unittest.TestCase):
         self.assertIn('Java: Java 25.0.1 (/tools/java)', messages)
         self.assertIn('SDK: arm64-macos 27.0 (/tools/MacOSX27.0.sdk)', messages)
         self.assertIn('Compiler: Clang 21.0.0 (/tools/clang++)', messages)
+        for row in messages.splitlines()[:-1]:
+            self.assertRegex(row, r'\[\d+\.\d{2} s\]$')
         self.assertNotIn('SDK info:', messages)
 
     # A terminal uses green checks and orange failures with red crosses.
@@ -529,8 +538,9 @@ Call Stack (most recent call first):
             messages = self.messages()
             self.assertIn('✓ Java: Java 25.0.1', messages)
             self.assertIn('✓ Ninja: Ninja 1.12.1', messages)
-            self.assertIn('✗ Protoc: Could not find protoc. Run ./scripts/build.py install_ext to build and install it. [0.50 s]', messages)
-            self.assertRegex(messages, r'✓ Java: Java 25\.0\.1[^\n]* \[0\.25 s\]')
+            self.assertIn('✗ Protoc: Could not find protoc. Run ./scripts/build.py install_ext to build and install it.', messages)
+            self.assertEqual(verbose, '[0.50 s]' in messages)
+            self.assertEqual(verbose, '[0.25 s]' in messages)
             self.assertEqual(verbose, 'Call Stack' in messages)
             self.assertEqual(verbose, '-- tools_protoc.cmake:' in messages)
             self.assertEqual(verbose, '/test-sdk/' in messages)

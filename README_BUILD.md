@@ -176,6 +176,9 @@ and `check_sdk` checks both the runtime and the matching Protoc version. CMake
 prefers the installed SDK compiler over a compiler on `PATH`, including when
 reconfiguring an existing build.
 
+`./scripts/build.py check_sdk` shows tool versions and status. Add `--verbose`
+to include tool paths and per-check timings.
+
 ### STEP 4 - Build the engine
 
 With the setup and installation done you're ready to build the engine:
