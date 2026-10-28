@@ -47,6 +47,55 @@
   (property value g/Str)
   (output save-value g/Str (g/fnk [value] value)))
 
+;; Tracing must not record pending creation or loading of resource nodes, which
+;; would make a later real connection omit the required transaction steps.
+(deftest connect-resource-node-ignores-dependency-tracing-test
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_ (test-util/make-directory-deleter project-path)]
+      (test-util/write-defunload-patterns! project-path ["/unloaded.trace"])
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! project-path)
+              reads (atom 0)]
+          (g/transact
+            (workspace/register-resource-type workspace
+              :ext "trace"
+              :node-type BNode
+              :read-fn (fn read-resource [_read-opts _resource readable]
+                         (swap! reads inc)
+                         (slurp readable))
+              :write-fn identity
+              :load-fn (fn load-resource [_load-opts {:keys [node-id source-value]}]
+                         (g/set-property node-id :value source-value))))
+          (test-util/write-file-resource! workspace "/unloaded.trace" "loaded value")
+          (workspace/resource-sync! workspace)
+          (let [project (test-util/setup-project! workspace)
+                consumer (g/make-node! ANode)]
+            (doseq [proj-path ["/missing.trace" "/unloaded.trace"]]
+              (let [resource (workspace/resolve-workspace-resource workspace proj-path)
+                    evaluation-context (g/make-evaluation-context)]
+                ;; Cache the real :nodes-by-resource-path map before the dry
+                ;; run. If the guard regresses, a cold lookup would return a nil
+                ;; placeholder, making even /unloaded.trace appear missing.
+                ;; Warming the map ensures the test catches both pending-node
+                ;; creation for /missing.trace and pending-load bookkeeping for
+                ;; the existing /unloaded.trace node.
+                (g/node-value project :nodes-by-resource-path evaluation-context)
+                (is (nil? (project/connect-resource-node
+                            (assoc evaluation-context :dry-run true)
+                            project resource consumer [[:value :value-input]])))
+                (is (coll/empty? @(:tx-data-context-atom evaluation-context)))
+                (is (= 0 @reads))
+                (let [{:keys [node-id tx-data]}
+                      (project/connect-resource-node evaluation-context project resource consumer [[:value :value-input]])]
+                  (g/transact tx-data)
+                  (is (= node-id (project/get-resource-node project resource)))
+                  (if (= "/missing.trace" proj-path)
+                    (is (g/error? (g/node-value node-id :value)))
+                    (do
+                      (is (= 1 @reads))
+                      (is (= "loaded value" (g/node-value node-id :value)))
+                      (is (= "loaded value" (g/node-value consumer :value-input))))))))))))))
+
 (defn- register-resource-types [workspace types]
   (for [type types]
     (apply workspace/register-resource-type workspace (flatten (vec type)))))

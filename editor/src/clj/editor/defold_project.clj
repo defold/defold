@@ -462,8 +462,9 @@
       ;; Property setters can load embedded or previously unloaded resources.
       ;; Make the batch's options available to those loads as well.
       (g/callback-ec
-        (fn [evaluation-context]
-          (swap! (:tx-data-context-atom evaluation-context) assoc :load-opts load-opts)))
+        (fn store-load-opts [evaluation-context]
+          (when-not (:dry-run evaluation-context)
+            (swap! (:tx-data-context-atom evaluation-context) assoc :load-opts load-opts))))
       (coll/into-> node-load-infos :eduction
         (coll/mapcat-indexed
           (fn [^long node-index node-load-info]
@@ -2017,15 +2018,16 @@
   "Creates transaction steps for creating `connections` between the
   corresponding node for `path-or-resource` and `consumer-node`. If
   there is no corresponding node for `path-or-resource`, transactions
-  for creating and loading the node will be included. Returns a map with
-  following keys:
+  for creating and loading the node will be included. Returns nil during
+  dependency tracing (:dry-run), otherwise a map with the following keys:
     :tx-data          transactions steps
     :node-id          node id corresponding to `path-or-resource`
     :created-in-tx    boolean indicating if this node will be created after
                       applying this transaction and does not exist yet in the
                       system, such nodes can't be used for `g/node-value` calls"
   [evaluation-context project path-or-resource consumer-node connections]
-  (when-some [resource (resolve-path-or-resource project path-or-resource evaluation-context)]
+  (when-let [resource (when-not (:dry-run evaluation-context)
+                        (resolve-path-or-resource project path-or-resource evaluation-context))]
     (let [{:keys [basis-ref tx-data-context-atom]} evaluation-context
           resource-type (resource/resource-type resource @basis-ref)
           node-type (:node-type resource-type)

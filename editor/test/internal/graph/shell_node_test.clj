@@ -611,6 +611,36 @@
         (is (= 23 (g/node-value parent :result)))
         (is (= 23 (g/node-value child :result)))))))
 
+;; Real materializations triggered by tracing still share transaction caches
+;; and retain direct migration writes from their transaction callbacks. An outer
+;; dry-run cache miss must not overwrite a value supplied by its materializer.
+(deftest tracing-materialization-preserves-transaction-context-test
+  (with-clean-system
+    (let [shells (vec (g/take-node-ids 2))
+          value-evaluations (atom 0)]
+      (g/transact
+        (mapv (fn [shell]
+                (g/add-node
+                  (g/construct-shell ShellTestNode {:_node-id shell}
+                    (fn materialize-fn [self evaluation-context]
+                      [(g/set-property self :value
+                         (g/tx-cached-value! evaluation-context [::shared-value]
+                           (do (swap! value-evaluations inc) 7)))
+                       (g/callback-ec
+                         (fn record-migration [context]
+                           (g/flag-nodes-as-migrated! context [self])))]))))
+              shells))
+      (let [evaluation-context (g/make-evaluation-context)
+            dry-evaluation-context (assoc evaluation-context :dry-run true)]
+        (is (nil? (g/tx-cached-value! dry-evaluation-context [::shared-value]
+                    (g/node-value (first shells) :result dry-evaluation-context))))
+        (g/node-value (second shells) :result dry-evaluation-context)
+        (is (= 1 @value-evaluations))
+        (is (= {::shared-value 7 :migrated-node-ids (set shells)}
+               @(:tx-data-context-atom evaluation-context)))
+        (g/update-system-from-evaluation-context! evaluation-context)
+        (is (= [7 7] (mapv #(g/node-value % :result) shells)))))))
+
 (g/defnode MaterializationCacheProbe
   (property evaluations g/Any)
   (input values g/Int :array)

@@ -215,10 +215,13 @@
   ^InvalidationCounters []
   (is/invalidate-counters @*the-system*))
 
-(defn flag-nodes-as-migrated! [evaluation-context migrated-node-ids]
-  (let [tx-data-context-atom (:tx-data-context-atom evaluation-context)]
-    (swap! tx-data-context-atom update :migrated-node-ids coll/into-set migrated-node-ids)
-    nil))
+(defn flag-nodes-as-migrated!
+  "Records migrated nodes during real evaluation, ignoring dependency tracing."
+  [evaluation-context migrated-node-ids]
+  (when-not (:dry-run evaluation-context)
+    (let [tx-data-context-atom (:tx-data-context-atom evaluation-context)]
+      (swap! tx-data-context-atom update :migrated-node-ids coll/into-set migrated-node-ids)))
+  nil)
 
 (defn endpoint-invalidated-pred
   "Return a predicate function that takes an Endpoint and returns a boolean
@@ -1439,9 +1442,11 @@
   :tx-data-context-atom in the supplied evaluation-context. If no existing value
   was found in the :tx-data-context-atom, evaluate the value-expr and store the
   value at the specified key path in the :tx-data-context-atom, then return the
-  value."
+  value. During dependency tracing (:dry-run), cache misses are evaluated
+  without storing their results, which may contain placeholder values."
   [evaluation-context-expr tx-data-context-key-path-expr value-expr]
-  `(let [tx-data-context-atom# (:tx-data-context-atom ~evaluation-context-expr)
+  `(let [evaluation-context# ~evaluation-context-expr
+         tx-data-context-atom# (:tx-data-context-atom evaluation-context#)
          tx-data-context-key-path# ~tx-data-context-key-path-expr
          cached-value# (-> tx-data-context-atom#
                            (deref)
@@ -1449,7 +1454,8 @@
      (case cached-value#
        :dynamo.graph/not-found
        (let [evaluated-value# ~value-expr]
-         (swap! tx-data-context-atom# assoc-in tx-data-context-key-path# evaluated-value#)
+         (when-not (:dry-run evaluation-context#)
+           (swap! tx-data-context-atom# assoc-in tx-data-context-key-path# evaluated-value#))
          evaluated-value#)
        cached-value#)))
 

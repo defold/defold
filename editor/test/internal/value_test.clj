@@ -100,6 +100,70 @@
 
 (use-fixtures :each with-function-counts)
 
+;; Tracing must not memoize misses, including nil and false, while real cached
+;; values remain reusable and macro arguments are evaluated exactly once.
+(deftest tx-cached-values-ignore-dry-run-misses-test
+  (doseq [value [nil false 7]]
+    (ts/with-clean-system
+      (let [evaluation-context (g/make-evaluation-context)
+            dry-evaluation-context (assoc evaluation-context :dry-run true)
+            context-evaluations (atom 0)
+            path-evaluations (atom 0)
+            value-evaluations (atom 0)
+            query (fn query [context]
+                    (g/tx-cached-value!
+                      (do (swap! context-evaluations inc) context)
+                      (do (swap! path-evaluations inc) [::cached-value])
+                      (do (swap! value-evaluations inc) value)))]
+        (dotimes [_ 2]
+          (is (= value (query dry-evaluation-context))))
+        (is (= {} @(:tx-data-context-atom evaluation-context)))
+        (is (= 2 @value-evaluations))
+        (is (= value (query evaluation-context)))
+        (is (= {::cached-value value} @(:tx-data-context-atom evaluation-context)))
+        (is (= value (query dry-evaluation-context)))
+        (is (= value (query evaluation-context)))
+        (is (= 3 @value-evaluations))
+        (is (= 5 @context-evaluations @path-evaluations))))))
+
+;; A transaction cache miss surrounding node-value must not retain its dry-run
+;; placeholder, including the node helper's fallback without a system cache.
+(deftest tx-cached-values-do-not-retain-tracing-placeholders-test
+  (doseq [node-helper [false true]
+          system-cache [false true]]
+    (ts/with-clean-system
+      (let [node (g/make-node! CacheTestNode :scalar "real value")
+            evaluation-context (if system-cache
+                                 (g/make-evaluation-context)
+                                 (in/custom-evaluation-context {:basis (g/now)}))
+            query (fn query [context]
+                    (if node-helper
+                      (g/tx-cached-node-value! node :uncached-value context)
+                      (g/tx-cached-value! context [::node-value]
+                        (g/node-value node :uncached-value context))))]
+        (is (nil? (query (assoc evaluation-context :dry-run true))))
+        (is (= {} @(:tx-data-context-atom evaluation-context)))
+        (is (= "real value" (query evaluation-context)))
+        (is (= "real value" (g/node-value node :uncached-value evaluation-context)))))))
+
+;; Dependency tracing records no migrations, but a transaction preview still
+;; executes real callbacks and reports their migration metadata.
+(deftest migrated-nodes-ignore-dependency-tracing-test
+  (ts/with-clean-system
+    (let [node (g/make-node! CacheTestNode :scalar "original")
+          evaluation-context (g/make-evaluation-context)]
+      (is (nil? (g/flag-nodes-as-migrated! (assoc evaluation-context :dry-run true) [node])))
+      (is (= {} @(:tx-data-context-atom evaluation-context)))
+      (g/flag-nodes-as-migrated! evaluation-context [node])
+      (is (= #{node} (:migrated-node-ids @(:tx-data-context-atom evaluation-context))))
+      (let [tx-result (g/transact {:dry-run true}
+                        [(g/set-property node :scalar "preview")
+                         (g/callback-ec
+                           (fn record-migration [context]
+                             (g/flag-nodes-as-migrated! context [node])))])]
+        (is (= #{node} (get-in tx-result [:tx-data-context :migrated-node-ids])))
+        (is (= "original" (g/node-value node :scalar)))))))
+
 (deftest project-cache
   (ts/with-clean-system
     (let [[name1 name2 combiner expensive] (build-sample-project)]
