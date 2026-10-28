@@ -2,6 +2,7 @@ import contextlib
 import io
 import json
 import os
+import runpy
 import shlex
 import sys
 import tempfile
@@ -15,6 +16,53 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'ci'))
 import build
 import ci
 import cross_build
+
+
+class BuildStartupTests(unittest.TestCase):
+    # Loading build.py for SDK and build commands must not resolve release settings or run Git.
+    def test_import_does_not_query_git(self):
+        with mock.patch.dict(os.environ), \
+                mock.patch.object(sys, 'path', sys.path.copy()), \
+                mock.patch.object(build.run, 'shell_command', side_effect=AssertionError('Unexpected Git command')) as command, \
+                contextlib.redirect_stdout(io.StringIO()) as output:
+            os.environ.pop('DM_RELEASE_REPOSITORY', None)
+            os.environ.pop('GITHUB_REPOSITORY', None)
+            runpy.run_path(build.__file__)
+        command.assert_not_called()
+        self.assertEqual('', output.getvalue())
+
+    # Deferring repository detection must preserve explicit, environment, and origin release destinations.
+    def test_release_resolves_target_repository_only_when_needed(self):
+        cases = (
+            ('explicit/repo', {'DM_RELEASE_REPOSITORY': 'env/repo', 'GITHUB_REPOSITORY': 'ci/repo'}, 'origin/repo', 'explicit/repo', False),
+            (None, {'DM_RELEASE_REPOSITORY': 'env/repo', 'GITHUB_REPOSITORY': 'ci/repo'}, 'origin/repo', 'env/repo', False),
+            (None, {'GITHUB_REPOSITORY': 'ci/repo'}, 'origin/repo', 'ci/repo', False),
+            (None, {}, 'origin/repo', 'origin/repo', True),
+            (None, {}, None, 'defold/defold', True),
+        )
+        for explicit, environment, origin, expected, detect_origin in cases:
+            with self.subTest(explicit=explicit, environment=environment, origin=origin), \
+                    mock.patch.dict(os.environ), \
+                    mock.patch.object(build.release_to_github, 'get_current_repo', return_value=origin) as get_current_repo, \
+                    mock.patch.object(build.release_to_github, 'github') as github, \
+                    mock.patch.object(build.release_to_github, 'log'):
+                os.environ.pop('DM_RELEASE_REPOSITORY', None)
+                os.environ.pop('GITHUB_REPOSITORY', None)
+                os.environ.update(environment)
+                configuration = mock.Mock(github_target_repo=explicit, github_token='test-token',
+                                          channel='alpha', version='1.0.0', archive_path='s3://test-bucket/archive')
+                release = {'id': 1, 'assets': []}
+                github.get.return_value = release
+                github.patch.return_value = release
+                build.release_to_github.release(configuration, 'test-tag', 'test-sha',
+                                                {'files': [{'path': '/unrelated.txt'}]})
+                github.get.assert_called_once_with(f'/repos/{expected}/releases/tags/test-tag', 'test-token')
+                self.assertEqual(f'/repos/{expected}/releases/1', github.patch.call_args.args[0])
+                github.upload_release_asset.assert_not_called()
+                if detect_origin:
+                    get_current_repo.assert_called_once_with()
+                else:
+                    get_current_repo.assert_not_called()
 
 
 class BuildSdkTests(unittest.TestCase):
