@@ -118,7 +118,7 @@
               (is (string/ends-with? (.getBuffers compiled) ".modelbuffersc"))
               (is (= 1 (count (coll/into-> paths [] (filter #(string/ends-with? % ".modelbuffersc"))))))
               (is (coll/not-any? #(or (string/ends-with? % ".rigscenec")
-                                     (string/ends-with? % ".meshsetc")) paths)))))))))
+                                      (string/ends-with? % ".meshsetc")) paths)))))))))
 
 ;; Identical model geometry shares one target; changing a range invalidates it.
 (deftest model-buffer-build-targets
@@ -138,7 +138,7 @@
       (is (= 1 (count (:deps target))))
       (is (= "DMMB" (String. ^bytes (:content buffer-output) 0 4 StandardCharsets/US_ASCII)))
       (is (java.util.Arrays/equals ^bytes (:content buffer-output)
-                                  ^bytes (ModelBuffers/compile (ModelBuffers/geometries (protobuf/map->pb Rig$MeshSet mesh-set)))))
+                                   ^bytes (ModelBuffers/compile (ModelBuffers/geometries (protobuf/map->pb Rig$MeshSet mesh-set)))))
       (is (= (:id source-model) (.getId (.getModels compiled 0))))
       (is (= 1234 (.getId (.getModels compiled 1))))
       (is (= (protobuf/pb->map-with-defaults (.getLocal ^Rig$Model (protobuf/map->pb Rig$Model other-model)))
