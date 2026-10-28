@@ -959,6 +959,7 @@ public class AndroidBundler implements IBundler {
         BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant, this);
 
         File outDir = new File(bundleDir, getBinaryNameFromProject(project));
+        BundleHelper.validateBundleOutputs(project, bundleDir, outDir);
         FileUtils.deleteDirectory(outDir);
         outDir.mkdirs();
 

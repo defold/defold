@@ -86,6 +86,7 @@ public class Win32Bundler implements IBundler {
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         File appDir = new File(bundleDir, title);
 
+        BundleHelper.validateBundleOutputs(project, bundleDir, appDir);
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
 

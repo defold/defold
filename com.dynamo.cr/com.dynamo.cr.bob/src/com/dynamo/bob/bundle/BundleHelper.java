@@ -990,6 +990,13 @@ public class BundleHelper {
         return bundleIdentifier.matches("^[a-zA-Z][a-zA-Z0-9_-]*(\\.[a-zA-Z][a-zA-Z0-9_-]*)+$");
     }
 
+    public static void validateBundleOutputs(Project project, File bundleDir, File... applicationOutputs) throws IOException {
+        if (!com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(project).isEmpty()) {
+            com.dynamo.bob.archive.liveupdate.PackageWriter.validateBundleOutputs(project, bundleDir.toPath(),
+                    java.util.Arrays.stream(applicationOutputs).map(File::toPath).toList());
+        }
+    }
+
     // move archive into bundle folder if it's requested by a user
     public static void moveBundleIfNeed(Project project, File bundleDir) throws IOException {
         moveBundleIfNeed(project, bundleDir, new File[0]);
@@ -997,6 +1004,7 @@ public class BundleHelper {
 
     public static void moveBundleIfNeed(Project project, File bundleDir, File... applicationOutputs) throws IOException {
         if (!com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(project).isEmpty()) {
+            if (!isArchiveIncluded(project)) return;
             com.dynamo.bob.archive.liveupdate.PackageWriter.copyOutputs(project, bundleDir.toPath(),
                     java.util.Arrays.stream(applicationOutputs).map(File::toPath).toList());
             return;

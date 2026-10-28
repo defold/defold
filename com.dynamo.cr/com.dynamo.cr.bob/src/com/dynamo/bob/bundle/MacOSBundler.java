@@ -115,6 +115,7 @@ public class MacOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
+        BundleHelper.validateBundleOutputs(project, bundleDir, appDir, new File(bundleDir, title + ".dSYM"));
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
         contentsDir.mkdirs();

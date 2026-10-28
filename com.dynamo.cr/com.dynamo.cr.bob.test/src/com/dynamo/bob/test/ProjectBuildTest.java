@@ -89,6 +89,7 @@ import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.AWSPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.bundle.HTML5Bundler;
+import com.dynamo.bob.bundle.LinuxBundler;
 import com.dynamo.bob.bundle.IBundler;
 import com.dynamo.bob.bundle.ICanceled;
 import com.dynamo.bob.fs.DefaultFileSystem;
@@ -1319,6 +1320,27 @@ public class ProjectBuildTest {
         }
     }
 
+    // Engine-only bundles need no package receipt and must not upload stale packages; explicit publishing still works.
+    @Test
+    public void testAmazonPackagesSkipEngineOnlyBundles() throws Exception {
+        createPackageProject();
+        try (PackagePublication publication = new PackagePublication();
+             Project project = amazonPackageProject(publication)) {
+            project.setOption("exclude-archive", "true");
+            project.build(Progress.discarding(), "build", "bundle");
+            assertFalse(PackageWriter.receipt(project).exists());
+            assertEquals(List.of("bundle1"), publication.events);
+            project.setOption("exclude-archive", "false");
+            for (TaskResult result : project.build(Progress.discarding(), "build")) assertTrue(result.toString(), result.isOk());
+            project.setOption("exclude-archive", "true");
+            project.build(Progress.discarding(), "bundle");
+            assertEquals(List.of("bundle1", "bundle2"), publication.events);
+            assertEquals(0, publication.uploads);
+            project.build(Progress.discarding(), "publish");
+            assertTrue(publication.uploaded.containsKey("releases/v1/episode.zip"));
+        }
+    }
+
     // Upload failures and cancellation during an active stream close the client and allow retry without rebuilding or rebundling.
     @Test
     public void testAmazonPublicationRetryAndActiveCancellation() throws Exception {
@@ -1437,7 +1459,18 @@ public class ProjectBuildTest {
         assertEquals("copy", folderManifest.getPackageMetadata().getName());
         assertEquals(2, zipManifest.getPackageMetadata().getOutputsCount());
         assertEquals(0, zipManifest.getPackageMetadata().getRequirementsCount());
+        Set<String> expectedFiles = zipManifest.getResourcesList().stream()
+                .map(resource -> com.dynamo.bob.archive.ManifestBuilder.CryptographicOperations.hexdigest(resource.getHash().getData().toByteArray()))
+                .collect(Collectors.toSet());
+        expectedFiles.add("liveupdate.game.dmanifest");
+        Path folder = Path.of(contentRoot, "packages/copy");
+        try (var files = Files.walk(folder)) {
+            assertEquals(expectedFiles, files.filter(path -> !path.equals(folder))
+                    .map(path -> folder.relativize(path).toString().replace('\\', '/')).collect(Collectors.toSet()));
+        }
         try (ZipFile zip = new ZipFile(new File(contentRoot, "packages/episode.zip"))) {
+            assertEquals(expectedFiles, zip.stream().map(entry -> entry.getName()).collect(Collectors.toSet()));
+            assertEquals(expectedFiles.size(), zip.size());
             for (Manifest.ResourceEntry resource : zipManifest.getResourcesList()) {
                 String hash = com.dynamo.bob.archive.ManifestBuilder.CryptographicOperations.hexdigest(resource.getHash().getData().toByteArray());
                 byte[] payload = zip.getInputStream(zip.getEntry(hash)).readAllBytes();
@@ -2313,6 +2346,77 @@ public class ProjectBuildTest {
             assertEquals("new executable", Files.readString(app.resolve("game.exe")));
             assertFalse(Files.exists(bundle.resolve("episode.zip")));
         }
+    }
+
+    private Project linuxPackageBundleProject() throws Exception {
+        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+        project.loadProjectFile();
+        project.getProjectProperties().putStringValue("project", "title", "Application");
+        project.setOption("platform", Platform.X86_64Linux.getPair());
+        project.setOption("architectures", "x86_64-linux");
+        project.setOption("variant", "release");
+        Path engines = Path.of(project.getBinaryOutputDirectory(), Platform.X86_64Linux.getExtenderPair());
+        Files.createDirectories(engines);
+        for (String name : Platform.X86_64Linux.formatBinaryName("dmengine")) Files.write(engines.resolve(name), new byte[]{1});
+        return project;
+    }
+
+    // Native bundling must detect collisions before deleting exported packages or copies from a previous bundle.
+    @Test
+    public void testPackageNativeBundlePreservesCollidingOutputs() throws Exception {
+        createPackageProject();
+        Files.writeString(Path.of(contentRoot, "liveupdate.settings"),
+                "save-folder-in-bundle-folder=1\n", java.nio.file.StandardOpenOption.APPEND);
+        buildPackageProject(true, false);
+        Path bundle = Path.of(contentRoot, "bundle");
+        try (Project project = linuxPackageBundleProject()) {
+            BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+            project.getProjectProperties().putStringValue("project", "title", "copy");
+            // Disabling export clears the active receipt but retains ownership of existing artifacts.
+            for (boolean export : List.of(true, false)) {
+                if (!export) buildPackageProject(false, false);
+                for (Path destination : List.of(bundle, Path.of(contentRoot, "packages"))) {
+                    Path manifest = destination.resolve("copy/liveupdate.game.dmanifest");
+                    byte[] previous = Files.readAllBytes(manifest);
+                    try {
+                        new LinuxBundler().bundleApplication(project, Platform.X86_64Linux, destination.toFile(), () -> false);
+                        org.junit.Assert.fail("Application must not replace an existing Live Update package");
+                    } catch (IOException expected) {
+                        assertTrue(expected.getMessage(), expected.getMessage().contains("collides with an application output"));
+                    }
+                    assertArrayEquals(previous, Files.readAllBytes(manifest));
+                    assertFalse(Files.exists(destination.resolve("copy/copy.x86_64")));
+                }
+            }
+        }
+        assertNoPackageStaging();
+    }
+
+    // Engine-only native bundles must succeed without a receipt and ignore stale package outputs from a prior build.
+    @Test
+    public void testPackageNativeBundleWithoutArchive() throws Exception {
+        createPackageProject();
+        Files.writeString(Path.of(contentRoot, "liveupdate.settings"),
+                "save-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n", java.nio.file.StandardOpenOption.APPEND);
+        Path bundle = Path.of(contentRoot, "bundle");
+        try (Project project = linuxPackageBundleProject()) {
+            project.setOption("exclude-archive", "true");
+            project.setOption("liveupdate", "true");
+            for (boolean previousBuild : List.of(false, true)) {
+                if (previousBuild) {
+                    buildPackageProject(true, false);
+                    Files.delete(Path.of(contentRoot, "packages/episode.zip"));
+                } else {
+                    assertFalse(PackageWriter.receipt(project).exists());
+                }
+                new LinuxBundler().bundleApplication(project, Platform.X86_64Linux, bundle.toFile(), () -> false);
+                assertArrayEquals(new byte[]{1}, Files.readAllBytes(bundle.resolve("Application/Application.x86_64")));
+                assertFalse(Files.exists(bundle.resolve("Application/game.arci")));
+                assertFalse(Files.exists(bundle.resolve("episode.zip")));
+                assertFalse(Files.exists(bundle.resolve("copy")));
+            }
+        }
+        assertNoPackageStaging();
     }
 
     // Custom-resource settings seed the base without locking opaque files that a manifest explicitly packages.

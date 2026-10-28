@@ -387,6 +387,34 @@
                       :invoke-bob! (make-invoke-bob-fn project)
                       :web-server web-server))
 
+;; Contentless bundles must not publish Live Update content even when that
+;; preference was enabled for an earlier bundle with content.
+(deftest contentless-bundle-disables-live-update-test
+  (test-util/with-loaded-project
+    (reload-editor-scripts! project)
+    (let [rt (:rt (g/with-auto-evaluation-context evaluation-context
+                   (extensions/ext-state project evaluation-context)))
+          check-bundle (rt/invoke-immediate-1 rt
+                         (rt/bind rt (rt/read "return function()
+                                                local options
+                                                editor.bob = function(opts) options = opts end
+                                                editor.prefs.set('bundle.open-output-directory', false)
+                                                local results = {}
+                                                for _, contentless in ipairs({true, false}) do
+                                                    editor.bundle.create({contentless = contentless,
+                                                                          liveupdate = true,
+                                                                          texture_compression = 'enabled',
+                                                                          variant = 'debug'}, '.')
+                                                    table.insert(results, {options.exclude_archive or false,
+                                                                           options.archive or false,
+                                                                           options.liveupdate or false})
+                                                end
+                                                return results
+                                              end")))]
+      (is (= [[true false false] [false true "yes"]]
+             (rt/->clj rt (coerce/vector-of (coerce/vector-of (coerce/one-of coerce/boolean coerce/string)))
+                       @(rt/invoke-suspending-1 rt check-bundle)))))))
+
 (deftest project-editor-script-change-stays-reload-needed-after-library-reload-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
     (let [script-node (test-util/resource-node project "/test.editor_script")

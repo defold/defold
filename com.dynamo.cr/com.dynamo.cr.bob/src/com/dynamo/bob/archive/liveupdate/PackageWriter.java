@@ -341,6 +341,20 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         copyOutputs(project, bundleDirectory, applicationOutputs, Map.of());
     }
 
+    /** Check before a native bundler replaces application files, including previously delivered packages. */
+    public static void validateBundleOutputs(Project project, Path bundleDirectory, Collection<Path> applicationOutputs) throws IOException {
+        bundleDirectory = bundleDirectory.toAbsolutePath().normalize();
+        for (Output output : PackageArtifacts.readBuildOutputs(project)) {
+            validateApplicationOutput(output.path(), applicationOutputs);
+        }
+        for (Output output : readOutputs(project)) {
+            if (output.bundle()) validateApplicationOutput(bundleDirectory.resolve(output.name()), applicationOutputs);
+        }
+        for (Output output : PackageArtifacts.read(Path.of(project.getRootDirectory()), PackageArtifacts.bundleReceipt(project, bundleDirectory))) {
+            validateApplicationOutput(output.path(), applicationOutputs);
+        }
+    }
+
     /** Publish a rebuilt web application while retaining unchanged package files in its directory. */
     public static void publishBundle(Project project, Path applicationDirectory, Path bundleDirectory) throws IOException {
         Map<Path, Path> applicationOutputs = new LinkedHashMap<>();

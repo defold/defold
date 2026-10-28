@@ -2040,7 +2040,8 @@ public class Project implements AutoCloseable {
             BundleHelper.throwIfCanceled(progress);
 
             progress.message(IProgress.Message.Working.INSTANCE);
-            boolean publishPackages = Arrays.asList(commands).contains("bundle") || Arrays.asList(commands).contains("publish");
+            boolean publishPackages = Arrays.asList(commands).contains("publish") ||
+                    (BundleHelper.isArchiveIncluded(this) && Arrays.asList(commands).contains("bundle"));
             var split = progress.split(commands.length + (publishPackages ? 2L : 1L)); // Reading classes and optional final publishing.
             // it should be done before scanJavaClasses to have updated options
             configurePreBuildProjectOptions();

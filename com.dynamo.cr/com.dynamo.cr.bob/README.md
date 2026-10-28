@@ -174,7 +174,9 @@ local artifacts. Bob uploads the complete artifact set only after every requeste
 bundle finishes successfully. ZIP and custom files use their declared names
 under `amazon-prefix`; folder artifacts retain their relative directory layout.
 The existing Amazon credential profile, bucket, and prefix settings apply.
-Build-only and preview commands do not upload packages. A failed or cancelled
+Build-only and preview commands do not upload packages. Native engine-only bundles
+(`--exclude-archive`) skip package copying and automatic uploading and require no
+package build receipt. A failed or cancelled
 build or bundle never starts publication.
 
 To publish without bundling, or retry a failed upload without rebuilding, run
