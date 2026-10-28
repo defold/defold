@@ -30,6 +30,7 @@
 
 #include <input/input.h>
 #include <render/render.h>
+#include <render/render_frame.h>
 #include <physics/physics.h>
 #include <platform/window.h>
 
@@ -37,6 +38,10 @@ namespace dmMessage { struct URL; }
 
 namespace dmGameSystem
 {
+    struct Context;
+    typedef Context* HContext;
+    struct ComponentRenderType;
+
     /// Config key to use for tweaking maximum number of collision objects
     extern const char* PHYSICS_MAX_COLLISION_OBJECTS_KEY;
     /// Config key to use for tweaking maximum number of collisions reported
@@ -306,6 +311,88 @@ namespace dmGameSystem
         dmScript::HContext m_ScriptContext;
         uint32_t m_MaxCollectionFactoryCount;
     };
+
+    /**
+     * Borrowed services for a game-system instance. The context owns its built-in
+     * component contexts and render bridge, not these services. Internal, not an SDK API.
+     */
+    struct ContextParams
+    {
+        dmResource::HFactory     m_Factory;
+        dmGameObject::HRegister  m_Register;
+        dmRender::HRenderContext m_RenderContext;
+        dmScript::HContext       m_ScriptContext;
+        dmInput::HContext        m_InputContext;
+        PhysicsContext*          m_PhysicsContext;
+    };
+
+    /**
+     * Create game-system state on the game owner, before registering component types.
+     * Creates no production thread; frame storage is allocated only when a type opts in.
+     * @param params Borrowed services, kept alive through Finalize
+     * @return New context, or null on render-bridge allocation failure
+     */
+    HContext NewContext(const ContextParams& params);
+
+    /**
+     * Configure built-in component contexts and register their resources/components once.
+     * Call after resource descriptors are registered, before component descriptors or worlds.
+     * A failed initialization still requires Finalize and DeleteContext; the resource
+     * factory and register retain any types already registered for normal shutdown.
+     * @param context Game-system instance
+     * @param config Project configuration, read only during initialization
+     * @return True on success, false on registration failure
+     */
+    bool Initialize(HContext context, dmConfigFile::HConfig config);
+
+    /**
+     * Register a component and optional render-input callbacks together, before worlds exist.
+     * Failure leaves neither a new game type nor a render binding registered.
+     * @param context Game-system instance
+     * @param type Game-side component registration
+     * @param render_type Optional owned-input capture and renderer callbacks; copied on success
+     * @return Game-object registration result
+     */
+    dmGameObject::Result RegisterComponentType(HContext context, const dmGameObject::ComponentType& type, const ComponentRenderType* render_type = 0);
+
+    /**
+     * Run the current inline render traversal and capture opted-in components.
+     * @param context Game-system instance using inline execution
+     * @param collection Root collection to render
+     * @return True on success, false on capture or consumer failure
+     */
+    bool RenderComponentsInline(HContext context, dmGameObject::HCollection collection);
+
+    /**
+     * Release completed frame references after drawing, before destructive PostUpdate.
+     * @param context Game-system instance
+     */
+    void RetireComponentRenderFrames(HContext context);
+
+    /**
+     * Service deferred renderer cleanup after PostUpdate, including non-drawing frames.
+     * Like RenderComponentsInline, this currently requires inline execution so the game
+     * owner can both pump renderer cleanup and read its result on the same thread.
+     * @param context Game-system instance using inline execution
+     * @return First component-rendering error, or RENDER_FRAME_OK
+     */
+    dmRender::RenderFrameResult ServiceComponentRendering(HContext context);
+
+    /**
+     * Finish renderer lifetimes after collections are deleted, before resource/type teardown.
+     * Inline execution drains cleanup; threaded test executors must already be drained/joined.
+     * Keeps built-in context storage alive for resource destruction. Also used after failed
+     * initialization. No component registration or frame work is allowed afterwards.
+     * @param context Game-system instance
+     */
+    void Finalize(HContext context);
+
+    /**
+     * Free context storage after Finalize and destruction of the resource factory/register.
+     * This does not access or destroy borrowed services.
+     * @param context Finalized game-system instance
+     */
+    void DeleteContext(HContext context);
 
     bool InitializeScriptLibs(const ScriptLibContext& context);
     void FinalizeScriptLibs(const ScriptLibContext& context);

@@ -17,7 +17,6 @@
 
 #include <gameobject/component.h>
 #include <gameobject/component_render.h>
-#include <render/render.h>
 
 #include "component_render.h"
 #include "component_render_state_private.h"
@@ -100,12 +99,6 @@ namespace dmGameSystem
     }
 
     HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist,
-        dmRender::HRenderContext render_context, const dmRender::RenderFrameLimits& limits)
-    {
-        return NewComponentRenderContext(regist, dmRender::GetRenderExecution(render_context), limits);
-    }
-
-    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist,
         dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits)
     {
         assert(dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_GAME));
@@ -131,13 +124,11 @@ namespace dmGameSystem
         return context;
     }
 
-    dmGameObject::Result RegisterComponentRenderType(HComponentRenderContext context,
-        uint32_t component_index, const ComponentRenderType& type)
+    static dmGameObject::Result PrepareComponentRenderType(HComponentRenderContext context,
+        const ComponentRenderType& type, ComponentRenderTypeBinding** out_binding, bool* created_queue)
     {
-        assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
         if (!type.m_Capture || !type.m_RenderCallbacks.m_Initialize ||
-            !type.m_RenderCallbacks.m_Consume || !type.m_RenderCallbacks.m_Destroy ||
-            component_index >= dmGameObject::GetNumComponentTypes(context->m_Register))
+            !type.m_RenderCallbacks.m_Consume || !type.m_RenderCallbacks.m_Destroy)
         {
             return dmGameObject::RESULT_INVALID_OPERATION;
         }
@@ -148,8 +139,8 @@ namespace dmGameSystem
             return dmGameObject::RESULT_UNKNOWN_ERROR;
         }
 
-        bool created_queue = !context->m_Queue;
-        if (created_queue)
+        *created_queue = !context->m_Queue;
+        if (*created_queue)
         {
             dmRender::RenderFrameQueueParams params = {};
             params.m_Execution = context->m_Execution;
@@ -171,13 +162,23 @@ namespace dmGameSystem
 
         binding->m_Context = context;
         binding->m_Type = type;
+        *out_binding = binding;
+        return dmGameObject::RESULT_OK;
+    }
+
+    static dmGameObject::ComponentRenderCallbacks GetBridgeCallbacks(ComponentRenderTypeBinding* binding)
+    {
         dmGameObject::ComponentRenderCallbacks callbacks;
         callbacks.m_Context = binding;
         callbacks.m_CreateWorld = CreateWorld;
         callbacks.m_DeleteWorld = DeleteWorld;
         callbacks.m_Capture = CaptureWorld;
-        dmGameObject::Result result = dmGameObject::RegisterComponentRenderCallbacks(context->m_Register, component_index, callbacks);
+        return callbacks;
+    }
 
+    static dmGameObject::Result FinishComponentRenderRegistration(HComponentRenderContext context,
+        ComponentRenderTypeBinding* binding, bool created_queue, dmGameObject::Result result)
+    {
         if (result != dmGameObject::RESULT_OK)
         {
             free(binding);
@@ -196,6 +197,48 @@ namespace dmGameSystem
         binding->m_Next = context->m_Types;
         context->m_Types = binding;
         return dmGameObject::RESULT_OK;
+    }
+
+    dmGameObject::Result RegisterComponentRenderType(HComponentRenderContext context,
+        uint32_t component_index, const ComponentRenderType& type)
+    {
+        assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
+        if (component_index >= dmGameObject::GetNumComponentTypes(context->m_Register))
+        {
+            return dmGameObject::RESULT_INVALID_OPERATION;
+        }
+
+        ComponentRenderTypeBinding* binding;
+        bool created_queue;
+        dmGameObject::Result result = PrepareComponentRenderType(context, type, &binding, &created_queue);
+        if (result != dmGameObject::RESULT_OK)
+        {
+            return result;
+        }
+
+        result = dmGameObject::RegisterComponentRenderCallbacks(context->m_Register, component_index, GetBridgeCallbacks(binding));
+        return FinishComponentRenderRegistration(context, binding, created_queue, result);
+    }
+
+    dmGameObject::Result RegisterComponentType(HComponentRenderContext context,
+        const dmGameObject::ComponentType& type, const ComponentRenderType* render_type)
+    {
+        assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
+        if (!render_type)
+        {
+            return dmGameObject::RegisterComponentType(context->m_Register, type);
+        }
+
+        ComponentRenderTypeBinding* binding;
+        bool created_queue;
+        dmGameObject::Result result = PrepareComponentRenderType(context, *render_type, &binding, &created_queue);
+        if (result != dmGameObject::RESULT_OK)
+        {
+            return result;
+        }
+
+        result = dmGameObject::RegisterComponentType(context->m_Register, type, GetBridgeCallbacks(binding));
+        return FinishComponentRenderRegistration(context, binding, created_queue, result);
     }
 
     bool RenderComponentsInline(HComponentRenderContext context, dmGameObject::HCollection collection)

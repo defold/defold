@@ -15,6 +15,9 @@
 #ifndef DM_GAMESYS_COMPONENT_RENDER_STATE_PRIVATE_H
 #define DM_GAMESYS_COMPONENT_RENDER_STATE_PRIVATE_H
 
+#include <gameobject/component.h>
+#include <render/render_frame_queue.h>
+
 #include "component_render.h"
 
 namespace dmGameSystem
@@ -22,20 +25,98 @@ namespace dmGameSystem
     // Reserved gamesys dispatch table type; component input tables must not use it.
     static const uint32_t COMPONENT_RENDER_DISPATCH_TABLE_TYPE = UINT32_MAX;
 
+    struct ComponentRenderContext;
     struct ComponentRenderStateContext;
     struct ComponentRenderWorld;
+    typedef ComponentRenderContext* HComponentRenderContext;
     typedef ComponentRenderStateContext* HComponentRenderStateContext;
     typedef ComponentRenderWorld* HComponentRenderWorld;
 
     /**
-     * Internal bridge setup for execution tests without a graphics renderer.
-     * Borrows execution, which must outlive the bridge; not part of the public interface.
+     * Create the internal bridge between collection lifecycle and component rendering.
+     * Owned by the gamesys context, one per register. Creates no thread or frame buffers.
+     * Borrows execution, which must outlive the bridge; also usable by isolated tests.
      * @param regist Game-object register, which must outlive the bridge
      * @param execution Borrowed execution context
      * @param limits Per-slot storage limits used when the first component opts in
      * @return New bridge, or null on allocation failure
      */
     HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits);
+
+    /**
+     * Register a game type and optional render bridge in one operation on the game owner.
+     * Failure leaves no new component type, binding or queue behind. Existing bindings
+     * and their queue remain unchanged. Called by the owning gamesys context.
+     * @param context Component rendering bridge
+     * @param type Game-side component type
+     * @param render_type Render callbacks, or null to register a legacy game type
+     * @return RESULT_OK, or a component/bridge registration error
+     */
+    dmGameObject::Result RegisterComponentType(HComponentRenderContext context, const dmGameObject::ComponentType& type, const ComponentRenderType* render_type);
+
+    /**
+     * Register component render callbacks on the game owner, before world creation or pumping.
+     * The first successful registration allocates frame storage; failure releases provisional storage.
+     * @param context Component rendering bridge
+     * @param component_index Actual component registration index
+     * @param type Render-input capture callback, renderer callbacks and renderer context
+     * @return RESULT_OK, or a game-object registration/allocation error
+     */
+    dmGameObject::Result RegisterComponentRenderType(HComponentRenderContext context, uint32_t component_index, const ComponentRenderType& type);
+
+    /**
+     * Run existing render traversal plus capture/consume for opted-in components, inline only.
+     * With no registered render types, calls the existing game-object Render path.
+     * @param context Component rendering bridge with inline execution
+     * @param collection Root collection to render/capture
+     * @return True on success; false on traversal, capture or renderer failure
+     */
+    bool RenderComponentsInline(HComponentRenderContext context, dmGameObject::HCollection collection);
+
+    /**
+     * Retire completed frame references on the game owner. Call after surrounding
+     * render-script/draw work, before destructive PostUpdate. No queue means no work.
+     * @param context Component rendering bridge
+     */
+    void RetireComponentRenderFrames(HComponentRenderContext context);
+
+    /**
+     * Service deferred world destruction on the render owner without drawing a frame.
+     * Call on non-drawing frames too, including after PostUpdate in inline execution.
+     * @param context Component rendering bridge
+     */
+    void ServiceComponentRenderContext(HComponentRenderContext context);
+
+    /**
+     * Get the shared frame queue for internal executor/test integration.
+     * @param context Component rendering bridge
+     * @return Frame queue, or null when no component has opted in
+     */
+    dmRender::HRenderFrameQueue GetComponentRenderQueue(HComponentRenderContext context);
+
+    /**
+     * Read the first component renderer initialization, consumption or service-wake error
+     * on the game owner. The error remains set until context deletion.
+     * @param context Component rendering bridge
+     * @return RENDER_FRAME_OK if no error has occurred, otherwise the first error
+     */
+    dmRender::RenderFrameResult GetComponentRenderResult(HComponentRenderContext context);
+
+    /**
+     * Read the number of component renderer-world records on the game owner.
+     * @param context Component rendering bridge
+     * @return Count including closed worlds awaiting render-owner destruction
+     */
+    uint32_t GetComponentRenderWorldCount(HComponentRenderContext context);
+
+    /**
+     * Delete the bridge on the game owner after all collections are destroyed.
+     * Inline drains remaining cleanup. Threaded callers must first consume/retire frames,
+     * service worlds to zero, then stop/drain/join the executor. Individual DeleteWorld
+     * calls never block to drain. Callback contexts, rendering and resources must remain alive.
+     * @param context Component rendering bridge ready for final teardown
+     */
+    void DeleteComponentRenderContext(HComponentRenderContext context);
 
     /**
      * Write owned input tables/references on the game owner. Do not publish/reset the frame

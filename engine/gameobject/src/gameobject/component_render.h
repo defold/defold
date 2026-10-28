@@ -19,6 +19,8 @@
 
 namespace dmGameObject
 {
+    struct ComponentType;
+
     /**
      * Game-owner inputs borrowed during capture. The bridge copies render inputs
      * into m_Frame; renderer callbacks must not retain these mutable game pointers.
@@ -83,6 +85,16 @@ namespace dmGameObject
      *         for invalid callbacks/index or registration after world creation has begun
      */
     Result RegisterComponentRenderCallbacks(HRegister regist, uint32_t component_index, const ComponentRenderCallbacks& callbacks);
+
+    /**
+     * Register a component type and its bridge callbacks together, before world creation.
+     * Failure adds neither a component nor callbacks; existing registrations are unchanged.
+     * @param regist Component register
+     * @param type Game-side component type
+     * @param callbacks Required bridge callbacks and their context
+     * @return RESULT_OK, or a component/bridge registration error
+     */
+    Result RegisterComponentType(HRegister regist, const ComponentType& type, const ComponentRenderCallbacks& callbacks);
 
     /**
      * Capture render inputs on the game owner after final transforms and before destructive PostUpdate.

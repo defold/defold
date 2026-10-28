@@ -35,6 +35,8 @@
 
 #include "gamesys/component_render.h"
 #include "gamesys/component_render_state_private.h"
+#include "gamesys/gamesys.h"
+#include "gamesys/gamesys_context_private.h"
 
 namespace
 {
@@ -122,6 +124,7 @@ namespace
         dmResource::HFactory                  m_Factory;
         dmScript::HContext                    m_Script;
         dmGameObject::HRegister               m_Register;
+        dmGameSystem::HContext                m_Context;
         dmGameSystem::HComponentRenderContext m_Render;
         dmRender::HRenderExecution            m_Execution;
         uint32_t                              m_TypeCount;
@@ -312,15 +315,50 @@ namespace
         free(renderer);
     }
 
-    static dmGameObject::Result RegisterRenderer(ComponentRenderFixture* fixture, uint32_t index)
+    static dmGameSystem::ComponentRenderType MakeRenderType(Probe* probe)
     {
         dmGameSystem::ComponentRenderType type;
         type.m_Capture = Capture;
         type.m_RenderCallbacks.m_Initialize = InitializeRenderer;
         type.m_RenderCallbacks.m_Consume = ConsumeRenderer;
         type.m_RenderCallbacks.m_Destroy = DeleteRenderer;
-        type.m_RenderContext = &fixture->m_Probe;
+        type.m_RenderContext = probe;
+        return type;
+    }
+
+    static dmGameObject::Result RegisterRenderer(ComponentRenderFixture* fixture, uint32_t index)
+    {
+        dmGameSystem::ComponentRenderType type = MakeRenderType(&fixture->m_Probe);
         return dmGameSystem::RegisterComponentRenderType(fixture->m_Render, index, type);
+    }
+
+    static dmGameObject::ComponentType MakeGameType(ComponentRenderFixture* fixture, uint32_t type_slot, const char* name)
+    {
+        ArtificialType* context = &fixture->m_Types[type_slot];
+        context->m_Probe = &fixture->m_Probe;
+        context->m_Index = dmGameObject::GetNumComponentTypes(fixture->m_Register);
+
+        dmResource::Result resource_result = dmResource::RegisterType(fixture->m_Factory, name, 0, 0, CreateUnusedResource, 0, DestroyUnusedResource, 0);
+        assert(resource_result == dmResource::RESULT_OK);
+
+        HResourceType resource_type;
+        resource_result = dmResource::GetTypeFromExtension(fixture->m_Factory, name, &resource_type);
+        assert(resource_result == dmResource::RESULT_OK);
+        (void)resource_result;
+
+        dmGameObject::ComponentType type;
+        type.m_Name = name;
+        type.m_ResourceType = resource_type;
+        type.m_Context = context;
+        type.m_NewWorldFunction = CreateGameWorld;
+        type.m_DeleteWorldFunction = DeleteGameWorld;
+        type.m_AddToUpdateFunction = AddToUpdate;
+        type.m_UpdateFunction = Update;
+        type.m_LateUpdateFunction = LateUpdate;
+        type.m_RenderFunction = LegacyRender;
+        type.m_PostUpdateFunction = PostUpdate;
+        type.m_UpdateOrderPrio = (uint16_t)(10 - type_slot);
+        return type;
     }
 
     static void NewComponentRenderFixture(ComponentRenderFixture* fixture, dmRender::ExecutionMode mode, uint32_t type_count, bool register_render = true)
@@ -345,45 +383,25 @@ namespace
         dmScript::Initialize(fixture->m_Script);
         fixture->m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(fixture->m_Register, fixture->m_Script);
+
+        dmGameSystem::ContextParams context_params = {};
+        context_params.m_Factory = fixture->m_Factory;
+        context_params.m_Register = fixture->m_Register;
+        context_params.m_ScriptContext = fixture->m_Script;
         const dmRender::RenderFrameLimits limits = { 4096, 16, 16 };
-        fixture->m_Render = dmGameSystem::NewComponentRenderContext(fixture->m_Register, fixture->m_Execution, limits);
-        assert(fixture->m_Render);
+        fixture->m_Context = dmGameSystem::NewContext(context_params, fixture->m_Execution, limits);
+        assert(fixture->m_Context);
+        fixture->m_Render = fixture->m_Context->m_ComponentRenderContext;
         fixture->m_TypeCount = type_count;
 
         const char* names[] = { "artificial_a", "artificial_b" };
         for (uint32_t i = 0; i < type_count; ++i)
         {
-            ArtificialType* context = &fixture->m_Types[i];
-            context->m_Probe = &fixture->m_Probe;
-            context->m_Index = i;
-            dmResource::Result resource_result = dmResource::RegisterType(fixture->m_Factory, names[i], 0, 0, CreateUnusedResource, 0, DestroyUnusedResource, 0);
-            assert(resource_result == dmResource::RESULT_OK);
-
-            HResourceType resource_type;
-            resource_result = dmResource::GetTypeFromExtension(fixture->m_Factory, names[i], &resource_type);
-            assert(resource_result == dmResource::RESULT_OK);
-
-            (void)resource_result;
-            dmGameObject::ComponentType type;
-            type.m_Name = names[i];
-            type.m_ResourceType = resource_type;
-            type.m_Context = context;
-            type.m_NewWorldFunction = CreateGameWorld;
-            type.m_DeleteWorldFunction = DeleteGameWorld;
-            type.m_AddToUpdateFunction = AddToUpdate;
-            type.m_UpdateFunction = Update;
-            type.m_LateUpdateFunction = LateUpdate;
-            type.m_RenderFunction = LegacyRender;
-            type.m_PostUpdateFunction = PostUpdate;
-            type.m_UpdateOrderPrio = (uint16_t)(10 - i);
-            dmGameObject::Result game_result = dmGameObject::RegisterComponentType(fixture->m_Register, type);
+            dmGameObject::ComponentType type = MakeGameType(fixture, i, names[i]);
+            dmGameSystem::ComponentRenderType render_type = MakeRenderType(&fixture->m_Probe);
+            dmGameObject::Result game_result = dmGameSystem::RegisterComponentType(fixture->m_Context, type,
+                register_render ? &render_type : 0);
             assert(game_result == dmGameObject::RESULT_OK);
-
-            if (register_render)
-            {
-                game_result = RegisterRenderer(fixture, i);
-                assert(game_result == dmGameObject::RESULT_OK);
-            }
             (void)game_result;
         }
         // Even empty game objects cancel property animations during deletion. Use
@@ -403,7 +421,7 @@ namespace
         animation.m_DeleteWorldFunction = dmGameObject::CompAnimDeleteWorld;
         animation.m_AddToUpdateFunction = dmGameObject::CompAnimAddToUpdate;
         animation.m_UpdateFunction = dmGameObject::CompAnimUpdate;
-        dmGameObject::Result game_result = dmGameObject::RegisterComponentType(fixture->m_Register, animation);
+        dmGameObject::Result game_result = dmGameSystem::RegisterComponentType(fixture->m_Context, animation);
         assert(game_result == dmGameObject::RESULT_OK);
 
         (void)game_result;
@@ -429,11 +447,13 @@ namespace
     static void DeleteComponentRenderFixture(ComponentRenderFixture* fixture)
     {
         dmGameObject::DeleteCollections(fixture->m_Register);
-        dmGameSystem::DeleteComponentRenderContext(fixture->m_Render);
+        if (fixture->m_Render)
+            dmGameSystem::Finalize(fixture->m_Context);
         dmScript::Finalize(fixture->m_Script);
         dmScript::DeleteContext(fixture->m_Script);
         dmGameObject::DeleteRegister(fixture->m_Register);
         dmResource::DeleteFactory(fixture->m_Factory);
+        dmGameSystem::DeleteContext(fixture->m_Context);
         dmRender::DeleteRenderExecution(fixture->m_Execution);
         dmConditionVariable::Delete(fixture->m_Probe.m_Changed);
         dmMutex::Delete(fixture->m_Probe.m_Mutex);
@@ -573,13 +593,119 @@ TEST(ComponentRender, NoRegisteredTypesAllocateNoFrames)
     ASSERT_EQ((dmRender::HRenderFrameQueue)0, dmGameSystem::GetComponentRenderQueue(fixture.m_Render));
     dmGameObject::HCollection collection = NewCollection(&fixture, "no_render_callbacks");
     ASSERT_NE((dmGameObject::HCollection)0, collection);
-    ASSERT_TRUE(dmGameSystem::RenderComponentsInline(fixture.m_Render, collection));
-    dmGameSystem::RetireComponentRenderFrames(fixture.m_Render);
+    ASSERT_TRUE(dmGameSystem::RenderComponentsInline(fixture.m_Context, collection));
+    dmGameSystem::RetireComponentRenderFrames(fixture.m_Context);
+    ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmGameSystem::ServiceComponentRendering(fixture.m_Context));
     ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_CAPTURE));
     ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_LEGACY_RENDER));
     ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CREATE));
     DeleteCollection(&fixture, collection);
     ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_GAME_DELETE));
+    DeleteComponentRenderFixture(&fixture);
+}
+
+// Verify paired registration rejects malformed callbacks and duplicates without leaking a type, binding or frame queue.
+TEST(ComponentRender, PairedRegistrationRollsBack)
+{
+    ComponentRenderFixture fixture;
+    NewComponentRenderFixture(&fixture, dmRender::EXECUTION_MODE_INLINE, 1, false);
+    const uint32_t original_count = dmGameObject::GetNumComponentTypes(fixture.m_Register);
+    dmGameObject::ComponentType type = MakeGameType(&fixture, 1, "paired_component");
+    dmGameSystem::ComponentRenderType render_type = MakeRenderType(&fixture.m_Probe);
+    render_type.m_RenderCallbacks.m_Consume = 0;
+
+    ASSERT_EQ(dmGameObject::RESULT_INVALID_OPERATION,
+        dmGameSystem::RegisterComponentType(fixture.m_Context, type, &render_type));
+    ASSERT_EQ(original_count, dmGameObject::GetNumComponentTypes(fixture.m_Register));
+    ASSERT_EQ((dmRender::HRenderFrameQueue)0, dmGameSystem::GetComponentRenderQueue(fixture.m_Render));
+
+    render_type = MakeRenderType(&fixture.m_Probe);
+    const dmGameObject::ComponentType duplicate = *dmGameObject::GetComponentType(fixture.m_Register, 0);
+    ASSERT_EQ(dmGameObject::RESULT_ALREADY_REGISTERED,
+        dmGameSystem::RegisterComponentType(fixture.m_Context, duplicate, &render_type));
+    ASSERT_EQ(original_count, dmGameObject::GetNumComponentTypes(fixture.m_Register));
+    ASSERT_EQ((dmRender::HRenderFrameQueue)0, dmGameSystem::GetComponentRenderQueue(fixture.m_Render));
+
+    ASSERT_EQ(dmGameObject::RESULT_OK,
+        dmGameSystem::RegisterComponentType(fixture.m_Context, type, &render_type));
+    dmRender::HRenderFrameQueue queue = dmGameSystem::GetComponentRenderQueue(fixture.m_Render);
+    ASSERT_NE((dmRender::HRenderFrameQueue)0, queue);
+    ASSERT_EQ(original_count + 1, dmGameObject::GetNumComponentTypes(fixture.m_Register));
+
+    ASSERT_EQ(dmGameObject::RESULT_ALREADY_REGISTERED,
+        dmGameSystem::RegisterComponentType(fixture.m_Context, type, &render_type));
+    ASSERT_EQ(original_count + 1, dmGameObject::GetNumComponentTypes(fixture.m_Register));
+    ASSERT_EQ(queue, dmGameSystem::GetComponentRenderQueue(fixture.m_Render));
+
+    dmGameObject::SortComponentTypes(fixture.m_Register);
+    dmGameObject::HCollection collection = NewCollection(&fixture, "paired_registration");
+    ASSERT_NE((dmGameObject::HCollection)0, collection);
+    ASSERT_TRUE(dmGameSystem::RenderComponentsInline(fixture.m_Context, collection));
+    ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_CAPTURE));
+    ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));
+    ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_LEGACY_RENDER));
+
+    DeleteComponentRenderFixture(&fixture);
+}
+
+// Verify a render-enabled type cannot be added after world creation and leaves the original legacy path intact.
+TEST(ComponentRender, LatePairedRegistrationLeavesTypesUnchanged)
+{
+    ComponentRenderFixture fixture;
+    NewComponentRenderFixture(&fixture, dmRender::EXECUTION_MODE_INLINE, 1, false);
+    const uint32_t original_count = dmGameObject::GetNumComponentTypes(fixture.m_Register);
+    dmGameObject::ComponentType type = MakeGameType(&fixture, 1, "late_paired_component");
+    dmGameSystem::ComponentRenderType render_type = MakeRenderType(&fixture.m_Probe);
+    dmGameObject::HCollection collection = NewCollection(&fixture, "late_paired_registration");
+    ASSERT_NE((dmGameObject::HCollection)0, collection);
+
+    ASSERT_EQ(dmGameObject::RESULT_INVALID_OPERATION,
+        dmGameSystem::RegisterComponentType(fixture.m_Context, type, &render_type));
+    ASSERT_EQ(original_count, dmGameObject::GetNumComponentTypes(fixture.m_Register));
+    ASSERT_EQ((dmRender::HRenderFrameQueue)0, dmGameSystem::GetComponentRenderQueue(fixture.m_Render));
+    ASSERT_EQ(0u, dmGameSystem::GetComponentRenderWorldCount(fixture.m_Render));
+
+    ASSERT_TRUE(dmGameSystem::RenderComponentsInline(fixture.m_Context, collection));
+    ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_CAPTURE));
+    ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_LEGACY_RENDER));
+    DeleteComponentRenderFixture(&fixture);
+}
+
+// Verify finalization drains retained frame/world state but preserves owned type contexts and borrowed services until teardown.
+TEST(ComponentRender, FinalizeDrainsRenderingBeforeContextStorage)
+{
+    ComponentRenderFixture fixture;
+    NewComponentRenderFixture(&fixture, dmRender::EXECUTION_MODE_INLINE, 1);
+    dmGameObject::HCollection collection = NewCollection(&fixture, "finalize_rendering");
+    ASSERT_NE((dmGameObject::HCollection)0, collection);
+
+    dmGameSystem::ModelContext* model_context = &fixture.m_Context->m_ModelContext;
+    model_context->m_Factory = fixture.m_Factory;
+    model_context->m_MaxModelCount = 73;
+    ASSERT_TRUE(dmGameSystem::RenderComponentsInline(fixture.m_Context, collection));
+    DeleteCollection(&fixture, collection);
+
+    ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_GAME_DELETE));
+    ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));
+    ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DELETE));
+    ASSERT_EQ(1u, dmGameSystem::GetComponentRenderWorldCount(fixture.m_Render));
+
+    // Deliberately leave frame references outstanding: Finalize owns the final retirement.
+    dmGameSystem::Finalize(fixture.m_Context);
+    fixture.m_Render = 0;
+
+    ASSERT_EQ((dmGameSystem::HComponentRenderContext)0, fixture.m_Context->m_ComponentRenderContext);
+    ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DELETE));
+    ASSERT_EQ(model_context, &fixture.m_Context->m_ModelContext);
+    ASSERT_EQ(fixture.m_Factory, model_context->m_Factory);
+    ASSERT_EQ(73u, model_context->m_MaxModelCount);
+    ASSERT_EQ(2u, dmGameObject::GetNumComponentTypes(fixture.m_Register));
+    ASSERT_EQ(dmRender::EXECUTION_MODE_INLINE, dmRender::GetRenderExecutionMode(fixture.m_Execution));
+
+    HResourceType resource_type;
+    ASSERT_EQ(dmResource::RESULT_OK,
+        dmResource::GetTypeFromExtension(fixture.m_Factory, "artificial_a", &resource_type));
+    ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
     DeleteComponentRenderFixture(&fixture);
 }
 
@@ -662,7 +788,7 @@ TEST(ComponentRender, FinalTransformsAndOrderedInlineCapture)
     dmGameObject::SetPosition(parent, dmVMath::Point3(6.0f, 0.0f, 0.0f));
     dmGameObject::Delete(collection, child, false);
 
-    ASSERT_TRUE(dmGameSystem::RenderComponentsInline(fixture.m_Render, collection));
+    ASSERT_TRUE(dmGameSystem::RenderComponentsInline(fixture.m_Context, collection));
 
     ASSERT_EQ(2u, CountEvents(&fixture.m_Probe, EVENT_TYPE_CAPTURE));
     ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_LEGACY_RENDER));
@@ -675,13 +801,13 @@ TEST(ComponentRender, FinalTransformsAndOrderedInlineCapture)
     ASSERT_EQ(111u, GetEvent(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME, 1).m_Value);
     ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_POST_UPDATE));
 
-    dmGameSystem::RetireComponentRenderFrames(fixture.m_Render);
+    dmGameSystem::RetireComponentRenderFrames(fixture.m_Context);
     ASSERT_TRUE(dmGameObject::PostUpdate(collection));
     ASSERT_FALSE(dmGameObject::IsValid(child));
     ASSERT_EQ(1111u, GetWorld(collection)->m_Value);
 
     DeleteCollection(&fixture, collection);
-    dmGameSystem::ServiceComponentRenderContext(fixture.m_Render);
+    ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmGameSystem::ServiceComponentRendering(fixture.m_Context));
     ASSERT_EQ(2u, CountEvents(&fixture.m_Probe, EVENT_TYPE_GAME_DELETE));
     ASSERT_EQ(2u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DELETE));
     ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
@@ -1043,15 +1169,16 @@ TEST(ComponentRender, RendererConsumeErrorPreservesAcceptedEntries)
     dmGameObject::HCollection collection = NewCollection(&fixture, "failed_renderer_consume");
     ASSERT_NE((dmGameObject::HCollection)0, collection);
 
-    ASSERT_FALSE(dmGameSystem::RenderComponentsInline(fixture.m_Render, collection));
+    ASSERT_FALSE(dmGameSystem::RenderComponentsInline(fixture.m_Context, collection));
 
     ASSERT_EQ(2u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));
     ASSERT_EQ(dmRender::RENDER_FRAME_INVALID_ARGUMENT,
-        dmGameSystem::GetComponentRenderResult(fixture.m_Render));
+        dmGameSystem::ServiceComponentRendering(fixture.m_Context));
 
-    dmGameSystem::RetireComponentRenderFrames(fixture.m_Render);
+    dmGameSystem::RetireComponentRenderFrames(fixture.m_Context);
     DeleteCollection(&fixture, collection);
-    dmGameSystem::ServiceComponentRenderContext(fixture.m_Render);
+    ASSERT_EQ(dmRender::RENDER_FRAME_INVALID_ARGUMENT,
+        dmGameSystem::ServiceComponentRendering(fixture.m_Context));
 
     ASSERT_EQ(2u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DELETE));
     ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);

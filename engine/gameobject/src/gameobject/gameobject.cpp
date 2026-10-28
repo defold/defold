@@ -1134,6 +1134,26 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
+    Result RegisterComponentType(HRegister regist, const ComponentType& type, const ComponentRenderCallbacks& callbacks)
+    {
+        if (!callbacks.m_CreateWorld || !callbacks.m_DeleteWorld || !callbacks.m_Capture || regist->m_ComponentRenderRegistrationClosed)
+        {
+            return RESULT_INVALID_OPERATION;
+        }
+
+        Result result = RegisterComponentType(regist, type);
+        if (result != RESULT_OK)
+        {
+            return result;
+        }
+
+        // The new slot has no callbacks yet. After validation above, attaching them
+        // cannot fail, so callers never observe a component without its render bridge.
+        regist->m_ComponentRenderCallbacks[regist->m_ComponentTypeCount - 1] = callbacks;
+        regist->m_HasComponentRenderCallbacks = true;
+        return RESULT_OK;
+    }
+
     Result SetUpdateOrderPrio(HRegister regist, HResourceType resource_type, uint16_t prio)
     {
         bool found = false;

@@ -454,7 +454,7 @@ namespace dmEngine
     , m_JobThreadContext(0)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
-    , m_ComponentRenderContext(0)
+    , m_GameSystem(0)
     , m_ScriptContext(0x0)
     , m_Factory(0x0)
     , m_SystemSocket(0x0)
@@ -501,10 +501,6 @@ namespace dmEngine
         m_PhysicsContextBullet3D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BULLET3D;
         m_PhysicsContextBullet3D.m_BaseContext.m_Debug = false;
         m_GuiContext = 0x0;
-        m_SpriteContext.m_RenderContext = 0x0;
-        m_SpriteContext.m_MaxSpriteCount = 0;
-        m_ModelContext.m_RenderContext = 0x0;
-        m_ModelContext.m_MaxModelCount = 0;
         m_HttpCache = 0;
         m_DependenciesJsonResource = 0;
         m_DependenciesJsonSize = 0;
@@ -541,13 +537,9 @@ namespace dmEngine
 
         dmGameObject::DeleteCollections(engine->m_Register); // Delete all collections and game objects
 
-        // Game worlds can disappear before their renderer-owned state. Finish renderer
-        // cleanup while type contexts, the resource factory and graphics still exist.
-        if (engine->m_ComponentRenderContext)
-        {
-            dmGameSystem::DeleteComponentRenderContext(engine->m_ComponentRenderContext);
-            engine->m_ComponentRenderContext = 0;
-        }
+        // Finish deferred game-system work before resource/type teardown.
+        if (engine->m_GameSystem)
+            dmGameSystem::Finalize(engine->m_GameSystem);
 
         dmHttpClient::ShutdownConnectionPool();
 
@@ -608,6 +600,10 @@ namespace dmEngine
         {
             dmResource::DeleteFactory(engine->m_Factory);
         }
+
+        // Resource type contexts remain alive until factory teardown completes.
+        if (engine->m_GameSystem)
+            dmGameSystem::DeleteContext(engine->m_GameSystem);
 
         if (engine->m_GraphicsContext)
         {
@@ -1650,31 +1646,6 @@ namespace dmEngine
         }
 #endif
 
-        engine->m_SpriteContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_SpriteContext.m_Factory = engine->m_Factory;
-        engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);
-        engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 1);
-
-        engine->m_ModelContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_ModelContext.m_Factory = engine->m_Factory;
-        engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
-        engine->m_ModelContext.m_MaxBoneMatrixTextureWidth  = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_width", 1024);
-        engine->m_ModelContext.m_MaxBoneMatrixTextureHeight = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_height", 1024);
-
-        engine->m_LabelContext.m_RenderContext      = engine->m_RenderContext;
-        engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);
-        engine->m_LabelContext.m_Subpixels          = dmConfigFile::GetInt(engine->m_Config, "label.subpixels", 1);
-
-        engine->m_CollectionProxyContext.m_Factory = engine->m_Factory;
-        engine->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_PROXY_MAX_COUNT_KEY, 8);
-
-        engine->m_FactoryContext.m_MaxFactoryCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::FACTORY_MAX_COUNT_KEY, 128);
-        engine->m_FactoryContext.m_Factory = engine->m_Factory;
-        engine->m_CollectionFactoryContext.m_MaxCollectionFactoryCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_FACTORY_MAX_COUNT_KEY, 128);
-        engine->m_CollectionFactoryContext.m_Factory = engine->m_Factory;
-        engine->m_FactoryContext.m_ScriptContext = engine->m_ScriptContext;
-        engine->m_CollectionFactoryContext.m_ScriptContext = engine->m_ScriptContext;
-
         dmGameObject::ComponentTypeCreateCtxImpl component_create_ctx_impl;
         dmGameObject::ComponentTypeCreateCtx component_create_ctx;
         SetupComponentCreateContext(engine, component_create_ctx, component_create_ctx_impl);
@@ -1686,12 +1657,15 @@ namespace dmEngine
         bool has_host_mount = dmSys::GetEnv("DM_HOSTFS") != 0;
 
         {
-            // Internal foundation budget; no buffers are allocated until a component opts
-            // in. Component migration will size these limits for real captured workloads.
-            dmRender::RenderFrameLimits limits = { 256 * 1024, 1024, 1024 };
-            engine->m_ComponentRenderContext = dmGameSystem::NewComponentRenderContext(engine->m_Register, engine->m_RenderContext, limits);
-
-            if (!engine->m_ComponentRenderContext)
+            dmGameSystem::ContextParams params;
+            params.m_Factory = engine->m_Factory;
+            params.m_Register = engine->m_Register;
+            params.m_RenderContext = engine->m_RenderContext;
+            params.m_ScriptContext = engine->m_ScriptContext;
+            params.m_InputContext = engine->m_InputContext;
+            params.m_PhysicsContext = physics_context;
+            engine->m_GameSystem = dmGameSystem::NewContext(params);
+            if (!engine->m_GameSystem)
                 goto bail;
         }
 
@@ -1712,14 +1686,7 @@ namespace dmEngine
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_InputContext, physics_context, &engine->m_ModelContext);
-        if (fact_result != dmResource::RESULT_OK)
-            goto bail;
-
-        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, physics_context, &engine->m_SpriteContext,
-                                                                                                &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext,
-                                                                                                &engine->m_ModelContext, &engine->m_LabelContext);
-        if (go_result != dmGameObject::RESULT_OK)
+        if (!dmGameSystem::Initialize(engine->m_GameSystem, engine->m_Config))
             goto bail;
 
         // register the component extensions
@@ -2203,7 +2170,7 @@ bail:
                     dmRender::RenderListBegin(engine->m_RenderContext);
                     // Capture opted-in component inputs after final transforms/PreRender,
                     // before destructive PostUpdate. Legacy types retain their render path.
-                    if (!dmGameSystem::RenderComponentsInline(engine->m_ComponentRenderContext, GetMainCollection(engine)))
+                    if (!dmGameSystem::RenderComponentsInline(engine->m_GameSystem, GetMainCollection(engine)))
                         dmLogError("Component rendering or render-input capture failed.");
 
                     // Make sure we dispatch messages to the render script
@@ -2236,12 +2203,11 @@ bail:
 
                 // Keep captured dependencies through render-script/list dispatch, even
                 // while this foundation's component consumer is still invoked inline.
-                dmGameSystem::RetireComponentRenderFrames(engine->m_ComponentRenderContext);
+                dmGameSystem::RetireComponentRenderFrames(engine->m_GameSystem);
                 dmGameObject::PostUpdate(GetMainCollection(engine));
                 dmGameObject::PostUpdate(engine->m_Register);
                 // World deletion may enqueue renderer cleanup even on a non-drawing frame.
-                dmGameSystem::ServiceComponentRenderContext(engine->m_ComponentRenderContext);
-                dmRender::RenderFrameResult component_render_result = dmGameSystem::GetComponentRenderResult(engine->m_ComponentRenderContext);
+                dmRender::RenderFrameResult component_render_result = dmGameSystem::ServiceComponentRendering(engine->m_GameSystem);
 
                 if (component_render_result != dmRender::RENDER_FRAME_OK)
                 {

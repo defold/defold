@@ -29,6 +29,7 @@
 #include <dlib/profile.h>
 #include <script/sys_ddf.h>
 #include <render/render_ddf.h>
+#include <gameobject/component.h>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
@@ -285,7 +286,7 @@ TEST_F(EngineTest, RenderExecutionBuildGateStartupCleanup)
         bool initialized = dmEngine::Init(partial, DM_ARRAY_SIZE(argv), (char**)argv);
         // A missing project must not masquerade as execution-mode rejection.
         rejected_before_graphics = !initialized && partial->m_Config && !partial->m_ConnectionAppMode && !partial->m_Window &&
-            !partial->m_GraphicsContext && !partial->m_RenderContext;
+            !partial->m_GraphicsContext && !partial->m_RenderContext && !partial->m_GameSystem;
         dmEngine::Delete(partial);
     }
 
@@ -296,6 +297,7 @@ TEST_F(EngineTest, RenderExecutionBuildGateStartupCleanup)
     bool owns_all_roles = execution &&
         dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_GAME) &&
         dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_RENDER);
+    bool has_game_system = engine && engine->m_GameSystem;
 
     if (engine)
         dmEngineDestroy(engine);
@@ -307,7 +309,64 @@ TEST_F(EngineTest, RenderExecutionBuildGateStartupCleanup)
     ASSERT_TRUE(graphics_cleaned);
     ASSERT_TRUE(rejected_before_graphics);
     if (expected_success)
+    {
         ASSERT_TRUE(owns_all_roles);
+        ASSERT_TRUE(has_game_system);
+    }
+}
+
+// Verify gamesys owns/configures the shared component/resource contexts, including cleanup after late startup failure.
+TEST_F(EngineTest, GameSystemContextStartupCleanup)
+{
+#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
+    return; // The development gate rejects startup before gamesys is created.
+#endif
+    for (uint32_t attempt = 0; attempt < 2; ++attempt)
+    {
+        char project_path[256];
+        const char* argv[] = {
+            "test_engine",
+            "--config=dmengine.unload_builtins=0",
+            attempt == 0 ? "--config=bootstrap.main_collection=/text_input/text_input.collectionc" :
+                           "--config=bootstrap.main_collection=/missing_gamesys_test.collectionc",
+            "--config=input.game_binding=/text_input/text_input.input_bindingc",
+            "--config=sprite.max_count=73",
+            "--config=model.max_count=91",
+            "--config=model.max_bone_matrix_texture_width=512",
+            MAKE_PATH(project_path, "/game.projectc"),
+        };
+
+        dmEngineInitialize();
+        dmEngine::HEngine engine = dmEngine::New(0);
+        bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+        bool configured = false;
+        HResourceType sprite_type = 0;
+        HResourceType model_type = 0;
+        if (engine->m_GameSystem &&
+            dmResource::GetTypeFromExtension(engine->m_Factory, "spritec", &sprite_type) == dmResource::RESULT_OK &&
+            dmResource::GetTypeFromExtension(engine->m_Factory, "modelc", &model_type) == dmResource::RESULT_OK)
+        {
+            dmGameObject::ComponentType* sprite = dmGameObject::FindComponentType(engine->m_Register, sprite_type, 0);
+            dmGameObject::ComponentType* model = dmGameObject::FindComponentType(engine->m_Register, model_type, 0);
+            if (sprite && model)
+            {
+                dmGameSystem::SpriteContext* sprite_context = (dmGameSystem::SpriteContext*)sprite->m_Context;
+                dmGameSystem::ModelContext* model_context = (dmGameSystem::ModelContext*)model->m_Context;
+                configured = sprite_context->m_MaxSpriteCount == 73 && model_context->m_MaxModelCount == 91 &&
+                    model_context->m_MaxBoneMatrixTextureWidth == 512 &&
+                    model_context->m_RenderContext == engine->m_RenderContext &&
+                    model_context == ResourceTypeGetContext(model_type);
+            }
+        }
+
+        dmEngine::Delete(engine);
+        bool graphics_cleaned = dmGraphics::GetInstalledContext() == 0;
+        dmEngineFinalize();
+
+        ASSERT_EQ(attempt == 0, initialized);
+        ASSERT_TRUE(configured);
+        ASSERT_TRUE(graphics_cleaned);
+    }
 }
 
 TEST_F(EngineTest, NonProjectLastArgumentDoesNotOverrideProjectFile)
