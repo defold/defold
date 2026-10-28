@@ -1141,9 +1141,24 @@ static void ResourceReloadedCallback(const ResourceReloadedParams* params) {
     data->m_New = *((int*)ResourceDescriptorGetResource(params->m_Resource));
 }
 
+static void ResourceReloadedResizeCallback(const ResourceReloadedParams* params)
+{
+    ResourceReloadedCallback(params);
+    ReloadData* data = (ReloadData*)params->m_UserData;
+    ResourceDescriptorSetResourceSize(params->m_Resource, data->m_New);
+}
+
+struct RecreateDestroyData
+{
+    uint32_t m_Count;
+    uint32_t m_ResourceSize;
+};
+
 static dmResource::Result CountRecreatedResourceDestroy(const dmResource::ResourceDestroyParams* params)
 {
-    ++*(uint32_t*)params->m_Context;
+    RecreateDestroyData* data = (RecreateDestroyData*)params->m_Context;
+    ++data->m_Count;
+    data->m_ResourceSize = ResourceDescriptorGetResourceSize(params->m_Resource);
     return RecreateResourceDestroy(params);
 }
 
@@ -1302,6 +1317,7 @@ TEST(RecreateTest, ReplacementFailureAndFinalRelease)
 }
 
 // Both SetResource overloads must retain old data during callbacks and destroy it afterwards.
+// Destruction must see descriptor size updates made by reload callbacks.
 TEST(RecreateTest, SetResourceDestroysPreviousResourceAfterCallbacks)
 {
     dmResource::NewFactoryParams params;
@@ -1310,11 +1326,10 @@ TEST(RecreateTest, SetResourceDestroysPreviousResourceAfterCallbacks)
     dmResource::HFactory factory = dmResource::NewFactory(&params, MOUNT_DIR);
     ASSERT_NE((void*)0, factory);
 
-    uint32_t destroy_count = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(factory, "foo", &destroy_count, 0,
-        RecreateResourceCreate, 0, CountRecreatedResourceDestroy, RecreateResourceRecreate));
+    RecreateDestroyData destroy_data = {};
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(factory, "foo", &destroy_data, 0, RecreateResourceCreate, 0, CountRecreatedResourceDestroy, RecreateResourceRecreate));
     ReloadData reload_data;
-    dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, &reload_data);
+    dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedResizeCallback, &reload_data);
 
     const char* resource_name = "/set_resource.foo";
     char initial_data[] = "123";
@@ -1327,18 +1342,20 @@ TEST(RecreateTest, SetResourceDestroysPreviousResourceAfterCallbacks)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(factory, dmHashString64(resource_name), new_data, sizeof(new_data)));
     ASSERT_EQ(123, reload_data.m_Old);
     ASSERT_EQ(456, reload_data.m_New);
-    ASSERT_EQ(1u, destroy_count);
+    ASSERT_EQ(1u, destroy_data.m_Count);
+    ASSERT_EQ(456u, destroy_data.m_ResourceSize);
     ASSERT_EQ((void*)0, ResourceDescriptorGetPrevResource(descriptor));
 
     int message = 789;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(factory, dmHashString64(resource_name), &message));
     ASSERT_EQ(456, reload_data.m_Old);
     ASSERT_EQ(789, reload_data.m_New);
-    ASSERT_EQ(2u, destroy_count);
+    ASSERT_EQ(2u, destroy_data.m_Count);
+    ASSERT_EQ(789u, destroy_data.m_ResourceSize);
     ASSERT_EQ((void*)0, ResourceDescriptorGetPrevResource(descriptor));
 
     dmResource::Release(factory, resource);
-    ASSERT_EQ(3u, destroy_count);
+    ASSERT_EQ(3u, destroy_data.m_Count);
     dmResource::DeleteFactory(factory);
 }
 
