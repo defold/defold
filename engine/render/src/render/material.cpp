@@ -605,8 +605,7 @@ namespace dmRender
         // A partial update may grow or shrink an attribute before its neighbors.
         dmArray<uint8_t> values;
         values.EnsureSize(value_byte_size);
-        if (value_byte_size)
-            memset(values.Begin(), 0, value_byte_size);
+        memset(values.Begin(), 0, value_byte_size);
         for (uint32_t i = 0; i < previous_infos.Size(); ++i)
         {
             const dmGraphics::VertexAttributeInfo& previous = previous_infos[i];
