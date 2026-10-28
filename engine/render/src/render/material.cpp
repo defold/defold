@@ -604,8 +604,7 @@ namespace dmRender
         // Relocate each old value to its new offset before applying overrides.
         // A partial update may grow or shrink an attribute before its neighbors.
         dmArray<uint8_t> values;
-        values.SetCapacity(value_byte_size);
-        values.SetSize(value_byte_size);
+        values.EnsureSize(value_byte_size);
         if (value_byte_size)
             memset(values.Begin(), 0, value_byte_size);
         for (uint32_t i = 0; i < previous_infos.Size(); ++i)
