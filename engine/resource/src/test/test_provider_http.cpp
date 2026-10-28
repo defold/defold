@@ -836,9 +836,8 @@ protected:
         uint8_t* data = new uint8_t[size + 2];
         memset(data, 0xfe, size + 2);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::ReadFile(m_Archive, 0, path, data + 1, size));
-        for (uint32_t i = 0; i < size; i += 4093)
+        for (uint32_t i = 0; i < size; ++i)
             ASSERT_EQ((uint8_t)(i % 251), data[i + 1]);
-        ASSERT_EQ((uint8_t)((size - 1) % 251), data[size]);
         ASSERT_EQ(0xfe, data[0]);
         ASSERT_EQ(0xfe, data[size + 1]);
         delete[] data;
