@@ -60,8 +60,8 @@ struct FontGenJobItem
     // From the .fontc info
     float           m_OutlineWidth;
     float           m_ShadowBlur;
-    uint8_t         m_IsSdf:1;
-    uint8_t         :7;
+    uint8_t         m_IsSdf : 1;
+    uint8_t : 7;
 
     // output
     int             m_Result;

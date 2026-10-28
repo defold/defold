@@ -68,8 +68,8 @@ struct TTFFont
     int             m_Ascent;
     int             m_Descent;
     int             m_LineGap;
-    uint32_t        m_Allocated:1;
-    uint32_t        m_HasGlyfOutlines:1;
+    uint32_t        m_Allocated : 1;
+    uint32_t        m_HasGlyfOutlines : 1;
 };
 
 static inline TTFFont* ToFont(HFont hfont)
