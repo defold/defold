@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <dlib/mutex.h>
+#include <dlib/condition_variable.h>
 #include <dlib/index_pool.h>
 #include <dmsdk/dlib/atomic.h>
 #include "graphics.h"
@@ -277,10 +278,65 @@ namespace dmGraphics
         dmArray<HTexture>              m_PostDeleteTextures;
     };
 
+    struct TextureUploadExtent
+    {
+        uint32_t m_Width;
+        uint32_t m_Height;
+        uint32_t m_Depth;
+    };
+
+    TextureUploadExtent GetTextureUploadExtent(const Texture& texture, const TextureParams& params);
+
+    static const uint64_t DEFAULT_TEXTURE_UPLOAD_MEMORY_LIMIT = 64ULL * 1024 * 1024;
+
+    // Observers run under the reservation mutex and must outlive all uploads.
+    typedef void (*TextureUploadMemoryObserver)(void* user_data, uint64_t total_bytes, uint32_t in_flight, uint64_t batch_bytes, uint32_t mip_count);
+
+    struct TextureUploadMemoryBudget
+    {
+        dmMutex::HMutex m_Mutex;
+        dmConditionVariable::HConditionVariable m_Condition;
+        uint64_t m_Limit;
+        uint64_t m_ReservedBytes;
+        uint32_t m_InFlight;
+        TextureUploadMemoryObserver m_Observer;
+        void* m_ObserverData;
+    };
+
+    struct TextureUploadRequest
+    {
+        TextureUploadRequest* m_Next;
+        HTexture m_Texture;
+        dmArray<TextureParams> m_Params;
+        SetTextureAsyncCallback m_Callback;
+        void* m_UserData;
+        void* m_BackendData;
+    };
+
+    // The adapter consumes the copied parameters, releases its optional native
+    // snapshot, and calls CompleteTextureUploadRequest, including on cancellation.
+    typedef void (*ProcessTextureUpload)(void* context, TextureUploadRequest* request);
+
+    struct TextureUploadQueue
+    {
+        GraphicsContext* m_Context;
+        HJobContext m_JobContext;
+        ProcessTextureUpload m_Process;
+        void* m_BackendContext;
+        dmMutex::HMutex m_Mutex;
+        TextureUploadRequest* m_Head;
+        TextureUploadRequest* m_Tail;
+        int32_atomic_t m_PendingRequests;
+        int32_atomic_t m_PendingWorkers;
+        int32_atomic_t m_Stopping;
+        bool m_WorkerQueued;
+    };
+
     // Shared fields embedded as m_BaseContext (first member) in each backend context struct.
     struct GraphicsContext
     {
         GraphicsContextLimits              m_Limits;
+        TextureUploadMemoryBudget          m_TextureUploadMemoryBudget;
         uint16_t                           m_AdapterVersionMajor;
         uint16_t                           m_AdapterVersionMinor;
         HWindow                            m_Window;
@@ -295,6 +351,23 @@ namespace dmGraphics
         uint32_t                           m_VerifyGraphicsCalls : 1;
         uint32_t                           m_PrintDeviceInfo     : 1;
     };
+
+    uint64_t GetTextureUploadMemoryLimit(const TextureUploadMemoryBudget& budget);
+    // Reserve before allocation and release after GPU use and staging destruction.
+    // A single oversized mip runs alone; max_in_flight == 0 has no count limit.
+    void ReserveTextureUploadMemory(TextureUploadMemoryBudget& budget, uint64_t bytes, uint32_t mip_count, uint32_t max_in_flight);
+    bool TryReserveTextureUploadMemory(TextureUploadMemoryBudget& budget, uint64_t bytes, uint32_t mip_count, uint32_t max_in_flight);
+    void ReleaseTextureUploadMemory(TextureUploadMemoryBudget& budget, uint64_t bytes);
+
+    void InitializeTextureUploadQueue(TextureUploadQueue& queue, GraphicsContext* context, HJobContext job_context, ProcessTextureUpload process, void* backend_context);
+    void StopTextureUploadQueue(TextureUploadQueue& queue);
+    void DestroyTextureUploadQueue(TextureUploadQueue& queue);
+    // Call with the asset mutex held. The adapter retains ownership of backend_data
+    // on rejection; an accepted request owns it until the adapter completes it.
+    bool QueueTextureUpload(TextureUploadQueue& queue, HTexture texture, const TextureParams* params, uint32_t count, void* backend_data, SetTextureAsyncCallback callback, void* user_data);
+    // Zero-worker queues must complete on their owner thread, not a GPU callback.
+    void CompleteTextureUploadRequest(TextureUploadQueue& queue, TextureUploadRequest* request);
+    void WaitForTextureUpload(TextureUploadQueue& queue, HTexture texture);
 
     static inline void SetContextFeatureSupported(GraphicsContext* context, ContextFeature feature)
     {

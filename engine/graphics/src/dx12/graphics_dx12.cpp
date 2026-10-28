@@ -38,6 +38,7 @@
 #include <platform/window.hpp>
 
 #include "../graphics_private.h"
+#include "../graphics_util.h"
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
 
@@ -60,6 +61,7 @@ namespace dmGraphics
     bool                                DX12IsSupported();
     static HContext                     DX12GetContext();
     static bool                         DX12Initialize(HContext);
+    static void ReleaseTextureUploadResources(DX12FrameResource& frame);
 
     static GraphicsAdapter g_dx12_adapter(ADAPTER_FAMILY_DIRECTX);
     DX12Context* g_DX12Context = 0x0;
@@ -612,6 +614,8 @@ namespace dmGraphics
             context->m_CommandQueue->ExecuteCommandLists(1, lists);
         }
         WaitForDX12Idle(context);
+        for (uint32_t i = 0; i < MAX_FRAMEBUFFERS; ++i)
+            ReleaseTextureUploadResources(context->m_FrameResources[i]);
         // Resource replacement after this flush must not hit descriptors for old native views.
         for (uint32_t i = 0; i < MAX_FRAMEBUFFERS; ++i)
             context->m_FrameResources[i].m_ScratchBuffer.Reset(context);
@@ -1747,8 +1751,19 @@ namespace dmGraphics
         tex->m_Resource = 0;
     }
 
+    static void ReleaseTextureUploadResources(DX12FrameResource& frame)
+    {
+        for (uint32_t i = 0; i < frame.m_TextureUploadResources.Size(); ++i)
+            frame.m_TextureUploadResources[i]->Release();
+        frame.m_TextureUploadResources.SetSize(0);
+        for (uint32_t i = 0; i < frame.m_TextureUploadReservations.Size(); ++i)
+            ReleaseTextureUploadMemory(*frame.m_TextureUploadBudget, frame.m_TextureUploadReservations[i]);
+        frame.m_TextureUploadReservations.SetSize(0);
+    }
+
     void FlushResourcesToDestroy(DX12FrameResource& current_frame_resource)
     {
+        ReleaseTextureUploadResources(current_frame_resource);
         for (uint32_t i = 0; i < current_frame_resource.m_RootSignaturesToDestroy.Size(); ++i)
             current_frame_resource.m_RootSignaturesToDestroy[i]->Release();
         current_frame_resource.m_RootSignaturesToDestroy.SetSize(0);
@@ -2007,7 +2022,12 @@ namespace dmGraphics
                     const uint8_t* src_row = pixels + src_offset + (uint64_t) (z * src_rows + row) * src_row_pitch;
                     uint8_t* dst_row = dst + (uint64_t) (z * dst_rows + row) * dst_row_pitch;
 
-                    memcpy(dst_row, src_row, src_row_pitch);
+                    if (format == TEXTURE_FORMAT_RGB)
+                        RepackRGBToRGBA(params.m_Width, (uint8_t*)src_row, dst_row);
+                    else if (format == TEXTURE_FORMAT_RGB16F)
+                        RepackRGB16FToRGBA16F(params.m_Width, (const uint16_t*)src_row, (uint16_t*)dst_row);
+                    else
+                        memcpy(dst_row, src_row, src_row_pitch);
                 }
             }
 
@@ -2071,13 +2091,27 @@ namespace dmGraphics
         CloseHandle(fence_event);
     }
 
-    static void TextureBufferUploadHelper(DX12Context* context, DX12Texture* texture, TextureFormat format, const TextureParams& params, uint8_t* pixels)
+    struct DX12TextureUploadFootprint
     {
+        TextureParams m_Params;
+        uint32_t m_LayoutStart;
+        uint32_t m_LayerBase;
+        uint32_t m_Layers;
+        uint32_t m_Depth;
+        uint64_t m_Bytes;
+    };
+
+    static DX12TextureUploadFootprint GetDX12TextureUploadFootprint(DX12Context* context, DX12Texture* texture, const TextureParams& params, dmArray<D3D12_PLACED_SUBRESOURCE_FOOTPRINT>& layouts)
+    {
+        DX12TextureUploadFootprint footprint = {};
+        footprint.m_Params = params;
+        if (!params.m_Data)
+            return footprint;
         const uint32_t target_mip = params.m_MipMap;
         if (target_mip >= texture->m_ResourceDesc.MipLevels)
         {
             dmLogError("DX12 texture update has an invalid mip");
-            return;
+            return footprint;
         }
         const bool is_volume = texture->m_ResourceDesc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D;
         uint32_t layer_base;
@@ -2113,12 +2147,12 @@ namespace dmGraphics
         if (params.m_Z >= mip_depth || depth > mip_depth - params.m_Z)
         {
             dmLogError("DX12 texture update is outside the mip depth");
-            return;
+            return footprint;
         }
         if (target_mip >= texture->m_ResourceDesc.MipLevels || layer_base >= total_layers || layer_count > total_layers - layer_base)
         {
             dmLogError("DX12 texture update has an invalid mip or slice range");
-            return;
+            return footprint;
         }
         const uint32_t width = dmMath::Max(1u, (uint32_t) texture->m_ResourceDesc.Width >> target_mip);
         const uint32_t height = dmMath::Max(1u, texture->m_ResourceDesc.Height >> target_mip);
@@ -2126,119 +2160,80 @@ namespace dmGraphics
             params.m_Y > height || params.m_Height > height - params.m_Y)
         {
             dmLogError("DX12 texture update is outside the mip extent");
-            return;
+            return footprint;
         }
-        if (!pixels)
-            return;
 
-        dmArray<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprints;
-        footprints.SetCapacity(layer_count);
-        footprints.SetSize(layer_count);
+        if (layouts.Remaining() < layer_count)
+            layouts.OffsetCapacity(layer_count);
+        footprint.m_LayoutStart = layouts.Size();
+        footprint.m_LayerBase = layer_base;
+        footprint.m_Layers = layer_count;
+        footprint.m_Depth = depth;
         uint64_t total_upload_size = 0;
+        // The upload footprint describes the update rectangle, not the full
+        // destination subresource. Small subupdates need only their own pixels.
+        D3D12_RESOURCE_DESC source_desc = texture->m_ResourceDesc;
+        source_desc.Width = params.m_Width;
+        source_desc.Height = params.m_Height;
+        source_desc.DepthOrArraySize = is_volume ? depth : 1;
+        source_desc.MipLevels = 1;
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT source_layout;
+        UINT64 size = 0;
+        context->m_Device->GetCopyableFootprints(&source_desc, 0, 1, 0, &source_layout, NULL, NULL, &size);
         for (uint32_t i = 0; i < layer_count; ++i)
         {
-            const uint32_t subresource = D3D12CalcSubresource(target_mip, layer_base + i, 0, texture->m_ResourceDesc.MipLevels, total_layers);
-            UINT64 size = 0;
-            context->m_Device->GetCopyableFootprints(&texture->m_ResourceDesc, subresource, 1, 0, &footprints[i], NULL, NULL, &size);
-            footprints[i].Offset = DM_ALIGN(total_upload_size, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
-            total_upload_size = footprints[i].Offset + size;
+            D3D12_PLACED_SUBRESOURCE_FOOTPRINT layout = source_layout;
+            layout.Offset = DM_ALIGN(total_upload_size, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
+            total_upload_size = layout.Offset + size;
+            layouts.Push(layout);
         }
 
-        // Create upload heap
-        D3D12_RESOURCE_DESC upload_desc = {};
-        upload_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-        upload_desc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
-        upload_desc.Width = total_upload_size;
-        upload_desc.Height = 1;
-        upload_desc.DepthOrArraySize = 1;
-        upload_desc.MipLevels = 1;
-        upload_desc.Format = DXGI_FORMAT_UNKNOWN;
-        upload_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-        upload_desc.SampleDesc.Count = 1;
+        footprint.m_Bytes = total_upload_size;
+        return footprint;
+    }
 
-        ID3D12Resource* upload_heap;
-        HRESULT hr = context->m_Device->CreateCommittedResource(
-            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-            D3D12_HEAP_FLAG_NONE,
-            &upload_desc,
-            D3D12_RESOURCE_STATE_GENERIC_READ,
-            NULL,
-            DM_IID_PPV_ARGS(&upload_heap));
-        if (FAILED(hr))
+    static ID3D12Resource* EncodeDX12TextureUpload(DX12Context* context, DX12Texture* texture, const DX12TextureUploadFootprint& footprint, const D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts, ID3D12GraphicsCommandList* command)
+    {
+        if (!footprint.m_Bytes)
+            return 0;
+        const TextureParams& params = footprint.m_Params;
+        D3D12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(footprint.m_Bytes);
+        CD3DX12_HEAP_PROPERTIES heap(D3D12_HEAP_TYPE_UPLOAD);
+        ID3D12Resource* upload;
+        HRESULT result = context->m_Device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, NULL, DM_IID_PPV_ARGS(&upload));
+        if (FAILED(result))
         {
-            OUTPUT_HRESULT(hr);
-            return;
+            OUTPUT_HRESULT(result);
+            return 0;
         }
-
-        uint8_t* upload_data = NULL;
-        hr = upload_heap->Map(0, NULL, (void**)&upload_data);
-        if (FAILED(hr))
+        uint8_t* pixels;
+        result = upload->Map(0, NULL, (void**)&pixels);
+        if (FAILED(result))
         {
-            upload_heap->Release();
-            OUTPUT_HRESULT(hr);
-            return;
+            upload->Release();
+            OUTPUT_HRESULT(result);
+            return 0;
         }
-
-        CopyTextureDataMipmapLevel(params, format, footprints.Begin(), 0, layer_count, pixels, upload_data);
-
-        ID3D12GraphicsCommandList* cmd_list = context->m_CommandList;
-        DX12OneTimeCommandList one_time_cmd_list = {};
-        if (!context->m_FrameBegun)
+        CopyTextureDataMipmapLevel(params, params.m_Format, layouts + footprint.m_LayoutStart, 0, footprint.m_Layers, (const uint8_t*)params.m_Data, pixels);
+        upload->Unmap(0, 0);
+        const uint32_t total_layers = texture->m_ResourceDesc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D ? 1 : texture->m_ResourceDesc.DepthOrArraySize;
+        for (uint32_t layer = 0; layer < footprint.m_Layers; ++layer)
         {
-            CreateOneTimeCommandList(context->m_Device, &one_time_cmd_list);
-            cmd_list = one_time_cmd_list.m_CommandList;
+            uint32_t subresource = D3D12CalcSubresource(params.m_MipMap, footprint.m_LayerBase + layer, 0, texture->m_ResourceDesc.MipLevels, total_layers);
+            TransitionTexture(command, texture, D3D12_RESOURCE_STATE_COPY_DEST, subresource, 1);
+            D3D12_TEXTURE_COPY_LOCATION destination = {};
+            destination.pResource = texture->m_Resource;
+            destination.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+            destination.SubresourceIndex = subresource;
+            D3D12_TEXTURE_COPY_LOCATION source = {};
+            source.pResource = upload;
+            source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+            source.PlacedFootprint = layouts[footprint.m_LayoutStart + layer];
+            D3D12_BOX box = { 0, 0, 0, params.m_Width, params.m_Height, footprint.m_Depth };
+            command->CopyTextureRegion(&destination, params.m_X, params.m_Y, params.m_Z, &source, &box);
+            TransitionTexture(command, texture, D3D12_RESOURCE_STATE_GENERIC_READ, subresource, 1);
         }
-
-        // Copy per array slice
-        for (uint32_t i = 0; i < layer_count; ++i)
-        {
-            const uint32_t array_layer       = layer_base + i;
-            const uint32_t subresource_index = D3D12CalcSubresource(target_mip, array_layer, 0, texture->m_ResourceDesc.MipLevels, total_layers);
-            TransitionTexture(cmd_list, texture, D3D12_RESOURCE_STATE_COPY_DEST, subresource_index, 1);
-
-            D3D12_TEXTURE_COPY_LOCATION copy_dst = {};
-            copy_dst.pResource                   = texture->m_Resource;
-            copy_dst.Type                        = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-            copy_dst.SubresourceIndex            = subresource_index;
-
-            D3D12_TEXTURE_COPY_LOCATION copy_src = {};
-            copy_src.pResource                   = upload_heap;
-            copy_src.Type                        = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-            copy_src.PlacedFootprint             = footprints[i];
-
-            // This box represents the region of the "source" data that we should copy
-            D3D12_BOX box = {};
-            box.left      = 0;
-            box.top       = 0;
-            box.front     = 0;
-            box.right     = params.m_Width;
-            box.bottom    = params.m_Height;
-            box.back      = depth;
-
-            cmd_list->CopyTextureRegion(&copy_dst, params.m_X, params.m_Y, params.m_Z, &copy_src, &box);
-            TransitionTexture(cmd_list, texture, D3D12_RESOURCE_STATE_GENERIC_READ, subresource_index, 1);
-        }
-
-        // Submit command list if needed
-        if (context->m_FrameBegun)
-        {
-            upload_heap->Unmap(0, 0);
-            DX12FrameResource& frame_resources = context->m_FrameResources[context->m_CurrentFrameIndex];
-            if (frame_resources.m_ResourcesToDestroy.Full())
-                frame_resources.m_ResourcesToDestroy.OffsetCapacity(8);
-            frame_resources.m_ResourcesToDestroy.Push(upload_heap);
-        }
-        else
-        {
-            cmd_list->Close();
-            ID3D12CommandList* execute_cmd_lists[] = { cmd_list };
-            context->m_CommandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
-
-            SynchronizeOneTimeCommandList(context->m_Device, context->m_CommandQueue, &one_time_cmd_list);
-            DestroyOneTimeCommandList(&one_time_cmd_list);
-            upload_heap->Unmap(0, 0);
-            upload_heap->Release();
-        }
+        return upload;
     }
 
     static void CreateDeviceBuffer(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t size, D3D12_RESOURCE_FLAGS resource_flags = D3D12_RESOURCE_FLAG_NONE)
@@ -5008,7 +5003,7 @@ namespace dmGraphics
         DX12SetTextureParamsInternal(g_DX12Context, tex, minfilter, magfilter, uwrap, vwrap, wwrap, max_anisotropy);
     }
 
-    static void DX12SetTexture(HContext context, HTexture texture, const TextureParams& params)
+    static bool DX12PrepareTextureForUploading(DX12Context* context, DX12Texture* tex, const TextureParams& params)
     {
         // Same as graphics_opengl.cpp
         switch (params.m_Format)
@@ -5016,30 +5011,30 @@ namespace dmGraphics
             case TEXTURE_FORMAT_DEPTH:
             case TEXTURE_FORMAT_STENCIL:
                 dmLogError("Unable to upload texture data, unsupported type (%s).", TextureFormatToString(params.m_Format));
-                return;
+                return false;
             default: break;
         }
 
-        DX12Texture* tex             = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture);
         const bool volume = tex->m_Base.m_Type == TEXTURE_TYPE_3D || tex->m_Base.m_Type == TEXTURE_TYPE_IMAGE_3D;
         TextureFormat format_orig    = params.m_Format;
-        TextureFormat format_actual  = params.m_Format;
-        void* tex_data_ptr           = (void*) params.m_Data;
+        TextureFormat format_actual = format_orig == TEXTURE_FORMAT_RGB ? TEXTURE_FORMAT_RGBA :
+        format_orig == TEXTURE_FORMAT_RGB16F                            ? TEXTURE_FORMAT_RGBA16F :
+                                                                          format_orig;
         uint16_t tex_layer_count     = dmMath::Max((uint16_t)1, dmMath::Max(tex->m_LayerCount, (uint16_t) params.m_LayerCount));
         uint16_t tex_depth           = dmMath::Max((uint16_t)1, dmMath::Max(tex->m_Base.m_Depth, (uint16_t) params.m_Depth));
         if (tex->m_Base.m_Type == TEXTURE_TYPE_2D_ARRAY)
             tex_layer_count = dmMath::Max(tex_layer_count, tex_depth);
         uint32_t depth_or_array_size = dmMath::Max((uint32_t)tex_depth, (uint32_t)tex_layer_count);
-        DXGI_FORMAT dxgi_format      = GetDXGIFormatFromTextureFormat(format_orig);
+        DXGI_FORMAT dxgi_format = GetDXGIFormatFromTextureFormat(format_actual);
         if (dxgi_format == DXGI_FORMAT_UNKNOWN)
         {
             dmLogError("DX12 unsupported texture format %s", TextureFormatToString(format_orig));
-            return;
+            return false;
         }
 
         if (tex->m_Base.m_MipMapCount == 1 && params.m_MipMap > 0)
         {
-            return;
+            return false;
         }
 
         if (params.m_SubUpdate && (!tex->m_Resource || params.m_MipMap >= tex->m_ResourceDesc.MipLevels ||
@@ -5047,41 +5042,7 @@ namespace dmGraphics
             dmMath::Max(1u, (uint32_t) params.m_LayerCount) > tex->m_ResourceDesc.DepthOrArraySize - params.m_Slice))))
         {
             dmLogError("DX12 texture sub-update has an invalid mip or slice range");
-            return;
-        }
-
-        // Note: There's no 8 bit RGB format, we have to expand this to four channels
-        // TODO: Can we use R11G11B10 somehow?
-        if (format_orig == TEXTURE_FORMAT_RGB || format_orig == TEXTURE_FORMAT_RGB16F)
-        {
-            format_actual = format_orig == TEXTURE_FORMAT_RGB ? TEXTURE_FORMAT_RGBA : TEXTURE_FORMAT_RGBA16F;
-            dxgi_format   = GetDXGIFormatFromTextureFormat(format_actual);
-
-            const uint32_t upload_layers = volume ? dmMath::Max(1u, (uint32_t) params.m_Depth) :
-                params.m_SubUpdate ? dmMath::Max(1u, (uint32_t) params.m_LayerCount) : depth_or_array_size;
-            const uint64_t pixel_count = (uint64_t) params.m_Width * params.m_Height * upload_layers;
-            const uint32_t bpp_new = format_orig == TEXTURE_FORMAT_RGB ? 4 : 8;
-            if (pixel_count > 0xffffffffu / bpp_new)
-            {
-                dmLogError("DX12 RGB texture update is too large to repack");
-                return;
-            }
-            uint32_t data_pixel_count = (uint32_t) pixel_count;
-            uint8_t* data_new         = new uint8_t[data_pixel_count * bpp_new];
-
-            memset(data_new, 0, data_pixel_count * bpp_new);
-            if (tex_data_ptr && format_orig == TEXTURE_FORMAT_RGB)
-                RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
-            else if (tex_data_ptr)
-            {
-                for (uint32_t i = 0; i < data_pixel_count; ++i)
-                {
-                    memcpy(data_new + i * 8, (const uint8_t*) tex_data_ptr + i * 6, 6);
-                    const uint16_t one = 0x3c00; // half-float 1.0
-                    memcpy(data_new + i * 8 + 6, &one, sizeof(one));
-                }
-            }
-            tex_data_ptr  = data_new;
+            return false;
         }
 
         bool recreate_resource = tex->m_Resource == 0;
@@ -5100,7 +5061,7 @@ namespace dmGraphics
         {
             if (tex->m_Resource)
             {
-                DestroyTextureResourceDeferred(g_DX12Context, tex);
+                DestroyTextureResourceDeferred(context, tex);
             }
 
             D3D12_RESOURCE_DESC desc = {};
@@ -5120,16 +5081,14 @@ namespace dmGraphics
 
             CD3DX12_HEAP_PROPERTIES heap(D3D12_HEAP_TYPE_DEFAULT);
 
-            HRESULT hr = g_DX12Context->m_Device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST, NULL, DM_IID_PPV_ARGS(&tex->m_Resource));
+            HRESULT hr = context->m_Device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST, NULL, DM_IID_PPV_ARGS(&tex->m_Resource));
             if (FAILED(hr))
             {
                 OUTPUT_HRESULT(hr);
-                if (format_actual != format_orig)
-                    delete[] (uint8_t*) tex_data_ptr;
-                return;
+                return false;
             }
 
-            InitializeTextureResourceStates(g_DX12Context->m_Device, tex, D3D12_RESOURCE_STATE_COPY_DEST);
+            InitializeTextureResourceStates(context->m_Device, tex, D3D12_RESOURCE_STATE_COPY_DEST);
 
             tex->m_Base.m_Width  = params.m_Width;
             tex->m_Base.m_Height = params.m_Height;
@@ -5138,17 +5097,113 @@ namespace dmGraphics
             tex->m_ResourceDesc = desc;
         }
 
-        TextureBufferUploadHelper(g_DX12Context, tex, format_actual, params, (uint8_t*) tex_data_ptr);
-
         tex->m_Base.m_Format = format_actual;
         SetTextureResourceSize(&tex->m_Base, sizeof(DX12Texture));
 
-        DX12SetTextureParamsInternal(g_DX12Context, tex, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, params.m_WWrap, 1.0f);
+        DX12SetTextureParamsInternal(context, tex, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, params.m_WWrap, 1.0f);
 
-        if (format_actual != format_orig)
+        return true;
+    }
+
+    static void DX12UploadTextureBatch(DX12Context* context, HTexture texture, const TextureParams* input, uint32_t count)
+    {
+        if (!count)
+            return;
+        DX12Texture* tex = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, texture);
+        dmArray<DX12TextureUploadFootprint> footprints;
+        footprints.SetCapacity(count);
+        dmArray<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> layouts;
+        layouts.SetCapacity(count);
+        for (uint32_t i = 0; i < count; ++i)
         {
-            delete[] (uint8_t*)tex_data_ptr;
+            TextureParams params = input[i];
+            TextureUploadExtent extent = GetTextureUploadExtent(tex->m_Base, params);
+            params.m_Width = extent.m_Width;
+            params.m_Height = extent.m_Height;
+            params.m_Depth = input[i].m_SubUpdate && !input[i].m_Depth ? 1 : extent.m_Depth;
+            if (!DX12PrepareTextureForUploading(context, tex, params))
+                return;
+            // The layouts remain stable while a texture's mip chain is uploaded.
+            footprints.Push(GetDX12TextureUploadFootprint(context, tex, params, layouts));
         }
+        const bool restore_render_pass = context->m_FrameBegun && EndRenderPass(context);
+        TextureUploadMemoryBudget& budget = context->m_BaseContext.m_TextureUploadMemoryBudget;
+        uint32_t first = 0;
+        while (first < count)
+        {
+            uint64_t bytes = 0;
+            uint32_t end = first;
+            while (end < count)
+            {
+                if (end != first && bytes + footprints[end].m_Bytes > GetTextureUploadMemoryLimit(budget))
+                    break;
+                bytes += footprints[end++].m_Bytes;
+            }
+            if (!bytes)
+            {
+                first = end;
+                continue;
+            }
+            if (!TryReserveTextureUploadMemory(budget, bytes, end - first, 0))
+            {
+                // Only the owner can submit a recording frame and retire its
+                // staging resources. Make progress before a blocking reservation.
+                FlushDX12Commands(context);
+                ReserveTextureUploadMemory(budget, bytes, end - first, 0);
+            }
+            DX12OneTimeCommandList one_time = {};
+            ID3D12GraphicsCommandList* command = context->m_CommandList;
+            if (!context->m_FrameBegun)
+            {
+                CreateOneTimeCommandList(context->m_Device, &one_time);
+                command = one_time.m_CommandList;
+            }
+            dmArray<ID3D12Resource*> staging;
+            staging.SetCapacity(end - first);
+            for (uint32_t i = first; i < end; ++i)
+            {
+                ID3D12Resource* upload = EncodeDX12TextureUpload(context, tex, footprints[i], layouts.Begin(), command);
+                if (upload)
+                    staging.Push(upload);
+            }
+            if (context->m_FrameBegun)
+            {
+                DX12FrameResource& frame = context->m_FrameResources[context->m_CurrentFrameIndex];
+                frame.m_TextureUploadBudget = &budget;
+                if (frame.m_TextureUploadResources.Remaining() < staging.Size())
+                    frame.m_TextureUploadResources.OffsetCapacity(staging.Size());
+                for (uint32_t i = 0; i < staging.Size(); ++i)
+                    frame.m_TextureUploadResources.Push(staging[i]);
+                if (frame.m_TextureUploadReservations.Full())
+                    frame.m_TextureUploadReservations.OffsetCapacity(8);
+                frame.m_TextureUploadReservations.Push(bytes);
+            }
+            else
+            {
+                HRESULT result = command->Close();
+                CHECK_HR_ERROR(result);
+                ID3D12CommandList* lists[] = { command };
+                context->m_CommandQueue->ExecuteCommandLists(1, lists);
+                SynchronizeOneTimeCommandList(context->m_Device, context->m_CommandQueue, &one_time);
+                DestroyOneTimeCommandList(&one_time);
+                for (uint32_t i = 0; i < staging.Size(); ++i)
+                    staging[i]->Release();
+                ReleaseTextureUploadMemory(budget, bytes);
+            }
+            first = end;
+        }
+        if (restore_render_pass)
+            BeginRenderPass(context, context->m_CurrentRenderTarget);
+    }
+
+    static void DX12SetTexture(HContext context, HTexture texture, const TextureParams& params)
+    {
+        DX12UploadTextureBatch((DX12Context*)context, texture, &params, 1);
+    }
+
+    static void DX12SetTextureAsyncBatch(HContext context, HTexture texture, const TextureParams* params, uint32_t count)
+    {
+        DX12UploadTextureBatch((DX12Context*)context, texture, params, count);
     }
 
     static void DX12EnableTexture(HContext _context, uint32_t unit, uint8_t value_index, HTexture texture)
@@ -5469,6 +5524,7 @@ namespace dmGraphics
     {
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, DX12);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, DX12, SetTextureAsyncBatch);
         DM_REGISTER_GRAPHICS_FUNCTION(fn_table, DX12, SetSwapInterval);
         return fn_table;
     }

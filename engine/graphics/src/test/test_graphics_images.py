@@ -601,10 +601,22 @@ class TextureUploadRunnerTest(unittest.TestCase):
             ('texture-upload-batch', 'upload-no-workers'),
             ('texture-upload-batch', 'upload-small-budget'),
             ('texture-upload-batch', 'upload-small-budget', 'upload-no-workers'),
+            ('texture-upload-batch', 'upload-one-worker'),
+            ('texture-upload-batch', 'upload-small-budget', 'upload-one-worker'),
             ('issue-12878',),
         }, {tuple(call.args[0][2:]) for call in run.call_args_list})
-        self.assertEqual(5, run.call_count)
+        self.assertEqual(7, run.call_count)
         self.assertTrue(all(call.kwargs['timeout'] == 60 for call in run.call_args_list))
+
+    # Every supported adapter runs its own matrix; asynchronous queues also exercise shutdown.
+    def test_runs_every_supported_backend(self):
+        process = subprocess.CompletedProcess([], 0, 'GRAPHICS_TEXTURE_UPLOAD_RESULT=0\n')
+        arguments = self.arguments[:-1] + list(texture_upload.BACKENDS)
+        with mock.patch.object(texture_upload.subprocess, 'run', return_value=process) as run, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(0, texture_upload.main(arguments))
+        for backend in texture_upload.BACKENDS:
+            calls = [call for call in run.call_args_list if call.args[0][1] == backend]
+            self.assertEqual(7 if backend in ('metal', 'opengl', 'vulkan') else 6, len(calls))
 
     # Exit success cannot hide a missing/duplicate result, assertion failure, or GPU diagnostic.
     def test_rejects_incomplete_or_failed_runs(self):
@@ -621,7 +633,7 @@ class TextureUploadRunnerTest(unittest.TestCase):
 
     # Unsupported backends and the hosted-CI skip policy must not launch a GPU process.
     def test_skip_policy_does_not_launch(self):
-        for arguments in (self.arguments[:-1] + ['vulkan'], self.arguments + ['--skip-all', 'CI policy']):
+        for arguments in (self.arguments[:-1] + ['null'], self.arguments + ['--skip-all', 'CI policy']):
             with self.subTest(arguments=arguments), mock.patch.object(texture_upload.subprocess, 'run') as run, contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(0, texture_upload.main(arguments))
                 run.assert_not_called()
@@ -636,7 +648,7 @@ class TextureUploadRunnerTest(unittest.TestCase):
         arguments[arguments.index('arm64-macos')] = 'arm64_sim-ios'
         with mock.patch.dict('sys.modules', {'graphics_capture_simulator': simulator}), contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(0, texture_upload.main(arguments))
-        self.assertEqual(5, launcher.run.call_count)
+        self.assertEqual(7, launcher.run.call_count)
         self.assertTrue(all(call.kwargs['result_key'] == 'GRAPHICS_TEXTURE_UPLOAD_RESULT' for call in launcher.run.call_args_list))
 
 

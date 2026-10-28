@@ -48,14 +48,7 @@
 
 #include "graphics_test_sanitizers.h"
 
-#if defined(DM_TEST_APP_GRAPHICS_HAS_METAL)
-#include <Metal.hpp>
-
-namespace dmGraphicsTest
-{
-    void SetTextureUploadObserver(dmGraphics::HContext context, void (*observer)(void*, uint64_t, uint32_t, uint64_t, uint32_t), void* user_data);
-}
-#endif
+#include "test_app_graphics_texture_upload.h"
 
 // From engine_private.h
 
@@ -1223,9 +1216,17 @@ struct AsyncTextureUploadTest : ITest
     }
 };
 
-#if defined(DM_TEST_APP_GRAPHICS_HAS_METAL)
+static uint64_t TextureUploadTestMemoryLimit()
+{
+    if (!HasArgument("upload-small-budget"))
+        return 64ULL * 1024 * 1024;
+    dmGraphics::AdapterFamily family = dmGraphics::GetInstalledAdapterFamily();
+    return family == dmGraphics::ADAPTER_FAMILY_VULKAN ? 128 : family == dmGraphics::ADAPTER_FAMILY_WEBGPU ? 32 :
+                                                                                                             1024;
+}
+
 // GPU readback verifies batched mip/slice contents, inferred dimensions, memory
-// accounting, ordering and deletion. Run with "metal texture-upload-batch", optionally "upload-no-workers"
+// accounting, ordering and deletion. Run with "<adapter> texture-upload-batch", optionally "upload-no-workers"
 // and "upload-small-budget" to force mip splitting and oversized individual mips.
 struct TextureUploadBatchTest : ITest
 {
@@ -1237,6 +1238,7 @@ struct TextureUploadBatchTest : ITest
         dmGraphics::TextureParams m_Params[2][MIP_COUNT];
         dmArray<uint8_t> m_Data[2][MIP_COUNT];
         uint32_t m_Layers;
+        dmGraphics::TextureType m_Type;
     };
     TextureCase m_Cases[CASE_COUNT];
     dmGraphics::HTexture m_DeletedTexture;
@@ -1248,6 +1250,7 @@ struct TextureUploadBatchTest : ITest
     uint64_t m_PeakStagingBytes;
     uint64_t m_TotalStagingBytes;
     uint64_t m_ExpectedStagingBytes;
+    uint64_t m_LargestExpectedMip;
     uint32_t m_BudgetErrors;
     uint32_t m_GroupedMips;
     uint32_t m_OversizedMips;
@@ -1259,7 +1262,8 @@ struct TextureUploadBatchTest : ITest
         if (total_bytes > test->m_PeakStagingBytes)
             test->m_PeakStagingBytes = total_bytes;
         test->m_TotalStagingBytes += batch_bytes;
-        if (in_flight > 4 || (total_bytes > test->m_MemoryLimit && (in_flight != 1 || batch_bytes != total_bytes || mip_count != 1)))
+        bool too_many = dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_METAL && in_flight > 4;
+        if (too_many || (total_bytes > test->m_MemoryLimit && (in_flight != 1 || batch_bytes != total_bytes || mip_count != 1)))
             ++test->m_BudgetErrors;
         if (mip_count > 1)
             ++test->m_GroupedMips;
@@ -1267,24 +1271,43 @@ struct TextureUploadBatchTest : ITest
             ++test->m_OversizedMips;
     }
 
-    static uint32_t ExpectedStagingBytes(uint32_t texture_case, uint32_t mip)
+    uint64_t ExpectedStagingBytes(dmGraphics::HContext context, const TextureCase& texture, const dmGraphics::TextureParams& base, const dmGraphics::TextureParams& params)
     {
-        // All fixture rows pad to 256 bytes. These independent expectations include
-        // the mip's rows, depth and layers, even when upload dimensions are omitted.
-        static const uint32_t bytes[CASE_COUNT][MIP_COUNT] = {
-            { 256, 256, 256 },    // RGB resize, one row
-            { 1280, 512, 256 },   // RGBA32F
-            { 3840, 1536, 768 },  // RGBA array
-            { 6144, 3072, 1536 }, // RGBA cubemap
-            { 512, 256, 256 },    // ASTC/BC1 block rows
-            { 4096, 1024, 256 },  // RGBA 3D
-            { 1792, 768, 256 },   // RGBA16F, one column
-            { 3840, 1536, 768 },  // RGB16F array
-            { 4096, 1024, 256 },  // RGB32F 3D
-            { 6144, 3072, 1536 }, // RGB cubemap
-            { 1024, 512, 256 },   // RGB32F 3D, depth stays one
-        };
-        return bytes[texture_case][mip];
+        using namespace dmGraphics;
+        AdapterFamily family = GetInstalledAdapterFamily();
+        TextureFormat format = dmGraphicsTest::GetTextureUploadStorageFormat(family, params.m_Format);
+        uint32_t layers = IsTextureType3D(texture.m_Type) ? 1 : params.m_LayerCount ? params.m_LayerCount :
+                                                                                      texture.m_Layers;
+        uint32_t depth = IsTextureType3D(texture.m_Type) ? dmMath::Max(1U, (uint32_t)params.m_Depth) : 1;
+        uint64_t bytes = 0;
+        if (family == ADAPTER_FAMILY_WEBGPU)
+        {
+            if (params.m_Format == TEXTURE_FORMAT_RGB)
+                bytes = (uint64_t)params.m_Width * params.m_Height * 4 * depth * (texture.m_Type == TEXTURE_TYPE_CUBE_MAP ? 1 : layers);
+        }
+        else if (family == ADAPTER_FAMILY_DIRECTX)
+            bytes = dmGraphicsTest::GetDX12TextureUploadExpectedBytes(context, texture.m_Type, base, params, MIP_COUNT, texture.m_Layers);
+        else if (family != ADAPTER_FAMILY_OPENGL && family != ADAPTER_FAMILY_OPENGLES)
+        {
+            TextureFormatCompressedBlockSize block;
+            bool compressed = GetTextureFormatCompressedBlockSize(format, &block);
+            uint32_t row_bytes = compressed ? ((params.m_Width + block.m_Width - 1) / block.m_Width) * block.m_ByteSize : params.m_Width * GetTextureFormatBitsPerPixel(format) / 8;
+            uint32_t rows = compressed ? (params.m_Height + block.m_Height - 1) / block.m_Height : params.m_Height;
+            if (family == ADAPTER_FAMILY_METAL)
+                bytes = (uint64_t)((row_bytes + 255) & ~255U) * rows * depth * layers;
+            else
+            {
+                uint32_t texel = compressed ? block.m_ByteSize : GetTextureFormatBitsPerPixel(format) / 8;
+                uint32_t alignment = texel;
+                while (alignment % 4)
+                    alignment += texel;
+                uint32_t slice = row_bytes * rows * depth;
+                uint32_t stride = ((slice + alignment - 1) / alignment) * alignment;
+                bytes = (uint64_t)stride * (layers - 1) + slice;
+            }
+        }
+        m_LargestExpectedMip = dmMath::Max(m_LargestExpectedMip, bytes);
+        return bytes;
     }
 
     static void Uploaded(dmGraphics::HTexture, void* user_data)
@@ -1301,9 +1324,9 @@ struct TextureUploadBatchTest : ITest
         m_MainThread = dmThread::GetCurrentThread();
         dmAtomicStore32(&m_CallbackCount, 0);
         dmAtomicStore32(&m_WrongCallbackThread, 0);
-        m_MemoryLimit = HasArgument("upload-small-budget") ? 1024 : 64 * 1024 * 1024;
+        m_MemoryLimit = TextureUploadTestMemoryLimit();
         m_PeakStagingBytes = 0;
-        m_TotalStagingBytes = m_ExpectedStagingBytes = 0;
+        m_TotalStagingBytes = m_ExpectedStagingBytes = m_LargestExpectedMip = 0;
         m_BudgetErrors = m_GroupedMips = m_OversizedMips = 0;
         m_ReadbackCompleted = false;
         dmGraphicsTest::SetTextureUploadObserver(context, Reserved, this);
@@ -1312,6 +1335,11 @@ struct TextureUploadBatchTest : ITest
         };
         if (!dmGraphics::IsTextureFormatSupported(context, formats[4]))
             formats[4] = dmGraphics::TEXTURE_FORMAT_RGB_BC1;
+        for (uint32_t c = 0; c < CASE_COUNT; ++c)
+        {
+            if (!dmGraphics::IsTextureFormatSupported(context, formats[c]))
+                formats[c] = formats[c] == dmGraphics::TEXTURE_FORMAT_RGB16F ? dmGraphics::TEXTURE_FORMAT_RGBA16F : dmGraphics::TEXTURE_FORMAT_RGBA32F;
+        }
         for (uint32_t c = 0; c < CASE_COUNT; ++c)
         {
             TextureCase& tc = m_Cases[c];
@@ -1326,11 +1354,15 @@ struct TextureUploadBatchTest : ITest
             creation.m_Height = c == 3 || c == 5 || c == 8 || c == 9 || c == 10 ? 4 : c == 0 ? 1 :
             c == 6                                                                           ? 7 :
                                                                                                5;
+            if (c == 4 && dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_DIRECTX)
+                creation.m_Width = creation.m_Height = 8; // BC base images must be block-aligned on D3D12.
             creation.m_Depth = c == 5 || c == 8 ? 4 : 1;
             creation.m_LayerCount = c == 2 || c == 7 ? 3 : 1;
             creation.m_MipMapCount = MIP_COUNT;
             tc.m_Layers = c == 3 || c == 9 ? 6 : creation.m_LayerCount;
+            tc.m_Type = creation.m_Type;
             tc.m_Texture = dmGraphics::NewTexture(context, creation);
+            dmGraphicsTest::PrepareTextureUploadReadback(context, tc.m_Texture);
             for (uint32_t stage = 0; stage < 2; ++stage)
             {
                 for (uint32_t mip = 0; mip < MIP_COUNT; ++mip)
@@ -1345,15 +1377,36 @@ struct TextureUploadBatchTest : ITest
                     params.m_DataSize = dmGraphics::GetTextureFormatDataSize(params.m_Format, params.m_Width, params.m_Height) * params.m_Depth;
                     tc.m_Data[stage][mip].SetCapacity(params.m_DataSize * tc.m_Layers);
                     tc.m_Data[stage][mip].SetSize(params.m_DataSize * tc.m_Layers);
-                    for (uint32_t i = 0; i < tc.m_Data[stage][mip].Size(); ++i)
-                        tc.m_Data[stage][mip][i] = (uint8_t)(stage * 71 + c * 13 + mip * 7 + i % 251);
+                    bool float32 = formats[c] == dmGraphics::TEXTURE_FORMAT_RGB32F || formats[c] == dmGraphics::TEXTURE_FORMAT_RGBA32F;
+                    bool float16 = formats[c] == dmGraphics::TEXTURE_FORMAT_RGB16F || formats[c] == dmGraphics::TEXTURE_FORMAT_RGBA16F;
+                    if (float32)
+                    {
+                        for (uint32_t i = 0; i < tc.m_Data[stage][mip].Size() / sizeof(float); ++i)
+                        {
+                            float value = (stage * 71 + c * 13 + mip * 7 + i % 251) * 0.125f;
+                            memcpy(tc.m_Data[stage][mip].Begin() + i * sizeof(float), &value, sizeof(value));
+                        }
+                    }
+                    else if (float16)
+                    {
+                        for (uint32_t i = 0; i < tc.m_Data[stage][mip].Size() / sizeof(uint16_t); ++i)
+                        {
+                            uint16_t value = (uint16_t)(0x3800 + ((stage * 71 + c * 13 + mip * 7 + i) % 1024));
+                            memcpy(tc.m_Data[stage][mip].Begin() + i * sizeof(value), &value, sizeof(value));
+                        }
+                    }
+                    else
+                    {
+                        for (uint32_t i = 0; i < tc.m_Data[stage][mip].Size(); ++i)
+                            tc.m_Data[stage][mip][i] = (uint8_t)(stage * 71 + c * 13 + mip * 7 + i % 251);
+                    }
                     params.m_Data = tc.m_Data[stage][mip].Begin();
                 }
                 dmGraphics::TextureParams batch[MIP_COUNT];
                 memcpy(batch, tc.m_Params[stage], sizeof(batch));
                 for (uint32_t mip = 0; mip < MIP_COUNT; ++mip)
                 {
-                    m_ExpectedStagingBytes += ExpectedStagingBytes(c, mip);
+                    m_ExpectedStagingBytes += ExpectedStagingBytes(context, tc, tc.m_Params[stage][0], tc.m_Params[stage][mip]);
                     if (mip > 0)
                     {
                         // Inferred mip dimensions must stop at one instead of zero.
@@ -1368,7 +1421,7 @@ struct TextureUploadBatchTest : ITest
                 dmGraphics::SetTextureAsyncBatch(context, tc.m_Texture, batch, MIP_COUNT);
                 memset(batch, 0, sizeof(batch));
             }
-            m_ExpectedStagingBytes += ExpectedStagingBytes(c, 0);
+            m_ExpectedStagingBytes += ExpectedStagingBytes(context, tc, tc.m_Params[1][0], tc.m_Params[1][0]);
             dmGraphics::SetTextureAsync(context, tc.m_Texture, tc.m_Params[1][0], Uploaded, this);
         }
 
@@ -1382,8 +1435,14 @@ struct TextureUploadBatchTest : ITest
         patch.m_Width = patch.m_Height = 1;
         patch.m_Data = m_PatchData;
         patch.m_DataSize = sizeof(m_PatchData);
-        m_ExpectedStagingBytes += 256;
+        m_ExpectedStagingBytes += ExpectedStagingBytes(context, m_Cases[2], m_Cases[2].m_Params[1][0], patch);
         dmGraphics::SetTextureAsync(context, m_Cases[2].m_Texture, patch, 0, 0);
+        dmGraphics::AdapterFamily family = dmGraphics::GetInstalledAdapterFamily();
+        patch.m_Slice = 0;
+        patch.m_Z = 1;
+        patch.m_Depth = family == dmGraphics::ADAPTER_FAMILY_METAL || family == dmGraphics::ADAPTER_FAMILY_OPENGL ? 1 : 0;
+        m_ExpectedStagingBytes += ExpectedStagingBytes(context, m_Cases[5], m_Cases[5].m_Params[1][0], patch);
+        dmGraphics::SetTextureAsync(context, m_Cases[5].m_Texture, patch, 0, 0);
 
         dmGraphics::TextureCreationParams creation;
         creation.m_Width = 7;
@@ -1391,10 +1450,10 @@ struct TextureUploadBatchTest : ITest
         creation.m_MipMapCount = MIP_COUNT;
         m_DeletedTexture = dmGraphics::NewTexture(context, creation);
         // A synchronous upload shares the staging budget with other queued textures.
-        m_ExpectedStagingBytes += ExpectedStagingBytes(0, 0);
+        m_ExpectedStagingBytes += ExpectedStagingBytes(context, m_Cases[0], m_Cases[0].m_Params[1][0], m_Cases[0].m_Params[1][0]);
         dmGraphics::SetTexture(context, m_DeletedTexture, m_Cases[0].m_Params[1][0]);
         for (uint32_t mip = 0; mip < MIP_COUNT; ++mip)
-            m_ExpectedStagingBytes += ExpectedStagingBytes(0, mip);
+            m_ExpectedStagingBytes += ExpectedStagingBytes(context, m_Cases[0], m_Cases[0].m_Params[1][0], m_Cases[0].m_Params[1][mip]);
         dmGraphics::SetTextureAsyncBatch(context, m_DeletedTexture, m_Cases[0].m_Params[1], MIP_COUNT);
         dmGraphics::DeleteTexture(context, m_DeletedTexture);
     }
@@ -1403,41 +1462,37 @@ struct TextureUploadBatchTest : ITest
     {
         TextureCase& tc = m_Cases[c];
         const dmGraphics::TextureParams& params = tc.m_Params[1][mip];
-        void* handle = 0;
-        ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK, dmGraphics::GetTextureHandle(tc.m_Texture, &handle));
-        MTL::Texture* texture = (MTL::Texture*)handle;
-        const bool compressed = c == 4;
+        const dmGraphics::TextureFormat storage_format = dmGraphicsTest::GetTextureUploadStorageFormat(dmGraphics::GetInstalledAdapterFamily(), params.m_Format);
+        dmGraphics::TextureFormatCompressedBlockSize block;
+        const bool compressed = dmGraphics::GetTextureFormatCompressedBlockSize(storage_format, &block);
         const uint32_t rgb_component_size = params.m_Format == dmGraphics::TEXTURE_FORMAT_RGB ? 1 :
         params.m_Format == dmGraphics::TEXTURE_FORMAT_RGB16F                                  ? 2 :
         params.m_Format == dmGraphics::TEXTURE_FORMAT_RGB32F                                  ? 4 :
                                                                                                 0;
-        const bool rgb = rgb_component_size != 0;
-        const uint32_t rows = compressed ? (params.m_Height + 3) / 4 : params.m_Height;
-        const uint32_t block_bytes = params.m_Format == dmGraphics::TEXTURE_FORMAT_RGB_BC1 ? 8 : 16;
-        const uint32_t row_bytes = compressed ? ((params.m_Width + 3) / 4) * block_bytes :
-                                                params.m_Width * (rgb ? 4 * rgb_component_size : dmGraphics::GetTextureFormatBitsPerPixel(params.m_Format) / 8);
+        const bool rgb = rgb_component_size != 0 && storage_format != params.m_Format;
+        const uint32_t rows = compressed ? (params.m_Height + block.m_Height - 1) / block.m_Height : params.m_Height;
+        const uint32_t row_bytes = compressed ? ((params.m_Width + block.m_Width - 1) / block.m_Width) * block.m_ByteSize : params.m_Width * dmGraphics::GetTextureFormatBitsPerPixel(storage_format) / 8;
         const uint32_t source_row_bytes = rgb ? params.m_Width * 3 * rgb_component_size : row_bytes;
         const uint8_t alpha8[] = { 255 };
         const uint8_t alpha16[] = { 0, 0x3c };
         const uint8_t alpha32[] = { 0, 0, 0x80, 0x3f };
         const uint8_t* alpha = rgb_component_size == 1 ? alpha8 : rgb_component_size == 2 ? alpha16 :
                                                                                             alpha32;
-        const uint32_t row_pitch = (row_bytes + 255) & ~255;
+        const uint32_t row_pitch = row_bytes;
         const uint32_t image_pitch = row_pitch * rows;
         const uint32_t slice_pitch = image_pitch * params.m_Depth;
-        MTL::Buffer* buffer = texture->device()->newBuffer(slice_pitch * tc.m_Layers, MTL::ResourceStorageModeShared);
-        MTL::CommandQueue* queue = texture->device()->newCommandQueue();
-        MTL::CommandBuffer* command = queue->commandBuffer();
-        MTL::BlitCommandEncoder* blit = command->blitCommandEncoder();
-        MTL::Origin origin = { 0, 0, 0 };
-        MTL::Size size = { params.m_Width, params.m_Height, params.m_Depth };
-        for (uint32_t slice = 0; slice < tc.m_Layers; ++slice)
-            blit->copyFromTexture(texture, slice, mip, origin, size, buffer, slice * slice_pitch, row_pitch, image_pitch);
-        blit->endEncoding();
-        command->commit();
-        command->waitUntilCompleted();
-        ASSERT_EQ(MTL::CommandBufferStatusCompleted, command->status());
-        const uint8_t* pixels = (const uint8_t*)buffer->contents();
+        dmGraphicsTest::TextureUploadReadback readback;
+        readback.m_Format = storage_format;
+        readback.m_Mip = mip;
+        readback.m_Width = params.m_Width;
+        readback.m_Height = params.m_Height;
+        readback.m_Depth = params.m_Depth;
+        readback.m_Layers = tc.m_Layers;
+        readback.m_RowBytes = row_bytes;
+        readback.m_Rows = rows;
+        dmArray<uint8_t> data;
+        ASSERT_TRUE(dmGraphicsTest::ReadTextureUpload(engine->m_GraphicsContext, tc.m_Texture, readback, data));
+        const uint8_t* pixels = data.Begin();
         const uint8_t* source = (const uint8_t*)tc.m_Params[c == 1 && mip == 0 ? 0 : 1][mip].m_Data;
         for (uint32_t slice = 0; slice < tc.m_Layers; ++slice)
         {
@@ -1460,7 +1515,7 @@ struct TextureUploadBatchTest : ITest
                         {
                             expected = src[x];
                         }
-                        if (c == 2 && mip == 0 && slice == 1 && y == 1 && x >= 4 && x < 8)
+                        if (mip == 0 && y == 1 && x >= 4 && x < 8 && ((c == 2 && slice == 1) || (c == 5 && z == 1)))
                             expected = 0x44;
                         if (dst[x] != expected)
                         {
@@ -1474,16 +1529,12 @@ struct TextureUploadBatchTest : ITest
                                        expected,
                                        dst[x]);
                             engine->m_Failed = true;
-                            buffer->release();
-                            queue->release();
                             return;
                         }
                     }
                 }
             }
         }
-        buffer->release();
-        queue->release();
     }
 
     void Execute(EngineCtx* engine) override
@@ -1494,9 +1545,11 @@ struct TextureUploadBatchTest : ITest
             if (dmGraphics::GetTextureStatusFlags(engine->m_GraphicsContext, m_Cases[c].m_Texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
                 return;
         ASSERT_EQ(0, dmAtomicGet32(&m_WrongCallbackThread));
-        // A synchronous update must follow an already queued asynchronous update.
-        m_ExpectedStagingBytes += 2 * ExpectedStagingBytes(1, 0);
-        dmGraphics::SetTextureAsync(engine->m_GraphicsContext, m_Cases[1].m_Texture, m_Cases[1].m_Params[1][0], 0, 0);
+        // Repeated updates during a frame cross both the submission and staging
+        // bounds. The final synchronous update must follow every queued update.
+        m_ExpectedStagingBytes += 9 * ExpectedStagingBytes(engine->m_GraphicsContext, m_Cases[1], m_Cases[1].m_Params[1][0], m_Cases[1].m_Params[1][0]);
+        for (uint32_t i = 0; i < 8; ++i)
+            dmGraphics::SetTextureAsync(engine->m_GraphicsContext, m_Cases[1].m_Texture, m_Cases[1].m_Params[1][0], 0, 0);
         dmGraphics::SetTexture(engine->m_GraphicsContext, m_Cases[1].m_Texture, m_Cases[1].m_Params[0][0]);
         for (uint32_t c = 0; c < CASE_COUNT; ++c)
             for (uint32_t mip = 0; mip < MIP_COUNT; ++mip)
@@ -1528,12 +1581,12 @@ struct TextureUploadBatchTest : ITest
     {
         // Shutdown has joined the worker and GPU callbacks, including the final batch.
         ASSERT_EQ(0U, m_BudgetErrors);
-        ASSERT_GT(m_GroupedMips, 0U);
-        ASSERT_GT(m_PeakStagingBytes, 0ULL);
-        if (m_MemoryLimit == 1024)
+        if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_WEBGPU)
+            ASSERT_GT(m_GroupedMips, 0U);
+        ASSERT_GE(m_PeakStagingBytes, m_LargestExpectedMip);
+        if (m_LargestExpectedMip > m_MemoryLimit)
         {
-            // The largest mip is the 4x4 RGB cubemap: 256-byte rows * 4 * 6 faces.
-            ASSERT_EQ(6144ULL, m_PeakStagingBytes);
+            ASSERT_EQ(m_LargestExpectedMip, m_PeakStagingBytes);
             ASSERT_GT(m_OversizedMips, 0U);
         }
         else
@@ -1543,7 +1596,6 @@ struct TextureUploadBatchTest : ITest
         }
     }
 };
-#endif
 
 // Regression test for https://github.com/defold/defold/issues/12878.
 //
@@ -1558,11 +1610,9 @@ struct AsyncTextureUploadShutdownTest : ITest
     int32_atomic_t             m_BlockWorker;
     int32_atomic_t             m_WorkerStarted;
     int32_atomic_t             m_WorkerReleased;
-    int32_atomic_t             m_WorkerDrained;
     int32_atomic_t             m_UploadCallbackCalled;
     dmGraphics::HTexture       m_Texture;
     dmGraphics::TextureParams  m_TextureParams;
-    bool                       m_TestMetalCompletionLifetime;
 
     AsyncTextureUploadShutdownTest()
     : m_Texture(0)
@@ -1570,9 +1620,7 @@ struct AsyncTextureUploadShutdownTest : ITest
         dmAtomicStore32(&m_BlockWorker, 1);
         dmAtomicStore32(&m_WorkerStarted, 0);
         dmAtomicStore32(&m_WorkerReleased, 0);
-        dmAtomicStore32(&m_WorkerDrained, 0);
         dmAtomicStore32(&m_UploadCallbackCalled, 0);
-        m_TestMetalCompletionLifetime = false;
     }
 
     static int BlockWorker(HJobContext, HJob, void*, void* data)
@@ -1589,13 +1637,6 @@ struct AsyncTextureUploadShutdownTest : ITest
         // correct CloseWindow implementation will wait for this job and the
         // queued upload instead.
         dmTime::Sleep(1000 * 1000);
-        return 0;
-    }
-
-    static int MarkWorkerDrained(HJobContext, HJob, void*, void* data)
-    {
-        AsyncTextureUploadShutdownTest* test = (AsyncTextureUploadShutdownTest*) data;
-        dmAtomicStore32(&test->m_WorkerDrained, 1);
         return 0;
     }
 
@@ -1626,7 +1667,6 @@ struct AsyncTextureUploadShutdownTest : ITest
 
     void Initialize(EngineCtx* engine) override
     {
-        m_TestMetalCompletionLifetime = dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_METAL;
         PushJob(engine->m_JobContext, BlockWorker, this);
         if (!WaitForAtomic(&m_WorkerStarted, 1, 5 * 1000 * 1000))
         {
@@ -1652,15 +1692,7 @@ struct AsyncTextureUploadShutdownTest : ITest
         m_TextureParams.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
 
         m_Texture = dmGraphics::NewTexture(engine->m_GraphicsContext, creation_params);
-        dmGraphics::SetTextureAsync(engine->m_GraphicsContext, m_Texture, m_TextureParams,
-            m_TestMetalCompletionLifetime ? UploadComplete : 0,
-            m_TestMetalCompletionLifetime ? this : 0);
-
-        if (!m_TestMetalCompletionLifetime)
-        {
-            // This sentinel can only run after the async texture job has returned.
-            PushJob(engine->m_JobContext, MarkWorkerDrained, this);
-        }
+        dmGraphics::SetTextureAsync(engine->m_GraphicsContext, m_Texture, m_TextureParams, UploadComplete, this);
     }
 
     void OnGraphicsClosing(EngineCtx* engine) override
@@ -1678,9 +1710,7 @@ struct AsyncTextureUploadShutdownTest : ITest
     void OnGraphicsClosed(EngineCtx* engine) override
     {
         dmLogInfo("Issue #12878 reproducer: graphics device destroyed; verifying async texture work drained");
-        bool drained = m_TestMetalCompletionLifetime
-            ? dmAtomicGet32(&m_UploadCallbackCalled) == 1
-            : dmAtomicGet32(&m_WorkerDrained) != 0;
+        bool drained = dmAtomicGet32(&m_UploadCallbackCalled) == 1;
         if (drained)
         {
             delete[] (const uint8_t*) m_TextureParams.m_Data;
@@ -1695,16 +1725,12 @@ struct AsyncTextureUploadShutdownTest : ITest
 
     void OnGraphicsDeleted(EngineCtx* engine) override
     {
-        if (m_TestMetalCompletionLifetime)
+        // No upload completion callback may retain the deleted graphics context.
+        JobSystemUpdate(engine->m_JobContext, 0);
+        if (dmAtomicGet32(&m_UploadCallbackCalled) != 1)
         {
-            // No Metal completion callback may remain queued with a pointer to
-            // the deleted graphics context.
-            JobSystemUpdate(engine->m_JobContext, 0);
-            if (dmAtomicGet32(&m_UploadCallbackCalled) != 1)
-            {
-                dmLogError("Issue #12878 reproducer: upload callback ran after graphics deletion");
-                engine->m_Failed = true;
-            }
+            dmLogError("Issue #12878 reproducer: upload callback ran after graphics deletion");
+            engine->m_Failed = true;
         }
     }
 };
@@ -2597,6 +2623,7 @@ static void* EngineCreate(int argc, char** argv)
     window_params.m_Width                  = 512;
     window_params.m_Height                 = 512;
     window_params.m_Title                  = "Graphics Test App";
+    window_params.m_Hidden                 = HasArgument("texture-upload-batch") || HasArgument("issue-12878");
     window_params.m_GraphicsApi            = WINDOW_GRAPHICS_API_VULKAN;
     window_params.m_CloseCallback          = OnWindowClose;
     window_params.m_CloseCallbackUserData  = (void*) engine;
@@ -2628,12 +2655,14 @@ static void* EngineCreate(int argc, char** argv)
         return 0;
     }
 
-    dmPlatform::ShowWindow(engine->m_Window);
+    if (!window_params.m_Hidden)
+        dmPlatform::ShowWindow(engine->m_Window);
 
     JobSystemCreateParams job_thread_create_param = {0};
-    job_thread_create_param.m_ThreadCount = HasArgument("upload-no-workers") ? 0 : HasArgument("texture-upload-batch") ? 2 :
-    HasArgument("issue-12878") && dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_METAL          ? 2 :
-                                                                                                                         1;
+    job_thread_create_param.m_ThreadCount = HasArgument("upload-no-workers") ? 0 : HasArgument("upload-one-worker") ? 1 :
+    HasArgument("texture-upload-batch")                                                                             ? 2 :
+    HasArgument("issue-12878") && dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_METAL       ? 2 :
+                                                                                                                      1;
     engine->m_JobContext = JobSystemCreate(&job_thread_create_param);
 
     dmGraphics::ContextParams graphics_context_params = {};
@@ -2647,8 +2676,8 @@ static void* EngineCreate(int argc, char** argv)
     graphics_context_params.m_Width                   = 512;
     graphics_context_params.m_Height                  = 512;
     graphics_context_params.m_JobContext              = engine->m_JobContext;
-    if (HasArgument("upload-small-budget"))
-        graphics_context_params.m_TextureUploadMemoryLimit = 1024;
+    if (HasArgument("texture-upload-batch"))
+        graphics_context_params.m_TextureUploadMemoryLimit = TextureUploadTestMemoryLimit();
 
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
     if (!engine->m_GraphicsContext)
@@ -2699,28 +2728,17 @@ static void* EngineCreate(int argc, char** argv)
         dmLogInfo("test_app_graphics: running PackedDepthStencilTextureTest");
         engine->m_Test = new PackedDepthStencilTextureTest();
     }
-#if defined(DM_TEST_APP_GRAPHICS_HAS_METAL)
     else if (HasArgument("texture-upload-batch"))
     {
         dmLogInfo("test_app_graphics: running TextureUploadBatchTest");
-        if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_METAL)
-        {
-            dmLogError("Texture upload batch test requires the Metal adapter");
-            engine->m_Failed = true;
-            engine->m_Test = new ClearBackbufferTest();
-        }
-        else
-        {
-            engine->m_Test = new TextureUploadBatchTest();
-        }
+        engine->m_Test = new TextureUploadBatchTest();
     }
-#endif
     else if (HasArgument("issue-12878"))
     {
         dmGraphics::AdapterFamily family = dmGraphics::GetInstalledAdapterFamily();
-        if (family != dmGraphics::ADAPTER_FAMILY_VULKAN && family != dmGraphics::ADAPTER_FAMILY_METAL)
+        if (family != dmGraphics::ADAPTER_FAMILY_VULKAN && family != dmGraphics::ADAPTER_FAMILY_METAL && family != dmGraphics::ADAPTER_FAMILY_OPENGL)
         {
-            dmLogError("Issue #12878 reproducer requires the Vulkan or Metal adapter");
+            dmLogError("Issue #12878 reproducer requires an asynchronous texture adapter");
             engine->m_Failed = true;
             engine->m_Test = new ClearBackbufferTest();
         }
@@ -2849,7 +2867,7 @@ static UpdateResult EngineUpdate(void* _engine)
     dmGraphics::Flip(engine->m_GraphicsContext);
     engine->m_Test->AfterFlip(engine);
 
-    if (ShouldAutoExit() && !HasArgument("issue-12898-12902") && engine->m_WasRun >= TEST_APP_GRAPHICS_MAX_FRAME_COUNT)
+    if (ShouldAutoExit() && !HasArgument("issue-12898-12902") && !HasArgument("texture-upload-batch") && engine->m_WasRun >= TEST_APP_GRAPHICS_MAX_FRAME_COUNT)
     {
         return RESULT_EXIT;
     }
@@ -2923,6 +2941,10 @@ static bool InstallAdapter(int argc, char **argv)
         else if (strcmp(argv[i], "webgpu") == 0)
         {
             family = dmGraphics::ADAPTER_FAMILY_WEBGPU;
+        }
+        else if (strcmp(argv[i], "dx12") == 0)
+        {
+            family = dmGraphics::ADAPTER_FAMILY_DIRECTX;
         }
     }
 

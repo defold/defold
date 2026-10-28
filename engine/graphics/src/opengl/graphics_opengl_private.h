@@ -174,12 +174,12 @@ namespace dmGraphics
 
         GraphicsContext         m_BaseContext;
         SetTextureAsyncState    m_SetTextureAsyncState;
+        TextureUploadQueue      m_TextureUploads;
         HJobContext             m_JobContext;
         dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
         char*                   m_ExtensionsString;
         void*                   m_AuxContext;
         int32_atomic_t          m_AuxContextJobPending;
-        int32_atomic_t          m_DeleteContextRequested;
 
         OpenGLProgram*          m_CurrentProgram;
         OpenGLUniformBuffer*    m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];

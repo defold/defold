@@ -22,7 +22,6 @@
 #include <dmsdk/dlib/atomic.h>
 
 #include <dlib/hashtable.h>
-#include <dlib/condition_variable.h>
 #include <dlib/opaque_handle_container.h>
 
 #include "../graphics_private.h"
@@ -33,12 +32,6 @@ namespace dmGraphics
     struct MetalContext;
     struct MetalPipeline;
     struct MetalResourceToDestroy;
-    struct MetalTextureUpload;
-
-    // Optional private diagnostic observer, called under the staging mutex.
-    // Install before submitting uploads; the observer and user data must outlive them.
-    typedef void (*MetalTextureUploadObserver)(void* user_data, uint64_t total_bytes, uint32_t in_flight, uint64_t batch_bytes, uint32_t mip_count);
-
     typedef dmHashTable64<MetalPipeline> PipelineCache;
     typedef dmArray<MetalResourceToDestroy>   MetalResourcesToDestroyList;
 
@@ -348,19 +341,7 @@ namespace dmGraphics
         // Async process resources
         HJobContext                        m_JobContext;
         SetTextureAsyncState               m_SetTextureAsyncState;
-        int32_atomic_t                     m_DeleteContextRequested;
-        int32_atomic_t                     m_PendingAsyncTextureJobs;
-        int32_atomic_t                     m_PendingAsyncTextureWorkers;
-        dmMutex::HMutex                    m_TextureUploadMutex;
-        dmConditionVariable::HConditionVariable m_TextureUploadCondition;
-        MetalTextureUpload*                m_TextureUploadHead;
-        MetalTextureUpload*                m_TextureUploadTail;
-        uint64_t                           m_InFlightTextureUploadBytes;
-        uint64_t                           m_TextureUploadMemoryLimit;
-        uint32_t                           m_InFlightTextureUploads;
-        bool                               m_TextureUploadJobQueued;
-        MetalTextureUploadObserver         m_TextureUploadObserver;
-        void*                              m_TextureUploadObserverData;
+        TextureUploadQueue                 m_TextureUploads;
         dispatch_semaphore_t               m_FrameBoundarySemaphore;
 
         // Per-frame render state

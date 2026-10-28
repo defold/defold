@@ -264,6 +264,10 @@ namespace dmGraphics
         uint64_t                      m_FenceValue;
         dmArray<ID3D12Resource*>      m_ResourcesToDestroy;
         dmArray<ID3D12RootSignature*> m_RootSignaturesToDestroy;
+        dmArray<ID3D12Resource*>      m_TextureUploadResources;
+        dmArray<uint64_t>             m_TextureUploadReservations;
+        // Non-owning; the context keeps its budget alive through GPU retirement.
+        TextureUploadMemoryBudget*    m_TextureUploadBudget;
     };
 
     struct DX12OneTimeCommandList

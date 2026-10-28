@@ -161,6 +161,10 @@ struct DX12Test : public jc_test_base_class
         RequireHR(factory->EnumWarpAdapter(IID_PPV_ARGS(&warp)));
         m_Context = new DX12Context();
         g_DX12Context = m_Context;
+        TextureUploadMemoryBudget& budget = m_Context->m_BaseContext.m_TextureUploadMemoryBudget;
+        budget.m_Limit = DEFAULT_TEXTURE_UPLOAD_MEMORY_LIMIT;
+        budget.m_Mutex = dmMutex::New();
+        budget.m_Condition = dmConditionVariable::New();
         RequireHR(D3D12CreateDevice(warp.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&m_Context->m_Device)));
         RequireHR(m_Context->m_Device->QueryInterface(IID_PPV_ARGS(&m_Info)));
         D3D12_MESSAGE_ID clear_warnings[] = {
@@ -240,6 +244,8 @@ struct DX12Test : public jc_test_base_class
         }
         m_Info.Reset();
         m_Context->m_Device->Release();
+        dmConditionVariable::Delete(m_Context->m_BaseContext.m_TextureUploadMemoryBudget.m_Condition);
+        dmMutex::Delete(m_Context->m_BaseContext.m_TextureUploadMemoryBudget.m_Mutex);
         delete m_Context;
         g_DX12Context = 0;
     }
@@ -315,6 +321,52 @@ struct DX12Test : public jc_test_base_class
         readback->Unmap(0, 0);
     }
 };
+
+// Verifies frame uploads retire staging under budget pressure, including an
+// oversized base mip, and preserve pixels through repeated compact RGB patches.
+TEST_F(DX12Test, TextureUploadBudgetMakesFrameProgress)
+{
+    TextureUploadMemoryBudget& budget = m_Context->m_BaseContext.m_TextureUploadMemoryBudget;
+    budget.m_Limit = 1024;
+    HTexture texture = CreateTestTexture(TEXTURE_TYPE_2D, 8, 8, 1, 1);
+    uint8_t base[8 * 8 * 3];
+    memset(base, 17, sizeof(base));
+    TextureParams params;
+    params.m_Format = TEXTURE_FORMAT_RGB;
+    params.m_Width = params.m_Height = 8;
+    params.m_Data = base;
+    params.m_DataSize = sizeof(base);
+    SetTexture(GetContext(), texture, params);
+    ASSERT_GT(budget.m_ReservedBytes, budget.m_Limit);
+    ASSERT_EQ(1u, budget.m_InFlight);
+
+    uint8_t patch[2 * 2 * 3];
+    params.m_SubUpdate = 1;
+    params.m_X = params.m_Y = 1;
+    params.m_Width = params.m_Height = 2;
+    params.m_Data = patch;
+    params.m_DataSize = sizeof(patch);
+    for (uint32_t i = 0; i < 8; ++i)
+    {
+        memset(patch, 80 + i, sizeof(patch));
+        SetTexture(GetContext(), texture, params);
+        ASSERT_GT(budget.m_ReservedBytes, 0u);
+        ASSERT_LE(budget.m_ReservedBytes, budget.m_Limit);
+    }
+    dmArray<uint8_t> pixels;
+    ReadTexture(texture, 0, 0, pixels);
+    for (uint32_t y = 0; y < 8; ++y)
+        for (uint32_t x = 0; x < 8; ++x)
+        {
+            const uint8_t expected = x >= 1 && x < 3 && y >= 1 && y < 3 ? 87 : 17;
+            for (uint32_t channel = 0; channel < 3; ++channel)
+                ASSERT_EQ(expected, pixels[(y * 8 + x) * 4 + channel]);
+            ASSERT_EQ(255, pixels[(y * 8 + x) * 4 + 3]);
+        }
+    FlushResourcesToDestroy(GetFrame());
+    ASSERT_EQ(0u, budget.m_ReservedBytes);
+    ASSERT_EQ(0u, budget.m_InFlight);
+}
 
 // Verifies array-layer uploads and partial RGB conversion preserve untouched pixels.
 TEST_F(DX12Test, ArrayUploadsAndPartialRGBUpdates)

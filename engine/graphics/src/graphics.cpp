@@ -27,6 +27,7 @@
 #include <dlib/profile.h>
 #include <dlib/math.h>
 #include <dlib/image.h>
+#include <dlib/time.h>
 
 #include <dmsdk/dlib/atomic.h>
 
@@ -335,12 +336,24 @@ namespace dmGraphics
     , m_VerifyGraphicsCalls(0)
     , m_PrintDeviceInfo(0)
     , m_UseValidationLayers(0)
-    , m_TextureUploadMemoryLimit(64 * 1024 * 1024)
+    , m_TextureUploadMemoryLimit(DEFAULT_TEXTURE_UPLOAD_MEMORY_LIMIT)
     {}
 
     HContext NewContext(const ContextParams& params)
     {
-        return g_functions.m_NewContext(params);
+        HContext context = g_functions.m_NewContext(params);
+        if (context)
+        {
+            TextureUploadMemoryBudget& budget = context->m_TextureUploadMemoryBudget;
+            budget.m_Limit = params.m_TextureUploadMemoryLimit ? params.m_TextureUploadMemoryLimit : DEFAULT_TEXTURE_UPLOAD_MEMORY_LIMIT;
+            budget.m_ReservedBytes = 0;
+            budget.m_InFlight = 0;
+            budget.m_Observer = 0;
+            budget.m_ObserverData = 0;
+            budget.m_Mutex = dmMutex::New();
+            budget.m_Condition = dmConditionVariable::New();
+        }
+        return context;
     }
 
     HContext GetInstalledContext()
@@ -1852,6 +1865,248 @@ namespace dmGraphics
         CalculateStd140StructSize(type_infos, 0, true);
     }
 
+    TextureUploadExtent GetTextureUploadExtent(const Texture& texture, const TextureParams& params)
+    {
+        // Resolve omitted dimensions from the full-size texture. Mip dimensions
+        // stop at one even when another dimension still has levels remaining.
+        TextureUploadExtent extent;
+        extent.m_Width = params.m_Width ? params.m_Width : dmMath::Max(1U, (uint32_t)GetMipmapSize(texture.m_Width, params.m_MipMap));
+        extent.m_Height = params.m_Height ? params.m_Height : dmMath::Max(1U, (uint32_t)GetMipmapSize(texture.m_Height, params.m_MipMap));
+        extent.m_Depth = IsTextureType3D(texture.m_Type) ? (params.m_Depth ? params.m_Depth : dmMath::Max(1U, (uint32_t)GetMipmapSize(texture.m_Depth, params.m_MipMap))) : 1;
+        return extent;
+    }
+
+    uint64_t GetTextureUploadMemoryLimit(const TextureUploadMemoryBudget& budget)
+    {
+        return budget.m_Limit ? budget.m_Limit : DEFAULT_TEXTURE_UPLOAD_MEMORY_LIMIT;
+    }
+
+    static bool CanReserveTextureUploadMemory(const TextureUploadMemoryBudget& budget, uint64_t bytes, uint32_t max_in_flight)
+    {
+        return !budget.m_InFlight || ((!max_in_flight || budget.m_InFlight < max_in_flight) && budget.m_ReservedBytes + bytes <= budget.m_Limit);
+    }
+
+    static void AddTextureUploadReservation(TextureUploadMemoryBudget& budget, uint64_t bytes, uint32_t mip_count)
+    {
+        ++budget.m_InFlight;
+        budget.m_ReservedBytes += bytes;
+        if (budget.m_Observer)
+            budget.m_Observer(budget.m_ObserverData, budget.m_ReservedBytes, budget.m_InFlight, bytes, mip_count);
+    }
+
+    void ReserveTextureUploadMemory(TextureUploadMemoryBudget& budget, uint64_t bytes, uint32_t mip_count, uint32_t max_in_flight)
+    {
+        // Adapter initialization can upload its small default textures before
+        // NewContext has initialized the application's staging budget.
+        if (!budget.m_Mutex)
+            return;
+        DM_MUTEX_SCOPED_LOCK(budget.m_Mutex);
+        while (!CanReserveTextureUploadMemory(budget, bytes, max_in_flight))
+            dmConditionVariable::Wait(budget.m_Condition, budget.m_Mutex);
+        AddTextureUploadReservation(budget, bytes, mip_count);
+    }
+
+    bool TryReserveTextureUploadMemory(TextureUploadMemoryBudget& budget, uint64_t bytes, uint32_t mip_count, uint32_t max_in_flight)
+    {
+        if (!budget.m_Mutex)
+            return true;
+        DM_MUTEX_SCOPED_LOCK(budget.m_Mutex);
+        if (!CanReserveTextureUploadMemory(budget, bytes, max_in_flight))
+            return false;
+        AddTextureUploadReservation(budget, bytes, mip_count);
+        return true;
+    }
+
+    void ReleaseTextureUploadMemory(TextureUploadMemoryBudget& budget, uint64_t bytes)
+    {
+        if (!budget.m_Mutex)
+            return;
+        DM_MUTEX_SCOPED_LOCK(budget.m_Mutex);
+        --budget.m_InFlight;
+        budget.m_ReservedBytes -= bytes;
+        dmConditionVariable::Signal(budget.m_Condition);
+    }
+
+    void InitializeTextureUploadQueue(TextureUploadQueue& queue, GraphicsContext* context, HJobContext job_context, ProcessTextureUpload process, void* backend_context)
+    {
+        queue.m_Context = context;
+        queue.m_JobContext = job_context;
+        queue.m_Process = process;
+        queue.m_BackendContext = backend_context;
+        queue.m_Head = queue.m_Tail = 0;
+        dmAtomicStore32(&queue.m_PendingRequests, 0);
+        dmAtomicStore32(&queue.m_PendingWorkers, 0);
+        dmAtomicStore32(&queue.m_Stopping, 0);
+        queue.m_WorkerQueued = false;
+        queue.m_Mutex = dmMutex::New();
+    }
+
+    static void FinishTextureUploadRequest(TextureUploadQueue& queue, TextureUploadRequest* request)
+    {
+        HTexture texture = request->m_Texture;
+        SetTextureAsyncCallback callback = request->m_Callback;
+        void* user_data = request->m_UserData;
+        delete request;
+        dmAtomicDecrement32(&queue.m_PendingRequests);
+        if (callback)
+            callback(texture, user_data);
+    }
+
+    static int ProcessTextureUploadCompletion(HJobContext, HJob, void*, void*)
+    {
+        return 0;
+    }
+
+    static void CompleteTextureUploadCallback(HJobContext, HJob, JobSystemStatus, void* context, void* data, int)
+    {
+        FinishTextureUploadRequest(*(TextureUploadQueue*)context, (TextureUploadRequest*)data);
+    }
+
+    void CompleteTextureUploadRequest(TextureUploadQueue& queue, TextureUploadRequest* request)
+    {
+        // Synchronous resource loading polls readiness without dispatching job
+        // callbacks, so publish GPU completion before scheduling the owner callback.
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue.m_Context->m_AssetHandleContainerMutex);
+            Texture* texture = GetAssetFromContainer<Texture>(queue.m_Context->m_AssetHandleContainer, request->m_Texture);
+            if (texture)
+                dmAtomicDecrement32(&texture->m_DataState);
+        }
+        if (!request->m_Callback)
+        {
+            FinishTextureUploadRequest(queue, request);
+            return;
+        }
+        Job job = {};
+        job.m_Process = ProcessTextureUploadCompletion;
+        job.m_Callback = CompleteTextureUploadCallback;
+        job.m_Context = &queue;
+        job.m_Data = request;
+        HJob hjob = JobSystemCreateJob(queue.m_JobContext, &job);
+        JobSystemResult result = JobSystemPushJob(queue.m_JobContext, hjob);
+        assert(result == JOBSYSTEM_RESULT_OK);
+        (void)result;
+    }
+
+    static int ProcessTextureUploadQueue(HJobContext, HJob, void*, void*);
+
+    static void CompleteTextureUploadWorker(HJobContext, HJob, JobSystemStatus, void* context, void*, int)
+    {
+        dmAtomicDecrement32(&((TextureUploadQueue*)context)->m_PendingWorkers);
+    }
+
+    static bool QueueTextureUploadWorker(TextureUploadQueue& queue)
+    {
+        dmAtomicIncrement32(&queue.m_PendingWorkers);
+        Job job = {};
+        job.m_Process = ProcessTextureUploadQueue;
+        job.m_Callback = CompleteTextureUploadWorker;
+        job.m_Context = &queue;
+        HJob hjob = JobSystemCreateJob(queue.m_JobContext, &job);
+        if (JobSystemPushJob(queue.m_JobContext, hjob) != JOBSYSTEM_RESULT_OK)
+        {
+            dmAtomicDecrement32(&queue.m_PendingWorkers);
+            return false;
+        }
+        return true;
+    }
+
+    static int ProcessTextureUploadQueue(HJobContext, HJob, void* context, void*)
+    {
+        TextureUploadQueue& queue = *(TextureUploadQueue*)context;
+        for (uint32_t processed = 0; processed < 4; ++processed)
+        {
+            TextureUploadRequest* request;
+            {
+                DM_MUTEX_SCOPED_LOCK(queue.m_Mutex);
+                request = queue.m_Head;
+                if (!request)
+                {
+                    queue.m_WorkerQueued = false;
+                    return 0;
+                }
+                queue.m_Head = request->m_Next;
+                if (!queue.m_Head)
+                    queue.m_Tail = 0;
+            }
+            queue.m_Process(queue.m_BackendContext, request);
+        }
+        // Yield between groups so resource jobs and completion callbacks progress.
+        DM_MUTEX_SCOPED_LOCK(queue.m_Mutex);
+        if (queue.m_Head)
+        {
+            bool queued = QueueTextureUploadWorker(queue);
+            assert(queued);
+            (void)queued;
+        }
+        else
+            queue.m_WorkerQueued = false;
+        return 0;
+    }
+
+    bool QueueTextureUpload(TextureUploadQueue& queue, HTexture texture, const TextureParams* params, uint32_t count, void* backend_data, SetTextureAsyncCallback callback, void* user_data)
+    {
+        if (!count || dmAtomicGet32(&queue.m_Stopping))
+            return false;
+        TextureUploadRequest* request = new TextureUploadRequest;
+        request->m_Next = 0;
+        request->m_Texture = texture;
+        request->m_Params.SetCapacity(count);
+        request->m_Params.SetSize(count);
+        memcpy(request->m_Params.Begin(), params, sizeof(TextureParams) * count);
+        request->m_BackendData = backend_data;
+        request->m_Callback = callback;
+        request->m_UserData = user_data;
+        Texture* tex = GetAssetFromContainer<Texture>(queue.m_Context->m_AssetHandleContainer, texture);
+        dmAtomicIncrement32(&tex->m_DataState);
+        dmAtomicIncrement32(&queue.m_PendingRequests);
+        DM_MUTEX_SCOPED_LOCK(queue.m_Mutex);
+        if (queue.m_Tail)
+            queue.m_Tail->m_Next = request;
+        else
+            queue.m_Head = request;
+        queue.m_Tail = request;
+        if (!queue.m_WorkerQueued)
+        {
+            queue.m_WorkerQueued = true;
+            if (!QueueTextureUploadWorker(queue))
+            {
+                queue.m_Head = queue.m_Tail = 0;
+                queue.m_WorkerQueued = false;
+                dmAtomicDecrement32(&tex->m_DataState);
+                dmAtomicDecrement32(&queue.m_PendingRequests);
+                delete request;
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void WaitForTextureUpload(TextureUploadQueue& queue, HTexture texture)
+    {
+        while (GetTextureStatusFlags((HContext)queue.m_Context, texture) & TEXTURE_STATUS_DATA_PENDING)
+            JobSystemUpdate(queue.m_JobContext, 0);
+    }
+
+    void StopTextureUploadQueue(TextureUploadQueue& queue)
+    {
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue.m_Context->m_AssetHandleContainerMutex);
+            dmAtomicStore32(&queue.m_Stopping, 1);
+        }
+        while (dmAtomicGet32(&queue.m_PendingRequests) || dmAtomicGet32(&queue.m_PendingWorkers))
+        {
+            JobSystemUpdate(queue.m_JobContext, 0);
+            dmTime::Sleep(100);
+        }
+    }
+
+    void DestroyTextureUploadQueue(TextureUploadQueue& queue)
+    {
+        StopTextureUploadQueue(queue);
+        dmMutex::Delete(queue.m_Mutex);
+    }
+
     void InitializeSetTextureAsyncState(SetTextureAsyncState& state)
     {
         state.m_Mutex = dmMutex::New();
@@ -1907,7 +2162,15 @@ namespace dmGraphics
 
     void DeleteContext(HContext context)
     {
+        // The adapter must drain uploads before destroying its context. Keep these
+        // synchronization handles alive until GPU completions have returned.
+        dmMutex::HMutex mutex = context->m_TextureUploadMemoryBudget.m_Mutex;
+        dmConditionVariable::HConditionVariable condition = context->m_TextureUploadMemoryBudget.m_Condition;
         g_functions.m_DeleteContext(context);
+        if (condition)
+            dmConditionVariable::Delete(condition);
+        if (mutex)
+            dmMutex::Delete(mutex);
     }
 
     bool InstallAdapter(AdapterFamily family)
