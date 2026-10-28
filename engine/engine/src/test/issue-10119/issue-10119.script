@@ -1,11 +1,12 @@
 function init(self)
-	-- Uncapped frames can exhaust a frame limit before the loading thread runs.
-	self.load_deadline = socket.gettime() + 5
+	self.count = 0
 	msg.post("#collectionproxy", "async_load")
 end
 
 function update(self, dt)
-	if socket.gettime() > self.load_deadline then
+	self.count = self.count + 1
+
+	if self.count > 100 then
 		print("Waited too long to load!")
 		sys.exit(1)
 	end
