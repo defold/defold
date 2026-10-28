@@ -1,7 +1,7 @@
 from log import log
 import codecs
 import os
-from queue import Full, Queue
+from queue import Empty, Full, Queue
 import re
 import signal
 import subprocess
@@ -95,12 +95,26 @@ def _redact_args(arg_list, redact_flags, secrets):
 
     return redacted, secrets
 
-def _terminal_lines(stream):
+def _terminal_lines(stream, stopped=None, process_done=None):
     # Gradle redraws rows with cursor movements, often without a newline or carriage return.
     separator = re.compile(r'\r\n|[\r\n]|\x1b\[[0-9;]*[AB]')
     decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
     pending = ''
-    while chunk := stream.read1(65536):
+    fd = stream.fileno() if stopped is not None else None
+    if fd is not None:
+        # Python 3.12 supports non-blocking pipes on Windows too.
+        os.set_blocking(fd, False)
+    while stopped is None or not stopped.is_set():
+        try:
+            chunk = os.read(fd, 65536) if fd is not None else stream.read1(65536)
+        except BlockingIOError:
+            # Drain buffered output after launcher exit without waiting for a worker's EOF.
+            if process_done.is_set():
+                break
+            stopped.wait(0.05)
+            continue
+        if not chunk:
+            break
         pending += decoder.decode(chunk)
         records = separator.split(pending)
         pending = records.pop()
@@ -146,6 +160,7 @@ def _separate_output_lines(process, kill_process_tree=False):
     # Keep each stream's records intact; merging rich-console fragments corrupts diagnostics.
     records = Queue(maxsize=128)
     stopped = Event()
+    process_done = Event()
 
     def put(record):
         while not stopped.is_set():
@@ -159,7 +174,7 @@ def _separate_output_lines(process, kill_process_tree=False):
     def read_stream(stream, is_stderr):
         try:
             with stream:
-                for line in _terminal_lines(stream):
+                for line in _terminal_lines(stream, stopped, process_done):
                     if not put((line, is_stderr)):
                         return
         except BaseException as error:
@@ -176,7 +191,12 @@ def _separate_output_lines(process, kill_process_tree=False):
             reader.start()
             started.append(reader)
         while finished < len(readers):
-            record = records.get()
+            if process.poll() is not None:
+                process_done.set()
+            try:
+                record = records.get(timeout=0.1)
+            except Empty:
+                continue
             if record is None:
                 finished += 1
             elif isinstance(record, BaseException):

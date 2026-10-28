@@ -87,10 +87,10 @@ class RunCommandTests(unittest.TestCase):
     def test_reader_failure_stops_process_and_other_reader(self):
         read_lines = run._terminal_lines
 
-        def broken_lines(stream):
+        def broken_lines(stream, *args):
             if stream is self.children[-1].stdout:
                 raise OSError(errno.EIO, 'simulated pipe read failure')
-            yield from read_lines(stream)
+            yield from read_lines(stream, *args)
 
         script = 'import sys; print("ready", flush=True); sys.stdin.readline()'
         with mock.patch.object(run, '_terminal_lines', side_effect=broken_lines), self.assertRaises(OSError) as raised:
@@ -157,6 +157,93 @@ class RunCommandTests(unittest.TestCase):
                 self.assertIsInstance(errors[0], OSError)
                 self.assertEqual(errno.ENOSPC, errors[0].errno)
                 self.assert_processes_closed()
+
+    # Launcher exit must drain both streams and preserve its status without waiting for an inherited worker pipe.
+    def test_launcher_exit_does_not_wait_for_inherited_pipes(self):
+        for retcode in (0, 7):
+            with self.subTest(retcode=retcode):
+                done = Event()
+                results, errors, output, stderr = [], [], [], []
+                script = ('import subprocess, sys; '
+                          'worker = subprocess.Popen([sys.executable, "-c", "import sys; sys.stdin.readline()"]); '
+                          'sys.stdout.write("".join("stdout %d\\n" % i for i in range(1024)) + "final stdout 雪"); '
+                          'sys.stdout.flush(); sys.stderr.write("final stderr 雪"); sys.stderr.flush(); '
+                          f'sys.exit({retcode})')
+
+                def execute():
+                    try:
+                        results.append(run.env_command(
+                            {**os.environ, 'PYTHONIOENCODING': 'utf-8'}, [sys.executable, '-c', script],
+                            silent=True, terminal_output=True, kill_process_tree=True,
+                            on_output=output.append, on_stderr=stderr.append))
+                    except BaseException as error:
+                        errors.append(error)
+                    finally:
+                        done.set()
+
+                worker = Thread(target=execute, daemon=True)
+                worker.start()
+                try:
+                    completed = done.wait(timeout=10)
+                finally:
+                    for child in self.children:
+                        if child.stdin is not None and not child.stdin.closed:
+                            child.stdin.close()
+                    worker.join(timeout=10)
+                self.assertTrue(completed, 'Launcher exit was blocked on a worker holding the output pipes')
+                self.assertFalse(worker.is_alive())
+                self.assertEqual([*(f'stdout {i}' for i in range(1024)), 'final stdout 雪'], output)
+                self.assertEqual(['final stderr 雪'], stderr)
+                if retcode:
+                    self.assertEqual(1, len(errors))
+                    self.assertIsInstance(errors[0], run.ExecException)
+                    self.assertEqual(retcode, errors[0].retcode)
+                    captured = errors[0].output
+                else:
+                    self.assertEqual([], errors)
+                    self.assertEqual(1, len(results))
+                    captured = results[0]
+                self.assertIn('final stdout 雪', captured)
+                self.assertIn('final stderr 雪', captured)
+                self.assert_processes_closed()
+
+    # Callback failure after launcher exit must cancel pipe readers even when process cleanup cannot stop the worker.
+    def test_callback_failure_after_launcher_exit_cancels_readers(self):
+        done = Event()
+        errors = []
+        script = ('import subprocess, sys; '
+                  'worker = subprocess.Popen([sys.executable, "-c", "import sys; sys.stdin.readline()"]); '
+                  'print("launcher output", flush=True)')
+
+        def on_output(line):
+            self.children[-1].wait(timeout=10)
+            raise OSError(errno.ENOSPC, 'simulated log disk full')
+
+        def execute():
+            try:
+                run.env_command(os.environ, [sys.executable, '-c', script], silent=True,
+                                terminal_output=True, kill_process_tree=True, on_output=on_output)
+            except BaseException as error:
+                errors.append(error)
+            finally:
+                done.set()
+
+        with mock.patch.object(run, '_stop_process', side_effect=lambda child, kill_process_tree: child.wait(timeout=10)):
+            worker = Thread(target=execute, daemon=True)
+            worker.start()
+            try:
+                completed = done.wait(timeout=10)
+            finally:
+                for child in self.children:
+                    if child.stdin is not None and not child.stdin.closed:
+                        child.stdin.close()
+                worker.join(timeout=10)
+        self.assertTrue(completed, 'Reader cancellation waited for a worker after its launcher exited')
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(1, len(errors))
+        self.assertIsInstance(errors[0], OSError)
+        self.assertEqual(errno.ENOSPC, errors[0].errno)
+        self.assert_processes_closed()
 
 
 if __name__ == '__main__':
