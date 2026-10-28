@@ -28,7 +28,18 @@ import com.dynamo.rig.proto.Rig.Mesh;
 import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Model;
 
-/** Shared Bob/editor compiler for one immutable geometry resource per model. */
+/**
+ * Shared Bob/editor compiler for one immutable geometry resource per model.
+ *
+ * The build selects meshes with selectMeshes(), deduplicates their geometry with
+ * geometries(), and writes GPU-ready bytes with compile(). metadata() replaces
+ * the source vertex/index arrays with range indices into that same geometry list,
+ * while keeping node identity, transforms, material bindings and morph metadata.
+ * compile() and metadata() must receive the same ordered geometry list.
+ *
+ * The runtime reader is gamesys/resources/res_model_buffers.cpp. Keep the binary
+ * format and attribute layout in sync with that reader and the rig vertex structs.
+ */
 public final class ModelBuffers {
     static final int VERSION = 2;
     private static final int HEADER_SIZE = 36;
@@ -42,7 +53,20 @@ public final class ModelBuffers {
     private static final int ATTRIBUTE_WEIGHTS = 1 << 6;
     private static final int ATTRIBUTE_BONE_INDICES = 1 << 7;
     private static final int ATTRIBUTE_MASK_SKINNING = ATTRIBUTE_WEIGHTS | ATTRIBUTE_BONE_INDICES;
-    private static final int[] COMPONENTS = {3, 3, 4, 4, 2, 2, 4, 4};
+    // Scalar values per vertex attribute in the packed layout. Array indices match
+    // attribute-mask bit positions, not the flag values themselves. Missing source
+    // attributes within the selected layout still occupy fixed-width GPU slots;
+    // attributeMask() records which streams to restore when CPU geometry is requested.
+    private static final int[] ATTRIBUTE_COMPONENT_COUNTS = {
+        3, // Position: x, y, z.
+        3, // Normal: x, y, z.
+        4, // Tangent: x, y, z, handedness.
+        4, // Color: red, green, blue, alpha.
+        2, // Texcoord0: u, v.
+        2, // Texcoord1: u, v.
+        4, // Skin weights: four bone influences.
+        4  // Bone indices: four indices, stored as floats for the GPU layout.
+    };
 
     private ModelBuffers() {}
 
@@ -50,6 +74,8 @@ public final class ModelBuffers {
         return Math.addExact(value, alignment - 1) & -alignment;
     }
 
+    // Tracks source streams, including the paired skinning streams that select
+    // the larger vertex layout. It does not strip unused GPU attribute slots.
     private static int attributeMask(Mesh mesh) {
         int mask = ATTRIBUTE_POSITION;
         if (mesh.getNormalsCount() != 0) mask |= ATTRIBUTE_NORMAL;
@@ -62,6 +88,8 @@ public final class ModelBuffers {
         return mask;
     }
 
+    // Only vertex/index content contributes to sharing. Bounds, bindings and
+    // morph metadata remain on each mesh in the compiled model metadata.
     private static Mesh geometry(Mesh mesh) {
         return mesh.toBuilder()
                 .setAabbMin(Vector3.getDefaultInstance()).setAabbMax(Vector3.getDefaultInstance())
@@ -111,6 +139,40 @@ public final class ModelBuffers {
      * payloads. All meshes share one GPU vertex buffer and one GPU index buffer.
      * Each range describes its byte offsets, vertex count/stride, index count/type
      * and source-attribute mask. Node identity and bindings remain in .modelc.
+     *
+     * Header and descriptor integers are little-endian uint32 values; offsets
+     * and sizes are bytes.
+     * <pre>
+     * File header:
+     *   +0  magic: four literal bytes "MBFC"
+     *   +4  format version
+     *   +8  compression: 0 (archive compression is handled by the resource loader)
+     *   +12 decoded payload size: vertex size + index size
+     *   +16 range count
+     *   +20 vertex payload offset, relative to the file start
+     *   +24 vertex payload size
+     *   +28 index payload offset, relative to the file start
+     *   +32 index payload size
+     * Each range descriptor, starting immediately after the header:
+     *   +0  vertex offset, relative to the vertex payload
+     *   +4  vertex count
+     *   +8  vertex stride
+     *   +12 index offset, relative to the index payload
+     *   +16 index count
+     *   +20 index element size: 2 or 4 bytes
+     *   +24 source-attribute mask
+     * </pre>
+     *
+     * Vertices store float32 attributes in ATTRIBUTE_COMPONENT_COUNTS order.
+     * Static vertices use the first six attributes (72 bytes), matching
+     * dmRig::RigModelVertex. Skinned vertices append weights and bone indices
+     * (104 bytes total), matching dmRig::RigModelSkinnedVertex. Missing attributes
+     * are filled with zero, except colors which default to white. The mask keeps
+     * this distinction so CPU recovery restores only the original source streams.
+     * Vertex payload/range starts align to 16 bytes; index ranges align to 4 bytes.
+     *
+     * @param geometries canonical list from geometries(), also passed to metadata()
+     * @return complete .modelbuffersc contents, including alignment padding
      */
     public static byte[] compile(List<Mesh> geometries) {
         int count = geometries.size();
@@ -146,15 +208,15 @@ public final class ModelBuffers {
             out.putInt(indexOffsets[i]).putInt(mesh.getIndices().size() / indexElementSize).putInt(indexElementSize).putInt(mask);
             out.position(vertexStart + vertexOffsets[i]);
             for (int v = 0; v < vertexCount; ++v) {
-                putAttribute(out, mesh.getPositionsList(), v, COMPONENTS[0], 0);
-                putAttribute(out, mesh.getNormalsList(), v, COMPONENTS[1], 0);
-                putAttribute(out, mesh.getTangentsList(), v, COMPONENTS[2], 0);
-                putAttribute(out, mesh.getColorsList(), v, COMPONENTS[3], 1);
-                putAttribute(out, mesh.getTexcoord0List(), v, COMPONENTS[4], 0);
-                putAttribute(out, mesh.getTexcoord1List(), v, COMPONENTS[5], 0);
+                putAttribute(out, mesh.getPositionsList(), v, ATTRIBUTE_COMPONENT_COUNTS[0], 0);
+                putAttribute(out, mesh.getNormalsList(), v, ATTRIBUTE_COMPONENT_COUNTS[1], 0);
+                putAttribute(out, mesh.getTangentsList(), v, ATTRIBUTE_COMPONENT_COUNTS[2], 0);
+                putAttribute(out, mesh.getColorsList(), v, ATTRIBUTE_COMPONENT_COUNTS[3], 1);
+                putAttribute(out, mesh.getTexcoord0List(), v, ATTRIBUTE_COMPONENT_COUNTS[4], 0);
+                putAttribute(out, mesh.getTexcoord1List(), v, ATTRIBUTE_COMPONENT_COUNTS[5], 0);
                 if (skinned) {
-                    putAttribute(out, mesh.getWeightsList(), v, COMPONENTS[6], 0);
-                    for (int c = 0; c < COMPONENTS[7]; ++c) out.putFloat(mesh.getBoneIndices(v * 4 + c));
+                    putAttribute(out, mesh.getWeightsList(), v, ATTRIBUTE_COMPONENT_COUNTS[6], 0);
+                    for (int c = 0; c < ATTRIBUTE_COMPONENT_COUNTS[7]; ++c) out.putFloat(mesh.getBoneIndices(v * 4 + c));
                 }
             }
             mesh.getIndices().copyTo(out.array(), indexStart + indexOffsets[i]);
@@ -162,7 +224,13 @@ public final class ModelBuffers {
         return out.array();
     }
 
-    /** Compiles model metadata with shared geometry ranges and material identities. */
+    /**
+     * Compiles model metadata with shared geometry ranges and material identities.
+     * The geometry list must be the same ordered list passed to compile(): its
+     * indices become buffer_index values used by the runtime. Vertex/index arrays
+     * are removed from the result; model placement, bounds, materials and morph
+     * metadata are retained. The source mesh set is not modified.
+     */
     public static MeshSet metadata(MeshSet source, List<Mesh> geometries) {
         Map<Mesh, Integer> indices = new HashMap<>();
         for (int i = 0; i < geometries.size(); ++i) indices.put(geometry(geometries.get(i)), i);

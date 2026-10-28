@@ -41,9 +41,15 @@ namespace dmGameSystem
         ATTRIBUTE_MASK_SKINNING = ATTRIBUTE_WEIGHTS | ATTRIBUTE_BONE_INDICES,
         ATTRIBUTE_MASK_ALL = ATTRIBUTE_POSITION | ATTRIBUTE_NORMAL | ATTRIBUTE_TANGENT | ATTRIBUTE_COLOR | ATTRIBUTE_TEXCOORD0 | ATTRIBUTE_TEXCOORD1 | ATTRIBUTE_MASK_SKINNING
     };
-    static const uint32_t COMPONENTS[ATTRIBUTE_COUNT] = { 3, 3, 4, 4, 2, 2, 4, 4 };
-    static const uint32_t OFFSETS[ATTRIBUTE_COUNT] = { 0, 12, 24, 40, 56, 64, 72, 88 };
+    // Indexed by attribute-mask bit position: position, normal, tangent, color,
+    // texcoord0, texcoord1, skin weights, bone indices. Counts are scalar values
+    // per vertex; offsets are bytes from the start of an interleaved vertex.
+    // The first six attributes use 72 bytes; skinning adds 32 bytes. See
+    // ModelBuffers.compile() for the file layout and missing-attribute defaults.
+    static const uint32_t ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_COUNT] = { 3, 3, 4, 4, 2, 2, 4, 4 };
+    static const uint32_t ATTRIBUTE_BYTE_OFFSETS[ATTRIBUTE_COUNT] = { 0, 12, 24, 40, 56, 64, 72, 88 };
 
+    // Decoded fields retained after prefix validation; this is not an on-disk struct.
     struct ModelBuffersHeader
     {
         uint32_t m_RangeCount;
@@ -248,7 +254,7 @@ namespace dmGameSystem
                 uint32_t components = 0;
                 for (uint32_t a = 0; a < ATTRIBUTE_COUNT; ++a)
                     if (descriptor.m_AttributeMask & (1u << a))
-                        components += COMPONENTS[a];
+                        components += ATTRIBUTE_COMPONENT_COUNTS[a];
                 data_size = Align(data_size, 4) + (uint64_t)descriptor.m_VertexCount * components * sizeof(float) + (uint64_t)descriptor.m_IndexCount * descriptor.m_IndexElementSize;
             }
             if (data_size > 0xffffffffu || !(resource->m_CPUData = malloc((size_t)data_size)))
@@ -274,11 +280,11 @@ namespace dmGameSystem
                         cpu_mesh.m_BoneIndices.m_Data = (uint32_t*)write;
                     else
                         *streams[a] = (float*)write;
-                    *counts[a] = descriptor.m_VertexCount * COMPONENTS[a];
+                    *counts[a] = descriptor.m_VertexCount * ATTRIBUTE_COMPONENT_COUNTS[a];
                     for (uint32_t v = 0; v < descriptor.m_VertexCount; ++v)
                     {
-                        const uint8_t* vertex = (const uint8_t*)data + resource->m_Header.m_VertexOffset + descriptor.m_VertexOffset + v * descriptor.m_Stride + OFFSETS[a];
-                        for (uint32_t c = 0; c < COMPONENTS[a]; ++c)
+                        const uint8_t* vertex = (const uint8_t*)data + resource->m_Header.m_VertexOffset + descriptor.m_VertexOffset + v * descriptor.m_Stride + ATTRIBUTE_BYTE_OFFSETS[a];
+                        for (uint32_t c = 0; c < ATTRIBUTE_COMPONENT_COUNTS[a]; ++c)
                         {
                             uint32_t bits = ReadInteger(vertex + c * sizeof(float));
                             float value;
@@ -288,7 +294,7 @@ namespace dmGameSystem
                             else
                                 ((float*)write)[c] = value;
                         }
-                        write += COMPONENTS[a] * sizeof(float);
+                        write += ATTRIBUTE_COMPONENT_COUNTS[a] * sizeof(float);
                     }
                 }
                 uint32_t index_size = descriptor.m_IndexCount * descriptor.m_IndexElementSize;
