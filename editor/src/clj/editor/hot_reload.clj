@@ -36,6 +36,19 @@
 (def ^:private max-batch-files 4096)
 (def ^:private max-batch-request-size (* 1024 1024))
 
+(defn updated-build-resource-proj-paths [old-etags new-etags ordered-proj-paths]
+  ;; Deleted resources must lose their cache trust even though they no longer
+  ;; have build targets. Keep changed targets in dependency order, and let the
+  ;; engine discover newly introduced resources through their references.
+  (coll/into-> ordered-proj-paths
+    (coll/into-> old-etags []
+      (keep (fn [[proj-path _]]
+              (when-not (contains? new-etags proj-path)
+                proj-path))))
+    (filter (fn [proj-path]
+              (and (contains? old-etags proj-path)
+                   (not= (old-etags proj-path) (new-etags proj-path)))))))
+
 (defn- string->url
   ^URI [^String str]
   (when (some? str)

@@ -17,6 +17,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     retries = 0
     batch_mode = "normal"
     revision = 1
+    deleted = False
     resource_requests = 0
     verification_requests = 0
     verification_entries = 0
@@ -56,7 +57,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         for entry in entries:
             key, tag = entry.split(" ", 1)
             path = unquote(urlsplit(key).path)
-            if path.startswith("/build/") and tag == self.batch_tag(path):
+            if path.startswith("/build/") and not self.is_deleted(path) and tag == self.batch_tag(path):
                 valid.append(key)
         # Deliberately omit the final newline and split records across writes.
         data = "\n".join(valid).encode()
@@ -69,6 +70,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         for offset in range(0, len(data), 17):
             self.wfile.write(data[offset:offset + 17])
+
+    @staticmethod
+    def is_deleted(path):
+        return Handler.deleted and path.endswith("/changed.bin")
 
     @staticmethod
     def batch_tag(path):
@@ -99,6 +104,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         records = self.rfile.read(int(self.headers["Content-Length"])).decode().splitlines()
         entries = [record.split("\t") for record in records]
+        if any(self.is_deleted(unquote(key)) for key, _ in entries):
+            self.send_error(404)
+            return
         sizes = [self.batch_size(unquote(key)) for key, _ in entries]
         Handler.download_first_size = sizes[0]
         Handler.download_sorted = int(sizes[1:] == sorted(sizes[1:]))
@@ -153,6 +161,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             records = ["DM_RESOURCE_INDEX 1\n"]
             for name in files:
                 file_path = Handler.index_prefix + "/" + name
+                if self.is_deleted(file_path):
+                    continue
                 size = self.batch_size(file_path)
                 records.append(f"{quote_plus(file_path)}\t{size}\t{self.batch_tag(file_path)}\n")
             records.append(f"{quote_plus(Handler.index_prefix + '-other/outside.bin')}\t999\tother\n")
@@ -183,6 +193,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if command == "reset":
                 Handler.batch_mode = "normal"
                 Handler.revision = 1
+                Handler.deleted = False
                 Handler.index_mode = "unavailable"
                 Handler.download_mode = "unavailable"
             elif command == "counts-reset":
@@ -196,6 +207,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 Handler.download_first_size = 0
             elif command == "change":
                 Handler.revision = 2
+            elif command == "delete":
+                Handler.deleted = True
             elif command == "requests":
                 value = Handler.resource_requests
             elif command == "verifications":
@@ -234,6 +247,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path.startswith("/build/"):
             Handler.resource_requests += 1
             path = unquote(path)
+            if self.is_deleted(path):
+                self.send_error(404)
+                return
             tag = self.batch_tag(path)
             if self.headers.get("If-None-Match") == tag:
                 self.send_response(304)

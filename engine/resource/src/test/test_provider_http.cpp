@@ -818,6 +818,40 @@ protected:
     }
 };
 
+// A deleted resource that was only prefetched must become unavailable after
+// hot reload, while other prefetched resources remain trusted.
+TEST_F(HttpProviderDownloads, DeletedAfterPrefetch)
+{
+    char url[128];
+    dmSnPrintf(url, sizeof(url), "http://localhost:%d%s", PORT, m_MountPath);
+    dmResource::NewFactoryParams params;
+    params.m_HttpCache = m_Cache;
+    params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, url);
+    ASSERT_NE((void*)0, factory);
+
+    void* data;
+    uint32_t size;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(factory, "/unchanged.bin", &data, &size));
+    free(data);
+    Control("downloads", 1);
+    Control("requests", 0);
+    char cache_key[256];
+    dmSnPrintf(cache_key, sizeof(cache_key), "%s/changed.bin", url);
+    dmHttpCache::EntryInfo info;
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::GetInfo(m_Cache, cache_key, &info));
+
+    Control("delete", 0);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, dmResource::ReloadResource(factory, "/changed.bin", 0));
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, dmResource::GetRaw(factory, "/changed.bin", &data, &size));
+    Control("requests", 1);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(factory, "/space file.bin", &data, &size));
+    ASSERT_EQ(8U, size);
+    free(data);
+    Control("requests", 1);
+    dmResource::DeleteFactory(factory);
+}
+
 // One streamed batch populates separate cache entries, including empty files
 // and escaped names; later mounts transfer only resources with changed ETags.
 TEST_F(HttpProviderDownloads, ColdWarmAndChanged)

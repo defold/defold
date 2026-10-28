@@ -19,8 +19,11 @@
             [dynamo.graph :as g]
             [editor.build :as build]
             [editor.defold-project :as project]
+            [editor.engine :as engine]
+            [editor.game-project :as game-project]
             [editor.hot-reload :as hot-reload]
             [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [util.coll :as coll]
@@ -29,6 +32,7 @@
             [util.http-server :as http-server]
             [util.http-server.types :as http-server.types])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
+           [com.dynamo.resource.proto Resource$Reload]
            [java.io ByteArrayInputStream ByteArrayOutputStream IOException RandomAccessFile]
            [java.net URLDecoder]
            [java.nio.charset StandardCharsets]))
@@ -46,6 +50,54 @@
       (workspace/artifact-map! workspace (:artifact-map build-results))
       (workspace/etags! workspace (:etags build-results)))
     build-results))
+
+;; Removing a custom resource from a build must send its deleted path to the
+;; engine, where hot reload invalidates even resources only seen by prefetch.
+(deftest deleted-resource-reload-test
+  (test-util/with-loaded-project "test/resources/custom_resources_project"
+    (let [game-project (test-util/resource-node project "/game.project")
+          reload-message (promise)]
+      (game-project/set-setting! game-project ["project" "custom_resources"] "root.stuff")
+      (let [old-build (project-build project game-project (g/make-evaluation-context))
+            deleted-file (workspace/build-path workspace "/root.stuff")]
+        (is (nil? (:error old-build)))
+        (is (.isFile deleted-file))
+        (game-project/set-setting! game-project ["project" "custom_resources"] "")
+        (let [new-build (project-build project game-project (g/make-evaluation-context))
+
+              ordered-proj-paths
+              (g/with-auto-evaluation-context evaluation-context
+                (coll/into-> (rseq (build/resolve-node-dependencies game-project project evaluation-context)) []
+                  (map (comp resource/proj-path :resource))))
+
+              reload-paths
+              (hot-reload/updated-build-resource-proj-paths
+                (:etags old-build) (:etags new-build) ordered-proj-paths)]
+          (is (nil? (:error new-build)))
+          (is (not (.exists deleted-file)))
+          (is (not (contains? (:etags new-build) "/root.stuff")))
+          (is (coll/not-any? #{"/root.stuff"} ordered-proj-paths))
+          (with-open [server
+                      (http-server/start!
+                        (http-server/router-handler
+                          {"/post/@resource/reload"
+                           {"POST" (fn receive-reload [{:keys [body]}]
+                                     (deliver reload-message
+                                              (protobuf/bytes->map-without-defaults
+                                                Resource$Reload (.readAllBytes ^java.io.InputStream body)))
+                                     (http-server/response 200))}}))]
+            (engine/reload-build-resource-paths! {:url (http-server/url server)} reload-paths)
+            (is (= reload-paths (:resources @reload-message)))
+            (is (coll/any? #{"/root.stuff"} (:resources @reload-message))))))))
+  (testing "deletions are included while changed targets retain dependency order"
+    (is (= ["/deleted" "/dependency" "/parent"]
+           (hot-reload/updated-build-resource-proj-paths
+             {"/deleted" "old" "/parent" "old" "/dependency" "old" "/unchanged" "same"}
+             {"/parent" "new" "/dependency" "new" "/unchanged" "same" "/added" "new"}
+             ["/dependency" "/unchanged" "/added" "/parent"]))))
+  (testing "a deletion alone still produces a reload message"
+    (is (= ["/deleted"]
+           (hot-reload/updated-build-resource-proj-paths {"/deleted" "old"} {} [])))))
 
 (deftest build-endpoint-test
   (test-util/with-loaded-project project-path
