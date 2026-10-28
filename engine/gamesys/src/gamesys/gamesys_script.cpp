@@ -146,6 +146,11 @@ namespace dmGameSystem
         return rd;
     }
 
+    void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
+    {
+        return dmResource::GetResource(CheckResourceDescriptor(L, factory, path_hash, resource_ext));
+    }
+
     void PushTextureInfo(lua_State* L, dmGraphics::HContext graphics_context, dmGraphics::HTexture texture_handle, dmhash_t texture_resource_path)
     {
         uint32_t texture_width               = dmGraphics::GetTextureWidth(graphics_context, texture_handle);
