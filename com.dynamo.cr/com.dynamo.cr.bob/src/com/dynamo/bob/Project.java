@@ -72,7 +72,6 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
@@ -1884,48 +1883,6 @@ public class Project implements AutoCloseable {
 
     private List<TaskResult> createAndRunTasks(IProgress progress, AtomicBoolean remoteBuildFailed) throws IOException, CompileExceptionError {
         try (progress) {
-            // Do early test if report files are writable before we start building
-            boolean generateReport = this.hasOption("build-report-json") || this.hasOption("build-report-html");
-            FileWriter resourceReportJSONWriter = null;
-            FileWriter resourceReportHTMLWriter = null;
-            FileWriter excludedResourceReportJSONWriter = null;
-            FileWriter excludedResourceReportHTMLWriter = null;
-
-            if (this.hasOption("build-report-json")) {
-                String resourceReportJSONPath = this.option("build-report-json", "report.json");
-
-                File resourceReportJSONFile = new File(resourceReportJSONPath);
-                File resourceReportJSONFolder = resourceReportJSONFile.getParentFile();
-                if (resourceReportJSONFolder != null && !resourceReportJSONFolder.exists()) {
-                    boolean success = resourceReportJSONFolder.mkdirs();
-                    if (!success) {
-                        throw new IOException("Failed to create directories for path: " + resourceReportJSONFolder.getAbsolutePath());
-                    }
-                }
-                resourceReportJSONWriter = new FileWriter(resourceReportJSONFile);
-
-                String excludedResourceReportJSONName = "excluded_" + resourceReportJSONFile.getName();
-                File excludedResourceReportJSONFile = new File(resourceReportJSONFolder, excludedResourceReportJSONName);
-                excludedResourceReportJSONWriter = new FileWriter(excludedResourceReportJSONFile);
-            }
-            if (this.hasOption("build-report-html")) {
-                String resourceReportHTMLPath = this.option("build-report-html", "report.html");
-                File resourceReportHTMLFile = new File(resourceReportHTMLPath);
-                File parentDir = resourceReportHTMLFile.getParentFile();
-                if (parentDir != null && !parentDir.exists()) {
-                    boolean success = parentDir.mkdirs();
-                    if (!success) {
-                        throw new IOException("Failed to create directories for path: " + parentDir.getAbsolutePath());
-                    }
-                }
-                File resourceReportHTMLFolder = resourceReportHTMLFile.getParentFile();
-                resourceReportHTMLWriter = new FileWriter(resourceReportHTMLFile);
-
-                String excludedResourceReportHTMLName = "excluded_" + resourceReportHTMLFile.getName();
-                File excludedResourceReportHTMLFile = new File(resourceReportHTMLFolder, excludedResourceReportHTMLName);
-                excludedResourceReportHTMLWriter = new FileWriter(excludedResourceReportHTMLFile);
-            }
-
             var split = progress.split(3);
 
             try (var readTasksProgress = split.subtask()) {
@@ -1949,37 +1906,46 @@ public class Project implements AutoCloseable {
 
             BundleHelper.throwIfCanceled(progress, remoteBuildFailed);
 
-            // Generate and save build report
-            TimeProfiler.start("Generating build size report");
             try (var reportProgress = split.subtask()) {
-                if (generateReport && !anyFailing(result)) {
+                if ((hasOption("build-report-json") || hasOption("build-report-html")) && !anyFailing(result)) {
                     reportProgress.message(IProgress.Message.GeneratingReport.INSTANCE);
-                    ReportGenerator rg = new ReportGenerator(this);
-                    String resourceReportJSON = rg.generateResourceReportJSON();
-                    String excludedResourceReportJSON = rg.generateExcludedResourceReportJSON();
-
-                    // Save JSON report
-                    if (this.hasOption("build-report-json")) {
-                        resourceReportJSONWriter.write(resourceReportJSON);
-                        resourceReportJSONWriter.close();
-                        excludedResourceReportJSONWriter.write(excludedResourceReportJSON);
-                        excludedResourceReportJSONWriter.close();
-                    }
-
-                    // Save HTML report
-                    if (this.hasOption("build-report-html")) {
-                        String resourceReportHTML = rg.generateHTML(resourceReportJSON);
-                        String excludedResourceReportHTML = rg.generateHTML(excludedResourceReportJSON);
-                        resourceReportHTMLWriter.write(resourceReportHTML);
-                        resourceReportHTMLWriter.close();
-                        excludedResourceReportHTMLWriter.write(excludedResourceReportHTML);
-                        excludedResourceReportHTMLWriter.close();
+                    TimeProfiler.start("Generating build size report");
+                    try {
+                        generateBuildReports();
+                    } finally {
+                        TimeProfiler.stop();
                     }
                 }
             }
-            TimeProfiler.stop();
+
             return result;
         }
+    }
+
+    private void generateBuildReports() throws IOException {
+        ReportGenerator report = new ReportGenerator(this);
+        String resources = report.generateResourceReportJSON();
+        String excluded = report.generateExcludedResourceReportJSON();
+        for (String format : List.of("json", "html")) {
+            String option = "build-report-" + format;
+            if (!hasOption(option)) continue;
+            Path destination = Path.of(option(option, "report." + format)).toAbsolutePath();
+            Files.createDirectories(destination.getParent());
+            Path excludedDestination = destination.resolveSibling("excluded_" + destination.getFileName());
+            Files.writeString(destination, format.equals("html") ? report.generateHTML(resources) : resources);
+            Files.writeString(excludedDestination, format.equals("html") ? report.generateHTML(excluded) : excluded);
+        }
+        if (!com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(this).isEmpty()) {
+            com.dynamo.bob.archive.liveupdate.PackageArtifacts.recordReportOutputs(this, ReportGenerator.outputPaths(this));
+        }
+    }
+
+    private void generateBundleReport() throws IOException {
+        ReportGenerator report = new ReportGenerator(this, true);
+        Path destination = Path.of(option("bundle-report-html", "bundle-report.html")).toAbsolutePath();
+        Files.createDirectories(destination.getParent());
+        Files.writeString(destination, report.generateHTML(report.generateResourceReportJSON()));
+        com.dynamo.bob.archive.liveupdate.PackageArtifacts.recordReportOutputs(this, List.of(destination));
     }
 
     private void clean(IProgress progress, State state) {
@@ -2042,7 +2008,9 @@ public class Project implements AutoCloseable {
             progress.message(IProgress.Message.Working.INSTANCE);
             boolean publishPackages = Arrays.asList(commands).contains("publish") ||
                     (BundleHelper.isArchiveIncluded(this) && Arrays.asList(commands).contains("bundle"));
-            var split = progress.split(commands.length + (publishPackages ? 2L : 1L)); // Reading classes and optional final publishing.
+            boolean generateBundleReport = hasOption("bundle-report-html") &&
+                    BundleHelper.isArchiveIncluded(this) && Arrays.asList(commands).contains("bundle");
+            var split = progress.split(commands.length + 1L + (publishPackages ? 1L : 0L) + (generateBundleReport ? 1L : 0L));
             // it should be done before scanJavaClasses to have updated options
             configurePreBuildProjectOptions();
             {
@@ -2182,6 +2150,19 @@ public class Project implements AutoCloseable {
                     TimeProfiler.stop();
                 }
 
+            }
+
+            if (generateBundleReport && !anyFailing(result)) {
+                try (var reportProgress = split.subtask()) {
+                    BundleHelper.throwIfCanceled(reportProgress);
+                    reportProgress.message(IProgress.Message.GeneratingReport.INSTANCE);
+                    TimeProfiler.start("Generating bundle size report");
+                    try {
+                        generateBundleReport();
+                    } finally {
+                        TimeProfiler.stop();
+                    }
+                }
             }
 
             for (IPlugin plugin : plugins) {

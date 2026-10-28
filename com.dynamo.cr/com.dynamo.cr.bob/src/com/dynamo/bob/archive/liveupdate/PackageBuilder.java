@@ -21,6 +21,7 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
 import com.dynamo.bob.pipeline.graph.ResourceNode;
+import com.dynamo.bob.util.ReportGenerator;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.ManifestDesc;
 import com.google.protobuf.TextFormat;
 
@@ -75,7 +76,11 @@ public final class PackageBuilder {
         project.findResourcePaths("", paths);
         // Outputs from previous builds are not authoring resources, even when their destination is in the project.
         java.nio.file.Path buildDirectory = java.nio.file.Path.of(project.getRootDirectory(), project.getBuildDirectory()).toAbsolutePath().normalize();
-        paths.removeIf(path -> java.nio.file.Path.of(project.getResource(path).getAbsPath()).normalize().startsWith(buildDirectory));
+        Set<Path> reportOutputs = ReportGenerator.outputPaths(project);
+        paths.removeIf(path -> {
+            Path absolute = Path.of(project.getResource(path).getAbsPath()).toAbsolutePath().normalize();
+            return absolute.startsWith(buildDirectory) || reportOutputs.contains(absolute);
+        });
         Set<String> generatedPaths = PackageArtifacts.generatedPaths(java.nio.file.Path.of(project.getRootDirectory()));
         paths.removeIf(path -> PackageArtifacts.isGeneratedPath(path, generatedPaths));
         for (PackageWriter.Output output : PackageArtifacts.readBuildOutputs(project)) {

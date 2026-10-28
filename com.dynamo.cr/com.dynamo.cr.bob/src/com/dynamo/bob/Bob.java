@@ -492,6 +492,7 @@ public class Bob {
                 opt("p", "platform", ONE, "Platform (when building and bundling)"),
                 opt("bo", "bundle-output", ONE, ABS_OR_CWD_REL_PATH,"Bundle output directory"),
                 opt("bf", "bundle-format", ONE, "Which formats to create the application bundle in. Comma separated list. (Android: 'apk' and 'aab')"),
+                opt(null, "bundle-report-html", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a standalone Live Update package report after bundling (requires liveupdate.manifest)"),
 
                 opt("mp", "mobileprovisioning", ONE, ABS_OR_CWD_REL_PATH, "mobileprovisioning profile (iOS)"),
                 opt(null, "identity", ONE, "Sign identity (iOS)"),
@@ -769,7 +770,8 @@ public class Bob {
             build_report_json = build_report_json != null ? build_report_json : cmd.getOptionValue("build-report-json");
             build_report_html = build_report_html != null ? build_report_html : cmd.getOptionValue("build-report-html");
 
-            if (build_report_json != null || build_report_html != null) {
+            boolean hasBuildCommand = cmd.getArgs().length == 0 || Arrays.asList(cmd.getArgs()).contains("build");
+            if (hasBuildCommand && (build_report_json != null || build_report_html != null)) {
                 List<File> reportFiles = new ArrayList<>();
                 if (build_report_json != null) {
                     reportFiles.add(new File(build_report_json));

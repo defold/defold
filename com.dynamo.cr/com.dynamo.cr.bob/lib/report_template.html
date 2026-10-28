@@ -1,6 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Defold Build Report</title>
     <script type="text/javascript">
       var report_data = {{{json-data}}};
@@ -298,6 +300,14 @@ if(a&&a.length>0)for(c in a[0])a[0].hasOwnProperty(c)&&-1===i.indexOf(c)&&i.push
         text-align: right;
         font-weight: bold;
       }
+      .report-controls { margin: 24px 0; }
+      .resource-path, .output-path { overflow-wrap: anywhere; font-family: monospace; }
+      .resource-source { display: block; color: #555; font-size: 12px; }
+      .package-name { padding: 0; text-align: left; font-weight: bold; }
+      #package-list td { vertical-align: middle; }
+      #package-list .size { white-space: nowrap; }
+      #package-list .output-path { font-size: 12px; }
+      #resources-list tfoot { font-weight: bold; }
     </style>
     <script type="text/javascript">
 
@@ -506,12 +516,71 @@ if(a&&a.length>0)for(c in a[0])a[0].hasOwnProperty(c)&&-1===i.indexOf(c)&&i.push
       ul.appendTo(elem);
     }
 
+    // Case-insensitive subsequences: "ep00desc" matches "/episodes/00/description.txt".
+    // Whitespace separates terms; each term may match anywhere in the resource or source path.
+    function fuzzyMatch(query, text) {
+      text = text.toLowerCase();
+      return query.toLowerCase().trim().split(/\s+/).every(function(term) {
+        var position = 0;
+        for (var i = 0; i < term.length; ++i) {
+          position = text.indexOf(term[i], position);
+          if (position < 0) return false;
+          ++position;
+        }
+        return true;
+      });
+    }
+
+    function escapedText(value) {
+      return $('<span/>').text(value).html();
+    }
+
+    function packageOverview() {
+      $('#package-overview').show();
+      $('#package-filter-container').show();
+      $('#legacy-overview, #structure-section').hide();
+      report_data.packages.forEach(function(pkg) {
+        $('<option/>').val(pkg.name).text(pkg.name).appendTo('#package-filter');
+        var row = $('<tr/>').data('package', pkg.name).appendTo('#package-list tbody');
+        var button = $('<button type="button" class="btn btn-link package-name"/>').text(pkg.name);
+        button.on('click', function() { $('#package-filter').val(pkg.name).trigger('change'); });
+        $('<td/>').append(button).appendTo(row);
+        $('<td/>').text(pkg.provider).appendTo(row);
+        $('<td/>').text(pkg.resources.length.toLocaleString()).appendTo(row);
+        $('<td class="size"/>').text(formatBytes(pkg.size)).appendTo(row);
+        $('<td class="size"/>').text(pkg.output_size == null ? '—' : formatBytes(pkg.output_size)).appendTo(row);
+        var files = $('<td/>').appendTo(row);
+        pkg.outputs.forEach(function(output) {
+          $('<div class="output-path"/>').attr('title', output.path)
+            .text(output.name + ' — ' + (output.size == null ? 'Unavailable' : formatBytes(output.size))).appendTo(files);
+        });
+        if (!pkg.outputs.length) files.text('Not exported');
+      });
+    }
+
     $(document).ready(function() {
 
+        var packageReport = !!report_data.packages;
+        if (packageReport) {
+          report_data.resources = report_data.package_resources;
+          packageOverview();
+          $('#resources-list tfoot tr').html('<th></th><th></th><th></th><th></th>');
+        }
+        var query = '';
+        var selectedPackage = '';
+        $.fn.dataTable.ext.search.push(function(settings, data, index) {
+          if (settings.nTable.id !== 'resources-list') return true;
+          var row = report_data.resources[index];
+          return (!selectedPackage || row.packages.indexOf(selectedPackage) !== -1) &&
+            fuzzyMatch(query, row.file + ' ' + (row.source || ''));
+        });
+
         // Generate file tree and HTML representation
-        generateTree();
-        file_tree["/"] = collapseTree(file_tree["/"]);
-        generateTreeHTML($('#directory-structure'), file_tree["/"], true);
+        if (!packageReport) {
+          generateTree();
+          file_tree["/"] = collapseTree(file_tree["/"]);
+          generateTreeHTML($('#directory-structure'), file_tree["/"], true);
+        }
 
         // Update project meta data
         $("#meta-project-name").text(report_data.project_name);
@@ -521,34 +590,40 @@ if(a&&a.length>0)for(c in a[0])a[0].hasOwnProperty(c)&&-1===i.indexOf(c)&&i.push
         $("#meta-bo-tc").text(report_data.build_options["texture-compression"] == "true" ? "Enabled" : "Disabled");
 
         // Visualize package size, group by file type
-        var svg = dimple.newSvg("#file_usage_chart", 450, 400);
-        var type_data = [];
-        for (var t in types_lut) {
-          if (types_lut.hasOwnProperty(t)) {
-            type_data.push(types_lut[t]);
+        if (!packageReport) {
+          var svg = dimple.newSvg("#file_usage_chart", 450, 400);
+          var type_data = [];
+          for (var t in types_lut) {
+            if (types_lut.hasOwnProperty(t)) {
+              type_data.push(types_lut[t]);
+            }
           }
+          var package_size_chart = new dimple.chart(svg, type_data);
+          package_size_chart.setBounds(10, 10, 280, 380)
+          package_size_chart.addMeasureAxis("p", "size");
+          package_size_chart.addSeries("type", dimple.plot.pie);
+          package_size_chart.addLegend(320, 20, 90, 300, "left");
+          package_size_chart.draw();
         }
-        var package_size_chart = new dimple.chart(svg, type_data);
-        package_size_chart.setBounds(10, 10, 280, 380)
-        package_size_chart.addMeasureAxis("p", "size");
-        package_size_chart.addSeries("type", dimple.plot.pie);
-        package_size_chart.addLegend(320, 20, 90, 300, "left");
-        package_size_chart.draw();
 
         // Setup resource table
-        $('#resources-list').DataTable( {
+        var resourceTable = $('#resources-list').DataTable( {
+            dom: 'lrtip',
+            deferRender: true,
             data: report_data.resources,
             "footerCallback": function ( row, data, start, end, display ) {
                 var api = this.api(), data;
+                var compiledColumn = packageReport ? 2 : 1;
+                var storedColumn = packageReport ? 3 : 2;
                 var uncompressedTotal = api
-                    .column( 1, {search: 'applied'} )
+                    .column( compiledColumn, {search: 'applied'} )
                     .data()
                     .reduce( function (a, b) {
                         return a + b;
                     }, 0 );
 
                 var uncompressedTotalPage = api
-                    .column( 1, {search: 'applied',
+                    .column( compiledColumn, {search: 'applied',
                                   page : 'current'} )
                     .data()
                     .reduce( function (a, b) {
@@ -556,14 +631,14 @@ if(a&&a.length>0)for(c in a[0])a[0].hasOwnProperty(c)&&-1===i.indexOf(c)&&i.push
                     }, 0 );
 
                 var compressedTotal = api
-                    .column( 2, {search: 'applied'} )
+                    .column( storedColumn, {search: 'applied'} )
                     .data()
                     .reduce( function (a, b) {
                         return a + b;
                     }, 0 );
 
                 var compressedTotalPage = api
-                    .column( 2, {search: 'applied',
+                    .column( storedColumn, {search: 'applied',
                                   page : 'current'} )
                     .data()
                     .reduce( function (a, b) {
@@ -571,16 +646,35 @@ if(a&&a.length>0)for(c in a[0])a[0].hasOwnProperty(c)&&-1===i.indexOf(c)&&i.push
                     }, 0 );
 
                 // Update size in footer
-                $( api.column( 1 ).footer() ).html(
+                $( api.column( compiledColumn ).footer() ).html(
                   formatBytes(uncompressedTotalPage) + " <br>(" + formatBytes(uncompressedTotal) + ")"
                 );
-                $( api.column( 2 ).footer() ).html(
+                $( api.column( storedColumn ).footer() ).html(
                   formatBytes(compressedTotalPage) + " <br>(" + formatBytes(compressedTotal) + ")"
                 );
             },
 
-            columns: [
-                { title: "Resource", data: "file" },
+            columns: packageReport ? [
+                { title: "Resource", data: "file", render: function(value, type, row) {
+                    if (type !== 'display') return value;
+                    var source = row.source && row.source !== value ?
+                      '<span class="resource-source">' + escapedText(row.source) + '</span>' : '';
+                    return '<span class="resource-path">' + escapedText(value) + '</span>' + source;
+                } },
+                { title: "Packages", data: "packages", render: function(value, type) {
+                    var names = value.join(', ');
+                    return type === 'display' ? escapedText(names) : names;
+                } },
+                { title: "Compiled size", data: "size", render: function(value, type) {
+                    return type === 'display' ? formatBytes(value) : value;
+                } },
+                { title: "Stored size", data: "compressed_size", render: function(value, type) {
+                    return type === 'display' ? formatBytes(value) : value;
+                } }
+            ] : [
+                { title: "Resource", data: "file", render: function(value, type) {
+                    return type === 'display' ? escapedText(value) : value;
+                } },
                 { title: "Uncompressed", data: function ( row, type, val, meta ) {
                       if (type === 'display') {
                         return formatBytes(row.size);
@@ -624,6 +718,20 @@ if(a&&a.length>0)for(c in a[0])a[0].hasOwnProperty(c)&&-1===i.indexOf(c)&&i.push
                     } }
             ]
         } );
+        $('#resource-search').on('input', function() {
+          query = this.value;
+          resourceTable.draw();
+        });
+        $('#resource-search-clear').on('click', function() {
+          $('#resource-search').val('').trigger('input').focus();
+        });
+        $('#package-filter').on('change', function() {
+          selectedPackage = this.value;
+          $('#package-list tbody tr').each(function() {
+            $(this).toggleClass('active', $(this).data('package') === selectedPackage);
+          });
+          resourceTable.draw();
+        });
     } );
 
     </script>
@@ -636,6 +744,33 @@ if(a&&a.length>0)for(c in a[0])a[0].hasOwnProperty(c)&&-1===i.indexOf(c)&&i.push
       <p class="lead">Generated on <span id="meta-date"></span>.</p>
     </div>
 
+    <div class="row report-controls">
+      <div class="col-sm-8">
+        <label for="resource-search">Search resources</label>
+        <div class="input-group">
+          <input id="resource-search" type="search" class="form-control" placeholder="Fuzzy search by resource or source path" autocomplete="off">
+          <span class="input-group-btn">
+            <button id="resource-search-clear" type="button" class="btn btn-default" aria-label="Clear resource search"><span aria-hidden="true">&times;</span> Clear</button>
+          </span>
+        </div>
+      </div>
+      <div class="col-sm-4" id="package-filter-container" style="display:none">
+        <label for="package-filter">Package</label>
+        <select id="package-filter" class="form-control"><option value="">All packages</option></select>
+      </div>
+    </div>
+
+    <section id="package-overview" style="display:none">
+      <h3>Packages</h3>
+      <div class="table-responsive">
+        <table id="package-list" class="table table-striped table-bordered">
+          <thead><tr><th>Package</th><th>Provider</th><th>Resources</th><th>Compiled</th><th>Output</th><th>Files</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="legacy-overview">
     <h3>Overview</h3>
     <div class="row">
       <div class="col-md-6">
@@ -662,6 +797,7 @@ if(a&&a.length>0)for(c in a[0])a[0].hasOwnProperty(c)&&-1===i.indexOf(c)&&i.push
       </div>
     </div>
 
+    </section>
     <hr>
 
     <h3>Resources</h3>
@@ -680,12 +816,14 @@ if(a&&a.length>0)for(c in a[0])a[0].hasOwnProperty(c)&&-1===i.indexOf(c)&&i.push
       </div>
     </div>
 
+    <section id="structure-section">
     <h3>Structure</h3>
     <div class="row">
       <div class="col-md-12" id="directory-structure">
 
       </div>
     </div>
+    </section>
   </div>
 
 </body>

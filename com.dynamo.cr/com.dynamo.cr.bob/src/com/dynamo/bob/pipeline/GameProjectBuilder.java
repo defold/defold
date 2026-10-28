@@ -45,6 +45,7 @@ import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.archive.liveupdate.PackageBuilder;
 import com.dynamo.bob.archive.liveupdate.PackageResolver;
+import com.dynamo.bob.archive.liveupdate.PackageReport;
 import com.dynamo.bob.archive.liveupdate.PackageWriter;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.DefaultResource;
@@ -214,6 +215,7 @@ public class GameProjectBuilder extends Builder {
             builder.addExtraCacheKey("package-manifest=" + project.option("package-manifest", ""));
             if (project.option("archive", "false").equals("true")) {
                 builder.addOutput(PackageWriter.receipt(project).disableCache());
+                builder.addOutput(PackageReport.resource(project).disableCache());
                 // A preview needs a fresh in-memory plan even when every compiler task is cached.
                 if (project.option("package-preview", "false").equals("true") ||
                         (project.option("liveupdate", "false").equals("true") && !PackageWriter.outputsAreCurrent(project))) {
@@ -402,8 +404,9 @@ public class GameProjectBuilder extends Builder {
             task.output(3).setContent(manifest.buildManifest(true));
             graph.setHexDigests(archive.getCachedHexDigests());
             task.output(4).setContent(graph.toJSON().getBytes(StandardCharsets.UTF_8));
-            java.util.List<PackageWriter.Output> outputs = writer == null ? java.util.List.of() : writer.write(manifest);
-            task.output(5).setContent(PackageWriter.serializeOutputs(project, outputs));
+            PackageWriter.WriteResult outputs = writer == null ? new PackageWriter.WriteResult(java.util.List.of(), java.util.Map.of()) : writer.write(manifest);
+            task.output(5).setContent(PackageWriter.serializeOutputs(project, outputs.outputs()));
+            task.output(6).setContent(PackageReport.create(project, archive, plan, outputs.packages()));
         } finally {
             Files.deleteIfExists(indexFile.toPath());
             Files.deleteIfExists(dataFile.toPath());

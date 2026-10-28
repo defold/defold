@@ -50,6 +50,7 @@ import java.util.TreeSet;
 /** Owns temporary payloads and the transaction that publishes a complete set of artifacts. */
 public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsumer, AutoCloseable {
     public record Output(Path path, String name, boolean directory, boolean bundle, String inputSignature, String contentHash) {}
+    public record WriteResult(List<Output> outputs, Map<String, List<Output>> packages) {}
     private record Delivery(PackageResolver.Package pkg, PackageProvider provider, Path stage,
                             List<PackageProvider.Artifact> artifacts, Path root, boolean bundle) {}
 
@@ -116,7 +117,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                         PackageProviders.schemas(providers(project)), settings.getCompressionLevelValue()), project::isBuildCanceled);
     }
 
-    public List<Output> write(ManifestBuilder manifests) throws IOException, CompileExceptionError {
+    public WriteResult write(ManifestBuilder manifests) throws IOException, CompileExceptionError {
         PublisherSettings settings = project.getPublisher().getPublisherSettings();
         PackageProvider.Context context = createContext(project, plan, resourceInfo);
         Map<String, PackageProvider> providers = providers(project);
@@ -126,6 +127,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         List<Delivery> deliveries = new ArrayList<>();
         Map<Path, Path> stagedOutputs = new LinkedHashMap<>();
         List<Output> outputs = new ArrayList<>();
+        Map<String, List<Output>> packageOutputs = new LinkedHashMap<>();
         List<Path> occupied = new ArrayList<>();
         List<PackageOutput> references = new ArrayList<>();
         for (PackageResolver.Package pkg : plan.packages().values()) {
@@ -169,6 +171,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         }
         for (Delivery delivery : deliveries) {
             context.checkCanceled();
+            int firstOutput = outputs.size();
             PackageResolver.Package pkg = delivery.pkg();
             PackageMetadata.Builder metadata = PackageMetadata.newBuilder().setName(pkg.description().getName()).addAllOutputs(references);
             plan.requirements().get(pkg.description().getName()).forEach((path, alternatives) ->
@@ -191,6 +194,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                     Output previous = previousOutputs.get(delivery.root().resolve(artifact.name()));
                     outputs.add(new Output(previous.path(), artifact.name(), artifact.directory(), delivery.bundle(), signature, previous.contentHash()));
                 }
+                packageOutputs.put(pkg.description().getName(), List.copyOf(outputs.subList(firstOutput, outputs.size())));
                 continue;
             }
             delivery.provider().write(context, pkg, resources, manifest, delivery.stage());
@@ -202,6 +206,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                 stagedOutputs.put(destination, output);
                 outputs.add(new Output(destination, artifact.name(), artifact.directory(), delivery.bundle(), signature, hash));
             }
+            packageOutputs.put(pkg.description().getName(), List.copyOf(outputs.subList(firstOutput, outputs.size())));
         }
         context.checkCanceled();
         Set<Path> obsolete = new LinkedHashSet<>(previousOutputs.keySet());
@@ -210,7 +215,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         Files.write(ownership, serializeOutputs(project, outputs));
         stagedOutputs.put(PackageArtifacts.buildReceipt(project), ownership);
         finalizeOutputs(project, stagedOutputs, obsolete);
-        return List.copyOf(outputs);
+        return new WriteResult(List.copyOf(outputs), Map.copyOf(packageOutputs));
     }
 
     /** Resolve existing ancestors as well, so aliases cannot hide a source beneath a new output directory. */

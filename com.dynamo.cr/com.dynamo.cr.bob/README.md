@@ -194,6 +194,34 @@ including alternative packages supplying the same dependency. It is informationa
 the game is responsible for downloading, choosing mount order, and mounting its
 packages with the existing Live Update API.
 
+### Package reports
+
+Use `--bundle-report-html` with `bundle` to inspect the base and all Live Update
+packages in one standalone file. This report requires `liveupdate.manifest`:
+
+```sh
+java -jar bob.jar --archive --liveupdate yes --bundle-report-html build/bundle-report.html build bundle
+```
+
+The report lists package providers, resource counts, compiled sizes, and the
+actual sizes and paths of generated ZIPs, folders, and custom outputs. Folder
+sizes include all files, including the package manifest. Select a package to
+inspect its contents, or search across all packages. Search is case-insensitive
+and matches nonconsecutive characters in resource and source paths; for example,
+`ep00desc` matches `/episodes/00/description.txt`. Shared resources list every
+package containing them. JavaScript, styles, and report data are embedded, so
+the HTML works offline without a server or companion files.
+
+Bob saves package contents in `game.lureport.json` alongside the build outputs.
+The report is written after every requested bundle succeeds. A later invocation
+can use `--bundle-report-html build/bundle-report.html bundle` to regenerate it
+from cached data without rebuilding packages.
+
+`--build-report-html` and `--build-report-json` remain options for the `build`
+command. They run after compiling, independently of bundling; `bundle` alone
+does not generate or overwrite build reports. The JSON build report also includes
+the package overview and resource membership in `packages` and `package_resources`.
+
 ### Incremental packages
 
 Package generation and bundle placement are incremental. Bob uses its existing

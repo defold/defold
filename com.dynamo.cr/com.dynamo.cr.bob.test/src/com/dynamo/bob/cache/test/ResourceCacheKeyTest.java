@@ -285,6 +285,7 @@ public class ResourceCacheKeyTest {
                     "build-server-header",
                     "bundle-format",
                     "bundle-output",
+                    "bundle-report-html",
                     "certificate",
                     "debug",
                     "debug-ne-upload",

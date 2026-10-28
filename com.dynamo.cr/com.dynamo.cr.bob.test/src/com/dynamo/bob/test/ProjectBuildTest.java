@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 import com.dynamo.bob.archive.liveupdate.PackageBuilder;
 import com.dynamo.bob.archive.liveupdate.PackageArtifacts;
 import com.dynamo.bob.archive.liveupdate.PackagePreview;
+import com.dynamo.bob.archive.liveupdate.PackageReport;
 import com.dynamo.bob.archive.liveupdate.PackageResolver;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.archive.liveupdate.PackageWriter;
@@ -1136,6 +1137,194 @@ public class ProjectBuildTest {
         try (ZipFile zip = new ZipFile(new File(contentRoot, "packages/" + name + ".zip"))) {
             return Manifest.ManifestData.parseFrom(Manifest.ManifestFile.parseFrom(zip.getInputStream(zip.getEntry("liveupdate.game.dmanifest"))).getData());
         }
+    }
+
+    private Project packageReportProject(boolean export) {
+        return packageReportProject(export, false);
+    }
+
+    private Project packageReportProject(boolean export, boolean failBundle) {
+        Project project = new Project(new DefaultFileSystem(), contentRoot, "build") {
+            @Override
+            public IBundler createBundler(Platform platform) {
+                return new LinuxBundler() {
+                    @Override
+                    public void bundleApplication(Project project, Platform platform, File directory, ICanceled canceled) throws IOException {
+                        if (failBundle) throw new IOException("Deliberate bundle failure");
+                        Files.writeString(directory.toPath().resolve("application"), "complete");
+                    }
+                };
+            }
+        };
+        project.setOption("archive", "true");
+        project.setOption("variant", "release");
+        project.setOption("liveupdate", Boolean.toString(export));
+        project.setOption("bundle-output", Path.of(contentRoot, "build/bundle").toString());
+        project.setOption("bundle-report-html", Path.of(contentRoot, "report.html").toString());
+        return project;
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode packageReport() throws IOException {
+        String html = Files.readString(Path.of(contentRoot, "report.html"));
+        String marker = "var report_data = ";
+        int start = html.indexOf(marker) + marker.length();
+        int end = html.indexOf(";", start);
+        return new com.fasterxml.jackson.databind.ObjectMapper().readTree(html.substring(start, end));
+    }
+
+    // Reports include exact package membership and actual ZIP/folder/custom output sizes, safely embedded in standalone HTML.
+    @Test
+    public void testPackageBundleReportContentsAndSizes() throws Exception {
+        createPackageProject();
+        createFile(contentRoot, "extra/description.txt", "välkommen!\n");
+        Files.writeString(Path.of(contentRoot, "game.project"), "\n[project]\ntitle=</script><script>alert('report')</script>\n",
+                java.nio.file.StandardOpenOption.APPEND);
+        savePackages(livePackage("episode", "zip", addPath("Startup", "/logic/main[.]collection"), addPath("Data", "/extra/.*")),
+                livePackage("copy", "folder", LiveUpdateManifest.RuleDesc.newBuilder().setName("Copy").setPackage("episode").build()),
+                livePackage("custom", "test-package", addPath("Data", "/extra/.*")), livePackage("empty", "zip"));
+        PackageResolver.Plan plan;
+        try (Project project = packageReportProject(true)) {
+            for (TaskResult result : project.build(Progress.discarding(), "build", "bundle")) assertTrue(result.toString(), result.isOk());
+            plan = project.getLiveUpdatePlan();
+        }
+        var report = packageReport();
+        assertEquals(5, report.get("packages").size());
+        Map<String, com.fasterxml.jackson.databind.JsonNode> resources = new LinkedHashMap<>();
+        for (var row : report.get("package_resources")) {
+            String path = row.get("file").asText();
+            resources.put(path, row);
+            assertEquals(Files.size(Path.of(contentRoot, "build", path.substring(1))), row.get("size").asLong());
+        }
+        assertEquals(plan.emittedResources(), resources.keySet());
+        assertEquals(List.of("episode", "copy", "custom"),
+                new com.fasterxml.jackson.databind.ObjectMapper().convertValue(resources.get("/extra/data.json").get("packages"), List.class));
+        assertEquals(List.of("base", "episode", "copy"),
+                new com.fasterxml.jackson.databind.ObjectMapper().convertValue(resources.get("/logic/main.collectionc").get("packages"), List.class));
+        for (var pkg : report.get("packages")) {
+            String name = pkg.get("name").asText();
+            Set<String> expected = name.equals("base") ? plan.base() : plan.packages().get(name).resources();
+            Set<String> actual = new HashSet<>();
+            long compiledSize = 0;
+            for (var path : pkg.get("resources")) {
+                actual.add(path.asText());
+                compiledSize += resources.get(path.asText()).get("size").asLong();
+            }
+            assertEquals(expected, actual);
+            assertEquals(compiledSize, pkg.get("size").asLong());
+            long outputSize = 0;
+            for (var output : pkg.get("outputs")) {
+                Path path = Path.of(output.get("path").asText());
+                long size = 0;
+                try (var files = Files.walk(path)) {
+                    for (Path file : files.filter(Files::isRegularFile).toList()) size += Files.size(file);
+                }
+                assertEquals(size, output.get("size").asLong());
+                outputSize += size;
+            }
+            assertEquals(outputSize, pkg.get("output_size").asLong());
+            if (name.equals("custom")) assertEquals(2, pkg.get("outputs").size());
+        }
+        String html = Files.readString(Path.of(contentRoot, "report.html"));
+        assertTrue(html.contains("id=\"package-filter\""));
+        assertTrue(html.contains("id=\"resource-search\""));
+        assertTrue(html.contains("fuzzyMatch"));
+        assertFalse(html.contains("</script><script>alert('report')</script>"));
+        assertTrue(html.contains("\\u003c/script\\u003e"));
+        assertFalse(java.util.regex.Pattern.compile("(?i)<script[^>]+src\\s*=|<link[^>]+href\\s*=").matcher(html).find());
+    }
+
+    // Incremental builds and bundle-only invocations report cached package data without compiling or rewriting packages.
+    @Test
+    public void testPackageReportsUseCachedBuildData() throws Exception {
+        createPackageProject();
+        try (Project project = packageReportProject(true)) {
+            for (TaskResult result : project.build(Progress.discarding(), "build", "bundle")) assertTrue(result.toString(), result.isOk());
+        }
+        var expected = packageReport();
+        Path cache = Path.of(contentRoot, "build/game.lureport.json");
+        Path zip = Path.of(contentRoot, "packages/episode.zip");
+        FileTime unchanged = FileTime.fromMillis(946684800000L);
+        Files.setLastModifiedTime(cache, unchanged);
+        Files.setLastModifiedTime(zip, unchanged);
+        for (String[] commands : List.of(new String[]{"build", "bundle"}, new String[]{"bundle"})) {
+            Files.delete(Path.of(contentRoot, "report.html"));
+            try (Project project = packageReportProject(true)) {
+                // The bundle command uses existing archives and does not require the build's --archive flag.
+                if (commands.length == 1) project.setOption("archive", "false");
+                for (TaskResult result : project.build(Progress.discarding(), commands)) assertTrue(result.toString(), result.isOk());
+                assertNull(project.getLiveUpdatePlan());
+                assertNull(project.getArchiveBuilder());
+            }
+            assertEquals(expected.get("packages"), packageReport().get("packages"));
+            assertEquals(expected.get("package_resources"), packageReport().get("package_resources"));
+            assertEquals(unchanged, Files.getLastModifiedTime(cache));
+            assertEquals(unchanged, Files.getLastModifiedTime(zip));
+            assertTrue(Files.size(Path.of(contentRoot, "report.html")) > 0);
+        }
+        // Previously generated reports remain excluded when reports are no longer requested.
+        savePackages(livePackage("data", "zip", addPath("Files", "/(?:report.*|extra/.*)[.](html|json)")));
+        var plan = buildPackageProject(true, false);
+        assertEquals(Set.of("/extra/data.json"), plan.packages().get("data").resources());
+    }
+
+    // Disabled export reports selected resources in the base and does not count artifacts retained from an earlier export.
+    @Test
+    public void testPackageReportWithExportDisabled() throws Exception {
+        createPackageProject();
+        buildPackageProject(true, false);
+        try (Project project = packageReportProject(false)) {
+            for (TaskResult result : project.build(Progress.discarding(), "build", "bundle")) assertTrue(result.toString(), result.isOk());
+            assertTrue(PackageReport.resource(project).exists());
+        }
+        var report = packageReport();
+        assertEquals(report.get("package_resources").size(), report.get("packages").get(0).get("resources").size());
+        for (var pkg : report.get("packages")) {
+            if (!pkg.get("name").asText().equals("base")) {
+                assertEquals(0, pkg.get("outputs").size());
+                assertTrue(pkg.get("output_size").isNull());
+            }
+        }
+        assertTrue(Files.isRegularFile(Path.of(contentRoot, "packages/episode.zip")));
+    }
+
+    // Build reports belong to build even if bundling fails; bundle reports are written only after a successful bundle.
+    @Test
+    public void testBuildAndBundleReportCommands() throws Exception {
+        createPackageProject();
+        Path buildReport = Path.of(contentRoot, "build-report.html");
+        Path bundleReport = Path.of(contentRoot, "report.html");
+        try (Project project = packageReportProject(true)) {
+            project.setOption("build-report-html", buildReport.toString());
+            for (TaskResult result : project.build(Progress.discarding(), "build")) assertTrue(result.toString(), result.isOk());
+        }
+        assertTrue(Files.size(buildReport) > 0);
+        assertFalse(Files.exists(bundleReport));
+        Files.delete(buildReport);
+        try (Project project = packageReportProject(true, true)) {
+            project.setOption("build-report-html", buildReport.toString());
+            try {
+                project.build(Progress.discarding(), "build", "bundle");
+                org.junit.Assert.fail("Expected bundle failure");
+            } catch (Exception expected) {
+                assertTrue(expected.getMessage().contains("Deliberate bundle failure"));
+            }
+        }
+        assertTrue(Files.size(buildReport) > 0);
+        assertFalse(Files.exists(bundleReport));
+        byte[] expected = Files.readAllBytes(buildReport);
+        FileTime unchanged = FileTime.fromMillis(946684800000L);
+        Files.setLastModifiedTime(buildReport, unchanged);
+        try (Project project = packageReportProject(true)) {
+            project.setOption("build-report-html", buildReport.toString());
+            project.setOption("archive", "false");
+            for (TaskResult result : project.build(Progress.discarding(), "bundle")) assertTrue(result.toString(), result.isOk());
+        }
+        assertArrayEquals(expected, Files.readAllBytes(buildReport));
+        assertEquals(unchanged, Files.getLastModifiedTime(buildReport));
+        assertTrue(Files.size(bundleReport) > 0);
+        assertFalse(Files.exists(Path.of(contentRoot, "excluded_report.html")));
+        assertFalse(Files.exists(Path.of(contentRoot, "report_time.html")));
+        assertEquals(3, packageReport().get("packages").size());
     }
 
     private static class PackagePublication extends AmazonS3Client implements AutoCloseable {

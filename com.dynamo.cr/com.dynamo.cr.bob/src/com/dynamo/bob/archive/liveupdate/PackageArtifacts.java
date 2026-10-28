@@ -19,9 +19,13 @@ import com.dynamo.bob.util.MurmurHash;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -81,6 +85,30 @@ public final class PackageArtifacts {
     static List<PackageWriter.Output> readBuildOutputs(Project project) throws IOException {
         Path receipt = buildReceipt(project);
         return Files.exists(receipt) ? read(Path.of(project.getRootDirectory()), receipt) : PackageWriter.readOutputs(project);
+    }
+
+    /** Retain generated report paths when later builds omit the report options. */
+    public static void recordReportOutputs(Project project, Collection<Path> paths) throws IOException {
+        Path buildReceipt = buildReceipt(project);
+        Path receipt = buildReceipt.resolveSibling("reports-" + buildReceipt.getFileName());
+        var outputs = new LinkedHashMap<Path, PackageWriter.Output>();
+        for (PackageWriter.Output output : read(Path.of(project.getRootDirectory()), receipt)) outputs.put(output.path(), output);
+        for (Path path : paths) {
+            path = path.toAbsolutePath().normalize();
+            outputs.put(path, new PackageWriter.Output(path, path.getFileName().toString(), false, false, "", ""));
+        }
+        Files.createDirectories(receipt.getParent());
+        Path staged = Files.createTempFile(receipt.getParent(), ".reports-", ".tmp");
+        try {
+            Files.write(staged, PackageWriter.serializeOutputs(project, List.copyOf(outputs.values())));
+            try {
+                Files.move(staged, receipt, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(staged, receipt, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(staged);
+        }
     }
 
     /** Capture during resource synchronization, then use the captured paths as graph inputs. */
