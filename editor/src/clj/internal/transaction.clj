@@ -430,13 +430,22 @@
                 (update :nodes-added into node-ids))]
     (if (:full-invalidation ctx)
       ctx
-      (let [changed-node-ids (e/concat node-ids (e/map key introduced-node-id->pkid->override-node-id))
-            new-basis (:basis ctx)
+      (let [new-basis (:basis ctx)
             source-arcs (coll/into-> node-ids []
                           (mapcat #(ig/explicit-arcs-by-source new-basis %)))]
         (-> ctx
             (mark-added-node-consumers-activated node-ids is-new-override-tree)
-            (mark-successor-nodes-changed changed-node-ids)
+            ;; Adding an override changes its original's successors, but
+            ;; successor-changes already walks each added node's chain of
+            ;; originals via override-originals and flags their successor cache
+            ;; entries. Only the added nodes need to be roots for its separate
+            ;; traversal of override descendants and their incoming arcs.
+            ;;
+            ;; Including originals here would also traverse every existing
+            ;; sibling override subtree. As resources are materialized, this
+            ;; would repeatedly scan previously created instances of the same
+            ;; resource, even though their connections have not changed.
+            (mark-successor-nodes-changed node-ids)
             (mark-successor-arcs-changed source-arcs))))))
 
 (defn- ctx-delete-nodes [ctx nodes removed-arc->source+target-pkids overrides node-id->pkid->override-node-id]
@@ -2147,8 +2156,9 @@
     (swap! changes-atom conj change)
     (swap! nodes-added-atom
            (fn [previous-nodes-added]
-             (into (coll/into-> previous-nodes-added []
-                     (remove nodes-deleted))
+             (into (cond-> previous-nodes-added
+                     (coll/not-empty nodes-deleted)
+                     (coll/transform-> (remove nodes-deleted)))
                    nodes-added)))
     (swap! nodes-deleted-atom into nodes-deleted)
     (swap! invalidated-endpoints-atom into outputs-modified)

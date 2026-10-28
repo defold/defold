@@ -1226,6 +1226,55 @@
         (g/update-system-from-evaluation-context! second-evaluation-context)
         (is (= #{first-child second-child} (set (g/overrides original))))))))
 
+;; Creating or replaying an override tree preserves sibling successor caches
+;; while updating the original's successors so later edits reach the new tree.
+(deftest materialization-preserves-sibling-override-successors-test
+  (doseq [replay-mode [:none :evaluation-context :system]]
+    (with-clean-system
+      (let [source (g/make-node! ShellTestNode :value 3)
+            owner (g/make-node! ShellTestNode :value 1)
+            unrelated (g/make-node! ShellTestNode)
+            shell (first (g/take-node-ids 1))]
+        (g/transact (g/connect source :result owner :dependency))
+        (g/transact (g/override owner))
+        (g/transact
+          (g/add-node
+            (g/construct-shell ShellWithChild {:_node-id shell}
+              (fn materialize-override [self evaluation-context]
+                (g/materialize-prerequisites! self #{owner} evaluation-context)
+                (g/override owner {}
+                  (fn initialize-override [_evaluation-context original->override]
+                    (g/set-property self :child (original->override owner))))))))
+        (let [existing-source (first (g/overrides source))
+              existing-owner (first (g/overrides owner))
+              existing-successors (g/successors (g/now) existing-source :result)
+              original-successors (set (g/successors (g/now) source :result))
+              evaluation-context (g/make-evaluation-context)
+              replay-context (when (= :evaluation-context replay-mode)
+                               (g/make-evaluation-context))
+              new-owner (g/node-value shell :child evaluation-context)]
+          (is (= #{(g/endpoint existing-owner :result)} (set existing-successors)))
+          (is (= #{(g/endpoint owner :result) (g/endpoint existing-source :result)}
+                 original-successors))
+          (is (= 4 (g/node-value new-owner :result evaluation-context)))
+          (when replay-context
+            (is (= new-owner (g/node-value shell :child replay-context)))
+            (g/update-system-from-evaluation-context! replay-context))
+          (when (= :system replay-mode)
+            (g/set-property! unrelated :value 1))
+          (g/update-system-from-evaluation-context! evaluation-context)
+          (let [new-source (coll/first-where #(not= existing-source %) (g/overrides source))]
+            (is (g/node-id? new-source))
+            (is (identical? existing-successors
+                            (g/successors (g/now) existing-source :result)))
+            (is (= (conj original-successors (g/endpoint new-source :result))
+                   (set (g/successors (g/now) source :result)))))
+          (is (= 4 (g/node-value existing-owner :result)))
+          (is (= 4 (g/node-value new-owner :result)))
+          (g/set-property! source :value 7)
+          (is (= 8 (g/node-value existing-owner :result)))
+          (is (= 8 (g/node-value new-owner :result))))))))
+
 (defn- prerequisite-test-materialize-fn [prerequisite-ids entered]
   (fn [self evaluation-context]
     (when entered
