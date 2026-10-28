@@ -443,6 +443,19 @@ void DeleteFactory(HFactory factory)
     delete factory;
 }
 
+static void DestroyReloadMessage(dmMessage::Message* message)
+{
+    dmDDF::FreeMessage((void*)message->m_UserData1);
+}
+
+dmMessage::Result PostReloadMessage(dmMessage::HSocket socket, dmResourceDDF::Reload* reload)
+{
+    dmMessage::URL receiver = {};
+    receiver.m_Socket = socket;
+    return dmMessage::Post(0, &receiver, dmResourceDDF::Reload::m_DDFHash, (uintptr_t)reload,
+                           (uintptr_t)dmResourceDDF::Reload::m_DDFDescriptor, 0, 0, DestroyReloadMessage);
+}
+
 static void Dispatch(dmMessage::Message* message, void* user_ptr)
 {
     HFactory factory = (HFactory) user_ptr;
@@ -452,10 +465,12 @@ static void Dispatch(dmMessage::Message* message, void* user_ptr)
         dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
         if (descriptor == dmResourceDDF::Reload::m_DDFDescriptor)
         {
-            // DDF stores pointer-sized offsets relative to the start of the message.
-            // Message: | offset to string-offsets | count | string offset | string offset | ... | string #1 | string #2 | ... |
-            dmResourceDDF::Reload* reload_resources = (dmResourceDDF::Reload*) message->m_Data;
+            // HTTP batches own their DDF allocation through the queued message.
+            // Continue accepting inline messages from existing callers.
+            void* payload = message->m_DataSize ? (void*)message->m_Data : (void*)message->m_UserData1;
+            dmResourceDDF::Reload* reload_resources = (dmResourceDDF::Reload*)payload;
             uint32_t count = reload_resources->m_Resources.m_Count;
+            // DDF stores pointer-sized offsets relative to its allocation.
             const char* message_base = (const char*)reload_resources;
             const uintptr_t* resource_offsets = (const uintptr_t*)(message_base + (uintptr_t)reload_resources->m_Resources.m_Data);
             // Reload callbacks can read other resources later in this message.

@@ -345,6 +345,7 @@ class HttpProviderBatch : public HttpProviderCached
 {
 protected:
     char m_MountPath[64];
+    void CheckReloadBatchInvalidation(bool queued);
 
     static void ControlContent(dmHttpClient::HResponse, void* user_data, int, const void* data, uint32_t size,
                                int32_t, uint32_t, uint32_t, uint32_t, const char*)
@@ -600,9 +601,7 @@ static void ReloadBatchCallback(const dmResource::ResourceReloadedParams* params
     free(data);
 }
 
-// A reload callback must see changed raw resources later in the same message,
-// including string offsets above 255, while unrelated resources remain cached.
-TEST_F(HttpProviderBatch, InvalidateBatchBeforeReloadCallbacks)
+void HttpProviderBatch::CheckReloadBatchInvalidation(bool queued)
 {
     char driver_path[256];
     memset(driver_path, 'a', sizeof(driver_path));
@@ -640,9 +639,16 @@ TEST_F(HttpProviderBatch, InvalidateBatchBeforeReloadCallbacks)
                                                 dmDDF::OPTION_OFFSET_POINTERS, &message_size));
     dmMessage::URL receiver = {};
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket("@resource", &receiver.m_Socket));
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmResourceDDF::Reload::m_DDFHash, 0,
-                                                 (uintptr_t)dmResourceDDF::Reload::m_DDFDescriptor, message, message_size, 0));
-    dmDDF::FreeMessage(message);
+    if (queued)
+    {
+        ASSERT_EQ(dmMessage::RESULT_OK, dmResource::PostReloadMessage(receiver.m_Socket, (dmResourceDDF::Reload*)message));
+    }
+    else
+    {
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmResourceDDF::Reload::m_DDFHash, 0,
+                                                     (uintptr_t)dmResourceDDF::Reload::m_DDFDescriptor, message, message_size, 0));
+        dmDDF::FreeMessage(message);
+    }
     dmResource::UpdateFactory(factory);
 
     void* data;
@@ -659,6 +665,20 @@ TEST_F(HttpProviderBatch, InvalidateBatchBeforeReloadCallbacks)
     ASSERT_EQ(12U, context.m_Size);
     ASSERT_EQ(11U, context.m_LastByte);
     Control("requests", 4);
+}
+
+// A reload callback must see changed raw resources later in an inline message,
+// including string offsets above 255, while unrelated resources remain cached.
+TEST_F(HttpProviderBatch, InvalidateBatchBeforeReloadCallbacks)
+{
+    CheckReloadBatchInvalidation(false);
+}
+
+// Reloads stored outside the message page must preserve batch invalidation
+// before callbacks and keep their DDF allocation alive throughout dispatch.
+TEST_F(HttpProviderBatch, QueuedBatchBeforeReloadCallbacks)
+{
+    CheckReloadBatchInvalidation(true);
 }
 
 // Replacing an entry after validation must not transfer trust to its new ETag.
