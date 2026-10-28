@@ -323,7 +323,7 @@ dialog.save-and-upgrade.button.upgrade-editable-files = Atualizar Arquivos Edit�
 dialog.save-and-upgrade.button.upgrade-project-files = Atualizar Arquivos de Projeto
 dialog.save-and-upgrade.button.upgrade-all-files = Atualizar Todos os Arquivos
 
-# Plugin load error dialog
+# Plugin error dialogs
 
 dialog.plugin-load-error.title = Não Foi Possível Carregar Plugin
 dialog.plugin-load-error.header = O plugin de editor "{plugin}" não é compatível com esta versão do editor. Por favor, edite as dependências de projeto para utilizar uma versão adequada.
