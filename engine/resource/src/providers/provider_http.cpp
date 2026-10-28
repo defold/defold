@@ -37,6 +37,11 @@ namespace dmResourceProviderHttp
 
 static dmHttpCache::HCache g_HttpCache = 0;
 
+// These constants must stay synchronized, in order, with max-batch-file-size,
+// max-batch-size, max-batch-files and max-batch-request-size in
+// editor/src/clj/editor/hot_reload.clj. The file and payload limits must also
+// match MAX_BATCH_FILE_SIZE and MAX_BATCH_SIZE in
+// engine/resource/src/test/test_provider_http.py.
 static const uint32_t MAX_BATCH_FILE_SIZE = 1024U * 1024U;
 static const uint32_t MAX_BATCH_SIZE = 4U * 1024U * 1024U;
 static const uint32_t MAX_BATCH_FILES = 4096;

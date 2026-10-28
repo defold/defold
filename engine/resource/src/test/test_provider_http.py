@@ -10,6 +10,13 @@ import threading
 from urllib.parse import quote_plus, unquote, urlsplit
 
 
+# These limits must stay synchronized with MAX_BATCH_FILE_SIZE and MAX_BATCH_SIZE
+# in engine/resource/src/providers/provider_http.cpp and max-batch-file-size and
+# max-batch-size in editor/src/clj/editor/hot_reload.clj.
+MAX_BATCH_FILE_SIZE = 1024 * 1024
+MAX_BATCH_SIZE = 4 * 1024 * 1024
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     large = bytes(i % 251 for i in range(128 * 1024))
@@ -87,9 +94,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path.endswith("/huge.bin"):
             return 1024 * 1024 * 1024
         if path.endswith("/over-limit.bin"):
-            return 1024 * 1024 + 1
+            return MAX_BATCH_FILE_SIZE + 1
         if path.rsplit("/", 1)[-1].startswith("limit-"):
-            return 1024 * 1024
+            return MAX_BATCH_FILE_SIZE
         size = 12 if Handler.batch_tag(path) == '"version-2"' else 8
         return 20 - size if path.endswith("/shrink.bin") else size
 
@@ -112,7 +119,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         Handler.download_sorted = int(sizes[1:] == sorted(sizes[1:]))
         Handler.download_bytes += sum(sizes)
         Handler.download_max_bytes = max(Handler.download_max_bytes, sum(sizes))
-        if max(sizes) > 1024 * 1024 or sum(sizes) > 4 * 1024 * 1024:
+        if max(sizes) > MAX_BATCH_FILE_SIZE or sum(sizes) > MAX_BATCH_SIZE:
             self.send_error(413)
             return
         if Handler.download_mode == "stale" or any(tag != self.batch_tag(unquote(key)) for key, tag in entries):

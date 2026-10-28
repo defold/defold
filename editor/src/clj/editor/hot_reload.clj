@@ -30,7 +30,11 @@
 (def ^:const url-prefix "/build")
 (def ^:const verify-etags-url-prefix "/__verify_etags__")
 
-;; Keep the wire limits in sync with the HTTP resource provider.
+;; These constants must stay synchronized, in order, with MAX_BATCH_FILE_SIZE,
+;; MAX_BATCH_SIZE, MAX_BATCH_FILES and MAX_BATCH_REQUEST_SIZE in
+;; engine/resource/src/providers/provider_http.cpp. The file and payload limits
+;; must also match MAX_BATCH_FILE_SIZE and MAX_BATCH_SIZE in
+;; engine/resource/src/test/test_provider_http.py.
 (def ^:private max-batch-file-size (* 1024 1024))
 (def ^:private max-batch-size (* 4 1024 1024))
 (def ^:private max-batch-files 4096)
