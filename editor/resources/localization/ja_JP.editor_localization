@@ -323,7 +323,7 @@ dialog.save-and-upgrade.button.upgrade-editable-files = 編集可能なファイ
 dialog.save-and-upgrade.button.upgrade-project-files = プロジェクトファイルをアップグレード
 dialog.save-and-upgrade.button.upgrade-all-files = すべてのファイルをアップグレード
 
-# Plugin load error dialog
+# Plugin error dialogs
 
 dialog.plugin-load-error.title = プラグインを読み込めません
 dialog.plugin-load-error.header = エディタプラグイン「{plugin}」は、このエディタのバージョンと互換性がありません。 プロジェクトの依存関係を編集して、適切なバージョンを参照してください。
