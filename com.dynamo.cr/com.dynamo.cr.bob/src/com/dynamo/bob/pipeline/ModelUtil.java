@@ -1713,15 +1713,18 @@ public class ModelUtil {
         if (mesh.morphTargets != null) {
             int morphN = mesh.morphTargets.length;
             meshBuilder.setMorphTargetCount(morphN);
-            String morphTargetTexture = morphTextureCollector != null ? morphTextureCollector.get(mesh) : null;
-            if (morphTargetTexture == null) {
-                PackedMorphTargetTexture packedMorphTargetTexture = packMorphTargetTexture(mesh, maxMorphTargetTexW, maxMorphTargetTexH);
-                if (packedMorphTargetTexture != null && morphTextureCollector != null) {
-                    morphTargetTexture = morphTextureCollector.add(mesh, packedMorphTargetTexture);
+            // Geometry snapshots have no collector and do not need packed textures.
+            if (morphTextureCollector != null) {
+                String morphTargetTexture = morphTextureCollector.get(mesh);
+                if (morphTargetTexture == null) {
+                    PackedMorphTargetTexture packedMorphTargetTexture = packMorphTargetTexture(mesh, maxMorphTargetTexW, maxMorphTargetTexH);
+                    if (packedMorphTargetTexture != null) {
+                        morphTargetTexture = morphTextureCollector.add(mesh, packedMorphTargetTexture);
+                    }
                 }
-            }
-            if (morphTargetTexture != null) {
-                meshBuilder.setMorphTargetTexture(morphTargetTexture);
+                if (morphTargetTexture != null) {
+                    meshBuilder.setMorphTargetTexture(morphTargetTexture);
+                }
             }
 
             float[] base = new float[morphN];
