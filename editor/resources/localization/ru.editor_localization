@@ -323,7 +323,7 @@ dialog.save-and-upgrade.button.upgrade-editable-files = Обновить ред�
 dialog.save-and-upgrade.button.upgrade-project-files = Обновить файлы проекта
 dialog.save-and-upgrade.button.upgrade-all-files = Обновить все файлы
 
-# Plugin load error dialog
+# Plugin error dialogs
 
 dialog.plugin-load-error.title = Не удалось загрузить плагин
 dialog.plugin-load-error.header = Плагин редактора «{plugin}» не совместим с этой версией редактора. Измените зависимости проекта, чтобы использовать подходящую версию.
