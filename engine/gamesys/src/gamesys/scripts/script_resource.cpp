@@ -3082,6 +3082,9 @@ static int CreateBuffer(lua_State* L)
     dmBuffer::GetCount(buffer, &resource->m_ElementCount);
     dmBuffer::GetContentVersion(buffer, &resource->m_Version);
 
+    HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, canonical_path_hash);
+    dmResource::SetResourceSize(rd, GetBufferResourceSize(resource));
+
     if (transfer_ownership)
     {
         // IncRef if this is a lua buffer or a buffer from another resource,
@@ -3309,6 +3312,9 @@ static int SetBuffer(lua_State* L)
     dmBuffer::UpdateContentVersion(dst_buffer);
     dmBuffer::GetContentVersion(buffer_resource->m_Buffer, &buffer_resource->m_Version);
     buffer_resource->m_NameHash = path_hash;
+
+    HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
+    dmResource::SetResourceSize(rd, GetBufferResourceSize(buffer_resource));
 
     assert(top == lua_gettop(L));
     return 0;
