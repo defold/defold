@@ -21,7 +21,8 @@ Gradle's percentage for each build phase. Terminals update one line; CI and
 redirected output show occasional progress snapshots. Failures show the failed
 task, compiler or test diagnostics, and Gradle's failure explanation. Complete
 logs are saved in each module's `logs/` directory, outside the outputs removed by
-Gradle's `clean` task. Pass `--verbose` to stream the complete
+Gradle's `clean` task, and uploaded by CI as
+`gradle-logs-<job>-<platform>` artifacts. Pass `--verbose` to stream the complete
 output with Gradle's `--info` logging instead.
 
 The build time summary and `build_times.json` include a separate duration for

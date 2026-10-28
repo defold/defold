@@ -99,7 +99,8 @@ updates one progress line; redirected output and CI print progress at ten-percen
 intervals, with updates during longer builds. Complete command output is
 saved under `logs/` in each CMake build directory. On failure, the console shows
 the failed command and its diagnostics and prints the full log's location.
-Pass `--verbose` to stream the complete command output instead.
+Engine CI uploads these logs as `cmake-logs-<platform>` artifacts, including when
+the build fails. Pass `--verbose` to stream the complete command output instead.
 
 Compiler diagnostics retain their colors on terminals, including through the
 runner's output capture. Redirected output, CI output, and saved logs stay plain.
