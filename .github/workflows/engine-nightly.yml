@@ -118,6 +118,18 @@ jobs:
         with: { platform: 'x86_64-linux', build-variant: 'tsan' }
       },
       {
+        name: 'MSAN',
+        id: msan,
+        env: { MSAN_SYMBOLIZER_PATH: '/usr/lib/llvm-20/bin/llvm-symbolizer' },
+        run: 'ci/ci.sh --platform=x86_64-linux --with-msan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
+      },
+      {
+        name: 'Upload MSAN build reports',
+        if: "always() && (steps.msan.outcome == 'success' || steps.msan.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'x86_64-linux', build-variant: 'msan' }
+      },
+      {
          name: 'Notify if build status changed',
          uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d, # v4.0.0
          if: failure(),
@@ -173,6 +185,18 @@ jobs:
         if: "always() && (steps.tsan.outcome == 'success' || steps.tsan.outcome == 'failure')",
         uses: ./.github/actions/upload-build-reports,
         with: { platform: 'arm64-linux', build-variant: 'tsan' }
+      },
+      {
+        name: 'MSAN',
+        id: msan,
+        env: { MSAN_SYMBOLIZER_PATH: '/usr/lib/llvm-20/bin/llvm-symbolizer' },
+        run: 'ci/ci.sh --platform=arm64-linux --with-msan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
+      },
+      {
+        name: 'Upload MSAN build reports',
+        if: "always() && (steps.msan.outcome == 'success' || steps.msan.outcome == 'failure')",
+        uses: ./.github/actions/upload-build-reports,
+        with: { platform: 'arm64-linux', build-variant: 'msan' }
       },
       {
          name: 'Notify if build status changed',
