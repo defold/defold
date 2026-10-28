@@ -413,7 +413,8 @@
 
 (defn update-system-from-evaluation-context
   [system {:keys [initial-basis initial-invalidate-counters] :as evaluation-context}]
-  (let [changes @(:changes-atom evaluation-context)
+  (let [evaluation-context (in/live-run-evaluation-context evaluation-context)
+        changes @(:changes-atom evaluation-context)
         original-invalidate-counters (:invalidate-counters system)]
     (assert (coll/every? it/evaluation-context-change? changes)
             "Evaluation contexts can only accumulate materializations and shell property initializations.")

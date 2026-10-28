@@ -605,7 +605,7 @@
               (fn materialize-fn [self _evaluation-context]
                 (g/set-property self :value 23))))))
       (let [evaluation-context (g/make-evaluation-context)]
-        (g/node-value parent :result (assoc evaluation-context :dry-run true))
+        (g/node-value parent :result (g/dry-run-evaluation-context evaluation-context))
         (is (= 23 (g/node-value parent :result evaluation-context)))
         (g/update-system-from-evaluation-context! evaluation-context)
         (is (= 23 (g/node-value parent :result)))
@@ -623,6 +623,7 @@
                 (g/add-node
                   (g/construct-shell ShellTestNode {:_node-id shell}
                     (fn materialize-fn [self evaluation-context]
+                      (is (not (contains? @(:tx-data-context-atom evaluation-context) ::tracing-value)))
                       [(g/set-property self :value
                          (g/tx-cached-value! evaluation-context [::shared-value]
                            (do (swap! value-evaluations inc) 7)))
@@ -631,15 +632,59 @@
                            (g/flag-nodes-as-migrated! context [self])))]))))
               shells))
       (let [evaluation-context (g/make-evaluation-context)
-            dry-evaluation-context (assoc evaluation-context :dry-run true)]
+            dry-evaluation-context (g/dry-run-evaluation-context evaluation-context)]
+        (swap! (:tx-data-context-atom dry-evaluation-context) assoc ::tracing-value nil)
         (is (nil? (g/tx-cached-value! dry-evaluation-context [::shared-value]
                     (g/node-value (first shells) :result dry-evaluation-context))))
         (g/node-value (second shells) :result dry-evaluation-context)
         (is (= 1 @value-evaluations))
         (is (= {::shared-value 7 :migrated-node-ids (set shells)}
                @(:tx-data-context-atom evaluation-context)))
-        (g/update-system-from-evaluation-context! evaluation-context)
+        (is (= {::shared-value nil ::tracing-value nil}
+               @(:tx-data-context-atom dry-evaluation-context)))
+        (g/update-system-from-evaluation-context! dry-evaluation-context)
         (is (= [7 7] (mapv #(g/node-value % :result) shells)))))))
+
+;; Failed materialization rolls back real transaction-data writes without
+;; replacing the isolated bookkeeping of the surrounding dependency trace.
+(deftest tracing-materialization-restores-transaction-context-on-failure-test
+  (with-clean-system
+    (let [shell (first (g/take-node-ids 1))]
+      (g/transact
+        (g/add-node
+          (g/construct-shell ShellTestNode {:_node-id shell}
+            (fn materialize-fn [_self _evaluation-context]
+              (g/callback-ec
+                (fn fail-materialization [evaluation-context]
+                  (swap! (:tx-data-context-atom evaluation-context) assoc ::attempted-value 7)
+                  (throw (ex-info "materialization failed" {}))))))))
+      (let [evaluation-context (g/make-evaluation-context)
+            dry-evaluation-context (g/dry-run-evaluation-context evaluation-context)]
+        (swap! (:tx-data-context-atom dry-evaluation-context) assoc ::tracing-value nil)
+        (is (thrown-with-msg? ExceptionInfo #"materialization failed"
+                              (g/node-value shell :result dry-evaluation-context)))
+        (is (= {} @(:tx-data-context-atom evaluation-context)))
+        (is (= {::tracing-value nil} @(:tx-data-context-atom dry-evaluation-context)))
+        (is (in/shell-node? (g/node-by-id @(:basis-ref evaluation-context) shell)))))))
+
+;; Shell property initialization changes real graph state even during tracing,
+;; so it must invalidate the real caches before they can be reused or committed.
+(deftest tracing-shell-property-initialization-invalidates-real-caches-test
+  (with-clean-system
+    (let [shell (first (g/take-node-ids 1))]
+      (g/transact
+        (g/add-node
+          (g/construct-shell ShellReadCacheNode {:_node-id shell}
+            (fn materialize-fn [self _evaluation-context]
+              (g/set-property self :value 7)))))
+      (let [evaluation-context (g/make-evaluation-context)]
+        (is (nil? (g/node-value shell :cached-identity evaluation-context)))
+        (let [dry-evaluation-context (g/dry-run-evaluation-context evaluation-context)]
+          (g/initialize-shell-properties! shell {:identity "initialized"} dry-evaluation-context)
+          (is (= "initialized" (g/node-value shell :cached-identity evaluation-context)))
+          (g/update-system-from-evaluation-context! dry-evaluation-context)))
+      (is (in/shell-node? (g/node-by-id (g/now) shell)))
+      (is (= "initialized" (g/node-value shell :cached-identity))))))
 
 (g/defnode MaterializationCacheProbe
   (property evaluations g/Any)
@@ -684,7 +729,7 @@
         (let [evaluation-context (g/make-evaluation-context evaluation-context-options)]
           (when warm-cache
             (is (= 7 (g/node-value lookup output-label evaluation-context))))
-          (g/node-value collector :cached-total (assoc evaluation-context :dry-run true))
+          (g/node-value collector :cached-total (g/dry-run-evaluation-context evaluation-context))
           (is (= {output-label 1} @evaluations))
           (is (= 63 (g/node-value collector :cached-total evaluation-context)))
           (is (= {output-label 1} @evaluations))
@@ -721,7 +766,7 @@
               (when (= :system replay)
                 (g/update-system-from-evaluation-context! other-evaluation-context))))
           (doseq [[shell expected-total] (mapv vector shells [7 18])]
-            (g/node-value shell :result (assoc evaluation-context :dry-run true))
+            (g/node-value shell :result (g/dry-run-evaluation-context evaluation-context))
             (doseq [output-label [:cached-total :uncached-total]]
               (is (= expected-total (g/node-value collector output-label evaluation-context)))))
           (g/update-system-from-evaluation-context! evaluation-context)
@@ -777,7 +822,7 @@
                            (remove-watch watched-atom watch-key)
                            (throw (ex-info "materialization failed" {}))))))
           (try
-            (g/node-value collector :cached-total (assoc evaluation-context :dry-run true :tracer tracer))
+            (g/node-value collector :cached-total (g/dry-run-evaluation-context evaluation-context tracer))
             (is (= (if fail [:cache :cache] [:cache :output]) @traced-output-types))
             (is (= (if fail ["materialization failed"] []) @caught-errors))
             (is (= fail (in/shell-node? (g/node-by-id @(:basis-ref evaluation-context) child))))

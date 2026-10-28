@@ -527,9 +527,8 @@
   (util/key-set (:property node-type)))
 
 (defn- validate-evaluation-context-options [options]
-  ;; :dry-run means no production functions will be called, useful speedup when tracing dependencies
   ;; :no-local-temp disables the non deterministic local caching of non :cached outputs, useful for stable results when debugging dependencies
-  (assert (coll/every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context-atom :node-id-generator :override-id-generator :shared-materialization-registry-atom :active-materialization :materialization-results} (coll/keys options)) (str (coll/keys options)))
+  (assert (coll/every? #{:basis :cache :initial-invalidate-counters :no-local-temp :tracer :tx-data-context-atom :node-id-generator :override-id-generator :shared-materialization-registry-atom :active-materialization :materialization-results} (coll/keys options)) (str (coll/keys options)))
   (assert (not (and (some? (:cache options)) (nil? (:basis options))))))
 
 (defn default-evaluation-context
@@ -552,6 +551,36 @@
    :hits-atom (atom [])
    :in-production #{}
    :tx-data-context-atom (atom {})})
+
+(defn dry-run-evaluation-context [evaluation-context tracer]
+  (if (:live-run-evaluation-state evaluation-context)
+    (assoc evaluation-context :tracer tracer)
+    (let [local-atom (atom @(:local-atom evaluation-context))
+          local-temp-atom (some-> (:local-temp-atom evaluation-context) deref atom)]
+      ;; Isolate both graph caches and transaction bookkeeping before tracing
+      ;; begins, including writes surrounding node-value calls. Materializers
+      ;; restore the original atoms so they can reuse real values and retain
+      ;; their transaction data without seeing tracing placeholders.
+      ;; Keep active tracing caches reachable for invalidation and rollback
+      ;; when materialization changes the shared basis. Transaction data is not
+      ;; an endpoint cache and must not participate in that invalidation.
+      (assoc evaluation-context
+        :dry-run true
+        :tracer tracer
+        :live-run-evaluation-state (select-keys evaluation-context [:local-atom :local-temp-atom :hits-atom :tx-data-context-atom])
+        :dry-run-cache-atoms (cond-> (conj (or (:dry-run-cache-atoms evaluation-context) [])
+                                           local-atom)
+                               local-temp-atom
+                               (conj local-temp-atom))
+        :local-atom local-atom
+        :local-temp-atom local-temp-atom
+        :hits-atom (atom @(:hits-atom evaluation-context))
+        :tx-data-context-atom (atom @(:tx-data-context-atom evaluation-context))))))
+
+(defn live-run-evaluation-context [evaluation-context]
+  (-> evaluation-context
+      (dissoc :dry-run :tracer :live-run-evaluation-state)
+      (coll/merge (:live-run-evaluation-state evaluation-context))))
 
 (defn custom-evaluation-context
   [{:keys [basis cache] :as options}]
@@ -610,26 +639,10 @@
     (assert (gt/graph? basis))
     (assert (some? (:in-production evaluation-context)))
     (assert (some? (:local-atom evaluation-context)))
-    (assert (some? (:hits-atom evaluation-context)))))
-
-(defn- apply-dry-run-cache [evaluation-context]
-  (if-not (:dry-run evaluation-context)
-    evaluation-context
-    (let [local-atom (atom @(:local-atom evaluation-context))
-          local-temp-atom (some-> (:local-temp-atom evaluation-context) deref atom)]
-      ;; Tracing caches placeholders instead of real output values. Preserve the
-      ;; original cache atoms so materializers can reuse and invalidate real
-      ;; values without seeing those placeholders. Keep every active tracing
-      ;; cache reachable for invalidation and rollback when materialization
-      ;; changes the shared basis, including inside nested dependency traces.
-      (assoc evaluation-context
-        :real-cache (or (:real-cache evaluation-context)
-                        (select-keys evaluation-context [:local-atom :local-temp-atom :hits-atom]))
-        :dry-run-cache-atoms (cond-> (conj (or (:dry-run-cache-atoms evaluation-context) []) local-atom)
-                               local-temp-atom (conj local-temp-atom))
-        :local-atom local-atom
-        :local-temp-atom local-temp-atom
-        :hits-atom (atom @(:hits-atom evaluation-context))))))
+    (assert (some? (:hits-atom evaluation-context)))
+    (assert (= (boolean (:dry-run evaluation-context))
+               (boolean (:live-run-evaluation-state evaluation-context)))
+            "Use g/dry-run-evaluation-context or g/live-run-evaluation-context to change evaluation mode.")))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
@@ -640,7 +653,7 @@
   misses (for later cache update) in the evaluation-context."
   [node label evaluation-context]
   (validate-evaluation-context evaluation-context)
-  (gt/produce-value node label (apply-dry-run-cache evaluation-context)))
+  (gt/produce-value node label evaluation-context))
 
 (defn node-property-value [node label evaluation-context]
   (validate-evaluation-context evaluation-context)

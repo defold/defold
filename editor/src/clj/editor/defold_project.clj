@@ -463,8 +463,7 @@
       ;; Make the batch's options available to those loads as well.
       (g/callback-ec
         (fn store-load-opts [evaluation-context]
-          (when-not (:dry-run evaluation-context)
-            (swap! (:tx-data-context-atom evaluation-context) assoc :load-opts load-opts))))
+          (swap! (:tx-data-context-atom evaluation-context) assoc :load-opts load-opts)))
       (coll/into-> node-load-infos :eduction
         (coll/mapcat-indexed
           (fn [^long node-index node-load-info]
@@ -1315,7 +1314,7 @@
 
      (if-not include-non-editable-directories
        upgraded-editable-save-data
-       (let [live-run-evaluation-context (dissoc evaluation-context :dry-run)
+       (let [live-run-evaluation-context (g/live-run-evaluation-context evaluation-context)
              workspace (g/valid-node-value project :workspace live-run-evaluation-context)
              resources-by-proj-path (g/valid-node-value workspace :resource-map live-run-evaluation-context)
              resource-nodes-by-proj-path (g/valid-node-value project :nodes-by-resource-path live-run-evaluation-context)]
@@ -1343,7 +1342,7 @@
           step-count-tracer (make-count-progress-steps-tracer :save-data step-count)
           progress-message-fn (constantly (localization/message "progress.saving"))]
       (render-progress! (progress/make (localization/message "progress.saving")))
-      (save-data-fn project (assoc evaluation-context :dry-run true :tracer step-count-tracer))
+      (save-data-fn project (g/dry-run-evaluation-context evaluation-context step-count-tracer))
       (let [progress-tracer (make-progress-tracer :save-data (.get step-count) progress-message-fn render-progress!)]
         (save-data-fn project (assoc evaluation-context :tracer progress-tracer))))))
 
@@ -2018,16 +2017,15 @@
   "Creates transaction steps for creating `connections` between the
   corresponding node for `path-or-resource` and `consumer-node`. If
   there is no corresponding node for `path-or-resource`, transactions
-  for creating and loading the node will be included. Returns nil during
-  dependency tracing (:dry-run), otherwise a map with the following keys:
+  for creating and loading the node will be included. Returns a map with
+  following keys:
     :tx-data          transactions steps
     :node-id          node id corresponding to `path-or-resource`
     :created-in-tx    boolean indicating if this node will be created after
                       applying this transaction and does not exist yet in the
                       system, such nodes can't be used for `g/node-value` calls"
   [evaluation-context project path-or-resource consumer-node connections]
-  (when-let [resource (when-not (:dry-run evaluation-context)
-                        (resolve-path-or-resource project path-or-resource evaluation-context))]
+  (when-let [resource (resolve-path-or-resource project path-or-resource evaluation-context)]
     (let [{:keys [basis-ref tx-data-context-atom]} evaluation-context
           resource-type (resource/resource-type resource @basis-ref)
           node-type (:node-type resource-type)

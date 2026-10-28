@@ -186,7 +186,7 @@
                      (= :output output-type))
             (swap! steps conj node)))
 
-        _ (g/node-value node-id :build-targets (assoc evaluation-context :dry-run true :tracer collect-tracer-fn))
+        _ (g/node-value node-id :build-targets (g/dry-run-evaluation-context evaluation-context collect-tracer-fn))
         progress-message-fn (partial compiling-progress-message node-id->resource-path)
         step-count (count @steps)
         progress-tracer (project/make-progress-tracer :build-targets step-count progress-message-fn (progress/nest-render-progress render-progress! (progress/make localization/empty-message 10 0 true) 5))

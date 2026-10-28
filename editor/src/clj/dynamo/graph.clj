@@ -100,9 +100,37 @@
   materializations performed since the reference was obtained are included. Each
   dereferenced basis is an immutable snapshot. Committing with
   update-system-from-evaluation-context! resets the reference to nil and closes
-  the evaluation-context. Discard the evaluation-context after committing it."
+  the evaluation-context. Discard the evaluation-context after committing it.
+  Use dry-run-evaluation-context to enable dependency tracing."
   ([] (is/default-evaluation-context @*the-system*))
   ([options] (is/custom-evaluation-context @*the-system* options)))
+
+(defn dry-run-evaluation-context
+  "Returns a dependency-tracing context with isolated graph caches and
+  transaction data. Existing values remain available, but tracing placeholders
+  and direct transaction-data mutations cannot pollute the real context.
+  The optional tracer replaces any existing tracer; omitting it or passing nil
+  selects no tracer. Converting an already isolated tracing context reuses its
+  state and only updates the tracer.
+
+  Use this before entering tracing code, including helpers that surround
+  node-value calls, instead of associating :dry-run directly. Graph state is
+  shared, so materializations remain visible to the original context. Restore
+  live evaluation with live-run-evaluation-context instead of clearing
+  :dry-run."
+  ([evaluation-context]
+   (in/dry-run-evaluation-context evaluation-context nil))
+  ([evaluation-context tracer]
+   (in/dry-run-evaluation-context evaluation-context tracer)))
+
+(defn live-run-evaluation-context
+  "Restores the original graph caches and transaction-data atom of a tracing
+  context, retaining real materializations and discarding tracing-only writes.
+  Removes the tracer, including from an already live context, and preserves
+  other evaluation options. The returned context shares graph state with its
+  caller."
+  [evaluation-context]
+  (in/live-run-evaluation-context evaluation-context))
 
 (defn ^{:dynamic strict-evaluation-context-scopes} now
   "Returns the basis at the current point in time. Will assert if called inside
@@ -216,11 +244,9 @@
   (is/invalidate-counters @*the-system*))
 
 (defn flag-nodes-as-migrated!
-  "Records migrated nodes during real evaluation, ignoring dependency tracing."
+  "Records migrated nodes in the evaluation-context's transaction data."
   [evaluation-context migrated-node-ids]
-  (when-not (:dry-run evaluation-context)
-    (let [tx-data-context-atom (:tx-data-context-atom evaluation-context)]
-      (swap! tx-data-context-atom update :migrated-node-ids coll/into-set migrated-node-ids)))
+  (swap! (:tx-data-context-atom evaluation-context) update :migrated-node-ids coll/into-set migrated-node-ids)
   nil)
 
 (defn endpoint-invalidated-pred
@@ -1263,7 +1289,8 @@
   Background evaluations must hand off their evaluation-context to that thread
   before calling this function. Closes the evaluation-context and all
   evaluation-contexts sharing its state. They must be discarded after this call,
-  even if their changes were incompatible with the system."
+  even if their changes were incompatible with the system. For a tracing
+  context, commits only real changes and cache entries, excluding placeholders."
   [{:keys [basis-ref] :as evaluation-context}]
   (assert @basis-ref "Evaluation context is closed.")
   (let [[old-system new-system] (swap-vals! *the-system* is/update-system-from-evaluation-context evaluation-context)]
@@ -1442,11 +1469,9 @@
   :tx-data-context-atom in the supplied evaluation-context. If no existing value
   was found in the :tx-data-context-atom, evaluate the value-expr and store the
   value at the specified key path in the :tx-data-context-atom, then return the
-  value. During dependency tracing (:dry-run), cache misses are evaluated
-  without storing their results, which may contain placeholder values."
+  value. Use dry-run-evaluation-context to isolate writes during tracing."
   [evaluation-context-expr tx-data-context-key-path-expr value-expr]
-  `(let [evaluation-context# ~evaluation-context-expr
-         tx-data-context-atom# (:tx-data-context-atom evaluation-context#)
+  `(let [tx-data-context-atom# (:tx-data-context-atom ~evaluation-context-expr)
          tx-data-context-key-path# ~tx-data-context-key-path-expr
          cached-value# (-> tx-data-context-atom#
                            (deref)
@@ -1454,8 +1479,7 @@
      (case cached-value#
        :dynamo.graph/not-found
        (let [evaluated-value# ~value-expr]
-         (when-not (:dry-run evaluation-context#)
-           (swap! tx-data-context-atom# assoc-in tx-data-context-key-path# evaluated-value#))
+         (swap! tx-data-context-atom# assoc-in tx-data-context-key-path# evaluated-value#)
          evaluated-value#)
        cached-value#)))
 

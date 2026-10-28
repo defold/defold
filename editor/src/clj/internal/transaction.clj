@@ -2175,7 +2175,8 @@
   {:pre [(map? properties)
          (nil? active-materialization)]}
   (assert @basis-ref "Evaluation context is closed.")
-  (let [node (ig/node-by-id-at @basis-ref node-id)]
+  (let [evaluation-context (in/live-run-evaluation-context evaluation-context)
+        node (ig/node-by-id-at @basis-ref node-id)]
     (when (and (in/shell-node? node)
                (not (coll/empty? properties)))
       (let [node-type (gt/node-type node)
@@ -2350,17 +2351,13 @@
 (defn materialize-node! [node-id {:keys [active-materialization] :as evaluation-context}]
   (assert @(:basis-ref evaluation-context) "Evaluation context is closed.")
   ;; Dependency tracing skips output functions and caches placeholder values.
-  ;; Materialization must use the caller's real caches so successive shells
-  ;; reuse computed values and invalidate entries the caller could later commit.
+  ;; Materialization must use the caller's real caches and transaction data so
+  ;; successive shells reuse computed values and retain their bookkeeping.
   ;; Retain the tracing cache atoms too: their values describe the same basis.
   (let [evaluation-context (if-not (:dry-run evaluation-context)
                              evaluation-context
-                             (-> evaluation-context
-                                 (merge (:real-cache evaluation-context))
-                                 (dissoc :real-cache)
-                                 (assoc :dry-run false
-                                        :tracer nil
-                                        :in-production #{})))
+                             (assoc (in/live-run-evaluation-context evaluation-context)
+                               :in-production #{}))
         basis-ref (:basis-ref evaluation-context)
         shared-materialization-registry-atom (:shared-materialization-registry-atom evaluation-context)
         node (ig/node-by-id-at @basis-ref node-id)]
