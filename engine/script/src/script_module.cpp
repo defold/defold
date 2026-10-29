@@ -63,12 +63,18 @@ namespace dmScript
         return luaL_loadbuffer(L, buf, size, source->m_Filename);
     }
 
-    static bool LuaLoadModule(lua_State *L, const char *buf, uint32_t size, const char *filename)
+    static bool LuaLoadModule(lua_State* L, const char* buf, uint32_t size, const char* filename, int* chunk_ref)
     {
         int top = lua_gettop(L);
         (void) top;
 
         int ret = luaL_loadbuffer(L, buf, size, filename);
+        if (chunk_ref)
+        {
+            Unref(L, LUA_REGISTRYINDEX, *chunk_ref);
+            lua_pushvalue(L, -1);
+            *chunk_ref = Ref(L, LUA_REGISTRYINDEX);
+        }
         if (ret == 0)
         {
             assert(top + 1 == lua_gettop(L));
@@ -102,12 +108,16 @@ namespace dmScript
             return 1;
         }
 
-        if (module->m_Loader)
+        if (module->m_ChunkRef != LUA_NOREF)
         {
-            if (module->m_Loader(context, L, module->m_Resource) != 0)
+            lua_rawgeti(L, LUA_REGISTRYINDEX, module->m_ChunkRef);
+            if (!lua_isfunction(L, -1))
                 return lua_error(L);
+            // Each execution starts in the requiring thread's global environment.
+            lua_pushvalue(L, LUA_GLOBALSINDEX);
+            lua_setfenv(L, -2);
         }
-        else if (!LuaLoadModule(L, module->m_Script, module->m_ScriptSize, module->m_Filename))
+        else if (!LuaLoadModule(L, module->m_Script, module->m_ScriptSize, module->m_Filename, 0))
         {
             luaL_error(L, "error loading module '%s'from file '%s':\n\t%s",
                           lua_tostring(L, 1), name, lua_tostring(L, -1));
@@ -115,6 +125,8 @@ namespace dmScript
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
+
+    static void FreeModuleCallback(HContext context, const uint64_t* key, Module* value);
 
     Result AddModule(HContext context, dmLuaDDF::LuaSource *source, const char *script_name, void* resource, dmhash_t path_hash)
     {
@@ -131,11 +143,38 @@ namespace dmScript
             return RESULT_MODULE_NAME_HASH_COLLISION;
         }
 
+        int chunk_ref = LUA_NOREF;
+        if (loader)
+        {
+            // Mark the path while dependencies are prepared, so recursive registration can skip it.
+            bool new_path = context->m_PathToModule.Get(path_hash) == 0;
+            if (new_path)
+            {
+                if (context->m_PathToModule.Full())
+                    context->m_PathToModule.SetCapacity(127, context->m_PathToModule.Capacity() + 128);
+                context->m_PathToModule.Put(path_hash, module_hash);
+            }
+
+            lua_State* L = GetLuaState(context);
+            int top = lua_gettop(L);
+            (void)top;
+            int status = loader(context, L, resource);
+            assert(top + 1 == lua_gettop(L));
+            if (status != 0)
+            {
+                dmLogError("Error preparing module '%s': %s", script_name, lua_tostring(L, -1));
+                lua_pop(L, 1);
+                if (new_path)
+                    context->m_PathToModule.Erase(path_hash);
+                return RESULT_LUA_ERROR;
+            }
+            chunk_ref = Ref(L, LUA_REGISTRYINDEX);
+        }
 
         Module module;
         module.m_Name = strdup(script_name);
 
-        module.m_Loader = loader;
+        module.m_ChunkRef = chunk_ref;
         module.m_Script = 0;
         module.m_ScriptSize = 0;
         if (loader == 0)
@@ -160,6 +199,9 @@ namespace dmScript
             context->m_PathToModule.SetCapacity(127, context->m_PathToModule.Capacity() + 128);
         }
 
+        existing_module = context->m_Modules.Get(module_hash);
+        if (existing_module)
+            FreeModuleCallback(context, &module_hash, existing_module);
         context->m_Modules.Put(module_hash, module);
         context->m_PathToModule.Put(path_hash, module_hash);
 
@@ -172,12 +214,13 @@ namespace dmScript
         int top = lua_gettop(L);
         (void) top;
 
-        dmhash_t* module_hash = context->m_PathToModule.Get(path_hash);
-        if (module_hash == 0)
+        dmhash_t* module_hash_ptr = context->m_PathToModule.Get(path_hash);
+        if (module_hash_ptr == 0)
         {
             return RESULT_MODULE_NOT_LOADED;
         }
-        Module* module = context->m_Modules.Get(*module_hash);
+        dmhash_t module_hash = *module_hash_ptr;
+        Module* module = context->m_Modules.Get(module_hash);
         if (module == 0)
         {
             return RESULT_MODULE_NOT_LOADED;
@@ -187,14 +230,18 @@ namespace dmScript
         uint32_t size;
         GetLuaSource(source, &buf, &size);
 
-        if (module->m_Loader == 0)
+        if (module->m_ChunkRef == LUA_NOREF)
         {
             module->m_ScriptSize = size;
             module->m_Script = (char*)realloc(module->m_Script, size);
             memcpy(module->m_Script, buf, size);
         }
 
-        if (LuaLoadModule(L, buf, size, module->m_Name))
+        int chunk_ref = module->m_ChunkRef;
+        bool loaded = LuaLoadModule(L, buf, size, module->m_Name, chunk_ref == LUA_NOREF ? 0 : &chunk_ref);
+        module = context->m_Modules.Get(module_hash);
+        module->m_ChunkRef = chunk_ref;
+        if (loaded)
         {
             lua_pushstring(L, module->m_Name);
             int ret = dmScript::PCall(L, 1, LUA_MULTRET);
@@ -215,10 +262,12 @@ namespace dmScript
         return RESULT_OK;
     }
 
-    static void FreeModuleCallback(void* context, const uint64_t* key, Module* value)
+    static void FreeModuleCallback(HContext context, const uint64_t* key, Module* value)
     {
+        if (value->m_ChunkRef != LUA_NOREF)
+            Unref(GetLuaState(context), LUA_REGISTRYINDEX, value->m_ChunkRef);
         if (value->m_Resource != 0) {
-            dmResource::Release((dmResource::HFactory)context, value->m_Resource);
+            dmResource::Release(context->m_ResourceFactory, value->m_Resource);
         }
         free(value->m_Script);
         free(value->m_Name);
@@ -227,7 +276,7 @@ namespace dmScript
 
     void ClearModules(HContext context)
     {
-        context->m_Modules.Iterate(&FreeModuleCallback, (void*) context->m_ResourceFactory);
+        context->m_Modules.Iterate(&FreeModuleCallback, context);
         context->m_Modules.Clear();
     }
 

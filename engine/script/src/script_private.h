@@ -58,13 +58,12 @@ namespace dmScript
 
     struct Module
     {
-        char*       m_Script; // Owned code; null when m_Loader is set.
+        char*       m_Script; // Owned code for direct-source modules.
         uint32_t    m_ScriptSize;
+        int         m_ChunkRef; // Prepared chunk, or a reload error; LUA_NOREF for direct-source modules.
         char*       m_Name;
         void*       m_Resource;
         char*       m_Filename;
-
-        ModuleLoader m_Loader;
     };
 
     typedef struct ScriptExtension* HScriptExtension;

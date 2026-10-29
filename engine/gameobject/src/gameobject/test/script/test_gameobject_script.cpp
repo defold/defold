@@ -643,12 +643,12 @@ static bool RegisterResourceModule(dmResource::HFactory factory, dmScript::HCont
     return dmGameObject::RegisterSubModules(factory, context, &module);
 }
 
-// File-backed modules release code before require, retry read errors, and load independently into another context.
-TEST_F(ScriptTest, ModuleCodeLoadsOnDemand)
+// Resource registration prepares code without executing it; require works after archive removal and another context can retry preparation.
+TEST_F(ScriptTest, ModuleCodePreparesDuringLoading)
 {
     const char* path = "/on_demand.luac";
     dmArray<uint8_t> data;
-    ModuleWithSource(data, path, "return { value = 111 }");
+    ModuleWithSource(data, path, "_G.on_demand_runs = (_G.on_demand_runs or 0) + 1; return { value = 111 }");
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, data.Size(), data.Begin()));
     ASSERT_TRUE(RegisterResourceModule(m_Factory, m_ScriptContext, "on_demand", path));
     dmGameObject::LuaScript* resource = 0;
@@ -658,21 +658,26 @@ TEST_F(ScriptTest, ModuleCodeLoadsOnDemand)
     dmResource::Release(m_Factory, resource);
 
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    ASSERT_EQ(0, luaL_dostring(L, "assert(on_demand_runs == nil)"));
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
-    ASSERT_EQ(0, luaL_dostring(L, "assert(not pcall(require, 'on_demand')); assert(package.loaded.on_demand == nil)"));
-    dmArray<uint8_t> invalid;
-    ModuleWithSource(invalid, path, "local =");
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, invalid.Size(), invalid.Begin()));
-    ASSERT_EQ(0, luaL_dostring(L, "assert(not pcall(require, 'on_demand')); assert(package.loaded.on_demand == nil)"));
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, data.Size(), data.Begin()));
-    ASSERT_EQ(0, luaL_dostring(L, "assert(require('on_demand').value == 111); package.loaded.on_demand = nil; assert(require('on_demand').value == 111)"));
+    ASSERT_EQ(0, luaL_dostring(L, "assert(require('on_demand').value == 111); package.loaded.on_demand = nil; assert(require('on_demand').value == 111); assert(on_demand_runs == 2)"));
 
     dmScript::ContextParams params = {};
     params.m_Factory = m_Factory;
     dmScript::HContext second = dmScript::NewContext(params);
     dmScript::Initialize(second);
+    ASSERT_FALSE(RegisterResourceModule(m_Factory, second, "on_demand", path));
+    ASSERT_FALSE(dmScript::ModuleLoaded(second, dmHashString64(path)));
+    dmArray<uint8_t> invalid;
+    ModuleWithSource(invalid, path, "local =");
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, invalid.Size(), invalid.Begin()));
+    ASSERT_FALSE(RegisterResourceModule(m_Factory, second, "on_demand", path));
+    ASSERT_FALSE(dmScript::ModuleLoaded(second, "on_demand"));
+    ASSERT_EQ(0, lua_gettop(dmScript::GetLuaState(second)));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, data.Size(), data.Begin()));
     ASSERT_TRUE(RegisterResourceModule(m_Factory, second, "on_demand", path));
+    ASSERT_EQ(0, luaL_dostring(dmScript::GetLuaState(second), "assert(on_demand_runs == nil)"));
     ASSERT_EQ(0, luaL_dostring(dmScript::GetLuaState(second), "require('on_demand').value = 222"));
     ASSERT_EQ(0, luaL_dostring(L, "assert(require('on_demand').value == 111)"));
     dmScript::Finalize(second);
@@ -680,14 +685,47 @@ TEST_F(ScriptTest, ModuleCodeLoadsOnDemand)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
 }
 
-// Uncached coroutine require returns its chunk and errors on the coroutine stack, leaving the main stack balanced.
-TEST_F(ScriptTest, ModuleCodeLoadsFromCoroutine)
+// A script resource finishes loading only after its deferred module is prepared; later require needs no archive access.
+TEST_F(ScriptTest, ScriptResourcePreparesDeferredModule)
+{
+    const char* path = "/prepared_dependency.luac";
+    const char* name = "prepared_dependency";
+    dmArray<uint8_t> data;
+    ModuleWithSource(data, path, "_G.prepared_dependency_runs = 1; return { value = 456 }");
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, data.Size(), data.Begin()));
+
+    const char* parent_path = "/prepared_parent.scriptc";
+    const char* source = "function update(self) end";
+    dmLuaDDF::LuaModule module = {};
+    module.m_Source.m_Script.m_Data = (uint8_t*)source;
+    module.m_Source.m_Script.m_Count = strlen(source);
+    module.m_Source.m_Filename = parent_path;
+    module.m_Modules.m_Data = &name;
+    module.m_Modules.m_Count = 1;
+    module.m_Resources.m_Data = &path;
+    module.m_Resources.m_Count = 1;
+    dmArray<uint8_t> parent_data;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&module, dmLuaDDF::LuaModule::m_DDFDescriptor, parent_data));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, parent_path, parent_data.Size(), parent_data.Begin()));
+    void* parent = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, parent_path, &parent));
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    ASSERT_EQ(0, luaL_dostring(L, "assert(prepared_dependency_runs == nil)"));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, parent_path));
+    ASSERT_EQ(0, luaL_dostring(L, "assert(require('prepared_dependency').value == 456); assert(prepared_dependency_runs == 1)"));
+    dmResource::Release(m_Factory, parent);
+}
+
+// Prepared chunks and cached reload errors are returned on the requesting coroutine stack without accessing the archive.
+TEST_F(ScriptTest, PreparedModuleLoadsFromCoroutine)
 {
     const char* path = "/coroutine_module.luac";
     dmArray<uint8_t> data;
     ModuleWithSource(data, path, "return { value = 111 }");
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, data.Size(), data.Begin()));
     ASSERT_TRUE(RegisterResourceModule(m_Factory, m_ScriptContext, "coroutine_module", path));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
     int top = lua_gettop(L);
     ASSERT_EQ(0, luaL_dostring(L,
@@ -695,33 +733,41 @@ TEST_F(ScriptTest, ModuleCodeLoadsFromCoroutine)
                                "local ok, value = coroutine.resume(co); assert(ok, value); assert(value == 111)"));
     ASSERT_EQ(top, lua_gettop(L));
 
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
+    const char* invalid = "local =";
+    dmLuaDDF::LuaSource source = {};
+    source.m_Script.m_Data = (uint8_t*)invalid;
+    source.m_Script.m_Count = strlen(invalid);
+    source.m_Filename = path;
+    ASSERT_EQ(dmScript::RESULT_LUA_ERROR, dmScript::ReloadModule(m_ScriptContext, &source, dmHashString64(path)));
+    ASSERT_EQ(0, luaL_dostring(L, "assert(require('coroutine_module').value == 111)"));
     ASSERT_EQ(0, luaL_dostring(L,
                                "package.loaded.coroutine_module = nil; "
                                "local co = coroutine.create(function() return pcall(require, 'coroutine_module') end); "
                                "local resumed, loaded, err = coroutine.resume(co); assert(resumed); assert(not loaded); "
-                               "assert(err:find('/coroutine_module.luac', 1, true))"));
+                               "assert(err:find('coroutine_module', 1, true))"));
     ASSERT_EQ(top, lua_gettop(L));
 
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, data.Size(), data.Begin()));
+    const char* replacement = "return { value = 222 }";
+    source.m_Script.m_Data = (uint8_t*)replacement;
+    source.m_Script.m_Count = strlen(replacement);
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::ReloadModule(m_ScriptContext, &source, dmHashString64(path)));
     ASSERT_EQ(0, luaL_dostring(L,
                                "local co = coroutine.create(function() return require('coroutine_module').value end); "
-                               "local ok, value = coroutine.resume(co); assert(ok, value); assert(value == 111)"));
+                               "local ok, value = coroutine.resume(co); assert(ok, value); assert(value == 222)"));
     ASSERT_EQ(top, lua_gettop(L));
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
 }
 
-// Deferred require registers dependencies from the fetched code and can retry after a missing dependency becomes available.
-TEST_F(ScriptTest, ModuleCodeLoadsUpdatedDependencies)
+// Preparation registers fetched dependencies, breaks recursive registration, and retries failures before a deferred require.
+TEST_F(ScriptTest, ModulePreparationUsesUpdatedDependencies)
 {
     const char* path = "/updated_dependencies.luac";
     const char* dependency_path = "/updated_dependency.luac";
     const char* dependency_name = "updated_dependency";
     dmArray<uint8_t> initial, replacement, dependency;
     ModuleWithSource(initial, path, "return { value = 111 }");
-    ModuleWithSource(dependency, dependency_path, "return { value = 456 }");
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, initial.Size(), initial.Begin()));
-    ASSERT_TRUE(RegisterResourceModule(m_Factory, m_ScriptContext, "updated_dependencies", path));
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, &resource));
 
     const char* source = "return require('updated_dependency')";
     dmLuaDDF::LuaModule module = {};
@@ -736,15 +782,26 @@ TEST_F(ScriptTest, ModuleCodeLoadsUpdatedDependencies)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, replacement.Size(), replacement.Begin()));
 
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-    ASSERT_EQ(0, luaL_dostring(L, "assert(not pcall(require, 'updated_dependencies')); assert(package.loaded.updated_dependencies == nil)"));
+    ASSERT_FALSE(RegisterResourceModule(m_Factory, m_ScriptContext, "updated_dependencies", path));
+    ASSERT_FALSE(dmScript::ModuleLoaded(m_ScriptContext, "updated_dependencies"));
+    ASSERT_FALSE(dmScript::ModuleLoaded(m_ScriptContext, dmHashString64(path)));
+    const char* dependency_source = "if false then require('updated_dependencies') end; return { value = 456 }";
+    const char* parent_name = "updated_dependencies";
+    module.m_Source.m_Script.m_Data = (uint8_t*)dependency_source;
+    module.m_Source.m_Script.m_Count = strlen(dependency_source);
+    module.m_Source.m_Filename = dependency_path;
+    module.m_Modules.m_Data = &parent_name;
+    module.m_Resources.m_Data = &path;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&module, dmLuaDDF::LuaModule::m_DDFDescriptor, dependency));
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, dependency_path, dependency.Size(), dependency.Begin()));
+    ASSERT_TRUE(RegisterResourceModule(m_Factory, m_ScriptContext, "updated_dependencies", path));
+    dmResource::Release(m_Factory, resource);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, dependency_path));
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
     ASSERT_EQ(0, luaL_dostring(L,
                                "local co = coroutine.create(function() return require('updated_dependencies').value end); "
                                "local ok, value = coroutine.resume(co); assert(ok, value); assert(value == 456)"));
-
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, dependency_path));
 }
 
 // Recreated code remains available after its input is freed, without falling back to stale archive code.

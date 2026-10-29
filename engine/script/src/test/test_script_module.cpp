@@ -310,6 +310,68 @@ TEST_F(ScriptModuleTest, TestResourceModuleIndependentContexts)
     ASSERT_EQ(1u, m_DestroyedResources);
 }
 
+static int PrepareModule(dmScript::HContext context, lua_State* L, void* resource)
+{
+    lua_getglobal(L, "prepared_module_loads");
+    int count = lua_tointeger(L, -1);
+    lua_pop(L, 1);
+    lua_pushinteger(L, count + 1);
+    lua_setglobal(L, "prepared_module_loads");
+    return dmScript::LuaLoad(L, LuaSourceFromText((const char*)resource));
+}
+
+// Preparation creates a reusable chunk during registration, leaves its body deferred, and resets its environment on repeat require.
+TEST_F(ScriptModuleTest, PreparedModuleRunsWithoutLoadingAgain)
+{
+    char code[] = "_G.prepared_module_runs = (_G.prepared_module_runs or 0) + 1; local result = { value = 123 }; setfenv(1, {}); return result";
+    char* resource = 0;
+    const dmhash_t path_hash = dmHashString64("/prepared.module");
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_ResourceFactory, "/prepared.module", code, strlen(code) + 1, (void**)&resource));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, 0, "prepared_module", resource, path_hash, PrepareModule));
+    ASSERT_TRUE(RunString(L, "assert(prepared_module_loads == 1); assert(prepared_module_runs == nil)"));
+
+    resource[0] = '!';
+    ASSERT_TRUE(RunString(L, "assert(require('prepared_module').value == 123); assert(prepared_module_runs == 1)"));
+    ASSERT_TRUE(RunString(L,
+                          "package.loaded.prepared_module = nil; "
+                          "local co = coroutine.create(function() return require('prepared_module').value end); "
+                          "local ok, value = coroutine.resume(co); assert(ok, value); assert(value == 123); "
+                          "assert(prepared_module_runs == 2); assert(prepared_module_loads == 1)"));
+
+    char replacement[] = "return { value = 456 }";
+    char* next = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_ResourceFactory, "/replacement.module", replacement, strlen(replacement) + 1, (void**)&next));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, 0, "prepared_module", next, path_hash, PrepareModule));
+    ASSERT_EQ(1u, m_DestroyedResources);
+    ASSERT_TRUE(RunString(L, "package.loaded.prepared_module = nil; assert(require('prepared_module').value == 456); assert(prepared_module_loads == 2)"));
+    dmScript::ClearModules(m_Context);
+    ASSERT_EQ(2u, m_DestroyedResources);
+}
+
+// Failed preparation rolls back new path markers and leaves an existing path alias and the caller's resource ownership intact.
+TEST_F(ScriptModuleTest, PreparedModuleFailureRollsBackRegistration)
+{
+    const dmhash_t path_hash = dmHashString64("/existing.module");
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, LuaSourceFromText("return { value = 123 }"), "existing_module", 0, path_hash));
+    char invalid[] = "local =";
+    char* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_ResourceFactory, "/invalid_prepared.module", invalid, strlen(invalid) + 1, (void**)&resource));
+    int top = lua_gettop(L);
+    ASSERT_EQ(dmScript::RESULT_LUA_ERROR, dmScript::AddModule(m_Context, 0, "failed_alias", resource, path_hash, PrepareModule));
+    ASSERT_FALSE(dmScript::ModuleLoaded(m_Context, "failed_alias"));
+    ASSERT_TRUE(dmScript::ModuleLoaded(m_Context, path_hash));
+    ASSERT_TRUE(RunString(L, "assert(require('existing_module').value == 123)"));
+
+    const dmhash_t new_path = dmHashString64("/new_prepared.module");
+    ASSERT_EQ(dmScript::RESULT_LUA_ERROR, dmScript::AddModule(m_Context, 0, "failed_new", resource, new_path, PrepareModule));
+    ASSERT_FALSE(dmScript::ModuleLoaded(m_Context, "failed_new"));
+    ASSERT_FALSE(dmScript::ModuleLoaded(m_Context, new_path));
+    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(0u, m_DestroyedResources);
+    dmResource::Release(m_ResourceFactory, resource);
+    ASSERT_EQ(1u, m_DestroyedResources);
+}
+
 extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)
