@@ -52,64 +52,16 @@ namespace dmGameSystem
     const dmhash_t PBR_IRIDESCENCE_TEXTURES                                         = dmHashString64("pbrIridescence.iridescenceTextures");
     const dmhash_t PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT                   = dmHashString64("pbrAlphaCutoffAndDoubleSidedAndIsUnlit");
     const dmhash_t PBR_COMMON_TEXTURES                                              = dmHashString64("pbrCommonTextures");
+    const dmhash_t PBR_EMISSIVE_FACTOR_AND_STRENGTH                                 = dmHashString64("pbrEmissiveFactorAndStrength");
+    const dmhash_t PBR_NORMAL_SCALE_AND_OCCLUSION_STRENGTH                          = dmHashString64("pbrNormalScaleAndOcclusionStrength");
 
-    const dmhash_t PBR_EMISSIVE_FACTOR_AND_STRENGTH = dmHashString64("pbrEmissiveFactorAndStrength");
-    const dmhash_t PBR_NORMAL_SCALE_AND_OCCLUSION_STRENGTH = dmHashString64("pbrNormalScaleAndOcclusionStrength");
-
-    static dmRigDDF::Material g_DefaultMaterial;
-    static bool               g_DefaultMaterialInitialized = false;
-
-    static inline void InitDefaultPBRTextureView(dmRigDDF::TextureView& texture_view)
+    struct ModelMaterialBuffer
     {
-        texture_view.m_Texture.m_Index = -1;
-        texture_view.m_Texcoord = -1;
-        texture_view.m_Scale = 1.0f;
-        texture_view.m_Transform.m_ScaleX = 1.0f;
-        texture_view.m_Transform.m_ScaleY = 1.0f;
-        texture_view.m_Transform.m_Texcoord = -1;
-    }
-
-    static void InitDefaultPBRMaterial(dmRigDDF::Material& material)
-    {
-        memset((void*) &material, 0, sizeof(dmRigDDF::Material));
-
-        InitDefaultPBRTextureView(material.m_Pbrmetallicroughness.m_Basecolortexture);
-        InitDefaultPBRTextureView(material.m_Pbrmetallicroughness.m_Metallicroughnesstexture);
-        InitDefaultPBRTextureView(material.m_Pbrspecularglossiness.m_Diffusetexture);
-        InitDefaultPBRTextureView(material.m_Pbrspecularglossiness.m_Specularglossinesstexture);
-        InitDefaultPBRTextureView(material.m_Clearcoat.m_Clearcoattexture);
-        InitDefaultPBRTextureView(material.m_Clearcoat.m_Clearcoatroughnesstexture);
-        InitDefaultPBRTextureView(material.m_Clearcoat.m_Clearcoatnormaltexture);
-        InitDefaultPBRTextureView(material.m_Transmission.m_Transmissiontexture);
-        InitDefaultPBRTextureView(material.m_Specular.m_Speculartexture);
-        InitDefaultPBRTextureView(material.m_Specular.m_Specularcolortexture);
-        InitDefaultPBRTextureView(material.m_Volume.m_Thicknesstexture);
-        InitDefaultPBRTextureView(material.m_Sheen.m_Sheencolortexture);
-        InitDefaultPBRTextureView(material.m_Sheen.m_Sheenroughnesstexture);
-        InitDefaultPBRTextureView(material.m_Iridescence.m_Iridescencetexture);
-        InitDefaultPBRTextureView(material.m_Iridescence.m_Iridescencethicknesstexture);
-        InitDefaultPBRTextureView(material.m_Normaltexture);
-        InitDefaultPBRTextureView(material.m_Occlusiontexture);
-        InitDefaultPBRTextureView(material.m_Emissivetexture);
-
-        material.m_Pbrmetallicroughness.m_Basecolorfactor = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-        material.m_Pbrmetallicroughness.m_Metallicfactor = 1.0f;
-        material.m_Pbrmetallicroughness.m_Roughnessfactor = 1.0f;
-        material.m_Pbrspecularglossiness.m_Diffusefactor = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-        material.m_Pbrspecularglossiness.m_Specularfactor = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
-        material.m_Pbrspecularglossiness.m_Glossinessfactor = 1.0f;
-        material.m_Specular.m_Specularcolorfactor = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
-        material.m_Specular.m_Specularfactor = 1.0f;
-        material.m_Volume.m_Attenuationcolor = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
-        material.m_Volume.m_Attenuationdistance = -1.0f;
-        material.m_Emissivestrength.m_Emissivestrength = 1.0f;
-        material.m_Iridescence.m_Iridescenceior = 1.3f;
-        material.m_Iridescence.m_Iridescencethicknessmin = 100.0f;
-        material.m_Iridescence.m_Iridescencethicknessmax = 400.0f;
-        material.m_Alphacutoff = 0.5f;
-
-        g_DefaultMaterialInitialized = true;
-    }
+        dmRender::UniformBufferBinding m_Binding;
+        dmGraphics::HProgram           m_Program;
+        uint64_t                       m_ProgramVersion;
+        uint32_t                       m_MaterialIndex;
+    };
 
     // Fixed std140 channel ABIs, validated by MaterialBuilder. Reflection selects
     // complete channels and their block offsets, never individual channel fields.
@@ -217,7 +169,10 @@ namespace dmGameSystem
         dmhash_t m_Constants[4];
     };
 
-    static const PbrChannelInfo PBR_CHANNELS[] = {
+    // Globals
+    static dmRigDDF::Material   g_DefaultMaterial;
+    static bool                 g_DefaultMaterialInitialized = false;
+    static const PbrChannelInfo g_PbrChannels[] = {
         { dmHashString64("pbrCommon"), offsetof(PbrMaterialData, m_Common), sizeof(PbrCommon), 1, { PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT, PBR_COMMON_TEXTURES, PBR_EMISSIVE_FACTOR_AND_STRENGTH, PBR_NORMAL_SCALE_AND_OCCLUSION_STRENGTH } },
         { dmHashString64("pbrMetallicRoughness"), offsetof(PbrMaterialData, m_MetallicRoughness), sizeof(PbrMetallicRoughness), 2, { PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR, PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR, PBR_METALLIC_ROUGHNESS_TEXTURES } },
         { dmHashString64("pbrSpecularGlossiness"), offsetof(PbrMaterialData, m_SpecularGlossiness), sizeof(PbrSpecularGlossiness), 2, { PBR_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR, PBR_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR, PBR_SPECULAR_GLOSSINESS_TEXTURES } },
@@ -230,6 +185,58 @@ namespace dmGameSystem
         { dmHashString64("pbrEmissiveStrength"), offsetof(PbrMaterialData, m_EmissiveStrength), sizeof(PbrEmissiveStrength), -1, { PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH } },
         { dmHashString64("pbrIridescence"), offsetof(PbrMaterialData, m_Iridescence), sizeof(PbrIridescence), 1, { PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX, PBR_IRIDESCENCE_TEXTURES } },
     };
+
+    static inline void InitDefaultPBRTextureView(dmRigDDF::TextureView& texture_view)
+    {
+        texture_view.m_Texture.m_Index = -1;
+        texture_view.m_Texcoord = -1;
+        texture_view.m_Scale = 1.0f;
+        texture_view.m_Transform.m_ScaleX = 1.0f;
+        texture_view.m_Transform.m_ScaleY = 1.0f;
+        texture_view.m_Transform.m_Texcoord = -1;
+    }
+
+    static void InitDefaultPBRMaterial(dmRigDDF::Material& material)
+    {
+        memset((void*) &material, 0, sizeof(dmRigDDF::Material));
+
+        InitDefaultPBRTextureView(material.m_Pbrmetallicroughness.m_Basecolortexture);
+        InitDefaultPBRTextureView(material.m_Pbrmetallicroughness.m_Metallicroughnesstexture);
+        InitDefaultPBRTextureView(material.m_Pbrspecularglossiness.m_Diffusetexture);
+        InitDefaultPBRTextureView(material.m_Pbrspecularglossiness.m_Specularglossinesstexture);
+        InitDefaultPBRTextureView(material.m_Clearcoat.m_Clearcoattexture);
+        InitDefaultPBRTextureView(material.m_Clearcoat.m_Clearcoatroughnesstexture);
+        InitDefaultPBRTextureView(material.m_Clearcoat.m_Clearcoatnormaltexture);
+        InitDefaultPBRTextureView(material.m_Transmission.m_Transmissiontexture);
+        InitDefaultPBRTextureView(material.m_Specular.m_Speculartexture);
+        InitDefaultPBRTextureView(material.m_Specular.m_Specularcolortexture);
+        InitDefaultPBRTextureView(material.m_Volume.m_Thicknesstexture);
+        InitDefaultPBRTextureView(material.m_Sheen.m_Sheencolortexture);
+        InitDefaultPBRTextureView(material.m_Sheen.m_Sheenroughnesstexture);
+        InitDefaultPBRTextureView(material.m_Iridescence.m_Iridescencetexture);
+        InitDefaultPBRTextureView(material.m_Iridescence.m_Iridescencethicknesstexture);
+        InitDefaultPBRTextureView(material.m_Normaltexture);
+        InitDefaultPBRTextureView(material.m_Occlusiontexture);
+        InitDefaultPBRTextureView(material.m_Emissivetexture);
+
+        material.m_Pbrmetallicroughness.m_Basecolorfactor = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+        material.m_Pbrmetallicroughness.m_Metallicfactor = 1.0f;
+        material.m_Pbrmetallicroughness.m_Roughnessfactor = 1.0f;
+        material.m_Pbrspecularglossiness.m_Diffusefactor = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+        material.m_Pbrspecularglossiness.m_Specularfactor = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
+        material.m_Pbrspecularglossiness.m_Glossinessfactor = 1.0f;
+        material.m_Specular.m_Specularcolorfactor = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
+        material.m_Specular.m_Specularfactor = 1.0f;
+        material.m_Volume.m_Attenuationcolor = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
+        material.m_Volume.m_Attenuationdistance = -1.0f;
+        material.m_Emissivestrength.m_Emissivestrength = 1.0f;
+        material.m_Iridescence.m_Iridescenceior = 1.3f;
+        material.m_Iridescence.m_Iridescencethicknessmin = 100.0f;
+        material.m_Iridescence.m_Iridescencethicknessmax = 400.0f;
+        material.m_Alphacutoff = 0.5f;
+
+        g_DefaultMaterialInitialized = true;
+    }
 
     static const dmRigDDF::Material& GetPBRMaterial(ModelResource* resource, uint32_t material_index)
     {
@@ -406,42 +413,59 @@ namespace dmGameSystem
     {
         dmRenderDDF::MaterialDesc::PbrParameters parameters;
         dmRender::GetMaterialPBRParameters(material, &parameters);
+
         if (!parameters.m_HasParameters)
+        {
             return false;
+        }
 
         PbrMaterialData data;
         FillPBRData(GetPBRMaterial(resource, material_index), &data);
+
         if (!*render_constants)
+        {
             *render_constants = CreateRenderConstants();
+        }
 
         const bool enabled[] = {
-            true, parameters.m_HasMetallicRoughness, parameters.m_HasSpecularGlossiness, parameters.m_HasClearcoat, parameters.m_HasTransmission, parameters.m_HasIor, parameters.m_HasSpecular, parameters.m_HasVolume, parameters.m_HasSheen, parameters.m_HasEmissiveStrength, parameters.m_HasIridescence
+            true,
+            parameters.m_HasMetallicRoughness,
+            parameters.m_HasSpecularGlossiness,
+            parameters.m_HasClearcoat,
+            parameters.m_HasTransmission,
+            parameters.m_HasIor,
+            parameters.m_HasSpecular,
+            parameters.m_HasVolume,
+            parameters.m_HasSheen,
+            parameters.m_HasEmissiveStrength,
+            parameters.m_HasIridescence
         };
-        for (uint32_t channel = 0; channel < DM_ARRAY_SIZE(PBR_CHANNELS); ++channel)
+
+        for (uint32_t channel = 0; channel < DM_ARRAY_SIZE(g_PbrChannels); ++channel)
         {
             if (!enabled[channel])
+            {
                 continue;
-            const PbrChannelInfo& info = PBR_CHANNELS[channel];
+            }
+
+            const PbrChannelInfo& info = g_PbrChannels[channel];
             dmVMath::Vector4* values = (dmVMath::Vector4*) ((uint8_t*) &data + info.m_DataOffset);
+
             for (uint32_t i = 0; i < info.m_Size / sizeof(dmVMath::Vector4); ++i)
             {
                 // Keep the legacy representation of absent texture flags.
                 if ((int32_t) i == info.m_TextureVector && values[i].getX() == 0 && values[i].getY() == 0 && values[i].getZ() == 0)
+                {
                     ClearRenderConstant(*render_constants, info.m_Constants[i]);
+                }
                 else
+                {
                     SetRenderConstant(*render_constants, info.m_Constants[i], values + i, 1);
+                }
             }
         }
         return true;
     }
-
-    struct ModelMaterialBuffer
-    {
-        dmRender::UniformBufferBinding m_Binding;
-        dmGraphics::HProgram           m_Program;
-        uint64_t                       m_ProgramVersion;
-        uint32_t                       m_MaterialIndex;
-    };
 
     void DeleteModelMaterialBuffers(dmGraphics::HContext context, ModelResource* resource)
     {
@@ -459,8 +483,12 @@ namespace dmGameSystem
         assert(dmGraphics::IsContextFeatureSupported(context, dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER));
         dmRenderDDF::MaterialDesc::PbrParameters parameters;
         dmRender::GetMaterialPBRParameters(material, &parameters);
+
         if (!parameters.m_HasParameters)
+        {
             return true;
+        }
+
         dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
         uint64_t version = dmGraphics::GetProgramVersion(program);
         for (uint32_t i = 0; i < resource->m_MaterialBuffers.Size(); ++i)
@@ -491,6 +519,7 @@ namespace dmGameSystem
         PbrMaterialData data;
         FillPBRData(GetPBRMaterial(resource, material_index), &data);
         const dmGraphics::ShaderResourceTypeInfo& root = layout.m_Types[layout.m_RootTypeIndex];
+
         if (root.m_MemberCount < 4 || layout.m_Size < sizeof(PbrCommon))
         {
             dmLogError("PbrMaterial must use the built-in common fields and channel structs.");
@@ -499,25 +528,29 @@ namespace dmGameSystem
 
         uint8_t* bytes = (uint8_t*) calloc(1, layout.m_Size);
         memcpy(bytes, &data.m_Common, sizeof(data.m_Common));
+
         // Bob validates the fixed channel ABIs. Only top-level offsets vary by shader.
         for (uint32_t member_index = 4; member_index < root.m_MemberCount; ++member_index)
         {
             const dmGraphics::ShaderResourceMember& member = root.m_Members[member_index];
             const PbrChannelInfo* channel = 0;
-            for (uint32_t i = 1; i < DM_ARRAY_SIZE(PBR_CHANNELS); ++i)
+
+            for (uint32_t i = 1; i < DM_ARRAY_SIZE(g_PbrChannels); ++i)
             {
-                if (PBR_CHANNELS[i].m_NameHash == member.m_NameHash)
+                if (g_PbrChannels[i].m_NameHash == member.m_NameHash)
                 {
-                    channel = &PBR_CHANNELS[i];
+                    channel = &g_PbrChannels[i];
                     break;
                 }
             }
+
             if (!channel || member.m_Offset > layout.m_Size || channel->m_Size > layout.m_Size - member.m_Offset)
             {
                 dmLogError("Invalid PbrMaterial channel '%s'. Rebuild the material with the current shader contract.", member.m_Name);
                 free(bytes);
                 return false;
             }
+
             memcpy(bytes + member.m_Offset, (const uint8_t*) &data + channel->m_DataOffset, channel->m_Size);
         }
 
@@ -539,9 +572,13 @@ namespace dmGameSystem
         buffer->m_Program = program;
         buffer->m_ProgramVersion = version;
         buffer->m_MaterialIndex = material_index;
+
         if (resource->m_MaterialBuffers.Full())
+        {
             resource->m_MaterialBuffers.OffsetCapacity(4);
+        }
         resource->m_MaterialBuffers.Push(buffer);
+
         ro->m_UniformBuffers = &buffer->m_Binding;
         ro->m_UniformBufferCount = 1;
         return true;

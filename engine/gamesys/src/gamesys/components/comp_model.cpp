@@ -1612,7 +1612,9 @@ namespace dmGameSystem
                                  dmRender::HMaterial material, HComponentRenderConstants* constants, dmRender::RenderObject* ro)
     {
         if (dmGraphics::IsContextFeatureSupported(graphics_context, dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER))
+        {
             return SetModelMaterialBuffer(graphics_context, component->m_Resource, material, render_item->m_MaterialIndex, ro);
+        }
 
         if (FillPBRConstants(component->m_Resource, &component->m_Resource->m_Materials[render_item->m_MaterialIndex],
                              &render_item->m_RenderConstants, material, render_item->m_MaterialIndex))
