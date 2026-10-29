@@ -489,17 +489,6 @@
          texture-params (coll/merge default-image-texture-params params)]
      (make-gpu-texture request-id texture-request-datas texture-units texture-params))))
 
-;; Retained for editor extensions that use the legacy format lookup.
-(def format->gl-format
-  {Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE
-   GL3/GL_RGBA ; The source data is expanded to RGBA before upload.
-
-   Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGB
-   GL3/GL_RGB
-
-   Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGBA
-   GL3/GL_RGBA})
-
 (def ^:private texture-format->gl-pixel-info
   {Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE
    ;; The source data is expanded to RGBA before upload.

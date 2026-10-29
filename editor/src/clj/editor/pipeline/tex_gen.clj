@@ -14,7 +14,7 @@
 
 (ns editor.pipeline.tex-gen
   (:require [clojure.java.io :as io]
-            [clojure.string :as str]
+            [clojure.string :as string]
             [editor.protobuf :as protobuf]
             [internal.util :as util]
             [util.coll :as coll]
@@ -65,7 +65,7 @@
   (or (#{:texture-format-rgba16f
          :texture-format-rgba32f}
        texture-format)
-      (some-> texture-format name (str/starts-with? "texture-format-rgba-astc-"))))
+      (some-> texture-format name (string/starts-with? "texture-format-rgba-astc-"))))
 
 (defn match-texture-profile-pb
   ^Graphics$TextureProfile [texture-profiles ^String path]

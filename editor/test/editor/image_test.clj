@@ -23,7 +23,8 @@
             [editor.texture-util :as texture-util]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [schema.test])
+            [schema.test]
+            [util.coll :as coll])
   (:import [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
            [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
            [com.jogamp.opengl GL]
@@ -52,7 +53,7 @@
           texture-image (.-textureImage texture-generator-result)]
       (is (g/node-instance? image/ImageNode node-id))
       (is (image/image-resource? hdr-resource))
-      (is (not (image/buffered-image-resource? hdr-resource)))
+      (is (not (image/sdr-resource? hdr-resource)))
       (is (= {:width 2 :height 2} (g/node-value node-id :size)))
       (is (bytes? (texture-util/call-generator content-generator)))
       (is (texture/texture-lifecycle? gpu-texture))
@@ -64,7 +65,7 @@
              (.. texture-image (getAlternatives 0) getFormat))))))
 
 ;; Malformed HDR pixels report resource errors instead of throwing during
-;; preview or scene evaluation.
+;; preview, scene evaluation, or building.
 (deftest malformed-hdr-resource-test
   (test-util/with-scratch-project "test/resources/empty_project"
     (let [hdr-resource (test-util/resource workspace "/malformed.hdr")]
@@ -81,4 +82,44 @@
           (is (= (g/node-value node-id :resource) (get-in preview-error [:user-data :resource])))
           (is (= node-id (:_node-id preview-error)))
           (is (g/error-value? (g/node-value node-id :gpu-texture)))
-          (is (g/error-value? (g/node-value node-id :scene))))))))
+          (is (g/error-value? (g/node-value node-id :scene))))
+        (let [build-error (test-util/build-error! node-id)
+              cause (coll/first-where :message (eduction (coll/tree-xf :causes :causes) [build-error]))]
+          (is (g/error-fatal? build-error))
+          (is (= :invalid-content (get-in cause [:user-data :type])))
+          (is (= hdr-resource (get-in cause [:user-data :resource])))
+          (is (= node-id (:_node-id cause))))))))
+
+;; SDR-only custom profiles still preview HDR images, but building reports an
+;; actionable resource error instead of throwing a texture-generation exception.
+(deftest hdr-resource-with-sdr-profile-test
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (let [hdr-resource (test-util/resource workspace "/image.hdr")]
+      (with-open [input-stream (io/input-stream (io/resource "test_project/graphics/hdr_2x2.hdr"))
+                  output-stream (io/output-stream hdr-resource)]
+        (io/copy input-stream output-stream))
+      (test-util/write-file-resource! workspace "/sdr.texture_profiles"
+        {:path-settings [{:path "**" :profile "SDR"}]
+         :profiles [{:name "SDR"
+                     :platforms [{:os :os-id-generic
+                                  :formats [{:format :texture-format-rgba}]
+                                  :mipmaps false}]}]})
+      (workspace/resource-sync! workspace)
+      (test-util/set-setting! (test-util/resource-node project "/game.project")
+                              ["graphics" "texture_profiles"]
+                              (workspace/find-resource workspace "/sdr.texture_profiles"))
+      (let [node-id (test-util/resource-node project "/image.hdr")
+            gpu-texture (g/node-value node-id :gpu-texture)
+            ^TextureRequestData texture-request-data (first (:texture-request-datas gpu-texture))
+            ^RawTextureData texture-data (.-texture-data texture-request-data)
+            build-error (test-util/build-error! node-id)
+            cause (coll/first-where :message (eduction (coll/tree-xf :causes :causes) [build-error]))]
+        (is (= "SDR" (:name (g/node-value node-id :texture-profile))))
+        (is (texture/texture-lifecycle? gpu-texture))
+        (is (= GL/GL_RGBA32F (.-internal-format texture-data)))
+        (is (g/error-fatal? build-error))
+        (is (= :invalid-content (get-in cause [:user-data :type])))
+        (is (= hdr-resource (get-in cause [:user-data :resource])))
+        (is (= node-id (:_node-id cause)))
+        (is (re-find #"HDR textures require a texture profile with RGBA16F, RGBA32F, or ASTC texture formats\."
+                     (test-util/localization (g/error-message build-error))))))))

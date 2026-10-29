@@ -207,7 +207,9 @@
 
 (defn- make-textured-quad-vertex-buffer
   [renderables]
-  ;; Keep the shared quad layout. The 2D shader ignores the page index.
+  ;; Both preview shaders use the paged layout: position, UV, and page index.
+  ;; Keep this layout so the vertex stride matches the data written below; the
+  ;; tone-mapping shader consumes only position and UV, ignoring the page index.
   (let [vertex-description (shaders/vertex-description textured-quad-shader)
         vertex-buffer-capacity (* (count renderables) 6)
         vertex-buffer (vtx/make-vertex-buffer vertex-description :stream vertex-buffer-capacity)

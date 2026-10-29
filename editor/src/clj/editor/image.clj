@@ -38,16 +38,16 @@
 
 (set! *warn-on-reflection* true)
 
-(def buffered-image-exts ["jpg" "jpeg" "png"])
-(def exts (conj buffered-image-exts "hdr"))
+(def sdr-exts ["jpg" "jpeg" "png"])
+(def exts (conj sdr-exts "hdr"))
 
 (defn image-resource?
   [resource]
   (coll/any? #{(resource/type-ext resource)} exts))
 
-(defn buffered-image-resource?
+(defn sdr-resource?
   [resource]
-  (coll/any? #{(resource/type-ext resource)} buffered-image-exts))
+  (coll/any? #{(resource/type-ext resource)} sdr-exts))
 
 (defn hdr-resource?
   [resource]
@@ -58,10 +58,12 @@
         image ((:f content-generator) (:args content-generator))]
     (g/precluding-errors
       [image]
-      (let [texture-generator-result (tex-gen/make-texture-image image texture-profile compress?)]
-        {:resource resource
-         :write-content-fn tex-gen/write-texturec-content-fn
-         :user-data {:texture-generator-result texture-generator-result}}))))
+      (let [texture-generator-result (resource-io/with-error-translation (:resource resource) nil :build-targets
+                                       (tex-gen/make-texture-image image texture-profile compress?))]
+        (g/precluding-errors [texture-generator-result]
+          {:resource resource
+           :write-content-fn tex-gen/write-texturec-content-fn
+           :user-data {:texture-generator-result texture-generator-result}})))))
 
 (defn make-texture-build-target
   [workspace node-id image-generator texture-profile compress?]
