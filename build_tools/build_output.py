@@ -282,9 +282,10 @@ def command(env, args, title, log_path, cwd=None, verbose=False, stream=None, gr
             if not output.color_enabled:
                 env['CLICOLOR'] = '0'
         options = {} if verbose else {'silent': True}
-        if gradle and not verbose:
+        if gradle:
             options['terminal_output'] = True
-            options['on_stderr'] = output.on_stderr
+            if not verbose:
+                options['on_stderr'] = output.on_stderr
         try:
             run.env_command(env, args, cwd=cwd, on_output=output.on_output,
                             capture_output=False, redacted_values=secrets, kill_process_tree=True, **options)

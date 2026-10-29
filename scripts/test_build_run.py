@@ -1,3 +1,4 @@
+import contextlib
 import errno
 import io
 import os
@@ -205,6 +206,53 @@ class RunCommandTests(unittest.TestCase):
                     captured = results[0]
                 self.assertIn('final stdout 雪', captured)
                 self.assertIn('final stderr 雪', captured)
+                self.assert_processes_closed()
+
+    # Verbose Gradle must preserve output and exit status without waiting for workers holding inherited pipes.
+    def test_verbose_gradle_finishes_after_launcher_exit(self):
+        for retcode in (0, 7):
+            with self.subTest(retcode=retcode), tempfile.TemporaryDirectory() as directory:
+                done = Event()
+                errors = []
+                stream = io.StringIO()
+                path = Path(directory) / 'gradle.log'
+                script = ('import subprocess, sys; '
+                          'subprocess.Popen([sys.executable, "-c", "import sys; sys.stdin.readline()"]); '
+                          'print("launcher stdout", flush=True); '
+                          'sys.stderr.write("final stderr 雪"); sys.stderr.flush(); '
+                          f'sys.exit({retcode})')
+
+                def execute():
+                    try:
+                        with contextlib.redirect_stdout(stream):
+                            build_output.command({**os.environ, 'PYTHONIOENCODING': 'utf-8'},
+                                                 [sys.executable, '-c', script], 'Gradle verbose', path,
+                                                 stream=stream, gradle=True, verbose=True)
+                    except BaseException as error:
+                        errors.append(error)
+                    finally:
+                        done.set()
+
+                worker = Thread(target=execute, daemon=True)
+                worker.start()
+                try:
+                    completed = done.wait(timeout=10)
+                finally:
+                    for child in self.children:
+                        if child.stdin is not None and not child.stdin.closed:
+                            child.stdin.close()
+                    worker.join(timeout=10)
+                self.assertTrue(completed, 'Verbose Gradle waited for a worker after launcher exit')
+                self.assertFalse(worker.is_alive())
+                if retcode:
+                    self.assertEqual(1, len(errors))
+                    self.assertIsInstance(errors[0], run.ExecException)
+                    self.assertEqual(retcode, errors[0].retcode)
+                else:
+                    self.assertEqual([], errors)
+                for text in (stream.getvalue(), path.read_text()):
+                    self.assertIn('launcher stdout', text)
+                    self.assertIn('final stderr 雪', text)
                 self.assert_processes_closed()
 
     # Output written after an empty read but before exit is observed must reach the console and full log.
