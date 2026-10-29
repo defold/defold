@@ -20,7 +20,7 @@ _ANSI = re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
 _ERROR = re.compile(r'^CMake Error|^Traceback \(most recent call last\):|\b(?:fatal error|error(?: [A-Z]+\d+)?):')
 _GRADLE_PROGRESS = re.compile(r'^(?:<[^>]*>|[│|][^│|]*[│|])\s*(\d+)%\s+([A-Z]+)')
 _GRADLE_TASK = re.compile(r'^> Task (\S+)(?:\s+(.*))?$')
-_GRADLE_TEST = re.compile(r'^\S.* > .+ (PASSED|SKIPPED|FAILED|STANDARD_OUT|STANDARD_ERROR)$')
+_GRADLE_TEST = re.compile(r'^(\S.* > .+) (PASSED|SKIPPED|FAILED|STANDARD_OUT|STANDARD_ERROR)$')
 
 
 class BuildOutput:
@@ -159,6 +159,26 @@ class BuildOutput:
         self.stream.flush()
 
 
+class _DiagnosticBuffer:
+    """Bound unstructured context while retaining a recognized error's complete diagnostic."""
+
+    def __init__(self):
+        self.context = deque(maxlen=100)
+        self.errors = []
+
+    def append(self, line):
+        if self.errors or _ERROR.search(line):
+            if not self.errors:
+                self.errors.extend(self.context)
+                self.context.clear()
+            self.errors.append(line)
+        else:
+            self.context.append(line)
+
+    def lines(self):
+        return self.errors or list(self.context)
+
+
 class GradleOutput(BuildOutput):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -168,8 +188,9 @@ class GradleOutput(BuildOutput):
         self.summary = []
         self.current_task = None
         self.task_output = {}
-        self.stderr_output = deque(maxlen=100)
-        self.stderr_errors = []
+        self.current_tests = {}
+        self.test_output = {}
+        self.stderr_output = _DiagnosticBuffer()
 
     def on_output(self, line):
         self._on_output(line, False)
@@ -216,6 +237,7 @@ class GradleOutput(BuildOutput):
                     self.in_error = False
                 self._start_error(plain, context=True)
                 self.task_output.pop(self.current_task)
+                self.current_tests.pop(self.current_task, None)
             else:
                 self.in_error = False
                 self.edge_output.append(plain)
@@ -223,9 +245,22 @@ class GradleOutput(BuildOutput):
         test = _GRADLE_TEST.match(plain)
         if test:
             self.in_error = False
-            self.edge_output.clear()
-            if test[1] == 'FAILED':
-                self._start_error(plain)
+            key = (self.current_task, test[1])
+            status = test[2]
+            if status in ('PASSED', 'SKIPPED'):
+                current = self.current_tests.get(self.current_task)
+                if current is not None and current[0] == test[1]:
+                    self.current_tests.pop(self.current_task)
+                self.test_output.pop(key, None)
+            else:
+                self.current_tests[self.current_task] = (test[1], status)
+                if status == 'FAILED':
+                    self._start_error(plain, context=True)
+                    previous = self.test_output.pop(key, None)
+                    if previous is not None:
+                        self.errors.extend(previous.lines())
+                else:
+                    self.test_output.setdefault(key, _DiagnosticBuffer()).append(plain)
             return
         if plain.startswith('FAILURE:'):
             self.summary_stream = is_stderr
@@ -242,13 +277,14 @@ class GradleOutput(BuildOutput):
                 self.summary.append(plain)
         elif is_stderr:
             # Task headers arrive on stdout and cannot delimit stderr diagnostics.
-            if self.stderr_errors or _ERROR.search(plain):
-                if not self.stderr_errors:
-                    self.stderr_errors.extend(self.stderr_output)
-                    self.stderr_output.clear()
-                self.stderr_errors.append(plain)
+            self.stderr_output.append(plain)
+        elif self.current_task in self.current_tests:
+            name, status = self.current_tests[self.current_task]
+            if status == 'FAILED':
+                if not re.match(r'^\d+ actionable tasks?:', plain):
+                    self.errors.append(plain)
             else:
-                self.stderr_output.append(plain)
+                self.test_output[(self.current_task, name)].append(plain)
         elif _ERROR.search(plain):
             self._start_error(plain, context=self.current_task is not None)
         elif self.in_error:
@@ -258,9 +294,10 @@ class GradleOutput(BuildOutput):
             self.edge_output.append(plain)
 
     def failure_output(self):
-        diagnostics = self.stderr_errors + self.errors + self.summary
+        pending_tests = [line for output in self.test_output.values() for line in output.lines()]
+        diagnostics = pending_tests + self.stderr_output.errors + self.errors + self.summary
         if diagnostics:
-            diagnostics = list(self.stderr_output) + diagnostics
+            diagnostics = list(self.stderr_output.context) + diagnostics
         return '\n'.join(diagnostics or self.tail).strip()
 
 

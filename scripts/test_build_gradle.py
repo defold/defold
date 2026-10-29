@@ -292,18 +292,109 @@ class GradleOutputTests(unittest.TestCase):
     def test_failed_tests_exclude_successful_test_logs(self):
         output, stream, log = self.reporter()
         for line in ('> Task :testJar', 'ExampleTest > succeeds STANDARD_OUT', '    unrelated test output',
-                     'ExampleTest > succeeds PASSED', 'ExampleTest > fails FAILED',
+                     '    tool error: expected negative-test result', 'ExampleTest > succeeds PASSED',
+                     'ExampleTest > fails STANDARD_OUT', '    ACTUAL_ROOT_CAUSE: missing native library',
+                     'ExampleTest > fails FAILED',
                      '    java.lang.AssertionError: expected value', '        at ExampleTest.java:12',
                      'ExampleTest > another PASSED', '> Task :testJar FAILED'):
             output.on_output(line)
         output.finish(False)
         text = stream.getvalue()
         self.assertIn('ExampleTest > fails FAILED', text)
+        self.assertIn('ACTUAL_ROOT_CAUSE: missing native library', text)
         self.assertIn('java.lang.AssertionError: expected value', text)
         self.assertIn('at ExampleTest.java:12', text)
         self.assertNotIn('PASSED', text)
         self.assertNotIn('unrelated test output', text)
+        self.assertNotIn('expected negative-test result', text)
         self.assertIn('unrelated test output', log.getvalue())
+        self.assertIn('expected negative-test result', log.getvalue())
+
+    # Interleaved tests and tasks must retain failing-test output while discarding passed and skipped errors.
+    def test_interleaved_test_results_keep_their_own_diagnostics(self):
+        for separate_tasks in (False, True):
+            for result in ('PASSED', 'SKIPPED'):
+                with self.subTest(separate_tasks=separate_tasks, result=result):
+                    output, stream, log = self.reporter()
+                    output.on_output('> Task :testA')
+                    output.on_output('ExampleTest > runs STANDARD_OUT')
+                    output.on_output('    failing test preamble')
+                    other = 'ExampleTest > runs' if separate_tasks else 'ExampleTest > other'
+                    if separate_tasks:
+                        output.on_output('> Task :testB')
+                    for line in (f'{other} STANDARD_OUT', '    error: expected recovered result', f'{other} {result}'):
+                        output.on_output(line)
+                    if separate_tasks:
+                        output.on_output('> Task :testA')
+                        output.on_output('    continued failing test output')
+                    for line in ('ExampleTest > runs STANDARD_ERROR', '    failing test stderr',
+                                 'ExampleTest > runs FAILED', '    java.lang.AssertionError: actual failure',
+                                 '> Task :testA FAILED'):
+                        output.on_output(line)
+                    output.finish(False)
+                    text = stream.getvalue()
+                    for diagnostic in ('failing test preamble', 'failing test stderr', 'actual failure'):
+                        self.assertEqual(1, text.count(diagnostic))
+                    if separate_tasks:
+                        self.assertIn('continued failing test output', text)
+                    self.assertNotIn('expected recovered result', text)
+                    self.assertNotIn(f'{other} {result}', text)
+                    self.assertIn('expected recovered result', log.getvalue())
+
+    # Completing one parallel test must not detach the output of another test which is still running.
+    def test_completed_test_keeps_another_tests_output_isolated(self):
+        output, stream, _ = self.reporter()
+        for line in ('> Task :testJar', 'ExampleTest > first STANDARD_OUT',
+                     '    error: expected first test result', 'ExampleTest > second STANDARD_OUT',
+                     '    error: expected second test result', 'ExampleTest > first PASSED',
+                     '    error: expected second test continuation', 'ExampleTest > second PASSED',
+                     'ExampleTest > broken FAILED', '    java.lang.AssertionError: actual failure',
+                     '> Task :testJar FAILED'):
+            output.on_output(line)
+        output.finish(False)
+        text = stream.getvalue()
+        self.assertIn('ExampleTest > broken FAILED', text)
+        self.assertIn('actual failure', text)
+        self.assertNotIn('expected first test', text)
+        self.assertNotIn('expected second test', text)
+
+    # A failed test worker may never report a test result; its buffered diagnostics must still explain task failure.
+    def test_aborted_test_keeps_diagnostics_without_a_test_result(self):
+        output, stream, log = self.reporter()
+        for line in ('> Task :testJar', 'ExampleTest > crashes STANDARD_OUT',
+                     '    WORKER_ROOT_CAUSE: missing native library', '> Task :testJar FAILED'):
+            output.on_output(line)
+        for line in ('FAILURE: Build failed with an exception.', '* What went wrong:',
+                     '> Test worker exited with code 7'):
+            output.on_stderr(line)
+        output.finish(False)
+        self.assertEqual(1, stream.getvalue().count('WORKER_ROOT_CAUSE: missing native library'))
+        self.assertIn('Test worker exited with code 7', stream.getvalue())
+        self.assertIn('WORKER_ROOT_CAUSE: missing native library', log.getvalue())
+
+    # Test output keeps recognized compiler errors intact while bounding unstructured context in compact failures.
+    def test_test_output_preserves_errors_and_bounds_context(self):
+        for compiler_error in (False, True):
+            with self.subTest(compiler_error=compiler_error):
+                output, stream, log = self.reporter()
+                output.on_output('> Task :testJar')
+                output.on_output('ExampleTest > fails STANDARD_OUT')
+                if compiler_error:
+                    output.on_output('    fixture.cpp:7: error: missing semicolon')
+                for index in range(150):
+                    output.on_output(f'    compiler context {index}')
+                output.on_output('ExampleTest > fails FAILED')
+                output.on_output('    java.lang.AssertionError: compiler failed')
+                output.on_output('> Task :testJar FAILED')
+                output.finish(False)
+                text = stream.getvalue()
+                self.assertIn('compiler context 149', text)
+                if compiler_error:
+                    self.assertIn('fixture.cpp:7: error: missing semicolon', text)
+                else:
+                    self.assertNotIn('compiler context 0\n', text)
+                    self.assertLess(len(text.splitlines()), 115)
+                self.assertIn('compiler context 0\n', log.getvalue())
 
     # --continue failures must retain all failure reasons while hiding generic Gradle help sections.
     def test_multiple_failure_explanations_are_retained(self):
