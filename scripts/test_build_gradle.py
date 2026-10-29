@@ -502,6 +502,30 @@ class GradleOutputTests(unittest.TestCase):
         self.assertIn('java.lang.AssertionError: actual failure', stream.getvalue())
         self.assertNotIn('expected passing result', stream.getvalue())
 
+    # Test-task identification must precede quiet abbreviated results, without relying on standard-output events.
+    def test_method_only_quiet_results_use_test_task_record(self):
+        for record_first in (False, True):
+            with self.subTest(record_first=record_first):
+                output, stream, log = self.reporter()
+                record = 'DEFOLD_TEST_TASK ' + json.dumps(':test')
+                if record_first:
+                    output.on_output(record)
+                output.on_output('> Task :test FAILED')
+                if not record_first:
+                    output.on_output(record)
+                for index in range(150):
+                    output.on_output(f'passes{index} PASSED')
+                for line in ('expected SKIPPED', 'fails FAILED', '    java.lang.AssertionError at ExampleTest.java:12'):
+                    output.on_output(line)
+                output.finish(False)
+                self.assertIn('fails FAILED', stream.getvalue())
+                self.assertIn('java.lang.AssertionError at ExampleTest.java:12', stream.getvalue())
+                self.assertNotIn(' PASSED', stream.getvalue())
+                self.assertNotIn('expected SKIPPED', stream.getvalue())
+                self.assertNotIn('DEFOLD_TEST_TASK', stream.getvalue())
+                self.assertIn('passes0 PASSED', log.getvalue())
+                self.assertIn('passes149 PASSED', log.getvalue())
+
     # Task tools can print status words too; without test events those lines remain task diagnostics.
     def test_plain_task_status_is_not_a_test_result(self):
         output, stream, _ = self.reporter()
@@ -762,11 +786,12 @@ class GradleOutputTests(unittest.TestCase):
             with self.subTest(credential=credential), tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / 'gradle.log'
                 stream = io.StringIO()
-                lines = ['> Task :test', 'ExampleTest > expected STANDARD_OUT',
+                lines = ['> Task :test', 'DEFOLD_TEST_TASK ' + json.dumps(':test'),
+                         'expected STANDARD_OUT',
                          '    error: EXPECTED_NEGATIVE recovered result',
-                         'DEFOLD_TEST_SKIPPED ' + json.dumps([':test', 'ExampleTest > expected']),
-                         'ExampleTest > expected SKIPPED', 'ExampleTest > crashes STANDARD_OUT',
-                         '    error: WORKER_ROOT_CAUSE missing library', 'ExampleTest > crashes SKIPPED',
+                         'DEFOLD_TEST_SKIPPED ' + json.dumps([':test', 'expected']),
+                         'expected SKIPPED', 'crashes STANDARD_OUT',
+                         '    error: WORKER_ROOT_CAUSE missing library', 'crashes SKIPPED',
                          'Gradle Test Run :test FAILED', '> Task :test FAILED']
                 records = '\n'.join(lines)
                 script = f'import sys; print({records!r}); sys.exit(7)'
@@ -786,7 +811,8 @@ class GradleOutputTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'gradle.log'
             stream = io.StringIO()
-            lines = ['> Task :test', 'ExampleTest > expected STANDARD_OUT',
+            lines = ['> Task :test', 'DEFOLD_TEST_TASK ' + json.dumps(':test'),
+                     'ExampleTest > expected STANDARD_OUT',
                      '    error: EXPECTED_NEGATIVE recovered result',
                      'DEFOLD_TEST_SKIPPED ' + json.dumps([':test', 'ExampleTest > expected']),
                      'ExampleTest > expected SKIPPED']

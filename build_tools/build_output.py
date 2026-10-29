@@ -26,6 +26,7 @@ _GRADLE_TASK = re.compile(r'^> Task (\S+)(?:\s+(.*))?$')
 _GRADLE_TEST = re.compile(r'^(\S.*?) (PASSED|SKIPPED|FAILED|STANDARD_OUT|STANDARD_ERROR)$')
 _GRADLE_TEST_RUN_FAILURE = re.compile(r'^Gradle Test (?:Run|Executor) .+ FAILED$')
 _GRADLE_SKIPPED = 'DEFOLD_TEST_SKIPPED '
+_GRADLE_TEST_TASK = 'DEFOLD_TEST_TASK '
 
 
 class BuildOutput:
@@ -212,11 +213,15 @@ class GradleOutput(BuildOutput):
         if not plain.strip():
             return
         self.log_file.write(plain + '\n')
-        if plain.startswith(_GRADLE_SKIPPED):
+        if plain.startswith((_GRADLE_SKIPPED, _GRADLE_TEST_TASK)):
             # Redaction can alter JSON syntax too; damaged metadata must not change the command's status.
             try:
-                result = json.loads(plain[len(_GRADLE_SKIPPED):])
+                result = json.loads(plain.split(' ', 1)[1])
             except json.JSONDecodeError:
+                return
+            if plain.startswith(_GRADLE_TEST_TASK):
+                if isinstance(result, str):
+                    self.test_tasks.add(result)
                 return
             if not isinstance(result, list) or len(result) != 2 or not all(isinstance(value, str) for value in result):
                 return

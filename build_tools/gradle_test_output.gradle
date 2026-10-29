@@ -4,6 +4,10 @@ import org.gradle.api.tasks.testing.TestResult
 
 gradle.allprojects {
     tasks.withType(Test).configureEach { testTask ->
+        testTask.doFirst {
+            // Quiet method-only results have no class separator or output event to identify their task.
+            testTask.logger.lifecycle('DEFOLD_TEST_TASK ' + JsonOutput.toJson(testTask.path))
+        }
         testTask.afterTest { descriptor, result ->
             // Worker termination also produces SKIPPED results, without an assumption failure.
             if (result.resultType == TestResult.ResultType.SKIPPED && result.assumptionFailure != null) {
