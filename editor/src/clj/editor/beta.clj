@@ -61,7 +61,7 @@
           (.getPair platform)
           (if (= "macos" (.getOs platform)) "dmg" "zip")))
 
-(defn- eligible? [{:keys [channel platform]}]
+(defn eligible? [{:keys [channel platform]}]
   (and (= "stable" channel)
        (updater/platform-supported? platform)))
 
@@ -74,9 +74,8 @@
       info)))
 
 (defn- newer-than-running? [{running :version} ^String version]
-  (if-not running
-    true
-    (updater/newer-version? version running)))
+  (or (not running)
+      (updater/newer-version? version running)))
 
 (defn- check-once!
   "Checks for a beta suggestion at most once per editor session. Call off the UI
@@ -114,11 +113,8 @@
      :markdown (when newer
                  (fetch-release-notes! source version))}))
 
-(defn try-active? [source]
-  (eligible? source))
-
 (defn try-enabled? [session source]
-  (and (try-active? source)
+  (and (eligible? source)
        (not (:busy @session))))
 
 (defn- confirm-download! [stage project localization version markdown]

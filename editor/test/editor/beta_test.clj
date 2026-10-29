@@ -330,10 +330,10 @@
                 :channel "stable"
                 :version "1.13.2"
                 :platform Platform/X86_64Linux}]
-    (is (beta/try-active? source))
+    (is (beta/eligible? source))
     (is (beta/try-enabled? (beta/make-session) source))
-    (is (not (beta/try-active? (assoc source :channel "beta"))))
-    (is (not (beta/try-active? (assoc source :platform Platform/WasmWeb))))
+    (is (not (beta/eligible? (assoc source :channel "beta"))))
+    (is (not (beta/eligible? (assoc source :platform Platform/WasmWeb))))
     (is (not (beta/try-enabled? (beta/make-session) (assoc source :channel "alpha"))))
     (is (nil? (try! (beta/make-session) (assoc source :channel "beta") (make-hidden-stage) progress/null-render-progress!)))))
 

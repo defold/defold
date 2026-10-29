@@ -2911,7 +2911,7 @@
 
 (handler/defhandler :help.try-beta :global
   (active? [changes-view evaluation-context]
-    (and (beta/try-active? (beta/release-source))
+    (and (beta/eligible? (beta/release-source))
          (some? (g/node-value changes-view :git evaluation-context))))
   (enabled? [] (beta/try-enabled? beta/session (beta/release-source)))
   (run [workspace project main-stage localization]
