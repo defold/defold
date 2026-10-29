@@ -150,6 +150,7 @@ namespace dmRender
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         uint32_t                        m_MaxVertexCount;
         uint32_t                        m_RenderBatchVersion;
+        uint32_t                        m_UploadedVertexCount;
     };
 
     const int MAX_TEXT_RENDER_CONSTANTS = 16;
@@ -200,7 +201,7 @@ namespace dmRender
         dmArray<char>                           m_TextBuffer;
         // Map from batch id (hash of font-map etc) to index into m_TextEntries
         dmArray<TextEntry>                      m_TextEntries;
-        dmGraphics::HVertexBuffer               m_VertexBuffer;
+        HBufferedRenderBuffer                   m_VertexBuffer;
         dmGraphics::HVertexDeclaration          m_VertexDecl;
         uint32_t                                m_RenderObjectIndex;
         uint32_t                                m_VertexIndex;
@@ -703,6 +704,9 @@ namespace dmRender
     void FindRenderListRanges(uint32_t* first, size_t offset, size_t size, RenderListEntry* entries, FindRangeComparator& comp, void* ctx, RangeCallback callback );
 
     bool FindTagListRange(RenderListRange* ranges, uint32_t num_ranges, uint32_t tag_list_key, RenderListRange& range);
+
+    // Restore logical text/debug order for equal sort keys, independent of persistent slot reuse.
+    void SortRenderListBatchByUserData(const RenderListDispatchParams& params);
 
     /*
     * Possible event_type see in dmRender::RenderContextEvent enum.

@@ -1353,6 +1353,28 @@ TEST_F(FontTest, ColorPackingClampsFinalAlpha)
     }
 }
 
+// Disabled layers must not read or pack their optional, potentially uninitialized colors.
+TEST_F(FontTest, InactiveLayerColors)
+{
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    HTextLayout layout = 0;
+    uint32_t text[] = { 'A' };
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, 1, &settings, &layout));
+    FontLayoutVertexConfig config = {};
+    config.m_Layout = layout;
+    config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+    config.m_OutlineColor = dmVMath::Vector4(NAN);
+    config.m_ShadowColor = dmVMath::Vector4(NAN);
+    TextGlyphRenderData render_data = {};
+    FontGlyphLayerRenderData layer_data;
+    FontResolveGlyphLayerRenderData(config, TextLayoutGetGlyphs(layout)[0], render_data, &layer_data);
+    ASSERT_EQ(0u, layer_data.m_OutlineColor);
+    ASSERT_EQ(0u, layer_data.m_ShadowColor);
+    ASSERT_EQ(FONT_RENDER_LAYER_FACE, layer_data.m_LayerMask);
+    TextLayoutRelease(layout);
+}
+
 TEST_F(FontTest, PackLayeredGlyphVertices)
 {
     ASSERT_EQ(72u, sizeof(FontGlyphVertex));
@@ -2419,6 +2441,8 @@ TEST_F(FontTest, LayoutVertexMetricsCompactMarkupLayers)
     config.m_ResolveGlyph = ResolveTestLayoutGlyph;
     config.m_ResolveGlyphContext = &cached;
     config.m_Transform = dmVMath::Matrix4::identity();
+    config.m_OutlineColor = dmVMath::Vector4(1.0f);
+    config.m_ShadowColor = dmVMath::Vector4(1.0f);
     config.m_Width = settings.m_Width;
     config.m_RecipAtlasWidth = 1.0f / 256.0f;
     config.m_RecipAtlasHeight = 1.0f / 256.0f;
@@ -2516,8 +2540,6 @@ TEST_F(FontTest, LayoutVertexMetricsCompactMarkupLayers)
     config.m_Layout = layout;
     config.m_MaxVertexCount = 0;
     config.m_FaceColor[0] = config.m_FaceColor[1] = config.m_FaceColor[2] = config.m_FaceColor[3] = 1.0f;
-    config.m_OutlineColor = dmVMath::Vector4(1.0f);
-    config.m_ShadowColor = dmVMath::Vector4(1.0f);
     ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
     ASSERT_EQ(1u,  metrics.m_OutlineQuadCount);
     ASSERT_EQ(1u,  metrics.m_ShadowQuadCount);
@@ -6801,6 +6823,124 @@ TEST_F(FontTest, LayoutRequiresResolverForResourceObjects)
 }
 
 #if defined(FONT_USE_SKRIBIDI)
+// Emoji fallback must shape complete keycaps while keeping bare digits in the original text font.
+TEST_F(FontTest, SkribidiKeycapEmojiFallback)
+{
+    HFont text_font = 0, color_font = 0, mono_font = 0;
+    LoadFont("src/test/data/NotoSans-Regular.ttf", &text_font);
+    LoadFont("src/test/data/NotoColorEmoji-Regular.ttf", &color_font);
+    LoadFont("src/test/data/NotoEmoji-Regular.ttf", &mono_font);
+    HFontCollection collection = FontCollectionCreate();
+    FontCollectionAddFont(collection, text_font);
+    FontCollectionAddFont(collection, color_font);
+    FontCollectionAddFont(collection, mono_font);
+    uint32_t           text[] = { '1', '#', '1', 0xfe0f, 0x20e3, '#', 0xfe0f, 0x20e3, '*', 0xfe0f, 0x20e3 };
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32;
+    settings.m_Leading = 1;
+    for (uint32_t pass = 0; pass < 3; ++pass)
+    {
+        const bool color = pass != 1;
+        FontCollectionSetColorEmojiEnabled(collection, color);
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(collection, text, DM_ARRAY_SIZE(text), &settings, &layout));
+        ASSERT_GE(TextLayoutGetGlyphCount(layout), 5u);
+        if (color)
+            ASSERT_EQ(5u, TextLayoutGetGlyphCount(layout));
+        const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+        ASSERT_EQ(text_font, glyphs[0].m_Font);
+        ASSERT_EQ(text_font, glyphs[1].m_Font);
+        for (uint32_t i = 2; i < TextLayoutGetGlyphCount(layout); ++i)
+        {
+            EXPECT_EQ(color ? color_font : mono_font, glyphs[i].m_Font);
+            EXPECT_EQ(2u, glyphs[i].m_Cluster % 3);
+        }
+        TextLayoutRelease(layout);
+    }
+    FontCollectionDestroy(collection);
+    FontDestroy(text_font);
+    FontDestroy(color_font);
+    FontDestroy(mono_font);
+}
+
+// Production collections select a supplied outline emoji font for both raster
+// modes, including after switching back from color and adding fonts at runtime.
+TEST_F(FontTest, SkribidiMonochromeEmojiFallback)
+{
+    HFont color_font = 0, mono_font = 0;
+    LoadFont("src/test/data/NotoColorEmoji-Regular.ttf", &color_font);
+    LoadFont("src/test/data/NotoEmoji-Regular.ttf", &mono_font);
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(m_FontCollection, color_font));
+    FontCollectionSetColorEmojiEnabled(m_FontCollection, false);
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(m_FontCollection, mono_font));
+    uint32_t           text[] = { 'A', 0x1f600, 0x1f44d, 0x1f3fd };
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32;
+    settings.m_Leading = 1;
+    for (uint32_t pass = 0; pass < 3; ++pass)
+    {
+        bool color = pass == 1;
+        FontCollectionSetColorEmojiEnabled(m_FontCollection, color);
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, DM_ARRAY_SIZE(text), &settings, &layout));
+        ASSERT_EQ(3u, TextLayoutGetGlyphCount(layout)); // Skin-tone sequence remains one glyph.
+        const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+        ASSERT_EQ(m_Font, glyphs[0].m_Font);
+        for (uint32_t i = 1; i < 3; ++i)
+        {
+            ASSERT_EQ(color ? color_font : mono_font, glyphs[i].m_Font);
+            if (color)
+                continue;
+            for (uint32_t bitmap = 0; bitmap < 2; ++bitmap)
+            {
+                FontGlyphGenParams params;
+                params.m_OutputBitmap = bitmap != 0;
+                params.m_Scale = FontGetScaleFromSize(mono_font, 32);
+                FontGlyph glyph = {};
+                ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(mono_font, glyphs[i].m_GlyphIndex, &params, &glyph));
+                ASSERT_GT(glyph.m_Bitmap.m_Width, 0u);
+                ASSERT_GT(glyph.m_Bitmap.m_Height, 0u);
+                ASSERT_NE((uint8_t*)0, glyph.m_Bitmap.m_Data);
+                FontFreeGlyph(mono_font, &glyph);
+            }
+        }
+        TextLayoutRelease(layout);
+    }
+    FontCollectionRemoveFont(m_FontCollection, color_font);
+    FontCollectionRemoveFont(m_FontCollection, mono_font);
+    FontDestroy(color_font);
+    FontDestroy(mono_font);
+}
+
+// Emoji selection follows collection membership without changing surrounding text.
+TEST_F(FontTest, SkribidiLayoutSelectsEmojiFamily)
+{
+    HFont emoji_font = 0;
+    LoadFont("src/test/data/NotoColorEmoji-Regular.ttf", &emoji_font);
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(m_FontCollection, emoji_font));
+    uint32_t           text[] = { 'A', 0x1f600 };
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, DM_ARRAY_SIZE(text), &settings, &layout));
+    ASSERT_EQ(2u, TextLayoutGetGlyphCount(layout));
+    const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+    ASSERT_EQ(m_Font, glyphs[0].m_Font);
+    ASSERT_EQ(emoji_font, glyphs[1].m_Font);
+    ASSERT_EQ(FontGetGlyphIndex(emoji_font, 0x1f600), glyphs[1].m_GlyphIndex);
+    ASSERT_NE(0u, glyphs[1].m_GlyphIndex);
+    TextLayoutRelease(layout);
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionRemoveFont(m_FontCollection, emoji_font));
+    layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, DM_ARRAY_SIZE(text), &settings, &layout));
+    glyphs = TextLayoutGetGlyphs(layout);
+    for (uint32_t i = 0; i < TextLayoutGetGlyphCount(layout); ++i)
+        ASSERT_NE(emoji_font, glyphs[i].m_Font);
+    TextLayoutRelease(layout);
+    FontDestroy(emoji_font);
+}
+
 TEST_F(FontTest, SkribidiLayoutResolvesNestedMarkup)
 {
     const char source[] =

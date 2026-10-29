@@ -95,11 +95,14 @@ show_fullscreen_button = 0
 show_made_with_defold = 0
 show_console_banner = 0
 scale_mode = no_scale
+min_pixel_ratio = 0.75
+max_pixel_ratio = 1.5
 retry_count = 11
 retry_time = 1.5
 transparent_graphics_context = 1
 
 [ios]
+home_indicator_mode = auto_hide
 app_icon_76x76 = /referenced/images/diamond.png
 app_icon_152x152 = /referenced/images/diamond.png
 app_icon_167x167 = /referenced/images/diamond.png
@@ -276,6 +279,7 @@ gpu_culling_stats = 1
 [resource]
 http_cache = 1
 max_resources = 2048
+profile = 1
 uri = http://localhost:1234/save-data-project
 
 [library]

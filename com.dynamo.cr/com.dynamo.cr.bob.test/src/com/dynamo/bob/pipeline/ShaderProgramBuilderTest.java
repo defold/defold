@@ -51,18 +51,21 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         addTestFiles();
     }
 
-    // Verifies standalone compute compilation does not request legacy graphics targets,
-    // which reject storage buffers used by the engine's culling shader.
+    // Verifies standalone compute compilation uses its content root for includes and
+    // does not request legacy graphics targets, which reject culling storage buffers.
     @Test
     public void testStandaloneComputeStorageBuffer() throws Exception {
         Path root = Files.createTempDirectory("bob-compute-shader");
         Path input = root.resolve("storage.cp");
         Path output = root.resolve("storage.spc");
+        Path include = root.resolve("storage.glsl");
         try {
+            Files.writeString(include, "const uint RESULT = 1u;\n", StandardCharsets.UTF_8);
             Files.writeString(input, "#version 430\n" +
+                "#include \"storage.glsl\"\n" +
                 "layout(local_size_x = 128) in;\n" +
                 "layout(std430, binding = 0) writeonly buffer Results { uint values[]; };\n" +
-                "void main() { values[gl_GlobalInvocationID.x] = 1u; }\n", StandardCharsets.UTF_8);
+                "void main() { values[gl_GlobalInvocationID.x] = RESULT; }\n", StandardCharsets.UTF_8);
             ShaderProgramBuilder.main(new String[] {
                 input.toString(), output.toString(), Platform.getHostPlatform().getPair(), root.toString()
             });
@@ -77,6 +80,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         } finally {
             Files.deleteIfExists(output);
             Files.deleteIfExists(input);
+            Files.deleteIfExists(include);
             Files.deleteIfExists(root);
         }
     }
@@ -781,6 +785,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     public void testVectorFontShaderLanguages() throws Exception {
         Path fontDirectory = Path.of("../../engine/font/content/builtins/fonts");
         addFile("/builtins/fonts/font-vector-slug.glsl", Files.readAllBytes(fontDirectory.resolve("font-vector-slug.glsl")));
+        addFile("/builtins/fonts/font-vector-paint.glsl", Files.readAllBytes(fontDirectory.resolve("font-vector-paint.glsl")));
         addFile("/builtins/fonts/font-effect.glsl", Files.readAllBytes(fontDirectory.resolve("font-effect.glsl")));
 
         ShaderDesc.Language[] languages = {

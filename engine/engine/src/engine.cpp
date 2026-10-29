@@ -117,6 +117,10 @@ extern uint32_t      CULLING_INSTANCES_SPC_SIZE;
 #include <platform/platform_window_android.h>
 #endif
 
+#if defined(DM_PLATFORM_IOS)
+#include <platform/platform_window_ios.h>
+#endif
+
 DM_PROPERTY_EXTERN(rmtp_Script);
 DM_PROPERTY_U32(rmtp_LuaMem, 0, PROFILE_PROPERTY_FRAME_RESET, "kb", &rmtp_Script); // kilo bytes
 DM_PROPERTY_U32(rmtp_LuaRefs, 0, PROFILE_PROPERTY_FRAME_RESET, "# Lua references", &rmtp_Script);
@@ -449,6 +453,7 @@ namespace dmEngine
     , m_MainCollectionResource(0)
     , m_LastReloadMTime(0)
     , m_MouseSensitivity(1.0f)
+    , m_JobThreadContext(0)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
     , m_ScriptContext(0x0)
@@ -492,8 +497,10 @@ namespace dmEngine
         m_ResourceTypeContexts.SetCapacity(31, 64);
         m_PhysicsContextBox2D.m_Context = 0x0;
         m_PhysicsContextBox2D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BOX2D;
+        m_PhysicsContextBox2D.m_BaseContext.m_Debug = false;
         m_PhysicsContextBullet3D.m_Context = 0x0;
         m_PhysicsContextBullet3D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BULLET3D;
+        m_PhysicsContextBullet3D.m_BaseContext.m_Debug = false;
         m_GuiContext = 0x0;
         m_SpriteContext.m_RenderContext = 0x0;
         m_SpriteContext.m_MaxSpriteCount = 0;
@@ -518,6 +525,9 @@ namespace dmEngine
 
     void Delete(HEngine engine)
     {
+        if (engine->m_EngineService)
+            dmEngineService::OnEngineDelete(engine->m_EngineService);
+
         {
             ScopedExtensionParams params(engine);
 
@@ -592,13 +602,6 @@ namespace dmEngine
             dmResource::DeleteFactory(engine->m_Factory);
         }
 
-// TODO: Temporarily disabled as it hangs the shutdown procedure
-        // // Stop processing graphics requests before deleting the graphics context
-        // if (engine->m_JobThreadContext)
-        // {
-        //     JobSystemDestroy(engine->m_JobThreadContext);
-        // }
-
         if (engine->m_GraphicsContext)
         {
             dmGraphics::CloseWindow(engine->m_GraphicsContext);
@@ -628,6 +631,18 @@ namespace dmEngine
 #if !defined(DM_NO_HTTP_CACHE)
         if (engine->m_HttpCache)
             dmHttpCache::Close(engine->m_HttpCache);
+#endif
+
+        // TODO: Job-system shutdown on threaded platforms was disabled because it hung.
+        // Resolve the hang and graphics teardown ordering before enabling it.
+        // if (engine->m_JobThreadContext)
+        // {
+        //     JobSystemDestroy(engine->m_JobThreadContext);
+        // }
+#if !defined(DM_HAS_THREADS)
+        // Single-threaded builds have no workers to join. Keep the job context alive
+        // through graphics and extension shutdown, then release its queues.
+        JobSystemDestroy(engine->m_JobThreadContext);
 #endif
 
         ContextRegistryDestroy(engine->m_ContextRegistry);
@@ -1335,6 +1350,10 @@ namespace dmEngine
             return false;
         }
 
+#if defined(DM_PLATFORM_IOS)
+        dmPlatform::SetiOSHomeIndicatorMode(dmConfigFile::GetString(engine->m_Config, "ios.home_indicator_mode", "deferred"));
+#endif
+
         bool setting_vsync     = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true); // Deprecated
         uint32_t swap_interval = dmConfigFile::GetInt(engine->m_Config, "display.swap_interval", 1);
         if (!setting_vsync)
@@ -1394,6 +1413,11 @@ namespace dmEngine
         if (dLib::IsDebugMode())
         {
             params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        }
+
+        if (dmConfigFile::GetInt(engine->m_Config, "resource.profile", 0))
+        {
+            params.m_Flags |= RESOURCE_FACTORY_FLAGS_PROFILE;
         }
 
 #if !defined(DM_RELEASE)
@@ -2022,6 +2046,7 @@ bail:
             DM_PROFILE("Frame");
 
             bool do_render = g_EngineRenderEnabled && !dmRender::IsRenderPaused(engine->m_RenderContext);
+            bool frame_rendered = false;
 
             {
                 DM_PROFILE("Sim");
@@ -2128,6 +2153,10 @@ bail:
                 // Don't render while iconified
                 if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED) && do_render)
                 {
+                    frame_rendered = true;
+                    if (engine->m_EngineService)
+                        dmEngineService::BeginFrame(engine->m_EngineService);
+
                     // Begin the renderer frame with current time since engine start and frame delta-time.
                     // Use the same dt that is passed into script updates and the accumulated engine time.
                     dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
@@ -2214,26 +2243,8 @@ bail:
 
                 dmGraphics::Flip(engine->m_GraphicsContext);
 
-                RecordData* record_data = &engine->m_RecordData;
-                if (record_data->m_Recorder)
-                {
-                    if (record_data->m_FrameCount % record_data->m_FramePeriod == 0)
-                    {
-                        int32_t x = 0, y = 0;
-                        uint32_t w = 0, h = 0;
-                        dmGraphics::GetViewport(engine->m_GraphicsContext, &x, &y, &w, &h);
-                        uint32_t buffer_size = w * h * 4;
-
-                        dmGraphics::ReadPixels(engine->m_GraphicsContext, x, y, w, h, record_data->m_Buffer, buffer_size);
-
-                        dmRecord::Result r = dmRecord::RecordFrame(record_data->m_Recorder, record_data->m_Buffer, buffer_size, dmRecord::BUFFER_FORMAT_BGRA);
-                        if (r != dmRecord::RESULT_OK)
-                        {
-                            dmLogError("Error while recoding frame (%d)", r);
-                        }
-                    }
-                    record_data->m_FrameCount++;
-                }
+                if (engine->m_EngineService && frame_rendered)
+                    dmEngineService::EndFrame(engine->m_EngineService);
             }
         }
         ProfileFrameEnd(profile);
@@ -2560,49 +2571,6 @@ bail:
                 {
                     self->m_PhysicsContextBox2D.m_BaseContext.m_Debug = !self->m_PhysicsContextBox2D.m_BaseContext.m_Debug;
                     self->m_PhysicsContextBullet3D.m_BaseContext.m_Debug = !self->m_PhysicsContextBullet3D.m_BaseContext.m_Debug;
-                }
-            }
-            else if (descriptor == dmSystemDDF::StartRecord::m_DDFDescriptor) // "start_record"
-            {
-                dmSystemDDF::StartRecord* start_record = (dmSystemDDF::StartRecord*) message->m_Data;
-                RecordData* record_data = &self->m_RecordData;
-
-                record_data->m_FramePeriod = start_record->m_FramePeriod;
-
-                int32_t x = 0, y = 0;
-                uint32_t width = 0, height = 0;
-                dmGraphics::GetViewport(self->m_GraphicsContext, &x, &y, &width, &height);
-                dmRecord::NewParams params;
-                params.m_Width = width;
-                params.m_Height = height;
-                params.m_Filename = start_record->m_FileName;
-                params.m_Fps = start_record->m_Fps;
-
-                dmRecord::Result r = dmRecord::New(&params, &record_data->m_Recorder);
-                if (r == dmRecord::RESULT_OK)
-                {
-                    record_data->m_Buffer = new char[width * height * 4];
-                    record_data->m_FrameCount = 0;
-                }
-                else
-                {
-                    dmLogError("Unable to start recording (%d)", r);
-                    record_data->m_Recorder = 0;
-                }
-            }
-            else if (descriptor == dmSystemDDF::StopRecord::m_DDFDescriptor) // "stop_record"
-            {
-                RecordData* record_data = &self->m_RecordData;
-                if (record_data->m_Recorder)
-                {
-                    dmRecord::Delete(record_data->m_Recorder);
-                    delete[] record_data->m_Buffer;
-                    record_data->m_Recorder = 0;
-                    record_data->m_Buffer = 0;
-                }
-                else
-                {
-                    dmLogError("No recording in progress");
                 }
             }
             else if (descriptor == dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor) // "set_update_frequency"

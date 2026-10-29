@@ -82,6 +82,8 @@ namespace dmRender
     }
 
     void StencilTestParams::Init() {
+        // Text batching hashes the full representation, including padding bits.
+        memset(this, 0, sizeof(*this));
         m_Front.m_Func = dmGraphics::COMPARE_FUNC_ALWAYS;
         m_Front.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
         m_Front.m_OpDPFail = dmGraphics::STENCIL_OP_KEEP;
@@ -302,7 +304,8 @@ namespace dmRender
 
         // If we push new items after the last frustum culling, we need to reevaluate them.
         RenderListEntry* start = render_list.Begin() + size;
-        memset(start, 0, entries * sizeof(RenderListEntry));
+        if (entries)
+            memset(start, 0, entries * sizeof(RenderListEntry));
 
         return start;
     }
@@ -781,6 +784,31 @@ namespace dmRender
                 std::stable_sort(indices, indices + count, compare);
                 return;
             }
+        }
+    }
+
+    struct RenderListUserDataSorter
+    {
+        bool operator()(uint32_t a, uint32_t b) const
+        {
+            return m_Entries[a].m_UserData < m_Entries[b].m_UserData;
+        }
+        const RenderListEntry* m_Entries;
+    };
+
+    void SortRenderListBatchByUserData(const RenderListDispatchParams& params)
+    {
+        RenderListUserDataSorter sort;
+        sort.m_Entries = params.m_Buf;
+        const RenderListSortValue* values = params.m_Context->m_RenderListSortValues.Begin();
+        uint32_t* begin = params.m_Begin;
+        while (begin != params.m_End)
+        {
+            uint32_t* end = begin + 1;
+            while (end != params.m_End && values[*begin].m_SortKey == values[*end].m_SortKey)
+                ++end;
+            StableSortRenderListIndices(begin, end - begin, sort);
+            begin = end;
         }
     }
 

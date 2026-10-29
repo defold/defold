@@ -98,6 +98,7 @@ namespace dmRender
         debug_renderer.m_3dPredicate.m_Tags[0] = dmHashString64(DEBUG_3D_NAME);
         debug_renderer.m_3dPredicate.m_TagCount = 1;
         debug_renderer.m_RenderBatchVersion = 0;
+        debug_renderer.m_UploadedVertexCount = 0;
     }
 
     void FinalizeDebugRenderer(HRenderContext context)
@@ -137,6 +138,7 @@ namespace dmRender
                 Enable(context, context->m_DebugRenderer.m_TypeData[i].m_RenderItem, false);
         }
         context->m_DebugRenderer.m_RenderBatchVersion = 0;
+        context->m_DebugRenderer.m_UploadedVertexCount = 0;
     }
 
     static void LogVertexWarning(HRenderContext context)
@@ -231,17 +233,48 @@ namespace dmRender
         }
     }
 
+    static void UploadDebugVertices(DebugRenderer& debug_renderer)
+    {
+        uint32_t vertex_count = 0;
+        for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
+        {
+            vertex_count += debug_renderer.m_TypeData[i].m_RenderObject.m_VertexCount;
+        }
+
+        // Geometry is append-only within a frame. ClearDebugRenderObjects resets
+        // the uploaded count so equal-sized geometry in a new frame is uploaded too.
+        if (vertex_count == debug_renderer.m_UploadedVertexCount)
+            return;
+
+        dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, vertex_count * sizeof(DebugVertex), 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+
+        // Adding faces can move the lines in the packed buffer, so upload all
+        // populated ranges whenever the geometry changes.
+        for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
+        {
+            const DebugRenderTypeData& type_data = debug_renderer.m_TypeData[i];
+            const RenderObject& ro = type_data.m_RenderObject;
+            if (ro.m_VertexCount > 0)
+            {
+                dmGraphics::SetVertexBufferSubData(debug_renderer.m_VertexBuffer, ro.m_VertexStart * sizeof(DebugVertex), ro.m_VertexCount * sizeof(DebugVertex), type_data.m_ClientBuffer);
+            }
+        }
+        debug_renderer.m_UploadedVertexCount = vertex_count;
+    }
+
     static void DebugRenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {
         DebugRenderer *debug_renderer = (DebugRenderer *)params.m_UserData;
 
         if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
         {
+            SortRenderListBatchByUserData(params);
             for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
             {
                 if (params.m_Buf[*i].m_BatchKey == debug_renderer->m_RenderBatchVersion)
                 {
-                    dmRender::RenderObject *ro = (dmRender::RenderObject*) params.m_Buf[*i].m_UserData;
+                    UploadDebugVertices(*debug_renderer);
+                    dmRender::RenderObject* ro = &debug_renderer->m_TypeData[params.m_Buf[*i].m_UserData].m_RenderObject;
                     dmRender::AddToRender(params.m_Context, ro);
                 }
             }
@@ -255,7 +288,6 @@ namespace dmRender
         DebugRenderer& debug_renderer = render_context->m_DebugRenderer;
         uint32_t total_vertex_count = 0;
         uint32_t total_render_objects = 0;
-        dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
             DebugRenderTypeData& type_data = debug_renderer.m_TypeData[i];
@@ -269,7 +301,8 @@ namespace dmRender
             }
         }
 
-        dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, total_vertex_count * sizeof(DebugVertex), 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        if (total_vertex_count == 0)
+            return;
 
         if (total_render_objects && debug_renderer.m_RenderDispatch == 0)
             debug_renderer.m_RenderDispatch = RegisterRenderListDispatch(render_context, DebugRenderListDispatch, 0, &debug_renderer);
@@ -289,9 +322,8 @@ namespace dmRender
             uint32_t vertex_count = ro.m_VertexCount;
             if (vertex_count > 0)
             {
-                dmGraphics::SetVertexBufferSubData(debug_renderer.m_VertexBuffer, ro.m_VertexStart * sizeof(DebugVertex), vertex_count * sizeof(DebugVertex), type_data.m_ClientBuffer);
                 if (!type_data.m_RenderItem)
-                    type_data.m_RenderItem = NewRenderItem(render_context, debug_renderer.m_RenderDispatch, (uintptr_t)&ro);
+                    type_data.m_RenderItem = NewRenderItem(render_context, debug_renderer.m_RenderDispatch, i);
                 SetMaterial(render_context, type_data.m_RenderItem, ro.m_Material);
                 SetOrder(render_context, type_data.m_RenderItem, RENDER_ORDER_AFTER_WORLD, render_order);
                 SetBatchKey(render_context, type_data.m_RenderItem, debug_renderer.m_RenderBatchVersion);

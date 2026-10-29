@@ -362,13 +362,15 @@ class GraphicsImagesTest(unittest.TestCase):
         self.assertFalse(output.exists())
         self.assertTrue(all(not path.exists() for path in diagnostics))
 
-    # Verifies process failures and invalid backend identity are recorded as failures.
+    # Verifies process failures, sanitizer errors and invalid backend identity remain failures.
     def test_crash_timeout_identity_and_graphics_errors(self):
         outcomes = (
             subprocess.CompletedProcess([], -11, 'crashed'),
             subprocess.TimeoutExpired([], 60, output=b'partial log'),
             subprocess.CompletedProcess([], 0, 'INFO:GRAPHICS: GRAPHICS_CAPTURE_BACKEND=opengl\n'),
             subprocess.CompletedProcess([], 0, 'INFO:GRAPHICS: GRAPHICS_CAPTURE_BACKEND=metal\nERROR:GRAPHICS: invalid state'),
+            subprocess.CompletedProcess([], 1, 'INFO:GRAPHICS: GRAPHICS_CAPTURE_BACKEND=metal\nERROR: LeakSanitizer: detected memory leaks'),
+            subprocess.CompletedProcess([], 0, 'INFO:GRAPHICS: GRAPHICS_CAPTURE_BACKEND=metal\nERROR: LeakSanitizer: detected memory leaks'),
         )
         for outcome in outcomes:
             with self.subTest(outcome=outcome):
@@ -397,6 +399,8 @@ class GraphicsImagesTest(unittest.TestCase):
             ('texture_etc2_r', 77, log.replace('BACKEND=metal', 'BACKEND=opengl')),
             ('texture_etc2_r', 77, 'INFO:GRAPHICS: GRAPHICS_CAPTURE_BACKEND=metal\n'),
             ('texture_etc2_r', 77, log + 'ERROR:GRAPHICS: upload failed\n'),
+            ('texture_etc2_r', 1, log + 'ERROR: LeakSanitizer: detected memory leaks\n'),
+            ('texture_etc2_r', 77, log + 'ERROR: LeakSanitizer: detected memory leaks\n'),
         ):
             with self.subTest(case=case, code=code, log=text):
                 with mock.patch.object(report.subprocess, 'run', return_value=subprocess.CompletedProcess([], code, text)):
@@ -416,6 +420,55 @@ class GraphicsImagesTest(unittest.TestCase):
             with self.subTest(code=code, log=log):
                 result = completed_capture(subprocess.CompletedProcess(['simctl'], code, log))
                 self.assertEqual(expected, result.returncode)
+
+    # Buffer regressions must fail on crashes, validation errors or missing completion,
+    # even if the launcher reports success, and must invoke the intended CLI mode.
+    def test_buffer_replacement_runner(self):
+        import run_graphics_buffer_replacement as buffers
+        for code, log, expected in (
+            (0, 'GRAPHICS_BUFFER_REPLACEMENT_RESULT=0\n', 0),
+            (1, 'GRAPHICS_BUFFER_REPLACEMENT_RESULT=0\n', 1),
+            (0, 'GRAPHICS_BUFFER_REPLACEMENT_RESULT=1\n', 1),
+            (0, 'app crashed\n', 1),
+            (0, 'GRAPHICS_BUFFER_REPLACEMENT_RESULT=0\nERROR:GRAPHICS: invalid buffer\n', 1),
+        ):
+            with self.subTest(code=code, log=log):
+                with mock.patch.object(buffers.subprocess, 'run', return_value=subprocess.CompletedProcess([], code, log)) as run:
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        result = buffers.main(['--executable', 'capture', '--target-platform', 'arm64-macos', '--available', 'metal'])
+                    self.assertEqual(expected, result)
+                    self.assertEqual(['metal', 'buffer-replacement'], run.call_args.args[0][1:])
+
+    # Unsupported builds and the explicit hosted-CI policy must not launch a GPU test.
+    def test_buffer_replacement_runner_skip(self):
+        import run_graphics_buffer_replacement as buffers
+        for extra in (['--available', 'vulkan'], ['--available', 'metal', '--skip-all', 'CI policy']):
+            with mock.patch.object(buffers.subprocess, 'run') as run:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    result = buffers.main(['--executable', 'capture', '--target-platform', 'arm64-macos'] + extra)
+                self.assertEqual(0, result)
+                run.assert_not_called()
+
+    # The simulator must validate buffer test completion independently of capture results.
+    def test_simulator_buffer_replacement_result(self):
+        from graphics_capture_simulator import completed_capture
+        for log, expected in (('GRAPHICS_BUFFER_REPLACEMENT_RESULT=0\n', 0), ('GRAPHICS_CAPTURE_RESULT=0\n', 1)):
+            result = completed_capture(subprocess.CompletedProcess(['simctl'], 0, log), 'GRAPHICS_BUFFER_REPLACEMENT_RESULT')
+            self.assertEqual(expected, result.returncode)
+
+    # Non-capture simulator tests have no image path to rewrite or copy back.
+    def test_simulator_buffer_launch_without_output_file(self):
+        from graphics_capture_simulator import SimulatorCapture
+        simulator = mock.Mock(runtime='com.apple.CoreSimulator.SimRuntime.iOS-18-0', udid='device')
+        simulator.name = 'test device'
+        launcher = SimulatorCapture(mock.Mock(), simulator, 'test.bundle', self.images)
+        process = subprocess.CompletedProcess([], 0, 'GRAPHICS_BUFFER_REPLACEMENT_RESULT=0\n')
+        with mock.patch('graphics_capture_simulator.subprocess.run', return_value=process) as run:
+            result = launcher.run(['capture', 'metal', 'buffer-replacement'],
+                                  result_key='GRAPHICS_BUFFER_REPLACEMENT_RESULT', text=True)
+        self.assertEqual(0, result.returncode)
+        self.assertEqual(['metal', 'buffer-replacement'], run.call_args.args[0][-2:])
+        self.assertNotIn('result_key', run.call_args.kwargs)
 
     # Reject a native capture when the requested target is the iOS simulator.
     def test_capture_requires_the_requested_target_platform(self):

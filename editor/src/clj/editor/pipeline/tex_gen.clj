@@ -140,10 +140,10 @@
     (TextureUtil/createCombinedTextureImage texture-images type)))
 
 (defn write-texturec-content-fn [resource user-data]
-  (let [digest-output-stream
-        (-> resource
-            (io/output-stream)
-            (digest/make-digest-output-stream "SHA-1"))]
+  (with-open [digest-output-stream
+              (-> resource
+                  (io/output-stream)
+                  (digest/make-digest-output-stream "SHA-1"))]
     ;; writeGenerateResultToOutputStream flushes the stream
     (TextureUtil/writeGenerateResultToOutputStream (:texture-generator-result user-data) digest-output-stream)
     (digest/completed-stream->hex digest-output-stream)))
