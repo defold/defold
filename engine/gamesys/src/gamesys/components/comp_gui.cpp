@@ -3339,9 +3339,9 @@ namespace dmGameSystem
         if (vertex_count > 0)
         {
             dmGraphics::SetVertexBufferData(gui_world->m_VertexBuffer,
-                                            vertex_count * sizeof(BoxVertex),
-                                            gui_world->m_ClientVertexBuffer.Begin(),
-                                            dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+                                           vertex_count * sizeof(BoxVertex),
+                                           gui_world->m_ClientVertexBuffer.Begin(),
+                                           dmGraphics::BUFFER_USAGE_STREAM_DRAW);
             DM_PROPERTY_ADD_U32(rmtp_GuiVertexCount, vertex_count);
         }
 
