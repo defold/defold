@@ -4109,12 +4109,12 @@ namespace dmGui
     {
         Scene* scene = GuiScriptInstance_Check(L);
         int order = luaL_checkinteger(L, 1);
+        int clamped_order = dmMath::Clamp(order, 0, 15);
         // NOTE: The range reflects the current bits allocated in RenderKey for order
-        if (order < 0 || order > 15) {
-            dmLogWarning("GUI render order %d is outside [0, 15]; clamping to %d.", order, dmMath::Clamp(order, 0, 15));
+        if (order != clamped_order) {
+            dmLogWarning("GUI render order %d is outside [0, 15]; clamping to %d.", order, clamped_order);
         }
-        order = dmMath::Clamp(order, 0, 15);
-        scene->m_RenderOrder = (uint16_t) order;
+        scene->m_RenderOrder = (uint16_t) clamped_order;
         return 0;
     }
 
