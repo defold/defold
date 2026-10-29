@@ -1300,6 +1300,7 @@ static void json_next_token(json_parse_t *json, json_token_t *token)
     // DEFOLD
     if (json->ptr >= json->data_end) {
         token->type = T_END;
+        token->index = json->ptr - json->data;
         return;
     }
     // END DEFOLD

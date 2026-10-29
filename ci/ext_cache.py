@@ -25,7 +25,7 @@ SOURCE_PATHS = (
     'external/box2d_v2', 'external/bullet3d', 'external/draco', 'external/harfbuzz',
     'external/libunibreak', 'external/luajit', 'external/lz4', 'external/meshoptimizer',
     'external/ogg', 'external/openh264', 'external/opus', 'external/protobuf', 'external/sheenbidi',
-    'external/skribidi', 'scripts/cmake/*.cmake', 'scripts/cmake/*.in',
+    'external/skribidi', 'external/msan', 'scripts/cmake/*.cmake', 'scripts/cmake/*.in',
     'ci/ext_cache.py', ':(exclude,icase,glob)external/**/readme*',
     ':(exclude,glob)**/AGENTS.md',
 )

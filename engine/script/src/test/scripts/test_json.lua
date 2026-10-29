@@ -108,10 +108,11 @@ function test_json_decode()
     assert(t[key] == nil)
 
     print("Expected parsing errors ->")
-    test_syntax_error("[")
+    -- Truncated containers must report the end position, not an uninitialized token index.
+    assert_error("[", "Expected value but found T_END at character 2")
     test_syntax_error("]")
-    test_syntax_error("{")
-    test_syntax_error("")
+    assert_error("{", "Expected object key string but found T_END at character 2")
+    assert_error("", "Expected value but found T_END at character 1")
 
     test_syntax_error("{")
     test_syntax_error("Null")
