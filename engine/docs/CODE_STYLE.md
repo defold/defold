@@ -12,6 +12,8 @@ Use `-l C` for C sources and C API headers, including public `dmsdk` headers int
 
 Always format new files in full. For existing files, format a temporary copy of the whole file and apply only formatting changes around the lines you edited. Uncrustify has no native changed-line mode. Preserve existing local declaration spacing, intentional alignment, and manual line breaks.
 
+Use braces for control-flow bodies and switch cases. Grouped case labels share a body. New case braces can require a second pass. If Uncrustify misparses an expression, preserve its formatting with `// uncrustify:off` and `// uncrustify:on`.
+
 ## C-like C++
 
 _We also have a detailed blog post about our [code style](https://defold.com/2020/05/31/The-Defold-engine-code-style/)_
