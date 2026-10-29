@@ -27,6 +27,7 @@ namespace dmGameObject
         LuaScript(dmLuaDDF::LuaModule* lua_module) :
             m_LuaModule(lua_module) {}
 
+        // File-backed resources retain metadata only; executable code is fetched when required.
         dmLuaDDF::LuaModule* m_LuaModule;
     };
 }

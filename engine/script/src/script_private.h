@@ -58,11 +58,13 @@ namespace dmScript
 
     struct Module
     {
-        char*       m_Script;
+        char*       m_Script; // Owned code; null when m_Loader is set.
         uint32_t    m_ScriptSize;
         char*       m_Name;
         void*       m_Resource;
         char*       m_Filename;
+
+        ModuleLoader m_Loader;
     };
 
     typedef struct ScriptExtension* HScriptExtension;

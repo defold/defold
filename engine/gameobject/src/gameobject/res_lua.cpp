@@ -18,9 +18,25 @@
 #include <dmsdk/resource/resource.hpp>
 #include "res_lua.h"
 #include "gameobject_script.h"
+#include "gameobject_script_util.h"
 
 namespace dmGameObject
 {
+    struct LuaModuleResource
+    {
+        // Keep the SDK resource view first; module registries retain this address.
+        LuaScript m_Script;
+        char* m_Path; // Null when the resource retains its code.
+        uint32_t m_MessageSize;
+
+        LuaModuleResource(dmLuaDDF::LuaModule* module, const char* path, uint32_t size)
+            : m_Script(module)
+            , m_Path(path ? strdup(path) : 0)
+            , m_MessageSize(size)
+        {
+        }
+    };
+
     void PatchBytes(uint8_t* bytes, uint32_t bytes_size, const uint8_t* delta, uint32_t delta_size)
     {
         uint32_t i = 0;
@@ -130,10 +146,51 @@ namespace dmGameObject
         return dmResource::RESULT_OK;
     }
 
+    int LoadLuaModuleResource(dmScript::HContext context, lua_State* L, void* resource)
+    {
+        LuaModuleResource* script = (LuaModuleResource*)resource;
+        if (script->m_Path == 0)
+            return dmScript::LuaLoad(L, &script->m_Script.m_LuaModule->m_Source);
+
+        dmResource::HFactory factory = dmScript::GetResourceFactory(context);
+        dmLuaDDF::LuaModule* module = 0;
+        dmResource::Result result = LoadLuaModule(factory, script->m_Path, &module);
+        if (result != dmResource::RESULT_OK)
+        {
+            lua_pushfstring(L, "Failed to load Lua module resource '%s' (%d)", script->m_Path, result);
+            return LUA_ERRFILE;
+        }
+
+        if (!RegisterSubModules(factory, context, module))
+        {
+            dmDDF::FreeMessage(module);
+            lua_pushfstring(L, "Failed to load submodules for Lua resource '%s'", script->m_Path);
+            return LUA_ERRFILE;
+        }
+
+        int status = dmScript::LuaLoad(L, &module->m_Source);
+        dmDDF::FreeMessage(module);
+        return status;
+    }
+
+    static dmDDF::Result CopyLuaModuleMetadata(dmLuaDDF::LuaModule* module, dmLuaDDF::LuaModule** metadata, uint32_t* size)
+    {
+        dmLuaDDF::LuaModule message = *module;
+        memset(&message.m_Source, 0, sizeof(message.m_Source));
+        message.m_Source.m_Filename = module->m_Source.m_Filename;
+
+        dmArray<uint8_t> buffer;
+        dmDDF::Result result = dmDDF::SaveMessageToArray(&message, dmLuaDDF::LuaModule::m_DDFDescriptor, buffer);
+        if (result != dmDDF::RESULT_OK)
+            return result;
+        return dmDDF::LoadMessage(buffer.Begin(), buffer.Size(), dmLuaDDF::LuaModule::m_DDFDescriptor, (void**)metadata, 0, size);
+    }
+
     static dmResource::Result ResLuaPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmLuaDDF::LuaModule* lua_module = 0;
-        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params->m_Buffer, params->m_BufferSize, &lua_module);
+        uint32_t message_size;
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, dmLuaDDF::LuaModule::m_DDFDescriptor, (void**)&lua_module, 0, &message_size);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
@@ -141,23 +198,35 @@ namespace dmGameObject
 
         for (uint32_t i = 0; i < lua_module->m_Resources.m_Count; ++i)
             dmResource::PreloadHint(params->m_HintInfo, lua_module->m_Resources[i]);
-        *params->m_PreloadData = lua_module;
+
+        // Non-transferable buffers may be supplied by CreateResource and have no file to read again.
+        if (params->m_IsBufferTransferrable)
+        {
+            dmLuaDDF::LuaModule* metadata = 0;
+            e = CopyLuaModuleMetadata(lua_module, &metadata, &message_size);
+            dmDDF::FreeMessage(lua_module);
+            if (e != dmDDF::RESULT_OK)
+                return dmResource::RESULT_FORMAT_ERROR;
+            lua_module = metadata;
+        }
+
+        *params->m_PreloadData = new LuaModuleResource(lua_module, params->m_IsBufferTransferrable ? params->m_Filename : 0, message_size);
         return dmResource::RESULT_OK;
     }
 
     static dmResource::Result ResLuaCreate(const dmResource::ResourceCreateParams* params)
     {
-        dmLuaDDF::LuaModule* lua_module = (dmLuaDDF::LuaModule*)params->m_PreloadData;
-        LuaScript* lua_script = new LuaScript(lua_module);
-        ResourceDescriptorSetResource(params->m_Resource, lua_script);
-        ResourceDescriptorSetResourceSize(params->m_Resource, sizeof(LuaScript) + params->m_BufferSize - lua_script->m_LuaModule->m_Source.m_Script.m_Count);
+        LuaModuleResource* script = (LuaModuleResource*)params->m_PreloadData;
+        ResourceDescriptorSetResource(params->m_Resource, &script->m_Script);
+        ResourceDescriptorSetResourceSize(params->m_Resource, sizeof(LuaModuleResource) + (script->m_Path ? strlen(script->m_Path) + 1 : 0) + script->m_MessageSize);
         return dmResource::RESULT_OK;
     }
 
     static dmResource::Result ResLuaDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        LuaScript* script = (LuaScript*) ResourceDescriptorGetResource(params->m_Resource);
-        dmDDF::FreeMessage(script->m_LuaModule);
+        LuaModuleResource* script = (LuaModuleResource*)ResourceDescriptorGetResource(params->m_Resource);
+        dmDDF::FreeMessage(script->m_Script.m_LuaModule);
+        free(script->m_Path);
         delete script;
         return dmResource::RESULT_OK;
     }
@@ -165,7 +234,8 @@ namespace dmGameObject
     static dmResource::Result ResLuaRecreate(const dmResource::ResourceRecreateParams* params)
     {
         dmLuaDDF::LuaModule* lua_module = 0;
-        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params->m_Buffer, params->m_BufferSize, &lua_module);
+        uint32_t message_size;
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, dmLuaDDF::LuaModule::m_DDFDescriptor, (void**)&lua_module, 0, &message_size);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
@@ -185,16 +255,22 @@ namespace dmGameObject
             dmResource::Release(params->m_Factory, dependency);
         }
 
+        LuaModuleResource* script = (LuaModuleResource*)ResourceDescriptorGetResource(params->m_Resource);
+        dmLuaDDF::LuaModule* previous = script->m_Script.m_LuaModule;
+        // Reload executes Lua, which may register this resource in another context.
+        script->m_Script.m_LuaModule = lua_module;
+        // Recreated code can differ from the archive (for example, resource.set).
+        free(script->m_Path);
+        script->m_Path = 0;
+
         ModuleContext* module_context = (ModuleContext*) params->m_Context;
         uint32_t context_count = module_context->m_ScriptContexts.Size();
         for (uint32_t i = 0; i < context_count; ++i) {
             dmScript::HContext script_context = module_context->m_ScriptContexts[i];
             dmScript::ReloadModule(script_context, &lua_module->m_Source, ResourceDescriptorGetNameHash(params->m_Resource));
         }
-        LuaScript* lua_script = (LuaScript*) ResourceDescriptorGetResource(params->m_Resource);
-        ResourceDescriptorSetResourceSize(params->m_Resource, sizeof(LuaScript) + params->m_BufferSize - lua_script->m_LuaModule->m_Source.m_Script.m_Count);
-        dmDDF::FreeMessage(lua_script->m_LuaModule);
-        lua_script->m_LuaModule = lua_module;
+        ResourceDescriptorSetResourceSize(params->m_Resource, sizeof(LuaModuleResource) + message_size);
+        dmDDF::FreeMessage(previous);
         return dmResource::RESULT_OK;
     }
 

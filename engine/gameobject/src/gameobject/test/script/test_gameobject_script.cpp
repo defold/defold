@@ -23,9 +23,11 @@
 #include <dlib/testutil.h>
 #include <dlib/time.h>
 #include <resource/resource.h>
+#include <dmsdk/gameobject/res_lua.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 #include "../gameobject_script.h"
+#include "../gameobject_script_util.h"
 #include "../script.h"
 #include "gameobject/test/script/test_gameobject_script_ddf.h"
 #include <gameobject/gameobject_ddf.h>
@@ -549,6 +551,243 @@ TEST_F(ScriptTest, TestReloadModule)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameObject::Delete(m_Collection, go, false);
     dmSys::Unlink(script_file_name);
+}
+
+struct ReloadModuleRegistration
+{
+    dmResource::HFactory m_Factory;
+    dmScript::HContext m_Context;
+    dmGameObject::LuaScript* m_Resource;
+    dmhash_t m_Path;
+    int m_Value;
+};
+
+static int RegisterModuleDuringReload(lua_State* L)
+{
+    ReloadModuleRegistration* state = (ReloadModuleRegistration*)lua_touserdata(L, lua_upvalueindex(1));
+    dmResource::IncRef(state->m_Factory, state->m_Resource);
+    dmScript::Result result = dmScript::AddModule(state->m_Context, &state->m_Resource->m_LuaModule->m_Source, "reload_registered", state->m_Resource, state->m_Path);
+    if (result != dmScript::RESULT_OK)
+    {
+        dmResource::Release(state->m_Factory, state->m_Resource);
+        return luaL_error(L, "Failed to register module during reload");
+    }
+
+    lua_State* target = dmScript::GetLuaState(state->m_Context);
+    if (luaL_dostring(target, "return require('reload_registered').value") != 0)
+        return luaL_error(L, "%s", lua_tostring(target, -1));
+    state->m_Value = lua_tointeger(target, -1);
+    lua_pop(target, 1);
+    return 0;
+}
+
+// Registration during reload must see new resource code even in a context the reload loop already visited.
+TEST_F(ScriptTest, ReloadModuleRegistersEarlierContext)
+{
+    dmScript::ContextParams params = {};
+    params.m_Factory = m_Factory;
+    dmScript::HContext second = dmScript::NewContext(params);
+    dmScript::Initialize(second);
+    m_ModuleContext.m_ScriptContexts.SetCapacity(2);
+    m_ModuleContext.m_ScriptContexts.Push(second);
+
+    const char* initial = "return { value = 123 }";
+    dmLuaDDF::LuaModule module = {};
+    module.m_Source.m_Bytecode.m_Data = (uint8_t*)initial;
+    module.m_Source.m_Bytecode.m_Count = strlen(initial);
+    module.m_Source.m_Filename = "reload_registered.lua";
+    dmArray<uint8_t> data;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&module, dmLuaDDF::LuaModule::m_DDFDescriptor, data));
+    dmGameObject::LuaScript* resource = 0;
+    const char* path = "/reload_registered.luac";
+    dmhash_t path_hash = dmHashString64(path);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, path, data.Begin(), data.Size(), (void**)&resource));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(second, &resource->m_LuaModule->m_Source, "reload_registered", resource, path_hash));
+
+    ReloadModuleRegistration registration = { m_Factory, m_ScriptContext, resource, path_hash, 0 };
+    lua_State* second_state = dmScript::GetLuaState(second);
+    lua_pushlightuserdata(second_state, &registration);
+    lua_pushcclosure(second_state, RegisterModuleDuringReload, 1);
+    lua_setglobal(second_state, "register_module");
+
+    const char* next = "if register_module then register_module() end; return { value = 456 }";
+    module.m_Source.m_Bytecode.m_Data = (uint8_t*)next;
+    module.m_Source.m_Bytecode.m_Count = strlen(next);
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&module, dmLuaDDF::LuaModule::m_DDFDescriptor, data));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, path_hash, data.Begin(), data.Size()));
+    ASSERT_EQ(456, registration.m_Value);
+
+    lua_State* first_state = dmScript::GetLuaState(m_ScriptContext);
+    ASSERT_EQ(0, luaL_dostring(first_state, "package.loaded.reload_registered = nil; assert(require('reload_registered').value == 456)"));
+    dmScript::Finalize(second);
+    dmScript::DeleteContext(second);
+    m_ModuleContext.m_ScriptContexts.SetSize(1);
+}
+
+static void ModuleWithSource(dmArray<uint8_t>& data, const char* path, const char* source)
+{
+    dmLuaDDF::LuaModule module = {};
+    module.m_Source.m_Script.m_Data = (uint8_t*)source;
+    module.m_Source.m_Script.m_Count = strlen(source);
+    module.m_Source.m_Filename = path;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&module, dmLuaDDF::LuaModule::m_DDFDescriptor, data));
+}
+
+static bool RegisterResourceModule(dmResource::HFactory factory, dmScript::HContext context, const char* name, const char* path)
+{
+    dmLuaDDF::LuaModule module = {};
+    module.m_Modules.m_Data = &name;
+    module.m_Modules.m_Count = 1;
+    module.m_Resources.m_Data = &path;
+    module.m_Resources.m_Count = 1;
+    return dmGameObject::RegisterSubModules(factory, context, &module);
+}
+
+// File-backed modules release code before require, retry read errors, and load independently into another context.
+TEST_F(ScriptTest, ModuleCodeLoadsOnDemand)
+{
+    const char* path = "/on_demand.luac";
+    dmArray<uint8_t> data;
+    ModuleWithSource(data, path, "return { value = 111 }");
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, data.Size(), data.Begin()));
+    ASSERT_TRUE(RegisterResourceModule(m_Factory, m_ScriptContext, "on_demand", path));
+    dmGameObject::LuaScript* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, (void**)&resource));
+    ASSERT_EQ(0, resource->m_LuaModule->m_Source.m_Script.m_Count);
+    ASSERT_EQ(0, resource->m_LuaModule->m_Source.m_Bytecode.m_Count);
+    dmResource::Release(m_Factory, resource);
+
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
+    ASSERT_EQ(0, luaL_dostring(L, "assert(not pcall(require, 'on_demand')); assert(package.loaded.on_demand == nil)"));
+    dmArray<uint8_t> invalid;
+    ModuleWithSource(invalid, path, "local =");
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, invalid.Size(), invalid.Begin()));
+    ASSERT_EQ(0, luaL_dostring(L, "assert(not pcall(require, 'on_demand')); assert(package.loaded.on_demand == nil)"));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, data.Size(), data.Begin()));
+    ASSERT_EQ(0, luaL_dostring(L, "assert(require('on_demand').value == 111); package.loaded.on_demand = nil; assert(require('on_demand').value == 111)"));
+
+    dmScript::ContextParams params = {};
+    params.m_Factory = m_Factory;
+    dmScript::HContext second = dmScript::NewContext(params);
+    dmScript::Initialize(second);
+    ASSERT_TRUE(RegisterResourceModule(m_Factory, second, "on_demand", path));
+    ASSERT_EQ(0, luaL_dostring(dmScript::GetLuaState(second), "require('on_demand').value = 222"));
+    ASSERT_EQ(0, luaL_dostring(L, "assert(require('on_demand').value == 111)"));
+    dmScript::Finalize(second);
+    dmScript::DeleteContext(second);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
+}
+
+// Uncached coroutine require returns its chunk and errors on the coroutine stack, leaving the main stack balanced.
+TEST_F(ScriptTest, ModuleCodeLoadsFromCoroutine)
+{
+    const char* path = "/coroutine_module.luac";
+    dmArray<uint8_t> data;
+    ModuleWithSource(data, path, "return { value = 111 }");
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, data.Size(), data.Begin()));
+    ASSERT_TRUE(RegisterResourceModule(m_Factory, m_ScriptContext, "coroutine_module", path));
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    int top = lua_gettop(L);
+    ASSERT_EQ(0, luaL_dostring(L,
+                               "local co = coroutine.create(function() return require('coroutine_module').value end); "
+                               "local ok, value = coroutine.resume(co); assert(ok, value); assert(value == 111)"));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
+    ASSERT_EQ(0, luaL_dostring(L,
+                               "package.loaded.coroutine_module = nil; "
+                               "local co = coroutine.create(function() return pcall(require, 'coroutine_module') end); "
+                               "local resumed, loaded, err = coroutine.resume(co); assert(resumed); assert(not loaded); "
+                               "assert(err:find('/coroutine_module.luac', 1, true))"));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, data.Size(), data.Begin()));
+    ASSERT_EQ(0, luaL_dostring(L,
+                               "local co = coroutine.create(function() return require('coroutine_module').value end); "
+                               "local ok, value = coroutine.resume(co); assert(ok, value); assert(value == 111)"));
+    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
+}
+
+// Deferred require registers dependencies from the fetched code and can retry after a missing dependency becomes available.
+TEST_F(ScriptTest, ModuleCodeLoadsUpdatedDependencies)
+{
+    const char* path = "/updated_dependencies.luac";
+    const char* dependency_path = "/updated_dependency.luac";
+    const char* dependency_name = "updated_dependency";
+    dmArray<uint8_t> initial, replacement, dependency;
+    ModuleWithSource(initial, path, "return { value = 111 }");
+    ModuleWithSource(dependency, dependency_path, "return { value = 456 }");
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, initial.Size(), initial.Begin()));
+    ASSERT_TRUE(RegisterResourceModule(m_Factory, m_ScriptContext, "updated_dependencies", path));
+
+    const char* source = "return require('updated_dependency')";
+    dmLuaDDF::LuaModule module = {};
+    module.m_Source.m_Script.m_Data = (uint8_t*)source;
+    module.m_Source.m_Script.m_Count = strlen(source);
+    module.m_Source.m_Filename = path;
+    module.m_Modules.m_Data = &dependency_name;
+    module.m_Modules.m_Count = 1;
+    module.m_Resources.m_Data = &dependency_path;
+    module.m_Resources.m_Count = 1;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&module, dmLuaDDF::LuaModule::m_DDFDescriptor, replacement));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, replacement.Size(), replacement.Begin()));
+
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    ASSERT_EQ(0, luaL_dostring(L, "assert(not pcall(require, 'updated_dependencies')); assert(package.loaded.updated_dependencies == nil)"));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, dependency_path, dependency.Size(), dependency.Begin()));
+    ASSERT_EQ(0, luaL_dostring(L,
+                               "local co = coroutine.create(function() return require('updated_dependencies').value end); "
+                               "local ok, value = coroutine.resume(co); assert(ok, value); assert(value == 456)"));
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, dependency_path));
+}
+
+// Recreated code remains available after its input is freed, without falling back to stale archive code.
+TEST_F(ScriptTest, RecreatedModuleKeepsCurrentCode)
+{
+    const char* path = "/on_demand_reload.luac";
+    dmArray<uint8_t> data;
+    ModuleWithSource(data, path, "return { value = 111 }");
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, data.Size(), data.Begin()));
+    ASSERT_TRUE(RegisterResourceModule(m_Factory, m_ScriptContext, "on_demand_reload", path));
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    ASSERT_EQ(0, luaL_dostring(L, "assert(require('on_demand_reload').value == 111)"));
+
+    ModuleWithSource(data, path, "return { value = 333 }");
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), data.Begin(), data.Size()));
+    data.SetSize(0);
+    data.SetCapacity(0);
+    ASSERT_EQ(0, luaL_dostring(L, "package.loaded.on_demand_reload = nil; assert(require('on_demand_reload').value == 333)"));
+
+    dmScript::ContextParams params = {};
+    params.m_Factory = m_Factory;
+    dmScript::HContext second = dmScript::NewContext(params);
+    dmScript::Initialize(second);
+    ASSERT_TRUE(RegisterResourceModule(m_Factory, second, "on_demand_reload", path));
+    ASSERT_EQ(0, luaL_dostring(dmScript::GetLuaState(second), "assert(require('on_demand_reload').value == 333)"));
+    dmScript::Finalize(second);
+    dmScript::DeleteContext(second);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
+}
+
+// Runtime-created modules have no archive backing and must retain their supplied code for deferred require.
+TEST_F(ScriptTest, CreatedModuleKeepsSuppliedCode)
+{
+    const char* path = "/created_module.luac";
+    dmArray<uint8_t> data;
+    ModuleWithSource(data, path, "return { value = 777 }");
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, path, data.Begin(), data.Size(), &resource));
+    ASSERT_TRUE(RegisterResourceModule(m_Factory, m_ScriptContext, "created_module", path));
+    dmResource::Release(m_Factory, resource);
+    data.SetSize(0);
+    data.SetCapacity(0);
+    ASSERT_EQ(0, luaL_dostring(dmScript::GetLuaState(m_ScriptContext), "assert(require('created_module').value == 777); package.loaded.created_module = nil; assert(require('created_module').value == 777)"));
 }
 
 static void ModuleWithDependency(dmArray<uint8_t>& data, const char* path, const char* dependency)

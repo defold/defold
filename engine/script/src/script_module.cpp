@@ -102,7 +102,12 @@ namespace dmScript
             return 1;
         }
 
-        if (!LuaLoadModule(L, module->m_Script, module->m_ScriptSize, module->m_Filename))
+        if (module->m_Loader)
+        {
+            if (module->m_Loader(context, L, module->m_Resource) != 0)
+                return lua_error(L);
+        }
+        else if (!LuaLoadModule(L, module->m_Script, module->m_ScriptSize, module->m_Filename))
         {
             luaL_error(L, "error loading module '%s'from file '%s':\n\t%s",
                           lua_tostring(L, 1), name, lua_tostring(L, -1));
@@ -112,6 +117,11 @@ namespace dmScript
     }
 
     Result AddModule(HContext context, dmLuaDDF::LuaSource *source, const char *script_name, void* resource, dmhash_t path_hash)
+    {
+        return AddModule(context, source, script_name, resource, path_hash, 0);
+    }
+
+    Result AddModule(HContext context, dmLuaDDF::LuaSource* source, const char* script_name, void* resource, dmhash_t path_hash, ModuleLoader loader)
     {
         dmhash_t module_hash = dmHashString64(script_name);
         Module* existing_module = context->m_Modules.Get(module_hash);
@@ -125,13 +135,18 @@ namespace dmScript
         Module module;
         module.m_Name = strdup(script_name);
 
-        const char *buf;
-        uint32_t size;
-        GetLuaSource(source, &buf, &size);
-
-        module.m_Script = (char*) malloc(size);
-        module.m_ScriptSize = size;
-        memcpy(module.m_Script, buf, size);
+        module.m_Loader = loader;
+        module.m_Script = 0;
+        module.m_ScriptSize = 0;
+        if (loader == 0)
+        {
+            const char* buf;
+            uint32_t size;
+            GetLuaSource(source, &buf, &size);
+            module.m_Script = (char*)malloc(size);
+            module.m_ScriptSize = size;
+            memcpy(module.m_Script, buf, size);
+        }
 
         module.m_Resource = resource;
         module.m_Filename = strdup(source->m_Filename);
@@ -172,9 +187,12 @@ namespace dmScript
         uint32_t size;
         GetLuaSource(source, &buf, &size);
 
-        module->m_Script = (char*) realloc(module->m_Script, size);
-        module->m_ScriptSize = size;
-        memcpy(module->m_Script, buf, size);
+        if (module->m_Loader == 0)
+        {
+            module->m_ScriptSize = size;
+            module->m_Script = (char*)realloc(module->m_Script, size);
+            memcpy(module->m_Script, buf, size);
+        }
 
         if (LuaLoadModule(L, buf, size, module->m_Name))
         {
