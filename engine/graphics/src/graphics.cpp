@@ -2354,6 +2354,28 @@ namespace dmGraphics
         g_functions.m_DispatchCompute(context, group_count_x, group_count_y, group_count_z);
     }
 
+    static HProgram NewProgramWithStorageBufferLimits(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
+    {
+        GraphicsContextLimits limits;
+        GetGraphicsContextLimits(context, limits);
+        const uint32_t stages[] = { SHADER_STAGE_FLAG_VERTEX, SHADER_STAGE_FLAG_FRAGMENT, SHADER_STAGE_FLAG_COMPUTE };
+        const char* stage_names[] = { "vertex", "fragment", "compute" };
+        for (uint32_t stage = 0; stage < DM_ARRAY_SIZE(stages); ++stage)
+        {
+            uint32_t count = 0;
+            for (uint32_t i = 0; i < ddf->m_Reflection.m_StorageBuffers.m_Count; ++i)
+                if (ddf->m_Reflection.m_StorageBuffers[i].m_StageFlags & stages[stage])
+                    ++count;
+            if (count > limits.m_MaxStorageBuffersPerStage)
+            {
+                if (error_buffer && error_buffer_size)
+                    dmSnPrintf(error_buffer, error_buffer_size, "%s shader requires %u storage buffers; device limit is %u.", stage_names[stage], count, limits.m_MaxStorageBuffersPerStage);
+                return 0;
+            }
+        }
+        return g_functions.m_NewProgram(context, ddf, error_buffer, error_buffer_size);
+    }
+
     struct VisibleInstanceProgram
     {
         HProgram m_Program;
@@ -2400,7 +2422,7 @@ namespace dmGraphics
             if (dmDDF::LoadMessage(companion->m_Bytes, companion->m_ByteCount, &variant) == dmDDF::RESULT_OK)
             {
                 char error[512] = {};
-                companion->m_Program = g_functions.m_NewProgram(context, variant, error, sizeof(error));
+                companion->m_Program = NewProgramWithStorageBufferLimits(context, variant, error, sizeof(error));
                 if (companion->m_Program)
                     ((Program*)companion->m_Program)->m_VisibleInstanceProgram = 0;
                 else

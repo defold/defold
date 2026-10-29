@@ -7034,12 +7034,13 @@ TEST(Render, BatchIterator)
 
 static void GpuFallbackDispatch(const dmRender::RenderListDispatchParams&) {}
 
-// Verifies opt-in GPU culling requires all three context capabilities. Missing
-// compute, storage or indirect drawing must leave CPU visibility and batching active.
+// Verifies GPU culling requires all three context capabilities and enough storage
+// bindings. Unsupported devices must leave CPU visibility and batching active.
 TEST_F(dmRenderTest, GpuContextCapabilityFallback)
 {
     dmGraphics::GraphicsContext*     graphics = (dmGraphics::GraphicsContext*)m_GraphicsContext;
     uint32_t                         previous_features = graphics->m_ContextFeatureSupport;
+    uint32_t                         previous_limit = graphics->m_Limits.m_MaxStorageBuffersPerStage;
     const dmGraphics::ContextFeature required[] = {
         dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER,
         dmGraphics::CONTEXT_FEATURE_STORAGE_BUFFER,
@@ -7058,16 +7059,31 @@ TEST_F(dmRenderTest, GpuContextCapabilityFallback)
         shader.AddTypeMember(uniforms[i], type);
         shader.AddUniformBuffer(uniforms[i], i, i, dmGraphics::GetShaderTypeSize(type));
     }
+    dmGraphics::ShaderDesc::ResourceBinding storage[5] = {};
+    const char* storage_names[] = { "bounds", "worlds", "slots", "visible", "arguments" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(storage); ++i)
+    {
+        storage[i].m_Name = storage_names[i];
+        storage[i].m_NameHash = dmHashString64(storage_names[i]);
+        storage[i].m_Binding = i;
+        storage[i].m_StageFlags = dmGraphics::SHADER_STAGE_FLAG_COMPUTE;
+        storage[i].m_Type.m_UseTypeIndex = true;
+        storage[i].m_Type.m_Type.m_TypeIndex = 0;
+        storage[i].m_Bindinginfo.m_BlockSize = 16;
+    }
+    shader.Get()->m_Reflection.m_StorageBuffers.m_Data = storage;
+    shader.Get()->m_Reflection.m_StorageBuffers.m_Count = DM_ARRAY_SIZE(storage);
     dmGraphics::EnableState(m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
     dmGraphics::SetDepthMask(m_GraphicsContext, true);
     dmGraphics::SetDepthFunc(m_GraphicsContext, dmGraphics::COMPARE_FUNC_LEQUAL);
     dmGraphics::DisableState(m_GraphicsContext, dmGraphics::STATE_BLEND);
     dmGraphics::DisableState(m_GraphicsContext, dmGraphics::STATE_STENCIL_TEST);
 
-    // Disabled setting, each missing capability, none supported, then enabled control.
-    for (uint32_t mode = 0; mode < 6; ++mode)
+    // Disabled, missing capabilities, then below/at the binding limit.
+    for (uint32_t mode = 0; mode < 7; ++mode)
     {
         graphics->m_ContextFeatureSupport = previous_features | required_mask;
+        graphics->m_Limits.m_MaxStorageBuffersPerStage = mode >= 5 ? mode - 1 : previous_limit;
         if (mode >= 1 && mode <= 3)
             graphics->m_ContextFeatureSupport &= ~(1u << required[mode - 1]);
         if (mode == 4)
@@ -7079,7 +7095,7 @@ TEST_F(dmRenderTest, GpuContextCapabilityFallback)
         }
         dmRender::HRenderContext context = m_Context;
         dmRender::InitializeGpuIndirect(context, params);
-        bool supported = mode == 5;
+        bool supported = mode == 6;
         ASSERT_EQ(supported, dmRender::IsGpuIndirectSupported(context));
         ASSERT_EQ(supported, context->m_GpuIndirect.m_Program != 0);
         uint32_t                      dispatched = 0;
@@ -7121,8 +7137,14 @@ TEST_F(dmRenderTest, GpuContextCapabilityFallback)
         for (uint32_t i = 0; i < 2; ++i)
             dmRender::DeleteRenderItem(context, items[i]);
         dmRender::UnregisterRenderListDispatch(context, dispatch);
+        if (context->m_GpuIndirect.m_Program)
+        {
+            dmGraphics::DeleteProgram(m_GraphicsContext, context->m_GpuIndirect.m_Program);
+            context->m_GpuIndirect.m_Program = 0;
+        }
     }
     graphics->m_ContextFeatureSupport = previous_features;
+    graphics->m_Limits.m_MaxStorageBuffersPerStage = previous_limit;
 }
 
 // Verifies renderer-owned batches are distinct for queued objects, reuse their

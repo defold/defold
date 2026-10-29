@@ -30,6 +30,7 @@
 #include <dmsdk/dlib/intersection.h>
 #include <dmsdk/dlib/jobsystem.h>
 #include <graphics/graphics.h>
+#include "../../../graphics/src/graphics_private.h"
 #include <platform/window.hpp>
 #include <script/script.h>
 #include "render/render.h"
@@ -1678,6 +1679,29 @@ TEST_F(GpuIndirectTest, DenseModelSlotsAndRecycling)
         dmRender::DeleteRenderItem(m_Render, cpu[i]);
     ASSERT_TRUE(m_Render->m_GpuIndirect.m_RenderSlots.Empty());
     dmRender::UnregisterRenderListDispatch(m_Render, dispatch);
+}
+
+// Verifies an oversized visible-ID companion preserves the ordinary shader and
+// caches its fallback until reload, rather than passing it to the graphics backend.
+TEST_F(GpuIndirectTest, VisibleInstanceStorageLimitFallback)
+{
+    dmGraphics::ShaderDesc* desc = 0;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile(VISIBLE_INSTANCE_SHADER_FILE, dmGraphics::ShaderDesc::m_DDFDescriptor, (void**)&desc));
+    dmGraphics::GraphicsContext* graphics = (dmGraphics::GraphicsContext*)m_Graphics;
+    uint32_t previous_limit = graphics->m_Limits.m_MaxStorageBuffersPerStage;
+    graphics->m_Limits.m_MaxStorageBuffersPerStage = 1;
+    char error[512] = {};
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_Graphics, desc, error, sizeof(error));
+    ASSERT_NE((dmGraphics::HProgram)0, program);
+    dmhash_t world_attribute = dmHashString64("custom_world");
+    dmGraphics::HProgram companion = dmGraphics::GetVisibleInstanceProgram(m_Graphics, program, world_attribute);
+    graphics->m_Limits.m_MaxStorageBuffersPerStage = previous_limit;
+    ASSERT_EQ((dmGraphics::HProgram)0, companion);
+    ASSERT_EQ((dmGraphics::HProgram)0, dmGraphics::GetVisibleInstanceProgram(m_Graphics, program, world_attribute));
+    ASSERT_TRUE(dmGraphics::ReloadProgram(m_Graphics, program, desc, error, sizeof(error)));
+    ASSERT_NE((dmGraphics::HProgram)0, dmGraphics::GetVisibleInstanceProgram(m_Graphics, program, world_attribute));
+    dmGraphics::DeleteProgram(m_Graphics, program);
+    dmDDF::FreeMessage(desc);
 }
 
 // Verifies visible IDs fetch the same persistent matrices as ordinary instancing,

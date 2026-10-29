@@ -1153,6 +1153,45 @@ TEST_F(dmGraphicsTest, TestComputeProgram)
     dmGraphics::DeleteProgram(m_Context, program);
 }
 
+// Verifies ordinary shaders reach the backend even above a conservative storage
+// limit, preserving DX12 shaders whose read-only buffers use the larger SRV budget.
+TEST_F(dmGraphicsTest, OrdinaryReadOnlyStorageBuffers)
+{
+    dmGraphics::GraphicsContext* graphics = (dmGraphics::GraphicsContext*)m_Context;
+    uint32_t previous_limit = graphics->m_Limits.m_MaxStorageBuffersPerStage;
+    graphics->m_Limits.m_MaxStorageBuffersPerStage = 8;
+    dmGraphics::ShaderDescBuilder shader;
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "", 0);
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "", 0);
+    shader.AddTypeMember("value", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    dmGraphics::ShaderDesc::ResourceBinding storage[9] = {};
+    const char* names[] = { "data0", "data1", "data2", "data3", "data4", "data5", "data6", "data7", "data8" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(storage); ++i)
+    {
+        storage[i].m_Name = names[i];
+        storage[i].m_NameHash = dmHashString64(names[i]);
+        storage[i].m_Binding = i;
+        storage[i].m_StageFlags = dmGraphics::SHADER_STAGE_FLAG_VERTEX;
+        storage[i].m_ResourceAccessFlags = dmGraphics::SHADER_RESOURCE_ACCESS_READ;
+        storage[i].m_Type.m_UseTypeIndex = true;
+        storage[i].m_Type.m_Type.m_TypeIndex = 0;
+        storage[i].m_Bindinginfo.m_BlockSize = 16;
+    }
+    shader.Get()->m_Reflection.m_StorageBuffers.m_Data = storage;
+    shader.Get()->m_Reflection.m_StorageBuffers.m_Count = DM_ARRAY_SIZE(storage);
+    for (uint32_t mode = 0; mode < 2; ++mode)
+    {
+        char error[512] = {};
+        dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, shader.Get(), mode ? 0 : error, mode ? 0 : sizeof(error));
+        ASSERT_NE((dmGraphics::HProgram)0, program);
+        ASSERT_EQ(9u, ((dmGraphics::Program*)program)->m_ShaderMeta.m_StorageBuffers.Size());
+        dmGraphics::DeleteProgram(m_Context, program);
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(storage); ++i)
+            storage[i].m_StageFlags |= dmGraphics::SHADER_STAGE_FLAG_FRAGMENT;
+    }
+    graphics->m_Limits.m_MaxStorageBuffersPerStage = previous_limit;
+}
+
 template <typename T>
 struct VectorTypeContainer
 {

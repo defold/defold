@@ -71,6 +71,11 @@ namespace dmRender
             !dmGraphics::IsContextFeatureSupported(context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_STORAGE_BUFFER) ||
             !dmGraphics::IsContextFeatureSupported(context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_INDIRECT_DRAW))
             return;
+        // The built-in culling program has only a compute stage.
+        dmGraphics::GraphicsContextLimits limits;
+        dmGraphics::GetGraphicsContextLimits(context->m_GraphicsContext, limits);
+        if (params.m_InstanceCullingShaderProgramDesc->m_Reflection.m_StorageBuffers.m_Count > limits.m_MaxStorageBuffersPerStage)
+            return;
         char error[512] = {};
         gpu.m_Program = dmGraphics::NewProgram(context->m_GraphicsContext, params.m_InstanceCullingShaderProgramDesc, error, sizeof(error));
         if (!gpu.m_Program)
