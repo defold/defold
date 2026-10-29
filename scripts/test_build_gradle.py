@@ -431,7 +431,7 @@ class GradleOutputTests(unittest.TestCase):
                 output, stream, log = self.reporter()
                 marker = 'DEFOLD_TEST_SKIPPED ' + json.dumps({
                     'task': ':crashes',
-                    'test': ['Gradle Test Run :crashes', 'Gradle Test Executor 1', 'ExampleTest', 'expected 雪'],
+                    'test': 'ExampleTest > expected 雪',
                 })
                 output.on_output('> Task :crashes FAILED')
                 output.on_output('ExampleTest > expected 雪 STANDARD_OUT')
@@ -443,7 +443,7 @@ class GradleOutputTests(unittest.TestCase):
                     output.on_output(marker)
                 # An ordinary skip in another task cannot suppress the interrupted test with the same name.
                 output.on_output('DEFOLD_TEST_SKIPPED ' + json.dumps({
-                    'task': ':other', 'test': ['ExampleTest', 'runs'],
+                    'task': ':other', 'test': 'ExampleTest > runs',
                 }))
                 for line in ('ExampleTest > runs STANDARD_OUT', '    error: WORKER_ROOT_CAUSE missing symbol',
                              'ExampleTest > runs SKIPPED', 'Gradle Test Run :crashes FAILED',
@@ -456,6 +456,45 @@ class GradleOutputTests(unittest.TestCase):
                 self.assertNotIn('expected skipped-test result', text)
                 self.assertNotIn('DEFOLD_TEST_SKIPPED', text)
                 self.assertIn('expected skipped-test result', log.getvalue())
+
+    # A skipped suite invocation must not hide a later direct invocation sharing its class and method names.
+    def test_skipped_suite_does_not_suppress_direct_test(self):
+        output, stream, log = self.reporter()
+        suite_test = 'AWrapperSuiteTest > SharedLeafTest > runs'
+        for line in ('> Task :test', f'{suite_test} STANDARD_OUT', '    error: expected suite skip',
+                     'DEFOLD_TEST_SKIPPED ' + json.dumps({'task': ':test', 'test': suite_test}),
+                     f'{suite_test} SKIPPED', 'SharedLeafTest > runs STANDARD_OUT',
+                     '    error: DIRECT_TEST_ROOT_CAUSE missing library', 'SharedLeafTest > runs SKIPPED',
+                     'Gradle Test Run :test FAILED', '    worker exited with code 7', '> Task :test FAILED'):
+            output.on_output(line)
+        output.finish(False)
+        self.assertEqual(1, stream.getvalue().count('DIRECT_TEST_ROOT_CAUSE'))
+        self.assertNotIn('expected suite skip', stream.getvalue())
+        self.assertIn('expected suite skip', log.getvalue())
+
+    # A skip confirmation must apply to one execution, including late confirmations of tests with no output.
+    def test_skip_confirmation_does_not_suppress_repeated_execution(self):
+        for marker_first in (False, True):
+            for has_output in (False, True):
+                with self.subTest(marker_first=marker_first, has_output=has_output):
+                    output, stream, _ = self.reporter()
+                    name = 'RepeatedTest > runs'
+                    marker = 'DEFOLD_TEST_SKIPPED ' + json.dumps({'task': ':test', 'test': name})
+                    output.on_output('> Task :test')
+                    if has_output:
+                        output.on_output(f'{name} STANDARD_OUT')
+                        output.on_output('    error: expected first invocation skip')
+                    if marker_first:
+                        output.on_output(marker)
+                    output.on_output(f'{name} SKIPPED')
+                    if not marker_first:
+                        output.on_output(marker)
+                    for line in (f'{name} STANDARD_OUT', '    error: REPEATED_ROOT_CAUSE missing library',
+                                 f'{name} SKIPPED', 'Gradle Test Run :test FAILED', '> Task :test FAILED'):
+                        output.on_output(line)
+                    output.finish(False)
+                    self.assertEqual(1, stream.getvalue().count('REPEATED_ROOT_CAUSE'))
+                    self.assertNotIn('expected first invocation skip', stream.getvalue())
 
     # Worker failure recovery must preserve recognized skipped-test errors while ordinary context stays bounded.
     def test_failed_worker_keeps_long_skipped_test_errors(self):

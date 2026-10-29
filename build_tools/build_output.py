@@ -195,6 +195,7 @@ class GradleOutput(BuildOutput):
         self.test_output = {}
         self.skipped_test_output = {}
         self.ordinary_skipped_tests = set()
+        self.completed_skips = set()
         self.stderr_output = _DiagnosticBuffer()
 
     def on_output(self, line):
@@ -210,11 +211,10 @@ class GradleOutput(BuildOutput):
         self.log_file.write(plain + '\n')
         if plain.startswith(_GRADLE_SKIPPED):
             result = json.loads(plain[len(_GRADLE_SKIPPED):])
-            # Match the descriptor suffix shown by Gradle's test display granularity.
-            for index in range(len(result['test']) - 1):
-                key = (result['task'], ' > '.join(result['test'][index:]))
+            key = (result['task'], result['test'])
+            if key not in self.completed_skips:
                 self.ordinary_skipped_tests.add(key)
-                self.skipped_test_output.pop(key, None)
+            self.skipped_test_output.pop(key, None)
             return
         progress = _GRADLE_PROGRESS.match(plain)
         if progress:
@@ -264,11 +264,17 @@ class GradleOutput(BuildOutput):
                 if current is not None and current[0] == test[1]:
                     self.current_tests.pop(self.current_task)
                 previous = self.test_output.pop(key, None)
-                if status == 'SKIPPED' and previous is not None and key not in self.ordinary_skipped_tests:
+                ordinary_skip = key in self.ordinary_skipped_tests
+                self.ordinary_skipped_tests.discard(key)
+                if status == 'SKIPPED':
+                    self.completed_skips.add(key)
+                if status == 'SKIPPED' and previous is not None and not ordinary_skip:
                     # Worker crashes also produce SKIPPED results; retain errors and bounded context for a run failure.
                     previous.append(plain)
                     self.skipped_test_output[key] = previous
             else:
+                # A new execution cannot inherit a completed invocation's skip confirmation.
+                self.completed_skips.discard(key)
                 self.current_tests[self.current_task] = (test[1], status)
                 if status == 'FAILED':
                     self._start_error(plain, context=True)

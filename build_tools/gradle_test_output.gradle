@@ -11,7 +11,10 @@ gradle.allprojects {
                 for (def test = descriptor; test != null; test = test.parent) {
                     names.add(0, test.displayName)
                 }
-                testTask.logger.lifecycle('DEFOLD_TEST_SKIPPED ' + JsonOutput.toJson([task: testTask.path, test: names]))
+                def granularity = testTask.testLogging.displayGranularity
+                def start = granularity == -1 ? names.size() - 1 : Math.min(granularity, names.size() - 1)
+                def name = names.drop(start).join(' > ')
+                testTask.logger.lifecycle('DEFOLD_TEST_SKIPPED ' + JsonOutput.toJson([task: testTask.path, test: name]))
             }
         }
     }
