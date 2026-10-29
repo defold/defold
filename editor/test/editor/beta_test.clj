@@ -23,6 +23,7 @@
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.ui :as ui]
+            [service.log :as log]
             [support.test-support :refer [with-clean-system]]
             [util.http-server :as http-server])
   (:import [com.dynamo.bob Platform]
@@ -131,7 +132,7 @@
           (is (= {:info nil
                   :newer false
                   :markdown nil}
-                 (beta/fetch-offer! source))))
+                 (log/without-logging (beta/fetch-offer! source)))))
         (doseq [info [{} [] "bad" {:version "1.14.0"}
                       {:version 114
                        :sha1 "B2"}
@@ -184,11 +185,11 @@
                      {:issues [{:repository "defold"
                                 :labels 42}]}]]
         (swap! routes assoc (notes-path "1.14.0") (http-server/json-response notes))
-        (let [offer (beta/fetch-offer! (make-source server))]
+        (let [offer (log/without-logging (beta/fetch-offer! (make-source server)))]
           (is (:newer offer))
           (is (nil? (:markdown offer)))))
       (swap! routes dissoc (notes-path "1.14.0"))
-      (let [offer (beta/fetch-offer! (make-source server))]
+      (let [offer (log/without-logging (beta/fetch-offer! (make-source server)))]
         (is (:newer offer))
         (is (nil? (:markdown offer)))))))
 
@@ -265,7 +266,7 @@
             source (make-source server)
             stage (make-hidden-stage)
             prefs (make-temp-prefs)]
-        (is (nil? (deref (suggest! session source stage nil prefs) timeout-ms :timed-out)))
+        (is (nil? (deref (log/without-logging (suggest! session source stage nil prefs)) timeout-ms :timed-out)))
         (is (nil? (deref (suggest! session source stage nil prefs) timeout-ms :timed-out)))
         (is (= [info-path] @requests))))))
 
@@ -299,7 +300,7 @@
                 (is (not= :timed-out (deref (offer) timeout-ms :timed-out))))
               (is (ui-flushed?))
               (is (= [info-path (notes-path "1.14.0")] @requests))
-              (is (beta/try-enabled? session source)))
+              (is (not (beta/busy? session))))
             (finally
               (ui/run-now (.hide stage)))))))))
 
@@ -331,10 +332,8 @@
                 :version "1.13.2"
                 :platform Platform/X86_64Linux}]
     (is (beta/eligible? source))
-    (is (beta/try-enabled? (beta/make-session) source))
     (is (not (beta/eligible? (assoc source :channel "beta"))))
     (is (not (beta/eligible? (assoc source :platform Platform/WasmWeb))))
-    (is (not (beta/try-enabled? (beta/make-session) (assoc source :channel "alpha"))))
     (is (nil? (try! (beta/make-session) (assoc source :channel "beta") (make-hidden-stage) progress/null-render-progress!)))))
 
 ;; Verifies the command is disabled while a check is in progress and becomes
@@ -362,16 +361,16 @@
           (let [session (beta/make-session)
                 source (make-source server)
                 stage (make-hidden-stage)
-                check (try! session source stage #(swap! progress conj %))]
+                check (log/without-logging (try! session source stage #(swap! progress conj %)))]
             (try
               (is (true? (deref started timeout-ms :timed-out)))
-              (is (not (beta/try-enabled? session source)))
+              (is (beta/busy? session))
               (is (nil? (try! session source stage progress/null-render-progress!)))
               (finally
                 (deliver finish true)))
             (is (not= :timed-out (deref check timeout-ms :timed-out)))
             (is (ui-flushed?))
-            (is (beta/try-enabled? session source))
+            (is (not (beta/busy? session)))
             (is (= 2 (count @progress)))
             (is (nil? (progress/fraction (first @progress))))
             (is (progress/done? (last @progress)))))))))

@@ -2913,7 +2913,7 @@
   (active? [changes-view evaluation-context]
     (and (beta/eligible? (beta/release-source))
          (some? (g/node-value changes-view :git evaluation-context))))
-  (enabled? [] (beta/try-enabled? beta/session (beta/release-source)))
+  (enabled? [] (not (beta/busy? beta/session)))
   (run [workspace project main-stage localization]
     (beta/try! beta/session (beta/release-source) main-stage (workspace/notifications workspace) project localization (make-render-task-progress :beta-check))))
 

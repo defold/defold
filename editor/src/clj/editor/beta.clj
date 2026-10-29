@@ -113,9 +113,8 @@
      :markdown (when newer
                  (fetch-release-notes! source version))}))
 
-(defn try-enabled? [session source]
-  (and (eligible? source)
-       (not (:busy @session))))
+(defn busy? [session]
+  (:busy @session))
 
 (defn- confirm-download! [stage project localization version markdown]
   (dialogs/make-confirmation-dialog
@@ -151,7 +150,7 @@
   "Offers to open the beta download link in the web browser. Returns the future
   doing so, or nil if disabled or already busy."
   [session source ^Stage stage notifications-node project localization render-progress!]
-  (when (and (try-enabled? session source) (claim! session :busy))
+  (when (and (eligible? source) (claim! session :busy))
     (future
       (try
         (render-progress! (progress/make-indeterminate (localization/message "progress.checking-beta")))
