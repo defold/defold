@@ -161,6 +161,20 @@ class GradleOutputTests(unittest.TestCase):
                 self.assertNotIn('> Task :other', text)
                 self.assertIn('unrelated successful task output', log.getvalue())
 
+    # Tool diagnostics beginning with > must survive interleaved task headers without admitting progress or success noise.
+    def test_leading_chevron_diagnostic_is_not_progress(self):
+        output, stream, log = self.reporter()
+        diagnostic = '> Missing required native library: libshaderc_shared.dylib'
+        for line in ('> Evaluating settings', '> Task :broken', diagnostic, '> :broken',
+                     '> Task :other', '> unrelated successful output', '> IDLE', '> Task :broken FAILED'):
+            output.on_output(line)
+        output.finish(False)
+        self.assertEqual(1, stream.getvalue().count(diagnostic))
+        self.assertIn(diagnostic, output.failure_output())
+        for omitted in ('Evaluating settings', 'unrelated successful output', '> :broken', '> IDLE'):
+            self.assertNotIn(omitted, stream.getvalue())
+            self.assertIn(omitted, log.getvalue())
+
     # Multiple failing tasks retain their separate excerpts without duplicating previously reported failures.
     def test_interleaved_stdout_keeps_multiple_failed_tasks(self):
         output, stream, _ = self.reporter()
