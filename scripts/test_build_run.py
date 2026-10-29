@@ -207,6 +207,64 @@ class RunCommandTests(unittest.TestCase):
                 self.assertIn('final stderr 雪', captured)
                 self.assert_processes_closed()
 
+    # Output written after an empty read but before exit is observed must reach the console and full log.
+    def test_final_output_after_empty_read_is_drained(self):
+        read = os.read
+        for stream_name in ('stdout', 'stderr'):
+            with self.subTest(stream=stream_name), tempfile.TemporaryDirectory() as directory:
+                empty_read, resume = Event(), Event()
+                stopped, process_done = Event(), Event()
+                errors = []
+                stream = io.StringIO()
+                path = Path(directory) / 'gradle.log'
+                diagnostic = 'FINAL_ROOT_CAUSE: final diagnostic 雪'
+                script = ('import sys; sys.stdin.readline(); '
+                          f'sys.{stream_name}.write({diagnostic!r}); sys.{stream_name}.flush(); '
+                          'sys.exit(7)')
+
+                def pause_after_empty_read(fd, size):
+                    try:
+                        return read(fd, size)
+                    except BlockingIOError:
+                        if not empty_read.is_set() and fd == getattr(self.children[-1], stream_name).fileno():
+                            empty_read.set()
+                            if not resume.wait(timeout=10):
+                                raise AssertionError('Empty pipe read was never resumed')
+                        raise
+
+                def execute():
+                    try:
+                        build_output.command({**os.environ, 'PYTHONIOENCODING': 'utf-8'},
+                                             [sys.executable, '-c', script], 'Gradle final output', path,
+                                             stream=stream, gradle=True)
+                    except BaseException as error:
+                        errors.append(error)
+
+                with mock.patch.object(run.os, 'read', side_effect=pause_after_empty_read), \
+                        mock.patch.object(run, 'Event', side_effect=[stopped, process_done]):
+                    worker = Thread(target=execute, daemon=True)
+                    worker.start()
+                    try:
+                        self.assertTrue(empty_read.wait(timeout=10), 'Reader never reached an empty pipe')
+                        child = self.children[-1]
+                        child.stdin.write(b'write final diagnostic\n')
+                        child.stdin.flush()
+                        self.assertEqual(7, child.wait(timeout=10))
+                        self.assertTrue(process_done.wait(timeout=10), 'Launcher exit was never observed')
+                    finally:
+                        resume.set()
+                        for child in self.children:
+                            if child.poll() is None:
+                                child.kill()
+                        worker.join(timeout=10)
+                self.assertFalse(worker.is_alive())
+                self.assertEqual(1, len(errors))
+                self.assertIsInstance(errors[0], run.ExecException)
+                self.assertEqual(7, errors[0].retcode)
+                for text in (stream.getvalue(), path.read_text(), errors[0].output):
+                    self.assertIn(diagnostic, text)
+                self.assert_processes_closed()
+
     # Callback failure after launcher exit must cancel pipe readers even when process cleanup cannot stop the worker.
     def test_callback_failure_after_launcher_exit_cancels_readers(self):
         done = Event()

@@ -105,11 +105,13 @@ def _terminal_lines(stream, stopped=None, process_done=None):
         # Python 3.12 supports non-blocking pipes on Windows too.
         os.set_blocking(fd, False)
     while stopped is None or not stopped.is_set():
+        # A read must follow observing exit; the launcher's final write may follow an earlier empty read.
+        process_exited = process_done is not None and process_done.is_set()
         try:
             chunk = os.read(fd, 65536) if fd is not None else stream.read1(65536)
         except BlockingIOError:
             # Drain buffered output after launcher exit without waiting for a worker's EOF.
-            if process_done.is_set():
+            if process_exited:
                 break
             stopped.wait(0.05)
             continue
