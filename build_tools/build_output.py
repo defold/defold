@@ -19,6 +19,8 @@ _TEST_PROGRESS = re.compile(r'^\[(\d+)/(\d+)\] \S+: (PASSED|FAILED) \([\d.]+s\)$
 _TEST_START = re.compile(r'^Starting \S+ \(group .+\)$')
 _ANSI = re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
 _ERROR = re.compile(r'^CMake Error|^Traceback \(most recent call last\):|\b(?:fatal error|error(?: [A-Z]+\d+)?):')
+_JAVA_STACK_TRACE = re.compile(r'^\s*(?:Exception in thread "[^"]+" )?'
+                               r'(?:[\w$]+\.)+[\w$]*(?:Exception|Error|Throwable)(?::|$)')
 _GRADLE_PROGRESS = re.compile(r'^(?:<[^>]*>|[│|][^│|]*[│|])\s*(\d+)%\s+([A-Z]+)')
 _GRADLE_TASK = re.compile(r'^> Task (\S+)(?:\s+(.*))?$')
 _GRADLE_TEST = re.compile(r'^(\S.*?) (PASSED|SKIPPED|FAILED|STANDARD_OUT|STANDARD_ERROR)$')
@@ -170,7 +172,7 @@ class _DiagnosticBuffer:
         self.errors = []
 
     def append(self, line):
-        if self.errors or _ERROR.search(line):
+        if self.errors or _ERROR.search(line) or _JAVA_STACK_TRACE.match(line):
             if not self.errors:
                 self.errors.extend(self.context)
                 self.context.clear()

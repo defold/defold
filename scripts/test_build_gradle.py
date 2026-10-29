@@ -595,6 +595,61 @@ class GradleOutputTests(unittest.TestCase):
                     self.assertLess(len(text.splitlines()), 115)
                 self.assertIn('compiler context 0\n', log.getvalue())
 
+    # A Java stack trace starts with its cause; long traces must retain that message only for failed tests.
+    def test_long_java_stack_trace_keeps_failed_test_cause(self):
+        for result in ('PASSED', 'FAILED', 'SKIPPED'):
+            with self.subTest(result=result):
+                output, stream, log = self.reporter()
+                for line in ('> Task :test', 'ExampleTest > runs STANDARD_OUT',
+                             '    java.lang.IllegalStateException: JAVA_ROOT_CAUSE missing library'):
+                    output.on_output(line)
+                for index in range(150):
+                    output.on_output(f'        at com.example.Builder.build{index}(Builder.java:{index + 1})')
+                output.on_output(f'ExampleTest > runs {result}')
+                if result == 'SKIPPED':
+                    output.on_output('Gradle Test Run :test FAILED')
+                failed = result != 'PASSED'
+                output.on_output('> Task :test FAILED' if failed else '> Task :test')
+                output.finish(not failed)
+                if failed:
+                    self.assertEqual(1, stream.getvalue().count('JAVA_ROOT_CAUSE'))
+                    self.assertIn('at com.example.Builder.build0(', stream.getvalue())
+                    self.assertIn('at com.example.Builder.build149(', stream.getvalue())
+                else:
+                    self.assertNotIn('JAVA_ROOT_CAUSE', stream.getvalue())
+                    self.assertNotIn('at com.example.Builder.', stream.getvalue())
+                self.assertIn('JAVA_ROOT_CAUSE', log.getvalue())
+
+    # An unattributed JVM trace must retain its header across long traces and later task-header delivery.
+    def test_long_java_stderr_trace_keeps_exception_header(self):
+        headers = ('java.lang.OutOfMemoryError: JAVA_ROOT_CAUSE heap space',
+                   'Exception in thread "main" java.lang.RuntimeException: JAVA_ROOT_CAUSE missing library',
+                   'com.example.Builder$BuildException: JAVA_ROOT_CAUSE missing library',
+                   'java.lang.Throwable: JAVA_ROOT_CAUSE missing library')
+        for header in headers:
+            with self.subTest(header=header):
+                output, stream, _ = self.reporter()
+                output.on_output('> Task :other')
+                output.on_stderr(header)
+                for index in range(150):
+                    output.on_stderr(f'    at com.example.Builder.build{index}(Builder.java:{index + 1})')
+                output.on_output('> Task :broken FAILED')
+                output.finish(False)
+                self.assertEqual(1, stream.getvalue().count(header))
+                self.assertIn('at com.example.Builder.build149(', stream.getvalue())
+
+    # Recognizing test traces must not promote a successful ordinary task's recovered exception into a build failure.
+    def test_recovered_task_exception_stays_out_of_another_tasks_failure(self):
+        output, stream, log = self.reporter()
+        for line in ('> Task :successful', 'java.lang.IllegalStateException: EXPECTED_RECOVERED_EXCEPTION',
+                     '    at com.example.Fallback.run(Fallback.java:1)', '> Task :broken',
+                     'ACTUAL_TASK_ROOT_CAUSE missing library', '> Task :broken FAILED'):
+            output.on_output(line)
+        output.finish(False)
+        self.assertIn('ACTUAL_TASK_ROOT_CAUSE', stream.getvalue())
+        self.assertNotIn('EXPECTED_RECOVERED_EXCEPTION', stream.getvalue())
+        self.assertIn('EXPECTED_RECOVERED_EXCEPTION', log.getvalue())
+
     # --continue failures must retain all failure reasons while hiding generic Gradle help sections.
     def test_multiple_failure_explanations_are_retained(self):
         output, stream, _ = self.reporter()
