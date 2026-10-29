@@ -71,8 +71,10 @@ static DSResult RegisterSystem(HDSContext store, const DSSystemDesc* desc)
         ++num_dependencies;
 
     DSSystemRegistration system = {
-        .m_Desc = *desc,
-        .m_DependencyCount = (uint8_t)num_dependencies
+        *desc,
+        0,
+        0,
+        (uint8_t)num_dependencies
     };
 
     if (store->m_Systems.Full())
@@ -95,7 +97,7 @@ DSResult DSEventAdd(HDSContext store, const DSEventDesc* desc)
 {
     if (store->m_ScheduleActive)
         return DS_RESULT_LOCKED;
-    DSSystemDesc system = { .m_Name = desc->m_Name };
+    DSSystemDesc system = { desc->m_Name };
     memcpy(system.m_DependsOn, desc->m_DependsOn, sizeof(system.m_DependsOn));
     return RegisterSystem(store, &system);
 }
@@ -215,7 +217,7 @@ static void ScheduleFunctions(HDSContext store)
         for (uint32_t j = 0; j < num_jobs; ++j)
         {
             uint32_t        first = j * rows_per_job;
-            Job             job = { .m_Process = ProcessFunction, .m_Callback = CompleteFunction, .m_Context = &system, .m_Data = (void*)(uintptr_t)first };
+            Job             job = { ProcessFunction, CompleteFunction, &system, (void*)(uintptr_t)first };
             HJob            handle = JobSystemCreateJob(store->m_ScheduleJobs, &job);
             JobSystemResult result = JobSystemPushJob(store->m_ScheduleJobs, handle);
             assert(result == JOBSYSTEM_RESULT_OK);

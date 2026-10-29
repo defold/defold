@@ -88,12 +88,12 @@ struct SchedulerAdmissionGate
 static ThreadFixture CreateFixture()
 {
     ThreadFixture  fixture = {};
-    DSCreateParams params = { .m_PageSize = 1024, .m_RowChunkSize = 256 };
+    DSCreateParams params = { 1024, 256 };
     fixture.m_Store = DSStoreCreate(&params);
     fixture.m_Group = NextTestGroupId();
-    DSFieldDesc       light_fields[] = { { .m_Field = COLOR, .m_Type = DS_TYPE_VECTOR3, .m_Name = "color" }, { .m_Field = INTENSITY, .m_Type = DS_TYPE_NUMBER, .m_Offset = 16, .m_Name = "intensity" } };
+    DSFieldDesc       light_fields[] = { { COLOR, DS_TYPE_VECTOR3, 0, 0, "color" }, { INTENSITY, DS_TYPE_NUMBER, 16, 0, "intensity" } };
     DSStructDesc      light = { light_fields, 2, 24 };
-    DSFieldDesc       fields[] = { { HEALTH, DS_TYPE_NUMBER, 0, 0 }, { POSITION, DS_TYPE_VECTOR3, 8, 0 }, { .m_Field = LIGHT, .m_Type = DS_TYPE_STRUCT, .m_Offset = 24, .m_Struct = &light, .m_Name = "light" } };
+    DSFieldDesc       fields[] = { { HEALTH, DS_TYPE_NUMBER, 0, 0 }, { POSITION, DS_TYPE_VECTOR3, 8, 0 }, { LIGHT, DS_TYPE_STRUCT, 24, &light, "light" } };
     const DSValueType child_types[] = { DS_TYPE_VECTOR3, DS_TYPE_NUMBER };
     DSValueData       children[2] = {};
     uint64_t          names[] = { COLOR, INTENSITY };
@@ -125,8 +125,8 @@ static ThreadFixture CreateFixture()
 
 static HDSQuery Query(HDSContext store, uint64_t field_hash, DSValueType type, uint32_t access, uint32_t flags = 0)
 {
-    DSQueryItem field = { .m_Hash = field_hash, .m_Type = type, .m_Access = access, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc desc = { .m_Flags = flags, .m_Items = { field } };
+    DSQueryItem field = { field_hash, type, access, DS_QUERY_ITEM_FIELD };
+    DSQueryDesc desc = { 0, 0, flags, { field } };
     HDSQuery    query = 0;
     EXPECT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     return query;
@@ -178,13 +178,13 @@ TEST(DataThreaded, ConflictsIndependentFieldsAndRelease)
     }
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(reader));
     ASSERT_EQ(DS_RESULT_BUSY, TryFromWorker(reader));
-    DSQueryItem writable = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
+    DSQueryItem writable = { HEALTH, DS_TYPE_NUMBER, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD };
     ASSERT_EQ(UINT32_MAX, DSQueryFindField(reader, &writable));
     DSIterator it = DSQueryIterRange(reader, 0, 1);
     ASSERT_TRUE(DSIterNext(&it));
     DSRowIterator row = DSIterRows(&it);
     ASSERT_TRUE(DSRowIterNext(&row));
-    DSQueryItem readable = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
+    DSQueryItem readable = { HEALTH, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_FIELD };
     DSFieldId   health = DSQueryFindField(reader, &readable);
     ASSERT_EQ(50.0, *DSRowIterGetNumber(&row, health));
     DSQueryEnd(reader);
@@ -297,7 +297,7 @@ TEST(DataThreaded, NestedRangesAndWholeRows)
     HDSQuery      child = Query(fixture.m_Store, dmHashString64("light.color"), DS_TYPE_VECTOR3, DS_FIELD_MUTABLE);
     HDSQuery      sibling = Query(fixture.m_Store, dmHashString64("light.intensity"), DS_TYPE_NUMBER, DS_FIELD_MUTABLE);
     HDSQuery      whole;
-    DSQueryDesc   desc = { .m_Flags = DS_ROW_MUTABLE };
+    DSQueryDesc   desc = { 0, 0, DS_ROW_MUTABLE };
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(fixture.m_Store, &desc, &whole));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(child));
     ASSERT_EQ(DS_RESULT_BUSY, TryFromWorker(parent));
@@ -314,8 +314,8 @@ TEST(DataThreaded, RangesCoverOwnerFilteredRowsAndRefreshAfterMutation)
 {
     ThreadFixture fixture = CreateFixture();
     DSId          group = fixture.m_Group;
-    DSQueryItem   field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc   desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { field } };
+    DSQueryItem   field = { HEALTH, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_FIELD };
+    DSQueryDesc   desc = { &group, 1, 0, { field } };
     HDSQuery      query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(fixture.m_Store, &desc, &query));
     for (uint32_t phase = 0; phase < 2; ++phase)
@@ -383,17 +383,17 @@ static void MutateOnThread(void* context)
 TEST(DataThreaded, MutationExclusionAndDisjointGroups)
 {
     ThreadFixture fixture = CreateFixture();
-    DSQueryItem   field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
+    DSQueryItem   field = { HEALTH, DS_TYPE_NUMBER, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD };
     DSId          groups[] = { 0, fixture.m_Group };
     HDSQuery      queries[2];
     for (uint32_t i = 0; i < 2; ++i)
     {
-        DSQueryDesc desc = { .m_GroupIds = &groups[i], .m_GroupIdCount = 1, .m_Items = { field } };
+        DSQueryDesc desc = { &groups[i], 1, 0, { field } };
         ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(fixture.m_Store, &desc, &queries[i]));
     }
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(queries[0]));
     ASSERT_EQ(DS_RESULT_OK, TryFromWorker(queries[1]));
-    MutationAttempt  attempt = { .m_Store = fixture.m_Store, .m_Id = fixture.m_Ids[0], .m_Group = fixture.m_Group };
+    MutationAttempt  attempt = { fixture.m_Store, fixture.m_Ids[0], fixture.m_Group };
     dmThread::Thread worker = dmThread::New(MutateOnThread, 0x80000, &attempt, "data-mutate");
     dmThread::Join(worker);
     ASSERT_EQ(DS_RESULT_LOCKED, attempt.m_Remove);
@@ -405,8 +405,8 @@ TEST(DataThreaded, MutationExclusionAndDisjointGroups)
     ASSERT_EQ(DS_RESULT_OK, DSRowRemove(fixture.m_Store, fixture.m_Ids[0]));
     for (uint32_t i = 0; i < 2; ++i)
         ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(queries[i]));
-    DSQueryItem invalid = { .m_Hash = LIGHT, .m_Type = DS_TYPE_STRUCT, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc desc = { .m_Items = { invalid } };
+    DSQueryItem invalid = { LIGHT, DS_TYPE_STRUCT, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD };
+    DSQueryDesc desc = { 0, 0, 0, { invalid } };
     HDSQuery    query = 0;
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSQueryCreate(fixture.m_Store, &desc, &query));
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(fixture.m_Store));
@@ -580,26 +580,26 @@ static void ReadScheduledRange(HDSQuery query, uint32_t first, uint32_t count, v
 TEST(DataThreaded, SchedulerSplitRangesCompleteOutOfOrder)
 {
     ThreadFixture       fixture = CreateFixture();
-    ScheduledRangeState ranges = { .m_Mutex = dmMutex::New(), .m_Condition = dmConditionVariable::New() };
+    ScheduledRangeState ranges = { {}, dmMutex::New(), dmConditionVariable::New() };
     ScheduledJobState   observer = {}, writer = {};
     HDSQuery            queries[] = {
         Query(fixture.m_Store, HEALTH, DS_TYPE_NUMBER, 0),
         Query(fixture.m_Store, HEALTH, DS_TYPE_NUMBER, 0),
         Query(fixture.m_Store, HEALTH, DS_TYPE_NUMBER, DS_FIELD_MUTABLE)
     };
-    DSQueryItem field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
+    DSQueryItem field = { HEALTH, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_FIELD };
     ranges.m_Reader.m_Field = DSQueryFindField(queries[0], &field);
     observer.m_Field = DSQueryFindField(queries[1], &field);
     field.m_Access = DS_FIELD_MUTABLE;
     writer.m_Field = DSQueryFindField(queries[2], &field);
     DSSystemDesc systems[] = {
-        { .m_Name = dmHashString64("observe"), .m_DependsOn = { dmHashString64("read_ranges") }, .m_Query = queries[1], .m_Process = ReadScheduledHealth, .m_Context = &observer },
-        { .m_Name = dmHashString64("read_ranges"), .m_Query = queries[0], .m_Process = ReadScheduledRange, .m_Context = &ranges, .m_RowsPerJob = 5 },
-        { .m_Name = dmHashString64("regenerate"), .m_Query = queries[2], .m_Process = RegenerateScheduledHealth, .m_Context = &writer, .m_RowsPerJob = 5 }
+        { dmHashString64("observe"), { dmHashString64("read_ranges") }, queries[1], ReadScheduledHealth, &observer },
+        { dmHashString64("read_ranges"), {}, queries[0], ReadScheduledRange, &ranges, 5 },
+        { dmHashString64("regenerate"), {}, queries[2], RegenerateScheduledHealth, &writer, 5 }
     };
     for (uint32_t i = 0; i < 3; ++i)
         ASSERT_EQ(DS_RESULT_OK, DSFunctionAdd(fixture.m_Store, &systems[i]));
-    JobSystemCreateParams params = { .m_ThreadNamePrefix = "ds-ranges", .m_ThreadCount = 2 };
+    JobSystemCreateParams params = { "ds-ranges", 2 };
     HJobContext           jobs = JobSystemCreate(&params);
     for (uint32_t frame = 0; frame < 20; ++frame)
     {
@@ -652,27 +652,27 @@ TEST(DataThreaded, SchedulerSplitRangesCompleteOutOfOrder)
 TEST(DataThreaded, SchedulerAutomaticJobs)
 {
     ThreadFixture     fixture = CreateFixture();
-    ScheduledJobGate  gate = { .m_Mutex = dmMutex::New(), .m_Condition = dmConditionVariable::New() };
-    ScheduledJobState states[4] = { { .m_Gate = &gate }, { .m_Gate = &gate } };
+    ScheduledJobGate  gate = { dmMutex::New(), dmConditionVariable::New() };
+    ScheduledJobState states[4] = { { &gate }, { &gate } };
     DSSystemDesc      systems[] = {
-        { .m_Name = dmHashString64("read_first"), .m_DependsOn = { dmHashString64("engine.update.begin") }, .m_Process = ReadScheduledHealth, .m_Context = &states[0] },
-        { .m_Name = dmHashString64("read_second"), .m_DependsOn = { dmHashString64("engine.update.begin") }, .m_Process = ReadScheduledHealth, .m_Context = &states[1] },
-        { .m_Name = dmHashString64("regenerate"), .m_DependsOn = { dmHashString64("engine.update.begin") }, .m_Process = RegenerateScheduledHealth, .m_Context = &states[2] },
-        { .m_Name = dmHashString64("observe"), .m_DependsOn = { dmHashString64("regenerate") }, .m_Process = ReadScheduledHealth, .m_Context = &states[3] }
+        { dmHashString64("read_first"), { dmHashString64("engine.update.begin") }, 0, ReadScheduledHealth, &states[0] },
+        { dmHashString64("read_second"), { dmHashString64("engine.update.begin") }, 0, ReadScheduledHealth, &states[1] },
+        { dmHashString64("regenerate"), { dmHashString64("engine.update.begin") }, 0, RegenerateScheduledHealth, &states[2] },
+        { dmHashString64("observe"), { dmHashString64("regenerate") }, 0, ReadScheduledHealth, &states[3] }
     };
     for (uint32_t i = 0; i < 4; ++i)
     {
         uint32_t access = i == 2 ? DS_FIELD_MUTABLE : 0;
         systems[i].m_Query = Query(fixture.m_Store, HEALTH, DS_TYPE_NUMBER, access);
-        DSQueryItem field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Access = access, .m_Kind = DS_QUERY_ITEM_FIELD };
+        DSQueryItem field = { HEALTH, DS_TYPE_NUMBER, access, DS_QUERY_ITEM_FIELD };
         states[i].m_Field = DSQueryFindField(systems[i].m_Query, &field);
         ASSERT_EQ(DS_RESULT_OK, DSFunctionAdd(fixture.m_Store, &systems[i]));
     }
-    DSEventDesc begin = { .m_Name = dmHashString64("engine.update.begin") };
-    DSEventDesc end = { .m_Name = dmHashString64("engine.update.end"), .m_DependsOn = { dmHashString64("observe") } };
+    DSEventDesc begin = { dmHashString64("engine.update.begin") };
+    DSEventDesc end = { dmHashString64("engine.update.end"), { dmHashString64("observe") } };
     ASSERT_EQ(DS_RESULT_OK, DSEventAdd(fixture.m_Store, &begin));
     ASSERT_EQ(DS_RESULT_OK, DSEventAdd(fixture.m_Store, &end));
-    JobSystemCreateParams params = { .m_ThreadNamePrefix = "ds-schedule", .m_ThreadCount = 4 };
+    JobSystemCreateParams params = { "ds-schedule", 4 };
     HJobContext           jobs = JobSystemCreate(&params);
     for (uint32_t frame = 0; frame < 20; ++frame)
     {
@@ -742,15 +742,15 @@ TEST(DataThreaded, SchedulerRetriesAdmissionBeforeEnd)
 {
     ThreadFixture     fixture = CreateFixture();
     HDSQuery          query = Query(fixture.m_Store, HEALTH, DS_TYPE_NUMBER, 0);
-    DSQueryItem       field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
-    ScheduledJobState state = { .m_Field = DSQueryFindField(query, &field) };
-    DSEventDesc       event = { .m_Name = DS_EVENT_GAMEOBJECT_PRE_UPDATE };
-    DSSystemDesc      function = { .m_Name = dmHashString64("read"), .m_DependsOn = { event.m_Name }, .m_Query = query, .m_Process = ReadScheduledHealth, .m_Context = &state };
+    DSQueryItem       field = { HEALTH, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_FIELD };
+    ScheduledJobState state = { 0, DSQueryFindField(query, &field) };
+    DSEventDesc       event = { DS_EVENT_GAMEOBJECT_PRE_UPDATE };
+    DSSystemDesc      function = { dmHashString64("read"), { event.m_Name }, query, ReadScheduledHealth, &state };
     ASSERT_EQ(DS_RESULT_OK, DSEventAdd(fixture.m_Store, &event));
     ASSERT_EQ(DS_RESULT_OK, DSFunctionAdd(fixture.m_Store, &function));
-    JobSystemCreateParams  params = { .m_ThreadNamePrefix = "ds-admit", .m_ThreadCount = 0 };
+    JobSystemCreateParams  params = { "ds-admit", 0 };
     HJobContext            jobs = JobSystemCreate(&params);
-    SchedulerAdmissionGate gate = { .m_Store = fixture.m_Store, .m_Gate = { .m_Mutex = dmMutex::New(), .m_Condition = dmConditionVariable::New() } };
+    SchedulerAdmissionGate gate = { fixture.m_Store, { dmMutex::New(), dmConditionVariable::New() } };
 
     ASSERT_EQ(DS_RESULT_OK, DSSchedulerBegin(fixture.m_Store, jobs));
     dmThread::Thread worker = dmThread::New(HoldSchedulerAdmission, 0x80000, &gate, "ds-admit");
@@ -788,7 +788,7 @@ TEST(DataThreaded, JobRangesWithOneTwoFourEightWorkers)
     {
         ThreadFixture         fixture = CreateFixture();
         HDSQuery              query = Query(fixture.m_Store, HEALTH, DS_TYPE_NUMBER, DS_FIELD_MUTABLE);
-        DSQueryItem           requested_field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
+        DSQueryItem           requested_field = { HEALTH, DS_TYPE_NUMBER, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD };
         DSFieldId             field = DSQueryFindField(query, &requested_field);
         JobSystemCreateParams params = { "data-test", (uint8_t)workers };
         HJobContext           jobs = JobSystemCreate(&params);
@@ -909,27 +909,27 @@ static void ReadStructRows(void* context)
 TEST(DataThreaded, OwnedStructRowsRemainStableDuringQueryJobs)
 {
     HDSContext  store = DSStoreCreate(0);
-    DSFieldDesc field = { .m_Field = 10, .m_Type = DS_TYPE_STRUCT };
-    DSTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8 };
+    DSFieldDesc field = { 10, DS_TYPE_STRUCT };
+    DSTableDesc desc = { 1, 0, 0, &field, 1, 8 };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
-    DSFieldDesc   health = { .m_Field = HEALTH, .m_Type = DS_TYPE_NUMBER };
-    DSStructDesc  layout = { .m_Fields = &health, .m_FieldCount = 1, .m_Size = 8 };
+    DSFieldDesc   health = { HEALTH, DS_TYPE_NUMBER };
+    DSStructDesc  layout = { &health, 1, 8 };
     double        value = 10;
-    DSStructInput input = { .m_Layout = &layout, .m_Values = &value };
+    DSStructInput input = { &layout, &value };
     DSReference   rows[128];
     DSId          ids[128];
     for (uint32_t i = 0; i < 128; ++i)
         rows[i].m_Struct = &input;
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, 128, rows, ids));
     HDSQuery    query = Query(store, 10, DS_TYPE_STRUCT, 0);
-    DSQueryItem requested = { .m_Hash = 10, .m_Type = DS_TYPE_STRUCT, .m_Kind = DS_QUERY_ITEM_FIELD };
+    DSQueryItem requested = { 10, DS_TYPE_STRUCT, 0, DS_QUERY_ITEM_FIELD };
     DSFieldId   handle = DSQueryFindField(query, &requested);
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     StructReadTask   tasks[4];
     dmThread::Thread threads[4];
     for (uint32_t i = 0; i < 4; ++i)
     {
-        tasks[i] = { .m_Query = query, .m_First = i * 32, .m_Count = 32, .m_Field = handle };
+        tasks[i] = { query, i * 32, 32, handle };
         threads[i] = dmThread::New(ReadStructRows, 0x80000, &tasks[i], "data-struct-read");
     }
     ASSERT_EQ(DS_RESULT_LOCKED, DSRowRemove(store, ids[0]));
@@ -994,7 +994,7 @@ TEST(DataThreaded, SharedBlobLifetimeAcrossStores)
     dmThread::Thread                        threads[8];
     for (uint32_t i = 0; i < 8; ++i)
     {
-        tasks[i] = { .m_Blob = blob, .m_Result = DS_RESULT_OK, .m_Mutex = mutex, .m_Condition = condition, .m_Ready = &ready, .m_Start = &start };
+        tasks[i] = { blob, DS_RESULT_OK, mutex, condition, &ready, &start };
         threads[i] = dmThread::New(ExerciseBlobLifetime, 0x80000, &tasks[i], "data-blob-lifetime");
     }
     {
@@ -1024,10 +1024,10 @@ TEST(DataThreaded, DisjointGroupJobs)
     DSId          groups[] = { 0, fixture.m_Group };
     HDSQuery      queries[2];
     uint32_t      handles[2];
-    DSQueryItem   field = { .m_Hash = HEALTH, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
+    DSQueryItem   field = { HEALTH, DS_TYPE_NUMBER, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD };
     for (uint32_t i = 0; i < 2; ++i)
     {
-        DSQueryDesc desc = { .m_GroupIds = groups + i, .m_GroupIdCount = 1, .m_Items = { field } };
+        DSQueryDesc desc = { groups + i, 1, 0, { field } };
         ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(fixture.m_Store, &desc, queries + i));
         handles[i] = DSQueryFindField(queries[i], &field);
     }
@@ -1042,7 +1042,7 @@ TEST(DataThreaded, DisjointGroupJobs)
         for (uint32_t i = 0; i < 4; ++i)
         {
             uint32_t group = i / 2;
-            work[i] = { .m_Query = queries[group], .m_First = (i % 2) * 3, .m_Count = 3, .m_Field = handles[group] };
+            work[i] = { queries[group], (i % 2) * 3, 3, handles[group] };
             Job  job = { WriteRange, RangeDone, &completed, work + i };
             HJob handle = JobSystemCreateJob(jobs, &job);
             ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(jobs, handle));

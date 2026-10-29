@@ -24,10 +24,10 @@ struct GroupRow
 static void RegisterGroupTable(HDSContext store, uint64_t type)
 {
     DSFieldDesc fields[] = {
-        { .m_Field = 1, .m_Type = DS_TYPE_NUMBER, .m_Offset = offsetof(GroupRow, m_Value) },
-        { .m_Field = 2, .m_Type = DS_TYPE_STRING, .m_Offset = offsetof(GroupRow, m_Name) }
+        { 1, DS_TYPE_NUMBER, offsetof(GroupRow, m_Value) },
+        { 2, DS_TYPE_STRING, offsetof(GroupRow, m_Name) }
     };
-    DSTableDesc table = { .m_Type = type, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(GroupRow) };
+    DSTableDesc table = { type, 0, 0, fields, 2, sizeof(GroupRow) };
     EXPECT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
 }
 
@@ -42,7 +42,7 @@ TEST(DataGroups, ScatteredRowsAcrossTables)
         RegisterGroupTable(store, t + 1);
         for (uint32_t r = 0; r < 128; ++r)
         {
-            GroupRow row = { .m_Value = (double)r, .m_Name = { .m_String = "shared input" } };
+            GroupRow row = { (double)r, { "shared input" } };
             ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, t + 1, groups[r % 3], 1, &row, &ids[t][r]));
         }
     }
@@ -76,11 +76,11 @@ TEST(DataGroups, CallerIdsAndQueryLifetime)
     HDSContext store = DSStoreCreate(0);
     RegisterGroupTable(store, 1);
     DSId        group = UINT64_C(0x1234567800000007);
-    DSQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1 };
+    DSQueryDesc desc = { &group, 1 };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ(0u, store->m_Groups.Size());
-    GroupRow row = { .m_Value = 10, .m_Name = { .m_String = "name" } };
+    GroupRow row = { 10, { "name" } };
     DSId     id;
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, group, 1, &row, &id));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
@@ -98,7 +98,7 @@ TEST(DataGroups, CallerIdsAndQueryLifetime)
     ASSERT_EQ(0u, store->m_Groups.Size());
     DSId      next = group + UINT64_C(0x100000000);
     DSId      replacement;
-    DSFieldArray fields[] = { { .m_Field = 1, .m_Values = &row.m_Value }, { .m_Field = 2, .m_Values = &row.m_Name } };
+    DSFieldArray fields[] = { { 1, &row.m_Value }, { 2, &row.m_Name } };
     ASSERT_EQ(DS_RESULT_NOT_FOUND, DSGroupRemove(store, group));
     ASSERT_EQ(DS_RESULT_NOT_FOUND, DSGroupRemove(store, 0));
     ASSERT_EQ(DS_RESULT_OK, DSRowCreateSoA(store, 1, next, 1, 2, fields, &replacement));
@@ -122,7 +122,7 @@ TEST(DataGroups, RegistryGrowthAndReuse)
 {
     HDSContext store = DSStoreCreate(0);
     RegisterGroupTable(store, 1);
-    GroupRow row = { .m_Value = 25, .m_Name = { .m_String = "name" } };
+    GroupRow row = { 25, { "name" } };
     DSId     ids[256];
     for (uint32_t i = 0; i < 256; ++i)
         ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, UINT64_C(0x100000000) + i, 1, &row, &ids[i]));
@@ -150,7 +150,7 @@ TEST(DataGroups, BlobRegistrationsAndEmptyInstances)
 {
     HDSContext source = DSStoreCreate(0);
     RegisterGroupTable(source, 1);
-    GroupRow row = { .m_Value = 10, .m_Name = { .m_String = "resource" } };
+    GroupRow row = { 10, { "resource" } };
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(source, 1, 0, 1, &row, 0));
     uint32_t size;
     ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, 0, 0, &size));
@@ -195,7 +195,7 @@ TEST(DataGroups, EmptyGroupAndUngroupedRows)
     HDSContext store = DSStoreCreate(0);
     RegisterGroupTable(store, 1);
     DSId                group = NextTestGroupId();
-    GroupRow  row = { .m_Value = 1, .m_Name = { .m_String = "name" } };
+    GroupRow  row = { 1, { "name" } };
     DSId      ungrouped, owned;
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, 1, &row, &ungrouped));
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, group, 1, &row, &owned));
@@ -248,10 +248,12 @@ TEST(DataGroups, InvalidBatchDoesNotCreateGroups)
     RegisterGroupTable(store, 1);
     DSId      group = NextTestGroupId(), other = NextTestGroupId();
     DSValueType types[] = { DS_TYPE_NUMBER, DS_TYPE_STRING };
-    DSValueData values[] = { { .m_Number = 1 }, { .m_String = "name" } };
+    DSValueData values[2] = {};
+    values[0].m_Number = 1;
+    values[1].m_String = "name";
     DSRowDesc   rows[] = {
-        { .m_Group = group, .m_Types = types, .m_Values = values, .m_ValueCount = 2 },
-        { .m_Group = other, .m_Types = types, .m_Values = values, .m_ValueCount = 1 }
+        { group, types, values, 2 },
+        { other, types, values, 1 }
     };
     DSId ids[] = { 42, 43 };
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowAddBatch(store, 1, rows, 2, ids));
@@ -284,11 +286,13 @@ TEST(DataGroups, MixedGroupsInOneBatch)
     HDSContext store = DSStoreCreate(0);
     RegisterGroupTable(store, 1);
     DSValueType types[] = { DS_TYPE_NUMBER, DS_TYPE_STRING };
-    DSValueData values[] = { { .m_Number = 1 }, { .m_String = "name" } };
+    DSValueData values[2] = {};
+    values[0].m_Number = 1;
+    values[1].m_String = "name";
     DSRowDesc   rows[] = {
-        { .m_Group = UINT64_C(0x100000001), .m_Types = types, .m_Values = values, .m_ValueCount = 2 },
-        { .m_Group = UINT64_C(0x200000001), .m_Types = types, .m_Values = values, .m_ValueCount = 2 },
-        { .m_Group = 0, .m_Types = types, .m_Values = values, .m_ValueCount = 2 }
+        { UINT64_C(0x100000001), types, values, 2 },
+        { UINT64_C(0x200000001), types, values, 2 },
+        { 0, types, values, 2 }
     };
     DSId ids[3];
     ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(store, 1, rows, 3, ids));

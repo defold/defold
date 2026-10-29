@@ -40,13 +40,15 @@ static DSResult GetTestFieldNumber(const DSIterator* batch, uint32_t row, uint32
 
 static DSResult SetTestFieldNumber(const DSIterator* batch, uint32_t row, uint32_t field, double value)
 {
-    DSValue field_value = { .m_Type = DS_TYPE_NUMBER, .m_Value = { .m_Number = value } };
+    DSValue field_value = { DS_TYPE_NUMBER, { value } };
     return DSIterSetField(batch, row, field, &field_value);
 }
 
 static DSResult SetTestFieldBoolean(const DSIterator* batch, uint32_t row, uint32_t field, uint8_t value)
 {
-    DSValue field_value = { .m_Type = DS_TYPE_BOOLEAN, .m_Value = { .m_Boolean = value } };
+    DSValue field_value = {};
+    field_value.m_Type = DS_TYPE_BOOLEAN;
+    field_value.m_Value.m_Boolean = value;
     return DSIterSetField(batch, row, field, &field_value);
 }
 
@@ -61,7 +63,9 @@ static DSResult GetTestFieldString(const DSIterator* batch, uint32_t row, uint32
 
 static DSResult SetTestFieldString(const DSIterator* batch, uint32_t row, uint32_t field, const char* value)
 {
-    DSValue field_value = { .m_Type = DS_TYPE_STRING, .m_Value = { .m_String = value } };
+    DSValue field_value = {};
+    field_value.m_Type = DS_TYPE_STRING;
+    field_value.m_Value.m_String = value;
     return DSIterSetField(batch, row, field, &field_value);
 }
 
@@ -76,7 +80,7 @@ static DSResult GetTestFieldVector3(const DSIterator* batch, uint32_t row, uint3
 
 static DSResult SetTestFieldVector3(const DSIterator* batch, uint32_t row, uint32_t field, const DSVector3* value)
 {
-    DSValue field_value = { .m_Type = DS_TYPE_VECTOR3 };
+    DSValue field_value = { DS_TYPE_VECTOR3 };
     memcpy(field_value.m_Value.m_Vector3, value->m_Values, sizeof(value->m_Values));
     return DSIterSetField(batch, row, field, &field_value);
 }
@@ -125,7 +129,7 @@ static DSValue Struct(const uint64_t* names, const DSValueType* types, const DSV
 {
     DSValue x = {};
     x.m_Type = DS_TYPE_STRUCT;
-    DSStruct object = { .m_Count = count, .m_Source = DS_STRUCT_ARRAY, .m_Array = { .m_Names = names, .m_Types = types, .m_Values = values } };
+    DSStruct object = { count, DS_STRUCT_ARRAY, { { names, types, values } } };
     x.m_Value.m_Struct = object;
     return x;
 }
@@ -169,7 +173,7 @@ static DSResult AddTestRow(HDSContext store, uint64_t type, DSId group, const DS
 static DSResult Register(HDSContext store, uint64_t type, const uint64_t* tags = 0, uint32_t tag_count = 0)
 {
     DSFieldDesc meta[] = { { 10, DS_TYPE_NUMBER, 0 }, { 20, DS_TYPE_STRING, 8 } };
-    DSTableDesc desc = { .m_Type = type, .m_Tags = tags, .m_TagCount = tag_count, .m_Fields = meta, .m_FieldCount = 2, .m_RowStride = 16, .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc desc = { type, tags, tag_count, meta, 2, 16, DS_RESET_RETAIN };
     return DSTableAdd(store, &desc);
 }
 
@@ -276,10 +280,11 @@ TEST(Data, LiveQueriesTagsGroupsAndCopiedDescriptors)
     DSId        owners[] = { NextTestGroupId(), NextTestGroupId() };
     DSId        groups[] = { owners[0], owners[0], owners[1] };
     DSQueryDesc desc = {
-        .m_GroupIds = groups,
-        .m_GroupIdCount = 3,
-        .m_Items = { { .m_Hash = tags[0], .m_Kind = DS_QUERY_ITEM_TAG },
-                     { .m_Hash = tags[1], .m_Kind = DS_QUERY_ITEM_TAG } }
+        groups,
+        3,
+        0,
+        { { tags[0], DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_TAG },
+          { tags[1], DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_TAG } }
     };
     HDSQuery query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
@@ -349,8 +354,8 @@ TEST(Data, QueryReservationBlocksMutations)
     ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
     HDSBlobInstance instance;
     ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, 0, &instance));
-    DSQueryItem field = { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc desc = { .m_Items = { field } };
+    DSQueryItem field = { 10, DS_TYPE_NUMBER, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD };
+    DSQueryDesc desc = { 0, 0, 0, { field } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     DSFieldId     handle = DSQueryFindField(query, &field);
@@ -367,7 +372,7 @@ TEST(Data, QueryReservationBlocksMutations)
     DSValue     values[] = { Number(2), String("two") };
     DSValueType types[] = { DS_TYPE_NUMBER, DS_TYPE_STRING };
     DSValueData payloads[] = { values[0].m_Value, values[1].m_Value };
-    DSRowDesc   add = { .m_Group = 0, .m_Types = types, .m_Values = payloads, .m_ValueCount = 2 };
+    DSRowDesc   add = { 0, types, payloads, 2 };
     ASSERT_EQ(DS_RESULT_LOCKED, DSRowAddBatch(store, 1, &add, 1, &unchanged));
     ASSERT_EQ((DSId)123, unchanged);
     ASSERT_EQ(DS_RESULT_LOCKED, DSRowRemove(store, id));
@@ -412,14 +417,14 @@ TEST(Data, NestedQueriesAndWritesPreserveBatches)
             ASSERT_EQ(DS_RESULT_OK, Add(store, t + 1, r == 1 ? 0 : group, t * 10 + r, "base", &ids[t][r]));
 
     DSQueryItem fields[] = {
-        { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 20, .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD }
+        { 10, DS_TYPE_NUMBER, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD },
+        { 20, DS_TYPE_STRING, 0, DS_QUERY_ITEM_FIELD }
     };
-    DSQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { fields[0], fields[1] } };
+    DSQueryDesc desc = { &group, 1, 0, { fields[0], fields[1] } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     // A second query and iterator must not replace the first iterator's batch state.
-    DSQueryDesc other_desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { fields[1] } };
+    DSQueryDesc other_desc = { &group, 1, 0, { fields[1] } };
     HDSQuery    other_query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &other_desc, &other_query));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
@@ -473,16 +478,16 @@ TEST(Data, BoundFieldQueries)
     uint64_t    tag = 8;
     DSId        group = NextTestGroupId();
     DSQueryItem fields[] = {
-        { .m_Hash = 20, .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD }
+        { 20, DS_TYPE_STRING, 0, DS_QUERY_ITEM_FIELD },
+        { 10, DS_TYPE_NUMBER, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD }
     };
-    DSQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { fields[0], fields[1], { .m_Hash = tag, .m_Kind = DS_QUERY_ITEM_TAG } } };
+    DSQueryDesc desc = { &group, 1, 0, { fields[0], fields[1], { tag, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_TAG } } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     fields[0].m_Hash = 999; // Query owns the original filter/binding order.
     ASSERT_EQ(DS_RESULT_OK, Register(store, 1, &tag, 1));
     DSFieldDesc swapped[] = { { 20, DS_TYPE_STRING, 0 }, { 10, DS_TYPE_NUMBER, 8 } };
-    DSTableDesc table = { .m_Type = 2, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = swapped, .m_FieldCount = 2, .m_RowStride = 16, .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc table = { 2, &tag, 1, swapped, 2, 16, DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSFieldDesc wrong[] = { { 10, DS_TYPE_STRING, 0 }, { 20, DS_TYPE_STRING, 8 } };
     table.m_Type = 3;
@@ -557,10 +562,10 @@ TEST(Data, BoundPackedFields)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(source));
     HDSContext  store = DSStoreCreate(0);
     DSQueryItem fields[] = {
-        { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 20, .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD }
+        { 10, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_FIELD },
+        { 20, DS_TYPE_STRING, 0, DS_QUERY_ITEM_FIELD }
     };
-    DSQueryDesc desc = { .m_Items = { fields[0], fields[1] } };
+    DSQueryDesc desc = { 0, 0, 0, { fields[0], fields[1] } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     HDSBlobInstance instance;
@@ -604,7 +609,7 @@ TEST(Data, SharedMetadataAndDenseRows)
 {
     HDSContext  store = DSStoreCreate(0);
     DSFieldDesc meta[] = { { 10, DS_TYPE_VECTOR3, 0 }, { 20, DS_TYPE_NUMBER, 16 }, { 30, DS_TYPE_NUMBER, 24 } };
-    DSTableDesc desc = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = meta, .m_FieldCount = 3, .m_RowStride = 32, .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc desc = { 1, 0, 0, meta, 3, 32, DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     meta[0].m_Field = 999; // The construction descriptor is copied once.
     DSValue values[] = { Vector3(1, 2, 3), Number(4), Number(10) };
@@ -665,10 +670,14 @@ TEST(Data, MetadataAndBulkValidation)
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     ASSERT_EQ(DS_RESULT_ALREADY_EXISTS, DSTableAdd(store, &desc));
     DSValueType types[] = { DS_TYPE_NUMBER, DS_TYPE_BOOLEAN };
-    DSValueData values[] = { { .m_Number = 4 }, { .m_Boolean = 1 }, { .m_Number = 5 }, { .m_Boolean = 2 } };
+    DSValueData values[4] = {};
+    values[0].m_Number = 4;
+    values[1].m_Boolean = 1;
+    values[2].m_Number = 5;
+    values[3].m_Boolean = 2;
     DSRowDesc   rows[] = {
-        { .m_Group = 0, .m_Types = types, .m_Values = values, .m_ValueCount = 2, .m_ComponentId = 7 },
-        { .m_Group = 0, .m_Types = types, .m_Values = values + 2, .m_ValueCount = 2, .m_ComponentId = 8 }
+        { 0, types, values, 2, 7 },
+        { 0, types, values + 2, 2, 8 }
     };
     DSId ids[] = { 123, 456 };
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowAddBatch(store, 1, rows, 2, ids));
@@ -708,14 +717,14 @@ TEST(Data, MetadataAndBulkValidation)
 TEST(Data, BulkAppendPreservesDefaultsAndReusesSlots)
 {
     DSFieldDesc fields[] = {
-        { .m_Field = 10, .m_Type = DS_TYPE_NUMBER, .m_Offset = 0 },
-        { .m_Field = 20, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = 8 },
-        { .m_Field = 30, .m_Type = DS_TYPE_VECTOR3, .m_Offset = 12 },
-        { .m_Field = 40, .m_Type = DS_TYPE_VECTOR4, .m_Offset = 24 },
-        { .m_Field = 50, .m_Type = DS_TYPE_MATRIX4, .m_Offset = 40 }
+        { 10, DS_TYPE_NUMBER, 0 },
+        { 20, DS_TYPE_BOOLEAN, 8 },
+        { 30, DS_TYPE_VECTOR3, 12 },
+        { 40, DS_TYPE_VECTOR4, 24 },
+        { 50, DS_TYPE_MATRIX4, 40 }
     };
     const DSValueType types[] = { DS_TYPE_NUMBER, DS_TYPE_BOOLEAN, DS_TYPE_VECTOR3, DS_TYPE_VECTOR4, DS_TYPE_MATRIX4 };
-    DSTableDesc       table = { .m_Type = 1, .m_Fields = fields, .m_FieldCount = 5, .m_RowStride = 104, .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc       table = { 1, 0, 0, fields, 5, 104, DS_RESET_RETAIN };
     HDSContext        store = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSValueData values[3][5] = {};
@@ -727,7 +736,7 @@ TEST(Data, BulkAppendPreservesDefaultsAndReusesSlots)
         for (uint32_t f = 2; f < 5; ++f)
             for (uint32_t v = 0; v < DSTypeSize(types[f]) / sizeof(float); ++v)
                 values[r][f].m_Matrix4[v] = (float)(100 * r + 10 * f + v);
-        rows[r] = { .m_Group = NextTestGroupId(), .m_Types = types, .m_Values = values[r], .m_ValueCount = 5, .m_ComponentId = 30 + r };
+        rows[r] = { NextTestGroupId(), types, values[r], 5, 30 + r };
     }
     DSId old_ids[2], ids[] = { 123, 456, 789 };
     ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(store, 1, rows, 2, old_ids));
@@ -768,25 +777,32 @@ TEST(Data, BulkAppendPreservesDefaultsAndReusesSlots)
 TEST(Data, InlineBulkValidationIsAtomicAcrossMemberOrders)
 {
     DSFieldDesc members[] = {
-        { .m_Field = 10, .m_Type = DS_TYPE_VECTOR3, .m_Offset = 0, .m_Name = "10" },
-        { .m_Field = 20, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = 12, .m_Name = "20" }
+        { 10, DS_TYPE_VECTOR3, 0, 0, "10" },
+        { 20, DS_TYPE_BOOLEAN, 12, 0, "20" }
     };
-    DSStructDesc layout = { .m_Fields = members, .m_FieldCount = 2, .m_Size = 16 };
-    DSFieldDesc  field = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT, .m_Struct = &layout, .m_Name = "1" };
-    DSTableDesc  table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 16 };
+    DSStructDesc layout = { members, 2, 16 };
+    DSFieldDesc  field = { 1, DS_TYPE_STRUCT, 0, &layout, "1" };
+    DSTableDesc  table = { 1, 0, 0, &field, 1, 16 };
     HDSContext   store = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     uint64_t    names[] = { 10, 20, 20, 10 };
     DSValueType types[] = { DS_TYPE_VECTOR3, DS_TYPE_BOOLEAN, DS_TYPE_BOOLEAN, DS_TYPE_VECTOR3 };
-    DSValueData children[] = { { .m_Vector3 = { 1, 2, 3 } }, { .m_Boolean = 1 }, { .m_Boolean = 2 }, { .m_Vector3 = { 4, 5, 6 } } };
-    DSValueData values[] = {
-        { .m_Struct = { .m_Count = 2, .m_Source = DS_STRUCT_ARRAY, .m_Array = { .m_Names = names, .m_Types = types, .m_Values = children } } },
-        { .m_Struct = { .m_Count = 2, .m_Source = DS_STRUCT_ARRAY, .m_Array = { .m_Names = names + 2, .m_Types = types + 2, .m_Values = children + 2 } } }
-    };
+    DSValueData children[4] = {};
+    children[0].m_Vector3[0] = 1;
+    children[0].m_Vector3[1] = 2;
+    children[0].m_Vector3[2] = 3;
+    children[1].m_Boolean = 1;
+    children[2].m_Boolean = 2;
+    children[3].m_Vector3[0] = 4;
+    children[3].m_Vector3[1] = 5;
+    children[3].m_Vector3[2] = 6;
+    DSValueData values[2] = {};
+    values[0].m_Struct = { 2, DS_STRUCT_ARRAY, { { names, types, children } } };
+    values[1].m_Struct = { 2, DS_STRUCT_ARRAY, { { names + 2, types + 2, children + 2 } } };
     const DSValueType kind = DS_TYPE_STRUCT;
     DSRowDesc         rows[] = {
-        { .m_Types = &kind, .m_Values = values, .m_ValueCount = 1 },
-        { .m_Types = &kind, .m_Values = values + 1, .m_ValueCount = 1 }
+        { 0, &kind, values, 1 },
+        { 0, &kind, values + 1, 1 }
     };
     DSId ids[] = { 123, 456 };
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowAddBatch(store, 1, rows, 2, ids));
@@ -856,13 +872,16 @@ TEST(Data, CApiMathAndNestedViews)
     DSId        group = NextTestGroupId();
     DSFieldDesc meta[] = { { 42, DS_TYPE_NUMBER, 0 }, { 43, DS_TYPE_VECTOR3, 8 }, { 44, DS_TYPE_VECTOR4, 20 }, { 45, DS_TYPE_MATRIX4, 36 }, { 46, DS_TYPE_STRUCT, 104 }, { 47, DS_TYPE_BOOLEAN, 112 }, { 48, DS_TYPE_STRING, 120 } };
     uint64_t    tag = 7;
-    DSTableDesc desc = { .m_Type = 1, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = meta, .m_FieldCount = 7, .m_RowStride = 128, .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc desc = { 1, &tag, 1, meta, 7, 128, DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     DSValue vec4 = {};
     vec4.m_Type = DS_TYPE_VECTOR4;
     uint64_t          color_name = 10;
     const DSValueType color_type = DS_TYPE_VECTOR3;
-    DSValueData       color = { .m_Vector3 = { 1.0f, 0.5f, 0.25f } };
+    DSValueData       color = {};
+    color.m_Vector3[0] = 1.0f;
+    color.m_Vector3[1] = 0.5f;
+    color.m_Vector3[2] = 0.25f;
     DSValue           values[] = { Number(17), Vector3(1, 1, 1), vec4, Matrix(), Struct(&color_name, &color_type, &color, 1), Boolean(0), String("initial") };
     DSId              id;
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(store, 1, group, values, 7, &id));
@@ -949,11 +968,11 @@ TEST(Data, AlignedMathReadsPreserveFloatBits)
             ASSERT_EQ(0, memcmp(bits, vector4.m_Values, sizeof(vector4.m_Values)));
             ASSERT_EQ(0, memcmp(bits, matrix.m_Values, sizeof(matrix.m_Values)));
             DSQueryItem fields[] = {
-                { .m_Hash = 30, .m_Type = DS_TYPE_MATRIX4, .m_Kind = DS_QUERY_ITEM_FIELD },
-                { .m_Hash = 10, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD },
-                { .m_Hash = 20, .m_Type = DS_TYPE_VECTOR4, .m_Kind = DS_QUERY_ITEM_FIELD }
+                { 30, DS_TYPE_MATRIX4, 0, DS_QUERY_ITEM_FIELD },
+                { 10, DS_TYPE_VECTOR3, 0, DS_QUERY_ITEM_FIELD },
+                { 20, DS_TYPE_VECTOR4, 0, DS_QUERY_ITEM_FIELD }
             };
-            DSQueryDesc query_desc = { .m_Items = { fields[0], fields[1], fields[2] } };
+            DSQueryDesc query_desc = { 0, 0, 0, { fields[0], fields[1], fields[2] } };
             HDSQuery    query;
             ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &query_desc, &query));
             DSFieldId matrix_field = DSQueryFindField(query, &fields[0]);
@@ -999,12 +1018,12 @@ TEST(Data, BinaryGoldenSharedMetadata)
     DSTableDesc desc = { 1, 0, 0, &meta, 1, 8 };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     const DSValueType types[] = { DS_TYPE_NUMBER };
-    DSValueData       values[] = { { .m_Number = 1.5 }, { .m_Number = -2 } };
+    DSValueData       values[] = { { 1.5 }, { -2 } };
     DSId              ids[2];
     DSId        group = NextTestGroupId();
     DSRowDesc         rows[] = {
-        { .m_Group = group, .m_Types = types, .m_Values = values, .m_ValueCount = 1, .m_ComponentId = 7 },
-        { .m_Group = group, .m_Types = types, .m_Values = values + 1, .m_ValueCount = 1, .m_ComponentId = 8 }
+        { group, types, values, 1, 7 },
+        { group, types, values + 1, 1, 8 }
     };
     ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(store, 1, rows, 2, ids));
     uint8_t  DM_ALIGNED(8) bytes[sizeof(expected)];
@@ -1049,7 +1068,7 @@ TEST(Data, BlobMutableRowsSharedMetadataAndGroupLifetime)
     ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
     ASSERT_EQ((uintptr_t)bytes, (uintptr_t)blob->m_Data);
     HDSContext  store = DSStoreCreate(0);
-    DSQueryDesc query_desc = { .m_Items = { { .m_Hash = tag, .m_Kind = DS_QUERY_ITEM_TAG }, { .m_Hash = 20, .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD } } };
+    DSQueryDesc query_desc = { 0, 0, 0, { { tag, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_TAG }, { 20, DS_TYPE_STRING, 0, DS_QUERY_ITEM_FIELD } } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &query_desc, &query));
     DSId            groups[] = { NextTestGroupId(), NextTestGroupId() };
@@ -1234,17 +1253,21 @@ TEST(Data, CompactNestedBulkStorageAndBorrowedInsertion)
 {
     HDSContext  store = DSStoreCreate(0);
     DSFieldDesc meta = { 1, DS_TYPE_STRUCT, 0 };
-    DSTableDesc desc = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = &meta, .m_FieldCount = 1, .m_RowStride = 8, .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc desc = { 1, 0, 0, &meta, 1, 8, DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     uint64_t          names[] = { 10, 20 };
     const DSValueType types[] = { DS_TYPE_VECTOR3, DS_TYPE_NUMBER };
-    DSValueData       fields[] = { { .m_Vector3 = { 1, 2, 3 } }, { .m_Number = 4 } };
+    DSValueData       fields[2] = {};
+    fields[0].m_Vector3[0] = 1;
+    fields[0].m_Vector3[1] = 2;
+    fields[0].m_Vector3[2] = 3;
+    fields[1].m_Number = 4;
     DSValue           value = Struct(names, types, fields, 2);
     DSRowDesc         rows[128];
     DSId              ids[128];
     for (uint32_t i = 0; i < 128; ++i)
     {
-        DSRowDesc row = { .m_Group = 0, .m_Types = &value.m_Type, .m_Values = &value.m_Value, .m_ValueCount = 1 };
+        DSRowDesc row = { 0, &value.m_Type, &value.m_Value, 1 };
         rows[i] = row;
     }
     ASSERT_EQ(DS_RESULT_OK, DSRowAddBatch(store, 1, rows, 128, ids));
@@ -1288,12 +1311,16 @@ TEST(Data, CompactNestedBulkStorageAndBorrowedInsertion)
 TEST(Data, OwnedStructRowsShareLayoutsButNotValues)
 {
     HDSContext  store = DSStoreCreate(0);
-    DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT };
-    DSTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8, .m_ResetPolicy = DS_RESET_RETAIN };
+    DSFieldDesc field = { 1, DS_TYPE_STRUCT };
+    DSTableDesc desc = { 1, 0, 0, &field, 1, 8, DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     uint64_t    names[] = { 2, 3 };
     DSValueType types[] = { DS_TYPE_NUMBER, DS_TYPE_VECTOR3 };
-    DSValueData values[] = { { .m_Number = 10 }, { .m_Vector3 = { 1, 2, 3 } } };
+    DSValueData values[2] = {};
+    values[0].m_Number = 10;
+    values[1].m_Vector3[0] = 1;
+    values[1].m_Vector3[1] = 2;
+    values[1].m_Vector3[2] = 3;
     DSValue     object = Struct(names, types, values, 2);
     DSId        ids[3];
     for (uint32_t i = 0; i < 3; ++i)
@@ -1310,7 +1337,11 @@ TEST(Data, OwnedStructRowsShareLayoutsButNotValues)
     // Input member order is not part of the shared layout's identity.
     uint64_t    reordered_names[] = { 3, 2 };
     DSValueType reordered_types[] = { DS_TYPE_VECTOR3, DS_TYPE_NUMBER };
-    DSValueData reordered_values[] = { { .m_Vector3 = { 4, 5, 6 } }, { .m_Number = 20 } };
+    DSValueData reordered_values[2] = {};
+    reordered_values[0].m_Vector3[0] = 4;
+    reordered_values[0].m_Vector3[1] = 5;
+    reordered_values[0].m_Vector3[2] = 6;
+    reordered_values[1].m_Number = 20;
     DSValue     replacement = Struct(reordered_names, reordered_types, reordered_values, 2);
     ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, ids[0], 1, &replacement));
     ASSERT_EQ(1u, table->m_Structs->m_Tables.Size());
@@ -1357,13 +1388,13 @@ TEST(Data, OwnedStructRowsShareLayoutsButNotValues)
 TEST(Data, OwnedStructRowsReleaseRecursiveTrees)
 {
     HDSContext  store = DSStoreCreate(0);
-    DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT };
-    DSTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8, .m_ResetPolicy = DS_RESET_RETAIN };
+    DSFieldDesc field = { 1, DS_TYPE_STRUCT };
+    DSTableDesc desc = { 1, 0, 0, &field, 1, 8, DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     uint64_t    name = 2;
     DSValueType number_type = DS_TYPE_NUMBER;
     DSValueType struct_type = DS_TYPE_STRUCT;
-    DSValueData number = { .m_Number = 42 };
+    DSValueData number = { 42 };
     DSValue     leaf = Struct(&name, &number_type, &number, 1);
     DSValue     middle = Struct(&name, &struct_type, &leaf.m_Value, 1);
     DSValue     root = Struct(&name, &struct_type, &middle.m_Value, 1);
@@ -1398,12 +1429,12 @@ TEST(Data, OwnedStructRowsReleaseRecursiveTrees)
 TEST(Data, OwnedStructRowsKeepBlobDefaultsBorrowed)
 {
     HDSContext  source = DSStoreCreate(0);
-    DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT };
-    DSTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8 };
+    DSFieldDesc field = { 1, DS_TYPE_STRUCT };
+    DSTableDesc desc = { 1, 0, 0, &field, 1, 8 };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &desc));
     uint64_t    name = 2;
     DSValueType type = DS_TYPE_NUMBER;
-    DSValueData number = { .m_Number = 10 };
+    DSValueData number = { 10 };
     DSValue     object = Struct(&name, &type, &number, 1);
     DSId        id;
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, 0, &object, 1, &id));
@@ -1576,14 +1607,14 @@ TEST(Data, EmptyNullAndBorrowedResourceReuse)
     ASSERT_EQ(1u, blob->m_RefCount);
     DSBlobDestroy(blob);
     DSFieldDesc meta = { 1, DS_TYPE_NULL, 0 };
-    DSTableDesc desc = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = &meta, .m_FieldCount = 1, .m_RowStride = 0, .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc desc = { 1, 0, 0, &meta, 1, 0, DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &desc));
     DSValue value = Null();
     DSId    id;
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 1, 0, &value, 1, &id));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGet(source, id, 1, &value));
     ASSERT_EQ(DS_RESULT_OK, DSFieldSet(source, id, 1, &value));
-    DSTableDesc empty = { .m_Type = 2, .m_Tags = 0, .m_TagCount = 0, .m_Fields = 0, .m_FieldCount = 0, .m_RowStride = 0, .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc empty = { 2, 0, 0, 0, 0, 0, DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &empty));
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, 2, 0, 0, 0, &id));
     ASSERT_EQ(DS_RESULT_NOT_FOUND, DSFieldGet(source, id, 1, &value));
@@ -1655,7 +1686,7 @@ TEST(Data, TypedLookupHashCollisionsAndWideIndexes)
     DSValue        values[count];
     for (uint32_t i = 0; i < count; ++i)
     {
-        fields[i] = { .m_Field = 1 + 16 * i, .m_Type = DS_TYPE_NUMBER, .m_Offset = i * 16 };
+        fields[i] = { 1 + 16 * i, DS_TYPE_NUMBER, i * 16 };
         values[i] = Number(i);
     }
     // Colliding names have different kinds; two direct candidates exceed 255.
@@ -1663,7 +1694,7 @@ TEST(Data, TypedLookupHashCollisionsAndWideIndexes)
     values[1] = Vector3(1, 2, 3);
     fields[256].m_Field = 2;
     fields[257].m_Field = 0;
-    DSTableDesc desc = { .m_Type = 1, .m_Fields = fields, .m_FieldCount = count, .m_RowStride = count * 16 };
+    DSTableDesc desc = { 1, 0, 0, fields, count, count * 16 };
     HDSContext  source = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &desc));
     DSId original;
@@ -1711,7 +1742,7 @@ TEST(Data, TypedAccessErrorsPackedValuesAndReset)
     HDSContext source = DSStoreCreate(0);
     // Field order differs from query binding order.
     DSFieldDesc meta[] = { { 10, DS_TYPE_VECTOR3, 0 }, { 20, DS_TYPE_STRING, 16 }, { 30, DS_TYPE_BOOLEAN, 24 } };
-    DSTableDesc table = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = meta, .m_FieldCount = 3, .m_RowStride = 32, .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc table = { 1, 0, 0, meta, 3, 32, DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &table));
     DSValue values[] = { Vector3(1, 2, 3), String("packed"), Boolean(1) };
     DSId    original;
@@ -1731,11 +1762,11 @@ TEST(Data, TypedAccessErrorsPackedValuesAndReset)
     {
         HDSContext  store = stores[mode];
         DSQueryItem fields[] = {
-            { .m_Hash = 30, .m_Type = DS_TYPE_BOOLEAN, .m_Kind = DS_QUERY_ITEM_FIELD },
-            { .m_Hash = 10, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD },
-            { .m_Hash = 20, .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD }
+            { 30, DS_TYPE_BOOLEAN, 0, DS_QUERY_ITEM_FIELD },
+            { 10, DS_TYPE_VECTOR3, 0, DS_QUERY_ITEM_FIELD },
+            { 20, DS_TYPE_STRING, 0, DS_QUERY_ITEM_FIELD }
         };
-        DSQueryDesc desc = { .m_Items = { fields[0], fields[1], fields[2] } };
+        DSQueryDesc desc = { 0, 0, 0, { fields[0], fields[1], fields[2] } };
         HDSQuery    query;
         ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
         ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
@@ -1833,10 +1864,10 @@ TEST(Data, BoundQueryRegistrationChurn)
     ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
     HDSContext  store = DSStoreCreate(0);
     DSQueryItem fields[] = {
-        { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 20, .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD }
+        { 10, DS_TYPE_NUMBER, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD },
+        { 20, DS_TYPE_STRING, 0, DS_QUERY_ITEM_FIELD }
     };
-    DSQueryDesc desc = { .m_Items = { fields[0], fields[1] } };
+    DSQueryDesc desc = { 0, 0, 0, { fields[0], fields[1] } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     // Cross registration pages and grow dense storage, then reuse slots with live queries.
@@ -1909,12 +1940,12 @@ extern "C" int TestInlineDataFromC(HDSContext store);
 TEST(Data, InlineCompositionQueriesAndRoundtrip)
 {
     // Nested fixed layouts preserve C alignment and include variable data.
-    DSFieldDesc  light_fields[] = { { .m_Field = 10, .m_Type = DS_TYPE_VECTOR3, .m_Offset = 0, .m_Name = "10" }, { .m_Field = 20, .m_Type = DS_TYPE_STRING, .m_Offset = 16, .m_Name = "20" }, { .m_Field = 30, .m_Type = DS_TYPE_LIST, .m_Offset = 24, .m_Name = "30" } };
+    DSFieldDesc  light_fields[] = { { 10, DS_TYPE_VECTOR3, 0, 0, "10" }, { 20, DS_TYPE_STRING, 16, 0, "20" }, { 30, DS_TYPE_LIST, 24, 0, "30" } };
     DSStructDesc light = { light_fields, 3, 32 };
-    DSFieldDesc  wrapper_fields[] = { { .m_Field = 40, .m_Type = DS_TYPE_STRUCT, .m_Offset = 8, .m_Struct = &light, .m_Name = "40" } };
+    DSFieldDesc  wrapper_fields[] = { { 40, DS_TYPE_STRUCT, 8, &light, "40" } };
     DSStructDesc wrapper = { wrapper_fields, 1, 40 };
-    DSFieldDesc  fields[] = { { .m_Field = 1, .m_Type = DS_TYPE_NUMBER, .m_Offset = 0, .m_Name = "1" }, { .m_Field = 2, .m_Type = DS_TYPE_STRUCT, .m_Offset = 8, .m_Struct = &wrapper, .m_Name = "2" }, { .m_Field = 3, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = 48, .m_Name = "3" } };
-    DSTableDesc  table = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = fields, .m_FieldCount = 3, .m_RowStride = 56, .m_ResetPolicy = DS_RESET_RETAIN };
+    DSFieldDesc  fields[] = { { 1, DS_TYPE_NUMBER, 0, 0, "1" }, { 2, DS_TYPE_STRUCT, 8, &wrapper, "2" }, { 3, DS_TYPE_BOOLEAN, 48, 0, "3" } };
+    DSTableDesc  table = { 1, 0, 0, fields, 3, 56, DS_RESET_RETAIN };
     HDSContext   source = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &table));
     // Changing a declaration after registration cannot alter the compiled layout.
@@ -1945,13 +1976,13 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
         if (packed)
             ASSERT_EQ(DS_RESULT_OK, Load(store, bytes, size, &instance));
         DSQueryItem fields[] = {
-            { .m_Hash = dmHashString64("2.40.10"), .m_Type = DS_TYPE_VECTOR3, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD },
-            { .m_Hash = dmHashString64("2.40.20"), .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD },
-            { .m_Hash = dmHashString64("2.40.30"), .m_Type = DS_TYPE_LIST, .m_Kind = DS_QUERY_ITEM_FIELD },
-            { .m_Hash = 1, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD },
-            { .m_Hash = 2, .m_Type = DS_TYPE_STRUCT, .m_Kind = DS_QUERY_ITEM_FIELD }
+            { dmHashString64("2.40.10"), DS_TYPE_VECTOR3, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD },
+            { dmHashString64("2.40.20"), DS_TYPE_STRING, 0, DS_QUERY_ITEM_FIELD },
+            { dmHashString64("2.40.30"), DS_TYPE_LIST, 0, DS_QUERY_ITEM_FIELD },
+            { 1, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_FIELD },
+            { 2, DS_TYPE_STRUCT, 0, DS_QUERY_ITEM_FIELD }
         };
-        DSQueryDesc desc = { .m_Items = { fields[0], fields[1], fields[2], fields[3], fields[4] } };
+        DSQueryDesc desc = { 0, 0, 0, { fields[0], fields[1], fields[2], fields[3], fields[4] } };
         HDSQuery    query;
         ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
         ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
@@ -1986,10 +2017,10 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
         HDSBlobInstance changed_instance;
         ASSERT_EQ(DS_RESULT_OK, Load(changed_store, changed_blob, changed_size, &changed_instance));
         DSQueryItem changed_fields[] = {
-            { .m_Hash = dmHashString64("2.40.10"), .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD },
-            { .m_Hash = dmHashString64("2.40.20"), .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD }
+            { dmHashString64("2.40.10"), DS_TYPE_VECTOR3, 0, DS_QUERY_ITEM_FIELD },
+            { dmHashString64("2.40.20"), DS_TYPE_STRING, 0, DS_QUERY_ITEM_FIELD }
         };
-        DSQueryDesc changed_desc = { .m_Items = { changed_fields[0], changed_fields[1] } };
+        DSQueryDesc changed_desc = { 0, 0, 0, { changed_fields[0], changed_fields[1] } };
         HDSQuery    changed_query;
         ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(changed_store, &changed_desc, &changed_query));
         ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(changed_query));
@@ -2057,9 +2088,9 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
 TEST(Data, InlineLayoutAndNameValidation)
 {
     HDSContext   store = DSStoreCreate(0);
-    DSFieldDesc  members[] = { { .m_Field = 10, .m_Type = DS_TYPE_VECTOR3, .m_Offset = 0, .m_Name = "10" }, { .m_Field = 20, .m_Type = DS_TYPE_NUMBER, .m_Offset = 16, .m_Name = "20" } };
+    DSFieldDesc  members[] = { { 10, DS_TYPE_VECTOR3, 0, 0, "10" }, { 20, DS_TYPE_NUMBER, 16, 0, "20" } };
     DSStructDesc light = { members, 2, 24 };
-    DSFieldDesc  fields[] = { { .m_Field = 1, .m_Type = DS_TYPE_STRUCT, .m_Offset = 0, .m_Struct = &light, .m_Name = "1" } };
+    DSFieldDesc  fields[] = { { 1, DS_TYPE_STRUCT, 0, &light, "1" } };
     DSTableDesc  table = { 1, 0, 0, fields, 1, 24 };
     fields[0].m_Name = 0;
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &table));
@@ -2088,7 +2119,11 @@ TEST(Data, InlineLayoutAndNameValidation)
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     uint64_t    names[] = { 10, 20 };
     DSValueType child_types[] = { DS_TYPE_VECTOR3, DS_TYPE_NUMBER };
-    DSValueData children[] = { { .m_Vector3 = { 1, 2, 3 } }, { .m_Number = 4 } };
+    DSValueData children[2] = {};
+    children[0].m_Vector3[0] = 1;
+    children[0].m_Vector3[1] = 2;
+    children[0].m_Vector3[2] = 3;
+    children[1].m_Number = 4;
     DSValue     value = Struct(names, child_types, children, 2);
     DSId        id = 0;
     child_types[1] = DS_TYPE_BOOLEAN;
@@ -2103,7 +2138,7 @@ TEST(Data, InlineLayoutAndNameValidation)
     child_types[1] = DS_TYPE_BOOLEAN;
     children[1].m_Boolean = 1;
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSFieldSet(store, id, 1, &value));
-    DSQueryDesc  desc = { .m_Items = { { .m_Hash = dmHashString64("1.10"), .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD } } };
+    DSQueryDesc  desc = { 0, 0, 0, { { dmHashString64("1.10"), DS_TYPE_VECTOR3, 0, DS_QUERY_ITEM_FIELD } } };
     DSQueryItem& field = desc.m_Items[0];
     HDSQuery     query;
     field.m_Type = (DSValueType)99;
@@ -2148,21 +2183,25 @@ TEST(Data, InlineLayoutAndNameValidation)
 TEST(Data, InlineNamesBindDifferentTablesAndTrackRegistration)
 {
     HDSContext  store = DSStoreCreate(0);
-    DSQueryItem field = { .m_Hash = dmHashString64("1.10"), .m_Type = DS_TYPE_VECTOR3, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc query_desc = { .m_Items = { field } };
+    DSQueryItem field = { dmHashString64("1.10"), DS_TYPE_VECTOR3, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD };
+    DSQueryDesc query_desc = { 0, 0, 0, { field } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &query_desc, &query));
-    DSFieldDesc  members[] = { { .m_Field = 10, .m_Type = DS_TYPE_VECTOR3, .m_Offset = 0, .m_Name = "10" }, { .m_Field = 20, .m_Type = DS_TYPE_NUMBER, .m_Offset = 16, .m_Name = "20" } };
+    DSFieldDesc  members[] = { { 10, DS_TYPE_VECTOR3, 0, 0, "10" }, { 20, DS_TYPE_NUMBER, 16, 0, "20" } };
     DSStructDesc light = { members, 2, 24 };
     uint64_t     names[] = { 10, 20 };
     DSValueType  child_types[] = { DS_TYPE_VECTOR3, DS_TYPE_NUMBER };
-    DSValueData  children[] = { { .m_Vector3 = { 1, 2, 3 } }, { .m_Number = 4 } };
+    DSValueData  children[2] = {};
+    children[0].m_Vector3[0] = 1;
+    children[0].m_Vector3[1] = 2;
+    children[0].m_Vector3[2] = 3;
+    children[1].m_Number = 4;
     DSValue      value = Struct(names, child_types, children, 2);
     DSId         ids[3];
     for (uint32_t i = 0; i < 3; ++i)
     {
-        DSFieldDesc root = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT, .m_Offset = i * 8, .m_Struct = i < 2 ? &light : 0, .m_Name = "1" };
-        DSTableDesc table = { .m_Type = i + 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = &root, .m_FieldCount = 1, .m_RowStride = i * 8 + (i < 2 ? 24u : 8u), .m_ResetPolicy = DS_RESET_RETAIN };
+        DSFieldDesc root = { 1, DS_TYPE_STRUCT, i * 8, i < 2 ? &light : 0, "1" };
+        DSTableDesc table = { i + 1, 0, 0, &root, 1, i * 8 + (i < 2 ? 24u : 8u), DS_RESET_RETAIN };
         ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
         ASSERT_EQ(DS_RESULT_OK, AddTestRow(store, i + 1, 0, &value, 1, &ids[i]));
     }
@@ -2219,7 +2258,7 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
         fields[p].m_Offset = p * 8;
         values[p] = Number(p);
     }
-    DSTableDesc table = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = fields, .m_FieldCount = 10, .m_RowStride = 80, .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc table = { 1, 0, 0, fields, 10, 80, DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSId ids[3];
     for (uint32_t r = 0; r < 3; ++r)
@@ -2233,8 +2272,8 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
     for (uint32_t r = 0; r < 3; ++r)
         for (uint32_t p = 0; p < 10; ++p)
             ASSERT_EQ(DS_RESULT_OK, DSFieldSetNumber(store, ids[r], p, 100 * (r + 1) + p));
-    DSQueryItem field = { .m_Hash = 9, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { field } };
+    DSQueryItem field = { 9, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_FIELD };
+    DSQueryDesc desc = { &group, 1, 0, { field } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[0]));
@@ -2279,7 +2318,7 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
     ASSERT_EQ(209.0, number);
     DSQueryDestroy(query);
 
-    DSTableDesc empty = { .m_Type = 2, .m_Tags = 0, .m_TagCount = 0, .m_Fields = 0, .m_FieldCount = 0, .m_RowStride = 0, .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc empty = { 2, 0, 0, 0, 0, 0, DS_RESET_RETAIN };
     DSId        empty_id;
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &empty));
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(store, 2, 0, 0, 0, &empty_id));
@@ -2353,10 +2392,10 @@ TEST(Data, RowAccessUsesBatchRelativeRowsAfterRemoval)
     for (uint32_t row = 0; row < 6; ++row)
         ASSERT_EQ(DS_RESULT_OK, Add(store, 1, row % 2 ? group : 0, row + 10, "base", &ids[row]));
     ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[1])); // Last row moves; its base bytes do not.
-    DSQueryItem field = { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
+    DSQueryItem field = { 10, DS_TYPE_NUMBER, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD };
     for (uint32_t requested = 0; requested < 2; ++requested)
     {
-        DSQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1 };
+        DSQueryDesc desc = { &group, 1 };
         if (requested)
             desc.m_Items[0] = field;
         HDSQuery query;
@@ -2397,8 +2436,8 @@ TEST(Data, DeferredRemovalUsesStableIds)
     HDSContext store = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, Register(store, 1));
     ASSERT_EQ(DS_RESULT_OK, Register(store, 2));
-    DSQueryItem field = { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc desc = { .m_Items = { field } };
+    DSQueryItem field = { 10, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_FIELD };
+    DSQueryDesc desc = { 0, 0, 0, { field } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     DSFieldId     handle = DSQueryFindField(query, &field);
@@ -2490,9 +2529,9 @@ TEST(Data, EmptyRowHasNoFields)
 TEST(Data, AlignedLayoutValidation)
 {
     HDSContext   store = DSStoreCreate(0);
-    DSFieldDesc  members[] = { { .m_Field = 1, .m_Type = DS_TYPE_NUMBER, .m_Offset = 0, .m_Name = "1" }, { .m_Field = 2, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = 8, .m_Name = "2" } };
+    DSFieldDesc  members[] = { { 1, DS_TYPE_NUMBER, 0, 0, "1" }, { 2, DS_TYPE_BOOLEAN, 8, 0, "2" } };
     DSStructDesc inner = { members, 2, 16 };
-    DSFieldDesc  root = { .m_Field = 3, .m_Type = DS_TYPE_STRUCT, .m_Offset = 0, .m_Struct = &inner, .m_Name = "3" };
+    DSFieldDesc  root = { 3, DS_TYPE_STRUCT, 0, &inner, "3" };
     DSTableDesc  table = { 1, 0, 0, &root, 1, 24 };
     members[0].m_Offset = 1;
     members[1].m_Offset = 9;
@@ -2511,7 +2550,9 @@ TEST(Data, AlignedLayoutValidation)
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     uint64_t          names[] = { 1, 2 };
     const DSValueType child_types[] = { DS_TYPE_NUMBER, DS_TYPE_BOOLEAN };
-    DSValueData       children[] = { { .m_Number = 17 }, { .m_Boolean = 1 } };
+    DSValueData       children[2] = {};
+    children[0].m_Number = 17;
+    children[1].m_Boolean = 1;
     DSValue           value = Struct(names, child_types, children, 2);
     DSId              id;
     ASSERT_EQ(DS_RESULT_OK, AddTestRow(store, 1, 0, &value, 1, &id));
@@ -2562,7 +2603,7 @@ TEST(Data, NativeFieldPointersAndReset)
         { 4, DS_TYPE_VECTOR4, offsetof(NativeRow, m_Vector4) },
         { 5, DS_TYPE_MATRIX4, offsetof(NativeRow, m_Matrix4) }
     };
-    DSTableDesc table = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = fields, .m_FieldCount = 5, .m_RowStride = sizeof(NativeRow), .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc table = { 1, 0, 0, fields, 5, sizeof(NativeRow), DS_RESET_RETAIN };
     HDSContext  source = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &table));
     DSValue values[] = { Number(17), Boolean(0), Vector3(1, 2, 3), {}, Matrix() };
@@ -2618,10 +2659,10 @@ TEST(Data, QueryFieldHandlesSurviveTableChanges)
 {
     HDSContext  store = DSStoreCreate(0);
     DSQueryItem fields[] = {
-        { .m_Hash = 30, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD }
+        { 30, DS_TYPE_VECTOR3, 0, DS_QUERY_ITEM_FIELD },
+        { 10, DS_TYPE_NUMBER, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD }
     };
-    DSQueryDesc desc = { .m_Items = { fields[0], fields[1] } };
+    DSQueryDesc desc = { 0, 0, 0, { fields[0], fields[1] } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     DSFieldId vector_field = DSQueryFindField(query, &fields[0]);
@@ -2629,7 +2670,7 @@ TEST(Data, QueryFieldHandlesSurviveTableChanges)
     ASSERT_NE(UINT32_MAX, vector_field);
     ASSERT_NE(UINT32_MAX, number_field);
     ASSERT_NE(vector_field, number_field);
-    DSQueryItem invalid = { .m_Hash = 99, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD };
+    DSQueryItem invalid = { 99, DS_TYPE_VECTOR3, 0, DS_QUERY_ITEM_FIELD };
     ASSERT_EQ(UINT32_MAX, DSQueryFindField(query, &invalid));
     invalid.m_Hash = 30;
     invalid.m_Type = DS_TYPE_NUMBER;
@@ -2644,7 +2685,7 @@ TEST(Data, QueryFieldHandlesSurviveTableChanges)
     for (uint32_t pass = 0; pass < 3; ++pass)
     {
         DSFieldDesc meta[] = { { 10, DS_TYPE_NUMBER, pass * 8 }, { 30, DS_TYPE_VECTOR3, pass * 8 + 8 } };
-        DSTableDesc table = { .m_Type = 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = meta, .m_FieldCount = 2, .m_RowStride = pass * 8 + 24, .m_ResetPolicy = DS_RESET_RETAIN };
+        DSTableDesc table = { 1, 0, 0, meta, 2, pass * 8 + 24, DS_RESET_RETAIN };
         ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
         DSValue values[] = { Number(10 + pass), Vector3(1, 2, 3) };
         DSId    id;
@@ -2676,18 +2717,28 @@ TEST(Data, QueryFieldHandlesSurviveTableChanges)
 
 TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
 {
-    DSFieldDesc       members[] = { { .m_Field = 10, .m_Type = DS_TYPE_VECTOR3, .m_Offset = 0, .m_Name = "10" }, { .m_Field = 20, .m_Type = DS_TYPE_NUMBER, .m_Offset = 16, .m_Name = "20" }, { .m_Field = 30, .m_Type = DS_TYPE_STRING, .m_Offset = 24, .m_Name = "30" } };
+    DSFieldDesc       members[] = { { 10, DS_TYPE_VECTOR3, 0, 0, "10" }, { 20, DS_TYPE_NUMBER, 16, 0, "20" }, { 30, DS_TYPE_STRING, 24, 0, "30" } };
     DSStructDesc      light = { members, 3, 32 };
     uint64_t          names[] = { 10, 20, 30 };
     const DSValueType types[] = { DS_TYPE_VECTOR3, DS_TYPE_NUMBER, DS_TYPE_STRING };
-    DSValueData       first[] = { { .m_Vector3 = { 1, 2, 3 } }, { .m_Number = 7 }, { .m_String = "shared" } };
-    DSValueData       second[] = { { .m_Vector3 = { 9, 8, 7 } }, { .m_Number = 6 }, { .m_String = "other" } };
+    DSValueData       first[3] = {};
+    first[0].m_Vector3[0] = 1;
+    first[0].m_Vector3[1] = 2;
+    first[0].m_Vector3[2] = 3;
+    first[1].m_Number = 7;
+    first[2].m_String = "shared";
+    DSValueData       second[3] = {};
+    second[0].m_Vector3[0] = 9;
+    second[0].m_Vector3[1] = 8;
+    second[0].m_Vector3[2] = 7;
+    second[1].m_Number = 6;
+    second[2].m_String = "other";
     DSValue           values[] = { Struct(names, types, first, 3), Struct(names, types, second, 3) };
     HDSContext        source = DSStoreCreate(0);
     for (uint32_t i = 0; i < 2; ++i)
     {
-        DSFieldDesc roots[] = { { .m_Field = 1, .m_Type = DS_TYPE_STRUCT, .m_Offset = i * 8, .m_Struct = &light, .m_Name = "1" }, { .m_Field = 2, .m_Type = DS_TYPE_STRUCT, .m_Offset = i * 8 + 32, .m_Struct = &light, .m_Name = "2" } };
-        DSTableDesc table = { .m_Type = i + 1, .m_Tags = 0, .m_TagCount = 0, .m_Fields = roots, .m_FieldCount = 2, .m_RowStride = i * 8 + 64, .m_ResetPolicy = DS_RESET_RETAIN };
+        DSFieldDesc roots[] = { { 1, DS_TYPE_STRUCT, i * 8, &light, "1" }, { 2, DS_TYPE_STRUCT, i * 8 + 32, &light, "2" } };
+        DSTableDesc table = { i + 1, 0, 0, roots, 2, i * 8 + 64, DS_RESET_RETAIN };
         ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &table));
         DSId id;
         ASSERT_EQ(DS_RESULT_OK, AddTestRow(source, i + 1, 0, values, 2, &id));
@@ -2706,10 +2757,10 @@ TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
     {
         HDSContext  store = stores[packed];
         DSQueryItem fields[] = {
-            { .m_Hash = dmHashString64("2.10"), .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD },
-            { .m_Hash = dmHashString64("1.10"), .m_Type = DS_TYPE_VECTOR3, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD }
+            { dmHashString64("2.10"), DS_TYPE_VECTOR3, 0, DS_QUERY_ITEM_FIELD },
+            { dmHashString64("1.10"), DS_TYPE_VECTOR3, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD }
         };
-        DSQueryDesc desc = { .m_Items = { fields[0], fields[1] } };
+        DSQueryDesc desc = { 0, 0, 0, { fields[0], fields[1] } };
         HDSQuery    query;
         ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
         // Lookup uses full-name hashes even when the descriptors change order.
@@ -2791,9 +2842,9 @@ TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
 
 TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
 {
-    DSFieldDesc  members[] = { { .m_Field = 10, .m_Type = DS_TYPE_NUMBER, .m_Offset = 0, .m_Name = "10" }, { .m_Field = 20, .m_Type = DS_TYPE_STRING, .m_Offset = 8, .m_Name = "20" }, { .m_Field = 30, .m_Type = DS_TYPE_LIST, .m_Offset = 16, .m_Name = "30" } };
+    DSFieldDesc  members[] = { { 10, DS_TYPE_NUMBER, 0, 0, "10" }, { 20, DS_TYPE_STRING, 8, 0, "20" }, { 30, DS_TYPE_LIST, 16, 0, "30" } };
     DSStructDesc layout = { members, 3, 24 };
-    DSFieldDesc  root = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT, .m_Offset = 0, .m_Struct = &layout, .m_Name = "1" };
+    DSFieldDesc  root = { 1, DS_TYPE_STRUCT, 0, &layout, "1" };
     DSTableDesc  table = { 1, 0, 0, &root, 1, 24 };
     HDSContext   source = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &table));
@@ -2823,10 +2874,10 @@ TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
     ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, groups[1], &second));
     DSBlobDestroy(blob);
     DSQueryItem fields[] = {
-        { .m_Hash = dmHashString64("1.10"), .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = dmHashString64("1.20"), .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD }
+        { dmHashString64("1.10"), DS_TYPE_NUMBER, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD },
+        { dmHashString64("1.20"), DS_TYPE_STRING, 0, DS_QUERY_ITEM_FIELD }
     };
-    DSQueryDesc desc = { .m_Items = { fields[0], fields[1] } };
+    DSQueryDesc desc = { 0, 0, 0, { fields[0], fields[1] } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     DSFieldId number_field = DSQueryFindField(query, &fields[0]);
@@ -2978,10 +3029,11 @@ TEST(Data, CompactMetadataLimitsRoundTrip)
         for (uint32_t i = 0; i < 2; ++i)
         {
             DSFieldDesc field = {
-                .m_Field = i + 1,
-                .m_Type = depth == 14 ? DS_TYPE_NULL : DS_TYPE_STRUCT,
-                .m_Struct = depth == 14 ? 0 : &layouts[depth + 1],
-                .m_Name = i ? "right" : "left"
+                i + 1,
+                depth == 14 ? DS_TYPE_NULL : DS_TYPE_STRUCT,
+                0,
+                depth == 14 ? 0 : &layouts[depth + 1],
+                i ? "right" : "left"
             };
             members[depth][i] = field;
         }
@@ -2989,14 +3041,14 @@ TEST(Data, CompactMetadataLimitsRoundTrip)
         layouts[depth].m_FieldCount = 2;
     }
     DSFieldDesc roots[] = {
-        { .m_Field = 1, .m_Type = DS_TYPE_STRUCT, .m_Struct = layouts, .m_Name = "1" },
-        { .m_Field = 2, .m_Type = DS_TYPE_NULL, .m_Name = "2" }
+        { 1, DS_TYPE_STRUCT, 0, layouts, "1" },
+        { 2, DS_TYPE_NULL, 0, 0, "2" }
     };
     uint64_t* tags = new uint64_t[DATA_MAX_TAG_COUNT];
     for (uint32_t i = 0; i < DATA_MAX_TAG_COUNT; ++i)
         tags[i] = i;
     HDSContext  store = DSStoreCreate(0);
-    DSTableDesc desc = { .m_Type = 1, .m_Tags = tags, .m_TagCount = DATA_MAX_TAG_COUNT + 1, .m_Fields = roots, .m_FieldCount = 1 };
+    DSTableDesc desc = { 1, tags, DATA_MAX_TAG_COUNT + 1, roots, 1 };
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSTableAdd(store, &desc));
     desc.m_TagCount = DATA_MAX_TAG_COUNT;
     desc.m_FieldCount = DATA_MAX_METADATA_COUNT + 1;
@@ -3037,11 +3089,14 @@ TEST(Data, CompactMetadataLimitsRoundTrip)
 TEST(Data, CompactMetadataPreservesWideByteOffsets)
 {
     HDSContext  store = DSStoreCreate(0);
-    DSFieldDesc field = { .m_Field = 10, .m_Type = DS_TYPE_VECTOR3, .m_Offset = 65536 };
-    DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 65548 };
+    DSFieldDesc field = { 10, DS_TYPE_VECTOR3, 65536 };
+    DSTableDesc table = { 1, 0, 0, &field, 1, 65548 };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSValueType type = DS_TYPE_VECTOR3;
-    DSValueData value = { .m_Vector3 = { 3, 5, 7 } };
+    DSValueData value = {};
+    value.m_Vector3[0] = 3;
+    value.m_Vector3[1] = 5;
+    value.m_Vector3[2] = 7;
     DSId        id;
     ASSERT_EQ(DS_RESULT_OK, DSRowAdd(store, 1, 0, &type, &value, 1, &id));
     uint32_t size;
@@ -3051,8 +3106,8 @@ TEST(Data, CompactMetadataPreservesWideByteOffsets)
     HDSContext      loaded = DSStoreCreate(0);
     HDSBlobInstance instance;
     ASSERT_EQ(DS_RESULT_OK, Load(loaded, bytes, size, &instance));
-    DSQueryItem requested = { .m_Hash = 10, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc desc = { .m_Items = { requested } };
+    DSQueryItem requested = { 10, DS_TYPE_VECTOR3, 0, DS_QUERY_ITEM_FIELD };
+    DSQueryDesc desc = { 0, 0, 0, { requested } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(loaded, &desc, &query));
     DSFieldId handle = DSQueryFindField(query, &requested);
@@ -3078,12 +3133,13 @@ TEST(Data, InlineQueryFieldsAndTags)
     DSId        group = 0;
     char        name[] = "light.color";
     DSQueryDesc desc = {
-        .m_GroupIds = &group,
-        .m_GroupIdCount = 1,
-        .m_Items = { DSTag("light"),
-                     DSField(name, DS_TYPE_VECTOR3, DS_FIELD_MUTABLE),
-                     DSTag("visible"),
-                     DSField("unused", DS_TYPE_NULL, 0) }
+        &group,
+        1,
+        0,
+        { DSTag("light"),
+          DSField(name, DS_TYPE_VECTOR3, DS_FIELD_MUTABLE),
+          DSTag("visible"),
+          DSField("unused", DS_TYPE_NULL, 0) }
     };
     name[0] = 'X';
     HDSQuery query;
@@ -3096,15 +3152,15 @@ TEST(Data, InlineQueryFieldsAndTags)
     ASSERT_EQ(UINT32_MAX, DSQueryFindField(query, &desc.m_Items[2]));
     memset(&desc, 0, sizeof(desc));
 
-    DSFieldDesc  color = { .m_Field = dmHashString64("color"), .m_Type = DS_TYPE_VECTOR3, .m_Name = "color" };
-    DSStructDesc light = { .m_Fields = &color, .m_FieldCount = 1, .m_Size = sizeof(DSVector3) };
+    DSFieldDesc  color = { dmHashString64("color"), DS_TYPE_VECTOR3, 0, 0, "color" };
+    DSStructDesc light = { &color, 1, sizeof(DSVector3) };
     DSFieldDesc  fields[] = {
-        { .m_Field = dmHashString64("light"), .m_Type = DS_TYPE_STRUCT, .m_Struct = &light, .m_Name = "light" },
-        { .m_Field = dmHashString64("unused"), .m_Type = DS_TYPE_NULL, .m_Offset = sizeof(DSVector3) }
+        { dmHashString64("light"), DS_TYPE_STRUCT, 0, &light, "light" },
+        { dmHashString64("unused"), DS_TYPE_NULL, sizeof(DSVector3) }
     };
     uint64_t    tags[] = { dmHashString64("light"), dmHashString64("visible") };
-    DSTableDesc table = { .m_Type = 1, .m_Tags = tags, .m_TagCount = 2, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(DSVector3) };
-    DSVector3   value = { .m_Values = { 1, 2, 3 } };
+    DSTableDesc table = { 1, tags, 2, fields, 2, sizeof(DSVector3) };
+    DSVector3   value = { { 1, 2, 3 } };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, 1, &value, 0));
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, NextTestGroupId(), 1, &value, 0));
@@ -3134,8 +3190,8 @@ TEST(Data, InlineQueryCapacity)
     DSQueryDesc desc = {};
     for (uint32_t i = 0; i < DS_QUERY_MAX_ITEMS; i += 2)
     {
-        desc.m_Items[i] = { .m_Hash = i + 1, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
-        desc.m_Items[i + 1] = { .m_Hash = i + 1, .m_Kind = DS_QUERY_ITEM_TAG };
+        desc.m_Items[i] = { i + 1, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_FIELD };
+        desc.m_Items[i + 1] = { i + 1, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_TAG };
     }
     HDSQuery query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
@@ -3151,12 +3207,12 @@ TEST(Data, InlineQueryCapacity)
     desc.m_Items[DS_QUERY_MAX_ITEMS - 1].m_Kind = DS_QUERY_ITEM_TAG;
     desc.m_Items[DS_QUERY_MAX_ITEMS - 2].m_Type = (DSValueType)256;
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSQueryCreate(store, &desc, &query));
-    desc = { .m_Items = { { .m_Type = DS_TYPE_NULL, .m_Kind = DS_QUERY_ITEM_FIELD } } };
+    desc = { 0, 0, 0, { { 0, DS_TYPE_NULL, 0, DS_QUERY_ITEM_FIELD } } };
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ(1u, query->m_Fields.Size());
     ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
     // Entries after the first unused item are outside the descriptor.
-    desc.m_Items[2] = { .m_Kind = (DSQueryItemKind)99 };
+    desc.m_Items[2] = { 0, DS_TYPE_NUMBER, 0, (DSQueryItemKind)99 };
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ(1u, query->m_Fields.Size());
     ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
@@ -3168,12 +3224,12 @@ TEST(Data, QueryItemsIncludeZeroHashes)
 {
     HDSContext  store = DSStoreCreate(0);
     uint64_t    tag = 0;
-    DSFieldDesc field = { .m_Type = DS_TYPE_NUMBER };
-    DSTableDesc table = { .m_Type = 1, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double) };
+    DSFieldDesc field = { 0, DS_TYPE_NUMBER };
+    DSTableDesc table = { 1, &tag, 1, &field, 1, sizeof(double) };
     double      value = 7;
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, 1, &value, 0));
-    DSQueryDesc desc = { .m_Items = { { .m_Kind = DS_QUERY_ITEM_FIELD }, { .m_Hash = 0, .m_Kind = DS_QUERY_ITEM_TAG } } };
+    DSQueryDesc desc = { 0, 0, 0, { { 0, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_FIELD }, { 0, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_TAG } } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ(1u, query->m_Fields.Size());
@@ -3196,7 +3252,7 @@ TEST(Data, QueryItemsIncludeZeroHashes)
 TEST(Data, CompactQueryFieldsValidateBeforeNarrowing)
 {
     HDSContext   store = DSStoreCreate(0);
-    DSQueryDesc  desc = { .m_Items = { { .m_Hash = 1, .m_Type = DS_TYPE_VECTOR3, .m_Access = 0, .m_Kind = DS_QUERY_ITEM_FIELD } } };
+    DSQueryDesc  desc = { 0, 0, 0, { { 1, DS_TYPE_VECTOR3, 0, DS_QUERY_ITEM_FIELD } } };
     DSQueryItem& field = desc.m_Items[0];
     HDSQuery     query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
@@ -3219,7 +3275,7 @@ TEST(Data, CompactQueryFieldsValidateBeforeNarrowing)
 TEST(Data, FreeSlotCountExcludesRetiredGenerations)
 {
     HDSContext  store = DSStoreCreate(0);
-    DSTableDesc table = { .m_Type = 1 };
+    DSTableDesc table = { 1 };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSRowDesc rows[6] = {};
     DSId      ids[6];
@@ -3252,23 +3308,29 @@ TEST(Data, FreeSlotCountExcludesRetiredGenerations)
 TEST(Data, BatchVector3MatchesScalarGetter)
 {
     HDSContext  store = DSStoreCreate(0);
-    DSFieldDesc vector = { .m_Field = 42, .m_Type = DS_TYPE_VECTOR3, .m_Offset = 0 };
-    DSFieldDesc number = { .m_Field = 42, .m_Type = DS_TYPE_NUMBER, .m_Offset = 0 };
-    DSFieldDesc missing = { .m_Field = 43, .m_Type = DS_TYPE_VECTOR3, .m_Offset = 0 };
+    DSFieldDesc vector = { 42, DS_TYPE_VECTOR3, 0 };
+    DSFieldDesc number = { 42, DS_TYPE_NUMBER, 0 };
+    DSFieldDesc missing = { 43, DS_TYPE_VECTOR3, 0 };
     DSFieldDesc collision[] = {
-        { .m_Field = 58, .m_Type = DS_TYPE_VECTOR3, .m_Offset = 0 },
-        { .m_Field = 42, .m_Type = DS_TYPE_VECTOR3, .m_Offset = 12 }
+        { 58, DS_TYPE_VECTOR3, 0 },
+        { 42, DS_TYPE_VECTOR3, 12 }
     };
     DSTableDesc tables[] = {
-        { .m_Type = 1, .m_Fields = &vector, .m_FieldCount = 1, .m_RowStride = 12 },
-        { .m_Type = 2, .m_Fields = &number, .m_FieldCount = 1, .m_RowStride = 8 },
-        { .m_Type = 3, .m_Fields = &missing, .m_FieldCount = 1, .m_RowStride = 12 },
-        { .m_Type = 4, .m_Fields = collision, .m_FieldCount = 2, .m_RowStride = 24 }
+        { 1, 0, 0, &vector, 1, 12 },
+        { 2, 0, 0, &number, 1, 8 },
+        { 3, 0, 0, &missing, 1, 12 },
+        { 4, 0, 0, collision, 2, 24 }
     };
     DSValueType vector_types[] = { DS_TYPE_VECTOR3, DS_TYPE_VECTOR3 };
     DSValueType number_type = DS_TYPE_NUMBER;
-    DSValueData vectors[] = { { .m_Vector3 = { 1, 2, 3 } }, { .m_Vector3 = { 4, 5, 6 } } };
-    DSValueData scalar = { .m_Number = 1 };
+    DSValueData vectors[2] = {};
+    vectors[0].m_Vector3[0] = 1;
+    vectors[0].m_Vector3[1] = 2;
+    vectors[0].m_Vector3[2] = 3;
+    vectors[1].m_Vector3[0] = 4;
+    vectors[1].m_Vector3[1] = 5;
+    vectors[1].m_Vector3[2] = 6;
+    DSValueData scalar = { 1 };
     DSId        valid[5];
     for (uint32_t i = 0; i < 4; ++i)
     {
@@ -3336,11 +3398,11 @@ TEST(Data, BatchVector3MatchesScalarGetter)
 TEST(Data, NativeRowsShareGroupsWithoutSplittingTables)
 {
     HDSContext  store = DSStoreCreate(0);
-    DSFieldDesc field = { .m_Field = 10, .m_Type = DS_TYPE_NUMBER };
-    DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double), .m_ResetPolicy = DS_RESET_RETAIN };
+    DSFieldDesc field = { 10, DS_TYPE_NUMBER };
+    DSTableDesc table = { 1, 0, 0, &field, 1, sizeof(double), DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSId        group = NextTestGroupId();
-    DSQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1 };
+    DSQueryDesc desc = { &group, 1 };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     double values[] = { 1, 2, 3 };
@@ -3398,19 +3460,19 @@ TEST(Data, CreateRowsWithoutReturningIds)
 {
     HDSContext  store = DSStoreCreate(0);
     DSId        group = NextTestGroupId();
-    DSFieldDesc field = { .m_Field = 10, .m_Type = DS_TYPE_NUMBER };
-    DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double) };
+    DSFieldDesc field = { 10, DS_TYPE_NUMBER };
+    DSTableDesc table = { 1, 0, 0, &field, 1, sizeof(double) };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
-    DSQueryItem query_field = { .m_Hash = 10, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc desc = { .m_Items = { query_field } };
+    DSQueryItem query_field = { 10, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_FIELD };
+    DSQueryDesc desc = { 0, 0, 0, { query_field } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     DSFieldId    field_index = DSQueryFindField(query, &query_field);
     double       values[] = { 1, 2, 3, 4 };
-    DSFieldArray column = { .m_Field = 10, .m_Values = values + 2 };
+    DSFieldArray column = { 10, values + 2 };
     DSValueType  type = DS_TYPE_NUMBER;
-    DSValueData  decoded = { .m_Number = 5 };
-    DSRowDesc    row = { .m_Group = group, .m_Types = &type, .m_Values = &decoded, .m_ValueCount = 1 };
+    DSValueData  decoded = { 5 };
+    DSRowDesc    row = { group, &type, &decoded, 1 };
     DSId         ids[6] = {};
     for (uint32_t pass = 0; pass < 2; ++pass)
     {
@@ -3476,10 +3538,10 @@ TEST(Data, NativeRowsValidateBeforeWritingAcrossBlocks)
         ids[i] = 99;
     }
     DSFieldDesc fields[] = {
-        { .m_Field = 1, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = offsetof(NativeRow, m_Enabled) },
-        { .m_Field = 2, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(NativeRow, m_Position) }
+        { 1, DS_TYPE_BOOLEAN, offsetof(NativeRow, m_Enabled) },
+        { 2, DS_TYPE_VECTOR3, offsetof(NativeRow, m_Position) }
     };
-    DSTableDesc table = { .m_Type = 1, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(NativeRow), .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc table = { 1, 0, 0, fields, 2, sizeof(NativeRow), DS_RESET_RETAIN };
     HDSContext  store = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     input[count - 1].m_Enabled = 2;
@@ -3499,7 +3561,7 @@ TEST(Data, NativeRowsValidateBeforeWritingAcrossBlocks)
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetVector3(store, ids[i], 2, &position));
         ASSERT_EQ(0, memcmp(&input[i].m_Position, &position, sizeof(position)));
     }
-    DSVector3 changed = { .m_Values = { -1, -2, -3 } };
+    DSVector3 changed = { { -1, -2, -3 } };
     ASSERT_EQ(DS_RESULT_OK, DSFieldSetVector3(store, ids[count - 1], 2, &changed));
     ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[count - 1]));
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetVector3(store, ids[count - 1], 2, &changed));
@@ -3570,20 +3632,20 @@ TEST(Data, SoARowsWithManyFieldsValidateBeforePublishing)
     DSId         ids[count];
     for (uint32_t f = 0; f < field_count; ++f)
     {
-        layout[f] = { .m_Field = 100 + f, .m_Type = DS_TYPE_NUMBER, .m_Offset = (uint32_t)(f * sizeof(double)) };
-        fields[field_count - f] = { .m_Field = 100 + f, .m_Values = values[f] };
+        layout[f] = { 100 + f, DS_TYPE_NUMBER, (uint32_t)(f * sizeof(double)) };
+        fields[field_count - f] = { 100 + f, values[f] };
         for (uint32_t r = 0; r < count; ++r)
             values[f][r] = f * count + r;
     }
-    layout[field_count] = { .m_Field = 200, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = offsetof(Row, m_Enabled) };
-    fields[0] = { .m_Field = 200, .m_Values = enabled };
+    layout[field_count] = { 200, DS_TYPE_BOOLEAN, offsetof(Row, m_Enabled) };
+    fields[0] = { 200, enabled };
     for (uint32_t r = 0; r < count; ++r)
     {
         enabled[r] = r & 1;
         ids[r] = 99;
     }
     HDSContext  store = DSStoreCreate(0);
-    DSTableDesc desc = { .m_Type = 1, .m_Fields = layout, .m_FieldCount = field_count + 1, .m_RowStride = sizeof(Row), .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc desc = { 1, 0, 0, layout, field_count + 1, sizeof(Row), DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     DSTable* table = FindTable(store, 1);
     uint64_t revision = store->m_Revision;
@@ -3691,32 +3753,34 @@ TEST(Data, NativeReferenceValidation)
     for (uint32_t soa = 0; soa < 2; ++soa)
     {
         HDSContext  store = DSStoreCreate(0);
-        DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_LIST };
-        DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference) };
+        DSFieldDesc field = { 1, DS_TYPE_LIST };
+        DSTableDesc table = { 1, 0, 0, &field, 1, sizeof(DSReference) };
         ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
         double      numbers[] = { 1, 2 };
         DSListInput lists[] = {
-            { .m_Type = DS_TYPE_NUMBER, .m_Count = 2, .m_Values = numbers },
-            { .m_Type = DS_TYPE_NUMBER, .m_Count = 1 }
+            { DS_TYPE_NUMBER, 2, numbers },
+            { DS_TYPE_NUMBER, 1 }
         };
-        DSReference  rows[] = { { .m_List = &lists[0] }, { .m_List = &lists[1] } };
-        DSFieldArray column = { .m_Field = 1, .m_Values = rows };
+        DSReference  rows[2] = {};
+        rows[0].m_List = &lists[0];
+        rows[1].m_List = &lists[1];
+        DSFieldArray column = { 1, rows };
         DSId         ids[] = { 123, 456 };
         for (uint32_t invalid = 0; invalid < 5; ++invalid)
         {
             switch (invalid)
             {
                 case 1:
-                    lists[1] = { .m_Type = (DSValueType)UINT32_MAX };
+                    lists[1] = { (DSValueType)UINT32_MAX };
                     break;
                 case 2:
-                    lists[1] = { .m_Type = DS_TYPE_LIST, .m_Count = 1, .m_Values = &rows[1] }; // Cycle exceeds depth limit.
+                    lists[1] = { DS_TYPE_LIST, 1, &rows[1] }; // Cycle exceeds depth limit.
                     break;
                 case 3:
                     rows[1].m_List = 0;
                     break;
                 case 4:
-                    lists[1] = { .m_Type = DS_TYPE_STRING, .m_Count = 1, .m_Values = &rows[1] }; // NULL string.
+                    lists[1] = { DS_TYPE_STRING, 1, &rows[1] }; // NULL string.
                     rows[0].m_List = &lists[1];
                     break;
             }
@@ -3729,7 +3793,7 @@ TEST(Data, NativeReferenceValidation)
             ASSERT_TRUE(stored->m_Chunks.Empty());
             ASSERT_EQ((DSPayloadBlock*)0, stored->m_Owned->m_BaseValues);
         }
-        lists[1] = { .m_Type = DS_TYPE_NUMBER }; // Empty lists need no values array.
+        lists[1] = { DS_TYPE_NUMBER }; // Empty lists need no values array.
         rows[0].m_List = &lists[0];
         rows[1].m_List = &lists[1];
         DSResult result = soa ? DSRowCreateSoA(store, 1, 0, 2, 1, &column, 0) : DSRowCreate(store, 1, 0, 2, rows, 0);
@@ -3742,17 +3806,18 @@ TEST(Data, NativeReferenceValidation)
 TEST(Data, NativeDynamicStructAndNestedListInput)
 {
     HDSContext  store = DSStoreCreate(0);
-    DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT };
-    DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference) };
+    DSFieldDesc field = { 1, DS_TYPE_STRUCT };
+    DSTableDesc table = { 1, 0, 0, &field, 1, sizeof(DSReference) };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     uint64_t    bytes[] = { 2, 0 };
     DSFieldDesc members[] = {
-        { .m_Field = 1, .m_Type = DS_TYPE_BOOLEAN },
-        { .m_Field = 2, .m_Type = DS_TYPE_NULL, .m_Offset = 8 }
+        { 1, DS_TYPE_BOOLEAN },
+        { 2, DS_TYPE_NULL, 8 }
     };
-    DSStructDesc  layout = { .m_Fields = members, .m_FieldCount = 2, .m_Size = sizeof(bytes) };
-    DSStructInput object = { .m_Layout = &layout, .m_Values = bytes };
-    DSReference   row = { .m_Struct = &object };
+    DSStructDesc  layout = { members, 2, sizeof(bytes) };
+    DSStructInput object = { &layout, bytes };
+    DSReference   row = {};
+    row.m_Struct = &object;
     DSId          id = 123;
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSRowCreate(store, 1, 0, 1, &row, &id)); // Invalid Boolean.
     bytes[0] = 1;
@@ -3775,10 +3840,11 @@ TEST(Data, NativeDynamicStructAndNestedListInput)
     field.m_Type = DS_TYPE_LIST;
     table.m_Type = 2;
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
-    DSVector3   vector = { .m_Values = { 1, 2, 3 } };
-    DSListInput child = { .m_Type = DS_TYPE_VECTOR3, .m_Count = 1, .m_Values = &vector };
-    DSReference element = { .m_List = &child };
-    DSListInput parent = { .m_Type = DS_TYPE_LIST, .m_Count = 1, .m_Values = &element };
+    DSVector3   vector = { { 1, 2, 3 } };
+    DSListInput child = { DS_TYPE_VECTOR3, 1, &vector };
+    DSReference element = {};
+    element.m_List = &child;
+    DSListInput parent = { DS_TYPE_LIST, 1, &element };
     row.m_List = &parent;
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 2, 0, 1, &row, &id));
     vector.m_Values[2] = 99;
@@ -3843,7 +3909,7 @@ TEST(Data, MixedListCreationFromC)
         DSTable* table = FindTable(store, 94);
         ASSERT_EQ((DSPayloadBlock*)0, table->m_Owned->m_BaseValues->m_Next);
 
-        DSValue empty = { .m_Type = DS_TYPE_LIST };
+        DSValue empty = { DS_TYPE_LIST };
         ASSERT_EQ(DS_RESULT_OK, DSFieldSet(store, ids[0], 1, &empty));
         ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, ids[0]));
         ASSERT_EQ(DS_RESULT_OK, DSFieldGet(store, ids[0], 1, &value));
@@ -3873,15 +3939,17 @@ TEST(Data, MixedListValidationBeforePublishing)
     for (uint32_t soa = 0; soa < 2; ++soa)
     {
         HDSContext  store = DSStoreCreate(0);
-        DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_LIST };
-        DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference) };
+        DSFieldDesc field = { 1, DS_TYPE_LIST };
+        DSTableDesc table = { 1, 0, 0, &field, 1, sizeof(DSReference) };
         ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
         DSValueType  type = DS_TYPE_NUMBER;
         const void*  payload = 0;
-        DSListInput  mixed = { .m_Count = 1, .m_Values = &payload, .m_Types = &type };
-        DSListInput  empty = { .m_Type = DS_TYPE_NULL };
-        DSReference  rows[] = { { .m_List = &empty }, { .m_List = &mixed } };
-        DSFieldArray column = { .m_Field = 1, .m_Values = rows };
+        DSListInput  mixed = { DS_TYPE_NUMBER, 1, &payload, &type };
+        DSListInput  empty = { DS_TYPE_NULL };
+        DSReference  rows[2] = {};
+        rows[0].m_List = &empty;
+        rows[1].m_List = &mixed;
+        DSFieldArray column = { 1, rows };
         DSId         ids[] = { 123, 456 };
         uint8_t      boolean = 2;
         for (uint32_t invalid = 0; invalid < 5; ++invalid)
@@ -3927,15 +3995,15 @@ TEST(Data, DuplicateFullFieldNamesAreRejected)
 {
     HDSContext   store = DSStoreCreate(0);
     uint64_t     color = dmHashString64("light.color");
-    DSFieldDesc  member = { .m_Field = dmHashString64("color"), .m_Type = DS_TYPE_NUMBER, .m_Name = "color" };
-    DSStructDesc light = { .m_Fields = &member, .m_FieldCount = 1, .m_Size = sizeof(double) };
+    DSFieldDesc  member = { dmHashString64("color"), DS_TYPE_NUMBER, 0, 0, "color" };
+    DSStructDesc light = { &member, 1, sizeof(double) };
     DSFieldDesc  fields[] = {
-        { .m_Field = dmHashString64("light"), .m_Type = DS_TYPE_STRUCT, .m_Struct = &light, .m_Name = "light" },
-        { .m_Field = color, .m_Type = DS_TYPE_NUMBER, .m_Offset = sizeof(double) }
+        { dmHashString64("light"), DS_TYPE_STRUCT, 0, &light, "light" },
+        { color, DS_TYPE_NUMBER, sizeof(double) }
     };
-    DSTableDesc desc = { .m_Type = 1, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = 2 * sizeof(double) };
-    DSQueryItem field = { .m_Hash = color, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc query_desc = { .m_Items = { field } };
+    DSTableDesc desc = { 1, 0, 0, fields, 2, 2 * sizeof(double) };
+    DSQueryItem field = { color, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_FIELD };
+    DSQueryDesc query_desc = { 0, 0, 0, { field } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &query_desc, &query));
     uint64_t revision = store->m_Revision;
@@ -3975,19 +4043,19 @@ TEST(Data, InlineAndDynamicNestingShareOneLimit)
     double      number = 7;
     for (uint32_t i = 0; i < DATA_MAX_NESTING; ++i)
     {
-        lists[i] = { .m_Type = i ? DS_TYPE_LIST : DS_TYPE_NUMBER, .m_Count = 1, .m_Values = i ? (const void*)&references[i - 1] : &number };
+        lists[i] = { i ? DS_TYPE_LIST : DS_TYPE_NUMBER, 1, i ? (const void*)&references[i - 1] : &number };
         references[i].m_List = &lists[i];
     }
-    DSFieldDesc  member = { .m_Field = dmHashString64("items"), .m_Type = DS_TYPE_LIST, .m_Name = "items" };
-    DSStructDesc layout = { .m_Fields = &member, .m_FieldCount = 1, .m_Size = sizeof(DSReference) };
-    DSFieldDesc  root = { .m_Field = dmHashString64("state"), .m_Type = DS_TYPE_STRUCT, .m_Struct = &layout, .m_Name = "state" };
-    DSTableDesc  desc = { .m_Type = 1, .m_Fields = &root, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference) };
+    DSFieldDesc  member = { dmHashString64("items"), DS_TYPE_LIST, 0, 0, "items" };
+    DSStructDesc layout = { &member, 1, sizeof(DSReference) };
+    DSFieldDesc  root = { dmHashString64("state"), DS_TYPE_STRUCT, 0, &layout, "state" };
+    DSTableDesc  desc = { 1, 0, 0, &root, 1, sizeof(DSReference) };
     for (uint32_t soa = 0; soa < 2; ++soa)
     {
         HDSContext store = DSStoreCreate(0);
         ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
         DSReference  rows[] = { references[DATA_MAX_NESTING - 2], references[DATA_MAX_NESTING - 1] };
-        DSFieldArray column = { .m_Field = root.m_Field, .m_Values = rows };
+        DSFieldArray column = { root.m_Field, rows };
         DSId         ids[] = { 123, 456 };
         DSResult     result = soa ? DSRowCreateSoA(store, 1, 0, 2, 1, &column, ids) : DSRowCreate(store, 1, 0, 2, rows, ids);
         ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, result);
@@ -4018,8 +4086,8 @@ TEST(Data, InlineAndDynamicNestingShareOneLimit)
 TEST(Data, NativeDefaultsRemainDenseAcrossWaves)
 {
     HDSContext  store = DSStoreCreate(0);
-    DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_NUMBER };
-    DSTableDesc desc = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double), .m_ResetPolicy = DS_RESET_RETAIN };
+    DSFieldDesc field = { 1, DS_TYPE_NUMBER };
+    DSTableDesc desc = { 1, 0, 0, &field, 1, sizeof(double), DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     DSTable* table = FindTable(store, 1);
     double   permanent_value = 99;
@@ -4062,19 +4130,23 @@ TEST(Data, NativeDefaultsRemainDenseAcrossWaves)
 TEST(Data, EmptyNativeTableReleasesPayloadArenas)
 {
     HDSContext  store = DSStoreCreate(0);
-    DSFieldDesc root = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT };
-    DSTableDesc table_desc = { .m_Type = 1, .m_Fields = &root, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference), .m_ResetPolicy = DS_RESET_RETAIN };
+    DSFieldDesc root = { 1, DS_TYPE_STRUCT };
+    DSTableDesc table_desc = { 1, 0, 0, &root, 1, sizeof(DSReference), DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table_desc));
     DSFieldDesc fields[] = {
-        { .m_Field = 10, .m_Type = DS_TYPE_STRING },
-        { .m_Field = 20, .m_Type = DS_TYPE_LIST, .m_Offset = sizeof(DSReference) }
+        { 10, DS_TYPE_STRING },
+        { 20, DS_TYPE_LIST, sizeof(DSReference) }
     };
-    DSStructDesc  layout = { .m_Fields = fields, .m_FieldCount = 2, .m_Size = 2 * sizeof(DSReference) };
+    DSStructDesc  layout = { fields, 2, 2 * sizeof(DSReference) };
     double        numbers[] = { 3, 7 };
-    DSListInput   list = { .m_Type = DS_TYPE_NUMBER, .m_Count = 2, .m_Values = numbers };
-    DSReference   members[] = { { .m_String = "original" }, { .m_List = &list } };
-    DSStructInput input = { .m_Layout = &layout, .m_Values = members };
-    DSReference   rows[] = { { .m_Struct = &input }, { .m_Struct = &input } };
+    DSListInput   list = { DS_TYPE_NUMBER, 2, numbers };
+    DSReference   members[2] = {};
+    members[0].m_String = "original";
+    members[1].m_List = &list;
+    DSStructInput input = { &layout, members };
+    DSReference   rows[2] = {};
+    rows[0].m_Struct = &input;
+    rows[1].m_Struct = &input;
     DSTable*      table = FindTable(store, 1);
     for (uint32_t wave = 0; wave < 4; ++wave)
     {

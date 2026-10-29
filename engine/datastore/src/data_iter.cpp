@@ -19,11 +19,10 @@ DSIterator DSQueryIterRange(HDSQuery query, uint32_t first, uint32_t count)
 {
     assert(query->m_ActiveSlot != UINT32_MAX);
     assert(first <= query->m_RowCount && count <= query->m_RowCount - first);
-    DSIterator iterator = {
-        .m_Query = query,
-        .m_Remaining = count,
-        .m_Flags = query->m_Flags
-    };
+    DSIterator iterator = {};
+    iterator.m_Query = query;
+    iterator.m_Remaining = count;
+    iterator.m_Flags = query->m_Flags;
     if (count)
     {
         const dmArray<DSQueryRange>& ranges = query->m_Ranges;

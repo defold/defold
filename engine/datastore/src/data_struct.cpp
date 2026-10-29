@@ -60,7 +60,7 @@ static uint32_t AddStructLayout(DSStructStorage* storage, const DSStruct* object
         DSValueType type = GetStructFieldType(object, i);
         uint32_t    alignment = DSTypeAlignment(type);
         size = (size + alignment - 1) & ~(alignment - 1);
-        DSStructField field = { .m_Name = GetChildName(object, i), .m_Type = type, .m_Offset = size };
+        DSStructField field = { GetChildName(object, i), type, size };
         table->m_Fields.Push(field);
         size += DSTypeSize(type);
     }
@@ -93,7 +93,9 @@ uint64_t StoreStructRow(DSTable* owner, DSPayloadBlock** blocks, const DSStruct*
         table->m_FreeRow = (uint32_t)ReadDataInteger(table->m_Values.Begin() + (size_t)row * table->m_RowStride, 4);
     ++table->m_RowCount;
     memset(table->m_Values.Begin() + (size_t)row * table->m_RowStride, 0, table->m_RowStride);
-    DSValue source = { .m_Type = DS_TYPE_STRUCT, .m_Value = { .m_Struct = *object } };
+    DSValue source = {};
+    source.m_Type = DS_TYPE_STRUCT;
+    source.m_Value.m_Struct = *object;
     for (uint32_t i = 0; i < table->m_Fields.Size(); ++i)
     {
         const DSStructField& field = table->m_Fields[i];
@@ -115,11 +117,10 @@ uint64_t StoreStructRow(DSTable* owner, DSPayloadBlock** blocks, const DSStruct*
 DSStruct ReadStructRow(const DSTable* owner, uint64_t reference)
 {
     const DSStructTable* table = owner->m_Structs->m_Tables[(uint32_t)reference >> 2];
-    DSStruct             object = {
-                    .m_Count = table->m_Fields.Size(),
-                    .m_Source = DS_STRUCT_ROW,
-                    .m_View = { .m_Offset = (uint32_t)(reference >> 32), .m_Table = owner, .m_StructTable = table }
-    };
+    DSStruct             object = {};
+    object.m_Count = table->m_Fields.Size();
+    object.m_Source = DS_STRUCT_ROW;
+    object.m_View = { 0, (uint32_t)(reference >> 32), 0, owner, table };
     return object;
 }
 

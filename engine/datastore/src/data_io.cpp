@@ -85,10 +85,10 @@ static bool AddString(PackedStrings* strings, const char* string)
 
     const uint32_t* head = strings->m_Buckets.Get(hash);
     PackedString    entry = {
-           .m_String = string,
-           .m_Size = (uint32_t)size,
-           .m_Offset = strings->m_Size,
-           .m_Next = head ? *head : INVALID_STRING
+        string,
+        (uint32_t)size,
+        strings->m_Size,
+        head ? *head : INVALID_STRING
     };
     strings->m_Buckets.Put(hash, strings->m_Entries.Size());
     strings->m_Entries.Push(entry);

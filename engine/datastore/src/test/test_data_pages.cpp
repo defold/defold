@@ -32,11 +32,11 @@ struct PageReferenceRow
 static DSResult RegisterPageRows(HDSContext store, uint64_t type, DSResetPolicy reset)
 {
     DSFieldDesc fields[] = {
-        { .m_Field = 1, .m_Type = DS_TYPE_NUMBER, .m_Offset = offsetof(PageRow, m_Health) },
-        { .m_Field = 2, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(PageRow, m_Position) },
-        { .m_Field = 3, .m_Type = DS_TYPE_UINT32, .m_Offset = offsetof(PageRow, m_Color) }
+        { 1, DS_TYPE_NUMBER, offsetof(PageRow, m_Health) },
+        { 2, DS_TYPE_VECTOR3, offsetof(PageRow, m_Position) },
+        { 3, DS_TYPE_UINT32, offsetof(PageRow, m_Color) }
     };
-    DSTableDesc desc = { .m_Type = type, .m_Fields = fields, .m_FieldCount = 3, .m_RowStride = sizeof(PageRow), .m_ResetPolicy = reset };
+    DSTableDesc desc = { type, 0, 0, fields, 3, sizeof(PageRow), reset };
     return DSTableAdd(store, &desc);
 }
 
@@ -53,10 +53,10 @@ static uint32_t PageCount(HDSContext store)
 TEST(DataPages, Parameters)
 {
     DSCreateParams invalid[] = {
-        { .m_PageSize = 128, .m_RowChunkSize = 256 },
-        { .m_PageSize = 768, .m_RowChunkSize = 64 },
-        { .m_PageSize = 256, .m_RowChunkSize = 96 },
-        { .m_PageSize = 256, .m_RowChunkSize = 32 }
+        { 128, 256 },
+        { 768, 64 },
+        { 256, 96 },
+        { 256, 32 }
     };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(invalid); ++i)
         ASSERT_EQ((HDSContext)0, DSStoreCreate(&invalid[i]));
@@ -71,14 +71,14 @@ TEST(DataPages, Parameters)
 // must all cross chunk boundaries without moving values to the wrong ID.
 TEST(DataPages, GrowthRangesSwapAndReset)
 {
-    DSCreateParams params = { .m_PageSize = 2048, .m_RowChunkSize = 256, .m_MaxSparePages = 1 };
+    DSCreateParams params = { 2048, 256, 1 };
     HDSContext     store = DSStoreCreate(&params);
     DSId           group = NextTestGroupId();
     ASSERT_EQ(DS_RESULT_OK, RegisterPageRows(store, 10, DS_RESET_RETAIN));
     PageRow input[259];
     DSId    ids[259];
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(input); ++i)
-        input[i] = PageRow { .m_Health = (double)i, .m_Position = { { (float)i, 2, 3 } }, .m_Color = i };
+        input[i] = PageRow { (double)i, { { (float)i, 2, 3 } }, i };
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 10, 0, 1, input, ids));
     DSTable*       table = FindTable(store, 10);
     const uint8_t* first = GetRowBytes(table, 0);
@@ -88,12 +88,12 @@ TEST(DataPages, GrowthRangesSwapAndReset)
     DSVector3    positions[] = { input[257].m_Position, input[258].m_Position };
     uint32_t     colors[] = { 257, 258 };
     DSFieldArray columns[] = {
-        { .m_Field = 3, .m_Values = colors },
-        { .m_Field = 1, .m_Values = health },
-        { .m_Field = 2, .m_Values = positions }
+        { 3, colors },
+        { 1, health },
+        { 2, positions }
     };
     ASSERT_EQ(DS_RESULT_OK, DSRowCreateSoA(store, 10, group, 2, 3, columns, ids + 257));
-    DSQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Flags = DS_ROW_MUTABLE };
+    DSQueryDesc desc = { &group, 1, DS_ROW_MUTABLE };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
@@ -155,7 +155,7 @@ TEST(DataPages, GrowthRangesSwapAndReset)
 // descriptor slots are reused across tables without invalidating other chunks.
 TEST(DataPages, SharedPagesAndReuse)
 {
-    DSCreateParams params = { .m_PageSize = 1024, .m_RowChunkSize = 256, .m_MaxSparePages = 1 };
+    DSCreateParams params = { 1024, 256, 1 };
     HDSContext     store = DSStoreCreate(&params);
     PageRow        input[129] = {};
     for (uint32_t i = 0; i < 129; ++i)
@@ -187,14 +187,14 @@ TEST(DataPages, SharedPagesAndReuse)
 // this must not overflow page offsets or consume a partially occupied page.
 TEST(DataPages, OversizedRows)
 {
-    DSCreateParams params = { .m_PageSize = 256, .m_RowChunkSize = 64 };
+    DSCreateParams params = { 256, 64 };
     HDSContext     store = DSStoreCreate(&params);
     double         input[3][32] = {};
     input[0][31] = 11;
     input[1][31] = 22;
     input[2][31] = 33;
-    DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_NUMBER, .m_Offset = 31 * sizeof(double) };
-    DSTableDesc desc = { .m_Type = 10, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(input[0]), .m_ResetPolicy = DS_RESET_RETAIN };
+    DSFieldDesc field = { 1, DS_TYPE_NUMBER, 31 * sizeof(double) };
+    DSTableDesc desc = { 10, 0, 0, &field, 1, sizeof(input[0]), DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &desc));
     DSId ids[3];
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 10, 0, 3, input, ids));
@@ -213,17 +213,17 @@ TEST(DataPages, OversizedRows)
 // Replacement strings, reset and removing registrations must preserve ownership.
 TEST(DataPages, BlobReferencesAcrossChunks)
 {
-    DSCreateParams params = { .m_PageSize = 512, .m_RowChunkSize = 128, .m_MaxSparePages = 1 };
+    DSCreateParams params = { 512, 128, 1 };
     HDSContext     source = DSStoreCreate(&params);
     DSFieldDesc    fields[] = {
-        { .m_Field = 1, .m_Type = DS_TYPE_NUMBER, .m_Offset = offsetof(PageReferenceRow, m_Health) },
-        { .m_Field = 2, .m_Type = DS_TYPE_STRING, .m_Offset = offsetof(PageReferenceRow, m_Name) }
+        { 1, DS_TYPE_NUMBER, offsetof(PageReferenceRow, m_Health) },
+        { 2, DS_TYPE_STRING, offsetof(PageReferenceRow, m_Name) }
     };
-    DSTableDesc table = { .m_Type = 10, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(PageReferenceRow) };
+    DSTableDesc table = { 10, 0, 0, fields, 2, sizeof(PageReferenceRow) };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &table));
     PageReferenceRow input[41];
     for (uint32_t i = 0; i < 41; ++i)
-        input[i] = PageReferenceRow { .m_Health = (double)i, .m_Name = { .m_String = "enemy" } };
+        input[i] = PageReferenceRow { (double)i, { "enemy" } };
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(source, 10, 0, 41, input, 0));
     uint8_t  DM_ALIGNED(8) bytes[4096];
     uint32_t size;
@@ -234,7 +234,7 @@ TEST(DataPages, BlobReferencesAcrossChunks)
     HDSBlobInstance instances[3];
     for (uint32_t i = 0; i < 3; ++i)
         ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, 0, &instances[i]));
-    DSQueryDesc desc = { .m_Items = { { .m_Hash = 1, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD } } };
+    DSQueryDesc desc = { 0, 0, 0, { { 1, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_FIELD } } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     DSFieldId health = DSQueryFindField(query, &desc.m_Items[0]);
@@ -286,7 +286,7 @@ TEST(DataPages, SparePageBudget)
     PageRow values[129] = {};
     for (uint32_t budget = 0; budget <= 4; budget += 4)
     {
-        DSCreateParams params = { .m_PageSize = 1024, .m_RowChunkSize = 256, .m_MaxSparePages = budget };
+        DSCreateParams params = { 1024, 256, budget };
         HDSContext     store = DSStoreCreate(&params);
         for (uint32_t wave = 0; wave < 3; ++wave)
         {

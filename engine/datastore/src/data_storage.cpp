@@ -64,7 +64,7 @@ static uint32_t NewPage(HDSContext store)
 static DSRowChunk AllocateChunk(HDSContext store, size_t size)
 {
     if (size > store->m_RowChunkSize)
-        return DSRowChunk { .m_Data = new uint8_t[size], .m_Page = UINT32_MAX };
+        return DSRowChunk { new uint8_t[size], UINT32_MAX };
     uint32_t index = store->m_FreePage;
     if (index == UINT32_MAX)
         index = NewPage(store);
@@ -75,7 +75,7 @@ static DSRowChunk AllocateChunk(HDSContext store, size_t size)
     memcpy(&page.m_FreeChunk, page.m_Data + offset, sizeof(page.m_FreeChunk));
     if (!--page.m_FreeCount)
         UnlinkFreePage(store, index);
-    return DSRowChunk { .m_Data = page.m_Data + offset, .m_Page = index, .m_Offset = offset };
+    return DSRowChunk { page.m_Data + offset, index, offset };
 }
 
 static void ReleaseChunk(HDSContext store, const DSRowChunk& chunk)

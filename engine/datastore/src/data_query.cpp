@@ -19,13 +19,15 @@
 
 DSQueryItem DSTag(const char* name)
 {
-    DSQueryItem tag = { .m_Hash = dmHashString64(name), .m_Kind = DS_QUERY_ITEM_TAG };
+    DSQueryItem tag = {};
+    tag.m_Hash = dmHashString64(name);
+    tag.m_Kind = DS_QUERY_ITEM_TAG;
     return tag;
 }
 
 DSQueryItem DSField(const char* name, DSValueType type, uint32_t access)
 {
-    DSQueryItem field = { .m_Hash = dmHashString64(name), .m_Type = type, .m_Access = access, .m_Kind = DS_QUERY_ITEM_FIELD };
+    DSQueryItem field = { dmHashString64(name), type, access, DS_QUERY_ITEM_FIELD };
     return field;
 }
 
@@ -98,7 +100,7 @@ void MatchTable(HDSQuery query, DSTable* table)
             return;
     }
 
-    DSQueryTable match = { .m_Table = table };
+    DSQueryTable match = { table };
     if (query->m_Fields.Size())
         match.m_Fields = AllocateQueryFields(query);
     for (uint32_t i = 0; i < query->m_Fields.Size(); ++i)
@@ -196,9 +198,9 @@ DSResult DSQueryCreate(HDSContext store, const DSQueryDesc* desc, HDSQuery* out_
         else
         {
             DSQueryFieldInfo field = {
-                .m_Field = item.m_Hash,
-                .m_Type = item.m_Type,
-                .m_Access = (uint8_t)item.m_Access
+                item.m_Hash,
+                item.m_Type,
+                (uint8_t)item.m_Access
             };
             query->m_Fields.Push(field);
             query->m_HasWrites |= field.m_Access == DS_FIELD_MUTABLE;
@@ -359,7 +361,7 @@ static bool CachedQueriesConflict(HDSQuery a, HDSQuery b)
         }
         return cached.m_Conflict;
     }
-    DSQueryConflict cached = { .m_Query = b, .m_Revision = b->m_MatchRevision, .m_Conflict = QueriesConflict(a, b) };
+    DSQueryConflict cached = { b, b->m_MatchRevision, QueriesConflict(a, b) };
     Reserve(a->m_Conflicts, a->m_Conflicts.Size() + 1);
     a->m_Conflicts.Push(cached);
     return cached.m_Conflict;
@@ -398,7 +400,7 @@ static void RefreshQueryRanges(HDSQuery query)
                         while (end < row && table->m_Rows[end].m_BaseIndex == table->m_Rows[first].m_BaseIndex + end - first)
                             ++end;
                     }
-                    DSQueryRange range = { .m_TableIndex = t, .m_Start = first, .m_Count = end - first, .m_First = query->m_RowCount };
+                    DSQueryRange range = { t, first, end - first, query->m_RowCount };
                     Reserve(query->m_Ranges, query->m_Ranges.Size() + 1);
                     query->m_Ranges.Push(range);
                     query->m_RowCount += range.m_Count;

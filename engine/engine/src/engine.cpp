@@ -1235,13 +1235,13 @@ namespace dmEngine
         if (dmConfigFile::GetInt(engine->m_Config, "engine.datastore", 1))
         {
             engine->m_DataStore = DSStoreCreate(0);
-            DSEventDesc event = { .m_Name = DS_EVENT_GAMEOBJECT_PRE_UPDATE };
+            DSEventDesc event = { DS_EVENT_GAMEOBJECT_PRE_UPDATE };
             DSEventAdd(engine->m_DataStore, &event);
-            event = { .m_Name = DS_EVENT_GAMEOBJECT_POST_UPDATE, .m_DependsOn = { DS_EVENT_GAMEOBJECT_PRE_UPDATE } };
+            event = { DS_EVENT_GAMEOBJECT_POST_UPDATE, { DS_EVENT_GAMEOBJECT_PRE_UPDATE } };
             DSEventAdd(engine->m_DataStore, &event);
 
             // Frame-critical queries must not wait behind resource streaming jobs.
-            JobSystemCreateParams datastore_jobs = { .m_ThreadNamePrefix = "Datastore", .m_ThreadCount = 2 };
+            JobSystemCreateParams datastore_jobs = { "Datastore", 2 };
             engine->m_DataStoreJobs = JobSystemCreate(&datastore_jobs);
         }
 

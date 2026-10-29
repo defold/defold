@@ -93,7 +93,7 @@ DSViewIterator DSViewIter(const DSValueView* view)
 {
     uint32_t count = 0;
     DSViewGetCount(view, &count);
-    DSViewIterator iterator = { .m_Parent = view, .m_Count = count };
+    DSViewIterator iterator = { view, 0, count };
     return iterator;
 }
 

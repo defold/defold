@@ -684,13 +684,13 @@ inline DSFieldMeta ReadFileFieldMeta(const uint8_t* metadata, uint32_t index)
 {
     const uint8_t* meta = metadata + (size_t)index * DATA_FIELD_META_SIZE;
     DSFieldMeta    result = {
-           .m_Field = ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_NameHash), 8),
-           .m_Type = (DSValueType)ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_Kind), 4),
-           .m_Offset = (uint32_t)ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_ByteOffset), 4),
-           .m_ChildIndex = (uint16_t)ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_ChildIndex), 2),
-           .m_ChildCount = (uint16_t)ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_ChildCount), 2),
-           .m_Size = (uint32_t)ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_ByteSize), 4),
-           .m_Name = ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_MemberNameHash), 8)
+        ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_NameHash), 8),
+        (DSValueType)ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_Kind), 4),
+        (uint32_t)ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_ByteOffset), 4),
+        (uint16_t)ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_ChildIndex), 2),
+        (uint16_t)ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_ChildCount), 2),
+        (uint32_t)ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_ByteSize), 4),
+        ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_MemberNameHash), 8)
     };
     return result;
 }

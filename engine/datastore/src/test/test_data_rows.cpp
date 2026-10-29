@@ -51,12 +51,12 @@ static DSResult RegisterStorageRows(HDSContext store)
 {
     // Declaration order differs from native offsets and query order.
     DSFieldDesc fields[] = {
-        { .m_Field = 4, .m_Type = DS_TYPE_UINT32, .m_Offset = offsetof(StorageRow, m_Color) },
-        { .m_Field = 1, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = offsetof(StorageRow, m_Enabled) },
-        { .m_Field = 2, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(StorageRow, m_Position) },
-        { .m_Field = 3, .m_Type = DS_TYPE_FLOAT, .m_Offset = offsetof(StorageRow, m_Health) }
+        { 4, DS_TYPE_UINT32, offsetof(StorageRow, m_Color) },
+        { 1, DS_TYPE_BOOLEAN, offsetof(StorageRow, m_Enabled) },
+        { 2, DS_TYPE_VECTOR3, offsetof(StorageRow, m_Position) },
+        { 3, DS_TYPE_FLOAT, offsetof(StorageRow, m_Health) }
     };
-    DSTableDesc table = { .m_Type = 100, .m_Fields = fields, .m_FieldCount = 4, .m_RowStride = sizeof(StorageRow), .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc table = { 100, 0, 0, fields, 4, sizeof(StorageRow), DS_RESET_RETAIN };
     return DSTableAdd(store, &table);
 }
 
@@ -68,11 +68,11 @@ TEST(DataRows, GrowthRangesRemovalAndReset)
     DSId       group = NextTestGroupId();
     ASSERT_EQ(DS_RESULT_OK, RegisterStorageRows(store));
     DSQueryItem fields[] = {
-        { .m_Hash = 3, .m_Type = DS_TYPE_FLOAT, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 2, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 4, .m_Type = DS_TYPE_UINT32, .m_Kind = DS_QUERY_ITEM_FIELD }
+        { 3, DS_TYPE_FLOAT, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD },
+        { 2, DS_TYPE_VECTOR3, 0, DS_QUERY_ITEM_FIELD },
+        { 4, DS_TYPE_UINT32, 0, DS_QUERY_ITEM_FIELD }
     };
-    DSQueryDesc desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { fields[0], fields[1], fields[2] } };
+    DSQueryDesc desc = { &group, 1, 0, { fields[0], fields[1], fields[2] } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     DSFieldId  health_field = DSQueryFindField(query, &fields[0]);
@@ -86,7 +86,7 @@ TEST(DataRows, GrowthRangesRemovalAndReset)
     uint8_t    enabled[33];
     for (uint32_t i = 0; i < 36; ++i)
     {
-        input[i] = { .m_Enabled = (uint8_t)(i & 1), .m_Position = { { (float)i, 2, 3 } }, .m_Health = 100.0f + i, .m_Color = UINT32_MAX - i };
+        input[i] = { (uint8_t)(i & 1), { { (float)i, 2, 3 } }, 100.0f + i, UINT32_MAX - i };
         if (i >= 3)
         {
             positions[i - 3] = input[i].m_Position;
@@ -151,20 +151,19 @@ TEST(DataRows, NativeRowPointers)
     DSId       group = NextTestGroupId();
     ASSERT_EQ(DS_RESULT_OK, RegisterStorageRows(store));
     StorageRow input[] = {
-        { .m_Position = { { 1, 2, 3 } }, .m_Health = 10, .m_Color = 11 },
-        { .m_Position = { { 4, 5, 6 } }, .m_Health = 20, .m_Color = 22 },
-        { .m_Position = { { 7, 8, 9 } }, .m_Health = 30, .m_Color = 33 }
+        { 0, { { 1, 2, 3 } }, 10, 11 },
+        { 0, { { 4, 5, 6 } }, 20, 22 },
+        { 0, { { 7, 8, 9 } }, 30, 33 }
     };
     DSId ids[3];
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 100, 0, 1, input, ids));
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 100, group, 2, input + 1, ids + 1));
     DSQueryDesc desc = {
-        .m_GroupIds = &group,
-        .m_GroupIdCount = 1,
-        .m_Flags = DS_ROW_MUTABLE,
-        .m_Items = {
-        { .m_Hash = 2, .m_Type = DS_TYPE_VECTOR3, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 3, .m_Type = DS_TYPE_FLOAT, .m_Kind = DS_QUERY_ITEM_FIELD } }
+        &group,
+        1,
+        DS_ROW_MUTABLE,
+        { { 2, DS_TYPE_VECTOR3, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD },
+          { 3, DS_TYPE_FLOAT, 0, DS_QUERY_ITEM_FIELD } }
     };
     HDSQuery query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
@@ -203,15 +202,15 @@ TEST(DataRows, NativeRowPointerFlags)
 {
     HDSContext store = DSStoreCreate(0);
     ASSERT_EQ(DS_RESULT_OK, RegisterStorageRows(store));
-    StorageRow input[] = { { .m_Health = 10 }, { .m_Health = 20 } };
+    StorageRow input[] = { { 0, {}, 10 }, { 0, {}, 20 } };
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 100, 0, 2, input, 0));
-    DSQueryItem health = { .m_Hash = 3, .m_Type = DS_TYPE_FLOAT, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryItem health_mut = { .m_Hash = 3, .m_Type = DS_TYPE_FLOAT, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
+    DSQueryItem health = { 3, DS_TYPE_FLOAT, 0, DS_QUERY_ITEM_FIELD };
+    DSQueryItem health_mut = { 3, DS_TYPE_FLOAT, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD };
     DSQueryDesc descriptions[] = {
         {},
-        { .m_Items = { health } },
-        { .m_Items = { health_mut } },
-        { .m_Flags = DS_ROW_MUTABLE }
+        { 0, 0, 0, { health } },
+        { 0, 0, 0, { health_mut } },
+        { 0, 0, DS_ROW_MUTABLE }
     };
     for (uint32_t i = 0; i < 4; ++i)
     {
@@ -247,16 +246,16 @@ TEST(DataRows, WholeRowReservations)
     ASSERT_EQ(DS_RESULT_OK, RegisterStorageRows(store));
     StorageRow value = {};
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 100, 0, 1, &value, 0));
-    DSQueryItem position = { .m_Hash = 2, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryItem position_mut = { .m_Hash = 2, .m_Type = DS_TYPE_VECTOR3, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryItem health = { .m_Hash = 3, .m_Type = DS_TYPE_FLOAT, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryItem health_mut = { .m_Hash = 3, .m_Type = DS_TYPE_FLOAT, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
+    DSQueryItem position = { 2, DS_TYPE_VECTOR3, 0, DS_QUERY_ITEM_FIELD };
+    DSQueryItem position_mut = { 2, DS_TYPE_VECTOR3, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD };
+    DSQueryItem health = { 3, DS_TYPE_FLOAT, 0, DS_QUERY_ITEM_FIELD };
+    DSQueryItem health_mut = { 3, DS_TYPE_FLOAT, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD };
     DSQueryDesc descriptions[] = {
-        { .m_Items = { position } },
-        { .m_Items = { position_mut } },
-        { .m_Items = { health } },
-        { .m_Items = { health_mut } },
-        { .m_Flags = DS_ROW_MUTABLE, .m_Items = { position } },
+        { 0, 0, 0, { position } },
+        { 0, 0, 0, { position_mut } },
+        { 0, 0, 0, { health } },
+        { 0, 0, 0, { health_mut } },
+        { 0, 0, DS_ROW_MUTABLE, { position } },
         {}
     };
     // Independent read/write sets: position=1, health=2, other row bytes=4.
@@ -284,7 +283,7 @@ TEST(DataRows, WholeRowReservations)
     }
     for (uint32_t i = 0; i < 6; ++i)
         ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(queries[i]));
-    DSQueryDesc invalid = { .m_Flags = 1 };
+    DSQueryDesc invalid = { 0, 0, 1 };
     HDSQuery    query = 0;
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSQueryCreate(store, &invalid, &query));
     invalid.m_Flags = UINT32_MAX;
@@ -304,10 +303,10 @@ TEST(DataRows, WholeRowGroupsAndTableChanges)
     for (uint32_t i = 0; i < 2; ++i)
     {
         ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 100, groups[i], 1, &value, 0));
-        DSQueryDesc desc = { .m_GroupIds = &groups[i], .m_GroupIdCount = 1, .m_Flags = DS_ROW_MUTABLE };
+        DSQueryDesc desc = { &groups[i], 1, DS_ROW_MUTABLE };
         ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &queries[i]));
     }
-    DSQueryDesc missing = { .m_Flags = DS_ROW_MUTABLE, .m_Items = { DSTag("other") } };
+    DSQueryDesc missing = { 0, 0, DS_ROW_MUTABLE, { DSTag("other") } };
     HDSQuery    other;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &missing, &other));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(queries[0]));
@@ -319,8 +318,8 @@ TEST(DataRows, WholeRowGroupsAndTableChanges)
     DSQueryEnd(queries[0]);
 
     uint64_t    tag = dmHashString64("other");
-    DSFieldDesc field = { .m_Field = 3, .m_Type = DS_TYPE_FLOAT, .m_Offset = offsetof(StorageRow, m_Health) };
-    DSTableDesc table = { .m_Type = 200, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(StorageRow) };
+    DSFieldDesc field = { 3, DS_TYPE_FLOAT, offsetof(StorageRow, m_Health) };
+    DSTableDesc table = { 200, &tag, 1, &field, 1, sizeof(StorageRow) };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 200, groups[0], 1, &value, 0));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(queries[0]));
@@ -346,27 +345,32 @@ TEST(DataRows, ReferencesInlineFieldsAndBlobRoundtrip)
 {
     HDSContext  store = DSStoreCreate(0);
     DSFieldDesc light_fields[] = {
-        { .m_Field = dmHashString64("color"), .m_Type = DS_TYPE_UINT32, .m_Offset = offsetof(StorageLight, m_Color), .m_Name = "color" },
-        { .m_Field = dmHashString64("direction"), .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(StorageLight, m_Direction), .m_Name = "direction" },
-        { .m_Field = dmHashString64("health"), .m_Type = DS_TYPE_FLOAT, .m_Offset = offsetof(StorageLight, m_Health), .m_Name = "health" }
+        { dmHashString64("color"), DS_TYPE_UINT32, offsetof(StorageLight, m_Color), 0, "color" },
+        { dmHashString64("direction"), DS_TYPE_VECTOR3, offsetof(StorageLight, m_Direction), 0, "direction" },
+        { dmHashString64("health"), DS_TYPE_FLOAT, offsetof(StorageLight, m_Health), 0, "health" }
     };
-    DSStructDesc light = { .m_Fields = light_fields, .m_FieldCount = 3, .m_Size = sizeof(StorageLight) };
+    DSStructDesc light = { light_fields, 3, sizeof(StorageLight) };
     DSFieldDesc  fields[] = {
-        { .m_Field = 1, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = offsetof(StorageReferences, m_Enabled) },
-        { .m_Field = dmHashString64("light"), .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(StorageReferences, m_Light), .m_Struct = &light, .m_Name = "light" },
-        { .m_Field = 3, .m_Type = DS_TYPE_STRING, .m_Offset = offsetof(StorageReferences, m_Name) },
-        { .m_Field = 4, .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(StorageReferences, m_Dynamic) },
-        { .m_Field = 5, .m_Type = DS_TYPE_LIST, .m_Offset = offsetof(StorageReferences, m_List) }
+        { 1, DS_TYPE_BOOLEAN, offsetof(StorageReferences, m_Enabled) },
+        { dmHashString64("light"), DS_TYPE_STRUCT, offsetof(StorageReferences, m_Light), &light, "light" },
+        { 3, DS_TYPE_STRING, offsetof(StorageReferences, m_Name) },
+        { 4, DS_TYPE_STRUCT, offsetof(StorageReferences, m_Dynamic) },
+        { 5, DS_TYPE_LIST, offsetof(StorageReferences, m_List) }
     };
-    DSTableDesc table = { .m_Type = 100, .m_Fields = fields, .m_FieldCount = 5, .m_RowStride = sizeof(StorageReferences), .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc table = { 100, 0, 0, fields, 5, sizeof(StorageReferences), DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
-    StorageLight      child = { .m_Color = UINT32_MAX, .m_Direction = { { 1, 2, 3 } }, .m_Health = -0.0f };
-    DSStructInput     dynamic = { .m_Layout = &light, .m_Values = &child };
+    StorageLight      child = { UINT32_MAX, { { 1, 2, 3 } }, -0.0f };
+    DSStructInput     dynamic = { &light, &child };
     DSValueType       kinds[] = { DS_TYPE_FLOAT, DS_TYPE_UINT32, DS_TYPE_STRUCT };
     const void*       payloads[] = { &child.m_Health, &child.m_Color, &dynamic };
-    DSListInput       list = { .m_Count = 3, .m_Values = payloads, .m_Types = kinds };
+    DSListInput       list = { DS_TYPE_NUMBER, 3, payloads, kinds };
     char              name[] = "school";
-    StorageReferences input = { .m_Enabled = 1, .m_Light = child, .m_Name = { .m_String = name }, .m_Dynamic = { .m_Struct = &dynamic }, .m_List = { .m_List = &list } };
+    StorageReferences input = {};
+    input.m_Enabled = 1;
+    input.m_Light = child;
+    input.m_Name.m_String = name;
+    input.m_Dynamic.m_Struct = &dynamic;
+    input.m_List.m_List = &list;
     DSId              id;
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 100, 0, 1, &input, &id));
     name[0] = 'X';
@@ -402,8 +406,8 @@ TEST(DataRows, ReferencesInlineFieldsAndBlobRoundtrip)
     HDSContext      loaded = DSStoreCreate(0);
     HDSBlobInstance instance;
     ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(loaded, blob, 0, &instance));
-    DSQueryItem query_field = { .m_Hash = dmHashString64("light.color"), .m_Type = DS_TYPE_UINT32, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc desc = { .m_Items = { query_field } };
+    DSQueryItem query_field = { dmHashString64("light.color"), DS_TYPE_UINT32, 0, DS_QUERY_ITEM_FIELD };
+    DSQueryDesc desc = { 0, 0, 0, { query_field } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(loaded, &desc, &query));
     DSFieldId field = DSQueryFindField(query, &query_field);
@@ -425,7 +429,7 @@ TEST(DataRows, ReferencesInlineFieldsAndBlobRoundtrip)
 TEST(DataRows, EmptyRows)
 {
     HDSContext  store = DSStoreCreate(0);
-    DSTableDesc table = { .m_Type = 1, .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc table = { 1, 0, 0, 0, 0, 0, DS_RESET_RETAIN };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSId ids[2];
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, 2, 0, ids));
@@ -441,15 +445,15 @@ TEST(DataRows, EmptyRows)
 TEST(DataRows, MixedTableQuery)
 {
     HDSContext  store = DSStoreCreate(0);
-    DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_FLOAT, .m_Offset = offsetof(StorageRow, m_Health) };
-    DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(StorageRow) };
+    DSFieldDesc field = { 1, DS_TYPE_FLOAT, offsetof(StorageRow, m_Health) };
+    DSTableDesc table = { 1, 0, 0, &field, 1, sizeof(StorageRow) };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     table.m_Type = 2;
     field.m_Offset = offsetof(StorageOtherRow, m_Health);
     table.m_RowStride = sizeof(StorageOtherRow);
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
-    DSQueryItem requested = { .m_Hash = 1, .m_Type = DS_TYPE_FLOAT, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc desc = { .m_Items = { requested } };
+    DSQueryItem requested = { 1, DS_TYPE_FLOAT, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD };
+    DSQueryDesc desc = { 0, 0, 0, { requested } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     DSFieldId       handle = DSQueryFindField(query, &requested);

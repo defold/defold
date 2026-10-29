@@ -254,8 +254,8 @@ static ExtensionResult DatastoreAppInitialize(ExtensionAppParams* params)
     if (!store)
         return EXTENSION_RESULT_INIT_ERROR;
 
-    DSFieldDesc field = { .m_Field = dmHashString64("health"), .m_Type = DS_TYPE_NUMBER };
-    DSTableDesc table = { .m_Type = dmHashString64("context_test"), .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double) };
+    DSFieldDesc field = { dmHashString64("health"), DS_TYPE_NUMBER };
+    DSTableDesc table = { dmHashString64("context_test"), 0, 0, &field, 1, sizeof(double) };
     double      health = 100.0;
     g_DatastoreContextTest.m_AppInitialize = DSTableAdd(store, &table) == DS_RESULT_OK &&
     DSRowCreate(store, table.m_Type, 0, 1, &health, &g_DatastoreContextTest.m_Row) == DS_RESULT_OK;
@@ -448,30 +448,33 @@ static void TestDatastoreUpdateStages(bool threaded, bool block_streaming)
     HJobContext original_jobs = engine->m_DataStoreJobs;
     if (!threaded)
     {
-        JobSystemCreateParams jobs = { .m_ThreadNamePrefix = "DSTest", .m_ThreadCount = 0 };
+        JobSystemCreateParams jobs = { "DSTest", 0 };
         engine->m_DataStoreJobs = JobSystemCreate(&jobs);
     }
 
     HDSContext  store = engine->m_DataStore;
-    DSFieldDesc field = { .m_Field = dmHashString64("health"), .m_Type = DS_TYPE_NUMBER };
-    DSTableDesc table = { .m_Type = dmHashString64("scheduled_health"), .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(double) };
+    DSFieldDesc field = { dmHashString64("health"), DS_TYPE_NUMBER };
+    DSTableDesc table = { dmHashString64("scheduled_health"), 0, 0, &field, 1, sizeof(double) };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     double                health = 0.0;
-    DatastoreScheduleTest state = { .m_Store = store, .m_Valid = true };
+    DatastoreScheduleTest state = {};
+    state.m_Store = store;
+    state.m_Valid = true;
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, table.m_Type, 0, 1, &health, &state.m_Row));
-    DSQueryDesc desc = { .m_Items = { DSField("health", DS_TYPE_NUMBER, DS_FIELD_MUTABLE) } };
+    DSQueryDesc desc = {};
+    desc.m_Items[0] = DSField("health", DS_TYPE_NUMBER, DS_FIELD_MUTABLE);
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
     state.m_Field = DSQueryFindField(query, &desc.m_Items[0]);
 
-    DSEventDesc custom_event = { .m_Name = dmHashString64("test.manual_update") };
+    DSEventDesc custom_event = { dmHashString64("test.manual_update") };
     ASSERT_EQ(DS_RESULT_OK, DSEventAdd(store, &custom_event));
     DSSystemDesc functions[] = {
-        { .m_Name = dmHashString64("test.heal"), .m_DependsOn = { DS_EVENT_GAMEOBJECT_PRE_UPDATE }, .m_Query = query, .m_Process = UpdateScheduledHealth, .m_Context = &state },
-        { .m_Name = dmHashString64("test.read"), .m_DependsOn = { dmHashString64("test.heal") }, .m_Query = query, .m_Process = ReadScheduledHealth, .m_Context = &state },
-        { .m_Name = dmHashString64("test.post"), .m_DependsOn = { DS_EVENT_GAMEOBJECT_POST_UPDATE, dmHashString64("test.read") }, .m_Query = query, .m_Process = ReadScheduledPostUpdate, .m_Context = &state },
-        { .m_Name = dmHashString64("test.startup"), .m_Query = query, .m_Process = CountScheduledStartup, .m_Context = &state },
-        { .m_Name = dmHashString64("test.manual"), .m_DependsOn = { dmHashString64("test.manual_update") }, .m_Query = query, .m_Process = UnexpectedScheduledUpdate, .m_Context = &state }
+        { dmHashString64("test.heal"), { DS_EVENT_GAMEOBJECT_PRE_UPDATE }, query, UpdateScheduledHealth, &state },
+        { dmHashString64("test.read"), { dmHashString64("test.heal") }, query, ReadScheduledHealth, &state },
+        { dmHashString64("test.post"), { DS_EVENT_GAMEOBJECT_POST_UPDATE, dmHashString64("test.read") }, query, ReadScheduledPostUpdate, &state },
+        { dmHashString64("test.startup"), {}, query, CountScheduledStartup, &state },
+        { dmHashString64("test.manual"), { dmHashString64("test.manual_update") }, query, UnexpectedScheduledUpdate, &state }
     };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(functions); ++i)
         ASSERT_EQ(DS_RESULT_OK, DSFunctionAdd(store, &functions[i]));
@@ -489,7 +492,7 @@ static void TestDatastoreUpdateStages(bool threaded, bool block_streaming)
     {
         gate.m_Mutex = dmMutex::New();
         gate.m_Condition = dmConditionVariable::New();
-        Job  job = { .m_Process = BlockDatastoreStreamingJob, .m_Callback = CompleteDatastoreStreamingJob, .m_Context = &gate };
+        Job  job = { BlockDatastoreStreamingJob, CompleteDatastoreStreamingJob, &gate };
         HJob handle = JobSystemCreateJob(engine->m_JobThreadContext, &job);
         ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(engine->m_JobThreadContext, handle));
         DM_MUTEX_SCOPED_LOCK(gate.m_Mutex);

@@ -96,7 +96,7 @@ uint32_t DSTypeAlignment(DSValueType type)
 // there is no type tag alongside the scalar payload at buffer + offset.
 static DSValue ReadPackedValue(const uint8_t* buffer, DSValueType type, uint32_t offset)
 {
-    DSValue        value = { .m_Type = type };
+    DSValue        value = { type };
     const uint8_t* data = buffer + offset;
     switch (type)
     {
@@ -156,20 +156,18 @@ static DSValue ReadStoredValue(const DSTable* table, const DSFieldMeta& meta, co
 {
     if (meta.m_ChildIndex)
     {
-        DSStruct object = {
-            .m_Count = meta.m_ChildCount,
-            .m_Source = DS_STRUCT_INLINE,
-            .m_View = { .m_Buffer = bytes, .m_Offset = meta.m_ChildIndex, .m_FieldOffset = meta.m_Offset, .m_Table = table }
-        };
-        DSValue value = {
-            .m_Type = DS_TYPE_STRUCT,
-            .m_Value = { .m_Struct = object }
-        };
+        DSStruct object = {};
+        object.m_Count = meta.m_ChildCount;
+        object.m_Source = DS_STRUCT_INLINE;
+        object.m_View = { bytes, meta.m_ChildIndex, meta.m_Offset, table };
+        DSValue value = {};
+        value.m_Type = DS_TYPE_STRUCT;
+        value.m_Value.m_Struct = object;
         return value;
     }
     if (meta.m_Type == DS_TYPE_NULL)
     {
-        DSValue value = { .m_Type = DS_TYPE_NULL };
+        DSValue value = { DS_TYPE_NULL };
         return value;
     }
     if (meta.m_Type != DS_TYPE_STRING && meta.m_Type != DS_TYPE_STRUCT && meta.m_Type != DS_TYPE_LIST)
@@ -177,7 +175,9 @@ static DSValue ReadStoredValue(const DSTable* table, const DSFieldMeta& meta, co
     uint64_t reference = ReadDataInteger(bytes, 8);
     if (meta.m_Type == DS_TYPE_STRUCT && IsStructRow(reference))
     {
-        DSValue value = { .m_Type = DS_TYPE_STRUCT, .m_Value = { .m_Struct = ReadStructRow(table, reference) } };
+        DSValue value = {};
+        value.m_Type = DS_TYPE_STRUCT;
+        value.m_Value.m_Struct = ReadStructRow(table, reference);
         return value;
     }
     return (reference & 1) ? ReadPackedValue(table->m_Blob, meta.m_Type, (uint32_t)(reference >> 1)) :
@@ -192,7 +192,7 @@ static bool IsReference(DSValueType type)
 // Interpret caller-owned native input without allocating temporary value trees.
 static DSValue ReadNativeInput(DSValueType type, const DSStructDesc* layout, const uint8_t* bytes)
 {
-    DSValue value = { .m_Type = type };
+    DSValue value = { type };
     if (layout)
     {
         value.m_Value.m_Struct.m_Source = DS_STRUCT_NATIVE;
@@ -277,7 +277,7 @@ DSValue GetChildValue(DSValueType type, const DSValueData* value, uint32_t index
             uint32_t    size = DSTypeSize(type);
             if (size == UINT32_MAX || (size && !payload))
             {
-                DSValue invalid = { .m_Type = (DSValueType)UINT32_MAX };
+                DSValue invalid = { (DSValueType)UINT32_MAX };
                 return invalid;
             }
             DSReference reference = {};
@@ -305,7 +305,9 @@ DSValue GetChildValue(DSValueType type, const DSValueData* value, uint32_t index
     {
         const DSStructTable* child_table = object->m_View.m_StructTable;
         const DSStructField& field = child_table->m_Fields[index];
-        DSFieldMeta          meta = { .m_Type = field.m_Type, .m_Size = DSTypeSize(field.m_Type) };
+        DSFieldMeta          meta = {};
+        meta.m_Type = field.m_Type;
+        meta.m_Size = DSTypeSize(field.m_Type);
         const uint8_t*       bytes = child_table->m_Values.Begin() + (size_t)object->m_View.m_Offset * child_table->m_RowStride + field.m_Offset;
         return ReadStoredValue(object->m_View.m_Table, meta, bytes);
     }
@@ -317,7 +319,7 @@ DSValue GetChildValue(DSValueType type, const DSValueData* value, uint32_t index
     }
     if (named && object->m_Source == DS_STRUCT_ARRAY)
     {
-        DSValue child = { .m_Type = object->m_Array.m_Types[index], .m_Value = object->m_Array.m_Values[index] };
+        DSValue child = { object->m_Array.m_Types[index], object->m_Array.m_Values[index] };
         return child;
     }
     if (!named && !value->m_List.m_Buffer)
@@ -337,10 +339,9 @@ DSResult DSStructGetField(const DSStruct* object, uint64_t field, DSValue* out_v
     {
         if (GetChildName(object, i) == field)
         {
-            DSValue value = {
-                .m_Type = DS_TYPE_STRUCT,
-                .m_Value = { .m_Struct = *object }
-            };
+            DSValue value = {};
+            value.m_Type = DS_TYPE_STRUCT;
+            value.m_Value.m_Struct = *object;
             *out_value = GetChildValue(value.m_Type, &value.m_Value, i);
             return DS_RESULT_OK;
         }
@@ -352,10 +353,9 @@ DSResult DSListGetValue(const DSList* list, uint32_t index, DSValue* out_value)
 {
     if (index >= list->m_Count)
         return DS_RESULT_NOT_FOUND;
-    DSValue value = {
-        .m_Type = DS_TYPE_LIST,
-        .m_Value = { .m_List = *list }
-    };
+    DSValue value = {};
+    value.m_Type = DS_TYPE_LIST;
+    value.m_Value.m_List = *list;
     *out_value = GetChildValue(value.m_Type, &value.m_Value, index);
     return DS_RESULT_OK;
 }
@@ -1160,8 +1160,8 @@ DSResult DSFieldGetNumberBatch(HDSContext store, uint32_t count, const DSId* ids
 DSResult DSFieldSetNumber(HDSContext store, DSId id, uint64_t field, double value)
 {
     DSValue input = {
-        .m_Type = DS_TYPE_NUMBER,
-        .m_Value = { .m_Number = value }
+        DS_TYPE_NUMBER,
+        { value }
     };
     return DSFieldSet(store, id, field, &input);
 }
@@ -1178,10 +1178,9 @@ DSResult DSFieldGetFloatBatch(HDSContext store, uint32_t count, const DSId* ids,
 
 DSResult DSFieldSetFloat(HDSContext store, DSId id, uint64_t field, float value)
 {
-    DSValue input = {
-        .m_Type = DS_TYPE_FLOAT,
-        .m_Value = { .m_Float = value }
-    };
+    DSValue input = {};
+    input.m_Type = DS_TYPE_FLOAT;
+    input.m_Value.m_Float = value;
     return DSFieldSet(store, id, field, &input);
 }
 
@@ -1197,10 +1196,9 @@ DSResult DSFieldGetUInt32Batch(HDSContext store, uint32_t count, const DSId* ids
 
 DSResult DSFieldSetUInt32(HDSContext store, DSId id, uint64_t field, uint32_t value)
 {
-    DSValue input = {
-        .m_Type = DS_TYPE_UINT32,
-        .m_Value = { .m_UInt32 = value }
-    };
+    DSValue input = {};
+    input.m_Type = DS_TYPE_UINT32;
+    input.m_Value.m_UInt32 = value;
     return DSFieldSet(store, id, field, &input);
 }
 
@@ -1216,10 +1214,9 @@ DSResult DSFieldGetBooleanBatch(HDSContext store, uint32_t count, const DSId* id
 
 DSResult DSFieldSetBoolean(HDSContext store, DSId id, uint64_t field, uint8_t value)
 {
-    DSValue input = {
-        .m_Type = DS_TYPE_BOOLEAN,
-        .m_Value = { .m_Boolean = value }
-    };
+    DSValue input = {};
+    input.m_Type = DS_TYPE_BOOLEAN;
+    input.m_Value.m_Boolean = value;
     return DSFieldSet(store, id, field, &input);
 }
 
@@ -1235,10 +1232,9 @@ DSResult DSFieldGetStringBatch(HDSContext store, uint32_t count, const DSId* ids
 
 DSResult DSFieldSetString(HDSContext store, DSId id, uint64_t field, const char* value)
 {
-    DSValue input = {
-        .m_Type = DS_TYPE_STRING,
-        .m_Value = { .m_String = value }
-    };
+    DSValue input = {};
+    input.m_Type = DS_TYPE_STRING;
+    input.m_Value.m_String = value;
     return DSFieldSet(store, id, field, &input);
 }
 
@@ -1254,7 +1250,7 @@ DSResult DSFieldGetVector3Batch(HDSContext store, uint32_t count, const DSId* id
 
 DSResult DSFieldSetVector3(HDSContext store, DSId id, uint64_t field, const DSVector3* value)
 {
-    DSValue input = { .m_Type = DS_TYPE_VECTOR3 };
+    DSValue input = { DS_TYPE_VECTOR3 };
     memcpy(input.m_Value.m_Vector3, value->m_Values, sizeof(value->m_Values));
     return DSFieldSet(store, id, field, &input);
 }
@@ -1271,7 +1267,7 @@ DSResult DSFieldGetVector4Batch(HDSContext store, uint32_t count, const DSId* id
 
 DSResult DSFieldSetVector4(HDSContext store, DSId id, uint64_t field, const DSVector4* value)
 {
-    DSValue input = { .m_Type = DS_TYPE_VECTOR4 };
+    DSValue input = { DS_TYPE_VECTOR4 };
     memcpy(input.m_Value.m_Vector4, value->m_Values, sizeof(value->m_Values));
     return DSFieldSet(store, id, field, &input);
 }
@@ -1288,7 +1284,7 @@ DSResult DSFieldGetMatrix4Batch(HDSContext store, uint32_t count, const DSId* id
 
 DSResult DSFieldSetMatrix4(HDSContext store, DSId id, uint64_t field, const DSMatrix4* value)
 {
-    DSValue input = { .m_Type = DS_TYPE_MATRIX4 };
+    DSValue input = { DS_TYPE_MATRIX4 };
     memcpy(input.m_Value.m_Matrix4, value->m_Values, sizeof(value->m_Values));
     return DSFieldSet(store, id, field, &input);
 }

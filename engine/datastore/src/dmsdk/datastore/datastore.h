@@ -398,7 +398,10 @@ extern "C"
 
     static inline DSRowIterator DSIterRows(const DSIterator* iterator)
     {
-        DSRowIterator rows = { .m_Parent = iterator, .m_Index = UINT32_MAX };
+        DSRowIterator rows;
+        rows.m_Parent = iterator;
+        rows.m_Index = UINT32_MAX;
+        rows.m_NextRow = 0;
         return rows;
     }
 

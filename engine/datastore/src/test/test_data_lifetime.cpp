@@ -32,13 +32,18 @@ struct LifetimeAttributes
 static DSResult RegisterLifetimeTable(HDSContext store, DSResetPolicy reset)
 {
     DSFieldDesc fields[] = {
-        { .m_Field = 1, .m_Type = DS_TYPE_NUMBER, .m_Offset = offsetof(LifetimeRow, m_Health) },
-        { .m_Field = 2, .m_Type = DS_TYPE_STRING, .m_Offset = offsetof(LifetimeRow, m_Name) },
-        { .m_Field = 3, .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(LifetimeRow, m_Attributes) },
-        { .m_Field = 4, .m_Type = DS_TYPE_LIST, .m_Offset = offsetof(LifetimeRow, m_Loot) }
+        { 1, DS_TYPE_NUMBER, offsetof(LifetimeRow, m_Health) },
+        { 2, DS_TYPE_STRING, offsetof(LifetimeRow, m_Name) },
+        { 3, DS_TYPE_STRUCT, offsetof(LifetimeRow, m_Attributes) },
+        { 4, DS_TYPE_LIST, offsetof(LifetimeRow, m_Loot) }
     };
     DSTableDesc table = {
-        .m_Type = 1, .m_Fields = fields, .m_FieldCount = 4, .m_RowStride = sizeof(LifetimeRow)
+        1,
+        0,
+        0,
+        fields,
+        4,
+        sizeof(LifetimeRow)
     };
     if (reset)
         table.m_ResetPolicy = reset;
@@ -48,23 +53,28 @@ static DSResult RegisterLifetimeTable(HDSContext store, DSResetPolicy reset)
 static DSResult CreateLifetimeRows(HDSContext store, DSId group, DSId* ids, bool columns)
 {
     DSFieldDesc members[] = {
-        { .m_Field = 5, .m_Type = DS_TYPE_STRING, .m_Offset = offsetof(LifetimeAttributes, m_Faction) },
-        { .m_Field = 6, .m_Type = DS_TYPE_NUMBER, .m_Offset = offsetof(LifetimeAttributes, m_AlertRadius) }
+        { 5, DS_TYPE_STRING, offsetof(LifetimeAttributes, m_Faction) },
+        { 6, DS_TYPE_NUMBER, offsetof(LifetimeAttributes, m_AlertRadius) }
     };
-    DSStructDesc       layout = { .m_Fields = members, .m_FieldCount = 2, .m_Size = sizeof(LifetimeAttributes) };
-    LifetimeAttributes attributes = { .m_Faction = { .m_String = "guards" }, .m_AlertRadius = 25.0 };
-    DSStructInput      object = { .m_Layout = &layout, .m_Values = &attributes };
+    DSStructDesc       layout = { members, 2, sizeof(LifetimeAttributes) };
+    LifetimeAttributes attributes = { { "guards" }, 25.0 };
+    DSStructInput      object = { &layout, &attributes };
     double             amount = 15;
     const void*        values[] = { "health_pickup", &amount, &object, 0 };
     DSValueType        types[] = { DS_TYPE_STRING, DS_TYPE_NUMBER, DS_TYPE_STRUCT, DS_TYPE_NULL };
-    DSListInput        list = { .m_Count = 4, .m_Values = values, .m_Types = types };
-    LifetimeRow        row = {
-               .m_Health = 100, .m_Name = { .m_String = "guard" }, .m_Attributes = { .m_Struct = &object }, .m_Loot = { .m_List = &list }
-    };
+    DSListInput        list = { DS_TYPE_NUMBER, 4, values, types };
+    LifetimeRow        row = {};
+    row.m_Health = 100;
+    row.m_Name.m_String = "guard";
+    row.m_Attributes.m_Struct = &object;
+    row.m_Loot.m_List = &list;
     if (!columns)
         return DSRowCreate(store, 1, group, 1, &row, ids);
     DSFieldArray fields[] = {
-        { .m_Field = 4, .m_Values = &row.m_Loot }, { .m_Field = 3, .m_Values = &row.m_Attributes }, { .m_Field = 1, .m_Values = &row.m_Health }, { .m_Field = 2, .m_Values = &row.m_Name }
+        { 4, &row.m_Loot },
+        { 3, &row.m_Attributes },
+        { 1, &row.m_Health },
+        { 2, &row.m_Name }
     };
     return DSRowCreateSoA(store, 1, group, 1, 4, fields, ids);
 }
@@ -171,8 +181,8 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
             if (!history)
                 ASSERT_EQ(0u, stats.m_BaseRowBytes + stats.m_BaseCapacity);
 
-            DSQueryItem requested = { .m_Hash = 4, .m_Type = DS_TYPE_LIST, .m_Kind = DS_QUERY_ITEM_FIELD };
-            DSQueryDesc desc = { .m_Items = { requested } };
+            DSQueryItem requested = { 4, DS_TYPE_LIST, 0, DS_QUERY_ITEM_FIELD };
+            DSQueryDesc desc = { 0, 0, 0, { requested } };
             HDSQuery    query;
             ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
             DSFieldId loot = DSQueryFindField(query, &requested);
@@ -251,18 +261,21 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
 TEST(DataLifetime, ContainerIteratorEmptyAndNested)
 {
     HDSContext store = DSStoreCreate(0);
-    DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_LIST };
-    DSTableDesc table = { .m_Type = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference) };
+    DSFieldDesc field = { 1, DS_TYPE_LIST };
+    DSTableDesc table = { 1, 0, 0, &field, 1, sizeof(DSReference) };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
     DSListInput   empty = {};
     DSStructDesc  layout = {};
-    DSStructInput object = { .m_Layout = &layout };
+    DSStructInput object = { &layout };
     DSValueType   types[] = { DS_TYPE_LIST, DS_TYPE_STRUCT, DS_TYPE_NULL };
     const void*   values[] = { &empty, &object, 0 };
-    DSListInput   nested = { .m_Count = 3, .m_Values = values, .m_Types = types };
-    DSReference   references[] = { { .m_List = &nested }, { .m_List = &empty } };
-    DSListInput   list = { .m_Type = DS_TYPE_LIST, .m_Count = 2, .m_Values = references };
-    DSReference   row = { .m_List = &list };
+    DSListInput   nested = { DS_TYPE_NUMBER, 3, values, types };
+    DSReference   references[2] = {};
+    references[0].m_List = &nested;
+    references[1].m_List = &empty;
+    DSListInput   list = { DS_TYPE_LIST, 2, references };
+    DSReference   row = {};
+    row.m_List = &list;
     DSId          id;
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, 1, &row, &id));
     DSValueView parent, child, element;
@@ -339,11 +352,11 @@ TEST(DataLifetime, QueryCompatibilityCache)
 {
     HDSContext  store = DSStoreCreate(0);
     uint64_t    tags[] = { 1, 2 };
-    DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_NUMBER };
-    DSTableDesc table = { .m_Type = 1, .m_Tags = tags, .m_TagCount = 1, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = 8 };
+    DSFieldDesc field = { 1, DS_TYPE_NUMBER };
+    DSTableDesc table = { 1, tags, 1, &field, 1, 8 };
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
-    DSQueryItem requested = { .m_Hash = 1, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc desc = { .m_Items = { requested, { .m_Hash = tags[0], .m_Kind = DS_QUERY_ITEM_TAG } } };
+    DSQueryItem requested = { 1, DS_TYPE_NUMBER, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD };
+    DSQueryDesc desc = { 0, 0, 0, { requested, { tags[0], DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_TAG } } };
     HDSQuery    a, b;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &a));
     desc.m_Items[1].m_Hash = tags[1];
@@ -366,7 +379,7 @@ TEST(DataLifetime, QueryCompatibilityCache)
     ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(b));
     DSId      groups[] = { NextTestGroupId(), NextTestGroupId(), NextTestGroupId(), NextTestGroupId(), 0 };
     groups[4] = groups[1];
-    desc = { .m_GroupIds = groups, .m_GroupIdCount = 2, .m_Items = { requested } };
+    desc = { groups, 2, 0, { requested } };
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &a));
     desc.m_GroupIds = groups + 2;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &b));

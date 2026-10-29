@@ -99,7 +99,7 @@ static DSGroup* GetOrCreateGroup(HDSContext store, DSId id)
         uint32_t capacity = store->m_Groups.Capacity();
         store->m_Groups.SetCapacity(capacity ? capacity * 2 : 16);
     }
-    DSGroup entry = { .m_FirstSlot = INVALID_SLOT };
+    DSGroup entry = { INVALID_SLOT };
     store->m_Groups.Put(id, entry);
     return store->m_Groups.Get(id);
 }
@@ -198,7 +198,8 @@ static uint32_t AllocateSlot(HDSContext store, DSTable* table, uint32_t row)
     if (index == INVALID_SLOT)
     {
         index = store->m_Slots.Size();
-        DSSlot slot = { .m_Generation = 1 };
+        DSSlot slot = {};
+        slot.m_Generation = 1;
         store->m_Slots.Push(slot);
     }
     else
@@ -238,10 +239,10 @@ static void AddRowSlots(HDSContext store, DSTable* table, const DSRowDesc* rows,
         slot->m_Table = table;
         slot->m_Row = first_row + i;
         DSRow row = {
-            .m_Group = rows ? rows[i].m_Group : group,
-            .m_ComponentId = rows ? rows[i].m_ComponentId : 0,
-            .m_Slot = index,
-            .m_BaseIndex = first_row + i
+            rows ? rows[i].m_Group : group,
+            rows ? rows[i].m_ComponentId : 0,
+            index,
+            first_row + i
         };
         output[i] = row;
         AddGroupRow(store, rows ? GetOrCreateGroup(store, row.m_Group) : owner, index);
@@ -390,13 +391,12 @@ static void CompileLayout(dmArray<DSFieldMeta>& metadata, const DSFieldDesc* fie
         HashState64 full_name;
         dmHashClone64(&full_name, &name, false);
         uint64_t    full_hash = dmHashFinal64(&full_name);
-        DSFieldMeta meta = {
-            .m_Field = prefix ? full_hash : field.m_Field,
-            .m_Type = field.m_Type,
-            .m_Offset = base_offset + field.m_Offset,
-            .m_Size = FieldSize(field),
-            .m_Name = field.m_Field
-        };
+        DSFieldMeta meta = {};
+        meta.m_Field = prefix ? full_hash : field.m_Field;
+        meta.m_Type = field.m_Type;
+        meta.m_Offset = base_offset + field.m_Offset;
+        meta.m_Size = FieldSize(field);
+        meta.m_Name = field.m_Field;
         if (field.m_Struct)
         {
             meta.m_ChildIndex = (uint16_t)metadata.Size();
@@ -544,7 +544,9 @@ DSResult DSTableAddView(HDSContext store, const DSTableDesc* desc, void* values,
     ReserveSlots(store, row_count);
     for (uint32_t i = 0; i < row_count; ++i)
     {
-        DSRow row = { .m_Slot = AllocateSlot(store, table, i), .m_BaseIndex = indices ? indices[i] : i };
+        DSRow row = {};
+        row.m_Slot = AllocateSlot(store, table, i);
+        row.m_BaseIndex = indices ? indices[i] : i;
         table->m_Rows[i] = row;
         if (out_ids)
             out_ids[i] = MakeId(store, row.m_Slot);
@@ -704,12 +706,11 @@ static DSBlobPool* NewBlobPool(HDSContext store, HDSBlob blob)
     for (uint32_t t = 0; t < blob->m_TableCount; ++t)
     {
         const uint8_t* data = file + ReadDataInteger(file + DATA_TABLE_OFFSETS_OFFSET + t * 4, 4);
-        DSTableDesc    desc = {
-               .m_Type = ReadDataInteger(data + offsetof(DSTableHeader, m_TypeHash), 8),
-               .m_TagCount = (uint32_t)ReadDataInteger(data + offsetof(DSTableHeader, m_TagCount), 2),
-               .m_FieldCount = (uint32_t)ReadDataInteger(data + offsetof(DSTableHeader, m_FieldCount), 2),
-               .m_RowStride = (uint32_t)ReadDataInteger(data + offsetof(DSTableHeader, m_RowStride), 4)
-        };
+        DSTableDesc    desc = {};
+        desc.m_Type = ReadDataInteger(data + offsetof(DSTableHeader, m_TypeHash), 8);
+        desc.m_TagCount = (uint32_t)ReadDataInteger(data + offsetof(DSTableHeader, m_TagCount), 2);
+        desc.m_FieldCount = (uint32_t)ReadDataInteger(data + offsetof(DSTableHeader, m_FieldCount), 2);
+        desc.m_RowStride = (uint32_t)ReadDataInteger(data + offsetof(DSTableHeader, m_RowStride), 4);
         uint32_t       count = (uint32_t)ReadDataInteger(data + offsetof(DSTableHeader, m_RowCount), 4);
         DSTable*       table = NewTable(store, &desc, pool, data, new (GetPoolTable(pool, t)) DSTable);
         const uint8_t* records = data + DATA_TABLE_HEADER_SIZE + desc.m_TagCount * 8 + table->m_MetadataCount * DATA_FIELD_META_SIZE;
@@ -885,11 +886,11 @@ DSResult DSBlobRemove(HDSBlobInstance instance)
 DSResult DSRowAdd(HDSContext store, uint64_t type, DSId group, const DSValueType* types, const DSValueData* values, uint32_t value_count, DSId* out_id, uint64_t component_id)
 {
     DSRowDesc row = {
-        .m_Group = group,
-        .m_Types = types,
-        .m_Values = values,
-        .m_ValueCount = value_count,
-        .m_ComponentId = component_id
+        group,
+        types,
+        values,
+        value_count,
+        component_id
     };
     return DSRowAddBatch(store, type, &row, 1, out_id);
 }
@@ -1047,7 +1048,7 @@ DSResult DSRowCreateSoA(HDSContext store, uint64_t type, DSId group, uint32_t co
             if (result != DS_RESULT_OK)
                 return result;
         }
-        columns[index] = { .m_Values = values, .m_Offset = meta.m_Offset, .m_Size = meta.m_Size };
+        columns[index] = { values, meta.m_Offset, meta.m_Size };
         field_bytes += meta.m_Size;
     }
 

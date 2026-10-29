@@ -24,17 +24,17 @@ struct ViewRow
 static DSResult RegisterView(HDSContext store, uint64_t type, ViewRow* values, uint32_t capacity, uint32_t count, const uint32_t* indices, DSId* ids)
 {
     DSFieldDesc fields[] = {
-        { .m_Field = 1, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(ViewRow, m_Position) },
-        { .m_Field = 2, .m_Type = DS_TYPE_FLOAT, .m_Offset = offsetof(ViewRow, m_Health) }
+        { 1, DS_TYPE_VECTOR3, offsetof(ViewRow, m_Position) },
+        { 2, DS_TYPE_FLOAT, offsetof(ViewRow, m_Health) }
     };
-    DSTableDesc desc = { .m_Type = type, .m_Tags = &type, .m_TagCount = 1, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(ViewRow) };
+    DSTableDesc desc = { type, &type, 1, fields, 2, sizeof(ViewRow) };
     return DSTableAddView(store, &desc, values, capacity, count, indices, ids);
 }
 
 static DSResult CreateViewQuery(HDSContext store, uint64_t tag, uint64_t field, uint32_t access, HDSQuery* query, DSFieldId* binding, uint32_t flags = 0)
 {
-    DSQueryItem required = { .m_Hash = field, .m_Type = field == 1 ? DS_TYPE_VECTOR3 : DS_TYPE_FLOAT, .m_Access = access, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc desc = { .m_Flags = flags, .m_Items = { required, { .m_Hash = tag, .m_Kind = DS_QUERY_ITEM_TAG } } };
+    DSQueryItem required = { field, field == 1 ? DS_TYPE_VECTOR3 : DS_TYPE_FLOAT, access, DS_QUERY_ITEM_FIELD };
+    DSQueryDesc desc = { 0, 0, flags, { required, { tag, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_TAG } } };
     DSResult    result = DSQueryCreate(store, &desc, query);
     if (result == DS_RESULT_OK)
         *binding = DSQueryFindField(*query, &required);
