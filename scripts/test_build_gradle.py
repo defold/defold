@@ -410,6 +410,40 @@ class GradleOutputTests(unittest.TestCase):
                 self.assertIn('worker exited with code 7', text)
                 self.assertNotIn('unrelated skipped-test output', text)
 
+    # Worker failure recovery must preserve recognized skipped-test errors while ordinary context stays bounded.
+    def test_failed_worker_keeps_long_skipped_test_errors(self):
+        for compiler_error in (False, True):
+            for worker_failed in (False, True):
+                with self.subTest(compiler_error=compiler_error, worker_failed=worker_failed):
+                    output, stream, log = self.reporter()
+                    output.on_output('> Task :crashes')
+                    output.on_output('ExampleTest > runs STANDARD_OUT')
+                    diagnostic = '    fixture.cpp:7: error: missing symbol'
+                    if compiler_error:
+                        output.on_output(diagnostic)
+                    for index in range(150):
+                        output.on_output(f'    compiler context {index}')
+                    output.on_output('ExampleTest > runs SKIPPED')
+                    if worker_failed:
+                        for line in ('Gradle Test Run :crashes FAILED',
+                                     '    org.gradle.process.ProcessExecutionException: worker exited with code 7',
+                                     '> Task :crashes FAILED'):
+                            output.on_output(line)
+                    output.finish(not worker_failed)
+                    text = stream.getvalue()
+                    if worker_failed:
+                        self.assertIn('compiler context 149', text)
+                        if compiler_error:
+                            self.assertEqual(1, text.count(diagnostic))
+                            self.assertIn('compiler context 0\n', text)
+                        else:
+                            self.assertNotIn('compiler context 0\n', text)
+                            self.assertLess(len(text.splitlines()), 115)
+                    else:
+                        self.assertNotIn('compiler context', text)
+                        self.assertNotIn(diagnostic, text)
+                    self.assertIn('compiler context 0\n', log.getvalue())
+
     # Test output keeps recognized compiler errors intact while bounding unstructured context in compact failures.
     def test_test_output_preserves_errors_and_bounds_context(self):
         for compiler_error in (False, True):

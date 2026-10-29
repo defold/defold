@@ -257,9 +257,10 @@ class GradleOutput(BuildOutput):
                     self.current_tests.pop(self.current_task)
                 previous = self.test_output.pop(key, None)
                 if status == 'SKIPPED' and previous is not None:
-                    # Worker crashes also produce SKIPPED results; retain bounded context for a run failure.
-                    skipped = self.skipped_test_output.setdefault(self.current_task, deque(maxlen=100))
-                    skipped.extend(previous.lines())
+                    # Worker crashes also produce SKIPPED results; retain errors and bounded context for a run failure.
+                    skipped = self.skipped_test_output.setdefault(self.current_task, _DiagnosticBuffer())
+                    for line in previous.lines():
+                        skipped.append(line)
                     skipped.append(plain)
             else:
                 self.current_tests[self.current_task] = (test[1], status)
@@ -274,7 +275,9 @@ class GradleOutput(BuildOutput):
         if _GRADLE_TEST_RUN_FAILURE.match(plain):
             self.in_error = False
             self._start_error(plain, context=True)
-            self.errors.extend(self.skipped_test_output.pop(self.current_task, ()))
+            skipped = self.skipped_test_output.pop(self.current_task, None)
+            if skipped is not None:
+                self.errors.extend(skipped.lines())
             return
         if plain.startswith('FAILURE:'):
             self.summary_stream = is_stderr
