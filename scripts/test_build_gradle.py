@@ -429,10 +429,7 @@ class GradleOutputTests(unittest.TestCase):
         for marker_first in (False, True):
             with self.subTest(marker_first=marker_first):
                 output, stream, log = self.reporter()
-                marker = 'DEFOLD_TEST_SKIPPED ' + json.dumps({
-                    'task': ':crashes',
-                    'test': 'ExampleTest > expected 雪',
-                })
+                marker = 'DEFOLD_TEST_SKIPPED ' + json.dumps([':crashes', 'ExampleTest > expected 雪'])
                 output.on_output('> Task :crashes FAILED')
                 output.on_output('ExampleTest > expected 雪 STANDARD_OUT')
                 output.on_output('    error: expected skipped-test result')
@@ -442,9 +439,7 @@ class GradleOutputTests(unittest.TestCase):
                 if not marker_first:
                     output.on_output(marker)
                 # An ordinary skip in another task cannot suppress the interrupted test with the same name.
-                output.on_output('DEFOLD_TEST_SKIPPED ' + json.dumps({
-                    'task': ':other', 'test': 'ExampleTest > runs',
-                }))
+                output.on_output('DEFOLD_TEST_SKIPPED ' + json.dumps([':other', 'ExampleTest > runs']))
                 for line in ('ExampleTest > runs STANDARD_OUT', '    error: WORKER_ROOT_CAUSE missing symbol',
                              'ExampleTest > runs SKIPPED', 'Gradle Test Run :crashes FAILED',
                              '    org.gradle.process.ProcessExecutionException: worker exited with code 7'):
@@ -462,7 +457,7 @@ class GradleOutputTests(unittest.TestCase):
         output, stream, log = self.reporter()
         suite_test = 'AWrapperSuiteTest > SharedLeafTest > runs'
         for line in ('> Task :test', f'{suite_test} STANDARD_OUT', '    error: expected suite skip',
-                     'DEFOLD_TEST_SKIPPED ' + json.dumps({'task': ':test', 'test': suite_test}),
+                     'DEFOLD_TEST_SKIPPED ' + json.dumps([':test', suite_test]),
                      f'{suite_test} SKIPPED', 'SharedLeafTest > runs STANDARD_OUT',
                      '    error: DIRECT_TEST_ROOT_CAUSE missing library', 'SharedLeafTest > runs SKIPPED',
                      'Gradle Test Run :test FAILED', '    worker exited with code 7', '> Task :test FAILED'):
@@ -477,7 +472,7 @@ class GradleOutputTests(unittest.TestCase):
         for marker_first in (False, True):
             with self.subTest(marker_first=marker_first):
                 output, stream, log = self.reporter()
-                marker = 'DEFOLD_TEST_SKIPPED ' + json.dumps({'task': ':test', 'test': 'runs[0]'})
+                marker = 'DEFOLD_TEST_SKIPPED ' + json.dumps([':test', 'runs[0]'])
                 for line in ('> Task :test', 'runs[0] STANDARD_OUT', '    error: expected parameter skip'):
                     output.on_output(line)
                 if marker_first:
@@ -525,7 +520,7 @@ class GradleOutputTests(unittest.TestCase):
                 with self.subTest(marker_first=marker_first, has_output=has_output):
                     output, stream, _ = self.reporter()
                     name = 'RepeatedTest > runs'
-                    marker = 'DEFOLD_TEST_SKIPPED ' + json.dumps({'task': ':test', 'test': name})
+                    marker = 'DEFOLD_TEST_SKIPPED ' + json.dumps([':test', name])
                     output.on_output('> Task :test')
                     if has_output:
                         output.on_output(f'{name} STANDARD_OUT')
@@ -705,6 +700,47 @@ class GradleOutputTests(unittest.TestCase):
                 self.assertNotIn('test-private-value', text)
             self.assertIn('stdout ***', path.read_text())
             self.assertIn('stderr ***', stream.getvalue())
+
+    # Credentials matching metadata field names must not abort output parsing or restore expected skipped errors.
+    def test_skip_metadata_survives_credential_redaction(self):
+        for credential in ('task', 'test'):
+            with self.subTest(credential=credential), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'gradle.log'
+                stream = io.StringIO()
+                lines = ['> Task :test', 'ExampleTest > expected STANDARD_OUT',
+                         '    error: EXPECTED_NEGATIVE recovered result',
+                         'DEFOLD_TEST_SKIPPED ' + json.dumps([':test', 'ExampleTest > expected']),
+                         'ExampleTest > expected SKIPPED', 'ExampleTest > crashes STANDARD_OUT',
+                         '    error: WORKER_ROOT_CAUSE missing library', 'ExampleTest > crashes SKIPPED',
+                         'Gradle Test Run :test FAILED', '> Task :test FAILED']
+                records = '\n'.join(lines)
+                script = f'import sys; print({records!r}); sys.exit(7)'
+                with self.assertRaises(run.ExecException) as raised:
+                    build_output.command({**os.environ, 'BUILD_TOKEN': credential},
+                                         [sys.executable, '-c', script], 'Gradle fixture', path,
+                                         stream=stream, gradle=True)
+                self.assertEqual(7, raised.exception.retcode)
+                self.assertNotIn('EXPECTED_NEGATIVE', stream.getvalue())
+                self.assertIn('EXPECTED_NEGATIVE', path.read_text(encoding='utf-8'))
+                for text in (stream.getvalue(), path.read_text(encoding='utf-8'), raised.exception.output):
+                    self.assertIn('WORKER_ROOT_CAUSE', text)
+                self.assertNotIn(credential, path.read_text(encoding='utf-8'))
+
+    # Redaction can alter JSON punctuation too; a damaged internal record must not fail a successful build.
+    def test_redacted_metadata_syntax_does_not_abort_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'gradle.log'
+            stream = io.StringIO()
+            lines = ['> Task :test', 'ExampleTest > expected STANDARD_OUT',
+                     '    error: EXPECTED_NEGATIVE recovered result',
+                     'DEFOLD_TEST_SKIPPED ' + json.dumps([':test', 'ExampleTest > expected']),
+                     'ExampleTest > expected SKIPPED']
+            records = '\n'.join(lines)
+            build_output.command({**os.environ, 'BUILD_PASSWORD': '["'},
+                                 [sys.executable, '-c', f'print({records!r})'],
+                                 'Gradle fixture', path, stream=stream, gradle=True)
+            self.assertNotIn('EXPECTED_NEGATIVE', stream.getvalue())
+            self.assertIn('DEFOLD_TEST_SKIPPED ***', path.read_text(encoding='utf-8'))
 
 
 class GradleConfigurationTests(unittest.TestCase):

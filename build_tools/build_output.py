@@ -211,9 +211,15 @@ class GradleOutput(BuildOutput):
             return
         self.log_file.write(plain + '\n')
         if plain.startswith(_GRADLE_SKIPPED):
-            result = json.loads(plain[len(_GRADLE_SKIPPED):])
-            key = (result['task'], result['test'])
-            self.test_tasks.add(result['task'])
+            # Redaction can alter JSON syntax too; damaged metadata must not change the command's status.
+            try:
+                result = json.loads(plain[len(_GRADLE_SKIPPED):])
+            except json.JSONDecodeError:
+                return
+            if not isinstance(result, list) or len(result) != 2 or not all(isinstance(value, str) for value in result):
+                return
+            key = tuple(result)
+            self.test_tasks.add(key[0])
             if key not in self.completed_skips:
                 self.ordinary_skipped_tests.add(key)
             self.skipped_test_output.pop(key, None)
