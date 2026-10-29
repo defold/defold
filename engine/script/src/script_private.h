@@ -58,7 +58,7 @@ namespace dmScript
 
     struct Module
     {
-        char*       m_Script; // Borrowed from m_Resource when non-null; otherwise owned by this module.
+        char*       m_Script;
         uint32_t    m_ScriptSize;
         char*       m_Name;
         void*       m_Resource;

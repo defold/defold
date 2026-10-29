@@ -129,16 +129,9 @@ namespace dmScript
         uint32_t size;
         GetLuaSource(source, &buf, &size);
 
+        module.m_Script = (char*) malloc(size);
         module.m_ScriptSize = size;
-        if (resource != 0)
-        {
-            module.m_Script = (char*)buf;
-        }
-        else
-        {
-            module.m_Script = (char*)malloc(size);
-            memcpy(module.m_Script, buf, size);
-        }
+        memcpy(module.m_Script, buf, size);
 
         module.m_Resource = resource;
         module.m_Filename = strdup(source->m_Filename);
@@ -179,16 +172,9 @@ namespace dmScript
         uint32_t size;
         GetLuaSource(source, &buf, &size);
 
+        module->m_Script = (char*) realloc(module->m_Script, size);
         module->m_ScriptSize = size;
-        if (module->m_Resource != 0)
-        {
-            module->m_Script = (char*)buf;
-        }
-        else
-        {
-            module->m_Script = (char*)realloc(module->m_Script, size);
-            memcpy(module->m_Script, buf, size);
-        }
+        memcpy(module->m_Script, buf, size);
 
         if (LuaLoadModule(L, buf, size, module->m_Name))
         {
@@ -216,10 +202,7 @@ namespace dmScript
         if (value->m_Resource != 0) {
             dmResource::Release((dmResource::HFactory)context, value->m_Resource);
         }
-        else
-        {
-            free(value->m_Script);
-        }
+        free(value->m_Script);
         free(value->m_Name);
         free(value->m_Filename);
     }

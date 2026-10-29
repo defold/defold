@@ -528,7 +528,7 @@ namespace dmScript
     /**
      * Add (load) module
      * @param context script context
-     * @param source lua script to load
+     * @param source lua script to load; its executable bytes are copied
      * @param script_name script-name. Should be in lua require-format, i.e. syntax use for the require statement. e.g. x.y.z without any extension
      * @param resource the resource will be released throught the resource system at finalization
      * @param path_hash hashed path of the originating resource

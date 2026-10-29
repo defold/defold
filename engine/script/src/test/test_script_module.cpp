@@ -25,11 +25,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct ModuleResource
-{
-    char* m_Code;
-};
-
 class ScriptModuleTest : public dmScriptTest::ScriptTest
 {
     public:
@@ -48,18 +43,14 @@ class ScriptModuleTest : public dmScriptTest::ScriptTest
 
     static dmResource::Result CreateModuleResource(const dmResource::ResourceCreateParams* params)
     {
-        ModuleResource* resource = new ModuleResource;
-        resource->m_Code = strdup((const char*)params->m_Buffer);
-        ResourceDescriptorSetResource(params->m_Resource, resource);
+        ResourceDescriptorSetResource(params->m_Resource, strdup((const char*)params->m_Buffer));
         return dmResource::RESULT_OK;
     }
 
     static dmResource::Result DestroyModuleResource(const dmResource::ResourceDestroyParams* params)
     {
         ScriptModuleTest* test = (ScriptModuleTest*)params->m_Context;
-        ModuleResource* resource = (ModuleResource*)ResourceDescriptorGetResource(params->m_Resource);
-        free(resource->m_Code);
-        delete resource;
+        free(ResourceDescriptorGetResource(params->m_Resource));
         ++test->m_DestroyedResources;
         return dmResource::RESULT_OK;
     }
@@ -215,19 +206,21 @@ TEST_F(ScriptModuleTest, TestModuleNameHashCollision)
     ASSERT_FALSE(dmScript::ModuleLoaded(m_Context, (dmhash_t) 2));
 }
 
-// Resource-backed modules share code, keep the resource alive for deferred/repeated require, and release it once.
-TEST_F(ScriptModuleTest, TestResourceModuleSharesCode)
+// Direct-source modules copy caller input while retaining their resource for deferred and repeated require.
+TEST_F(ScriptModuleTest, TestResourceModuleOwnsCode)
 {
     char code[] = "return { value = 123 }";
-    ModuleResource* resource = 0;
+    char* resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_ResourceFactory, "/shared.module", code, sizeof(code), (void**)&resource));
     dmResource::IncRef(m_ResourceFactory, resource);
-    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, LuaSourceFromText(resource->m_Code), "shared_module", resource, dmHashString64("/shared.module")));
+    char* source = strdup(code);
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, LuaSourceFromText(source), "shared_module", resource, dmHashString64("/shared.module")));
     dmResource::Release(m_ResourceFactory, resource);
 
     ASSERT_EQ(0u, m_DestroyedResources);
-    ASSERT_EQ(resource->m_Code, m_Context->m_Modules.Get(dmHashString64("shared_module"))->m_Script);
+    memcpy(strstr(source, "123"), "456", 3);
     ASSERT_TRUE(RunString(L, "assert(require('shared_module').value == 123)"));
+    free(source);
     ASSERT_TRUE(RunString(L, "package.loaded.shared_module = nil; assert(require('shared_module').value == 123)"));
 
     dmScript::ClearModules(m_Context);
@@ -249,56 +242,54 @@ TEST_F(ScriptModuleTest, TestModuleWithoutResourceOwnsCode)
     ASSERT_TRUE(RunString(L, "package.loaded.owned_module = nil; assert(require('owned_module').value == 456)"));
 }
 
-// Reload switches borrowed code before the resource frees its previous allocation.
-TEST_F(ScriptModuleTest, TestResourceModuleReloadSharesNewCode)
+// Reload copies temporary input even when a resource reference is present.
+TEST_F(ScriptModuleTest, TestResourceModuleReloadOwnsCode)
 {
     char code[] = "return { value = 123 }";
     const dmhash_t path_hash = dmHashString64("/reload.module");
-    ModuleResource* resource = 0;
+    char* resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_ResourceFactory, "/reload.module", code, sizeof(code), (void**)&resource));
-    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, LuaSourceFromText(resource->m_Code), "reload_module", resource, path_hash));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, LuaSourceFromText(resource), "reload_module", resource, path_hash));
     ASSERT_TRUE(RunString(L, "assert(require('reload_module').value == 123)"));
 
-    char* old_code = resource->m_Code;
-    resource->m_Code = strdup("return { value = 456, reloaded = true }");
-    ASSERT_EQ(dmScript::RESULT_OK, dmScript::ReloadModule(m_Context, LuaSourceFromText(resource->m_Code), path_hash));
-    free(old_code);
-    ASSERT_EQ(resource->m_Code, m_Context->m_Modules.Get(dmHashString64("reload_module"))->m_Script);
+    char* source = strdup("return { value = 456, reloaded = true }");
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::ReloadModule(m_Context, LuaSourceFromText(source), path_hash));
+    memcpy(strstr(source, "456"), "789", 3);
+    ASSERT_TRUE(RunString(L, "package.loaded.reload_module = nil; assert(require('reload_module').value == 456)"));
+    free(source);
     ASSERT_TRUE(RunString(L, "package.loaded.reload_module = nil; assert(require('reload_module').value == 456)"));
 
     dmScript::ClearModules(m_Context);
     ASSERT_EQ(1u, m_DestroyedResources);
 }
 
-// Failed resource reload leaves the existing Lua module usable and never reallocates or frees borrowed code.
+// Failed reload preserves the existing Lua table after the caller frees its input.
 TEST_F(ScriptModuleTest, TestResourceModuleReloadFailure)
 {
     char code[] = "return { value = 123 }";
     const dmhash_t path_hash = dmHashString64("/invalid.module");
-    ModuleResource* resource = 0;
+    char* resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_ResourceFactory, "/invalid.module", code, sizeof(code), (void**)&resource));
-    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, LuaSourceFromText(resource->m_Code), "invalid_module", resource, path_hash));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, LuaSourceFromText(resource), "invalid_module", resource, path_hash));
     ASSERT_TRUE(RunString(L, "assert(require('invalid_module').value == 123)"));
 
-    char* old_code = resource->m_Code;
-    resource->m_Code = strdup("return {");
-    ASSERT_EQ(dmScript::RESULT_LUA_ERROR, dmScript::ReloadModule(m_Context, LuaSourceFromText(resource->m_Code), path_hash));
-    free(old_code);
-    ASSERT_EQ(resource->m_Code, m_Context->m_Modules.Get(dmHashString64("invalid_module"))->m_Script);
+    char* source = strdup("return {");
+    ASSERT_EQ(dmScript::RESULT_LUA_ERROR, dmScript::ReloadModule(m_Context, LuaSourceFromText(source), path_hash));
+    free(source);
     ASSERT_TRUE(RunString(L, "assert(require('invalid_module').value == 123)"));
 
     dmScript::ClearModules(m_Context);
     ASSERT_EQ(1u, m_DestroyedResources);
 }
 
-// Independent Lua contexts share resource code but retain separate module state and resource references.
-TEST_F(ScriptModuleTest, TestResourceModuleSharesCodeAcrossContexts)
+// Independent contexts retain their own module state and a reference to the same resource.
+TEST_F(ScriptModuleTest, TestResourceModuleIndependentContexts)
 {
     char code[] = "return { value = 123 }";
     const dmhash_t path_hash = dmHashString64("/contexts.module");
-    ModuleResource* resource = 0;
+    char* resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_ResourceFactory, "/contexts.module", code, sizeof(code), (void**)&resource));
-    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, LuaSourceFromText(resource->m_Code), "shared_module", resource, path_hash));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, LuaSourceFromText(resource), "shared_module", resource, path_hash));
 
     dmScript::ContextParams params = {};
     params.m_ConfigFile = m_ConfigFile;
@@ -307,8 +298,7 @@ TEST_F(ScriptModuleTest, TestResourceModuleSharesCodeAcrossContexts)
     dmScript::Initialize(other_context);
     lua_State* other_state = dmScript::GetLuaState(other_context);
     dmResource::IncRef(m_ResourceFactory, resource);
-    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(other_context, LuaSourceFromText(resource->m_Code), "shared_module", resource, path_hash));
-    ASSERT_EQ(resource->m_Code, other_context->m_Modules.Get(dmHashString64("shared_module"))->m_Script);
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(other_context, LuaSourceFromText(resource), "shared_module", resource, path_hash));
     ASSERT_TRUE(RunString(L, "require('shared_module').value = 456"));
     ASSERT_TRUE(RunString(other_state, "assert(require('shared_module').value == 123)"));
 
