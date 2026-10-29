@@ -4111,7 +4111,7 @@ namespace dmGui
         int order = luaL_checkinteger(L, 1);
         // NOTE: The range reflects the current bits allocated in RenderKey for order
         if (order < 0 || order > 15) {
-            dmLogWarning("Render must be in range [0,15]");
+            dmLogWarning("GUI render order %d is outside [0, 15]; clamping to %d.", order, dmMath::Clamp(order, 0, 15));
         }
         order = dmMath::Clamp(order, 0, 15);
         scene->m_RenderOrder = (uint16_t) order;

@@ -4,6 +4,26 @@
 
 Follow current code style as defined in `.clang-format`, or follow the existing style of the file you're editing.
 
+## Diagnostic messages
+
+Use consistent wording for equivalent errors and warnings. Prefer these patterns:
+
+* Operation failure: `Failed to <operation> '<resource>': <reason> (result: <code>).`
+* Invalid input: `Invalid <parameter> <value>; expected <constraint>.`
+* Unsupported operation: `Cannot <operation> because <restriction>.`
+* Warning: `<Problem>. <Fallback or consequence>. <Corrective action, when available>.`
+
+Include the relevant resource, component, or API name, and expected and actual values when available.
+Report the actual failure result; use a readable result description alongside the code when possible.
+State confirmed causes directly and label possible causes as possibilities.
+Describe any clamping, fallback, or discarded work.
+Give a concrete corrective action when one is known, including the exact project setting where applicable.
+
+Use sentence case, terminal periods, and single quotes around paths, resource names, and settings.
+Keep API identifiers unchanged and use consistent terminology such as GUI, HTTP, and particle FX in prose.
+Prefer `cannot` and `does not` to contractions, and use `set up` as a verb.
+Avoid exclamation marks and speculative questions. Preserve externally supplied diagnostics and structured dumps.
+
 ## C-like C++
 
 _We also have a detailed blog post about our [code style](https://defold.com/2020/05/31/The-Defold-engine-code-style/)_

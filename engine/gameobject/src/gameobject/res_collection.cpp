@@ -49,7 +49,7 @@ namespace dmGameObject
         HCollection hcollection = NewCollection(collection_desc->m_Name, factory, regist, default_capacity, collection_desc);
         if (hcollection == 0)
         {
-            dmLogError("AcquireResources NewCollection RESULT_OUT_OF_RESOURCES");
+            dmLogError("Failed to create collection '%s' from resource '%s'.", collection_desc->m_Name, filename);
             return dmResource::RESULT_OUT_OF_RESOURCES;
         }
 

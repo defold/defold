@@ -238,7 +238,7 @@ namespace dmPhysics
     {
         if (!context->m_Worlds.Empty())
         {
-            dmLogWarning("Deleting %ud 2d worlds since the context is deleted.", context->m_Worlds.Size());
+            dmLogWarning("Deleting %u remaining 2D physics worlds because their context is being deleted.", context->m_Worlds.Size());
             for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
                 delete context->m_Worlds[i];
         }
