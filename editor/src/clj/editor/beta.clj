@@ -131,8 +131,6 @@
              :buttons [{:text (localization/message "beta.dialog.button.later")
                         :cancel-button true
                         :result :later}
-                       {:text (localization/message "beta.button.do-not-suggest")
-                        :result :do-not-suggest}
                        {:text (localization/message "beta.dialog.button.download")
                         :default-button true
                         :result :download}]}
@@ -160,7 +158,7 @@
 (defn try!
   "Offers to open the beta download link in the web browser. Returns the future
   doing so, or nil if disabled or already busy."
-  [session source ^Stage stage notifications-node project prefs localization render-progress!]
+  [session source ^Stage stage notifications-node project localization render-progress!]
   (when (and (try-enabled? session source) (claim! session :busy))
     (future
       (try
@@ -172,16 +170,9 @@
             (try
               (when (.isShowing stage)
                 (if newer
-                  (case (confirm-download! stage project localization version markdown true)
-                    :download
-                    (do (ui/open-url (download-url source (:sha1 info)))
-                        (notifications/close! notifications-node ::suggestion))
-
-                    :do-not-suggest
-                    (do (prefs/set! prefs [:versioning :beta-suggestions-disabled] true)
-                        (notifications/close! notifications-node ::suggestion))
-
-                    nil)
+                  (when (= :download (confirm-download! stage project localization version markdown true))
+                    (ui/open-url (download-url source (:sha1 info)))
+                    (notifications/close! notifications-node ::suggestion))
                   (dialogs/make-info-dialog
                     localization
                     {:title (localization/message "beta.dialog.title")
@@ -213,6 +204,6 @@
                :id ::suggestion
                :message (localization/message "beta.notification.available" {"version" (:version info)})
                :actions [{:message (localization/message "beta.notification.try-it")
-                          :on-action #(try! session source stage notifications-node project prefs localization render-progress!)}
+                          :on-action #(try! session source stage notifications-node project localization render-progress!)}
                          {:message (localization/message "beta.button.do-not-suggest")
                           :on-action #(prefs/set! prefs [:versioning :beta-suggestions-disabled] true)}]})))))))

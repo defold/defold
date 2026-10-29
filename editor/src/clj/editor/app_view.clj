@@ -2914,8 +2914,8 @@
     (and (beta/try-active? (beta/release-source))
          (some? (g/node-value changes-view :git evaluation-context))))
   (enabled? [] (beta/try-enabled? beta/session (beta/release-source)))
-  (run [workspace project main-stage prefs localization]
-    (beta/try! beta/session (beta/release-source) main-stage (workspace/notifications workspace) project prefs localization (make-render-task-progress :beta-check))))
+  (run [workspace project main-stage localization]
+    (beta/try! beta/session (beta/release-source) main-stage (workspace/notifications workspace) project localization (make-render-task-progress :beta-check))))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
   (let [basis (:basis evaluation-context)

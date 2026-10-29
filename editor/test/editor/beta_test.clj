@@ -102,8 +102,8 @@
 (defn- suggest! [session source stage notifications-node prefs]
   (beta/suggest! session source stage notifications-node nil :git prefs nil progress/null-render-progress!))
 
-(defn- try! [session source stage prefs render-progress!]
-  (beta/try! session source stage nil nil prefs nil render-progress!))
+(defn- try! [session source stage render-progress!]
+  (beta/try! session source stage nil nil nil render-progress!))
 
 ;; Verifies download links point to the beta archive, with a .dmg on macOS so
 ;; the app signature stays intact and a .zip elsewhere.
@@ -335,7 +335,7 @@
     (is (not (beta/try-active? (assoc source :channel "beta"))))
     (is (not (beta/try-active? (assoc source :platform Platform/WasmWeb))))
     (is (not (beta/try-enabled? (beta/make-session) (assoc source :channel "alpha"))))
-    (is (nil? (try! (beta/make-session) (assoc source :channel "beta") (make-hidden-stage) (make-temp-prefs) progress/null-render-progress!)))))
+    (is (nil? (try! (beta/make-session) (assoc source :channel "beta") (make-hidden-stage) progress/null-render-progress!)))))
 
 ;; Verifies the command is disabled while a check is in progress and becomes
 ;; available again afterwards, with progress shown and cleared, whether the
@@ -362,12 +362,11 @@
           (let [session (beta/make-session)
                 source (make-source server)
                 stage (make-hidden-stage)
-                prefs (make-temp-prefs)
-                check (try! session source stage prefs #(swap! progress conj %))]
+                check (try! session source stage #(swap! progress conj %))]
             (try
               (is (true? (deref started timeout-ms :timed-out)))
               (is (not (beta/try-enabled? session source)))
-              (is (nil? (try! session source stage prefs progress/null-render-progress!)))
+              (is (nil? (try! session source stage progress/null-render-progress!)))
               (finally
                 (deliver finish true)))
             (is (not= :timed-out (deref check timeout-ms :timed-out)))
