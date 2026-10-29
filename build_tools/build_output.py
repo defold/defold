@@ -167,6 +167,7 @@ class GradleOutput(BuildOutput):
         self.summary_section = False
         self.summary = []
         self.current_task = None
+        self.task_output = {}
         self.stderr_output = deque(maxlen=100)
         self.stderr_errors = []
 
@@ -205,6 +206,7 @@ class GradleOutput(BuildOutput):
         if task:
             same_task = self.current_task == task[1]
             self.current_task = task[1]
+            self.edge_output = self.task_output.setdefault(self.current_task, deque(maxlen=100))
             if self.phase != 'executing' and not self.errors and not self.summary:
                 self.phase = 'executing'
                 self.last_bucket = -1
@@ -212,11 +214,10 @@ class GradleOutput(BuildOutput):
             if task[2] == 'FAILED':
                 if not same_task:
                     self.in_error = False
-                    self.edge_output.clear()
-                self._start_error(plain, context=same_task)
+                self._start_error(plain, context=True)
+                self.task_output.pop(self.current_task)
             else:
                 self.in_error = False
-                self.edge_output.clear()
                 self.edge_output.append(plain)
             return
         test = _GRADLE_TEST.match(plain)

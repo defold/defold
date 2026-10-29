@@ -135,6 +135,47 @@ class GradleOutputTests(unittest.TestCase):
                 self.assertNotIn('Deprecated Gradle', text)
                 self.assertNotIn('--warning-mode', text)
 
+    # Returning to a failed parallel task must restore its own stdout context without successful task noise.
+    def test_interleaved_stdout_keeps_failed_task_context(self):
+        for repeated_header in (False, True):
+            with self.subTest(repeated_header=repeated_header):
+                output, stream, log = self.reporter()
+                for line in ('> Task :broken', 'Missing required native library: libshaderc_shared.dylib',
+                             '> Task :other', 'unrelated successful task output'):
+                    output.on_output(line)
+                if repeated_header:
+                    output.on_output('> Task :broken')
+                    output.on_output('    searched /sdk/lib')
+                output.on_output('> Task :broken FAILED')
+                for line in ('FAILURE: Build failed with an exception.', '* What went wrong:',
+                             "Execution failed for task ':broken'.", '> subprocess exited with code 1'):
+                    output.on_stderr(line)
+                output.finish(False)
+                text = stream.getvalue()
+                self.assertEqual(1, text.count('Missing required native library: libshaderc_shared.dylib'))
+                self.assertIn('> Task :broken FAILED', text)
+                self.assertIn('> subprocess exited with code 1', text)
+                if repeated_header:
+                    self.assertIn('    searched /sdk/lib', text)
+                self.assertNotIn('unrelated', text)
+                self.assertNotIn('> Task :other', text)
+                self.assertIn('unrelated successful task output', log.getvalue())
+
+    # Multiple failing tasks retain their separate excerpts without duplicating previously reported failures.
+    def test_interleaved_stdout_keeps_multiple_failed_tasks(self):
+        output, stream, _ = self.reporter()
+        for line in ('> Task :first', 'first native tool diagnostic', '> Task :second',
+                     'second native tool diagnostic', '> Task :successful', 'unrelated successful output',
+                     '> Task :first FAILED', '> Task :second FAILED'):
+            output.on_output(line)
+        output.finish(False)
+        text = stream.getvalue()
+        self.assertEqual(1, text.count('first native tool diagnostic'))
+        self.assertEqual(1, text.count('second native tool diagnostic'))
+        self.assertIn('> Task :first FAILED', text)
+        self.assertIn('> Task :second FAILED', text)
+        self.assertNotIn('unrelated', text)
+
     # Separate pipe readers can deliver stderr before Gradle attributes output to its first task.
     def test_stderr_diagnostics_before_first_task_header(self):
         for task_started in (False, True):
