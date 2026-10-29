@@ -144,6 +144,7 @@ namespace dmEngine
         bool                                        m_QuitOnEsc;
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
         bool                                        m_RunWhileIconified;
+        bool                                        m_UseHighRefreshRate;       // iOS: allow display link rates above 60 Hz
         uint32_t                                    m_SwapInterval;             // Swap interval requested by the application
         uint32_t                                    m_EffectiveSwapInterval;    // Swap interval currently applied to the graphics context
         uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt

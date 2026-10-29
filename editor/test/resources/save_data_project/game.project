@@ -103,6 +103,7 @@ transparent_graphics_context = 1
 
 [ios]
 home_indicator_mode = auto_hide
+use_high_refresh_rate = 1
 app_icon_76x76 = /referenced/images/diamond.png
 app_icon_152x152 = /referenced/images/diamond.png
 app_icon_167x167 = /referenced/images/diamond.png

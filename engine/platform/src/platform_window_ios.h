@@ -27,6 +27,9 @@ namespace dmPlatform
     bool GetSafeAreaiOS(HWindow window, WindowSafeArea* out);
     // Apply the project preference on the main thread after opening the window.
     void SetiOSHomeIndicatorMode(const char* mode);
+    // Requests the display link rate on the main thread. Rates above 60 Hz require
+    // use_high_refresh_rate; frequency 0 requests the display maximum.
+    void SetiOSFrameRate(bool use_high_refresh_rate, uint32_t frequency);
 }
 
 #endif // DM_PLATFORM_WINDOW_IOS_H

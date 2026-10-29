@@ -468,6 +468,7 @@ namespace dmEngine
     , m_QuitOnEsc(false)
     , m_ConnectionAppMode(false)
     , m_RunWhileIconified(false)
+    , m_UseHighRefreshRate(false)
     , m_SwapInterval(0)
     , m_EffectiveSwapInterval(~0U)
     , m_PreviousFrameTime(dmTime::GetMonotonicTime())
@@ -874,6 +875,10 @@ namespace dmEngine
         }
 
         engine->m_UpdateFrequency = validated_frequency;
+
+#if defined(DM_PLATFORM_IOS)
+        dmPlatform::SetiOSFrameRate(engine->m_UseHighRefreshRate, validated_frequency);
+#endif
 
         // Timing balances are measured in seconds and remain valid when the
         // frequency changes. Reset only the cadence, not elapsed time.
@@ -1350,6 +1355,9 @@ namespace dmEngine
 
 #if defined(DM_PLATFORM_IOS)
         dmPlatform::SetiOSHomeIndicatorMode(dmConfigFile::GetString(engine->m_Config, "ios.home_indicator_mode", "deferred"));
+        // Reset the rate a previous engine instance may have requested before a reboot
+        engine->m_UseHighRefreshRate = dmConfigFile::GetInt(engine->m_Config, "ios.use_high_refresh_rate", 0) != 0;
+        dmPlatform::SetiOSFrameRate(engine->m_UseHighRefreshRate, 0);
 #endif
 
         bool setting_vsync     = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true); // Deprecated
