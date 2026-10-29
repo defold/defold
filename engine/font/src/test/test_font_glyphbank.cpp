@@ -377,7 +377,9 @@ TEST(FontAlignment, CompiledFontMatchesPreviewAtEveryPivot)
         for (uint32_t vertex = 0; vertex < 42; ++vertex)
         {
             for (uint32_t axis = 0; axis < 2; ++axis)
+            {
                 max_difference = dmMath::Max(max_difference, fabsf(compiled.m_Vertices[vertex].m_Position[axis] - preview.m_Vertices[vertex].m_Position[axis]));
+            }
         }
         printf("pivot=%s compiled-preview=(%.6f, %.6f) max_error=%.6f px\n", FONT_ALIGNMENT_PIVOTS[pivot].m_Name,
                compiled.m_Vertices[0].m_Position[0] - preview.m_Vertices[0].m_Position[0],

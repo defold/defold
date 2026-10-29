@@ -92,15 +92,25 @@ struct FontAlignmentFixture
     ~FontAlignmentFixture()
     {
         for (uint32_t i = 0; i < m_GlyphCount; ++i)
+        {
             FontFreeGlyph(m_Font, &m_Glyphs[i]);
+        }
         if (m_Layout)
+        {
             TextLayoutRelease(m_Layout);
+        }
         if (m_Collection)
+        {
             FontCollectionDestroy(m_Collection);
+        }
         if (m_Font)
+        {
             FontDestroy(m_Font);
+        }
         if (m_Bank)
+        {
             dmDDF::FreeMessage(m_Bank);
+        }
     }
 };
 
@@ -110,7 +120,9 @@ static bool ResolveAlignmentGlyph(void* context, const TextGlyph& text, FontLayo
     for (uint32_t i = 0; i < fixture->m_GlyphCount; ++i)
     {
         if (fixture->m_Glyphs[i].m_GlyphIndex != text.m_GlyphIndex)
+        {
             continue;
+        }
         output->m_Glyph = &fixture->m_Glyphs[i];
         output->m_CellX = i * 32;
         output->m_CellY = 0;

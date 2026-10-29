@@ -64,7 +64,9 @@ static bool PushGlyph(void* data, uint32_t glyph)
     Capture* c = (Capture*)data;
     ++c->m_ClipDepth;
     if (c->m_Glyphs.Full())
+    {
         c->m_Glyphs.OffsetCapacity(32);
+    }
     c->m_Glyphs.Push(glyph);
     return !c->m_Reject;
 }
@@ -102,7 +104,9 @@ static bool Paint(void* data, const FontColrPaint* paint)
     for (uint32_t i = 0; i < paint->m_StopCount; ++i)
     {
         if (c->m_Stops.Full())
+        {
             c->m_Stops.OffsetCapacity(32);
+        }
         c->m_Stops.Push(paint->m_Stops[i]);
     }
     return !c->m_Reject;
@@ -375,7 +379,9 @@ TEST(FontColr, RejectsCyclesOffsetsAndUnsupportedPaints)
     ASSERT_FALSE(FontColrHasGlyph(&font, 42));
     ASSERT_FALSE(FontColrInitialize(&font, V0, sizeof(V0), CPAL, sizeof(CPAL) - 1));
     for (uint32_t size = 0; size < sizeof(V0); ++size)
+    {
         ASSERT_FALSE(FontColrInitialize(&font, V0, size, CPAL, sizeof(CPAL)));
+    }
 }
 
 // Radial gradients retain unsigned radii and glyph clip boxes stay balanced.
@@ -400,7 +406,9 @@ TEST(FontColr, RadialGradientAndClipBox)
     ASSERT_EQ(1u, c.m_LastPaint.m_Extend);
     const float points[] = { -10, 20, 32768, 110, -30, 65535 };
     for (uint32_t i = 0; i < 6; ++i)
+    {
         ASSERT_EQ(points[i], c.m_LastPaint.m_Points[i]);
+    }
     ASSERT_EQ(-20.0f, c.m_Box[0]);
     ASSERT_EQ(-30.0f, c.m_Box[1]);
     ASSERT_EQ(200.0f, c.m_Box[2]);
@@ -446,7 +454,9 @@ TEST(FontColr, StaticTransformFormats)
         ASSERT_EQ(FONT_RESULT_OK, FontColrPaintGlyph(&font, 42, &CALLBACKS, &c));
         ASSERT_EQ(1u, c.m_TransformCount);
         for (uint32_t j = 0; j < 6; ++j)
+        {
             ASSERT_NEAR(expected[i][j], c.m_Matrix[j], .0001f);
+        }
         ASSERT_EQ(0u, c.m_TransformDepth);
         ASSERT_EQ(0u, c.m_ClipDepth);
     }
@@ -460,7 +470,9 @@ static bool GetOutlineBox(void* data, uint32_t glyph, int32_t* x0, int32_t* y0, 
 static bool FixtureBox(void*, uint32_t glyph, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
 {
     if (glyph != 3 && glyph != 4)
+    {
         return false;
+    }
     *x0 = glyph == 3 ? -10 : 200;
     *y0 = glyph == 3 ? -20 : 10;
     *x1 = glyph == 3 ? 100 : 300;
@@ -543,7 +555,9 @@ TEST(FontColr, NotoEmojiLayersAndBounds)
     for (uint32_t id = 0; id <= 0xffff; ++id)
     {
         if (!FontColrHasGlyph(colr, id))
+        {
             continue;
+        }
         ++color_glyphs;
         Capture    graph;
         FontResult result = FontColrPaintGlyph(colr, id, &CALLBACKS, &graph);

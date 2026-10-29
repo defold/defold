@@ -376,7 +376,9 @@ static bool ReadTextFile(const char* path, dmArray<char>* output)
 {
     FILE* file = fopen(path, "rb");
     if (!file)
+    {
         return false;
+    }
     fseek(file, 0, SEEK_END);
     const long size = ftell(file);
     fseek(file, 0, SEEK_SET);
@@ -396,7 +398,9 @@ static bool ReadTextFile(const char* path, dmArray<char>* output)
 static void PushFontPath(Viewer* viewer, const char* path)
 {
     if (viewer->m_FontPaths.Full())
+    {
         viewer->m_FontPaths.OffsetCapacity(4);
+    }
     viewer->m_FontPaths.Push(path);
 }
 
@@ -408,15 +412,21 @@ static bool PushText(Viewer* viewer, const char* text, bool copy)
         const size_t size = strlen(text) + 1;
         char*        owned_text = (char*)malloc(size);
         if (!owned_text)
+        {
             return false;
+        }
         memcpy(owned_text, text, size);
         if (viewer->m_OwnedTexts.Full())
+        {
             viewer->m_OwnedTexts.OffsetCapacity(4);
+        }
         viewer->m_OwnedTexts.Push(owned_text);
         stored_text = owned_text;
     }
     if (viewer->m_Texts.Full())
+    {
         viewer->m_Texts.OffsetCapacity(4);
+    }
     viewer->m_Texts.Push(stored_text);
     return true;
 }
@@ -466,21 +476,31 @@ static bool ParseArguments(Viewer* viewer, int argc, char** argv)
         else if (strcmp(option, "-t") == 0)
         {
             if (!PushText(viewer, value, true))
+            {
                 return false;
+            }
         }
         else if (strcmp(option, "-tf") == 0)
         {
             if (!PushTextFile(viewer, value))
+            {
                 return false;
+            }
         }
         else if (strcmp(option, "--mode") == 0)
         {
             if (strcmp(value, "sdf") == 0)
+            {
                 viewer->m_Properties.m_RenderMode = FONT_VIEWER_RENDER_SDF;
+            }
             else if (strcmp(value, "bitmap") == 0)
+            {
                 viewer->m_Properties.m_RenderMode = FONT_VIEWER_RENDER_BITMAP;
+            }
             else if (strcmp(value, "vector") == 0)
+            {
                 viewer->m_Properties.m_RenderMode = FONT_VIEWER_RENDER_VECTOR;
+            }
             else
             {
                 dmLogError("Invalid render mode '%s'; expected sdf, bitmap or vector", value);
@@ -643,7 +663,9 @@ static bool InitializeEditorText(Viewer* viewer)
 
     uint32_t       size = style_length + closing_tags.Size() + 1;
     for (uint32_t i = 0; i < text_count; ++i)
+    {
         size += (uint32_t)strlen(use_defaults ? default_texts[i] : viewer->m_Texts[i]) + (i ? 2 : 0);
+    }
     viewer->m_EditorText.SetCapacity(size + 256);
     viewer->m_EditorText.SetSize(size);
     uint32_t offset = 0;
@@ -675,7 +697,9 @@ static bool InitializeEditorText(Viewer* viewer)
     viewer->m_MarkedText.SetSize(1);
     viewer->m_MarkedText[0] = 0;
     for (uint32_t i = 0; i < offset; ++i)
+    {
         viewer->m_Caret += ((uint8_t)viewer->m_EditorText[i] & 0xc0) != 0x80;
+    }
     viewer->m_SelectionAnchor = viewer->m_Caret;
     return true;
 }
@@ -691,7 +715,9 @@ static uint32_t CodepointToByteOffset(const dmArray<char>& text, uint32_t codepo
     {
         ++offset;
         while (offset < length && ((uint8_t)text[offset] & 0xc0) == 0x80)
+        {
             ++offset;
+        }
         ++codepoint;
     }
     return offset;
@@ -701,14 +727,18 @@ static uint32_t EditorCodepointCount(const Viewer* viewer)
 {
     uint32_t count = 0;
     for (uint32_t i = 0; i + 1 < viewer->m_EditorText.Size(); ++i)
+    {
         count += ((uint8_t)viewer->m_EditorText[i] & 0xc0) != 0x80;
+    }
     return count;
 }
 
 static bool DeleteSelection(Viewer* viewer)
 {
     if (viewer->m_Caret == viewer->m_SelectionAnchor)
+    {
         return false;
+    }
     const uint32_t first = dmMath::Min(viewer->m_Caret, viewer->m_SelectionAnchor);
     const uint32_t last = dmMath::Max(viewer->m_Caret, viewer->m_SelectionAnchor);
     const uint32_t first_byte = CodepointToByteOffset(viewer->m_EditorText, first);
@@ -729,7 +759,9 @@ static void SetMarkedText(Viewer* viewer, const char* text)
 {
     const uint32_t size = (uint32_t)strlen(text) + 1;
     if (viewer->m_MarkedText.Capacity() < size)
+    {
         viewer->m_MarkedText.SetCapacity(size + 32);
+    }
     viewer->m_MarkedText.SetSize(size);
     memcpy(viewer->m_MarkedText.Begin(), text, size);
     viewer->m_RebuildRequested = true;
@@ -742,7 +774,9 @@ static void UpdateLayoutText(Viewer* viewer)
     const uint32_t caret_byte = CodepointToByteOffset(viewer->m_EditorText, viewer->m_Caret);
     const uint32_t size = editor_length + marked_length + 1;
     if (viewer->m_LayoutText.Capacity() < size)
+    {
         viewer->m_LayoutText.SetCapacity(size + 256);
+    }
     viewer->m_LayoutText.SetSize(size);
     // Marked IME text is transient: shape it at the caret without committing it
     // to the editable buffer until the platform sends committed characters.
@@ -758,14 +792,18 @@ static void AppendEditorBytes(Viewer* viewer, const char* bytes, uint32_t byte_c
     const uint32_t old_size = viewer->m_EditorText.Size();
     const uint32_t caret_byte = CodepointToByteOffset(viewer->m_EditorText, viewer->m_Caret);
     if (viewer->m_EditorText.Capacity() < old_size + byte_count)
+    {
         viewer->m_EditorText.SetCapacity(old_size + byte_count + 256);
+    }
     viewer->m_EditorText.SetSize(old_size + byte_count);
     memmove(viewer->m_EditorText.Begin() + caret_byte + byte_count,
             viewer->m_EditorText.Begin() + caret_byte,
             old_size - caret_byte);
     memcpy(viewer->m_EditorText.Begin() + caret_byte, bytes, byte_count);
     for (uint32_t i = 0; i < byte_count; ++i)
+    {
         viewer->m_Caret += ((uint8_t)bytes[i] & 0xc0) != 0x80;
+    }
     viewer->m_SelectionAnchor = viewer->m_Caret;
     viewer->m_HasPreferredCaretX = false;
     viewer->m_ScrollCaretIntoViewRequested = true;
@@ -776,9 +814,13 @@ static void OnKeyboardChar(void* user_data, int codepoint)
 {
     Viewer* viewer = (Viewer*)user_data;
     if (!viewer->m_TextFieldFocused || codepoint < 32 || codepoint > 0x10ffff)
+    {
         return;
+    }
     if (viewer->m_MarkedText.Size() > 1)
+    {
         SetMarkedText(viewer, "");
+    }
     char     bytes[4];
     uint32_t count = 0;
     if (codepoint <= 0x7f)
@@ -810,13 +852,17 @@ static void OnKeyboardMarkedText(void* user_data, char* text)
 {
     Viewer* viewer = (Viewer*)user_data;
     if (viewer->m_TextFieldFocused)
+    {
         SetMarkedText(viewer, text ? text : "");
+    }
 }
 
 static void RemoveLastCodepoint(Viewer* viewer)
 {
     if (DeleteSelection(viewer) || viewer->m_Caret == 0)
+    {
         return;
+    }
     viewer->m_SelectionAnchor = viewer->m_Caret - 1;
     DeleteSelection(viewer);
 }
@@ -824,7 +870,9 @@ static void RemoveLastCodepoint(Viewer* viewer)
 static void RemoveNextCodepoint(Viewer* viewer)
 {
     if (DeleteSelection(viewer) || viewer->m_Caret >= EditorCodepointCount(viewer))
+    {
         return;
+    }
     viewer->m_SelectionAnchor = viewer->m_Caret + 1;
     DeleteSelection(viewer);
     viewer->m_RebuildRequested = true;
@@ -839,7 +887,9 @@ static void GetBitmapEffectWidths(Viewer* viewer, HTextLayout layout, const Text
 {
     *outline_width = *shadow_blur = 0.0f;
     if (!apply_properties || viewer->m_Properties.m_RenderMode != FONT_VIEWER_RENDER_BITMAP)
+    {
         return;
+    }
     const float         white[4] = { 1, 1, 1, 1 };
     TextGlyphRenderData data;
     TextLayoutGetGlyphRenderData(layout, glyph, white, &data, true);
@@ -856,7 +906,9 @@ static CachedGlyph* FindGlyph(Viewer* viewer, HTextLayout layout, const TextGlyp
         CachedGlyph& glyph = viewer->m_Glyphs[i];
         if (glyph.m_Font == text_glyph.m_Font && glyph.m_GlyphIndex == text_glyph.m_GlyphIndex && glyph.m_FontSize == font_size && glyph.m_ApplyProperties == apply_properties &&
             glyph.m_BitmapOutlineWidth == outline_width && glyph.m_BitmapShadowBlur == shadow_blur)
+        {
             return &glyph;
+        }
     }
     return 0;
 }
@@ -890,11 +942,15 @@ static bool AddLayoutGlyphs(Viewer* viewer, HTextLayout layout, float font_size,
         glyph.m_VectorGlyph = ~0u;
         if (viewer->m_Properties.m_RenderMode == FONT_VIEWER_RENDER_VECTOR &&
             !FontViewerVectorFontAddGlyph(viewer->m_VectorFont, glyph.m_Font, glyph.m_GlyphIndex, &glyph.m_VectorGlyph, &glyph.m_HasColor))
+        {
             return false;
+        }
         if (glyph.m_HasColor)
         {
             if (viewer->m_Glyphs.Full())
+            {
                 viewer->m_Glyphs.OffsetCapacity(32);
+            }
             viewer->m_Glyphs.Push(glyph);
             continue;
         }
@@ -925,7 +981,9 @@ static bool AddLayoutGlyphs(Viewer* viewer, HTextLayout layout, float font_size,
             return false;
         }
         if (viewer->m_Glyphs.Full())
+        {
             viewer->m_Glyphs.OffsetCapacity(32);
+        }
         viewer->m_Glyphs.Push(glyph);
     }
     return true;
@@ -1051,21 +1109,31 @@ static bool LoadViewerImage(Viewer* viewer, const char* path, ViewerImage** outp
     switch (image.m_Type)
     {
         case dmImage::TYPE_LUMINANCE:
+        {
             format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
             break;
+        }
         case dmImage::TYPE_LUMINANCE_ALPHA:
+        {
             format = dmGraphics::TEXTURE_FORMAT_LUMINANCE_ALPHA;
             break;
+        }
         case dmImage::TYPE_RGB:
+        {
             format = dmGraphics::TEXTURE_FORMAT_RGB;
             break;
+        }
         case dmImage::TYPE_RGBA:
+        {
             format = dmGraphics::TEXTURE_FORMAT_RGBA;
             break;
+        }
         default:
+        {
             dmImage::Free(&image);
 
             return false;
+        }
     }
 
     ViewerImage* resource = new ViewerImage;
@@ -1205,7 +1273,9 @@ static bool CreateLayout(Viewer* viewer, const char* text, uint32_t text_length,
     dmArray<uint32_t> codepoints;
     char*             copy = (char*)malloc(text_length + 1);
     if (!copy)
+    {
         return false;
+    }
     memcpy(copy, text, text_length);
     copy[text_length] = 0;
     TextToCodePoints(copy, codepoints);
@@ -1222,7 +1292,9 @@ static uint32_t CountVisibleGlyphs(HTextLayout layout)
     uint32_t   count = 0;
     TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
     for (uint32_t i = 0; i < TextLayoutGetGlyphCount(layout); ++i)
+    {
         count += dmUtf8::IsWhiteSpace(glyphs[i].m_Codepoint) || (glyphs[i].m_Flags & TEXT_GLYPH_FLAG_OBJECT) ? 0 : 1;
+    }
     return count;
 }
 
@@ -1366,7 +1438,9 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
     {
         TextLine& line = lines[line_index];
         if (!line.m_Length)
+        {
             continue;
+        }
         float first_x = text_glyphs[line.m_Index].m_X;
         for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
         {
@@ -1465,7 +1539,9 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
             uint32_t face_colors[4];
             FontPackGlyphFaceColors(glyph_render_data.m_FaceColors, face_colors);
             if (glyph->m_VectorGlyph != ~0u)
+            {
                 memset(face_colors, 0, sizeof(face_colors));
+            }
 
             FontGlyphVertexParams glyph_params;
             glyph_params.m_Glyph = &glyph->m_Glyph;
@@ -1514,7 +1590,9 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
                 FontApplySpatialGradient(gradient_config, line, text_glyph, bounds, quad, &spatial_cache, layers);
             }
             for (uint32_t layer = 0; layer < layer_count; ++layer)
+            {
                 ClipPackedQuad(viewer, *vertex_index + layer * layer_stride, clip_box);
+            }
             *vertex_index += 6;
         }
     }
@@ -1930,11 +2008,15 @@ static bool LoadFonts(Viewer* viewer)
     }
 
     if (viewer->m_Fonts.Full())
+    {
         viewer->m_Fonts.OffsetCapacity(1);
+    }
     viewer->m_EmojiFonts[0] = FontLoadFromMemory("NotoEmoji-Regular.ttf", FONTVIEWER_NOTO_EMOJI, FONTVIEWER_NOTO_EMOJI_SIZE, false);
     viewer->m_EmojiFonts[1] = FontLoadFromMemory("NotoColorEmoji-Regular.ttf", FONTVIEWER_NOTO_COLOR_EMOJI, FONTVIEWER_NOTO_COLOR_EMOJI_SIZE, false);
     if (!viewer->m_EmojiFonts[0] || !viewer->m_EmojiFonts[1])
+    {
         return false;
+    }
     viewer->m_Fonts.Push(viewer->m_EmojiFonts[viewer->m_Properties.m_RenderMode == FONT_VIEWER_RENDER_VECTOR]);
 
     for (uint32_t i = 0; i < viewer->m_Fonts.Size(); ++i)
@@ -1958,10 +2040,14 @@ static bool UpdateEmojiFont(Viewer* viewer)
     HFont  emoji_font = viewer->m_EmojiFonts[viewer->m_Properties.m_RenderMode == FONT_VIEWER_RENDER_VECTOR];
     HFont& current = viewer->m_Fonts[viewer->m_Fonts.Size() - 1];
     if (current == emoji_font)
+    {
         return true;
+    }
     FontCollectionRemoveFont(viewer->m_Collection, current);
     if (FontCollectionAddFont(viewer->m_Collection, emoji_font) != FONT_RESULT_OK)
+    {
         return false;
+    }
     current = emoji_font;
     UpdateLoadedFontText(viewer);
     return true;
@@ -2112,7 +2198,9 @@ static void PushClippedColorRectangle(Viewer* viewer, const FontViewerNuklearBox
     const float clipped_x1 = dmMath::Min(x + width, clip.m_X + clip.m_Width);
     const float clipped_y1 = dmMath::Min(y + height, clip.m_Y + clip.m_Height);
     if (clipped_x1 > clipped_x && clipped_y1 > clipped_y)
+    {
         PushColorRectangle(viewer, clipped_x, clipped_y, clipped_x1 - clipped_x, clipped_y1 - clipped_y, red, green, blue, alpha);
+    }
 }
 
 static bool PushLayout(Viewer* viewer, const char* text, uint32_t text_length, uint32_t text_offset, float x, float top, float font_size, float width, bool line_break, const FontViewerNuklearBox& clip_box, bool bold, bool apply_properties, bool legacy_layout, bool markup)
@@ -2174,7 +2262,9 @@ static uint32_t GetLineStartCluster(TextGlyph* glyphs, const TextLine& line)
 {
     uint32_t cluster = glyphs[line.m_Index].m_Cluster;
     for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
+    {
         cluster = dmMath::Min(cluster, (uint32_t)glyphs[i].m_Cluster);
+    }
     return cluster;
 }
 
@@ -2200,7 +2290,9 @@ static uint32_t GetGlyphEndCluster(TextGlyph* glyphs, const TextLine& line, uint
     {
         const uint32_t candidate = glyphs[i].m_Cluster;
         if (candidate > cluster)
+        {
             cluster_end = dmMath::Min(cluster_end, candidate);
+        }
     }
     return cluster_end;
 }
@@ -2226,7 +2318,9 @@ static uint32_t HitTestEditorText(Viewer* viewer, float mouse_x, float mouse_y)
     for (uint32_t i = 1; i < viewer->m_Layouts.Size(); ++i)
     {
         if (!IsEditorLayout(viewer, i) || !TextLayoutGetLineCount(viewer->m_Layouts[i]))
+        {
             continue;
+        }
         TextGlyph*  layout_glyphs = TextLayoutGetGlyphs(viewer->m_Layouts[i]);
         HFont       layout_font = TextLayoutGetGlyphCount(viewer->m_Layouts[i]) ? layout_glyphs[0].m_Font : viewer->m_Fonts[0];
         const float layout_scale = FontGetScaleFromSize(layout_font, viewer->m_LayoutSizes[i]);
@@ -2241,13 +2335,17 @@ static uint32_t HitTestEditorText(Viewer* viewer, float mouse_x, float mouse_y)
         }
     }
     if (!layout_index)
+    {
         return EditorCodepointCount(viewer);
+    }
     HTextLayout layout = viewer->m_Layouts[layout_index];
     TextGlyph*     glyphs = TextLayoutGetGlyphs(layout);
     TextLine*      lines = TextLayoutGetLines(layout);
     TextParagraph* paragraphs = TextLayoutGetParagraphs(layout);
     if (!TextLayoutGetLineCount(layout))
+    {
         return 0;
+    }
     HFont       font = TextLayoutGetGlyphCount(layout) ? glyphs[0].m_Font : viewer->m_Fonts[0];
     const float scale = FontGetScaleFromSize(font, viewer->m_LayoutSizes[layout_index]);
     const float ascent = FontGetAscent(font, scale);
@@ -2302,14 +2400,18 @@ static bool GetEditorCaretScreenPosition(Viewer* viewer, float* caret_x, float* 
     for (uint32_t layout_index = 1; layout_index < viewer->m_Layouts.Size(); ++layout_index)
     {
         if (!IsEditorLayout(viewer, layout_index))
+        {
             continue;
+        }
         HTextLayout layout = viewer->m_Layouts[layout_index];
         TextGlyph*     glyphs = TextLayoutGetGlyphs(layout);
         TextLine*      lines = TextLayoutGetLines(layout);
         TextParagraph* paragraphs = TextLayoutGetParagraphs(layout);
         const uint32_t line_count = TextLayoutGetLineCount(layout);
         if (!line_count || !TextLayoutGetGlyphCount(layout))
+        {
             continue;
+        }
         HFont       font = glyphs[0].m_Font;
         const float scale = FontGetScaleFromSize(font, viewer->m_LayoutSizes[layout_index]);
         const float ascent = FontGetAscent(font, scale);
@@ -2323,7 +2425,9 @@ static bool GetEditorCaretScreenPosition(Viewer* viewer, float* caret_x, float* 
                 const uint32_t text_offset = viewer->m_LayoutTextOffsets[layout_index];
                 const uint32_t empty_line_cluster = text_offset + GetEmptyLineCluster(glyphs, lines, line_index, line_count, EditorCodepointCount(viewer) - text_offset);
                 if (viewer->m_Caret != empty_line_cluster)
+                {
                     continue;
+                }
                 *caret_x = viewer->m_LayoutXs[layout_index];
                 const float text_top = WINDOW_HEIGHT - viewer->m_LayoutTops[layout_index];
                 *caret_y = text_top + (line_index + 0.5f) * *line_height;
@@ -2333,9 +2437,13 @@ static bool GetEditorCaretScreenPosition(Viewer* viewer, float* caret_x, float* 
             const uint32_t line_start = text_offset + GetLineStartCluster(glyphs, line);
             const uint32_t line_end = text_offset + GetLineEndCluster(glyphs, lines, line_index, line_count, EditorCodepointCount(viewer) - text_offset);
             if (viewer->m_Caret < line_start || viewer->m_Caret > line_end)
+            {
                 continue;
+            }
             if (viewer->m_Caret == line_end && line_index + 1 < line_count)
+            {
                 continue;
+            }
             float first_x = glyphs[line.m_Index].m_X;
             for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
             {
@@ -2349,7 +2457,9 @@ static bool GetEditorCaretScreenPosition(Viewer* viewer, float* caret_x, float* 
                 const uint32_t cluster = text_offset + glyphs[i].m_Cluster;
                 const uint32_t cluster_end = text_offset + GetGlyphEndCluster(glyphs, line, glyphs[i].m_Cluster, line_end - text_offset);
                 if (viewer->m_Caret < cluster || viewer->m_Caret > cluster_end)
+                {
                     continue;
+                }
                 const float width = dmMath::Max(glyphs[i].m_Width, viewer->m_LayoutSizes[layout_index] * 0.35f);
                 const float x = line_x + glyphs[i].m_X - first_x;
                 const float cluster_width = (float)dmMath::Max(1u, cluster_end - cluster);
@@ -2359,7 +2469,9 @@ static bool GetEditorCaretScreenPosition(Viewer* viewer, float* caret_x, float* 
                 break;
             }
             if (!caret_found)
+            {
                 continue;
+            }
             const float text_top = WINDOW_HEIGHT - viewer->m_LayoutTops[layout_index];
             *caret_y = text_top + (line_index + 0.5f) * *line_height;
             return true;
@@ -2374,7 +2486,9 @@ static bool ScrollEditorCaretIntoView(Viewer* viewer)
     float caret_y;
     float line_height;
     if (!GetEditorCaretScreenPosition(viewer, &caret_x, &caret_y, &line_height))
+    {
         return false;
+    }
     (void)caret_x;
     const FontViewerNuklearBox& text_field = viewer->m_NuklearLayout.m_TextField;
     const float visible_top = text_field.m_Y + 10.0f;
@@ -2383,13 +2497,19 @@ static bool ScrollEditorCaretIntoView(Viewer* viewer)
     const float caret_bottom = caret_y + line_height * 0.5f;
     float       scroll_y = viewer->m_TextScrollY;
     if (caret_top < visible_top)
+    {
         scroll_y -= visible_top - caret_top;
+    }
     else if (caret_bottom > visible_bottom)
+    {
         scroll_y += caret_bottom - visible_bottom;
+    }
     const float max_scroll_y = fmaxf(0.0f, viewer->m_NuklearLayout.m_TextContentHeight - viewer->m_NuklearLayout.m_TextViewportHeight);
     scroll_y = dmMath::Max(0.0f, dmMath::Min(max_scroll_y, scroll_y));
     if (fabsf(scroll_y - viewer->m_TextScrollY) < 0.5f)
+    {
         return false;
+    }
     viewer->m_TextScrollY = scroll_y;
     return true;
 }
@@ -2399,7 +2519,9 @@ static void MoveEditorCaret(Viewer* viewer, ArrowKey arrow_key, bool extend_sele
     const uint32_t codepoint_count = EditorCodepointCount(viewer);
     uint32_t       caret = viewer->m_Caret;
     if (arrow_key == ARROW_KEY_LEFT || arrow_key == ARROW_KEY_RIGHT)
+    {
         viewer->m_HasPreferredCaretX = false;
+    }
     if (!extend_selection && viewer->m_Caret != viewer->m_SelectionAnchor && arrow_key == ARROW_KEY_LEFT)
     {
         caret = dmMath::Min(viewer->m_Caret, viewer->m_SelectionAnchor);
@@ -2433,7 +2555,9 @@ static void MoveEditorCaret(Viewer* viewer, ArrowKey arrow_key, bool extend_sele
     }
     viewer->m_Caret = caret;
     if (!extend_selection)
+    {
         viewer->m_SelectionAnchor = caret;
+    }
     viewer->m_ScrollCaretIntoViewRequested = true;
     viewer->m_RenderUpdateRequested = true;
 }
@@ -2441,26 +2565,38 @@ static void MoveEditorCaret(Viewer* viewer, ArrowKey arrow_key, bool extend_sele
 static ArrowKey GetPressedArrowKey(const FontViewerMacOSInput& input)
 {
     if (input.m_LeftDown)
+    {
         return ARROW_KEY_LEFT;
+    }
     if (input.m_RightDown)
+    {
         return ARROW_KEY_RIGHT;
+    }
     if (input.m_UpDown)
+    {
         return ARROW_KEY_UP;
+    }
     if (input.m_DownDown)
+    {
         return ARROW_KEY_DOWN;
+    }
     return ARROW_KEY_NONE;
 }
 
 static void BuildEditorSelectionGeometry(Viewer* viewer)
 {
     if (!viewer->m_TextFieldFocused)
+    {
         return;
+    }
     const uint32_t       selection_first = dmMath::Min(viewer->m_Caret, viewer->m_SelectionAnchor);
     const uint32_t       selection_last = dmMath::Max(viewer->m_Caret, viewer->m_SelectionAnchor);
     for (uint32_t layout_index = 1; layout_index < viewer->m_Layouts.Size(); ++layout_index)
     {
         if (!IsEditorLayout(viewer, layout_index))
+        {
             continue;
+        }
         HTextLayout                 layout = viewer->m_Layouts[layout_index];
         TextGlyph*                  glyphs = TextLayoutGetGlyphs(layout);
         TextLine*                   lines = TextLayoutGetLines(layout);
@@ -2475,7 +2611,9 @@ static void BuildEditorSelectionGeometry(Viewer* viewer)
         {
             TextLine& line = lines[line_index];
             if (!line.m_Length)
+            {
                 continue;
+            }
             float first_x = glyphs[line.m_Index].m_X;
             for (uint32_t i = line.m_Index + 1; i < line.m_Index + line.m_Length; ++i)
             {
@@ -2490,7 +2628,9 @@ static void BuildEditorSelectionGeometry(Viewer* viewer)
                 const float    width = dmMath::Max(glyphs[i].m_Width, viewer->m_LayoutSizes[layout_index] * 0.35f);
                 const float    x = line_x + glyphs[i].m_X - first_x;
                 if (cluster >= selection_first && cluster < selection_last)
+                {
                     PushClippedColorRectangle(viewer, clip, x, line_y - descent, width, line_height, 0.28f, 0.59f, 1.0f, 0.38f);
+                }
             }
         }
     }
@@ -2569,7 +2709,9 @@ static void BuildNuklearData(Viewer* viewer, const FontViewerNuklearInput* input
     const uint32_t index_count = viewer->m_NuklearLayout.m_IndexDataSize / sizeof(uint16_t);
     viewer->m_NuklearVertices.EnsureSize(index_count);
     for (uint32_t i = 0; i < index_count; ++i)
+    {
         viewer->m_NuklearVertices[i] = viewer->m_NuklearLayout.m_Vertices[viewer->m_NuklearLayout.m_Indices[i]];
+    }
 }
 
 static bool PushEditorLayout(Viewer* viewer)
@@ -2578,7 +2720,9 @@ static bool PushEditorLayout(Viewer* viewer)
     // with the native engine using the selected layout path.
     const FontViewerNuklearBox& text_field = viewer->m_NuklearLayout.m_TextField;
     if (text_field.m_Width <= 0.0f || text_field.m_Height <= 0.0f)
+    {
         return true;
+    }
     FontViewerNuklearBox        editor_clip;
     editor_clip.m_X = text_field.m_X + 10.0f;
     editor_clip.m_Y = WINDOW_HEIGHT - text_field.m_Y - text_field.m_Height + 10.0f;
@@ -2718,7 +2862,9 @@ static bool BuildFontData(Viewer* viewer)
     UpdateLayoutText(viewer);
     viewer->m_AtlasChannels = viewer->m_Properties.m_RenderMode == FONT_VIEWER_RENDER_BITMAP || viewer->m_Properties.m_ShadowBlur > 0.0f ? 3 : 1;
     if (viewer->m_NuklearLayout.m_ContentWidth == 0.0f)
+    {
         BuildNuklearData(viewer, 0);
+    }
 
     const float                paragraph_width = dmMath::Max(100.0f, viewer->m_NuklearLayout.m_ContentWidth - 100.0f);
     const FontViewerNuklearBox main_clip = { 0.0f, 0.0f, viewer->m_NuklearLayout.m_ContentWidth, WINDOW_HEIGHT };
@@ -2729,7 +2875,9 @@ static bool BuildFontData(Viewer* viewer)
     }
 
     if (!PushEditorLayout(viewer))
+    {
         return false;
+    }
 
     HTextLayout       preload_layout = 0;
     static const char preload_text[] = "0123456789.+-%";
@@ -2741,10 +2889,14 @@ static bool BuildFontData(Viewer* viewer)
     const bool preload_ok = AddLayoutGlyphs(viewer, preload_layout, 13.0f, false);
     TextLayoutRelease(preload_layout);
     if (!preload_ok)
+    {
         return false;
+    }
 
     if (!BuildAtlas(viewer))
+    {
         return false;
+    }
 
     return PackAllLayouts(viewer);
 }
@@ -2962,7 +3114,9 @@ static bool CreateNuklearGraphicsResources(Viewer* viewer)
     uint32_t    atlas_width = 0;
     uint32_t    atlas_height = 0;
     if (!FontViewerNuklearGetAtlas(&atlas_pixels, &atlas_width, &atlas_height))
+    {
         return false;
+    }
     dmGraphics::TextureCreationParams creation;
     creation.m_Width = atlas_width;
     creation.m_Height = atlas_height;
@@ -2986,7 +3140,9 @@ static bool CreateNuklearGraphicsResources(Viewer* viewer)
 static void UpdateNuklearGraphicsData(Viewer* viewer)
 {
     if (!viewer->m_NuklearVertexBuffer)
+    {
         return;
+    }
     dmGraphics::SetVertexBufferData(viewer->m_NuklearVertexBuffer,
                                     viewer->m_NuklearVertices.Size() * sizeof(FontViewerNuklearVertex),
                                     viewer->m_NuklearVertices.Begin(),
@@ -2996,13 +3152,21 @@ static void UpdateNuklearGraphicsData(Viewer* viewer)
 static void DestroyNuklearGraphicsResources(Viewer* viewer)
 {
     if (viewer->m_NuklearTexture)
+    {
         dmGraphics::DeleteTexture(viewer->m_Context, viewer->m_NuklearTexture);
+    }
     if (viewer->m_NuklearVertexDeclaration)
+    {
         dmGraphics::DeleteVertexDeclaration(viewer->m_NuklearVertexDeclaration);
+    }
     if (viewer->m_NuklearVertexBuffer)
+    {
         dmGraphics::DeleteVertexBuffer(viewer->m_NuklearVertexBuffer);
+    }
     if (viewer->m_NuklearProgram)
+    {
         dmGraphics::DeleteProgram(viewer->m_Context, viewer->m_NuklearProgram);
+    }
     viewer->m_NuklearTexture = 0;
     viewer->m_NuklearVertexDeclaration = 0;
     viewer->m_NuklearVertexBuffer = 0;
@@ -3012,27 +3176,41 @@ static void DestroyNuklearGraphicsResources(Viewer* viewer)
 static void DestroyGraphicsResources(Viewer* viewer)
 {
     if (viewer->m_Texture)
+    {
         dmGraphics::DeleteTexture(viewer->m_Context, viewer->m_Texture);
+    }
     if (viewer->m_VertexDeclaration)
+    {
         dmGraphics::DeleteVertexDeclaration(viewer->m_VertexDeclaration);
+    }
     if (viewer->m_ColorVertexDeclaration)
+    {
         dmGraphics::DeleteVertexDeclaration(viewer->m_ColorVertexDeclaration);
+    }
     if (viewer->m_SpriteVertexDeclaration)
     {
         dmGraphics::DeleteVertexDeclaration(viewer->m_SpriteVertexDeclaration);
     }
     if (viewer->m_VertexBuffer)
+    {
         dmGraphics::DeleteVertexBuffer(viewer->m_VertexBuffer);
+    }
     if (viewer->m_ColorVertexBuffer)
+    {
         dmGraphics::DeleteVertexBuffer(viewer->m_ColorVertexBuffer);
+    }
     if (viewer->m_SpriteVertexBuffer)
     {
         dmGraphics::DeleteVertexBuffer(viewer->m_SpriteVertexBuffer);
     }
     if (viewer->m_Program)
+    {
         dmGraphics::DeleteProgram(viewer->m_Context, viewer->m_Program);
+    }
     if (viewer->m_ColorProgram)
+    {
         dmGraphics::DeleteProgram(viewer->m_Context, viewer->m_ColorProgram);
+    }
     if (viewer->m_SpriteProgram)
     {
         dmGraphics::DeleteProgram(viewer->m_Context, viewer->m_SpriteProgram);
@@ -3091,7 +3269,9 @@ static bool HasAnimatedEffects(HTextLayout layout)
         if ((internal->m_Effects[i].m_Type == TEXT_EFFECT_SHAKE && internal->m_Effects[i].m_Shake.m_Hz != 0.0f) ||
             (internal->m_Effects[i].m_Type == TEXT_EFFECT_WAVE && internal->m_Effects[i].m_Wave.m_Hz != 0.0f) ||
             (internal->m_Effects[i].m_Type == TEXT_EFFECT_GRADIENT && internal->m_Effects[i].m_Gradient.m_Hz != 0.0f))
+        {
             return true;
+        }
     }
 
     return false;
@@ -3102,10 +3282,14 @@ static bool RefreshRenderData(Viewer* viewer)
     // Preserve the main shaped layout, glyph cache, atlas, shaders, and texture.
     // Only the editable text layout and render transforms need repacking.
     if (viewer->m_Layouts.Empty())
+    {
         return false;
+    }
 
     for (uint32_t i = 1; i < viewer->m_Layouts.Size(); ++i)
+    {
         TextLayoutRelease(viewer->m_Layouts[i]);
+    }
     viewer->m_Layouts.SetSize(1);
     viewer->m_LayoutTops.SetSize(1);
     viewer->m_LayoutXs.SetSize(1);
@@ -3184,7 +3368,9 @@ static void HandleInput(Viewer* viewer)
         viewer->m_RebuildRequested = true;
     }
     if (!text_visible)
+    {
         viewer->m_TextFieldFocused = false;
+    }
     // Native widget hover/active states are part of Nuklear's command stream,
     // so upload the regenerated UI geometry every frame.
     viewer->m_RenderUpdateRequested = true;
@@ -3237,7 +3423,9 @@ static void HandleInput(Viewer* viewer)
             viewer->m_TextSelecting = false;
             viewer->m_RenderUpdateRequested = true;
             if (viewer->m_MarkedText.Size() > 1)
+            {
                 SetMarkedText(viewer, "");
+            }
         }
     }
     if (viewer->m_TextSelecting)
@@ -3353,17 +3541,23 @@ static void HandleInput(Viewer* viewer)
 
     const bool delete_down = input.m_DeleteDown;
     if (viewer->m_TextFieldFocused && viewer->m_MarkedText.Size() == 1 && delete_down && !viewer->m_PreviousDeleteDown)
+    {
         RemoveNextCodepoint(viewer);
+    }
     viewer->m_PreviousDeleteDown = delete_down;
 
     const bool enter_down = input.m_EnterDown;
     if (viewer->m_TextFieldFocused && enter_down && !viewer->m_PreviousEnterDown)
+    {
         AppendEditorBytes(viewer, "\n", 1);
+    }
     viewer->m_PreviousEnterDown = enter_down;
 
     const bool escape_down = input.m_EscapeDown;
     if (escape_down && !viewer->m_PreviousEscapeDown)
+    {
         viewer->m_Closed = true;
+    }
     viewer->m_PreviousEscapeDown = escape_down;
 }
 
@@ -3380,7 +3574,9 @@ static bool Initialize(Viewer* viewer)
     window_params.m_CloseCallbackUserData = viewer;
     window_params.m_Hidden = viewer->m_ExportMode ? 1 : 0;
     if (dmPlatform::OpenWindow(viewer->m_Window, window_params) != WINDOW_RESULT_OK)
+    {
         return false;
+    }
     if (!viewer->m_ExportMode)
     {
         FontViewerMacOSInstallInput(viewer->m_Window, OnKeyboardChar, OnKeyboardMarkedText, viewer);
@@ -3437,17 +3633,27 @@ static void Finalize(Viewer* viewer)
         FontViewerNuklearFinalize();
     }
     if (viewer->m_Collection)
+    {
         FontCollectionDestroy(viewer->m_Collection);
+    }
     for (uint32_t i = 0; i < viewer->m_Fonts.Size(); ++i)
     {
         if (viewer->m_Fonts[i] && viewer->m_Fonts[i] != viewer->m_EmojiFonts[0] && viewer->m_Fonts[i] != viewer->m_EmojiFonts[1])
+        {
             FontDestroy(viewer->m_Fonts[i]);
+        }
     }
     for (uint32_t i = 0; i < 2; ++i)
+    {
         if (viewer->m_EmojiFonts[i])
+        {
             FontDestroy(viewer->m_EmojiFonts[i]);
+        }
+    }
     for (uint32_t i = 0; i < viewer->m_OwnedTexts.Size(); ++i)
+    {
         free(viewer->m_OwnedTexts[i]);
+    }
     if (viewer->m_Context)
     {
         dmGraphics::CloseWindow(viewer->m_Context);
@@ -3740,7 +3946,9 @@ static void ConvertBgraToRgbaAndUpdateBounds(Viewer* viewer, uint8_t* pixels, ui
             if (abs((int)pixel[0] - background_red) <= 2 &&
                 abs((int)pixel[1] - background_green) <= 2 &&
                 abs((int)pixel[2] - background_blue) <= 2)
+            {
                 continue;
+            }
             bounds->m_MinX = dmMath::Min(bounds->m_MinX, x);
             bounds->m_MinY = dmMath::Min(bounds->m_MinY, y);
             bounds->m_MaxX = dmMath::Max(bounds->m_MaxX, x);
@@ -3842,12 +4050,18 @@ static bool WriteExportFrame(const Viewer* viewer, const char* directory, uint32
     if (strcmp(viewer->m_OutputPath + length - 4, ".png") == 0)
     {
         if (frame_index == 0)
+        {
             dmSnPrintf(path, sizeof(path), "%s", viewer->m_OutputPath);
+        }
         else
+        {
             dmSnPrintf(path, sizeof(path), "%.*s-%06u.png", (int)length - 4, viewer->m_OutputPath, frame_index);
+        }
     }
     else
+    {
         dmSnPrintf(path, sizeof(path), "%s/frame-%06u.png", directory, frame_index);
+    }
 
     return stbi_write_png(path, crop.m_Width, crop.m_Height, 4, cropped_pixels.Begin(), crop.m_Width * 4) != 0;
 }
@@ -3855,7 +4069,9 @@ static bool WriteExportFrame(const Viewer* viewer, const char* directory, uint32
 static bool EncodeExportFrames(const Viewer* viewer, const char* directory, const ExportTiming& timing)
 {
     if (strcmp(viewer->m_OutputPath + strlen(viewer->m_OutputPath) - 4, ".png") == 0)
+    {
         return true;
+    }
     const uint32_t total_duration_ms = dmMath::Max(timing.m_FrameCount, (uint32_t)floorf(timing.m_Duration * 1000.0f + 0.5f));
     std::string    command = "img2webp -loop 0";
     char           option[128];
@@ -3927,7 +4143,9 @@ static bool RenderExportPass(Viewer* viewer, const ExportTiming& timing, uint8_t
 
             if (crop && i > 0 && i < half_frame_count &&
                 !WriteExportFrame(viewer, output_directory, timing.m_FrameCount - i, pixels, width, *crop))
+            {
                 return false;
+            }
         }
     }
     else
@@ -4129,7 +4347,9 @@ int             main(int argc, char** argv)
 
         Draw(&viewer, 0, 0);
         if (auto_exit && ++frame_count == 2)
+        {
             viewer.m_Closed = true;
+        }
     }
     Finalize(&viewer);
     return 0;

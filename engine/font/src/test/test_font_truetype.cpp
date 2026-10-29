@@ -52,15 +52,21 @@ static bool LoadFont(const char* filename, ReferenceFont* font)
     dmTestUtil::MakeHostPath(path, sizeof(path), filename);
     font->m_Data = dmTestUtil::ReadFile(path, &font->m_DataSize);
     if (!font->m_Data)
+    {
         return false;
+    }
 
     font->m_TrueType = FontTrueTypeCreate(font->m_Data, font->m_DataSize, 0);
     if (!font->m_TrueType)
+    {
         return false;
+    }
 
     font->m_Harfbuzz = FontHarfbuzzCreate(font->m_Data, font->m_DataSize, 0);
     if (!font->m_Harfbuzz)
+    {
         return false;
+    }
 
     font->m_HBBlob = hb_blob_create((const char*)font->m_Data, font->m_DataSize, HB_MEMORY_MODE_READONLY, 0, 0);
     font->m_HBFace = hb_face_create(font->m_HBBlob, 0);
@@ -96,7 +102,9 @@ static void CompareOutlineType(ReferenceFont* font, FontOutlineType expected)
 static void PushCommand(dmArray<FontOutlineCommand>& commands, FontOutlineCommandType type, float x0 = 0.0f, float y0 = 0.0f, float x1 = 0.0f, float y1 = 0.0f, float x2 = 0.0f, float y2 = 0.0f)
 {
     if (commands.Full())
+    {
         commands.OffsetCapacity(32);
+    }
     FontOutlineCommand command = {};
     command.m_Type = type;
     command.m_Points[0] = { x0, y0 };
@@ -109,7 +117,9 @@ static void CloseStbContour(dmArray<FontOutlineCommand>& commands, float start_x
 {
     FontOutlineCommand& last = commands.Back();
     if (last.m_Type == FONT_OUTLINE_LINE_TO && last.m_Points[0].m_X == start_x && last.m_Points[0].m_Y == start_y)
+    {
         commands.Pop();
+    }
     PushCommand(commands, FONT_OUTLINE_CLOSE);
 }
 
@@ -126,26 +136,38 @@ static void GetStbOutline(stbtt_fontinfo* font, uint32_t glyph_index, dmArray<Fo
         switch (vertex.type)
         {
             case STBTT_vmove:
+            {
                 if (contour_open)
+                {
                     CloseStbContour(commands, start_x, start_y);
+                }
                 PushCommand(commands, FONT_OUTLINE_MOVE_TO, vertex.x, vertex.y);
                 start_x = vertex.x;
                 start_y = vertex.y;
                 contour_open = true;
                 break;
+            }
             case STBTT_vline:
+            {
                 PushCommand(commands, FONT_OUTLINE_LINE_TO, vertex.x, vertex.y);
                 break;
+            }
             case STBTT_vcurve:
+            {
                 PushCommand(commands, FONT_OUTLINE_QUADRATIC_TO, vertex.cx, vertex.cy, vertex.x, vertex.y);
                 break;
+            }
             case STBTT_vcubic:
+            {
                 PushCommand(commands, FONT_OUTLINE_CUBIC_TO, vertex.cx, vertex.cy, vertex.cx1, vertex.cy1, vertex.x, vertex.y);
                 break;
+            }
         }
     }
     if (contour_open)
+    {
         CloseStbContour(commands, start_x, start_y);
+    }
     stbtt_FreeShape(font, vertices);
 }
 
@@ -153,11 +175,26 @@ static uint32_t GetCommandPointCount(FontOutlineCommandType type)
 {
     switch (type)
     {
-        case FONT_OUTLINE_MOVE_TO:      return 1;
-        case FONT_OUTLINE_LINE_TO:      return 1;
-        case FONT_OUTLINE_QUADRATIC_TO: return 2;
-        case FONT_OUTLINE_CUBIC_TO:     return 3;
-        case FONT_OUTLINE_CLOSE:        return 0;
+        case FONT_OUTLINE_MOVE_TO:
+        {
+            return 1;
+        }
+        case FONT_OUTLINE_LINE_TO:
+        {
+            return 1;
+        }
+        case FONT_OUTLINE_QUADRATIC_TO:
+        {
+            return 2;
+        }
+        case FONT_OUTLINE_CUBIC_TO:
+        {
+            return 3;
+        }
+        case FONT_OUTLINE_CLOSE:
+        {
+            return 0;
+        }
     }
     return 0;
 }
@@ -178,7 +215,9 @@ static void NormalizeOutline(const FontOutline* outline, bool round_glyf_midpoin
         {
             FontOutlineCommand& last = commands.Back();
             if (last.m_Type == FONT_OUTLINE_LINE_TO && last.m_Points[0].m_X == start_x && last.m_Points[0].m_Y == start_y)
+            {
                 commands.Pop();
+            }
         }
         if (round_glyf_midpoints)
         {
@@ -192,7 +231,9 @@ static void NormalizeOutline(const FontOutline* outline, bool round_glyf_midpoin
             }
         }
         if (commands.Full())
+        {
             commands.OffsetCapacity(32);
+        }
         commands.Push(command);
     }
 }
@@ -377,14 +418,18 @@ TEST(FontTrueTypeReference, HarfBuzzSymbolCmap)
     {
         uint32_t offset = ttULONG(cmap + 4 + i * 8 + 4);
         if (ttUSHORT(cmap + offset) == 4)
+        {
             format4 = offset;
+        }
     }
     ASSERT_NE(0u, format4);
     // Replace the directory with one Windows Symbol (3,0), format 4 record.
     const uint8_t header[] = { 0, 0, 0, 1, 0, 3, 0, 0 };
     memcpy(cmap, header, sizeof(header));
     for (uint32_t i = 0; i < 4; ++i)
+    {
         cmap[8 + i] = (uint8_t)(format4 >> (24 - 8 * i));
+    }
     font.m_Harfbuzz = FontHarfbuzzCreate(font.m_Data, font.m_DataSize, 0);
     ASSERT_NE((FontHarfbuzz*)0, font.m_Harfbuzz);
     ASSERT_EQ(expected, FontHarfbuzzGetGlyphIndex(font.m_Harfbuzz, 'A'));
@@ -447,15 +492,21 @@ TEST(FontTrueTypeReference, CFF2HarfBuzzReferencePaths)
         {
             const FontOutlineCommand& command = outline.m_Commands[i];
             if (command.m_Type == FONT_OUTLINE_MOVE_TO)
+            {
                 start = command.m_Points[0];
+            }
             if (command.m_Type == FONT_OUTLINE_LINE_TO && command.m_Points[0].m_X == start.m_X && command.m_Points[0].m_Y == start.m_Y)
             {
                 uint32_t next = i + 1;
                 while (next < outline.m_CommandCount && outline.m_Commands[next].m_Type == FONT_OUTLINE_LINE_TO &&
                        outline.m_Commands[next].m_Points[0].m_X == start.m_X && outline.m_Commands[next].m_Points[0].m_Y == start.m_Y)
+                {
                     ++next;
+                }
                 if (next < outline.m_CommandCount && outline.m_Commands[next].m_Type == FONT_OUTLINE_CLOSE)
+                {
                     continue;
+                }
             }
             hash = (hash ^ command.m_Type) * 1099511628211ULL;
             for (uint32_t p = 0; p < point_counts[command.m_Type]; ++p)

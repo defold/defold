@@ -587,39 +587,73 @@ static const char* GetStyleName(MarkupStyleType style)
     switch (style)
     {
         case MARKUP_STYLE_COLOR:
+        {
             return "color";
+        }
         case MARKUP_STYLE_SIZE:
+        {
             return "size";
+        }
         case MARKUP_STYLE_GRADIENT_HORIZONTAL:
+        {
             return "gradient_horizontal";
+        }
         case MARKUP_STYLE_GRADIENT_VERTICAL:
+        {
             return "gradient_vertical";
+        }
         case MARKUP_STYLE_GRADIENT_QUAD:
+        {
             return "gradient_quad";
+        }
         case MARKUP_STYLE_SHAKE:
+        {
             return "shake";
+        }
         case MARKUP_STYLE_WAVE:
+        {
             return "wave";
+        }
         case MARKUP_STYLE_OUTLINE:
+        {
             return "outline";
+        }
         case MARKUP_STYLE_SHADOW:
+        {
             return "shadow";
+        }
         case MARKUP_STYLE_UNDERLINE_SOLID:
+        {
             return "underline_solid";
+        }
         case MARKUP_STYLE_UNDERLINE_DASHED:
+        {
             return "underline_dashed";
+        }
         case MARKUP_STYLE_STRIKE_SOLID:
+        {
             return "strike_solid";
+        }
         case MARKUP_STYLE_STRIKE_DASHED:
+        {
             return "strike_dashed";
+        }
         case MARKUP_STYLE_LINK:
+        {
             return "link";
+        }
         case MARKUP_STYLE_SPRITE:
+        {
             return "sprite";
+        }
         case MARKUP_STYLE_NESTED_COLOR:
+        {
             return "nested_color";
+        }
         default:
+        {
             return "none";
+        }
     }
 }
 
@@ -629,37 +663,69 @@ static const char* GetOpeningTag(MarkupStyleType style)
     {
         case MARKUP_STYLE_COLOR:
         case MARKUP_STYLE_NESTED_COLOR:
+        {
             return "<color=#FF8040>";
+        }
         case MARKUP_STYLE_SIZE:
+        {
             return "<size=120%>";
+        }
         case MARKUP_STYLE_GRADIENT_HORIZONTAL:
+        {
             return "<gradient hz=0.25 fit=span left=#FF00FF right=#FFFFFF>";
+        }
         case MARKUP_STYLE_GRADIENT_VERTICAL:
+        {
             return "<gradient hz=0.25 fit=span bottom=#FF00FF top=#FFFFFF>";
+        }
         case MARKUP_STYLE_GRADIENT_QUAD:
+        {
             return "<gradient hz=0.25 fit=span tl=#FF0000 tr=#00FF00 bl=#0000FF br=#FFFFFF>";
+        }
         case MARKUP_STYLE_SHAKE:
+        {
             return "<shake hz=20 amplitude=0.5 fit=span>";
+        }
         case MARKUP_STYLE_WAVE:
+        {
             return "<wave hz=1 amplitude=4 wavelength=6 fit=span>";
+        }
         case MARKUP_STYLE_OUTLINE:
+        {
             return "<outline size=2 color=#FFFFFF>";
+        }
         case MARKUP_STYLE_SHADOW:
+        {
             return "<shadow x=2 y=-2 blur=2 color=#000000A0>";
+        }
         case MARKUP_STYLE_UNDERLINE_SOLID:
+        {
             return "<ul>";
+        }
         case MARKUP_STYLE_UNDERLINE_DASHED:
+        {
             return "<ul pattern=dashed>";
+        }
         case MARKUP_STYLE_STRIKE_SOLID:
+        {
             return "<strike>";
+        }
         case MARKUP_STYLE_STRIKE_DASHED:
+        {
             return "<strike pattern=dashed>";
+        }
         case MARKUP_STYLE_LINK:
+        {
             return "<link src=https://defold.com>";
+        }
         case MARKUP_STYLE_SPRITE:
+        {
             return "<sprite src=/benchmark.png/>";
+        }
         default:
+        {
             return "";
+        }
     }
 }
 
@@ -669,31 +735,53 @@ static const char* GetClosingTag(MarkupStyleType style)
     {
         case MARKUP_STYLE_COLOR:
         case MARKUP_STYLE_NESTED_COLOR:
+        {
             return "</color>";
+        }
         case MARKUP_STYLE_SIZE:
+        {
             return "</size>";
+        }
         case MARKUP_STYLE_GRADIENT_HORIZONTAL:
         case MARKUP_STYLE_GRADIENT_VERTICAL:
         case MARKUP_STYLE_GRADIENT_QUAD:
+        {
             return "</gradient>";
+        }
         case MARKUP_STYLE_SHAKE:
+        {
             return "</shake>";
+        }
         case MARKUP_STYLE_WAVE:
+        {
             return "</wave>";
+        }
         case MARKUP_STYLE_OUTLINE:
+        {
             return "</outline>";
+        }
         case MARKUP_STYLE_SHADOW:
+        {
             return "</shadow>";
+        }
         case MARKUP_STYLE_UNDERLINE_SOLID:
         case MARKUP_STYLE_UNDERLINE_DASHED:
+        {
             return "</ul>";
+        }
         case MARKUP_STYLE_STRIKE_SOLID:
         case MARKUP_STYLE_STRIKE_DASHED:
+        {
             return "</strike>";
+        }
         case MARKUP_STYLE_LINK:
+        {
             return "</link>";
+        }
         default:
+        {
             return "";
+        }
     }
 }
 
