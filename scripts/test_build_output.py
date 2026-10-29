@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from threading import Event
 import unittest
 from unittest import mock
 
@@ -147,6 +148,52 @@ class BuildOutputTests(unittest.TestCase):
         self.assertIn('assertion failed in second test', text)
         self.assertNotIn('expected error', text)
         self.assertNotIn('passing third test output', text)
+
+    # Parallel test results must remain separate when a preceding test omits its final newline.
+    def test_unterminated_parallel_test_output_preserves_failure(self):
+        with mock.patch.object(sys, 'path', sys.path + [str(Path(__file__).parent / 'cmake')]):
+            import run_tests as runner
+
+        for ending in ('', '\n', '\r\n'):
+            with self.subTest(ending=ending):
+                released = Event()
+                passing_output = ('passing test output' + ending).encode('utf-8')
+                diagnostic = 'ENGINE_ROOT_CAUSE: missing library 雪'
+
+                class Transcript(io.BytesIO):
+                    def write(self, data):
+                        result = super().write(data)
+                        if data == passing_output:
+                            released.set()
+                        return result
+
+                def run_test(test, lock_dir):
+                    if test['name'] == 'run_pass':
+                        return 0, passing_output, 0.1
+                    if not released.wait(timeout=10):
+                        raise AssertionError('Passing test output never released the failing test')
+                    return 7, diagnostic.encode('utf-8'), 0.2
+
+                tests = [{'name': 'run_pass', 'group': 'pass', 'priority': 1},
+                         {'name': 'run_fail', 'group': 'fail', 'priority': 0}]
+                with io.TextIOWrapper(Transcript(), encoding='utf-8', write_through=True) as transcript:
+                    with contextlib.redirect_stdout(transcript), mock.patch.object(runner, 'run_test', run_test):
+                        retcode = runner.run_tests(tests, 2, Path('unused-locks'))
+                    text = transcript.buffer.getvalue().decode('utf-8')
+                self.assertEqual(1, retcode)
+                expected = passing_output.decode('utf-8') + ('' if ending else '\n')
+                self.assertIn(expected + '[2/2] run_fail: FAILED', text)
+                self.assertTrue(text.endswith(diagnostic + '\n'))
+
+                output, stream, log = self.reporter()
+                for line in ('[defold-build:0/1] Run tests', *text.splitlines(),
+                             'FAILED: run_tests', 'ninja: build stopped: subcommand failed.'):
+                    output.on_output(line)
+                output.finish(False)
+                self.assertIn('run_fail: FAILED', stream.getvalue())
+                self.assertIn(diagnostic, stream.getvalue())
+                self.assertNotIn('passing test output', stream.getvalue())
+                self.assertIn('passing test output', log.getvalue())
 
     # Configure/install failures show their CMake diagnostic without replaying earlier successful checks.
     def test_cmake_error_is_scoped_to_its_diagnostic(self):
