@@ -376,6 +376,13 @@ jobs:
         with:
           platform: ${{ matrix.platform || 'x86_64-linux' }}
           cache: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch' }}
+      - name: "Test build scripts"
+        if: matrix.platform == 'x86_64-win32' || matrix.platform == 'arm64-macos' || matrix.platform == 'x86_64-linux' || matrix.platform == 'arm64-linux'
+        run: |
+          build_test_path="$PATH"
+          source ci/env.sh
+          export PATH="$PATH:$build_test_path"
+          python -m unittest discover -s scripts -p 'test_build_*.py'
       - name: "Enable KVM"
         if: matrix.emulator
         run: |-
