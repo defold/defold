@@ -25,22 +25,27 @@ if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
 endif()
 defold_register_test_target(test_launcher ON "${TOOLS_ROOT}")
 
-if(TARGET_PLATFORM MATCHES "macos")
+if(TARGET_PLATFORM MATCHES "macos|linux")
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
-  set(TOOLS_LAUNCHER_MACOS_TEST_COMMAND
-    "${Python3_EXECUTABLE}" "${TOOLS_LAUNCHER_TEST_ROOT}/test_launcher_macos.py" "$<TARGET_FILE:launcher>")
+  if(TARGET_PLATFORM MATCHES "macos")
+    set(TOOLS_LAUNCHER_PLATFORM_TEST test_launcher_macos)
+  else()
+    set(TOOLS_LAUNCHER_PLATFORM_TEST test_launcher_linux)
+  endif()
+  set(TOOLS_LAUNCHER_PLATFORM_TEST_COMMAND
+    "${Python3_EXECUTABLE}" "${TOOLS_LAUNCHER_TEST_ROOT}/${TOOLS_LAUNCHER_PLATFORM_TEST}.py" "$<TARGET_FILE:launcher>")
   defold_test_run_settings(_launcher_test_runner _launcher_test_run_options shared)
-  add_custom_target(run_test_launcher_macos
-    COMMAND ${_launcher_test_runner} ${TOOLS_LAUNCHER_MACOS_TEST_COMMAND}
+  add_custom_target(run_${TOOLS_LAUNCHER_PLATFORM_TEST}
+    COMMAND ${_launcher_test_runner} ${TOOLS_LAUNCHER_PLATFORM_TEST_COMMAND}
     DEPENDS launcher
     ${_launcher_test_run_options}
     VERBATIM)
   if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
-    defold_add_to_run_tests(run_test_launcher_macos
-      COMMAND ${TOOLS_LAUNCHER_MACOS_TEST_COMMAND}
+    defold_add_to_run_tests(run_${TOOLS_LAUNCHER_PLATFORM_TEST}
+      COMMAND ${TOOLS_LAUNCHER_PLATFORM_TEST_COMMAND}
       DEPENDS launcher)
   endif()
-  defold_register_sequential_test_command(test_launcher_macos
-    COMMAND ${TOOLS_LAUNCHER_MACOS_TEST_COMMAND}
+  defold_register_sequential_test_command(${TOOLS_LAUNCHER_PLATFORM_TEST}
+    COMMAND ${TOOLS_LAUNCHER_PLATFORM_TEST_COMMAND}
     DEPENDS launcher)
 endif()

@@ -39,11 +39,13 @@
 #endif
 
 #ifdef __MACH__
+#include <mach-o/dyld.h>
 #include <signal.h>
 #include <sys/sysctl.h>
 #endif
 
 #ifdef __linux__
+#include <sys/auxv.h>
 #include <sys/sysinfo.h>
 #endif
 
@@ -174,6 +176,26 @@ int Launch(int argc, char **argv) {
     // New editor instances can start in a different working directory.
     char absolute_launcher_path[DMPATH_MAX_PATH];
     const char* launcher_path = argv[0];
+    // A bare argv[0] was found through PATH, so use the path passed to the OS.
+    #if defined(__MACH__)
+    char executable_launcher_path[DMPATH_MAX_PATH];
+    if (strchr(launcher_path, '/') == 0) {
+        uint32_t path_size = sizeof(executable_launcher_path);
+        if (_NSGetExecutablePath(executable_launcher_path, &path_size) != 0) {
+            dmLogFatal("Failed to resolve launcher path: executable path is too long");
+            return 5;
+        }
+        launcher_path = executable_launcher_path;
+    }
+    #elif defined(__linux__)
+    if (strchr(launcher_path, '/') == 0) {
+        launcher_path = (const char*)getauxval(AT_EXECFN);
+        if (!launcher_path) {
+            dmLogFatal("Failed to resolve launcher path: %s", strerror(errno));
+            return 5;
+        }
+    }
+    #endif
     if (launcher_path[0] != '/') {
         if (!getcwd(absolute_launcher_path, sizeof(absolute_launcher_path))) {
             dmLogFatal("Failed to resolve launcher path: %s", strerror(errno));
@@ -190,11 +212,16 @@ int Launch(int argc, char **argv) {
     setenv("CFProcessPath", launcher_path, 1);
     #endif
 
+    #if defined(__linux__)
+    // Linux resources are beside the executable, including when found via PATH.
+    dmPath::Dirname(launcher_path, default_resources_path, sizeof(default_resources_path));
+    #else
     dmSys::Result r = dmSys::GetResourcesPath(argc, (char**) argv, default_resources_path, sizeof(default_resources_path));
     if (r != dmSys::RESULT_OK) {
         dmLogFatal("Failed to locate resources path (%d)", r);
         return 5;
     }
+    #endif
 
     dmStrlCpy(config_path, default_resources_path, sizeof(config_path));
     dmStrlCat(config_path, "/config", sizeof(config_path));
