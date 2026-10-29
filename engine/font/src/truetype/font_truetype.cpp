@@ -1111,7 +1111,7 @@ static FontTrueType* InitCFF2Font(const void* source, uint32_t data_size)
     }
     return font;
 
-    error:
+error:
     delete font;
     return 0;
 }
@@ -1212,7 +1212,7 @@ static FontTrueType* InitCFF1Font(const void* source, uint32_t data_size)
     }
     return font;
 
-    error:
+error:
     delete font;
     return 0;
 }
