@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -150,7 +151,8 @@ class SourceBuiltToolArchiveTests(unittest.TestCase):
                 platform = archive_path.split('/')[0]
                 expected = b'local build' if installed_tools and platform in (host, target) else archive_path.encode()
                 self.assertEqual(expected, installed.read_bytes())
-                self.assertEqual(0o755, installed.stat().st_mode & 0o777)
+                if os.name != 'nt':
+                    self.assertEqual(0o755, installed.stat().st_mode & 0o777)
         self.assertEqual(20, len(objects))
 
 

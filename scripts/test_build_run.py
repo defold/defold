@@ -295,7 +295,7 @@ class RunCommandTests(unittest.TestCase):
                     self.assertEqual(retcode, errors[0].retcode)
                 else:
                     self.assertEqual([], errors)
-                for text in (stream.getvalue(), path.read_text()):
+                for text in (stream.getvalue(), path.read_text(encoding='utf-8')):
                     self.assertIn('launcher stdout', text)
                     self.assertIn('final stderr 雪', text)
                 self.assert_processes_closed()
@@ -354,7 +354,7 @@ class RunCommandTests(unittest.TestCase):
                 self.assertEqual(1, len(errors))
                 self.assertIsInstance(errors[0], run.ExecException)
                 self.assertEqual(7, errors[0].retcode)
-                for text in (stream.getvalue(), path.read_text(), errors[0].output):
+                for text in (stream.getvalue(), path.read_text(encoding='utf-8'), errors[0].output):
                     self.assertIn(diagnostic, text)
                 self.assert_processes_closed()
 
