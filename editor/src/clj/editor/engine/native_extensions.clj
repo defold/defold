@@ -316,12 +316,10 @@
           username (string/trim (prefs/get prefs [:extensions :build-server-username]))
           password (prefs/get prefs [:extensions :build-server-password])]
       (if (.isCached cache extender-platform cache-key)
-        (do
-          (.close progress)
-          {:id {:type :custom :version cache-key}
-           :cached true
-           :engine-archive (.getCachedBuildFile cache extender-platform)
-           :extender-platform extender-platform})
+        {:id {:type :custom :version cache-key}
+         :cached true
+         :engine-archive (.getCachedBuildFile cache extender-platform)
+         :extender-platform extender-platform}
         (let [extender-client (ExtenderClient. url cache-directory)
               destination-file (fs/create-temp-file! (str "build_" sdk-version) ".zip")
               log-file (fs/create-temp-file! (str "build_" sdk-version) ".txt")]
@@ -344,6 +342,4 @@
               (throw (engine-build-errors/build-error
                        (or (:cause (Throwable->map e))
                            (.getSimpleName (class e)))
-                       (slurp log-file))))
-            (finally
-              (.close progress))))))))
+                       (slurp log-file))))))))))
