@@ -201,6 +201,7 @@ max_count = 32
 max_tile_count = 1024
 
 [engine]
+datastore = 0
 run_while_iconified = 1
 fixed_update_frequency = 30
 max_time_step = 0.1
