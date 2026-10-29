@@ -3600,7 +3600,7 @@ namespace dmGameSystem
         dmGameObject::Result result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &url->m_Fragment);
         if (result != dmGameObject::RESULT_OK)
         {
-            dmLogError("Could not find gui component: %d", result);
+            dmLogError("Could not find gui component: '%s'", dmGameObject::GetResultLiteral(result));
         }
     }
 
@@ -4126,7 +4126,7 @@ namespace dmGameSystem
 
         if (dmGameObject::RESULT_OK != r)
         {
-            dmLogError("Failed to initialize gui component custom node types: %d", r);//dmGameObject::ResultToString(r));
+            dmLogError("Failed to initialize gui component custom node types: '%s'", dmGameObject::GetResultLiteral(r));
         }
 
         return dmGameObject::RESULT_OK;
@@ -4153,7 +4153,7 @@ namespace dmGameSystem
         dmGameObject::Result r = dmGameSystem::DestroyRegisteredCompGuiNodeTypes(&gui_node_ctx, gui_context);
         if (dmGameObject::RESULT_OK != r)
         {
-            dmLogError("Failed to initialize gui component custom node types: %d", r);//dmGameObject::ResultToString(r));
+            dmLogError("Failed to destroy gui component custom node types: '%s'", dmGameObject::GetResultLiteral(r));
         }
 
         // Clear per-property handler hash tables
@@ -4236,7 +4236,7 @@ namespace dmGameSystem
             dmGameObject::Result r = type_desc->m_CreateFn(ctx, node_type);
             if (dmGameObject::RESULT_OK != r)
             {
-                dmLogError("Failed to register custom gui node type: '%s'", type_desc->m_Name);
+                dmLogError("Failed to register custom gui node type '%s': '%s'", type_desc->m_Name, dmGameObject::GetResultLiteral(r));
                 return r;
             }
 
@@ -4269,7 +4269,7 @@ namespace dmGameSystem
                 dmGameObject::Result r = type_desc->m_DestroyFn(ctx, type_desc->m_NodeType);
                 if (dmGameObject::RESULT_OK != r)
                 {
-                    dmLogError("Failed to unregister custom gui node type: '%s'", type_desc->m_Name);
+                    dmLogError("Failed to unregister custom gui node type '%s': '%s'", type_desc->m_Name, dmGameObject::GetResultLiteral(r));
                 }
             }
 

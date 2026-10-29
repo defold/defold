@@ -474,7 +474,7 @@ namespace dmGameSystem
         dmGameObject::Result r = dmGameObject::GetComponentId(instance, component_index, &sender.m_Fragment);
         if (r != dmGameObject::RESULT_OK)
         {
-            dmLogError("Could not retrieve sender component when reporting %s: %d", DDFMessage::m_DDFDescriptor->m_Name, r);
+            dmLogError("Could not retrieve sender component when reporting %s: '%s'", DDFMessage::m_DDFDescriptor->m_Name, dmGameObject::GetResultLiteral(r));
         }
         dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, ddf, data_size, 0);
         if (result != dmMessage::RESULT_OK)
@@ -525,7 +525,7 @@ namespace dmGameSystem
         free(request.m_UserData);
         if (message_result != dmGameObject::RESULT_OK)
         {
-            dmLogError("Error when sending ray cast response: %d", message_result);
+            dmLogError("Error when sending ray cast response: '%s'", dmGameObject::GetResultLiteral(message_result));
         }
     }
 

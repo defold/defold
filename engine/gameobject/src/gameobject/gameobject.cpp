@@ -74,6 +74,34 @@ namespace dmGameObject
 
     static HRegister g_Register = 0;
 
+    const char* GetResultLiteral(Result result)
+    {
+    #define GAMEOBJECT_RESULT_TO_STR_CASE(x) case x: return #x;
+        switch (result)
+        {
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_OK);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_OUT_OF_RESOURCES);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_ALREADY_REGISTERED);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_IDENTIFIER_IN_USE);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_IDENTIFIER_ALREADY_SET);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_COMPONENT_NOT_FOUND);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_MAXIMUM_HIEARCHICAL_DEPTH);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_INVALID_OPERATION);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_RESOURCE_TYPE_NOT_FOUND);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_BUFFER_OVERFLOW);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_IDENTIFIER_INVALID);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_RESOURCE_ERROR);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_CHILD_NOT_FOUND);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_INVALID_PROPERTIES);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_UNABLE_TO_CREATE_COMPONENTS);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_UNABLE_TO_INIT_INSTANCE);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_INVALID_INSTANCE);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_UNKNOWN_ERROR);
+        }
+        return "<unknown dmGameObject::Result>";
+    #undef GAMEOBJECT_RESULT_TO_STR_CASE
+    }
+
     static uint16_t GetCollectionIndex(HCollection collection)
     {
         return (uint16_t)(collection & 0xffff);
@@ -1892,7 +1920,7 @@ namespace dmGameObject
                         dmGameObject::Result r = dmGameObject::SetParent(collection, child, parent);
                         if (r != dmGameObject::RESULT_OK)
                         {
-                            dmLogError("Unable to set %s as parent to %s (%d)", instance_desc.m_Id, instance_desc.m_Children[j], r);
+                            dmLogError("Unable to set %s as parent to %s (%s)", instance_desc.m_Id, instance_desc.m_Children[j], GetResultLiteral(r));
                             result = r;
                         }
                     }
