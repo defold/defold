@@ -7058,16 +7058,6 @@ TEST_F(dmRenderTest, GpuContextCapabilityFallback)
         shader.AddTypeMember(uniforms[i], type);
         shader.AddUniformBuffer(uniforms[i], i, i, dmGraphics::GetShaderTypeSize(type));
     }
-    // The builder normally supplies in-memory reflection; serialization also
-    // needs the field numbers selecting each protobuf oneof.
-    for (uint32_t i = 0; i < DM_ARRAY_SIZE(uniforms); ++i)
-    {
-        shader.Get()->m_Reflection.m_Types[i].m_Members[0].m_Type.m_TypeOneOfIndex = 1;
-        shader.Get()->m_Reflection.m_UniformBuffers[i].m_Type.m_TypeOneOfIndex = 2;
-        shader.Get()->m_Reflection.m_UniformBuffers[i].m_BindinginfoOneOfIndex = 11;
-    }
-    dmArray<uint8_t> descriptor;
-    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(shader.Get(), dmGraphics::ShaderDesc::m_DDFDescriptor, descriptor));
     dmGraphics::EnableState(m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
     dmGraphics::SetDepthMask(m_GraphicsContext, true);
     dmGraphics::SetDepthFunc(m_GraphicsContext, dmGraphics::COMPARE_FUNC_LEQUAL);
@@ -7085,8 +7075,7 @@ TEST_F(dmRenderTest, GpuContextCapabilityFallback)
         dmRender::RenderContextParams params;
         if (mode != 0)
         {
-            params.m_InstanceCullingShaderProgramDesc = descriptor.Begin();
-            params.m_InstanceCullingShaderProgramDescSize = descriptor.Size();
+            params.m_InstanceCullingShaderProgramDesc = shader.Get();
         }
         dmRender::HRenderContext context = m_Context;
         dmRender::InitializeGpuIndirect(context, params);

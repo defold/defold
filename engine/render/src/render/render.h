@@ -184,11 +184,10 @@ namespace dmRender
         /// Max debug vertex count
         /// NOTE: This is per debug-type and not the total sum
         uint32_t                        m_MaxDebugVertexCount;
-        /// Optional compiled model-culling compute shader. The descriptor is copied
-        /// into a GPU program at creation; the caller retains the descriptor bytes.
+        /// Optional model-culling compute shader descriptor. The GPU program is
+        /// created synchronously; the caller retains ownership of the descriptor.
         /// Null or unsupported backends keep CPU culling and conventional draws.
-        void*                           m_InstanceCullingShaderProgramDesc;
-        uint32_t                        m_InstanceCullingShaderProgramDescSize;
+        dmGraphics::ShaderDesc*          m_InstanceCullingShaderProgramDesc;
         /// Collect asynchronous GPU visibility statistics when compaction changes.
         /// Disabled by default; indirect rendering does not require readback.
         bool                            m_GpuCullingStatistics;

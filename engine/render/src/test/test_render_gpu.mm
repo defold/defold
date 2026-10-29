@@ -275,9 +275,9 @@ class GpuIndirectTest : public jc_test_base_class
         render_params.m_MaxInstances = 4;
         render_params.m_MaxCharacters = 1;
         render_params.m_MaxBatches = 1;
-        render_params.m_InstanceCullingShaderProgramDesc = bytes;
-        render_params.m_InstanceCullingShaderProgramDescSize = size;
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage(bytes, size, &render_params.m_InstanceCullingShaderProgramDesc));
         m_Render = dmRender::NewRenderContext(m_Graphics, render_params);
+        dmDDF::FreeMessage(render_params.m_InstanceCullingShaderProgramDesc);
         delete[] bytes;
         ASSERT_TRUE(dmRender::IsGpuIndirectSupported(m_Render));
         ASSERT_EQ(32u, sizeof(dmRender::GpuCullingBounds));

@@ -65,17 +65,13 @@ namespace dmRender
         gpu.m_ParamsLocation = dmGraphics::INVALID_UNIFORM_LOCATION;
         gpu.m_InstanceParamsLocation = dmGraphics::INVALID_UNIFORM_LOCATION;
         gpu.m_ViewLocation = dmGraphics::INVALID_UNIFORM_LOCATION;
-        if (!params.m_InstanceCullingShaderProgramDesc || !params.m_InstanceCullingShaderProgramDescSize ||
+        if (!params.m_InstanceCullingShaderProgramDesc ||
             !dmGraphics::IsContextFeatureSupported(context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER) ||
             !dmGraphics::IsContextFeatureSupported(context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_STORAGE_BUFFER) ||
             !dmGraphics::IsContextFeatureSupported(context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_INDIRECT_DRAW))
             return;
-        dmGraphics::ShaderDesc* desc = 0;
-        if (dmDDF::LoadMessage(params.m_InstanceCullingShaderProgramDesc, params.m_InstanceCullingShaderProgramDescSize, dmGraphics::ShaderDesc::m_DDFDescriptor, (void**)&desc) != dmDDF::RESULT_OK)
-            return;
         char error[512] = {};
-        gpu.m_Program = dmGraphics::NewProgram(context->m_GraphicsContext, desc, error, sizeof(error));
-        dmDDF::FreeMessage(desc);
+        gpu.m_Program = dmGraphics::NewProgram(context->m_GraphicsContext, params.m_InstanceCullingShaderProgramDesc, error, sizeof(error));
         if (!gpu.m_Program)
         {
             dmLogWarning("Model GPU compaction unavailable: %s", error);
