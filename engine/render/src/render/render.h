@@ -193,23 +193,17 @@ namespace dmRender
         bool                            m_GpuCullingStatistics;
     };
 
-    typedef struct GpuRenderBatch* HGpuRenderBatch;
-    // Model worlds own batches and must delete them before the render context.
-    // Use a separate batch for each render object prepared before Draw(). Later
-    // draws may reuse batches: the backend orders uploads, compute and rendering.
-    HGpuRenderBatch NewGpuRenderBatch(HRenderContext context);
-    void DeleteGpuRenderBatch(HRenderContext context, HGpuRenderBatch batch);
     bool IsGpuIndirectSupported(HRenderContext context);
     // Components declare geometry/layout eligibility. The renderer additionally
     // checks the current draw's override, blend/depth/stencil state and bounds.
     void SetRenderItemGpuDriven(HRenderContext context, HRenderItem item, bool eligible);
     bool IsRenderItemGpuDriven(HRenderContext context, HRenderItem item);
-    // Compacts persistent slots into an instance stream at vertex binding 1 and
-    // submits indexed indirect drawing. Offsets and stride are in bytes; absent
-    // matrices use -1. All slots must belong to compatible model instances.
-    // Storage-buffer failures fall back to CPU culling and conventional instancing.
-    Result AddToRenderGpuBatch(HRenderContext context, RenderObject* object, HGpuRenderBatch batch,
-        const uint32_t* slots, uint32_t count, uint32_t stride, int32_t world_offset, int32_t normal_offset);
+    // Submits compatible, GPU-eligible persistent instances at vertex binding 1.
+    // Slots are borrowed only during this call. Compaction buffers are reused per
+    // draw and released with the render context. Offsets and stride are in bytes;
+    // absent matrices use -1. Storage-buffer failures fall back to CPU culling and
+    // conventional instancing.
+    Result AddToRender(HRenderContext context, RenderObject* object, const uint32_t* slots, uint32_t count, uint32_t stride, int32_t world_offset, int32_t normal_offset);
 
     struct RenderCameraData
     {

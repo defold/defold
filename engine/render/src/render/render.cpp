@@ -447,6 +447,7 @@ namespace dmRender
     Result ClearRenderObjects(HRenderContext context)
     {
         context->m_RenderObjects.SetSize(0);
+        context->m_GpuIndirect.m_BatchCursor = 0;
         ClearDebugRenderObjects(context);
 
         // Should probably be moved and/or refactored, see case 2261
@@ -1605,6 +1606,7 @@ namespace dmRender
 
         // Construct render objects
         context->m_RenderObjects.SetSize(0);
+        indirect.m_BatchCursor = 0;
 
         RenderListDispatchParams params;
         memset(&params, 0x00, sizeof(params));

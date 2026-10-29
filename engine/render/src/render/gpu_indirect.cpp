@@ -56,6 +56,7 @@ namespace dmRender
         gpu.m_SlotRevision = 1;
         gpu.m_BatchRevision = 1;
         gpu.m_DrawCursor = 0;
+        gpu.m_BatchCursor = 0;
         gpu.m_DrawCache = 0;
         gpu.m_Frame = 0;
         context->m_GpuCulling.m_BoundsBuffer = 0;
@@ -97,9 +98,13 @@ namespace dmRender
         dmLogInfo("GPU model compaction and indirect draws enabled; other items use CPU culling.");
     }
 
+    static void DeleteGpuRenderBatch(HRenderContext context, HGpuRenderBatch batch);
+
     void FinalizeGpuIndirect(HRenderContext context)
     {
         GpuIndirectContext& gpu = context->m_GpuIndirect;
+        for (uint32_t i = 0; i < gpu.m_Batches.Size(); ++i)
+            DeleteGpuRenderBatch(context, gpu.m_Batches[i]);
         for (uint32_t i = 0; i < gpu.m_DrawCaches.Size(); ++i)
             delete gpu.m_DrawCaches[i];
         if (context->m_GpuCulling.m_BoundsBuffer)
@@ -175,7 +180,7 @@ namespace dmRender
         return context->m_GpuIndirect.m_DrawEnabled && item.m_GpuDriven && item.m_BoundingVolumeType != BOUNDING_VOLUME_NONE;
     }
 
-    HGpuRenderBatch NewGpuRenderBatch(HRenderContext context)
+    static HGpuRenderBatch NewGpuRenderBatch()
     {
         GpuRenderBatch* batch = new GpuRenderBatch;
         batch->m_FallbackBuffer = 0;
@@ -196,7 +201,7 @@ namespace dmRender
         return batch;
     }
 
-    void DeleteGpuRenderBatch(HRenderContext context, HGpuRenderBatch batch)
+    static void DeleteGpuRenderBatch(HRenderContext context, HGpuRenderBatch batch)
     {
         if (batch->m_FallbackBuffer)
             dmGraphics::DeleteVertexBuffer(batch->m_FallbackBuffer);
@@ -443,15 +448,27 @@ namespace dmRender
         return true;
     }
 
-    Result AddToRenderGpuBatch(HRenderContext context, RenderObject* object, HGpuRenderBatch batch, const uint32_t* slots, uint32_t count, uint32_t stride, int32_t world_offset, int32_t normal_offset)
+    Result AddToRender(HRenderContext context, RenderObject* object, const uint32_t* slots, uint32_t count, uint32_t stride, int32_t world_offset, int32_t normal_offset)
     {
         DM_PROFILE("GpuModelBatch");
+        if (!context)
+            return RESULT_INVALID_CONTEXT;
         assert(stride && stride % sizeof(float) == 0);
         if (count == 0)
             return RESULT_OK;
         if (context->m_RenderObjects.Full())
             return RESULT_OUT_OF_RESOURCES;
-        GpuIndirectContext&  gpu = context->m_GpuIndirect;
+        GpuIndirectContext& gpu = context->m_GpuIndirect;
+        // Each queued instance draw needs distinct outputs. Ordinary draws do
+        // not advance this cursor, so CPU batching does not churn GPU caches.
+        uint32_t index = gpu.m_BatchCursor;
+        if (index == gpu.m_Batches.Size())
+        {
+            if (gpu.m_Batches.Full())
+                gpu.m_Batches.OffsetCapacity(16);
+            gpu.m_Batches.Push(NewGpuRenderBatch());
+        }
+        HGpuRenderBatch batch = gpu.m_Batches[index];
         dmGraphics::HContext graphics = context->m_GraphicsContext;
         uint32_t             instance_stride = stride;
         int32_t              instance_world_offset = world_offset;
@@ -488,7 +505,14 @@ namespace dmRender
             !ResizeStorageBuffer(context, &batch->m_InstanceBuffer, (uint64_t)count * stride, layout_changed) ||
             !ResizeStorageBuffer(context, &batch->m_ArgumentBuffer, 5 * sizeof(uint32_t)) ||
             !UploadGpuCullingBounds(context) || !UploadWorlds(context))
-            return AddToRenderCpuBatch(context, object, batch, slots, count, instance_stride, instance_world_offset, normal_offset);
+        {
+            uint32_t previous_count = context->m_RenderObjects.Size();
+            Result result = AddToRenderCpuBatch(context, object, batch, slots, count, instance_stride, instance_world_offset, normal_offset);
+            // An entirely culled or failed fallback has no queued buffer user.
+            if (context->m_RenderObjects.Size() != previous_count)
+                ++gpu.m_BatchCursor;
+            return result;
+        }
         layout_changed |= output_resized;
         if (membership_changed)
         {
@@ -563,7 +587,10 @@ namespace dmRender
         object->m_VertexBufferOffsets[1] = 0;
         Result result = AddToRender(context, object);
         if (result == RESULT_OK)
+        {
             gpu.m_RenderBatches.Back() = batch;
+            ++gpu.m_BatchCursor;
+        }
         DM_PROPERTY_ADD_U32(rmtp_GpuIndirectDraws, 1);
         DM_PROPERTY_ADD_U32(rmtp_GpuIndirectCandidates, count);
         DM_PROPERTY_ADD_U32(rmtp_GpuIndirectVisible, batch->m_StatisticsVisible);

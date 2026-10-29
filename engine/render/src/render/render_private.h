@@ -473,6 +473,8 @@ namespace dmRender
         bool                         m_Prepared;
     };
 
+    typedef struct GpuRenderBatch* HGpuRenderBatch;
+
     struct GpuRenderBatch
     {
         // Membership uses renderer slots; the GPU buffer stores dense model slots.
@@ -518,6 +520,9 @@ namespace dmRender
         dmArray<uint32_t>            m_RenderSlots;
         dmArray<uint32_t>            m_UploadSlots;
         dmArray<uint32_t>            m_DirtyWorldSlots;
+        // The context owns reusable outputs for GPU instance submissions. The
+        // per-render-object list below borrows the active batch, or null.
+        dmArray<HGpuRenderBatch>     m_Batches;
         dmArray<HGpuRenderBatch>     m_RenderBatches;
         dmArray<GpuRenderListCache*> m_DrawCaches;
         dmArray<GpuRenderListSource> m_DrawSources;
@@ -527,6 +532,7 @@ namespace dmRender
         uint64_t                     m_SlotRevision;
         uint64_t                     m_BatchRevision;
         uint32_t                     m_DrawCursor;
+        uint32_t                     m_BatchCursor;
         uint32_t                     m_Frame;
         uint8_t                      m_DrawEnabled;
         uint8_t                      m_StatisticsEnabled;

@@ -182,8 +182,6 @@ namespace dmGameSystem
         dmArray<uint8_t>*                m_VertexBufferData;
         uint32_t*                        m_VertexBufferDispatchCounts;
         uint32_t                         m_InstanceBufferDispatchCount;
-        dmArray<dmRender::HGpuRenderBatch> m_GpuBatches;
-        uint32_t                         m_GpuBatchDispatchCount;
         // Temporary scratch array for instances, only used during the creation phase of components
         dmArray<dmGameObject::HInstance> m_ScratchInstances;
         dmArray<HComponentRenderConstants> m_ScratchConstantBuffers;
@@ -276,7 +274,6 @@ namespace dmGameSystem
         world->m_MaxBatchIndex             = 0;
         world->m_InstanceBufferLocalSpace  = dmRender::NewBufferedRenderBuffer(context->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
         world->m_InstanceBufferDispatchCount = 0;
-        world->m_GpuBatchDispatchCount = 0;
 
         dmGraphics::TextureCreationParams tp;
         world->m_SkinnedAnimationData.m_BindPoseCacheTexture = dmGraphics::NewTexture(graphics_context, tp);
@@ -363,8 +360,6 @@ namespace dmGameSystem
         }
 
         dmRender::DeleteBufferedRenderBuffer(context->m_RenderContext, world->m_InstanceBufferLocalSpace);
-        for (uint32_t i = 0; i < world->m_GpuBatches.Size(); ++i)
-            dmRender::DeleteGpuRenderBatch(context->m_RenderContext, world->m_GpuBatches[i]);
 
         for (int i = 0; i < world->m_ScratchConstantBuffers.Size(); ++i)
         {
@@ -1684,20 +1679,6 @@ namespace dmGameSystem
         return GetInstanceTransformLayout(infos, &layout) && CanShareVertexData(infos);
     }
 
-    static dmRender::HGpuRenderBatch GetGpuBatch(ModelWorld* world)
-    {
-        // Separate each submission within a draw. Reusing a buffer for two render
-        // objects before Draw() would overwrite the first object's GPU results.
-        uint32_t index = world->m_GpuBatchDispatchCount++;
-        if (index == world->m_GpuBatches.Size())
-        {
-            if (world->m_GpuBatches.Full())
-                world->m_GpuBatches.OffsetCapacity(16);
-            world->m_GpuBatches.Push(dmRender::NewGpuRenderBatch(world->m_RenderContext));
-        }
-        return world->m_GpuBatches[index];
-    }
-
     static void RenderBatchLocalVSInstanced(ModelWorld* world, dmRender::HRenderContext render_context,
         dmRender::HMaterial render_context_material, uint32_t material_index,
         ModelComponent* component, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end, dmGraphics::HVertexDeclaration inst_decl)
@@ -1963,9 +1944,8 @@ namespace dmGameSystem
 
         if (gpu_driven)
         {
-            dmRender::HGpuRenderBatch batch = GetGpuBatch(world);
-            uint32_t                  stride = dmGraphics::GetVertexDeclarationStride(ro.m_VertexDeclarations[VX_DECL_INSTANCE_BUFFER]);
-            dmRender::AddToRenderGpuBatch(render_context, &ro, batch, begin, instance_count, stride, transform_layout.m_WorldOffset, transform_layout.m_NormalOffset);
+            uint32_t stride = dmGraphics::GetVertexDeclarationStride(ro.m_VertexDeclarations[VX_DECL_INSTANCE_BUFFER]);
+            dmRender::AddToRender(render_context, &ro, begin, instance_count, stride, transform_layout.m_WorldOffset, transform_layout.m_NormalOffset);
         }
         else
         {
@@ -2710,7 +2690,6 @@ namespace dmGameSystem
         dmRender::TrimBuffer(context->m_RenderContext, world->m_InstanceBufferLocalSpace);
         dmRender::RewindBuffer(context->m_RenderContext, world->m_InstanceBufferLocalSpace);
         world->m_InstanceBufferDispatchCount = 0;
-        world->m_GpuBatchDispatchCount = 0;
 
         world->m_ScratchConstantBuffersCount = 0;
         world->m_MaxBatchIndex = 0;
@@ -2741,7 +2720,6 @@ namespace dmGameSystem
                 world->m_StatisticsVertexDataSize = 0;
 
                 world->m_InstanceBufferDataLocalSpace.SetSize(0);
-                world->m_GpuBatchDispatchCount = 0;
                 world->m_RenderObjects.SetSize(0);
                 world->m_VertexBufferIndex = 0;
                 world->m_VertexBufferVertexCount = 0;
