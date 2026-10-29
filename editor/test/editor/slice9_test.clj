@@ -14,6 +14,7 @@
 
 (ns editor.slice9-test
   (:require [clojure.test :refer :all]
+            [editor.image :as image]
             [editor.slice9 :as slice9]
             [editor.sprite :as sprite]
             [editor.texture-set :as texture-set]
@@ -109,9 +110,8 @@
             [0.0 2.0 -3.0 1.0] [0.0 5.0 -2.0 1.0]]]
           pivot [:pivot-center :pivot-nw]]
     (testing (str description " with " pivot)
-      (let [animation-frame (merge {:tex-coords [[0 1] [0 0] [1 0] [1 1]]
-                                    :tex-coords-raw [[0.0 0.0] [0.0 1.0] [1.0 1.0] [1.0 0.0]]
-                                    :atlas-rotated false}
+      (let [animation-frame (merge (get-in (image/produce-anim-data {:size {:width 64 :height 32}})
+                                           [nil :frames 0])
                                    dimensions)
             {:keys [position-data uv-data line-data]}
             (texture-set/vertex-data animation-frame :size-mode-manual size [2.0 3.0 4.0 5.0] pivot)]
@@ -120,9 +120,27 @@
         (doseq [[i [u v]] (eduction (map-indexed vector) uv-data)]
           (let [vertex (indices i)]
             (is (near (us (mod vertex 4)) u))
-            (is (near (vs (quot vertex 4)) v))))
+            (is (near (- 1.0 (vs (quot vertex 4))) v))))
         (doseq [value (eduction cat cat [position-data uv-data line-data])]
           (is (Double/isFinite (double value))))))))
+
+;; Verifies ImageNode frames keep corner orientation when slicing is enabled,
+;; including unequal top/bottom borders in the legacy V convention.
+(deftest standalone-image-slice-orientation-test
+  (let [animation-frame (get-in (image/produce-anim-data {:size {:width 64 :height 32}})
+                                [nil :frames 0])]
+    (doseq [pivot [:pivot-center :pivot-nw]]
+      (let [unsliced (texture-set/vertex-data animation-frame :size-mode-manual [64.0 32.0] [0.0 0.0 0.0 0.0] pivot)
+            sliced (texture-set/vertex-data animation-frame :size-mode-manual [64.0 32.0] [2.0 3.0 4.0 5.0] pivot)
+            position->uv (into {} (mapv (fn [position uv] [(subvec position 0 2) uv])
+                                        (:position-data sliced)
+                                        (:uv-data sliced)))]
+        (doseq [[position uv] (mapv vector (:position-data unsliced) (:uv-data unsliced))]
+          (is (= (mapv double uv) (position->uv (subvec position 0 2)))))
+        (is (near 1.0 (get-in sliced [:uv-data 0 1])))
+        (is (near (- 1.0 (/ 5.0 32.0)) (get-in sliced [:uv-data 2 1])))
+        (is (near (/ 3.0 32.0) (get-in sliced [:uv-data 20 1])))
+        (is (near 0.0 (get-in sliced [:uv-data 38 1])))))))
 
 ;; Verifies zero dimensions, collapsed cells and oversized margins retain the
 ;; native topology without NaNs.
@@ -147,13 +165,21 @@
 (deftest animation-frame-shared-input-test
   (doseq [flip-h [0 1]
           flip-v [0 1]]
-    (let [texture-set {:width 256 :height 128
+    (let [texture-set {:width 256
+                       :height 128
                        :tex-coords (float-bytes (coll/into-> (:tex-coords-raw frame) [] cat))
                        :tex-dims (float-bytes [128 64])
                        :frame-indices [0]
                        :page-indices [2]
-                       :geometries [{:pivot-x 0.25 :pivot-y -0.25 :trim-mode :sprite-trim-mode-off}]
-                       :animations [{:id "slice" :start 0 :end 1 :fps 0 :flip-horizontal flip-h :flip-vertical flip-v}]}
+                       :geometries [{:pivot-x 0.25
+                                     :pivot-y -0.25
+                                     :trim-mode :sprite-trim-mode-off}]
+                       :animations [{:id "slice"
+                                     :start 0
+                                     :end 1
+                                     :fps 0
+                                     :flip-horizontal flip-h
+                                     :flip-vertical flip-v}]}
           decoded (get-in (texture-set/make-anim-data texture-set [nil]) ["slice" :frames 0])]
       (is (= 256 (:texture-width decoded)))
       (is (= 128 (:texture-height decoded)))

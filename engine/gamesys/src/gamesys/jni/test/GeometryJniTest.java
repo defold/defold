@@ -14,7 +14,7 @@
 
 package com.defold.engine;
 
-public final class EngineJniTest {
+public final class GeometryJniTest {
     private static void Check(boolean condition) {
         if (!condition)
             throw new AssertionError();
@@ -131,6 +131,6 @@ public final class EngineJniTest {
         TexCoords();
         Indices();
         InvalidInputs();
-        System.out.println("Engine JNI tests passed");
+        System.out.println("Geometry JNI tests passed");
     }
 }

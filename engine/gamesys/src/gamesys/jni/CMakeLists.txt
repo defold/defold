@@ -44,7 +44,10 @@ defold_add_library(gamesys_shared STATIC
 defold_target_skip_sanitizer(gamesys_shared)
 set_target_properties(gamesys_shared PROPERTIES
   POSITION_INDEPENDENT_CODE ON
-  DEFOLD_JAVA_SOURCES "${GS_GENERATED_JAVA};${GS_GEOMETRY_JAVA}")
+  DEFOLD_JAVA_SOURCES "${GS_GENERATED_JAVA};${GS_GEOMETRY_JAVA}"
+  DEFOLD_JAVA_TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test/GeometryJniTest.java"
+  DEFOLD_JAVA_TEST_CLASSES "com.defold.engine.GeometryJniTest"
+  DEFOLD_JAVA_CLI_TEST_SCRIPTS "${CMAKE_CURRENT_SOURCE_DIR}/test/test_geometry_cli.py")
 target_include_directories(gamesys_shared PUBLIC "${GS_DMSDK_SRC_DIR}"
   PRIVATE "${GS_SRC_DIR}" "${GS_JNI_DIR}" ${JNI_INCLUDE_DIRS})
 defold_target_link_libraries(gamesys_shared "${TARGET_PLATFORM}" SCOPE PRIVATE jni_noasan)

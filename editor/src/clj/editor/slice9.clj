@@ -30,7 +30,7 @@
   (coll/any? pos? slice9))
 
 (defn vertex-data
-  [{:keys [texture-width texture-height width height tex-coords-raw flip-horizontal flip-vertical]
+  [{:keys [texture-width texture-height width height tex-coords-raw flip-horizontal flip-vertical uv-flip-vertical]
     image-pivot :pivot}
    [^double box-width ^double box-height] slice9 pivot]
   (let [indices @indices
@@ -68,7 +68,13 @@
 
           uvs (mapv (fn [^long vertex]
                       (let [offset (* vertex 2)]
-                        (vector-of :double (aget uv offset) (aget uv (inc offset)))))
+                        (vector-of :double
+                          (aget uv offset)
+                          ;; Convert standalone V without changing geometry
+                          ;; or exchanging top/bottom margins.
+                          (if uv-flip-vertical
+                            (- 1.0 (aget uv (inc offset)))
+                            (aget uv (inc offset))))))
                     (range Geometry/SLICE9_VERTEX_COUNT))]
       {:position-data (mapv positions indices)
        :uv-data (mapv uvs indices)

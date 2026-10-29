@@ -33,20 +33,42 @@ The library loads through `java.library.path`. An embedding application can
 instead set `dmengine.library` to the absolute path of its unpacked native library
 before first use. Loading failures propagate as Java errors.
 
-The jar's entry point prints a deterministic slice-9 fixture as JSON:
+The jar's entry point takes a class name in `com.defold.engine` and forwards the
+remaining arguments to its `public static void main(String[])`. It has no
+feature-specific command registry. For example, generate
+slice-9 positions, UVs and indices as JSON using explicit dimensions, margins,
+pivot, flips, texture dimensions and UV corners:
 
 ```sh
-java -Djava.library.path=/path/to/lib/arm64-macos -jar /path/to/share/java/dmengine.jar
+java -Djava.library.path=/path/to/lib/arm64-macos -jar /path/to/share/java/dmengine.jar \
+  GeometryJni slice9 32.5 24.25 2 3 4 5 0.75 0.25 0 0 64 64 0 0 0 1 1 1 1 0
 ```
 
-The tests exercise both loading paths, JNI conversions, invalid inputs, and the
-jar entry point. `-Xcheck:jni` is enabled for the Java integration tests.
+Use `GeometryJni --help` for argument order. The module can also be invoked directly
+with `java -Djava.library.path=... -cp dmengine.jar com.defold.engine.GeometryJni
+slice9 ...`. Test fixture values belong in the tests, not in the entry points.
+
+Shared tests cover the packaged launcher, generic dispatch, argument forwarding
+and error propagation. Module tests own their API and command-line fixtures.
+Together they exercise both loading paths, JNI conversions and invalid inputs.
+`-Xcheck:jni` is enabled for the Java integration tests.
 
 ## Adding a module
 
 Keep its bindings and Java facade beside that module's native code. Add the
 module's static target to `ENGINE_SHARED_MODULES` and list its generated and
 handwritten Java files in the target's `DEFOLD_JAVA_SOURCES` property.
+Configure the contributor before `engine/engine`, so its target properties are
+available when the shared JAR is assembled. Keep its Java API tests beside the
+bindings and list their sources and main classes in `DEFOLD_JAVA_TEST_SOURCES`
+and `DEFOLD_JAVA_TEST_CLASSES`. The shared build compiles and runs those tests
+without including them in the shipped JAR. Module-specific Python CLI tests go
+in `DEFOLD_JAVA_CLI_TEST_SCRIPTS`; each receives the Java invocation ending in
+`-jar dmengine.jar` as its arguments. They run under `run_test_engine_shared_cli`
+and the aggregate `run_test_engine_shared` target.
+If the module exposes command-line functionality, provide a public static
+`main(String[])` in its facade. The shared launcher can invoke it by class name
+without changes to `EngineJni` or its tests.
 Register its native methods from the single `JNI_OnLoad` in `engine_jni.cpp`.
 Modules must not define their own `JNI_OnLoad`.
 

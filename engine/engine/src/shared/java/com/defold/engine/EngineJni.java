@@ -14,6 +14,9 @@
 
 package com.defold.engine;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 
 /** Loads the engine modules exposed through dmengine_shared. */
@@ -32,17 +35,23 @@ public final class EngineJni {
     /** Ensures the library is loaded and its module bindings are registered. */
     public static void Initialize() {}
 
-    /** Outputs a deterministic slice-9 fixture for command-line and integration tests. */
-    public static void main(String[] args) {
-        Geometry.Slice9Params params = new Geometry.Slice9Params();
-        params.width = 32.5f;
-        params.height = 24.25f;
-        params.slice9 = new float[] {2, 3, 4, 5};
-        params.pivotX = 0.75f;
-        params.pivotY = 0.25f;
-        float[] corners = {0, 0, 0, 1, 1, 1, 1, 0};
-        System.out.println("{\"positions\":" + Arrays.toString(GeometryJni.GenerateSlice9Positions(params))
-            + ",\"uvs\":" + Arrays.toString(GeometryJni.GenerateSlice9TexCoords(params, 64, 64, corners))
-            + ",\"indices\":" + Arrays.toString(GeometryJni.GetSlice9Indices()) + "}");
+    /** Invokes a facade's public static main(String[]) in com.defold.engine. */
+    public static void main(String[] args) throws Throwable {
+        if (args.length == 0 || args[0].equals("--help")) {
+            System.out.println("Usage: java -jar dmengine.jar <class-name> [arguments]");
+            System.out.println("The class must provide public static void main(String[]) in com.defold.engine.");
+            return;
+        }
+        Class<?> module = Class.forName(EngineJni.class.getPackage().getName() + "." + args[0]);
+        if (module == EngineJni.class)
+            throw new IllegalArgumentException("EngineJni cannot dispatch to itself");
+        Method main = module.getMethod("main", String[].class);
+        if (!Modifier.isStatic(main.getModifiers()) || main.getReturnType() != void.class)
+            throw new IllegalArgumentException("Entry point must be public static void main(String[])");
+        try {
+            main.invoke(null, (Object)Arrays.copyOfRange(args, 1, args.length));
+        } catch (InvocationTargetException e) {
+            throw e.getCause();
+        }
     }
 }

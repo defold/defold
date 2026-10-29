@@ -305,22 +305,20 @@
 
                   :else
                   (frame-vertex-data animation-frame size pivot))
-                (assoc :page-index (:page-index animation-frame 0)))
-
-        ; Pivot point comes from the SpriteGeometry, where (0,0) is center of the image and +Y is up.
-        ;; The shared slice-9 generator already applies the image pivot.
-        [^double image-pivot-x ^double image-pivot-y] (if use-slice9
-                                                        [0.0 0.0]
-                                                        (or (:pivot animation-frame) [0.0 0.0]))
-        [^double width ^double height] (if (or (and (= :size-mode-manual size-mode)) (nil? animation-frame)) size [(:width animation-frame) (:height animation-frame)])
-        image-pivot-x (* width image-pivot-x)
-        image-pivot-y (* height image-pivot-y)
-
-        position-data (:position-data out)
-        line-data (:line-data out)
-        offset-positions (offset-vertices image-pivot-x image-pivot-y position-data)
-        offset-lines (offset-vertices image-pivot-x image-pivot-y line-data)]
-    (assoc out :position-data offset-positions :line-data offset-lines)))
+                (assoc :page-index (:page-index animation-frame 0)))]
+    ;; The shared generator already applies the image pivot.
+    (if use-slice9
+      out
+      ;; SpriteGeometry pivots use (0,0) at the image center, with +Y up.
+      (let [[^double image-pivot-x ^double image-pivot-y] (or (:pivot animation-frame) [0.0 0.0])
+            [^double width ^double height] (if (or (= :size-mode-manual size-mode) (nil? animation-frame))
+                                             size
+                                             [(:width animation-frame) (:height animation-frame)])
+            image-pivot-x (* width image-pivot-x)
+            image-pivot-y (* height image-pivot-y)]
+        (assoc out
+          :position-data (offset-vertices image-pivot-x image-pivot-y (:position-data out))
+          :line-data (offset-vertices image-pivot-x image-pivot-y (:line-data out)))))))
 
 ;; animation
 

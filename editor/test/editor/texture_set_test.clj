@@ -14,7 +14,6 @@
 
 (ns editor.texture-set-test
   (:require [clojure.test :refer :all]
-            [editor.slice9 :as slice9]
             [editor.texture-set :as texture-set]))
 
 (set! *warn-on-reflection* true)

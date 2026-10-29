@@ -105,6 +105,15 @@
         :node-id _node-id
         :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))))))
 
+(g/defnk produce-anim-data [size]
+  {nil (assoc size
+         :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]
+                   :tex-coords-raw [[0.0 0.0] [0.0 1.0] [1.0 1.0] [1.0 0.0]]
+                   ;; Standalone textures have the opposite V direction.
+                   :uv-flip-vertical true
+                   :atlas-rotated false}]
+         :uv-transforms [(TextureSetGenerator$UVTransform.)])})
+
 (g/defnode ImageNode
   (inherits resource-node/ResourceNode)
 
@@ -135,12 +144,7 @@
                                      :mag-filter gl/nearest}))))
 
   ;; NOTE: The anim-data and gpu-texture outputs allow standalone images to be used in place of texture sets in legacy projects.
-  (output anim-data g/Any (g/fnk [size]
-                            {nil (assoc size
-                                   :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]
-                                             :tex-coords-raw [[0.0 0.0] [0.0 1.0] [1.0 1.0] [1.0 0.0]]
-                                             :atlas-rotated false}]
-                                   :uv-transforms [(TextureSetGenerator$UVTransform.)])}))
+  (output anim-data g/Any produce-anim-data)
 
   (output texture-page-count g/Int (g/constantly texture/non-paged-page-count))
   (output scene g/Any :cached produce-scene)
