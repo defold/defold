@@ -1184,7 +1184,6 @@ static bool ValidateGlyphBank(const FontcGlyphBankGlyph* glyphs,
     for (uint32_t i = 0; i < glyph_count; ++i)
     {
         const FontcGlyphBankGlyph& glyph = glyphs[i];
-        // uncrustify:off (comparison parsing)
         if ((i != 0 && glyphs[i - 1].m_Codepoint >= glyph.m_Codepoint) ||
             !isfinite(glyph.m_Width) || !isfinite(glyph.m_Advance) || !isfinite(glyph.m_LeftBearing) ||
             !isfinite(glyph.m_Ascent) || !isfinite(glyph.m_Descent) ||
@@ -1198,7 +1197,6 @@ static bool ValidateGlyphBank(const FontcGlyphBankGlyph* glyphs,
         {
             return false;
         }
-        // uncrustify:on
 
         const float glyph_height = glyph.m_Ascent + glyph.m_Descent;
         if (glyph_height < 0.0f || glyph_height > UINT16_MAX || floorf(glyph_height) != glyph_height)

@@ -1935,10 +1935,8 @@ TEST_F(FontTest, RadialGradientEllipseVertexFits)
             const float radius_y = 0.4f * dmMath::Max(width, height);
             const float cosine = rotations[angle].m_Cosine, sine = rotations[angle].m_Sine;
             // The endpoints of the rotated physical axes map to the unit circle.
-            // uncrustify:off (initializer parsing)
             const float axes[2][2] = { { cosine * radius_x / width, sine * radius_x / height },
                                        { -sine * radius_y / width, cosine * radius_y / height } };
-            // uncrustify:on
             for (uint32_t axis = 0; axis < 2; ++axis)
             {
                 ASSERT_NEAR(axis == 0 ? 1.0f : 0.0f, axes[axis][0] * matrix[2] + axes[axis][1] * matrix[4], 0.0001f);
