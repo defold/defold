@@ -472,6 +472,52 @@ class GradleOutputTests(unittest.TestCase):
         self.assertNotIn('expected suite skip', stream.getvalue())
         self.assertIn('expected suite skip', log.getvalue())
 
+    # Method-only Gradle displays must omit confirmed skips while recovering a parameterized worker crash.
+    def test_method_only_display_recovers_only_interrupted_test(self):
+        for marker_first in (False, True):
+            with self.subTest(marker_first=marker_first):
+                output, stream, log = self.reporter()
+                marker = 'DEFOLD_TEST_SKIPPED ' + json.dumps({'task': ':test', 'test': 'runs[0]'})
+                for line in ('> Task :test', 'runs[0] STANDARD_OUT', '    error: expected parameter skip'):
+                    output.on_output(line)
+                if marker_first:
+                    output.on_output(marker)
+                output.on_output('runs[0] SKIPPED')
+                if not marker_first:
+                    output.on_output(marker)
+                for line in ('runs[1] STANDARD_OUT', '    error: PARAMETER_ROOT_CAUSE missing library',
+                             'runs[1] SKIPPED', 'Gradle Test Run :test FAILED',
+                             '    worker exited with code 7', '> Task :test FAILED'):
+                    output.on_output(line)
+                output.finish(False)
+                self.assertEqual(1, stream.getvalue().count('PARAMETER_ROOT_CAUSE'))
+                self.assertIn('worker exited with code 7', stream.getvalue())
+                self.assertNotIn('expected parameter skip', stream.getvalue())
+                self.assertIn('expected parameter skip', log.getvalue())
+
+    # Abbreviated method names still delimit passing output from a failed test's diagnostic and trace.
+    def test_method_only_display_excludes_passing_test_output(self):
+        output, stream, _ = self.reporter()
+        for line in ('> Task :test', 'passes STANDARD_OUT', '    error: expected passing result',
+                     'passes PASSED', 'fails STANDARD_OUT', '    error: METHOD_ROOT_CAUSE missing library',
+                     'fails FAILED', '    java.lang.AssertionError: actual failure', '> Task :test FAILED'):
+            output.on_output(line)
+        output.finish(False)
+        self.assertIn('METHOD_ROOT_CAUSE', stream.getvalue())
+        self.assertIn('java.lang.AssertionError: actual failure', stream.getvalue())
+        self.assertNotIn('expected passing result', stream.getvalue())
+
+    # Task tools can print status words too; without test events those lines remain task diagnostics.
+    def test_plain_task_status_is_not_a_test_result(self):
+        output, stream, _ = self.reporter()
+        for line in ('> Task :package', 'input validation PASSED', 'optional resource SKIPPED',
+                     '> Task :other', 'unrelated output', '> Task :package FAILED'):
+            output.on_output(line)
+        output.finish(False)
+        self.assertIn('input validation PASSED', stream.getvalue())
+        self.assertIn('optional resource SKIPPED', stream.getvalue())
+        self.assertNotIn('unrelated output', stream.getvalue())
+
     # A skip confirmation must apply to one execution, including late confirmations of tests with no output.
     def test_skip_confirmation_does_not_suppress_repeated_execution(self):
         for marker_first in (False, True):

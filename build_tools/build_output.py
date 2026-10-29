@@ -21,7 +21,7 @@ _ANSI = re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
 _ERROR = re.compile(r'^CMake Error|^Traceback \(most recent call last\):|\b(?:fatal error|error(?: [A-Z]+\d+)?):')
 _GRADLE_PROGRESS = re.compile(r'^(?:<[^>]*>|[│|][^│|]*[│|])\s*(\d+)%\s+([A-Z]+)')
 _GRADLE_TASK = re.compile(r'^> Task (\S+)(?:\s+(.*))?$')
-_GRADLE_TEST = re.compile(r'^(\S.* > .+) (PASSED|SKIPPED|FAILED|STANDARD_OUT|STANDARD_ERROR)$')
+_GRADLE_TEST = re.compile(r'^(\S.*?) (PASSED|SKIPPED|FAILED|STANDARD_OUT|STANDARD_ERROR)$')
 _GRADLE_TEST_RUN_FAILURE = re.compile(r'^Gradle Test (?:Run|Executor) .+ FAILED$')
 _GRADLE_SKIPPED = 'DEFOLD_TEST_SKIPPED '
 
@@ -191,6 +191,7 @@ class GradleOutput(BuildOutput):
         self.summary = []
         self.current_task = None
         self.task_output = {}
+        self.test_tasks = set()
         self.current_tests = {}
         self.test_output = {}
         self.skipped_test_output = {}
@@ -212,6 +213,7 @@ class GradleOutput(BuildOutput):
         if plain.startswith(_GRADLE_SKIPPED):
             result = json.loads(plain[len(_GRADLE_SKIPPED):])
             key = (result['task'], result['test'])
+            self.test_tasks.add(result['task'])
             if key not in self.completed_skips:
                 self.ordinary_skipped_tests.add(key)
             self.skipped_test_output.pop(key, None)
@@ -254,8 +256,18 @@ class GradleOutput(BuildOutput):
                 self.in_error = False
                 self.edge_output.append(plain)
             return
+        if _GRADLE_TEST_RUN_FAILURE.match(plain):
+            self.in_error = False
+            self._start_error(plain, context=True)
+            for key in list(self.skipped_test_output):
+                if key[0] == self.current_task:
+                    self.errors.extend(self.skipped_test_output.pop(key).lines())
+            return
         test = _GRADLE_TEST.match(plain)
-        if test:
+        # Method-only displays omit the class separator; stream events still identify a test task.
+        if test and (' > ' in test[1] or self.current_task in self.test_tasks
+                     or test[2] in ('STANDARD_OUT', 'STANDARD_ERROR')):
+            self.test_tasks.add(self.current_task)
             self.in_error = False
             key = (self.current_task, test[1])
             status = test[2]
@@ -283,13 +295,6 @@ class GradleOutput(BuildOutput):
                         self.errors.extend(previous.lines())
                 else:
                     self.test_output.setdefault(key, _DiagnosticBuffer()).append(plain)
-            return
-        if _GRADLE_TEST_RUN_FAILURE.match(plain):
-            self.in_error = False
-            self._start_error(plain, context=True)
-            for key in list(self.skipped_test_output):
-                if key[0] == self.current_task:
-                    self.errors.extend(self.skipped_test_output.pop(key).lines())
             return
         if plain.startswith('FAILURE:'):
             self.summary_stream = is_stderr
