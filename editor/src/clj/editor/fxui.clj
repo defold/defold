@@ -603,7 +603,7 @@
         place-above-if-needed!
         (fn place-above-if-needed! []
           (when (and (= PopupWindow$AnchorLocation/WINDOW_TOP_LEFT (.getAnchorLocation tooltip))
-                     (< (.getAnchorY tooltip) below-y))
+                     (< (.getAnchorY tooltip) (.getMaxY screen-bounds)))
             ;; Auto-fix can move the popup over its owner, causing a mouse exit
             ;; that hides it and starts another hover. Anchor above the owner so
             ;; subsequent layout changes grow the tooltip away from the pointer.
@@ -611,7 +611,8 @@
             (.setAnchorY tooltip (- (.getMinY screen-bounds) 8.0))))
 
         ^ChangeListener anchor-listener
-        (fn on-tooltip-anchor-changed [_ _ _] (place-above-if-needed!))
+        (fn on-tooltip-anchor-changed [_ _ _]
+          (place-above-if-needed!))
 
         hide-listener
         (reify ChangeListener
