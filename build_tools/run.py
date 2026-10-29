@@ -95,6 +95,24 @@ def _redact_args(arg_list, redact_flags, secrets):
 
     return redacted, secrets
 
+def _pipe_bytes_available(fd):
+    if os.name == 'nt':
+        import msvcrt
+        import _winapi
+        handle = msvcrt.get_osfhandle(fd)
+        try:
+            return _winapi.PeekNamedPipe(handle)[0]
+        except OSError as error:
+            if error.winerror == _winapi.ERROR_BROKEN_PIPE:
+                return 0
+            raise
+    import array
+    import fcntl
+    import termios
+    available = array.array('i', [0])
+    fcntl.ioctl(fd, termios.FIONREAD, available, True)
+    return available[0]
+
 def _terminal_lines(stream, stopped=None, process_done=None):
     # Gradle redraws rows with cursor movements, often without a newline or carriage return.
     separator = re.compile(r'\r\n|[\r\n]|\x1b\[[0-9;]*[AB]')
@@ -104,19 +122,25 @@ def _terminal_lines(stream, stopped=None, process_done=None):
     if fd is not None:
         # Python 3.12 supports non-blocking pipes on Windows too.
         os.set_blocking(fd, False)
+    remaining = None
     while stopped is None or not stopped.is_set():
-        # A read must follow observing exit; the launcher's final write may follow an earlier empty read.
-        process_exited = process_done is not None and process_done.is_set()
+        if remaining is None and process_done is not None and process_done.is_set():
+            # Snapshot after observing exit to retain final writes without following future worker output.
+            remaining = _pipe_bytes_available(fd)
+        if remaining == 0:
+            break
         try:
-            chunk = os.read(fd, 65536) if fd is not None else stream.read1(65536)
+            size = 65536 if remaining is None else min(65536, remaining)
+            chunk = os.read(fd, size) if fd is not None else stream.read1(size)
         except BlockingIOError:
-            # Drain buffered output after launcher exit without waiting for a worker's EOF.
-            if process_exited:
+            if remaining is not None:
                 break
             stopped.wait(0.05)
             continue
         if not chunk:
             break
+        if remaining is not None:
+            remaining -= len(chunk)
         pending += decoder.decode(chunk)
         records = separator.split(pending)
         pending = records.pop()

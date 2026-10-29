@@ -1,6 +1,7 @@
 import contextlib
 import errno
 import io
+from itertools import islice
 import os
 from pathlib import Path
 from queue import Queue
@@ -14,6 +15,50 @@ from unittest import mock
 import build
 import build_output
 import run
+
+
+class TerminalOutputTests(unittest.TestCase):
+    # Exit must drain the buffered diagnostics even if a worker replenishes the pipe after every read.
+    def test_launcher_exit_limits_drain_to_buffered_bytes(self):
+        read_fd, write_fd = os.pipe()
+        with os.fdopen(read_fd, 'rb', buffering=0) as stream, os.fdopen(write_fd, 'wb', buffering=0) as writer:
+            diagnostic = 'final diagnostic 雪\nunterminated Ω'
+            writer.write(diagnostic.encode('utf-8'))
+            process_done = Event()
+            process_done.set()
+            read = os.read
+
+            def read_and_replenish(fd, size):
+                chunk = read(fd, min(size, 5))
+                writer.write(b'worker output\n')
+                return chunk
+
+            with mock.patch.object(run.os, 'read', side_effect=read_and_replenish):
+                lines = list(islice(run._terminal_lines(stream, Event(), process_done), 6))
+            self.assertEqual(['final diagnostic 雪\n', 'unterminated Ω\n'], lines)
+
+    # Windows snapshots use the native handle and byte count, treating only a broken pipe as EOF.
+    def test_windows_pipe_snapshot(self):
+        broken_pipe = OSError(errno.EPIPE, 'broken pipe')
+        broken_pipe.winerror = 109
+        denied = OSError(errno.EACCES, 'access denied')
+        denied.winerror = 5
+        winapi = mock.Mock(ERROR_BROKEN_PIPE=109)
+        msvcrt = mock.Mock()
+        msvcrt.get_osfhandle.return_value = 123
+        with mock.patch.dict(sys.modules, {'_winapi': winapi, 'msvcrt': msvcrt}), \
+                mock.patch.object(run.os, 'name', 'nt'):
+            winapi.PeekNamedPipe.return_value = (42, 13)
+            self.assertEqual(42, run._pipe_bytes_available(9))
+            msvcrt.get_osfhandle.assert_called_once_with(9)
+            winapi.PeekNamedPipe.assert_called_once_with(123)
+
+            winapi.PeekNamedPipe.side_effect = broken_pipe
+            self.assertEqual(0, run._pipe_bytes_available(9))
+            winapi.PeekNamedPipe.side_effect = denied
+            with self.assertRaises(OSError) as raised:
+                run._pipe_bytes_available(9)
+            self.assertIs(denied, raised.exception)
 
 
 class RunCommandTests(unittest.TestCase):
