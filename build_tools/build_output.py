@@ -21,6 +21,7 @@ _ERROR = re.compile(r'^CMake Error|^Traceback \(most recent call last\):|\b(?:fa
 _GRADLE_PROGRESS = re.compile(r'^(?:<[^>]*>|[│|][^│|]*[│|])\s*(\d+)%\s+([A-Z]+)')
 _GRADLE_TASK = re.compile(r'^> Task (\S+)(?:\s+(.*))?$')
 _GRADLE_TEST = re.compile(r'^(\S.* > .+) (PASSED|SKIPPED|FAILED|STANDARD_OUT|STANDARD_ERROR)$')
+_GRADLE_TEST_RUN_FAILURE = re.compile(r'^Gradle Test (?:Run|Executor) .+ FAILED$')
 
 
 class BuildOutput:
@@ -190,6 +191,7 @@ class GradleOutput(BuildOutput):
         self.task_output = {}
         self.current_tests = {}
         self.test_output = {}
+        self.skipped_test_output = {}
         self.stderr_output = _DiagnosticBuffer()
 
     def on_output(self, line):
@@ -251,7 +253,12 @@ class GradleOutput(BuildOutput):
                 current = self.current_tests.get(self.current_task)
                 if current is not None and current[0] == test[1]:
                     self.current_tests.pop(self.current_task)
-                self.test_output.pop(key, None)
+                previous = self.test_output.pop(key, None)
+                if status == 'SKIPPED' and previous is not None:
+                    # Worker crashes also produce SKIPPED results; retain bounded context for a run failure.
+                    skipped = self.skipped_test_output.setdefault(self.current_task, deque(maxlen=100))
+                    skipped.extend(previous.lines())
+                    skipped.append(plain)
             else:
                 self.current_tests[self.current_task] = (test[1], status)
                 if status == 'FAILED':
@@ -261,6 +268,11 @@ class GradleOutput(BuildOutput):
                         self.errors.extend(previous.lines())
                 else:
                     self.test_output.setdefault(key, _DiagnosticBuffer()).append(plain)
+            return
+        if _GRADLE_TEST_RUN_FAILURE.match(plain):
+            self.in_error = False
+            self._start_error(plain, context=True)
+            self.errors.extend(self.skipped_test_output.pop(self.current_task, ()))
             return
         if plain.startswith('FAILURE:'):
             self.summary_stream = is_stderr

@@ -372,6 +372,25 @@ class GradleOutputTests(unittest.TestCase):
         self.assertIn('Test worker exited with code 7', stream.getvalue())
         self.assertIn('WORKER_ROOT_CAUSE: missing native library', log.getvalue())
 
+    # Gradle marks a crashed worker's active test skipped; recover its output only for the failed test run.
+    def test_failed_worker_recovers_its_skipped_test_diagnostics(self):
+        for failure in ('Gradle Test Run :crashes FAILED', 'Gradle Test Executor 1 FAILED'):
+            with self.subTest(failure=failure):
+                output, stream, _ = self.reporter()
+                for line in ('> Task :other', 'ExampleTest > runs STANDARD_OUT',
+                             '    unrelated skipped-test output', 'ExampleTest > runs SKIPPED',
+                             '> Task :crashes FAILED', 'ExampleTest > runs STANDARD_OUT',
+                             '    WORKER_ROOT_CAUSE: native initialization failed',
+                             'ExampleTest > runs SKIPPED', failure,
+                             '    org.gradle.process.ProcessExecutionException: worker exited with code 7'):
+                    output.on_output(line)
+                output.finish(False)
+                text = stream.getvalue()
+                self.assertEqual(1, text.count('WORKER_ROOT_CAUSE: native initialization failed'))
+                self.assertIn(failure, text)
+                self.assertIn('worker exited with code 7', text)
+                self.assertNotIn('unrelated skipped-test output', text)
+
     # Test output keeps recognized compiler errors intact while bounding unstructured context in compact failures.
     def test_test_output_preserves_errors_and_bounds_context(self):
         for compiler_error in (False, True):
