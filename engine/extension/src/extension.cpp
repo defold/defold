@@ -141,10 +141,9 @@ HContextRegistry ExtensionParamsGetContextRegistry(ExtensionParams* params)
     return params->m_Impl->m_ContextRegistry;
 }
 
-bool ExtensionParamsGetFloat(const ExtensionParams* params, dmhash_t name_hash, float* out_value)
+bool ExtensionParamsGetFloat(const ExtensionParams* params, ExtensionParam param, float* out_value)
 {
-    static const dmhash_t dt_hash = dmHashString64("dt");
-    if (name_hash != dt_hash)
+    if (param != EXTENSION_PARAM_DT)
         return false;
 
     *out_value = params->m_Impl->m_DT;
@@ -194,9 +193,9 @@ void* ExtensionParamsGetContextByName(ExtensionParams* params, const char* name)
 
 namespace dmExtension
 {
-    bool ParamsGetFloat(const Params* params, dmhash_t name_hash, float* out_value)
+    bool ParamsGetFloat(const Params* params, Param param, float* out_value)
     {
-        return ExtensionParamsGetFloat(params, name_hash, out_value);
+        return ExtensionParamsGetFloat(params, (ExtensionParam)param, out_value);
     }
 
     HExtension GetFirstExtension()

@@ -28,8 +28,10 @@
 					"EXTENSION_EVENT_": "EVENT_",
 					"EXTENSION_CALLBACK_": "CALLBACK_",
 					"EXTENSION_APP_EXIT_": "APP_EXIT_",
+					"EXTENSION_PARAM_": "PARAM_",
 					"ExtensionAppParams": "AppParams",
 					"ExtensionParams": "Params",
+					"ExtensionParam": "Param",
 					"ExtensionEvent": "Event",
 					"ExtensionCallbackType": "CallbackType",
 					"ExtensionAppExitCode": "AppExitCode",
@@ -49,6 +51,7 @@
 				],
 				"ignore": [
 					"ExtensionParamsGetFloat",
+					"ExtensionParam",
 					"ExtensionRegisteriOSUIApplicationDelegate",
 					"ExtensionUnregisteriOSUIApplicationDelegate",
 					"ExtensionRegisteriOSUISceneDelegate",

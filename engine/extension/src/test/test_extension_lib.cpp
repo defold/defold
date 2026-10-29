@@ -83,7 +83,7 @@ static dmExtension::Result InitializeTest(dmExtension::Params* params)
 
 static dmExtension::Result UpdateTest(dmExtension::Params* params)
 {
-    if (!dmExtension::ParamsGetFloat(params, dmHashString64("dt"), &g_TestUpdateDT))
+    if (!dmExtension::ParamsGetFloat(params, dmExtension::PARAM_DT, &g_TestUpdateDT))
         return dmExtension::RESULT_INIT_ERROR;
 
     g_TestUpdateCount++;

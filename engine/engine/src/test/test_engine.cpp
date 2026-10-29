@@ -48,12 +48,12 @@ extern "C" void dmExportedSymbols();
 #endif
 #define MAKE_PATH(_VAR, _NAME)  dmTestUtil::MakeHostPathf(_VAR, sizeof(_VAR), "%s%s", CONTENT_ROOT, _NAME)
 
-typedef void (*PreRun)(dmEngine::HEngine engine, void* context);
-typedef void (*PostRun)(dmEngine::HEngine engine, void* context);
+typedef void (*FPreRun)(dmEngine::HEngine engine, void* context);
+typedef void (*FPostRun)(dmEngine::HEngine engine, void* context);
 
-PreRun g_PreRun = 0;
-PostRun g_PostRun = 0;
-void* g_TextCtx = 0;
+static FPreRun g_PreRun = 0;
+static FPostRun g_PostRun = 0;
+static void* g_TextCtx = 0;
 
 static float g_ExtensionTotalDT = 0.0f;
 static uint32_t g_ExtensionUpdateCount = 0;
@@ -67,7 +67,7 @@ static dmExtension::Result DeltaTimeTestLifecycle(dmExtension::Params*)
 static dmExtension::Result DeltaTimeTestUpdate(dmExtension::Params* params)
 {
     float dt;
-    if (!dmExtension::ParamsGetFloat(params, dmHashString64("dt"), &dt))
+    if (!dmExtension::ParamsGetFloat(params, dmExtension::PARAM_DT, &dt))
     {
         g_ExtensionFloatLookupSucceeded = false;
         return dmExtension::RESULT_INIT_ERROR;
@@ -200,7 +200,7 @@ static int RunTestEngineLoop(const dmEngine::RunLoopParams* params)
 }
 #endif
 
-static int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
+static int Launch(int argc, char* argv[], FPreRun pre_run, FPostRun post_run, void* context)
 {
     g_PreRun = pre_run;
     g_PostRun = post_run;

@@ -57,18 +57,18 @@ TEST(dmExtension, CallbackTypeCompatibility)
     ASSERT_EQ(EXTENSION_RESULT_OK, initialize(0));
 }
 
-// Float lookup returns the default delta and preserves the output for unsupported names.
+// Float lookup returns the default delta and preserves the output for unsupported parameters.
 TEST(dmExtension, FloatParameterLookup)
 {
     ExtensionParams params;
     ExtensionParamsInitialize(&params);
 
     float dt = -1.0f;
-    ASSERT_TRUE(ExtensionParamsGetFloat(&params, dmHashString64("dt"), &dt));
+    ASSERT_TRUE(ExtensionParamsGetFloat(&params, EXTENSION_PARAM_DT, &dt));
     ASSERT_EQ(0.0f, dt);
 
     float value = 42.0f;
-    ASSERT_FALSE(dmExtension::ParamsGetFloat(&params, dmHashString64("unknown"), &value));
+    ASSERT_FALSE(dmExtension::ParamsGetFloat(&params, (dmExtension::Param)(dmExtension::PARAM_DT + 1), &value));
     ASSERT_EQ(42.0f, value);
 
     ExtensionParamsFinalize(&params);
@@ -121,7 +121,7 @@ TEST(dmExtension, Basic)
         ASSERT_EQ(i+1, g_TestUpdateCount);
         ASSERT_EQ(update_dts[i], g_TestUpdateDT);
         float dt = -1.0f;
-        ASSERT_TRUE(ExtensionParamsGetFloat(&params, dmHashString64("dt"), &dt));
+        ASSERT_TRUE(ExtensionParamsGetFloat(&params, EXTENSION_PARAM_DT, &dt));
         ASSERT_EQ(0.0f, dt);
     }
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Finalize(&params));

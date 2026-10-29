@@ -206,22 +206,35 @@ HContextRegistry ExtensionAppParamsGetContextRegistry(ExtensionAppParams* params
  */
 HContextRegistry ExtensionParamsGetContextRegistry(ExtensionParams* params);
 
+/*# extension parameter enumeration
+ *
+ * Parameters available through [ref:ExtensionParamsGetFloat].
+ *
+ * @enum
+ * @name ExtensionParam
+ * @member EXTENSION_PARAM_DT engine update delta time
+ */
+typedef enum ExtensionParam
+{
+    EXTENSION_PARAM_DT,
+} ExtensionParam;
+
 /*#
- * Gets a named float from the extension callback parameters.
+ * Gets a float from the extension callback parameters.
  *
- * Supported parameter names:
+ * Supported parameters:
  *
- * | Name | Description |
- * | ---- | ----------- |
- * | `"dt"` | Current engine update delta in seconds, before collection-proxy time scaling. Zero outside the extension update callback. |
+ * | Parameter | Description |
+ * | --------- | ----------- |
+ * | `EXTENSION_PARAM_DT` | Current engine update delta in seconds, before collection-proxy time scaling. Zero outside the extension update callback. |
  *
  * @name ExtensionParamsGetFloat
  * @param params [type:const ExtensionParams*] valid parameters for the current callback
- * @param name_hash [type:dmhash_t] hash of a supported parameter name, for example `dmHashString64("dt")`
- * @param out_value [type:float*] output value; left unchanged if the name is unsupported
- * @return result [type:bool] true if the name is supported, otherwise false
+ * @param param [type:ExtensionParam] parameter to read, for example `EXTENSION_PARAM_DT`
+ * @param out_value [type:float*] output value; left unchanged if the parameter is unsupported
+ * @return result [type:bool] true if the parameter is supported, otherwise false
  */
-bool ExtensionParamsGetFloat(const ExtensionParams* params, dmhash_t name_hash, float* out_value);
+bool ExtensionParamsGetFloat(const ExtensionParams* params, ExtensionParam param, float* out_value);
 
 /*#
  * Sets a context using a specified name
