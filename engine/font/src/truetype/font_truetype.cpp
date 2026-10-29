@@ -1121,12 +1121,10 @@ static FontTrueType* InitCFF1Font(const void* source, uint32_t data_size)
     // CFF1 begins with Name, Top DICT, String, and Global Subrs INDEXes. A
     // non-CID font has one Private DICT; CID fonts provide FDArray/FDSelect.
     const uint8_t* data = (const uint8_t*)source;
-    // uncrustify:off (comparison parsing)
-    if (data_size < 4 || data[0] != CFF_VERSION_1 || data[2] < 4 || data[2] > data_size)
+    if (data_size < 4 || data[0] != CFF_VERSION_1 || (data[2] < 4) || (data[2] > data_size))
     {
         return 0;
     }
-    // uncrustify:on
 
     FontTrueType* font = NewFont();
     font->m_Data = data;

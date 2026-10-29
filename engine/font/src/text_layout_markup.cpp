@@ -735,14 +735,12 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
             continue;
         }
         color.m_Positions[i] = color.m_StopCount > 1 ? (float)i / (color.m_StopCount - 1) : 0.0f;
-        // uncrustify:off (comparison parsing)
         if ((stop && !ParseFloat(source, stop->m_Value, &color.m_Positions[i])) ||
-            color.m_Positions[i] < 0.0f || color.m_Positions[i] > 1.0f ||
+            (color.m_Positions[i] < 0.0f) || (color.m_Positions[i] > 1.0f) ||
             (i && color.m_Positions[i] < color.m_Positions[i - 1]))
         {
             return InvalidGradientAttribute(stop, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, error);
         }
-        // uncrustify:on
     }
     color.m_Parameters[0] = color.m_Type == FONT_COLOR_EFFECT_RADIAL ? 0.5f : 0.0f;
     color.m_Parameters[1] = 0.5f;
