@@ -170,10 +170,24 @@ int Launch(int argc, char **argv) {
     char os_args[MAX_ARGS_SIZE];
     char vm_args[MAX_ARGS_SIZE];
 
+    #if !defined(_WIN32)
+    // New editor instances can start in a different working directory.
+    char absolute_launcher_path[DMPATH_MAX_PATH];
+    const char* launcher_path = argv[0];
+    if (launcher_path[0] != '/') {
+        if (!getcwd(absolute_launcher_path, sizeof(absolute_launcher_path))) {
+            dmLogFatal("Failed to resolve launcher path: %s", strerror(errno));
+            return 5;
+        }
+        dmPath::Concat(absolute_launcher_path, launcher_path, absolute_launcher_path, sizeof(absolute_launcher_path));
+        launcher_path = absolute_launcher_path;
+    }
+    #endif
+
     #if defined(__MACH__)
     // Make the dock happy. The application is probably identified from its executable. Without CFProcessPath
     // set autoupdate resulted in two dock icons, launching from command-line in two dock icons, etc
-    setenv("CFProcessPath", argv[0], 1);
+    setenv("CFProcessPath", launcher_path, 1);
     #endif
 
     dmSys::Result r = dmSys::GetResourcesPath(argc, (char**) argv, default_resources_path, sizeof(default_resources_path));
@@ -205,7 +219,7 @@ int Launch(int argc, char **argv) {
     GetModuleFileNameA(NULL, argv_0, DMPATH_MAX_PATH);
     context.m_LauncherPath = argv_0;
 #else
-    context.m_LauncherPath = argv[0];
+    context.m_LauncherPath = launcher_path;
 #endif
     if (*context.m_ResourcesPath == '\0')
     {
