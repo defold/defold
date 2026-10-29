@@ -177,8 +177,13 @@ struct DX12Test : public jc_test_base_class
         RequireHR(m_Context->m_Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_Allocator.Get(), 0, IID_PPV_ARGS(&m_Context->m_CommandList)));
         RequireHR(m_Context->m_Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_Fence)));
         m_FenceValue = 0;
+        GetFrame().m_Fence = m_Fence.Get();
+        GetFrame().m_FenceValue = 1;
         GetFrame().m_CommandAllocator = m_Allocator.Get();
         m_Context->m_FrameBegun = 1;
+        SetContextFeatureSupported(&m_Context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
+        SetContextFeatureSupported(&m_Context->m_BaseContext, CONTEXT_FEATURE_INDIRECT_DRAW);
+        m_Context->m_BaseContext.m_Limits.m_MaxStorageBufferRange = 128ull * 1024 * 1024;
         m_Context->m_BaseContext.m_DefaultTextureMinFilter = TEXTURE_FILTER_NEAREST;
         m_Context->m_BaseContext.m_DefaultTextureMagFilter = TEXTURE_FILTER_NEAREST;
         m_Context->m_PipelineState = GetDefaultPipelineState();
@@ -198,6 +203,7 @@ struct DX12Test : public jc_test_base_class
         RequireHR(m_Fence->SetEventOnCompletion(m_FenceValue, event));
         ASSERT_EQ(WAIT_OBJECT_0, WaitForSingleObject(event, 10000));
         CloseHandle(event);
+        GetFrame().m_FenceValue = m_FenceValue + 1;
         RequireHR(m_Allocator->Reset());
         RequireHR(m_Context->m_CommandList->Reset(m_Allocator.Get(), 0));
         memset(&m_Context->m_DrawState, 0, sizeof(m_Context->m_DrawState));
@@ -219,6 +225,8 @@ struct DX12Test : public jc_test_base_class
         m_Context->m_PipelineCache.Iterate<void>(ReleasePipeline, 0);
         m_Context->m_CommandList->Close();
         m_Context->m_CommandList->Release();
+        if (m_Context->m_DrawIndexedSignature)
+            m_Context->m_DrawIndexedSignature->Release();
         m_Context->m_CommandQueue->Release();
         m_Allocator.Reset();
         m_Fence.Reset();
@@ -1615,6 +1623,131 @@ TEST_F(DX12Test, PackedMatrixVertexInputs)
         DeleteProgram(GetContext(), program);
     }
 
+    DeleteRenderTarget(GetContext(), target);
+}
+
+// Verifies asynchronous snapshots preserve copied bytes and can be deleted before submission.
+TEST_F(DX12Test, StorageBufferReadbackSnapshots)
+{
+    uint32_t       values[] = { 1, 2, 3, 4 };
+    HStorageBuffer source = NewStorageBuffer(GetContext(), sizeof(values), values, BUFFER_USAGE_DYNAMIC_DRAW);
+    ASSERT_NE((HStorageBuffer)0, source);
+    HAsyncBufferReadback first = RequestStorageBufferReadback(GetContext(), source, 4, 8);
+    HAsyncBufferReadback cancelled = RequestStorageBufferReadback(GetContext(), source, 0, 4);
+    ASSERT_NE((HAsyncBufferReadback)0, first);
+    ASSERT_NE((HAsyncBufferReadback)0, cancelled);
+    uint32_t result[2] = {};
+    ASSERT_FALSE(PollStorageBufferReadback(first, result));
+    DeleteStorageBufferReadback(cancelled);
+    uint32_t updated[] = { 9, 10 };
+    SetStorageBufferSubData(GetContext(), source, 4, sizeof(updated), updated);
+    SubmitAndWait();
+    ASSERT_TRUE(PollStorageBufferReadback(first, result));
+    ASSERT_EQ(2u, result[0]);
+    ASSERT_EQ(3u, result[1]);
+    DeleteStorageBufferReadback(first);
+    HAsyncBufferReadback second = RequestStorageBufferReadback(GetContext(), source, 4, 8);
+    ASSERT_NE((HAsyncBufferReadback)0, second);
+    ASSERT_FALSE(PollStorageBufferReadback(second, result));
+    SubmitAndWait();
+    ASSERT_TRUE(PollStorageBufferReadback(second, result));
+    ASSERT_EQ(9u, result[0]);
+    ASSERT_EQ(10u, result[1]);
+    DeleteStorageBufferReadback(second);
+    DeleteStorageBuffer(GetContext(), source);
+}
+
+// Verifies compute-generated arguments and instance vertices, including zero instances and indexed draw offsets.
+TEST_F(DX12Test, ComputeToIndirectInstancedDraw)
+{
+    TestProgram compute;
+    compute.AddShaderStage(
+    "RWByteAddressBuffer arguments:register(u0);"
+    "RWByteAddressBuffer instances:register(u1);"
+    "[numthreads(1,1,1)] void main(){"
+    "arguments.Store4(16,uint4(3,arguments.Load(0),3,0xfffffffd));"
+    "arguments.Store(32,1);"
+    "instances.Store4(0,asuint(float4(100,0,0,0)));"
+    "instances.Store4(16,asuint(float4(-0.5,0.25,0,0)));"
+    "instances.Store4(32,asuint(float4(0.5,0.75,0,0)));"
+    "}",
+    ShaderDesc::SHADER_TYPE_COMPUTE);
+    compute.SetRootSignature("DescriptorTable(UAV(u0)), DescriptorTable(UAV(u1))");
+    compute.AddBinding("arguments", 0, 0, ShaderDesc::SHADER_TYPE_UINT, BINDING_TYPE_STORAGE_BUFFER);
+    compute.AddBinding("instances", 1, 1, ShaderDesc::SHADER_TYPE_UINT, BINDING_TYPE_STORAGE_BUFFER);
+    for (uint32_t i = 0; i < 2; ++i)
+        compute.m_Desc.m_Reflection.m_StorageBuffers.m_Data[i].m_ResourceAccessFlags = SHADER_RESOURCE_ACCESS_READ | SHADER_RESOURCE_ACCESS_WRITE;
+    HProgram compute_program = compute.CreateProgram(GetContext());
+    ASSERT_NE((HProgram)0, compute_program);
+
+    TestProgram draw;
+    draw.AddShaderStage(
+    "struct Output {float4 position:SV_Position;float green:TEXCOORD0;};"
+    "Output main(uint id:SV_VertexID,float4 instance:TEXCOORD0){"
+    "float2 p[3]={float2(-0.4,-0.8),float2(-0.4,0.8),float2(0.4,0)};"
+    "Output o;o.position=float4(p[id]+float2(instance.x,0),0.5,1);"
+    "o.green=instance.y;return o;}",
+    ShaderDesc::SHADER_TYPE_VERTEX);
+    draw.AddShaderStage(
+    "float4 main(float4 p:SV_Position,float green:TEXCOORD0):SV_Target{return float4(0,green,0,1);}",
+    ShaderDesc::SHADER_TYPE_FRAGMENT);
+    draw.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    AddShaderResource(&draw.m_Desc, "instance", ShaderDesc::SHADER_TYPE_VEC4, 0, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
+    HProgram draw_program = draw.CreateProgram(GetContext());
+    ASSERT_NE((HProgram)0, draw_program);
+
+    HRenderTarget target = CreateTestRenderTarget(8, 4);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+    SetViewport(GetContext(), 0, 0, 8, 4);
+    DisableState(GetContext(), STATE_CULL_FACE);
+    DisableState(GetContext(), STATE_DEPTH_TEST);
+    HStorageBuffer arguments = NewStorageBuffer(GetContext(), 36, 0, BUFFER_USAGE_DYNAMIC_DRAW);
+    HStorageBuffer instances = NewStorageBuffer(GetContext(), 48, 0, BUFFER_USAGE_DYNAMIC_DRAW);
+    ASSERT_NE((HStorageBuffer)0, arguments);
+    ASSERT_NE((HStorageBuffer)0, instances);
+    HVertexBuffer vertices = GetStorageBufferVertexBuffer(GetContext(), instances);
+    ASSERT_NE((HVertexBuffer)0, vertices);
+    HVertexStreamDeclaration streams = NewVertexStreamDeclaration(GetContext(), VERTEX_STEP_FUNCTION_INSTANCE);
+    AddVertexStream(streams, "instance", 4, TYPE_FLOAT, false);
+    HVertexDeclaration declaration = NewVertexDeclaration(GetContext(), streams);
+    const uint32_t     counts[] = { 2, 0, 1 };
+    const Type         types[] = { TYPE_UNSIGNED_SHORT, TYPE_UNSIGNED_INT };
+    for (uint32_t t = 0; t < DM_ARRAY_SIZE(types); ++t)
+    {
+        uint16_t     indices16[] = { 0, 0, 0, 3, 4, 5 };
+        uint32_t     indices32[] = { 0, 0, 0, 3, 4, 5 };
+        HIndexBuffer indices = NewIndexBuffer(GetContext(), t == 0 ? sizeof(indices16) : sizeof(indices32), t == 0 ? (const void*)indices16 : (const void*)indices32, BUFFER_USAGE_STATIC_DRAW);
+        for (uint32_t c = 0; c < DM_ARRAY_SIZE(counts); ++c)
+        {
+            SetStorageBufferSubData(GetContext(), arguments, 0, sizeof(uint32_t), &counts[c]);
+            EnableProgram(GetContext(), compute_program);
+            EnableStorageBuffer(GetContext(), arguments, 0, 0);
+            EnableStorageBuffer(GetContext(), instances, 0, 1);
+            DispatchCompute(GetContext(), 1, 1, 1);
+            DisableStorageBuffer(GetContext(), arguments);
+            DisableStorageBuffer(GetContext(), instances);
+
+            EnableProgram(GetContext(), draw_program);
+            EnableVertexBuffer(GetContext(), vertices, 0);
+            EnableVertexDeclaration(GetContext(), declaration, 0, 0, draw_program);
+            Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 0, 1, 0);
+            DrawElementsIndirect(GetContext(), PRIMITIVE_TRIANGLES, types[t], indices, arguments, 16);
+            uint8_t pixels[8 * 4 * 4] = {};
+            ReadPixels(GetContext(), 0, 0, 8, 4, pixels, sizeof(pixels));
+            ASSERT_NEAR(counts[c] > 0 ? 64 : 0, pixels[(1 * 8 + 1) * 4 + 1], 1);
+            ASSERT_NEAR(counts[c] > 1 ? 191 : 0, pixels[(1 * 8 + 5) * 4 + 1], 1);
+            SubmitAndWait();
+        }
+        DeleteIndexBuffer(indices);
+    }
+    DisableVertexDeclaration(GetContext(), declaration);
+    DisableVertexBuffer(GetContext(), vertices);
+    DeleteVertexDeclaration(declaration);
+    DeleteVertexStreamDeclaration(streams);
+    DeleteStorageBuffer(GetContext(), instances);
+    DeleteStorageBuffer(GetContext(), arguments);
+    DeleteProgram(GetContext(), draw_program);
+    DeleteProgram(GetContext(), compute_program);
     DeleteRenderTarget(GetContext(), target);
 }
 
