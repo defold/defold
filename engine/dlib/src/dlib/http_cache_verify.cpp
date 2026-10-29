@@ -178,16 +178,4 @@ namespace dmHttpCacheVerify
         return result == dmHttpClient::RESULT_OK || result == dmHttpClient::RESULT_NOT_200_OK ? RESULT_UNKNOWN_ERROR : RESULT_NETWORK_ERROR;
     }
 
-    static void SetVerified(void* cache, const dmHttpCache::EntryInfo* entry)
-    {
-        dmHttpCache::EntryInfo current;
-        if (dmHttpCache::GetInfo((dmHttpCache::HCache)cache, entry->m_URI, &current) == dmHttpCache::RESULT_OK &&
-            current.m_IdentifierHash == entry->m_IdentifierHash)
-            dmHttpCache::SetVerified((dmHttpCache::HCache)cache, entry->m_URI, true);
-    }
-
-    Result VerifyCache(dmHttpCache::HCache cache, dmURI::Parts* uri, uint64_t max_age)
-    {
-        return VerifyCache(cache, uri, max_age, 0, SetVerified, cache);
-    }
 }

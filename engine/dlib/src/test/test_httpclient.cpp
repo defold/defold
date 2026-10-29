@@ -1439,6 +1439,15 @@ TEST_P(dmHttpClientTestCache, TrustCacheNoValidate)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
+static void SetCacheEntryVerified(void* cache, const dmHttpCache::EntryInfo* entry)
+{
+    dmHttpCache::EntryInfo current;
+    if (dmHttpCache::GetInfo((dmHttpCache::HCache)cache, entry->m_URI, &current) == dmHttpCache::RESULT_OK &&
+        current.m_IdentifierHash == entry->m_IdentifierHash)
+        dmHttpCache::SetVerified((dmHttpCache::HCache)cache, entry->m_URI, true);
+}
+
+// Batch verification callbacks can mark unchanged entries for direct cache replay.
 TEST_P(dmHttpClientTestCache, BatchValidateCache)
 {
     dmHttpClient::Delete(m_Client);
@@ -1468,7 +1477,8 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     ASSERT_NE((void*) 0, m_Client);
 
 
-    dmHttpCacheVerify::Result verify_r = dmHttpCacheVerify::VerifyCache(params.m_HttpCache, &m_URI, 60 * 60 * 24 * 5);
+    dmHttpCacheVerify::Result verify_r = dmHttpCacheVerify::VerifyCache(params.m_HttpCache, &m_URI, 60 * 60 * 24 * 5,
+                                                                     0, SetCacheEntryVerified, params.m_HttpCache);
     ASSERT_EQ(dmHttpCacheVerify::RESULT_OK, verify_r);
 
     // Change consistency police to "trust-cache". After the first four files are files should be directly retrieved from the cache.

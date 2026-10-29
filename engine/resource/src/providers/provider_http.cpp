@@ -195,7 +195,7 @@ static void OnCacheEntryVerified(void* user_data, const dmHttpCache::EntryInfo* 
 {
     HttpProviderContext* archive = (HttpProviderContext*)user_data;
     if (archive->m_VerifiedEntries.Full())
-        archive->m_VerifiedEntries.SetCapacity(archive->m_VerifiedEntries.Capacity() + 128);
+        archive->m_VerifiedEntries.SetCapacity(dmMath::Max(128U, archive->m_VerifiedEntries.Capacity() * 2));
     archive->m_VerifiedEntries.Put(dmHashString64(entry->m_URI), entry->m_IdentifierHash);
 }
 
