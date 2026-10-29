@@ -1206,11 +1206,12 @@
   before there is determinate progress to show and once everything is built
   while we wait for the remaining phases, e.g. the engine download."
   [{:keys [project-fraction engine-active engine-fraction fraction]} message cancel-state]
-  (let [fraction (when (or project-fraction engine-active)
-                   (let [engine-share (if engine-active 0.3 0.0)]
-                     (max (double (or fraction 0.0))
-                          (+ (* (- 1.0 engine-share) (double (or project-fraction 0.0)))
-                             (* engine-share (double engine-fraction))))))]
+  (let [fraction
+        (when (or project-fraction engine-active)
+          (let [engine-share (if engine-active 0.3 0.0)]
+            (max (double (or fraction 0.0))
+                 (+ (* (- 1.0 engine-share) (double (or project-fraction 0.0)))
+                    (* engine-share (double engine-fraction))))))]
     (if (and fraction (< (double fraction) 1.0))
       (progress/->progress message 1000 (long (* 1000.0 (double fraction))) cancel-state)
       (progress/->progress message 0 0 cancel-state))))
@@ -1283,12 +1284,14 @@
               (if (:finished state)
                 (reset! build-progress-state-atom state)
                 (let [message (message-fn state)
-                      progress (when message
-                                 (combined-build-progress state message cancel-state))]
+
+                      progress
+                      (when message
+                        (combined-build-progress state message cancel-state))]
                   (reset! build-progress-state-atom
-                          (cond-> state
-                            (some-> progress progress/fraction)
-                            (assoc :fraction (progress/fraction progress))))
+                          (if-let [fraction (some-> progress progress/fraction)]
+                            (assoc state :fraction fraction)
+                            state))
                   (when progress
                     (render-progress! progress)))))))
 
@@ -1323,21 +1326,6 @@
               (if engine-visible engine-message project-message))
             (:cancel-state progress)))
 
-        show-engine-progress!
-        (fn show-engine-progress! []
-          (render-build-progress!
-            (fn [state]
-              (-> state
-                  (assoc :engine-visible true)
-                  (update :engine-message #(or % (localization/message "progress.fetching-engine")))))
-            :engine-message
-            :cancellable))
-
-        complete-project-progress!
-        (fn complete-project-progress! []
-          (locking build-progress-lock
-            (swap! build-progress-state-atom assoc :project-fraction 1.0)))
-
         render-build-done!
         (fn render-build-done! []
           (locking build-progress-lock
@@ -1360,7 +1348,9 @@
               (reset! engine-build-future-atom
                       (future
                         (try
-                          (let [engine (engine/get-engine project evaluation-context prefs platform (bob/->progress render-engine-progress! task-cancelled?))]
+                          (let [engine
+                                (engine/get-engine project evaluation-context prefs platform
+                                                   (bob/->progress render-engine-progress! task-cancelled?))]
                             (ui/run-later
                               ;; This potentially saves us from having to
                               ;; re-calculate native extension file hashes the
@@ -1454,7 +1444,13 @@
             (if (nil? engine-build-future)
               (phase-7-await-lint! project-build-results)
               (do
-                (show-engine-progress!)
+                (render-build-progress!
+                  (fn [state]
+                    (-> state
+                        (assoc :engine-visible true)
+                        (update :engine-message #(or % (localization/message "progress.fetching-engine")))))
+                  :engine-message
+                  :cancellable)
                 (run-on-background-thread!
                   (fn run-engine-build-on-background-thread! []
                     (deref engine-build-future))
@@ -1507,7 +1503,8 @@
                        :task-cancelled? task-cancelled?}]
                   (build-project! project old-artifact-map opts evaluation-context)))
               (fn process-project-build-results-on-ui-thread! [project-build-results]
-                (complete-project-progress!)
+                (locking build-progress-lock
+                  (swap! build-progress-state-atom assoc :project-fraction 1.0))
                 (project/update-system-cache-build-targets! evaluation-context)
                 (project/log-cache-info! (g/cache) "Cached compiled build targets in system cache.")
                 (cond

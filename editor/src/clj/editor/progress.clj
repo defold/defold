@@ -55,7 +55,12 @@
      (condp instance? message
        IProgress$Message$Bundling (localization/message "progress.bundling")
        IProgress$Message$BuildingEngine (localization/message "progress.building-engine")
-       IProgress$Message$BuildingEngineStage (localization/message "progress.building-engine-stage" {"platform" (.platform ^IProgress$Message$BuildingEngineStage message) "detail" (.label ^IProgress$Message$BuildingEngineStage message)})
+
+       IProgress$Message$BuildingEngineStage
+       (localization/message "progress.building-engine-stage"
+                             {"platform" (.platform ^IProgress$Message$BuildingEngineStage message)
+                              "detail" (.label ^IProgress$Message$BuildingEngineStage message)})
+
        IProgress$Message$CleaningEngine (localization/message "progress.cleaning-engine")
        IProgress$Message$DownloadingSymbols (localization/message "progress.downloading-symbols")
        IProgress$Message$TranspilingToLua (localization/message "progress.transpiling-to-lua")
