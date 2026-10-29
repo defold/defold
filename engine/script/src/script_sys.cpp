@@ -162,6 +162,53 @@ union SaveLoadBuffer
         }
     }
 
+#if !defined(__EMSCRIPTEN__)
+    static bool Sys_SyncFile(FILE* file)
+    {
+        // Flush stdio before syncing the file descriptor.
+        if (fflush(file) != 0)
+        {
+            return false;
+        }
+
+    #if defined(_WIN32)
+        return _commit(_fileno(file)) == 0;
+    #elif defined(__linux__) || defined(__MACH__)
+        while (fsync(fileno(file)) != 0)
+        {
+            if (errno != EINTR)
+            {
+                return false;
+            }
+        }
+    #endif
+        return true;
+    }
+
+    // Always closes the file, preserving the first error before cleanup.
+    static bool Sys_WriteAndCloseFile(FILE* file, const char* buffer, uint32_t size, char* errmsg, uint32_t errmsg_size)
+    {
+        if (fwrite(buffer, 1, size, file) != size || !Sys_SyncFile(file))
+        {
+        #if !defined(DM_NO_ERRNO)
+            dmStrError(errmsg, errmsg_size, errno);
+        #endif
+            fclose(file);
+            return false;
+        }
+
+        if (fclose(file) == 0)
+        {
+            return true;
+        }
+
+    #if !defined(DM_NO_ERRNO)
+        dmStrError(errmsg, errmsg_size, errno);
+    #endif
+        return false;
+    }
+#endif
+
     /*# saves a lua table to a file stored on disk
      * The table can later be loaded by <code>sys.load</code>.
      * Use <code>sys.get_save_file</code> to obtain a valid location for the file.
@@ -235,33 +282,8 @@ union SaveLoadBuffer
         #endif
         }
 
-        bool result = fwrite(buffer, 1, n_used, file) == n_used;
-        // Flush stdio before syncing the temporary file and replacing the previous save.
-        result = result && (fflush(file) == 0);
-    #if defined(_WIN32)
-        result = result && (_commit(_fileno(file)) == 0);
-    #elif defined(__linux__) || defined(__MACH__)
-        if (result)
-        {
-            int sync_result;
-            do
-            {
-                sync_result = fsync(fileno(file));
-            } while (sync_result != 0 && errno == EINTR);
-            result = sync_result == 0;
-        }
-    #endif
-    #if !defined(DM_NO_ERRNO)
-        int save_errno = result ? 0 : errno;
-    #endif
-        int close_result = fclose(file);
-    #if !defined(DM_NO_ERRNO)
-        if (result && close_result != 0)
-        {
-            save_errno = errno;
-        }
-    #endif
-        result = result && (close_result == 0);
+        char errmsg[128] = {};
+        bool result = Sys_WriteAndCloseFile(file, buffer, n_used, errmsg, sizeof(errmsg));
         Sys_FreeTableSerializationBuffer(buffer);
 
         if (!result)
@@ -271,8 +293,6 @@ union SaveLoadBuffer
         #if defined(DM_NO_ERRNO)
             return luaL_error(L, "Could not write to the file %s.", filename);
         #else
-            char errmsg[128] = {};
-            dmStrError(errmsg, sizeof(errmsg), save_errno);
             return luaL_error(L, "Could not write to the file %s, reason: %s.", filename, errmsg);
         #endif
         }
