@@ -167,15 +167,84 @@ class GradleOutputTests(unittest.TestCase):
                     self.assertNotIn('Daemon', text)
                     self.assertNotIn('unrelated successful output', text)
 
+    # A later task's stderr may precede its stdout header even with sequential Gradle execution.
+    def test_stderr_diagnostics_survive_task_boundaries(self):
+        for task_started in (False, True):
+            for summary_first in (False, True):
+                with self.subTest(task_started=task_started, summary_first=summary_first):
+                    output, stream, log = self.reporter()
+                    output.on_output('> Task :preceding')
+                    output.on_output('unrelated successful output')
+                    output.on_stderr('REVIEW_ROOT_CAUSE: missing native library')
+                    if task_started:
+                        output.on_output('> Task :broken')
+                    output.on_stderr('    searched /sdk/lib')
+                    summary = ('FAILURE: Build failed with an exception.', '* What went wrong:',
+                               "Execution failed for task ':broken'.", '> subprocess exited with code 1')
+                    if summary_first:
+                        for line in summary:
+                            output.on_stderr(line)
+                    output.on_output('> Task :broken FAILED')
+                    if not summary_first:
+                        for line in summary:
+                            output.on_stderr(line)
+                    output.on_output('> Task :other')
+                    output.on_output('unrelated parallel output')
+                    output.finish(False)
+                    text = stream.getvalue()
+                    for diagnostic in ('REVIEW_ROOT_CAUSE: missing native library', '    searched /sdk/lib'):
+                        self.assertEqual(1, text.count(diagnostic))
+                        self.assertIn(diagnostic, log.getvalue())
+                    self.assertLess(text.index('REVIEW_ROOT_CAUSE:'), text.index('    searched /sdk/lib'))
+                    self.assertIn('> Task :broken FAILED', text)
+                    self.assertIn('> subprocess exited with code 1', text)
+                    self.assertNotIn('unrelated', text)
+                    self.assertNotIn('> Task :preceding', text)
+
+    # A stdout task header between stderr lines must not discard or reorder a compiler diagnostic.
+    def test_stderr_compiler_diagnostic_crosses_task_header(self):
+        output, stream, _ = self.reporter()
+        output.on_output('> Task :preceding')
+        output.on_stderr('Foo.java:3: error: cannot find symbol')
+        output.on_output('> Task :compileJava')
+        output.on_stderr('    missingSymbol();')
+        output.on_stderr('    ^')
+        output.on_output('> Task :compileJava FAILED')
+        output.finish(False)
+        text = stream.getvalue()
+        self.assertIn('Foo.java:3: error: cannot find symbol', text)
+        self.assertIn('    missingSymbol();', text)
+        self.assertIn('    ^', text)
+        self.assertLess(text.index('Foo.java:3: error:'), text.index('    missingSymbol();'))
+        self.assertLess(text.index('    missingSymbol();'), text.index('    ^'))
+
+    # Bounded unattributed stderr must not truncate the first recognized compiler error in a long diagnostic.
+    def test_long_stderr_compiler_diagnostic_keeps_first_error(self):
+        for failed_header in (False, True):
+            with self.subTest(failed_header=failed_header):
+                output, stream, _ = self.reporter()
+                output.on_output('> Task :preceding')
+                output.on_stderr('Foo.java:3: error: cannot find symbol')
+                for index in range(150):
+                    output.on_stderr(f'    compiler context {index}')
+                if failed_header:
+                    output.on_output('> Task :compileJava FAILED')
+                output.finish(False)
+                self.assertIn('Foo.java:3: error: cannot find symbol', stream.getvalue())
+                self.assertIn('    compiler context 149', stream.getvalue())
+
     # Unattributed stderr remains available in the log without adding noise to successful compact builds.
     def test_stderr_before_first_task_stays_quiet_on_success(self):
         output, stream, log = self.reporter()
         output.on_stderr('early tool diagnostic')
         output.on_output('> Task :successful')
+        output.on_stderr('successful tool warning')
         output.on_output('│████████│ 100% EXECUTING')
         output.finish(True)
         self.assertNotIn('early tool diagnostic', stream.getvalue())
+        self.assertNotIn('successful tool warning', stream.getvalue())
         self.assertIn('early tool diagnostic', log.getvalue())
+        self.assertIn('successful tool warning', log.getvalue())
         self.assertIn('100% executing', stream.getvalue())
 
     # Bob's passed-test and standard-output logging must not bury failed tests and their assertions.

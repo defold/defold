@@ -167,7 +167,8 @@ class GradleOutput(BuildOutput):
         self.summary_section = False
         self.summary = []
         self.current_task = None
-        self.unattributed_stderr = deque(maxlen=100)
+        self.stderr_output = deque(maxlen=100)
+        self.stderr_errors = []
 
     def on_output(self, line):
         self._on_output(line, False)
@@ -238,21 +239,27 @@ class GradleOutput(BuildOutput):
                 self.summary_section = True
             if self.summary_section and not plain.startswith(('BUILD FAILED', 'BUILD SUCCESSFUL')):
                 self.summary.append(plain)
+        elif is_stderr:
+            # Task headers arrive on stdout and cannot delimit stderr diagnostics.
+            if self.stderr_errors or _ERROR.search(plain):
+                if not self.stderr_errors:
+                    self.stderr_errors.extend(self.stderr_output)
+                    self.stderr_output.clear()
+                self.stderr_errors.append(plain)
+            else:
+                self.stderr_output.append(plain)
         elif _ERROR.search(plain):
-            self._start_error(plain, context=not is_stderr and self.current_task is not None)
+            self._start_error(plain, context=self.current_task is not None)
         elif self.in_error:
             if not re.match(r'^\d+ actionable tasks?:', plain):
                 self.errors.append(plain)
-        elif is_stderr and self.current_task is None:
-            # The stderr reader can receive diagnostics before stdout's first task header.
-            self.unattributed_stderr.append(plain)
         else:
             self.edge_output.append(plain)
 
     def failure_output(self):
-        diagnostics = self.errors + self.summary
+        diagnostics = self.stderr_errors + self.errors + self.summary
         if diagnostics:
-            diagnostics = list(self.unattributed_stderr) + diagnostics
+            diagnostics = list(self.stderr_output) + diagnostics
         return '\n'.join(diagnostics or self.tail).strip()
 
 
