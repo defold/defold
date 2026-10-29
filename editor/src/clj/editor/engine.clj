@@ -22,7 +22,6 @@
             [editor.prefs :as prefs]
             [editor.process :as process]
             [editor.protobuf :as protobuf]
-            [editor.resource :as resource]
             [editor.system :as system]
             [service.log :as log]
             [util.coll :as coll]
@@ -61,10 +60,9 @@
         ;; For instance socket closed because engine was killed
         nil))))
 
-(defn reload-build-resources! [target build-resources]
+(defn reload-build-resource-paths! [target proj-paths]
   (let [uri (URI. (str (:url target) "/post/@resource/reload"))
-        conn ^HttpURLConnection (get-connection uri)
-        proj-paths (mapv resource/proj-path build-resources)]
+        conn ^HttpURLConnection (get-connection uri)]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes

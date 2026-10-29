@@ -317,6 +317,13 @@ dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char*
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
 }
 
+void InvalidateFileCache(HContext ctx, dmhash_t path_hash, const char* path)
+{
+    DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
+    for (uint32_t i = 0; i < ctx->m_Mounts.Size(); ++i)
+        dmResourceProvider::InvalidateFileCache(ctx->m_Mounts[i].m_Archive, path_hash, path);
+}
+
 dmResource::Result ResourceExists(HContext ctx, dmhash_t path_hash)
 {
     uint32_t resource_size;
