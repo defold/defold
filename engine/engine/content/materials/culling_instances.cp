@@ -1,4 +1,11 @@
 #version 430
+
+// Must match dmRender::BoundingVolumeType.
+const uint BOUNDING_VOLUME_NONE = 0u;
+const uint BOUNDING_VOLUME_SPHERE = 1u;
+const uint BOUNDING_VOLUME_AABB = 2u;
+const uint BOUNDING_VOLUME_OBB = 3u;
+
 layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
 layout(std430, binding = 0) readonly buffer Bounds { uint bounds_words[]; };
 layout(std430, binding = 1) readonly buffer Worlds { float world_words[]; };
@@ -23,7 +30,7 @@ bool visible(uint offset, uint type, mat4 world)
     vec3 edge0 = vec3(0.0);
     vec3 edge1 = vec3(0.0);
     vec3 edge2 = vec3(0.0);
-    if (type == 3)
+    if (type == BOUNDING_VOLUME_OBB)
     {
         center = (world * vec4(center, 1.0)).xyz;
         // Half-edge vectors preserve negative/nonuniform scale and shear.
@@ -35,14 +42,14 @@ bool visible(uint offset, uint type, mat4 world)
     {
         vec4 plane = frustum_planes[i];
         float distance = dot(plane.xyz, center) + plane.w;
-        if (type == 1)
+        if (type == BOUNDING_VOLUME_SPHERE)
         {
             float radius_squared = uintBitsToFloat(bounds_words[offset + 4]);
             if (distance < 0.0 && distance * distance > radius_squared) return false;
         }
         else
         {
-            float radius = type == 2 ? dot(abs(plane.xyz), extents)
+            float radius = type == BOUNDING_VOLUME_AABB ? dot(abs(plane.xyz), extents)
                 : abs(dot(plane.xyz, edge0)) + abs(dot(plane.xyz, edge1)) + abs(dot(plane.xyz, edge2));
             if (distance + radius < 0.0) return false;
         }
@@ -56,7 +63,7 @@ void main()
     uint slot = slots[index];
     uint offset = slot * 8;
     uint type = bounds_words[offset];
-    if (type == 0) return;
+    if (type == BOUNDING_VOLUME_NONE) return;
     // The same persistent transform supplies OBB culling and instance output.
     mat4 world;
     for (uint column = 0; column < 4; ++column)
