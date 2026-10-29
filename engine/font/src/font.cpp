@@ -36,12 +36,18 @@ static FontType GetFontType(const char* path)
 {
     const char* ext = strrchr(path, '.');
     if (!ext)
+    {
         return FONT_TYPE_UNKNOWN;
+    }
 
     if (strcmp(ext, ".ttf") == 0 || strcmp(ext, ".TTF") == 0)
+    {
         return FONT_TYPE_TTF;
+    }
     if (strcmp(ext, ".otf") == 0 || strcmp(ext, ".OTF") == 0)
+    {
         return FONT_TYPE_OTF;
+    }
 
     return FONT_TYPE_UNKNOWN;
 }
@@ -63,8 +69,11 @@ HFont FontLoadFromMemory(const char* path, void* data, uint32_t data_size, bool 
     switch (type)
     {
         case FONT_TYPE_TTF:
-        case FONT_TYPE_OTF:  font = FontLoadFromMemoryTTF(path, data, data_size, allocate);
+        case FONT_TYPE_OTF:
+        {
+            font = FontLoadFromMemoryTTF(path, data, data_size, allocate);
             break;
+        }
         default:
         {
             const char* ext = strrchr(path, '.');
@@ -175,7 +184,9 @@ TextLayoutType FontGetLayoutType(HFont font)
 {
 #if defined(FONT_USE_HARFBUZZ) && defined(FONT_USE_SKRIBIDI)
     if (font->m_Type == FONT_TYPE_TTF || font->m_Type == FONT_TYPE_OTF)
+    {
         return TEXT_LAYOUT_TYPE_FULL;
+    }
 #endif
     return TEXT_LAYOUT_TYPE_LEGACY;
 }

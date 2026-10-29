@@ -59,7 +59,9 @@ void* FontReadFile(const char* path, uint32_t* file_size)
     }
 
     if (file_size)
+    {
         *file_size = size;
+    }
 
     return mem;
 }

@@ -93,16 +93,26 @@ static const char* GetParagraphLanguageHint(const dmArray<TextLayoutRun>& runs, 
         {
             case SBScriptHIRA:
             case SBScriptKANA:
+            {
                 return "ja";
+            }
             case SBScriptHANG:
+            {
                 return "ko";
+            }
             case SBScriptBOPO:
+            {
                 return "zh-Hant";
+            }
             case SBScriptHANI:
+            {
                 has_han = true;
                 break;
+            }
             default:
+            {
                 break;
+            }
         }
     }
 
@@ -119,62 +129,116 @@ static const char* GetScriptLanguageHint(uint32_t script, const char* paragraph_
     switch (script)
     {
         case SBScriptARAB:
+        {
             return "ar";
+        }
         case SBScriptARMN:
+        {
             return "hy";
+        }
         case SBScriptBENG:
+        {
             return "bn";
+        }
         case SBScriptBOPO:
+        {
             return "zh-Hant";
+        }
         case SBScriptCYRL:
+        {
             return "ru";
+        }
         case SBScriptDEVA:
+        {
             return "hi";
+        }
         case SBScriptGEOR:
+        {
             return "ka";
+        }
         case SBScriptGREK:
+        {
             return "el";
+        }
         case SBScriptGUJR:
+        {
             return "gu";
+        }
         case SBScriptGURU:
+        {
             return "pa";
+        }
         case SBScriptHANG:
+        {
             return "ko";
+        }
         case SBScriptHANI:
         case SBScriptHIRA:
         case SBScriptKANA:
+        {
             return paragraph_language;
+        }
         case SBScriptZINH:
         case SBScriptZYYY:
+        {
             return paragraph_language;
+        }
         case SBScriptHEBR:
+        {
             return "he";
+        }
         case SBScriptKNDA:
+        {
             return "kn";
+        }
         case SBScriptLAOO:
+        {
             return "lo";
+        }
         case SBScriptMLYM:
+        {
             return "ml";
+        }
         case SBScriptORYA:
+        {
             return "or";
+        }
         case SBScriptTAML:
+        {
             return "ta";
+        }
         case SBScriptTELU:
+        {
             return "te";
+        }
         case SBScriptTHAI:
+        {
             return "th";
+        }
         case SBScriptTIBT:
+        {
             return "bo";
+        }
         case SBScriptETHI:
+        {
             return "am";
+        }
         case SBScriptKHMR:
+        {
             return "km";
+        }
         case SBScriptMYMR:
+        {
             return "my";
+        }
         case SBScriptSINH:
+        {
             return "si";
+        }
         default:
+        {
             return default_language;
+        }
     }
 }
 
@@ -493,7 +557,9 @@ static void AddLineDecorations(TextLayout* layout, uint16_t line_index,
 
         if (!isfinite(decoration_x) || !isfinite(decoration_length) || decoration_length <= 0.0f ||
             glyph_start == UINT32_MAX || glyph_end - glyph_start > UINT16_MAX)
+        {
             continue;
+        }
         const float                         pattern_offset   = decoration_x - origin_x;
         const float                         decoration_inset = decoration_length > padding ? (float)padding : 0.0f;
         float                               decoration_y     = source.line.y;
@@ -888,7 +954,9 @@ static bool LayoutText(LayoutContext* ctx,
                     content_advance += skbglyph->advance_x;
                     content_start_x = fminf(content_start_x, gx);
                     if (content_first_glyph == UINT32_MAX)
+                    {
                         content_first_glyph = layout->m_Glyphs.Size();
+                    }
                     content_last_glyph = layout->m_Glyphs.Size();
                 }
 

@@ -235,7 +235,9 @@ static bool ParseSize(HMarkup markup, const MarkupStyleNode& node, float* size, 
         }
 
         if (source[value.m_Offset] == '+' || source[value.m_Offset] == '-')
+        {
             *unit = TEXT_FONT_SIZE_OFFSET;
+        }
     }
 
     if (!isfinite(number) || (number <= 0.0f && *unit != TEXT_FONT_SIZE_OFFSET))
@@ -535,10 +537,14 @@ static bool ApplyStyleNode(HMarkup markup, const MarkupStyleNode& node, float ba
         float            size;
         TextFontSizeUnit unit;
         if (!ParseSize(markup, node, &size, &unit))
+        {
             return false;
+        }
         size = unit == TEXT_FONT_SIZE_EM ? base_size * size : unit == TEXT_FONT_SIZE_OFFSET ? base_size + size : size;
         if (!isfinite(size) || size <= 0.0f)
+        {
             return false;
+        }
         style->m_FontSize = size;
         style->m_FontSizeUnit = TEXT_FONT_SIZE_PIXELS;
 
@@ -729,12 +735,14 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
             continue;
         }
         color.m_Positions[i] = color.m_StopCount > 1 ? (float)i / (color.m_StopCount - 1) : 0.0f;
+        // uncrustify:off (comparison parsing)
         if ((stop && !ParseFloat(source, stop->m_Value, &color.m_Positions[i])) ||
-            color.m_Positions[i] <0.0f || color.m_Positions[i]> 1.0f ||
+            color.m_Positions[i] < 0.0f || color.m_Positions[i] > 1.0f ||
             (i && color.m_Positions[i] < color.m_Positions[i - 1]))
         {
             return InvalidGradientAttribute(stop, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, error);
         }
+        // uncrustify:on
     }
     color.m_Parameters[0] = color.m_Type == FONT_COLOR_EFFECT_RADIAL ? 0.5f : 0.0f;
     color.m_Parameters[1] = 0.5f;
@@ -749,23 +757,28 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
         switch (attribute.m_Type)
         {
             case MARKUP_ATTRIBUTE_ANGLE:
+            {
                 if (color.m_Type != FONT_COLOR_EFFECT_LINEAR && color.m_Type != FONT_COLOR_EFFECT_RADIAL)
                 {
                     return InvalidGradientAttribute(&attribute, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, error);
                 }
                 value = &color.m_Parameters[color.m_Type == FONT_COLOR_EFFECT_RADIAL ? 4 : 0];
                 break;
+            }
             case MARKUP_ATTRIBUTE_PIVOT_X:
             case MARKUP_ATTRIBUTE_PIVOT_Y:
+            {
                 if (color.m_Type != FONT_COLOR_EFFECT_RADIAL)
                 {
                     return InvalidGradientAttribute(&attribute, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, error);
                 }
                 value = &color.m_Parameters[attribute.m_Type - MARKUP_ATTRIBUTE_PIVOT_X];
                 break;
+            }
             case MARKUP_ATTRIBUTE_RADIUS:
             case MARKUP_ATTRIBUTE_RADIUS_X:
             case MARKUP_ATTRIBUTE_RADIUS_Y:
+            {
                 if (color.m_Type != FONT_COLOR_EFFECT_RADIAL)
                 {
                     return InvalidGradientAttribute(&attribute, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, error);
@@ -773,14 +786,20 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
                 value = attribute.m_Type == MARKUP_ATTRIBUTE_RADIUS ? &radius :
                         &color.m_Parameters[2 + attribute.m_Type - MARKUP_ATTRIBUTE_RADIUS_X];
                 break;
+            }
             case MARKUP_ATTRIBUTE_HZ:
+            {
                 value = &gradient.m_Hz;
                 break;
+            }
             case MARKUP_ATTRIBUTE_TYPE:
             case MARKUP_ATTRIBUTE_FIT:
             case MARKUP_ATTRIBUTE_DIRECTION:
+            {
                 break;
+            }
             default:
+            {
                 if (color.m_Type == FONT_COLOR_EFFECT_FOUR_CORNER)
                 {
                     if (attribute.m_Type != MARKUP_ATTRIBUTE_BL && attribute.m_Type != MARKUP_ATTRIBUTE_BR &&
@@ -793,6 +812,7 @@ static bool CreateSpatialGradient(HMarkup markup, const MarkupStyleNode& node, T
                 {
                     return InvalidGradientAttribute(&attribute, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, error);
                 }
+            }
         }
         if (value && !ParseFloat(source, attribute.m_Value, value))
         {
@@ -881,30 +901,65 @@ static bool CreateEffect(HMarkup markup, const MarkupStyleNode& node, uint32_t t
 
             switch (attribute->m_Type)
             {
-                case MARKUP_ATTRIBUTE_LEFT:      left = attribute;
+                case MARKUP_ATTRIBUTE_LEFT:
+                {
+                    left = attribute;
                     break;
-                case MARKUP_ATTRIBUTE_RIGHT:     right = attribute;
+                }
+                case MARKUP_ATTRIBUTE_RIGHT:
+                {
+                    right = attribute;
                     break;
-                case MARKUP_ATTRIBUTE_TOP:       top = attribute;
+                }
+                case MARKUP_ATTRIBUTE_TOP:
+                {
+                    top = attribute;
                     break;
-                case MARKUP_ATTRIBUTE_BOTTOM:    bottom = attribute;
+                }
+                case MARKUP_ATTRIBUTE_BOTTOM:
+                {
+                    bottom = attribute;
                     break;
-                case MARKUP_ATTRIBUTE_BL:        bl = attribute;
+                }
+                case MARKUP_ATTRIBUTE_BL:
+                {
+                    bl = attribute;
                     break;
-                case MARKUP_ATTRIBUTE_BR:        br = attribute;
+                }
+                case MARKUP_ATTRIBUTE_BR:
+                {
+                    br = attribute;
                     break;
-                case MARKUP_ATTRIBUTE_TL:        tl = attribute;
+                }
+                case MARKUP_ATTRIBUTE_TL:
+                {
+                    tl = attribute;
                     break;
-                case MARKUP_ATTRIBUTE_TR:        tr = attribute;
+                }
+                case MARKUP_ATTRIBUTE_TR:
+                {
+                    tr = attribute;
                     break;
-                case MARKUP_ATTRIBUTE_FIT:       fit = attribute;
+                }
+                case MARKUP_ATTRIBUTE_FIT:
+                {
+                    fit = attribute;
                     break;
-                case MARKUP_ATTRIBUTE_HZ:        hz = attribute;
+                }
+                case MARKUP_ATTRIBUTE_HZ:
+                {
+                    hz = attribute;
                     break;
-                case MARKUP_ATTRIBUTE_DIRECTION: direction_attribute = attribute;
+                }
+                case MARKUP_ATTRIBUTE_DIRECTION:
+                {
+                    direction_attribute = attribute;
                     break;
+                }
                 default:
+                {
                     return false;
+                }
             }
         }
 
@@ -962,7 +1017,9 @@ static bool CreateEffect(HMarkup markup, const MarkupStyleNode& node, uint32_t t
 
         if ((hz && !ParseFloat(source, hz->m_Value, &effect->m_Gradient.m_Hz)) || effect->m_Gradient.m_Hz < 0.0f ||
             !ParseAnimationDirection(direction_attribute, &direction))
+        {
             return false;
+        }
         effect->m_Gradient.m_Hz *= direction;
         if (effect->m_Gradient.m_Fit == TEXT_EFFECT_FIT_BLOCK)
         {
@@ -1003,10 +1060,14 @@ static bool CreateEffect(HMarkup markup, const MarkupStyleNode& node, uint32_t t
         if ((amplitude && !ParseFloat(source, amplitude->m_Value, &effect->m_Wave.m_Amplitude)) ||
             (hz && !ParseFloat(source, hz->m_Value, &effect->m_Wave.m_Hz)) ||
             (wavelength && !ParseFloat(source, wavelength->m_Value, &effect->m_Wave.m_Wavelength)) ||
-            effect->m_Wave.m_Amplitude < 0.0f || effect->m_Wave.m_Hz < 0.0f || effect->m_Wave.m_Wavelength <= 0.0f ||
+            effect->m_Wave.m_Amplitude < 0.0f ||
+            effect->m_Wave.m_Hz < 0.0f ||
+            effect->m_Wave.m_Wavelength <= 0.0f ||
             !ParseEffectFit(fit, TEXT_EFFECT_FIT_GLYPH, &effect->m_Wave.m_Fit) ||
             !ParseAnimationDirection(direction_attribute, &direction))
+        {
             return false;
+        }
         effect->m_Wave.m_Hz *= direction;
         effect->m_Type = TEXT_EFFECT_WAVE;
         effect->m_Flags = TEXT_EFFECT_AFFECTS_POSITION;
@@ -1024,9 +1085,12 @@ static bool CreateEffect(HMarkup markup, const MarkupStyleNode& node, uint32_t t
 
         if ((amplitude && !ParseFloat(source, amplitude->m_Value, &effect->m_Shake.m_Amplitude)) ||
             (hz && !ParseFloat(source, hz->m_Value, &effect->m_Shake.m_Hz)) ||
-            effect->m_Shake.m_Amplitude < 0.0f || effect->m_Shake.m_Hz < 0.0f ||
+            effect->m_Shake.m_Amplitude < 0.0f ||
+            effect->m_Shake.m_Hz < 0.0f ||
             !ParseEffectFit(fit, TEXT_EFFECT_FIT_GLYPH, &effect->m_Shake.m_Fit))
+        {
             return false;
+        }
         effect->m_Type = TEXT_EFFECT_SHAKE;
         effect->m_Flags = TEXT_EFFECT_AFFECTS_POSITION;
 
@@ -1202,7 +1266,9 @@ bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_
                 break;
             }
             if (nodes[i].m_Type == MARKUP_TAG_SIZE)
+            {
                 style->m_Flags |= TEXT_RENDER_STYLE_FONT_SIZE;
+            }
             if (nodes[i].m_Type == MARKUP_TAG_COLOR)
             {
                 // A later color replaces earlier gradients while retaining positional effects.
@@ -1210,7 +1276,9 @@ bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_
                 for (uint32_t j = effect_start; j < effects->Size(); ++j)
                 {
                     if ((*effects)[j].m_Type != TEXT_EFFECT_GRADIENT)
+                    {
                         (*effects)[effect_end++] = (*effects)[j];
+                    }
                 }
                 effects->SetSize(effect_end);
             }
@@ -1401,7 +1469,9 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
             {
                 state.m_Style = style;
                 if (nodes[i].m_Type == MARKUP_TAG_COLOR)
+                {
                     state.m_ColorNode = (uint16_t)i;
+                }
             }
         }
         else if (IsDecorationNode(nodes[i]))
@@ -1477,7 +1547,9 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
             for (uint16_t effect_node = state.m_EffectNode; effect_node != MARKUP_INVALID_INDEX; effect_node = node_effect_parents[effect_node])
             {
                 if (effect_node < state.m_ColorNode && nodes[effect_node].m_Type == MARKUP_TAG_GRADIENT)
+                {
                     --effect_count;
+                }
             }
         }
 
@@ -1500,7 +1572,9 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
                 const uint16_t current = effect_node;
                 effect_node = node_effect_parents[current];
                 if (state.m_ColorNode != MARKUP_INVALID_INDEX && current < state.m_ColorNode && nodes[current].m_Type == MARKUP_TAG_GRADIENT)
+                {
                     continue;
+                }
                 resolved->m_SpanEffects[effect_index + --remaining] = node_effects[current];
             }
         }
@@ -1509,10 +1583,14 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
         style.m_FontSize = style.m_FontSizeUnit == TEXT_FONT_SIZE_EM ? base_font_size * style.m_FontSize
                          : style.m_FontSizeUnit == TEXT_FONT_SIZE_OFFSET ? base_font_size + style.m_FontSize : style.m_FontSize;
         if (!isfinite(style.m_FontSize) || style.m_FontSize <= 0.0f)
+        {
             style.m_FontSize = base_font_size;
+        }
         style.m_FontSizeUnit = TEXT_FONT_SIZE_PIXELS;
         if (style.m_FontSize != base_font_size)
+        {
             style.m_Flags |= TEXT_RENDER_STYLE_FONT_SIZE;
+        }
 
         uint16_t style_index;
         if (!AddStyle(resolved, &style_indices, style, &style_index))

@@ -45,7 +45,9 @@ template <typename T>
 static void Append(dmArray<T>& array, const T& value)
 {
     if (array.Full())
+    {
         array.OffsetCapacity(32);
+    }
     array.Push(value);
 }
 
@@ -87,7 +89,9 @@ static uint64_t GlyphKey(HFont font, uint32_t glyph)
 static void Put(dmHashTable64<uint32_t>& table, uint64_t key, uint32_t value)
 {
     if (table.Full())
+    {
         table.SetCapacity((table.Capacity() + 32) * 2, table.Capacity() + 32);
+    }
     table.Put(key, value);
 }
 
@@ -97,7 +101,9 @@ static uint32_t AddPath(PaintContext* context, uint32_t glyph_index)
     uint64_t              key = GlyphKey(context->m_Font, glyph_index);
     uint32_t*             existing = cache->m_PathLookup.Get(key);
     if (existing)
+    {
         return *existing;
+    }
     FontGlyphOptions options;
     options.m_GenerateOutline = true;
     FontGlyph glyph = {};
@@ -131,7 +137,9 @@ static bool PushClipGlyph(void* data, uint32_t glyph)
     // Each supported layer clips one outline. Do not silently approximate
     // arbitrary intersections of glyph outlines as their bounding boxes.
     if (clip.m_Path != ~0u)
+    {
         context->m_Failed = true;
+    }
     clip.m_Path = AddPath(context, glyph);
     clip.m_Transform = CurrentTransform(context);
     Append(context->m_Clips, clip);
@@ -144,7 +152,9 @@ static bool PushClipRectangle(void* data, float x0, float y0, float x1, float y1
     const Matrix4& transform = CurrentTransform(context);
     PaintClip      clip = CurrentClip(context);
     if (transform.getCol0().getY() != 0 || transform.getCol1().getX() != 0)
+    {
         context->m_Failed = true;
+    }
     Vector4 a = transform * Vector4(x0, y0, 0, 1);
     Vector4 b = transform * Vector4(x1, y1, 0, 1);
     clip.m_Rect = Intersect(clip.m_Rect, Vector4(fminf(a.getX(), b.getX()), fminf(a.getY(), b.getY()), fmaxf(a.getX(), b.getX()), fmaxf(a.getY(), b.getY())));
@@ -163,7 +173,9 @@ static bool PushComposite(void* data)
     PaintContext* context = (PaintContext*)data;
     uint32_t      first = context->m_Composites.Empty() ? ~0u : context->m_Composites.Back();
     if (first == ~0u && CurrentClip(context).m_Path != ~0u)
+    {
         first = context->m_Cache->m_LayerScratch.Size();
+    }
     Append(context->m_Composites, first);
     return true;
 }
@@ -177,7 +189,9 @@ static void PopComposite(void* data)
     // PaintGlyph nodes and ordinary layer lists retain their individual coverage.
     if (first != ~0u && (context->m_Composites.Empty() || context->m_Composites.Back() != first) &&
         context->m_Cache->m_LayerScratch.Size() > first)
+    {
         context->m_Cache->m_LayerScratch.Back().m_CompositeCount = context->m_Cache->m_LayerScratch.Size() - first;
+    }
 }
 
 static float SRGBToLinear(float color)
@@ -196,7 +210,9 @@ static void AppendStop(FontVectorPaintCache* cache, const FontColrStop& stop)
 static bool AddPaint(PaintContext* context, uint32_t type, uint32_t stops, uint32_t extend, const Vector4& p0, const Vector4& p1)
 {
     if (context->m_Failed)
+    {
         return false;
+    }
     const PaintClip& clip = CurrentClip(context);
     if (clip.m_Path == ~0u || stops == 0)
     {
@@ -205,10 +221,14 @@ static bool AddPaint(PaintContext* context, uint32_t type, uint32_t stops, uint3
     }
     FontVectorPaintCache* cache = context->m_Cache;
     if (!cache->m_Paths[clip.m_Path].m_Slug.m_CurveCount)
+    {
         return false;
+    }
     const Matrix4& paint_transform = CurrentTransform(context);
     if (fabsf(determinant(paint_transform)) < 1e-12f)
+    {
         return false;
+    }
     // Reserve the glyph header and layer records before adding paint data, so
     // overflow rolls back the whole graph through the existing failure path.
     uint32_t records = 1 + (cache->m_LayerScratch.Size() + 1) * 6;
@@ -243,7 +263,9 @@ static bool PaintColor(void* data, const FontColrPaint* paint)
         float dx = p[5] - p[1], dy = p[0] - p[4];
         float denominator = dx * (p[2] - p[0]) + dy * (p[3] - p[1]);
         if (denominator == 0)
+        {
             return true;
+        }
         p0 = Vector4(dx / denominator, dy / denominator, p[0], p[1]);
     }
     else if (paint->m_Type == FONT_COLR_RADIAL_GRADIENT)
@@ -254,7 +276,9 @@ static bool PaintColor(void* data, const FontColrPaint* paint)
     if (AddPaint(context, paint->m_Type, paint->m_StopCount, paint->m_Extend, p0, p1))
     {
         for (uint32_t i = 0; i < paint->m_StopCount; ++i)
+        {
             AppendStop(context->m_Cache, paint->m_Stops[i]);
+        }
     }
     return !context->m_Failed;
 }
@@ -297,7 +321,9 @@ static void EncodeGlyph(FontVectorPaintCache* cache, FontVectorPaintGlyph* glyph
     glyph->m_Bounds = Vector4(FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX);
     glyph->m_Paint = cache->m_Paints.Size();
     if (!glyph->m_LayerCount)
+    {
         return;
+    }
     Append(cache->m_Paints, Vector4((float)glyph->m_LayerCount, 0, 0, 0));
     for (uint32_t i = 0; i < glyph->m_LayerCount; ++i)
     {
@@ -326,7 +352,9 @@ static void EncodeGlyph(FontVectorPaintCache* cache, FontVectorPaintGlyph* glyph
         }
         bounds = Intersect(bounds, layer.m_Clip);
         if (bounds.getX() < bounds.getZ() && bounds.getY() < bounds.getW())
+        {
             glyph->m_Bounds = Vector4(fminf(glyph->m_Bounds.getX(), bounds.getX()), fminf(glyph->m_Bounds.getY(), bounds.getY()), fmaxf(glyph->m_Bounds.getZ(), bounds.getZ()), fmaxf(glyph->m_Bounds.getW(), bounds.getW()));
+        }
     }
 }
 
@@ -335,7 +363,9 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
     *index = ~0u;
     *has_color = false;
     if (FontGetType(source) != FONT_TYPE_TTF && FontGetType(source) != FONT_TYPE_OTF)
+    {
         return true;
+    }
     const FontColr* colr = FontGetColrTTF(source);
     *has_color = FontColrHasGlyph(colr, glyph_index);
     uint64_t  key = GlyphKey(source, glyph_index);
@@ -367,7 +397,9 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
         cache->m_LayerScratch.SetSize(0);
         cache->m_Paints.SetSize(first_paint);
         for (uint32_t i = first_path; i < cache->m_Paths.Size(); ++i)
+        {
             cache->m_PathLookup.Erase(GlyphKey(source, cache->m_Paths[i].m_Glyph));
+        }
         cache->m_Paths.SetSize(first_path);
         cache->m_Slug->m_Curves.SetSize(first_curve);
         cache->m_Slug->m_Bands.SetSize(first_band);
@@ -377,14 +409,20 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
         cache->m_Slug->m_BandReferences = counters[3];
         cache->m_Slug->m_MaxBandCurves = counters[4];
         if (cache->m_Slug->m_Overflow)
+        {
             return false;
+        }
         context.m_Failed = false;
         uint32_t path = AddPath(&context, glyph_index);
         if (path == ~0u)
+        {
             return false;
+        }
         // Color-only base glyphs have no monochrome outline. Use .notdef.
         if (*has_color && !cache->m_Paths[path].m_Slug.m_CurveCount)
+        {
             glyph_index = 0;
+        }
         PushClipGlyph(&context, glyph_index);
         FontColrStop  stop = { 0, { 1, 1, 1, 1 }, true };
         FontColrPaint paint = {};
@@ -394,9 +432,13 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
         PaintColor(&context, &paint);
         PopClip(&context);
         if (context.m_Failed)
+        {
             return false;
+        }
         if (*has_color)
+        {
             dmLogWarning("Unsupported COLR paint in glyph %u of %s; using an outline fallback", glyph.m_Glyph, FontGetPath(source));
+        }
     }
     glyph.m_LayerCount = cache->m_LayerScratch.Size();
     EncodeGlyph(cache, &glyph);

@@ -504,9 +504,13 @@ static bool GetConstantType(MarkupTagType tag, MarkupAttributeType name, dmhash_
     if (name == MARKUP_ATTRIBUTE_FIT)
     {
         if (value == VALUE_GLYPH)
+        {
             *type = MARKUP_CONSTANT_GLYPH;
+        }
         if (value == VALUE_SPAN)
+        {
             *type = MARKUP_CONSTANT_SPAN;
+        }
         if (tag == MARKUP_TAG_GRADIENT && value == VALUE_BLOCK)
         {
             *type = MARKUP_CONSTANT_BLOCK;
@@ -540,9 +544,13 @@ static bool GetConstantType(MarkupTagType tag, MarkupAttributeType name, dmhash_
     if (name == MARKUP_ATTRIBUTE_DIRECTION)
     {
         if (value == VALUE_FORWARD)
+        {
             *type = MARKUP_CONSTANT_FORWARD;
+        }
         if (value == VALUE_REVERSE)
+        {
             *type = MARKUP_CONSTANT_REVERSE;
+        }
 
         return *type != MARKUP_CONSTANT_NONE;
     }
@@ -550,9 +558,13 @@ static bool GetConstantType(MarkupTagType tag, MarkupAttributeType name, dmhash_
     if ((tag == MARKUP_TAG_UNDERLINE || tag == MARKUP_TAG_STRIKE) && name == MARKUP_ATTRIBUTE_PATTERN)
     {
         if (value == VALUE_SOLID)
+        {
             *type = MARKUP_CONSTANT_SOLID;
+        }
         if (value == VALUE_DASHED)
+        {
             *type = MARKUP_CONSTANT_DASHED;
+        }
 
         return *type != MARKUP_CONSTANT_NONE;
     }

@@ -54,7 +54,9 @@ static uint8_t RemapSdfValue(uint8_t value, float outline_edge)
 static uint8_t SdfCoverage(uint8_t value, float edge, float pixel_dist_scale, bool antialias)
 {
     if (!antialias)
+    {
         return value >= edge ? 255 : 0;
+    }
     const float coverage = 0.5f + ((float)value - edge) / pixel_dist_scale;
     return (uint8_t)(dmMath::Clamp(coverage, 0.0f, 1.0f) * 255.0f);
 }
@@ -62,11 +64,15 @@ static uint8_t SdfCoverage(uint8_t value, float edge, float pixel_dist_scale, bo
 static bool BlurBitmapChannel(uint8_t* pixels, uint32_t width, uint32_t height, uint32_t channels, uint32_t channel, uint32_t passes)
 {
     if (passes == 0 || width == 0 || height == 0)
+    {
         return true;
+    }
 
     const uint64_t pixel_count = (uint64_t)width * height;
     if (pixel_count > UINT32_MAX)
+    {
         return false;
+    }
 
     uint8_t* source = (uint8_t*)malloc((size_t)pixel_count);
     uint8_t* target = (uint8_t*)malloc((size_t)pixel_count);
@@ -78,7 +84,9 @@ static bool BlurBitmapChannel(uint8_t* pixels, uint32_t width, uint32_t height, 
     }
 
     for (uint32_t i = 0; i < pixel_count; ++i)
+    {
         source[i] = pixels[i * channels + channel];
+    }
 
     // This is the same separable 3x3 Gaussian kernel used by the former Java
     // bitmap compiler: [1 2 1; 2 4 2; 1 2 1] / 16. Border pixels retain
@@ -110,7 +118,9 @@ static bool BlurBitmapChannel(uint8_t* pixels, uint32_t width, uint32_t height, 
     }
 
     for (uint32_t i = 0; i < pixel_count; ++i)
+    {
         pixels[i * channels + channel] = source[i];
+    }
 
     free(source);
     free(target);
@@ -120,7 +130,9 @@ static bool BlurBitmapChannel(uint8_t* pixels, uint32_t width, uint32_t height, 
 uint32_t FontGetGlyphChannelCount(bool output_bitmap, bool has_outline, bool has_shadow, float shadow_blur)
 {
     if (output_bitmap)
+    {
         return has_outline || has_shadow ? 3 : 1;
+    }
     return shadow_blur > 0.0f ? 3 : 1;
 }
 
@@ -129,7 +141,9 @@ uint32_t FontGetGlyphChannelCount(bool output_bitmap, bool has_outline, bool has
 static bool BlurVectorShadow(FontGlyph* glyph, float sigma)
 {
     if (sigma <= 0.0f)
+    {
         return true;
+    }
     const uint32_t width = glyph->m_Bitmap.m_Width;
     const uint32_t height = glyph->m_Bitmap.m_Height;
     const uint32_t count = width * height;
@@ -142,10 +156,14 @@ static bool BlurVectorShadow(FontGlyph* glyph, float sigma)
         return false;
     }
     for (uint32_t i = 0; i < count; ++i)
+    {
         source[i] = glyph->m_Bitmap.m_Data[i * 3 + 2];
+    }
     int lower = (int)floorf(sqrtf(4.0f * sigma * sigma + 1.0f));
     if (!(lower & 1))
+    {
         --lower;
+    }
     lower = dmMath::Max(1, lower);
     const int smaller = (int)floorf((12.0f * sigma * sigma - 3.0f * lower * lower - 12.0f * lower - 9.0f) / (-4.0f * lower - 4.0f) + 0.5f);
     for (int pass = 0; pass < 3; ++pass)
@@ -162,16 +180,22 @@ static bool BlurVectorShadow(FontGlyph* glyph, float sigma)
                 const uint32_t base = axis ? line : line * width;
                 float sum = 0.0f;
                 for (int k = 0; k <= radius && k < (int)length; ++k)
+                {
                     sum += source[base + k * step];
+                }
                 for (uint32_t k = 0; k < length; ++k)
                 {
                     target[base + k * step] = sum * divisor;
                     const int remove = (int)k - radius;
                     const int add = (int)k + radius + 1;
                     if (remove >= 0)
+                    {
                         sum -= source[base + remove * step];
+                    }
                     if (add < (int)length)
+                    {
                         sum += source[base + add * step];
+                    }
                 }
             }
             float* swap = source;
@@ -180,7 +204,9 @@ static bool BlurVectorShadow(FontGlyph* glyph, float sigma)
         }
     }
     for (uint32_t i = 0; i < count; ++i)
+    {
         glyph->m_Bitmap.m_Data[i * 3 + 2] = (uint8_t)dmMath::Clamp(source[i] + 0.5f, 0.0f, 255.0f);
+    }
     free(source);
     free(target);
     return true;
@@ -191,7 +217,9 @@ static FontResult ConvertGlyphBitmap(HFont font, const FontGlyphGenParams* param
 FontResult FontGenerateGlyph(HFont font, uint32_t glyph_index, const FontGlyphGenParams* params, FontGlyph* glyph)
 {
     if (font == 0 || params == 0 || glyph == 0 || params->m_Scale <= 0.0f || params->m_SdfPadding <= 0.0f)
+    {
         return FONT_RESULT_ERROR;
+    }
     memset(glyph, 0, sizeof(*glyph));
 
     FontGlyphOptions options;
@@ -212,7 +240,9 @@ FontResult FontGenerateGlyph(HFont font, uint32_t glyph_index, const FontGlyphGe
         result = FontGetGlyphByIndex(font, glyph_index, &options, glyph);
     }
     if (result != FONT_RESULT_OK || glyph->m_Bitmap.m_Data == 0)
+    {
         return result;
+    }
 
     return ConvertGlyphBitmap(font, params, glyph);
 }
@@ -223,7 +253,9 @@ FontResult FontGenerateVectorGlyph(HFont font, uint32_t glyph_index, const FontG
         !isfinite(params->m_SdfPadding) || params->m_SdfPadding <= 0.0f ||
         !isfinite(params->m_OutlineWidth) || params->m_OutlineWidth < 0.0f ||
         !isfinite(params->m_ShadowBlur) || params->m_ShadowBlur < 0.0f)
+    {
         return FONT_RESULT_ERROR;
+    }
     FontGlyphOptions options;
     options.m_Scale = params->m_Scale;
     options.m_GenerateOutline = true;
@@ -233,7 +265,9 @@ FontResult FontGenerateVectorGlyph(HFont font, uint32_t glyph_index, const FontG
     memset(glyph, 0, sizeof(*glyph));
     FontResult result = FontGetGlyphByIndex(font, glyph_index, &options, glyph);
     if (result != FONT_RESULT_OK || !options.m_GenerateImage || !glyph->m_Bitmap.m_Data)
+    {
         return result;
+    }
     FontGlyphGenParams bitmap_params = *params;
     bitmap_params.m_OutputBitmap = true;
     bitmap_params.m_SdfPadding = options.m_StbttSDFPadding;
@@ -255,7 +289,9 @@ static FontResult ConvertGlyphBitmap(HFont font, const FontGlyphGenParams* param
     const bool     has_outline_data = params->m_OutlineWidth > 0.0f;
     const uint32_t channels = FontGetGlyphChannelCount(params->m_OutputBitmap, has_outline_data, params->m_HasShadow, params->m_ShadowBlur);
     if (channels == 1 && !outline_sdf)
+    {
         return FONT_RESULT_OK;
+    }
     const uint64_t pixel_count = (uint64_t)width * height * channels;
     if (pixel_count > UINT32_MAX)
     {

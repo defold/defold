@@ -143,11 +143,15 @@ static FontResult GetGlyphOutlineTTF(HFont hfont, uint32_t glyph_index, FontOutl
 {
     FontResult result = FontImplGetGlyphOutline(ToFont(hfont)->m_Font, glyph_index, outline);
     if (result != FONT_RESULT_OK)
+    {
         return result;
+    }
 
     result = FontOutlineMakeYMonotonic(outline);
     if (result != FONT_RESULT_OK)
+    {
         FontFreeGlyphOutline(outline);
+    }
 
     return result;
 }
@@ -242,7 +246,9 @@ static bool OutlineCubicTo(OutlineBuildContext* ctx, float scale, float toleranc
         return true;
     }
     if (depth == 16)
+    {
         return false;
+    }
 
     const FontOutlinePoint p01 = OutlineMidpoint(p0, p1);
     const FontOutlinePoint p12 = OutlineMidpoint(p1, p2);
@@ -260,7 +266,9 @@ static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, f
     FontOutline outline = {};
     FontResult result = FontImplGetGlyphOutline(font->m_Font, glyph_index, &outline);
     if (result != FONT_RESULT_OK)
+    {
         return result;
+    }
 
     result = FontOutlineMakeYMonotonic(&outline);
     if (result != FONT_RESULT_OK)
@@ -305,7 +313,9 @@ static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, f
             {
                 if (!OutlineCubicTo(&ctx, scale, tolerance * tolerance, current,
                                     command.m_Points[0], command.m_Points[1], command.m_Points[2], 0))
+                {
                     ctx.m_Unsupported = true;
+                }
                 current = command.m_Points[2];
                 break;
             }
@@ -376,7 +386,9 @@ FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOpt
     bool color_bounds = !options->m_GenerateOutline && !options->m_GenerateImage &&
                         FontColrGetGlyphBox(FontImplGetColr(font->m_Font), glyph_index, GetOutlineBox, font->m_Font, &x0, &y0, &x1, &y1);
     if (!bounds_from_outline && !color_bounds)
+    {
         FontImplGetGlyphBox(font->m_Font, glyph_index, &x0, &y0, &x1, &y1);
+    }
 
     float scale = options->m_Scale;
     float padding = options->m_UseUnpaddedBounds && !options->m_GenerateImage ? 0.0f : options->m_StbttSDFPadding;
@@ -393,7 +405,9 @@ FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOpt
         FontOutline outline = {};
         FontResult outline_result = GetGlyphOutlineTTF(hfont, glyph_index, &outline);
         if (outline_result != FONT_RESULT_OK)
+        {
             return outline_result;
+        }
 
         if (bounds_from_outline)
         {
@@ -412,7 +426,9 @@ FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOpt
         sdf_params.m_Spread = padding;
         sdf_params.m_OnEdgeValue = on_edge_value;
         if (image_params)
+        {
             sdf_params = *image_params;
+        }
         FontResult result = FontSDFGenerate(&outline, &sdf_params, &glyph->m_Bitmap, &offsetx, &offsety);
         if (result != FONT_RESULT_OK)
         {
@@ -561,7 +577,9 @@ hb_font_t* FontGetHarfbuzzFontFromTTF(HFont hfont)
 FontResult FontGetGlyphSDFMetricsTTF(HFont hfont, uint32_t glyph_index, float scale, float padding, FontGlyph* glyph)
 {
     if (!hfont || !glyph || glyph_index == 0 || scale <= 0.0f || padding <= 0.0f)
+    {
         return FONT_RESULT_ERROR;
+    }
 
     TTFFont* font = ToFont(hfont);
     memset(glyph, 0, sizeof(*glyph));
