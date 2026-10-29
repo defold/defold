@@ -51,13 +51,13 @@ extern "C" void dmExportedSymbols();
 typedef void (*FPreRun)(dmEngine::HEngine engine, void* context);
 typedef void (*FPostRun)(dmEngine::HEngine engine, void* context);
 
-static FPreRun g_PreRun = 0;
+static FPreRun  g_PreRun  = 0;
 static FPostRun g_PostRun = 0;
-static void* g_TextCtx = 0;
+static void*    g_TextCtx = 0;
 
-static float g_ExtensionTotalDT = 0.0f;
-static uint32_t g_ExtensionUpdateCount = 0;
-static bool g_ExtensionFloatLookupSucceeded = true;
+static float    g_ExtensionTotalDT              = 0.0f;
+static uint32_t g_ExtensionUpdateCount          = 0;
+static bool     g_ExtensionFloatLookupSucceeded = true;
 
 static dmExtension::Result DeltaTimeTestLifecycle(dmExtension::Params*)
 {
