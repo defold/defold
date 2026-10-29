@@ -1178,7 +1178,9 @@ class Configuration(object):
                 diagnostics.append(line)
 
         try:
-            run.env_command(os.environ, args, silent=True, on_output=on_output)
+            # These records are parsed; build.py applies the report's terminal colors itself.
+            env = dict(os.environ, CLICOLOR_FORCE='0', CLICOLOR='0')
+            run.env_command(env, args, silent=True, on_output=on_output)
         except run.ExecException as error:
             self._log_sdk_check(current_check, self._format_sdk_cmake_error(diagnostics), passed=False,
                                 elapsed=time.perf_counter() - started)

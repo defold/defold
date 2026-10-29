@@ -604,6 +604,30 @@ class CmakeSdkCheckTests(unittest.TestCase):
     def setUp(self):
         self.enterContext(contextlib.redirect_stdout(io.StringIO()))
 
+    # Inherited forced colors must not corrupt SDK check markers or hide the failing tool's actual reason.
+    def test_forced_cmake_colors_do_not_hide_sdk_failure(self):
+        for no_colors in (False, True):
+            with self.subTest(no_colors=no_colors), tempfile.TemporaryDirectory() as directory, \
+                    mock.patch.dict(os.environ):
+                os.environ.pop('NO_COLOR', None)
+                os.environ.pop('NOCOLOR', None)
+                os.environ['CLICOLOR_FORCE'] = '1'
+                script = Path(directory) / 'check.cmake'
+                script.write_text('message("DEFOLD_SDK_CHECK\\tJava")\n'
+                                  'message(FATAL_ERROR "Java 25 or newer is required")\n')
+                configuration = build.Configuration.__new__(build.Configuration)
+                configuration.verbose = False
+                configuration.no_colors = no_colors
+                configuration.build_tracker = build.BuildTimeTracker(logger=lambda message: None)
+                configuration._log = mock.Mock()
+                with self.assertRaises(SystemExit):
+                    configuration._check_sdk_cmake([build.shutil.which('cmake'), '-P', str(script)])
+                text = '\n'.join(call.args[0] for call in configuration._log.call_args_list)
+                self.assertIn('✗ Java: Java 25 or newer is required', text)
+                self.assertNotIn('CMake environment', text)
+                self.assertNotIn('\x1b', text)
+                self.assertEqual('1', os.environ['CLICOLOR_FORCE'])
+
     # Real CMake execution must report individual successes and the failed check, including optional protoc.
     def test_check_install_reports_results_and_failures(self):
         repository = Path(__file__).resolve().parents[1]
