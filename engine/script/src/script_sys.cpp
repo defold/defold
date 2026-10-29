@@ -163,8 +163,12 @@ union SaveLoadBuffer
     }
 
 #if !defined(__EMSCRIPTEN__)
-    static bool Sys_SyncFile(FILE* file)
+    static bool Sys_WriteAndSyncFile(FILE* file, const char* buffer, uint32_t size)
     {
+        if (fwrite(buffer, 1, size, file) != size)
+        {
+            return false;
+        }
         // Flush stdio before syncing the file descriptor.
         if (fflush(file) != 0)
         {
@@ -188,7 +192,7 @@ union SaveLoadBuffer
     // Always closes the file, preserving the first error before cleanup.
     static bool Sys_WriteAndCloseFile(FILE* file, const char* buffer, uint32_t size, char* errmsg, uint32_t errmsg_size)
     {
-        if (fwrite(buffer, 1, size, file) != size || !Sys_SyncFile(file))
+        if (!Sys_WriteAndSyncFile(file, buffer, size))
         {
         #if !defined(DM_NO_ERRNO)
             dmStrError(errmsg, errmsg_size, errno);
