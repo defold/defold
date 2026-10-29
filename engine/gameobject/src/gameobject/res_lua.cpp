@@ -194,8 +194,6 @@ namespace dmGameObject
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        PatchLuaBytecode(&lua_module->m_Source);
-
         for (uint32_t i = 0; i < lua_module->m_Resources.m_Count; ++i)
             dmResource::PreloadHint(params->m_HintInfo, lua_module->m_Resources[i]);
 
@@ -208,6 +206,10 @@ namespace dmGameObject
             if (e != dmDDF::RESULT_OK)
                 return dmResource::RESULT_FORMAT_ERROR;
             lua_module = metadata;
+        }
+        else
+        {
+            PatchLuaBytecode(&lua_module->m_Source);
         }
 
         *params->m_PreloadData = new LuaModuleResource(lua_module, params->m_IsBufferTransferrable ? params->m_Filename : 0, message_size);

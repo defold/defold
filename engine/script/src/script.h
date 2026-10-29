@@ -545,7 +545,7 @@ namespace dmScript
     /**
      * Register a module whose code is loaded when required.
      * @param context script context
-     * @param source supplies the diagnostic filename; its code bytes are not retained
+     * @param source executable bytes and diagnostic filename when loader is null; otherwise unused
      * @param script_name module name in require format
      * @param resource resource passed to loader and released at finalization
      * @param path_hash hashed path of the originating resource

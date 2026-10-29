@@ -149,7 +149,7 @@ namespace dmScript
         }
 
         module.m_Resource = resource;
-        module.m_Filename = strdup(source->m_Filename);
+        module.m_Filename = loader == 0 ? strdup(source->m_Filename) : 0;
 
         if (context->m_Modules.Full())
         {
