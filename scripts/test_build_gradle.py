@@ -424,6 +424,39 @@ class GradleOutputTests(unittest.TestCase):
                 self.assertIn('worker exited with code 7', text)
                 self.assertNotIn('unrelated skipped-test output', text)
 
+    # Confirmed assumption skips must stay quiet when another test in the same task loses its worker.
+    def test_worker_recovery_excludes_confirmed_ordinary_skips(self):
+        for marker_first in (False, True):
+            with self.subTest(marker_first=marker_first):
+                output, stream, log = self.reporter()
+                marker = 'DEFOLD_TEST_SKIPPED ' + json.dumps({
+                    'task': ':crashes',
+                    'test': ['Gradle Test Run :crashes', 'Gradle Test Executor 1', 'ExampleTest', 'expected 雪'],
+                })
+                output.on_output('> Task :crashes FAILED')
+                output.on_output('ExampleTest > expected 雪 STANDARD_OUT')
+                output.on_output('    error: expected skipped-test result')
+                if marker_first:
+                    output.on_output(marker)
+                output.on_output('ExampleTest > expected 雪 SKIPPED')
+                if not marker_first:
+                    output.on_output(marker)
+                # An ordinary skip in another task cannot suppress the interrupted test with the same name.
+                output.on_output('DEFOLD_TEST_SKIPPED ' + json.dumps({
+                    'task': ':other', 'test': ['ExampleTest', 'runs'],
+                }))
+                for line in ('ExampleTest > runs STANDARD_OUT', '    error: WORKER_ROOT_CAUSE missing symbol',
+                             'ExampleTest > runs SKIPPED', 'Gradle Test Run :crashes FAILED',
+                             '    org.gradle.process.ProcessExecutionException: worker exited with code 7'):
+                    output.on_output(line)
+                output.finish(False)
+                text = stream.getvalue()
+                self.assertEqual(1, text.count('WORKER_ROOT_CAUSE'))
+                self.assertIn('worker exited with code 7', text)
+                self.assertNotIn('expected skipped-test result', text)
+                self.assertNotIn('DEFOLD_TEST_SKIPPED', text)
+                self.assertIn('expected skipped-test result', log.getvalue())
+
     # Worker failure recovery must preserve recognized skipped-test errors while ordinary context stays bounded.
     def test_failed_worker_keeps_long_skipped_test_errors(self):
         for compiler_error in (False, True):
@@ -650,6 +683,10 @@ class GradleConfigurationTests(unittest.TestCase):
             self.assertIn('-Pvalue=with spaces', args)
             self.assertIn('--console=plain' if verbose else '--console=rich', args)
             self.assertEqual(verbose, '--info' in args)
+            self.assertEqual(not verbose, '--init-script' in args)
+            if not verbose:
+                self.assertEqual(str(self.root / 'build_tools/gradle_test_output.gradle'),
+                                 args[args.index('--init-script') + 1])
             self.assertEqual(verbose, '-Pvalue=with spaces' in stream.getvalue())
         configuration.verbose = False
         with contextlib.redirect_stdout(io.StringIO()) as stream, self.assertRaises(SystemExit) as error:

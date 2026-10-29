@@ -1,6 +1,7 @@
 """Compact build progress with complete logs and focused failure output."""
 
 from collections import deque
+import json
 from pathlib import Path
 import re
 import shutil
@@ -22,6 +23,7 @@ _GRADLE_PROGRESS = re.compile(r'^(?:<[^>]*>|[│|][^│|]*[│|])\s*(\d+)%\s+([A
 _GRADLE_TASK = re.compile(r'^> Task (\S+)(?:\s+(.*))?$')
 _GRADLE_TEST = re.compile(r'^(\S.* > .+) (PASSED|SKIPPED|FAILED|STANDARD_OUT|STANDARD_ERROR)$')
 _GRADLE_TEST_RUN_FAILURE = re.compile(r'^Gradle Test (?:Run|Executor) .+ FAILED$')
+_GRADLE_SKIPPED = 'DEFOLD_TEST_SKIPPED '
 
 
 class BuildOutput:
@@ -192,6 +194,7 @@ class GradleOutput(BuildOutput):
         self.current_tests = {}
         self.test_output = {}
         self.skipped_test_output = {}
+        self.ordinary_skipped_tests = set()
         self.stderr_output = _DiagnosticBuffer()
 
     def on_output(self, line):
@@ -205,6 +208,14 @@ class GradleOutput(BuildOutput):
         if not plain.strip():
             return
         self.log_file.write(plain + '\n')
+        if plain.startswith(_GRADLE_SKIPPED):
+            result = json.loads(plain[len(_GRADLE_SKIPPED):])
+            # Match the descriptor suffix shown by Gradle's test display granularity.
+            for index in range(len(result['test']) - 1):
+                key = (result['task'], ' > '.join(result['test'][index:]))
+                self.ordinary_skipped_tests.add(key)
+                self.skipped_test_output.pop(key, None)
+            return
         progress = _GRADLE_PROGRESS.match(plain)
         if progress:
             phase = progress[2].lower()
@@ -253,12 +264,10 @@ class GradleOutput(BuildOutput):
                 if current is not None and current[0] == test[1]:
                     self.current_tests.pop(self.current_task)
                 previous = self.test_output.pop(key, None)
-                if status == 'SKIPPED' and previous is not None:
+                if status == 'SKIPPED' and previous is not None and key not in self.ordinary_skipped_tests:
                     # Worker crashes also produce SKIPPED results; retain errors and bounded context for a run failure.
-                    skipped = self.skipped_test_output.setdefault(self.current_task, _DiagnosticBuffer())
-                    for line in previous.lines():
-                        skipped.append(line)
-                    skipped.append(plain)
+                    previous.append(plain)
+                    self.skipped_test_output[key] = previous
             else:
                 self.current_tests[self.current_task] = (test[1], status)
                 if status == 'FAILED':
@@ -272,9 +281,9 @@ class GradleOutput(BuildOutput):
         if _GRADLE_TEST_RUN_FAILURE.match(plain):
             self.in_error = False
             self._start_error(plain, context=True)
-            skipped = self.skipped_test_output.pop(self.current_task, None)
-            if skipped is not None:
-                self.errors.extend(skipped.lines())
+            for key in list(self.skipped_test_output):
+                if key[0] == self.current_task:
+                    self.errors.extend(self.skipped_test_output.pop(key).lines())
             return
         if plain.startswith('FAILURE:'):
             self.summary_stream = is_stderr

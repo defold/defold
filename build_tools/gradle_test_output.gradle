@@ -1,0 +1,18 @@
+import groovy.json.JsonOutput
+import org.gradle.api.tasks.testing.Test
+import org.gradle.api.tasks.testing.TestResult
+
+gradle.allprojects {
+    tasks.withType(Test).configureEach { testTask ->
+        testTask.afterTest { descriptor, result ->
+            // Worker termination also produces SKIPPED results, without an assumption failure.
+            if (result.resultType == TestResult.ResultType.SKIPPED && result.assumptionFailure != null) {
+                def names = []
+                for (def test = descriptor; test != null; test = test.parent) {
+                    names.add(0, test.displayName)
+                }
+                testTask.logger.lifecycle('DEFOLD_TEST_SKIPPED ' + JsonOutput.toJson([task: testTask.path, test: names]))
+            }
+        }
+    }
+}

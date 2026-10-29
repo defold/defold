@@ -2437,6 +2437,8 @@ class Configuration(object):
         args = list(args) + ['--console=plain' if verbose else '--console=rich']
         if verbose:
             args.append('--info')
+        else:
+            args += ['--init-script', join(self.defold_root, 'build_tools', 'gradle_test_output.gradle')]
         if os.name == 'nt':
             shell = subprocess.list2cmdline([env.get('COMSPEC', 'cmd.exe')])
             args = f'{shell} /d /s /c "{subprocess.list2cmdline(args)}"'
