@@ -446,6 +446,20 @@ class GradleOutputTests(unittest.TestCase):
         self.assertIn('> second actual failure', stream.getvalue())
         self.assertNotIn('--scan', stream.getvalue())
 
+    # A plain stderr failure must survive later worker chatter even without a Gradle failure heading.
+    def test_unrecognized_stderr_failure_survives_stdout_chatter(self):
+        output, stream, log = self.reporter()
+        output.on_stderr('Could not reserve enough space for the JVM')
+        for index in range(250):
+            output.on_output(f'worker output {index}')
+        output.finish(False)
+        text = stream.getvalue()
+        self.assertEqual(1, text.count('Could not reserve enough space for the JVM'))
+        self.assertIn('worker output 249', text)
+        self.assertNotIn('worker output 0\n', text)
+        self.assertLess(len(text.splitlines()), 110)
+        self.assertIn('worker output 0\n', log.getvalue())
+
     # A launcher or daemon failure without standard Gradle headings still gets a bounded useful diagnostic.
     def test_unrecognized_failure_uses_bounded_tail(self):
         output, stream, _ = self.reporter()
@@ -457,7 +471,7 @@ class GradleOutputTests(unittest.TestCase):
         output.finish(False)
         self.assertIn('Could not reserve enough space for the JVM', stream.getvalue())
         self.assertIn('Gradle launcher failed before task execution', stream.getvalue())
-        self.assertNotIn('early JVM warning', stream.getvalue())
+        self.assertEqual(1, stream.getvalue().count('early JVM warning'))
         self.assertNotIn('bootstrap output 0\n', stream.getvalue())
         self.assertLess(len(stream.getvalue().splitlines()), 110)
 

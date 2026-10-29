@@ -310,9 +310,10 @@ class GradleOutput(BuildOutput):
     def failure_output(self):
         pending_tests = [line for output in self.test_output.values() for line in output.lines()]
         diagnostics = pending_tests + self.stderr_output.errors + self.errors + self.summary
-        if diagnostics:
-            diagnostics = list(self.stderr_output.context) + diagnostics
-        return '\n'.join(diagnostics or self.tail).strip()
+        context = list(self.stderr_output.context)
+        if not diagnostics:
+            diagnostics = [line for line in self.tail if line not in context]
+        return '\n'.join(context + diagnostics).strip()
 
 
 def command(env, args, title, log_path, cwd=None, verbose=False, stream=None, gradle=False):
