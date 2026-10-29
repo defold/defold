@@ -2440,10 +2440,16 @@ class Configuration(object):
         if verbose:
             args.append('--info')
         else:
-            args += ['--init-script', join(self.defold_root, 'build_tools', 'gradle_test_output.gradle')]
+            init_script = join(self.defold_root, 'build_tools', 'gradle_test_output.gradle')
+            args += ['--init-script', init_script]
         if os.name == 'nt':
             shell = subprocess.list2cmdline([env.get('COMSPEC', 'cmd.exe')])
-            args = f'{shell} /d /s /c "{subprocess.list2cmdline(args)}"'
+            command_args = [subprocess.list2cmdline([arg]) for arg in args]
+            if not verbose:
+                # The path can contain CMD metacharacters even without whitespace.
+                command_args[-1] = f'"{init_script}"'
+            command_line = ' '.join(command_args)
+            args = f'{shell} /d /s /c "{command_line}"'
         log_path = join(directory, 'logs', f'{name}-{self.target_platform}.log')
         command_name = f'Gradle {name}'
         self.build_tracker.start_command(command_name, quiet=True)

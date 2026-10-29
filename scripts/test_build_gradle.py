@@ -897,6 +897,34 @@ class GradleConfigurationTests(unittest.TestCase):
         self.assertIn('actual tool error', stream.getvalue())
         self.assertNotIn('Traceback', stream.getvalue())
 
+    # CMD metacharacters in the newly added init-script path require quotes even without whitespace.
+    def test_windows_init_script_path_is_quoted(self):
+        self.configuration.defold_root = str(Path('root&checkout').absolute())
+        with mock.patch.object(build.os, 'name', 'nt'), \
+                mock.patch.object(build_output, 'command') as command:
+            self.configuration._run_gradle(['gradlew.bat', 'test'], str(self.root), 'fixture', os.environ)
+        init_script = os.path.join(self.configuration.defold_root, 'build_tools', 'gradle_test_output.gradle')
+        self.assertIn(f'--init-script "{init_script}"', command.call_args.args[1])
+
+    # A real Windows command must pass an ampersand checkout path as one init-script argument.
+    @unittest.skipUnless(os.name == 'nt', 'CMD is required')
+    def test_windows_init_script_metacharacter_path_reaches_process(self):
+        with tempfile.TemporaryDirectory(prefix='gradle&init-', dir=Path.cwd()) as directory:
+            root = Path(directory)
+            init_script = root / 'build_tools' / 'gradle_test_output.gradle'
+            init_script.parent.mkdir()
+            init_script.touch()
+            self.configuration.defold_root = str(root)
+            script = self.root / 'check init script.py'
+            script.write_text('import json, pathlib, sys\n'
+                              'path = sys.argv[sys.argv.index("--init-script") + 1]\n'
+                              'assert pathlib.Path(path).is_file(), path\n'
+                              'print(json.dumps(path))\n', encoding='utf-8')
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.configuration._run_gradle([sys.executable, str(script)], str(self.root), 'fixture', os.environ)
+            log = self.root / 'logs' / 'fixture-arm64-macos.log'
+            self.assertEqual(str(init_script), json.loads(log.read_text(encoding='utf-8').strip()))
+
     # Gradle clean must not unlink the active log or fail on an open log file on Windows.
     def test_logs_survive_cleaning_build_outputs(self):
         build_directory = self.root / 'build'
