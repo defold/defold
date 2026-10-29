@@ -220,6 +220,8 @@ class GradleOutput(BuildOutput):
         if plain.startswith(('BUILD FAILED', 'BUILD SUCCESSFUL', '[Incubating] Problems report is available at:',
                              'Deprecated Gradle features were used in this build,')):
             self.in_error = False
+            if not is_stderr:
+                self.current_tests.pop(self.current_task, None)
             return
         if (not is_stderr and not self.in_error and plain.startswith('> ')
                 and not _GRADLE_TASK.match(plain) and self.summary_stream is not False):

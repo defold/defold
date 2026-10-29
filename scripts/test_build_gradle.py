@@ -310,6 +310,25 @@ class GradleOutputTests(unittest.TestCase):
         self.assertIn('unrelated test output', log.getvalue())
         self.assertIn('expected negative-test result', log.getvalue())
 
+    # A failed test remains active for its trace, but Gradle's later stdout footer is not test output.
+    def test_failed_test_excludes_gradle_footer(self):
+        output, stream, _ = self.reporter()
+        for line in ('> Task :testJar FAILED', 'ExampleTest > fails STANDARD_OUT',
+                     '    ACTUAL_ROOT_CAUSE: missing native library'):
+            output.on_output(line)
+        output.on_stderr('BUILD FAILED in 1s')
+        for line in ('    continued test diagnostic', 'ExampleTest > fails FAILED',
+                     '    java.lang.AssertionError: actual failure',
+                     'Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.',
+                     "You can use '--warning-mode all' to show the individual deprecation warnings."):
+            output.on_output(line)
+        output.finish(False)
+        text = stream.getvalue()
+        self.assertIn('ACTUAL_ROOT_CAUSE: missing native library', text)
+        self.assertIn('continued test diagnostic', text)
+        self.assertNotIn('Deprecated Gradle', text)
+        self.assertNotIn('--warning-mode', text)
+
     # Interleaved tests and tasks must retain failing-test output while discarding passed and skipped errors.
     def test_interleaved_test_results_keep_their_own_diagnostics(self):
         for separate_tasks in (False, True):
