@@ -1920,7 +1920,7 @@ namespace dmGameObject
                         dmGameObject::Result r = dmGameObject::SetParent(collection, child, parent);
                         if (r != dmGameObject::RESULT_OK)
                         {
-                            dmLogError("Unable to set %s as parent to %s (%s)", instance_desc.m_Id, instance_desc.m_Children[j], GetResultLiteral(r));
+                            dmLogError("Unable to set '%s' as parent to '%s': %s", instance_desc.m_Id, instance_desc.m_Children[j], GetResultLiteral(r));
                             result = r;
                         }
                     }

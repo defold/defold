@@ -8,18 +8,26 @@ Follow current code style as defined in `.clang-format`, or follow the existing 
 
 Use consistent wording for equivalent errors and warnings. Prefer these patterns:
 
-* Operation failure: `Failed to <operation> '<resource>': <reason> (result: <code>).`
+* Operation failure: `Failed to <operation> '<resource>': <reason>.`
 * Invalid input: `Invalid <parameter> <value>; expected <constraint>.`
 * Unsupported operation: `Cannot <operation> because <restriction>.`
 * Warning: `<Problem>. <Fallback or consequence>. <Corrective action, when available>.`
 
 Include the relevant resource, component, or API name, and expected and actual values when available.
-Report the actual failure result; use a readable result description alongside the code when possible.
+Report the actual failure result; prefer a readable result literal from `GetResultLiteral()` or an equivalent helper over a numeric code.
 State confirmed causes directly and label possible causes as possibilities.
 Describe any clamping, fallback, or discarded work.
 Give a concrete corrective action when one is known, including the exact project setting where applicable.
 
-Use sentence case, terminal periods, and single quotes around paths, resource names, and settings.
+Show result literals after a colon and a space, without quotes or parentheses. Reserve parentheses for supplementary context, such as limits or counts.
+
+```text
+Could not find GUI component: RESULT_COMPONENT_NOT_FOUND
+Unable to set 'parent' as parent to 'child': RESULT_INVALID_OPERATION
+```
+
+Use sentence case and terminal periods for prose, but omit the terminal period when a message ends with a result literal.
+Use single quotes around paths, resource names, identifiers, and settings.
 Keep API identifiers unchanged and use consistent terminology such as GUI, HTTP, and particle FX in prose.
 Prefer `cannot` and `does not` to contractions, and use `set up` as a verb.
 Avoid exclamation marks and speculative questions. Preserve externally supplied diagnostics and structured dumps.
