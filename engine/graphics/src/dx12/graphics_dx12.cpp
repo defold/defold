@@ -1788,6 +1788,8 @@ namespace dmGraphics
             context->m_FrameBegun = 0;
         }
         WaitForDX12Idle(context);
+        if (context->m_DrawIndexedSignature)
+            context->m_DrawIndexedSignature->Release();
         // Release all cached pipeline state objects
         context->m_PipelineCache.Iterate(ReleasePipelineCacheEntry, context);
 
@@ -2241,7 +2243,7 @@ namespace dmGraphics
         }
     }
 
-    static void CreateDeviceBuffer(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t size, D3D12_RESOURCE_FLAGS resource_flags = D3D12_RESOURCE_FLAG_NONE)
+    static HRESULT CreateDeviceBuffer(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t size, D3D12_RESOURCE_FLAGS resource_flags = D3D12_RESOURCE_FLAG_NONE)
     {
         assert(device_buffer->m_Resource == 0x0);
 
@@ -2256,12 +2258,15 @@ namespace dmGraphics
             D3D12_RESOURCE_STATE_COMMON,                       // transition to COPY_DEST before the first upload
             NULL,                                              // optimized clear value must be null for this type of resource. used for render targets and depth/stencil buffers
             DM_IID_PPV_ARGS(&device_buffer->m_Resource));
-        CHECK_HR_ERROR(hr);
+        if (FAILED(hr))
+            return hr;
 
         device_buffer->m_Resource->SetName(L"Vertex Buffer Resource Heap");
         device_buffer->m_Destroyed = 0;
         device_buffer->m_MappedDataPtr = 0;
         device_buffer->m_Capacity      = size;
+        device_buffer->m_ResourceState = D3D12_RESOURCE_STATE_COMMON;
+        return hr;
     }
 
     static void DeviceBufferUploadRangeHelper(DX12Context* context, DX12DeviceBuffer* device_buffer,
@@ -2311,6 +2316,7 @@ namespace dmGraphics
             if (context->m_PendingBufferUploads.Full())
                 context->m_PendingBufferUploads.OffsetCapacity(8);
             context->m_PendingBufferUploads.Push(upload);
+            device_buffer->m_ResourceState = state_after_copy;
             return;
         }
         uint32_t        upload_offset  = 0;
@@ -2382,6 +2388,8 @@ namespace dmGraphics
             cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, state_after_copy));
         }
 
+        device_buffer->m_ResourceState = state_after_copy;
+
         if (context->m_FrameBegun)
         {
             if (!using_ring)
@@ -2411,20 +2419,22 @@ namespace dmGraphics
             return;
         }
 
-        D3D12_RESOURCE_STATES state_before_copy = DM_DX12_RESOURCE_STATE_BUFFER_READ;
+        D3D12_RESOURCE_STATES state_before_copy = device_buffer->m_ResourceState;
 
         // Only (re)allocate the default heap when we must. Reuse the existing GPU resource
         // whenever the new upload fits, which avoids a CreateCommittedResource call and the
         // deferred release on every SetBufferData when sizes are stable across frames.
         if (device_buffer->m_Destroyed || device_buffer->m_Resource == 0x0)
         {
-            CreateDeviceBuffer(context, device_buffer, data_size);
+            HRESULT hr = CreateDeviceBuffer(context, device_buffer, data_size);
+            CHECK_HR_ERROR(hr);
             state_before_copy = D3D12_RESOURCE_STATE_COMMON;
         }
         else if (device_buffer->m_Capacity < data_size)
         {
             DestroyResourceDeferred(context->m_FrameResources[context->m_CurrentFrameIndex], device_buffer);
-            CreateDeviceBuffer(context, device_buffer, data_size);
+            HRESULT hr = CreateDeviceBuffer(context, device_buffer, data_size);
+            CHECK_HR_ERROR(hr);
             state_before_copy = D3D12_RESOURCE_STATE_COMMON;
         }
 
@@ -2443,7 +2453,7 @@ namespace dmGraphics
             return;
         }
 
-        DeviceBufferUploadRangeHelper(context, device_buffer, offset, data_size, device_buffer->m_Base.m_Size, data, DM_DX12_RESOURCE_STATE_BUFFER_READ, DM_DX12_RESOURCE_STATE_BUFFER_READ, true);
+        DeviceBufferUploadRangeHelper(context, device_buffer, offset, data_size, device_buffer->m_Base.m_Size, data, device_buffer->m_ResourceState, DM_DX12_RESOURCE_STATE_BUFFER_READ, true);
     }
 
     void FlushPendingBufferUploads(DX12Context* context)
@@ -2560,9 +2570,8 @@ namespace dmGraphics
             size,
             buffer->m_DeviceBuffer.m_Capacity,
             data,
-            buffer->m_ResourceState,
+            buffer->m_DeviceBuffer.m_ResourceState,
             D3D12_RESOURCE_STATE_COMMON);
-        buffer->m_ResourceState = D3D12_RESOURCE_STATE_COMMON;
     }
 
     static HStorageBuffer DX12NewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -2573,10 +2582,13 @@ namespace dmGraphics
 
         buffer->m_BaseStorageBuffer.m_Size  = size;
         buffer->m_BaseStorageBuffer.m_Usage = buffer_usage;
-        CreateDeviceBuffer(context, &buffer->m_DeviceBuffer, size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+        if (FAILED(CreateDeviceBuffer(context, &buffer->m_DeviceBuffer, size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)))
+        {
+            delete buffer;
+            return 0;
+        }
         buffer->m_DeviceBuffer.m_Base.m_Size = size;
         buffer->m_DeviceBuffer.m_DataSize    = size;
-        buffer->m_ResourceState = D3D12_RESOURCE_STATE_COMMON;
         DX12UploadStorageBuffer(context, buffer, 0, size, data);
 
         return (HStorageBuffer) buffer;
@@ -2616,9 +2628,11 @@ namespace dmGraphics
 
         if (buffer->m_DeviceBuffer.m_Resource == 0 || buffer->m_DeviceBuffer.m_Capacity < size)
         {
+            DX12DeviceBuffer replacement = {};
+            if (FAILED(CreateDeviceBuffer(context, &replacement, size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)))
+                return;
             DestroyResourceDeferred(context->m_FrameResources[context->m_CurrentFrameIndex], &buffer->m_DeviceBuffer);
-            CreateDeviceBuffer(context, &buffer->m_DeviceBuffer, size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-            buffer->m_ResourceState = D3D12_RESOURCE_STATE_COMMON;
+            buffer->m_DeviceBuffer = replacement;
         }
 
         buffer->m_BaseStorageBuffer.m_Size  = size;
@@ -2638,6 +2652,12 @@ namespace dmGraphics
     static uint32_t DX12GetStorageBufferSize(HContext, HStorageBuffer storage_buffer)
     {
         return ((DX12StorageBuffer*) storage_buffer)->m_BaseStorageBuffer.m_Size;
+    }
+
+    static HVertexBuffer DX12GetStorageBufferVertexBuffer(HContext, HStorageBuffer storage_buffer)
+    {
+        // The borrowed vertex handle shares the allocation and its resource state.
+        return (HVertexBuffer)(&((DX12StorageBuffer*)storage_buffer)->m_DeviceBuffer);
     }
 
     static void DX12EnableStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding, uint32_t set)
@@ -3527,6 +3547,17 @@ namespace dmGraphics
         return true;
     }
 
+    static void TransitionDeviceBuffer(DX12Context* context, DX12DeviceBuffer* buffer, D3D12_RESOURCE_STATES state)
+    {
+        // Read usages can coexist when storage is borrowed as a vertex or argument buffer.
+        if (!(state & ~D3D12_RESOURCE_STATE_GENERIC_READ) && !(buffer->m_ResourceState & ~D3D12_RESOURCE_STATE_GENERIC_READ))
+            state |= buffer->m_ResourceState;
+        if (buffer->m_ResourceState == state)
+            return;
+        context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(buffer->m_Resource, buffer->m_ResourceState, state));
+        buffer->m_ResourceState = state;
+    }
+
     static bool CommitUniforms(DX12Context* context, DX12FrameResource& frame_resources, DX12PipelineType pipeline_type)
     {
         DX12ShaderProgram* program = context->m_CurrentProgram;
@@ -3586,19 +3617,9 @@ namespace dmGraphics
                     const D3D12_RESOURCE_STATES target_state = read_only
                         ? (D3D12_RESOURCE_STATES) (D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
                         : D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-
-                    if (buffer->m_ResourceState != target_state)
-                    {
-                        context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
-                            buffer->m_DeviceBuffer.m_Resource,
-                            buffer->m_ResourceState,
-                            target_state));
-                        buffer->m_ResourceState = target_state;
-                    }
-                    else if (!read_only)
-                    {
+                    if (!read_only && buffer->m_DeviceBuffer.m_ResourceState == target_state)
                         context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::UAV(buffer->m_DeviceBuffer.m_Resource));
-                    }
+                    TransitionDeviceBuffer(context, &buffer->m_DeviceBuffer, target_state);
 
                     frame_resources.m_ScratchBuffer.AllocateStorageBuffer(context, pipeline_type, buffer, read_only, root_index);
                 } break;
@@ -3669,6 +3690,8 @@ namespace dmGraphics
                 DX12VertexBuffer* current_vb = context->m_CurrentVertexBuffer[i];
                 assert(current_vb->m_DeviceBuffer.m_Resource);
                 assert(current_vb->m_DeviceBuffer.m_Base.m_Size > 0);
+
+                TransitionDeviceBuffer(context, &current_vb->m_DeviceBuffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 
                 const uint32_t base_offset = context->m_CurrentVertexBufferOffset[i];
                 assert(base_offset <= current_vb->m_DeviceBuffer.m_DataSize);
@@ -3813,6 +3836,107 @@ namespace dmGraphics
         }
         context->m_CommandList->DrawIndexedInstanced(count, dmMath::Max((uint32_t) 1, instance_count), index_offset, 0, 0);
         SynchronizeShaderWrites(context);
+    }
+
+    static void DX12DrawElementsIndirect(HContext _context, PrimitiveType primitive, Type index_type, HIndexBuffer indices, HStorageBuffer arguments, uint32_t offset)
+    {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
+
+        DX12Context* context = (DX12Context*)_context;
+        if (!ValidateStorageBufferAliases(context))
+            return;
+
+        if (!context->m_DrawIndexedSignature)
+        {
+            D3D12_INDIRECT_ARGUMENT_DESC argument = {};
+            argument.Type = D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED;
+            D3D12_COMMAND_SIGNATURE_DESC signature = {};
+            signature.ByteStride = sizeof(D3D12_DRAW_INDEXED_ARGUMENTS);
+            signature.NumArgumentDescs = 1;
+            signature.pArgumentDescs = &argument;
+            HRESULT hr = context->m_Device->CreateCommandSignature(&signature, NULL, DM_IID_PPV_ARGS(&context->m_DrawIndexedSignature));
+            CHECK_HR_ERROR(hr);
+            if (FAILED(hr))
+                return;
+        }
+
+        DX12DeviceBuffer& argument_buffer = ((DX12StorageBuffer*)arguments)->m_DeviceBuffer;
+        TransitionDeviceBuffer(context, &argument_buffer, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
+
+        if (!DrawSetup(context, primitive))
+            return;
+
+        DX12IndexBuffer*        index_buffer = (DX12IndexBuffer*)indices;
+        D3D12_INDEX_BUFFER_VIEW view = {};
+        view.BufferLocation = index_buffer->m_DeviceBuffer.m_Resource->GetGPUVirtualAddress();
+        view.SizeInBytes = index_buffer->m_DeviceBuffer.m_Base.m_Size;
+        view.Format = index_type == TYPE_UNSIGNED_SHORT ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT;
+        context->m_CommandList->IASetIndexBuffer(&view);
+        context->m_CommandList->ExecuteIndirect(context->m_DrawIndexedSignature, 1, argument_buffer.m_Resource, offset, NULL, 0);
+        SynchronizeShaderWrites(context);
+    }
+
+    struct DX12AsyncBufferReadback
+    {
+        DX12Context*     m_Context;
+        DX12DeviceBuffer m_Buffer;
+        ID3D12Fence*     m_Fence;
+        uint64_t         m_FenceValue;
+        uint32_t         m_Size;
+    };
+
+    static HAsyncBufferReadback DX12RequestStorageBufferReadback(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size)
+    {
+        DX12Context* context = (DX12Context*)_context;
+        assert(context->m_FrameBegun);
+        DX12AsyncBufferReadback* request = new DX12AsyncBufferReadback();
+        HRESULT                  hr = context->m_Device->CreateCommittedResource(
+        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
+        D3D12_HEAP_FLAG_NONE,
+        &CD3DX12_RESOURCE_DESC::Buffer(size),
+        D3D12_RESOURCE_STATE_COPY_DEST,
+        NULL,
+        DM_IID_PPV_ARGS(&request->m_Buffer.m_Resource));
+        if (FAILED(hr))
+        {
+            delete request;
+            return 0;
+        }
+        DX12FrameResource& frame = context->m_FrameResources[context->m_CurrentFrameIndex];
+        request->m_Context = context;
+        request->m_Fence = frame.m_Fence;
+        request->m_Fence->AddRef();
+        request->m_FenceValue = frame.m_FenceValue;
+        request->m_Size = size;
+        DX12DeviceBuffer& source = ((DX12StorageBuffer*)storage_buffer)->m_DeviceBuffer;
+        TransitionDeviceBuffer(context, &source, D3D12_RESOURCE_STATE_COPY_SOURCE);
+        context->m_CommandList->CopyBufferRegion(request->m_Buffer.m_Resource, 0, source.m_Resource, offset, size);
+        return (HAsyncBufferReadback)request;
+    }
+
+    static bool DX12PollStorageBufferReadback(HAsyncBufferReadback handle, void* data)
+    {
+        DX12AsyncBufferReadback* request = (DX12AsyncBufferReadback*)handle;
+        if (request->m_Fence->GetCompletedValue() < request->m_FenceValue)
+            return false;
+        void*       mapped = 0;
+        D3D12_RANGE read_range = { 0, request->m_Size };
+        if (FAILED(request->m_Buffer.m_Resource->Map(0, &read_range, &mapped)))
+            return false;
+        memcpy(data, mapped, request->m_Size);
+        D3D12_RANGE written_range = { 0, 0 };
+        request->m_Buffer.m_Resource->Unmap(0, &written_range);
+        return true;
+    }
+
+    static void DX12DeleteStorageBufferReadback(HAsyncBufferReadback handle)
+    {
+        DX12AsyncBufferReadback* request = (DX12AsyncBufferReadback*)handle;
+        // Deletion may precede submission of the copy; release after the frame fence.
+        DestroyResourceDeferred(request->m_Context->m_FrameResources[request->m_Context->m_CurrentFrameIndex], &request->m_Buffer);
+        request->m_Fence->Release();
+        delete request;
     }
 
     static void DX12Draw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
@@ -5472,6 +5596,11 @@ namespace dmGraphics
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, DX12);
         DM_REGISTER_GRAPHICS_FUNCTION(fn_table, DX12, SetSwapInterval);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, DX12, GetStorageBufferVertexBuffer);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, DX12, DrawElementsIndirect);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, DX12, RequestStorageBufferReadback);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, DX12, PollStorageBufferReadback);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, DX12, DeleteStorageBufferReadback);
         return fn_table;
     }
 }
