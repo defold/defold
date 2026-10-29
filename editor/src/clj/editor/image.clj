@@ -107,10 +107,13 @@
 
 (g/defnk produce-anim-data [size]
   {nil (assoc size
-         :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]
-                   :tex-coords-raw [[0.0 0.0] [0.0 1.0] [1.0 1.0] [1.0 0.0]]
-                   ;; Standalone textures have the opposite V direction.
-                   :uv-flip-vertical true
+         ;; Engine GUI corner order: bottom-left, top-left,
+         ;; top-right, bottom-right.
+         :frames [{:tex-coords [[0.0 0.0] [0.0 1.0] [1.0 1.0] [1.0 0.0]]
+                   :width (:width size)
+                   :height (:height size)
+                   :texture-width (:width size)
+                   :texture-height (:height size)
                    :atlas-rotated false}]
          :uv-transforms [(TextureSetGenerator$UVTransform.)])})
 

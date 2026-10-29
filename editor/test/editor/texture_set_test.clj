@@ -26,8 +26,8 @@
 ;; Expected transform for atlas sub-rect with Bob order BL,TL,TR,BR matching those UVs (engine column-major mat3).
 (def ^:private expected-transform-for-atlas-sub-rect
   [0.4 0.0 0.0
-   0.0 -0.6 0.0
-   0.1 0.8 1.0])
+   0.0 0.6 0.0
+   0.1 0.2 1.0])
 
 (defn- vec= [a b]
   (and (= (count a) (count b))
@@ -40,17 +40,12 @@
 
 ;; Tex-coords for a sub-region of atlas (not unit square) -> non-identity transform.
 (deftest vertex-data-texture-transform-frame-test
-  (let [;; Preview UV order: uvnw, uvsw, uvse, uvne (see frame-vertex-data)
+  (let [;; Canonical UV order: bottom-left, top-left, top-right, bottom-right.
         tex-coords [(vector-of :double 0.1 0.2)
                     (vector-of :double 0.1 0.8)
                     (vector-of :double 0.5 0.8)
                     (vector-of :double 0.5 0.2)]
-        tex-coords-raw [(vector-of :double 0.1 0.8)
-                        (vector-of :double 0.1 0.2)
-                        (vector-of :double 0.5 0.2)
-                        (vector-of :double 0.5 0.8)]
         animation-frame {:tex-coords tex-coords
-                         :tex-coords-raw tex-coords-raw
                          :atlas-rotated false
                          :width 40.0
                          :height 60.0
@@ -67,12 +62,7 @@
                     (vector-of :double 0.1 0.8)
                     (vector-of :double 0.5 0.8)
                     (vector-of :double 0.5 0.2)]
-        tex-coords-raw [(vector-of :double 0.1 0.8)
-                        (vector-of :double 0.1 0.2)
-                        (vector-of :double 0.5 0.2)
-                        (vector-of :double 0.5 0.8)]
         animation-frame {:tex-coords tex-coords
-                         :tex-coords-raw tex-coords-raw
                          :atlas-rotated false
                          :width 40.0
                          :height 60.0
@@ -92,10 +82,6 @@
                     (vector-of :double 0.1 0.8)
                     (vector-of :double 0.5 0.8)
                     (vector-of :double 0.5 0.2)]
-        tex-coords-raw [(vector-of :double 0.1 0.8)
-                        (vector-of :double 0.1 0.2)
-                        (vector-of :double 0.5 0.2)
-                        (vector-of :double 0.5 0.8)]
         ;; Quad as two triangles: normalized positions and matching UVs.
         vertex-coords [(vector-of :double 0.0 0.0)
                        (vector-of :double 1.0 0.0)
@@ -108,7 +94,6 @@
                            (vector-of :double 0.1 0.8)]
         indices [0 1 2 0 2 3]
         animation-frame {:tex-coords tex-coords
-                         :tex-coords-raw tex-coords-raw
                          :atlas-rotated false
                          :use-geometries true
                          :vertex-coords vertex-coords

@@ -34,7 +34,7 @@
    :height 64.0
    :texture-width 256.0
    :texture-height 128.0
-   :tex-coords-raw [[0.125 0.25] [0.125 0.75] [0.625 0.75] [0.625 0.25]]
+   :tex-coords [[0.125 0.25] [0.125 0.75] [0.625 0.75] [0.625 0.25]]
    :pivot [0.25 -0.25]
    :page-index 2})
 
@@ -74,8 +74,8 @@
           flip-v [false true]]
     (let [corners (if rotated
                     [[0.125 0.75] [0.625 0.75] [0.625 0.25] [0.125 0.25]]
-                    (:tex-coords-raw frame))
-          animation-frame (assoc frame :tex-coords-raw corners :flip-horizontal flip-h :flip-vertical flip-v)
+                    (:tex-coords frame))
+          animation-frame (assoc frame :tex-coords corners :flip-horizontal flip-h :flip-vertical flip-v)
           {:keys [uv-data]} (slice9/vertex-data animation-frame [32.5 24.25] [2.0 3.0 4.0 5.0] :pivot-center)
           us (if rotated [0.125 0.14453125 0.61328125 0.625] [0.125 0.1328125 0.609375 0.625])
           vs (if rotated [0.75 0.734375 0.28125 0.25] [0.25 0.2890625 0.7265625 0.75])]
@@ -110,8 +110,9 @@
             [0.0 2.0 -3.0 1.0] [0.0 5.0 -2.0 1.0]]]
           pivot [:pivot-center :pivot-nw]]
     (testing (str description " with " pivot)
-      (let [animation-frame (merge (get-in (image/produce-anim-data {:size {:width 64 :height 32}})
-                                           [nil :frames 0])
+      (let [animation-frame (merge (dissoc (get-in (image/produce-anim-data {:size {:width 64 :height 32}})
+                                                   [nil :frames 0])
+                                           :width :height :texture-width :texture-height)
                                    dimensions)
             {:keys [position-data uv-data line-data]}
             (texture-set/vertex-data animation-frame :size-mode-manual size [2.0 3.0 4.0 5.0] pivot)]
@@ -120,27 +121,28 @@
         (doseq [[i [u v]] (eduction (map-indexed vector) uv-data)]
           (let [vertex (indices i)]
             (is (near (us (mod vertex 4)) u))
-            (is (near (- 1.0 (vs (quot vertex 4))) v))))
+            (is (near (vs (quot vertex 4)) v))))
         (doseq [value (eduction cat cat [position-data uv-data line-data])]
           (is (Double/isFinite (double value))))))))
 
-;; Verifies ImageNode frames keep corner orientation when slicing is enabled,
-;; including unequal top/bottom borders in the legacy V convention.
+;; Verifies actual ImageNode frames match engine UV orientation with and without
+;; slicing, and retain original image dimensions for resized box borders.
 (deftest standalone-image-slice-orientation-test
   (let [animation-frame (get-in (image/produce-anim-data {:size {:width 64 :height 32}})
                                 [nil :frames 0])]
-    (doseq [pivot [:pivot-center :pivot-nw]]
-      (let [unsliced (texture-set/vertex-data animation-frame :size-mode-manual [64.0 32.0] [0.0 0.0 0.0 0.0] pivot)
-            sliced (texture-set/vertex-data animation-frame :size-mode-manual [64.0 32.0] [2.0 3.0 4.0 5.0] pivot)
+    (doseq [pivot [:pivot-center :pivot-nw]
+            size [[64.0 32.0] [128.0 64.0]]]
+      (let [unsliced (texture-set/vertex-data animation-frame :size-mode-manual size [0.0 0.0 0.0 0.0] pivot)
+            sliced (texture-set/vertex-data animation-frame :size-mode-manual size [2.0 3.0 4.0 5.0] pivot)
             position->uv (into {} (mapv (fn [position uv] [(subvec position 0 2) uv])
                                         (:position-data sliced)
                                         (:uv-data sliced)))]
         (doseq [[position uv] (mapv vector (:position-data unsliced) (:uv-data unsliced))]
           (is (= (mapv double uv) (position->uv (subvec position 0 2)))))
-        (is (near 1.0 (get-in sliced [:uv-data 0 1])))
-        (is (near (- 1.0 (/ 5.0 32.0)) (get-in sliced [:uv-data 2 1])))
-        (is (near (/ 3.0 32.0) (get-in sliced [:uv-data 20 1])))
-        (is (near 0.0 (get-in sliced [:uv-data 38 1])))))))
+        (is (near 0.0 (get-in sliced [:uv-data 0 1])))
+        (is (near (/ 5.0 32.0) (get-in sliced [:uv-data 2 1])))
+        (is (near (- 1.0 (/ 3.0 32.0)) (get-in sliced [:uv-data 20 1])))
+        (is (near 1.0 (get-in sliced [:uv-data 38 1])))))))
 
 ;; Verifies zero dimensions, collapsed cells and oversized margins retain the
 ;; native topology without NaNs.
@@ -160,19 +162,24 @@
       (.putFloat buffer (float value)))
     (ByteString/copyFrom (.array buffer))))
 
-;; Verifies texture-set decoding supplies atlas size and explicit flips while
-;; retaining unflipped corners.
+;; Verifies canonical atlas UVs apply each flip exactly once in both paths,
+;; including rotated entries. Material transforms remain independent of flips.
 (deftest animation-frame-shared-input-test
-  (doseq [flip-h [0 1]
+  (doseq [rotated [false true]
+          flip-h [0 1]
           flip-v [0 1]]
-    (let [texture-set {:width 256
+    (let [corners (if rotated
+                    [[0.125 0.75] [0.625 0.75] [0.625 0.25] [0.125 0.25]]
+                    (:tex-coords frame))
+          texture-set {:width 256
                        :height 128
-                       :tex-coords (float-bytes (coll/into-> (:tex-coords-raw frame) [] cat))
+                       :tex-coords (float-bytes (coll/into-> corners [] cat))
                        :tex-dims (float-bytes [128 64])
                        :frame-indices [0]
                        :page-indices [2]
                        :geometries [{:pivot-x 0.25
                                      :pivot-y -0.25
+                                     :rotated rotated
                                      :trim-mode :sprite-trim-mode-off}]
                        :animations [{:id "slice"
                                      :start 0
@@ -180,15 +187,68 @@
                                      :fps 0
                                      :flip-horizontal flip-h
                                      :flip-vertical flip-v}]}
-          decoded (get-in (texture-set/make-anim-data texture-set [nil]) ["slice" :frames 0])]
+          decoded (get-in (texture-set/make-anim-data texture-set [nil]) ["slice" :frames 0])
+          unsliced (texture-set/vertex-data decoded :size-mode-manual [32.5 24.25] nil :pivot-center)
+          sliced (texture-set/vertex-data decoded :size-mode-manual [32.5 24.25] [2.0 3.0 4.0 5.0] :pivot-center)
+          position->uv (into {} (mapv (fn [position uv] [(subvec position 0 2) uv])
+                                      (:position-data sliced)
+                                      (:uv-data sliced)))]
       (is (= 256 (:texture-width decoded)))
       (is (= 128 (:texture-height decoded)))
       (is (= (pos? flip-h) (:flip-horizontal decoded)))
       (is (= (pos? flip-v) (:flip-vertical decoded)))
-      (is (= (:tex-coords-raw frame) (:tex-coords-raw decoded)))
-      (is (= (slice9/vertex-data (assoc frame :flip-horizontal (pos? flip-h) :flip-vertical (pos? flip-v))
-                                 [32.5 24.25] [2.0 3.0 4.0 5.0] :pivot-center)
-             (slice9/vertex-data decoded [32.5 24.25] [2.0 3.0 4.0 5.0] :pivot-center))))))
+      (is (= corners (:tex-coords decoded)))
+      (is (= [0.5 0.0 0.0 0.0 0.5 0.0 0.125 0.25 1.0]
+             (:texture-transform unsliced)
+             (:texture-transform sliced)))
+      (doseq [[[x y] uv position] (mapv vector
+                                        [[0 0] [1 0] [0 1] [1 0] [1 1] [0 1]]
+                                        (:uv-data unsliced)
+                                        (:position-data unsliced))]
+        (let [x (if (pos? flip-h) (- 1 x) x)
+              y (if (pos? flip-v) (- 1 y) y)]
+          (is (= (if rotated
+                   [(+ 0.125 (* 0.5 y)) (- 0.75 (* 0.5 x))]
+                   [(+ 0.125 (* 0.5 x)) (+ 0.25 (* 0.5 y))])
+                 uv))
+          (is (= uv (position->uv (subvec position 0 2)))))))))
+
+;; Verifies trimmed meshes retain their UV-to-position association after flips,
+;; without applying quad UV flips a second time to their per-vertex UV data.
+(deftest trimmed-animation-flips-test
+  (doseq [flip-h [0 1]
+          flip-v [0 1]]
+    (let [texture-set {:width 256
+                       :height 128
+                       :tex-coords (float-bytes (coll/into-> (:tex-coords frame) [] cat))
+                       :tex-dims (float-bytes [128 64])
+                       :frame-indices [0]
+                       :page-indices [0]
+                       :use-geometries 1
+                       :geometries [{:width 128
+                                     :height 64
+                                     :trim-mode :sprite-trim-mode-4
+                                     :vertices [-0.5 -0.25 0.25 -0.25 0.0 0.5]
+                                     :uvs [0.125 0.25 0.625 0.25 0.125 0.75]
+                                     :indices [0 1 2]}]
+                       :animations [{:id "trimmed"
+                                     :start 0
+                                     :end 1
+                                     :fps 0
+                                     :flip-horizontal flip-h
+                                     :flip-vertical flip-v}]}
+          decoded (get-in (texture-set/make-anim-data texture-set [nil]) ["trimmed" :frames 0])
+          rendered (texture-set/vertex-data decoded :size-mode-auto [128.0 64.0] nil :pivot-center)
+          uv->position (zipmap (:uv-data rendered) (:position-data rendered))]
+      (is (= (:tex-coords frame) (:tex-coords decoded)))
+      (is (= [0.5 0.0 0.0 0.0 0.5 0.0 0.125 0.25 1.0] (:texture-transform rendered)))
+      (doseq [[uv [x y]] [[[0.125 0.25] [-64.0 -16.0]]
+                          [[0.625 0.25] [32.0 -16.0]]
+                          [[0.125 0.75] [0.0 32.0]]]]
+        (is (= [(if (pos? flip-h) (- x) x)
+                (if (pos? flip-v) (- y) y)
+                0.0 1.0]
+               (uv->position uv)))))))
 
 ;; Verifies outline buffers accommodate all nine native cells even when only one
 ;; margin is nonzero.
