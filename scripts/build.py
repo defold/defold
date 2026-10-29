@@ -178,6 +178,7 @@ PACKAGES_IOS_64=[
     "moltenvk-1474891"]
 
 PACKAGES_MACOS_X86_64=[
+    "dxc-1.9.2609",
     "tremolo-b0cb4d1",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
@@ -197,6 +198,7 @@ PACKAGES_MACOS_X86_64=[
 
 PACKAGES_MACOS_ARM64=[
     "dawn-67d4d6e",
+    "dxc-1.9.2609",
     "tremolo-b0cb4d1",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
@@ -232,6 +234,7 @@ PACKAGES_WIN32_64=[
     "zipalign"]
 
 PACKAGES_LINUX_X86_64=[
+    "dxc-1.9.2609",
     "glslang-ba5c010c",
     "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
@@ -249,6 +252,7 @@ PACKAGES_LINUX_X86_64=[
     "zipalign"]
 
 PACKAGES_LINUX_ARM64=[
+    "dxc-1.9.2609",
     "glslang-2fed4fc0",
     "spirv-cross-97709575",
     "spirv-tools-4fab7435",
@@ -2484,8 +2488,8 @@ class Configuration(object):
             if lib == 'dawn' and self.target_platform not in ('arm64-macos', 'arm64-linux', 'x86_64-linux', 'x86_64-win32') and not self.external_package:
                 self._log("Skipping dawn for unsupported platform: %s" % self.target_platform)
                 continue
-            if lib == 'dxc' and self.target_platform != 'x86_64-win32' and not self.external_package:
-                self._log("Skipping dxc package; non-Windows platforms use source builds")
+            if lib == 'dxc' and self.target_platform not in ('arm64-macos', 'x86_64-macos', 'arm64-linux', 'x86_64-linux', 'x86_64-win32') and not self.external_package:
+                self._log("Skipping dxc for unsupported platform: %s" % self.target_platform)
                 continue
             self._build_external_lib_cmake(lib, self.target_platform)
 

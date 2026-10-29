@@ -21,23 +21,19 @@ class ExternalPackageTests(unittest.TestCase):
         self.configuration.dmsdk = str(self.root / 'sdk' / 'sdk')
         self.configuration._log = lambda message: None
 
-    # Explicit DXC packaging must retain the executable and runtime DLLs alongside headers and the import library.
-    def test_windows_dxc_archive_includes_runtime_files(self):
+    def check_dxc_archive(self, platform, platform_files):
         configuration = self.configuration
-        configuration.target_platform = 'x86_64-win32'
+        configuration.target_platform = platform
         configuration.external_package = 'dxc'
         configuration.build_options = []
         configuration.verbose = False
         configuration.build_tracker = mock.Mock()
         configuration._form_env = lambda: {}
         source = self.root / 'external' / 'dxc'
-        source.mkdir(parents=True)
+        source.mkdir(parents=True, exist_ok=True)
         (source / 'CMakeLists.txt').touch()
         files = {
-            'bin/x86_64-win32/dxc.exe': b'compiler executable',
-            'bin/x86_64-win32/dxcompiler.dll': b'compiler runtime',
-            'bin/x86_64-win32/dxil.dll': b'validator runtime',
-            'lib/x86_64-win32/dxcompiler.lib': b'import library',
+            **platform_files,
             'include/dxc/dxcapi.h': b'compiler header',
             'share/licenses/dxc/LICENSE.TXT': b'upstream license',
         }
@@ -60,21 +56,67 @@ class ExternalPackageTests(unittest.TestCase):
                                   side_effect=lambda platform, library, default: default):
             configuration.build_external()
 
-        package = self.root / 'packages' / 'dxc-1.9.2609-x86_64-win32.tar.gz'
+        package = self.root / 'packages' / ('dxc-1.9.2609-' + platform + '.tar.gz')
         with tarfile.open(package) as archive:
             contents = {member.name: archive.extractfile(member).read()
                         for member in archive.getmembers() if member.isfile()}
         self.assertEqual(files, contents)
 
-    # Every host needs Windows Bob tools, but installing them must never request nonexistent DXC archives for other platforms.
-    def test_install_requests_only_windows_dxc_package(self):
+    # Explicit Windows packaging must retain runtime DLLs alongside the executable, headers and import library.
+    def test_windows_dxc_archive_includes_runtime_files(self):
+        self.check_dxc_archive('x86_64-win32', {
+            'bin/x86_64-win32/dxc.exe': b'compiler executable',
+            'bin/x86_64-win32/dxcompiler.dll': b'compiler runtime',
+            'bin/x86_64-win32/dxil.dll': b'validator runtime',
+            'lib/x86_64-win32/dxcompiler.lib': b'import library',
+        })
+
+    # Both macOS package architectures must retain the executable and shared library needed by Bob and shaderc.
+    def test_macos_dxc_archives_include_runtime_files(self):
+        for platform in ('arm64-macos', 'x86_64-macos'):
+            with self.subTest(platform=platform):
+                self.check_dxc_archive(platform, {
+                    'bin/' + platform + '/dxc': b'compiler executable',
+                    'lib/' + platform + '/libdxcompiler.dylib': b'compiler library',
+                })
+
+    # Linux archives must include the compiler and shared library in both architecture-specific install paths.
+    def test_linux_dxc_archives_include_runtime_files(self):
+        for platform in ('arm64-linux', 'x86_64-linux'):
+            with self.subTest(platform=platform):
+                self.check_dxc_archive(platform, {
+                    'bin/' + platform + '/dxc': b'compiler executable',
+                    'lib/' + platform + '/libdxcompiler.so': b'compiler library',
+                })
+
+    # Default package builds include DXC on every desktop platform while skipping mobile and web targets.
+    def test_default_build_selects_dxc_only_for_packaged_platforms(self):
+        configuration = self.configuration
+        configuration.external_package = None
+        for platform in ('arm64-macos', 'x86_64-macos', 'x86_64-win32',
+                         'arm64-linux', 'x86_64-linux', 'arm64-android', 'wasm-web'):
+            with self.subTest(platform=platform):
+                configuration.target_platform = platform
+                with mock.patch.object(configuration, '_build_external_lib_cmake') as build_library:
+                    configuration.build_external()
+                dxc_calls = [call for call in build_library.call_args_list if call.args[0] == 'dxc']
+                expected = [mock.call('dxc', platform)] if platform.endswith(('macos', 'linux', 'win32')) else []
+                self.assertEqual(expected, dxc_calls)
+
+    # Every host needs each desktop Bob tool archive exactly once, including Linux hosts and cross-builds.
+    def test_install_requests_only_packaged_dxc_platforms(self):
         cases = (
             ('x86_64-win32', 'x86_64-win32'),
             ('x86_64-win32', 'arm64-android'),
             ('x86_64-linux', 'x86_64-linux'),
+            ('arm64-linux', 'arm64-linux'),
+            ('x86_64-linux', 'arm64-linux'),
+            ('arm64-linux', 'x86_64-linux'),
             ('arm64-linux', 'arm64-android'),
             ('x86_64-macos', 'arm64-android'),
             ('arm64-macos', 'arm64-macos'),
+            ('arm64-macos', 'x86_64-macos'),
+            ('x86_64-macos', 'arm64-macos'),
         )
         configuration = self.configuration
         configuration._install_python_packages = mock.Mock()
@@ -91,7 +133,10 @@ class ExternalPackageTests(unittest.TestCase):
                 dxc_packages = [(Path(call.args[0]).name, call.args[1])
                                 for call in extract.call_args_list
                                 if Path(call.args[0]).name.startswith('dxc-')]
-                self.assertEqual([('dxc-1.9.2609-x86_64-win32.tar.gz', configuration.ext)], dxc_packages)
+                self.assertCountEqual([
+                    ('dxc-1.9.2609-' + platform + '.tar.gz', configuration.ext)
+                    for platform in ('arm64-macos', 'x86_64-macos', 'arm64-linux', 'x86_64-linux', 'x86_64-win32')
+                ], dxc_packages)
 
 
 if __name__ == '__main__':

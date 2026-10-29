@@ -34,10 +34,5 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|
   add_subdirectory(draco)
   add_subdirectory(ogg)
   add_subdirectory(protobuf)
-  # Windows DXC is installed from packages by install_ext_packages. Other
-  # desktop targets still build a matching library for shaderc, including
-  # cross-builds (for example x86_64-macos on an arm64-macos host).
-  if(NOT TARGET_PLATFORM STREQUAL "x86_64-win32")
-    add_subdirectory(dxc)
-  endif()
+  # DXC is installed from packages by install_ext_packages on all desktop hosts.
 endif()

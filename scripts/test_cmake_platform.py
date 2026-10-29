@@ -9,20 +9,23 @@ from pathlib import Path
 
 @unittest.skipUnless(shutil.which('cmake') and shutil.which('ninja'), 'CMake and Ninja are required')
 class PlatformLinkTests(unittest.TestCase):
-    def configure_target(self, root, target_name, **definitions):
+    def configure_project(self, root, **definitions):
         repository = Path(__file__).resolve().parent.parent
         build = root / 'build'
         query = build / '.cmake/api/v1/query'
         query.mkdir(parents=True)
         (query / 'codemodel-v2').touch()
-        result = subprocess.run([
+        return subprocess.run([
             'cmake', '-S', str(root), '-B', str(build), '-G', 'Ninja',
             '-DDEFOLD_HOME=' + repository.as_posix(),
             '-DDEFOLD_BUILD_HOME=' + root.as_posix(),
             *[f'-D{name}={value}' for name, value in definitions.items()],
         ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+    def configure_target(self, root, target_name, **definitions):
+        result = self.configure_project(root, **definitions)
         self.assertEqual(0, result.returncode, result.stdout)
-        reply = build / '.cmake/api/v1/reply'
+        reply = root / 'build/.cmake/api/v1/reply'
         codemodel = json.loads(next(reply.glob('codemodel-v2-*.json')).read_text())
         target = next(target for target in codemodel['configurations'][0]['targets']
                       if target['name'] == target_name)
@@ -104,8 +107,41 @@ endif()
                         self.assertTrue(versions, command)
                         self.assertEqual(expected, versions[-1], command)
 
-    # Desktop cross-builds need a target DXC library as well as the host copy used by build tools.
-    def test_macos_cross_build_includes_dxc(self):
+    # Normal dependency builds must use DXC packages and avoid rebuilding LLVM on every desktop host.
+    def test_external_graph_uses_dxc_packages(self):
+        cases = (
+            ('arm64-macos', 'arm64-macos'),
+            ('arm64-macos', 'x86_64-macos'),
+            ('x86_64-macos', 'arm64-macos'),
+            ('x86_64-macos', 'x86_64-macos'),
+            ('x86_64-win32', 'x86_64-win32'),
+            ('arm64-linux', 'arm64-linux'),
+            ('x86_64-linux', 'x86_64-linux'),
+            ('arm64-macos', 'arm64-ios'),
+            ('x86_64-linux', 'arm64-android'),
+        )
+        for host, platform in cases:
+            with self.subTest(host=host, platform=platform), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(external_graph_test LANGUAGES NONE)
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_LANGUAGE_LIST NONE)
+set(DEFOLD_SDK_ROOT "${DEFOLD_BUILD_HOME}/sdk")
+add_custom_target(external_graph)
+# Record the real dependency selection without configuring unrelated packages.
+function(add_subdirectory directory)
+    file(APPEND "${CMAKE_BINARY_DIR}/external-subdirectories.txt" "${directory}\\n")
+endfunction()
+include("${DEFOLD_HOME}/external/CMakeLists.txt")
+''')
+                self.configure_target(root, 'external_graph', HOST_PLATFORM=host, TARGET_PLATFORM=platform)
+                directories = (root / 'build/external-subdirectories.txt').read_text().splitlines()
+                self.assertNotIn('dxc', directories)
+
+    # Explicit macOS package builds must still produce a matching DXC executable and library when cross-building.
+    def test_macos_dxc_package_targets_requested_architecture(self):
         for platform in ('arm64-macos', 'x86_64-macos'):
             with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
@@ -126,22 +162,66 @@ include(functions)
 add_library(defold_sdk INTERFACE)
 set(SDK_VERSION_MACOSX_MIN 12.0)
 include(platform_macos)
-# Exercise the real dependency selection and DXC wrapper without configuring
-# unrelated packages or downloading/compiling LLVM in this configure-only test.
-function(add_subdirectory directory)
-    if(directory STREQUAL "dxc")
-        _add_subdirectory("${DEFOLD_HOME}/external/dxc" "${CMAKE_BINARY_DIR}/dxc")
-    endif()
-endfunction()
-include("${DEFOLD_HOME}/external/CMakeLists.txt")
+# Explicit packaging configures the DXC wrapper independently of the normal
+# dependency graph; configuring alone does not download or compile LLVM.
+add_subdirectory("${DEFOLD_HOME}/external/dxc" "${CMAKE_BINARY_DIR}/dxc")
 ''')
                 self.configure_target(root, 'dxc_build_external', TARGET_PLATFORM=platform)
                 command = (root / 'build/dxc/dxc_build_external-prefix/tmp/dxc_build_external-cfgcmd.txt').read_text()
                 architecture = platform.split('-')[0]
                 self.assertIn('-DCMAKE_OSX_ARCHITECTURES=' + architecture, command)
+                self.assertIn('-DCMAKE_INSTALL_RPATH=@loader_path/../../lib/' + platform, command)
                 install = (root / 'build/dxc/cmake_install.cmake').read_text()
+                self.assertIn('/bin/' + platform, install)
                 self.assertIn('/lib/' + platform, install)
                 self.assertIn('dxcompiler', install)
+
+    def write_linux_dxc_project(self, root):
+        (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(dxc_linux_test LANGUAGES NONE)
+# Model the runner without compiling Linux sources on the test machine.
+set(CMAKE_SYSTEM_NAME "${RUNNER_SYSTEM}")
+set(CMAKE_SYSTEM_PROCESSOR "${RUNNER_PROCESSOR}")
+set(WIN32 FALSE)
+set(APPLE FALSE)
+set(CMAKE_SHARED_LIBRARY_PREFIX lib)
+set(CMAKE_SHARED_LIBRARY_SUFFIX .so)
+add_subdirectory("${DEFOLD_HOME}/external/dxc" "${CMAKE_BINARY_DIR}/dxc")
+''')
+
+    # Native Linux package configurations must retain relocatable library lookup and matching install paths.
+    def test_linux_dxc_packages_use_relative_runtime_paths(self):
+        for platform, processor in (('arm64-linux', 'aarch64'), ('x86_64-linux', 'x86_64')):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.write_linux_dxc_project(root)
+                self.configure_target(root, 'dxc_build_external', TARGET_PLATFORM=platform,
+                                      RUNNER_SYSTEM='Linux', RUNNER_PROCESSOR=processor)
+                command = (root / 'build/dxc/dxc_build_external-prefix/tmp/dxc_build_external-cfgcmd.txt').read_text()
+                self.assertIn('-DCMAKE_INSTALL_RPATH=$ORIGIN/../../lib/' + platform, command)
+                self.assertIn('-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON', command)
+                install = (root / 'build/dxc/cmake_install.cmake').read_text()
+                self.assertIn('/bin/' + platform, install)
+                self.assertIn('/lib/' + platform, install)
+                self.assertIn('libdxcompiler.so', install)
+
+    # Refuse incompatible Linux package runners before they can produce host binaries in the wrong archive.
+    def test_linux_dxc_packages_reject_incompatible_runners(self):
+        cases = (
+            ('arm64-linux', 'Linux', 'x86_64'),
+            ('x86_64-linux', 'Linux', 'aarch64'),
+            ('arm64-linux', 'Darwin', 'arm64'),
+            ('x86_64-linux', 'Darwin', 'x86_64'),
+        )
+        for platform, system, processor in cases:
+            with self.subTest(platform=platform, system=system), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.write_linux_dxc_project(root)
+                result = self.configure_project(root, TARGET_PLATFORM=platform,
+                                                RUNNER_SYSTEM=system, RUNNER_PROCESSOR=processor)
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn('DXC Linux tools must be built on a native runner for ' + platform, result.stdout)
 
     def configure_consumer(self, root, vulkan, opengl):
         # Generate the real platform/HID/graphics dependency graph with the host compiler.

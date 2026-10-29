@@ -4,8 +4,9 @@ This standalone experiment exercises SM6.0 compilation, reflection, and root
 signature handling without FXC, D3DCompile, D3DReflect, or D3D12 serialization
 APIs. It does not change the production shader pipeline.
 
-DXC is installed through `install_ext`: Windows uses Defold's prebuilt package,
-while Linux and macOS build from source. See the
+DXC is installed through `install_ext` from Defold's prebuilt packages for
+Windows x64 and macOS/Linux arm64 and x86_64. Source rebuilds use
+`build_external --package=dxc` or the standalone CMake project. See the
 [installation and rebuild instructions](../../../../../external/dxc/README.md)
 to run this prototype against those installed binaries.
 
@@ -100,8 +101,8 @@ Ubuntu base 24.04.3 amd64 archive (SHA-256
 `6bc2cde3930ad088b3bb46fa45279e96d25bc3810f209850ecbe4722711874f9`),
 without upgrading the WSL installation. Both DXC and the native probe were
 launched through that directory's `ld-linux-x86-64.so.2 --library-path ...`.
-The runner accepts wrapper executables for this purpose. Shipping tools will
-need a deliberate Linux runtime baseline or a DXC build targeting an older one.
+The runner accepts wrapper executables for this purpose. Defold's packaged Linux
+tools use the Ubuntu 22.04 baseline documented in the package build notes.
 
 The subsequent [source-build validation](../../../../../external/dxc/README.md)
 passes the same checks on Windows and Ubuntu 20.04 using the original system
@@ -109,8 +110,16 @@ libraries, including native Linux reflection and comparison of both
 root-signature versions. The isolated newer libraries above are only needed
 for reproducing the upstream prebuilt-binary experiment.
 
-macOS, ARM hosts, GPU execution, engine rendering, and console toolchains have
-not been tested here. The root-signature fixture is deliberately explicit:
+The [macOS package validation](../../../../../external/dxc/README.md#macos-package-validation-2026-10-28)
+also passes these checks on arm64 and x86_64, including native reflection and
+matching serialized root signatures. The
+[Linux package validation](../../../../../external/dxc/README.md#linux-package-validation-2026-10-29)
+passes the same checks on arm64 and x86_64 in the Ubuntu 22.04 Docker images, with
+all `LD_*` environment variables removed. The x86_64 checks ran through Docker's
+Rosetta emulation on macOS. Both root-signature versions and reflected layouts
+match macOS.
+GPU execution, engine rendering, and console toolchains have not been tested here.
+The root-signature fixture is deliberately explicit:
 this does not yet implement the engine's arbitrary layout merge, register
 remapping, visibility rules, or descriptor offsets.
 

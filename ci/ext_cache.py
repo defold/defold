@@ -22,7 +22,7 @@ SCHEMA = 3
 # Source dependencies built by external/CMakeLists.txt, including host tools.
 SOURCE_PATHS = (
     'external/CMakeLists.txt', 'external/basisu', 'external/box2d',
-    'external/box2d_v2', 'external/bullet3d', 'external/draco', 'external/dxc', 'external/harfbuzz',
+    'external/box2d_v2', 'external/bullet3d', 'external/draco', 'external/harfbuzz',
     'external/libunibreak', 'external/luajit', 'external/lz4', 'external/meshoptimizer',
     'external/ogg', 'external/openh264', 'external/opus', 'external/protobuf', 'external/sheenbidi',
     'external/skribidi', 'scripts/cmake/*.cmake', 'scripts/cmake/*.in',
