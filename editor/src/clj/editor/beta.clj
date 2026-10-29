@@ -121,39 +121,35 @@
   (and (try-active? source)
        (not (:busy @session))))
 
-(defn- confirm-download! [stage project localization version markdown show-warning]
+(defn- confirm-download! [stage project localization version markdown]
   (dialogs/make-confirmation-dialog
     localization
-    (cond-> {:title (localization/message "beta.dialog.title")
-             :icon :icon/circle-question
-             :owner stage
-             :header (localization/message "beta.dialog.header" {"version" version})
-             :buttons [{:text (localization/message "beta.dialog.button.later")
-                        :cancel-button true
-                        :result :later}
-                       {:text (localization/message "beta.dialog.button.download")
-                        :default-button true
-                        :result :download}]}
-      (or show-warning markdown)
-      (assoc :size :large
-             :width 800
-             :content {:fx/type fx.v-box/lifecycle
-                       :children (cond-> []
-                                   show-warning
-                                   (conj {:fx/type fx.v-box/lifecycle
-                                          :style-class "beta-warning"
-                                          :children [{:fx/type fxui/paragraph
-                                                      :min-height Region/USE_PREF_SIZE
-                                                      :color :warning
-                                                      :text (localization (localization/message "beta.dialog.warning"))}]})
-
-                                   markdown
-                                   (conj {:fx/type markdown-view/view
-                                          :v-box/vgrow :always
-                                          :content markdown
-                                          :project project
-                                          :stylesheets [(str (io/resource "editor.css"))]
-                                          :root-props {:style-class "md-page-root"}}))}))))
+    {:title (localization/message "beta.dialog.title")
+     :icon :icon/circle-question
+     :owner stage
+     :header (localization/message "beta.dialog.header" {"version" version})
+     :buttons [{:text (localization/message "beta.dialog.button.later")
+                :cancel-button true
+                :result :later}
+               {:text (localization/message "beta.dialog.button.download")
+                :default-button true
+                :result :download}]
+     :size :large
+     :width 800
+     :content {:fx/type fx.v-box/lifecycle
+               :children (cond-> [{:fx/type fx.v-box/lifecycle
+                                   :style-class "beta-warning"
+                                   :children [{:fx/type fxui/paragraph
+                                               :min-height Region/USE_PREF_SIZE
+                                               :color :warning
+                                               :text (localization (localization/message "beta.dialog.warning"))}]}]
+                           markdown
+                           (conj {:fx/type markdown-view/view
+                                  :v-box/vgrow :always
+                                  :content markdown
+                                  :project project
+                                  :stylesheets [(str (io/resource "editor.css"))]
+                                  :root-props {:style-class "md-page-root"}}))}}))
 
 (defn try!
   "Offers to open the beta download link in the web browser. Returns the future
@@ -170,7 +166,7 @@
             (try
               (when (.isShowing stage)
                 (if newer
-                  (when (= :download (confirm-download! stage project localization version markdown true))
+                  (when (= :download (confirm-download! stage project localization version markdown))
                     (ui/open-url (download-url source (:sha1 info)))
                     (notifications/close! notifications-node ::suggestion))
                   (dialogs/make-info-dialog
