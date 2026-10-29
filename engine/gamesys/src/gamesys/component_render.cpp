@@ -14,39 +14,43 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
+#include <dlib/array.h>
+#include <dlib/hashtable.h>
+#include <dlib/log.h>
 #include <gameobject/component.h>
-#include <gameobject/component_render.h>
 
 #include "component_render.h"
 #include "component_render_state_private.h"
 
 namespace dmGameSystem
 {
-    struct ComponentRenderTypeBinding;
+    struct ComponentRenderCollection;
 
-    // Game-owned adapter between collection lifecycle and the independent render manager.
-    // Bindings remain stable until all worlds/frames and renderer callbacks have drained.
+    // Game-owned adapter between generic world notifications and the render manager.
+    // Type descriptors, collection associations and capture scope belong only to gamesys.
     struct ComponentRenderContext
     {
-        dmRender::RenderFrameTicket       m_Capture;
-        dmRender::RenderFrameLimits       m_Limits;
-        uint64_t                          m_NextWorldId;
-        dmGameObject::HRegister           m_Register;
-        dmRender::HRenderExecution        m_Execution;
-        HComponentRenderStateContext      m_StateContext;
-        dmRender::HRenderFrameQueue       m_Queue;
-        ComponentRenderTypeBinding*       m_Types;
+        dmHashTable32<ComponentRenderCollection*> m_Collections;
+        // Indexed by actual gameobject component index; null capture means legacy type.
+        dmArray<ComponentRenderType>              m_Types;
+        dmRender::RenderFrameTicket               m_Capture;
+        dmRender::RenderFrameLimits               m_Limits;
+        uint64_t                                  m_NextWorldId;
+        dmGameObject::HRegister                   m_Register;
+        dmRender::HRenderExecution                m_Execution;
+        HComponentRenderStateContext              m_StateContext;
+        dmRender::HRenderFrameQueue               m_Queue;
+        // Active only during traversal, not while producer credit is merely reserved.
+        dmRender::HRenderFrame                    m_ActiveFrame;
     };
 
-    // One game-side binding per registered component type. Passed as the context to
-    // gameobject's bridge callbacks so they can reach the type's capture/render callbacks
-    // and owning ComponentRenderContext. Kept in m_Types until context teardown.
-    struct ComponentRenderTypeBinding
+    // Game-owner association for one generational collection handle. Lifetime slots
+    // are indexed by component type and allocated during world creation, not per frame.
+    struct ComponentRenderCollection
     {
-        ComponentRenderType         m_Type;
-        ComponentRenderContext*     m_Context;
-        ComponentRenderTypeBinding* m_Next;
+        dmArray<HComponentRenderWorld> m_Worlds;
     };
 
     // Stack-only trampoline data, never retained by the renderer or by the frame.
@@ -56,29 +60,78 @@ namespace dmGameSystem
         FComponentRenderCapture      m_Capture;
     };
 
-    static bool CreateWorld(void* context, uint32_t component_index, uint32_t max_instances, uint32_t max_components, void** render_world)
+    static ComponentRenderType* GetRenderType(ComponentRenderContext* context, uint32_t component_index)
     {
-        ComponentRenderTypeBinding* binding = (ComponentRenderTypeBinding*)context;
-        ComponentRenderContext* owner = binding->m_Context;
+        return component_index < context->m_Types.Size() && context->m_Types[component_index].m_Capture
+            ? &context->m_Types[component_index] : 0;
+    }
 
+    static bool OnWorldCreated(void* context, const dmGameObject::ComponentWorldCreateParams& params)
+    {
+        ComponentRenderContext* owner = (ComponentRenderContext*)context;
+        ComponentRenderType* type = GetRenderType(owner, params.m_ComponentIndex);
+        if (!type)
+            return true;
         if (!owner->m_NextWorldId)
-        {
             return false;
+
+        ComponentRenderCollection** entry = owner->m_Collections.Get(params.m_Collection);
+        ComponentRenderCollection* collection = entry ? *entry : 0;
+        if (!collection)
+        {
+            collection = new ComponentRenderCollection;
+            collection->m_Worlds.EnsureSize(owner->m_Types.Size());
+            memset(collection->m_Worlds.Begin(), 0, collection->m_Worlds.Size() * sizeof(HComponentRenderWorld));
         }
 
         ComponentRenderWorldInfo info = {};
         info.m_WorldId                = owner->m_NextWorldId++;
-        info.m_ComponentIndex         = component_index;
-        info.m_MaxInstances           = max_instances;
-        info.m_MaxComponentInstances  = max_components;
-        *render_world                 = NewComponentRenderWorld(owner->m_StateContext, binding->m_Type.m_RenderCallbacks, binding->m_Type.m_RenderContext, &info, sizeof(info));
-        return *render_world != 0;
+        info.m_ComponentIndex         = params.m_ComponentIndex;
+        info.m_MaxInstances           = params.m_MaxInstances;
+        info.m_MaxComponentInstances  = params.m_MaxComponentInstances;
+
+        HComponentRenderWorld world = NewComponentRenderWorld(owner->m_StateContext, type->m_RenderCallbacks, type->m_RenderContext, &info, sizeof(info));
+        if (!world)
+        {
+            if (!entry)
+                delete collection;
+            return false;
+        }
+
+        if (!entry)
+        {
+            if (owner->m_Collections.Full())
+            {
+                uint32_t capacity = owner->m_Collections.Capacity() + 8;
+                owner->m_Collections.SetCapacity(capacity * 2, capacity);
+            }
+            owner->m_Collections.Put(params.m_Collection, collection);
+        }
+        collection->m_Worlds[params.m_ComponentIndex] = world;
+        return true;
     }
 
-    static void DeleteWorld(void* context, void* render_world)
+    static void OnWorldDeleted(void* context, dmGameObject::HCollection handle, uint32_t component_index)
     {
-        (void)context;
-        DeleteComponentRenderWorld((HComponentRenderWorld)render_world);
+        ComponentRenderContext* owner = (ComponentRenderContext*)context;
+        if (!GetRenderType(owner, component_index))
+            return;
+        ComponentRenderCollection** entry = owner->m_Collections.Get(handle);
+        // Failed creation still receives deletion notifications for attempted worlds.
+        if (!entry || component_index >= (*entry)->m_Worlds.Size() || !(*entry)->m_Worlds[component_index])
+            return;
+        ComponentRenderCollection* collection = *entry;
+        DeleteComponentRenderWorld(collection->m_Worlds[component_index]);
+        collection->m_Worlds[component_index] = 0;
+        // Trim empty trailing slots without moving the remaining component indices.
+        // Each slot is removed once, and Empty replaces a separate live-world counter.
+        while (!collection->m_Worlds.Empty() && !collection->m_Worlds.Back())
+            collection->m_Worlds.SetSize(collection->m_Worlds.Size() - 1);
+        if (collection->m_Worlds.Empty())
+        {
+            owner->m_Collections.Erase(handle);
+            delete collection;
+        }
     }
 
     static dmRender::RenderFrameResult WriteInputs(dmRender::HRenderFrame frame, void* context)
@@ -88,22 +141,34 @@ namespace dmGameSystem
         return capture->m_Capture(capture->m_Params);
     }
 
-    static bool CaptureWorld(void* context, void* render_world, const dmGameObject::ComponentRenderCaptureParams& params)
+    static dmGameObject::UpdateResult RenderWorld(void* context, uint32_t component_index,
+        const dmGameObject::ComponentsRenderParams& params, dmGameObject::ComponentsRender render)
     {
-        ComponentRenderTypeBinding* binding = (ComponentRenderTypeBinding*)context;
+        ComponentRenderContext* owner = (ComponentRenderContext*)context;
+        ComponentRenderType* type = GetRenderType(owner, component_index);
+        if (!type)
+            return render ? render(params) : dmGameObject::UPDATE_RESULT_OK;
+        if (!owner->m_ActiveFrame)
+        {
+            dmLogError("Component %u requires a render data capture frame.", component_index);
+            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        }
+
+        ComponentRenderCollection* collection = *owner->m_Collections.Get(params.m_Collection);
         ComponentRenderCaptureContext capture;
-        capture.m_Capture = binding->m_Type.m_Capture;
+        capture.m_Capture = type->m_Capture;
         capture.m_Params.m_Collection = params.m_Collection;
         capture.m_Params.m_World = params.m_World;
         capture.m_Params.m_Context = params.m_Context;
-        return CaptureComponentRenderWorld((HComponentRenderWorld)render_world, (dmRender::HRenderFrame)params.m_Frame, WriteInputs, &capture) == dmRender::RENDER_FRAME_OK;
+        dmRender::RenderFrameResult result = CaptureComponentRenderWorld(collection->m_Worlds[component_index], owner->m_ActiveFrame, WriteInputs, &capture);
+        return result == dmRender::RENDER_FRAME_OK ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
     }
 
     HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist,
         dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits)
     {
         assert(dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_GAME));
-        ComponentRenderContext* context = (ComponentRenderContext*)calloc(1, sizeof(ComponentRenderContext));
+        ComponentRenderContext* context = new ComponentRenderContext();
 
         if (!context)
         {
@@ -118,26 +183,32 @@ namespace dmGameSystem
 
         if (!context->m_StateContext)
         {
-            free(context);
+            delete context;
             return 0;
         }
 
+        dmGameObject::ComponentWorldCallbacks callbacks;
+        callbacks.m_Context = context;
+        callbacks.m_OnWorldCreated = OnWorldCreated;
+        callbacks.m_OnWorldDeleted = OnWorldDeleted;
+        callbacks.m_Render = RenderWorld;
+        if (dmGameObject::SetComponentWorldCallbacks(regist, callbacks) != dmGameObject::RESULT_OK)
+        {
+            DeleteComponentRenderStateContext(context->m_StateContext);
+            delete context;
+            return 0;
+        }
         return context;
     }
 
     static dmGameObject::Result PrepareComponentRenderType(HComponentRenderContext context,
-        const ComponentRenderType& type, ComponentRenderTypeBinding** out_binding, bool* created_queue)
+        const ComponentRenderType& type, bool* created_queue)
     {
-        if (!type.m_Capture || !type.m_RenderCallbacks.m_Initialize ||
+        if (dmGameObject::HasComponentWorldCreationStarted(context->m_Register) ||
+            !type.m_Capture || !type.m_RenderCallbacks.m_Initialize ||
             !type.m_RenderCallbacks.m_Consume || !type.m_RenderCallbacks.m_Destroy)
         {
             return dmGameObject::RESULT_INVALID_OPERATION;
-        }
-
-        ComponentRenderTypeBinding* binding = (ComponentRenderTypeBinding*)malloc(sizeof(ComponentRenderTypeBinding));
-        if (!binding)
-        {
-            return dmGameObject::RESULT_UNKNOWN_ERROR;
         }
 
         *created_queue = !context->m_Queue;
@@ -154,35 +225,30 @@ namespace dmGameSystem
 
             if (!context->m_Queue)
             {
-                free(binding);
                 return dmGameObject::RESULT_UNKNOWN_ERROR;
             }
 
             SetComponentRenderStateQueue(context->m_StateContext, context->m_Queue);
         }
 
-        binding->m_Context = context;
-        binding->m_Type = type;
-        *out_binding = binding;
         return dmGameObject::RESULT_OK;
     }
 
-    static dmGameObject::ComponentRenderCallbacks GetBridgeCallbacks(ComponentRenderTypeBinding* binding)
+    static void ReserveTypeSlot(HComponentRenderContext context, uint32_t component_index)
     {
-        dmGameObject::ComponentRenderCallbacks callbacks;
-        callbacks.m_Context = binding;
-        callbacks.m_CreateWorld = CreateWorld;
-        callbacks.m_DeleteWorld = DeleteWorld;
-        callbacks.m_Capture = CaptureWorld;
-        return callbacks;
+        uint32_t size = context->m_Types.Size();
+        if (component_index >= size)
+        {
+            context->m_Types.EnsureSize(component_index + 1);
+            memset(context->m_Types.Begin() + size, 0, (context->m_Types.Size() - size) * sizeof(ComponentRenderType));
+        }
     }
 
     static dmGameObject::Result FinishComponentRenderRegistration(HComponentRenderContext context,
-        ComponentRenderTypeBinding* binding, bool created_queue, dmGameObject::Result result)
+        uint32_t component_index, const ComponentRenderType& type, bool created_queue, dmGameObject::Result result)
     {
         if (result != dmGameObject::RESULT_OK)
         {
-            free(binding);
             if (created_queue)
             {
                 // This unpublished queue has never been exposed to an executor and has
@@ -195,8 +261,7 @@ namespace dmGameSystem
             return result;
         }
 
-        binding->m_Next = context->m_Types;
-        context->m_Types = binding;
+        context->m_Types[component_index] = type;
         return dmGameObject::RESULT_OK;
     }
 
@@ -204,21 +269,22 @@ namespace dmGameSystem
         uint32_t component_index, const ComponentRenderType& type)
     {
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
-        if (component_index >= dmGameObject::GetNumComponentTypes(context->m_Register))
+        if (component_index >= dmGameObject::GetNumComponentTypes(context->m_Register) || dmGameObject::HasComponentWorldCreationStarted(context->m_Register))
         {
             return dmGameObject::RESULT_INVALID_OPERATION;
         }
+        if (GetRenderType(context, component_index))
+            return dmGameObject::RESULT_ALREADY_REGISTERED;
 
-        ComponentRenderTypeBinding* binding;
         bool created_queue;
-        dmGameObject::Result result = PrepareComponentRenderType(context, type, &binding, &created_queue);
+        dmGameObject::Result result = PrepareComponentRenderType(context, type, &created_queue);
         if (result != dmGameObject::RESULT_OK)
         {
             return result;
         }
 
-        result = dmGameObject::RegisterComponentRenderCallbacks(context->m_Register, component_index, GetBridgeCallbacks(binding));
-        return FinishComponentRenderRegistration(context, binding, created_queue, result);
+        ReserveTypeSlot(context, component_index);
+        return FinishComponentRenderRegistration(context, component_index, type, created_queue, dmGameObject::RESULT_OK);
     }
 
     dmGameObject::Result RegisterComponentType(HComponentRenderContext context,
@@ -230,16 +296,31 @@ namespace dmGameSystem
             return dmGameObject::RegisterComponentType(context->m_Register, type);
         }
 
-        ComponentRenderTypeBinding* binding;
         bool created_queue;
-        dmGameObject::Result result = PrepareComponentRenderType(context, *render_type, &binding, &created_queue);
+        dmGameObject::Result result = PrepareComponentRenderType(context, *render_type, &created_queue);
         if (result != dmGameObject::RESULT_OK)
         {
             return result;
         }
 
-        result = dmGameObject::RegisterComponentType(context->m_Register, type, GetBridgeCallbacks(binding));
-        return FinishComponentRenderRegistration(context, binding, created_queue, result);
+        uint32_t component_index = dmGameObject::GetNumComponentTypes(context->m_Register);
+        ReserveTypeSlot(context, component_index);
+        result = dmGameObject::RegisterComponentType(context->m_Register, type);
+        // All allocation/validation precedes registration. Publishing the gamesys
+        // binding after a successful game registration cannot fail.
+        return FinishComponentRenderRegistration(context, component_index, *render_type, created_queue, result);
+    }
+
+    bool CaptureComponentRenderData(HComponentRenderContext context, dmGameObject::HCollection collection, dmRender::HRenderFrame frame)
+    {
+        if (!frame || context->m_ActiveFrame)
+            return false;
+        // Collection proxies recurse through gameobject's Render dispatcher and inherit
+        // this scope. Only the root call owns submission; gameobject never sees a frame.
+        context->m_ActiveFrame = frame;
+        bool result = dmGameObject::Render(collection);
+        context->m_ActiveFrame = 0;
+        return result;
     }
 
     dmRender::RenderFrameResult BeginComponentRenderFrame(HComponentRenderContext context)
@@ -271,12 +352,15 @@ namespace dmGameSystem
     bool RenderComponents(HComponentRenderContext context, dmGameObject::HCollection collection)
     {
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
-        if (!context->m_Types)
+        // Recursive collection traversal uses gameobject Render, never another submit.
+        if (context->m_ActiveFrame)
+            return false;
+        if (!context->m_Queue)
             return dmGameObject::Render(collection);
         if (!context->m_Capture.m_Frame)
             return false;
 
-        if (!dmGameObject::CaptureRenderData(collection, context->m_Capture.m_Frame))
+        if (!CaptureComponentRenderData(context, collection, context->m_Capture.m_Frame))
         {
             dmRender::CancelRenderFrameCapture(context->m_Queue, context->m_Capture);
             context->m_Capture.m_Frame = 0;
@@ -349,12 +433,7 @@ namespace dmGameSystem
             dmRender::DeleteRenderFrameQueue(context->m_Queue);
         }
 
-        while (context->m_Types)
-        {
-            ComponentRenderTypeBinding* binding = context->m_Types;
-            context->m_Types = binding->m_Next;
-            free(binding);
-        }
-        free(context);
+        dmGameObject::ClearComponentWorldCallbacks(context->m_Register);
+        delete context;
     }
 }

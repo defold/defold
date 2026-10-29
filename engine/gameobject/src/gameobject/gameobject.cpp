@@ -314,7 +314,7 @@ namespace dmGameObject
 
     static Collection* AllocCollection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances);
     static bool CreateComponentWorlds(Collection* collection, uint32_t max_instances, dmGameObjectDDF::CollectionDesc* collection_desc);
-    static void DeallocCollection(Collection* collection);
+    static void DeallocCollection(Collection* collection, HCollection original_handle);
     static bool InitCollection(Collection* collection);
     static bool FinalCollection(Collection* collection);
 
@@ -417,10 +417,8 @@ namespace dmGameObject
     Register::Register()
     {
         m_ComponentTypeCount = 0;
-        memset(m_ComponentRenderCallbacks, 0, sizeof(m_ComponentRenderCallbacks));
-        m_RenderCaptureFrame = 0;
-        m_ComponentRenderRegistrationClosed = false;
-        m_HasComponentRenderCallbacks = false;
+        memset(&m_ComponentWorldCallbacks, 0, sizeof(m_ComponentWorldCallbacks));
+        m_ComponentWorldCreationStarted = false;
         m_FirstFreeCollection = INVALID_COLLECTION_INDEX;
         m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
         m_DefaultInputStackCapacity = DEFAULT_MAX_INPUT_STACK_CAPACITY;
@@ -502,8 +500,6 @@ namespace dmGameObject
         m_Register = regist;
         m_CollectionResource = 0;
         memset(m_ComponentWorlds, 0, sizeof(m_ComponentWorlds));
-        m_ComponentRenderWorlds = 0;
-        m_ComponentRenderWorldCount = 0;
         m_ComponentWorldsCreated = 0;
         m_Instances.EnsureSize(max_instances);
         m_InstanceIndices.SetCapacity(max_instances);
@@ -713,19 +709,8 @@ namespace dmGameObject
     {
         HRegister regist = collection->m_Register;
 
-        // Close registration before invoking callbacks, even if attachment later fails.
-        // Existing and newly allocated worlds must use one stable descriptor set.
-        regist->m_ComponentRenderRegistrationClosed = true;
-        if (regist->m_HasComponentRenderCallbacks)
-        {
-            collection->m_ComponentRenderWorlds = (void**)calloc(regist->m_ComponentTypeCount, sizeof(void*));
-            if (!collection->m_ComponentRenderWorlds)
-            {
-                dmLogError("Failed to allocate component render lifetime handles.");
-                return false;
-            }
-            collection->m_ComponentRenderWorldCount = regist->m_ComponentTypeCount;
-        }
+        // Establish the boundary before callbacks, including failed/reentrant creation.
+        regist->m_ComponentWorldCreationStarted = true;
 
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
@@ -741,15 +726,22 @@ namespace dmGameObject
                 regist->m_ComponentTypes[i].m_NewWorldFunction(params);
             }
 
-            // The legacy world must also be unwound if its new bridge creation fails.
+            // The game world must also be unwound if its owner notification fails.
             // Keep legacy NewWorld return handling unchanged in this internal addition.
             collection->m_ComponentWorldsCreated = i + 1;
-            const ComponentRenderCallbacks& callbacks = regist->m_ComponentRenderCallbacks[i];
-            if (callbacks.m_CreateWorld)
+            const ComponentWorldCallbacks& callbacks = regist->m_ComponentWorldCallbacks;
+            if (callbacks.m_OnWorldCreated)
             {
-                if (!callbacks.m_CreateWorld(callbacks.m_Context, i, max_instances, max_components, &collection->m_ComponentRenderWorlds[i]))
+                ComponentWorldCreateParams params;
+                params.m_World = collection->m_ComponentWorlds[i];
+                params.m_Context = regist->m_ComponentTypes[i].m_Context;
+                params.m_Collection = collection->m_HCollection;
+                params.m_ComponentIndex = i;
+                params.m_MaxInstances = max_instances;
+                params.m_MaxComponentInstances = max_components;
+                if (!callbacks.m_OnWorldCreated(callbacks.m_Context, params))
                 {
-                    dmLogError("Failed to create render bridge world for component '%s'.", regist->m_ComponentTypes[i].m_Name);
+                    dmLogError("World creation notification failed for component '%s'.", regist->m_ComponentTypes[i].m_Name);
                     return false;
                 }
             }
@@ -757,7 +749,7 @@ namespace dmGameObject
         return true;
     }
 
-    static void DeallocCollectionStorage(Collection* collection)
+    static void DeallocCollectionStorage(Collection* collection, HCollection original_handle)
     {
         HRegister regist = collection->m_Register;
         for (uint32_t i = 0; i < collection->m_ComponentWorldsCreated; ++i)
@@ -770,27 +762,19 @@ namespace dmGameObject
             if (regist->m_ComponentTypes[i].m_DeleteWorldFunction)
                 regist->m_ComponentTypes[i].m_DeleteWorldFunction(params);
             collection->m_ComponentWorlds[i] = 0;
-            if (i < collection->m_ComponentRenderWorldCount && collection->m_ComponentRenderWorlds[i])
-            {
-                // Deleting a game world does not invalidate already captured frames.
-                // The bridge defers render-owner finalization until its readers finish.
-                const ComponentRenderCallbacks& callbacks = regist->m_ComponentRenderCallbacks[i];
-                callbacks.m_DeleteWorld(callbacks.m_Context, collection->m_ComponentRenderWorlds[i]);
-                collection->m_ComponentRenderWorlds[i] = 0;
-            }
+            const ComponentWorldCallbacks& callbacks = regist->m_ComponentWorldCallbacks;
+            if (callbacks.m_OnWorldDeleted)
+                callbacks.m_OnWorldDeleted(callbacks.m_Context, original_handle, i);
         }
-        free(collection->m_ComponentRenderWorlds);
-        collection->m_ComponentRenderWorlds = 0;
-        collection->m_ComponentRenderWorldCount = 0;
         collection->m_ComponentWorldsCreated = 0;
         dmMutex::Delete(collection->m_Mutex);
     }
 
-    void DeallocCollection(Collection* collection)
+    void DeallocCollection(Collection* collection, HCollection original_handle)
     {
         DM_PROFILE("DeallocCollection");
 
-        DeallocCollectionStorage(collection);
+        DeallocCollectionStorage(collection, original_handle);
         delete collection;
     }
 
@@ -935,7 +919,7 @@ namespace dmGameObject
 
         if (!CreateComponentWorlds(collection, max_instances, (dmGameObjectDDF::CollectionDesc*)collection_desc))
         {
-            DeallocCollectionStorage(collection);
+            DeallocCollectionStorage(collection, hcollection);
             UnregisterCollection(hcollection);
             delete collection;
             return 0;
@@ -944,7 +928,7 @@ namespace dmGameObject
         Result result = AttachCollection(collection, name);
         if (result != RESULT_OK)
         {
-            DeallocCollectionStorage(collection);
+            DeallocCollectionStorage(collection, hcollection);
             UnregisterCollection(hcollection);
             delete collection;
             return 0;
@@ -998,8 +982,11 @@ namespace dmGameObject
         DoDeleteAll(collection);
         ReleaseDynamicResources(collection);
 
+        // Detach invalidates the public handle before world destruction. Owner
+        // notifications still need the original identity to release their associations.
+        HCollection original_handle = collection->m_HCollection;
         DetachCollection(collection);
-        DeallocCollection(collection);
+        DeallocCollection(collection, original_handle);
     }
 
     // Really should be renamed "DelayDelete"
@@ -1118,40 +1105,29 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    Result RegisterComponentRenderCallbacks(HRegister regist, uint32_t component_index, const ComponentRenderCallbacks& callbacks)
+    Result SetComponentWorldCallbacks(HRegister regist, const ComponentWorldCallbacks& callbacks)
     {
-        if (!regist || component_index >= regist->m_ComponentTypeCount || !callbacks.m_CreateWorld || !callbacks.m_DeleteWorld || !callbacks.m_Capture || regist->m_ComponentRenderRegistrationClosed)
+        if (!callbacks.m_OnWorldCreated || !callbacks.m_OnWorldDeleted || !callbacks.m_Render || regist->m_ComponentWorldCreationStarted)
         {
             return RESULT_INVALID_OPERATION;
         }
-        else if (regist->m_ComponentRenderCallbacks[component_index].m_CreateWorld)
+        else if (regist->m_ComponentWorldCallbacks.m_OnWorldCreated)
         {
             return RESULT_ALREADY_REGISTERED;
         }
 
-        regist->m_ComponentRenderCallbacks[component_index] = callbacks;
-        regist->m_HasComponentRenderCallbacks = true;
+        regist->m_ComponentWorldCallbacks = callbacks;
         return RESULT_OK;
     }
 
-    Result RegisterComponentType(HRegister regist, const ComponentType& type, const ComponentRenderCallbacks& callbacks)
+    void ClearComponentWorldCallbacks(HRegister regist)
     {
-        if (!callbacks.m_CreateWorld || !callbacks.m_DeleteWorld || !callbacks.m_Capture || regist->m_ComponentRenderRegistrationClosed)
-        {
-            return RESULT_INVALID_OPERATION;
-        }
+        memset(&regist->m_ComponentWorldCallbacks, 0, sizeof(regist->m_ComponentWorldCallbacks));
+    }
 
-        Result result = RegisterComponentType(regist, type);
-        if (result != RESULT_OK)
-        {
-            return result;
-        }
-
-        // The new slot has no callbacks yet. After validation above, attaching them
-        // cannot fail, so callers never observe a component without its render bridge.
-        regist->m_ComponentRenderCallbacks[regist->m_ComponentTypeCount - 1] = callbacks;
-        regist->m_HasComponentRenderCallbacks = true;
-        return RESULT_OK;
+    bool HasComponentWorldCreationStarted(HRegister regist)
+    {
+        return regist->m_ComponentWorldCreationStarted;
     }
 
     Result SetUpdateOrderPrio(HRegister regist, HResourceType resource_type, uint16_t prio)
@@ -3402,27 +3378,6 @@ namespace dmGameObject
         return collection ? Update(collection, update_context) : false;
     }
 
-    bool CaptureRenderData(HCollection hcollection, void* frame)
-    {
-        Collection* collection = GetCollectionFromHandle(hcollection);
-        if (!collection || !frame)
-            return false;
-        HRegister regist = collection->m_Register;
-        if (regist->m_RenderCaptureFrame)
-        {
-            dmLogError("Nested render data capture is not supported; recursive collections must use Render().");
-            return false;
-        }
-
-        // Legacy collection-proxy rendering recursively calls Render() on the same
-        // register. Carry capture through that existing enabled-only traversal without
-        // sweeping unrelated collections or passing game pointers to the render owner.
-        regist->m_RenderCaptureFrame = frame;
-        bool result = Render(hcollection);
-        regist->m_RenderCaptureFrame = 0;
-        return result;
-    }
-
     bool Render(HCollection hcollection)
     {
         DM_PROFILE("Render");
@@ -3431,10 +3386,9 @@ namespace dmGameObject
         if (!collection)
             return false;
 
-        void* frame = collection->m_Register->m_RenderCaptureFrame;
         // Update normally resolves transforms, but PreRender or another game-side
-        // caller can change them before capture. Capture the final hierarchy.
-        if (frame && collection->m_DirtyTransforms)
+        // caller can change them before Render. Dispatch the final hierarchy.
+        if (collection->m_DirtyTransforms)
             UpdateTransforms(collection);
 
         bool ret = true;
@@ -3443,32 +3397,17 @@ namespace dmGameObject
         {
             uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
             ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
-            const ComponentRenderCallbacks& callbacks = collection->m_Register->m_ComponentRenderCallbacks[update_index];
-            if (callbacks.m_Capture)
-            {
-                if (!frame)
-                {
-                    dmLogError("Component '%s' requires a render data capture frame.", component_type->m_Name);
-                    ret = false;
-                    continue;
-                }
-                DM_PROFILE_DYN(component_type->m_Name, 0);
-                ComponentRenderCaptureParams params;
-                params.m_Collection = hcollection;
-                params.m_World = collection->m_ComponentWorlds[update_index];
-                params.m_Context = component_type->m_Context;
-                params.m_Frame = frame;
-                if (!callbacks.m_Capture(callbacks.m_Context, collection->m_ComponentRenderWorlds[update_index], params))
-                    ret = false;
-            }
-            else if (component_type->m_RenderFunction)
+            const ComponentWorldCallbacks& callbacks = collection->m_Register->m_ComponentWorldCallbacks;
+            if (callbacks.m_Render || component_type->m_RenderFunction)
             {
                 DM_PROFILE_DYN(component_type->m_Name, 0);
                 ComponentsRenderParams params;
                 params.m_Collection = hcollection;
                 params.m_World = collection->m_ComponentWorlds[update_index];
                 params.m_Context = component_type->m_Context;
-                UpdateResult res = component_type->m_RenderFunction(params);
+                UpdateResult res = callbacks.m_Render
+                    ? callbacks.m_Render(callbacks.m_Context, update_index, params, component_type->m_RenderFunction)
+                    : component_type->m_RenderFunction(params);
                 if (res != UPDATE_RESULT_OK)
                     ret = false;
             }

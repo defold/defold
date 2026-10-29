@@ -34,12 +34,15 @@ namespace dmGameSystem
 
     /**
      * Create the internal bridge between collection lifecycle and component rendering.
-     * Owned by the gamesys context, one per register. Creates no thread or frame buffers.
+     * Owned by gamesys, one per register, installed before collection creation. Owns
+     * render descriptors, collection-to-lifetime associations and the active capture scope;
+     * gameobject only reports world lifecycle and dispatches its ordered Render traversal.
+     * Creates no thread or frame buffers.
      * Borrows execution, which must outlive the bridge; also usable by isolated tests.
      * @param regist Game-object register, which must outlive the bridge
      * @param execution Borrowed execution context
      * @param limits Per-slot storage limits used when the first component opts in
-     * @return New bridge, or null on allocation failure
+     * @return New bridge, or null on allocation failure or unavailable world-owner hooks
      */
     HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits);
 
@@ -71,6 +74,17 @@ namespace dmGameSystem
      * @return RENDER_FRAME_OK, or an admission/component error
      */
     dmRender::RenderFrameResult BeginComponentRenderFrame(HComponentRenderContext context);
+
+    /**
+     * Capture into caller-owned storage on the game owner without submitting.
+     * Recursive gameobject Render calls inherit this gamesys scope; nested root captures
+     * are rejected.
+     * @param context Component rendering bridge
+     * @param collection Root collection to render/capture
+     * @param frame Non-null building frame, valid throughout this synchronous call
+     * @return True on success; false on invalid frame, nested capture or traversal/capture failure
+     */
+    bool CaptureComponentRenderData(HComponentRenderContext context, dmGameObject::HCollection collection, dmRender::HRenderFrame frame);
 
     /**
      * Capture into the admitted frame, then submit the same inputs despite backpressure.
