@@ -319,14 +319,14 @@ struct ProfileListener
 /*# Register a new profiler.
  * Register a new profiler. Can be done after the profiling has started.
  * @name ProfileRegisterProfiler
- * @param name [type: const char*] Name of the profiler
+ * @param name [type: const char*] Name of the profiler. Only the first 15 characters are used to identify it.
  * @param profiler [type: ProfileListener*] Instance of the profiler. Keep alive until calling ProfileUnregisterProfiler()!
  */
 void ProfileRegisterProfiler(const char* name, ProfileListener* profiler);
 
 /*# Unregister a profiler
  * @name ProfileUnregisterProfiler
- * @param name [type: const char*] Name of the profiler
+ * @param name [type: const char*] Name of the profiler. Only the first 15 characters are used to identify it.
  */
 void ProfileUnregisterProfiler(const char* name);
 
