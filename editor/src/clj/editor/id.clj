@@ -24,12 +24,12 @@
     ids
     (set ids)))
 
-(defn- gen-impl [basename lookup]
-  (loop [postfix 0]
-    (let [name (if (= postfix 0) basename (str basename postfix))]
-      (if (contains? lookup name)
-        (recur (inc postfix))
-        name))))
+(defn- gen-impl [basename lookup ^long initial-postfix]
+  (loop [postfix initial-postfix]
+    (let [name (str basename postfix)]
+      (if-not (contains? lookup name)
+        name
+        (recur (inc postfix))))))
 
 (defn gen
   "Generate unique id that does not intersect with taken ids
@@ -41,7 +41,10 @@
     taken-ids    collection of taken ids, either a map with id keys, a set, or
                  another type of id collection that will be coerced to set"
   [basename taken-ids]
-  (gen-impl basename (ids->lookup taken-ids)))
+  (let [lookup (ids->lookup taken-ids)]
+    (if-not (contains? lookup basename)
+      basename
+      (gen-impl basename lookup 1))))
 
 (defn- trim-digits
   ^String [^String id]
@@ -52,6 +55,15 @@
         (recur (unchecked-dec index))
         (subs id 0 index)))))
 
+(defn- resolve-impl [wanted-id lookup]
+  (if-not (contains? lookup wanted-id)
+    wanted-id
+    (let [basename (trim-digits wanted-id)
+          next-postfix (if (= basename wanted-id)
+                         1
+                         (inc (Long/parseLong (subs wanted-id (count basename)))))]
+      (gen-impl basename lookup next-postfix))))
+
 (defn resolve
   "Resolve a wanted id to an id that does not intersect with taken ids
 
@@ -59,14 +71,11 @@
 
   Args:
     wanted-id    wanted id, a string with an optional number suffix that will be
-                 stripped
+                 incremented until available if there is a conflict
     taken-ids    a collection of taken ids, either a map with id keys, a set, or
                  another type of id collection that will be coerced to set"
   [wanted-id taken-ids]
-  (let [lookup (ids->lookup taken-ids)]
-    (if (contains? lookup wanted-id)
-      (gen (trim-digits wanted-id) lookup)
-      wanted-id)))
+  (resolve-impl wanted-id (ids->lookup taken-ids)))
 
 (defn resolve-all
   "Resolve all wanted ids to ids that don't intersect with taken ids
@@ -76,7 +85,8 @@
 
   Args:
     wanted-ids    a sequential collection of wanted ids, i.e., strings with
-                  optional number suffixes that will be stripped
+                  optional number suffixes that will be incremented until
+                  available if there are conflicts
     taken-ids     a collection of taken ids, either a map with id keys, a set,
                   or another type of id collection that will be coerced to set"
   [wanted-ids taken-ids]
@@ -85,9 +95,7 @@
       (reduce
         (fn [e wanted-id]
           (let [lookup (val e)
-                id (if (contains? lookup wanted-id)
-                     (gen-impl (trim-digits wanted-id) lookup)
-                     wanted-id)]
+                id (resolve-impl wanted-id lookup)]
             (coll/pair (conj! (key e) id)
                        (cond
                          (set? lookup) (conj lookup id)
