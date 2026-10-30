@@ -704,7 +704,7 @@ TEST_F(EngineTest, LowFrequencyCallbacksAdvanceFullInterval)
             float step_dt = dmEngine::CalcCallbackTimeStep(fixed_dt, fixed_dt, max_time_step, accum_frame_time, num_steps);
             ASSERT_EQ(1u, num_steps);
             ASSERT_NEAR(fixed_dt, step_dt, 0.000001f);
-            simulation_time += num_steps * step_dt;
+            simulation_time += step_dt;
         }
         ASSERT_NEAR(5.0, simulation_time, 0.0001);
     }
