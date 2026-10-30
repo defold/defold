@@ -167,6 +167,15 @@ dialog.button.cancel = Cancelar
 dialog.button.delete = Eliminar
 dialog.button.apply = Aplicar
 
+# Model glTF Auto Fill Dialog
+
+dialog.model-auto-fill.title = ¿Autorrellenar campos de modelo?
+dialog.model-auto-fill.header = ¿Usar materiales y texturas de "{file}"?
+dialog.model-auto-fill.content = Esto asigna los materiales y texturas referenciadas expuestas por el archivo glTF.
+dialog.model-auto-fill.content-replace = Esto reemplaza las asignaciones existentes de material y textura del modelo con los recursos expuestos por el archivo glTF.
+dialog.model-auto-fill.button.keep-current = Mantener el actual
+dialog.model-auto-fill.button.auto-fill = Autorrellenar
+
 # Error Dialog
 
 dialog.error.title = Error
@@ -314,7 +323,7 @@ dialog.save-and-upgrade.button.upgrade-editable-files = Mejorar archivos editabl
 dialog.save-and-upgrade.button.upgrade-project-files = Mejorar archivos del proyecto
 dialog.save-and-upgrade.button.upgrade-all-files = Mejorar todos los archivos
 
-# Plugin load error dialog
+# Plugin error dialogs
 
 dialog.plugin-load-error.title = Incapaz de cargar el plugin
 dialog.plugin-load-error.header = El plugin del editor "{plugin}" no es compatible con esta versión del editor. Por favor, edite las dependencias de su proyecto para referirse a una versión adecuada.
@@ -717,6 +726,8 @@ prefs.label.code.font.name = Fuente del editor de código (requiere reiniciar)
 prefs.label.code.zoom-on-scroll = Hacer zoom con la rueda del ratón
 prefs.label.code.hover = Ventana emergente al pasar el cursor
 prefs.help.code.hover = Mostrar ventana emergente de documentación de código al pasar el cursor
+prefs.label.code.enable-lua-language-server = Habilitar servidor de idioma integrado de Lua
+prefs.help.code.enable-lua-language-server = Habilitar la asistencia de código de Lua para game scripts y scripts de editor en este proyecto. Desactivar para reducir el uso de memoria en proyectos grandes.
 prefs.label.code.auto-closing-parens = Insertar automáticamente paréntesis de cierre
 prefs.label.code.format-on-save = Formatear al guardar
 prefs.help.code.format-on-save = Ejecutar el servidor de formateo de lenguaje en archivos abiertos al guardar
@@ -1040,6 +1051,7 @@ command.scene.visibility.show-last-hidden = Mostrar últimos objetos ocultos
 command.scene.visibility.show-all = Mostrar todos los objetos ocultos
 command.scene.play = Reproducir
 command.scene.stop = Parar
+command.scene.frame-selection = Selección de encuadre
 command.scene.realign-camera = Realinear cámara
 command.scene.toggle-tile-palette = Seleccionar celda (tile)…
 command.scene.select-erase-tool = Seleccionar borrador
@@ -1085,11 +1097,12 @@ code.replace.all = Reemplazar todo
 
 dialog.about.label.version = Versión\:
 dialog.about.label.channel = Canal\:
+dialog.about.label.architecture = Arquitectura\:
 dialog.about.label.build-time = Tiempo de compilación\:
 dialog.about.label.editor-sha1 = Editor SHA1\:
 dialog.about.label.engine-sha1 = Motor SHA1\:
 dialog.about.value.unavailable = No disponible
-dialog.about.footer.copyright = Copyright © 2009-{year}
+dialog.about.footer.copyright = Copyright ©️ 2009-{year}
 dialog.about.footer.foundation = Fundación Defold
 dialog.about.sponsor = Fondo de apoyo al desarrollo Fundación Defold
 
@@ -1210,7 +1223,6 @@ property.appmanifest.physics-3d.tooltip = Incluye el motor de física 3D de bala
 property.appmanifest.rig+model = Rig + Modelo
 property.appmanifest.rig+model.tooltip = Elige si incluir tanto el renderizado de modelos como la animación de rig, solo la funcionalidad de rig o ninguno de los dos. Excluir la funcionalidad no usada reduce el tamaño del motor.
 property.appmanifest.exclude-record = Excluir registro
-property.appmanifest.exclude-record.tooltip = Elimina el soporte de grabación de vídeo de escritorio usado por el mensaje del sistema `start_record`. Actívalo cuando el proyecto no graba el juego para reducir el tamaño del motor.
 property.appmanifest.profiler = Perfilador
 property.appmanifest.profiler.tooltip = Elige qué compilaciones incluyen la funcionalidad del perfilador. **Sólo para depuración** lo excluye de las versiones de lanzamiento, **nunca** lo excluye totalmente, y **Siempre** también lo incluye en las versiones de lanzamiento.
 property.appmanifest.exclude-sound = Excluir sonido
@@ -1239,6 +1251,10 @@ property.appmanifest.exclude-basis-transcoder = Excluir Transcodificador Basis
 property.appmanifest.exclude-basis-transcoder.tooltip = Elimina el transcodificador de textura Basis Universal. Activa esto solo cuando ningún perfil de textura utiliza compresión Basis Universal.
 property.appmanifest.use-android-support-lib = Usar biblioteca de soporte para Android
 property.appmanifest.use-android-support-lib.tooltip = Utiliza la biblioteca de soporte de Android obsoleta en lugar de AndroidX. Habilita esto solo para dependencias antiguas que no hayan migrado a AndroidX.
+property.appmanifest.graphics = Gráficos
+property.appmanifest.graphics.tooltip = Selecciona el backend gráfico incluido en las compilaciones de Windows y Linux. Incluyendo tanto OpenGL como Vulkan permiten un respaldo cuando el backend preferido no está disponible, pero aumenta el tamaño del motor.
+property.appmanifest.graphics-windows = Gráficos (Windows)
+property.appmanifest.graphics-windows.tooltip = Selecciona el backend gráfico incluido en las compilaciones de Windows. OpenGL es el valor predeterminado; una opción combinada incluye un backend de respaldo pero aumenta el tamaño del motor.
 property.appmanifest.graphics-osx = Gráficos (macOS)
 property.appmanifest.graphics-osx.tooltip = Selecciona el backend gráfico incluido en las compilaciones de macOS. Vulkan es el predeterminado; una opción combinada incluye un backend de respaldo pero aumenta el tamaño del motor.
 property.appmanifest.graphics-ios = Gráficos (iOS)
@@ -1248,6 +1264,7 @@ property.appmanifest.graphics-android.tooltip = Selecciona el backend gráfico i
 property.appmanifest.graphics-web = Gráficos (HTML5)
 property.appmanifest.graphics-web.tooltip = Selecciona el backend de gráficos incluido en las compilaciones HTML5. WebGL es el predeterminado; incluyendo ambos WebGL y WebGPU permite un respaldo, pero aumenta el tamaño del motor.
 property.appmanifest.use-font-layout = Usar sistema de disposición de texto completo
+property.appmanifest.use-font-layout.tooltip = Incluye el sistema completo de diseño de texto para fuentes dinámicas SDF y de Vectores y características como texto de derecha a izquierda. Para generar glifos en tiempo de ejecución, establece **Generación de glifos** a **Dinámica** en cada recurso de fuente.
 property.appmanifest.use-rich-text = Usar texto enriquecido
 property.appmanifest.use-rich-text.tooltip = Incluye análisis de texto enriquecido y efectos de estilo para etiquetas y texto GUI. Deshabilita esto para reducir el tamaño del motor; entonces el texto etiquetado se mostrará como texto plano.
 
@@ -1275,9 +1292,23 @@ property.atlas.extrude-borders = Expansión de bordes
 property.atlas.extrude-borders.tooltip = El número de veces que los píxeles de borde de cada imagen se copian hacia afuera. Esto evita que las imágenes vecinas sangren en la imagen cuando un shader muestrea cerca de su borde.
 property.atlas.max-page-width = Ancho de página máximo
 property.atlas.max-page-height = Alto de página máximo
+property.atlas.max-page-size = Tamaño máximo de página
 property.atlas.max-page-size.tooltip = La anchura y altura máximas de cada página en un atlas de varias páginas. Establece ambos valores por encima de cero para habilitar la paginación; los componentes que usan el atlas deben usar un material de atlas paginado.
 property.atlas.rename-patterns = Renombrar patrones
 property.atlas.rename-patterns.tooltip = Patrones `search\=replace` separados por comas aplicados a cada nombre base de imagen. Por ejemplo, `hat\=cat,_normal\=` cambia `hat_normal` a `cat`; los nombres coincidentes son útiles cuando los fotogramas corresponden a múltiples atlas.
+
+# Properties: KTX2
+
+property.ktx2.dimensions = Tamaño
+property.ktx2.format = Formato de compresión
+property.ktx2.supercompression = Supercompresión
+property.ktx2.mip-count = Cantidad de Mips
+property.ktx2.level = Nivel de Mips
+property.ktx2.channels = Canales
+property.ktx2.color-space = Espacio de color
+property.ktx2.premultiplied-alpha = Alfa pre-multiplicado
+property.ktx2.orientation = Orientación
+property.ktx2.orientation.tooltip = Direcciones del eje de origen\: `r`/`l` significa derecha/izquierda y `d`/`u` significa hacia abajo/arriba. La vista previa y construcción aplican esta orientación automáticamente.
 
 # Properties: camera
 
@@ -1296,12 +1327,23 @@ property.camera.orthographic-projection.tooltip = Utiliza una proyección ortogr
 property.camera.orthographic-zoom = Zoom ortográfico
 property.camera.orthographic-zoom.tooltip = **Solo ortográfico.** Multiplicador de zoom positivo\: valores por encima de `1` hace zoom y valores por debajo de `1` aleja el zoom. En **Ajuste automático** y **Cobertura automática**, multiplica el zoom calculado automáticamente.
 property.camera.orthographic-mode = Modo de zoom ortográfico
+property.camera.orthographic-mode.tooltip = **Solo ortográfico.** **Solucionado** utiliza directamente **Zoom ortográfico**. **Ajuste automático** mantiene visible el área de diseño completo y puede mostrar contenido extra; **Auto cobertura** rellena la ventana y puede recortar el contenido. Los modos automáticos utilizan el ancho y la altura de la pantalla de `game.project` como el tamaño del diseño.
 
 # Properties: collection proxy
 
+property.collection-proxy.collection = Colección
+property.collection-proxy.collection.tooltip = Colección cargada como un mundo de juego separado. Después de cargar, `habilitar` inicializa primero cuando es necesario. Mientras se libera, `liberar` finaliza primero cuando es necesario; los mensajes explícitos de ciclo de vida permanecen disponibles para el control manual.
+property.collection-proxy.exclude = Excluir
+property.collection-proxy.exclude.tooltip = Excluye el contenido de este proxy del paquete principal al publicar contenido de Live Update, incluyendo recursos no únicos de un proxy excluido. Monta el contenido requerido antes de cargar. **Construir y Ejecutar** no lo excluye.
 
 # Properties: collision object
 
+property.collision-object.collision-shape = Forma de colisión
+property.collision-object.collision-shape.tooltip = Un tile map (mapa de celdas) externo o forma convexa que define el objeto. Deja este ajuste desactivado al usar formas primitivas añadidas bajo el objeto de colisión.
+property.collision-object.type = Tipo
+property.collision-object.type.tooltip = Los objetos **Dinámicos** son simulados, los objetos **Kinemáticos** son movidos y resueltos por tu código, los objetos **Estáticos** no se mueven, y los objetos **Activador** sólo detectan superposiciones. Disponible como `collision_type` en los scripts del editor; preferir sobre `type`, que puede ser ocultado por el tipo de componente incrustado.
+property.collision-object.event-trigger = Generar eventos activados
+property.collision-object.event-trigger.tooltip = Genera notificaciones cuando un objeto entra o deja un **Activador**. Desactivarlo suprime los mensajes `trigger_response` de este objeto; un oyente centralizado filtra la interacción solo cuando ambos objetos lo deshabilitan.
 
 # Properties: compute
 
@@ -1313,6 +1355,9 @@ property.camera.orthographic-mode = Modo de zoom ortográfico
 
 
 # Properties: font
+
+
+# Properties: glTF
 
 
 # Properties: gui
@@ -1384,6 +1429,12 @@ property.camera.orthographic-mode = Modo de zoom ortográfico
 
 
 
+form.help.project.graphics.verify_graphics_calls = Habilita la comprobación de errores de API de gráficos específicos del backend en compilaciones de depuración. Un error detectado normalmente activa una comprobación o ruptura del depurador y también puede ser registrado. Las comprobaciones pueden reducir el rendimiento y no están igualmente disponibles en todos los backends.
+
+
+
+form.label.project.physics.trigger_overlap_capacity = Capacidad de superposición de activación
+form.help.project.physics.trigger_overlap_capacity = Máximo número de solapamientos simultáneos por objeto de física para mensajes de entrada y salida. Los excesos no se rastrean y producen una advertencia.
 
 
 
@@ -1398,9 +1449,26 @@ property.camera.orthographic-mode = Modo de zoom ortográfico
 
 
 
-
-
-
+form.label.input-binding.key-trigger = Activadores de tecla
+form.help.input-binding.key-trigger = Mapea una única tecla física de teclado a una acción nombrada entregada a scripts enfocados a entradas de datos y scripts de GUI a través de `on_input()`. Las acciones de teclas reportan `pressed`, `released`, y `repeated`; usa activadores de texto en su lugar cuando necesite caracteres escritos.
+form.label.input-binding.key-trigger.input = Entrada
+form.label.input-binding.key-trigger.action = Acción
+form.label.input-binding.mouse-trigger = Activadores de ratón
+form.help.input-binding.mouse-trigger = Mapea un botón del ratón o dirección de la rueda a una acción nombrada entregada a scripts enfocados a entradas de datos y scripts de GUI a través de `on_input()`. Las acciones del botón reportan `pressed`, `released`, y `repeated`;  las acciones de la rueda reportan `value`. El movimiento del ratón no está asignado (`action_id` es `nil`) pero solo es emitido cuando al menos existe un activador del ratón.
+form.label.input-binding.mouse-trigger.input = Entrada
+form.label.input-binding.mouse-trigger.action = Acción
+form.label.input-binding.gamepad-trigger = Activadores de mando de juego
+form.help.input-binding.gamepad-trigger = Mapea un botón de mando de juego estándar, dirección de palanca, disparador, evento de conexión, o entrada sin procesar a una acción nombrada entregada a través de `on_input()`. El hardware es normalizado por el mapeo de mandos de juego del proyecto; los controladores no identificados proporcionan sólo Connected, Disconnected, and Raw. `action.gamepad` identifica el controlador de origen.
+form.label.input-binding.gamepad-trigger.input = Entrada
+form.label.input-binding.gamepad-trigger.action = Acción
+form.label.input-binding.touch-trigger = Activadores táctiles
+form.help.input-binding.touch-trigger = Mapea `TOUCH_MULTI` a una acción nombrada entregada a través de `on_input()` con todos los puntos de toque actuales en `action.touch`. Disponible en iOS, Android y HTML5 móvil. Un solo toque no está configurado aquí\: enlazando `MOUSE_BUTTON_LEFT` o `MOUSE_BUTTON_1` lo crea automáticamente, y multi-touch debe usar un nombre de acción diferente.
+form.label.input-binding.touch-trigger.input = Entrada
+form.label.input-binding.touch-trigger.action = Acción
+form.label.input-binding.text-trigger = Activadores de texto
+form.help.input-binding.text-trigger = Los mapas confirmados o el texto de composición IME a una acción nombrada entregada a través de `on_input()`. Tanto **Texto** como **Texto Marcado** ponen su texto en `action.text`; estas acciones omiten campos ordinarios como `pressed`, `released`, `repeated`, y `value`. Usa activadores de teclas para teclas físicas.
+form.label.input-binding.text-trigger.input = Entrada
+form.label.input-binding.text-trigger.action = Acción
 
 
 
