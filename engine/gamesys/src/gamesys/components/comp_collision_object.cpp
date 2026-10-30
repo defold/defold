@@ -370,8 +370,6 @@ namespace dmGameSystem
 
     static void StoreMessage(CollisionWorld* world, const dmDDF::Descriptor* desc, const char* data)
     {
-        DM_PROFILE("StoreMessage");
-
         // We want to avoid serializing the message, for performance
         uint32_t msg_size = 0;
         PhysicsMessageType msg_type;
