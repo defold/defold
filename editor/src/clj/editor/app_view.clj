@@ -106,7 +106,7 @@
             [util.profiler :as profiler]
             [util.thread-util :as thread-util])
   (:import [com.defold.editor Editor]
-           [com.dynamo.bob Platform]
+           [com.dynamo.bob IProgress Platform]
            [com.sun.javafx.scene NodeHelper]
            [java.io File IOException PipedInputStream PipedOutputStream]
            [java.net SocketTimeoutException URL]
@@ -783,6 +783,7 @@
 (def ^:private initial-app-task-progress
   {:main progress/done
    :build progress/done
+   :build-engine progress/done
    :resource-sync progress/done
    :save-all progress/done
    :fetch-libraries progress/done
@@ -794,7 +795,7 @@
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
-  [:save-all :resource-sync :fetch-libraries :build :download-update :main])
+  [:save-all :resource-sync :fetch-libraries :build :build-engine :download-update :main])
 
 (def status-bar-controls-delay
   (delay
@@ -863,7 +864,7 @@
 (defn make-render-task-progress [key]
   (assert (contains? initial-app-task-progress key))
   (progress/throttle-render-progress
-    (fn [progress] (render-task-progress! key progress))))
+    (fn render-progress! [progress] (render-task-progress! key progress))))
 
 (defn begin-task-progress! [key]
   (let [prev-progress-atom (atom nil)]
@@ -1227,7 +1228,9 @@
                          debugging tools
     :run-build-hooks     optional flag that indicates whether to run pre- and
                          post-build hooks
-    :render-progress!    optional progress reporter fn
+    :render-progress!    optional project build progress reporter fn
+    :render-engine-progress!
+                         optional engine build progress reporter fn
     :task-cancelled?     optional fn that will be called periodically to check
                          if the user has cancelled the build process.
     :old-artifact-map    optional old artifact map with previous build results
@@ -1235,11 +1238,12 @@
   [project & {:keys [;; required
                      prefs
                      ;; optional
-                     debug build-engine run-build-hooks render-progress! task-cancelled? old-artifact-map lint]
+                     debug build-engine run-build-hooks render-progress! render-engine-progress! task-cancelled? old-artifact-map lint]
               :or {debug false
                    build-engine true
                    run-build-hooks true
                    render-progress! progress/null-render-progress!
+                   render-engine-progress! progress/null-render-progress!
                    task-cancelled? fn/constantly-false
                    old-artifact-map {}}}]
   {:pre [(or (not build-engine) (some? prefs))]}
@@ -1253,29 +1257,49 @@
         ;; engine build in the final phase.
         engine-build-future-atom (atom nil)
 
+        engine-progress
+        (when build-engine
+          (bob/->progress
+            (fn render-engine-build-progress! [progress]
+              ;; The extender client does not support cancelling remote builds.
+              ;; The initial message has no server progress yet.
+              ;; Keep the task visible until the engine download also finishes.
+              (render-engine-progress!
+                (if (or (and (progress/done? progress)
+                             (not= progress/done progress))
+                        (= (localization/message "progress.building-engine")
+                           (progress/message progress)))
+                  (progress/make-indeterminate (progress/message progress))
+                  (assoc progress :cancel-state :not-cancellable))))
+            task-cancelled?))
+
         cancel-engine-build!
         (fn cancel-engine-build! []
-          (when-some [engine-build-future (thread-util/preset! engine-build-future-atom nil)]
+          ;; Closing the progress also prevents reports from a cancelled future.
+          (when engine-progress
+            (.close ^IProgress engine-progress))
+          (when-let [engine-build-future (thread-util/preset! engine-build-future-atom nil)]
             (future-cancel engine-build-future)
             nil))
 
         start-engine-build!
         (fn start-engine-build! []
           (assert (ui/on-ui-thread?))
-          (cancel-engine-build!)
           (when build-engine
+            (render-engine-progress! (progress/make-indeterminate (localization/message "progress.fetching-engine")))
             (let [evaluation-context (g/make-evaluation-context)
                   platform (engine/current-platform)]
               (reset! engine-build-future-atom
                       (future
                         (try
-                          (let [engine (engine/get-engine project evaluation-context prefs platform)]
-                            (ui/run-later
-                              ;; This potentially saves us from having to
-                              ;; re-calculate native extension file hashes the
-                              ;; next time we build the project.
-                              (g/update-cache-from-evaluation-context! evaluation-context))
-                            engine)
+                          (with-open [progress ^IProgress engine-progress]
+                            (let [engine (engine/get-engine project evaluation-context prefs platform progress)]
+                              (ui/run-later
+                                ;; This potentially saves us from having to
+                                ;; re-calculate native extension file hashes the
+                                ;; next time we build the project.
+                                (g/update-cache-from-evaluation-context! evaluation-context))
+                              engine))
                           (catch Throwable error
                             error))))
               nil)))
@@ -1296,29 +1320,31 @@
                     (ui-thread-fn return-value)
                     (catch Throwable error
                       (reset! build-in-progress-atom false)
-                      (render-progress! progress/done)
                       (cancel-engine-build!)
+                      (render-progress! progress/done)
                       (future/fail! result-future error)
                       (throw error)))))
               (catch Throwable error
-                (reset! build-in-progress-atom false)
-                (render-progress! progress/done)
-                (cancel-engine-build!)
-                (ui/run-later (future/fail! result-future error))
+                (ui/run-later
+                  (reset! build-in-progress-atom false)
+                  (cancel-engine-build!)
+                  (render-progress! progress/done)
+                  (future/fail! result-future error))
                 (error-reporting/report-exception! error))))
           nil)
 
         finish-with-result!
         (fn finish-with-result! [project-build-results]
           (reset! build-in-progress-atom false)
-          (render-progress! progress/done)
           (cancel-engine-build!)
+          (render-progress! progress/done)
           (future/complete! result-future project-build-results)
           nil)
 
         phase-7-await-lint!
         (fn phase-7-await-lint! [project-build-results]
-          (if lint
+          (if-not lint
+            (finish-with-result! project-build-results)
             (do
               (render-progress! (progress/make-indeterminate (localization/message "progress.linting")))
               (run-on-background-thread!
@@ -1353,8 +1379,7 @@
                                            (g/map->error {:causes (cond-> errors existing-error (conj existing-error))})))
                           warnings
                           (assoc :warning (g/map->error {:causes warnings})))))
-                    (finish-with-result! project-build-results)))))
-            (finish-with-result! project-build-results)))
+                    (finish-with-result! project-build-results)))))))
 
         phase-6-await-engine-build!
         (fn phase-6-await-engine-build! [project-build-results]
@@ -1363,7 +1388,7 @@
             (if (nil? engine-build-future)
               (phase-7-await-lint! project-build-results)
               (do
-                (render-progress! (progress/make-indeterminate (localization/message "progress.fetching-engine")))
+                (render-progress! progress/done)
                 (run-on-background-thread!
                   (fn run-engine-build-on-background-thread! []
                     (deref engine-build-future))
@@ -1503,6 +1528,7 @@
                     :build-engine (not skip-engine)
                     :prefs prefs
                     :render-progress! render-progress!
+                    :render-engine-progress! (make-render-task-progress :build-engine)
                     :task-cancelled? task-cancelled?
                     :old-artifact-map (workspace/artifact-map workspace))
       (fn [{:keys [engine] :as build-results}]
@@ -1554,6 +1580,7 @@
                     :build-engine (not skip-engine)
                     :prefs prefs
                     :render-progress! render-progress!
+                    :render-engine-progress! (make-render-task-progress :build-engine)
                     :task-cancelled? task-cancelled?
                     :old-artifact-map (workspace/artifact-map workspace))
       (fn [{:keys [engine] :as build-results}]
