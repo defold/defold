@@ -63,6 +63,26 @@ class CppDocumentationTests(unittest.TestCase):
         self.assertIn('dmExtension::AppInitialize', doc)
         self.assertIn('@return code [type:AppExitCode]', doc)
 
+    # Runtime hash macros need typed C++ aliases and matching documentation after regeneration.
+    def test_hash_constant_aliases(self):
+        engine = self.root / 'engine/engine'
+        docs = gen_doc.parse_docs(str(engine / 'src/dmsdk/engine/engine_event.h'))
+        info = json.loads((engine / 'sdk_gen.json').read_text())['files'][0]['languages']['cpp']
+        state = SimpleNamespace(enum_types=[], struct_typedefs=[], function_typedefs=[], functions=[])
+        header = gen_cpp.gen_cpp_header(
+            str(self.root), 'dmsdk/engine/engine_event.h',
+            str(engine / 'src/dmsdk/engine/engine_event_gen.hpp'),
+            info, None, state, [], docs)
+        cpp_docs, c_docs = header.split('} // namespace dmEngine', 1)
+        aliases = info['constant_aliases']
+        self.assertEqual(7, len(aliases))
+        self.assertIn('| `EVENT_WINDOW_RESIZED` |', cpp_docs)
+        for name in aliases:
+            renamed = gen_cpp.rename_symbols(info['rename'], name)
+            self.assertIn('static const dmhash_t %s = %s;' % (renamed, name), cpp_docs)
+            self.assertIn('@name ' + renamed, cpp_docs)
+            self.assertIn('@name ' + name, c_docs)
+
 
 if __name__ == '__main__':
     unittest.main()
