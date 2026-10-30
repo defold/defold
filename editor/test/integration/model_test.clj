@@ -100,25 +100,23 @@
 
 ;; Built models contain metadata and depend directly on packed geometry.
 (deftest embedded-model-metadata
-  (let [project-path (test-util/make-temp-project-copy! "test/resources/test_project")]
-    (with-open [_project (test-util/make-directory-deleter project-path)]
-      (test-util/with-scratch-project project-path
-        (let [node-id (test-util/resource-node project "/model/mesh_selection.model")]
-          (with-open [_build (test-util/build! node-id)]
-            (let [compiled (ModelProto$Model/parseFrom (test-util/build-output project "/model/mesh_selection.model"))
-                  mesh (.getMeshes (.getRawModels (.getMeshSet compiled) 0) 0)
-                  paths (coll/into-> (test-util/node-built-build-resources node-id) []
-                          (map resource/proj-path))]
-              (is (.hasMeshSet compiled))
-              (is (= "" (.getRigScene compiled)))
-              (is (not (.hasSkeleton compiled)))
-              (is (not (.hasAnimationSet compiled)))
-              (is (pos? (.getVertexCount mesh)))
-              (is (zero? (.getPositionsCount mesh)))
-              (is (string/ends-with? (.getBuffers compiled) ".modelbuffersc"))
-              (is (= 1 (count (coll/into-> paths [] (filter #(string/ends-with? % ".modelbuffersc"))))))
-              (is (coll/not-any? #(or (string/ends-with? % ".rigscenec")
-                                      (string/ends-with? % ".meshsetc")) paths)))))))))
+  (test-util/with-scratch-project "test/resources/test_project"
+    (let [node-id (test-util/resource-node project "/model/mesh_selection.model")]
+      (with-open [_build (test-util/build! node-id)]
+        (let [compiled (ModelProto$Model/parseFrom (test-util/build-output project "/model/mesh_selection.model"))
+              mesh (.getMeshes (.getRawModels (.getMeshSet compiled) 0) 0)
+              paths (coll/into-> (test-util/node-built-build-resources node-id) []
+                      (map resource/proj-path))]
+          (is (.hasMeshSet compiled))
+          (is (= "" (.getRigScene compiled)))
+          (is (not (.hasSkeleton compiled)))
+          (is (not (.hasAnimationSet compiled)))
+          (is (pos? (.getVertexCount mesh)))
+          (is (zero? (.getPositionsCount mesh)))
+          (is (string/ends-with? (.getBuffers compiled) ".modelbuffersc"))
+          (is (= 1 (count (coll/into-> paths [] (filter #(string/ends-with? % ".modelbuffersc"))))))
+          (is (coll/not-any? #(or (string/ends-with? % ".rigscenec")
+                                  (string/ends-with? % ".meshsetc")) paths)))))))
 
 ;; Identical model geometry shares one target; changing a range invalidates it.
 (deftest model-buffer-build-targets
