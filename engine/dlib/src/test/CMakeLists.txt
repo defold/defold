@@ -187,8 +187,8 @@ if(NOT DLIB_TEST_SKIP_HTTP)
         --keystore "${DLIB_TEST_ROOT}/data/keystore"
         "$<TARGET_FILE:${_http_test}>")
       if(_http_test STREQUAL "test_httpclient")
-        # Exercise response buffer growth and TLS negotiation using the local server.
-        list(APPEND _http_test_command "--test-filter=HttpResponseBuffer.*" "--test-filter=dmHttpClient.Tls*")
+        # Exercise response buffers, TLS negotiation, cache replay and batch validation using the local server.
+        list(APPEND _http_test_command "--test-filter=HttpResponseBuffer.*" "--test-filter=dmHttpClient.Tls*" "--test-filter=*CachedResponseStart*" "--test-filter=*BatchValidateCache*")
       endif()
       defold_test_run_settings(_http_test_runner _http_test_options shared)
       add_custom_target(run_${_http_test}
@@ -253,8 +253,8 @@ if(NOT DLIB_TEST_SKIP_THREADS)
   dlib_add_test(test_atomic)
   dlib_add_test(test_spinlock)
   dlib_add_test(test_condition_variable)
-  dlib_add_test(test_job_system)
 endif()
+dlib_add_test(test_job_system)
 
 if(DLIB_TEST_SKIP_RUN)
   dlib_add_test(test_sys SKIP_RUN)
