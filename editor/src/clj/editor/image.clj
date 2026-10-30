@@ -38,21 +38,32 @@
 
 (set! *warn-on-reflection* true)
 
-(def exts ["jpg" "jpeg" "png"])
+(def sdr-exts ["jpg" "jpeg" "png"])
+(def exts (conj sdr-exts "hdr"))
 
 (defn image-resource?
   [resource]
-  (boolean (some #{(resource/type-ext resource)} exts)))
+  (coll/any? #{(resource/type-ext resource)} exts))
+
+(defn sdr-resource?
+  [resource]
+  (coll/any? #{(resource/type-ext resource)} sdr-exts))
+
+(defn hdr-resource?
+  [resource]
+  (= "hdr" (resource/type-ext resource)))
 
 (defn- build-texture [resource _dep-resources user-data]
   (let [{:keys [content-generator texture-profile compress?]} user-data
         image ((:f content-generator) (:args content-generator))]
     (g/precluding-errors
       [image]
-      (let [texture-generator-result (tex-gen/make-texture-image image texture-profile compress?)]
-        {:resource resource
-         :write-content-fn tex-gen/write-texturec-content-fn
-         :user-data {:texture-generator-result texture-generator-result}}))))
+      (let [texture-generator-result (resource-io/with-error-translation (:resource resource) nil :build-targets
+                                       (tex-gen/make-texture-image image texture-profile compress?))]
+        (g/precluding-errors [texture-generator-result]
+          {:resource resource
+           :write-content-fn tex-gen/write-texturec-content-fn
+           :user-data {:texture-generator-result texture-generator-result}})))))
 
 (defn make-texture-build-target
   [workspace node-id image-generator texture-profile compress?]
@@ -97,11 +108,14 @@
                   :compress? (:compress-textures? build-settings false)
                   :texture-profile texture-profile}})])
 
-(g/defnk produce-scene [_node-id size gpu-texture texture-profile]
+(g/defnk produce-scene [_node-id resource size gpu-texture texture-profile]
   (g/precluding-errors
     [size gpu-texture]
-    (let [{:keys [width height]} size]
-      (assoc (render-util/make-outlined-textured-quad-scene #{:image} pose/default width height gpu-texture 0)
+    (let [{:keys [width height]} size
+          make-scene (if (hdr-resource? resource)
+                       render-util/make-outlined-tone-mapped-textured-quad-scene
+                       render-util/make-outlined-textured-quad-scene)]
+      (assoc (make-scene #{:image} pose/default width height gpu-texture 0)
         :node-id _node-id
         :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))))))
 
@@ -134,7 +148,9 @@
 
   (output content-generator g/Any :cached
           (g/fnk [_node-id resource]
-            (texture-util/make-buffered-image-generator resource _node-id :content-generator)))
+            (if (hdr-resource? resource)
+              (texture-util/make-resource-bytes-generator resource _node-id :content-generator)
+              (texture-util/make-buffered-image-generator resource _node-id :content-generator))))
 
   (output gpu-texture-generator g/Any :cached
           (g/fnk [_node-id content-generator texture-profile]
