@@ -16,6 +16,7 @@
 #include <render/render_target_ddf.h>
 #include "gamesys/resources/res_buffer.h"
 #include "gamesys/resources/res_mesh.h"
+#include "gamesys/resources/res_texture.h"
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -128,6 +129,7 @@ void UpdateAndPostUpdateCollection(dmGameObject::HCollection collection, dmGameO
     dmGameObject::PostUpdate(regist);
 }
 
+// Reload preserves the resource handle held by existing users, including display profiles.
 TEST_P(ResourceTest, Test)
 {
     const char* resource_name = GetParam();
@@ -135,7 +137,9 @@ TEST_P(ResourceTest, Test)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, resource_name, &resource));
     ASSERT_NE((void*)0, resource);
 
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, resource_name, 0));
+    HResourceDescriptor descriptor = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, resource_name, &descriptor));
+    ASSERT_EQ(resource, dmResource::GetResource(descriptor));
     dmResource::Release(m_Factory, resource);
 }
 
@@ -190,6 +194,7 @@ TEST_P(ResourceTest, TestPreloadAsync)
     dmResource::Release(m_Factory, resource);
 }
 
+class TextureResourceTest : public ResourceTest { public: TextureResourceTest() { SetContentFolder("texture"); } };
 class RenderTargetResourceTest : public ResourceTest { public: RenderTargetResourceTest() { SetContentFolder("render_target"); } };
 class TileGrid3DResourceTest : public ResourceTest
 {
@@ -299,6 +304,79 @@ TEST_F(RenderTargetResourceTest, InvalidCubemapFailsToReload)
     ASSERT_EQ(original_render_target, resource->m_RenderTarget);
     ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, resource->m_RenderTarget));
     dmResource::Release(m_Factory, resource);
+}
+
+static dmGraphics::Texture* GetTextureBase(dmGraphics::HContext context, dmGraphics::HTexture texture)
+{
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*)context;
+    return dmGraphics::GetAssetFromContainer<dmGraphics::Texture>(null_context->m_BaseContext.m_AssetHandleContainer, texture);
+}
+
+// Float texture resources preserve their formats, dimensions, and mip counts.
+TEST_F(TextureResourceTest, FloatTextureResources)
+{
+    ASSERT_EQ(64u, dmGraphics::GetTextureFormatBitsPerPixel(dmGraphics::TEXTURE_FORMAT_RGBA16F));
+    ASSERT_EQ(128u, dmGraphics::GetTextureFormatBitsPerPixel(dmGraphics::TEXTURE_FORMAT_RGBA32F));
+
+    dmGameSystem::TextureResource* texture_16f = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/texture/hdr_rgba16f.texturec", (void**)&texture_16f));
+    ASSERT_NE((dmGameSystem::TextureResource*)0, texture_16f);
+
+    dmGraphics::Texture* texture_16f_base = GetTextureBase(m_GraphicsContext, texture_16f->m_Texture);
+    ASSERT_NE((dmGraphics::Texture*)0, texture_16f_base);
+    ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGBA16F, texture_16f_base->m_Format);
+    ASSERT_EQ(2u, dmGraphics::GetTextureWidth(m_GraphicsContext, texture_16f->m_Texture));
+    ASSERT_EQ(2u, dmGraphics::GetTextureHeight(m_GraphicsContext, texture_16f->m_Texture));
+    ASSERT_EQ(2u, dmGraphics::GetTextureMipmapCount(m_GraphicsContext, texture_16f->m_Texture));
+    dmResource::Release(m_Factory, texture_16f);
+
+    dmGameSystem::TextureResource* texture_32f = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/texture/hdr_rgba32f.texturec", (void**)&texture_32f));
+    ASSERT_NE((dmGameSystem::TextureResource*)0, texture_32f);
+
+    dmGraphics::Texture* texture_32f_base = GetTextureBase(m_GraphicsContext, texture_32f->m_Texture);
+    ASSERT_NE((dmGraphics::Texture*)0, texture_32f_base);
+    ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGBA32F, texture_32f_base->m_Format);
+    ASSERT_EQ(2u, dmGraphics::GetTextureWidth(m_GraphicsContext, texture_32f->m_Texture));
+    ASSERT_EQ(2u, dmGraphics::GetTextureHeight(m_GraphicsContext, texture_32f->m_Texture));
+    ASSERT_EQ(1u, dmGraphics::GetTextureMipmapCount(m_GraphicsContext, texture_32f->m_Texture));
+    dmResource::Release(m_Factory, texture_32f);
+}
+
+// Unsupported half-float textures fall back to a supported float alternative.
+TEST_F(TextureResourceTest, FloatTextureSelectsSupportedAlternative)
+{
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*)m_GraphicsContext;
+    null_context->m_BaseContext.m_TextureFormatSupport &= ~(1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F);
+
+    dmGameSystem::TextureResource* texture = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/texture/hdr_rgba16f.texturec", (void**)&texture));
+    ASSERT_NE((dmGameSystem::TextureResource*)0, texture);
+
+    dmGraphics::Texture* texture_base = GetTextureBase(m_GraphicsContext, texture->m_Texture);
+    ASSERT_NE((dmGraphics::Texture*)0, texture_base);
+    ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGBA32F, texture_base->m_Format);
+    ASSERT_EQ(2u, dmGraphics::GetTextureMipmapCount(m_GraphicsContext, texture->m_Texture));
+    dmResource::Release(m_Factory, texture);
+}
+
+// A blank texture remains available when no float alternative is supported.
+TEST_F(TextureResourceTest, UnsupportedFloatTextureUsesBlankFallback)
+{
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*)m_GraphicsContext;
+    null_context->m_BaseContext.m_TextureFormatSupport &= ~(1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F);
+    null_context->m_BaseContext.m_TextureFormatSupport &= ~(1ULL << dmGraphics::TEXTURE_FORMAT_RGBA32F);
+
+    dmGameSystem::TextureResource* texture = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/texture/hdr_rgba16f.texturec", (void**)&texture));
+    ASSERT_NE((dmGameSystem::TextureResource*)0, texture);
+
+    dmGraphics::Texture* texture_base = GetTextureBase(m_GraphicsContext, texture->m_Texture);
+    ASSERT_NE((dmGraphics::Texture*)0, texture_base);
+    ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGBA, texture_base->m_Format);
+    ASSERT_EQ(1u, dmGraphics::GetTextureWidth(m_GraphicsContext, texture->m_Texture));
+    ASSERT_EQ(1u, dmGraphics::GetTextureHeight(m_GraphicsContext, texture->m_Texture));
+    dmResource::Release(m_Factory, texture);
 }
 
 TEST_F(TextureSetResourceTest, TestReloadTextureSet)
@@ -924,6 +1002,47 @@ TEST_F(ResourceFolderTest, TestCreateSoundDataFromScript)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+struct BufferResourceSizeInfo
+{
+    dmhash_t m_PathHash;
+    uint32_t m_Size;
+    uint32_t m_Count;
+};
+
+static bool RecordBufferResourceSize(const dmResource::IteratorResource& resource, void* context)
+{
+    BufferResourceSizeInfo* info = (BufferResourceSizeInfo*)context;
+    if (resource.m_Id == info->m_PathHash)
+    {
+        info->m_Size = resource.m_Size;
+        ++info->m_Count;
+    }
+    return true;
+}
+
+static void AssertBufferResourceSize(dmResource::HFactory factory, dmhash_t path_hash, uint32_t payload_size)
+{
+    HResourceDescriptor descriptor;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetDescriptorByHash(factory, path_hash, &descriptor));
+    uint32_t expected_size = sizeof(dmGameSystem::BufferResource) + payload_size;
+    EXPECT_EQ(expected_size, ResourceDescriptorGetResourceSize(descriptor));
+
+    BufferResourceSizeInfo info = { path_hash, 0, 0 };
+    dmResource::IterateResources(factory, RecordBufferResourceSize, &info);
+    ASSERT_EQ(1u, info.m_Count);
+    EXPECT_EQ(expected_size, info.m_Size);
+}
+
+static int LuaAssertBufferResourceSize(lua_State* L)
+{
+    dmResource::HFactory factory = (dmResource::HFactory)lua_touserdata(L, lua_upvalueindex(1));
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+    uint32_t payload_size = luaL_checkint(L, 2);
+    AssertBufferResourceSize(factory, path_hash, payload_size);
+    return 0;
+}
+
+// Buffer creation and updates must report the installed payload while retaining Lua ownership behavior.
 TEST_F(ResourceFolderTest, TestResourceScriptBuffer)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -937,8 +1056,26 @@ TEST_F(ResourceFolderTest, TestResourceScriptBuffer)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
+    lua_State* L = scriptlibcontext.m_LuaState;
+    lua_pushlightuserdata(L, m_Factory);
+    lua_pushcclosure(L, LuaAssertBufferResourceSize, 1);
+    lua_setglobal(L, "assert_buffer_resource_size");
+
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_buffer.goc", dmHashString64("/script_buffer"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE(0, go);
+
+    // Finalize temporary streams before collecting the buffer userdata they retain.
+    ASSERT_TRUE(RunString(L, "collectgarbage('collect'); collectgarbage('collect')"));
+    const char* released_paths[] = { "/size_buffer.bufferc", "/size_clone.bufferc" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(released_paths); ++i)
+    {
+        BufferResourceSizeInfo info = { dmHashString64(released_paths[i]), 0, 0 };
+        dmResource::IterateResources(m_Factory, RecordBufferResourceSize, &info);
+        EXPECT_EQ(0u, info.m_Count);
+    }
+
+    lua_pushnil(L);
+    lua_setglobal(L, "assert_buffer_resource_size");
 
     DeleteInstance(m_Collection, go);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -1251,6 +1388,7 @@ TEST(CollectionProxy, ZeroCapacityWorld)
         ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameSystem::CompCollectionProxyPostUpdate(post_update_params));
 
         dmGameObject::ComponentDeleteWorldParams delete_params = {};
+        delete_params.m_Context = &context;
         delete_params.m_World = world;
         ASSERT_EQ(dmGameObject::CREATE_RESULT_OK, dmGameSystem::CompCollectionProxyDeleteWorld(delete_params));
     }
@@ -1502,6 +1640,7 @@ TEST_F(CollectionProxyComponentTest, ReleaseDynamicResourceFromAnotherCollection
     ASSERT_TRUE(proxy_unloaded);
 }
 
+// Wait for the load callbacks and legacy message without assuming worker progress per update.
 TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadApi)
 {
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
@@ -1513,7 +1652,9 @@ TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadApi)
 
     bool callback1_ready = false;
     bool callback2_error = false;
-    for (uint32_t i = 0; i < 64; ++i)
+    bool legacy_posted = false;
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    while (!(callback1_ready && callback2_error && legacy_posted) && dmTime::GetMonotonicTime() < deadline)
     {
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -1526,14 +1667,16 @@ TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadApi)
         lua_getglobal(L, "cp_script_load2_error");
         callback2_error = lua_toboolean(L, -1) != 0;
         lua_pop(L, 1);
+
+        lua_getglobal(L, "cp_script_load_legacy_posted");
+        legacy_posted = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
     }
 
     ASSERT_TRUE(callback1_ready);
     ASSERT_TRUE(callback2_error);
 
-    lua_getglobal(L, "cp_script_load_legacy_posted");
-    ASSERT_TRUE(lua_toboolean(L, -1) != 0);
-    lua_pop(L, 1);
+    ASSERT_TRUE(legacy_posted);
 
     lua_getglobal(L, "cp_script_load1_error");
     ASSERT_TRUE(lua_isnil(L, -1));
@@ -2031,6 +2174,41 @@ class PackedMeshTest : public ResourceTest
 public:
     PackedMeshTest() { SetContentFolder("mesh"); }
 };
+
+// Descriptor and profiler sizes must follow loaded payloads, reload growth, shrinkage and empty buffers.
+TEST_F(PackedMeshTest, BufferResourceSize)
+{
+    dmGameSystem::BufferResource* resource;
+    const dmhash_t path_hash = dmHashString64("/mesh/triangle.bufferc");
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/mesh/triangle.bufferc", (void**)&resource));
+    AssertBufferResourceSize(m_Factory, path_hash, 36);
+
+    uint8_t replacement[64];
+    memcpy(replacement, PACKED_BUFFER, sizeof(PACKED_BUFFER));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, path_hash, replacement, sizeof(PACKED_BUFFER)));
+    AssertBufferResourceSize(m_Factory, path_hash, 8);
+
+    memcpy(replacement + 56, PACKED_BUFFER + 48, 8);
+    replacement[8] = 2;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, path_hash, replacement, sizeof(replacement)));
+    AssertBufferResourceSize(m_Factory, path_hash, 16);
+
+    replacement[8] = 1;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, path_hash, replacement, sizeof(PACKED_BUFFER)));
+    AssertBufferResourceSize(m_Factory, path_hash, 8);
+
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::SetResource(m_Factory, path_hash, replacement, sizeof(PACKED_BUFFER) - 1));
+    AssertBufferResourceSize(m_Factory, path_hash, 8);
+
+    replacement[8] = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, path_hash, replacement, 48));
+    AssertBufferResourceSize(m_Factory, path_hash, 0);
+
+    dmResource::Release(m_Factory, resource);
+    BufferResourceSizeInfo info = { path_hash, 0, 0 };
+    dmResource::IterateResources(m_Factory, RecordBufferResourceSize, &info);
+    ASSERT_EQ(0u, info.m_Count);
+}
 
 // Mesh stream types must come from the packed buffer, including byte-sized normals.
 TEST_F(PackedMeshTest, MixedStreamTypes)

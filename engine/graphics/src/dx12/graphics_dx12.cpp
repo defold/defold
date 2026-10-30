@@ -2770,6 +2770,8 @@ namespace dmGraphics
             vd->m_Streams[i].m_Type      = stream_declaration->m_Streams[i].m_Type;
             vd->m_Streams[i].m_Normalize = stream_declaration->m_Streams[i].m_Normalize;
             vd->m_Streams[i].m_Offset    = vd->m_Stride;
+            vd->m_Streams[i].m_Reserved0 = 0;
+            memset(vd->m_Streams[i].m_Reserved1, 0, sizeof(vd->m_Streams[i].m_Reserved1));
 
             vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
         }

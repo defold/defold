@@ -289,6 +289,12 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
         list(APPEND _graphics_buffer_command --skip-all "Hosted CI graphics tests explicitly disabled for ${TARGET_PLATFORM}")
         message(STATUS "Graphics captures skipped on hosted ${TARGET_PLATFORM} CI; manual target remains available")
       endif()
+      if(WITH_MSAN)
+        # System GPU loaders and drivers do not maintain MSan shadow memory.
+        list(APPEND _graphics_ci_command --skip-all "MSan GPU tests require instrumented graphics drivers")
+        list(APPEND _graphics_buffer_command --skip-all "MSan GPU tests require instrumented graphics drivers")
+        message(STATUS "MSan GPU captures require instrumented graphics drivers; manual target remains available")
+      endif()
       add_custom_target(run_graphics_test_images
         COMMAND ${_graphics_runner} ${_graphics_ci_command}
         DEPENDS test_app_graphics

@@ -80,6 +80,8 @@ namespace dmRender
     }
 
     void StencilTestParams::Init() {
+        // Text batching hashes the full representation, including padding bits.
+        memset(this, 0, sizeof(*this));
         m_Front.m_Func = dmGraphics::COMPARE_FUNC_ALWAYS;
         m_Front.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
         m_Front.m_OpDPFail = dmGraphics::STENCIL_OP_KEEP;

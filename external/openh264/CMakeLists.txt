@@ -31,7 +31,7 @@ foreach(component IN ITEMS common encoder decoder processing)
   target_sources(openh264 PRIVATE $<TARGET_OBJECTS:openh264_${component}>)
 endforeach()
 
-if(TARGET_PLATFORM STREQUAL "arm64-linux")
+if(TARGET_PLATFORM STREQUAL "arm64-linux" AND NOT WITH_MSAN)
   enable_language(ASM)
   file(GLOB OPENH264_ASM CONFIGURE_DEPENDS
     "${OPENH264_ROOT}/codec/common/arm64/*.S"
@@ -41,7 +41,7 @@ if(TARGET_PLATFORM STREQUAL "arm64-linux")
   target_sources(openh264 PRIVATE ${OPENH264_ASM})
   target_include_directories(openh264 PRIVATE "${OPENH264_ROOT}/codec/common/arm64")
   target_compile_definitions(openh264_options INTERFACE HAVE_NEON_AARCH64)
-elseif(TARGET_PLATFORM STREQUAL "x86_64-linux")
+elseif(TARGET_PLATFORM STREQUAL "x86_64-linux" AND NOT WITH_MSAN)
   find_program(OPENH264_NASM nasm HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}")
   if(OPENH264_NASM)
     file(GLOB OPENH264_ASM CONFIGURE_DEPENDS

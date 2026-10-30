@@ -223,12 +223,12 @@ namespace dmGameSystem
 
 /*# Box2D transform
  *
- * World transform for a Box2D body.
+ * Transform for a Box2D body or local joint frame.
  *
  * @struct
  * @name b2d.transform
- * @member position [type:vector3] World position of the body origin.
- * @member angle [type:number] World rotation angle in radians.
+ * @member position [type:vector3] Position of the body origin or local joint anchor.
+ * @member angle [type:number] Rotation angle in radians.
  */
 
 /*# Box2D version information
@@ -460,16 +460,15 @@ namespace dmGameSystem
  * @member pairs [type:number] Pair update time.
  * @member collide [type:number] Collision time.
  * @member solve [type:number] Solver time.
- * @member merge_islands [type:number] Island merge time.
- * @member prepare_stages [type:number] Stage preparation time.
- * @member solve_constraints [type:number] Constraint solver time.
+ * @member solver_setup [type:number] Stage preparation time.
+ * @member constraints [type:number] Constraint solver time.
  * @member prepare_constraints [type:number] Constraint preparation time.
  * @member integrate_velocities [type:number] Velocity integration time.
  * @member warm_start [type:number] Warm-start time.
  * @member solve_impulses [type:number] Impulse solver time.
  * @member integrate_positions [type:number] Position integration time.
  * @member relax_impulses [type:number] Impulse relaxation time.
- * @member apply_restitution [type:number] Restitution time.
+ * @member restitution [type:number] Restitution time.
  * @member store_impulses [type:number] Impulse storage time.
  * @member split_islands [type:number] Island splitting time.
  * @member transforms [type:number] Transform update time.
@@ -499,8 +498,10 @@ namespace dmGameSystem
 /*# Box2D distance-joint definition
  * @struct
  * @name b2d.joint.distance_definition
- * @member local_anchor_a? [type:vector3] Local anchor on the first body.
- * @member local_anchor_b? [type:vector3] Local anchor on the second body.
+ * @member local_anchor_a? [type:vector3] Local anchor on the first body (Box2D v2).
+ * @member local_anchor_b? [type:vector3] Local anchor on the second body (Box2D v2).
+ * @member local_frame_a? [type:b2d.transform] Local joint frame on the first body (Box2D v3).
+ * @member local_frame_b? [type:b2d.transform] Local joint frame on the second body (Box2D v3).
  * @member length? [type:number] Rest length.
  * @member min_length? [type:number] Minimum length.
  * @member max_length? [type:number] Maximum length.
@@ -516,7 +517,7 @@ namespace dmGameSystem
  * @member collide_connected? [type:boolean] Whether connected bodies collide.
  */
 
-/*# Box2D mouse-joint definition
+/*# Box2D v2 mouse-joint definition
  * @struct
  * @name b2d.joint.mouse_definition
  * @member target? [type:vector3] Target position.
@@ -531,10 +532,12 @@ namespace dmGameSystem
 /*# Box2D prismatic-joint definition
  * @struct
  * @name b2d.joint.prismatic_definition
- * @member local_anchor_a? [type:vector3] Local anchor on the first body.
- * @member local_anchor_b? [type:vector3] Local anchor on the second body.
- * @member local_axis_a? [type:vector3] Local translation axis on the first body.
- * @member reference_angle? [type:number] Reference angle.
+ * @member local_anchor_a? [type:vector3] Local anchor on the first body (Box2D v2).
+ * @member local_anchor_b? [type:vector3] Local anchor on the second body (Box2D v2).
+ * @member local_frame_a? [type:b2d.transform] Local joint frame on the first body (Box2D v3). Its x-axis defines the translation or suspension axis.
+ * @member local_frame_b? [type:b2d.transform] Local joint frame on the second body (Box2D v3). Relative frame angles replace reference_angle.
+ * @member local_axis_a? [type:vector3] Local translation axis on the first body (Box2D v2).
+ * @member reference_angle? [type:number] Reference angle (Box2D v2).
  * @member enable_spring? [type:boolean] Whether the spring is enabled.
  * @member hertz? [type:number] Spring frequency in hertz.
  * @member frequency? [type:number] Legacy spring frequency alias.
@@ -552,9 +555,11 @@ namespace dmGameSystem
 /*# Box2D revolute-joint definition
  * @struct
  * @name b2d.joint.revolute_definition
- * @member local_anchor_a? [type:vector3] Local anchor on the first body.
- * @member local_anchor_b? [type:vector3] Local anchor on the second body.
- * @member reference_angle? [type:number] Reference angle.
+ * @member local_anchor_a? [type:vector3] Local anchor on the first body (Box2D v2).
+ * @member local_anchor_b? [type:vector3] Local anchor on the second body (Box2D v2).
+ * @member local_frame_a? [type:b2d.transform] Local joint frame on the first body (Box2D v3).
+ * @member local_frame_b? [type:b2d.transform] Local joint frame on the second body (Box2D v3). Relative frame angles replace reference_angle.
+ * @member reference_angle? [type:number] Reference angle (Box2D v2).
  * @member enable_spring? [type:boolean] Whether the spring is enabled.
  * @member hertz? [type:number] Spring frequency in hertz.
  * @member frequency? [type:number] Legacy spring frequency alias.
@@ -572,9 +577,11 @@ namespace dmGameSystem
 /*# Box2D weld-joint definition
  * @struct
  * @name b2d.joint.weld_definition
- * @member local_anchor_a? [type:vector3] Local anchor on the first body.
- * @member local_anchor_b? [type:vector3] Local anchor on the second body.
- * @member reference_angle? [type:number] Reference angle.
+ * @member local_anchor_a? [type:vector3] Local anchor on the first body (Box2D v2).
+ * @member local_anchor_b? [type:vector3] Local anchor on the second body (Box2D v2).
+ * @member local_frame_a? [type:b2d.transform] Local joint frame on the first body (Box2D v3).
+ * @member local_frame_b? [type:b2d.transform] Local joint frame on the second body (Box2D v3). Relative frame angles replace reference_angle.
+ * @member reference_angle? [type:number] Reference angle (Box2D v2).
  * @member hertz? [type:number] Legacy spring frequency in hertz.
  * @member frequency? [type:number] Legacy spring frequency.
  * @member damping_ratio? [type:number] Legacy spring damping ratio.
@@ -589,9 +596,11 @@ namespace dmGameSystem
 /*# Box2D wheel-joint definition
  * @struct
  * @name b2d.joint.wheel_definition
- * @member local_anchor_a? [type:vector3] Local anchor on the first body.
- * @member local_anchor_b? [type:vector3] Local anchor on the second body.
- * @member local_axis_a? [type:vector3] Local suspension axis on the first body.
+ * @member local_anchor_a? [type:vector3] Local anchor on the first body (Box2D v2).
+ * @member local_anchor_b? [type:vector3] Local anchor on the second body (Box2D v2).
+ * @member local_frame_a? [type:b2d.transform] Local joint frame on the first body (Box2D v3). Its x-axis defines the translation or suspension axis.
+ * @member local_frame_b? [type:b2d.transform] Local joint frame on the second body (Box2D v3).
+ * @member local_axis_a? [type:vector3] Local suspension axis on the first body (Box2D v2).
  * @member enable_spring? [type:boolean] Whether the spring is enabled.
  * @member hertz? [type:number] Spring frequency in hertz.
  * @member frequency? [type:number] Legacy spring frequency alias.
@@ -648,11 +657,18 @@ namespace dmGameSystem
 /*# Box2D motor-joint definition
  * @struct
  * @name b2d.joint.motor_definition
- * @member linear_offset? [type:vector3] Linear target offset.
- * @member angular_offset? [type:number] Angular target offset.
- * @member max_force? [type:number] Maximum motor force.
- * @member max_torque? [type:number] Maximum motor torque.
- * @member correction_factor? [type:number] Position correction factor.
+ * @member local_frame_a? [type:b2d.transform] Local joint frame on the first body.
+ * @member local_frame_b? [type:b2d.transform] Local joint frame on the second body.
+ * @member linear_velocity? [type:vector3] Target relative linear velocity.
+ * @member angular_velocity? [type:number] Target relative angular velocity in radians per second.
+ * @member max_velocity_force? [type:number] Maximum velocity motor force. Defaults to zero.
+ * @member max_velocity_torque? [type:number] Maximum velocity motor torque. Defaults to zero.
+ * @member linear_hertz? [type:number] Linear spring frequency.
+ * @member linear_damping_ratio? [type:number] Linear spring damping ratio.
+ * @member max_spring_force? [type:number] Maximum spring force. Defaults to zero.
+ * @member angular_hertz? [type:number] Angular spring frequency.
+ * @member angular_damping_ratio? [type:number] Angular spring damping ratio.
+ * @member max_spring_torque? [type:number] Maximum spring torque. Defaults to zero.
  * @member collide_connected? [type:boolean] Whether connected bodies collide.
  */
 

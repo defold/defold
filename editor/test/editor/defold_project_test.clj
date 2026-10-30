@@ -17,14 +17,18 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
+            [editor.localization :as localization]
             [editor.placeholder-resource :as placeholder-resource]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
+            [service.log :as log]
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll]
-            [util.eduction :as e]))
+            [util.eduction :as e])
+  (:import [clojure.lang ArityException]))
 
 (g/defnode ANode
   (inherits resource-node/ResourceNode)
@@ -43,6 +47,10 @@
 (g/defnode BNode
   (inherits resource-node/ResourceNode)
   (property value g/Str))
+
+(g/defnode CachedSaveValueNode
+  (inherits resource-node/ResourceNode)
+  (output save-value g/Any :cached (g/constantly nil)))
 
 (defn- register-resource-types [workspace types]
   (for [type types]
@@ -168,6 +176,162 @@
                 (is (= "/missing.type_a" (resource/proj-path missing-resource)))
                 (is (identical? missing-resource (resolve-resource-fn owner-resource "missing.type_a"))))))
           (is (= "t" (g/node-value a1 :value-piece))))))))
+
+;; Verifies only callback arity errors use plugin-incompatibility handling.
+;; Other illegal arguments retain their existing handling or propagation.
+(deftest resource-type-function-invalid-arguments
+  (doseq [function-key
+          [:connect-fn
+           :dependencies-fn
+           :load-fn
+           :read-fn
+           :source-value-fn]
+
+          [failure exception-type invalid-fn]
+          [[:too-few
+            ArityException
+            (fn too-few-arguments [] nil)]
+           [:too-many
+            ArityException
+            (fn too-many-arguments [_a _b _c _d _e _f _g _h] nil)]
+           [:illegal-argument
+            IllegalArgumentException
+            (fn illegal-argument [& _args]
+              (throw (IllegalArgumentException. "Intentional illegal argument")))]]]
+
+    (testing (str function-key " " failure)
+      (let [load-project
+            (fn load-project []
+              (with-clean-system
+                (test-util/with-ui-run-later-rebound
+                  (let [applied-load-tx-counter (atom 0)
+                        project-path (.getAbsolutePath (io/file "test/resources/load_project"))
+                        workspace (workspace/make-workspace project-path {} {} test-util/localization)]
+                    (g/transact
+                      (e/concat
+                        (placeholder-resource/register-resource-types workspace)
+                        (workspace/register-resource-type workspace
+                          (assoc {:ext "type_b"
+                                  :node-type BNode
+                                  :read-fn (fn read-resource [_read-opts _owner-resource readable]
+                                             (read-string (slurp readable)))
+                                  :load-fn (fn load-resource [_load-opts {:keys [node-id source-value]}]
+                                             (e/concat
+                                               (g/callback swap! applied-load-tx-counter inc)
+                                               (g/set-property node-id :value (:value source-value))))
+                                  :write-fn pr-str}
+                            function-key invalid-fn))))
+                    (workspace/resource-sync! workspace)
+                    (let [project (log/without-logging (test-util/setup-project! workspace))
+                          node-id (project/get-resource-node project "/b.type_b")
+                          error-value (g/node-value node-id :build-targets)]
+                      {:defective (g/defective? node-id)
+                       :error-value (g/error-value? error-value)
+                       :exception-type (type (-> error-value :user-data :exception))
+                       :applied-load-tx-count @applied-load-tx-counter
+                       :save-data-connected (coll/any? #(= node-id (gt/source-id %))
+                                                       (g/inputs (g/now) project :save-data))
+                       :save-data-error (g/error-value? (g/node-value node-id :save-data))
+                       :severity (:severity error-value)
+                       :message (:message error-value)})))))]
+
+        (cond
+          (and (= :illegal-argument failure)
+               (or (= :connect-fn function-key)
+                   (= :source-value-fn function-key)))
+          ;; Not caught.
+          (is (thrown-with-msg?
+                IllegalArgumentException
+                #"Intentional illegal argument"
+                (load-project)))
+
+          (and (= :illegal-argument failure)
+               (= :dependencies-fn function-key))
+          ;; Caught and ignored. Reports no dependencies.
+          (is (= {:defective false
+                  :error-value false
+                  :exception-type nil
+                  :applied-load-tx-count 1
+                  :save-data-connected true
+                  :save-data-error false
+                  :severity nil
+                  :message nil}
+                 (load-project)))
+
+          :else
+          ;; Caught and marks the node defective.
+          (is (= {:defective true
+                  :error-value true
+                  :exception-type exception-type
+                  :applied-load-tx-count 0
+                  :save-data-connected false
+                  :save-data-error true
+                  :severity :fatal
+                  :message (if (= ArityException exception-type)
+                             (localization/message
+                               "error.resource-not-loaded-update-extension"
+                               {"resource" "/b.type_b"})
+                             (localization/message
+                               "error.resource-not-loaded-with-error"
+                               {"resource" "/b.type_b"
+                                "error" "Intentional illegal argument"}))}
+                 (load-project))))))))
+
+;; Verifies read errors are stored for the unjammable source-value output even
+;; though a failed read produces no source-value.
+(deftest read-errors-are-stored-as-source-values
+  (with-clean-system
+    (test-util/with-ui-run-later-rebound
+      (let [read-exception (ex-info "Intentional read failure" {})
+            project-path (.getAbsolutePath (io/file "test/resources/load_project"))
+            workspace (workspace/make-workspace project-path {} {} test-util/localization)]
+        (g/transact
+          (e/concat
+            (placeholder-resource/register-resource-types workspace)
+            (workspace/register-resource-type workspace
+              :ext "type_b"
+              :node-type BNode
+              :read-fn (fn read-resource [_read-opts _owner-resource _readable]
+                         (throw read-exception))
+              :load-fn (fn load-resource [_load-opts _node-load-info] nil)
+              :write-fn pr-str)))
+        (workspace/resource-sync! workspace)
+        (let [project (log/without-logging (test-util/setup-project! workspace))
+              node-id (project/get-resource-node project "/b.type_b")
+              source-value (g/node-value node-id :source-value)]
+          (is (g/defective? node-id))
+          (is (g/error-value? source-value))
+          (is (identical? read-exception (-> source-value :user-data :exception))))))))
+
+;; Verifies defective nodes retain their read error in both save output caches.
+;; Evaluating jammed outputs alone would not detect missing cache entries.
+(deftest read-errors-are-cached-for-save-outputs
+  (with-clean-system
+    (test-util/with-ui-run-later-rebound
+      (let [project-path (.getAbsolutePath (io/file "test/resources/load_project"))
+            workspace (workspace/make-workspace project-path {} {} test-util/localization)]
+        (g/transact
+          (e/concat
+            (placeholder-resource/register-resource-types workspace)
+            (workspace/register-resource-type workspace
+              :ext "type_b"
+              :node-type CachedSaveValueNode
+              :read-fn (fn read-resource [_read-opts _owner-resource _readable]
+                         (throw (ex-info "Intentional read failure" {})))
+              :connect-fn (fn connect-resource [project node-id _resource]
+                            (g/connect node-id :save-data project :save-data))
+              :load-fn (fn load-resource [_load-opts _node-load-info] nil)
+              :write-fn pr-str)))
+        (workspace/resource-sync! workspace)
+        (let [project (log/without-logging (test-util/setup-project! workspace))
+              node-id (project/get-resource-node project "/b.type_b")
+              read-error (:save-data (g/node-value node-id :_output-jammers))]
+          (is (g/defective? node-id))
+          (is (g/error-value? read-error))
+          (doseq [label [:save-data :save-value]]
+            (testing (name label)
+              (is (identical? read-error
+                              (get (g/cache) (g/endpoint node-id label)))))))))))
 
 (deftest embedded-load-owner-resource
   (doseq [editability [:editable :non-editable]]

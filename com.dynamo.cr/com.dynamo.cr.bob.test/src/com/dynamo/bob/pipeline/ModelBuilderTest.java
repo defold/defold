@@ -341,6 +341,28 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
                 "mesh_index: 0\n");
     }
 
+    // Verifies modern and legacy model bindings reference compiled HDR textures instead of unsupported .hdr resources.
+    @Test
+    public void testModelHdrTexturesCompileToTexturec() throws Exception {
+        addFile("/test_meshset.gltf", GLTF);
+        addFile("/textures/environment.hdr", getFile("/hdr_2x2.hdr"));
+        addFile("/testModelHdr.vp", "void main() {}\n");
+        addFile("/testModelHdr.fp", "void main() {}\n");
+        addFile("/test.material",
+                "name: \"test_material\"\n" +
+                "vertex_program: \"/testModelHdr.vp\"\n" +
+                "fragment_program: \"/testModelHdr.fp\"\n");
+
+        for (String binding : List.of(
+                "materials { name: \"default\" material: \"/test.material\" " +
+                        "textures { sampler: \"environment\" texture: \"/textures/environment.hdr\" } }",
+                "material: \"/test.material\" textures: \"/textures/environment.hdr\"")) {
+            Model model = getMessage(build("/test.model", "mesh: \"/test_meshset.gltf\" " + binding), Model.class);
+            assertEquals("/textures/environment.texturec", model.getMaterials(0).getTextures(0).getTexture());
+            assertTrue(getFileSystem().get("build/textures/environment.texturec").exists());
+        }
+    }
+
     @Test
     public void testModelTextureWithMixedCaseExtension() throws Exception {
         addFile("/test_meshset.gltf", GLTF);

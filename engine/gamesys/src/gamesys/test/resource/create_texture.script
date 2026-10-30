@@ -124,6 +124,10 @@ end
 function test_compressed_fail()
     -- Note: res_texture won't yield an error here, we need to check the result of this operation on the C side
     local tex_buffer = buffer.create(128, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 1 }})
+    local stream = buffer.get_stream(tex_buffer, hash("data"))
+    for i = 1, #stream do
+        stream[i] = 0
+    end
     resource.create_texture("/test_compressed_fail.texturec", tparams_compressed, tex_buffer)
 end
 

@@ -60,8 +60,10 @@ namespace dmHttpClient
     typedef void (*HttpHeader)(HResponse response, void* user_data, int status_code, const char* key, const char* value);
 
     /**
-     * HTTP-content call-back. Called with both content_data and content_data_size set to 0 indicates the start of a response.
+     * HTTP-content call-back. A call with content_data, content_data_size and method
+     * set to 0 indicates the start of a response, including cache replay.
      * During a request retry this might occur more than once when the request starts over.
+     * A cached HEAD metadata callback also has no data, but its method is "HEAD".
      * @param response Response handle
      * @param user_data User data
      * @param status_code Status code, eg 200
@@ -265,6 +267,11 @@ namespace dmHttpClient
      * @return RESULT_OK on success
      */
     Result Request(HClient client, const char* method, const char* path);
+
+    // Replay GET or HEAD from the current cache key without a network request.
+    // The caller must have validated this exact ETag. Missing entries return
+    // RESULT_IO_ERROR so the caller can fall back to a regular request.
+    Result RequestCached(HClient client, const char* method, const char* etag);
 
     /**
      * Write data. Called from HttpWrite-callback to write POST-data

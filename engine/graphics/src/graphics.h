@@ -249,8 +249,10 @@ namespace dmGraphics
             int16_t  m_Location;
             uint16_t m_Size;
             uint16_t m_Offset;
+            uint16_t m_Reserved0;
             Type     m_Type;
             bool     m_Normalize;
+            uint8_t  m_Reserved1[3];
         };
 
         Stream*            m_Streams;

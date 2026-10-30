@@ -21,6 +21,7 @@
 #include <dlib/thread.h>
 #include <dlib/uri.h>
 #include <dlib/webserver.h>
+#include <resource/resource_ddf.h>
 
 TEST_F(EngineTest, ServiceInstanceNameSanitizesAddress)
 {
@@ -119,6 +120,7 @@ public:
     const char* m_Method;
     const char* m_Path;
     const char* m_RequestBody;
+    uint32_t m_RequestBodySize;
     bool m_SendRequestBody;
     int32_t m_RequestPrefixSize;
     int m_ProbeStatus;
@@ -191,7 +193,7 @@ public:
 
     static uint32_t ContentLength(dmHttpClient::HResponse, void* context)
     {
-        return strlen(((EngineServiceOpenAPITest*)context)->m_RequestBody);
+        return ((EngineServiceOpenAPITest*)context)->m_RequestBodySize;
     }
 
     static dmHttpClient::Result Write(dmHttpClient::HResponse response, uint32_t offset, uint32_t length, void* context)
@@ -233,11 +235,12 @@ public:
         return dmHttpClient::Write(response, self->m_RequestBody + offset + prefix_size, length - prefix_size);
     }
 
-    void Fetch(const char* method, const char* path, const char* body = "", bool send_body = true)
+    void Fetch(const char* method, const char* path, const char* body = "", bool send_body = true, uint32_t body_size = UINT32_MAX)
     {
         m_Method = method;
         m_Path = path;
         m_RequestBody = body;
+        m_RequestBodySize = body_size == UINT32_MAX ? strlen(body) : body_size;
         m_SendRequestBody = send_body;
         m_ProbeStatus = 0;
         m_ProbeResult = dmHttpClient::RESULT_UNKNOWN;
@@ -264,6 +267,99 @@ public:
         dmWebServer::Send(request, body, strlen(body));
     }
 };
+
+class EngineServiceReloadTest : public EngineServiceOpenAPITest
+{
+public:
+    dmMessage::HSocket m_ResourceSocket;
+    dmResourceDDF::Reload* m_ExpectedReload;
+
+    void SetUp()
+    {
+        m_ExpectedReload = 0;
+        EngineServiceOpenAPITest::SetUp();
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("@resource", &m_ResourceSocket));
+    }
+
+    void TearDown()
+    {
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(m_ResourceSocket));
+        EngineServiceOpenAPITest::TearDown();
+    }
+
+    static void CheckReload(dmMessage::Message* message, void* context)
+    {
+        EngineServiceReloadTest* self = (EngineServiceReloadTest*)context;
+        ASSERT_EQ((uintptr_t)dmResourceDDF::Reload::m_DDFDescriptor, message->m_Descriptor);
+        ASSERT_EQ(0U, message->m_DataSize);
+        ASSERT_NE((uintptr_t)0, message->m_UserData1);
+        ASSERT_NE((dmResourceDDF::Reload*)0, self->m_ExpectedReload);
+        dmResourceDDF::Reload* reload = (dmResourceDDF::Reload*)message->m_UserData1;
+        ASSERT_EQ(self->m_ExpectedReload->m_Resources.m_Count, reload->m_Resources.m_Count);
+        const char* base = (const char*)reload;
+        const uintptr_t* offsets = (const uintptr_t*)(base + (uintptr_t)reload->m_Resources.m_Data);
+        for (uint32_t i = 0; i < reload->m_Resources.m_Count; ++i)
+            ASSERT_STREQ(self->m_ExpectedReload->m_Resources[i], base + offsets[i]);
+    }
+};
+
+// Reloads larger than both the old 1 KiB HTTP limit and a message page must
+// arrive as one batch with every path in order, including uploads above 64 KiB.
+TEST_F(EngineServiceReloadTest, LargeReloadBatches)
+{
+    const uint32_t counts[] = { 0, 1, 40, 256, 4096 };
+    dmArray<char> paths;
+    paths.SetCapacity(4096 * 64);
+    paths.SetSize(paths.Capacity());
+    dmArray<const char*> names;
+    names.SetCapacity(4096);
+    for (uint32_t i = 0; i < names.Capacity(); ++i)
+    {
+        char* path = paths.Begin() + i * 64;
+        dmSnPrintf(path, 64, "/assets/data/item-%04u.json", i);
+        names.Push(path);
+    }
+    dmResourceDDF::Reload reload = {};
+    reload.m_Resources.m_Data = names.Begin();
+    m_ExpectedReload = &reload;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(counts); ++i)
+    {
+        reload.m_Resources.m_Count = counts[i];
+        dmArray<uint8_t> encoded;
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&reload, dmResourceDDF::Reload::m_DDFDescriptor, encoded));
+        if (counts[i] == 40)
+            ASSERT_GT(encoded.Size(), 1024U);
+        if (counts[i] == 4096)
+            ASSERT_GT(encoded.Size(), 64U * 1024U);
+        Fetch("POST", "/post/@resource/reload", (const char*)encoded.Begin(), true, encoded.Size());
+        ASSERT_EQ(dmHttpClient::RESULT_OK, m_Result);
+        ASSERT_EQ(200, m_Status);
+        ASSERT_EQ(1U, dmMessage::Dispatch(m_ResourceSocket, CheckReload, this));
+    }
+}
+
+// A malformed reload must fail before posting anything and must not wait for
+// more body bytes after the complete, invalid payload has already been read.
+TEST_F(EngineServiceReloadTest, InvalidReload)
+{
+    const char truncated[] = { 0x0a, 0x05, 'a' };
+    Fetch("POST", "/post/@resource/reload", truncated, true, sizeof(truncated));
+    ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, m_Result);
+    ASSERT_EQ(400, m_Status);
+    ASSERT_STREQ("Invalid message", m_Body.Begin());
+    ASSERT_EQ(0U, dmMessage::Dispatch(m_ResourceSocket, CheckReload, this));
+}
+
+// Reject oversized reload headers without allocating or waiting for the body.
+TEST_F(EngineServiceReloadTest, ReloadBodyLimit)
+{
+    Fetch("POST", "/post/@resource/reload", "", false, 64U * 1024U * 1024U + 1);
+    ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, m_Result);
+    ASSERT_EQ(400, m_Status);
+    ASSERT_STREQ("close", m_Connection);
+    ASSERT_STREQ("Too large message", m_Body.Begin());
+    ASSERT_EQ(0U, dmMessage::Dispatch(m_ResourceSocket, CheckReload, this));
+}
 
 // The actual discovery endpoint must expose all built-ins and take precedence over the profiler's root fallback.
 TEST_F(EngineServiceOpenAPITest, BuiltinDocument)

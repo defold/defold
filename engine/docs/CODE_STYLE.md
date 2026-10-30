@@ -2,7 +2,17 @@
 
 ## Formatting
 
-Follow current code style as defined in `.clang-format`, or follow the existing style of the file you're editing.
+Use Uncrustify 0.83.0 with [engine/.uncrustify.cfg](../.uncrustify.cfg) for engine C and C++ sources and headers. To format a whole file, run from the repository root:
+
+```sh
+uncrustify -c engine/.uncrustify.cfg -l CPP --replace --no-backup path/to/file.cpp
+```
+
+Use `-l C` for C sources and C API headers, including public `dmsdk` headers intended for C. Use `-l CPP` for C++ or mixed C/C++ headers. Choose by the header's contents; `.h` is used for both languages.
+
+Always format new files in full. For existing files, format a temporary copy of the whole file and apply only formatting changes around the lines you edited. Uncrustify has no native changed-line mode. Preserve existing local declaration spacing, intentional alignment, and manual line breaks.
+
+Use braces for control-flow bodies and switch cases. Grouped case labels share a body. New case braces can require a second pass. Keep existing formatting where Uncrustify misparses an expression; do not add suppression comments.
 
 ## C-like C++
 

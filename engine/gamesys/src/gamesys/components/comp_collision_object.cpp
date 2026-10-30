@@ -159,15 +159,28 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompCollisionObjectFixedUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        CollisionWorld* world = (CollisionWorld*)params.m_World;
+        if (!world)
+            return dmGameObject::UPDATE_RESULT_OK;
+
+        dmGameObject::UpdateResult r = dmGameObject::UPDATE_RESULT_OK;
+
         if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BOX2D)
         {
-            return CompCollisionObjectBox2DFixedUpdate(params, update_result);
+            r = CompCollisionObjectBox2DFixedUpdate(params, update_result);
         }
         else if (physics_context->m_PhysicsType == PHYSICS_ENGINE_BULLET3D)
         {
-            return CompCollisionObjectBullet3DFixedUpdate(params, update_result);
+            r = CompCollisionObjectBullet3DFixedUpdate(params, update_result);
         }
-        return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        else
+        {
+            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        }
+
+        if (world->m_CallbackInfoBatched)
+            FlushMessages(world);
+        return r;
     }
 
     dmGameObject::UpdateResult CompCollisionObjectPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params)
@@ -490,6 +503,7 @@ namespace dmGameSystem
         if (response.m_Hit)
         {
             dmPhysicsDDF::RayCastResponse response_ddf;
+            memset(&response_ddf, 0, sizeof(response_ddf));
             CollisionComponent* component = (CollisionComponent*)response.m_CollisionObjectUserData;
 
             response_ddf.m_Fraction = response.m_Fraction;

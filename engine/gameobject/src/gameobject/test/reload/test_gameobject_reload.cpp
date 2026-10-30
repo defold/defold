@@ -191,12 +191,14 @@ dmResource::Result ReloadTest::ResReloadTargetDestroy(const dmResource::Resource
 
 dmResource::Result ReloadTest::ResReloadTargetRecreate(const dmResource::ResourceRecreateParams* params)
 {
-    dmDDF::FreeMessage((void*) ResourceDescriptorGetResource(params->m_Resource));
     TestGameObjectDDF::ReloadTarget* obj;
     dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::ReloadTarget>(params->m_Buffer, params->m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        ResourceDescriptorSetResource(params->m_Resource, obj);
+        // Recreate must keep existing resource pointers valid, regardless of allocator reuse.
+        TestGameObjectDDF::ReloadTarget* resource = (TestGameObjectDDF::ReloadTarget*)ResourceDescriptorGetResource(params->m_Resource);
+        resource->m_Value = obj->m_Value;
+        dmDDF::FreeMessage(obj);
         return dmResource::RESULT_OK;
     }
     else

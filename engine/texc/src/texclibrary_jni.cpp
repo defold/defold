@@ -155,6 +155,42 @@ JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_IsHDR(JNIEnv* env, jclass cls, jb
     return result;
 }
 
+JNIEXPORT jobject JNICALL Java_TexcLibraryJni_GetImageInfo(JNIEnv* env, jclass cls, jbyteArray array)
+{
+    if (!array)
+    {
+        dmLogError("%s: Image data array was null!", __FUNCTION__);
+        return 0;
+    }
+
+    jobject obj = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmJNI::ScopedByteArray j_array(env, array);
+        dmImage::ImageInfo info;
+        if (dmImage::GetInfo(j_array.m_Array, j_array.m_ArraySize, &info) != dmImage::RESULT_OK)
+        {
+            return 0;
+        }
+
+        jclass info_class = env->FindClass(JAVA_PACKAGE_NAME "/TexcLibraryJni$ImageInfo");
+        if (!info_class)
+        {
+            return 0;
+        }
+
+        jmethodID constructor = env->GetMethodID(info_class, "<init>", "(II)V");
+        if (!constructor)
+        {
+            env->DeleteLocalRef(info_class);
+            return 0;
+        }
+
+        obj = env->NewObject(info_class, constructor, (jint)info.m_Width, (jint)info.m_Height);
+        env->DeleteLocalRef(info_class);
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return obj;
+}
+
 JNIEXPORT jobject JNICALL Java_TexcLibraryJni_CreateImageFromBuffer(JNIEnv* env, jclass cls, jbyteArray array)
 {
     dmLogDebug("%s: env = %p\n", __FUNCTION__, env);
@@ -573,6 +609,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
         // Image api
         JNIFUNC(CreateImage, "(Ljava/lang/String;IIII[B)J"),
         JNIFUNC(IsHDR, "([B)Z"),
+        JNIFUNC(GetImageInfo, "([B)L" JAVA_PACKAGE_NAME "/TexcLibraryJni$ImageInfo;"),
         JNIFUNC(LoadKtx2, "([B)Lcom/dynamo/bob/pipeline/TexcLibraryJni$Ktx2Texture;"),
         JNIFUNC(DecodeKtx2Mip, "(JI)[B"),
         JNIFUNC(RepackKtx2Mip, "(JI)[B"),

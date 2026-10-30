@@ -105,7 +105,7 @@ struct TextGradientEffect
         // Authored parameters: linear angle in degrees; radial pivot x/y, radius x/y
         // relative to the longer fit dimension, and counterclockwise angle in degrees.
         // Resolved to projection/ellipse transform at draw time.
-        FontColorEffect m_Color;
+        FontColorEffect     m_Color;
     };
     float   m_Hz;
     uint8_t m_Fit;
@@ -175,8 +175,8 @@ struct ResolvedMarkup
 struct TextDecorationGeometry
 {
     uint32_t m_GlyphIndex;
-    float m_X;
-    float m_Length;
+    float    m_X;
+    float    m_Length;
 };
 
 // Retain shaped metrics for decorations that an object style can enable later.

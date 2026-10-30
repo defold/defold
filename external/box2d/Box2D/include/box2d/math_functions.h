@@ -4,84 +4,41 @@
 #pragma once
 
 #include "base.h"
+#include "math_types.h"
 
 #include <float.h>
 #include <math.h>
 #include <stdbool.h>
 
 /**
- * @defgroup math Math
- * @brief Vector math types and functions
- * @{
- */
-
-/// 2D vector
-/// This can be used to represent a point or free vector
-typedef struct b2Vec2
-{
-	/// coordinates
-	float x, y;
-} b2Vec2;
-
-/// Cosine and sine pair
-/// This uses a custom implementation designed for cross-platform determinism
-typedef struct b2CosSin
-{
-	/// cosine and sine
-	float cosine;
-	float sine;
-} b2CosSin;
-
-/// 2D rotation
-/// This is similar to using a complex number for rotation
-typedef struct b2Rot
-{
-	/// cosine and sine
-	float c, s;
-} b2Rot;
-
-/// A 2D rigid transform
-typedef struct b2Transform
-{
-	b2Vec2 p;
-	b2Rot q;
-} b2Transform;
-
-/// A 2-by-2 Matrix
-typedef struct b2Mat22
-{
-	/// columns
-	b2Vec2 cx, cy;
-} b2Mat22;
-
-/// Axis-aligned bounding box
-typedef struct b2AABB
-{
-	b2Vec2 lowerBound;
-	b2Vec2 upperBound;
-} b2AABB;
-
-/// separation = dot(normal, point) - offset
-typedef struct b2Plane
-{
-	b2Vec2 normal;
-	float offset;
-} b2Plane;
-
-/**@}*/
-
-/**
  * @addtogroup math
  * @{
  */
 
-/// https://en.wikipedia.org/wiki/Pi
-#define B2_PI 3.14159265359f
+/// Is this a valid number? Not NaN or infinity.
+B2_API bool b2IsValidFloat( float a );
 
-static const b2Vec2 b2Vec2_zero = { 0.0f, 0.0f };
-static const b2Rot b2Rot_identity = { 1.0f, 0.0f };
-static const b2Transform b2Transform_identity = { { 0.0f, 0.0f }, { 1.0f, 0.0f } };
-static const b2Mat22 b2Mat22_zero = { { 0.0f, 0.0f }, { 0.0f, 0.0f } };
+/// Is this a valid vector? Not NaN or infinity.
+B2_API bool b2IsValidVec2( b2Vec2 v );
+
+/// Is this a valid rotation? Not NaN or infinity. Is normalized.
+B2_API bool b2IsValidRot( b2Rot q );
+
+/// Is this a valid transform? Not NaN or infinity. Rotation is normalized.
+B2_API bool b2IsValidTransform( b2Transform t );
+
+/// Is this a valid bounding box? Not NaN or infinity. Upper bound greater than or equal to lower
+/// bound.
+B2_API bool b2IsValidAABB( b2AABB aabb );
+
+/// Is this a valid plane? Normal is a unit vector. Not NaN or infinity.
+B2_API bool b2IsValidPlane( b2Plane a );
+
+/// Is this a valid world position? Not NaN or infinity.
+B2_API bool b2IsValidPos( b2Pos p );
+
+/// Is this a valid world transform? Not NaN or infinity. Rotation is normalized.
+B2_API bool b2IsValidWorldTransform( b2WorldTransform t );
 
 /// @return the minimum of two integers
 B2_INLINE int b2MinInt( int a, int b )
@@ -105,6 +62,13 @@ B2_INLINE int b2AbsInt( int a )
 B2_INLINE int b2ClampInt( int a, int lower, int upper )
 {
 	return a < lower ? lower : ( a > upper ? upper : a );
+}
+
+/// https://en.wikipedia.org/wiki/Floor_and_ceiling_functions
+B2_INLINE int b2CeilingInt( int numerator, int denominator )
+{
+	B2_VALIDATE( denominator > 0 && numerator >= 0 );
+	return ( numerator + denominator - 1 ) / denominator;
 }
 
 /// @return the minimum of two floats
@@ -131,14 +95,12 @@ B2_INLINE float b2ClampFloat( float a, float lower, float upper )
 	return a < lower ? lower : ( a > upper ? upper : a );
 }
 
-/// Compute an approximate arctangent in the range [-pi, pi]
-/// This is hand coded for cross-platform determinism. The atan2f
-/// function in the standard library is not cross-platform deterministic.
-///	Accurate to around 0.0023 degrees
+/// Compute an approximate arctangent in the range [-pi, pi] This is hand coded for cross-platform
+/// determinism. The atan2f function in the standard library is not cross-platform deterministic.
+/// Accurate to around 0.0023 degrees
 B2_API float b2Atan2( float y, float x );
 
-/// Compute the cosine and sine of an angle in radians. Implemented
-/// for cross-platform determinism.
+/// Compute the cosine and sine of an angle in radians. Implemented for cross-platform determinism.
 B2_API b2CosSin b2ComputeCosSin( float radians );
 
 /// Vector dot product
@@ -277,47 +239,47 @@ B2_INLINE float b2Distance( b2Vec2 a, b2Vec2 b )
 }
 
 /// Convert a vector into a unit vector if possible, otherwise returns the zero vector.
-/// todo MSVC is not inlining this function in several places per warning 4710
-B2_INLINE b2Vec2 b2Normalize( b2Vec2 v )
+B2_FORCE_INLINE b2Vec2 b2Normalize( b2Vec2 a )
 {
-	float length = sqrtf( v.x * v.x + v.y * v.y );
-	if ( length < FLT_EPSILON )
+	float lengthSquared = a.x * a.x + a.y * a.y;
+	if ( lengthSquared > 1000.0f * FLT_MIN )
 	{
-		return B2_LITERAL( b2Vec2 ){ 0.0f, 0.0f };
+		float s = 1.0f / sqrtf( lengthSquared );
+		b2Vec2 u = { s * a.x, s * a.y };
+		return u;
 	}
-
-	float invLength = 1.0f / length;
-	b2Vec2 n = { invLength * v.x, invLength * v.y };
-	return n;
+	return B2_LITERAL( b2Vec2 ){ 0.0f, 0.0f };
 }
 
 /// Determines if the provided vector is normalized (norm(a) == 1).
 B2_INLINE bool b2IsNormalized( b2Vec2 a )
 {
 	float aa = b2Dot( a, a );
-	return b2AbsFloat( 1.0f - aa ) < 10.0f * FLT_EPSILON;
+	return b2AbsFloat( 1.0f - aa ) < 100.0f * FLT_EPSILON;
 }
 
-/// Convert a vector into a unit vector if possible, otherwise returns the zero vector. Also
-/// outputs the length.
-B2_INLINE b2Vec2 b2GetLengthAndNormalize( float* length, b2Vec2 v )
+/// Convert a vector into a unit vector if possible, otherwise returns the zero vector. Also outputs
+/// the length.
+B2_INLINE b2Vec2 b2GetLengthAndNormalize( float* length, b2Vec2 a )
 {
-	*length = sqrtf( v.x * v.x + v.y * v.y );
-	if ( *length < FLT_EPSILON )
+	float lengthSquared = a.x * a.x + a.y * a.y;
+	if ( lengthSquared > 1000.0f * FLT_MIN )
 	{
-		return B2_LITERAL( b2Vec2 ){ 0.0f, 0.0f };
+		*length = sqrtf( lengthSquared );
+		float s = 1.0f / *length;
+		b2Vec2 u = { s * a.x, s * a.y };
+		return u;
 	}
 
-	float invLength = 1.0f / *length;
-	b2Vec2 n = { invLength * v.x, invLength * v.y };
-	return n;
+	*length = 0.0f;
+	return B2_LITERAL( b2Vec2 ){ 0.0f, 0.0f };
 }
 
 /// Normalize rotation
 B2_INLINE b2Rot b2NormalizeRot( b2Rot q )
 {
 	float mag = sqrtf( q.s * q.s + q.c * q.c );
-	float invMag = mag > 0.0 ? 1.0f / mag : 0.0f;
+	float invMag = mag > 0.0f ? 1.0f / mag : 0.0f;
 	b2Rot qn = { q.c * invMag, q.s * invMag };
 	return qn;
 }
@@ -333,7 +295,7 @@ B2_INLINE b2Rot b2IntegrateRotation( b2Rot q1, float deltaAngle )
 	// s2 = s1 + omega * h * c1
 	b2Rot q2 = { q1.c - deltaAngle * q1.s, q1.s + deltaAngle * q1.c };
 	float mag = sqrtf( q2.s * q2.s + q2.c * q2.c );
-	float invMag = mag > 0.0 ? 1.0f / mag : 0.0f;
+	float invMag = mag > 0.0f ? 1.0f / mag : 0.0f;
 	b2Rot qn = { q2.c * invMag, q2.s * invMag };
 	return qn;
 }
@@ -358,6 +320,13 @@ B2_INLINE b2Rot b2MakeRot( float radians )
 	return B2_LITERAL( b2Rot ){ cs.cosine, cs.sine };
 }
 
+/// Make a rotation using a unit vector
+B2_INLINE b2Rot b2MakeRotFromUnitVector( b2Vec2 unitVector )
+{
+	B2_ASSERT( b2IsNormalized( unitVector ) );
+	return B2_LITERAL( b2Rot ){ unitVector.x, unitVector.y };
+}
+
 /// Compute the rotation between two unit vectors
 B2_API b2Rot b2ComputeRotationBetweenUnitVectors( b2Vec2 v1, b2Vec2 v2 );
 
@@ -369,9 +338,15 @@ B2_INLINE bool b2IsNormalizedRot( b2Rot q )
 	return 1.0f - 0.0006f < qq && qq < 1.0f + 0.0006f;
 }
 
+/// Get the inverse of a rotation
+B2_INLINE b2Rot b2InvertRot( b2Rot a )
+{
+	return B2_LITERAL( b2Rot ){ a.c, -a.s };
+}
+
 /// Normalized linear interpolation
 /// https://fgiesen.wordpress.com/2012/08/15/linear-interpolation-past-present-and-future/
-///	https://web.archive.org/web/20170825184056/http://number-none.com/product/Understanding%20Slerp,%20Then%20Not%20Using%20It/
+/// https://web.archive.org/web/20170825184056/http://number-none.com/product/Understanding%20Slerp,%20Then%20Not%20Using%20It/
 B2_INLINE b2Rot b2NLerp( b2Rot q1, b2Rot q2, float t )
 {
 	float omt = 1.0f - t;
@@ -381,12 +356,12 @@ B2_INLINE b2Rot b2NLerp( b2Rot q1, b2Rot q2, float t )
 	};
 
 	float mag = sqrtf( q.s * q.s + q.c * q.c );
-	float invMag = mag > 0.0 ? 1.0f / mag : 0.0f;
+	float invMag = mag > 0.0f ? 1.0f / mag : 0.0f;
 	b2Rot qn = { q.c * invMag, q.s * invMag };
 	return qn;
 }
 
-/// Compute the angular velocity necessary to rotate between two rotations over a give time
+/// Compute the angular velocity necessary to rotate between two rotations over a given time
 /// @param q1 initial rotation
 /// @param q2 final rotation
 /// @param inv_h inverse time step
@@ -439,73 +414,61 @@ B2_INLINE b2Rot b2MulRot( b2Rot q, b2Rot r )
 	return qr;
 }
 
-/// Transpose multiply two rotations: qT * r
-B2_INLINE b2Rot b2InvMulRot( b2Rot q, b2Rot r )
+/// Transpose multiply two rotations: inv(a) * b This rotates a vector local in frame b into a
+/// vector local in frame a
+B2_INLINE b2Rot b2InvMulRot( b2Rot a, b2Rot b )
 {
-	// [ qc qs] * [rc -rs] = [qc*rc+qs*rs -qc*rs+qs*rc]
-	// [-qs qc]   [rs  rc]   [-qs*rc+qc*rs qs*rs+qc*rc]
-	// s(q - r) = qc * rs - qs * rc
-	// c(q - r) = qc * rc + qs * rs
-	b2Rot qr;
-	qr.s = q.c * r.s - q.s * r.c;
-	qr.c = q.c * r.c + q.s * r.s;
-	return qr;
+	// [ ac as] * [bc -bs] = [ac*bc+as*bs -ac*bs+as*bc]
+	// [-as ac]   [bs  bc]   [-as*bc+ac*bs as*bs+ac*bc]
+	// s(b - a) = ac * bs - as * bc
+	// c(b - a) = ac * bc + as * bs
+	b2Rot r;
+	r.s = a.c * b.s - a.s * b.c;
+	r.c = a.c * b.c + a.s * b.s;
+	return r;
 }
 
-/// relative angle between b and a (rot_b * inv(rot_a))
-B2_INLINE float b2RelativeAngle( b2Rot b, b2Rot a )
+/// The angle of rotation b relative to rotation a. Radians.
+B2_INLINE float b2RelativeAngle( b2Rot a, b2Rot b )
 {
 	// sin(b - a) = bs * ac - bc * as
 	// cos(b - a) = bc * ac + bs * as
-	float s = b.s * a.c - b.c * a.s;
-	float c = b.c * a.c + b.s * a.s;
+	float s = a.c * b.s - a.s * b.c;
+	float c = a.c * b.c + a.s * b.s;
 	return b2Atan2( s, c );
 }
 
-/// Convert an angle in the range [-2*pi, 2*pi] into the range [-pi, pi]
+/// Convert any angle into the range [-pi, pi].
 B2_INLINE float b2UnwindAngle( float radians )
 {
-	if ( radians < -B2_PI )
-	{
-		return radians + 2.0f * B2_PI;
-	}
-	else if ( radians > B2_PI )
-	{
-		return radians - 2.0f * B2_PI;
-	}
+	// This function can be implemented using remainderf.
+	// However that is a libc dependency not present in WASM.
+	// This function doesn't work well with huge angles. So unwind your angles regularly.
+	B2_VALIDATE( b2AbsFloat( radians ) < 1.0e4f );
+	float x = b2ClampFloat( radians, -1.0e6f, 1.0e6f );
 
-	return radians;
+	// Work in doubles. Adding and removing this constant rounds to the nearest integer.
+	// https://stackoverflow.com/questions/17035464/a-fast-method-to-round-a-double-to-a-32-bit-int-explained
+	double twoPi = 2.0f * B2_PI;
+	double roundToNearest = 6755399441055744.0;
+	double a = x;
+	double k = ( a / twoPi + roundToNearest ) - roundToNearest;
+	return (float)( a - k * twoPi );
 }
 
-/// Convert any into the range [-pi, pi] (slow)
-B2_INLINE float b2UnwindLargeAngle( float radians )
-{
-	while ( radians > B2_PI )
-	{
-		radians -= 2.0f * B2_PI;
-	}
-
-	while ( radians < -B2_PI )
-	{
-		radians += 2.0f * B2_PI;
-	}
-
-	return radians;
-}
-
-/// Rotate a vector
+/// Rotate a vector.
 B2_INLINE b2Vec2 b2RotateVector( b2Rot q, b2Vec2 v )
 {
 	return B2_LITERAL( b2Vec2 ){ q.c * v.x - q.s * v.y, q.s * v.x + q.c * v.y };
 }
 
-/// Inverse rotate a vector
+/// Inverse rotate a vector.
 B2_INLINE b2Vec2 b2InvRotateVector( b2Rot q, b2Vec2 v )
 {
 	return B2_LITERAL( b2Vec2 ){ q.c * v.x + q.s * v.y, -q.s * v.x + q.c * v.y };
 }
 
-/// Transform a point (e.g. local space to world space)
+/// Transform a point (e.g. local space to world space).
 B2_INLINE b2Vec2 b2TransformPoint( b2Transform t, const b2Vec2 p )
 {
 	float x = ( t.q.c * p.x - t.q.s * p.y ) + t.p.x;
@@ -514,7 +477,7 @@ B2_INLINE b2Vec2 b2TransformPoint( b2Transform t, const b2Vec2 p )
 	return B2_LITERAL( b2Vec2 ){ x, y };
 }
 
-/// Inverse transform a point (e.g. world space to local space)
+/// Inverse transform a point (e.g. world space to local space).
 B2_INLINE b2Vec2 b2InvTransformPoint( b2Transform t, const b2Vec2 p )
 {
 	float vx = p.x - t.p.x;
@@ -522,9 +485,8 @@ B2_INLINE b2Vec2 b2InvTransformPoint( b2Transform t, const b2Vec2 p )
 	return B2_LITERAL( b2Vec2 ){ t.q.c * vx + t.q.s * vy, -t.q.s * vx + t.q.c * vy };
 }
 
-/// Multiply two transforms. If the result is applied to a point p local to frame B,
-/// the transform would first convert p to a point local to frame A, then into a point
-/// in the world frame.
+/// Multiply two transforms. If the result is applied to a point p local to frame B, the transform
+/// would first convert p to a point local to frame A, then into a point in the world frame.
 /// v2 = A.q.Rot(B.q.Rot(v1) + B.p) + A.p
 ///    = (A.q * B.q).Rot(v1) + A.q.Rot(B.p) + A.p
 B2_INLINE b2Transform b2MulTransforms( b2Transform A, b2Transform B )
@@ -544,6 +506,114 @@ B2_INLINE b2Transform b2InvMulTransforms( b2Transform A, b2Transform B )
 	C.q = b2InvMulRot( A.q, B.q );
 	C.p = b2InvRotateVector( A.q, b2Sub( B.p, A.p ) );
 	return C;
+}
+
+/// Convert a vector to a world position. No-op in single precision.
+B2_INLINE b2Pos b2ToPos( b2Vec2 v )
+{
+	return B2_LITERAL( b2Pos ){ v.x, v.y };
+}
+
+/// Lossy conversion of a world position to a float vector. No-op in single precision.
+B2_INLINE b2Vec2 b2ToVec2( b2Pos p )
+{
+	return B2_LITERAL( b2Vec2 ){ (float)p.x, (float)p.y };
+}
+
+/// Narrow a world coordinate to float, rounding toward negative infinity. Use with b2RoundUpFloat
+/// to build a conservative float box that always contains double bounds, where plain rounding far
+/// from the origin could clip. nextafterf is an exact IEEE operation, so this is cross-platform
+/// deterministic. With large world mode off this is a plain conversion.
+B2_INLINE float b2RoundDownFloat( double x )
+{
+#if defined( BOX2D_DOUBLE_PRECISION )
+	float f = (float)x;
+	return (double)f > x ? nextafterf( f, -FLT_MAX ) : f;
+#else
+	return (float)x;
+#endif
+}
+
+/// Narrow a world coordinate to float, rounding toward positive infinity.
+B2_INLINE float b2RoundUpFloat( double x )
+{
+#if defined( BOX2D_DOUBLE_PRECISION )
+	float f = (float)x;
+	return (double)f < x ? nextafterf( f, FLT_MAX ) : f;
+#else
+	return (float)x;
+#endif
+}
+
+/// a - b, demoted to float. The primary precision boundary operation.
+B2_INLINE b2Vec2 b2SubPos( b2Pos a, b2Pos b )
+{
+	return B2_LITERAL( b2Vec2 ){ (float)( a.x - b.x ), (float)( a.y - b.y ) };
+}
+
+/// p + d
+B2_INLINE b2Pos b2OffsetPos( b2Pos p, b2Vec2 d )
+{
+	return B2_LITERAL( b2Pos ){ p.x + d.x, p.y + d.y };
+}
+
+/// World position interpolation for sweeps and sampling.
+B2_INLINE b2Pos b2LerpPos( b2Pos a, b2Pos b, float t )
+{
+	return B2_LITERAL( b2Pos ){ ( 1.0f - t ) * a.x + t * b.x, ( 1.0f - t ) * a.y + t * b.y };
+}
+
+/// Transform a local point to a world position. Rotation in float, translation in double.
+B2_INLINE b2Pos b2TransformWorldPoint( b2WorldTransform t, b2Vec2 p )
+{
+	float rx = t.q.c * p.x - t.q.s * p.y;
+	float ry = t.q.s * p.x + t.q.c * p.y;
+	return B2_LITERAL( b2Pos ){ t.p.x + rx, t.p.y + ry };
+}
+
+/// Transform a world position to a local point. One double subtraction, then float.
+B2_INLINE b2Vec2 b2InvTransformWorldPoint( b2WorldTransform t, b2Pos p )
+{
+	float vx = (float)( p.x - t.p.x );
+	float vy = (float)( p.y - t.p.y );
+	return B2_LITERAL( b2Vec2 ){ t.q.c * vx + t.q.s * vy, -t.q.s * vx + t.q.c * vy };
+}
+
+/// Relative transform of frame B in frame A.
+B2_INLINE b2Transform b2InvMulWorldTransforms( b2WorldTransform A, b2WorldTransform B )
+{
+	b2Transform C;
+	C.q = b2InvMulRot( A.q, B.q );
+	b2Vec2 d = { (float)( B.p.x - A.p.x ), (float)( B.p.y - A.p.y ) };
+	C.p = b2InvRotateVector( A.q, d );
+	return C;
+}
+
+/// Convert a local transform B into world space using world transform A.
+B2_INLINE b2WorldTransform b2MulWorldTransforms( b2WorldTransform A, b2Transform B )
+{
+	b2WorldTransform C;
+	C.q = b2MulRot( A.q, B.q );
+	C.p = b2OffsetPos( A.p, b2RotateVector( A.q, B.p ) );
+	return C;
+}
+
+/// Shift a world transform into the frame of a base position.
+B2_INLINE b2Transform b2ToRelativeTransform( b2WorldTransform t, b2Pos base )
+{
+	b2Transform r;
+	r.q = t.q;
+	r.p = B2_LITERAL( b2Vec2 ){ (float)( t.p.x - base.x ), (float)( t.p.y - base.y ) };
+	return r;
+}
+
+/// Promote a float transform to a world transform. Lossless.
+B2_INLINE b2WorldTransform b2MakeWorldTransform( b2Transform t )
+{
+	b2WorldTransform w;
+	w.p = b2ToPos( t.p );
+	w.q = t.q;
+	return w;
 }
 
 /// Multiply a 2-by-2 matrix times a 2D vector
@@ -573,8 +643,8 @@ B2_INLINE b2Mat22 b2GetInverse22( b2Mat22 A )
 	return B;
 }
 
-/// Solve A * x = b, where b is a column vector. This is more efficient
-/// than computing the inverse in one-shot cases.
+/// Solve A * x = b, where b is a column vector. This is more efficient than computing the inverse
+/// in one-shot cases.
 B2_INLINE b2Vec2 b2Solve22( b2Mat22 A, b2Vec2 b )
 {
 	float a11 = A.cx.x, a12 = A.cy.x, a21 = A.cx.y, a22 = A.cy.y;
@@ -601,14 +671,16 @@ B2_INLINE bool b2AABB_Contains( b2AABB a, b2AABB b )
 /// Get the center of the AABB.
 B2_INLINE b2Vec2 b2AABB_Center( b2AABB a )
 {
-	b2Vec2 b = { 0.5f * ( a.lowerBound.x + a.upperBound.x ), 0.5f * ( a.lowerBound.y + a.upperBound.y ) };
+	b2Vec2 b = { 0.5f * ( a.lowerBound.x + a.upperBound.x ),
+				 0.5f * ( a.lowerBound.y + a.upperBound.y ) };
 	return b;
 }
 
 /// Get the extents of the AABB (half-widths).
 B2_INLINE b2Vec2 b2AABB_Extents( b2AABB a )
 {
-	b2Vec2 b = { 0.5f * ( a.upperBound.x - a.lowerBound.x ), 0.5f * ( a.upperBound.y - a.lowerBound.y ) };
+	b2Vec2 b = { 0.5f * ( a.upperBound.x - a.lowerBound.x ),
+				 0.5f * ( a.upperBound.y - a.lowerBound.y ) };
 	return b;
 }
 
@@ -621,6 +693,13 @@ B2_INLINE b2AABB b2AABB_Union( b2AABB a, b2AABB b )
 	c.upperBound.x = b2MaxFloat( a.upperBound.x, b.upperBound.x );
 	c.upperBound.y = b2MaxFloat( a.upperBound.y, b.upperBound.y );
 	return c;
+}
+
+/// Do a and b overlap
+B2_INLINE bool b2AABB_Overlaps( b2AABB a, b2AABB b )
+{
+	return !( b.lowerBound.x > a.upperBound.x || b.lowerBound.y > a.upperBound.y ||
+			  a.lowerBound.x > b.upperBound.x || a.lowerBound.y > b.upperBound.y );
 }
 
 /// Compute the bounding box of an array of circles
@@ -647,49 +726,46 @@ B2_INLINE float b2PlaneSeparation( b2Plane plane, b2Vec2 point )
 	return b2Dot( plane.normal, point ) - plane.offset;
 }
 
-/// Is this a valid number? Not NaN or infinity.
-B2_API bool b2IsValidFloat( float a );
+/// One-dimensional mass-spring-damper simulation. Returns the new velocity given the position and
+/// time step. You can then compute the new position using:
+/// position += timeStep * newVelocity
+/// This drives towards a zero position. By using implicit integration we get a stable solution that
+/// doesn't require transcendental functions.
+B2_INLINE float b2SpringDamper( float hertz, float dampingRatio, float position, float velocity,
+								float timeStep )
+{
+	float omega = 2.0f * B2_PI * hertz;
+	float omegaH = omega * timeStep;
+	return ( velocity - omega * omegaH * position ) /
+		   ( 1.0f + 2.0f * dampingRatio * omegaH + omegaH * omegaH );
+}
 
-/// Is this a valid vector? Not NaN or infinity.
-B2_API bool b2IsValidVec2( b2Vec2 v );
-
-/// Is this a valid rotation? Not NaN or infinity. Is normalized.
-B2_API bool b2IsValidRotation( b2Rot q );
-
-/// Is this a valid bounding box? Not Nan or infinity. Upper bound greater than or equal to lower bound.
-B2_API bool b2IsValidAABB( b2AABB aabb );
-
-/// Is this a valid plane? Normal is a unit vector. Not Nan or infinity.
-B2_API bool b2IsValidPlane( b2Plane a );
-
-/// Box2D bases all length units on meters, but you may need different units for your game.
-/// You can set this value to use different units. This should be done at application startup
-/// and only modified once. Default value is 1.
-/// For example, if your game uses pixels for units you can use pixels for all length values
-/// sent to Box2D. There should be no extra cost. However, Box2D has some internal tolerances
-/// and thresholds that have been tuned for meters. By calling this function, Box2D is able
-/// to adjust those tolerances and thresholds to improve accuracy.
-/// A good rule of thumb is to pass the height of your player character to this function. So
-/// if your player character is 32 pixels high, then pass 32 to this function. Then you may
-/// confidently use pixels for all the length values sent to Box2D. All length values returned
-/// from Box2D will also be pixels because Box2D does not do any scaling internally.
-/// However, you are now on the hook for coming up with good values for gravity, density, and
-/// forces.
+/// Box2D bases all length units on meters, but you may need different units for your game. You can
+/// set this value to use different units. This should be done at application startup and only
+/// modified once. Default value is 1. For example, if your game uses pixels for units you can use
+/// pixels for all length values sent to Box2D. There should be no extra cost. However, Box2D has
+/// some internal tolerances and thresholds that have been tuned for meters. By calling this
+/// function, Box2D is able to adjust those tolerances and thresholds to improve accuracy. A good
+/// rule of thumb is to pass the height of your player character to this function. So if your player
+/// character is 32 pixels high, then pass 32 to this function. Then you may confidently use pixels
+/// for all the length values sent to Box2D. All length values returned from Box2D will also be
+/// pixels because Box2D does not do any scaling internally. However, you are now on the hook for
+/// coming up with good values for gravity, density, and forces.
 /// @warning This must be modified before any calls to Box2D
 B2_API void b2SetLengthUnitsPerMeter( float lengthUnits );
 
 /// Get the current length units per meter.
 B2_API float b2GetLengthUnitsPerMeter( void );
 
-/**@}*/
+#ifdef __cplusplus
+/// This value is exported for efficiency. Don't modify directly.
+extern "C" BOX2D_EXPORT float b2_lengthUnitsPerMeter;
+#else
+/// This value is exported for efficiency. Don't modify directly.
+BOX2D_EXPORT extern float b2_lengthUnitsPerMeter;
+#endif
 
-/**
- * @defgroup math_cpp C++ Math
- * @brief Math operator overloads for C++
- *
- * See math_functions.h for details.
- * @{
- */
+/**@}*/
 
 #ifdef __cplusplus
 
@@ -756,6 +832,27 @@ inline bool operator!=( b2Vec2 a, b2Vec2 b )
 	return a.x != b.x || a.y != b.y;
 }
 
+#if defined( BOX2D_DOUBLE_PRECISION )
+
+/// Offset a world position by a vector
+inline b2Pos operator+( b2Pos a, b2Vec2 b )
+{
+	return { a.x + b.x, a.y + b.y };
+}
+
+/// Offset a world position by a vector
+inline b2Pos operator-( b2Pos a, b2Vec2 b )
+{
+	return { a.x - b.x, a.y - b.y };
+}
+
+/// Delta between two world positions, demoted to float
+inline b2Vec2 operator-( b2Pos a, b2Pos b )
+{
+	return { (float)( a.x - b.x ), (float)( a.y - b.y ) };
+}
+
 #endif
 
-/**@}*/
+#endif
+

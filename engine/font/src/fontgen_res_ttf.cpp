@@ -20,84 +20,84 @@
 namespace dmGameSystem
 {
 
-struct TTFResource
-{
-    HFont m_Font;
-};
-
-static void DeleteResource(TTFResource* resource)
-{
-    FontDestroy(resource->m_Font);
-    delete resource;
-}
-
-static dmResource::Result TTF_Create(const dmResource::ResourceCreateParams* params)
-{
-    HFont font = FontLoadFromMemory(params->m_Filename, (void*)params->m_Buffer, params->m_BufferSize, true);
-    if (!font)
+    struct TTFResource
     {
-        dmLogError("Failed to load font from '%s'", params->m_Filename);
-        return dmResource::RESULT_INVALID_DATA;
-    }
-    TTFResource* resource = new TTFResource;
-    resource->m_Font = font;
+        HFont m_Font;
+    };
 
-    dmResource::SetResource(params->m_Resource, resource);
-    dmResource::SetResourceSize(params->m_Resource, FontGetResourceSize(resource->m_Font));
-    return dmResource::RESULT_OK;
-}
-
-static dmResource::Result TTF_Destroy(const dmResource::ResourceDestroyParams* params)
-{
-    TTFResource* resource = (TTFResource*)dmResource::GetResource(params->m_Resource);
-    DeleteResource(resource);
-    return dmResource::RESULT_OK;
-}
-
-static dmResource::Result TTF_Recreate(const dmResource::ResourceRecreateParams* params)
-{
-    HFont new_font = FontLoadFromMemory(params->m_Filename, (void*)params->m_Buffer, params->m_BufferSize, true);
-    if (!new_font)
+    static void DeleteResource(TTFResource* resource)
     {
-        dmLogError("Failed to reload font from '%s'", params->m_Filename);
-        return dmResource::RESULT_INVALID_DATA;
+        FontDestroy(resource->m_Font);
+        delete resource;
     }
 
-    // We need to keep the original pointer as it may be used elsewhere
-    TTFResource* resource = (TTFResource*)dmResource::GetResource(params->m_Resource);
-    HFont old_font = resource->m_Font;
-    resource->m_Font = new_font;
+    static dmResource::Result TTF_Create(const dmResource::ResourceCreateParams* params)
+    {
+        HFont font = FontLoadFromMemory(params->m_Filename, (void*)params->m_Buffer, params->m_BufferSize, true);
+        if (!font)
+        {
+            dmLogError("Failed to load font from '%s'", params->m_Filename);
+            return dmResource::RESULT_INVALID_DATA;
+        }
+        TTFResource* resource = new TTFResource;
+        resource->m_Font = font;
 
-    FontDestroy(old_font);
+        dmResource::SetResource(params->m_Resource, resource);
+        dmResource::SetResourceSize(params->m_Resource, FontGetResourceSize(resource->m_Font));
+        return dmResource::RESULT_OK;
+    }
 
-    dmResource::SetResourceSize(params->m_Resource, FontGetResourceSize(resource->m_Font));
-    return dmResource::RESULT_OK;
-}
+    static dmResource::Result TTF_Destroy(const dmResource::ResourceDestroyParams* params)
+    {
+        TTFResource* resource = (TTFResource*)dmResource::GetResource(params->m_Resource);
+        DeleteResource(resource);
+        return dmResource::RESULT_OK;
+    }
 
-static ResourceResult RegisterResourceType_TTFFont(HResourceTypeContext ctx, HResourceType type)
-{
-    return (ResourceResult)dmResource::SetupType(ctx,
-                                                 type,
-                                                 0, // context
-                                                 0, // preload
-                                                 TTF_Create,
-                                                 0, // post create
-                                                 TTF_Destroy,
-                                                 TTF_Recreate);
+    static dmResource::Result TTF_Recreate(const dmResource::ResourceRecreateParams* params)
+    {
+        HFont new_font = FontLoadFromMemory(params->m_Filename, (void*)params->m_Buffer, params->m_BufferSize, true);
+        if (!new_font)
+        {
+            dmLogError("Failed to reload font from '%s'", params->m_Filename);
+            return dmResource::RESULT_INVALID_DATA;
+        }
 
-}
+        // We need to keep the original pointer as it may be used elsewhere
+        TTFResource* resource = (TTFResource*)dmResource::GetResource(params->m_Resource);
+        HFont old_font = resource->m_Font;
+        resource->m_Font = new_font;
 
-static ResourceResult DeregisterResourceType_TTFFont(HResourceTypeContext ctx, HResourceType type)
-{
-    return RESOURCE_RESULT_OK;
-}
+        FontDestroy(old_font);
 
- // Fontgen api
+        dmResource::SetResourceSize(params->m_Resource, FontGetResourceSize(resource->m_Font));
+        return dmResource::RESULT_OK;
+    }
 
-HFont GetFont(TTFResource* resource)
-{
-    return resource->m_Font;
-}
+    static ResourceResult RegisterResourceType_TTFFont(HResourceTypeContext ctx, HResourceType type)
+    {
+        return (ResourceResult)dmResource::SetupType(ctx,
+                                                     type,
+                                                     0, // context
+                                                     0, // preload
+                                                     TTF_Create,
+                                                     0, // post create
+                                                     TTF_Destroy,
+                                                     TTF_Recreate);
+
+    }
+
+    static ResourceResult DeregisterResourceType_TTFFont(HResourceTypeContext ctx, HResourceType type)
+    {
+        return RESOURCE_RESULT_OK;
+    }
+
+    // Fontgen api
+
+    HFont GetFont(TTFResource* resource)
+    {
+        return resource->m_Font;
+    }
 
 } // namespace
 

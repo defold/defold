@@ -273,7 +273,7 @@ namespace dmGameSystem
         lua_pushnumber(L, b2Shape_GetRestitution(shape));
         lua_setfield(L, -2, "restitution");
 
-        lua_pushinteger(L, b2Shape_GetMaterial(shape));
+        lua_pushinteger(L, b2Shape_GetUserMaterial(shape));
         lua_setfield(L, -2, "material");
 
         lua_pushinteger(L, 1);
@@ -284,11 +284,11 @@ namespace dmGameSystem
         lua_setfield(L, -2, "is_chain_segment");
     }
 
-    static void PushManifoldPoint(lua_State* L, const b2ManifoldPoint& point)
+    static void PushManifoldPoint(lua_State* L, const b2ManifoldPoint& point, b2BodyId body_a)
     {
         lua_newtable(L);
 
-        dmScript::PushVector3(L, FromB2(point.point, GetInvPhysicsScale()));
+        dmScript::PushVector3(L, FromB2(b2OffsetPos(b2Body_GetWorldCenter(body_a), point.anchorA), GetInvPhysicsScale()));
         lua_setfield(L, -2, "point");
 
         dmScript::PushVector3(L, FromB2(point.anchorA, GetInvPhysicsScale()));
@@ -343,7 +343,7 @@ namespace dmGameSystem
         lua_newtable(L);
         for (int i = 0; i < contact_data.manifold.pointCount; ++i)
         {
-            PushManifoldPoint(L, contact_data.manifold.points[i]);
+            PushManifoldPoint(L, contact_data.manifold.points[i], b2Shape_GetBody(contact_data.shapeIdA));
             lua_rawseti(L, -2, i + 1);
         }
         lua_setfield(L, -2, "points");
@@ -424,7 +424,7 @@ namespace dmGameSystem
         b2Transform target;
         target.p = CheckVec2(L, 2, GetPhysicsScale());
         target.q = b2MakeRot(luaL_checknumber(L, 3));
-        b2Body_SetTargetTransform(*body, target, luaL_checknumber(L, 4));
+        b2Body_SetTargetTransform(*body, target, luaL_checknumber(L, 4), true);
         return 0;
     }
 
@@ -524,7 +524,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
-        b2Body_ApplyMassFromShapes(*body);
+        b2Body_UpdateMassFromShapes(*body);
         return 0;
     }
 
@@ -543,7 +543,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        dmScript::PushVector3(L, FromB2(b2Body_GetWorldCenterOfMass(*body), GetInvPhysicsScale()));
+        dmScript::PushVector3(L, FromB2(b2Body_GetWorldCenter(*body), GetInvPhysicsScale()));
         return 1;
     }
 
@@ -552,7 +552,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        dmScript::PushVector3(L, FromB2(b2Body_GetLocalCenterOfMass(*body), GetInvPhysicsScale()));
+        dmScript::PushVector3(L, FromB2(b2Body_GetLocalCenter(*body), GetInvPhysicsScale()));
         return 1;
     }
 
@@ -647,7 +647,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        PushAABB(L, b2Body_ComputeAABB(*body));
+        PushAABB(L, b2Body_ComputeBounds(*body));
         return 1;
     }
 
@@ -851,7 +851,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        lua_pushboolean(L, b2Body_IsFixedRotation(*body));
+        lua_pushboolean(L, b2Body_GetMotionLocks(*body).angularZ);
         return 1;
     }
 
@@ -860,7 +860,9 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
         bool enable = lua_toboolean(L, 2);
-        b2Body_SetFixedRotation(*body, enable);
+        b2MotionLocks locks = b2Body_GetMotionLocks(*body);
+        locks.angularZ = enable;
+        b2Body_SetMotionLocks(*body, locks);
         return 0;
     }
 
@@ -869,7 +871,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        lua_pushboolean(L, b2Body_IsSleepEnabled(*body));
+        lua_pushboolean(L, b2Body_IsSleepingEnabled(*body));
         return 1;
     }
 
@@ -884,7 +886,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
         bool enable = lua_toboolean(L, 2);
-        b2Body_EnableSleep(*body, enable);
+        b2Body_EnableSleeping(*body, enable);
         return 0;
     }
 
@@ -1626,7 +1628,7 @@ namespace dmGameSystem
 /*# Set the body name.
  * @name b2d.body.set_name
  * @param body [type: b2Body] body
- * @param name [type: string] body name
+ * @param name [type: string] body name, truncated to 10 characters
  */
 
 /*# Get the body name.

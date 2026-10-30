@@ -37,7 +37,18 @@ public final class Progress implements IProgress {
         }
     }
 
+    /// Progress whose messages are held back until {@link #releaseMessages()} is called.
+    ///
+    /// Work is forwarded immediately. Once released, the latest held message is
+    /// emitted and later messages pass through until the progress is closed.
+    public interface Deferred extends IProgress {
+        void releaseMessages();
+    }
+
     private final Reporter reporter;
+    private final Object reportLock = new Object();
+    private ProgressState lastReportedState;
+    private boolean reporterClosed;
     private final AtomicReference<ProgressState> state = new AtomicReference<>(new ProgressState(Rational.ZERO, Message.Working.INSTANCE, false));
 
     public Progress(Reporter reporter) {
@@ -49,6 +60,11 @@ public final class Progress implements IProgress {
         });
     }
 
+    /// Returns a subtask spanning all of `progress` whose messages are deferred
+    public static Deferred deferMessages(IProgress progress) {
+        return new SubProgress(progress, totalCapacity(progress), new MessageGate());
+    }
+
     public static Progress console() {
         var lastRenderedState = new AtomicReference<ConsoleState>();
         var useColor = System.console() != null
@@ -56,11 +72,15 @@ public final class Progress implements IProgress {
                 && !"dumb".equalsIgnoreCase(System.getenv("TERM"));
         return new Progress((message, fraction) -> {
             var percent = Math.max(0, Math.min(100, (int) Math.round(fraction * 100.0)));
-            var renderedState = new ConsoleState(message, percent / 5);
+            // Engine stages are keyed by stage name only, so per-file updates and platforms
+            // in the same stage do not print a line each
+            Object key = message instanceof Message.BuildingEngineStage stage ? stage.stage() : message;
+            ConsoleState renderedState = new ConsoleState(key, percent / 5);
             if (!Objects.equals(lastRenderedState.getAndSet(renderedState), renderedState)) {
                 var label = switch (message) {
                     case Message.Bundling _ -> "Bundling";
                     case Message.BuildingEngine _ -> "Building engine";
+                    case Message.BuildingEngineStage stage -> "Building engine [" + stage.platform() + "] " + stage.label();
                     case Message.CleaningEngine _ -> "Cleaning engine";
                     case Message.DownloadingSymbols _ -> "Downloading symbols";
                     case Message.TranspilingToLua _ -> "Transpiling to Lua";
@@ -90,22 +110,16 @@ public final class Progress implements IProgress {
 
     @Override
     public void message(Message message) {
-        var nextMessage = Objects.requireNonNull(message);
-        var transition = updateState(state, currentState -> currentState.withMessage(nextMessage));
-        if (transition.changed() && !transition.newState().closed) {
-            report(transition.newState());
+        Message nextMessage = Objects.requireNonNull(message);
+        if (updateState(state, currentState -> currentState.withMessage(nextMessage)).changed()) {
+            report();
         }
     }
 
     @Override
     public void close() {
-        var transition = updateState(state, ProgressState::close);
-        if (transition.changed()) {
-            try (reporter) {
-                if (!transition.oldState().completed.equals(transition.newState().completed)) {
-                    report(transition.newState());
-                }
-            }
+        if (updateState(state, ProgressState::close).changed()) {
+            report();
         }
     }
 
@@ -120,15 +134,46 @@ public final class Progress implements IProgress {
     }
 
     private Rational consume(Rational requestedCapacity) {
-        var transition = updateState(state, currentState -> currentState.consume(requestedCapacity));
+        StateTransition<ProgressState> transition = updateState(state, currentState -> currentState.consume(requestedCapacity));
         if (transition.changed()) {
-            report(transition.newState());
+            report();
         }
         return transition.newState().completed.subtract(transition.oldState().completed);
     }
 
-    private void report(ProgressState state) {
-        reporter.report(state.message, state.completed.doubleValue());
+    // State updates are atomic but the reporter callback is not, so threads may reach
+    // this point out of order. Reporting the current state under a lock rather than the
+    // state each thread produced keeps fractions monotonic and the message up to date.
+    private void report() {
+        synchronized (reportLock) {
+            if (reporterClosed) {
+                return;
+            }
+            ProgressState current = state.get();
+            if (current == lastReportedState) {
+                return;
+            }
+            ProgressState previous = lastReportedState;
+            lastReportedState = current;
+            if (!current.closed) {
+                reporter.report(current.message, current.completed.doubleValue());
+                return;
+            }
+            reporterClosed = true;
+            try (reporter) {
+                if (previous == null || !previous.completed.equals(current.completed)) {
+                    reporter.report(current.message, current.completed.doubleValue());
+                }
+            }
+        }
+    }
+
+    private static Rational totalCapacity(IProgress progress) {
+        return switch (progress) {
+            case Progress _ -> Rational.ONE;
+            case SubProgress subProgress -> subProgress.totalCapacity;
+            default -> throw new IllegalStateException("Unsupported progress parent");
+        };
     }
 
     private static Rational consume(IProgress progress, Rational requestedCapacity) {
@@ -156,11 +201,7 @@ public final class Progress implements IProgress {
         }
 
         private Rational capacityForParts(long requestedParts) {
-            var totalCapacity = switch (parent) {
-                case Progress _ -> Rational.ONE;
-                case SubProgress subProgress -> subProgress.totalCapacity;
-                default -> throw new IllegalStateException("Unsupported progress parent");
-            };
+            Rational totalCapacity = Progress.totalCapacity(parent);
             if (requestedParts <= 0L || parts <= 0L || totalCapacity.isZero()) {
                 return Rational.ZERO;
             }
@@ -171,24 +212,73 @@ public final class Progress implements IProgress {
         }
     }
 
-    private static final class SubProgress implements IProgress {
+    private static final class MessageGate {
+        private boolean released;
+        private Message latest;
+
+        // Forwarding under the lock keeps a concurrent release from emitting an older message last
+        private synchronized void message(SubProgress owner, Message message) {
+            latest = message;
+            if (released && !owner.isClosed()) {
+                owner.parent.message(message);
+            }
+        }
+
+        private synchronized void release(SubProgress owner) {
+            if (released) {
+                return;
+            }
+            released = true;
+            if (latest != null && !owner.isClosed()) {
+                owner.parent.message(latest);
+            }
+        }
+    }
+
+    private static final class SubProgress implements Deferred {
         private final IProgress parent;
         private final Rational totalCapacity;
+        private final MessageGate gate;
         private final AtomicReference<SubProgressState> state;
+        private volatile boolean closed;
 
-        private SubProgress(IProgress parent,  Rational totalCapacity) {
+        private SubProgress(IProgress parent, Rational totalCapacity) {
+            this(parent, totalCapacity, null);
+        }
+
+        private SubProgress(IProgress parent, Rational totalCapacity, MessageGate gate) {
             this.parent = parent;
             this.totalCapacity = totalCapacity;
+            this.gate = gate;
             this.state = new AtomicReference<>(new SubProgressState(this.totalCapacity, false));
         }
 
         @Override
         public void message(Message message) {
-            parent.message(message);
+            if (isClosed()) {
+                return;
+            }
+            if (gate != null) {
+                gate.message(this, message);
+            } else {
+                parent.message(message);
+            }
+        }
+
+        @Override
+        public void releaseMessages() {
+            if (gate != null) {
+                gate.release(this);
+            }
+        }
+
+        private boolean isClosed() {
+            return closed;
         }
 
         @Override
         public void close() {
+            closed = true;
             consume(totalCapacity, true);
         }
 
@@ -212,7 +302,7 @@ public final class Progress implements IProgress {
         }
     }
 
-    private record ConsoleState(Message label, int bucket) {
+    private record ConsoleState(Object key, int bucket) {
     }
 
     private record StateTransition<T>(T oldState, T newState) {
