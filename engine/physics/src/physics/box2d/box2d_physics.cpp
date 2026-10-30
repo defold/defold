@@ -506,6 +506,8 @@ namespace dmPhysics
         float dt = step_context.m_DT;
         HContext2D context = world->m_Context;
         float scale = context->m_Scale;
+        CollisionCallback collision_callback = step_context.m_CollisionCallback;
+        ContactPointCallback contact_point_callback = step_context.m_ContactPointCallback;
         // Epsilon defining what transforms are considered noise and not
         // Values are picked by inspection, current rot value is roughly equivalent to 1 degree
         const float POS_EPSILON = 0.00005f * scale;
@@ -568,7 +570,7 @@ namespace dmPhysics
             b2World_Step(world->m_WorldId, dt, step_context.m_Box2DSubStepCount);
 
             // Post-solve must happen after stepping
-            if (step_context.m_CollisionCallback || step_context.m_ContactPointCallback)
+            if (collision_callback || contact_point_callback)
             {
                 DM_PROFILE("PostSolveCallbacks");
 
@@ -576,21 +578,26 @@ namespace dmPhysics
 
                 world->m_ContactBuffer.SetSize(0);
 
-                for (int i = 0; i < world->m_Bodies.Size(); ++i)
+                for (int i = 0; i < world->m_Bodies.Size() && (collision_callback || contact_point_callback); ++i)
                 {
                     Body* body = world->m_Bodies[i];
                     b2BodyId body_id = body->m_BodyId;
-                    dmArray<b2ContactData>& contacts = GetContactsBuffer(world, body_id);
-                    int num_contacts = contacts.Size();
-
                     if (!b2Body_IsEnabled(body_id))
                     {
                         continue;
                     }
 
-                    for (int j = 0; j < num_contacts; ++j)
+                    dmArray<b2ContactData>& contacts = GetContactsBuffer(world, body_id);
+                    int num_contacts = contacts.Size();
+
+                    for (int j = 0; j < num_contacts && (collision_callback || contact_point_callback); ++j)
                     {
                         b2ContactData& contact = contacts[j];
+
+                        // Both bodies enumerate this contact with the same A/B orientation.
+                        b2BodyId bodyIdA = b2Shape_GetBody(contact.shapeIdA);
+                        if (!B2_ID_EQUALS(body_id, bodyIdA))
+                            continue;
 
                         float max_impulse = 0.0f;
                         for (int k = 0; k < contact.manifold.pointCount; ++k)
@@ -603,37 +610,37 @@ namespace dmPhysics
                             continue;
                         }
 
-                        if (step_context.m_CollisionCallback)
+                        if (collision_callback)
                         {
-                            step_context.m_CollisionCallback(
+                            if (!collision_callback(
                                 b2Shape_GetUserData(contact.shapeIdA),
                                 b2Shape_GetFilter(contact.shapeIdA).categoryBits,
                                 b2Shape_GetUserData(contact.shapeIdB),
                                 b2Shape_GetFilter(contact.shapeIdB).categoryBits,
-                                step_context.m_CollisionUserData);
+                                step_context.m_CollisionUserData))
+                                collision_callback = 0;
                         }
 
-                        if (step_context.m_ContactPointCallback)
+                        if (contact_point_callback)
                         {
-                            b2BodyId bodyIdA = b2Shape_GetBody(contact.shapeIdA);
                             b2BodyId bodyIdB = b2Shape_GetBody(contact.shapeIdB);
                             b2Vec2 vel_a = b2Body_GetLinearVelocity(bodyIdA);
                             b2Vec2 vel_b = b2Body_GetLinearVelocity(bodyIdB);
                             b2Vec2 rv    = b2Sub(vel_b, vel_a);
 
-                            for (int k = 0; k < contact.manifold.pointCount; ++k)
+                            ContactPoint cp;
+                            FromB2(contact.manifold.normal, cp.m_Normal, 1.0f); // Don't scale normal
+                            FromB2(rv, cp.m_RelativeVelocity, inv_scale);
+
+                            for (int k = 0; k < contact.manifold.pointCount && contact_point_callback; ++k)
                             {
                                 b2ManifoldPoint& manifold_point = contact.manifold.points[k];
 
-                                ContactPoint cp;
                                 b2Pos point = b2OffsetPos(b2Body_GetWorldCenter(bodyIdA), manifold_point.anchorA);
                                 FromB2(point, cp.m_PositionA, inv_scale);
-                                FromB2(point, cp.m_PositionB, inv_scale);
+                                cp.m_PositionB = cp.m_PositionA;
                                 cp.m_UserDataA = b2Body_GetUserData(bodyIdA);
                                 cp.m_UserDataB = b2Body_GetUserData(bodyIdB);
-
-                                FromB2(contact.manifold.normal, cp.m_Normal, 1.0f); // Don't scale normal
-                                FromB2(rv, cp.m_RelativeVelocity, inv_scale);
 
                                 cp.m_Distance = -manifold_point.separation * inv_scale;
                                 cp.m_AppliedImpulse = manifold_point.normalImpulse * inv_scale;
@@ -641,7 +648,8 @@ namespace dmPhysics
                                 cp.m_MassB = b2Body_GetMass(bodyIdB);
                                 cp.m_GroupA = b2Shape_GetFilter(contact.shapeIdA).categoryBits;
                                 cp.m_GroupB = b2Shape_GetFilter(contact.shapeIdB).categoryBits;
-                                step_context.m_ContactPointCallback(cp, step_context.m_ContactPointUserData);
+                                if (!contact_point_callback(cp, step_context.m_ContactPointUserData))
+                                    contact_point_callback = 0;
                             }
                         }
                     }
@@ -705,10 +713,10 @@ namespace dmPhysics
             world->m_RayCastRequests.SetSize(0);
         }
 
-        if (step_context.m_CollisionCallback)
+        if (collision_callback)
         {
             DM_PROFILE("CollisionCallbacks");
-            for (int i=0; i < world->m_Bodies.Size(); ++i)
+            for (int i = 0; i < world->m_Bodies.Size() && collision_callback; ++i)
             {
                 Body* body = world->m_Bodies[i];
 
@@ -717,7 +725,7 @@ namespace dmPhysics
                     continue;
                 }
 
-                for (int j=0; j < body->m_ShapeCount; ++j)
+                for (int j = 0; j < body->m_ShapeCount && collision_callback; ++j)
                 {
                     b2ShapeId shapeIdA = body->m_Shapes[j]->m_ShapeId;
                     if (!b2Shape_IsValid(shapeIdA))
@@ -730,7 +738,7 @@ namespace dmPhysics
                         dmArray<b2ShapeId>& overlaps = GetSensorOverlapBuffer(world, shapeIdA);
 
                         // Trigger collision callbacks for overlapping sensors
-                        for (int k=0; k < overlaps.Size(); ++k)
+                        for (int k = 0; k < overlaps.Size() && collision_callback; ++k)
                         {
                             b2ShapeId shapeIdB = overlaps[k];
                             if (!b2Shape_IsValid(shapeIdB))
@@ -738,10 +746,11 @@ namespace dmPhysics
                                 continue;
                             }
 
-                            step_context.m_CollisionCallback(
+                            if (!collision_callback(
                                 b2Shape_GetUserData(shapeIdA), b2Shape_GetFilter(shapeIdA).categoryBits,
                                 b2Shape_GetUserData(shapeIdB), b2Shape_GetFilter(shapeIdB).categoryBits,
-                                step_context.m_CollisionUserData);
+                                step_context.m_CollisionUserData))
+                                collision_callback = 0;
                         }
                     }
                 }
