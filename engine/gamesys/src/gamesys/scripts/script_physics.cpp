@@ -1831,7 +1831,7 @@ namespace dmGameSystem
 
         if (!dmScript::SetupCallback(cbk))
         {
-            dmLogError("Failed to setup physics.set_event_listener() callback");
+            dmLogError("Failed to set up physics.set_event_listener() callback.");
             return;
         }
         dmScript::PushHash(L, desc->m_NameHash);
@@ -2079,7 +2079,7 @@ namespace dmGameSystem
 
         if (!dmScript::SetupCallback(cbk))
         {
-            dmLogError("Failed to setup physics.set_event_listener() callback");
+            dmLogError("Failed to set up physics.set_event_listener() callback.");
             return;
         }
 

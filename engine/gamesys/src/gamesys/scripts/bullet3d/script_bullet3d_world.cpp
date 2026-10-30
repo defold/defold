@@ -1273,7 +1273,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         if (!dmScript::SetupCallback(request->m_Callback))
         {
-            dmLogError("Failed to setup Bullet3D cast callback (has the calling script been destroyed?)");
+            dmLogError("Failed to set up Bullet3D cast callback. The calling script may have been destroyed.");
             return;
         }
         PushAsyncCastResults(L, request->m_Results, request->m_MaxResults);

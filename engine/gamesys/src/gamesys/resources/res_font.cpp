@@ -1148,7 +1148,7 @@ namespace dmGameSystem
     {
         if (!resource->m_TTFResource) // Only dynamic fonts are supported
         {
-            dmLogError("Cannot only add font to a dynamic font collection!");
+            dmLogError("Fonts can only be added to dynamic font collections.");
             return dmResource::RESULT_NOT_SUPPORTED;
         }
 
@@ -1174,7 +1174,7 @@ namespace dmGameSystem
     {
         if (!resource->m_TTFResource) // Only dynamic fonts are supported
         {
-            dmLogError("Cannot only add font to a dynamic font collection!");
+            dmLogError("Fonts can only be added to dynamic font collections.");
             return dmResource::RESULT_NOT_SUPPORTED;
         }
 

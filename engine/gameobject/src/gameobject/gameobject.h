@@ -50,6 +50,11 @@ namespace dmGameObject
     extern const dmhash_t UNNAMED_IDENTIFIER;
 
     /**
+     * Get the enum name for a result, or "<unknown dmGameObject::Result>" for an unknown value.
+     */
+    const char* GetResultLiteral(Result result);
+
+    /**
      * Create a new component type register. Only one register may exist at a time.
      * @return Register handle
      */

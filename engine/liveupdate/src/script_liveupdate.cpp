@@ -113,7 +113,7 @@ namespace dmLiveUpdate
 
         if (!dmScript::SetupCallback(cbk))
         {
-            dmLogError("Failed to setup callback");
+            dmLogError("Failed to set up live update callback.");
             return;
         }
 

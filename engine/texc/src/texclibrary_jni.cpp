@@ -533,7 +533,7 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_DefaultEncode(JNIEnv* env, jclass 
         result = dmTexc::DefaultEncode(&input, &out, &out_size);
         if (!result)
         {
-            dmLogError("%s: dmTexc::BasisUEncode failed", __FUNCTION__);
+            dmLogError("%s: dmTexc::DefaultEncode failed.", __FUNCTION__);
             return 0;
         }
 

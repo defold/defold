@@ -1972,11 +1972,11 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
     const uint32_t max_num_values = sizeof(KeyFrame::m_Value)/sizeof(float);
     if (num_values > max_num_values)
     {
-        dmLogWarning("Channel has input count %u and output count %u."
-                     "This yields %u items x %u components = %u"
-                     "which is larger than max count %u", (uint32_t)accessor_times->count, (uint32_t)accessor->count,
-                                                         num_items, num_components, num_values,
-                                                         max_num_values);
+        dmLogWarning("Animation channel has input count %u and output count %u. "
+                     "This yields %u items x %u components = %u values per keyframe. "
+                     "Truncating to the supported maximum of %u values per keyframe.",
+                     (uint32_t)accessor_times->count, (uint32_t)accessor->count,
+                     num_items, num_components, num_values, max_num_values);
         num_values = max_num_values;
     }
 
