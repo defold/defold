@@ -2675,6 +2675,8 @@ static void LogFrameBufferError(GLenum status)
             vd->m_Streams[i].m_Type      = stream_declaration->m_Streams[i].m_Type;
             vd->m_Streams[i].m_Normalize = stream_declaration->m_Streams[i].m_Normalize;
             vd->m_Streams[i].m_Offset    = vd->m_Stride;
+            vd->m_Streams[i].m_Reserved0 = 0;
+            memset(vd->m_Streams[i].m_Reserved1, 0, sizeof(vd->m_Streams[i].m_Reserved1));
 
             vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
         }
@@ -3573,6 +3575,26 @@ static void LogFrameBufferError(GLenum status)
         return -1;
     }
 
+    static void DeleteUniformBuffers(OpenGLContext* context, OpenGLProgram* program)
+    {
+        for (uint32_t i = 0; i < program->m_UniformBuffers.Size(); ++i)
+        {
+            OpenGLScratchUniformBuffer& buffer = program->m_UniformBuffers[i];
+            // Unused shader blocks never allocate an OpenGL handle.
+            if (buffer.m_BlockMemory)
+            {
+                GLuint id = GetGLHandle(context, buffer.m_Id);
+                glDeleteBuffersARB(1, &id);
+                CleanupGLHandle(context, buffer.m_Id);
+                delete[] buffer.m_BlockMemory;
+                buffer.m_BlockMemory = 0;
+            }
+            buffer.m_Indices.SetCapacity(0);
+            buffer.m_Offsets.SetCapacity(0);
+        }
+        program->m_UniformBuffers.SetSize(0);
+    }
+
     static void BuildUniformBuffers(OpenGLContext* context, OpenGLProgram* program)
     {
         uint32_t num_ubos = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size();
@@ -3580,7 +3602,8 @@ static void LogFrameBufferError(GLenum status)
         program->m_UniformBuffers.SetCapacity(num_ubos);
         program->m_UniformBuffers.SetSize(num_ubos);
 
-        memset(program->m_UniformBuffers.Begin(), 0, sizeof(OpenGLScratchUniformBuffer) * num_ubos);
+        if (num_ubos)
+            memset(program->m_UniformBuffers.Begin(), 0, sizeof(OpenGLScratchUniformBuffer) * num_ubos);
 
         uint32_t num_uniform_buffers = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size();
         for (uint32_t j = 0; j < num_uniform_buffers; ++j)
@@ -4376,15 +4399,7 @@ static void LogFrameBufferError(GLenum status)
             BuildAttributes(program);
         }
 
-        for (uint32_t i = 0; i < program->m_UniformBuffers.Size(); ++i)
-        {
-            OpenGLScratchUniformBuffer& buffer = program->m_UniformBuffers[i];
-            GLuint id = GetGLHandle(context, buffer.m_Id);
-            glDeleteBuffersARB(1, &id);
-            CleanupGLHandle(context, buffer.m_Id);
-            delete[] buffer.m_BlockMemory;
-        }
-        program->m_UniformBuffers.SetSize(0);
+        DeleteUniformBuffers(context, program);
         OpenGLShader* shaders[] = { program->m_VertexShader, program->m_FragmentShader };
         ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
         OpenGLShader** active_shaders = ddf_cp ? &program->m_ComputeShader : shaders;
@@ -4407,10 +4422,7 @@ static void LogFrameBufferError(GLenum status)
         DeleteShader(context, program_ptr->m_FragmentShader);
         DeleteShader(context, program_ptr->m_ComputeShader);
 
-        for (int i = 0; i < program_ptr->m_UniformBuffers.Size(); ++i)
-        {
-            delete[] program_ptr->m_UniformBuffers[i].m_BlockMemory;
-        }
+        DeleteUniformBuffers(context, program_ptr);
 
         delete program_ptr;
     }

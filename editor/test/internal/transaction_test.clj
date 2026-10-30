@@ -214,7 +214,7 @@
           tx-result        (g/transact (g/invalidate person))
           outputs-modified (:outputs-modified tx-result)]
       (doseq [output [:_node-id :_properties :friendly-name :full-name :date-of-birth :age]]
-        (is (some #{(g/endpoint person output)} outputs-modified))))))
+        (is (coll/any? #(= (g/endpoint person output) %) outputs-modified))))))
 
 (g/defnode CachedOutputInvalidation
   (property a-property g/Str (default "a-string"))
@@ -222,20 +222,22 @@
   (output ordinary g/Str :cached (g/fnk [a-property] a-property))
   (output self-dependent g/Str :cached (g/fnk [ordinary] ordinary)))
 
+;; Fresh nodes have no cached outputs to invalidate; later edits must still
+;; invalidate their cached outputs and internal dependents.
 (deftest invalidated-properties-noted-by-transaction
   (ts/with-clean-system
     (let [tx-result        (g/transact (g/make-node CachedOutputInvalidation))
           real-id          (first (g/tx-nodes-added tx-result))
           outputs-modified (:outputs-modified tx-result)]
-      (is (some #{real-id} (map gt/endpoint-node-id outputs-modified)))
-      (is (= #{:_declared-properties :_properties :_overridden-properties :_node-id :_output-jammers :self-dependent :a-property :ordinary}
-             (into #{} (map gt/endpoint-label) outputs-modified)))
+      (is (coll/empty? outputs-modified))
+      (is (= "a-string" (g/node-value real-id :self-dependent)))
       (let [tx-data          [(it/update-property real-id :a-property (constantly "new-value") [] nil)]
             tx-result        (g/transact tx-data)
             outputs-modified (:outputs-modified tx-result)]
-        (is (some #{real-id} (map gt/endpoint-node-id outputs-modified)))
+        (is (coll/any? #(= real-id (gt/endpoint-node-id %)) outputs-modified))
         (is (= #{:_declared-properties :_properties :a-property :ordinary :self-dependent}
-               (into #{} (map gt/endpoint-label) outputs-modified)))))))
+               (coll/into-> outputs-modified #{} (map gt/endpoint-label))))
+        (is (= "new-value" (g/node-value real-id :self-dependent)))))))
 
 (defn- graph-successors-cache
   []

@@ -207,6 +207,41 @@ class RecordingServiceTest(unittest.TestCase):
         self.request("GET", url, expected=410)
         self.assertEqual([], list(pathlib.Path(self.directory.name).iterdir()))
 
+    # Hash preparation must include the last bytes on either side of its 64 KiB read boundary.
+    def test_recording_hash_chunk_boundaries(self):
+        for size in (65535, 65536, 65537, 2 * 65536 + 17):
+            with self.subTest(size=size):
+                receipt = self.request("POST", "/recording/start", {}, 202)
+                self.wait_status()
+                recording, = pathlib.Path(self.directory.name).glob("*.mp4")
+                data = (bytes(range(256)) * ((size + 255) // 256))[:size]
+                recording.write_bytes(data)
+                self.request("POST", "/recording/stop", {"operation_id": receipt["operation_id"]}, 202)
+                file = self.wait_status(complete_file=True)["file"]
+                self.assertEqual("complete", file["state"])
+                self.assertEqual(size, file["size"])
+                self.assertEqual(hashlib.sha256(data).hexdigest(), file["sha256"])
+                self.request("DELETE", file["url"], expected=204)
+
+    # Failed file preparation must release its unfinished hash context and leave a deletable receipt.
+    def test_recording_hash_missing_or_empty_file(self):
+        for missing in (False, True):
+            with self.subTest(missing=missing):
+                receipt = self.request("POST", "/recording/start", {}, 202)
+                self.wait_status()
+                recording, = pathlib.Path(self.directory.name).glob("*.mp4")
+                if missing:
+                    recording.unlink()
+                else:
+                    recording.write_bytes(b"")
+                self.request("POST", "/recording/stop", {"operation_id": receipt["operation_id"]}, 202)
+                file = self.wait_status(complete_file=True)["file"]
+                self.assertEqual("failed", file["state"])
+                self.assertEqual("", file["sha256"])
+                self.assertEqual(0, file["size"])
+                self.request("GET", file["url"], expected=500)
+                self.request("DELETE", file["url"], expected=204)
+
     # Whole files and ranges larger than 1 MiB must stream with correct headers on a reused connection.
     def test_full_file_and_large_ranges(self):
         size = 4 * 1024 * 1024 + 17
@@ -545,7 +580,7 @@ class RecordingServiceTest(unittest.TestCase):
         self.assertGreater(self.request("GET", "/test/updates")["updates"], updates)
 
     # Server deletion must deliver its shutdown reply and join the sender even
-    # when more clients than workers are stalled with unread responses.
+    # when clients are stalled with unread responses or unfinished rejected uploads.
     def test_shutdown_with_stalled_download(self):
         self.request("GET", "/test/large-recording")
         receipt = self.request("POST", "/recording/start", {}, 202)
@@ -565,6 +600,14 @@ class RecordingServiceTest(unittest.TestCase):
                 response = stack.enter_context(http.client.HTTPResponse(connection))
                 response.begin()
                 self.assertEqual(206, response.status)
+            upload = stack.enter_context(socket.create_connection(("127.0.0.1", self.port), timeout=5))
+            upload.sendall(b"POST /recording/start HTTP/1.1\r\n"
+                           b"Host: 127.0.0.1\r\nContent-Length: 2147483647\r\n\r\n")
+            response = stack.enter_context(http.client.HTTPResponse(upload))
+            response.begin()
+            self.assertEqual(413, response.status)
+            response.read()
+            self.assertEqual(b"", upload.recv(1))
             try:
                 type(self).tearDownClass()
             finally:
@@ -656,11 +699,13 @@ class RecordingServiceTest(unittest.TestCase):
     def test_oversized_body_rejected_without_drain(self):
         for method, path, size, prefix in [
             ("POST", "/recording/start", 1024, b""),
+            ("POST", "/recording/start", 1024, b" " * 1024),
+            ("POST", "/recording/start", 65536, b" " * 65536),
             ("POST", "/recording/stop", 0x7fffffff, b"{"),
             ("GET", "/recording/capabilities", 1024, b""),
             ("DELETE", "/recording/files/missing", 1024, b""),
         ]:
-            with self.subTest(method=method, path=path, size=size):
+            with self.subTest(method=method, path=path, size=size, prefix_size=len(prefix)):
                 with socket.create_connection(("127.0.0.1", self.port), timeout=5) as connection:
                     connection.sendall((f"{method} {path} HTTP/1.1\r\n"
                                         "Host: 127.0.0.1\r\n"
@@ -672,6 +717,53 @@ class RecordingServiceTest(unittest.TestCase):
                     self.assertEqual("body_too_large", json.loads(response.read())["error"]["code"])
                     self.assertEqual(b"", connection.recv(1))
                 self.assertFalse(self.request("GET", "/recording/status")["active"])
+
+    # Upload bytes already in flight must not reset a 413, even after its write-side FIN.
+    def test_oversized_body_in_flight(self):
+        body = b" " * (256 * 1024)
+        with socket.create_connection(("127.0.0.1", self.port), timeout=5) as connection:
+            connection.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
+            connection.sendall(("POST /recording/start HTTP/1.1\r\n"
+                                "Host: 127.0.0.1\r\n"
+                                f"Content-Length: {len(body)}\r\n\r\n").encode("ascii"))
+            with http.client.HTTPResponse(connection) as response:
+                response.begin()
+                self.assertEqual(413, response.status)
+                self.assertEqual("body_too_large", json.loads(response.read())["error"]["code"])
+                self.assertEqual(b"", connection.recv(1))
+                # Synchronize on an engine update after the response, then keep
+                # uploading while updates are paused to exercise the worker.
+                self.request("GET", "/test/pause-updates")
+                try:
+                    self.paused.get(timeout=5)
+                    connection.sendall(body)
+                    connection.shutdown(socket.SHUT_WR)
+                finally:
+                    self.process.stdin.write("\n")
+                    self.process.stdin.flush()
+        self.assertFalse(self.request("GET", "/recording/status")["active"])
+
+    # Rejected uploads must expire on a fixed deadline even if more bytes keep arriving.
+    def test_rejected_upload_times_out(self):
+        with self.server_timeout(2):
+            with socket.create_connection(("127.0.0.1", self.port), timeout=5) as connection:
+                connection.sendall(b"POST /recording/start HTTP/1.1\r\n"
+                                   b"Host: 127.0.0.1\r\nContent-Length: 2147483647\r\n\r\n")
+                with http.client.HTTPResponse(connection) as response:
+                    response.begin()
+                    self.assertEqual(413, response.status)
+                    response.read()
+                    self.assertEqual(b"", connection.recv(1))
+                    deadline = time.monotonic() + 5
+                    while time.monotonic() < deadline:
+                        try:
+                            connection.sendall(b" " * 1024)
+                        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                            # Winsock may report a local abort after the close deadline.
+                            break
+                        self.request("GET", "/recording/capabilities")
+                    else:
+                        self.fail("Rejected upload kept its connection alive past the close deadline")
 
     # Incomplete small bodies must yield to other requests, retain their headers, and resume normally.
     def test_partial_body_does_not_block_updates(self):

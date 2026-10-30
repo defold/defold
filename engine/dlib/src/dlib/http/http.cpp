@@ -18,8 +18,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <dlib/atomic.h>
 #include <dlib/dstrings.h>
+#include <dlib/math.h>
 
+#include "http_internal.h"
 #include "http_private.h"
 #include "http_service.h"
 
@@ -297,7 +300,7 @@ static void SendHeader(HttpRequest* request, int status, const char* header, uin
     }
 }
 
-static void SendData(HttpRequest* request, int status, const char* data, uint32_t data_size)
+static void SendData(HttpRequest* request, int status, const char* data, uint32_t data_size, int32_t content_length)
 {
     if (request->m_Callback && data && data_size > 0)
     {
@@ -308,6 +311,7 @@ static void SendData(HttpRequest* request, int status, const char* data, uint32_
         response.m_StatusCode = status;
         response.m_Data = data;
         response.m_DataSize = data_size;
+        response.m_BytesTotal = content_length;
         HandleCallbackResult(request, request->m_Callback(request, request->m_UserData, &response));
     }
 }
@@ -663,6 +667,42 @@ extern "C"
 
 namespace dmHttpService
 {
+    bool AppendResponseBuffer(dmArray<char>& buffer, const void* data, uint32_t data_size, int32_t content_length)
+    {
+        // The legacy client can deliver empty chunks, including at cache EOF.
+        // Skip these before reserving response storage.
+        if (data_size == 0)
+        {
+            return true;
+        }
+
+        uint64_t required_capacity = (uint64_t)buffer.Size() + data_size;
+        if (required_capacity > UINT32_MAX)
+        {
+            return false;
+        }
+
+        uint64_t capacity = buffer.Capacity();
+        // Reserve the known body size on the first nonempty chunk. Headers use the default -1.
+        if (buffer.Empty() && content_length > 0)
+        {
+            capacity = dmMath::Max(capacity, (uint64_t)content_length);
+        }
+
+        if (required_capacity > capacity)
+        {
+            // Double capacity to keep cumulative allocation and copying linear in the response size.
+            capacity = dmMath::Max(capacity * 2, (uint64_t)1024);
+            capacity = dmMath::Max(capacity, required_capacity);
+        }
+        if (capacity > buffer.Capacity())
+        {
+            buffer.SetCapacity((uint32_t)dmMath::Min(capacity, (uint64_t)UINT32_MAX));
+        }
+        buffer.PushArray((const char*)data, data_size);
+        return true;
+    }
+
     void DirectRequestHeader(HttpRequest* request, int status, const char* key, const char* value)
     {
         if (!request || !key || !value)
@@ -698,9 +738,7 @@ namespace dmHttpService
         request->m_RangeStart = range_start;
         request->m_RangeEnd = range_end;
         request->m_DocumentSize = document_size;
-        (void)content_length;
-
-        SendData(request, status, (const char*)content_data, content_data_size);
+        SendData(request, status, (const char*)content_data, content_data_size, content_length);
     }
 
     void DirectRequestProgress(HttpRequest* request, uint32_t bytes_sent, uint32_t bytes_received, int32_t bytes_total)
@@ -747,7 +785,7 @@ namespace dmHttpService
         }
 
         UnregisterRequest(request);
-        SendComplete(request, request->m_CancelFlag ? HTTP_RESULT_INVAL : MapResult(result), status);
+        SendComplete(request, dmAtomicGet32(&request->m_CancelFlag) ? HTTP_RESULT_INVAL : MapResult(result), status);
         DestroyRequest(request);
     }
 

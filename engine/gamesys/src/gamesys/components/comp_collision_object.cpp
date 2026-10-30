@@ -490,6 +490,7 @@ namespace dmGameSystem
         if (response.m_Hit)
         {
             dmPhysicsDDF::RayCastResponse response_ddf;
+            memset(&response_ddf, 0, sizeof(response_ddf));
             CollisionComponent* component = (CollisionComponent*)response.m_CollisionObjectUserData;
 
             response_ddf.m_Fraction = response.m_Fraction;

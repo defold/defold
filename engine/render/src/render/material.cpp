@@ -255,7 +255,8 @@ namespace dmRender
 
         m->m_MaterialAttributes.SetCapacity(num_program_attributes);
         m->m_MaterialAttributes.SetSize(num_program_attributes);
-        memset(m->m_MaterialAttributes.Begin(), 0, sizeof(MaterialAttribute) * num_program_attributes);
+        if (num_program_attributes)
+            memset(m->m_MaterialAttributes.Begin(), 0, sizeof(MaterialAttribute) * num_program_attributes);
         m->m_VertexAttributeInfos.SetCapacity(num_program_attributes);
         m->m_VertexAttributeInfos.SetSize(num_program_attributes);
 
@@ -284,7 +285,8 @@ namespace dmRender
 
         m->m_MaterialAttributeValues.SetCapacity(num_attribute_byte_size);
         m->m_MaterialAttributeValues.SetSize(num_attribute_byte_size);
-        memset(m->m_MaterialAttributeValues.Begin(), 0, num_attribute_byte_size);
+        if (num_attribute_byte_size)
+            memset(m->m_MaterialAttributeValues.Begin(), 0, num_attribute_byte_size);
 
         // Set value pointers now that the buffer is allocated
         UpdateVertexAttributeValuePointers(m);
@@ -684,6 +686,9 @@ namespace dmRender
         }
 
         bool update_attributes = false;
+        dmArray<dmGraphics::VertexAttributeInfo> previous_infos;
+        previous_infos.SetCapacity(material->m_VertexAttributeInfos.Size());
+        previous_infos.PushArray(material->m_VertexAttributeInfos.Begin(), material->m_VertexAttributeInfos.Size());
 
         for (int i = 0; i < attributes_count; ++i)
         {
@@ -724,8 +729,32 @@ namespace dmRender
             value_byte_size += dmGraphics::GetTypeSize(graphics_type) * material->m_VertexAttributeInfos[i].m_ElementCount;
         }
 
-        material->m_MaterialAttributeValues.SetCapacity(value_byte_size);
-        material->m_MaterialAttributeValues.SetSize(value_byte_size);
+        // Relocate each old value to its new offset before applying overrides.
+        // A partial update may grow or shrink an attribute before its neighbors.
+        dmArray<uint8_t> values;
+        values.EnsureSize(value_byte_size);
+        memset(values.Begin(), 0, value_byte_size);
+        for (uint32_t i = 0; i < previous_infos.Size(); ++i)
+        {
+            const dmGraphics::VertexAttributeInfo& previous = previous_infos[i];
+            const dmGraphics::VertexAttributeInfo& current = material->m_VertexAttributeInfos[i];
+            uint32_t element_count = dmMath::Min(previous.m_ElementCount, current.m_ElementCount);
+            uint32_t previous_width = dmGraphics::DataTypeToByteWidth(previous.m_DataType);
+            uint8_t* destination = values.Begin() + material->m_MaterialAttributes[i].m_ValueIndex;
+            if (previous.m_DataType == current.m_DataType)
+            {
+                memcpy(destination, previous.m_ValuePtr, element_count * previous_width);
+            }
+            else
+            {
+                for (uint32_t j = 0; j < element_count; ++j)
+                {
+                    float value = dmGraphics::VertexAttributeDataTypeToFloat(previous.m_DataType, previous.m_ValuePtr + j * previous_width);
+                    destination = dmGraphics::WriteVertexAttributeFromFloat(destination, value, current.m_DataType);
+                }
+            }
+        }
+        material->m_MaterialAttributeValues.Swap(values);
         UpdateVertexAttributeValuePointers(material);
 
         const uint32_t name_buffer_size = 128;
@@ -750,7 +779,8 @@ namespace dmRender
             dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(graphics_attribute_in.m_DataType);
             uint32_t attribute_byte_size   = dmGraphics::GetTypeSize(graphics_type) * dmGraphics::VectorTypeToElementCount(graphics_attribute_in.m_VectorType) * material_attribute.m_ValueCount;
             attribute_byte_size            = dmMath::Min(attribute_byte_size, byte_size);
-            memcpy(&material->m_MaterialAttributeValues[material_attribute.m_ValueIndex], bytes, attribute_byte_size);
+            if (attribute_byte_size)
+                memcpy(&material->m_MaterialAttributeValues[material_attribute.m_ValueIndex], bytes, attribute_byte_size);
 
             if (graphics_attribute_in.m_Name != 0x0)
             {

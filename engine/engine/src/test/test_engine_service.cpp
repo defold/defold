@@ -21,6 +21,7 @@
 #include <dlib/thread.h>
 #include <dlib/uri.h>
 #include <dlib/webserver.h>
+#include <resource/resource_ddf.h>
 
 TEST_F(EngineTest, ServiceInstanceNameSanitizesAddress)
 {
@@ -112,15 +113,23 @@ public:
     dmEngineService::HEngineService m_Service;
     dmArray<char> m_Body;
     char m_ContentType[64];
-    char m_Allow[16];
+    char m_Allow[32];
+    char m_Connection[16];
     int m_Status;
     int32_atomic_t m_Done;
     const char* m_Method;
     const char* m_Path;
+    const char* m_RequestBody;
+    uint32_t m_RequestBodySize;
+    bool m_SendRequestBody;
+    int32_t m_RequestPrefixSize;
+    int m_ProbeStatus;
+    dmHttpClient::Result m_ProbeResult;
     dmHttpClient::Result m_Result;
 
     void SetUp()
     {
+        m_RequestPrefixSize = -1;
         dmSocket::Initialize();
         m_Service = dmEngineService::New(0);
         ASSERT_NE((dmEngineService::HEngineService)0, m_Service);
@@ -143,6 +152,8 @@ public:
             dmStrlCpy(self->m_ContentType, value, sizeof(self->m_ContentType));
         if (dmStrCaseCmp(key, "Allow") == 0)
             dmStrlCpy(self->m_Allow, value, sizeof(self->m_Allow));
+        if (dmStrCaseCmp(key, "Connection") == 0)
+            dmStrlCpy(self->m_Connection, value, sizeof(self->m_Connection));
     }
 
     static void Content(dmHttpClient::HResponse, void* context, int status, const void* data, uint32_t size,
@@ -172,19 +183,71 @@ public:
         params.m_HttpContent = Content;
         params.m_RequestTimeout = 5000000;
         params.m_MaxGetRetries = 1;
+        params.m_HttpSendContentLength = ContentLength;
+        params.m_HttpWrite = self->m_RequestPrefixSize < 0 ? Write : WritePartialBody;
         dmHttpClient::HClient client = dmHttpClient::New(&params, &uri);
         self->m_Result = dmHttpClient::Request(client, self->m_Method, self->m_Path);
         dmHttpClient::Delete(client);
         dmAtomicStore32(&self->m_Done, 1);
     }
 
-    void Fetch(const char* method, const char* path)
+    static uint32_t ContentLength(dmHttpClient::HResponse, void* context)
+    {
+        return ((EngineServiceOpenAPITest*)context)->m_RequestBodySize;
+    }
+
+    static dmHttpClient::Result Write(dmHttpClient::HResponse response, uint32_t offset, uint32_t length, void* context)
+    {
+        EngineServiceOpenAPITest* self = (EngineServiceOpenAPITest*)context;
+        if (!self->m_SendRequestBody)
+            return dmHttpClient::RESULT_OK;
+        return dmHttpClient::Write(response, self->m_RequestBody + offset, length);
+    }
+
+    static void ProbeContent(dmHttpClient::HResponse, void* context, int status, const void*, uint32_t, int32_t, uint32_t, uint32_t, uint32_t, const char*)
+    {
+        *(int*)context = status;
+    }
+
+    static dmHttpClient::Result WritePartialBody(dmHttpClient::HResponse response, uint32_t offset, uint32_t length, void* context)
+    {
+        EngineServiceOpenAPITest* self = (EngineServiceOpenAPITest*)context;
+        uint32_t prefix_size = self->m_RequestPrefixSize;
+        dmHttpClient::Result written = dmHttpClient::Write(response, self->m_RequestBody + offset, prefix_size);
+        if (written != dmHttpClient::RESULT_OK)
+            return written;
+
+        // Require another request to complete while this upload is incomplete.
+        char url[64];
+        dmSnPrintf(url, sizeof(url), "http://127.0.0.1:%u", dmEngineService::GetPort(self->m_Service));
+        dmURI::Parts uri;
+        dmURI::Parse(url, &uri);
+        dmHttpClient::NewParams params;
+        params.m_Userdata = &self->m_ProbeStatus;
+        params.m_HttpContent = ProbeContent;
+        params.m_RequestTimeout = 5000000;
+        params.m_MaxGetRetries = 1;
+        dmHttpClient::HClient client = dmHttpClient::New(&params, &uri);
+        self->m_ProbeResult = dmHttpClient::Request(client, "GET", "/ping");
+        dmHttpClient::Delete(client);
+
+        // Release a blocking handler even if the probe timed out, so the regression fails without hanging the suite.
+        return dmHttpClient::Write(response, self->m_RequestBody + offset + prefix_size, length - prefix_size);
+    }
+
+    void Fetch(const char* method, const char* path, const char* body = "", bool send_body = true, uint32_t body_size = UINT32_MAX)
     {
         m_Method = method;
         m_Path = path;
+        m_RequestBody = body;
+        m_RequestBodySize = body_size == UINT32_MAX ? strlen(body) : body_size;
+        m_SendRequestBody = send_body;
+        m_ProbeStatus = 0;
+        m_ProbeResult = dmHttpClient::RESULT_UNKNOWN;
         m_Status = 0;
         m_ContentType[0] = 0;
         m_Allow[0] = 0;
+        m_Connection[0] = 0;
         m_Body.SetSize(0);
         dmAtomicStore32(&m_Done, 0);
         dmThread::Thread client = dmThread::New(Request, 0x80000, this, "openapi-client");
@@ -204,6 +267,99 @@ public:
         dmWebServer::Send(request, body, strlen(body));
     }
 };
+
+class EngineServiceReloadTest : public EngineServiceOpenAPITest
+{
+public:
+    dmMessage::HSocket m_ResourceSocket;
+    dmResourceDDF::Reload* m_ExpectedReload;
+
+    void SetUp()
+    {
+        m_ExpectedReload = 0;
+        EngineServiceOpenAPITest::SetUp();
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("@resource", &m_ResourceSocket));
+    }
+
+    void TearDown()
+    {
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(m_ResourceSocket));
+        EngineServiceOpenAPITest::TearDown();
+    }
+
+    static void CheckReload(dmMessage::Message* message, void* context)
+    {
+        EngineServiceReloadTest* self = (EngineServiceReloadTest*)context;
+        ASSERT_EQ((uintptr_t)dmResourceDDF::Reload::m_DDFDescriptor, message->m_Descriptor);
+        ASSERT_EQ(0U, message->m_DataSize);
+        ASSERT_NE((uintptr_t)0, message->m_UserData1);
+        ASSERT_NE((dmResourceDDF::Reload*)0, self->m_ExpectedReload);
+        dmResourceDDF::Reload* reload = (dmResourceDDF::Reload*)message->m_UserData1;
+        ASSERT_EQ(self->m_ExpectedReload->m_Resources.m_Count, reload->m_Resources.m_Count);
+        const char* base = (const char*)reload;
+        const uintptr_t* offsets = (const uintptr_t*)(base + (uintptr_t)reload->m_Resources.m_Data);
+        for (uint32_t i = 0; i < reload->m_Resources.m_Count; ++i)
+            ASSERT_STREQ(self->m_ExpectedReload->m_Resources[i], base + offsets[i]);
+    }
+};
+
+// Reloads larger than both the old 1 KiB HTTP limit and a message page must
+// arrive as one batch with every path in order, including uploads above 64 KiB.
+TEST_F(EngineServiceReloadTest, LargeReloadBatches)
+{
+    const uint32_t counts[] = { 0, 1, 40, 256, 4096 };
+    dmArray<char> paths;
+    paths.SetCapacity(4096 * 64);
+    paths.SetSize(paths.Capacity());
+    dmArray<const char*> names;
+    names.SetCapacity(4096);
+    for (uint32_t i = 0; i < names.Capacity(); ++i)
+    {
+        char* path = paths.Begin() + i * 64;
+        dmSnPrintf(path, 64, "/assets/data/item-%04u.json", i);
+        names.Push(path);
+    }
+    dmResourceDDF::Reload reload = {};
+    reload.m_Resources.m_Data = names.Begin();
+    m_ExpectedReload = &reload;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(counts); ++i)
+    {
+        reload.m_Resources.m_Count = counts[i];
+        dmArray<uint8_t> encoded;
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&reload, dmResourceDDF::Reload::m_DDFDescriptor, encoded));
+        if (counts[i] == 40)
+            ASSERT_GT(encoded.Size(), 1024U);
+        if (counts[i] == 4096)
+            ASSERT_GT(encoded.Size(), 64U * 1024U);
+        Fetch("POST", "/post/@resource/reload", (const char*)encoded.Begin(), true, encoded.Size());
+        ASSERT_EQ(dmHttpClient::RESULT_OK, m_Result);
+        ASSERT_EQ(200, m_Status);
+        ASSERT_EQ(1U, dmMessage::Dispatch(m_ResourceSocket, CheckReload, this));
+    }
+}
+
+// A malformed reload must fail before posting anything and must not wait for
+// more body bytes after the complete, invalid payload has already been read.
+TEST_F(EngineServiceReloadTest, InvalidReload)
+{
+    const char truncated[] = { 0x0a, 0x05, 'a' };
+    Fetch("POST", "/post/@resource/reload", truncated, true, sizeof(truncated));
+    ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, m_Result);
+    ASSERT_EQ(400, m_Status);
+    ASSERT_STREQ("Invalid message", m_Body.Begin());
+    ASSERT_EQ(0U, dmMessage::Dispatch(m_ResourceSocket, CheckReload, this));
+}
+
+// Reject oversized reload headers without allocating or waiting for the body.
+TEST_F(EngineServiceReloadTest, ReloadBodyLimit)
+{
+    Fetch("POST", "/post/@resource/reload", "", false, 64U * 1024U * 1024U + 1);
+    ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, m_Result);
+    ASSERT_EQ(400, m_Status);
+    ASSERT_STREQ("close", m_Connection);
+    ASSERT_STREQ("Too large message", m_Body.Begin());
+    ASSERT_EQ(0U, dmMessage::Dispatch(m_ResourceSocket, CheckReload, this));
+}
 
 // The actual discovery endpoint must expose all built-ins and take precedence over the profiler's root fallback.
 TEST_F(EngineServiceOpenAPITest, BuiltinDocument)
@@ -230,6 +386,107 @@ TEST_F(EngineServiceOpenAPITest, BuiltinDocument)
     ASSERT_EQ(200, m_Status);
     ASSERT_STREQ("text/html", m_ContentType);
 }
+
+// Register and advertise GPU tracing only when its platform implementation is built.
+TEST_F(EngineServiceOpenAPITest, GPUTraceRegistration)
+{
+    dmEngineService::InitProfiler(m_Service, 0, 0);
+    dmEngineService::InitProfiler(m_Service, 0, 0); // Reboot reuses the service.
+    Fetch("GET", "/openapi.json");
+    ASSERT_EQ(200, m_Status);
+    const char* key = "\"/profiler/gputrace\":";
+    const char* occurrence = strstr(m_Body.Begin(), key);
+    dmWebServer::HServer server = dmEngineService::GetWebServer(m_Service);
+#if defined(DM_PLATFORM_MACOS)
+    ASSERT_NE((const char*)0, occurrence);
+    ASSERT_EQ((const char*)0, strstr(occurrence + strlen(key), key));
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::RemoveHandler(server, "/profiler/gputrace"));
+#else
+    ASSERT_EQ((const char*)0, occurrence);
+    ASSERT_EQ(dmWebServer::RESULT_HANDLER_NOT_REGISTRED, dmWebServer::RemoveHandler(server, "/profiler/gputrace"));
+#endif
+}
+
+#if defined(DM_PLATFORM_MACOS)
+// GPU trace requests reach the service even with the profiler's HTML fallback and a null graphics adapter.
+TEST_F(EngineServiceOpenAPITest, GPUTraceUnsupported)
+{
+    dmEngineService::InitProfiler(m_Service, 0, 0);
+    const char* methods[] = { "GET", "POST", "DELETE" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(methods); ++i)
+    {
+        Fetch(methods[i], "/profiler/gputrace", "{\"path\":\"/tmp/frame.gputrace\"}");
+        ASSERT_EQ(501, m_Status);
+        ASSERT_STREQ("application/json", m_ContentType);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"code\":\"gputrace_unsupported\""));
+    }
+}
+
+// Prefix routing must reject unknown GPU trace paths and methods instead of accepting a capture request.
+TEST_F(EngineServiceOpenAPITest, GPUTraceRouting)
+{
+    dmEngineService::InitProfiler(m_Service, 0, 0);
+    Fetch("GET", "/profiler/gputrace/unknown");
+    ASSERT_EQ(404, m_Status);
+    Fetch("GET", "/profiler/gputrace_other");
+    ASSERT_EQ(404, m_Status);
+    Fetch("PUT", "/profiler/gputrace", "{}");
+    ASSERT_EQ(405, m_Status);
+    ASSERT_STREQ("GET, POST, DELETE", m_Allow);
+    Fetch("GET", "/profiler/gputrace?unused=value");
+    ASSERT_EQ(501, m_Status);
+}
+
+// The size limit includes headers; oversized requests are rejected even when only headers arrive.
+TEST_F(EngineServiceOpenAPITest, GPUTraceBodyLimit)
+{
+    dmEngineService::InitProfiler(m_Service, 0, 0);
+    uint32_t body_sizes[] = { 65535, 65537 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(body_sizes); ++i)
+    {
+        dmArray<char> body;
+        body.SetCapacity(body_sizes[i] + 1);
+        body.SetSize(body.Capacity());
+        memset(body.Begin(), ' ', body_sizes[i]);
+        body[body_sizes[i]] = 0;
+        for (uint32_t send_body = 0; send_body < 2; ++send_body)
+        {
+            Fetch("POST", "/profiler/gputrace", body.Begin(), send_body != 0);
+            ASSERT_EQ(413, m_Status);
+            ASSERT_STREQ("close", m_Connection);
+            ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"code\":\"request_too_large\""));
+            Fetch("GET", "/ping");
+            ASSERT_EQ(200, m_Status);
+            ASSERT_STREQ("PONG\n", m_Body.Begin());
+        }
+    }
+}
+
+// Headers-only and partial uploads must allow other requests to finish, then resume when the remaining body arrives.
+TEST_F(EngineServiceOpenAPITest, GPUTraceIncompleteBody)
+{
+    dmEngineService::InitProfiler(m_Service, 0, 0);
+    dmArray<char> large_body;
+    large_body.SetCapacity(65001);
+    large_body.SetSize(large_body.Capacity());
+    memset(large_body.Begin(), ' ', large_body.Size() - 1);
+    large_body[large_body.Size() - 1] = 0;
+    const char* bodies[] = { " ", "{}", large_body.Begin() };
+    for (uint32_t prefix_size = 0; prefix_size < DM_ARRAY_SIZE(bodies); ++prefix_size)
+    {
+        m_RequestPrefixSize = prefix_size;
+        Fetch("POST", "/profiler/gputrace", bodies[prefix_size]);
+        ASSERT_EQ(dmHttpClient::RESULT_OK, m_ProbeResult);
+        ASSERT_EQ(200, m_ProbeStatus);
+        ASSERT_EQ(501, m_Status);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"code\":\"gputrace_unsupported\""));
+    }
+    m_RequestPrefixSize = -1;
+    Fetch("GET", "/ping");
+    ASSERT_EQ(200, m_Status);
+    ASSERT_STREQ("PONG\n", m_Body.Begin());
+}
+#endif
 
 // Extension requests and metadata must survive either profiler initialization order and removal/re-registration.
 TEST_P(EngineServiceOpenAPITest, ExtensionLifecycle)

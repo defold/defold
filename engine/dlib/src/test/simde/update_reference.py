@@ -91,6 +91,10 @@ def main():
     selected = {name: value for name, value in selected.items() if name not in unused}
     parts = []
     for _, code in sorted(selected.values()):
+        # The pinned upstream OR loop indexes fast lanes, which can be 64 bits
+        # on Linux even when int32_t lanes are 32 bits.
+        if re.search(r"\bsimde_mm512_or_si512\s*\(", code):
+            code = re.sub(r"\br_\.i32\b", "r_.i32f", code)
         code = "\n".join(line for line in code.splitlines()
                          if not any(field in line for field in
                                     ("simde_int128 i128", "simde_uint128 u128", "simde_float16 f16")))

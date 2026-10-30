@@ -27,12 +27,17 @@
 #include <dlib/template.h>
 #include <ddf/ddf.h>
 #include <resource/resource.h>
+#include <resource/resource_ddf.h>
 #include <gameobject/gameobject.h>
 #include "engine_service.h"
 #include "engine_service_private.h"
 #include "engine_service_discovery.h"
 #include "engine_service_openapi.h"
 #include "engine_version.h"
+
+#if defined(DM_PLATFORM_MACOS)
+#include "engine_service_darwin.h"
+#endif
 
 extern unsigned char PROFILER_HTML[];
 extern uint32_t PROFILER_HTML_SIZE;
@@ -45,6 +50,7 @@ namespace dmEngineService
     "{\"connection_mode\": ${CONNECTION_MODE}}";
     static const char MDNS_SCHEMA_VERSION[] = "1";
     static const char INTERNAL_SERVER_ERROR[] = "(500) Internal server error";
+    static const uint32_t MAX_RELOAD_MESSAGE_SIZE = 64U * 1024U * 1024U;
     const char* const FOURCC_RESOURCES = "RESS";
 
     struct EngineService
@@ -129,18 +135,15 @@ namespace dmEngineService
         static void PostHandler(void* user_data, dmWebServer::Request* request)
         {
             char msg_buf[1024];
+            dmArray<char> reload_buffer;
+            char* content = msg_buf;
             const char* error_msg = "";
             dmWebServer::Result r;
             uint32_t recv_bytes = 0;
             dmMessage::HSocket socket = 0;
             const dmDDF::Descriptor* desc = 0;
             dmhash_t message_id;
-
-            if (request->m_ContentLength > sizeof(msg_buf))
-            {
-                error_msg = "Too large message";
-                goto bail;
-            }
+            bool is_reload;
 
             if (!ParsePostUrl(request->m_Resource, &socket, &desc, &message_id))
             {
@@ -148,27 +151,68 @@ namespace dmEngineService
                 goto bail;
             }
 
-            r = dmWebServer::Receive(request, msg_buf, request->m_ContentLength, &recv_bytes);
+            is_reload = socket == dmHashString64("@resource") && desc == dmResourceDDF::Reload::m_DDFDescriptor;
+            if (request->m_ContentLength > (is_reload ? MAX_RELOAD_MESSAGE_SIZE : sizeof(msg_buf)))
+            {
+                error_msg = "Too large message";
+                dmWebServer::CloseConnection(request);
+                goto respond_error;
+            }
+            if (request->m_ContentLength > sizeof(msg_buf))
+            {
+                // Keep the whole reload batch so every cache entry is
+                // invalidated before the first resource reload callback.
+                reload_buffer.SetCapacity(request->m_ContentLength);
+                content = reload_buffer.Begin();
+            }
+
+            r = dmWebServer::Receive(request, content, request->m_ContentLength, &recv_bytes);
             if (r == dmWebServer::RESULT_OK)
             {
                 void* msg;
                 uint32_t msg_size;
-                dmDDF::Result ddf_r = dmDDF::LoadMessage(msg_buf, recv_bytes, desc, &msg, dmDDF::OPTION_OFFSET_POINTERS, &msg_size);
-                if (ddf_r == dmDDF::RESULT_OK)
+                dmDDF::Result ddf_r = dmDDF::LoadMessage(content, recv_bytes, desc, &msg, dmDDF::OPTION_OFFSET_POINTERS, &msg_size);
+                if (ddf_r != dmDDF::RESULT_OK)
                 {
+                    error_msg = "Invalid message";
+                    goto respond_error;
+                }
+
+                dmMessage::Result post_result;
+                if (is_reload)
+                {
+                    // The queue owns the allocation until dispatch or socket
+                    // deletion, including batches larger than a message page.
+                    post_result = dmResource::PostReloadMessage(socket, (dmResourceDDF::Reload*)msg);
+                    if (post_result != dmMessage::RESULT_OK)
+                        dmDDF::FreeMessage(msg);
+                }
+                else
+                {
+                    if (msg_size > dmMessage::DM_MESSAGE_MAX_DATA_SIZE)
+                    {
+                        dmDDF::FreeMessage(msg);
+                        error_msg = "Too large message";
+                        goto respond_error;
+                    }
                     dmMessage::URL url;
                     url.m_Socket = socket;
                     url.m_Path = 0;
                     url.m_Fragment = 0;
-                    dmMessage::Post(0, &url, message_id, 0, (uintptr_t) desc, msg, msg_size, 0);
+                    post_result = dmMessage::Post(0, &url, message_id, 0, (uintptr_t) desc, msg, msg_size, 0);
                     dmDDF::FreeMessage(msg);
+                }
+                if (post_result != dmMessage::RESULT_OK)
+                {
+                    error_msg = "Could not post message";
+                    goto respond_error;
                 }
             }
             else
             {
                 dmLogError("Error while reading message post data (%d)", r);
                 error_msg = INTERNAL_SERVER_ERROR;
-                goto bail;
+                goto respond_error;
             }
 
             dmWebServer::SetStatusCode(request, 200);
@@ -178,6 +222,7 @@ namespace dmEngineService
 
     bail:
             SlurpHttpContent(request);
+    respond_error:
             dmLogError("%s", error_msg);
             dmWebServer::SetStatusCode(request, 400);
             dmWebServer::SendAttribute(request, "Content-Type", "text/plain");
@@ -448,6 +493,9 @@ namespace dmEngineService
 
         void Final()
         {
+#if defined(DM_PLATFORM_MACOS)
+            GPUTraceStop(&m_GPUTrace);
+#endif
             dmWebServer::Delete(m_WebServer);
 
             if (m_WebServerRedirect)
@@ -480,6 +528,9 @@ namespace dmEngineService
 
         ResourceHandlerParams m_ResourceHandlerParams;
         HProfile             m_Profile;
+#if defined(DM_PLATFORM_MACOS)
+        GPUTrace             m_GPUTrace;
+#endif
     };
 
     HEngineService New(uint16_t port)
@@ -506,6 +557,27 @@ namespace dmEngineService
     {
         engine_service->Final();
         delete engine_service;
+    }
+
+    void BeginFrame(HEngineService engine_service)
+    {
+#if defined(DM_PLATFORM_MACOS)
+        GPUTraceBeginFrame(&engine_service->m_GPUTrace);
+#endif
+    }
+
+    void EndFrame(HEngineService engine_service)
+    {
+#if defined(DM_PLATFORM_MACOS)
+        GPUTraceEndFrame(&engine_service->m_GPUTrace);
+#endif
+    }
+
+    void OnEngineDelete(HEngineService engine_service)
+    {
+#if defined(DM_PLATFORM_MACOS)
+        GPUTraceStop(&engine_service->m_GPUTrace);
+#endif
     }
 
     void Update(HEngineService engine_service, HProfile profile)
@@ -912,6 +984,13 @@ namespace dmEngineService
 
     void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist)
     {
+#if defined(DM_PLATFORM_MACOS)
+        dmWebServer::HandlerParams gputrace_params;
+        gputrace_params.m_Handler = GPUTraceRequest;
+        gputrace_params.m_Userdata = &engine_service->m_GPUTrace;
+        AddProfilerHandler(engine_service->m_WebServer, "/profiler/gputrace", &gputrace_params, GPU_TRACE_OPENAPI);
+#endif
+
         dmWebServer::HandlerParams resource_params;
         resource_params.m_Handler = HttpResourceRequestCallback;
         engine_service->m_ResourceHandlerParams.m_Factory = factory;

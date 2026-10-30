@@ -24,7 +24,7 @@
   (:import [clojure.lang IPersistentSet Indexed]
            [com.github.benmanes.caffeine.cache Cache Caffeine]
            [internal.graph.types Arc Endpoint]
-           [java.util ArrayList]
+           [java.util ArrayList Objects]
            [java.util.concurrent ConcurrentHashMap ForkJoinPool TimeUnit]))
 
 ;; A brief braindump on Overrides.
@@ -631,7 +631,7 @@
       (if (= i n)
         nil
         (let [override-node-id (.nth os i)]
-          (if (= override-id (gt/override-id (nodes override-node-id)))
+          (if (Objects/equals override-id (gt/override-id (nodes override-node-id)))
             override-node-id
             (recur (inc i))))))))
 
@@ -771,19 +771,21 @@
                    (into result propagated-arcs))))))))
 
 (defn- lift-target-arcs [basis target-id target-override-chain arcs]
-  (mapv
-    (fn [arc]
-      (let [original-source-id (gt/source-id arc)
-            source-id (reduce (fn [source-id override-id]
-                                (or (override-of basis source-id override-id)
-                                    source-id))
-                              original-source-id
-                              target-override-chain)]
-        (if (and (= source-id original-source-id)
-                 (= target-id (gt/target-id arc)))
-          arc
-          (gt/->Arc source-id (gt/source-label arc) target-id (gt/target-label arc)))))
-    arcs))
+  (if (coll/empty? target-override-chain)
+    arcs
+    (mapv
+      (fn [arc]
+        (let [original-source-id (gt/source-id arc)
+              source-id (reduce (fn [source-id override-id]
+                                  (or (override-of basis source-id override-id)
+                                      source-id))
+                                original-source-id
+                                target-override-chain)]
+          (if (and (= source-id original-source-id)
+                   (= target-id (gt/target-id arc)))
+            arc
+            (gt/->Arc source-id (gt/source-label arc) target-id (gt/target-label arc)))))
+      arcs)))
 
 (defn- collect-override-chains+explicit-arcs
   "Used by arcs-by-source to find explicit arcs from all original nodes
@@ -980,37 +982,38 @@
   (let [cache (.-cache successors)]
     (if-let [cached-value (-> @cache (get node-id) (get label))]
       cached-value
-      (let [result (if-let [node (node-id->node basis node-id)]
-                     (let [node-type (gt/node-type node)
-                           overrides (get (gt/node->overrides basis) node-id)
-                           deps-by-label (:input-dependencies @node-type)
-                           dep-labels (get deps-by-label label)
-                           outgoing-arcs (arcs-by-source basis node-id label)
-                           deps (ArrayList. (int (+ (count dep-labels)
-                                                    (count overrides)
-                                                    (* (long 10) (count outgoing-arcs)))))]
+      (let [node (node-id->node basis node-id)]
+        (if (nil? node)
+          empty-endpoints-array
+          (let [node-type (gt/node-type node)
+                overrides (get (gt/node->overrides basis) node-id)
+                deps-by-label (:input-dependencies @node-type)
+                dep-labels (get deps-by-label label)
+                outgoing-arcs (arcs-by-source basis node-id label)
+                deps (ArrayList. (int (+ (count dep-labels)
+                                         (count overrides)
+                                         (* (long 10) (count outgoing-arcs)))))]
 
-                       ;; The internal dependent outputs.
-                       (doseq [dep-label dep-labels]
-                         (.add deps (gt/endpoint node-id dep-label)))
+            ;; The internal dependent outputs.
+            (doseq [dep-label dep-labels]
+              (.add deps (gt/endpoint node-id dep-label)))
 
-                       ;; The closest overrides.
-                       (doseq [override-node-id overrides]
-                         (.add deps (gt/endpoint override-node-id label)))
+            ;; The closest overrides.
+            (doseq [override-node-id overrides]
+              (.add deps (gt/endpoint override-node-id label)))
 
-                       ;; The connected nodes and their outputs.
-                       (doseq [outgoing-arc outgoing-arcs
-                               :let [target-id (gt/target-id outgoing-arc)
-                                     target-label (gt/target-label outgoing-arc)]
-                               dep-label (get (input-deps basis target-id) target-label)]
-                         (.add deps (gt/endpoint target-id dep-label)))
+            ;; The connected nodes and their outputs.
+            (doseq [outgoing-arc outgoing-arcs
+                    :let [target-id (gt/target-id outgoing-arc)
+                          target-label (gt/target-label outgoing-arc)]
+                    dep-label (get (input-deps basis target-id) target-label)]
+              (.add deps (gt/endpoint target-id dep-label)))
 
-                       (if (.isEmpty deps)
-                         empty-endpoints-array
-                         (.toArray deps ^Endpoint/1 empty-endpoints-array)))
-                     empty-endpoints-array)]
-        (swap! cache update node-id assoc label result)
-        result))))
+            (let [result (if (.isEmpty deps)
+                           empty-endpoints-array
+                           (.toArray deps ^Endpoint/1 empty-endpoints-array))]
+              (swap! cache update node-id assoc label result)
+              result)))))))
 
 (defn successors
   "Public only for tests and introspection tooling. Implementation detail."
@@ -1027,37 +1030,65 @@
       (.maximumSize 32)
       (.build)))
 
-(defn dependencies [basis endpoints]
-  (assert (coll/every? gt/endpoint? endpoints))
+(defmacro ^:private dependencies-impl [basis endpoints initial-nodes]
+  ;; Generate separate runtime walkers for performance. On a project with ~1M
+  ;; graph nodes, a shared function slowed a 5% resource reload from 215.5 s to
+  ;; 230.5 s (+15 s, ~7%). Sharing via this macro restored it to 215 s.
+  (let [initial-nodes-sym (gensym "initial-nodes")
+        node-id-sym (gensym "node-id")]
+    `(do
+       (assert (coll/every? gt/endpoint? ~endpoints))
+       (if (coll/empty? ~endpoints)
+         array/empty-reducible
+         (let [basis# ~basis
+               ~@(when initial-nodes [initial-nodes-sym initial-nodes])
+               node-successors# (gt/successors basis#)
+               pool# (ForkJoinPool/commonPool)
+               all-endpoints# (ConcurrentHashMap.)
+
+               make-task!#
+               (fn make-task!# [endpoints#]
+                 (fn trace-dependency-batch# []
+                   (coll/into-> endpoints# []
+                     (mapcat
+                       (fn trace-endpoint# [endpoint#]
+                         (let [~node-id-sym (gt/endpoint-node-id endpoint#)]
+                           (when (and ~@(when initial-nodes
+                                          [`(contains? ~initial-nodes-sym ~node-id-sym)])
+                                      (nil? (.putIfAbsent all-endpoints# endpoint# true)))
+                             (query-successors node-successors# basis#
+                                               ~node-id-sym (gt/endpoint-label endpoint#)))))))))
+
+               endpoints->tasks-xf# (comp (partition-all 512) (map make-task!#))
+               future->tasks-xf# (comp (mapcat deref) endpoints->tasks-xf#)]
+           (loop [tasks# (coll/into-> ~endpoints [] endpoints->tasks-xf#)]
+             (let [next-tasks#
+                   (if (= 1 (count tasks#))
+                     (coll/into-> ((nth tasks# 0)) [] endpoints->tasks-xf#)
+                     (coll/into-> (.invokeAll pool# tasks#) [] future->tasks-xf#))]
+               (when (pos? (count next-tasks#))
+                 (recur next-tasks#))))
+           (array/reducible (.toArray (.keySet all-endpoints#))))))))
+
+(defn dependencies
+  "Returns the distinct dependent endpoints, including the supplied endpoints.
+
+  The result implements Counted and IReduceInit, but is not seqable. Consume it
+  using reduce, into, or an eduction. Use set to convert it to a set when set
+  operations are needed."
+  [basis endpoints]
   (if (coll/empty? endpoints)
-    #{}
-    (let [node-successors (gt/successors basis)
-          cache-key (pair endpoints (System/identityHashCode node-successors))]
-      (.get basis-dependencies-cache
-            cache-key
-            (fn [_]
-              (let [pool (ForkJoinPool/commonPool)
-                    all-endpoints (ConcurrentHashMap.)
-                    make-task! (fn [endpoints]
-                                 (fn []
-                                   (into []
-                                         (mapcat
-                                           (fn [endpoint]
-                                             (when (nil? (.putIfAbsent all-endpoints endpoint true))
-                                               (let [node-id (gt/endpoint-node-id endpoint)
-                                                     output (gt/endpoint-label endpoint)]
-                                                 (query-successors node-successors basis node-id output)))))
-                                         endpoints)))
-                    endpoints->tasks-xf (comp (partition-all 512) (map make-task!))
-                    future->tasks-xf (comp (mapcat deref) endpoints->tasks-xf)]
-                (loop [tasks (into [] endpoints->tasks-xf endpoints)]
-                  (let [next-tasks
-                        (if (= 1 (count tasks))
-                          (into [] endpoints->tasks-xf ((nth tasks 0)))
-                          (into [] future->tasks-xf (.invokeAll pool tasks)))]
-                    (when (pos? (count next-tasks))
-                      (recur next-tasks))))
-                (.keySet all-endpoints)))))))
+    array/empty-reducible
+    (.get basis-dependencies-cache
+          (pair endpoints (System/identityHashCode (gt/successors basis)))
+          (fn compute-dependencies [_]
+            (dependencies-impl basis endpoints nil)))))
+
+(defn invalidation-dependencies [initial-basis basis endpoints]
+  ;; Unchanged successors allow the dependency-result cache to be reused.
+  (if (identical? (gt/successors initial-basis) (gt/successors basis))
+    (dependencies basis endpoints)
+    (dependencies-impl basis endpoints (gt/nodes initial-basis))))
 
 (defn connected?
   [basis source-id source-label target-id target-label]

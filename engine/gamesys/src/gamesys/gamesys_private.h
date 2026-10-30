@@ -23,6 +23,7 @@
 
 #include <gameobject/gameobject.h>
 #include <dmsdk/gamesys/render_constants.h>
+#include <dmsdk/resource/resource.hpp>
 
 namespace dmScript
 {
@@ -169,7 +170,12 @@ namespace dmGameSystem
 
     // Script resource helpers (Maybe these should be in a "gamesys_script.h" file?)
     int   ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash);
+
+    // Returns the factory-owned descriptor without retaining the resource.
+    HResourceDescriptor CheckResourceDescriptor(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext);
+
     void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext);
+
     void  PushTextureInfo(lua_State* L, dmGraphics::HContext graphics_context, dmGraphics::HTexture texture_handle, dmhash_t texture_resource_path);
     void  PushSampler(lua_State* L, dmRender::HSampler sampler);
     void  PushRenderConstant(lua_State* L, dmRender::HConstant constant);

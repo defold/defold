@@ -29,6 +29,7 @@
 #include <dlib/image.h>
 
 #include <dmsdk/dlib/atomic.h>
+#include <dmsdk/dlib/static_assert.h>
 
 DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics", 0);
 DM_PROPERTY_U32(rmtp_DrawCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Graphics);
@@ -742,6 +743,7 @@ namespace dmGraphics
 
     void HashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
     {
+        DM_STATIC_ASSERT(sizeof(VertexDeclaration::Stream) == sizeof(dmhash_t) + sizeof(Type) + 4 * sizeof(uint16_t) + sizeof(bool) + 3 * sizeof(uint8_t), Vertex_declaration_stream_has_padding);
         dmHashUpdateBuffer32(state, vertex_declaration->m_Streams, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
     }
 
@@ -1283,7 +1285,8 @@ namespace dmGraphics
     {
         bindings_out.SetCapacity(bindings_count);
         bindings_out.SetSize(bindings_count);
-        memset(bindings_out.Begin(), 0, sizeof(ShaderResourceBinding) * bindings_count);
+        if (bindings_count)
+            memset(bindings_out.Begin(), 0, sizeof(ShaderResourceBinding) * bindings_count);
 
         for (int i = 0; i < bindings_count; ++i)
         {
@@ -1339,7 +1342,8 @@ namespace dmGraphics
         meta->m_TypeInfos.SetCapacity(ddf->m_Types.m_Count);
         meta->m_TypeInfos.SetSize(ddf->m_Types.m_Count);
 
-        memset(meta->m_TypeInfos.Begin(), 0, ddf->m_Types.m_Count * sizeof(meta->m_TypeInfos[0]));
+        if (ddf->m_Types.m_Count)
+            memset(meta->m_TypeInfos.Begin(), 0, ddf->m_Types.m_Count * sizeof(meta->m_TypeInfos[0]));
 
         for (int i = 0; i < ddf->m_Types.m_Count; ++i)
         {

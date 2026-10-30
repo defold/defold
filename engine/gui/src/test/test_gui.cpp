@@ -2237,7 +2237,7 @@ TEST_F(dmGuiTest, PostMessageToGuiDDF)
     r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    char buf[sizeof(dmMessage::Message) + sizeof(dmTestGuiDDF::AMessage)];
+    char DM_ALIGNED(alignof(dmMessage::Message)) buf[sizeof(dmMessage::Message) + sizeof(dmTestGuiDDF::AMessage)];
     dmMessage::Message* message = (dmMessage::Message*)buf;
     message->m_Sender = dmMessage::URL();
     message->m_Receiver = dmMessage::URL();
@@ -2248,6 +2248,7 @@ TEST_F(dmGuiTest, PostMessageToGuiDDF)
     message->m_UserData2 = 0;
     dmTestGuiDDF::AMessage* amessage = (dmTestGuiDDF::AMessage*)message->m_Data;
     amessage->m_A = 123;
+    amessage->m_B = 0;
     r = dmGui::DispatchMessage(m_Scene, message);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 

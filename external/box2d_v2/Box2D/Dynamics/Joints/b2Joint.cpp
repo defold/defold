@@ -119,8 +119,10 @@ b2Joint* b2Joint::Create(const b2JointDef* def, b2BlockAllocator* allocator)
 
 void b2Joint::Destroy(b2Joint* joint, b2BlockAllocator* allocator)
 {
+	// DEFOLD: Preserve the allocation type before ending the joint's lifetime.
+	b2JointType type = joint->m_type;
 	joint->~b2Joint();
-	switch (joint->m_type)
+	switch (type)
 	{
 	case e_distanceJoint:
 		allocator->Free(joint, sizeof(b2DistanceJoint));

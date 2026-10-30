@@ -23,7 +23,11 @@
 #include <dmsdk/dlib/dstrings.h> // dmStrCaseCmp
 
 #include "graphics.h"
+#include "graphics_util.h"
 #include "graphics_private.h"
+#include "graphics_resource_retirement.h"
+#include <dlib/thread.h>
+#include <dlib/condition_variable.h>
 #include "graphics_native.h"
 
 #include "test_graphics_util.h"
@@ -34,6 +38,125 @@
 #define APP_TITLE "GraphicsTest"
 #define WIDTH 8u
 #define HEIGHT 4u
+
+// Byte colors saturate outside [0, 1], avoiding undefined float-to-byte conversions.
+TEST(GraphicsUtil, PackRGBAClampsComponents)
+{
+    uint32_t packed = dmGraphics::PackRGBA(dmVMath::Vector4(-1.0f, 0.5f, 1.0f, 305.0f));
+    const uint8_t* rgba = (const uint8_t*)&packed;
+    ASSERT_EQ(0u, rgba[0]);
+    ASSERT_EQ(127u, rgba[1]);
+    ASSERT_EQ(255u, rgba[2]);
+    ASSERT_EQ(255u, rgba[3]);
+}
+
+#if defined(DM_HAS_THREADS)
+struct RetirementCompletion
+{
+    dmArray<uint32_t*>                      m_Submitted;
+    dmMutex::HMutex                         m_Mutex;
+    dmConditionVariable::HConditionVariable m_Condition;
+    bool                                   m_Released;
+    bool                                   m_Clear;
+};
+
+static void CompleteRetirements(void* user_data)
+{
+    RetirementCompletion* completion = (RetirementCompletion*) user_data;
+    for (uint32_t i = 0; i < completion->m_Submitted.Size(); ++i)
+    {
+        ++*completion->m_Submitted[i];
+    }
+    DM_MUTEX_SCOPED_LOCK(completion->m_Mutex);
+    completion->m_Released = true;
+    dmConditionVariable::Signal(completion->m_Condition);
+    while (!completion->m_Clear)
+    {
+        dmConditionVariable::Wait(completion->m_Condition, completion->m_Mutex);
+    }
+    completion->m_Submitted.SetSize(0);
+}
+
+// A pre-BeginFrame update must survive a completion paused between its last release
+// and clearing its array, even when new retirements force the pending array to grow.
+TEST(ResourceRetirement, UpdateBeforeBeginFrameWhileCompleting)
+{
+    dmGraphics::ResourceRetirementQueue<uint32_t*> queue;
+    uint32_t released[34] = {};
+    RetirementCompletion completion;
+    completion.m_Mutex = dmMutex::New();
+    completion.m_Condition = dmConditionVariable::New();
+    completion.m_Released = false;
+    completion.m_Clear = false;
+    queue.Push(&released[0]);
+    queue.TakePending(completion.m_Submitted);
+
+    // A second frame is also in flight when updates start reusing the first slot.
+    dmArray<uint32_t*> second_frame;
+    queue.Push(&released[1]);
+    queue.TakePending(second_frame);
+    dmThread::Thread thread = dmThread::New(CompleteRetirements, 0x80000, &completion, "retirement");
+    dmMutex::Lock(completion.m_Mutex);
+    while (!completion.m_Released)
+    {
+        dmConditionVariable::Wait(completion.m_Condition, completion.m_Mutex);
+    }
+    for (uint32_t i = 2; i < DM_ARRAY_SIZE(released); ++i)
+    {
+        queue.Push(&released[i]);
+    }
+    completion.m_Clear = true;
+    dmConditionVariable::Signal(completion.m_Condition);
+    dmMutex::Unlock(completion.m_Mutex);
+    dmThread::Join(thread);
+    dmConditionVariable::Delete(completion.m_Condition);
+    dmMutex::Delete(completion.m_Mutex);
+
+    ASSERT_EQ(1u, released[0]);
+    ASSERT_EQ(1u, second_frame.Size());
+    ASSERT_EQ(&released[1], second_frame[0]);
+    ASSERT_TRUE(completion.m_Submitted.Empty());
+    for (uint32_t i = 1; i < DM_ARRAY_SIZE(released); ++i)
+    {
+        ASSERT_EQ(0u, released[i]);
+    }
+
+    // Only the next submission owns the newly retired resources.
+    queue.TakePending(completion.m_Submitted);
+    ASSERT_EQ(32u, completion.m_Submitted.Size());
+    for (uint32_t i = 0; i < completion.m_Submitted.Size(); ++i)
+    {
+        ASSERT_EQ(&released[i + 2], completion.m_Submitted[i]);
+        ++*completion.m_Submitted[i];
+    }
+    completion.m_Submitted.SetSize(0);
+    ++*second_frame[0];
+    second_frame.SetSize(0);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(released); ++i)
+    {
+        ASSERT_EQ(1u, released[i]);
+    }
+}
+#endif
+
+// Deletions after the final submission must remain available for shutdown cleanup.
+TEST(ResourceRetirement, DrainWithoutAnotherFrame)
+{
+    dmGraphics::ResourceRetirementQueue<uint32_t> queue;
+    dmArray<uint32_t> submitted;
+    queue.Push(1);
+    queue.TakePending(submitted);
+    queue.Push(2);
+    ASSERT_EQ(1u, submitted.Size());
+    ASSERT_EQ(1u, submitted[0]);
+    submitted.SetSize(0);
+    queue.TakePending(submitted);
+    ASSERT_EQ(1u, submitted.Size());
+    ASSERT_EQ(2u, submitted[0]);
+    submitted.SetSize(0);
+    queue.TakePending(submitted);
+    ASSERT_TRUE(submitted.Empty());
+}
 
 TEST(StorageBuffer, LegacyDescriptorFields)
 {
@@ -120,7 +243,7 @@ const float EPSILON = 0.000001f;
 
 using namespace dmVMath;
 
-template<bool ASYNCHRONOUS>
+template<bool ASYNCHRONOUS, uint32_t WORKER_COUNT = 1>
 class dmGraphicsTestT : public jc_test_base_class
 {
 public:
@@ -178,7 +301,7 @@ public:
         dmPlatform::OpenWindow(m_Window, params);
 
         JobSystemCreateParams job_thread_create_param = {0};
-        job_thread_create_param.m_ThreadCount = 1;
+        job_thread_create_param.m_ThreadCount = WORKER_COUNT;
 
         if (dmGraphicsTestT::s_Asynchronous)
             m_JobContext = JobSystemCreate(&job_thread_create_param);
@@ -409,6 +532,81 @@ TEST_F(dmGraphicsTest, VertexStreamDeclaration)
 
     dmGraphics::DeleteVertexDeclaration(vertex_declaration);
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+}
+
+// Created declarations must initialize reserved bytes and hash identical layouts equally.
+TEST_F(dmGraphicsTest, HashInitializedVertexDeclarations)
+{
+    dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(m_Context);
+    dmGraphics::AddVertexStream(stream_declaration, "position", 3, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::HVertexDeclaration declarations[] = {
+        dmGraphics::NewVertexDeclaration(m_Context, stream_declaration),
+        dmGraphics::NewVertexDeclaration(m_Context, stream_declaration),
+    };
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        ASSERT_EQ(2u, declarations[i]->m_StreamCount);
+        for (uint32_t j = 0; j < declarations[i]->m_StreamCount; ++j)
+        {
+            const dmGraphics::VertexDeclaration::Stream& stream = declarations[i]->m_Streams[j];
+            ASSERT_EQ(0u, stream.m_Reserved0);
+            for (uint32_t k = 0; k < DM_ARRAY_SIZE(stream.m_Reserved1); ++k)
+                ASSERT_EQ(0u, stream.m_Reserved1[k]);
+        }
+    }
+
+    uint32_t hashes[3];
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        dmGraphics::HVertexDeclaration declaration = declarations[i == 0 ? 0 : 1];
+        if (i == 2)
+            ASSERT_TRUE(dmGraphics::SetStreamOffset(declaration, 1, 16));
+        HashState32 state;
+        dmHashInit32(&state, false);
+        dmGraphics::HashVertexDeclaration(&state, declaration);
+        hashes[i] = dmHashFinal32(&state);
+    }
+    ASSERT_EQ(hashes[0], hashes[1]);
+    ASSERT_NE(hashes[1], hashes[2]);
+
+    dmGraphics::DeleteVertexDeclaration(declarations[0]);
+    dmGraphics::DeleteVertexDeclaration(declarations[1]);
+    dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+}
+
+// Each stream field must affect batching, including the upper bits of its name hash.
+TEST(VertexDeclaration, HashIncludesStreamFields)
+{
+    dmGraphics::VertexDeclaration::Stream stream = {};
+    stream.m_NameHash = dmHashString64("position");
+    stream.m_Location = -1;
+    stream.m_Size = 3;
+    stream.m_Type = dmGraphics::TYPE_FLOAT;
+
+    dmGraphics::VertexDeclaration::Stream streams[] = { stream, stream, stream, stream, stream, stream, stream };
+    streams[1].m_NameHash ^= (uint64_t) 1 << 32;
+    streams[2].m_Location = 1;
+    streams[3].m_Size = 4;
+    streams[4].m_Offset = 4;
+    streams[5].m_Type = dmGraphics::TYPE_SHORT;
+    streams[6].m_Normalize = true;
+
+    dmGraphics::VertexDeclaration declaration = {};
+    declaration.m_StreamCount = 1;
+    uint32_t original_hash = 0;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(streams); ++i)
+    {
+        declaration.m_Streams = &streams[i];
+        HashState32 state;
+        dmHashInit32(&state, false);
+        dmGraphics::HashVertexDeclaration(&state, &declaration);
+        uint32_t hash = dmHashFinal32(&state);
+        if (i == 0)
+            original_hash = hash;
+        else
+            ASSERT_NE(original_hash, hash);
+    }
 }
 
 TEST_F(dmGraphicsTest, VertexDeclaration)
@@ -1989,6 +2187,147 @@ static void TestTextureAsyncCallback(dmGraphics::HTexture texture, void* user_da
 
 #if defined(DM_HAS_THREADS)
 
+class dmGraphicsJobQueueTest : public dmGraphicsTestT<true, 0>
+{
+};
+
+// Queued texture deletion must remain asynchronous and survive cancellation at shutdown.
+TEST_F(dmGraphicsJobQueueTest, TestTextureDeleteBeforeJobSystemShutdown)
+{
+    m_NullContext->m_UseAsyncTextureLoad = 1;
+
+    dmGraphics::TextureCreationParams creation_params;
+    creation_params.m_Width = 2;
+    creation_params.m_Height = 2;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+
+    uint8_t pixels[16] = {};
+    dmGraphics::TextureParams params;
+    params.m_Data = pixels;
+    params.m_DataSize = sizeof(pixels);
+    params.m_Width = 2;
+    params.m_Height = 2;
+    params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+    dmGraphics::SetTexture(m_Context, texture, params);
+    dmGraphics::DeleteTexture(m_Context, texture);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+
+    JobSystemDestroy(m_JobContext);
+    m_JobContext = 0;
+    m_NullContext->m_JobContext = 0;
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+    dmGraphics::CloseWindow(m_Context);
+
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+}
+
+// Ready textures must be deleted by a queued job, not synchronously by DeleteTexture.
+TEST_F(dmGraphicsJobQueueTest, TestTextureDeleteRunsOnJobSystemUpdate)
+{
+    m_NullContext->m_UseAsyncTextureLoad = 1;
+    dmGraphics::TextureCreationParams params;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, params);
+
+    dmGraphics::DeleteTexture(m_Context, texture);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+    JobSystemUpdate(m_JobContext, 0);
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+
+    dmGraphics::CloseWindow(m_Context);
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+}
+
+// Shutdown must reclaim cancelled deletes without revisiting completed jobs or live textures.
+TEST_F(dmGraphicsJobQueueTest, TestCompletedAndCancelledTextureDeletes)
+{
+    m_NullContext->m_UseAsyncTextureLoad = 1;
+    dmGraphics::TextureCreationParams params;
+    dmGraphics::HTexture completed = dmGraphics::NewTexture(m_Context, params);
+    dmGraphics::HTexture cancelled = dmGraphics::NewTexture(m_Context, params);
+
+    dmGraphics::DeleteTexture(m_Context, completed);
+    dmGraphics::DeleteTexture(m_Context, cancelled);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, completed));
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, cancelled));
+    JobSystemUpdate(m_JobContext, 0);
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, completed));
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, cancelled));
+
+    dmGraphics::HTexture live = dmGraphics::NewTexture(m_Context, params);
+    JobSystemDestroy(m_JobContext);
+    m_JobContext = 0;
+    m_NullContext->m_JobContext = 0;
+    dmGraphics::CloseWindow(m_Context);
+
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, completed));
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, cancelled));
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, live));
+    m_NullContext->m_UseAsyncTextureLoad = 0;
+    dmGraphics::DeleteTexture(m_Context, live);
+}
+
+// Deleting a pending upload must defer cleanup until upload cancellation at shutdown.
+TEST_F(dmGraphicsJobQueueTest, TestPendingTextureDeleteAtJobSystemShutdown)
+{
+    m_NullContext->m_UseAsyncTextureLoad = 1;
+
+    dmGraphics::TextureCreationParams creation_params;
+    creation_params.m_Width = 2;
+    creation_params.m_Height = 2;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+
+    uint8_t pixels[16] = {};
+    dmGraphics::TextureParams params;
+    params.m_Data = pixels;
+    params.m_DataSize = sizeof(pixels);
+    params.m_Width = 2;
+    params.m_Height = 2;
+    params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+    dmGraphics::SetTextureAsync(m_Context, texture, params, 0, 0);
+    ASSERT_TRUE(dmGraphics::GetTextureStatusFlags(m_Context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING);
+    dmGraphics::DeleteTexture(m_Context, texture);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+
+    JobSystemDestroy(m_JobContext);
+    m_JobContext = 0;
+    m_NullContext->m_JobContext = 0;
+    dmGraphics::CloseWindow(m_Context);
+
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+}
+
+// A deferred deletion must still run as a job after upload completion and survive shutdown.
+TEST_F(dmGraphicsJobQueueTest, TestDeferredTextureDeleteBeforeJobSystemShutdown)
+{
+    m_NullContext->m_UseAsyncTextureLoad = 1;
+    dmGraphics::TextureCreationParams creation_params;
+    creation_params.m_Width = 2;
+    creation_params.m_Height = 2;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+
+    uint8_t pixels[16] = {};
+    dmGraphics::TextureParams params;
+    params.m_Data = pixels;
+    params.m_DataSize = sizeof(pixels);
+    params.m_Width = 2;
+    params.m_Height = 2;
+    params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+    dmGraphics::SetTextureAsync(m_Context, texture, params, 0, 0);
+    dmGraphics::DeleteTexture(m_Context, texture);
+    ASSERT_TRUE(dmGraphics::GetTextureStatusFlags(m_Context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING);
+
+    JobSystemUpdate(m_JobContext, 0);
+    ASSERT_EQ(dmGraphics::TEXTURE_STATUS_OK, dmGraphics::GetTextureStatusFlags(m_Context, texture));
+    dmGraphics::Flip(m_Context);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+
+    JobSystemDestroy(m_JobContext);
+    m_JobContext = 0;
+    m_NullContext->m_JobContext = 0;
+    dmGraphics::CloseWindow(m_Context);
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+}
+
 TEST_F(dmGraphicsTest, TestTextureAsync)
 {
     bool tmp_async_load = m_NullContext->m_UseAsyncTextureLoad;
@@ -2012,8 +2351,7 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     dmArray<dmGraphics::HTexture> textures;
     textures.SetCapacity(TEXTURE_COUNT);
 
-    int* values = new int[TEXTURE_COUNT];
-    memset(values, 0, sizeof(int)*TEXTURE_COUNT);
+    int values[TEXTURE_COUNT] = {};
 
     bool all_complete = false;
     for (int i = 0; i < TEXTURE_COUNT; ++i)
@@ -2152,8 +2490,7 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         ASSERT_TRUE(WaitUntilSyncronizedTextures(m_Context, m_JobContext, textures.Begin(), TEXTURE_COUNT, WAIT_CONDITION_DELETE));
     }
 
-    // Test 2: Simulate deleting textures async. This requires valid textures (i.e not pending)
-    //         And that we continously update the job thread to finish the async jobs.
+    // Test 2: Queue deletion after uploads complete, then update until deletion finishes.
     {
         textures.SetSize(0);
 

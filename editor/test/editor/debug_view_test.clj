@@ -24,16 +24,20 @@
             [editor.defold-project :as project]
             [editor.engine :as engine]
             [editor.fs :as fs]
+            [editor.handler :as handler]
             [editor.prefs :as prefs]
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [service.log :as log]
             [support.dap-util :as dap-util]
             [support.process-util :as process-util]
             [support.test-support :as test-support]
             [util.coll :as coll]
+            [util.http-server :as http-server]
             [util.http-server.types :as http-server.types])
-  (:import [java.io ByteArrayOutputStream]
+  (:import [com.dynamo.render.proto Render$Resize]
+           [java.io ByteArrayOutputStream InputStream]
            [java.nio.charset StandardCharsets]
            [java.util Collection]
            [java.util.concurrent LinkedBlockingQueue]
@@ -316,3 +320,51 @@
       (is (= 8175 (.toint (.get globals "requested_port"))))
       (is (= expected-address (.tojstring (.get globals "requested_address"))))
       (is (= 49152 (:debugger-port (engine/parse-launched-target-info (.tojstring (.get globals "output")))))))))
+
+;; A failed reset-marker write must still clear preferences and resize the
+;; active player to the current project dimensions.
+(deftest reset-resolution-with-unwritable-state-test
+  (test-support/with-clean-system
+    (let [directory (fs/create-temp-directory! "window-state-reset-failure")
+          settings (prefs/make :scopes {:global (io/file directory "global_editor_settings")
+                                        :project (io/file directory "editor_settings")}
+                               :schemas [:default])
+          workspace (workspace/make-workspace directory {} {} nil)
+          project (g/make-node! project/Project :workspace workspace)
+          project-settings (project/settings project)
+          previous-target (targets/selected-target settings)
+          resized (atom nil)]
+      (try
+        (fs/create-directories! (io/file directory ".internal"))
+        ;; A regular file in place of the directory makes persistence fail on
+        ;; every platform, regardless of permission bits or test privileges.
+        (spit (io/file directory ".internal" "window-state") "blocked")
+        (prefs/set! settings [:run :simulated-resolution] {:width 501 :height 351})
+        (prefs/set! settings [:run :simulate-rotated-device] true)
+        (with-open [server (http-server/start!
+                             (fn [{:keys [body method path]}]
+                               (let [resize (Render$Resize/parseFrom ^InputStream body)]
+                                 (reset! resized [method path (.getWidth resize) (.getHeight resize)]))
+                               http-server/ok)
+                             :host "127.0.0.1")]
+          (targets/select-target! settings {:id "reset-resolution-test"
+                                            :url (http-server/local-url server)})
+          (let [command
+                (handler/active
+                  :run.reset-resolution
+                  [(handler/->context :global {:project project
+                                               :workspace workspace
+                                               :prefs settings})])]
+            (is command)
+            (log/without-logging
+              (handler/run command))))
+        (is (nil? (prefs/get settings [:run :simulated-resolution])))
+        (is (false? (prefs/get settings [:run :simulate-rotated-device])))
+        (is (= ["POST" "/post/@render/resize"
+                (get project-settings ["display" "width"])
+                (get project-settings ["display" "height"])]
+               @resized))
+        (is (= "blocked" (slurp (io/file directory ".internal" "window-state"))))
+        (finally
+          (targets/select-target! settings previous-target)
+          (fs/delete-directory! directory))))))

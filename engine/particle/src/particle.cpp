@@ -267,9 +267,13 @@ namespace dmParticle
             instance->m_EmitterStateChangedData = *emitter_state_changed_data;
         }
 
+        uint32_t instance_handle = instance->m_VersionNumber << 16 | index;
+        // No emitters to create.
+        if (emitter_count == 0)
+            return instance_handle;
+
         instance->m_Emitters.SetCapacity(emitter_count);
         instance->m_Emitters.SetSize(emitter_count);
-        uint32_t instance_handle = instance->m_VersionNumber << 16 | index;
 
         uint32_t seed_base = (uint32_t)dmTime::GetTime();
         memset(instance->m_Emitters.Begin(), 0, emitter_count * sizeof(Emitter));
@@ -1194,13 +1198,13 @@ namespace dmParticle
         uint32_t max_vertex_count = vertex_buffer_size / vertex_size;
         uint32_t j;
 
-        Point3 position_world_flat[6];
-        Point3 position_local_flat[6];
+        Vector4 position_world_flat[6];
+        Vector4 position_local_flat[6];
         float tex_coord_flat[6 * 2];
 
         Vector4 color_to_write;
         dmVMath::Matrix4 world_matrix;
-        float page_index;
+        float page_index = 0.0f;
         float texture_transform_packed[9];
         dmGraphics::WriteAttributeParams write_params = {};
 
@@ -1244,11 +1248,11 @@ namespace dmParticle
             float hx = render_state.m_HalfWidth;
             float hy = render_state.m_HalfHeight;
             // CCW winding: BL, BR, TR, TR, TL, BL
-            position_local_flat[0] = Point3(-hx, -hy, 0.0f);
-            position_local_flat[1] = Point3( hx, -hy, 0.0f);
-            position_local_flat[2] = Point3( hx,  hy, 0.0f);
+            position_local_flat[0] = Vector4(-hx, -hy, 0.0f, 1.0f);
+            position_local_flat[1] = Vector4( hx, -hy, 0.0f, 1.0f);
+            position_local_flat[2] = Vector4( hx,  hy, 0.0f, 1.0f);
             position_local_flat[3] = position_local_flat[2];
-            position_local_flat[4] = Point3(-hx,  hy, 0.0f);
+            position_local_flat[4] = Vector4(-hx,  hy, 0.0f, 1.0f);
             position_local_flat[5] = position_local_flat[0];
 
             world_matrix = dmTransform::ToMatrix4(render_state.m_WorldTransform);
@@ -1257,7 +1261,9 @@ namespace dmParticle
             {
                 for (int i = 0; i < 6; ++i)
                 {
-                    position_world_flat[i] = Point3((world_matrix * position_local_flat[i]).getXYZ());
+                    // Particle transforms are affine, so w is always 1. Setting it explicitly
+                    // lets the compiler skip the fourth-row calculation.
+                    position_world_flat[i] = Vector4((world_matrix * position_local_flat[i]).getXYZ(), 1.0f);
                 }
             }
 
@@ -1340,8 +1346,6 @@ namespace dmParticle
 
                 for (uint32_t v = 0; v < 6; ++v)
                 {
-                    // Match the generic position stream, including Point3's fourth
-                    // lane. Builtin shaders use xyz and supply their own homogeneous w.
                     memcpy(write_ptr, &position_world_flat[v], 4 * sizeof(float));
                     memcpy(write_ptr + 16, tex_coord_flat + v * 2, 2 * sizeof(float));
                     memcpy(write_ptr + 24, packed_color, sizeof(packed_color));
@@ -1878,6 +1882,8 @@ namespace dmParticle
         prototype->m_DDF = ddf;
         prototype->m_Emitters.SetCapacity(emitter_count);
         prototype->m_Emitters.SetSize(emitter_count);
+        if (emitter_count == 0)
+            return;
 
         memset(prototype->m_Emitters.Begin(), 0, emitter_count * sizeof(EmitterPrototype));
         for (uint32_t i = 0; i < emitter_count; ++i)
@@ -1932,6 +1938,9 @@ namespace dmParticle
                 }
             }
             uint32_t modifier_count = emitter_ddf->m_Modifiers.m_Count;
+            if (modifier_count == 0)
+                continue;
+
             emitter->m_Modifiers.SetCapacity(modifier_count);
             emitter->m_Modifiers.SetSize(modifier_count);
             memset(emitter->m_Modifiers.Begin(), 0, modifier_count * sizeof(ModifierPrototype));
