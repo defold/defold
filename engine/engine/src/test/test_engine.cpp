@@ -685,6 +685,71 @@ TEST_F(EngineTest, PacedTimeCreditLargerThanStepIsRepaidGradually)
     ASSERT_NEAR(0.01f, dmEngine::CalcPacedTimeStep(0.01f, 0.01f, 1.0f / 30.0f, balance), 0.000001f);
 }
 
+TEST_F(EngineTest, LowFrequencyCallbacksAdvanceFullInterval)
+{
+    // A platform callback slowed to the update frequency (e.g. an iOS display
+    // link) arrives after fixed_dt, which can exceed max_time_step. Each
+    // callback must run one full step so game time keeps up with wall time.
+    const float max_time_step = 1.0f / 30.0f;
+    const uint32_t frequencies[] = { 10, 15, 20, 24, 30, 60, 120 };
+    for (uint32_t frequency_index = 0; frequency_index < DM_ARRAY_SIZE(frequencies); ++frequency_index)
+    {
+        const float fixed_dt = 1.0f / frequencies[frequency_index];
+        const uint32_t frame_count = frequencies[frequency_index] * 5;
+        float accum_frame_time = 0.0f;
+        double simulation_time = 0.0;
+        for (uint32_t i = 0; i < frame_count; ++i)
+        {
+            uint32_t num_steps = 0;
+            float step_dt = dmEngine::CalcCallbackTimeStep(fixed_dt, fixed_dt, max_time_step, accum_frame_time, num_steps);
+            ASSERT_EQ(1u, num_steps);
+            ASSERT_NEAR(fixed_dt, step_dt, 0.000001f);
+            simulation_time += num_steps * step_dt;
+        }
+        ASSERT_NEAR(5.0, simulation_time, 0.0001);
+    }
+}
+
+TEST_F(EngineTest, CallbackHitchIsClamped)
+{
+    const float max_time_step = 1.0f / 30.0f;
+
+    // Above 1/max_time_step, a hitch is limited to max_time_step as before.
+    float accum_frame_time = 0.0f;
+    uint32_t num_steps = 0;
+    float step_dt = dmEngine::CalcCallbackTimeStep(1.0f, 1.0f / 60.0f, max_time_step, accum_frame_time, num_steps);
+    ASSERT_EQ(1u, num_steps);
+    ASSERT_NEAR(max_time_step, step_dt, 0.000001f);
+    ASSERT_NEAR(0.0f, accum_frame_time, 0.000001f);
+
+    // Below it, a hitch is limited to one requested interval.
+    accum_frame_time = 0.0f;
+    step_dt = dmEngine::CalcCallbackTimeStep(1.0f, 1.0f / 15.0f, max_time_step, accum_frame_time, num_steps);
+    ASSERT_EQ(1u, num_steps);
+    ASSERT_NEAR(1.0f / 15.0f, step_dt, 0.000001f);
+    ASSERT_NEAR(0.0f, accum_frame_time, 0.000001f);
+}
+
+TEST_F(EngineTest, FastCallbacksAccumulateLowFrequencySteps)
+{
+    // A 60 Hz callback with a 15 Hz update frequency runs a step on every
+    // fourth callback.
+    const float fixed_dt = 1.0f / 15.0f;
+    float accum_frame_time = 0.0f;
+    uint32_t total_steps = 0;
+    for (uint32_t i = 0; i < 60; ++i)
+    {
+        uint32_t num_steps = 0;
+        float step_dt = dmEngine::CalcCallbackTimeStep(1.0f / 60.0f, fixed_dt, 1.0f / 30.0f, accum_frame_time, num_steps);
+        ASSERT_LE(num_steps, 1u);
+        ASSERT_NEAR(fixed_dt, step_dt, 0.000001f);
+        total_steps += num_steps;
+    }
+    // Float accumulation may leave the last step one callback short.
+    ASSERT_GE(total_steps, 14u);
+    ASSERT_LE(total_steps, 15u);
+}
+
 TEST_F(EngineTest, LowFrameCapToVariableUpdateResumesImmediately)
 {
     if (!dmEngine::UseEngineFramePacing())

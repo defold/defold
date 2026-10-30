@@ -2382,6 +2382,35 @@ bail:
         return step_dt;
     }
 
+    float CalcCallbackTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& accum_frame_time, uint32_t& num_steps)
+    {
+        // Never allow for large hitches. As with timer pacing, a requested
+        // interval longer than max_time_step is intentional, e.g. a display
+        // link running at a low update frequency.
+        frame_dt = dmMath::Min(frame_dt, dmMath::Max(max_time_step, fixed_dt));
+
+        // We don't allow having a higher framerate than the platform callback
+        // rate since update and render are currently coupled together and
+        // Flip() would otherwise be called more than once per callback.
+        // E.g. if fixed_dt == 1/120 and frame_dt == 1/60.
+        if (fixed_dt < frame_dt)
+        {
+            fixed_dt = frame_dt;
+        }
+
+        // Platform-owned loops may call Step more frequently than the requested
+        // fixed update rate. Accumulate their elapsed time so early callbacks run
+        // no update, while retaining any fractional time for the next callback.
+        accum_frame_time += frame_dt;
+
+        float num_steps_f = accum_frame_time / fixed_dt;
+
+        num_steps = (uint32_t)num_steps_f;
+
+        accum_frame_time = accum_frame_time - num_steps * fixed_dt;
+        return fixed_dt;
+    }
+
     static void CalcTimeStep(HEngine engine, bool frame_was_paced, float& step_dt, uint32_t& num_steps)
     {
         uint64_t time = dmTime::GetMonotonicTime();
@@ -2427,30 +2456,7 @@ bail:
         }
         else
         {
-            // Never allow for large hitches. Timer-paced frames perform this
-            // clamp relative to their intentional interval above.
-            frame_dt = dmMath::Min(frame_dt, engine->m_MaxTimeStep);
-
-            // We don't allow having a higher framerate than the platform callback
-            // rate since update and render are currently coupled together and
-            // Flip() would otherwise be called more than once per callback.
-            // E.g. if fixed_dt == 1/120 and frame_dt == 1/60.
-            if (fixed_dt < frame_dt)
-            {
-                fixed_dt = frame_dt;
-            }
-
-            // Platform-owned loops may call Step more frequently than the requested
-            // fixed update rate. Accumulate their elapsed time so early callbacks run
-            // no update, while retaining any fractional time for the next callback.
-            engine->m_AccumFrameTime += frame_dt;
-
-            float num_steps_f = engine->m_AccumFrameTime / fixed_dt;
-
-            num_steps = (uint32_t)num_steps_f;
-            step_dt = fixed_dt;
-
-            engine->m_AccumFrameTime = engine->m_AccumFrameTime - num_steps * fixed_dt;
+            step_dt = CalcCallbackTimeStep(frame_dt, fixed_dt, engine->m_MaxTimeStep, engine->m_AccumFrameTime, num_steps);
         }
     }
 

@@ -254,6 +254,12 @@ namespace dmEngine
     // step without allowing negative dt. Exposed for deterministic unit testing.
     float CalcPacedTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& frame_time_balance);
 
+    // Calculates the simulation step for a platform-paced callback. Elapsed time
+    // is capped at max(max_time_step, fixed_dt) and accumulated; callbacks that
+    // arrive faster than fixed_dt run no step until a full step has accumulated.
+    // Exposed for deterministic unit testing.
+    float CalcCallbackTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& accum_frame_time, uint32_t& num_steps);
+
     /**
      *
      */

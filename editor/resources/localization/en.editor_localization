@@ -2327,7 +2327,7 @@ form.help.project.engine.run_while_iconified = Keeps updates and sound running w
 form.label.project.engine.fixed_update_frequency = Fixed Update Frequency
 form.help.project.engine.fixed_update_frequency = Sets the frequency of fixed updates in Hz. This controls `fixed_update(self, dt)` and physics when **Use Fixed Timestep** is enabled. `0` disables fixed updates.
 form.label.project.engine.max_time_step = Max Time Step
-form.help.project.engine.max_time_step = Limits elapsed time accounted for by regular updates, in seconds. Excess hitch time is discarded rather than caught up later. Engine-side timer pacing uses the larger of this limit and the requested frame interval, so a low frame cap can produce `dt` above this value. It does not limit the timestep passed to `fixed_update()`.
+form.help.project.engine.max_time_step = Limits elapsed time accounted for by regular updates, in seconds. Excess hitch time is discarded rather than caught up later. A positive **Update Frequency** uses the larger of this limit and the requested frame interval, so a low frame cap can produce `dt` above this value. It does not limit the timestep passed to `fixed_update()`.
 
 form.label.project.font = Font
 form.help.project.font = Font related settings
