@@ -2382,12 +2382,12 @@ bail:
         return step_dt;
     }
 
-    float CalcCallbackTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& accum_frame_time, uint32_t& num_steps)
+    float CalcCallbackTimeStep(float frame_dt, float fixed_dt, float max_time_step, uint32_t max_frame_intervals, float& accum_frame_time, uint32_t& num_steps)
     {
         // Never allow for large hitches. As with timer pacing, a requested
         // interval longer than max_time_step is intentional, e.g. a display
         // link running at a low update frequency.
-        frame_dt = dmMath::Min(frame_dt, dmMath::Max(max_time_step, fixed_dt));
+        frame_dt = dmMath::Min(frame_dt, dmMath::Max(max_time_step, max_frame_intervals * fixed_dt));
 
         // We don't allow having a higher framerate than the platform callback
         // rate since update and render are currently coupled together and
@@ -2456,7 +2456,12 @@ bail:
         }
         else
         {
-            step_dt = CalcCallbackTimeStep(frame_dt, fixed_dt, engine->m_MaxTimeStep, engine->m_AccumFrameTime, num_steps);
+            // Only set on iOS. A display link can only fire at rates the display
+            // supports, and iOS approximates other rates by alternating
+            // neighbouring intervals, e.g. 33.3 and 50 ms for 24 Hz. Allow two
+            // requested intervals so that rounding is not discarded as a hitch.
+            uint32_t max_frame_intervals = engine->m_UseHighRefreshRate ? 2 : 1;
+            step_dt = CalcCallbackTimeStep(frame_dt, fixed_dt, engine->m_MaxTimeStep, max_frame_intervals, engine->m_AccumFrameTime, num_steps);
         }
     }
 

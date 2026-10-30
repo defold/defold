@@ -701,7 +701,7 @@ TEST_F(EngineTest, LowFrequencyCallbacksAdvanceFullInterval)
         for (uint32_t i = 0; i < frame_count; ++i)
         {
             uint32_t num_steps = 0;
-            float step_dt = dmEngine::CalcCallbackTimeStep(fixed_dt, fixed_dt, max_time_step, accum_frame_time, num_steps);
+            float step_dt = dmEngine::CalcCallbackTimeStep(fixed_dt, fixed_dt, max_time_step, 1, accum_frame_time, num_steps);
             ASSERT_EQ(1u, num_steps);
             ASSERT_NEAR(fixed_dt, step_dt, 0.000001f);
             simulation_time += step_dt;
@@ -717,17 +717,49 @@ TEST_F(EngineTest, CallbackHitchIsClamped)
     // Above 1/max_time_step, a hitch is limited to max_time_step as before.
     float accum_frame_time = 0.0f;
     uint32_t num_steps = 0;
-    float step_dt = dmEngine::CalcCallbackTimeStep(1.0f, 1.0f / 60.0f, max_time_step, accum_frame_time, num_steps);
+    float step_dt = dmEngine::CalcCallbackTimeStep(1.0f, 1.0f / 60.0f, max_time_step, 1, accum_frame_time, num_steps);
     ASSERT_EQ(1u, num_steps);
     ASSERT_NEAR(max_time_step, step_dt, 0.000001f);
     ASSERT_NEAR(0.0f, accum_frame_time, 0.000001f);
 
     // Below it, a hitch is limited to one requested interval.
     accum_frame_time = 0.0f;
-    step_dt = dmEngine::CalcCallbackTimeStep(1.0f, 1.0f / 15.0f, max_time_step, accum_frame_time, num_steps);
+    step_dt = dmEngine::CalcCallbackTimeStep(1.0f, 1.0f / 15.0f, max_time_step, 1, accum_frame_time, num_steps);
     ASSERT_EQ(1u, num_steps);
     ASSERT_NEAR(1.0f / 15.0f, step_dt, 0.000001f);
     ASSERT_NEAR(0.0f, accum_frame_time, 0.000001f);
+
+    // With two allowed intervals, a hitch is still a single step.
+    accum_frame_time = 0.0f;
+    step_dt = dmEngine::CalcCallbackTimeStep(1.0f, 1.0f / 15.0f, max_time_step, 2, accum_frame_time, num_steps);
+    ASSERT_EQ(1u, num_steps);
+    ASSERT_NEAR(2.0f / 15.0f, step_dt, 0.000001f);
+    ASSERT_NEAR(0.0f, accum_frame_time, 0.000001f);
+}
+
+TEST_F(EngineTest, AlternatingCallbackIntervalsKeepGameTime)
+{
+    // iOS approximates a 24 Hz display link by alternating 30 Hz and 20 Hz
+    // intervals. Allowing two requested intervals keeps game time in step with
+    // elapsed time, without running more than one step per callback.
+    const float fixed_dt = 1.0f / 24.0f;
+    const float max_time_step = 1.0f / 30.0f;
+    const float frame_times[] = { 1.0f / 30.0f, 1.0f / 20.0f };
+    float accum_frame_time = 0.0f;
+    double elapsed_time = 0.0;
+    double simulation_time = 0.0;
+    for (uint32_t i = 0; i < 1200; ++i)
+    {
+        float frame_dt = frame_times[i % DM_ARRAY_SIZE(frame_times)];
+        uint32_t num_steps = 0;
+        float step_dt = dmEngine::CalcCallbackTimeStep(frame_dt, fixed_dt, max_time_step, 2, accum_frame_time, num_steps);
+        ASSERT_LE(num_steps, 1u);
+        elapsed_time += frame_dt;
+        if (num_steps)
+            simulation_time += step_dt;
+    }
+    ASSERT_NEAR(50.0, elapsed_time, 0.001);
+    ASSERT_NEAR(elapsed_time, simulation_time + accum_frame_time, 0.001);
 }
 
 TEST_F(EngineTest, FastCallbacksAccumulateLowFrequencySteps)
@@ -740,7 +772,7 @@ TEST_F(EngineTest, FastCallbacksAccumulateLowFrequencySteps)
     for (uint32_t i = 0; i < 60; ++i)
     {
         uint32_t num_steps = 0;
-        float step_dt = dmEngine::CalcCallbackTimeStep(1.0f / 60.0f, fixed_dt, 1.0f / 30.0f, accum_frame_time, num_steps);
+        float step_dt = dmEngine::CalcCallbackTimeStep(1.0f / 60.0f, fixed_dt, 1.0f / 30.0f, 1, accum_frame_time, num_steps);
         ASSERT_LE(num_steps, 1u);
         ASSERT_NEAR(fixed_dt, step_dt, 0.000001f);
         total_steps += num_steps;
