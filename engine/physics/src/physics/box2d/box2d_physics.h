@@ -156,6 +156,7 @@ namespace dmPhysics
         float                       m_VelocityThreshold;
         int                         m_RayCastLimit;
         int                         m_TriggerOverlapCapacity;
+        int                         m_WorkerCount;
         uint8_t                     m_AllowDynamicTransforms:1;
         uint8_t                     :7;
     };

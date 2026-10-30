@@ -19,6 +19,7 @@
 #include <dmsdk/physics/physics.h>
 #include <dmsdk/dlib/vmath.h>
 
+#include <dlib/configfile.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/transform.h>
@@ -229,6 +230,8 @@ namespace dmPhysics
     {
         NewContextParams();
 
+        /// Optional backend settings, read only during context creation. The caller retains ownership.
+        dmConfigFile::HConfig m_Config;
         /// Gravity of the worlds created in this context
         dmVMath::Vector3 m_Gravity;
         /// Number of 3D worlds the context supports

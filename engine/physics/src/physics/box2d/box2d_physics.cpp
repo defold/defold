@@ -21,8 +21,10 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/profile.h>
+#include <dlib/thread.h>
 
 #include <box2d/box2d.h>
+#include <box2d/constants.h>
 
 #include "box2d_physics.h"
 
@@ -40,6 +42,7 @@ namespace dmPhysics
     , m_TriggerEnterLimit(0.0f)
     , m_RayCastLimit(0)
     , m_TriggerOverlapCapacity(0)
+    , m_WorkerCount(1)
     , m_AllowDynamicTransforms(0)
     {
         m_Gravity.x = 0.0f;
@@ -66,6 +69,8 @@ namespace dmPhysics
         worldDef.contactHertz = 30.0f;
         worldDef.contactDampingRatio = 10.0f;
         worldDef.enableContinuous = true;
+        // Box2D owns the scheduler; its worker count includes the calling thread.
+        worldDef.workerCount = context->m_WorkerCount;
         m_WorldId = b2CreateWorld(&worldDef);
 
         m_Bodies.SetCapacity(32);
@@ -157,6 +162,24 @@ namespace dmPhysics
         context->m_VelocityThreshold = params.m_VelocityThreshold;
         context->m_AllowDynamicTransforms = params.m_AllowDynamicTransforms;
 
+        int worker_count = params.m_Config ? dmConfigFile::GetInt(params.m_Config, "box2d.worker_count", 0) : 0;
+        if (worker_count < 0 || worker_count >= B2_MAX_WORKERS)
+        {
+            dmLogWarning("box2d.worker_count must be in the range 0 - %d and has been clamped.", B2_MAX_WORKERS - 1);
+            worker_count = dmMath::Clamp(worker_count, 0, B2_MAX_WORKERS - 1);
+        }
+        // Box2D's built-in scheduler has native thread implementations for these platforms.
+        bool has_thread_support = false;
+#if defined(_WIN32) || defined(__linux__) || defined(__APPLE__)
+        has_thread_support = dmThread::PlatformHasThreadSupport();
+#endif
+        if (worker_count > 0 && !has_thread_support)
+        {
+            dmLogWarning("box2d.worker_count is ignored because Box2D worker threads are not supported on this platform.");
+            worker_count = 0;
+        }
+        context->m_WorkerCount = worker_count + 1;
+
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK && result != dmMessage::RESULT_SOCKET_EXISTS)
         {
@@ -175,8 +198,10 @@ namespace dmPhysics
         if (!context->m_Worlds.Empty())
         {
             dmLogWarning("Deleting %ud 2d worlds since the context is deleted.", context->m_Worlds.Size());
-            for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
-                delete context->m_Worlds[i];
+            while (!context->m_Worlds.Empty())
+            {
+                DeleteWorld2D(context, context->m_Worlds.Back());
+            }
         }
         if (context->m_Socket != 0)
             dmMessage::DeleteSocket(context->m_Socket);
