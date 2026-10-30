@@ -16,11 +16,15 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.fs :as fs]
+            [editor.gl.texture :as texture]
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [support.gl-support :as gl-support])
   (:import [com.dynamo.bob.util TextureUtil]
-           [com.dynamo.gamesys.proto TextureSetProto$TextureSet]))
+           [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
+           [com.jogamp.opengl GL3]
+           [com.jogamp.opengl.util.texture Texture]))
 
 (set! *warn-on-reflection* true)
 
@@ -371,6 +375,35 @@
                               :images ["box_fill_128"
                                        "box_fill_64"]}]}
                (g/node-value node-id :save-value)))))))
+
+;; Verifies the extension's legacy constructor creates one native array for a
+;; multipage export, including atlas and export previews and their consumers.
+(deftest native-texturepacker-preview-test
+  (test-util/with-loaded-project project-path
+    (doseq [resource-path ["/examples/basic/basic.tpinfo" "/examples/basic/basic.tpatlas"]]
+      (testing resource-path
+        (let [node-id (test-util/resource-node project resource-path)
+              gpu-texture (g/valid-node-value node-id :gpu-texture)]
+          (is (texture/array-texture? gpu-texture))
+          (is (= 4 (count (first (:texture-request-datas gpu-texture)))))
+          (is (= [0] (:texture-units gpu-texture)))
+          (is (= [3] (:texture-units (texture/set-base-unit gpu-texture 3))))
+          (is (map? (g/valid-node-value node-id :scene)))
+          (gl-support/with-offscreen-gl
+            (let [^Texture array-texture (texture/->texture gpu-texture gl 0)
+                  depth (int-array 1)]
+              (is (= GL3/GL_TEXTURE_2D_ARRAY (.getTarget array-texture)))
+              (.bind array-texture gl)
+              (.glGetTexLevelParameteriv gl GL3/GL_TEXTURE_2D_ARRAY 0 GL3/GL_TEXTURE_DEPTH depth 0)
+              (is (= 4 (aget depth 0)))
+              (is (= GL3/GL_NO_ERROR (.glGetError gl))))))))
+    (let [atlas (test-util/resource-node project "/examples/anim_trim/anim_trim.tpatlas")
+          gpu-texture (g/valid-node-value atlas :gpu-texture)]
+      (is (zero? (g/valid-node-value atlas :texture-page-count)))
+      (is (not (texture/array-texture? gpu-texture)))
+      (is (= [0] (:texture-units gpu-texture))))
+    (doseq [resource-path ["/examples/basic/basic.gui" "/main/main.collection"]]
+      (is (map? (g/valid-node-value (test-util/resource-node project resource-path) :scene))))))
 
 (deftest tpatlas-build-test
   (test-util/with-scratch-project project-path

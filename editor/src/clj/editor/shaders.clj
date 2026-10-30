@@ -105,7 +105,6 @@
 (def basic-texture-paged-local-space
   (editor-shader
     {:coordinate-space :coordinate-space-local
-     :max-page-count shader/max-array-samplers
      :uniforms {"mtx_world_view_proj" :world-view-proj}}
     "shaders/basic-texture-paged.vp"
     "shaders/basic-texture-paged.fp"))
@@ -113,7 +112,6 @@
 (def basic-texture-paged-world-space
   (editor-shader
     {:coordinate-space :coordinate-space-world
-     :max-page-count shader/max-array-samplers
      :uniforms {"mtx_world_view_proj" :view-proj}}
     "shaders/basic-texture-paged.vp"
     "shaders/basic-texture-paged.fp"))
@@ -121,7 +119,6 @@
 (def basic-texture-paged-color-local-space
   (editor-shader
     {:coordinate-space :coordinate-space-local
-     :max-page-count shader/max-array-samplers
      :uniforms {"mtx_world_view_proj" :world-view-proj}}
     "shaders/basic-texture-paged-color.vp"
     "shaders/basic-texture-paged-color.fp"))
@@ -129,9 +126,15 @@
 (def basic-texture-paged-color-world-space
   (editor-shader
     {:coordinate-space :coordinate-space-world
-     :max-page-count shader/max-array-samplers
      :uniforms {"mtx_world_view_proj" :view-proj}}
     "shaders/basic-texture-paged-color.vp"
+    "shaders/basic-texture-paged-color.fp"))
+
+(def basic-texture-paged-color-straight-alpha-world-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-world
+     :uniforms {"mtx_world_view_proj" :view-proj}}
+    "shaders/basic-texture-paged-color-straight-alpha.vp"
     "shaders/basic-texture-paged-color.fp"))
 
 (def cubemap-world-space
@@ -195,7 +198,6 @@
 (def selection-attribute-paged-local-space
   (editor-shader
     {:coordinate-space :coordinate-space-local
-     :max-page-count shader/max-array-samplers
      :uniforms {"mtx_world_view_proj" :world-view-proj}}
     "shaders/selection-attribute-paged.vp"
     "shaders/selection-attribute-paged.fp"))
@@ -203,7 +205,6 @@
 (def selection-attribute-paged-world-space
   (editor-shader
     {:coordinate-space :coordinate-space-world
-     :max-page-count shader/max-array-samplers
      :uniforms {"mtx_world_view_proj" :view-proj}}
     "shaders/selection-attribute-paged.vp"
     "shaders/selection-attribute-paged.fp"))
@@ -226,7 +227,6 @@
 (def selection-instance-paged-local-space
   (editor-shader
     {:coordinate-space :coordinate-space-local
-     :max-page-count shader/max-array-samplers
      :uniforms {"mtx_view_proj" :view-proj}}
     "shaders/selection-instance-paged.vp"
     "shaders/selection-instance-paged.fp"))
@@ -250,7 +250,6 @@
 (def selection-uniform-paged-local-space
   (editor-shader
     {:coordinate-space :coordinate-space-local
-     :max-page-count shader/max-array-samplers
      :uniforms {"mtx_world_view_proj" :world-view-proj
                 "id_color" :id-color}}
     "shaders/selection-uniform-paged.vp"
@@ -259,7 +258,6 @@
 (def selection-uniform-paged-world-space
   (editor-shader
     {:coordinate-space :coordinate-space-world
-     :max-page-count shader/max-array-samplers
      :uniforms {"mtx_world_view_proj" :view-proj
                 "id_color" :id-color}}
     "shaders/selection-uniform-paged.vp"

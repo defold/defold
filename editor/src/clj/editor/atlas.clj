@@ -811,30 +811,28 @@
   (output geometry-images  g/Any               (g/fnk [layout-data] (:geometry-images layout-data)))
   (output geometry->layout-rect-index g/Any    (g/fnk [layout-data] (:geometry->layout-rect-index layout-data)))
 
-  (output texture-page-count g/Int (g/fnk [_node-id layout-data max-page-size exclude-gles-sm100]
-                                     (let [page-count (calculate-texture-page-count layout-data max-page-size)]
-                                       (or (when (not exclude-gles-sm100)
-                                             (validation/prop-error :fatal _node-id
-                                                                    :validate-texture-page-count
-                                                                    texture-page-count-error-message
-                                                                    page-count))
-                                           page-count))))
+  (output texture-page-count g/Int (g/fnk [layout-data max-page-size]
+                                     (calculate-texture-page-count layout-data max-page-size)))
 
   (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
   (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
 
   (output gpu-texture g/Any :cached
-          (g/fnk [_node-id packed-page-images-generator texture-profile]
+          (g/fnk [_node-id packed-page-images-generator texture-profile texture-page-count]
             ;; NOTE: Temporary fix until we can properly disconnect the image nodes that invalidate this
-            (or (when (= (:sha1 packed-page-images-generator) (g/user-data _node-id :gpu-texture-sha1))
-                  (some-> ^WeakReference (g/user-data _node-id :gpu-texture-cached) .get))
-                (let [texture (-> (texture-util/construct-gpu-texture _node-id packed-page-images-generator texture-profile)
-                                  (texture/set-params {:min-filter gl/nearest
-                                                       :mag-filter gl/nearest}))
-                      texture-ref (WeakReference. texture)]
-                  (g/user-data! _node-id :gpu-texture-sha1 (:sha1 packed-page-images-generator))
-                  (g/user-data! _node-id :gpu-texture-cached texture-ref)
-                  texture))))
+            (let [;; Match AtlasBuilder: a paged atlas remains an array even if
+                  ;; all images fit on one page. Zero denotes a nonpaged atlas.
+                  texture-type (if (zero? texture-page-count) :type-2d :type-2d-array)
+                  texture-key [(:sha1 packed-page-images-generator) texture-profile texture-type texture-page-count]]
+              (or (when (= texture-key (g/user-data _node-id :gpu-texture-key))
+                    (some-> ^WeakReference (g/user-data _node-id :gpu-texture-cached) .get))
+                  (let [texture (-> (texture-util/construct-gpu-texture-with-type _node-id packed-page-images-generator texture-profile texture-type)
+                                    (texture/set-params {:min-filter gl/nearest
+                                                         :mag-filter gl/nearest}))
+                        texture-ref (WeakReference. texture)]
+                    (g/user-data! _node-id :gpu-texture-key texture-key)
+                    (g/user-data! _node-id :gpu-texture-cached texture-ref)
+                    texture)))))
 
   (output anim-data        g/Any               :cached produce-anim-data)
   (output image->rect      g/Any               :cached produce-image->rect)
@@ -857,13 +855,21 @@
   (output build-targets    g/Any          :cached produce-build-targets)
   (output scene-info       g/Any          produce-atlas-scene-info)
   (output scene            g/Any          :cached produce-scene)
-  (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size rename-patterns]
+  (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size rename-patterns exclude-gles-sm100 ^:try texture-page-count]
                                             (g/package-errors _node-id
                                               (validate-margin _node-id margin)
                                               (validate-inner-padding _node-id inner-padding)
                                               (validate-extrude-borders _node-id extrude-borders)
                                               (validate-max-page-size _node-id max-page-size)
-                                              (validate-rename-patterns _node-id rename-patterns))))
+                                              (validate-rename-patterns _node-id rename-patterns)
+                                              ;; ES2 limits the runtime build,
+                                              ;; not the native editor preview.
+                                              (when (and (not exclude-gles-sm100)
+                                                         (not (g/error-value? texture-page-count)))
+                                                (validation/prop-error :fatal _node-id
+                                                                       :validate-texture-page-count
+                                                                       texture-page-count-error-message
+                                                                       texture-page-count)))))
   (output build-errors     g/Any          (g/fnk [_node-id child-build-errors own-build-errors]
                                             (g/package-errors _node-id
                                               child-build-errors
