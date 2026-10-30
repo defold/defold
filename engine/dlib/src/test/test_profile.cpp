@@ -18,6 +18,7 @@
 #include <jc_test/jc_test.h>
 #include "dlib/dstrings.h"
 #include "dlib/hash.h"
+#include "dlib/log.h"
 #include "dlib/mutex.h"
 #include "dlib/profile/profile.h"
 #include "dlib/profile/profile_private.h"
@@ -32,6 +33,158 @@ TEST(dmProfile, SmallTest)
         DM_PROFILE(0);
         DM_PROFILE_DYN(0, 0);
     ProfileFinalize();
+}
+
+static void* FailToCreateProfiler()
+{
+    return 0;
+}
+
+// Verifies that registering a failed profiler twice preserves the listener list,
+// guarding against the sys.reboot() hang after Remotery startup fails (#13602).
+TEST(dmProfile, RegisterFailedProfilerTwice)
+{
+    ProfileInitialize();
+    DummyProfilerRegister();
+
+    ProfileListener listener = {};
+    listener.m_Create = FailToCreateProfiler;
+
+    // Registration logs can traverse the list before we detect a cycle.
+    LogSeverity log_level = dmLogGetLevel();
+    dmLogSetLevel(LOG_SEVERITY_WARNING);
+
+    ProfileRegisterProfiler("ProfilerRemotery", &listener);
+    bool disabled = listener.m_Disabled;
+    ProfileListener* next_before = listener.m_Next;
+
+    // Reboot retries registration when Remotery did not initialize successfully.
+    ProfileRegisterProfiler("ProfilerRemotery", &listener);
+    ProfileListener* next_after = listener.m_Next;
+
+    // Restore the link before cleanup so a regression fails instead of hanging.
+    listener.m_Next = next_before;
+    ProfileFinalize();
+    // Use the stored name to keep cleanup independent of name truncation.
+    ProfileUnregisterProfiler(listener.m_Name);
+    DummyProfilerUnregister();
+    dmLogSetLevel(log_level);
+
+    ASSERT_TRUE(disabled);
+    ASSERT_NE((ProfileListener*)0, next_before);
+    ASSERT_EQ(next_before, next_after);
+}
+
+static uint32_t g_ThreadNameCallCount = 0;
+
+static void* CreateThreadNameProfiler()
+{
+    return &g_ThreadNameCallCount;
+}
+
+static ProfileResult CountThreadNames(void* ctx, const char*)
+{
+    ++*(uint32_t*)ctx;
+    return PROFILE_RESULT_OK;
+}
+
+// Verifies that unregistering an unknown name preserves other listeners,
+// guarding against the registry being cleared on a failed name lookup (#13602).
+TEST(dmProfile, UnregisterUnknownProfilerKeepsListeners)
+{
+    ProfileListener first = {};
+    first.m_Create = CreateThreadNameProfiler;
+    first.m_SetThreadName = CountThreadNames;
+    ProfileListener second = first;
+
+    g_ThreadNameCallCount = 0;
+    ProfileInitialize();
+    ProfileRegisterProfiler("FirstProfiler", &first);
+    ProfileRegisterProfiler("SecondProfiler", &second);
+    ProfileSetThreadName("BeforeUnregister");
+    uint32_t calls_before = g_ThreadNameCallCount;
+
+    ProfileUnregisterProfiler("MissingProfiler");
+    ProfileSetThreadName("AfterMissingProfiler");
+    uint32_t calls_after_missing = g_ThreadNameCallCount;
+
+    ProfileUnregisterProfiler("FirstProfiler");
+    ProfileSetThreadName("AfterFirstProfiler");
+    uint32_t calls_after_first = g_ThreadNameCallCount;
+
+    ProfileFinalize();
+    ProfileUnregisterProfiler("SecondProfiler");
+
+    ASSERT_EQ(2U, calls_before);
+    ASSERT_EQ(4U, calls_after_missing);
+    ASSERT_EQ(5U, calls_after_first);
+}
+
+// Verifies that a truncated profiler name can be unregistered using its original
+// name without retaining the listener or removing other registered listeners.
+TEST(dmProfile, UnregisterLongProfilerNameKeepsListeners)
+{
+    const char* name = "ProfilerRemotery";
+    ProfileListener listener = {};
+    listener.m_Create = CreateThreadNameProfiler;
+    listener.m_SetThreadName = CountThreadNames;
+    ProfileListener other = listener;
+
+    g_ThreadNameCallCount = 0;
+    ProfileInitialize();
+    ProfileRegisterProfiler("OtherProfiler", &other);
+    ProfileRegisterProfiler(name, &listener);
+    ProfileSetThreadName("BeforeUnregister");
+    uint32_t calls_before = g_ThreadNameCallCount;
+
+    ProfileUnregisterProfiler(name);
+    ProfileSetThreadName("AfterLongProfiler");
+    uint32_t calls_after = g_ThreadNameCallCount;
+
+    ProfileUnregisterProfiler(name);
+    ProfileSetThreadName("AfterMissingProfiler");
+    uint32_t calls_after_missing = g_ThreadNameCallCount;
+
+    ProfileFinalize();
+    // Ensure cleanup also succeeds if the original-name lookup regresses.
+    ProfileUnregisterProfiler(listener.m_Name);
+    ProfileUnregisterProfiler("OtherProfiler");
+
+    ASSERT_EQ(2U, calls_before);
+    ASSERT_EQ(3U, calls_after);
+    ASSERT_EQ(4U, calls_after_missing);
+}
+
+// Verifies that duplicate long names and names with the same stored prefix are
+// rejected, preventing ambiguous listener lookup after name truncation.
+TEST(dmProfile, RegisterDuplicateLongProfilerName)
+{
+    ProfileListener first = {};
+    first.m_Create = CreateThreadNameProfiler;
+    first.m_SetThreadName = CountThreadNames;
+    ProfileListener duplicate = first;
+    ProfileListener same_prefix = first;
+
+    g_ThreadNameCallCount = 0;
+    ProfileInitialize();
+    ProfileRegisterProfiler("ProfilerRemotery", &first);
+    ProfileRegisterProfiler("ProfilerRemotery", &duplicate);
+    ProfileRegisterProfiler("ProfilerRemoteryExtra", &same_prefix);
+    ProfileSetThreadName("BeforeUnregister");
+    uint32_t calls_before = g_ThreadNameCallCount;
+
+    ProfileUnregisterProfiler("ProfilerRemotery");
+    ProfileSetThreadName("AfterUnregister");
+    uint32_t calls_after = g_ThreadNameCallCount;
+
+    ProfileFinalize();
+    // Remove any duplicates left behind if registration or lookup regresses.
+    ProfileUnregisterProfiler(first.m_Name);
+    ProfileUnregisterProfiler(duplicate.m_Name);
+    ProfileUnregisterProfiler(same_prefix.m_Name);
+
+    ASSERT_EQ(1U, calls_before);
+    ASSERT_EQ(1U, calls_after);
 }
 
 TEST(dmProfile, Profile)
