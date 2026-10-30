@@ -977,6 +977,11 @@ namespace dmGui
         return RESULT_OK;
     }
 
+    HNode GetNodeParent(HScene scene, HNode node)
+    {
+        return INVALID_HANDLE;
+    }
+
     Result SetNodeParent(HScene scene, HNode node, HNode parent, bool keep_scene_transform)
     {
         return RESULT_OK;
