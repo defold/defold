@@ -320,6 +320,21 @@ static int PrepareModule(dmScript::HContext context, lua_State* L, void* resourc
     return dmScript::LuaLoad(L, LuaSourceFromText((const char*)resource));
 }
 
+// Optional modules retain syntax errors until require, where Lua code can catch them.
+TEST_F(ScriptModuleTest, PreparedModuleDefersSyntaxError)
+{
+    char code[] = "local =";
+    char* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_ResourceFactory, "/syntax.module", code, sizeof(code), (void**)&resource));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, 0, "syntax_module", resource, dmHashString64("/syntax.module"), PrepareModule));
+    ASSERT_TRUE(dmScript::ModuleLoaded(m_Context, "syntax_module"));
+    ASSERT_TRUE(RunString(L,
+                          "assert(prepared_module_loads == 1); "
+                          "local ok, err = pcall(require, 'syntax_module'); assert(not ok); assert(type(err) == 'string'); "
+                          "assert(package.loaded.syntax_module == nil); "
+                          "local again, next_err = pcall(require, 'syntax_module'); assert(not again); assert(next_err == err)"));
+}
+
 // Preparation creates a reusable chunk during registration, leaves its body deferred, and resets its environment on repeat require.
 TEST_F(ScriptModuleTest, PreparedModuleRunsWithoutLoadingAgain)
 {
@@ -348,7 +363,13 @@ TEST_F(ScriptModuleTest, PreparedModuleRunsWithoutLoadingAgain)
     ASSERT_EQ(2u, m_DestroyedResources);
 }
 
-// Failed preparation rolls back new path markers and leaves an existing path alias and the caller's resource ownership intact.
+static int FailModulePreparation(dmScript::HContext context, lua_State* L, void* resource)
+{
+    lua_pushliteral(L, "Module resource is unavailable");
+    return LUA_ERRFILE;
+}
+
+// Failed resource reads roll back new path markers and leave an existing path alias and the caller's resource ownership intact.
 TEST_F(ScriptModuleTest, PreparedModuleFailureRollsBackRegistration)
 {
     const dmhash_t path_hash = dmHashString64("/existing.module");
@@ -357,13 +378,13 @@ TEST_F(ScriptModuleTest, PreparedModuleFailureRollsBackRegistration)
     char* resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_ResourceFactory, "/invalid_prepared.module", invalid, strlen(invalid) + 1, (void**)&resource));
     int top = lua_gettop(L);
-    ASSERT_EQ(dmScript::RESULT_LUA_ERROR, dmScript::AddModule(m_Context, 0, "failed_alias", resource, path_hash, PrepareModule));
+    ASSERT_EQ(dmScript::RESULT_LUA_ERROR, dmScript::AddModule(m_Context, 0, "failed_alias", resource, path_hash, FailModulePreparation));
     ASSERT_FALSE(dmScript::ModuleLoaded(m_Context, "failed_alias"));
     ASSERT_TRUE(dmScript::ModuleLoaded(m_Context, path_hash));
     ASSERT_TRUE(RunString(L, "assert(require('existing_module').value == 123)"));
 
     const dmhash_t new_path = dmHashString64("/new_prepared.module");
-    ASSERT_EQ(dmScript::RESULT_LUA_ERROR, dmScript::AddModule(m_Context, 0, "failed_new", resource, new_path, PrepareModule));
+    ASSERT_EQ(dmScript::RESULT_LUA_ERROR, dmScript::AddModule(m_Context, 0, "failed_new", resource, new_path, FailModulePreparation));
     ASSERT_FALSE(dmScript::ModuleLoaded(m_Context, "failed_new"));
     ASSERT_FALSE(dmScript::ModuleLoaded(m_Context, new_path));
     ASSERT_EQ(top, lua_gettop(L));

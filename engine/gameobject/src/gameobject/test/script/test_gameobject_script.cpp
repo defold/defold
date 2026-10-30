@@ -668,13 +668,7 @@ TEST_F(ScriptTest, ModuleCodePreparesDuringLoading)
     dmScript::Initialize(second);
     ASSERT_FALSE(RegisterResourceModule(m_Factory, second, "on_demand", path));
     ASSERT_FALSE(dmScript::ModuleLoaded(second, dmHashString64(path)));
-    dmArray<uint8_t> invalid;
-    ModuleWithSource(invalid, path, "local =");
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, invalid.Size(), invalid.Begin()));
-    ASSERT_FALSE(RegisterResourceModule(m_Factory, second, "on_demand", path));
-    ASSERT_FALSE(dmScript::ModuleLoaded(second, "on_demand"));
     ASSERT_EQ(0, lua_gettop(dmScript::GetLuaState(second)));
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, data.Size(), data.Begin()));
     ASSERT_TRUE(RegisterResourceModule(m_Factory, second, "on_demand", path));
     ASSERT_EQ(0, luaL_dostring(dmScript::GetLuaState(second), "assert(on_demand_runs == nil)"));
@@ -685,7 +679,7 @@ TEST_F(ScriptTest, ModuleCodePreparesDuringLoading)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
 }
 
-// A script resource finishes loading only after its deferred module is prepared; later require needs no archive access.
+// Script creation reuses asynchronously preloaded module bytes after archive removal, without executing the module body.
 TEST_F(ScriptTest, ScriptResourcePreparesDeferredModule)
 {
     const char* path = "/prepared_dependency.luac";
@@ -693,6 +687,19 @@ TEST_F(ScriptTest, ScriptResourcePreparesDeferredModule)
     dmArray<uint8_t> data;
     ModuleWithSource(data, path, "_G.prepared_dependency_runs = 1; return { value = 456 }");
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, data.Size(), data.Begin()));
+
+    dmResource::HPreloader preloader = dmResource::NewPreloader(m_Factory, path);
+    ASSERT_NE((dmResource::HPreloader)0, preloader);
+    dmResource::Result result;
+    do
+    {
+        result = dmResource::UpdatePreloader(preloader, 0, 0, 30 * 1000);
+    } while (result == dmResource::RESULT_PENDING);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    void* dependency = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, &dependency));
+    dmResource::DeletePreloader(preloader);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
 
     const char* parent_path = "/prepared_parent.scriptc";
     const char* source = "function update(self) end";
@@ -711,10 +718,39 @@ TEST_F(ScriptTest, ScriptResourcePreparesDeferredModule)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, parent_path, &parent));
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
     ASSERT_EQ(0, luaL_dostring(L, "assert(prepared_dependency_runs == nil)"));
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, parent_path));
     ASSERT_EQ(0, luaL_dostring(L, "assert(require('prepared_dependency').value == 456); assert(prepared_dependency_runs == 1)"));
     dmResource::Release(m_Factory, parent);
+    dmResource::Release(m_Factory, dependency);
+}
+
+// Runtime guards keep LuaJIT-only syntax optional when the same project is loaded with Lua 5.1.
+TEST_F(ScriptTest, ScriptResourcePreservesGuardedModule)
+{
+    const char* path = "/guarded_dependency.luac";
+    const char* name = "guarded_dependency";
+    dmArray<uint8_t> data;
+    ModuleWithSource(data, path, "goto done; ::done:: return { value = 1 }");
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, data.Size(), data.Begin()));
+
+    const char* parent_path = "/guarded_parent.scriptc";
+    const char* source = "if jit then assert(require('guarded_dependency').value == 1) end; function update(self) end";
+    dmLuaDDF::LuaModule module = {};
+    module.m_Source.m_Script.m_Data = (uint8_t*)source;
+    module.m_Source.m_Script.m_Count = strlen(source);
+    module.m_Source.m_Filename = parent_path;
+    module.m_Modules.m_Data = &name;
+    module.m_Modules.m_Count = 1;
+    module.m_Resources.m_Data = &path;
+    module.m_Resources.m_Count = 1;
+    dmArray<uint8_t> parent_data;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&module, dmLuaDDF::LuaModule::m_DDFDescriptor, parent_data));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, parent_path, parent_data.Size(), parent_data.Begin()));
+    void* parent = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, parent_path, &parent));
+    dmResource::Release(m_Factory, parent);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, parent_path));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
 }
 
 // Prepared chunks and cached reload errors are returned on the requesting coroutine stack without accessing the archive.
@@ -757,7 +793,7 @@ TEST_F(ScriptTest, PreparedModuleLoadsFromCoroutine)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
-// Preparation registers fetched dependencies, breaks recursive registration, and retries failures before a deferred require.
+// A later context registers fetched dependencies, breaks recursive registration, and retries failures before a deferred require.
 TEST_F(ScriptTest, ModulePreparationUsesUpdatedDependencies)
 {
     const char* path = "/updated_dependencies.luac";
@@ -768,6 +804,11 @@ TEST_F(ScriptTest, ModulePreparationUsesUpdatedDependencies)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, initial.Size(), initial.Begin()));
     void* resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, &resource));
+    ASSERT_TRUE(RegisterResourceModule(m_Factory, m_ScriptContext, "updated_dependencies", path));
+    dmScript::ContextParams params = {};
+    params.m_Factory = m_Factory;
+    dmScript::HContext second = dmScript::NewContext(params);
+    dmScript::Initialize(second);
 
     const char* source = "return require('updated_dependency')";
     dmLuaDDF::LuaModule module = {};
@@ -782,9 +823,9 @@ TEST_F(ScriptTest, ModulePreparationUsesUpdatedDependencies)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, path, replacement.Size(), replacement.Begin()));
 
-    ASSERT_FALSE(RegisterResourceModule(m_Factory, m_ScriptContext, "updated_dependencies", path));
-    ASSERT_FALSE(dmScript::ModuleLoaded(m_ScriptContext, "updated_dependencies"));
-    ASSERT_FALSE(dmScript::ModuleLoaded(m_ScriptContext, dmHashString64(path)));
+    ASSERT_FALSE(RegisterResourceModule(m_Factory, second, "updated_dependencies", path));
+    ASSERT_FALSE(dmScript::ModuleLoaded(second, "updated_dependencies"));
+    ASSERT_FALSE(dmScript::ModuleLoaded(second, dmHashString64(path)));
     const char* dependency_source = "if false then require('updated_dependencies') end; return { value = 456 }";
     const char* parent_name = "updated_dependencies";
     module.m_Source.m_Script.m_Data = (uint8_t*)dependency_source;
@@ -794,14 +835,16 @@ TEST_F(ScriptTest, ModulePreparationUsesUpdatedDependencies)
     module.m_Resources.m_Data = &path;
     ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&module, dmLuaDDF::LuaModule::m_DDFDescriptor, dependency));
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, dependency_path, dependency.Size(), dependency.Begin()));
-    ASSERT_TRUE(RegisterResourceModule(m_Factory, m_ScriptContext, "updated_dependencies", path));
+    ASSERT_TRUE(RegisterResourceModule(m_Factory, second, "updated_dependencies", path));
     dmResource::Release(m_Factory, resource);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, path));
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, dependency_path));
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    lua_State* L = dmScript::GetLuaState(second);
     ASSERT_EQ(0, luaL_dostring(L,
                                "local co = coroutine.create(function() return require('updated_dependencies').value end); "
                                "local ok, value = coroutine.resume(co); assert(ok, value); assert(value == 456)"));
+    dmScript::Finalize(second);
+    dmScript::DeleteContext(second);
 }
 
 // Recreated code remains available after its input is freed, without falling back to stale archive code.

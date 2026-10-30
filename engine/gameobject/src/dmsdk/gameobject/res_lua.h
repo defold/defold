@@ -27,7 +27,7 @@ namespace dmGameObject
         LuaScript(dmLuaDDF::LuaModule* lua_module) :
             m_LuaModule(lua_module) {}
 
-        // File-backed resources retain metadata only; executable code is prepared when registered in a Lua context.
+        // File-backed resources release executable code after the first Lua context prepares it.
         dmLuaDDF::LuaModule* m_LuaModule;
     };
 }

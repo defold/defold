@@ -538,6 +538,7 @@ namespace dmScript
 
     /**
      * Prepare a compiled module chunk on L during registration, returning zero on success, or an error message and a nonzero Lua status on failure.
+     * Syntax errors are retained until require; other failures abort registration.
      * The module registry retains the resource until the context is finalized.
      */
     typedef int (*ModuleLoader)(HContext context, lua_State* L, void* resource);

@@ -160,7 +160,7 @@ namespace dmScript
             (void)top;
             int status = loader(context, L, resource);
             assert(top + 1 == lua_gettop(L));
-            if (status != 0)
+            if (status != 0 && status != LUA_ERRSYNTAX)
             {
                 dmLogError("Error preparing module '%s': %s", script_name, lua_tostring(L, -1));
                 lua_pop(L, 1);

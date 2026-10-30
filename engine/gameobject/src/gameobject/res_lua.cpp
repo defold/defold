@@ -28,11 +28,13 @@ namespace dmGameObject
         LuaScript m_Script;
         char* m_Path; // Null when the resource retains its code.
         uint32_t m_MessageSize;
+        bool m_CodeDiscarded;
 
         LuaModuleResource(dmLuaDDF::LuaModule* module, const char* path, uint32_t size)
             : m_Script(module)
             , m_Path(path ? strdup(path) : 0)
             , m_MessageSize(size)
+            , m_CodeDiscarded(false)
         {
         }
     };
@@ -146,33 +148,6 @@ namespace dmGameObject
         return dmResource::RESULT_OK;
     }
 
-    int LoadLuaModuleResource(dmScript::HContext context, lua_State* L, void* resource)
-    {
-        LuaModuleResource* script = (LuaModuleResource*)resource;
-        if (script->m_Path == 0)
-            return dmScript::LuaLoad(L, &script->m_Script.m_LuaModule->m_Source);
-
-        dmResource::HFactory factory = dmScript::GetResourceFactory(context);
-        dmLuaDDF::LuaModule* module = 0;
-        dmResource::Result result = LoadLuaModule(factory, script->m_Path, &module);
-        if (result != dmResource::RESULT_OK)
-        {
-            lua_pushfstring(L, "Failed to load Lua module resource '%s' (%d)", script->m_Path, result);
-            return LUA_ERRFILE;
-        }
-
-        if (!RegisterSubModules(factory, context, module))
-        {
-            dmDDF::FreeMessage(module);
-            lua_pushfstring(L, "Failed to load submodules for Lua resource '%s'", script->m_Path);
-            return LUA_ERRFILE;
-        }
-
-        int status = dmScript::LuaLoad(L, &module->m_Source);
-        dmDDF::FreeMessage(module);
-        return status;
-    }
-
     static dmDDF::Result CopyLuaModuleMetadata(dmLuaDDF::LuaModule* module, dmLuaDDF::LuaModule** metadata, uint32_t* size)
     {
         dmLuaDDF::LuaModule message = *module;
@@ -186,6 +161,56 @@ namespace dmGameObject
         return dmDDF::LoadMessage(buffer.Begin(), buffer.Size(), dmLuaDDF::LuaModule::m_DDFDescriptor, (void**)metadata, 0, size);
     }
 
+    int LoadLuaModuleResource(dmScript::HContext context, lua_State* L, void* resource)
+    {
+        LuaModuleResource* script = (LuaModuleResource*)resource;
+        if (script->m_Path == 0)
+            return dmScript::LuaLoad(L, &script->m_Script.m_LuaModule->m_Source);
+
+        dmResource::HFactory factory = dmScript::GetResourceFactory(context);
+        dmLuaDDF::LuaModule* module = script->m_Script.m_LuaModule;
+        if (script->m_CodeDiscarded)
+        {
+            dmResource::Result result = LoadLuaModule(factory, script->m_Path, &module);
+            if (result != dmResource::RESULT_OK)
+            {
+                lua_pushfstring(L, "Failed to load Lua module resource '%s' (%d)", script->m_Path, result);
+                return LUA_ERRFILE;
+            }
+
+            if (!RegisterSubModules(factory, context, module))
+            {
+                dmDDF::FreeMessage(module);
+                lua_pushfstring(L, "Failed to load submodules for Lua resource '%s'", script->m_Path);
+                return LUA_ERRFILE;
+            }
+        }
+
+        int status = dmScript::LuaLoad(L, &module->m_Source);
+        if (!script->m_CodeDiscarded)
+        {
+            dmLuaDDF::LuaModule* metadata = 0;
+            uint32_t message_size;
+            dmDDF::Result result = CopyLuaModuleMetadata(module, &metadata, &message_size);
+            if (result != dmDDF::RESULT_OK)
+            {
+                lua_pop(L, 1);
+                lua_pushfstring(L, "Failed to retain metadata for Lua module '%s' (%d)", script->m_Path, result);
+                return LUA_ERRFILE;
+            }
+            script->m_Script.m_LuaModule = metadata;
+            script->m_MessageSize = message_size;
+            script->m_CodeDiscarded = true;
+
+            HResourceDescriptor descriptor;
+            dmResource::Result resource_result = dmResource::GetDescriptor(factory, script->m_Path, &descriptor);
+            assert(resource_result == dmResource::RESULT_OK);
+            ResourceDescriptorSetResourceSize(descriptor, sizeof(LuaModuleResource) + strlen(script->m_Path) + 1 + message_size);
+        }
+        dmDDF::FreeMessage(module);
+        return status;
+    }
+
     static dmResource::Result ResLuaPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmLuaDDF::LuaModule* lua_module = 0;
@@ -197,21 +222,9 @@ namespace dmGameObject
         for (uint32_t i = 0; i < lua_module->m_Resources.m_Count; ++i)
             dmResource::PreloadHint(params->m_HintInfo, lua_module->m_Resources[i]);
 
+        // Keep the preloaded code until its first context prepares it, avoiding a second archive read.
         // Non-transferable buffers may be supplied by CreateResource and have no file to read again.
-        if (params->m_IsBufferTransferrable)
-        {
-            dmLuaDDF::LuaModule* metadata = 0;
-            e = CopyLuaModuleMetadata(lua_module, &metadata, &message_size);
-            dmDDF::FreeMessage(lua_module);
-            if (e != dmDDF::RESULT_OK)
-                return dmResource::RESULT_FORMAT_ERROR;
-            lua_module = metadata;
-        }
-        else
-        {
-            PatchLuaBytecode(&lua_module->m_Source);
-        }
-
+        PatchLuaBytecode(&lua_module->m_Source);
         *params->m_PreloadData = new LuaModuleResource(lua_module, params->m_IsBufferTransferrable ? params->m_Filename : 0, message_size);
         return dmResource::RESULT_OK;
     }
