@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "record_private.h"
+#include <dmsdk/engine/engine_event.h>
 #include "record_window.h"
 #include <dmsdk/extension/extension.hpp>
 #include <dmsdk/dlib/dstrings.h>
@@ -377,9 +378,9 @@ namespace dmRecord
         return dmExtension::RESULT_OK;
     }
 
-    static void OnEvent(dmExtension::Params*, const dmExtension::Event* event)
+    static void OnEvent(dmExtension::Params*, dmhash_t event_id, const void*, uint32_t)
     {
-        if (event->m_Event == EXTENSION_EVENT_ID_ENGINE_DELETE)
+        if (event_id == dmEngine::EVENT_ENGINE_DELETE)
         {
             // Stop capture and release callbacks before scripts, sound or the window.
             FinalizeScript();
@@ -401,4 +402,15 @@ namespace dmRecord
     }
 }
 
-DM_DECLARE_EXTENSION(ScriptRecord, "ScriptRecord", dmRecord::AppInitialize, dmRecord::AppFinalize, dmRecord::Initialize, dmRecord::UpdateExtension, dmRecord::OnEvent, dmRecord::FinalizeExtension)
+static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+{
+    dmExtension::SetAppInitializeFn(extension, dmRecord::AppInitialize);
+    dmExtension::SetAppFinalizeFn(extension, dmRecord::AppFinalize);
+    dmExtension::SetInitializeFn(extension, dmRecord::Initialize);
+    dmExtension::SetFinalizeFn(extension, dmRecord::FinalizeExtension);
+    dmExtension::SetUpdateFn(extension, dmRecord::UpdateExtension);
+    dmExtension::SetEventFn(extension, dmRecord::OnEvent);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(ScriptRecord, RegisterExtension, 0)

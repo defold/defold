@@ -445,6 +445,13 @@ static dmExtension::Result ScriptFontFinalize(dmExtension::Params* params)
     return FontGenFinalize(params);
 }
 
-DM_DECLARE_EXTENSION(ScriptFont, "ScriptFont", 0, 0, ScriptFontInitialize, 0, 0, ScriptFontFinalize)
+    static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+    {
+        dmExtension::SetInitializeFn(extension, ScriptFontInitialize);
+        dmExtension::SetFinalizeFn(extension, ScriptFontFinalize);
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptFont, RegisterExtension, 0)
 
 } // namespace

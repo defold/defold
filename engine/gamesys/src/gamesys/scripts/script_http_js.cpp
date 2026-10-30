@@ -284,5 +284,12 @@ namespace dmGameSystem
         return dmExtension::RESULT_OK;
     }
 
-    DM_DECLARE_EXTENSION(ScriptHttp, "ScriptHttp", 0, 0, ScriptHttpInitialize, 0, 0, ScriptHttpFinalize);
+    static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+    {
+        dmExtension::SetInitializeFn(extension, ScriptHttpInitialize);
+        dmExtension::SetFinalizeFn(extension, ScriptHttpFinalize);
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptHttp, RegisterExtension, 0);
 } // namespace dmGameSystem

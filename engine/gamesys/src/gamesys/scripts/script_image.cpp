@@ -420,5 +420,12 @@ namespace dmGameSystem
     }
 
 
-    DM_DECLARE_EXTENSION(ScriptImageExt, "ScriptImage", 0, 0, ScriptImageInitialize, 0, 0, ScriptImageFinalize)
+    static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+    {
+        dmExtension::SetInitializeFn(extension, ScriptImageInitialize);
+        dmExtension::SetFinalizeFn(extension, ScriptImageFinalize);
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptImageExt, RegisterExtension, 0)
 }

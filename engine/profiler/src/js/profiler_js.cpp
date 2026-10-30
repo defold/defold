@@ -430,4 +430,11 @@ static dmExtension::Result ProfilerJS_AppFinalize(dmExtension::AppParams* params
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(ProfilerJS, g_ProfilerName, ProfilerJS_AppInitialize, ProfilerJS_AppFinalize, 0, 0, 0, 0);
+static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+{
+    dmExtension::SetAppInitializeFn(extension, ProfilerJS_AppInitialize);
+    dmExtension::SetAppFinalizeFn(extension, ProfilerJS_AppFinalize);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(ProfilerJS, RegisterExtension, 0);

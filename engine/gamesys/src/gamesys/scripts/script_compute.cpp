@@ -467,6 +467,13 @@ namespace dmGameSystem
         return dmExtension::RESULT_OK;
     }
 
-    DM_DECLARE_EXTENSION(ScriptComputeExt, "ScriptCompute", 0, 0, ScriptComputeInitialize, 0, 0, ScriptComputeFinalize)
+    static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+    {
+        dmExtension::SetInitializeFn(extension, ScriptComputeInitialize);
+        dmExtension::SetFinalizeFn(extension, ScriptComputeFinalize);
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptComputeExt, RegisterExtension, 0)
 #endif
 }
