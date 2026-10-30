@@ -3,10 +3,11 @@
 
 #pragma once
 
-#include "array.h"
+#include "container.h"
 #include "core.h"
 
 #include "box2d/collision.h"
+#include "box2d/math_functions.h"
 #include "box2d/types.h"
 
 typedef struct b2Shape b2Shape;
@@ -22,6 +23,29 @@ enum b2ContactFlags
 
 	// This contact wants contact events
 	b2_contactEnableContactEvents = 0x00000004,
+
+	b2_contactRecycleFlag = 0x00000008,
+
+	// Set when the shapes are touching
+	b2_simTouchingFlag = 0x00010000,
+
+	// This contact no longer has overlapping AABBs
+	b2_simDisjoint = 0x00020000,
+
+	// This contact started touching
+	b2_simStartedTouching = 0x00040000,
+
+	// This contact stopped touching
+	b2_simStoppedTouching = 0x00080000,
+
+	// This contact has a hit event
+	b2_simEnableHitEvent = 0x00100000,
+
+	// This contact wants pre-solve events
+	b2_simEnablePreSolveEvents = 0x00200000,
+
+	// This contact has a cached relative transform
+	b2_simRelativeTransformValid = 0x00400000,
 };
 
 // A contact edge is used to connect bodies and contacts together
@@ -40,6 +64,15 @@ typedef struct b2ContactEdge
 // connectivity.
 typedef struct b2Contact
 {
+	b2ContactEdge edges[2];
+
+	// A contact only belongs to an island if touching, otherwise B2_NULL_INDEX.
+	int islandId;
+
+	// Index into the island's contacts array for O(1) swap-removal.
+	// B2_NULL_INDEX when not in an island.
+	int islandIndex;
+
 	// index of simulation set stored in b2World
 	// B2_NULL_INDEX when slot is free
 	int setIndex;
@@ -53,44 +86,17 @@ typedef struct b2Contact
 	// B2_NULL_INDEX when slot is free
 	int localIndex;
 
-	b2ContactEdge edges[2];
 	int shapeIdA;
 	int shapeIdB;
-
-	// A contact only belongs to an island if touching, otherwise B2_NULL_INDEX.
-	int islandPrev;
-	int islandNext;
-	int islandId;
-
 	int contactId;
 
 	// b2ContactFlags
 	uint32_t flags;
 
-	bool isMarked;
+	// This is monotonically advanced when a contact is allocated in this slot
+	// Used to check for invalid b2ContactId
+	uint32_t generation;
 } b2Contact;
-
-// Shifted to be distinct from b2ContactFlags
-enum b2ContactSimFlags
-{
-	// Set when the shapes are touching
-	b2_simTouchingFlag = 0x00010000,
-
-	// This contact no longer has overlapping AABBs
-	b2_simDisjoint = 0x00020000,
-
-	// This contact started touching
-	b2_simStartedTouching = 0x00040000,
-
-	// This contact stopped touching
-	b2_simStoppedTouching = 0x00080000,
-
-	// This contact has a hit event
-	b2_simEnableHitEvent = 0x00100000,
-
-	// This contact wants pre-solve events
-	b2_simEnablePreSolveEvents = 0x00200000,
-};
 
 /// The class manages contact between two shapes. A contact exists for each overlapping
 /// AABB in the broad-phase (except if filtered). Therefore a contact object may exist
@@ -99,13 +105,21 @@ typedef struct b2ContactSim
 {
 	int contactId;
 
-#if B2_VALIDATE
+	// Cache for contact recycling.
+	b2Rot cachedRotationA;
+	b2Rot cachedRotationB;
+	b2Transform cachedRelativePose;
+
+#if B2_ENABLE_VALIDATION
 	int bodyIdA;
 	int bodyIdB;
 #endif
 
-	int bodySimIndexA;
-	int bodySimIndexB;
+	int encodedBodySimA;
+	int encodedBodySimB;
+
+	// b2ContactFlags
+	uint32_t simFlags;
 
 	int shapeIdA;
 	int shapeIdB;
@@ -124,25 +138,28 @@ typedef struct b2ContactSim
 	float rollingResistance;
 	float tangentSpeed;
 
-	// b2ContactSimFlags
-	uint32_t simFlags;
-
 	b2SimplexCache cache;
 } b2ContactSim;
 
-void b2InitializeContactRegisters( void );
+bool b2CanCollide( b2ShapeType typeA, b2ShapeType typeB );
 
 void b2CreateContact( b2World* world, b2Shape* shapeA, b2Shape* shapeB );
-void b2DestroyContact( b2World* world, b2Contact* contact, bool wakeBodies );
+void b2DestroyContact( b2World* world, b2Contact* contact );
 
 b2ContactSim* b2GetContactSim( b2World* world, b2Contact* contact );
 
-bool b2ShouldShapesCollide( b2Filter filterA, b2Filter filterB );
+bool b2UpdateContact( b2World* world, b2ContactSim* contactSim, b2Shape* shapeA, b2WorldTransform transformA, b2Vec2 centerOffsetA,
+					  b2Shape* shapeB, b2WorldTransform transformB, b2Vec2 centerOffsetB );
 
-bool b2UpdateContact( b2World* world, b2ContactSim* contactSim, b2Shape* shapeA, b2Transform transformA, b2Vec2 centerOffsetA,
-					  b2Shape* shapeB, b2Transform transformB, b2Vec2 centerOffsetB );
+b2DeclareArray( b2Contact );
+b2DeclareArray( b2ContactSim );
 
-b2Manifold b2ComputeManifold( b2Shape* shapeA, b2Transform transformA, b2Shape* shapeB, b2Transform transformB );
+static inline float b2MixFriction( float frictionA, float frictionB )
+{
+	return sqrtf( frictionA * frictionB );
+}
 
-B2_ARRAY_INLINE( b2Contact, b2Contact )
-B2_ARRAY_INLINE( b2ContactSim, b2ContactSim )
+static inline float b2MixRestitution( float restitutionA, float restitutionB )
+{
+	return b2MaxFloat( restitutionA, restitutionB );
+}
