@@ -115,6 +115,89 @@ namespace dmGameObject
      */
     void SortComponentTypes(HRegister regist);
 
+    /*#
+     * Borrowed game-side inputs for a newly created component world.
+     * Engine-level owner integration; not part of the component SDK.
+     */
+    struct ComponentWorldCreateParams
+    {
+        void*       m_World;
+        void*       m_Context;
+        HCollection m_Collection;
+        uint32_t    m_ComponentIndex;
+        uint32_t    m_MaxInstances;
+        uint32_t    m_MaxComponentInstances;
+    };
+
+    /*#
+     * Observe world creation after the component's NewWorld callback.
+     * @param context Registered owner context
+     * @param params World identity, borrowed inputs and capacities
+     * @return False to abort collection creation. Clean partial work before returning;
+     *         deletion notifications follow for all attempted worlds, including this one.
+     */
+    typedef bool (*FComponentWorldCreated)(void* context, const ComponentWorldCreateParams& params);
+
+    /*#
+     * Observe deletion after the component's DeleteWorld callback.
+     * @param context Registered owner context
+     * @param collection Original collection identity; may no longer resolve to a live collection
+     * @param component_index Actual component registration index
+     */
+    typedef void (*FComponentWorldDeleted)(void* context, HCollection collection, uint32_t component_index);
+
+    /*#
+     * Dispatch a component in Render's normal ordered traversal, including proxy recursion.
+     * @param context Registered owner context
+     * @param component_index Actual component registration index
+     * @param params Original borrowed component inputs
+     * @param render Original component callback, or null; the owner decides whether to invoke it
+     * @return Component dispatch result
+     */
+    typedef UpdateResult (*FComponentWorldRender)(void* context, uint32_t component_index, const ComponentsRenderParams& params, ComponentsRender render);
+
+    /*#
+     * One register-wide owner integration, called on the game owner. All callbacks are
+     * required. The context must outlive all world notifications. Gameobject stores no
+     * owner-specific per-type/per-world data and never changes ComponentType::m_Context.
+     *
+     * TODO: Revisit this integration layer during later component/extension deliverables.
+     * Gamesys owns the render bookkeeping, but gameobject still controls world lifecycle
+     * and ordered Render traversal, including collection-proxy recursion. These hooks
+     * centralize that integration. An alternative is for each migrated component to call
+     * gamesys from its existing NewWorld/DeleteWorld/Render callbacks, removing these
+     * additional hooks at the cost of per-component integration and cleanup responsibilities.
+     */
+    struct ComponentWorldCallbacks
+    {
+        void*                  m_Context;
+        FComponentWorldCreated m_OnWorldCreated;
+        FComponentWorldDeleted m_OnWorldDeleted;
+        FComponentWorldRender  m_Render;
+    };
+
+    /*#
+     * Install owner callbacks before any collection starts creating worlds.
+     * @param regist Component register
+     * @param callbacks Required callbacks and their context
+     * @return RESULT_OK, RESULT_ALREADY_REGISTERED, or RESULT_INVALID_OPERATION
+     */
+    Result SetComponentWorldCallbacks(HRegister regist, const ComponentWorldCallbacks& callbacks);
+
+    /*#
+     * Remove owner callbacks after all collections have been destroyed, before freeing context.
+     * @param regist Component register
+     */
+    void ClearComponentWorldCallbacks(HRegister regist);
+
+    /*#
+     * Query the permanent world-creation boundary, set before invoking any world callbacks.
+     * Owners can use this to freeze their own registration, including after failed creation.
+     * @param regist Component register
+     * @return True once world creation has begun
+     */
+    bool HasComponentWorldCreationStarted(HRegister regist);
+
 
     struct ComponentTypeDescriptor
     {

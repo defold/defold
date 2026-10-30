@@ -454,6 +454,7 @@ namespace dmEngine
     , m_JobThreadContext(0)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
+    , m_GameSystem(0)
     , m_ScriptContext(0x0)
     , m_Factory(0x0)
     , m_SystemSocket(0x0)
@@ -500,10 +501,6 @@ namespace dmEngine
         m_PhysicsContextBullet3D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BULLET3D;
         m_PhysicsContextBullet3D.m_BaseContext.m_Debug = false;
         m_GuiContext = 0x0;
-        m_SpriteContext.m_RenderContext = 0x0;
-        m_SpriteContext.m_MaxSpriteCount = 0;
-        m_ModelContext.m_RenderContext = 0x0;
-        m_ModelContext.m_MaxModelCount = 0;
         m_HttpCache = 0;
         m_DependenciesJsonResource = 0;
         m_DependenciesJsonSize = 0;
@@ -539,6 +536,10 @@ namespace dmEngine
         dmGameObject::PostUpdate(engine->m_Register);
 
         dmGameObject::DeleteCollections(engine->m_Register); // Delete all collections and game objects
+
+        // Finish deferred game-system work before resource/type teardown.
+        if (engine->m_GameSystem && !dmGameSystem::Finalize(engine->m_GameSystem))
+            return;
 
         dmHttpClient::ShutdownConnectionPool();
 
@@ -599,6 +600,10 @@ namespace dmEngine
         {
             dmResource::DeleteFactory(engine->m_Factory);
         }
+
+        // Resource type contexts remain alive until factory teardown completes.
+        if (engine->m_GameSystem)
+            dmGameSystem::DeleteContext(engine->m_GameSystem);
 
         if (engine->m_GraphicsContext)
         {
@@ -1482,6 +1487,10 @@ namespace dmEngine
         dmGameObject::SetInputStackDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY, dmGameObject::DEFAULT_MAX_INPUT_STACK_CAPACITY));
 
         dmRender::RenderContextParams render_params;
+        // TODO: Replace the development build selector with a render.use_thread project setting.
+#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
+        render_params.m_UseThread = true;
+#endif
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
         render_params.m_MaxRenderTargets = 32;
@@ -1497,6 +1506,8 @@ namespace dmEngine
 #endif
         render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
+        if (!engine->m_RenderContext)
+            return false;
         FlushPendingWindowResize(engine);
         PopulateContextRegistry(engine);
 
@@ -1620,31 +1631,6 @@ namespace dmEngine
         }
 #endif
 
-        engine->m_SpriteContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_SpriteContext.m_Factory = engine->m_Factory;
-        engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);
-        engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 1);
-
-        engine->m_ModelContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_ModelContext.m_Factory = engine->m_Factory;
-        engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
-        engine->m_ModelContext.m_MaxBoneMatrixTextureWidth  = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_width", 1024);
-        engine->m_ModelContext.m_MaxBoneMatrixTextureHeight = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_height", 1024);
-
-        engine->m_LabelContext.m_RenderContext      = engine->m_RenderContext;
-        engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);
-        engine->m_LabelContext.m_Subpixels          = dmConfigFile::GetInt(engine->m_Config, "label.subpixels", 1);
-
-        engine->m_CollectionProxyContext.m_Factory = engine->m_Factory;
-        engine->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_PROXY_MAX_COUNT_KEY, 8);
-
-        engine->m_FactoryContext.m_MaxFactoryCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::FACTORY_MAX_COUNT_KEY, 128);
-        engine->m_FactoryContext.m_Factory = engine->m_Factory;
-        engine->m_CollectionFactoryContext.m_MaxCollectionFactoryCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_FACTORY_MAX_COUNT_KEY, 128);
-        engine->m_CollectionFactoryContext.m_Factory = engine->m_Factory;
-        engine->m_FactoryContext.m_ScriptContext = engine->m_ScriptContext;
-        engine->m_CollectionFactoryContext.m_ScriptContext = engine->m_ScriptContext;
-
         dmGameObject::ComponentTypeCreateCtxImpl component_create_ctx_impl;
         dmGameObject::ComponentTypeCreateCtx component_create_ctx;
         SetupComponentCreateContext(engine, component_create_ctx, component_create_ctx_impl);
@@ -1654,6 +1640,19 @@ namespace dmEngine
 
         // Variables need to be declared up here due to the goto's
         bool has_host_mount = dmSys::GetEnv("DM_HOSTFS") != 0;
+
+        {
+            dmGameSystem::ContextParams params;
+            params.m_Factory = engine->m_Factory;
+            params.m_Register = engine->m_Register;
+            params.m_RenderContext = engine->m_RenderContext;
+            params.m_ScriptContext = engine->m_ScriptContext;
+            params.m_InputContext = engine->m_InputContext;
+            params.m_PhysicsContext = physics_context;
+            engine->m_GameSystem = dmGameSystem::NewContext(params);
+            if (!engine->m_GameSystem)
+                goto bail;
+        }
 
         engine->m_ResourceTypeContexts.Put(dmHashString64("goc"), engine->m_Register);
         engine->m_ResourceTypeContexts.Put(dmHashString64("collectionc"), engine->m_Register);
@@ -1672,14 +1671,7 @@ namespace dmEngine
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_InputContext, physics_context, &engine->m_ModelContext);
-        if (fact_result != dmResource::RESULT_OK)
-            goto bail;
-
-        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, physics_context, &engine->m_SpriteContext,
-                                                                                                &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext,
-                                                                                                &engine->m_ModelContext, &engine->m_LabelContext);
-        if (go_result != dmGameObject::RESULT_OK)
+        if (!dmGameSystem::Initialize(engine->m_GameSystem, engine->m_Config))
             goto bail;
 
         // register the component extensions
@@ -2066,6 +2058,13 @@ bail:
                         return;
                     }
                 }
+
+                if (!dmGameSystem::BeginFrame(engine->m_GameSystem))
+                {
+                    Exit(engine, 1);
+                    ProfileFrameEnd(profile);
+                    return;
+                }
 #if defined(DM_HAS_THREADS)
                 uint64_t jobthread_max_time_us = 0;
 #else
@@ -2109,6 +2108,7 @@ bail:
                 if (esc_pressed || !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_OPENED))
                 {
                     Exit(engine, 0);
+                    ProfileFrameEnd(profile);
                     return;
                 }
 
@@ -2161,7 +2161,7 @@ bail:
 
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmGameObject::Render(GetMainCollection(engine));
+                    dmGameSystem::Render(engine->m_GameSystem, GetMainCollection(engine));
 
                     // Make sure we dispatch messages to the render script
                     // since it could have some "draw_text" messages waiting.
@@ -2191,8 +2191,8 @@ bail:
                     }
                 }
 
-                dmGameObject::PostUpdate(GetMainCollection(engine));
-                dmGameObject::PostUpdate(engine->m_Register);
+                if (!dmGameSystem::PostUpdate(engine->m_GameSystem, GetMainCollection(engine)))
+                    Exit(engine, 1);
 
                 if (do_render)
                 {

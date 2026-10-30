@@ -114,18 +114,13 @@ namespace dmEngine
         HJobContext                                 m_JobThreadContext;
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
+        dmGameSystem::HContext                      m_GameSystem;
         dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
         dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
         dmScript::HContext                          m_ScriptContext;
         dmResource::HFactory                        m_Factory;
         dmGui::HContext                             m_GuiContext;
         dmMessage::HSocket                          m_SystemSocket;
-        dmGameSystem::SpriteContext                 m_SpriteContext;
-        dmGameSystem::CollectionProxyContext        m_CollectionProxyContext;
-        dmGameSystem::FactoryContext                m_FactoryContext;
-        dmGameSystem::CollectionFactoryContext      m_CollectionFactoryContext;
-        dmGameSystem::ModelContext                  m_ModelContext;
-        dmGameSystem::LabelContext                  m_LabelContext;
         dmGameObject::ModuleContext                 m_ModuleContext;
 
         dmGameSystem::FontResource*                 m_SystemFont;
