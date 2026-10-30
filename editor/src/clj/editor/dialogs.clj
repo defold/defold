@@ -79,8 +79,8 @@
         screen (if window
                  (Utils/getScreen window)
                  (Screen/getPrimary))
-        window-decorations-height 48.0]
-    (- (.getHeight (.getVisualBounds ^Screen screen)) window-decorations-height)))
+        screen-margin 32.0]
+    (- (.getHeight (.getVisualBounds ^Screen screen)) (* 2.0 screen-margin))))
 
 (defn dialog-stage
   "Dialog `:stage` that manages scene graph itself and provides layout common
