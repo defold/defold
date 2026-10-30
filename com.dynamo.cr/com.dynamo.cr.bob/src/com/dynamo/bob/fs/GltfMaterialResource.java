@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import com.dynamo.bob.pipeline.Modelimporter;
+import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.google.protobuf.TextFormat;
 
@@ -96,9 +97,22 @@ public class GltfMaterialResource extends GltfResource {
         builder.addVertexConstants(createConstant("mtx_proj", MaterialDesc.ConstantType.CONSTANT_TYPE_PROJECTION));
         builder.addVertexConstants(createConstant("mtx_normal", MaterialDesc.ConstantType.CONSTANT_TYPE_NORMAL));
 
+        builder.addFragmentConstants(createConstant("mtx_projection", MaterialDesc.ConstantType.CONSTANT_TYPE_PROJECTION));
+        builder.addFragmentConstants(MaterialDesc.Constant.newBuilder()
+                .setName("transmission_params")
+                .setType(MaterialDesc.ConstantType.CONSTANT_TYPE_USER)
+                .addValue(Vector4.getDefaultInstance()));
+
         for (Map.Entry<String, Modelimporter.TextureView> entry : samplerTextureViews(material).entrySet()) {
             builder.addSamplers(createSampler(entry.getKey(), entry.getValue()));
         }
+        // The render pass supplies this texture; it has no imported image binding.
+        builder.addSamplers(MaterialDesc.Sampler.newBuilder()
+                .setName("tex_scene_color")
+                .setWrapU(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE)
+                .setWrapV(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE)
+                .setFilterMin(MaterialDesc.FilterModeMin.FILTER_MODE_MIN_LINEAR)
+                .setFilterMag(MaterialDesc.FilterModeMag.FILTER_MODE_MAG_LINEAR));
         return builder.build();
     }
 
@@ -113,6 +127,12 @@ public class GltfMaterialResource extends GltfResource {
         putTextureView(result, "PbrMaterial_normalTexture", material.normalTexture);
         putTextureView(result, "PbrMaterial_occlusionTexture", material.occlusionTexture);
         putTextureView(result, "PbrMaterial_emissiveTexture", material.emissiveTexture);
+        Modelimporter.Transmission transmission = material.transmission;
+        putTextureView(result, "PbrTransmission_transmissionTexture",
+                transmission == null ? null : transmission.transmissionTexture);
+        Modelimporter.Volume volume = material.volume;
+        putTextureView(result, "PbrVolume_thicknessTexture",
+                volume == null ? null : volume.thicknessTexture);
         return result;
     }
 

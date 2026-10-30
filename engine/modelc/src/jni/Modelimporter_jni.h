@@ -88,6 +88,7 @@ struct TextureViewJNI {
     jfieldID texcoord;
     jfieldID scale;
     jfieldID hasTransform;
+    jfieldID transformBaked;
     jfieldID transform;
 };
 struct PbrMetallicRoughnessJNI {

@@ -127,6 +127,7 @@ public class Modelimporter {
         public int texcoord = 0;
         public float scale = 0.0f;
         public boolean hasTransform = false;
+        public boolean transformBaked = false;
         public TextureTransform transform;
     };
     public static class PbrMetallicRoughness {

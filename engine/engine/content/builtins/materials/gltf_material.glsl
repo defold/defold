@@ -16,12 +16,14 @@ MaterialInfo pbr_create_material_info(PBRMaterial input_material)
     material.perceptualRoughness = clamp(input_material.roughness, 0.04, 1.0);
     material.alphaRoughness = material.perceptualRoughness * material.perceptualRoughness;
 
-    // Nonmetals reflect 4% at normal incidence. Metals use base color as their
-    // specular reflectance and have no diffuse contribution.
-    material.dielectricF0 = vec3(0.04);
+    // Derive dielectric reflectance from IOR (4% at the default 1.5).
+    // Metals use base color as their specular reflectance.
+    float ior = input_material.ior;
+    float dielectric_f0 = (ior - 1.0) / (ior + 1.0);
+    material.dielectricF0 = vec3(dielectric_f0 * dielectric_f0);
     material.f0 = mix(material.dielectricF0, material.baseColor.rgb, material.metallic);
     material.f90 = vec3(1.0);
-    material.diffuseColor = material.baseColor.rgb * (1.0 - material.metallic);
+    material.diffuseColor = ior == 0.0 ? vec3(0.0) : material.baseColor.rgb * (1.0 - material.metallic);
     material.specularWeight = 1.0;
 
     return material;

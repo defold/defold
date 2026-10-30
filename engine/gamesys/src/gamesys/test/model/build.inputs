@@ -10,6 +10,7 @@
 /model/morph_selected.model
 /model/one_mesh_two_materials.go
 /model/pbr_properties.go
+/model/pbr_properties.gltf/materials/red_0.material
 /model/script_model.go
 /model/script_model_anim.go
 /model/script_model_anim_message.go

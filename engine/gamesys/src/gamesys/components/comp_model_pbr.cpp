@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <string.h>
+#include <math.h>
 
 #include <dlib/hash.h>
 #include <dmsdk/dlib/vmath.h>
@@ -50,6 +51,11 @@ namespace dmGameSystem
 
     const dmhash_t PBR_EMISSIVE_FACTOR_AND_STRENGTH = dmHashString64("pbrEmissiveFactorAndStrength");
     const dmhash_t PBR_NORMAL_SCALE_AND_OCCLUSION_STRENGTH = dmHashString64("pbrNormalScaleAndOcclusionStrength");
+
+    static const dmhash_t PBR_TRANSMISSION_TEXTURE_TRANSFORM_U = dmHashString64("pbrTransmission.transmissionTextureTransformU");
+    static const dmhash_t PBR_TRANSMISSION_TEXTURE_TRANSFORM_V = dmHashString64("pbrTransmission.transmissionTextureTransformV");
+    static const dmhash_t PBR_VOLUME_TEXTURE_TRANSFORM_U       = dmHashString64("pbrVolume.thicknessTextureTransformU");
+    static const dmhash_t PBR_VOLUME_TEXTURE_TRANSFORM_V       = dmHashString64("pbrVolume.thicknessTextureTransformV");
 
     static dmRigDDF::Material g_DefaultMaterial;
     static bool               g_DefaultMaterialInitialized = false;
@@ -95,6 +101,7 @@ namespace dmGameSystem
         material.m_Pbrspecularglossiness.m_Glossinessfactor = 1.0f;
         material.m_Specular.m_Specularcolorfactor = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
         material.m_Specular.m_Specularfactor = 1.0f;
+        material.m_Ior.m_Ior = 1.5f;
         material.m_Volume.m_Attenuationcolor = dmVMath::Vector3(1.0f, 1.0f, 1.0f);
         material.m_Volume.m_Attenuationdistance = -1.0f;
         material.m_Emissivestrength.m_Emissivestrength = 1.0f;
@@ -104,6 +111,28 @@ namespace dmGameSystem
         material.m_Alphacutoff = 0.5f;
 
         g_DefaultMaterialInitialized = true;
+    }
+
+    static void SetTextureTransformConstants(HComponentRenderConstants constants, const dmRigDDF::TextureView& view, dmhash_t name_u, dmhash_t name_v)
+    {
+        const dmRigDDF::TextureTransform& transform = view.m_Transform;
+        int                               texcoord = transform.m_Texcoord >= 0 ? transform.m_Texcoord : view.m_Texcoord;
+        dmVMath::Vector4                  u(0, 0, 0, texcoord == 1 ? 1.0f : 0.0f);
+        dmVMath::Vector4                  v(0);
+        if (!view.m_TransformBaked)
+        {
+            float cosine = cosf(transform.m_Rotation);
+            float sine = sinf(transform.m_Rotation);
+            // F * T * F converts the authored glTF transform to flipped-V UVs.
+            u.setX(cosine * transform.m_ScaleX - 1.0f);
+            u.setY(sine * transform.m_ScaleY);
+            u.setZ(transform.m_OffsetX - sine * transform.m_ScaleY);
+            v.setX(-sine * transform.m_ScaleX);
+            v.setY(cosine * transform.m_ScaleY - 1.0f);
+            v.setZ(1.0f - transform.m_OffsetY - cosine * transform.m_ScaleY);
+        }
+        SetRenderConstant(constants, name_u, &u, 1);
+        SetRenderConstant(constants, name_v, &v, 1);
     }
 
     bool FillPBRConstants(ModelResource* resource, const MaterialInfo* material_info, HComponentRenderConstants* render_constants, dmRender::HMaterial material, uint32_t material_index)
@@ -240,6 +269,7 @@ namespace dmGameSystem
                 dmVMath::Vector4 transmission_textures = dmVMath::Vector4(
                     ddf_material.m_Transmission.m_Transmissiontexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
                 dmGameSystem::SetRenderConstant(constants, PBR_TRANSMISSION_TEXTURES, &transmission_textures, 1);
+                SetTextureTransformConstants(constants, ddf_material.m_Transmission.m_Transmissiontexture, PBR_TRANSMISSION_TEXTURE_TRANSFORM_U, PBR_TRANSMISSION_TEXTURE_TRANSFORM_V);
             }
         }
         if (parameters.m_HasIor)
@@ -247,7 +277,7 @@ namespace dmGameSystem
             /*
             struct Ior
             {
-                vec4 ior; // R: ior (Default=0.0)
+                vec4 ior; // R: ior (Default=1.5, 0 means infinite IOR)
             };
             */
             dmVMath::Vector4 ior = dmVMath::Vector4(ddf_material.m_Ior.m_Ior, 0.0f, 0.0f, 0.0f);
@@ -297,6 +327,7 @@ namespace dmGameSystem
                 dmVMath::Vector4 volume_textures = dmVMath::Vector4(
                     ddf_material.m_Volume.m_Thicknesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
                 dmGameSystem::SetRenderConstant(constants, PBR_VOLUME_TEXTURES, &volume_textures, 1);
+                SetTextureTransformConstants(constants, ddf_material.m_Volume.m_Thicknesstexture, PBR_VOLUME_TEXTURE_TRANSFORM_U, PBR_VOLUME_TEXTURE_TRANSFORM_V);
             }
         }
         if (parameters.m_HasSheen)
