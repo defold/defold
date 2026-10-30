@@ -469,6 +469,7 @@ namespace dmEngine
     , m_QuitOnEsc(false)
     , m_ConnectionAppMode(false)
     , m_RunWhileIconified(false)
+    , m_UseHighRefreshRate(false)
     , m_SwapInterval(0)
     , m_EffectiveSwapInterval(~0U)
     , m_PreviousFrameTime(dmTime::GetMonotonicTime())
@@ -879,6 +880,10 @@ namespace dmEngine
         }
 
         engine->m_UpdateFrequency = validated_frequency;
+
+#if defined(DM_PLATFORM_IOS)
+        dmPlatform::SetiOSFrameRate(engine->m_UseHighRefreshRate, validated_frequency);
+#endif
 
         // Timing balances are measured in seconds and remain valid when the
         // frequency changes. Reset only the cadence, not elapsed time.
@@ -1355,6 +1360,9 @@ namespace dmEngine
 
 #if defined(DM_PLATFORM_IOS)
         dmPlatform::SetiOSHomeIndicatorMode(dmConfigFile::GetString(engine->m_Config, "ios.home_indicator_mode", "deferred"));
+        // Reset the rate a previous engine instance may have requested before a reboot
+        engine->m_UseHighRefreshRate = dmConfigFile::GetInt(engine->m_Config, "ios.use_high_refresh_rate", 0) != 0;
+        dmPlatform::SetiOSFrameRate(engine->m_UseHighRefreshRate, 0);
 #endif
 
         bool setting_vsync     = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true); // Deprecated
@@ -2374,6 +2382,35 @@ bail:
         return step_dt;
     }
 
+    float CalcCallbackTimeStep(float frame_dt, float fixed_dt, float max_time_step, uint32_t max_frame_intervals, float& accum_frame_time, uint32_t& num_steps)
+    {
+        // Never allow for large hitches. As with timer pacing, a requested
+        // interval longer than max_time_step is intentional, e.g. a display
+        // link running at a low update frequency.
+        frame_dt = dmMath::Min(frame_dt, dmMath::Max(max_time_step, max_frame_intervals * fixed_dt));
+
+        // We don't allow having a higher framerate than the platform callback
+        // rate since update and render are currently coupled together and
+        // Flip() would otherwise be called more than once per callback.
+        // E.g. if fixed_dt == 1/120 and frame_dt == 1/60.
+        if (fixed_dt < frame_dt)
+        {
+            fixed_dt = frame_dt;
+        }
+
+        // Platform-owned loops may call Step more frequently than the requested
+        // fixed update rate. Accumulate their elapsed time so early callbacks run
+        // no update, while retaining any fractional time for the next callback.
+        accum_frame_time += frame_dt;
+
+        float num_steps_f = accum_frame_time / fixed_dt;
+
+        num_steps = (uint32_t)num_steps_f;
+
+        accum_frame_time = accum_frame_time - num_steps * fixed_dt;
+        return fixed_dt;
+    }
+
     static void CalcTimeStep(HEngine engine, bool frame_was_paced, float& step_dt, uint32_t& num_steps)
     {
         uint64_t time = dmTime::GetMonotonicTime();
@@ -2419,30 +2456,12 @@ bail:
         }
         else
         {
-            // Never allow for large hitches. Timer-paced frames perform this
-            // clamp relative to their intentional interval above.
-            frame_dt = dmMath::Min(frame_dt, engine->m_MaxTimeStep);
-
-            // We don't allow having a higher framerate than the platform callback
-            // rate since update and render are currently coupled together and
-            // Flip() would otherwise be called more than once per callback.
-            // E.g. if fixed_dt == 1/120 and frame_dt == 1/60.
-            if (fixed_dt < frame_dt)
-            {
-                fixed_dt = frame_dt;
-            }
-
-            // Platform-owned loops may call Step more frequently than the requested
-            // fixed update rate. Accumulate their elapsed time so early callbacks run
-            // no update, while retaining any fractional time for the next callback.
-            engine->m_AccumFrameTime += frame_dt;
-
-            float num_steps_f = engine->m_AccumFrameTime / fixed_dt;
-
-            num_steps = (uint32_t)num_steps_f;
-            step_dt = fixed_dt;
-
-            engine->m_AccumFrameTime = engine->m_AccumFrameTime - num_steps * fixed_dt;
+            // Only set on iOS. A display link can only fire at rates the display
+            // supports, and iOS approximates other rates by alternating
+            // neighbouring intervals, e.g. 33.3 and 50 ms for 24 Hz. Allow two
+            // requested intervals so that rounding is not discarded as a hitch.
+            uint32_t max_frame_intervals = engine->m_UseHighRefreshRate ? 2 : 1;
+            step_dt = CalcCallbackTimeStep(frame_dt, fixed_dt, engine->m_MaxTimeStep, max_frame_intervals, engine->m_AccumFrameTime, num_steps);
         }
     }
 
