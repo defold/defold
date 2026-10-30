@@ -28,6 +28,7 @@ extern "C"
 int g_TestAppInitCount = 0;
 int g_TestInitCount = 0;
 int g_TestUpdateCount = 0;
+float g_TestUpdateDT = 0.0f;
 int g_TestAppEventCount = 0;
 int g_TestContextCount = 0;
 
@@ -82,6 +83,9 @@ static dmExtension::Result InitializeTest(dmExtension::Params* params)
 
 static dmExtension::Result UpdateTest(dmExtension::Params* params)
 {
+    if (!dmExtension::ParamsGetFloat(params, dmExtension::PARAM_DT, &g_TestUpdateDT))
+        return dmExtension::RESULT_INIT_ERROR;
+
     g_TestUpdateCount++;
     return dmExtension::RESULT_OK;
 }

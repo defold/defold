@@ -294,6 +294,13 @@ defold_create_exported_symbols_file("${_TEST1_EXPORTED_CPP}" "${_TEST1_SYMBOLS}"
 defold_add_executable(test_gamesys ${TEST_GS_SOURCES} ${_TEST1_EXPORTED_CPP} ${_EMBED_HEADERS} ${_EMBED_CPP})
 gamesys_configure_common_test(test_gamesys)
 
+# Pure geometry tests do not require graphics or compiled game content.
+defold_add_executable(test_gamesys_geometry
+  "${GS_TEST_ROOT}/test_gamesys_geometry.cpp"
+  "${GS_SRC_ROOT}/geometry.cpp")
+defold_target_link_libraries(test_gamesys_geometry "${TARGET_PLATFORM}" testmain)
+defold_register_test_target(test_gamesys_geometry ON "${GS_TEST_ROOT}")
+
 # Deterministic profiler call counts guard batching without timing assertions.
 defold_add_executable(test_gamesys_profile
   "${GS_TEST_ROOT}/test_gamesys_profile.cpp"

@@ -24,9 +24,11 @@
 struct ExtensionParamsImpl
 {
     HContextRegistry m_ContextRegistry;
+    float            m_DT;
 
     ExtensionParamsImpl()
     : m_ContextRegistry(0)
+    , m_DT(0.0f)
     {
     }
 };
@@ -139,6 +141,15 @@ HContextRegistry ExtensionParamsGetContextRegistry(ExtensionParams* params)
     return params->m_Impl->m_ContextRegistry;
 }
 
+bool ExtensionParamsGetFloat(const ExtensionParams* params, ExtensionParam param, float* out_value)
+{
+    if (param != EXTENSION_PARAM_DT)
+        return false;
+
+    *out_value = params->m_Impl->m_DT;
+    return true;
+}
+
 int ExtensionAppParamsSetContext(ExtensionAppParams* params, const char* name, void* context)
 {
     return ContextRegistrySet(ExtensionAppParamsGetContextRegistry(params), name, context);
@@ -182,6 +193,11 @@ void* ExtensionParamsGetContextByName(ExtensionParams* params, const char* name)
 
 namespace dmExtension
 {
+    bool ParamsGetFloat(const Params* params, Param param, float* out_value)
+    {
+        return ExtensionParamsGetFloat(params, (ExtensionParam)param, out_value);
+    }
+
     HExtension GetFirstExtension()
     {
         return g_FirstExtension;
@@ -310,8 +326,9 @@ namespace dmExtension
         return RESULT_OK;
     }
 
-    Result Update(Params* params)
+    Result Update(Params* params, float dt)
     {
+        params->m_Impl->m_DT = dt;
         const ExtensionDesc* ed = dmExtension::GetFirstExtension();
         while (ed) {
             if (ed->m_Update && ed->m_Initialized)
@@ -324,6 +341,7 @@ namespace dmExtension
             }
             ed = dmExtension::GetNextExtension(ed);
         }
+        params->m_Impl->m_DT = 0.0f;
         return RESULT_OK;
     }
 

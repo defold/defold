@@ -74,10 +74,31 @@ To clear features in an existing build directory, configure with an empty value:
 cmake -S . -B engine/build/arm64-macos -DDEFOLD_ENABLE_FEATURES=
 ```
 
-When invoking `scripts/build.py`, pass `--with-asan`, `--with-hwasan`, `--with-ubsan`, or
-`--with-tsan` after the `--` separator and the configure step applies the
+When invoking `scripts/build.py`, pass `--with-asan`, `--with-hwasan`, `--with-msan`,
+`--with-ubsan`, or `--with-tsan` after the `--` separator and the configure step applies the
 matching `WITH_*` cache options, such as `WITH_ASAN=ON`. The graphics toggles
 such as `--with-vulkan` continue to map to `WITH_VULKAN`.
+
+`WITH_MSAN=ON` enables Clang MemorySanitizer with origin tracking on Linux
+(`x86_64-linux` or `arm64-linux`). It cannot be combined with another sanitizer.
+Build its dependencies first with `scripts/build.py build_ext -- --with-msan`.
+This builds a pinned LLVM 20 libc++/libc++abi and instrumented external archives
+in `tmp/dynamo_home/ext/msan/<platform>`, separately from the ordinary dependencies
+used by Bob and JNI. It also rebuilds the normally packaged ASTC, SPIRV-Cross,
+GLFW, and Tremolo libraries. The build requires native Linux, Clang 20, and network
+access for the pinned sources on its first run.
+
+Then run `scripts/build.py build_engine -- --with-msan`, or configure CMake with
+`-DWITH_MSAN=ON`. MSan uses vanilla Lua and OpenH264's C++ kernels so those paths
+can be instrumented. The Linux nightly jobs prepare the instrumented dependencies
+before building and running the engine tests with MSan.
+
+GPU image/effect tests, including the font viewer, require an instrumented system
+graphics stack (X11, OpenGL/Vulkan loaders, and drivers), which `build_ext` does not
+provide. Automatic MSan runs skip those GPU tests with an explicit reason; their
+manual targets remain available. Null-backend rendering, shaders, fonts, and other engine tests
+remain instrumented. The font compiler API test compiles the API into its MSan
+executable instead of loading the ordinary JVM shared library.
 
 macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
 include Vulkan as an additional adapter. iOS devices still default to OpenGL ES;

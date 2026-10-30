@@ -167,6 +167,7 @@ def install_linux(args):
     call("update-alternatives --display llvm-ar")
 
     packages = [
+        f"llvm-{clang_version}", # llvm-symbolizer for sanitizer stack traces
         "autoconf",
         "automake",
         "build-essential",
@@ -175,6 +176,8 @@ def install_linux(args):
         "libtool",
         "libxi-dev",
         "libx11-xcb-dev",
+        "libxcursor-dev",
+        "libxinerama-dev",
         "libxrandr-dev",
         "libopenal-dev",
         "libgl1-mesa-dev",
@@ -184,7 +187,6 @@ def install_linux(args):
         "openssl",
         "tofrodos",
         "tree",
-        "valgrind",
         "uuid-dev",
         "xvfb",
         "xauth"
@@ -269,6 +271,9 @@ def build_engine(channel, platform, args):
     cmd_args = ('"%s" scripts/build.py' % sys.executable).split()
     if not args.skip_install_ext:
         cmd_args.extend(['distclean'] + sdk_commands(platform) + ['install_ext'])
+    elif args.with_msan:
+        # The ordinary dependency cache cannot supply MSan-instrumented archives.
+        cmd_args.append('build_ext')
 
     cmd_opts = []
     build_opts = []
@@ -302,10 +307,10 @@ def build_engine(channel, platform, args):
     if args.codesign and args.gcloud_service_key:
         cmd_opts.extend(create_gcloud_options(args.gcloud_service_key))
 
-    if args.with_valgrind:
-        build_opts.append('--with-valgrind')
     if args.with_asan:
         build_opts.append('--with-asan')
+    if args.with_msan:
+        build_opts.append('--with-msan')
     if args.with_ubsan:
         build_opts.append('--with-ubsan')
     if args.with_tsan:
@@ -573,9 +578,9 @@ def main(argv):
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--platforms", dest="platforms", help="Comma-separated platforms to include in the combined SDK")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
+    parser.add_argument("--with-msan", dest="with_msan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
     parser.add_argument("--with-tsan", dest="with_tsan", action='store_true', help="")
-    parser.add_argument("--with-valgrind", dest="with_valgrind", action='store_true', help="")
     parser.add_argument("--with-vanilla-lua", dest="with_vanilla_lua", action='store_true', help="")
     parser.add_argument("--archive", dest="archive", action='store_true', help="Archive engine artifacts to S3")
     parser.add_argument("--skip-archive", dest="skip_archive", action='store_true', help="Build bob without reading from or writing to the S3 archive")

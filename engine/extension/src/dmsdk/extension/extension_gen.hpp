@@ -104,6 +104,18 @@ namespace dmExtension
         APP_EXIT_CODE_EXIT = -1,
     };
 
+    /*# extension parameter enumeration
+     * Parameters available through [ref:ParamsGetFloat].
+     * @enum
+     * @name Param
+     * @language C++
+     * @member  PARAM_DT engine update delta time
+     */
+    enum Param
+    {
+        PARAM_DT,
+    };
+
     /*# 
      * The extension app parameters
      * @struct
@@ -176,6 +188,23 @@ namespace dmExtension
      * @param app_params [type:ExtensionParams*] the params
      */
     void ParamsFinalize(Params * params);
+
+    /*#
+     * Gets a float from the extension callback parameters.
+     *
+     * Supported parameters:
+     *
+     * | Parameter | Description |
+     * | --------- | ----------- |
+     * | `PARAM_DT` | Current engine update delta in seconds, before collection-proxy time scaling. Zero outside the extension update callback. |
+     * @name ParamsGetFloat
+     * @language C++
+     * @param params [type:const Params*] valid parameters for the current callback
+     * @param param [type:Param] parameter to read, for example `PARAM_DT`
+     * @param out_value [type:float*] output value; left unchanged if the parameter is unsupported
+     * @return result [type:bool] true if the parameter is supported, otherwise false
+     */
+    bool ParamsGetFloat(const Params* params, Param param, float* out_value);
 
     /*# 
      * Sets a context using a specified name
@@ -465,6 +494,30 @@ namespace dmExtension
  * @name ExtensionParamsFinalize
  * @language C
  * @param app_params [type:ExtensionParams*] the params
+ */
+
+/*# extension parameter enumeration
+ * Parameters available through [ref:ExtensionParamsGetFloat].
+ * @enum
+ * @name ExtensionParam
+ * @language C
+ * @member  EXTENSION_PARAM_DT engine update delta time
+ */
+
+/*#
+ * Gets a float from the extension callback parameters.
+ *
+ * Supported parameters:
+ *
+ * | Parameter | Description |
+ * | --------- | ----------- |
+ * | `EXTENSION_PARAM_DT` | Current engine update delta in seconds, before collection-proxy time scaling. Zero outside the extension update callback. |
+ * @name ExtensionParamsGetFloat
+ * @language C
+ * @param params [type:const ExtensionParams*] valid parameters for the current callback
+ * @param param [type:ExtensionParam] parameter to read, for example `EXTENSION_PARAM_DT`
+ * @param out_value [type:float*] output value; left unchanged if the parameter is unsupported
+ * @return result [type:bool] true if the parameter is supported, otherwise false
  */
 
 /*# 

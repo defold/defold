@@ -61,6 +61,8 @@ namespace dmRender
     , m_ShadowAlpha(0.0f)
     , m_CacheWidth(0)
     , m_CacheHeight(0)
+    , m_CacheMaxWidth(0)
+    , m_CacheMaxHeight(0)
     , m_CacheCellWidth(0)
     , m_CacheCellHeight(0)
     , m_CacheCellMaxAscent(0)
@@ -70,6 +72,7 @@ namespace dmRender
     , m_VectorBitmapEffects(false)
     , m_IsMonospaced(false)
     , m_IsDynamic(false)
+    , m_Padding(0)
     , m_ImageFormat(dmRenderDDF::TYPE_BITMAP)
     {
     }

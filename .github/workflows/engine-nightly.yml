@@ -118,15 +118,16 @@ jobs:
         with: { platform: 'x86_64-linux', build-variant: 'tsan' }
       },
       {
-        name: 'VALGRIND',
-        id: valgrind,
-        run: 'ci/ci.sh --platform=x86_64-linux --with-valgrind --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
+        name: 'MSAN',
+        id: msan,
+        env: { MSAN_SYMBOLIZER_PATH: '/usr/lib/llvm-20/bin/llvm-symbolizer' },
+        run: 'ci/ci.sh --platform=x86_64-linux --with-msan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
       },
       {
-        name: 'Upload VALGRIND build reports',
-        if: "always() && (steps.valgrind.outcome == 'success' || steps.valgrind.outcome == 'failure')",
+        name: 'Upload MSAN build reports',
+        if: "always() && (steps.msan.outcome == 'success' || steps.msan.outcome == 'failure')",
         uses: ./.github/actions/upload-build-reports,
-        with: { platform: 'x86_64-linux', build-variant: 'valgrind' }
+        with: { platform: 'x86_64-linux', build-variant: 'msan' }
       },
       {
          name: 'Notify if build status changed',
@@ -186,15 +187,16 @@ jobs:
         with: { platform: 'arm64-linux', build-variant: 'tsan' }
       },
       {
-        name: 'VALGRIND',
-        id: valgrind,
-        run: 'ci/ci.sh --platform=arm64-linux --with-valgrind --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
+        name: 'MSAN',
+        id: msan,
+        env: { MSAN_SYMBOLIZER_PATH: '/usr/lib/llvm-20/bin/llvm-symbolizer' },
+        run: 'ci/ci.sh --platform=arm64-linux --with-msan --skip-install-ext --skip-builtins --skip-docs clean-engine engine'
       },
       {
-        name: 'Upload VALGRIND build reports',
-        if: "always() && (steps.valgrind.outcome == 'success' || steps.valgrind.outcome == 'failure')",
+        name: 'Upload MSAN build reports',
+        if: "always() && (steps.msan.outcome == 'success' || steps.msan.outcome == 'failure')",
         uses: ./.github/actions/upload-build-reports,
-        with: { platform: 'arm64-linux', build-variant: 'valgrind' }
+        with: { platform: 'arm64-linux', build-variant: 'msan' }
       },
       {
          name: 'Notify if build status changed',

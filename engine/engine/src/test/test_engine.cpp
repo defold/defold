@@ -30,6 +30,7 @@
 #include <script/sys_ddf.h>
 #include <render/render_ddf.h>
 #include <gameobject/component.h>
+#include <dmsdk/extension/extension.hpp>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
@@ -54,12 +55,37 @@ extern "C" void dmExportedSymbols();
 #endif
 #define MAKE_PATH(_VAR, _NAME)  dmTestUtil::MakeHostPathf(_VAR, sizeof(_VAR), "%s%s", CONTENT_ROOT, _NAME)
 
-typedef void (*PreRun)(dmEngine::HEngine engine, void* context);
-typedef void (*PostRun)(dmEngine::HEngine engine, void* context);
+typedef void (*FPreRun)(dmEngine::HEngine engine, void* context);
+typedef void (*FPostRun)(dmEngine::HEngine engine, void* context);
 
-PreRun g_PreRun = 0;
-PostRun g_PostRun = 0;
-void* g_TextCtx = 0;
+static FPreRun  g_PreRun  = 0;
+static FPostRun g_PostRun = 0;
+static void*    g_TextCtx = 0;
+
+static float    g_ExtensionTotalDT              = 0.0f;
+static uint32_t g_ExtensionUpdateCount          = 0;
+static bool     g_ExtensionFloatLookupSucceeded = true;
+
+static dmExtension::Result DeltaTimeTestLifecycle(dmExtension::Params*)
+{
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result DeltaTimeTestUpdate(dmExtension::Params* params)
+{
+    float dt;
+    if (!dmExtension::ParamsGetFloat(params, dmExtension::PARAM_DT, &dt))
+    {
+        g_ExtensionFloatLookupSucceeded = false;
+        return dmExtension::RESULT_INIT_ERROR;
+    }
+
+    g_ExtensionTotalDT += dt;
+    ++g_ExtensionUpdateCount;
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineDeltaTimeTestExt, "test_dt", 0, 0, DeltaTimeTestLifecycle, DeltaTimeTestUpdate, 0, DeltaTimeTestLifecycle);
 
 static void TestEngineInitialize(void* _ctx)
 {
@@ -181,7 +207,7 @@ static int RunTestEngineLoop(const dmEngine::RunLoopParams* params)
 }
 #endif
 
-static int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
+static int Launch(int argc, char* argv[], FPreRun pre_run, FPostRun post_run, void* context)
 {
     g_PreRun = pre_run;
     g_PostRun = post_run;
@@ -553,6 +579,48 @@ TEST_F(EngineTest, WindowResizeBeforeRenderContext)
 
     dmEngine::Delete(engine);
     dmEngineFinalize();
+}
+
+// Extension and engine time must agree after every update, including when delta time is zero.
+TEST_F(EngineTest, ExtensionDeltaTime)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=display.update_frequency=0",
+        project_path
+    };
+
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    g_ExtensionTotalDT = 0.0f;
+    g_ExtensionUpdateCount = 0;
+    g_ExtensionFloatLookupSucceeded = true;
+
+    dmEngine::Stats engine_stats[3];
+    dmEngine::Stats extension_stats[DM_ARRAY_SIZE(engine_stats)];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(engine_stats); ++i)
+    {
+        dmEngine::Step(engine);
+        dmEngine::GetStats(engine, engine_stats[i]);
+        extension_stats[i].m_FrameCount = g_ExtensionUpdateCount;
+        extension_stats[i].m_TotalTime = g_ExtensionTotalDT;
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(g_ExtensionFloatLookupSucceeded);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(engine_stats); ++i)
+    {
+        ASSERT_EQ(i + 1, extension_stats[i].m_FrameCount);
+        ASSERT_EQ(engine_stats[i].m_FrameCount, extension_stats[i].m_FrameCount);
+        ASSERT_EQ(engine_stats[i].m_TotalTime, extension_stats[i].m_TotalTime);
+    }
 }
 
 TEST_F(EngineTest, SetEngineThrottle)
@@ -1600,6 +1668,7 @@ int main(int argc, char **argv)
     dmLog::CloseConsoleWindow();
 #endif
     dmExportedSymbols();
+    EngineDeltaTimeTestExt();
     TestMainPlatformInit();
 
     ProfileInitialize();
