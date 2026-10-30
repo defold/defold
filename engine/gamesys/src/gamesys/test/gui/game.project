@@ -1,2 +1,5 @@
 [graphics]
 texture_profiles = /gui/default.texture_profiles
+
+[shader]
+exclude_gles_sm100 = 1

@@ -69,7 +69,6 @@
             [internal.graph.types :as gt]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
-            [util.eduction :as e]
             [util.http-server :as http-server]
             [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL GL3 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
@@ -1096,13 +1095,18 @@
    :on-action (fn [^ActionEvent event]
                 (ui/run-command (.getSource event) :scene.stop))})
 
-(defn- info-label [info-text]
-  {:fx/type fx.label/lifecycle
-   :style-class "info-label"
-   :mouse-transparent true
-   :anchor-pane/top 15
-   :anchor-pane/left 30
-   :text info-text})
+(defn- info-label [localization info-text]
+  (let [desc {:fx/type fx.label/lifecycle
+              :style-class "info-label"
+              :mouse-transparent true}]
+    (merge {:anchor-pane/top 15
+            :anchor-pane/left 30}
+           (if (localization/message-pattern? info-text)
+             {:fx/type fxui/ext-localize
+              :localization localization
+              :message info-text
+              :desc desc}
+             (assoc desc :text info-text)))))
 
 (defn- camera-inset-image-view [camera-inset-image camera-inset-width camera-inset-height]
   {:fx/type fx.stack-pane/lifecycle
@@ -1171,19 +1175,17 @@
                  :error error}]}
     (if-let [overlay-anchor-pane-props (:overlay-anchor-pane-props scene)]
       overlay-anchor-pane-props
-      (let [info-text (coll/not-empty
-                        (coll/join-to-string
-                          "\n"
-                          (e/remove
-                            nil?
-                            [(let [scene-info-text (:info-text scene)]
-                               (when (and (string? scene-info-text)
-                                          (pos? (count scene-info-text)))
-                                 scene-info-text))
-                             (cursor-position-info-text camera viewport cursor-pos)
-                             (when (and (string? tool-info-text)
-                                        (pos? (count tool-info-text)))
-                               tool-info-text)])))
+      (let [info-texts (coll/not-empty
+                         (filterv #(or (localization/message-pattern? %)
+                                       (and (string? %) (pos? (count %))))
+                                  [(:info-text scene)
+                                   (when-not (:hide-cursor-position? scene)
+                                     (cursor-position-info-text camera viewport cursor-pos))
+                                   tool-info-text]))
+            info-text (when info-texts
+                        (if (coll/any? localization/message-pattern? info-texts)
+                          (localization/join "\n" info-texts)
+                          (coll/join-to-string "\n" info-texts)))
             close-button (when-let [anim-data (and (not (coll/empty? active-updatable-ids))
                                                    (active-animation-anim-data updatables active-updatable-ids))]
                            (merge (animation-preview-anchor-props camera viewport anim-data)
@@ -1194,7 +1196,7 @@
             camera-inset-width (:width camera-inset-data)
             camera-inset-height (:height camera-inset-data)
             children (cond-> []
-                       info-text (conj (info-label info-text))
+                       info-text (conj (info-label localization info-text))
                        close-button (conj close-button)
                        camera-inset-image (conj (camera-inset-image-view camera-inset-image camera-inset-width camera-inset-height)))]
         (if (not (coll/empty? children))

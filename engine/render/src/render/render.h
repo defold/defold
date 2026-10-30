@@ -364,6 +364,9 @@ namespace dmRender
     void                    OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance);
 
     // Material
+    // Borrows the material and checks for active curve_texture, band_texture and
+    // paint_texture samplers. Sampler types and settings are validated at build time.
+    bool                            IsVectorMaterial(HMaterial material);
     dmGraphics::HProgram            GetMaterialProgram(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);

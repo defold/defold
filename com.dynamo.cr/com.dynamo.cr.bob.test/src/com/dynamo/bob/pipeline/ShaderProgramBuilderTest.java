@@ -639,6 +639,10 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testVectorFontShaderLanguages() throws Exception {
         Path fontDirectory = Path.of("../../engine/font/content/builtins/fonts");
+        Path sharedDirectory = Path.of("../../engine/engine/content/builtins/materials");
+        addFile("/builtins/materials/slug.glsl", Files.readAllBytes(sharedDirectory.resolve("slug.glsl")));
+        addFile("/builtins/materials/slug-paint.glsl", Files.readAllBytes(sharedDirectory.resolve("slug-paint.glsl")));
+        addFile("/builtins/materials/slug-animation.glsl", Files.readAllBytes(sharedDirectory.resolve("slug-animation.glsl")));
         addFile("/builtins/fonts/font-vector-slug.glsl", Files.readAllBytes(fontDirectory.resolve("font-vector-slug.glsl")));
         addFile("/builtins/fonts/font-vector-paint.glsl", Files.readAllBytes(fontDirectory.resolve("font-vector-paint.glsl")));
         addFile("/builtins/fonts/font-effect.glsl", Files.readAllBytes(fontDirectory.resolve("font-effect.glsl")));
@@ -662,6 +666,36 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "/vector-font.shbundle");
 
         checkExpectedLanguages(shader, languages);
+    }
+
+    // SVG sprite and GUI shaders share Slug coverage and compile for all modern backends.
+    @Test
+    public void testVectorSpriteShaderLanguages() throws Exception {
+        Path spriteDirectory = Path.of("../../engine/engine/content/builtins/materials");
+        addFile("/builtins/materials/slug.glsl", Files.readAllBytes(spriteDirectory.resolve("slug.glsl")));
+        addFile("/builtins/materials/slug-paint.glsl", Files.readAllBytes(spriteDirectory.resolve("slug-paint.glsl")));
+        addFile("/builtins/materials/slug-animation.glsl", Files.readAllBytes(spriteDirectory.resolve("slug-animation.glsl")));
+
+        ShaderDesc.Language[] languages = {
+            ShaderDesc.Language.LANGUAGE_GLSL_SM330,
+            ShaderDesc.Language.LANGUAGE_GLES_SM300,
+            ShaderDesc.Language.LANGUAGE_SPIRV,
+            ShaderDesc.Language.LANGUAGE_HLSL_50,
+            ShaderDesc.Language.LANGUAGE_MSL_22,
+            ShaderDesc.Language.LANGUAGE_WGSL
+        };
+        IShaderCompiler.CompileOptions options = new IShaderCompiler.CompileOptions();
+        options.forceIncludeShaderLanguages.addAll(Arrays.asList(languages));
+        options.excludeGlesSm100 = true;
+        for (String name : List.of("sprite-vector", "gui-vector")) {
+            ShaderProgramBuilderBundle.ModuleBundle modules = createShaderModules(
+                new String[] {"/builtins/materials/" + name + ".vp", "/builtins/materials/" + name + ".fp"}, options);
+            ShaderDesc shader = addAndBuildShaderDescs(modules,
+                new String[] {Files.readString(spriteDirectory.resolve(name + ".vp")),
+                              Files.readString(spriteDirectory.resolve(name + ".fp"))},
+                "/" + name + ".shbundle");
+            checkExpectedLanguages(shader, languages);
+        }
     }
 
     // WebGPU compilation accepts non-uniform derivatives, matching the shared shader pipeline policy.

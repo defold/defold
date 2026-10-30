@@ -2599,7 +2599,9 @@ static int SetAtlas(lua_State* L)
     DM_LUA_STACK_CHECK(L, 0);
 
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
-    CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturesetc");
+    TextureSetResource* atlas = (TextureSetResource*)CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturesetc");
+    if (IsVectorTextureSet(atlas))
+        return luaL_error(L, "resource.set_atlas does not support SVG atlases");
 
     dmGameSystemDDF::TextureSet texture_set_ddf = {};
     uint32_t num_geometries                     = 0;
@@ -2717,6 +2719,8 @@ static int GetAtlas(lua_State* L)
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
 
     TextureSetResource* texture_set_res      = (TextureSetResource*) CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturesetc");
+    if (IsVectorTextureSet(texture_set_res))
+        return luaL_error(L, "resource.get_atlas does not support SVG atlases");
     dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
     assert(texture_set);
 

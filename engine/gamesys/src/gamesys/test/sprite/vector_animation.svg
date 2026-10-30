@@ -1,0 +1,1 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='100' height='80'><rect x='20' y='20' width='30' height='30' fill='red'><animateTransform attributeName='transform' type='rotate' from='0 35 35' to='360 35 35' dur='2s' repeatCount='indefinite'/><animate attributeName='fill' values='red;blue;red' dur='2s' repeatCount='indefinite'/></rect></svg>

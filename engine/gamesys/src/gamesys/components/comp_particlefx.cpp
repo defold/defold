@@ -988,7 +988,7 @@ namespace dmGameSystem
     static dmGameObject::PropertyResult AddOverrideTileSource(dmResource::HFactory factory, ParticleFXComponentPrototype* prototype, uint32_t emitter_index, dmhash_t resource)
     {
         ParticleFXPrototypeOverrides* overrides = EnsureOverridePropertiesForEmitter(prototype, emitter_index);
-        return SetResourceProperty(factory, resource, TEXTURE_SET_EXT_HASH, (void**) &overrides->m_EmitterOverrides[emitter_index].m_TextureSet);
+        return SetRasterAtlasProperty(factory, resource, (void**)&overrides->m_EmitterOverrides[emitter_index].m_TextureSet);
     }
 
     static dmGameObject::PropertyResult AddOverrideAnimation(dmResource::HFactory factory, ParticleFXComponentPrototype* prototype, uint32_t emitter_index, dmhash_t animation)

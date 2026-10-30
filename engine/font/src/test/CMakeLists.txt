@@ -349,8 +349,8 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
       "${FONT_TEST_ROOT}/data/NotoColorEmoji-Regular.ttf|FONTVIEWER_NOTO_COLOR_EMOJI"
       "${FONTVIEWER_GENERATED_DIR}/fontviewer_vector_font.vp|FONTVIEWER_VECTOR_VP"
       "${FONTVIEWER_GENERATED_DIR}/fontviewer_vector_font.fp|FONTVIEWER_VECTOR_FP"
-      "${FONT_ROOT}/content/builtins/fonts/font-vector-slug.glsl|FONTVIEWER_SLUG"
-      "${FONT_ROOT}/content/builtins/fonts/font-vector-paint.glsl|FONTVIEWER_PAINT")
+      "${FONT_ROOT}/../engine/content/builtins/materials/slug.glsl|FONTVIEWER_SLUG"
+      "${FONT_ROOT}/../engine/content/builtins/materials/slug-paint.glsl|FONTVIEWER_PAINT")
     string(REPLACE "|" ";" _parts "${_entry}")
     list(GET _parts 0 _input)
     list(GET _parts 1 _symbol)

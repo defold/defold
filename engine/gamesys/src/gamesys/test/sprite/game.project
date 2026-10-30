@@ -1,2 +1,5 @@
 [graphics]
 texture_profiles = /sprite/default.texture_profiles
+
+[shader]
+exclude_gles_sm100 = 1

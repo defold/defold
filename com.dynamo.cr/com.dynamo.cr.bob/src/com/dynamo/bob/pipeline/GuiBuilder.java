@@ -37,6 +37,9 @@ import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.gamesys.proto.Gui.Property;
+import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
+import com.dynamo.gamesys.proto.TextureSetProto.TextureSetMode;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.gamesys.proto.Gui.Property.PropertyType;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
@@ -900,6 +903,41 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         return new SceneResolution(sceneBuilder, Collections.unmodifiableMap(sourceResources));
     }
 
+    private void validateVectorNodes(String input, SceneDesc.Builder scene) throws IOException, CompileExceptionError {
+        Map<String, Boolean> vectorTextures = new HashMap<>();
+        for (TextureDesc texture : scene.getTexturesList()) {
+            boolean vector = texture.getTexture().endsWith(".texturesetc") &&
+                    TextureSet.parseFrom(project.getResource(texture.getTexture()).output().getContent()).getMode() ==
+                            TextureSetMode.TEXTURE_SET_MODE_VECTOR;
+            vectorTextures.put(texture.getName(), vector);
+        }
+        Map<String, com.dynamo.render.proto.Material.MaterialDesc> materials = new HashMap<>();
+        materials.put("", scene.getMaterial().isEmpty() ? com.dynamo.render.proto.Material.MaterialDesc.getDefaultInstance() :
+                com.dynamo.render.proto.Material.MaterialDesc.parseFrom(project.getResource(scene.getMaterial()).output().getContent()));
+        for (MaterialDesc material : scene.getMaterialsList())
+            materials.put(material.getName(), com.dynamo.render.proto.Material.MaterialDesc.parseFrom(project.getResource(material.getMaterial()).output().getContent()));
+        Set<String> checkedMaterials = new HashSet<>();
+        List<NodeDesc> nodes = new ArrayList<>(scene.getNodesList());
+        for (LayoutDesc layout : scene.getLayoutsList()) nodes.addAll(layout.getNodesList());
+        for (NodeDesc node : nodes) {
+            boolean vectorTexture = vectorTextures.getOrDefault(node.getTexture().split("/")[0], false);
+            if (vectorTexture && node.getType() != Type.TYPE_BOX)
+                throw new CompileExceptionError(project.getResource(input), 0, "GUI node '" + node.getId() + "': SVG atlas textures require a box node.");
+            if (node.getType() != Type.TYPE_BOX && node.getType() != Type.TYPE_PIE) continue;
+            var material = materials.get(node.getMaterial());
+            boolean vectorMaterial = MaterialBuilder.isVectorMaterial(material.getSamplersList().stream().map(sampler -> sampler.getName()).toList());
+            if (vectorTexture != vectorMaterial)
+                throw new CompileExceptionError(project.getResource(input), 0, "GUI node '" + node.getId() + "': atlas/material mismatch. SVG textures require a vector material with curve_texture, band_texture and paint_texture samplers.");
+            if (vectorMaterial && checkedMaterials.add(node.getMaterial())) {
+                var shader = ShaderDesc.parseFrom(project.getResource(material.getProgram()).output().getContent());
+                Map<String, ShaderDesc.ShaderDataType> types = new HashMap<>();
+                for (var texture : shader.getReflection().getTexturesList()) types.put(texture.getName(), texture.getType().getShaderType());
+                var problem = MaterialBuilder.vectorMaterialProblem(material.getSamplersList(), types);
+                if (problem != null) throw new CompileExceptionError(project.getResource(input), 0, problem.message());
+            }
+        }
+    }
+
     private static void MergeOriginalValuesIntoLayouts(SceneDesc.Builder sceneBuilder) {
         // Layout nodes will only have valid values for overridden properties.
         // Copy the non-overridden property values from the original scene nodes
@@ -1090,8 +1128,9 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
     @Override
     protected SceneDesc.Builder transform(Task task, IResource input, SceneDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
+        SceneDesc.Builder scene;
         if (resolvedScene != null) {
-            SceneDesc.Builder scene = resolvedScene.toBuilder();
+            scene = resolvedScene.toBuilder();
             for (NodeDesc.Builder node : scene.getNodesBuilderList()) {
                 buildCustomNode(task, "", node);
             }
@@ -1100,11 +1139,12 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                     buildCustomNode(task, layout.getName(), node);
                 }
             }
-            return scene;
+        } else {
+            MergeOriginalValuesIntoLayouts(messageBuilder);
+            scene = transformScene(this, input.getPath(), messageBuilder, new SceneBuilderIO(), true);
         }
-
-        MergeOriginalValuesIntoLayouts(messageBuilder);
-        return transformScene(this, input.getPath(), messageBuilder, new SceneBuilderIO(), true);
+        validateVectorNodes(input.getPath(), scene);
+        return scene;
     }
 
     @Override

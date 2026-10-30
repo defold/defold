@@ -29,6 +29,7 @@
     "share/java/fontrenderer.jar",
     "share/java/modelimporter.jar",
     "share/java/shaderc.jar",
+    "share/java/slug.jar",
     "share/java/texturecompiler.jar",
     "wasm-web/dmengine.js",
     "wasm-web/dmengine.wasm",

@@ -205,180 +205,63 @@ void FontFreeGlyphOutline(FontOutline* outline)
     memset(outline, 0, sizeof(*outline));
 }
 
-static void ExtendBounds(FontOutlinePoint point, float* x0, float* y0, float* x1, float* y1)
-{
-    // Extend an initialized axis-aligned bounding box by one point.
-    if (point.m_X < *x0)
-        *x0 = point.m_X;
-    if (point.m_Y < *y0)
-        *y0 = point.m_Y;
-    if (point.m_X > *x1)
-        *x1 = point.m_X;
-    if (point.m_Y > *y1)
-        *y1 = point.m_Y;
-}
-
-static void ExtendBounds(FontOutlineBounds* bounds, FontOutlinePoint point)
-{
-    if (!bounds->m_HasBounds)
-    {
-        bounds->m_X0 = bounds->m_X1 = point.m_X;
-        bounds->m_Y0 = bounds->m_Y1 = point.m_Y;
-        bounds->m_HasBounds = true;
-        return;
-    }
-
-    ExtendBounds(point, &bounds->m_X0, &bounds->m_Y0, &bounds->m_X1, &bounds->m_Y1);
-}
-
-static float EvaluateQuadratic(float p0, float p1, float p2, float t)
-{
-    float u = 1.0f - t;
-    return u * u * p0 + 2.0f * u * t * p1 + t * t * p2;
-}
-
-static float EvaluateCubic(float p0, float p1, float p2, float p3, float t)
-{
-    float u = 1.0f - t;
-    return u * u * u * p0 + 3.0f * u * u * t * p1 + 3.0f * u * t * t * p2 + t * t * t * p3;
-}
-
-static void ExtendQuadraticBounds(FontOutlinePoint from, FontOutlinePoint control, FontOutlinePoint to, float* x0, float* y0, float* x1, float* y1)
-{
-    // Endpoints are handled by FontGetOutlineBounds. Add interior extrema by
-    // solving dx/dt == 0 and dy/dt == 0 independently.
-    float denominator = from.m_X - 2.0f * control.m_X + to.m_X;
-    if (denominator != 0.0f)
-    {
-        float t = (from.m_X - control.m_X) / denominator;
-        if (t > 0.0f && t < 1.0f)
-            ExtendBounds({ EvaluateQuadratic(from.m_X, control.m_X, to.m_X, t), EvaluateQuadratic(from.m_Y, control.m_Y, to.m_Y, t) }, x0, y0, x1, y1);
-    }
-    denominator = from.m_Y - 2.0f * control.m_Y + to.m_Y;
-    if (denominator != 0.0f)
-    {
-        float t = (from.m_Y - control.m_Y) / denominator;
-        if (t > 0.0f && t < 1.0f)
-            ExtendBounds({ EvaluateQuadratic(from.m_X, control.m_X, to.m_X, t), EvaluateQuadratic(from.m_Y, control.m_Y, to.m_Y, t) }, x0, y0, x1, y1);
-    }
-}
-
-static void ExtendCubicAxisBounds(float p0, float p1, float p2, float p3, FontOutlinePoint from, FontOutlinePoint control_1, FontOutlinePoint control_2, FontOutlinePoint to, float* x0, float* y0, float* x1, float* y1)
-{
-    // Solve the quadratic derivative for one axis. Evaluate both coordinates
-    // at each interior root so the shared point-based bounds helper can be used.
-    float    a = -p0 + 3.0f * p1 - 3.0f * p2 + p3;
-    float    b = 2.0f * (p0 - 2.0f * p1 + p2);
-    float    c = p1 - p0;
-    float    roots[2];
-    uint32_t root_count = 0;
-    if (fabsf(a) < 1.0e-8f)
-    {
-        if (b != 0.0f)
-            roots[root_count++] = -c / b;
-    }
-    else
-    {
-        float discriminant = b * b - 4.0f * a * c;
-        if (discriminant >= 0.0f)
-        {
-            float root = sqrtf(discriminant);
-            roots[root_count++] = (-b + root) / (2.0f * a);
-            roots[root_count++] = (-b - root) / (2.0f * a);
-        }
-    }
-    for (uint32_t i = 0; i < root_count; ++i)
-    {
-        float t = roots[i];
-        if (t > 0.0f && t < 1.0f)
-        {
-            FontOutlinePoint point = {
-                EvaluateCubic(from.m_X, control_1.m_X, control_2.m_X, to.m_X, t),
-                EvaluateCubic(from.m_Y, control_1.m_Y, control_2.m_Y, to.m_Y, t)
-            };
-            ExtendBounds(point, x0, y0, x1, y1);
-        }
-    }
-}
-
 void FontOutlineBoundsMoveTo(FontOutlineBounds* bounds, FontOutlinePoint to)
 {
-    ExtendBounds(bounds, to);
-    bounds->m_Current = to;
+    dmSlug::OutlineBoundsMoveTo(bounds, to);
 }
 
 void FontOutlineBoundsLineTo(FontOutlineBounds* bounds, FontOutlinePoint to)
 {
-    ExtendBounds(bounds, to);
-    bounds->m_Current = to;
+    dmSlug::OutlineBoundsLineTo(bounds, to);
 }
 
 void FontOutlineBoundsQuadraticTo(FontOutlineBounds* bounds, FontOutlinePoint control, FontOutlinePoint to)
 {
-    ExtendBounds(bounds, to);
-    ExtendQuadraticBounds(bounds->m_Current, control, to, &bounds->m_X0, &bounds->m_Y0, &bounds->m_X1, &bounds->m_Y1);
-    bounds->m_Current = to;
+    dmSlug::OutlineBoundsQuadraticTo(bounds, control, to);
 }
 
 void FontOutlineBoundsCubicTo(FontOutlineBounds* bounds, FontOutlinePoint control_1, FontOutlinePoint control_2, FontOutlinePoint to)
 {
-    ExtendBounds(bounds, to);
-    ExtendCubicAxisBounds(bounds->m_Current.m_X, control_1.m_X, control_2.m_X, to.m_X,
-                          bounds->m_Current, control_1, control_2, to,
-                          &bounds->m_X0, &bounds->m_Y0, &bounds->m_X1, &bounds->m_Y1);
-    ExtendCubicAxisBounds(bounds->m_Current.m_Y, control_1.m_Y, control_2.m_Y, to.m_Y,
-                          bounds->m_Current, control_1, control_2, to,
-                          &bounds->m_X0, &bounds->m_Y0, &bounds->m_X1, &bounds->m_Y1);
-    bounds->m_Current = to;
+    dmSlug::OutlineBoundsCubicTo(bounds, control_1, control_2, to);
 }
 
 void FontOutlineBoundsMerge(FontOutlineBounds* bounds, const FontOutlineBounds* source, float dx, float dy)
 {
-    if (!source->m_HasBounds)
-        return;
-
-    ExtendBounds(bounds, { source->m_X0 + dx, source->m_Y0 + dy });
-    ExtendBounds(bounds, { source->m_X1 + dx, source->m_Y1 + dy });
+    dmSlug::OutlineBoundsMerge(bounds, source, dx, dy);
 }
 
 bool FontOutlineBoundsGet(const FontOutlineBounds* bounds, float* x0, float* y0, float* x1, float* y1)
 {
-    if (!bounds->m_HasBounds)
-        return false;
-
-    *x0 = bounds->m_X0;
-    *y0 = bounds->m_Y0;
-    *x1 = bounds->m_X1;
-    *y1 = bounds->m_Y1;
-    return true;
+    return dmSlug::OutlineBoundsGet(bounds, x0, y0, x1, y1);
 }
 
 bool FontGetOutlineBounds(const FontOutline* outline, float* x0, float* y0, float* x1, float* y1)
 {
-    // Include every segment endpoint, then extend by the exact interior extrema
-    // of curved segments. Control points are not necessarily on the curve and
-    // therefore must not be used directly as exact bounds.
-    FontOutlineBounds bounds = {};
-    for (uint32_t i = 0; i < outline->m_CommandCount; ++i)
+    return dmSlug::GetOutlineBounds(outline, x0, y0, x1, y1);
+}
+
+FontResult FontOutlineToQuadratics(const FontOutline* outline, float scale, float tolerance, FontGlyphOutline* output)
+{
+    dmArray<dmSlug::CurveCommand> commands;
+    if (!dmSlug::OutlineToQuadratics(outline, scale, tolerance, &commands))
+        return FONT_RESULT_NOT_SUPPORTED;
+    if (commands.Empty())
+        return FONT_RESULT_OK;
+    FontCurveCommand* result = (FontCurveCommand*)malloc(commands.Size() * sizeof(FontCurveCommand));
+    if (!result)
+        return FONT_RESULT_ERROR;
+    for (uint32_t i = 0; i < commands.Size(); ++i)
     {
-        const FontOutlineCommand* command = &outline->m_Commands[i];
-        switch (command->m_Type)
+        memset(&result[i], 0, sizeof(result[i]));
+        result[i].m_Type = commands[i].m_Type;
+        for (uint32_t p = 0; p < 2; ++p)
         {
-            case FONT_OUTLINE_MOVE_TO:
-                FontOutlineBoundsMoveTo(&bounds, command->m_Points[0]);
-                break;
-            case FONT_OUTLINE_LINE_TO:
-                FontOutlineBoundsLineTo(&bounds, command->m_Points[0]);
-                break;
-            case FONT_OUTLINE_QUADRATIC_TO:
-                FontOutlineBoundsQuadraticTo(&bounds, command->m_Points[0], command->m_Points[1]);
-                break;
-            case FONT_OUTLINE_CUBIC_TO:
-                FontOutlineBoundsCubicTo(&bounds, command->m_Points[0], command->m_Points[1], command->m_Points[2]);
-                break;
-            case FONT_OUTLINE_CLOSE:
-                break;
+            result[i].m_Points[p].m_X = commands[i].m_Points[p].m_X;
+            result[i].m_Points[p].m_Y = commands[i].m_Points[p].m_Y;
         }
     }
-    return FontOutlineBoundsGet(&bounds, x0, y0, x1, y1);
+    output->m_Commands = result;
+    output->m_CommandCount = commands.Size();
+    output->m_Flags = 0;
+    return FONT_RESULT_OK;
 }

@@ -1,0 +1,3 @@
+default_animation: "vector_animation"
+material: "/builtins/materials/sprite-vector.material"
+textures { sampler: "curve_texture" texture: "/sprite/vector_animation.atlas" }

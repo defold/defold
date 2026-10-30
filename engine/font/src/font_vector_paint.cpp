@@ -107,7 +107,8 @@ static uint32_t AddPath(PaintContext* context, uint32_t glyph_index)
         return ~0u;
     }
     FontVectorPaintPath path;
-    path.m_Glyph = glyph_index;
+    path.m_Id = glyph_index;
+    path.m_EvenOdd = 0;
     const FontGlyphOutline& outline = glyph.m_Outline;
     path.m_Bounds = Vector4(outline.m_LeftBearing, -outline.m_Descent, outline.m_LeftBearing + outline.m_Width, outline.m_Ascent);
     memset(&path.m_Slug, 0, sizeof(path.m_Slug));
@@ -286,50 +287,6 @@ bool FontVectorPaintHasGlyph(HFont font, uint32_t glyph)
     FontColrHasGlyph(FontGetColrTTF(font), glyph);
 }
 
-static Vector4 PaintRow(const Matrix4& transform, uint32_t row, float value)
-{
-    Vector4 r = transform.getRow(row);
-    return Vector4(r.getX(), r.getY(), r.getW(), value);
-}
-
-static void EncodeGlyph(FontVectorPaintCache* cache, FontVectorPaintGlyph* glyph)
-{
-    glyph->m_Bounds = Vector4(FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX);
-    glyph->m_Paint = cache->m_Paints.Size();
-    if (!glyph->m_LayerCount)
-        return;
-    Append(cache->m_Paints, Vector4((float)glyph->m_LayerCount, 0, 0, 0));
-    for (uint32_t i = 0; i < glyph->m_LayerCount; ++i)
-    {
-        const FontVectorPaintLayer& layer = cache->m_LayerScratch[i];
-        const FontVectorPaintPath&  path = cache->m_Paths[layer.m_Path];
-        Matrix4                    inverse_transform = inverse(layer.m_Transform);
-        float                      width = path.m_Bounds.getZ() - path.m_Bounds.getX();
-        float                      height = path.m_Bounds.getW() - path.m_Bounds.getY();
-        Matrix4                    uv = Matrix4::scale(dmVMath::Vector3(1.0f / width, 1.0f / height, 1)) *
-                                        Matrix4::translation(dmVMath::Vector3(-path.m_Bounds.getX(), -path.m_Bounds.getY(), 0)) * inverse_transform;
-        Matrix4 paint = layer.m_PaintTransform * inverse_transform;
-        Append(cache->m_Paints, PaintRow(uv, 0, (float)path.m_Slug.m_BandTexel));
-        // A negative paint index marks a shared composite. Ordinary layers can
-        // reject uncovered fragments without fetching the paint transform/count.
-        float paint_index = layer.m_CompositeCount > 1 ? -(float)(layer.m_Paint + 1) : (float)layer.m_Paint;
-        Append(cache->m_Paints, PaintRow(uv, 1, paint_index));
-        Append(cache->m_Paints, Vector4(path.m_Slug.m_BandTransform[0], path.m_Slug.m_BandTransform[1], path.m_Slug.m_BandTransform[2], path.m_Slug.m_BandTransform[3]));
-        Append(cache->m_Paints, PaintRow(paint, 0, (float)layer.m_CompositeCount));
-        Append(cache->m_Paints, PaintRow(paint, 1, 0));
-        Append(cache->m_Paints, layer.m_Clip);
-        Vector4 bounds(FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX);
-        for (uint32_t corner = 0; corner < 4; ++corner)
-        {
-            Vector4 p = layer.m_Transform * Vector4(corner & 1 ? path.m_Bounds.getZ() : path.m_Bounds.getX(), corner & 2 ? path.m_Bounds.getW() : path.m_Bounds.getY(), 0, 1);
-            bounds = Vector4(fminf(bounds.getX(), p.getX()), fminf(bounds.getY(), p.getY()), fmaxf(bounds.getZ(), p.getX()), fmaxf(bounds.getW(), p.getY()));
-        }
-        bounds = Intersect(bounds, layer.m_Clip);
-        if (bounds.getX() < bounds.getZ() && bounds.getY() < bounds.getW())
-            glyph->m_Bounds = Vector4(fminf(glyph->m_Bounds.getX(), bounds.getX()), fminf(glyph->m_Bounds.getY(), bounds.getY()), fmaxf(glyph->m_Bounds.getZ(), bounds.getZ()), fmaxf(glyph->m_Bounds.getW(), bounds.getW()));
-    }
-}
-
 bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t glyph_index, uint32_t* index, bool* has_color)
 {
     *index = ~0u;
@@ -346,7 +303,7 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
         return true;
     }
     FontVectorPaintGlyph glyph = {};
-    glyph.m_Glyph = glyph_index;
+    glyph.m_Id = glyph_index;
     PaintContext context;
     context.m_Cache = cache;
     context.m_Font = source;
@@ -367,7 +324,7 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
         cache->m_LayerScratch.SetSize(0);
         cache->m_Paints.SetSize(first_paint);
         for (uint32_t i = first_path; i < cache->m_Paths.Size(); ++i)
-            cache->m_PathLookup.Erase(GlyphKey(source, cache->m_Paths[i].m_Glyph));
+            cache->m_PathLookup.Erase(GlyphKey(source, cache->m_Paths[i].m_Id));
         cache->m_Paths.SetSize(first_path);
         cache->m_Slug->m_Curves.SetSize(first_curve);
         cache->m_Slug->m_Bands.SetSize(first_band);
@@ -396,10 +353,10 @@ bool FontVectorPaintAddGlyph(FontVectorPaintCache* cache, HFont source, uint32_t
         if (context.m_Failed)
             return false;
         if (*has_color)
-            dmLogWarning("Unsupported COLR paint in glyph %u of %s; using an outline fallback", glyph.m_Glyph, FontGetPath(source));
+            dmLogWarning("Unsupported COLR paint in glyph %u of %s; using an outline fallback", glyph.m_Id, FontGetPath(source));
     }
     glyph.m_LayerCount = cache->m_LayerScratch.Size();
-    EncodeGlyph(cache, &glyph);
+    dmSlug::EncodePaint(&cache->m_Paints, cache->m_Paths.Begin(), cache->m_LayerScratch.Begin(), &glyph, false);
     cache->m_LayerScratch.SetSize(0);
     Append(cache->m_Glyphs, glyph);
     *index = cache->m_Glyphs.Size() - 1;

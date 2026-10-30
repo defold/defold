@@ -39,20 +39,26 @@ static void LoadVectorImageFile(const char* path, dmArray<char>& data)
     data.SetSize(size + 1);
     ASSERT_EQ(dmSys::RESULT_OK, dmSys::LoadResource(path, data.Begin(), size, &size));
     data[size] = 0;
-    const char  include[] = "#include \"/builtins/fonts/font-effect.glsl\"";
-    const char* directive = strstr(data.Begin(), include);
-    if (directive)
+    const char* includes[][2] = {
+        { "#include \"/builtins/fonts/font-effect.glsl\"", "content/builtins/fonts/font-effect.glsl" },
+        { "#include \"/builtins/materials/slug.glsl\"", "../engine/content/builtins/materials/slug.glsl" },
+        { "#include \"/builtins/materials/slug-paint.glsl\"", "../engine/content/builtins/materials/slug-paint.glsl" }
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(includes); ++i)
     {
-        dmArray<char> effect;
-        LoadVectorImageFile("content/builtins/fonts/font-effect.glsl", effect);
+        const char* directive = strstr(data.Begin(), includes[i][0]);
+        if (!directive)
+            continue;
+        dmArray<char> included;
+        LoadVectorImageFile(includes[i][1], included);
         const uint32_t prefix = directive - data.Begin();
-        const uint32_t suffix = prefix + sizeof(include) - 1;
+        const uint32_t suffix = prefix + strlen(includes[i][0]);
         dmArray<char>  expanded;
-        expanded.SetCapacity(prefix + effect.Size() - 1 + data.Size() - suffix);
+        expanded.SetCapacity(prefix + included.Size() - 1 + data.Size() - suffix);
         expanded.SetSize(expanded.Capacity());
         memcpy(expanded.Begin(), data.Begin(), prefix);
-        memcpy(expanded.Begin() + prefix, effect.Begin(), effect.Size() - 1);
-        memcpy(expanded.Begin() + prefix + effect.Size() - 1, data.Begin() + suffix, data.Size() - suffix);
+        memcpy(expanded.Begin() + prefix, included.Begin(), included.Size() - 1);
+        memcpy(expanded.Begin() + prefix + included.Size() - 1, data.Begin() + suffix, data.Size() - suffix);
         data.Swap(expanded);
     }
 }

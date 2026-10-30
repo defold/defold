@@ -1,0 +1,2 @@
+images { image: "/shape.svg" }
+animations { id: "mixed" images { image: "/raster.png" } }

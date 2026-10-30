@@ -18,6 +18,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.hamcrest.CoreMatchers.is;
 
 import java.util.Arrays;
@@ -27,10 +28,16 @@ import java.util.ArrayList;
 import java.util.HashSet;
 
 import com.dynamo.bob.archive.ManifestBuilder;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
+import com.dynamo.gamesys.proto.Sprite.SpriteTexture;
+import com.dynamo.render.proto.Material.MaterialDesc;
+import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.liveupdate.proto.Manifest;
 import org.junit.Test;
 
 import com.dynamo.graphics.proto.Graphics.TextureImage;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.gamesys.proto.TextureSetProto.SpriteGeometry;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSetAnimation;
@@ -40,6 +47,82 @@ import com.google.protobuf.Message;
 import com.dynamo.bob.util.MurmurHash;
 
 public class AtlasBuilderTest extends AbstractProtoBuilderTest {
+
+    // Vector atlases ignore raster packing, compression and texture profile settings.
+    @Test
+    public void testSvgAtlasBypassesTexturePacking() throws Exception {
+        getProject().setOption("texture-compression", "true");
+        getProject().getProjectProperties().putStringValue("graphics", "texture_profiles", "missing.texture_profiles");
+        addFile("/image.svg", "<svg xmlns='http://www.w3.org/2000/svg' width='100' height='80'><rect width='100' height='80' fill='red'/></svg>");
+        List<Message> outputs = build("/vector.atlas", "images { image: \"/image.svg\" } max_page_width: 8 max_page_height: 8 extrude_borders: 1000");
+        assertEquals(1, outputs.size());
+        TextureSet atlas = getMessage(outputs, TextureSet.class);
+        assertEquals(com.dynamo.gamesys.proto.TextureSetProto.TextureSetMode.TEXTURE_SET_MODE_VECTOR, atlas.getMode());
+        assertEquals("", atlas.getTexture());
+        assertEquals(100, atlas.getVector().getImages(0).getWidth(), 0);
+        assertEquals(0, atlas.getUseGeometries());
+    }
+
+    // Custom vector materials support nine-slice; mismatched bindings, texture types and filtering fail.
+    @Test
+    public void testVectorSpriteCompatibility() throws Exception {
+        addFile("/image.svg", "<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'><rect width='10' height='10'/></svg>");
+        build("/vector.atlas", "images { image: \"/image.svg\" }");
+        addFile("/custom.material", "");
+        var material = MaterialDesc.newBuilder().setName("custom").setVertexProgram("").setFragmentProgram("").setProgram("/custom.spc");
+        var reflection = ShaderDesc.ShaderReflection.newBuilder();
+        for (String sampler : List.of("curve_texture", "band_texture", "paint_texture")) {
+            material.addSamplers(MaterialDesc.Sampler.newBuilder().setName(sampler)
+                    .setWrapU(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE).setWrapV(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE)
+                    .setFilterMin(MaterialDesc.FilterModeMin.FILTER_MODE_MIN_NEAREST).setFilterMag(MaterialDesc.FilterModeMag.FILTER_MODE_MAG_NEAREST));
+            reflection.addTextures(ShaderDesc.ResourceBinding.newBuilder().setName(sampler).setNameHash(MurmurHash.hash64(sampler))
+                    .setType(ShaderDesc.ResourceType.newBuilder().setShaderType(sampler.equals("band_texture")
+                            ? ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D : ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D)));
+        }
+        getProject().getResource("/custom.spc").output().setContent(ShaderDesc.newBuilder().setReflection(reflection).build().toByteArray());
+        getProject().getResource("/custom.material").changeExt(".materialc").setContent(material.build().toByteArray());
+        var builder = new ProtoBuilders.SpriteDescBuilder();
+        builder.setProject(getProject());
+        var resource = getProject().getResource("/test.sprite");
+        var source = SpriteDesc.newBuilder().setDefaultAnimation("image").setMaterial("/custom.material")
+                .setSizeMode(SpriteDesc.SizeMode.SIZE_MODE_MANUAL).setSlice9(Vector4.newBuilder().setX(1).setY(2).setZ(3).setW(4))
+                .addTextures(SpriteTexture.newBuilder().setSampler("image").setTexture("/vector.atlas"));
+        var compiled = builder.transform(null, resource, source.clone());
+        assertEquals(1, compiled.getTexturesCount());
+        assertEquals("curve_texture", compiled.getTextures(0).getSampler());
+        assertEquals("/vector.a.texturesetc", compiled.getTextures(0).getTexture());
+        assertEquals(source.getSlice9(), compiled.getSlice9());
+        assertEquals(SpriteDesc.SizeMode.SIZE_MODE_MANUAL, compiled.getSizeMode());
+        List<SpriteDesc.Builder> invalid = List.of(
+                source.clone().addTextures(source.getTextures(0)),
+                source.clone().setMaterial(""));
+        String[] errors = {"one atlas image", "atlas/material mismatch"};
+        for (int i = 0; i < invalid.size(); ++i) {
+            try {
+                builder.transform(null, resource, invalid.get(i));
+                fail("Expected " + errors[i]);
+            } catch (CompileExceptionError e) {
+                assertTrue(e.getMessage(), e.getMessage().contains(errors[i]));
+            }
+        }
+        for (int i = 0; i < 2; ++i) {
+            if (i == 0) {
+                material.getSamplersBuilder(1).setFilterMin(MaterialDesc.FilterModeMin.FILTER_MODE_MIN_LINEAR);
+            } else {
+                material.getSamplersBuilder(1).setFilterMin(MaterialDesc.FilterModeMin.FILTER_MODE_MIN_NEAREST);
+                reflection.getTexturesBuilder(1).setType(ShaderDesc.ResourceType.newBuilder().setShaderType(ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D));
+                getProject().getResource("/custom.spc").output().setContent(ShaderDesc.newBuilder().setReflection(reflection).build().toByteArray());
+            }
+            getProject().getResource("/custom.material").changeExt(".materialc").setContent(material.build().toByteArray());
+            try {
+                builder.transform(null, resource, source.clone());
+                fail("Expected numeric sampler contract error");
+            } catch (CompileExceptionError e) {
+                assertTrue(e.getMessage(), e.getMessage().contains("band_texture"));
+                assertTrue(e.getMessage(), e.getMessage().contains(i == 0 ? "nearest filtering" : "unsigned 2D texture"));
+            }
+        }
+    }
 
     @Test
     public void testAtlas() throws Exception {

@@ -131,7 +131,7 @@ TEST(FontVector, ColorPaintCacheFallbackAndReuse)
             ASSERT_EQ(1u, glyph.m_LayerCount);
             bool notdef = false;
             for (uint32_t p = 0; p < cache.m_Paths.Size(); ++p)
-                if (cache.m_Paths[p].m_Glyph == 0)
+                if (cache.m_Paths[p].m_Id == 0)
                     notdef = cache.m_Paths[p].m_Slug.m_BandTexel == (uint32_t)cache.m_Paints[glyph.m_Paint + 1].getW();
             ASSERT_TRUE(notdef);
             uint32_t paint = (uint32_t)cache.m_Paints[glyph.m_Paint + 2].getW();
@@ -247,7 +247,7 @@ TEST(FontVector, ColorGlyphQuadAndCompositionRecords)
     memcpy(original.Begin(), cache.m_Paints.Begin(), paints * sizeof(dmVMath::Vector4));
     cache.m_GlyphLookup.Clear();
     data.m_MaxTexels = paints + glyph.m_Paint;
-    ASSERT_FALSE(FontVectorPaintAddGlyph(&cache, font, glyph.m_Glyph, &index, &color));
+    ASSERT_FALSE(FontVectorPaintAddGlyph(&cache, font, glyph.m_Id, &index, &color));
     ASSERT_TRUE(data.m_Overflow);
     ASSERT_EQ(paints, cache.m_Paints.Size());
     ASSERT_EQ(0u, cache.m_LayerScratch.Size());

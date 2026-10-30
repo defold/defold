@@ -21,31 +21,10 @@
 #include "font_vector_slug.h"
 #include "text_layout.h"
 
-// Glyphs use font units. Fonts and the borrowed Slug data must outlive this cache.
-struct FontVectorPaintPath
-{
-    uint32_t            m_Glyph;
-    FontVectorSlugGlyph m_Slug;
-    dmVMath::Vector4    m_Bounds;
-};
-
-struct FontVectorPaintLayer
-{
-    uint32_t         m_Path;
-    uint32_t         m_Paint;
-    uint32_t         m_CompositeCount; // On the last layer: paints sharing one outline coverage.
-    dmVMath::Matrix4 m_Transform;
-    dmVMath::Matrix4 m_PaintTransform;
-    dmVMath::Vector4 m_Clip;
-};
-
-struct FontVectorPaintGlyph
-{
-    uint32_t         m_Glyph;
-    uint32_t         m_LayerCount;
-    uint32_t         m_Paint; // Header followed by six texels per layer in m_Paints.
-    dmVMath::Vector4 m_Bounds;
-};
+// Font-specific identities/caches adapt shared Slug paths and paint records.
+typedef dmSlug::PaintPath  FontVectorPaintPath;
+typedef dmSlug::PaintLayer FontVectorPaintLayer;
+typedef dmSlug::PaintImage FontVectorPaintGlyph;
 
 struct FontVectorPaintVertex
 {

@@ -1,0 +1,14 @@
+script: ""
+material: "/builtins/materials/gui.material"
+materials { name: "vector" material: "/builtins/materials/gui-vector.material" }
+textures { name: "gui" texture: "/vector.atlas" }
+nodes {
+  id: "box"
+  type: TYPE_BOX
+  texture: "gui/shape"
+  material: "vector"
+  position { x: 320 y: 240 }
+  size_mode: SIZE_MODE_MANUAL
+  size { x: 220 y: 140 }
+  slice9 { x: 8 y: 12 z: 16 w: 20 }
+}

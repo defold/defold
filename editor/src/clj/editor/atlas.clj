@@ -48,6 +48,7 @@
             [editor.scene-picking :as scene-picking]
             [editor.scene-tools :as scene-tools]
             [editor.shaders :as shaders]
+            [editor.svg :as svg]
             [editor.texture-set :as texture-set]
             [editor.texture-util :as texture-util]
             [editor.types :as types]
@@ -176,15 +177,16 @@
 (defn- atlas-rect->editor-rect [rect]
   (types/->Rect (:path rect) (:x rect) (:y rect) (:width rect) (:height rect)))
 
-(g/defnk produce-atlas-scene-info [layout-size image->rect]
-  {:layout-size layout-size
+(g/defnk produce-atlas-scene-info [layout-size image->rect gpu-texture]
+  {:gpu-texture gpu-texture
+   :layout-size layout-size
    :image->rect image->rect})
 
 (g/defnk produce-animation-scene-info [atlas-scene-info updatable]
   (assoc atlas-scene-info :updatable updatable))
 
 (g/defnk produce-image-scene [_node-id atlas-image order scene-info]
-  (let [{:keys [layout-size image->rect updatable]} scene-info
+  (let [{:keys [layout-size image->rect updatable gpu-texture]} scene-info
         rect (get image->rect atlas-image)
         editor-rect (atlas-rect->editor-rect rect)
         [layout-width layout-height] layout-size
@@ -203,13 +205,16 @@
                               :layout-height layout-height
                               :page-index page-index}
                   :passes [pass/outline]}
-     :children [{:aabb aabb
-                 :node-id _node-id
-                 :renderable {:render-fn render-image-selection
-                              :tags #{:atlas}
-                              :user-data {:rect rect
-                                          :layout-width layout-width}
-                              :passes [pass/selection]}}]
+     :children [(if (svg/vector-texture? gpu-texture)
+                  (let [{:keys [width height paint]} (:vector-image rect)]
+                    (svg/make-scene _node-id gpu-texture (:x rect) (:y rect) (:width rect) (:height rect) width height paint))
+                  {:aabb aabb
+                   :node-id _node-id
+                   :renderable {:render-fn render-image-selection
+                                :tags #{:atlas}
+                                :user-data {:rect rect
+                                            :layout-width layout-width}
+                                :passes [pass/selection]}})]
      :updatable updatable}))
 
 (defn make-animation [id images]
@@ -233,6 +238,15 @@
 
 (defn- validate-image-resource [node-id image-resource]
   (validation/prop-error :fatal node-id :image validation/prop-resource-missing? image-resource image-message))
+
+(defn- validate-svg-trimming [node-id image-resource sprite-trim-mode]
+  (when (svg/svg-resource? image-resource)
+    (validation/prop-error :fatal node-id :sprite-trim-mode validation/prop-member-of? sprite-trim-mode
+                           #{:sprite-trim-mode-off} (localization/message "error.svg.trimming"))))
+
+(defn- validate-atlas-mode [node-id atlas-mode]
+  (validation/prop-error :fatal node-id :images validation/prop-member-of? atlas-mode
+                         #{:raster :vector} (localization/message "error.atlas.mixed")))
 
 (g/defnode AtlasImage
   (inherits outline/OutlineNode)
@@ -270,28 +284,43 @@
   (property sprite-trim-mode g/Keyword (default (protobuf/default AtlasProto$AtlasImage :sprite-trim-mode))
             (dynamic label (properties/label-dynamic :atlas.image :sprite-trim-mode))
             (dynamic tooltip (properties/tooltip-dynamic :atlas.image :sprite-trim-mode))
-            (dynamic edit-type (g/constantly texture-set-gen/sprite-trim-mode-edit-type)))
+            (dynamic edit-type (g/constantly texture-set-gen/sprite-trim-mode-edit-type))
+            (dynamic read-only? (g/fnk [maybe-image-resource sprite-trim-mode]
+                                  (and (svg/svg-resource? maybe-image-resource)
+                                       (= :sprite-trim-mode-off sprite-trim-mode))))
+            (dynamic error (g/fnk [_node-id maybe-image-resource sprite-trim-mode]
+                             (validate-svg-trimming _node-id maybe-image-resource sprite-trim-mode))))
 
   (property image resource/Resource ; Required protobuf field.
             (value (gu/passthrough maybe-image-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :maybe-image-resource]
-                                            [:size :maybe-image-size])))
+                                            [:size :maybe-image-size]
+                                            [:svg-content :maybe-image-content])))
             (dynamic error (g/fnk [_node-id maybe-image-resource]
                              (validate-image-resource _node-id maybe-image-resource)))
-            (dynamic edit-type (g/constantly
+            (dynamic edit-type (g/fnk [atlas-mode]
                                  {:type resource/Resource
-                                  :ext image/exts})))
+                                  :ext (case atlas-mode :vector #{"svg"} :raster image/exts (conj image/exts "svg"))})))
 
+  (input atlas-mode g/Keyword)
   (input id-counts NameCounts)
   (input maybe-image-resource resource/Resource)
+  (output image-mode g/Keyword (g/fnk [maybe-image-resource]
+                                 (when maybe-image-resource
+                                   (if (svg/svg-resource? maybe-image-resource) :vector :raster))))
   (output image-resource resource/Resource (g/fnk [_node-id maybe-image-resource maybe-image-size]
                                              ;; Depending on maybe-image-size provides ErrorValues from the image/ImageNode,
                                              ;; but we also want to guard against a non-assigned Image here.
                                              (or (validation/prop-error :fatal _node-id :image validation/prop-nil? maybe-image-resource image-message)
                                                  maybe-image-resource)))
 
+  (input maybe-image-content g/Any)
+  (output vector-image-sources g/Any (g/fnk [maybe-image-resource maybe-image-content]
+                                       (if (svg/svg-resource? maybe-image-resource)
+                                         {(resource/proj-path maybe-image-resource) maybe-image-content}
+                                         {})))
   (input maybe-image-size g/Any)
   (input rename-patterns g/Str)
 
@@ -328,10 +357,11 @@
                                     :pivot-y pivot-y)
                                   (assoc :order order))))
   (output scene g/Any produce-image-scene)
-  (output build-errors g/Any (g/fnk [_node-id id id-counts maybe-image-resource]
+  (output build-errors g/Any (g/fnk [_node-id id id-counts maybe-image-resource sprite-trim-mode]
                                (g/package-errors _node-id
                                  (validate-image-resource _node-id maybe-image-resource)
-                                 (validate-image-id _node-id id id-counts)))))
+                                 (validate-image-id _node-id id id-counts)
+                                 (validate-svg-trimming _node-id maybe-image-resource sprite-trim-mode)))))
 
 (defn- sort-by-and-strip-order [images]
   (->> images
@@ -349,6 +379,8 @@
 
 (defn- attach-image-to-atlas [atlas-node image-node]
   (concat
+    (g/connect image-node :image-mode atlas-node :image-modes)
+    (g/connect image-node :vector-image-sources atlas-node :vector-image-sources)
     (g/connect image-node :_node-id         atlas-node :nodes)
     (g/connect image-node :animation        atlas-node :animations)
     (g/connect image-node :atlas-images     atlas-node :animation-images)
@@ -358,6 +390,7 @@
     (g/connect image-node :image-resource   atlas-node :image-resources)
     (g/connect image-node :node-outline     atlas-node :child-outlines)
     (g/connect image-node :scene            atlas-node :child-scenes)
+    (g/connect atlas-node :atlas-mode image-node :atlas-mode)
     (g/connect atlas-node :child->order     image-node :child->order)
     (g/connect atlas-node :id-counts        image-node :id-counts)
     (g/connect atlas-node :scene-info       image-node :scene-info)
@@ -365,6 +398,8 @@
 
 (defn- attach-image-to-animation [animation-node image-node]
   (concat
+    (g/connect image-node :image-mode animation-node :image-modes)
+    (g/connect image-node :vector-image-sources animation-node :vector-image-sources)
     (g/connect image-node     :_node-id         animation-node :nodes)
     (g/connect image-node     :atlas-image      animation-node :atlas-images)
     (g/connect image-node     :build-errors     animation-node :child-build-errors)
@@ -372,12 +407,15 @@
     (g/connect image-node     :image-resource   animation-node :image-resources)
     (g/connect image-node     :node-outline     animation-node :child-outlines)
     (g/connect image-node     :scene            animation-node :child-scenes)
+    (g/connect animation-node :atlas-mode image-node :atlas-mode)
     (g/connect animation-node :child->order     image-node     :child->order)
     (g/connect animation-node :scene-info       image-node     :scene-info)
     (g/connect animation-node :rename-patterns  image-node     :rename-patterns)))
 
 (defn- attach-animation-to-atlas [atlas-node animation-node]
   (concat
+    (g/connect animation-node :image-modes atlas-node :image-modes)
+    (g/connect animation-node :vector-image-sources atlas-node :vector-image-sources)
     (g/connect animation-node :_node-id         atlas-node     :nodes)
     (g/connect animation-node :animation        atlas-node     :animations)
     (g/connect animation-node :atlas-images     atlas-node     :animation-images)
@@ -387,6 +425,7 @@
     (g/connect animation-node :image-resources  atlas-node     :image-resources)
     (g/connect animation-node :node-outline     atlas-node     :child-outlines)
     (g/connect animation-node :scene            atlas-node     :child-scenes)
+    (g/connect atlas-node :atlas-mode animation-node :atlas-mode)
     (g/connect atlas-node     :anim-data        animation-node :anim-data)
     (g/connect atlas-node     :gpu-texture      animation-node :gpu-texture)
     (g/connect atlas-node     :id-counts        animation-node :id-counts)
@@ -424,6 +463,12 @@
   (validation/prop-error :fatal node-id :fps validation/prop-negative? fps fps-message))
 
 (g/defnode AtlasAnimation
+  (input image-modes g/Any :array)
+  (output image-modes g/Any (gu/passthrough image-modes))
+  (input atlas-mode g/Keyword)
+  (output atlas-mode g/Keyword (gu/passthrough atlas-mode))
+  (input vector-image-sources g/Any :array)
+  (output vector-image-sources g/Any (g/fnk [vector-image-sources] (coll/into-> vector-image-sources {} cat)))
   (inherits core/Scope)
   (inherits outline/OutlineNode)
 
@@ -552,12 +597,14 @@
 
 (g/defnk produce-build-targets [_node-id resource texture-set texture-page-count packed-page-images-generator texture-profile build-settings build-errors]
   (g/precluding-errors build-errors
-    (let [workspace         (resource/workspace resource)
-          compress?         (:compress-textures? build-settings false)
-          texture-target    (image/make-array-texture-build-target workspace _node-id packed-page-images-generator texture-profile texture-page-count compress?)
-          pb-msg            (assoc texture-set :texture (-> texture-target :resource :resource))
-          dep-build-targets [texture-target]]
-      [(pipeline/make-protobuf-build-target _node-id resource TextureSetProto$TextureSet pb-msg dep-build-targets)])))
+    (if (= :texture-set-mode-vector (:mode texture-set))
+      [(pipeline/make-protobuf-build-target _node-id resource TextureSetProto$TextureSet texture-set [])]
+      (let [workspace         (resource/workspace resource)
+            compress?         (:compress-textures? build-settings false)
+            texture-target    (image/make-array-texture-build-target workspace _node-id packed-page-images-generator texture-profile texture-page-count compress?)
+            pb-msg            (assoc texture-set :texture (-> texture-target :resource :resource))
+            dep-build-targets [texture-target]]
+        [(pipeline/make-protobuf-build-target _node-id resource TextureSetProto$TextureSet pb-msg dep-build-targets)]))))
 
 (g/defnk produce-atlas-texture-set-pb [texture-set]
   (let [pb-msg            texture-set
@@ -574,17 +621,25 @@
   [_node-id layout-rects layout-size gpu-texture child-scenes texture-profile]
   (let [[width height] layout-size
         pages (group-by :page layout-rects)
-        page-scenes (mapv (fn [^long page-index]
-                            (make-page-scene width height page-index gpu-texture))
-                          (range (count pages)))]
-    {:info-text (format "%d x %d (%s profile)" width height (:name texture-profile))
+        page-scenes (if (svg/vector-texture? gpu-texture)
+                      []
+                      (mapv (fn [^long page-index]
+                              (make-page-scene width height page-index gpu-texture))
+                            (range (count pages))))]
+    {:info-text (if (svg/vector-texture? gpu-texture)
+                  (localization/message "scene.atlas.vector")
+                  (format "%d x %d (%s profile)" width height (:name texture-profile)))
+     :hide-cursor-position? (svg/vector-texture? gpu-texture)
      :children (into page-scenes child-scenes)}))
 
-(defn- generate-texture-set-data [{:keys [digest-ignored/error-node-id animations atlas-images-variants unique-atlas-images margin inner-padding extrude-borders max-page-size]}]
-  (try
-    (texture-set-gen/atlas->texture-set-data animations atlas-images-variants unique-atlas-images margin inner-padding extrude-borders max-page-size)
-    (catch Exception error
-      (g/->error error-node-id :max-page-size :fatal nil (.getMessage error)))))
+(defn- generate-texture-set-data [{:keys [digest-ignored/error-node-id digest-ignored/resource atlas-mode animations vector-image-sources atlas-images-variants unique-atlas-images margin inner-padding extrude-borders max-page-size]}]
+  (if (= :vector atlas-mode)
+    (resource-io/with-error-translation resource error-node-id :images
+      (texture-set-gen/vector-atlas->texture-set-data animations vector-image-sources atlas-images-variants))
+    (try
+      (texture-set-gen/atlas->texture-set-data animations atlas-images-variants unique-atlas-images margin inner-padding extrude-borders max-page-size)
+      (catch Exception error
+        (g/->error error-node-id :max-page-size :fatal nil (.getMessage error))))))
 
 (defn- generate-packed-page-images [{:keys [digest-ignored/error-node-id image-resources layout-data-generator]}]
   (let [buffered-images (->> image-resources
@@ -603,7 +658,7 @@
     texture/non-paged-page-count))
 
 (g/defnk produce-layout-data-generator
-  [_node-id animation-images atlas-images-variants unique-atlas-images extrude-borders inner-padding margin max-page-size :as args]
+  [_node-id resource animation-images atlas-images-variants unique-atlas-images extrude-borders inner-padding margin max-page-size atlas-mode vector-image-sources :as args]
   ;; The TextureSetGenerator.calculateLayout() method inherited from Bob also
   ;; compiles a TextureSetProto$TextureSet including the animation data in
   ;; addition to generating the layout. This means that modifying a property on
@@ -613,42 +668,47 @@
   ;; the dependency on animation properties, we supply a list of fake animations
   ;; to the TextureSetGenerator.calculateLayout() method that only includes data
   ;; that can affect the layout.
-  (or (validate-layout-properties _node-id margin inner-padding extrude-borders)
+  (or (validate-atlas-mode _node-id atlas-mode)
+      (when (= :raster atlas-mode)
+        (validate-layout-properties _node-id margin inner-padding extrude-borders))
       (let [fake-animations (mapv make-animation
                                   (repeat "")
                                   animation-images)
             augmented-args (-> args
-                               (dissoc :_node-id :animation-images)
+                               (dissoc :_node-id :resource :animation-images)
                                (assoc :animations fake-animations
-                                      :digest-ignored/error-node-id _node-id))]
+                                      :vector-image-sources (coll/into-> vector-image-sources {} cat)
+                                      :digest-ignored/error-node-id _node-id
+                                      :digest-ignored/resource resource))]
         {:f generate-texture-set-data
          :args augmented-args})))
 
 (g/defnk produce-packed-page-images-generator
-  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator max-page-size texture-page-count]
-  (let [flat-image-resources (coll/into-> (flatten image-resources) []
-                               (filter some?)
-                               (util/distinct-by resource/proj-path))
-        image-sha1s (pmap (fn [resource]
-                            (resource-io/with-error-translation resource _node-id nil
-                              (resource/resource->path-inclusive-sha1 resource)))
-                          flat-image-resources)]
-    (g/precluding-errors image-sha1s
-      ;; Note: Dragging or reordering images up and down the outline for animations results in a different order,
-      ;; which produces a different hash, which triggers an unnecessary atlas regeneration, so hash unordered
-      (let [images-sha1 (digestable/sha1s->unordered-sha1-hex image-sha1s)
-            packed-image-sha1 (digestable/sha1-hash
-                                {:extrude-borders extrude-borders
-                                 :images-sha1 images-sha1
-                                 :inner-padding inner-padding
-                                 :max-page-size max-page-size
-                                 :margin margin
-                                 :type :packed-atlas-image})]
-        {:f generate-packed-page-images
-         :sha1 packed-image-sha1
-         :args {:digest-ignored/error-node-id _node-id
-                :image-resources flat-image-resources
-                :layout-data-generator layout-data-generator}}))))
+  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator max-page-size texture-page-count atlas-mode]
+  (when (= :raster atlas-mode)
+    (let [flat-image-resources (coll/into-> (flatten image-resources) []
+                                 (filter some?)
+                                 (util/distinct-by resource/proj-path))
+          image-sha1s (pmap (fn [resource]
+                              (resource-io/with-error-translation resource _node-id nil
+                                (resource/resource->path-inclusive-sha1 resource)))
+                            flat-image-resources)]
+      (g/precluding-errors image-sha1s
+        ;; Note: Dragging or reordering images up and down the outline for animations results in a different order,
+        ;; which produces a different hash, which triggers an unnecessary atlas regeneration, so hash unordered
+        (let [images-sha1 (digestable/sha1s->unordered-sha1-hex image-sha1s)
+              packed-image-sha1 (digestable/sha1-hash
+                                  {:extrude-borders extrude-borders
+                                   :images-sha1 images-sha1
+                                   :inner-padding inner-padding
+                                   :max-page-size max-page-size
+                                   :margin margin
+                                   :type :packed-atlas-image})]
+          {:f generate-packed-page-images
+           :sha1 packed-image-sha1
+           :args {:digest-ignored/error-node-id _node-id
+                  :image-resources flat-image-resources
+                  :layout-data-generator layout-data-generator}})))))
 
 (defn- complete-ddf-animation [ddf-animation {:keys [flip-horizontal flip-vertical fps id playback] :as _animation}]
   (assert (boolean? flip-horizontal))
@@ -668,40 +728,43 @@
   ;; contain the animation metadata since it was produced from fake animations.
   ;; In order to produce a valid TextureSetResult, we complete the protobuf
   ;; animations inside the embedded TextureSet with our animation properties.
-  [animations layout-data rename-patterns]
-  (let [incomplete-ddf-texture-set (:texture-set layout-data)
-        incomplete-ddf-animations (:animations incomplete-ddf-texture-set)
-        animation-present-in-ddf? (comp coll/not-empty :images)
-        animations-in-ddf (filter animation-present-in-ddf?
-                                  animations)
-        complete-ddf-animations (mapv complete-ddf-animation
-                                      incomplete-ddf-animations
-                                      animations-in-ddf)
-        ;; Texture set must contain hashed references to images:
-        ;; - for stand-alone images: as simple `base-name`
-        ;; - for images in animations: as `animation/base-name`
-        ;; Base name might be affected by rename patterns. Since we don't
-        ;; provide animation names to Bob's layout algorithm, we need to fill
-        ;; them here. The same image (i.e. rect) might be referenced multiple
-        ;; times if it's used in different animations, that's fine and this is
-        ;; how Bob does it in TextureSetGenerator. See also: comments in
-        ;; texture_set_ddf.proto about `image_name_hashes` field.
-        ;; The initial hashes must follow geometry/frame order, not atlas entry order.
-        fixed-image-name-hashes (-> []
-                                    (into
-                                      (map #(-> % :path (texture-set-gen/resource-id rename-patterns) murmur/hash64))
-                                      (:geometry-images layout-data))
-                                    (into
-                                      (mapcat
-                                        (fn [{:keys [id images]}]
-                                          (e/map #(-> % :path (texture-set-gen/resource-id id rename-patterns) murmur/hash64)
-                                                 images)))
-                                      animations))
-        complete-ddf-texture-set (assoc incomplete-ddf-texture-set
-                                   :animations complete-ddf-animations
-                                   :image-name-hashes fixed-image-name-hashes)]
-    (assoc layout-data
-      :texture-set complete-ddf-texture-set)))
+  [_node-id resource animations layout-data rename-patterns atlas-mode save-value]
+  (if (= :vector atlas-mode)
+    (resource-io/with-error-translation resource _node-id :texture-set
+      (texture-set-gen/update-vector-atlas-animations save-value layout-data))
+    (let [incomplete-ddf-texture-set (:texture-set layout-data)
+          incomplete-ddf-animations (:animations incomplete-ddf-texture-set)
+          animation-present-in-ddf? (comp coll/not-empty :images)
+          animations-in-ddf (filter animation-present-in-ddf?
+                                    animations)
+          complete-ddf-animations (mapv complete-ddf-animation
+                                        incomplete-ddf-animations
+                                        animations-in-ddf)
+          ;; Texture set must contain hashed references to images:
+          ;; - for stand-alone images: as simple `base-name`
+          ;; - for images in animations: as `animation/base-name`
+          ;; Base name might be affected by rename patterns. Since we don't
+          ;; provide animation names to Bob's layout algorithm, we need to fill
+          ;; them here. The same image (i.e. rect) might be referenced multiple
+          ;; times if it's used in different animations, that's fine and this is
+          ;; how Bob does it in TextureSetGenerator. See also: comments in
+          ;; texture_set_ddf.proto about `image_name_hashes` field.
+          ;; The initial hashes must follow geometry/frame order, not atlas entry order.
+          fixed-image-name-hashes (-> []
+                                      (into
+                                        (map #(-> % :path (texture-set-gen/resource-id rename-patterns) murmur/hash64))
+                                        (:geometry-images layout-data))
+                                      (into
+                                        (mapcat
+                                          (fn [{:keys [id images]}]
+                                            (e/map #(-> % :path (texture-set-gen/resource-id id rename-patterns) murmur/hash64)
+                                                   images)))
+                                        animations))
+          complete-ddf-texture-set (assoc incomplete-ddf-texture-set
+                                     :animations complete-ddf-animations
+                                     :image-name-hashes fixed-image-name-hashes)]
+      (assoc layout-data
+        :texture-set complete-ddf-texture-set))))
 
 (g/defnk produce-anim-data
   [texture-set uv-transforms]
@@ -735,8 +798,9 @@
                            rotated-vertices (if (:rotated geometry)
                                               (rotate-vertices-90-cw (:vertices geometry))
                                               (:vertices geometry))]
-                       [image (->AtlasRect path x (- h height y) width height page
-                                           (assoc geometry :vertices rotated-vertices))]))))))
+                       [image (assoc (->AtlasRect path x (- h height y) width height page
+                                                  (assoc geometry :vertices rotated-vertices))
+                                :vector-image (get-in texture-set [:vector :images geometry-index]))]))))))
 
 (defn- atlas-outline-sort-by-fn [basis v]
   ;; NOTE: unsafe basis from node output! Only use for node type access!
@@ -748,6 +812,15 @@
 
 (g/defnode AtlasNode
   (inherits resource-node/ResourceNode)
+  (inherits svg/VectorPreviewNode)
+
+  (input vector-image-sources g/Any :array)
+  (input image-modes g/Any :array)
+  (output image-modes g/Any (g/fnk [image-modes]
+                              (coll/into-> image-modes #{} coll/flatten-xf (remove nil?))))
+  (output atlas-mode g/Keyword (g/fnk [image-modes]
+                                 (case (count image-modes) 0 :raster 1 (first image-modes) :mixed)))
+  (output vector-preview-enabled g/Bool (g/fnk [atlas-mode] (= :vector atlas-mode)))
 
   (property size types/Vec2 ; Just for presentation.
             (value (g/fnk [layout-size] layout-size))
@@ -756,20 +829,24 @@
   (property margin g/Int (default (protobuf/default AtlasProto$Atlas :margin))
             (dynamic edit-type (g/constantly {:type g/Int :min 0}))
             (dynamic label (properties/label-dynamic :atlas :margin))
+            (dynamic visible (g/fnk [atlas-mode] (= :raster atlas-mode)))
             (dynamic tooltip (properties/tooltip-dynamic :atlas :margin))
             (dynamic error (g/fnk [_node-id margin] (validate-margin _node-id margin))))
   (property inner-padding g/Int (default (protobuf/default AtlasProto$Atlas :inner-padding))
             (dynamic edit-type (g/constantly {:type g/Int :min 0}))
             (dynamic label (properties/label-dynamic :atlas :inner-padding))
+            (dynamic visible (g/fnk [atlas-mode] (= :raster atlas-mode)))
             (dynamic tooltip (properties/tooltip-dynamic :atlas :inner-padding))
             (dynamic error (g/fnk [_node-id inner-padding] (validate-inner-padding _node-id inner-padding))))
   (property extrude-borders g/Int (default (protobuf/default AtlasProto$Atlas :extrude-borders))
             (dynamic edit-type (g/constantly {:type g/Int :min 0}))
             (dynamic label (properties/label-dynamic :atlas :extrude-borders))
+            (dynamic visible (g/fnk [atlas-mode] (= :raster atlas-mode)))
             (dynamic tooltip (properties/tooltip-dynamic :atlas :extrude-borders))
             (dynamic error (g/fnk [_node-id extrude-borders] (validate-extrude-borders _node-id extrude-borders))))
   (property max-page-size types/Vec2 (default default-max-page-size)
             (dynamic label (properties/label-dynamic :atlas :max-page-size))
+            (dynamic visible (g/fnk [atlas-mode] (= :raster atlas-mode)))
             (dynamic tooltip (properties/tooltip-dynamic :atlas :max-page-size))
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
             (dynamic error (g/fnk [_node-id max-page-size] (validate-max-page-size _node-id max-page-size))))
@@ -792,8 +869,10 @@
   (input child-build-errors g/Any :array)
   (input image-resources g/Any :array)
 
-  (output texture-profile g/Any (g/fnk [texture-profiles resource]
-                                  (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
+  (output texture-profile g/Any (g/fnk [atlas-mode ^:try texture-profiles resource]
+                                  (when (= :raster atlas-mode)
+                                    (g/precluding-errors texture-profiles
+                                      (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))))
 
   (output unique-atlas-images [Image] :cached (g/fnk [animation-images]
                                                 (into [] (util/distinct-by (comp resource/proj-path :path)) (flatten animation-images))))
@@ -811,8 +890,8 @@
   (output geometry-images  g/Any               (g/fnk [layout-data] (:geometry-images layout-data)))
   (output geometry->layout-rect-index g/Any    (g/fnk [layout-data] (:geometry->layout-rect-index layout-data)))
 
-  (output texture-page-count g/Int (g/fnk [_node-id layout-data max-page-size exclude-gles-sm100]
-                                     (let [page-count (calculate-texture-page-count layout-data max-page-size)]
+  (output texture-page-count g/Int (g/fnk [_node-id layout-data max-page-size exclude-gles-sm100 atlas-mode]
+                                     (let [page-count (if (= :vector atlas-mode) 0 (calculate-texture-page-count layout-data max-page-size))]
                                        (or (when (not exclude-gles-sm100)
                                              (validation/prop-error :fatal _node-id
                                                                     :validate-texture-page-count
@@ -824,17 +903,19 @@
   (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
 
   (output gpu-texture g/Any :cached
-          (g/fnk [_node-id packed-page-images-generator texture-profile]
-            ;; NOTE: Temporary fix until we can properly disconnect the image nodes that invalidate this
-            (or (when (= (:sha1 packed-page-images-generator) (g/user-data _node-id :gpu-texture-sha1))
-                  (some-> ^WeakReference (g/user-data _node-id :gpu-texture-cached) .get))
-                (let [texture (-> (texture-util/construct-gpu-texture _node-id packed-page-images-generator texture-profile)
-                                  (texture/set-params {:min-filter gl/nearest
-                                                       :mag-filter gl/nearest}))
-                      texture-ref (WeakReference. texture)]
-                  (g/user-data! _node-id :gpu-texture-sha1 (:sha1 packed-page-images-generator))
-                  (g/user-data! _node-id :gpu-texture-cached texture-ref)
-                  texture))))
+          (g/fnk [_node-id packed-page-images-generator texture-profile atlas-mode texture-set vector-preview-shaders]
+            (if (= :vector atlas-mode)
+              (svg/make-gpu-texture _node-id (:vector texture-set) vector-preview-shaders)
+              ;; NOTE: Temporary fix until we can properly disconnect the image nodes that invalidate this
+              (or (when (= (:sha1 packed-page-images-generator) (g/user-data _node-id :gpu-texture-sha1))
+                    (some-> ^WeakReference (g/user-data _node-id :gpu-texture-cached) .get))
+                  (let [texture (-> (texture-util/construct-gpu-texture _node-id packed-page-images-generator texture-profile)
+                                    (texture/set-params {:min-filter gl/nearest
+                                                         :mag-filter gl/nearest}))
+                        texture-ref (WeakReference. texture)]
+                    (g/user-data! _node-id :gpu-texture-sha1 (:sha1 packed-page-images-generator))
+                    (g/user-data! _node-id :gpu-texture-cached texture-ref)
+                    texture)))))
 
   (output anim-data        g/Any               :cached produce-anim-data)
   (output image->rect      g/Any               :cached produce-image->rect)
@@ -857,12 +938,14 @@
   (output build-targets    g/Any          :cached produce-build-targets)
   (output scene-info       g/Any          produce-atlas-scene-info)
   (output scene            g/Any          :cached produce-scene)
-  (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size rename-patterns]
+  (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size rename-patterns atlas-mode]
                                             (g/package-errors _node-id
-                                              (validate-margin _node-id margin)
-                                              (validate-inner-padding _node-id inner-padding)
-                                              (validate-extrude-borders _node-id extrude-borders)
-                                              (validate-max-page-size _node-id max-page-size)
+                                              (validate-atlas-mode _node-id atlas-mode)
+                                              (when (= :raster atlas-mode)
+                                                [(validate-margin _node-id margin)
+                                                 (validate-inner-padding _node-id inner-padding)
+                                                 (validate-extrude-borders _node-id extrude-borders)
+                                                 (validate-max-page-size _node-id max-page-size)])
                                               (validate-rename-patterns _node-id rename-patterns))))
   (output build-errors     g/Any          (g/fnk [_node-id child-build-errors own-build-errors]
                                             (g/package-errors _node-id
@@ -914,10 +997,11 @@
       (attach-animation-to-atlas atlas-node animation-node)
       (make-image-nodes-in-animation animation-node image-msgs))))
 
-(defn load-atlas [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id atlas :source-value}]
+(defn load-atlas [{:keys [project resolve-resource-fn] :as load-opts} {:keys [owner-resource] self :node-id atlas :source-value :as node-load-info}]
   {:pre [(map? atlas)]} ; AtlasProto$Atlas in map format.
   (let [image-msgs (resolve-image-msgs resolve-resource-fn owner-resource (:images atlas) true)]
     (concat
+      (svg/load-preview-shaders load-opts node-load-info)
       (g/connect project :build-settings self :build-settings)
       (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
       (g/connect project :texture-profiles self :texture-profiles)
@@ -972,31 +1056,42 @@
       (g/with-auto-evaluation-context evaluation-context
         (selection->atlas selection evaluation-context)))))
 
+(defn- compatible-image-resources [atlas-mode resources]
+  (let [image-resources (filterv #(or (image/image-resource? %) (svg/svg-resource? %)) resources)
+        vector-content (if atlas-mode
+                         (= :vector atlas-mode)
+                         (svg/svg-resource? (first image-resources)))]
+    (filterv #(= vector-content (svg/svg-resource? %)) image-resources)))
+
 (defn- add-images-handler [app-view workspace project parent accept-fn] ; parent = new parent of images
-  (when-some [image-resources (seq (resource-dialog/make workspace project
-                                                         {:ext image/exts
-                                                          :title (localization/message "dialog.add-atlas-images.title")
-                                                          :selection :multiple
-                                                          :accept-fn accept-fn}))]
-    (let [op-seq (gensym)
-          image-msgs (map #(assoc default-image-msg :image %) image-resources)
-          image-nodes (g/tx-nodes-added
-                        (g/transact
-                          (concat
-                            (g/operation-sequence op-seq)
-                            (g/operation-label (localization/message "operation.atlas.add-images"))
-                            (cond
-                              (g/node-instance? AtlasNode parent)
-                              (make-image-nodes-in-atlas parent image-msgs)
+  (let [atlas-node (if (g/node-instance? AtlasNode parent) parent (core/scope parent))
+        mode (when (coll/not-empty (g/node-value atlas-node :image-modes))
+               (g/node-value atlas-node :atlas-mode))]
+    (when-let [chosen-resources (coll/not-empty (resource-dialog/make workspace project
+                                                                      {:ext (case mode :vector #{"svg"} :raster image/exts (conj image/exts "svg"))
+                                                                       :title (localization/message "dialog.add-atlas-images.title")
+                                                                       :selection :multiple
+                                                                       :accept-fn accept-fn}))]
+      (let [image-resources (compatible-image-resources mode chosen-resources)
+            op-seq (gensym)
+            image-msgs (mapv #(assoc default-image-msg :image %) image-resources)
+            image-nodes (g/tx-nodes-added
+                          (g/transact
+                            (concat
+                              (g/operation-sequence op-seq)
+                              (g/operation-label (localization/message "operation.atlas.add-images"))
+                              (cond
+                                (g/node-instance? AtlasNode parent)
+                                (make-image-nodes-in-atlas parent image-msgs)
 
-                              (g/node-instance? AtlasAnimation parent)
-                              (make-image-nodes-in-animation parent image-msgs)
+                                (g/node-instance? AtlasAnimation parent)
+                                (make-image-nodes-in-animation parent image-msgs)
 
-                              :else
-                              (let [parent-node-type @(g/node-type* parent)]
-                                (throw (ex-info (str "Unsupported parent type " (:name parent-node-type))
-                                                {:parent-node-type parent-node-type})))))))]
-      (select! app-view image-nodes op-seq))))
+                                :else
+                                (let [parent-node-type @(g/node-type* parent)]
+                                  (throw (ex-info (str "Unsupported parent type " (:name parent-node-type))
+                                                  {:parent-node-type parent-node-type})))))))]
+        (select! app-view image-nodes op-seq)))))
 
 (handler/defhandler :edit.add-referenced-component :workbench
   :label (localization/message "command.edit.add-referenced-component.variant.atlas")
@@ -1185,7 +1280,9 @@
           parent (or (handler/adapt-single selection AtlasAnimation evaluation-context)
                      (some #(core/scope-of-type basis % AtlasAnimation) selection)
                      root-id)
-          image-resources (e/filter image/image-resource? resources)]
+          atlas-mode (when (coll/not-empty (g/node-value root-id :image-modes evaluation-context))
+                       (g/node-value root-id :atlas-mode evaluation-context))
+          image-resources (compatible-image-resources atlas-mode resources)]
       (g/eager-tx-data
         (create-dropped-images parent image-resources evaluation-context)))))
 
@@ -1276,6 +1373,7 @@
       :node-type AtlasNode
       :ddf-type AtlasProto$Atlas
       :load-fn load-atlas
+      :editor-dependencies ["/builtins/materials/sprite-vector.vp" "/builtins/materials/sprite-vector.fp"]
       :icon atlas-icon
       :icon-class :design
       :category (localization/message "resource.category.resources")
