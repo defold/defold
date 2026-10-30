@@ -1,0 +1,29 @@
+-- Scenario: An object is on a trigger and the project uses fixed timestep physics.
+-- The batched physics event listener must be invoked during the fixed update, not the regular update.
+
+events_in_fixed_update = 0
+events_in_update = 0
+tests_done = false -- flag end of test to C level
+
+function init(self)
+	self.phase = "init"
+	physics.set_event_listener(function(self, events)
+		if self.phase == "fixed_update" then
+			events_in_fixed_update = events_in_fixed_update + #events
+		else
+			events_in_update = events_in_update + #events
+		end
+	end)
+end
+
+function fixed_update(self, dt)
+	self.phase = "fixed_update"
+end
+
+function update(self, dt)
+	self.phase = "update"
+	if events_in_fixed_update + events_in_update >= 3 then
+		physics.set_event_listener(nil)
+		tests_done = true
+	end
+end

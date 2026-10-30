@@ -786,6 +786,43 @@ TEST_F(ComponentTest, PhysicsListenerTest)
 
 }
 
+TEST_F(ComponentTest, PhysicsListenerFixedTimestepTest)
+{
+    m_PhysicsContextBox2D.m_BaseContext.m_UseFixedTimestep = true;
+    m_UpdateContext.m_FixedUpdateFrequency = 60;
+
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, "/collision_object/callback_fixed_object.goc", dmHashString64("/test_object"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go_b);
+
+    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, "/collision_object/callback_trigger.goc", dmHashString64("/test_trigger"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go_a);
+
+    bool tests_done = false;
+    for (int i = 0; i < 100 && !tests_done; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+    ASSERT_TRUE(tests_done);
+
+    lua_getglobal(L, "events_in_fixed_update");
+    int events_in_fixed_update = (int)lua_tointeger(L, -1);
+    lua_getglobal(L, "events_in_update");
+    int events_in_update = (int)lua_tointeger(L, -1);
+    lua_pop(L, 2);
+
+    ASSERT_LT(0, events_in_fixed_update);
+    ASSERT_EQ(0, events_in_update);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(ComponentTest, PhysicsDDFDecoderTest)
 {
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
