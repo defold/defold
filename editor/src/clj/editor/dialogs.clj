@@ -48,6 +48,7 @@
             [util.thread-util :as thread-util])
   (:import [clojure.lang Named]
            [com.defold.control ClippingContainer]
+           [com.sun.javafx.util Utils]
            [java.io File]
            [java.nio.file Path Paths]
            [java.util Collection List]
@@ -73,14 +74,13 @@
 (def ^:private dialogs-css-delay
   (delay (str (io/resource "dialogs.css"))))
 
-(defn max-dialog-stage-height []
-  (let [screens (Screen/getScreens)
-        n (.size screens)]
-    (loop [i 0
-           max-height 0.0]
-      (if (= i n)
-        max-height
-        (recur (unchecked-inc i) (max max-height (.getHeight (.getVisualBounds ^Screen (.get screens i)))))))))
+(defn- max-dialog-height [owner]
+  (let [^Window window (if (instance? Window owner) owner (ui/main-stage))
+        screen (if window
+                 (Utils/getScreen window)
+                 (Screen/getPrimary))
+        screen-margin 32.0]
+    (- (.getHeight (.getVisualBounds ^Screen screen)) (* 2.0 screen-margin))))
 
 (defn dialog-stage
   "Dialog `:stage` that manages scene graph itself and provides layout common
@@ -96,54 +96,59 @@
     :size          dialog width, either :small, :default or :large
     :width         explicit dialog width, overriding :size width
     :height        explicit dialog height, overriding :size content height cap
+    :owner         the owner window, defaults to main stage; the dialog's max
+                   height is limited to the owner's screen
     :content       a content of a dialog, not padded; you can use
                    \"dialog-content-padding\" style class to set desired padding
                    (or \"text-area-with-dialog-content-padding\" for text areas)
     :root-props    extra props to scene root's v-box lifecycle (sans :children)"
-  [{:keys [size header content footer root-props width height]
+  [{:keys [size header content footer root-props width height owner]
     :or {size :default root-props {}}
     :as props}]
-  (-> props
-      (dissoc :size :header :content :footer :root-props)
-      (assoc :fx/type fxui/dialog-stage
-             :max-height (max-dialog-stage-height)
-             :scene {:fx/type fx.scene/lifecycle
-                     :stylesheets [@dialogs-css-delay]
-                     :root (-> root-props
-                               (fxui/add-style-classes "dialog-body")
-                               (cond->
-                                 (not width)
-                                 (fxui/add-style-classes
-                                   (case size
-                                     :small "dialog-body-small"
-                                     :default "dialog-body-default"
-                                     :large "dialog-body-large")))
-                               (assoc :fx/type fx.v-box/lifecycle
-                                      :children (if content
-                                                  [{:fx/type fx.v-box/lifecycle
-                                                    :style-class "dialog-with-content-header"
-                                                    :children [header]}
-                                                   {:fx/type fx.v-box/lifecycle
-                                                    :style-class "dialog-content"
-                                                    :v-box/vgrow :always
-                                                    :children [(cond-> {:fx/type clipping-container
-                                                                        :v-box/vgrow :always
-                                                                        :children [content]}
-                                                                 (not height)
-                                                                 (assoc :pref-height-cap (case size
-                                                                                           :small 480.0
-                                                                                           :default 600.0
-                                                                                           :large 720.0)))]}
-                                                   {:fx/type fx.v-box/lifecycle
-                                                    :style-class "dialog-with-content-footer"
-                                                    :children [footer]}]
-                                                  [{:fx/type fx.v-box/lifecycle
-                                                    :style-class "dialog-without-content-header"
-                                                    :children [header]}
-                                                   {:fx/type fx.region/lifecycle :style-class "dialog-no-content"}
-                                                   {:fx/type fx.v-box/lifecycle
-                                                    :style-class "dialog-without-content-footer"
-                                                    :children [footer]}])))})))
+  (let [max-height (max-dialog-height owner)]
+    (-> props
+        (dissoc :size :header :content :footer :root-props)
+        (cond-> height (assoc :height (min height max-height)))
+        (assoc :fx/type fxui/dialog-stage
+               :max-height max-height
+               :scene {:fx/type fx.scene/lifecycle
+                       :stylesheets [@dialogs-css-delay]
+                       :root (-> root-props
+                                 (util/provide-defaults :max-height max-height)
+                                 (fxui/add-style-classes "dialog-body")
+                                 (cond->
+                                   (not width)
+                                   (fxui/add-style-classes
+                                     (case size
+                                       :small "dialog-body-small"
+                                       :default "dialog-body-default"
+                                       :large "dialog-body-large")))
+                                 (assoc :fx/type fx.v-box/lifecycle
+                                        :children (if content
+                                                    [{:fx/type fx.v-box/lifecycle
+                                                      :style-class "dialog-with-content-header"
+                                                      :children [header]}
+                                                     {:fx/type fx.v-box/lifecycle
+                                                      :style-class "dialog-content"
+                                                      :v-box/vgrow :always
+                                                      :children [(cond-> {:fx/type clipping-container
+                                                                          :v-box/vgrow :always
+                                                                          :children [content]}
+                                                                   (not height)
+                                                                   (assoc :pref-height-cap (case size
+                                                                                             :small 480.0
+                                                                                             :default 600.0
+                                                                                             :large 720.0)))]}
+                                                     {:fx/type fx.v-box/lifecycle
+                                                      :style-class "dialog-with-content-footer"
+                                                      :children [footer]}]
+                                                    [{:fx/type fx.v-box/lifecycle
+                                                      :style-class "dialog-without-content-header"
+                                                      :children [header]}
+                                                     {:fx/type fx.region/lifecycle :style-class "dialog-no-content"}
+                                                     {:fx/type fx.v-box/lifecycle
+                                                      :style-class "dialog-without-content-footer"
+                                                      :children [footer]}])))}))))
 
 (defn- confirmation-dialog-header->fx-desc [localization header]
   {:pre [header]}
