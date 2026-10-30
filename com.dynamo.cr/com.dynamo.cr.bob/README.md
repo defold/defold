@@ -46,7 +46,9 @@ Compiler libraries resolve from local engine builds or archive paths listed in
 into their usual `$DYNAMO_HOME/ext/bin/<platform>` and `ext/lib/<platform>` paths,
 preserving locally built tools for the current host and selected target.
 Full Bob requires them for all desktop hosts; Bob Light requires the current
-host's LuaJIT executable and Ogg libraries.
+host's LuaJIT executable, Ogg libraries, and DXC compiler library. CMake stages
+DXC alongside the shader compiler before building Bob Light, without requiring
+an engine install first.
 The LuaJIT modules installed in `$DYNAMO_HOME/ext` are assembled into
 `tmp/luajit-share.zip` and packaged inside each JAR as `lib/luajit-share.zip`.
 Both JAR tasks track the manifests as inputs, so changing a list updates the

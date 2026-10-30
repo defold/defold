@@ -103,7 +103,8 @@ if(SHADERC_IS_DESKTOP)
   set(SHADERC_EXTRA_INCLUDES)
   set(SHADERC_EXTRA_LIBS)
   # DXC is an asset compiler dependency only; engine runtime targets do not link it.
-  add_library(shaderc_dxcompiler SHARED IMPORTED)
+  # Graphics tests and top-level Bob staging also need to resolve this target.
+  add_library(shaderc_dxcompiler SHARED IMPORTED GLOBAL)
   if(WIN32)
     set(_dxc_runtime "${DEFOLD_SDK_ROOT}/ext/bin/${TARGET_PLATFORM}/dxcompiler.dll")
     set_target_properties(shaderc_dxcompiler PROPERTIES
@@ -120,7 +121,7 @@ if(SHADERC_IS_DESKTOP)
 
   function(shaderc_stage_dxc target)
     add_custom_command(TARGET ${target} POST_BUILD
-      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_dxc_runtime}" "$<TARGET_FILE_DIR:${target}>"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:shaderc_dxcompiler>" "$<TARGET_FILE_DIR:${target}>"
       VERBATIM)
     if(APPLE)
       set_target_properties(${target} PROPERTIES SKIP_BUILD_RPATH FALSE BUILD_RPATH "@loader_path" INSTALL_RPATH "@loader_path")
