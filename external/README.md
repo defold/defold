@@ -23,7 +23,18 @@ platforms. LuaJIT is built for non-web platforms. [Draco](draco/README.md),
 built for desktop platforms; mobile and web builds use the host's tools.
 Protobuf and Abseil use the same CMake toolchain and build graph as the other
 source dependencies and install directly into `ext`.
+Linux additionally builds [OpenH264](openh264/README.md) for video recording.
+The recording MP4 writer is the pinned header in [minimp4](minimp4/README.md).
 `external/build` itself is generated build output.
+
+For native Linux MemorySanitizer builds, run
+`./scripts/build.py build_ext -- --with-msan`. The normal dependency installation
+is kept for host tools and JNI. A second build under `external/build/<platform>-msan`
+installs instrumented libraries under `ext/msan/<platform>`, including a pinned
+LLVM 20 libc++/libc++abi runtime. ASTC, SPIRV-Cross, patched GLFW, and Tremolo are rebuilt
+from pinned downloads. LuaJIT and Protobuf's code generator remain host tools;
+the instrumented engine uses vanilla Lua. OpenH264 uses its instrumentable C++
+kernels. `clean_ext` also removes this platform's MSan build and installation.
 
 CI caches built external dependencies for engine, Bob, and editor jobs using the
 [`build-external`](../.github/actions/build-external/action.yml) action.

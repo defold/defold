@@ -123,6 +123,17 @@ if(NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-ma
     RUN_GROUP graphics RUNTIME_DEPENDS gltf_render_shaders)
 endif()
 
+# Vector-font tests load sibling font fixtures that are outside Node's mounted
+# working directory. Embed them at the paths used by the tests in the web VFS.
+if(TARGET_PLATFORM MATCHES "web$")
+  foreach(_render_test_font IN ITEMS vera_mo_bd.ttf SourceCodePro-Regular.otf color-test.ttf)
+    set(_render_test_font_path "${DEFOLD_HOME}/engine/font/src/test/data/${_render_test_font}")
+    target_link_options(test_render PRIVATE
+      "SHELL:--embed-file \"${_render_test_font_path}@/font/src/test/data/${_render_test_font}\"")
+    set_property(TARGET test_render APPEND PROPERTY LINK_DEPENDS "${_render_test_font_path}")
+  endforeach()
+endif()
+
 # Extend the font image matrix after renderer targets exist. The ordinary font
 # unit tests keep their lower-level dependencies and need no graphics context.
 if(APPLE AND TARGET test_font_bitmap_gen)

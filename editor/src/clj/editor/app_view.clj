@@ -980,14 +980,11 @@
                                    instance-debug (and debug last-instance?)
                                    launched-target (->> (engine/launch! engine project-directory prefs instance-debug instance-index focus)
                                                         (decorate-target engine-descriptor)
-                                                        (targets/add-launched-target! instance-index))]
+                                                        (targets/add-launched-target! prefs instance-index))]
                                (when (not last-instance?)
                                  (Thread/sleep pause-ms))        ;pause needed to make sure the launch order of instances is right
                                launched-target))
           last-launched-target (last launched-targets)]
-      (if (= count 1)
-        (targets/select-target! prefs last-launched-target)
-        (targets/select-target! prefs {:id :all-launched-targets}))
       (report-build-launch-progress! (localization/message "progress.launched-engine" {"engine" (targets/target-message last-launched-target)}))
       launched-targets)
     (catch Exception e
@@ -1053,17 +1050,17 @@
 
 (defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug focus]
   (let [selected-target (targets/selected-target prefs)
-        launch-new-engine! (fn []
+        launch-new-engine! (fn launch-new-engine! []
                              (targets/kill-launched-targets!)
                              (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug focus)
                                    last-launched-target (last launched-targets)]
                                (doseq [launched-target launched-targets]
                                  (targets/when-url (:id launched-target)
-                                                   #(on-launched-hook! project (:process launched-target) %))
-                                 (let [log-stream (:log-stream launched-target)]
-                                   (console/reset-console-stream! log-stream)
-                                   (console/reset-remote-log-pump-thread! nil)
-                                   (console/start-log-pump! log-stream (make-launched-log-sink launched-target (partial on-service-url-found prefs)))))
+                                                   (fn on-target-url-found [url]
+                                                     (on-launched-hook! project (:process launched-target) url)))
+                                 (console/start-log-pump!
+                                   (:log-stream launched-target)
+                                   (make-launched-log-sink launched-target (partial on-service-url-found prefs))))
                                last-launched-target))]
     (try
       {:target
@@ -1689,28 +1686,13 @@
     (build-html5! app-view project prefs web-server build-errors-view changes-view
                   bob/build-html5-bob-commands)))
 
-(defn- updated-build-resource-proj-paths [old-etags new-etags]
-  ;; We only want to return resources that were present in the old etags since
-  ;; we don't want to ask the engine to reload something it has not seen yet.
-  ;; It is presumed that the engine will follow any newly-introduced references
-  ;; and load the resources. We might ask the engine to reload these resources
-  ;; the next time they are modified.
-  (into #{}
-        (keep (fn [[proj-path old-etag]]
-                (when-some [new-etag (new-etags proj-path)]
-                  (when (not= old-etag new-etag)
-                    proj-path))))
-        old-etags))
-
-(defn- updated-build-resources [evaluation-context project old-etags new-etags proj-path-or-resource]
+(defn- updated-build-resource-proj-paths [evaluation-context project old-etags new-etags proj-path-or-resource]
   (let [resource-node (project/get-resource-node project proj-path-or-resource evaluation-context)
-        flat-build-targets (build/resolve-node-dependencies resource-node project evaluation-context)
-        updated-build-resource-proj-paths (updated-build-resource-proj-paths old-etags new-etags)]
-    (into []
-          (keep (fn [{build-resource :resource :as _build-target}]
-                  (when (contains? updated-build-resource-proj-paths (resource/proj-path build-resource))
-                    build-resource)))
-          (rseq flat-build-targets))))
+        flat-build-targets (build/resolve-node-dependencies resource-node project evaluation-context)]
+    (hot-reload/updated-build-resource-proj-paths
+      old-etags
+      new-etags
+      (eduction (map (comp resource/proj-path :resource)) (rseq flat-build-targets)))))
 
 (defn- can-hot-reload? [debug-view prefs evaluation-context]
   (when-some [target (targets/selected-target prefs)]
@@ -1751,14 +1733,14 @@
             (workspace/etags! workspace etags)
             (workspace/save-build-cache! workspace)
             (try
-              (when-some [updated-build-resources
-                          (not-empty
-                            (g/with-auto-evaluation-context evaluation-context
-                              (updated-build-resources evaluation-context project old-etags etags "/game.project")))]
+              (when-let [updated-proj-paths
+                         (coll/not-empty
+                           (g/with-auto-evaluation-context evaluation-context
+                             (updated-build-resource-proj-paths evaluation-context project old-etags etags "/game.project")))]
                 (if (targets/all-launched-targets? target)
                   (doseq [launched-target (targets/all-launched-targets)]
-                    (engine/reload-build-resources! launched-target updated-build-resources))
-                  (engine/reload-build-resources! target updated-build-resources)))
+                    (engine/reload-build-resource-paths! launched-target updated-proj-paths))
+                  (engine/reload-build-resource-paths! target updated-proj-paths)))
               (cond-> build-results (targets/controllable-target? target) (assoc :target target))
               (catch Exception e
                 (dialogs/make-info-dialog

@@ -8,11 +8,16 @@ include(defold)
 project(defold_ext LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 
 set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}/ext" CACHE PATH "External library install prefix" FORCE)
+if(WITH_MSAN)
+  set(DEFOLD_EXTERNAL_INSTALL_PREFIX "${DEFOLD_MSAN_PREFIX}")
+  set(CMAKE_INSTALL_PREFIX "${DEFOLD_MSAN_PREFIX}" CACHE PATH "External library install prefix" FORCE)
+  add_subdirectory(msan)
+endif()
 
 add_subdirectory(bullet3d)
 add_subdirectory(basisu)
 add_subdirectory(lz4)
-if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+if(NOT WITH_MSAN AND NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   add_subdirectory(luajit)
 endif()
 add_subdirectory(box2d)
@@ -22,6 +27,11 @@ add_subdirectory(libunibreak)
 add_subdirectory(opus)
 add_subdirectory(sheenbidi)
 add_subdirectory(skribidi)
+
+# The framebuffer recorder is only linked into graphical Linux debug engines.
+if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)-linux$")
+  add_subdirectory(openh264)
+endif()
 
 # These libraries are used by desktop tools, including the host in cross-builds.
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$")

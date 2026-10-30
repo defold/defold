@@ -195,6 +195,11 @@ public:
     {
         GamesysTest::SetUp();
 
+        // A fatal assertion returns only from the base SetUp function.
+        // Its remaining contexts have not been initialized in that case.
+        if (jc_test_get_fixture()->fatal)
+            return;
+
         m_Scriptlibcontext.m_Factory         = m_Factory;
         m_Scriptlibcontext.m_Register        = m_Register;
         m_Scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);

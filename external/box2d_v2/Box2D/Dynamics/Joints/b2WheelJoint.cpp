@@ -123,12 +123,12 @@ void b2WheelJoint::InitVelocityConstraints(const b2SolverData& data)
 	m_springMass = 0.0f;
 	m_bias = 0.0f;
 	m_gamma = 0.0f;
+	// DEFOLD: The solver uses these even when the spring frequency is zero.
+	m_ax = b2Mul(qA, m_localXAxisA);
+	m_sAx = b2Cross(d + rA, m_ax);
+	m_sBx = b2Cross(rB, m_ax);
 	if (m_frequencyHz > 0.0f)
 	{
-		m_ax = b2Mul(qA, m_localXAxisA);
-		m_sAx = b2Cross(d + rA, m_ax);
-		m_sBx = b2Cross(rB, m_ax);
-
 		float32 invMass = mA + mB + iA * m_sAx * m_sAx + iB * m_sBx * m_sBx;
 
 		if (invMass > 0.0f)

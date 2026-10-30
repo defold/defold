@@ -22,15 +22,17 @@
             [editor.prefs :as prefs]
             [editor.process :as process]
             [editor.protobuf :as protobuf]
-            [editor.resource :as resource]
             [editor.system :as system]
-            [util.coll :as coll])
+            [service.log :as log]
+            [util.coll :as coll]
+            [util.path :as path])
   (:import [com.dynamo.bob Platform]
            [com.dynamo.render.proto Render$Resize]
            [com.dynamo.resource.proto Resource$Reload]
            [com.dynamo.system.proto System$Exit]
            [java.io BufferedReader File IOException InputStream]
            [java.net HttpURLConnection InetSocketAddress Socket URI]
+           [java.util UUID]
            [java.util.zip ZipEntry ZipFile]))
 
 (set! *warn-on-reflection* true)
@@ -54,14 +56,13 @@
   (let [buffer (byte-array 1024)]
     (try
       (while (not= -1 (.read is buffer)))
-      (catch IOException e
+      (catch IOException _
         ;; For instance socket closed because engine was killed
         nil))))
 
-(defn reload-build-resources! [target build-resources]
+(defn reload-build-resource-paths! [target proj-paths]
   (let [uri (URI. (str (:url target) "/post/@resource/reload"))
-        conn ^HttpURLConnection (get-connection uri)
-        proj-paths (mapv resource/proj-path build-resources)]
+        conn ^HttpURLConnection (get-connection uri)]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
@@ -255,15 +256,6 @@
         (native-extensions/get-engine-archive project platform prefs evaluation-context)
         (bundled-engine platform))))
 
-(defn- unpack-dmengine!
-  [^File engine-archive entry-name ^File engine-file]
-  (with-open [zip-file (ZipFile. engine-archive)]
-    (let [dmengine-entry (.getEntry zip-file entry-name)
-          stream (.getInputStream zip-file dmengine-entry)]
-      (io/copy stream engine-file)
-      (fs/set-executable! engine-file true)
-      engine-file)))
-
 (defn- zip-entries! [^ZipFile zipfile]
   (enumeration-seq (.entries zipfile)))
 
@@ -274,7 +266,7 @@
       (let [savePath (str dir File/separatorChar (.getName entry))
             saveFile (File. savePath)]
         (if (.isDirectory entry)
-          (if-not (.exists saveFile)
+          (when-not (.exists saveFile)
             (.mkdirs saveFile))
           (let [parentDir (File. (.substring savePath 0 (.lastIndexOf savePath (int File/separatorChar))))
                 stream (.getInputStream zip-file entry)]
@@ -283,7 +275,8 @@
             (io/copy stream saveFile)))))))
 
 (def ^:private dmengine-dependencies
-  ; Mapping between platform name and list of file names: {"x86_64-win32" #{"OpenAL32.dll" "wrap_oal.dll"}}
+  ;; Mapping between platform name and list of file names:
+  ;; {"x86_64-win32" #{"OpenAL32.dll" "wrap_oal.dll"}}
   {})
 
 (defn- copy-dmengine-dependencies!
@@ -292,11 +285,13 @@
     (doseq [dep (dmengine-dependencies extender-platform)]
       (fs/copy! (io/file bundled-engine-dir dep) (io/file unpack-dir dep)))))
 
-(defn- engine-install-path ^File [^File project-directory engine-descriptor]
+(defn- engine-install-path
+  ^File [^File project-directory engine-descriptor]
   (let [unpack-dir (io/file project-directory "build" (:extender-platform engine-descriptor))]
     (io/file unpack-dir (dmengine-filename (current-platform)))))
 
-(defn install-engine! ^File [^File project-directory {:keys [^File dmengine ^File engine-archive extender-platform] :as engine-descriptor}]
+(defn install-engine!
+  ^File [^File project-directory {:keys [^File dmengine ^File engine-archive extender-platform] :as engine-descriptor}]
   (assert (or dmengine engine-archive))
   (cond
     (some? dmengine)
@@ -319,6 +314,32 @@
         (when (<= 0 port 65535)
           (str port)))
       (catch Exception _))))
+
+(defn reset-window-size! [project-directory]
+  ;; The engine owns geometry files. A separate token invalidates their saved
+  ;; size, including for stopped players and inactive desktop backends.
+  (try
+    (path/atomic-replace!
+      (path/of project-directory ".internal" "window-state" "reset-size")
+      #(spit % (str (UUID/randomUUID))))
+    (catch IOException error
+      ;; Persistence must not prevent resetting preferences and a live player.
+      (log/warn :message "Unable to save player window size reset" :exception error))))
+
+(defn- window-state-prefix!
+  [project-directory instance-index]
+  (try
+    (let [directory (path/of ".internal" "window-state")
+          ;; Single launches use index 0, multiple instances start at 1.
+          slot (max 0 (dec (long instance-index)))
+          operating-system (.getOs (Platform/getHostPlatform))]
+      (path/create-directories! (path/of project-directory directory))
+      ;; The player runs in the project directory. Keep its state prefix ASCII
+      ;; so Windows' narrow file APIs never encode the Unicode project path.
+      (str (path/of directory (str operating-system "-" slot))))
+    (catch IOException error
+      (log/warn :message "Unable to create player window state directory" :exception error)
+      nil)))
 
 (defn launch! [^File engine project-directory prefs debug instance-index focus]
   (let [defold-log-dir (some-> (system/defold-log-dir)
@@ -346,21 +367,27 @@
                (into (remove str/blank?) (split-lines engine-arguments)))
         env {"DM_SERVICE_PORT" (or (validate-service-port (System/getenv "DM_SERVICE_PORT"))
                                    "dynamic")
+             ;; The engine adds the active GLFW backend to this file prefix.
+             ;; Environment survives both editor- and game-triggered reboots.
+             "DM_WINDOW_STATE" (window-state-prefix! project-directory instance-index)
              "DM_QUIT_ON_ESC" (if (prefs/get prefs [:run :quit-on-escape])
                                 "1" "0")
-             ;; Windows only. Sets the correct symbol search path, since we're also setting the cwd (https://docs.microsoft.com/en-us/windows/win32/debug/symbol-paths)
+             ;; Windows only. Sets the correct symbol search path, since we're
+             ;; also setting the cwd
+             ;; (https://docs.microsoft.com/en-us/windows/win32/debug/symbol-paths)
              "_NT_ALT_SYMBOL_PATH" (.getAbsolutePath (.getParentFile engine))
              "MESA_GL_VERSION_OVERRIDE" nil
              "MESA_LOADER_DRIVER_OVERRIDE" nil}
         opts {:dir project-directory
               :err :stdout
-              :env env}]
-    ;; Closing "is" seems to cause any dmengine output to stdout/err
-    ;; to generate SIGPIPE and close/crash. Also, we need to read
-    ;; the output of dmengine because there is a risk of the stream
-    ;; buffer filling up, stopping the process.
-    ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers
-    (let [p (apply process/start! opts command args)]
-      {:process p
-       :name (.getName engine)
-       :log-stream (process/out p)})))
+              :env env
+              :windows-default-error-mode true}
+        ;; Closing "is" seems to cause any dmengine output to stdout/err
+        ;; to generate SIGPIPE and close/crash. Also, we need to read
+        ;; the output of dmengine because there is a risk of the stream
+        ;; buffer filling up, stopping the process.
+        ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers
+        p (apply process/start! opts command args)]
+    {:process p
+     :name (.getName engine)
+     :log-stream (process/out p)}))
