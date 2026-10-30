@@ -51,8 +51,8 @@ toolSources.each { path, source ->
     add(path, new File(dynamoHome, source), requireAllTools || !nonHostTool)
 }
 desktopPlatforms.each { platform ->
-    ['dlib', 'texc', 'modelc', 'shaderc', 'fontc'].each { library ->
-        def name = libraryName(platform, "${library}_shared")
+    ['dlib_shared', 'texc_shared', 'modelc_shared', 'shaderc_shared', 'fontc_shared', 'dxcompiler'].each { library ->
+        def name = libraryName(platform, library)
         // Match the existing preference for fresh local compiler libraries.
         add("lib/${platform}/${name}", preferLocal("lib/${platform}/${name}", "${platform}/${name}"), useArchive)
     }

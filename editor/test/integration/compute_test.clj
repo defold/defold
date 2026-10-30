@@ -42,4 +42,4 @@
           (is (some? shader))
           (when shader
             (is (= (os/is-win32?)
-                   (coll/any? #(= Graphics$ShaderDesc$Language/LANGUAGE_HLSL_51 (.getLanguage %)) (.getShadersList shader))))))))))
+                   (coll/any? #(= Graphics$ShaderDesc$Language/LANGUAGE_HLSL_60 (.getLanguage %)) (.getShadersList shader))))))))))

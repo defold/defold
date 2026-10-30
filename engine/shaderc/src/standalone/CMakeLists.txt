@@ -15,3 +15,4 @@ defold_target_link_libraries(shaderc_standalone "${TARGET_PLATFORM}"
   spirv-cross-msl
   spirv-cross-reflect
   ${SHADERC_EXTRA_LIBS})
+shaderc_stage_dxc(shaderc_standalone)

@@ -19,6 +19,7 @@
 #include <dlib/time.h>
 #include <wrl/client.h>
 #include "graphics_adapter.h"
+#include "shaderc_dxc.h"
 #include "test_app_graphics.h"
 #include "read_pixels_tests.h"
 #include "dx12/graphics_dx12_private.h"
@@ -46,12 +47,22 @@ static void RequireHR(HRESULT hr)
     ASSERT_EQ(S_OK, hr);
 }
 
-// Build real DXBC and serialized signatures, then load via the public program API.
+static HRESULT CompileShaderSM6(const char* source, const char* profile, IDxcBlob** shader)
+{
+    IDxcBlobUtf8* errors = 0;
+    HRESULT hr = dmShaderc::CompileDXC(source, strlen(source), "main", profile, shader, &errors, 0);
+    if (FAILED(hr) && errors)
+        printf("%s\n", errors->GetStringPointer());
+    if (errors) errors->Release();
+    return hr;
+}
+
+// Build real DXIL and serialized signatures, then load via the public program API.
 struct TestProgram
 {
     ShaderDesc m_Desc;
     // Own the compiled blobs referenced by the descriptor until the test finishes.
-    dmArray<ID3DBlob*> m_Blobs;
+    dmArray<IUnknown*> m_Blobs;
 
     TestProgram()
     {
@@ -70,17 +81,15 @@ struct TestProgram
 
     void AddShaderStage(const char* source, ShaderDesc::ShaderType stage)
     {
-        ComPtr<ID3DBlob> code, errors;
-        const char* profile = "ps_5_1";
+        ComPtr<IDxcBlob> code;
+        const char* profile = "ps_6_0";
         if (stage == ShaderDesc::SHADER_TYPE_COMPUTE)
-            profile = "cs_5_1";
+            profile = "cs_6_0";
         else if (stage == ShaderDesc::SHADER_TYPE_VERTEX)
-            profile = "vs_5_1";
-        HRESULT hr = D3DCompile(source, strlen(source), 0, 0, 0, "main", profile, 0, 0, &code, &errors);
-        if (FAILED(hr) && errors)
-            printf("%s\n", (const char*)errors->GetBufferPointer());
+            profile = "vs_6_0";
+        HRESULT hr = CompileShaderSM6(source, profile, &code);
         RequireHR(hr);
-        AddShader(&m_Desc, ShaderDesc::LANGUAGE_HLSL_51, stage, (uint8_t*)code->GetBufferPointer(), (uint32_t)code->GetBufferSize());
+        AddShader(&m_Desc, ShaderDesc::LANGUAGE_HLSL_60, stage, (uint8_t*)code->GetBufferPointer(), (uint32_t)code->GetBufferSize());
         if (m_Blobs.Full())
             m_Blobs.OffsetCapacity(4);
         m_Blobs.Push(code.Detach());
@@ -501,8 +510,9 @@ TEST_F(DX12Test, DescriptorPagesAndUniformOverflowPreserveDrawData)
         "Texture2D<float4> tex:register(t0); SamplerState smp:register(s0);"
         "cbuffer Values:register(b0){uint index;float value;} RWStructuredBuffer<float4> output:register(u0);"
         "[numthreads(1,1,1)] void main(){output[index]=tex.SampleLevel(smp,float2(0.5,0.5),0)+value;}";
-    ComPtr<ID3DBlob> shader, errors, signature;
-    RequireHR(D3DCompile(source, strlen(source), 0, 0, 0, "main", "cs_5_1", 0, 0, &shader, &errors));
+    ComPtr<IDxcBlob> shader;
+    ComPtr<ID3DBlob> errors, signature;
+    RequireHR(CompileShaderSM6(source, "cs_6_0", &shader));
     D3D12_DESCRIPTOR_RANGE ranges[2] = {};
     ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     ranges[0].NumDescriptors = 1;
@@ -624,9 +634,10 @@ TEST_F(DX12Test, StencilClipsPixelsWithMaskedReference)
     Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1, 0);
     const char* vs = FULLSCREEN_VS;
     const char* ps = "float4 main():SV_Target {return float4(1,0,0,1);}";
-    ComPtr<ID3DBlob> vertex, fragment, errors, signature;
-    RequireHR(D3DCompile(vs, strlen(vs), 0, 0, 0, "main", "vs_5_1", 0, 0, &vertex, &errors));
-    RequireHR(D3DCompile(ps, strlen(ps), 0, 0, 0, "main", "ps_5_1", 0, 0, &fragment, &errors));
+    ComPtr<IDxcBlob> vertex, fragment;
+    ComPtr<ID3DBlob> errors, signature;
+    RequireHR(CompileShaderSM6(vs, "vs_6_0", &vertex));
+    RequireHR(CompileShaderSM6(ps, "ps_6_0", &fragment));
     D3D12_ROOT_SIGNATURE_DESC desc = {};
     desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
     RequireHR(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &errors));
@@ -752,6 +763,12 @@ TEST_F(DX12Test, BoundTargetResizeRestoresClearAttachments)
 // Verifies MRT shaders can draw to a single color attachment without DX12 validation errors.
 TEST_F(DX12Test, MRTShaderWithSingleBoundAttachment)
 {
+    // DXIL validation warns about the deliberately unbound second output.
+    D3D12_MESSAGE_ID expected = D3D12_MESSAGE_ID_CREATEGRAPHICSPIPELINESTATE_RENDERTARGETVIEW_NOT_SET;
+    D3D12_INFO_QUEUE_FILTER filter = {};
+    filter.DenyList.NumIDs = 1;
+    filter.DenyList.pIDList = &expected;
+    RequireHR(m_Info->PushStorageFilter(&filter));
     HRenderTarget target = CreateTestRenderTarget(4, 4);
     SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
     SetViewport(GetContext(), 0, 0, 4, 4);
@@ -781,6 +798,7 @@ TEST_F(DX12Test, MRTShaderWithSingleBoundAttachment)
     DisableProgram(GetContext());
     DeleteProgram(GetContext(), program);
     DeleteRenderTarget(GetContext(), target);
+    m_Info->PopStorageFilter();
 }
 
 // Verifies multisample MRT clears, resize and public readback preserve attachment colors.

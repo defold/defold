@@ -251,8 +251,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
             result.data = compileResult.getBytes();
             return result;
-        } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 ||
-                  shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50 ||
+        } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60 ||
                   shaderLanguage == ShaderDesc.Language.LANGUAGE_MSL_22) {
             Shaderc.ShaderCompileResult result = this.generateCrossCompiledShader(new CrossCompileOptions(shaderType, shaderLanguage, this.ShaderLanguageToVersion(shaderLanguage)));
             if (result.data == null) {

@@ -178,6 +178,7 @@ PACKAGES_IOS_64=[
     "moltenvk-1474891"]
 
 PACKAGES_MACOS_X86_64=[
+    "dxc-1.9.2609",
     "tremolo-b0cb4d1",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
@@ -197,6 +198,7 @@ PACKAGES_MACOS_X86_64=[
 
 PACKAGES_MACOS_ARM64=[
     "dawn-67d4d6e",
+    "dxc-1.9.2609",
     "tremolo-b0cb4d1",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
@@ -214,6 +216,7 @@ PACKAGES_MACOS_ARM64=[
     "zipalign"]
 
 PACKAGES_WIN32_64=[
+    "dxc-1.9.2609",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "glslang-42d9adf5",
@@ -231,6 +234,7 @@ PACKAGES_WIN32_64=[
     "zipalign"]
 
 PACKAGES_LINUX_X86_64=[
+    "dxc-1.9.2609",
     "glslang-ba5c010c",
     "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
@@ -248,6 +252,7 @@ PACKAGES_LINUX_X86_64=[
     "zipalign"]
 
 PACKAGES_LINUX_ARM64=[
+    "dxc-1.9.2609",
     "glslang-2fed4fc0",
     "spirv-cross-97709575",
     "spirv-tools-4fab7435",
@@ -319,7 +324,7 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-EXTERNAL_LIBS = "opus box2d box2d_v2 vkquality harfbuzz sheenbidi libunibreak skribidi dawn".split()
+EXTERNAL_LIBS = "opus box2d box2d_v2 vkquality harfbuzz sheenbidi libunibreak skribidi dawn dxc".split()
 EXTERNAL_PACKAGE_VERSIONS = {
     "opus": "1.5.2",
     "box2d": "3.1.0",
@@ -330,6 +335,7 @@ EXTERNAL_PACKAGE_VERSIONS = {
     "libunibreak": "6.1",
     "skribidi": "a4a2f5",
     "dawn": "67d4d6e",
+    "dxc": "1.9.2609",
 }
 EXTERNAL_PACKAGE_NAMES = {
     "box2d_v2": "box2d_defold",
@@ -1702,6 +1708,9 @@ class Configuration(object):
                 lib_name = format_lib('%s_shared' % (lib), self.target_platform)
                 lib_path = join(dynamo_home, 'lib', self.target_platform, lib_name)
                 self.upload_to_archive(lib_path, '%s/%s' % (full_archive_path, lib_name))
+            dxc_name = format_lib('dxcompiler', self.target_platform)
+            self.upload_to_archive(join(dynamo_home, 'lib', self.target_platform, dxc_name),
+                                   '%s/%s' % (full_archive_path, dxc_name))
 
         sdkpath, sdk_sig_path = self._package_platform_sdk(self.target_platform)
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
@@ -2492,6 +2501,9 @@ class Configuration(object):
             if lib == 'dawn' and self.target_platform not in ('arm64-macos', 'arm64-linux', 'x86_64-linux', 'x86_64-win32') and not self.external_package:
                 self._log("Skipping dawn for unsupported platform: %s" % self.target_platform)
                 continue
+            if lib == 'dxc' and self.target_platform not in ('arm64-macos', 'x86_64-macos', 'arm64-linux', 'x86_64-linux', 'x86_64-win32') and not self.external_package:
+                self._log("Skipping dxc for unsupported platform: %s" % self.target_platform)
+                continue
             self._build_external_lib_cmake(lib, self.target_platform)
 
     def _build_external_lib_cmake(self, lib, platform):
@@ -2547,7 +2559,7 @@ class Configuration(object):
             finally:
                 self.build_tracker.end_command('CMake build external %s' % lib)
 
-            package_directories = ['include', 'lib', 'share']
+            package_directories = ['bin', 'include', 'lib', 'share']
             if lib in EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE:
                 package_directories = ['lib']
             package_directories = [name for name in package_directories

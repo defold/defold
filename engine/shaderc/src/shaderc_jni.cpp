@@ -450,7 +450,7 @@ JNIEXPORT jstring JNICALL Java_ShadercJni_HLSLRootSignatureToString(JNIEnv* env,
     jstring out_string = 0;
     DM_JNI_GUARD_SCOPE_BEGIN();
     {
-#if defined(_WIN32) && defined(DM_BINARY_HLSL_SUPPORTED)
+#if defined(DM_BINARY_HLSL_SUPPORTED)
         if (root_signature_blob != 0)
         {
             jsize blob_size = env->GetArrayLength(root_signature_blob);
