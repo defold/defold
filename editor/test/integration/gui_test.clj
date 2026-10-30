@@ -778,6 +778,25 @@
       (test-util/with-prop [pie :perimeter-vertices 1001]
         (is (g/error-fatal? (test-util/prop-error pie :perimeter-vertices)))))))
 
+;; Verifies legacy PNG frames flow through the GUI graph with engine UV
+;; orientation, matching pie rendering even when the displayed size changes.
+(deftest standalone-image-box-and-pie-uv-test
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/logic/main.gui")
+          box (gui-node scene "png_node")
+          pie (gui-node scene "hexagon")]
+      (doseq [node [box pie]]
+        (g/transact [(g/set-property node :texture "png_texture")
+                     (g/set-property node :pivot :pivot-sw)
+                     (g/set-property node :size-mode :size-mode-manual)
+                     (g/set-property node :manual-size [128.0 96.0 0.0])])
+        (let [{:keys [geom-data uv-data]} (g/node-value node :scene-renderable-user-data)
+              [width height] (g/node-value node :size)]
+          (is (pos? (count uv-data)))
+          (doseq [[[x y] [u v]] (mapv vector geom-data uv-data)]
+            (is (< (Math/abs (- (double u) (/ (double x) (double width)))) 1.0e-6))
+            (is (< (Math/abs (- (double v) (/ (double y) (double height)))) 1.0e-6))))))))
+
 (deftest gui-textures-test
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/logic/main.gui")

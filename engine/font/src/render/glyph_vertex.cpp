@@ -336,7 +336,9 @@ void FontPackGlyphVertices(const FontGlyphVertexParams& params, const FontVertex
     if (shadow_vertices)
     {
         for (uint32_t i = 0; i < FONT_GLYPH_VERTICES_PER_QUAD; ++i)
+        {
             shadow_vertices[i] = face_vertices[i];
+        }
 
         FontGlyphVertex& shadow_4 = shadow_vertices[3];
         FontGlyphVertex& shadow_5 = shadow_vertices[4];

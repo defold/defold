@@ -93,16 +93,26 @@ static const char* GetParagraphLanguageHint(const dmArray<TextLayoutRun>& runs, 
         {
             case SBScriptHIRA:
             case SBScriptKANA:
+            {
                 return "ja";
+            }
             case SBScriptHANG:
+            {
                 return "ko";
+            }
             case SBScriptBOPO:
+            {
                 return "zh-Hant";
+            }
             case SBScriptHANI:
+            {
                 has_han = true;
                 break;
+            }
             default:
+            {
                 break;
+            }
         }
     }
 
@@ -119,62 +129,116 @@ static const char* GetScriptLanguageHint(uint32_t script, const char* paragraph_
     switch (script)
     {
         case SBScriptARAB:
+        {
             return "ar";
+        }
         case SBScriptARMN:
+        {
             return "hy";
+        }
         case SBScriptBENG:
+        {
             return "bn";
+        }
         case SBScriptBOPO:
+        {
             return "zh-Hant";
+        }
         case SBScriptCYRL:
+        {
             return "ru";
+        }
         case SBScriptDEVA:
+        {
             return "hi";
+        }
         case SBScriptGEOR:
+        {
             return "ka";
+        }
         case SBScriptGREK:
+        {
             return "el";
+        }
         case SBScriptGUJR:
+        {
             return "gu";
+        }
         case SBScriptGURU:
+        {
             return "pa";
+        }
         case SBScriptHANG:
+        {
             return "ko";
+        }
         case SBScriptHANI:
         case SBScriptHIRA:
         case SBScriptKANA:
+        {
             return paragraph_language;
+        }
         case SBScriptZINH:
         case SBScriptZYYY:
+        {
             return paragraph_language;
+        }
         case SBScriptHEBR:
+        {
             return "he";
+        }
         case SBScriptKNDA:
+        {
             return "kn";
+        }
         case SBScriptLAOO:
+        {
             return "lo";
+        }
         case SBScriptMLYM:
+        {
             return "ml";
+        }
         case SBScriptORYA:
+        {
             return "or";
+        }
         case SBScriptTAML:
+        {
             return "ta";
+        }
         case SBScriptTELU:
+        {
             return "te";
+        }
         case SBScriptTHAI:
+        {
             return "th";
+        }
         case SBScriptTIBT:
+        {
             return "bo";
+        }
         case SBScriptETHI:
+        {
             return "am";
+        }
         case SBScriptKHMR:
+        {
             return "km";
+        }
         case SBScriptMYMR:
+        {
             return "my";
+        }
         case SBScriptSINH:
+        {
             return "si";
+        }
         default:
+        {
             return default_language;
+        }
     }
 }
 
@@ -347,8 +411,8 @@ void TextLayoutSegmentRuns(uint32_t* codepoints, uint32_t num_codepoints,
         if (paragraph_end > paragraph_start)
         {
             SBParagraphRef bidi_paragraph = SBAlgorithmCreateParagraph(bidi_algorithm, paragraph_start,
-                                                                        paragraph_end - paragraph_start,
-                                                                        SBLevelDefaultLTR);
+                                                                       paragraph_end - paragraph_start,
+                                                                       SBLevelDefaultLTR);
             paragraph_direction = (SBParagraphGetBaseLevel(bidi_paragraph) & 1)
                                 ? TEXT_DIRECTION_RTL : TEXT_DIRECTION_LTR;
             SBParagraphRelease(bidi_paragraph);
@@ -493,7 +557,9 @@ static void AddLineDecorations(TextLayout* layout, uint16_t line_index,
 
         if (!isfinite(decoration_x) || !isfinite(decoration_length) || decoration_length <= 0.0f ||
             glyph_start == UINT32_MAX || glyph_end - glyph_start > UINT16_MAX)
+        {
             continue;
+        }
         const float                         pattern_offset   = decoration_x - origin_x;
         const float                         decoration_inset = decoration_length > padding ? (float)padding : 0.0f;
         float                               decoration_y     = source.line.y;
@@ -563,7 +629,7 @@ static void AddLineDecorations(TextLayout* layout, uint16_t line_index,
 
 static void AllocLayout(LayoutContext* ctx, HFontCollection collection)
 {
-    ctx->m_Alloc = skb_temp_alloc_create(4*1024);
+    ctx->m_Alloc = skb_temp_alloc_create(4 * 1024);
 }
 
 static void FreeLayout(LayoutContext* ctx)
@@ -573,9 +639,9 @@ static void FreeLayout(LayoutContext* ctx)
 }
 
 static bool LayoutText(LayoutContext* ctx,
-                        uint32_t* codepoints, uint32_t num_codepoints,
-                        TextLayoutSettings* settings,
-                        TextLayout* layout)
+                       uint32_t* codepoints, uint32_t num_codepoints,
+                       TextLayoutSettings* settings,
+                       TextLayout* layout)
 {
     HFontCollection font_collection = layout->m_FontCollection;
 
@@ -600,7 +666,7 @@ static bool LayoutText(LayoutContext* ctx,
         skb_attribute_make_baseline_align(SKB_BASELINE_MIDDLE),
     };
 
-    skb_layout_params_t params = {0};
+    skb_layout_params_t params = { 0 };
     params.font_collection  = FontCollectionGetSkribidiPtr(font_collection);
     params.layout_width     = line_width;
     params.layout_height    = SKB_SIZE_AUTO;
@@ -716,7 +782,7 @@ static bool LayoutText(LayoutContext* ctx,
             }
 
             const TextLayoutObject* object = object_index < layout->m_Objects.Size() &&
-                                                     layout->m_Objects[object_index].m_TextOffset == run_offset
+                                             layout->m_Objects[object_index].m_TextOffset == run_offset
                                                  ? &layout->m_Objects[object_index]
                                                  : 0;
             if (object)
@@ -888,11 +954,13 @@ static bool LayoutText(LayoutContext* ctx,
                     content_advance += skbglyph->advance_x;
                     content_start_x = fminf(content_start_x, gx);
                     if (content_first_glyph == UINT32_MAX)
+                    {
                         content_first_glyph = layout->m_Glyphs.Size();
+                    }
                     content_last_glyph = layout->m_Glyphs.Size();
                 }
 
-                TextGlyph glyph = {0};
+                TextGlyph glyph = { 0 };
                 glyph.m_X               = gx;
                 glyph.m_Y               = gy;
                 glyph.m_GlyphIndex      = skbglyph->gid;
@@ -918,14 +986,14 @@ static bool LayoutText(LayoutContext* ctx,
 
 #if defined(DM_DEBUG_TEXT_LAYOUT_SKRIBIDI)
                 {
-                    printf ("gid: %d  c: '%c'  x/y: (%.3f, %.3f)  idx: %d  w/h: %.2f, %.2f\n",
-                            glyph.m_GlyphIndex,
-                            glyph.m_Codepoint,
-                            glyph.m_X,
-                            glyph.m_Y,
-                            glyph.m_Cluster,
-                            glyph.m_Width,
-                            glyph.m_Height);
+                    printf("gid: %d  c: '%c'  x/y: (%.3f, %.3f)  idx: %d  w/h: %.2f, %.2f\n",
+                           glyph.m_GlyphIndex,
+                           glyph.m_Codepoint,
+                           glyph.m_X,
+                           glyph.m_Y,
+                           glyph.m_Cluster,
+                           glyph.m_Width,
+                           glyph.m_Height);
                 }
 #endif
             }
@@ -1077,13 +1145,13 @@ static TextResult TextLayoutSkribidiCreateInternal(HFontCollection     collectio
         return TEXT_RESULT_OK;
     }
 
-    LayoutContext ctx = {0};
+    LayoutContext ctx = { 0 };
     AllocLayout(&ctx, collection);
 
     bool result = LayoutText(&ctx,
-                                codepoints, num_codepoints,
-                                settings,
-                                layout);
+                             codepoints, num_codepoints,
+                             settings,
+                             layout);
 
     FreeLayout(&ctx);
 
@@ -1103,8 +1171,8 @@ static TextResult TextLayoutSkribidiCreateInternal(HFontCollection     collectio
 }
 
 TextResult TextLayoutSkribidiCreate(HFontCollection collection,
-                            uint32_t* codepoints, uint32_t num_codepoints,
-                            TextLayoutSettings* settings, TextLayout** outlayout)
+                                    uint32_t* codepoints, uint32_t num_codepoints,
+                                    TextLayoutSettings* settings, TextLayout** outlayout)
 {
     return TextLayoutSkribidiCreateInternal(collection, codepoints, num_codepoints, settings, 0, outlayout);
 }

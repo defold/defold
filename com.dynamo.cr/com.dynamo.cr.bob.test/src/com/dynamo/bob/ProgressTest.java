@@ -14,6 +14,10 @@
 
 package com.dynamo.bob;
 
+import com.dynamo.bob.bundle.BundleHelper;
+import com.defold.extender.client.ExtenderProgressListener;
+import com.defold.extender.client.ExtenderResource;
+
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -204,9 +208,182 @@ public class ProgressTest {
     }
 
     @Test
+    public void buildingEngineStageLabel() {
+        assertEquals("Linking engine", new IProgress.Message.BuildingEngineStage("arm64-ios", "LINKING", "Linking engine", -1, -1).label());
+        assertEquals("SDK", new IProgress.Message.BuildingEngineStage("arm64-ios", "SDK", null, -1, -1).label());
+        assertEquals("ext: compiling source files (3/17)", new IProgress.Message.BuildingEngineStage("arm64-ios", "COMPILING", "ext: compiling source files", 3, 17).label());
+        assertEquals("", new IProgress.Message.BuildingEngineStage("arm64-ios", null, null, -1, -1).label());
+    }
+
+    @Test
+    public void concurrentSubtasksNeverReportDecreasingFractions() throws Exception {
+        RecordingReporter reporter = new RecordingReporter();
+        Progress progress = new Progress(reporter);
+        IProgress.ISplit split = progress.split(4);
+        List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < 4; ++i) {
+            IProgress subtask = split.subtask();
+            IProgress.ISplit subSplit = subtask.split(1000);
+            threads.add(new Thread(() -> {
+                for (int j = 0; j < 1000; ++j) {
+                    subSplit.worked();
+                }
+                subtask.close();
+            }));
+        }
+        threads.forEach(Thread::start);
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        progress.close();
+
+        double[] fractions = reporter.reports.stream().mapToDouble(Report::fraction).toArray();
+        for (int i = 1; i < fractions.length; ++i) {
+            assertTrue("fraction decreased at report " + i, fractions[i] >= fractions[i - 1]);
+        }
+        assertEquals(1.0, fractions[fractions.length - 1], 0.0);
+    }
+
+    @Test
+    public void deferredProgressHoldsMessagesUntilReleased() {
+        RecordingReporter reporter = new RecordingReporter();
+        Progress progress = new Progress(reporter);
+        IProgress.ISplit phases = progress.split(2);
+        Progress.Deferred deferred = Progress.deferMessages(phases.subtask());
+        IProgress.Message.BuildingEngineStage first = new IProgress.Message.BuildingEngineStage("arm64-ios", "SDK", "Downloading SDK", -1, -1);
+        IProgress.Message.BuildingEngineStage second = new IProgress.Message.BuildingEngineStage("arm64-ios", "LINKING", "Linking engine", -1, -1);
+
+        IProgress.ISplit split = deferred.split(2);
+        IProgress architecture = split.subtask();
+        architecture.message(first);
+        architecture.message(second);
+        split.worked();
+        assertEquals(1, reporter.reports.size());
+        assertSame(IProgress.Message.Working.INSTANCE, reporter.reports.get(0).message());
+        assertEquals(0.25, reporter.reports.get(0).fraction(), 0.0);
+
+        deferred.releaseMessages();
+        assertEquals(2, reporter.reports.size());
+        assertSame(second, reporter.reports.get(1).message());
+
+        IProgress.Message.BuildingEngineStage third = new IProgress.Message.BuildingEngineStage("arm64-ios", "SUCCESS", null, -1, -1);
+        architecture.message(third);
+        assertSame(third, reporter.reports.get(2).message());
+
+        architecture.close();
+        architecture.message(first);
+        deferred.close();
+        deferred.message(first);
+        assertSame(third, reporter.reports.get(reporter.reports.size() - 1).message());
+        assertEquals(0.5, reporter.reports.get(reporter.reports.size() - 1).fraction(), 0.0);
+    }
+
+    @Test
+    public void workReportCarriesLatestMessage() throws Exception {
+        RecordingReporter reporter = new RecordingReporter();
+        Progress progress = new Progress(reporter);
+        IProgress.ISplit split = progress.split(1000);
+        IProgress.Message.BuildingEngineStage stage = new IProgress.Message.BuildingEngineStage("arm64-ios", "LINKING", "Linking engine", -1, -1);
+        Thread worker = new Thread(() -> {
+            for (int i = 0; i < 999; ++i) {
+                split.worked();
+            }
+        });
+        worker.start();
+        progress.message(stage);
+        worker.join();
+
+        assertSame(stage, reporter.reports.get(reporter.reports.size() - 1).message());
+    }
+
+    private static ExtenderResource uploadedFile(String path) {
+        return new ExtenderResource() {
+            @Override
+            public String getPath() {
+                return path;
+            }
+
+            @Override
+            public byte[] getContent() {
+                return new byte[0];
+            }
+
+            @Override
+            public long getLastModified() {
+                return 0;
+            }
+        };
+    }
+
+    // Verifies the server percent never moves the progress backwards and success fills it,
+    // guarding against the bar jumping back or stopping short of 100% at the end of a build.
+    @Test
+    public void extenderProgressListenerNeverDecreases() {
+        RecordingReporter reporter = new RecordingReporter();
+        Progress progress = new Progress(reporter);
+        ExtenderProgressListener listener = BundleHelper.createProgressListener(progress, "arm64-ios", List.of());
+
+        listener.onProgress("SDK", "Downloading SDK", 10, -1, -1);
+        listener.onProgress("LINKING", "Linking engine", 80, -1, -1);
+        listener.onProgress("PACKAGING", "Packaging build results", 50, -1, -1);
+        assertEquals(0.8, reporter.reports.get(reporter.reports.size() - 1).fraction(), 1e-9);
+        listener.onProgress("SUCCESS", "Build succeeded", 95, -1, -1);
+
+        Report last = reporter.reports.get(reporter.reports.size() - 1);
+        assertEquals(1.0, last.fraction(), 1e-9);
+        assertEquals("Build succeeded", ((IProgress.Message.BuildingEngineStage) last.message()).label());
+        double[] fractions = reporter.reports.stream().mapToDouble(Report::fraction).toArray();
+        for (int i = 1; i < fractions.length; ++i) {
+            assertTrue(fractions[i] >= fractions[i - 1]);
+        }
+    }
+
+    // Verifies compile progress follows compiled files over all uploaded sources, guarding
+    // against the server estimate stalling once the first extension has been compiled.
+    @Test
+    public void extenderProgressListenerInterpolatesCompiledFiles() {
+        RecordingReporter reporter = new RecordingReporter();
+        Progress progress = new Progress(reporter);
+        List<ExtenderResource> sources = List.of(
+                uploadedFile("first/src/a.cpp"),
+                uploadedFile("second/src/b.cpp"),
+                uploadedFile("second/src/c.c"),
+                uploadedFile("second/src/d.mm"),
+                uploadedFile("second/include/e.h"));
+        ExtenderProgressListener listener = BundleHelper.createProgressListener(progress, "arm64-ios", sources);
+
+        listener.onProgress("COMPILING", "first: compiling source files", 35, 0, 1);
+        assertEquals(0.35, reporter.reports.get(reporter.reports.size() - 1).fraction(), 1e-9);
+        listener.onProgress("COMPILING", "first: compiling source files", 80, 1, 1);
+        assertEquals(0.46, reporter.reports.get(reporter.reports.size() - 1).fraction(), 1e-9);
+        listener.onProgress("COMPILING", "second", 80, -1, -1);
+        assertEquals(0.46, reporter.reports.get(reporter.reports.size() - 1).fraction(), 1e-9);
+        listener.onProgress("COMPILING", "second: compiling source files", 80, 2, 3);
+        assertEquals(0.68, reporter.reports.get(reporter.reports.size() - 1).fraction(), 1e-9);
+        listener.onProgress("COMPILING", "second: compiling source files", 80, 3, 3);
+        assertEquals(0.8, reporter.reports.get(reporter.reports.size() - 1).fraction(), 1e-9);
+    }
+
+    // Verifies only sources compiled for the target platform are expected, guarding against
+    // compile progress stopping short on platforms that skip Objective-C sources.
+    @Test
+    public void countExtenderSourceFilesSkipsAppleSourcesOnOtherPlatforms() {
+        List<ExtenderResource> sources = List.of(
+                uploadedFile("ext/src/a.cpp"),
+                uploadedFile("ext/src/nested/b.CC"),
+                uploadedFile("ext/commonsrc/c.c"),
+                uploadedFile("ext/src/d.mm"),
+                uploadedFile("ext/src/e.swift"),
+                uploadedFile("ext/include/f.h"),
+                uploadedFile("ext/lib/g.cpp"));
+        assertEquals(5, BundleHelper.countExtenderSourceFiles(sources, "arm64-osx"));
+        assertEquals(3, BundleHelper.countExtenderSourceFiles(sources, "x86_64-linux"));
+    }
+
+    @Test
     public void closeStopsFurtherNotifications() {
-        var reporter = new RecordingReporter();
-        var progress = new Progress(reporter);
+        RecordingReporter reporter = new RecordingReporter();
+        Progress progress = new Progress(reporter);
 
         progress.close();
         progress.message(IProgress.Message.Cleaning.INSTANCE);

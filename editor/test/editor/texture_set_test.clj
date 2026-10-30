@@ -14,7 +14,6 @@
 
 (ns editor.texture-set-test
   (:require [clojure.test :refer :all]
-            [editor.slice9 :as slice9]
             [editor.texture-set :as texture-set]))
 
 (set! *warn-on-reflection* true)
@@ -27,8 +26,8 @@
 ;; Expected transform for atlas sub-rect with Bob order BL,TL,TR,BR matching those UVs (engine column-major mat3).
 (def ^:private expected-transform-for-atlas-sub-rect
   [0.4 0.0 0.0
-   0.0 -0.6 0.0
-   0.1 0.8 1.0])
+   0.0 0.6 0.0
+   0.1 0.2 1.0])
 
 (defn- vec= [a b]
   (and (= (count a) (count b))
@@ -41,17 +40,12 @@
 
 ;; Tex-coords for a sub-region of atlas (not unit square) -> non-identity transform.
 (deftest vertex-data-texture-transform-frame-test
-  (let [;; Preview UV order: uvnw, uvsw, uvse, uvne (see frame-vertex-data)
+  (let [;; Canonical UV order: bottom-left, top-left, top-right, bottom-right.
         tex-coords [(vector-of :double 0.1 0.2)
                     (vector-of :double 0.1 0.8)
                     (vector-of :double 0.5 0.8)
                     (vector-of :double 0.5 0.2)]
-        tex-coords-raw [(vector-of :double 0.1 0.8)
-                        (vector-of :double 0.1 0.2)
-                        (vector-of :double 0.5 0.2)
-                        (vector-of :double 0.5 0.8)]
         animation-frame {:tex-coords tex-coords
-                         :tex-coords-raw tex-coords-raw
                          :atlas-rotated false
                          :width 40.0
                          :height 60.0
@@ -68,18 +62,14 @@
                     (vector-of :double 0.1 0.8)
                     (vector-of :double 0.5 0.8)
                     (vector-of :double 0.5 0.2)]
-        tex-coords-raw [(vector-of :double 0.1 0.8)
-                        (vector-of :double 0.1 0.2)
-                        (vector-of :double 0.5 0.2)
-                        (vector-of :double 0.5 0.8)]
         animation-frame {:tex-coords tex-coords
-                         :tex-coords-raw tex-coords-raw
                          :atlas-rotated false
                          :width 40.0
                          :height 60.0
-                         :page-index 0}
+                         :page-index 0
+                         :texture-width 100.0
+                         :texture-height 100.0}
         slice9-margins [10.0 10.0 10.0 10.0]
-        _ (is (slice9/sliced? slice9-margins) "slice9 is active")
         out (texture-set/vertex-data animation-frame :size-mode-manual [80.0 120.0] slice9-margins :pivot-center)]
     (is (:texture-transform out))
     (is (= 9 (count (:texture-transform out))))
@@ -92,10 +82,6 @@
                     (vector-of :double 0.1 0.8)
                     (vector-of :double 0.5 0.8)
                     (vector-of :double 0.5 0.2)]
-        tex-coords-raw [(vector-of :double 0.1 0.8)
-                        (vector-of :double 0.1 0.2)
-                        (vector-of :double 0.5 0.2)
-                        (vector-of :double 0.5 0.8)]
         ;; Quad as two triangles: normalized positions and matching UVs.
         vertex-coords [(vector-of :double 0.0 0.0)
                        (vector-of :double 1.0 0.0)
@@ -108,7 +94,6 @@
                            (vector-of :double 0.1 0.8)]
         indices [0 1 2 0 2 3]
         animation-frame {:tex-coords tex-coords
-                         :tex-coords-raw tex-coords-raw
                          :atlas-rotated false
                          :use-geometries true
                          :vertex-coords vertex-coords

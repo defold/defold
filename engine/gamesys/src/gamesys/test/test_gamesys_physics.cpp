@@ -786,6 +786,51 @@ TEST_F(ComponentTest, PhysicsListenerTest)
 
 }
 
+// Verifies that with use_fixed_timestep the physics.set_event_listener() callback runs once per fixed step,
+// inside the fixed update. Guards against batched events being delivered only after update() (#10917).
+TEST_F(ComponentTest, PhysicsListenerFixedTimestepTest)
+{
+    m_PhysicsContextBox2D.m_BaseContext.m_UseFixedTimestep = true;
+    m_UpdateContext.m_FixedUpdateFrequency = 60;
+    m_UpdateContext.m_DT = 3.5f / 60.0f;
+
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, "/collision_object/callback_fixed_object.goc", dmHashString64("/test_object"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go_b);
+
+    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, "/collision_object/callback_trigger.goc", dmHashString64("/test_trigger"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go_a);
+
+    bool tests_done = false;
+    for (int i = 0; i < 100 && !tests_done; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+    ASSERT_TRUE(tests_done);
+
+    lua_getglobal(L, "fixed_steps");
+    int fixed_steps = (int)lua_tointeger(L, -1);
+    lua_getglobal(L, "callbacks");
+    int callbacks = (int)lua_tointeger(L, -1);
+    lua_getglobal(L, "callbacks_outside_fixed_update");
+    int callbacks_outside_fixed_update = (int)lua_tointeger(L, -1);
+    lua_getglobal(L, "steps_with_multiple_callbacks");
+    int steps_with_multiple_callbacks = (int)lua_tointeger(L, -1);
+    lua_pop(L, 4);
+
+    ASSERT_EQ(0, callbacks_outside_fixed_update);
+    ASSERT_EQ(0, steps_with_multiple_callbacks);
+    ASSERT_EQ(fixed_steps, callbacks);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(ComponentTest, PhysicsDDFDecoderTest)
 {
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);

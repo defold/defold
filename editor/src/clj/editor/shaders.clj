@@ -74,6 +74,13 @@
     "shaders/basic-texture.vp"
     "shaders/basic-texture.fp"))
 
+(def basic-texture-tone-mapped-world-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-world
+     :uniforms {"mtx_world_view_proj" :view-proj}}
+    "shaders/basic-texture.vp"
+    "shaders/basic-texture-tone-mapped.fp"))
+
 (def basic-texture-color-local-space
   (editor-shader
     {:coordinate-space :coordinate-space-local
