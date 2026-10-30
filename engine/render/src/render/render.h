@@ -185,8 +185,8 @@ namespace dmRender
         /// Max debug vertex count
         /// NOTE: This is per debug-type and not the total sum
         uint32_t                        m_MaxDebugVertexCount;
-        /// Requested execution mode. Defaults to inline; does not enable an executor.
-        ExecutionMode                   m_ExecutionMode;
+        /// Request threaded rendering. Defaults to false; subject to renderer capabilities.
+        bool                            m_UseThread;
     };
 
     struct RenderCameraData
@@ -239,8 +239,8 @@ namespace dmRender
 
     /**
      * Create renderer state and its execution context on the game owner. The current
-     * integration is inline-only; unsupported modes return null before initialization.
-     * Validate engine startup capabilities before creating graphics or extensions.
+     * integration is inline-only; unsupported modes log a diagnostic and return null
+     * before initializing renderer state.
      */
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
     /**

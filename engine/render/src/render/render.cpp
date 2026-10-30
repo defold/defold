@@ -120,7 +120,7 @@ namespace dmRender
     , m_MaxCharacters(0)
     , m_CommandBufferSize(1024)
     , m_MaxDebugVertexCount(0)
-    , m_ExecutionMode(EXECUTION_MODE_INLINE)
+    , m_UseThread(false)
     {
 
     }
@@ -137,12 +137,15 @@ namespace dmRender
         // No production executor is available yet. Standalone queue/executor tests
         // create their own execution context without initializing renderer state.
         ExecutionSelection selection;
-        HRenderExecution execution = NewRenderExecution(params.m_ExecutionMode, false, &selection);
+        ExecutionMode mode = params.m_UseThread ? EXECUTION_MODE_THREADED : EXECUTION_MODE_INLINE;
+        HRenderExecution execution = NewRenderExecution(mode, false, &selection);
         if (!execution)
         {
             dmLogError("Unable to create render context: %s", GetExecutionResultString(selection.m_ExecutionResult));
             return 0;
         }
+        dmLogInfo("Render execution: %s (%s)", GetExecutionModeName(selection.m_ExecutionMode),
+            GetExecutionResultString(selection.m_ExecutionResult));
 
         RenderContext* context = new RenderContext;
         context->m_Execution = execution;

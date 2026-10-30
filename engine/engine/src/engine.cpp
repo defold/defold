@@ -1166,24 +1166,6 @@ namespace dmEngine
             }
         }
 
-        // Select before extensions, graphics ownership and bootstrap resources exist.
-        // The build define is the only selector during development. Threaded builds
-        // reject startup until executor infrastructure and migrated paths are available.
-#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
-        dmRender::ExecutionMode execution_mode = dmRender::EXECUTION_MODE_THREADED;
-#else
-        dmRender::ExecutionMode execution_mode = dmRender::EXECUTION_MODE_INLINE;
-#endif
-        dmRender::ExecutionSelection execution_selection = dmRender::ResolveExecutionMode(execution_mode, dmRender::GetExecutionCapabilities(false));
-        if (execution_selection.m_ExecutionMode == dmRender::EXECUTION_MODE_INVALID)
-        {
-            dmLogError("Render execution: %s (%s)", dmRender::GetExecutionModeName(execution_selection.m_ExecutionMode),
-                dmRender::GetExecutionResultString(execution_selection.m_ExecutionResult));
-            return false;
-        }
-        dmLogInfo("Render execution: %s (%s)", dmRender::GetExecutionModeName(execution_selection.m_ExecutionMode),
-            dmRender::GetExecutionResultString(execution_selection.m_ExecutionResult));
-
         dmBuffer::NewContext();
 
         dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
@@ -1505,7 +1487,10 @@ namespace dmEngine
         dmGameObject::SetInputStackDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY, dmGameObject::DEFAULT_MAX_INPUT_STACK_CAPACITY));
 
         dmRender::RenderContextParams render_params;
-        render_params.m_ExecutionMode = execution_selection.m_ExecutionMode;
+        // TODO: Replace the development build selector with a render.use_thread project setting.
+#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
+        render_params.m_UseThread = true;
+#endif
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
         render_params.m_MaxRenderTargets = 32;

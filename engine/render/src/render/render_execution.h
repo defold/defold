@@ -116,8 +116,7 @@ namespace dmRender
     const char* GetExecutionResultString(ExecutionResult result);
 
     /**
-     * Resolve and create execution state. Engine startup validates the requested mode
-     * separately before extension/graphics initialization; the renderer owns this state.
+     * Validate the requested mode and create execution state owned by the renderer.
      * The caller becomes the game owner; inline also assigns rendering to this caller.
      * No thread is created. Executor availability comes from engine integration, not
      * project configuration, and remains false until migrated paths can be executed.

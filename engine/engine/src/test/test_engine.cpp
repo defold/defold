@@ -258,8 +258,8 @@ TEST_F(EngineTest, ProjectFail)
     ProfileFinalize(); // Making sure it is cleaned up
 }
 
-// Verify the development build gate selects inline startup or rejection before graphics,
-// and both partial initialization and public engine creation clean up their contexts.
+// Verify the development build gate selects inline startup or rejection at render-context
+// creation, and both partial initialization and public engine creation clean up their contexts.
 TEST_F(EngineTest, RenderExecutionBuildGateStartupCleanup)
 {
 #if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
@@ -279,15 +279,17 @@ TEST_F(EngineTest, RenderExecutionBuildGateStartupCleanup)
     dmEngineInitialize();
 
     // Inspect a rejected partial initialization before Delete can clear its contexts.
-    bool rejected_before_graphics = true;
+    bool rejected_at_render_context = true;
+    bool partial_graphics_cleaned = true;
     if (!expected_success)
     {
         dmEngine::HEngine partial = dmEngine::New(0);
         bool initialized = dmEngine::Init(partial, DM_ARRAY_SIZE(argv), (char**)argv);
-        // A missing project must not masquerade as execution-mode rejection.
-        rejected_before_graphics = !initialized && partial->m_Config && !partial->m_ConnectionAppMode && !partial->m_Window &&
-            !partial->m_GraphicsContext && !partial->m_RenderContext && !partial->m_GameSystem;
+        // Earlier startup failures must not masquerade as execution-mode rejection.
+        rejected_at_render_context = !initialized && partial->m_Config && !partial->m_ConnectionAppMode && partial->m_Window &&
+            partial->m_GraphicsContext && partial->m_ScriptContext && !partial->m_RenderContext && !partial->m_GameSystem;
         dmEngine::Delete(partial);
+        partial_graphics_cleaned = dmGraphics::GetInstalledContext() == 0;
     }
 
     // Exercise the public creation path too: it owns cleanup on initialization failure.
@@ -307,7 +309,8 @@ TEST_F(EngineTest, RenderExecutionBuildGateStartupCleanup)
 
     ASSERT_EQ(expected_success, created);
     ASSERT_TRUE(graphics_cleaned);
-    ASSERT_TRUE(rejected_before_graphics);
+    ASSERT_TRUE(rejected_at_render_context);
+    ASSERT_TRUE(partial_graphics_cleaned);
     if (expected_success)
     {
         ASSERT_TRUE(owns_all_roles);

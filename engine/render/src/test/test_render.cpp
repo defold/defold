@@ -286,14 +286,6 @@ TEST_F(dmRenderTest, RenderContextOwnsInlineExecution)
     ASSERT_TRUE(dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_RENDER));
 }
 
-// Invalid execution must fail before touching the absent graphics/script contexts.
-TEST(RenderContext, InvalidExecutionRejectedBeforeInitialization)
-{
-    dmRender::RenderContextParams params;
-    params.m_ExecutionMode = dmRender::EXECUTION_MODE_INVALID;
-    ASSERT_EQ((dmRender::HRenderContext)0, dmRender::NewRenderContext(0, params));
-}
-
 // A compiled-in capability alone must not enable an unmigrated renderer without an executor.
 TEST(RenderContext, ThreadedExecutionRequiresExecutor)
 {
@@ -301,7 +293,7 @@ TEST(RenderContext, ThreadedExecutionRequiresExecutor)
         return;
 
     dmRender::RenderContextParams params;
-    params.m_ExecutionMode = dmRender::EXECUTION_MODE_THREADED;
+    params.m_UseThread = true;
     ASSERT_EQ((dmRender::HRenderContext)0, dmRender::NewRenderContext(0, params));
 }
 
