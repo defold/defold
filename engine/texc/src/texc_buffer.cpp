@@ -38,10 +38,16 @@ namespace dmTexc
     static bool DeflateWriter(void* context, const void* buffer, uint32_t buffer_size)
     {
         dmArray<uint8_t>* out = (dmArray<uint8_t>*) context;
-        if (out->Remaining() < buffer_size) {
-            int r = out->Remaining();
-            int offset = dmMath::Max((int) buffer_size - r, 32 * 1024);
-            out->OffsetCapacity(offset);
+        uint64_t required = (uint64_t)out->Size() + buffer_size;
+        if (required > UINT32_MAX)
+        {
+            return false;
+        }
+        if (required > out->Capacity())
+        {
+            // Doubling keeps cumulative allocations and copies linear in the output size.
+            uint64_t capacity = dmMath::Max(required, (uint64_t)out->Capacity() * 2);
+            out->SetCapacity((uint32_t)dmMath::Min(capacity, (uint64_t)UINT32_MAX));
         }
         out->PushArray((const uint8_t*) buffer, buffer_size);
         return true;
@@ -49,20 +55,33 @@ namespace dmTexc
 
     static Buffer* CompressBuffer_Deflate(void* data, uint32_t size)
     {
-        uint8_t* delta_encoded_data = (uint8_t*)malloc(size);
-        memcpy(delta_encoded_data, data, size);
-        delta_encode(delta_encoded_data, size);
-        data = delta_encoded_data;
+        uint8_t* delta_encoded_data = size ? (uint8_t*)malloc(size) : 0;
+        if (size)
+        {
+            if (!delta_encoded_data)
+            {
+                return 0;
+            }
+            memcpy(delta_encoded_data, data, size);
+            delta_encode(delta_encoded_data, size);
+        }
 
         dmArray<uint8_t> out_data_array;
         out_data_array.SetCapacity(32 * 1024);
-        dmZlib::DeflateBuffer(data, size, 9, &out_data_array, DeflateWriter);
+        dmZlib::Result result = dmZlib::DeflateBuffer(delta_encoded_data, size, 9, &out_data_array, DeflateWriter);
+        free(delta_encoded_data);
+        if (result != dmZlib::RESULT_OK)
+        {
+            return 0;
+        }
         size = out_data_array.Size();
 
         uint8_t* out_data = (uint8_t*)malloc(size);
-        memcpy(out_data, &out_data_array[0], size);
-
-        free(delta_encoded_data);
+        if (!out_data)
+        {
+            return 0;
+        }
+        memcpy(out_data, out_data_array.Begin(), size);
 
         Buffer* out = new Buffer;
         out->m_Data = out_data;

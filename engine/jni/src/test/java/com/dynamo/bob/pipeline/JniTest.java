@@ -112,6 +112,23 @@ public class JniTest
         assertEquals(null, rect.max);
     }
 
+    // Verify optional converted pointers are released while the returned object keeps its independent data.
+    @Test
+    public void testJ2C_MiscWithOptionalPointer() {
+        Testapi.Misc misc = new Testapi.Misc();
+        misc.string = "Hello From Java!";
+        misc.forward1 = new Testapi.Forward();
+        misc.forward1.i32 = 42;
+        misc.nullPtr = new Testapi.Vec2i();
+        misc.nullPtr.x = 7;
+        for (int i = 0; i < 16; ++i) {
+            Testapi.Misc copy = TestDuplicateMisc(misc);
+            assertEquals(42, copy.forward1.i32);
+            assertEquals("Hello From C!", copy.string);
+            assertEquals(7, misc.nullPtr.x);
+        }
+    }
+
     // ----------------------------------------------------
 
     // C to Java
