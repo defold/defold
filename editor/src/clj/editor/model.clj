@@ -318,9 +318,11 @@
 
 (defn- build-model
   [resource dep-resources {:keys [pb-map] :as user-data}]
-  (pipeline/build-protobuf resource dep-resources
-                           {:pb-class ModelProto$Model
-                            :pb-map (assoc pb-map :mesh-set (rig/compile-mesh-set dep-resources user-data))}))
+  (pipeline/build-protobuf
+    resource dep-resources
+    {:pb-class ModelProto$Model
+     :pb-map (assoc pb-map
+               :mesh-set (rig/compile-mesh-set dep-resources user-data))}))
 
 (g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target animation-set-build-target-single mesh-content mesh-set-build-target materials material-binding-infos material-skinning-infos skeleton-build-target animations mesh mesh-name mesh-index collision-meshes skeleton create-go-bones]
   (or (some->> (into [(prop-resource-error :fatal _node-id :mesh mesh scene-message)
