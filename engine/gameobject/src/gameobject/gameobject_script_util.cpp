@@ -22,6 +22,7 @@
 #include "../proto/gameobject/lua_ddf.h"
 #include "gameobject_script_util.h"
 #include "gameobject_props_lua.h"
+#include "gameobject_script.h"
 
 namespace dmGameObject
 {
@@ -52,7 +53,7 @@ namespace dmGameObject
                     return false;
                 }
 
-                dmScript::Result sr = dmScript::AddModule(script_context, &module_script->m_LuaModule->m_Source, module_name, module_script, name_hash);
+                dmScript::Result sr = dmScript::AddModule(script_context, &module_script->m_LuaModule->m_Source, module_name, module_script, name_hash, LoadLuaModuleResource);
                 if (sr != dmScript::RESULT_OK)
                 {
                     dmResource::Release(factory, module_script);

@@ -100,6 +100,9 @@ namespace dmGameObject
 
     void    InitializeScript(dmScript::HContext context);
 
+    // Pushes a module chunk and releases temporary source data before it can execute.
+    int LoadLuaModuleResource(dmScript::HContext context, lua_State* L, void* resource);
+
     HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module);
     bool    ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module);
     void    DeleteScript(HScript script);
