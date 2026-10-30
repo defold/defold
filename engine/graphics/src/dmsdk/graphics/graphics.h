@@ -1804,6 +1804,7 @@ namespace dmGraphics
      * @member m_VerifyGraphicsCalls [type:bool] Enable API call verification for debugging
      * @member m_PrintDeviceInfo [type:bool] Print graphics device information at startup
      * @member m_UseValidationLayers [type:bool] Enable validation layers for debugging (Vulkan/DirectX 12 only)
+     * @member m_TextureUploadMemoryLimit [type:uint64_t] Target maximum CPU-side texture upload staging bytes; excludes source/transcoded data, GPU textures and driver-managed memory. Mip chains are split to fit; a larger individual mip runs alone. Default is 64 MiB; 0 selects that default.
      */
     struct ContextParams
     {
@@ -1823,6 +1824,7 @@ namespace dmGraphics
         uint8_t               m_PrintDeviceInfo : 1;
         uint8_t               m_UseValidationLayers : 1;
         uint8_t               : 5;
+        uint64_t              m_TextureUploadMemoryLimit;
     };
 
     /*#

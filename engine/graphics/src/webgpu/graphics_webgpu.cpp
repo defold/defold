@@ -527,8 +527,14 @@ static bool WebGPUCreateCubeMapDepthStencilViews(WebGPURenderTarget* rt, WebGPUT
     return true;
 }
 
-static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams& params)
+static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams& input_params)
 {
+    TextureParams params = input_params;
+    TextureUploadExtent upload_extent = GetTextureUploadExtent(texture->m_Base, params);
+    params.m_Width = upload_extent.m_Width;
+    params.m_Height = upload_extent.m_Height;
+    params.m_Depth = input_params.m_SubUpdate && !input_params.m_Depth ? 1 : upload_extent.m_Depth;
+    TextureUploadMemoryBudget& budget = g_WebGPUContext->m_BaseContext.m_TextureUploadMemoryBudget;
     switch (params.m_Format)
     {
         case TEXTURE_FORMAT_DEPTH:
@@ -589,11 +595,12 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
     assert(new_storage_height <= max_texture_dimension_2d);
 
     const bool texture_dimensions_changed = !params.m_SubUpdate &&
-        ((is_3d_texture && texture->m_Base.m_Depth != texture_depth) ||
-         ((is_array_texture || is_cube_texture) && texture->m_Base.m_PageCount != texture_layer_count) ||
-         (params.m_MipMap == 0 && (current_storage_width != new_storage_width || current_storage_height != new_storage_height)));
+    ((params.m_MipMap == 0 && is_3d_texture && texture->m_Base.m_Depth != texture_depth) ||
+     ((is_array_texture || is_cube_texture) && texture->m_Base.m_PageCount != texture_layer_count) ||
+     (params.m_MipMap == 0 && (current_storage_width != new_storage_width || current_storage_height != new_storage_height)));
 
-    if (texture->m_Texture && (texture->m_Base.m_Format != params.m_Format || texture_dimensions_changed))
+    const TextureFormat storage_format = params.m_Format == TEXTURE_FORMAT_RGB ? TEXTURE_FORMAT_RGBA : params.m_Format;
+    if (texture->m_Texture && (texture->m_Base.m_Format != storage_format || texture_dimensions_changed))
     { //must recreate texture
         if (params.m_SubUpdate)
         {
@@ -665,6 +672,7 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
 
                 // WebGPU has no RGB8 texture format. Reuse one face-sized conversion
                 // buffer for all cube faces to avoid allocating a full RGBA cubemap.
+                ReserveTextureUploadMemory(budget, repacked_face_size, 1, 0);
                 uint8_t* repacked_face = new uint8_t[repacked_face_size];
 
                 extent.depthOrArrayLayers = 1;
@@ -675,16 +683,20 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
                     wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, repacked_face, repacked_face_size, &layout, &extent);
                 }
                 delete[] repacked_face;
+                ReleaseTextureUploadMemory(budget, repacked_face_size);
             }
             else
             {
                 const uint32_t repack_pixels = pixels_per_face * depth_or_layer_count;
-                uint8_t* repack_data         = new uint8_t[(size_t)repack_pixels * repack_bpp];
+                const uint64_t repack_bytes = (uint64_t)repack_pixels * repack_bpp;
+                ReserveTextureUploadMemory(budget, repack_bytes, 1, 0);
+                uint8_t* repack_data = new uint8_t[(size_t)repack_bytes];
                 RepackRGBToRGBA(repack_pixels, (uint8_t*)params.m_Data, repack_data);
 
                 extent.depthOrArrayLayers = depth_or_layer_count;
                 wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, repack_data, (size_t)repack_pixels * repack_bpp, &layout, &extent);
                 delete[] repack_data;
+                ReleaseTextureUploadMemory(budget, repack_bytes);
             }
         }
         else
@@ -5066,6 +5078,14 @@ static void WebGPUSetTextureAsync(HContext context, HTexture texture, const Text
         callback(texture, user_data);
 }
 
+static void WebGPUSetTextureAsyncBatch(HContext context, HTexture texture, const TextureParams* params, uint32_t count)
+{
+    // writeTexture consumes client pixels before returning. Queue writes already
+    // join the next WebGPU submission; only RGB conversion owns CPU staging.
+    for (uint32_t i = 0; i < count; ++i)
+        WebGPUSetTexture(context, texture, params[i]);
+}
+
 static bool WebGPUIsExtensionSupported(HContext context, const char* extension)
 {
     TRACE_CALL;
@@ -5198,6 +5218,7 @@ static GraphicsAdapterFunctionTable WebGPURegisterFunctionTable()
 {
     GraphicsAdapterFunctionTable fn_table = {};
     DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, WebGPU);
+    DM_REGISTER_GRAPHICS_FUNCTION(fn_table, WebGPU, SetTextureAsyncBatch);
 #if defined(DM_GRAPHICS_DAWN)
     DM_REGISTER_GRAPHICS_FUNCTION(fn_table, WebGPU, SetSwapInterval);
 #endif

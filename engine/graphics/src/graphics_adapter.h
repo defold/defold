@@ -121,6 +121,7 @@ namespace dmGraphics
     typedef void (*DeleteTextureFn)(HContext context, HTexture t);
     typedef void (*SetTextureFn)(HContext context, HTexture texture, const TextureParams& params);
     typedef void (*SetTextureAsyncFn)(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
+    typedef void (*SetTextureAsyncBatchFn)(HContext context, HTexture texture, const TextureParams* params, uint32_t count);
     typedef void (*SetTextureParamsFn)(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy);
     typedef void (*EnableTextureFn)(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
     typedef void (*DisableTextureFn)(HContext context, uint32_t unit, HTexture texture);
@@ -243,6 +244,7 @@ namespace dmGraphics
         EnableStorageBufferFn m_EnableStorageBuffer;
         DisableStorageBufferFn m_DisableStorageBuffer;
         SetSwapIntervalFn m_SetSwapInterval;
+        SetTextureAsyncBatchFn m_SetTextureAsyncBatch;
     };
 
     #define DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, fn_name) \

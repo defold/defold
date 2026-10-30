@@ -39,6 +39,13 @@
 #define WIDTH 8u
 #define HEIGHT 4u
 
+// Context creation must retain the documented default texture staging budget.
+TEST(Graphics, TextureUploadMemoryLimitDefault)
+{
+    dmGraphics::ContextParams params;
+    ASSERT_EQ(64ULL * 1024 * 1024, params.m_TextureUploadMemoryLimit);
+}
+
 // Byte colors saturate outside [0, 1], avoiding undefined float-to-byte conversions.
 TEST(GraphicsUtil, PackRGBAClampsComponents)
 {
@@ -2094,6 +2101,116 @@ static void TestTextureAsyncCallback(dmGraphics::HTexture texture, void* user_da
 class dmGraphicsJobQueueTest : public dmGraphicsTestT<true, 0>
 {
 };
+
+// Reservations must obey byte/count bounds and allow an oversized mip only while alone.
+TEST_F(dmGraphicsJobQueueTest, TestTextureUploadMemoryBudgetBounds)
+{
+    dmGraphics::TextureUploadMemoryBudget& budget = m_Context->m_TextureUploadMemoryBudget;
+    ASSERT_EQ(64ULL * 1024 * 1024, budget.m_Limit);
+    budget.m_Limit = 10;
+    ASSERT_TRUE(dmGraphics::TryReserveTextureUploadMemory(budget, 6, 1, 0));
+    ASSERT_FALSE(dmGraphics::TryReserveTextureUploadMemory(budget, 5, 1, 0));
+    ASSERT_EQ(6ULL, budget.m_ReservedBytes);
+    dmGraphics::ReleaseTextureUploadMemory(budget, 6);
+    ASSERT_TRUE(dmGraphics::TryReserveTextureUploadMemory(budget, 11, 1, 0));
+    ASSERT_FALSE(dmGraphics::TryReserveTextureUploadMemory(budget, 0, 1, 0));
+    ASSERT_FALSE(dmGraphics::TryReserveTextureUploadMemory(budget, 1, 1, 0));
+    dmGraphics::ReleaseTextureUploadMemory(budget, 11);
+    dmGraphics::ReserveTextureUploadMemory(budget, 6, 1, 2);
+    ASSERT_TRUE(dmGraphics::TryReserveTextureUploadMemory(budget, 4, 1, 2));
+    ASSERT_FALSE(dmGraphics::TryReserveTextureUploadMemory(budget, 0, 1, 2));
+    ASSERT_EQ(10ULL, budget.m_ReservedBytes);
+    ASSERT_EQ(2U, budget.m_InFlight);
+    dmGraphics::ReleaseTextureUploadMemory(budget, 4);
+    dmGraphics::ReleaseTextureUploadMemory(budget, 6);
+    ASSERT_EQ(0ULL, budget.m_ReservedBytes);
+    ASSERT_EQ(0U, budget.m_InFlight);
+}
+
+struct TextureUploadQueueTestState
+{
+    dmGraphics::TextureUploadQueue* m_Queue;
+    uint32_t m_Processed;
+    uint32_t m_Callbacks;
+    uint32_t m_Values[3];
+};
+
+static void RecordTextureUpload(void* data, dmGraphics::TextureUploadRequest* request)
+{
+    TextureUploadQueueTestState* state = (TextureUploadQueueTestState*)data;
+    state->m_Values[state->m_Processed++] = request->m_Params[0].m_DataSize;
+    dmGraphics::CompleteTextureUploadRequest(*state->m_Queue, request);
+}
+
+static void RecordTextureUploadCallback(dmGraphics::HTexture, void* data)
+{
+    ++((TextureUploadQueueTestState*)data)->m_Callbacks;
+}
+
+// The shared queue copies parameters, preserves repeated-mip FIFO order, and drains callbacks with zero workers.
+TEST_F(dmGraphicsJobQueueTest, TestTextureUploadQueueDrain)
+{
+    dmGraphics::TextureUploadQueue queue = {};
+    TextureUploadQueueTestState state = {};
+    state.m_Queue = &queue;
+    dmGraphics::InitializeTextureUploadQueue(queue, m_Context, m_JobContext, RecordTextureUpload, &state);
+    dmGraphics::TextureCreationParams creation;
+    creation.m_Width = creation.m_Height = 1;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation);
+    dmGraphics::TextureParams params;
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        params.m_DataSize = 14 + i;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(m_Context->m_AssetHandleContainerMutex);
+        ASSERT_TRUE(dmGraphics::QueueTextureUpload(queue, texture, &params, 1, 0, RecordTextureUploadCallback, &state));
+    }
+    params.m_DataSize = 0;
+    ASSERT_TRUE(dmGraphics::GetTextureStatusFlags(m_Context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING);
+    dmGraphics::StopTextureUploadQueue(queue);
+    ASSERT_FALSE(dmGraphics::GetTextureStatusFlags(m_Context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING);
+    ASSERT_EQ(3U, state.m_Processed);
+    ASSERT_EQ(3U, state.m_Callbacks);
+    for (uint32_t i = 0; i < 3; ++i)
+        ASSERT_EQ(14 + i, state.m_Values[i]);
+    dmGraphics::DestroyTextureUploadQueue(queue);
+    dmGraphics::DeleteTexture(m_Context, texture);
+}
+
+// Adapters without batching must keep every mip pending until its individual upload completes.
+TEST_F(dmGraphicsJobQueueTest, TestTextureAsyncBatchFallback)
+{
+    m_NullContext->m_UseAsyncTextureLoad = 1;
+    dmGraphics::TextureCreationParams creation;
+    creation.m_Width = 4;
+    creation.m_Height = 4;
+    creation.m_MipMapCount = 3;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation);
+    uint8_t pixels[3][64] = {};
+    dmGraphics::TextureParams params[3];
+    for (uint32_t mip = 0; mip < 3; ++mip)
+    {
+        memset(pixels[mip], 17 + mip, sizeof(pixels[mip]));
+        params[mip].m_Width = 4 >> mip;
+        params[mip].m_Height = 4 >> mip;
+        params[mip].m_MipMap = mip;
+        params[mip].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+        params[mip].m_Data = pixels[mip];
+        params[mip].m_DataSize = params[mip].m_Width * params[mip].m_Height * 4;
+    }
+    dmGraphics::SetTextureAsyncBatch(m_Context, texture, params, 3);
+    for (uint32_t mip = 0; mip < 3; ++mip)
+    {
+        params[mip].m_Data = 0;
+        ASSERT_TRUE(dmGraphics::GetTextureStatusFlags(m_Context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING);
+        JobSystemUpdate(m_JobContext, 0);
+    }
+    ASSERT_FALSE(dmGraphics::GetTextureStatusFlags(m_Context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING);
+    ASSERT_EQ(3, dmGraphics::GetTextureMipmapCount(m_Context, texture));
+    void* handle = 0;
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK, dmGraphics::GetTextureHandle(texture, &handle));
+    ASSERT_EQ(0, memcmp(handle, pixels[2], 4));
+    dmGraphics::DeleteTexture(m_Context, texture);
+}
 
 // Queued texture deletion must remain asynchronous and survive cancellation at shutdown.
 TEST_F(dmGraphicsJobQueueTest, TestTextureDeleteBeforeJobSystemShutdown)

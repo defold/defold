@@ -221,6 +221,7 @@ webgl_version_hint = 1
 opengl_version_hint = 33
 opengl_core_profile_hint = 1
 memory_size = 512
+texture_upload_memory_limit = 32
 vulkan_version_minor = 1
 vulkan_version_major = 0
 

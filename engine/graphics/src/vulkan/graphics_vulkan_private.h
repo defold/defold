@@ -33,7 +33,6 @@ namespace dmGraphics
     typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
 
     const static uint8_t              DM_MAX_FRAMES_IN_FLIGHT = 3; // In flight frames - number of concurrent frames being processed
-    const static uint8_t              MAX_FENCE_RESOURCES_TO_DESTROY_PER_ENTRY = 2; // Increase if necessary (or make fully dynamic)
     static const VkPipelineStageFlags STORAGE_BUFFER_GRAPHICS_STAGES = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 
     enum VulkanResourceType
@@ -106,7 +105,6 @@ namespace dmGraphics
         VkImageLayout     m_ImageLayout[16];
         VkImageUsageFlags m_UsageFlags;
         DeviceBuffer      m_DeviceBuffer;
-        HOpaqueHandle     m_PendingUpload;
         uint16_t          m_TextureSamplerIndex : 10;
         uint16_t          m_Destroyed           : 1;
         uint8_t           m_LayerCount;
@@ -406,13 +404,6 @@ namespace dmGraphics
         VulkanResourceType m_ResourceType;
     };
 
-    struct FenceResourcesToDestroy
-    {
-        VkFence           m_Fence;
-        ResourceToDestroy m_Resources[MAX_FENCE_RESOURCES_TO_DESTROY_PER_ENTRY];
-        uint8_t           m_ResourcesCount;
-    };
-
     struct SwapChainCapabilities
     {
         dmArray<VkSurfaceFormatKHR> m_SurfaceFormats;
@@ -485,10 +476,7 @@ namespace dmGraphics
 
         // Async process resources
         HJobContext                        m_JobContext;
-        SetTextureAsyncState               m_SetTextureAsyncState;
-
-        // Per-fence resources
-        dmOpaqueHandleContainer<FenceResourcesToDestroy> m_FenceResourcesToDestroy;
+        TextureUploadQueue                 m_TextureUploads;
 
         // Main device rendering constructs
         dmArray<VkFramebuffer>          m_MainFrameBuffers; // One per swap chain image
@@ -524,7 +512,6 @@ namespace dmGraphics
         VulkanTexture*                  m_DefaultTexture2D32UI;
         VulkanTexture*                  m_DefaultStorageImage2D;
         VulkanTexture                   m_ResolveTexture;
-        int32_atomic_t                  m_DeleteContextRequested;
         PFN_vkWaitForPresentKHR         m_WaitForPresent;
 
         uint32_t                        m_WindowWidth;
