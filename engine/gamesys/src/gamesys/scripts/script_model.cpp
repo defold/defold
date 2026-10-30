@@ -377,25 +377,18 @@ namespace dmGameSystem
     }
 
     /*# cancel all animation on a model
-     * Cancels all animation on a model component.
+     * Cancels all animation on a model component immediately. Components in other
+     * loaded collections can be addressed using their full URLs.
      *
      * @name model.cancel
      * @param url [type:string|hash|url] the model for which to cancel the animation
      */
     static int LuaModelComp_Cancel(lua_State* L)
     {
-        int top = lua_gettop(L);
-
-        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
-
-        dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-        dmModelDDF::ModelCancelAnimation msg;
-
-        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelCancelAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmModelDDF::ModelCancelAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
+        DM_LUA_STACK_CHECK(L, 0);
+        ModelComponent* component;
+        dmScript::GetComponentFromLua(L, 1, MODEL_EXT, 0, (dmGameObject::HComponent*)&component, 0);
+        CompModelCancelAnimation(component);
         return 0;
     }
 

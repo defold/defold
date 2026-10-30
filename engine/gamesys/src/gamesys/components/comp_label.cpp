@@ -139,7 +139,7 @@ namespace dmGameSystem
         return 1;
     }
 
-    static void SetLabelText(LabelComponent* component, const char* text)
+    void CompLabelSetText(LabelComponent* component, const char* text)
     {
         char* text_copy = strdup(text);
         if (component->m_UserAllocatedText)
@@ -712,7 +712,7 @@ namespace dmGameSystem
         else if (params.m_Message->m_Id == dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash)
         {
             dmGameSystemDDF::SetText* textmsg = (dmGameSystemDDF::SetText*)params.m_Message->m_Data;
-            SetLabelText(component, textmsg->m_Text);
+            CompLabelSetText(component, textmsg->m_Text);
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
@@ -1069,7 +1069,7 @@ namespace dmGameSystem
             {
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             }
-            SetLabelText(component, params.m_Value.m_Text);
+            CompLabelSetText(component, params.m_Value.m_Text);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (set_property == LABEL_PROP_FONT_SIZE)
