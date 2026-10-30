@@ -2288,7 +2288,6 @@ form.help.project.display.display_profiles = ディスプレイプロファイ�
 form.label.project.display.dynamic_orientation = 動的向き（Dynamic Orientation）
 form.help.project.display.dynamic_orientation = AndroidおよびiOSのビルドにおいて、縦向きと横向きの両方を使用し、デバイスの回転に合わせて切り替えられるようにします。無効にした場合、サポートされる向きは **Width**（幅）と **Height**（高さ）から推測されます。なお、開発用アプリでは現在、この設定は反映されません。
 form.label.project.display.update_frequency = 更新間隔（Update Frequency）
-form.help.project.display.update_frequency = 希望するゲームループおよびレンダリングのHz単位レート。`0`を指定すると可変フレームレートになります。Defoldがアプリケーションループを制御するプラットフォームにおいて、正の値を指定するとタイマーによるペース制御が行われ、**スワップ間隔**として`0`が要求されます。この値を`0`に戻すと、要求されたインターバル設定も元に戻ります。Updateの`dt`は、経過時間に応じて変動する可能性があります。これは`fixed_update()`とは別個のものです。
 form.label.project.display.swap_interval = スワップ間隔（Swap Interval）
 form.help.project.display.swap_interval = ディスプレイのリフレッシュに関連するプレゼンテーションを要求します。`0` は垂直同期の無効化を、`1` はリフレッシュごとの同期を要求します。OpenGL はより大きな間隔をサポートする場合がありますが、Vulkan および Metal では、0 以外の値はすべて垂直同期の有効化として扱われます。DX12 では、間隔は `0` から `4` の範囲に制限されます。エンジン側のタイマーによるペース制御では、一時的に間隔 `0` が要求されます。実際の動作は、バックエンド、プラットフォーム、およびドライバーに依存します。
 form.label.project.display.vsync = Vsync
@@ -2305,7 +2304,6 @@ form.help.project.engine.run_while_iconified = アプリケーションウィン
 form.label.project.engine.fixed_update_frequency = 固定アップデート間隔
 form.help.project.engine.fixed_update_frequency = 固定アップデートの頻度をHz単位で設定します。「Use Fixed Timestep」が有効な場合、この設定は `fixed_update(self, dt)` および物理演算を制御します。`0` に設定すると、固定アップデートは無効になります。
 form.label.project.engine.max_time_step = 最大タイムステップ
-form.help.project.engine.max_time_step = 通常の更新処理で考慮される経過時間を秒単位で制限します。ヒッチによる遅延など、制限を超過した時間は後で埋め合わせることはせず、切り捨てられます。エンジン側のタイマー制御では、この制限値と要求されたフレーム間隔のうち大きい方が使用されるため、フレームレートの上限を低く設定すると、`dt` がこの値を超える可能性があります。なお、`fixed_update()` に渡されるタイムステップは制限されません。
 
 form.label.project.font = フォント
 form.help.project.font = フォント関連設定
