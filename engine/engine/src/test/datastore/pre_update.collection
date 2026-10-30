@@ -1,0 +1,8 @@
+name: "datastore_pre_update"
+embedded_instances {
+  id: "test"
+  data: "components {\n"
+  "  id: \"script\"\n"
+  "  component: \"/datastore/pre_update.script\"\n"
+  "}\n"
+}

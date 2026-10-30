@@ -1,0 +1,19 @@
+function init(self)
+    self.frame = 0
+    msg.post(".", "acquire_input_focus")
+end
+
+function on_input(self, action_id, action)
+    if action_id == hash("text") then
+        check_datastore_update(0)
+    end
+end
+
+function update(self, dt)
+    self.frame = self.frame + 1
+    check_datastore_update(self.frame)
+end
+
+function late_update(self, dt)
+    check_datastore_late_update(self.frame)
+end
