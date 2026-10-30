@@ -1214,6 +1214,223 @@ TEST_F(dmRenderTest, TestEnableDisableContextTextures)
     dmGraphics::DeleteVertexDeclaration(vx_decl);
 }
 
+static dmGraphics::HProgram NewMaterialHashTestProgram(dmGraphics::HContext context)
+{
+    dmGraphics::ShaderDescBuilder shader;
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "custom", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    shader.AddTypeMember("tint", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    shader.AddUniformBuffer("tint", 0, 0, sizeof(Vector4));
+    shader.AddTexture("texture_sampler", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shader.AddTexture("pose_matrix_cache", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shader.AddTexture("morph_targets", 3, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    return dmGraphics::NewProgram(context, shader.Get(), 0, 0);
+}
+
+class dmMaterialInstancingHashTest : public dmRenderTest
+{
+protected:
+    dmGraphics::HProgram m_Program;
+    dmRender::HMaterial m_Materials[2];
+
+    void SetUp() override
+    {
+        dmRenderTest::SetUp();
+        m_Program = NewMaterialHashTestProgram(m_GraphicsContext);
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Materials); ++i)
+            m_Materials[i] = dmRender::NewMaterial(m_Context, m_Program);
+    }
+
+    void TearDown() override
+    {
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Materials); ++i)
+            dmRender::DeleteMaterial(m_Context, m_Materials[i]);
+        dmGraphics::DeleteProgram(m_GraphicsContext, m_Program);
+        dmRenderTest::TearDown();
+    }
+};
+
+// Equivalent material resources share a hash, while programs, vertex space and PBR state split draws.
+TEST_F(dmMaterialInstancingHashTest, SharedState)
+{
+    const uint64_t original_hash = dmRender::GetMaterialInstancingHash(m_Materials[0]);
+    ASSERT_EQ(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    ASSERT_NE(0u, dmRender::GetMaterialVersion(m_Materials[0]));
+    ASSERT_NE(0u, dmRender::GetMaterialAttributeVersion(m_Materials[0]));
+
+    dmGraphics::HProgram other_program = NewMaterialHashTestProgram(m_GraphicsContext);
+    dmRender::HMaterial other_material = dmRender::NewMaterial(m_Context, other_program);
+    ASSERT_NE(original_hash, dmRender::GetMaterialInstancingHash(other_material));
+    dmRender::DeleteMaterial(m_Context, other_material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, other_program);
+
+    dmhash_t tag = dmHashString64("other_pass");
+    uint32_t version = dmRender::GetMaterialVersion(m_Materials[0]);
+    dmRender::SetMaterialTags(m_Materials[0], 1, &tag);
+    ASSERT_NE(version, dmRender::GetMaterialVersion(m_Materials[0]));
+    ASSERT_EQ(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[0]));
+    dmRender::ClearMaterialTags(m_Materials[0]);
+    ASSERT_EQ(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[0]));
+
+    uint32_t attribute_version = dmRender::GetMaterialAttributeVersion(m_Materials[0]);
+    dmRender::SetMaterialVertexSpace(m_Materials[0], dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD);
+    ASSERT_NE(attribute_version, dmRender::GetMaterialAttributeVersion(m_Materials[0]));
+    ASSERT_NE(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[0]));
+    dmRender::SetMaterialVertexSpace(m_Materials[1], dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD);
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+
+    dmRenderDDF::MaterialDesc::PbrParameters pbr = {};
+    pbr.m_HasParameters = true;
+    pbr.m_HasMetallicRoughness = true;
+    dmRender::SetMaterialPBRParameters(m_Materials[0], &pbr);
+    ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    dmRender::SetMaterialPBRParameters(m_Materials[1], &pbr);
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+}
+
+// Runtime constants split batches and become compatible again when independently edited values agree.
+TEST_F(dmMaterialInstancingHashTest, ConstantMutationsConverge)
+{
+    dmhash_t name = dmHashString64("tint");
+    Vector4 value(1.0f, 0.5f, 0.25f, 1.0f);
+    const uint64_t original_hash = dmRender::GetMaterialInstancingHash(m_Materials[0]);
+    uint32_t version = dmRender::GetMaterialVersion(m_Materials[0]);
+    uint32_t attribute_version = dmRender::GetMaterialAttributeVersion(m_Materials[0]);
+    dmRender::SetMaterialProgramConstant(m_Materials[0], name, &value, 1);
+    ASSERT_NE(version, dmRender::GetMaterialVersion(m_Materials[0]));
+    ASSERT_EQ(attribute_version, dmRender::GetMaterialAttributeVersion(m_Materials[0]));
+    ASSERT_NE(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[0]));
+    ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    dmRender::SetMaterialProgramConstant(m_Materials[1], name, &value, 1);
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+
+    version = dmRender::GetMaterialVersion(m_Materials[0]);
+    dmRender::SetMaterialProgramConstant(m_Materials[0], name, &value, 1);
+    ASSERT_EQ(version, dmRender::GetMaterialVersion(m_Materials[0]));
+
+    dmRender::SetMaterialProgramConstantType(m_Materials[0], name, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_COLOR);
+    ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    dmRender::SetMaterialProgramConstantType(m_Materials[1], name, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_COLOR);
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+
+    value = Vector4(0.0f);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Materials); ++i)
+    {
+        dmRender::SetMaterialProgramConstantType(m_Materials[i], name, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER);
+        dmRender::SetMaterialProgramConstant(m_Materials[i], name, &value, 1);
+        ASSERT_EQ(original_hash, dmRender::GetMaterialInstancingHash(m_Materials[i]));
+    }
+}
+
+// Every sampler setting affects compatibility, including wrap W and anisotropy from issue #11929.
+TEST_F(dmMaterialInstancingHashTest, SamplerMutationsConverge)
+{
+    struct SamplerCase
+    {
+        dmGraphics::TextureWrap m_UWrap;
+        dmGraphics::TextureWrap m_VWrap;
+        dmGraphics::TextureWrap m_WWrap;
+        dmGraphics::TextureFilter m_MinFilter;
+        dmGraphics::TextureFilter m_MagFilter;
+        float m_Anisotropy;
+    };
+    const SamplerCase cases[] = {
+        { dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_FILTER_LINEAR, dmGraphics::TEXTURE_FILTER_LINEAR, 1.0f },
+        { dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_FILTER_LINEAR, dmGraphics::TEXTURE_FILTER_LINEAR, 1.0f },
+        { dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_FILTER_LINEAR, dmGraphics::TEXTURE_FILTER_LINEAR, 1.0f },
+        { dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_LINEAR, dmGraphics::TEXTURE_FILTER_LINEAR, 1.0f },
+        { dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_LINEAR, 1.0f },
+        { dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f },
+        { dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 4.0f },
+    };
+    dmhash_t name = dmHashString64("texture_sampler");
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        const SamplerCase& s = cases[i];
+        ASSERT_TRUE(dmRender::SetMaterialSampler(m_Materials[0], name, 0, s.m_UWrap, s.m_VWrap, s.m_WWrap, s.m_MinFilter, s.m_MagFilter, s.m_Anisotropy));
+        ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+        ASSERT_TRUE(dmRender::SetMaterialSampler(m_Materials[1], name, 0, s.m_UWrap, s.m_VWrap, s.m_WWrap, s.m_MinFilter, s.m_MagFilter, s.m_Anisotropy));
+        ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+        uint32_t version = dmRender::GetMaterialVersion(m_Materials[0]);
+        ASSERT_TRUE(dmRender::SetMaterialSampler(m_Materials[0], name, 0, s.m_UWrap, s.m_VWrap, s.m_WWrap, s.m_MinFilter, s.m_MagFilter, s.m_Anisotropy));
+        ASSERT_EQ(version, dmRender::GetMaterialVersion(m_Materials[0]));
+    }
+}
+
+// Instance defaults stay compatible but invalidate attribute caches; declaration changes split batches.
+TEST_F(dmMaterialInstancingHashTest, AttributeDefaultsAndDeclarations)
+{
+    Vector4 values[2] = { Vector4(1.0f), Vector4(0.25f) };
+    dmGraphics::VertexAttribute attribute = {};
+    attribute.m_NameHash = dmHashString64("custom");
+    attribute.m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
+    attribute.m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+    attribute.m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+    attribute.m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+    attribute.m_Values.m_BinaryValues.m_Count = sizeof(Vector4);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Materials); ++i)
+    {
+        uint32_t attribute_version = dmRender::GetMaterialAttributeVersion(m_Materials[i]);
+        attribute.m_Values.m_BinaryValues.m_Data = (uint8_t*)&values[i];
+        dmRender::SetMaterialProgramAttributes(m_Materials[i], &attribute, 1);
+        ASSERT_NE(attribute_version, dmRender::GetMaterialAttributeVersion(m_Materials[i]));
+        ASSERT_NE((dmGraphics::HVertexDeclaration)0, dmRender::GetVertexDeclaration(m_Materials[i], dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE));
+    }
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+
+    attribute.m_Normalize = true;
+    dmRender::SetMaterialProgramAttributes(m_Materials[0], &attribute, 1);
+    ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    dmRender::SetMaterialProgramAttributes(m_Materials[1], &attribute, 1);
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+
+    attribute.m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+    dmRender::SetMaterialProgramAttributes(m_Materials[0], &attribute, 1);
+    ASSERT_NE(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+    dmRender::SetMaterialProgramAttributes(m_Materials[1], &attribute, 1);
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+
+    // Models hash the effective vertex defaults after applying component overrides.
+    attribute.m_Values.m_BinaryValues.m_Data = (uint8_t*)&values[0];
+    dmRender::SetMaterialProgramAttributes(m_Materials[0], &attribute, 1);
+    ASSERT_EQ(dmRender::GetMaterialInstancingHash(m_Materials[0]), dmRender::GetMaterialInstancingHash(m_Materials[1]));
+}
+
+// Preparing one model draw must not split its material from identical resources on the next frame.
+TEST_F(dmMaterialInstancingHashTest, ModelSamplerSetupPreservesCompatibility)
+{
+    const uint32_t skip_pose = dmRender::MATERIAL_INSTANCING_HASH_SKIP_POSE_CACHE;
+    const uint32_t skip_morph = dmRender::MATERIAL_INSTANCING_HASH_SKIP_MORPH_TARGETS;
+    uint64_t original_hashes[4];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(original_hashes); ++i)
+        original_hashes[i] = dmRender::GetMaterialInstancingHash(m_Materials[0], i);
+    ASSERT_NE(original_hashes[0], original_hashes[skip_pose | skip_morph]);
+
+    const dmhash_t names[] = { dmRender::SAMPLER_POSE_MATRIX_CACHE, dmRender::SAMPLER_MORPH_TARGETS };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(names); ++i)
+    {
+        ASSERT_TRUE(dmRender::SetMaterialSampler(m_Materials[0], names[i], i + 1, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
+            dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f));
+        ASSERT_NE(original_hashes[0], dmRender::GetMaterialInstancingHash(m_Materials[0]));
+        ASSERT_EQ(original_hashes[skip_pose | skip_morph], dmRender::GetMaterialInstancingHash(m_Materials[0], skip_pose | skip_morph));
+        ASSERT_EQ(original_hashes[skip_pose | skip_morph], dmRender::GetMaterialInstancingHash(m_Materials[1], skip_pose | skip_morph));
+        if (i == 0)
+        {
+            ASSERT_EQ(original_hashes[skip_pose], dmRender::GetMaterialInstancingHash(m_Materials[0], skip_pose));
+            ASSERT_NE(original_hashes[skip_morph], dmRender::GetMaterialInstancingHash(m_Materials[0], skip_morph));
+        }
+        else
+        {
+            ASSERT_NE(original_hashes[skip_pose], dmRender::GetMaterialInstancingHash(m_Materials[0], skip_pose));
+        }
+        uint32_t version = dmRender::GetMaterialVersion(m_Materials[0]);
+        ASSERT_TRUE(dmRender::SetMaterialSampler(m_Materials[0], names[i], i + 1, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
+            dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f));
+        ASSERT_EQ(version, dmRender::GetMaterialVersion(m_Materials[0]));
+    }
+}
+
 struct TestDefaultSamplerFiltersDispatchCtx
 {
     dmRender::HRenderContext        m_Context;

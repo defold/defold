@@ -1940,6 +1940,16 @@ ResourceFailParams invalid_material_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(Material, ResourceFailTest, jc_test_values_in(invalid_material_resources));
 
+// Verifies that resource texture mutations invalidate model batch keys on every update.
+TEST(MaterialResource, TextureBindingInvalidationVersion)
+{
+    dmGameSystem::MaterialResource material = {};
+    dmGameSystem::MarkMaterialResourceDirty(&material);
+    ASSERT_EQ(1u, material.m_Version);
+    dmGameSystem::MarkMaterialResourceDirty(&material);
+    ASSERT_EQ(2u, material.m_Version);
+}
+
 /* Buffer */
 
 // A literal BUFC file with uint8[3] and float32 streams, including alignment padding.

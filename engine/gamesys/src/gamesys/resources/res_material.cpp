@@ -29,6 +29,13 @@
 
 namespace dmGameSystem
 {
+    void MarkMaterialResourceDirty(MaterialResource* resource)
+    {
+        // Texture bindings belong to the resource; render-state mutations are
+        // tracked by dmRender::Material itself.
+        resource->m_Version++;
+    }
+
     static inline bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
     {
         if (strlen(material_desc->m_Name) == 0)
@@ -110,6 +117,8 @@ namespace dmGameSystem
 
     static void SetMaterial(const char* path, MaterialResource* resource, MaterialResources* resources, dmRenderDDF::MaterialDesc* ddf)
     {
+        resource->m_Version++;
+
         dmhash_t tags[dmRender::MAX_MATERIAL_TAG_COUNT];
         uint32_t tag_count = ddf->m_Tags.m_Count;
 
