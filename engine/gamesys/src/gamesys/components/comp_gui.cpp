@@ -1555,7 +1555,8 @@ namespace dmGameSystem
         return (scene_order << 20) | (world_order << 13) | sub_order;
     }
 
-    static void SetBlendMode(dmRender::RenderObject& ro, dmGui::BlendMode blend_mode)
+    template <typename T>
+    static void SetBlendMode(T& ro, dmGui::BlendMode blend_mode)
     {
         switch (blend_mode)
         {
@@ -1864,6 +1865,7 @@ namespace dmGameSystem
             dmRender::HMaterial material = GetTextNodeMaterial(gui_context, scene, node, font_map);
 
             dmRender::DrawTextParams params;
+            SetBlendMode(params, dmGui::GetNodeBlendMode(scene, node));
             float opacity = node_opacities[i];
             params.m_FaceColor = Vector4(color.getXYZ(), opacity);
             params.m_OutlineColor = Vector4(outline.getXYZ(), outline.getW() * opacity);
