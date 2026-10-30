@@ -60,7 +60,7 @@ namespace dmScript
     {
         char*       m_Script; // Owned code for direct-source modules.
         uint32_t    m_ScriptSize;
-        int         m_ChunkRef; // Prepared chunk or compilation error; LUA_NOREF for direct-source modules.
+        int         m_ChunkRef; // Prepared chunk factory or compilation error; LUA_NOREF for direct-source modules.
         char*       m_Name;
         void*       m_Resource;
         char*       m_Filename;

@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 #include <dlib/message.h>
@@ -26,6 +27,7 @@
 #include <dlib/path.h>
 
 #include <ddf/ddf.h>
+#include <lz4/lz4.h>
 
 #include "script/lua_source_ddf.h"
 
@@ -63,17 +65,130 @@ namespace dmScript
         return luaL_loadbuffer(L, buf, size, source->m_Filename);
     }
 
+    static int DumpModuleCode(lua_State* L, const void* data, size_t size, void* context)
+    {
+        dmArray<uint8_t>* buffer = (dmArray<uint8_t>*)context;
+        uint32_t count = (uint32_t)size;
+        uint32_t total = buffer->Size() + count;
+        if (total > buffer->Capacity())
+            buffer->SetCapacity(dmMath::Max(total, buffer->Capacity() * 2));
+        buffer->PushArray((const uint8_t*)data, count);
+        return 0;
+    }
+
+    static int LoadDumpedModuleChunk(lua_State* L, int code_index, int size_index)
+    {
+        size_t size;
+        const char* code = lua_tolstring(L, code_index, &size);
+        uint32_t uncompressed_size = (uint32_t)lua_tointeger(L, size_index);
+        dmArray<char> buffer;
+        if (uncompressed_size)
+        {
+            buffer.SetCapacity(uncompressed_size);
+            int decoded = LZ4_decompress_safe(code, buffer.Begin(), (int)size, (int)uncompressed_size);
+            if (decoded != (int)uncompressed_size)
+            {
+                lua_pushliteral(L, "Failed to decompress Lua module code");
+                return LUA_ERRSYNTAX;
+            }
+            code = buffer.Begin();
+            size = uncompressed_size;
+        }
+        return luaL_loadbuffer(L, code, size, "=(module factory)");
+    }
+
+    static int GetPreparedModuleChunk(lua_State* L)
+    {
+        lua_pushvalue(L, lua_upvalueindex(2));
+        if (!lua_isnil(L, -1))
+        {
+            // Release the first-use function before its body can install a module environment.
+            lua_pushnil(L);
+            lua_replace(L, lua_upvalueindex(2));
+            return 1;
+        }
+        lua_pop(L, 1);
+        if (LoadDumpedModuleChunk(L, lua_upvalueindex(1), lua_upvalueindex(3)) != 0)
+            return lua_error(L);
+        return 1;
+    }
+
+    struct ModuleFactoryParams
+    {
+        const char* m_Code;
+        uint32_t m_Size;
+        uint32_t m_UncompressedSize;
+    };
+
+    static int CreateModuleFactory(lua_State* L)
+    {
+        ModuleFactoryParams* params = (ModuleFactoryParams*)lua_touserdata(L, 1);
+        lua_pushlstring(L, params->m_Code, params->m_Size);
+        lua_pushvalue(L, 2);
+        lua_pushinteger(L, params->m_UncompressedSize);
+        lua_pushcclosure(L, GetPreparedModuleChunk, 3);
+        lua_pushvalue(L, LUA_GLOBALSINDEX);
+        lua_setfenv(L, -2);
+        return 1;
+    }
+
+    static int PrepareModuleFactory(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        lua_pushcfunction(L, CreateModuleFactory);
+        lua_pushvalue(L, -2);
+        dmArray<uint8_t> code, compressed;
+        int status = lua_dump(L, DumpModuleCode, &code);
+        if (status != 0)
+        {
+            lua_settop(L, top - 1);
+            lua_pushliteral(L, "Failed to prepare Lua module code");
+            return status;
+        }
+        lua_pop(L, 1);
+        int capacity = code.Size() <= LZ4_MAX_INPUT_SIZE ? LZ4_compressBound((int)code.Size()) : 0;
+        int compressed_size = 0;
+        if (capacity)
+        {
+            compressed.SetCapacity(capacity);
+            compressed_size = LZ4_compress_default((const char*)code.Begin(), (char*)compressed.Begin(), (int)code.Size(), capacity);
+        }
+        bool use_compressed = compressed_size > 0 && (uint32_t)compressed_size < code.Size();
+        ModuleFactoryParams params;
+        params.m_Code = (const char*)(use_compressed ? compressed.Begin() : code.Begin());
+        params.m_Size = use_compressed ? compressed_size : code.Size();
+        params.m_UncompressedSize = use_compressed ? code.Size() : 0;
+        lua_pushlightuserdata(L, &params);
+        lua_pushvalue(L, top);
+        // Keep native temporary buffers outside the protected call so Lua allocation errors cannot skip their destruction.
+        status = lua_pcall(L, 2, 1, 0);
+        lua_remove(L, -2);
+        return status;
+    }
+
     static bool LuaLoadModule(lua_State* L, const char* buf, uint32_t size, const char* filename, int* chunk_ref)
     {
         int top = lua_gettop(L);
         (void) top;
 
         int ret = luaL_loadbuffer(L, buf, size, filename);
+        if (ret == 0 && chunk_ref)
+            ret = PrepareModuleFactory(L);
         if (chunk_ref)
         {
             Unref(L, LUA_REGISTRYINDEX, *chunk_ref);
             lua_pushvalue(L, -1);
             *chunk_ref = Ref(L, LUA_REGISTRYINDEX);
+            if (ret == 0)
+            {
+                // Reload executes a separate function so the cached first-use function stays untouched.
+                lua_getupvalue(L, -1, 1);
+                lua_getupvalue(L, -2, 3);
+                ret = LoadDumpedModuleChunk(L, -2, -1);
+                lua_remove(L, -2);
+                lua_remove(L, -2);
+                lua_remove(L, -2);
+            }
         }
         if (ret == 0)
         {
@@ -113,6 +228,7 @@ namespace dmScript
             lua_rawgeti(L, LUA_REGISTRYINDEX, module->m_ChunkRef);
             if (!lua_isfunction(L, -1))
                 return lua_error(L);
+            lua_call(L, 0, 1);
             // Each execution starts in the requiring thread's global environment.
             lua_pushvalue(L, LUA_GLOBALSINDEX);
             lua_setfenv(L, -2);
@@ -159,6 +275,8 @@ namespace dmScript
             int top = lua_gettop(L);
             (void)top;
             int status = loader(context, L, resource);
+            if (status == 0)
+                status = PrepareModuleFactory(L);
             assert(top + 1 == lua_gettop(L));
             if (status != 0 && status != LUA_ERRSYNTAX)
             {

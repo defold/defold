@@ -335,7 +335,197 @@ TEST_F(ScriptModuleTest, PreparedModuleDefersSyntaxError)
                           "local again, next_err = pcall(require, 'syntax_module'); assert(not again); assert(next_err == err)"));
 }
 
-// Preparation creates a reusable chunk during registration, leaves its body deferred, and resets its environment on repeat require.
+// Cached chunks must release module environments after require and reload, while returned functions keep their own environment.
+TEST_F(ScriptModuleTest, PreparedModuleReleasesEnvironment)
+{
+    char code[] = "local M = { value = 123 }; prepared_environments[1] = M; setfenv(1, M); function get_value() return value end; return M";
+    char* resource = 0;
+    const dmhash_t path_hash = dmHashString64("/environment.module");
+    ASSERT_TRUE(RunString(L, "prepared_environments = setmetatable({}, { __mode = 'v' })"));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_ResourceFactory, "/environment.module", code, sizeof(code), (void**)&resource));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, 0, "environment_module", resource, path_hash, PrepareModule));
+    ASSERT_TRUE(RunString(L,
+                          "do local M = require('environment_module'); assert(M.get_value() == 123) end; "
+                          "package.loaded.environment_module = nil; collectgarbage('collect'); collectgarbage('collect'); "
+                          "assert(prepared_environments[1] == nil)"));
+    ASSERT_TRUE(RunString(L,
+                          "local co = coroutine.create(function() "
+                          "local env = setmetatable({}, { __index = _G }); prepared_environments[2] = env; setfenv(0, env); "
+                          "assert(require('environment_module').get_value() == 123) end); "
+                          "local ok, err = coroutine.resume(co); assert(ok, err); co = nil; "
+                          "package.loaded.environment_module = nil; collectgarbage('collect'); collectgarbage('collect'); "
+                          "assert(prepared_environments[1] == nil); assert(prepared_environments[2] == nil)"));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::ReloadModule(m_Context, LuaSourceFromText(code), path_hash));
+    ASSERT_TRUE(RunString(L, "collectgarbage('collect'); collectgarbage('collect'); assert(prepared_environments[1] == nil)"));
+}
+
+// Error paths release changed environments and preserve the error object passed to pcall.
+TEST_F(ScriptModuleTest, PreparedModuleErrorReleasesEnvironment)
+{
+    char code[] = "local M = {}; prepared_environments[1] = M; local fail = error; setfenv(1, M); fail(M)";
+    char* resource = 0;
+    const dmhash_t path_hash = dmHashString64("/error_environment.module");
+    ASSERT_TRUE(RunString(L, "prepared_environments = setmetatable({}, { __mode = 'v' })"));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_ResourceFactory, "/error_environment.module", code, sizeof(code), (void**)&resource));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, 0, "error_environment_module", resource, path_hash, PrepareModule));
+    ASSERT_TRUE(RunString(L,
+                          "do local ok, err = pcall(require, 'error_environment_module'); assert(not ok); assert(err == prepared_environments[1]) end; "
+                          "package.loaded.error_environment_module = nil; collectgarbage('collect'); collectgarbage('collect'); "
+                          "assert(prepared_environments[1] == nil)"));
+    ASSERT_EQ(dmScript::RESULT_LUA_ERROR, dmScript::ReloadModule(m_Context, LuaSourceFromText(code), path_hash));
+    ASSERT_TRUE(RunString(L, "collectgarbage('collect'); collectgarbage('collect'); assert(prepared_environments[1] == nil)"));
+}
+
+// Module failures preserve their Lua call frames for the caller's error handler.
+TEST_F(ScriptModuleTest, PreparedModulePreservesErrorFrames)
+{
+    char code[] = "local function inner_failure() error('module failed') end; inner_failure()";
+    char* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_ResourceFactory, "/traceback.module", code, sizeof(code), (void**)&resource));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, 0, "traceback_module", resource, dmHashString64("/traceback.module"), PrepareModule));
+    ASSERT_TRUE(RunString(L,
+                          "local seen = false; local ok, err = xpcall(function() require('traceback_module') end, function(err) "
+                          "for i = 1, 20 do local info = debug.getinfo(i, 'S'); if info and info.source == 'dummy' then seen = true end end; "
+                          "return err end); assert(not ok); assert(type(err) == 'string'); assert(seen, 'module error frames missing')"));
+    ASSERT_EQ(dmScript::RESULT_LUA_ERROR, dmScript::ReloadModule(m_Context, LuaSourceFromText(code), dmHashString64("/traceback.module")));
+    ASSERT_NE((const char*)0, strstr(GetLog(), "inner_failure"));
+}
+
+struct ModuleAllocationCount
+{
+    lua_Alloc m_Allocate;
+    void* m_Context;
+    uint32_t m_Count;
+};
+
+static void* CountModuleAllocations(void* context, void* pointer, size_t previous, size_t size)
+{
+    ModuleAllocationCount* count = (ModuleAllocationCount*)context;
+    if (size > 0)
+        ++count->m_Count;
+    return count->m_Allocate(count->m_Context, pointer, previous, size);
+}
+
+static void* LimitModuleAllocations(void* context, void* pointer, size_t previous, size_t size)
+{
+    ModuleAllocationCount* count = (ModuleAllocationCount*)context;
+    if (size > 1024)
+    {
+        ++count->m_Count;
+        return 0;
+    }
+    return count->m_Allocate(count->m_Context, pointer, previous, size);
+}
+
+static int PreparedModuleFromGlobal(dmScript::HContext context, lua_State* L, void* resource)
+{
+    lua_getglobal(L, "precompiled_module");
+    return 0;
+}
+
+// Lua allocation failures during preparation return a resource-loading error and preserve the caller's resource ownership.
+TEST_F(ScriptModuleTest, PreparedModuleAllocationFailureRollsBack)
+{
+    ASSERT_TRUE(RunString(L,
+                          "local bytes = {}; local seed = 1; for i = 1, 4096 do seed = (seed * 16807) % 2147483647; bytes[i] = string.char(seed % 256) end; "
+                          "precompiled_module = assert(loadstring('return ' .. string.format('%q', table.concat(bytes))))"));
+    char code[] = "return {}";
+    char* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_ResourceFactory, "/allocation_failure.module", code, sizeof(code), (void**)&resource));
+    int top = lua_gettop(L);
+    ModuleAllocationCount count = {};
+    count.m_Allocate = lua_getallocf(L, &count.m_Context);
+    lua_setallocf(L, LimitModuleAllocations, &count);
+    dmScript::Result result = dmScript::AddModule(m_Context, 0, "allocation_failure_module", resource, dmHashString64("/allocation_failure.module"), PreparedModuleFromGlobal);
+    lua_setallocf(L, count.m_Allocate, count.m_Context);
+    ASSERT_EQ(dmScript::RESULT_LUA_ERROR, result);
+    ASSERT_GT(count.m_Count, 0u);
+    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_FALSE(dmScript::ModuleLoaded(m_Context, "allocation_failure_module"));
+    ASSERT_FALSE(dmScript::ModuleLoaded(m_Context, dmHashString64("/allocation_failure.module")));
+    ASSERT_EQ(0u, m_DestroyedResources);
+    dmResource::Release(m_ResourceFactory, resource);
+    ASSERT_EQ(1u, m_DestroyedResources);
+}
+
+// The first module lookup returns a Lua function already created during resource loading, without allocating VM nodes.
+TEST_F(ScriptModuleTest, PreparedModuleFirstLookupDoesNotAllocate)
+{
+    char code[] = "return {}";
+    char* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_ResourceFactory, "/allocation.module", code, sizeof(code), (void**)&resource));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, 0, "allocation_module", resource, dmHashString64("/allocation.module"), PrepareModule));
+    lua_getglobal(L, "package");
+    lua_getfield(L, -1, "loaders");
+    lua_rawgeti(L, -1, 1);
+    lua_remove(L, -2);
+    lua_remove(L, -2);
+    lua_pushliteral(L, "allocation_module");
+    ASSERT_TRUE(lua_checkstack(L, 32));
+
+    ModuleAllocationCount count = {};
+    count.m_Allocate = lua_getallocf(L, &count.m_Context);
+    lua_gc(L, LUA_GCSTOP, 0);
+    lua_setallocf(L, CountModuleAllocations, &count);
+    int status = lua_pcall(L, 1, 1, 0);
+    lua_setallocf(L, count.m_Allocate, count.m_Context);
+    lua_gc(L, LUA_GCRESTART, 0);
+    ASSERT_EQ(0, status);
+    ASSERT_EQ(0u, count.m_Count);
+    ASSERT_TRUE(lua_isfunction(L, -1));
+    ASSERT_FALSE(lua_iscfunction(L, -1));
+    lua_pop(L, 1);
+}
+
+static int PrepareDumpedModule(dmScript::HContext context, lua_State* L, void* resource)
+{
+    lua_getglobal(L, "prepared_bytecode");
+    size_t size;
+    const char* code = lua_tolstring(L, -1, &size);
+    dmLuaDDF::LuaSource source = {};
+    source.m_Bytecode.m_Data = (uint8_t*)code;
+    source.m_Bytecode.m_Count = size;
+    source.m_Filename = "@prepared_bytecode.lua";
+    int status = dmScript::LuaLoad(L, &source);
+    lua_remove(L, -2);
+    return status;
+}
+
+// Binary modules preserve chunk varargs, global arg lookup, nested upvalues, debug names and LuaJIT cdata constants.
+TEST_F(ScriptModuleTest, PreparedBytecodeModulePreservesSemantics)
+{
+    ASSERT_TRUE(RunString(L,
+                          "module_arguments = {}; arg = module_arguments; "
+                          "prepared_bytecode = string.dump(assert(loadstring([[local name = ...; assert(arg == module_arguments); "
+                          "local offset = 7; local function value(x) return x + offset end; "
+                          "return { name = name, value = value }]], '@prepared_bytecode.lua')))"));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, 0, "bytecode_module", 0, dmHashString64("/bytecode.module"), PrepareDumpedModule));
+    ASSERT_TRUE(RunString(L,
+                          "prepared_bytecode = nil; local M = require('bytecode_module'); "
+                          "assert(M.name == 'bytecode_module'); assert(M.value(3) == 10); "
+                          "assert(debug.getinfo(M.value, 'S').source == '@prepared_bytecode.lua'); "
+                          "package.loaded.bytecode_module = nil; assert(require('bytecode_module').value(5) == 12); "
+                          "local source = jit and 'return { value = 123ULL }' or 'return { value = 123 }'; "
+                          "prepared_bytecode = string.dump(assert(loadstring(source)))"));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, 0, "cdata_module", 0, dmHashString64("/cdata.module"), PrepareDumpedModule));
+    ASSERT_TRUE(RunString(L,
+                          "prepared_bytecode = nil; local M = require('cdata_module'); "
+                          "if jit then assert(tostring(M.value) == '123ULL') else assert(M.value == 123) end; "
+                          "local captured = 7; prepared_bytecode = string.dump(function(...) return { name = ..., value = captured or 123 } end)"));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, 0, "upvalue_module", 0, dmHashString64("/upvalue.module"), PrepareDumpedModule));
+    ASSERT_TRUE(RunString(L,
+                          "prepared_bytecode = nil; local M = require('upvalue_module'); assert(M.name == 'upvalue_module'); assert(M.value == 123); "
+                          "package.loaded.upvalue_module = nil; assert(require('upvalue_module').value == 123); "
+                          "prepared_bytecode = string.dump(assert(loadstring('')))"));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, 0, "empty_module", 0, dmHashString64("/empty.module"), PrepareDumpedModule));
+    ASSERT_TRUE(RunString(L,
+                          "prepared_bytecode = nil; assert(require('empty_module') == true); package.loaded.empty_module = nil; assert(require('empty_module') == true); "
+                          "prepared_bytecode = string.dump(assert(loadstring('return { value = 456 }')), true)"));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, 0, "stripped_module", 0, dmHashString64("/stripped.module"), PrepareDumpedModule));
+    ASSERT_TRUE(RunString(L, "prepared_bytecode = nil; assert(require('stripped_module').value == 456); package.loaded.stripped_module = nil; assert(require('stripped_module').value == 456)"));
+}
+
+// Preparation creates reusable code during registration, leaves its body deferred, and resets its environment on repeat require.
 TEST_F(ScriptModuleTest, PreparedModuleRunsWithoutLoadingAgain)
 {
     char code[] = "_G.prepared_module_runs = (_G.prepared_module_runs or 0) + 1; local result = { value = 123 }; setfenv(1, {}); return result";
