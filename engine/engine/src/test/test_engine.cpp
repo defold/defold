@@ -28,6 +28,7 @@
 #include <script/sys_ddf.h>
 #include <render/render_ddf.h>
 #include <dmsdk/extension/extension.hpp>
+#include <dmsdk/engine/engine_event.h>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
@@ -63,6 +64,68 @@ static float    g_ExtensionTotalDT              = 0.0f;
 static uint32_t g_ExtensionUpdateCount          = 0;
 static bool     g_ExtensionFloatLookupSucceeded = true;
 
+struct EngineEventObservations
+{
+    dmEngine::HEngine m_Engine;
+    uint32_t          m_Initialized;
+    uint32_t          m_Deleted;
+    uint32_t          m_Finalized;
+    uint32_t          m_Resized;
+    uint32_t          m_Width;
+    uint32_t          m_Height;
+    bool              m_InitSucceeded;
+    bool              m_InitializedContexts;
+    bool              m_DeletedContexts;
+    bool              m_DeletedBeforeFinalize;
+    bool              m_CollectionAliveAtDelete;
+    bool              m_WindowStateApplied;
+    bool              m_PayloadValid;
+};
+static EngineEventObservations g_EngineEvents = {};
+static bool g_ObserveEngineEvents = false;
+
+static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const void* data, uint32_t data_size)
+{
+    if (!g_ObserveEngineEvents)
+    {
+        return;
+    }
+    if (event_id == dmEngine::EVENT_ENGINE_INITIALIZED)
+    {
+        ++g_EngineEvents.m_Initialized;
+        g_EngineEvents.m_InitializedContexts = params->m_L && params->m_ResourceFactory;
+    }
+    else if (event_id == dmEngine::EVENT_ENGINE_DELETE)
+    {
+        ++g_EngineEvents.m_Deleted;
+        g_EngineEvents.m_DeletedBeforeFinalize = g_EngineEvents.m_Finalized == 0;
+        g_EngineEvents.m_DeletedContexts = params->m_L && params->m_ResourceFactory &&
+                                           g_EngineEvents.m_Engine->m_RenderContext && g_EngineEvents.m_Engine->m_HidContext;
+        dmhash_t collection_path;
+        g_EngineEvents.m_CollectionAliveAtDelete = g_EngineEvents.m_Engine->m_MainCollectionResource &&
+                                                   ResourceGetPath(params->m_ResourceFactory, g_EngineEvents.m_Engine->m_MainCollectionResource, &collection_path) == RESOURCE_RESULT_OK;
+    }
+    else if (event_id == dmEngine::EVENT_WINDOW_RESIZED)
+    {
+        bool valid = data && data_size == sizeof(dmEngine::WindowResizedEvent);
+        g_EngineEvents.m_PayloadValid &= valid;
+        if (!valid)
+        {
+            return;
+        }
+        const dmEngine::WindowResizedEvent* resized = (const dmEngine::WindowResizedEvent*)data;
+        ++g_EngineEvents.m_Resized;
+        g_EngineEvents.m_Width = resized->m_Width;
+        g_EngineEvents.m_Height = resized->m_Height;
+        if (resized->m_Width && resized->m_Height)
+        {
+            float dx = g_EngineEvents.m_Engine->m_InvPhysicalWidth - 1.0f / resized->m_Width;
+            float dy = g_EngineEvents.m_Engine->m_InvPhysicalHeight - 1.0f / resized->m_Height;
+            g_EngineEvents.m_WindowStateApplied &= dx < 0.00001f && dx > -0.00001f && dy < 0.00001f && dy > -0.00001f;
+        }
+    }
+}
+
 static dmExtension::Result DeltaTimeTestLifecycle(dmExtension::Params*)
 {
     return dmExtension::RESULT_OK;
@@ -82,7 +145,25 @@ static dmExtension::Result DeltaTimeTestUpdate(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(EngineDeltaTimeTestExt, "test_dt", 0, 0, DeltaTimeTestLifecycle, DeltaTimeTestUpdate, 0, DeltaTimeTestLifecycle);
+static dmExtension::Result DeltaTimeTestFinalize(dmExtension::Params*)
+{
+    if (g_ObserveEngineEvents)
+    {
+        ++g_EngineEvents.m_Finalized;
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result RegisterDeltaTimeTest(dmExtension::HExtension extension)
+{
+    dmExtension::SetInitializeFn(extension, DeltaTimeTestLifecycle);
+    dmExtension::SetUpdateFn(extension, DeltaTimeTestUpdate);
+    dmExtension::SetFinalizeFn(extension, DeltaTimeTestFinalize);
+    dmExtension::SetEventFn(extension, EngineEvent);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineDeltaTimeTestExt, RegisterDeltaTimeTest, 0);
 
 static void TestEngineInitialize(void* _ctx)
 {
@@ -462,6 +543,66 @@ TEST_F(EngineTest, WindowResizeBeforeRenderContext)
 
     dmEngine::Delete(engine);
     dmEngineFinalize();
+}
+
+static EngineEventObservations RunEngineEventCycle(bool fail_initialization)
+{
+    dmEngineInitialize();
+    memset(&g_EngineEvents, 0, sizeof(g_EngineEvents));
+    g_EngineEvents.m_PayloadValid = true;
+    g_EngineEvents.m_WindowStateApplied = true;
+    g_EngineEvents.m_Engine = dmEngine::New(0);
+    g_ObserveEngineEvents = true;
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine", "--config=dmengine.unload_builtins=0", project_path, "--config=bootstrap.main_collection=/missing_event_test.collectionc"
+    };
+    g_EngineEvents.m_InitSucceeded = dmEngine::Init(g_EngineEvents.m_Engine, fail_initialization ? DM_ARRAY_SIZE(argv) : DM_ARRAY_SIZE(argv) - 1, (char**)argv);
+    if (g_EngineEvents.m_InitSucceeded)
+    {
+        g_EngineEvents.m_Resized = 0;
+        dmEngine::OnWindowResize(g_EngineEvents.m_Engine, 321, 123);
+    }
+    dmEngine::Delete(g_EngineEvents.m_Engine);
+    dmEngineFinalize();
+    g_ObserveEngineEvents = false;
+    g_EngineEvents.m_Engine = 0;
+    return g_EngineEvents;
+}
+
+// Engine lifecycle uses the generic handler before teardown; payloads reflect applied state across restarts.
+TEST_F(EngineTest, GenericLifecycleEventsBeforeTeardown)
+{
+    for (uint32_t run = 0; run < 2; ++run)
+    {
+        EngineEventObservations events = RunEngineEventCycle(false);
+        ASSERT_TRUE(events.m_InitSucceeded);
+        ASSERT_EQ(1u, events.m_Initialized);
+        ASSERT_EQ(1u, events.m_Deleted);
+        ASSERT_EQ(1u, events.m_Finalized);
+        ASSERT_TRUE(events.m_InitializedContexts);
+        ASSERT_TRUE(events.m_DeletedContexts);
+        ASSERT_TRUE(events.m_DeletedBeforeFinalize);
+        ASSERT_TRUE(events.m_CollectionAliveAtDelete);
+        ASSERT_TRUE(events.m_WindowStateApplied);
+        ASSERT_TRUE(events.m_PayloadValid);
+        ASSERT_EQ(1u, events.m_Resized);
+        ASSERT_EQ(321u, events.m_Width);
+        ASSERT_EQ(123u, events.m_Height);
+    }
+}
+
+// Failed bootstrap initialization still emits generic engine-delete while the initialized systems remain alive.
+TEST_F(EngineTest, GenericEngineDeleteAfterInitializationFailure)
+{
+    EngineEventObservations events = RunEngineEventCycle(true);
+    ASSERT_FALSE(events.m_InitSucceeded);
+    ASSERT_EQ(0u, events.m_Initialized);
+    ASSERT_EQ(1u, events.m_Deleted);
+    ASSERT_TRUE(events.m_DeletedBeforeFinalize);
+    ASSERT_TRUE(events.m_DeletedContexts);
 }
 
 // Extension and engine time must agree after every update, including when delta time is zero.

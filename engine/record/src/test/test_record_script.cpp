@@ -19,6 +19,7 @@
 #include <dlib/mutex.h>
 #include <dlib/time.h>
 #include <extension/extension.hpp>
+#include <dmsdk/engine/engine_event.h>
 #include <script/script.h>
 #include <record/record_private.h>
 #include <string.h>
@@ -145,13 +146,13 @@ static ExtensionResult Render(dmExtension::Params*)
     return EXTENSION_RESULT_OK;
 }
 
-static dmExtension::Result AppInitializeRenderer(dmExtension::AppParams*)
+static dmExtension::Result RegisterRenderer(dmExtension::HExtension extension)
 {
-    dmExtension::RegisterCallback(dmExtension::CALLBACK_POST_RENDER, Render);
+    dmExtension::SetPostRenderFn(extension, Render);
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(RecordTestRenderer, "RecordRenderer", AppInitializeRenderer, 0, 0, 0, 0, 0)
+DM_DECLARE_EXTENSION(RecordTestRenderer, RegisterRenderer, 0)
 #endif
 
 struct ScriptInstance
@@ -286,9 +287,7 @@ protected:
 
     void EngineDelete()
     {
-        dmExtension::Event event;
-        event.m_Event = EXTENSION_EVENT_ID_ENGINE_DELETE;
-        dmExtension::DispatchEvent(&m_Params, &event);
+        dmExtension::BroadcastEvent(&m_Params, dmEngine::EVENT_ENGINE_DELETE, 0, 0);
     }
 
     bool Run(const char* source)
@@ -677,9 +676,7 @@ TEST(RecordScriptExtension, ShutdownBeforeLuaInitialization)
     ExtensionAppParamsInitialize(&app_params);
     ExtensionParamsInitialize(&params);
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&app_params));
-    dmExtension::Event event;
-    event.m_Event = EXTENSION_EVENT_ID_ENGINE_DELETE;
-    dmExtension::DispatchEvent(&params, &event);
+    dmExtension::BroadcastEvent(&params, dmEngine::EVENT_ENGINE_DELETE, 0, 0);
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Finalize(&params));
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppFinalize(&app_params));
     ExtensionParamsFinalize(&params);

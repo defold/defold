@@ -7,13 +7,15 @@ set(EXTENSION_TEST_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(EXTENSION_ROOT "${EXTENSION_TEST_ROOT}/../..")
 set(EXTENSION_SRC_DIR "${EXTENSION_ROOT}/src")
 
-defold_add_library(test_extension_lib STATIC "${EXTENSION_TEST_ROOT}/test_extension_lib.cpp")
+defold_add_library(test_extension_lib STATIC
+  "${EXTENSION_TEST_ROOT}/test_extension_lib.cpp"
+  "${EXTENSION_TEST_ROOT}/test_extension_type.c")
 target_include_directories(test_extension_lib PUBLIC
   "${EXTENSION_TEST_ROOT}"
   "${EXTENSION_SRC_DIR}")
 defold_target_link_libraries(test_extension_lib "${TARGET_PLATFORM}" ddf dlib)
 
-set(_extension_exports TestExt)
+set(_extension_exports TestExt TestExtNew TestTypeC TestTypeCpp TestEventObserver)
 defold_create_exported_symbols_file("${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols.cpp" "${_extension_exports}")
 
 defold_add_executable(test_extension

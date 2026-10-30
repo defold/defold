@@ -20,9 +20,13 @@
 
 // Include generated sdk.h files including all sdk include files.
 #include <dmsdk/sdk.h>
+#include <dmsdk/engine/engine_event.h>
 
 int g_TestAppInitCount = 0;
 int g_TestAppEventCount = 0;
+int g_TestCustomEventCount = 0;
+uint32_t g_TestCustomEventValue = 0;
+bool g_TestCustomEventDTValid = true;
 
 dmExtension::Result AppInitializeTest(dmExtension::AppParams* params)
 {
@@ -43,15 +47,32 @@ dmExtension::Result InitializeTest(dmExtension::Params* params)
 
 dmExtension::Result UpdateTest(dmExtension::Params* params)
 {
+    float before = -1.0f;
+    g_TestCustomEventDTValid &= dmExtension::ParamsGetFloat(params, dmExtension::PARAM_DT, &before);
+    uint32_t value = 42;
+    dmExtension::BroadcastEvent(params, dmHashString64("sdk.custom_event"), &value, sizeof(value));
+    float after = -1.0f;
+    g_TestCustomEventDTValid &= dmExtension::ParamsGetFloat(params, dmExtension::PARAM_DT, &after) && after == before;
     return dmExtension::RESULT_OK;
 }
 
-void OnEventTest(dmExtension::Params* params, const dmExtension::Event* event)
+void OnEventTest(dmExtension::Params* params, dmhash_t event_id, const void* data, uint32_t data_size)
 {
-    if( event->m_Event == (ExtensionEventID)dmExtension::EVENT_ID_ACTIVATEAPP )
+    if (event_id == dmEngine::EVENT_ACTIVATEAPP)
+    {
         ++g_TestAppEventCount;
-    else if(event->m_Event == (ExtensionEventID)dmExtension::EVENT_ID_DEACTIVATEAPP)
+    }
+    else if (event_id == dmEngine::EVENT_DEACTIVATEAPP)
+    {
         --g_TestAppEventCount;
+    }
+    else if (event_id == dmHashString64("sdk.custom_event") && data_size == sizeof(uint32_t))
+    {
+        ++g_TestCustomEventCount;
+        g_TestCustomEventValue = *(const uint32_t*)data;
+        float dt = -1.0f;
+        g_TestCustomEventDTValid &= dmExtension::ParamsGetFloat(params, dmExtension::PARAM_DT, &dt) && dt == 0.0f;
+    }
 }
 
 dmExtension::Result FinalizeTest(dmExtension::Params* params)
@@ -59,4 +80,15 @@ dmExtension::Result FinalizeTest(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(TestSdk, "test", AppInitializeTest, AppFinalizeTest, InitializeTest, UpdateTest, OnEventTest, FinalizeTest);
+static dmExtension::Result RegisterTest(dmExtension::HExtension extension)
+{
+    dmExtension::SetAppInitializeFn(extension, AppInitializeTest);
+    dmExtension::SetAppFinalizeFn(extension, AppFinalizeTest);
+    dmExtension::SetInitializeFn(extension, InitializeTest);
+    dmExtension::SetFinalizeFn(extension, FinalizeTest);
+    dmExtension::SetUpdateFn(extension, UpdateTest);
+    dmExtension::SetEventFn(extension, OnEventTest);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(TestSdk, RegisterTest, 0);

@@ -30,7 +30,11 @@ int g_TestInitCount = 0;
 int g_TestUpdateCount = 0;
 float g_TestUpdateDT = 0.0f;
 int g_TestAppEventCount = 0;
+int g_TestEventCount = 0;
+int g_TestNewEventCount = 0;
 int g_TestContextCount = 0;
+int g_TestRegisterCount = 0;
+int g_TestUnregisterCount = 0;
 
 static int g_LibContext = 0;
 static int g_InitContext = 0;
@@ -90,12 +94,18 @@ static dmExtension::Result UpdateTest(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-void OnEventTest(dmExtension::Params* params, const dmExtension::Event* event)
+static void OnEventTest(dmExtension::Params* params, const dmExtension::Event* event)
 {
+    ++g_TestEventCount;
     if( event->m_Event == EXTENSION_EVENT_ID_ACTIVATEAPP )
         ++g_TestAppEventCount;
     else if(event->m_Event == EXTENSION_EVENT_ID_DEACTIVATEAPP)
         --g_TestAppEventCount;
+}
+
+static void OnEventTestNew(dmExtension::Params*, dmhash_t, const void*, uint32_t)
+{
+    ++g_TestNewEventCount;
 }
 
 static dmExtension::Result FinalizeTest(dmExtension::Params* params)
@@ -117,3 +127,18 @@ static dmExtension::Result FinalizeTest(dmExtension::Params* params)
 }
 
 DM_DECLARE_EXTENSION(TestExt, "test", AppInitializeTest, AppFinalizeTest, InitializeTest, UpdateTest, OnEventTest, FinalizeTest);
+
+static dmExtension::Result RegisterTest(dmExtension::HExtension extension)
+{
+    ++g_TestRegisterCount;
+    dmExtension::SetEventFn(extension, OnEventTestNew);
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result UnregisterTest(dmExtension::HExtension)
+{
+    ++g_TestUnregisterCount;
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(TestExtNew, RegisterTest, UnregisterTest);

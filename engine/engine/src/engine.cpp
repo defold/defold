@@ -17,6 +17,7 @@
 #include "engine_private.h"
 
 #include <dmsdk/dlib/configfile.h>
+#include <dmsdk/engine/engine_event.h>
 #include <dmsdk/dlib/jobsystem.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/webserver.h>
@@ -328,6 +329,10 @@ namespace dmEngine
         }
 
         dmGameSystem::OnWindowResized(width, height);
+
+        ScopedExtensionParams params(engine);
+        dmEngine::WindowResizedEvent event = { width, height };
+        dmExtension::BroadcastEvent(params, dmEngine::EVENT_WINDOW_RESIZED, &event, sizeof(event));
     }
 
     static int OnWindowClose(void* user_data)
@@ -345,9 +350,7 @@ namespace dmEngine
         Engine* engine = (Engine*)user_data;
         ScopedExtensionParams params(engine);
 
-        dmExtension::Event event;
-        event.m_Event = focus ? EXTENSION_EVENT_ID_ACTIVATEAPP : EXTENSION_EVENT_ID_DEACTIVATEAPP;
-        dmExtension::DispatchEvent( params, &event );
+        dmExtension::BroadcastEvent(params, focus ? dmEngine::EVENT_ACTIVATEAPP : dmEngine::EVENT_DEACTIVATEAPP, 0, 0);
 
         dmGameSystem::OnWindowFocus(focus != 0);
     }
@@ -362,9 +365,7 @@ namespace dmEngine
 
         ScopedExtensionParams params(engine);
 
-        dmExtension::Event event;
-        event.m_Event = iconify ? EXTENSION_EVENT_ID_ICONIFYAPP : EXTENSION_EVENT_ID_DEICONIFYAPP;
-        dmExtension::DispatchEvent( params, &event );
+        dmExtension::BroadcastEvent(params, iconify ? dmEngine::EVENT_ICONIFYAPP : dmEngine::EVENT_DEICONIFYAPP, 0, 0);
 
         dmGameSystem::OnWindowIconify(iconify != 0);
     }
@@ -529,9 +530,7 @@ namespace dmEngine
         {
             ScopedExtensionParams params(engine);
 
-            dmExtension::Event event;
-            event.m_Event = EXTENSION_EVENT_ID_ENGINE_DELETE;
-            dmExtension::DispatchEvent( params, &event );
+            dmExtension::BroadcastEvent(params, dmEngine::EVENT_ENGINE_DELETE, 0, 0);
         }
 
         if (engine->m_MainCollectionResource)
@@ -1826,9 +1825,7 @@ namespace dmEngine
         {
             ScopedExtensionParams params(engine);
 
-            dmExtension::Event event;
-            event.m_Event = EXTENSION_EVENT_ID_ENGINE_INITIALIZED;
-            dmExtension::DispatchEvent( params, &event );
+            dmExtension::BroadcastEvent(params, dmEngine::EVENT_ENGINE_INITIALIZED, 0, 0);
         }
 
         // Establish the elapsed-time origin and first pacing deadline only after
