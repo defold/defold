@@ -95,6 +95,10 @@ namespace dmGameSystem
         // Used after resolving info from all textures
         dmhash_t                        m_AnimationID;                      // The animation of the driving atlas
         uint32_t                        m_Frames[MAX_TEXTURE_COUNT];        // The resolved frame indices
+        uint32_t                        m_TextureSetIds[MAX_TEXTURE_COUNT]; // TextureSetResource::m_Id of each texture set the data was resolved from
+        TextureSetResource*             m_TextureSets[MAX_TEXTURE_COUNT];
+        uint32_t                        m_AnimationFrame;
+        uint8_t                         m_NumTextures;
         uint32_t                        m_LastAccessTick;
         uint32_t                        m_CacheKey;
         uint32_t                        m_VertexCount;
@@ -177,6 +181,8 @@ namespace dmGameSystem
         uint8_t                     m_LocalPoseIsIdentity : 1; // Fixed component position/rotation; scale is checked separately.
         uint8_t                     m_GeometryFlipHorizontal : 1; // Animation flips that also mirror the pivot (polygon geometry only)
         uint8_t                     m_GeometryFlipVertical : 1;
+        // Animation data resolved in the last update, used for rendering. Changes made after the update apply next frame
+        AnimationData*              m_RenderAnimationData;
     };
 
     struct SpriteWorld
@@ -204,8 +210,10 @@ namespace dmGameSystem
         uint32_t                            m_EnabledRenderItemCount;
         uint8_t*                            m_IndexBufferData;
         uint8_t*                            m_IndexBufferWritePtr;
+        dmArray<void*>                      m_DeferredReleases;
         uint8_t                             m_Is16BitIndex : 1;
         uint8_t                             m_ReallocBuffers : 1;
+        uint8_t                             m_DrawPending : 1; // Between the update and the end of the frame
     };
 
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SCALE, scale, false);
@@ -232,10 +240,11 @@ namespace dmGameSystem
     static void SetPlaybackRate(SpriteComponent* component, float playback_rate);
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params);
     static void RenderListDispatch(const dmRender::RenderListDispatchParams& params);
+    static void ReleaseDeferredResources(dmResource::HFactory factory, SpriteWorld* sprite_world);
 
     static void UpdateRenderItemEnabled(dmRender::HRenderContext render_context, SpriteWorld* world, SpriteComponent* component)
     {
-        bool enabled = component->m_Enabled && component->m_AddedToUpdate && component->m_VertexCount && component->m_IndexCount;
+        bool enabled = component->m_Enabled && component->m_AddedToUpdate && component->m_VertexCount && component->m_IndexCount && component->m_RenderAnimationData;
         if (component->m_RenderItemEnabled == enabled)
             return;
         component->m_RenderItemEnabled = enabled;
@@ -300,6 +309,7 @@ namespace dmGameSystem
         sprite_world->m_IndexBufferWritePtr  = 0;
         sprite_world->m_Is16BitIndex         = 0;
         sprite_world->m_ReallocBuffers       = 1;
+        sprite_world->m_DrawPending          = 0;
 
         InitializeMaterialAttributeInfos(sprite_world->m_DynamicVertexAttributePool, 8);
 
@@ -328,12 +338,16 @@ namespace dmGameSystem
         dmRender::DeleteBufferedRenderBuffer(sprite_context->m_RenderContext, sprite_world->m_IndexBuffer);
         free(sprite_world->m_IndexBufferData);
 
-        dmHashTable32<AnimationData*>::Iterator iter = sprite_world->m_AnimationDataCache.m_Cache.GetIterator();
-        while(iter.Next())
+        dmDoubleLinkedList::List* lru = &sprite_world->m_AnimationDataCache.m_LRU;
+        dmDoubleLinkedList::ListNode* node = dmDoubleLinkedList::ListGetLast(lru);
+        while (node != 0x0)
         {
-            AnimationData* data = iter.GetValue();
-            free(data);
+            dmDoubleLinkedList::ListRemove(lru, node);
+            free(node);
+            node = dmDoubleLinkedList::ListGetLast(lru);
         }
+
+        ReleaseDeferredResources(sprite_context->m_Factory, sprite_world);
 
         dmResource::UnregisterResourceReloadedCallback(sprite_context->m_Factory, ResourceReloadedCallback, sprite_world);
         delete sprite_world;
@@ -357,6 +371,43 @@ namespace dmGameSystem
         }
         result[2] = 1.0f;
         return result;
+    }
+
+    // A sprite renders from the data resolved in the update, so resources it replaces after the update are kept until the end of the frame
+    static void ReleaseOverrideResource(dmResource::HFactory factory, SpriteWorld* sprite_world, const SpriteComponent* component, void* resource)
+    {
+        if (sprite_world->m_DrawPending && component->m_RenderItemEnabled)
+        {
+            if (sprite_world->m_DeferredReleases.Full())
+                sprite_world->m_DeferredReleases.OffsetCapacity(16);
+            sprite_world->m_DeferredReleases.Push(resource);
+        }
+        else
+        {
+            dmResource::Release(factory, resource);
+        }
+    }
+
+    static void ReleaseDeferredResources(dmResource::HFactory factory, SpriteWorld* sprite_world)
+    {
+        for (uint32_t i = 0; i < sprite_world->m_DeferredReleases.Size(); ++i)
+        {
+            dmResource::Release(factory, sprite_world->m_DeferredReleases[i]);
+        }
+        sprite_world->m_DeferredReleases.SetSize(0);
+    }
+
+    static dmGameObject::PropertyResult SetOverrideResource(dmResource::HFactory factory, SpriteWorld* sprite_world, const SpriteComponent* component, const dmGameObject::PropertyVar& value, dmhash_t ext, void** out_resource)
+    {
+        void* prev_resource = *out_resource;
+        if (prev_resource)
+            dmResource::IncRef(factory, prev_resource);
+        dmGameObject::PropertyResult res = SetResourceProperty(factory, value, ext, out_resource);
+        if (prev_resource && *out_resource != prev_resource)
+            ReleaseOverrideResource(factory, sprite_world, component, prev_resource);
+        else if (prev_resource)
+            dmResource::Release(factory, prev_resource);
+        return res;
     }
 
     void DeleteOverrides(dmResource::HFactory factory, SpriteComponent* component)
@@ -393,7 +444,7 @@ namespace dmGameSystem
     // where we keep overrides. The samplers are set, but the texturesets may be null:
     //  material:  [(diffuse, textureset0), (normal, textureset1), (emissive, textureset1)]
     //  overrides: [(diffuse, null),        (normal, textureset1), (emissive, null)]
-    static void UpdateOverrideTexturesArray(dmResource::HFactory factory, SpriteComponent* component, MaterialResource* material)
+    static void UpdateOverrideTexturesArray(dmResource::HFactory factory, SpriteWorld* sprite_world, SpriteComponent* component, MaterialResource* material)
     {
         SpriteResourceOverrides* overrides = component->m_Overrides;
 
@@ -429,26 +480,26 @@ namespace dmGameSystem
             // if the texture set wasn't copied to the new array, it should be released
             if (overrides->m_Textures[i].m_TextureSet)
             {
-                dmResource::Release(factory, overrides->m_Textures[i].m_TextureSet);
+                ReleaseOverrideResource(factory, sprite_world, component, overrides->m_Textures[i].m_TextureSet);
             }
         }
 
         overrides->m_Textures.Swap(textures);
     }
 
-    static dmGameObject::PropertyResult AddOverrideMaterial(dmResource::HFactory factory, SpriteComponent* component, dmhash_t resource)
+    static dmGameObject::PropertyResult AddOverrideMaterial(dmResource::HFactory factory, SpriteWorld* sprite_world, SpriteComponent* component, dmhash_t resource)
     {
         if (!component->m_Overrides)
             component->m_Overrides = new SpriteResourceOverrides;
         SpriteResourceOverrides* overrides = component->m_Overrides;
 
-        dmGameObject::PropertyResult res = SetResourceProperty(factory, resource, MATERIAL_EXT_HASH, (void**)&overrides->m_Material);
+        dmGameObject::PropertyResult res = SetOverrideResource(factory, sprite_world, component, resource, MATERIAL_EXT_HASH, (void**)&overrides->m_Material);
         if (dmGameObject::PROPERTY_RESULT_OK == res)
-            UpdateOverrideTexturesArray(factory, component, overrides->m_Material);
+            UpdateOverrideTexturesArray(factory, sprite_world, component, overrides->m_Material);
         return res;
     }
 
-    static dmGameObject::PropertyResult AddOverrideTextureSet(dmResource::HFactory factory, SpriteComponent* component, dmhash_t sampler_name_hash, dmhash_t resource)
+    static dmGameObject::PropertyResult AddOverrideTextureSet(dmResource::HFactory factory, SpriteWorld* sprite_world, SpriteComponent* component, dmhash_t sampler_name_hash, dmhash_t resource)
     {
         // scenarios
         // * Change material, with possibly different sampler indices
@@ -461,7 +512,7 @@ namespace dmGameSystem
 
             // Make sure the array is of equal length as the materials' sampler list
             MaterialResource* material = component->m_Resource->m_Material;
-            UpdateOverrideTexturesArray(factory, component, material);
+            UpdateOverrideTexturesArray(factory, sprite_world, component, material);
         }
         SpriteResourceOverrides* overrides = component->m_Overrides;
 
@@ -495,7 +546,7 @@ namespace dmGameSystem
             }
         }
 
-        return SetResourceProperty(factory, resource, TEXTURE_SET_EXT_HASH, (void**)texture_set);
+        return SetOverrideResource(factory, sprite_world, component, resource, TEXTURE_SET_EXT_HASH, (void**)texture_set);
     }
 
     static inline HComponentRenderConstants GetRenderConstants(const SpriteComponent* component)
@@ -574,18 +625,10 @@ namespace dmGameSystem
         return component->m_Resource->m_Textures[texture_unit].m_TextureSet->m_Texture;
     }
 
-    uint8_t GetTextureResourceGeneration(const SpriteComponent* component, uint32_t texture_unit)
+    static inline uint32_t GetTextureSetId(const SpriteComponent* component, uint32_t index)
     {
-        if(texture_unit >= component->m_Resource->m_NumTextures)
-            return 0;
-
-        const SpriteResourceOverrides* overrides = component->m_Overrides;
-        if (overrides && texture_unit < overrides->m_Textures.Size())
-        {
-            if (overrides->m_Textures[texture_unit].m_TextureSet)
-                return overrides->m_Textures[texture_unit].m_TextureSet->m_TexturesGeneration;
-        }
-        return component->m_Resource->m_Textures[texture_unit].m_TextureSet->m_TexturesGeneration;
+        TextureSetResource* texture_set = GetTextureSetByIndex(component, index);
+        return texture_set ? texture_set->m_Id : 0;
     }
 
     dmGraphics::HTexture GetMaterialTexture(const SpriteComponent* component, uint32_t texture_unit)
@@ -736,14 +779,11 @@ namespace dmGameSystem
         }
 
         dmHashUpdateBuffer32(&state, resource->m_Textures, sizeof(SpriteTexture) * resource->m_NumTextures);
+        // Texture set addresses may be reused after a release, the ids are not
         for (size_t idx = 0; idx < resource->m_NumTextures; ++idx)
         {
-            uint8_t generation = GetTextureResourceGeneration(component, idx);
-            dmHashUpdateBuffer32(&state, &generation, sizeof(generation));
-        }
-        if (resource->m_NumTextures > 0)
-        {
-            dmHashUpdateBuffer32(&state, resource->m_Textures->m_TextureSet, sizeof(resource->m_Textures->m_TextureSet));
+            uint32_t id = GetTextureSetId(component, idx);
+            dmHashUpdateBuffer32(&state, &id, sizeof(id));
         }
         dmHashUpdateBuffer32(&state, resource->m_Material, sizeof(MaterialResource*));
 
@@ -985,7 +1025,7 @@ namespace dmGameSystem
         Vector4 slice9 = component->m_Slice9;
         bool flip_u = component->m_FlipHorizontal == 1;
         bool flip_v = component->m_FlipVertical == 1;
-        uint8_t texture_num = component->m_NumTextures;
+        uint8_t texture_num = anim_data->m_NumTextures;
         // render 9-sliced node
         //   0 1     2 3
         // 0 *-*-----*-*
@@ -1013,7 +1053,7 @@ namespace dmGameSystem
                 continue;
             }
 
-            const TextureSetResource* texture_set_resource = GetTextureSetByIndex(component, i);
+            const TextureSetResource* texture_set_resource = anim_data->m_TextureSets[i];
             const dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set_resource->m_TextureSet;
             const float* tex_coords = (const float*) texture_set_ddf->m_TexCoords.m_Data;
             const float* tc         = &tex_coords[frame_index * 4 * 2];
@@ -1211,6 +1251,7 @@ namespace dmGameSystem
         dmhash_t anim_id = component->m_CurrentAnimation;
         uint32_t current_anim_frame_index = component->m_CurrentAnimationFrame;
         data->m_AnimationID = anim_id;
+        data->m_AnimationFrame = current_anim_frame_index;
 
         // For the first texture set, we figure out the actual frame index,
         // and from that index we figure out the name of that single frame animation.
@@ -1220,9 +1261,12 @@ namespace dmGameSystem
         bool uses_geometries = false;
 
         uint8_t texture_num = component->m_NumTextures;
+        data->m_NumTextures = texture_num;
         for (uint8_t i = 0; i < texture_num; ++i)
         {
             TextureSetResource* resource = GetTextureSetByIndex(component, i);
+            data->m_TextureSetIds[i] = resource->m_Id;
+            data->m_TextureSets[i] = resource;
 
             const dmGameSystemDDF::TextureSet* texture_set_ddf = resource->m_TextureSet;
             const uint32_t* frame_indices = texture_set_ddf->m_FrameIndices.m_Data;
@@ -1336,7 +1380,7 @@ namespace dmGameSystem
         };
         uint16_t flip_horizontal = component->m_FlipHorizontal;
         uint16_t flip_vertical = component->m_FlipVertical;
-        uint8_t texture_num = component->m_NumTextures;
+        uint8_t texture_num = data->m_NumTextures;
 
         for (uint8_t i = 0; i < texture_num; ++i)
         {
@@ -1351,7 +1395,7 @@ namespace dmGameSystem
                 continue;
             }
 
-            const TextureSetResource* texture_set_resource = GetTextureSetByIndex(component, i);
+            const TextureSetResource* texture_set_resource = data->m_TextureSets[i];
             const dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set_resource->m_TextureSet;
             const dmGameSystemDDF::TextureSetAnimation* animation_ddf = data->m_Animations[i];
             if (!animation_ddf)
@@ -1446,7 +1490,7 @@ namespace dmGameSystem
 
         scratch_pos.EnsureSize(num_vertices);
 
-        uint8_t textures_num = component->m_NumTextures;
+        uint8_t textures_num = anim_data->m_NumTextures;
         for (uint8_t i = 0; i < textures_num; ++i)
         {
             dmArray<float>& uvs = scratch_uvs[i];
@@ -1456,7 +1500,7 @@ namespace dmGameSystem
             scratch_pi_ptrs[i] = &anim_data->m_PageIndices[i];
             scratch_tt_ptrs[i] = (float*) &anim_data->m_TextureTransformsPacked[i][0];
 
-            TextureSetResource* texture_set_resource = GetTextureSetByIndex(component, i);
+            TextureSetResource* texture_set_resource = anim_data->m_TextureSets[i];
             dmGameSystemDDF::TextureSet* texture_set = texture_set_resource->m_TextureSet;
             uint32_t width = texture_set->m_Width;
             uint32_t height = texture_set->m_Height;
@@ -1515,6 +1559,23 @@ namespace dmGameSystem
         }
     }
 
+    // The cache key is a 32 bit hash, so a hit may still belong to other texture sets or another animation frame
+    static bool IsAnimationDataValid(const SpriteComponent* component, const AnimationData* data)
+    {
+        if (data->m_AnimationID != component->m_CurrentAnimation ||
+            data->m_AnimationFrame != component->m_CurrentAnimationFrame ||
+            data->m_NumTextures != component->m_NumTextures)
+        {
+            return false;
+        }
+        for (uint8_t i = 0; i < component->m_NumTextures; ++i)
+        {
+            if (data->m_TextureSetIds[i] != GetTextureSetId(component, i))
+                return false;
+        }
+        return true;
+    }
+
     static AnimationData* GetOrCreateAnimationData(SpriteWorld* sprite_world, const SpriteComponent* component)
     {
         // 1. Search in hastable
@@ -1522,16 +1583,30 @@ namespace dmGameSystem
         AnimationData** found = sprite_world->m_AnimationDataCache.m_Cache.Get(hash);
         if (found != 0x0)
         {
-            // updates only once per frame
-            if ((*found)->m_LastAccessTick != sprite_world->m_AnimationDataCache.m_CurrentEngineTick)
+            AnimationData* data = *found;
+            // Sprites may still render from the old entry, so it is replaced and left to be evicted
+            if (!IsAnimationDataValid(component, data))
             {
-                dmDoubleLinkedList::ListNode* node = (dmDoubleLinkedList::ListNode*)(*found);
-                dmDoubleLinkedList::ListRemove(&sprite_world->m_AnimationDataCache.m_LRU, node);
-                dmDoubleLinkedList::ListAdd(&sprite_world->m_AnimationDataCache.m_LRU, node);
-                (*found)->m_LastAccessTick = sprite_world->m_AnimationDataCache.m_CurrentEngineTick;
+                data = (AnimationData*)malloc(sizeof(AnimationData));
+                memset(data, 0, sizeof(AnimationData));
+                ResolveAnimationData(component, data);
+                data->m_CacheKey = hash;
+                data->m_LastAccessTick = sprite_world->m_AnimationDataCache.m_CurrentEngineTick;
+                *found = data;
+                dmDoubleLinkedList::ListAdd(&sprite_world->m_AnimationDataCache.m_LRU, (dmDoubleLinkedList::ListNode*)data);
+                return data;
             }
 
-            return *found;
+            // updates only once per frame
+            if (data->m_LastAccessTick != sprite_world->m_AnimationDataCache.m_CurrentEngineTick)
+            {
+                dmDoubleLinkedList::ListNode* node = (dmDoubleLinkedList::ListNode*)data;
+                dmDoubleLinkedList::ListRemove(&sprite_world->m_AnimationDataCache.m_LRU, node);
+                dmDoubleLinkedList::ListAdd(&sprite_world->m_AnimationDataCache.m_LRU, node);
+                data->m_LastAccessTick = sprite_world->m_AnimationDataCache.m_CurrentEngineTick;
+            }
+
+            return data;
         }
 
         // 2. Create if doesn't exist
@@ -1615,8 +1690,8 @@ namespace dmGameSystem
 
             float sp_width  = component->m_Size.getX();
             float sp_height = component->m_Size.getY();
-            uint8_t textures_num = component->m_NumTextures;
-            AnimationData* animations = GetOrCreateAnimationData(sprite_world, component);
+            AnimationData* animations = component->m_RenderAnimationData;
+            uint8_t textures_num = animations->m_NumTextures;
 
             // Fill in the custom sprite attributes (if specified), otherwise fallback to use the material attributes
             if (component->m_Resource->m_DDF->m_Attributes.m_Count > 0 || component->m_DynamicVertexAttributeIndex != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
@@ -1953,9 +2028,11 @@ namespace dmGameSystem
         ro.m_VertexBuffer = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, sprite_world->m_VertexBuffer);
         ro.m_IndexBuffer = (dmGraphics::HIndexBuffer) dmRender::GetBuffer(render_context, sprite_world->m_IndexBuffer);
         ro.m_Material = GetComponentMaterial(first);
-        for(uint32_t i = 0; i < resource->m_NumTextures; ++i)
+        const AnimationData* anim_data = first->m_RenderAnimationData;
+        for(uint32_t i = 0; i < anim_data->m_NumTextures; ++i)
         {
-            ro.m_Textures[i] = GetMaterialTexture(first, i);
+            TextureResource* texture = anim_data->m_TextureSets[i] ? anim_data->m_TextureSets[i]->m_Texture : 0;
+            ro.m_Textures[i] = texture ? texture->m_Texture : 0;
         }
 
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
@@ -2163,7 +2240,9 @@ namespace dmGameSystem
             if (cache_eviction_frame <= sprite_world->m_AnimationDataCache.m_CurrentEngineTick
                 && (data->m_LastAccessTick < cache_eviction_frame || underflow_tick > sprite_world->m_AnimationDataCache.m_CurrentEngineTick))
             {
-                sprite_world->m_AnimationDataCache.m_Cache.Erase(data->m_CacheKey);
+                AnimationData** mapped = sprite_world->m_AnimationDataCache.m_Cache.Get(data->m_CacheKey);
+                if (mapped && *mapped == data)
+                    sprite_world->m_AnimationDataCache.m_Cache.Erase(data->m_CacheKey);
                 dmDoubleLinkedList::ListRemove(list, current);
                 free(data);
             }
@@ -2172,6 +2251,37 @@ namespace dmGameSystem
                 break;
             }
             current = dmDoubleLinkedList::ListGetLast(list);
+        }
+    }
+
+    static void RefreshComponentAnimationData(SpriteWorld* sprite_world, SpriteComponent* component, dmRender::HRenderContext render_context, bool constants_updated)
+    {
+        bool is_component_changed = component->m_ReHash || component->m_AnimationReHash || !component->m_RenderAnimationData;
+        if (component->m_ReHash || constants_updated)
+        {
+            ReHash(component);
+            dmRender::SetBatchKey(render_context, component->m_RenderItem, component->m_MixedHash);
+            dmRender::SetMaterial(render_context, component->m_RenderItem, GetComponentMaterial(component));
+        }
+        if (component->m_AnimationReHash)
+        {
+            AnimationReHash(component);
+        }
+
+        // Get the correct animation frames, and other meta data
+        AnimationData* anim_data = GetOrCreateAnimationData(sprite_world, component);
+        component->m_RenderAnimationData = anim_data;
+        // update cached pivot
+        if (is_component_changed)
+        {
+            GetPivot(anim_data, &component->m_PivotX, &component->m_PivotY);
+            const dmGameSystemDDF::TextureSetAnimation* animation_ddf = anim_data->m_Animations[0];
+            bool uses_geometry = component->m_NumTextures != 0 && !anim_data->m_CanUseQuads && animation_ddf;
+            component->m_GeometryFlipHorizontal = uses_geometry && animation_ddf->m_FlipHorizontal;
+            component->m_GeometryFlipVertical = uses_geometry && animation_ddf->m_FlipVertical;
+            UpdateVertexMetricsCache(component, anim_data, render_context);
+            component->m_BoundsDirty = 1;
+            UpdateRenderItemEnabled(render_context, sprite_world, component);
         }
     }
 
@@ -2186,6 +2296,8 @@ namespace dmGameSystem
         SpriteWorld* world = (SpriteWorld*)params.m_World;
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
+
+        world->m_DrawPending = 1;
 
         UpdateAnimationDataCache(world);
 
@@ -2205,32 +2317,7 @@ namespace dmGameSystem
             Animate(component, params.m_UpdateContext->m_DT);
 
             HComponentRenderConstants constants = GetRenderConstants(component);
-            bool is_component_changed = component->m_ReHash || component->m_AnimationReHash;
-            if (component->m_ReHash || (constants && dmGameSystem::AreRenderConstantsUpdated(constants)))
-            {
-                ReHash(component);
-                dmRender::SetBatchKey(render_context, component->m_RenderItem, component->m_MixedHash);
-                dmRender::SetMaterial(render_context, component->m_RenderItem, GetComponentMaterial(component));
-            }
-            if (component->m_AnimationReHash)
-            {
-                AnimationReHash(component);
-            }
-
-            // Get the correct animation frames, and other meta data
-            AnimationData* anim_data = GetOrCreateAnimationData(world, component);
-            // update cached pivot
-            if (is_component_changed)
-            {
-                GetPivot(anim_data, &component->m_PivotX, &component->m_PivotY);
-                const dmGameSystemDDF::TextureSetAnimation* animation_ddf = anim_data->m_Animations[0];
-                bool uses_geometry = component->m_NumTextures != 0 && !anim_data->m_CanUseQuads && animation_ddf;
-                component->m_GeometryFlipHorizontal = uses_geometry && animation_ddf->m_FlipHorizontal;
-                component->m_GeometryFlipVertical = uses_geometry && animation_ddf->m_FlipVertical;
-                UpdateVertexMetricsCache(component, anim_data, render_context);
-                component->m_BoundsDirty = 1;
-                UpdateRenderItemEnabled(render_context, world, component);
-            }
+            RefreshComponentAnimationData(world, component, render_context, constants && dmGameSystem::AreRenderConstantsUpdated(constants));
 
             // TODO: check when we need send messages
             if (!component->m_IsPlaying)
@@ -2307,6 +2394,14 @@ namespace dmGameSystem
         world->m_IndexCount       = num_indices;
         world->m_VertexMemorySize = dmMath::Max(world->m_VertexMemorySize, vertex_memsize);
 
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    dmGameObject::UpdateResult CompSpritePostUpdate(const dmGameObject::ComponentsPostUpdateParams& params)
+    {
+        SpriteWorld* world = (SpriteWorld*)params.m_World;
+        ReleaseDeferredResources(((SpriteContext*)params.m_Context)->m_Factory, world);
+        world->m_DrawPending = 0;
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -2481,6 +2576,7 @@ namespace dmGameSystem
         else if (message_id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
         {
             component->m_Enabled = 0;
+            component->m_RenderAnimationData = 0;
             SpriteContext* context = (SpriteContext*)params.m_Context;
             UpdateRenderItemEnabled(context->m_RenderContext, sprite_world, component);
         }
@@ -2676,7 +2772,7 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_MATERIAL)
         {
-            dmGameObject::PropertyResult res = AddOverrideMaterial(dmGameObject::GetFactory(params.m_Instance), component, params.m_Value.m_Hash);
+            dmGameObject::PropertyResult res = AddOverrideMaterial(dmGameObject::GetFactory(params.m_Instance), sprite_world, component, params.m_Value.m_Hash);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
             if (res == dmGameObject::PROPERTY_RESULT_OK)
                 dmRender::SetMaterial(sprite_world->m_RenderContext, component->m_RenderItem, GetComponentMaterial(component));
@@ -2687,7 +2783,7 @@ namespace dmGameSystem
             dmhash_t sampler_name_hash = 0;
             GetPropertyOptionsKey(params.m_Options, 0, &sampler_name_hash);
 
-            dmGameObject::PropertyResult res = AddOverrideTextureSet(dmGameObject::GetFactory(params.m_Instance), component, sampler_name_hash, params.m_Value.m_Hash);
+            dmGameObject::PropertyResult res = AddOverrideTextureSet(dmGameObject::GetFactory(params.m_Instance), sprite_world, component, sampler_name_hash, params.m_Value.m_Hash);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
 
             // Since the animation referred to the old texture, we need to update it
@@ -2838,6 +2934,32 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompSpriteIterPropertiesGetNext;
     }
 
+    // The data of a texture set is replaced in place on reload, so the animation data resolved from it can't be rendered
+    static void InvalidateRenderAnimationData(SpriteWorld* sprite_world, SpriteComponent* component)
+    {
+        component->m_RenderAnimationData = 0;
+        UpdateRenderItemEnabled(sprite_world->m_RenderContext, sprite_world, component);
+    }
+
+    static bool UsesTextureSet(const SpriteComponent* component, const void* texture_set)
+    {
+        for (uint32_t i = 0; i < component->m_NumTextures; ++i)
+        {
+            if (GetTextureSetByIndex(component, i) == texture_set)
+                return true;
+        }
+        const AnimationData* anim_data = component->m_RenderAnimationData;
+        if (anim_data)
+        {
+            for (uint32_t i = 0; i < anim_data->m_NumTextures; ++i)
+            {
+                if (anim_data->m_TextureSets[i] == texture_set)
+                    return true;
+            }
+        }
+        return false;
+    }
+
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params)
     {
         dmhash_t name_hash = ResourceTypeGetNameHash(params->m_Type);
@@ -2861,19 +2983,15 @@ namespace dmGameSystem
                     component->m_NumTextures = component->m_Resource->m_NumTextures;
                     component->m_ReHash = 1;
                     dmRender::SetMaterial(sprite_world->m_RenderContext, component->m_RenderItem, GetComponentMaterial(component));
+                    InvalidateRenderAnimationData(sprite_world, component);
                     continue;
                 }
                 if (name_hash != TEXTURE_SET_EXT_HASH)
                     continue;
-                uint32_t num_textures = component->m_NumTextures;
-                for (uint32_t texture_idx = 0; texture_idx < num_textures; ++texture_idx)
+                if (UsesTextureSet(component, resource))
                 {
-                    uintptr_t texture = (uintptr_t)GetTextureSetByIndex(component, texture_idx);
-                    if (texture == (uintptr_t) resource)
-                    {
-                        component->m_ReHash = 1;
-                        break;
-                    }
+                    component->m_ReHash = 1;
+                    InvalidateRenderAnimationData(sprite_world, component);
                 }
             }
         }
@@ -2907,5 +3025,33 @@ namespace dmGameSystem
     {
         SpriteComponent* comp = (SpriteComponent*) sprite_component;
         return comp->m_AnimationID;
+    }
+
+    void* GetSpriteComponentTextureSet(void* sprite_component)
+    {
+        return GetFirstTextureSet((SpriteComponent*) sprite_component);
+    }
+
+    uint32_t GetSpriteComponentAnimationDataHash(void* sprite_component)
+    {
+        return ((SpriteComponent*) sprite_component)->m_AnimationDataHash;
+    }
+
+    void SetSpriteComponentAnimationDataHash(void* sprite_component, uint32_t hash)
+    {
+        ((SpriteComponent*) sprite_component)->m_AnimationDataHash = hash;
+    }
+
+    bool IsSpriteComponentRenderable(void* sprite_component)
+    {
+        return ((SpriteComponent*) sprite_component)->m_RenderItemEnabled;
+    }
+
+    void GetSpriteComponentVertexMetrics(void* sprite_component, uint32_t* vertex_count, uint32_t* index_count, uint32_t* vertex_stride)
+    {
+        SpriteComponent* comp = (SpriteComponent*) sprite_component;
+        *vertex_count = comp->m_VertexCount;
+        *index_count = comp->m_IndexCount;
+        *vertex_stride = comp->m_VertexStride;
     }
 }
