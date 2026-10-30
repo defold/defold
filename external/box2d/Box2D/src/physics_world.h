@@ -3,28 +3,49 @@
 
 #pragma once
 
-#include "array.h"
+typedef struct b2Recording b2Recording;
+
+#include "arena_allocator.h"
 #include "bitset.h"
 #include "broad_phase.h"
 #include "constraint_graph.h"
+#include "container.h"
 #include "id_pool.h"
-#include "arena_allocator.h"
+#include "sensor.h"
+#include "shape.h"
+#include "solver_set.h"
 
 #include "box2d/types.h"
 
-enum b2SetType
-{
-	b2_staticSet = 0,
-	b2_disabledSet = 1,
-	b2_awakeSet = 2,
-	b2_firstSleepingSet = 3,
-};
+b2DeclareArray( b2BodyMoveEvent );
+b2DeclareArray( b2ContactBeginTouchEvent );
+b2DeclareArray( b2ContactEndTouchEvent );
+b2DeclareArray( b2ContactHitEvent );
+b2DeclareArray( b2JointEvent );
+b2DeclareArray( b2SensorBeginTouchEvent );
+b2DeclareArray( b2SensorEndTouchEvent );
+b2DeclareArray( b2TaskContext );
 
 // Per thread task storage
 typedef struct b2TaskContext
 {
-	// These bits align with the b2ConstraintGraph::contactBlocks and signal a change in contact status
+	// Collect per thread sensor continuous hit events.
+	b2Array( b2SensorHit ) sensorHits;
+
+	// Broad-phase pairs.
+	b2Array( uint64_t ) pairKeys;
+
+	// These bits align with the contact id capacity and signal a change in contact status
 	b2BitSet contactStateBitSet;
+
+	// These bits align with the contact id capacity and signal a hit event.
+	b2BitSet hitEventBitSet;
+
+	// Fast-path flag: true when this worker set at least one bit in hitEventBitSet this step.
+	bool hasHitEvents;
+
+	// These bits align with the joint id capacity and signal a change in contact status
+	b2BitSet jointStateBitSet;
 
 	// Used to track bodies with shapes that have enlarged AABBs. This avoids having a bit array
 	// that is very large when there are many static shapes.
@@ -37,13 +58,16 @@ typedef struct b2TaskContext
 	float splitSleepTime;
 	int splitIslandId;
 
+	// Number of contacts recycled this step (collide pass).
+	int recycledContactCount;
+
 } b2TaskContext;
 
 // The world struct manages all physics entities, dynamic simulation,  and asynchronous queries.
 // The world also contains efficient memory management facilities.
 typedef struct b2World
 {
-	b2ArenaAllocator arena;
+	b2Stack stack;
 	b2BroadPhase broadPhase;
 	b2ConstraintGraph constraintGraph;
 
@@ -55,7 +79,7 @@ typedef struct b2World
 	// This is a sparse array that maps body ids to the body data
 	// stored in solver sets. As sims move within a set or across set.
 	// Indices come from id pool.
-	b2BodyArray bodies;
+	b2Array( b2Body ) bodies;
 
 	// Provides free list for solver sets.
 	b2IdPool solverSetIdPool;
@@ -63,52 +87,63 @@ typedef struct b2World
 	// Solvers sets allow sims to be stored in contiguous arrays. The first
 	// set is all static sims. The second set is active sims. The third set is disabled
 	// sims. The remaining sets are sleeping islands.
-	b2SolverSetArray solverSets;
+	b2Array( b2SolverSet ) solverSets;
 
 	// Used to create stable ids for joints
 	b2IdPool jointIdPool;
 
 	// This is a sparse array that maps joint ids to the joint data stored in the constraint graph
 	// or in the solver sets.
-	b2JointArray joints;
+	b2Array( b2Joint ) joints;
 
 	// Used to create stable ids for contacts
 	b2IdPool contactIdPool;
 
 	// This is a sparse array that maps contact ids to the contact data stored in the constraint graph
 	// or in the solver sets.
-	b2ContactArray contacts;
+	b2Array( b2Contact ) contacts;
 
 	// Used to create stable ids for islands
 	b2IdPool islandIdPool;
 
-	// This is a sparse array that maps island ids to the island data stored in the solver sets.
-	b2IslandArray islands;
+	// Persistent islands
+	b2Array( b2Island ) islands;
 
 	b2IdPool shapeIdPool;
 	b2IdPool chainIdPool;
 
 	// These are sparse arrays that point into the pools above
-	b2ShapeArray shapes;
-	b2ChainShapeArray chainShapes;
+	b2Array( b2Shape ) shapes;
+
+	// Shape enlarged bounds (hot data split).
+	b2Array( b2AABB ) fatAABBs;
+
+	b2Array( b2ChainShape ) chainShapes;
 
 	// This is a dense array of sensor data.
-	b2SensorArray sensors;
+	b2Array( b2Sensor ) sensors;
 
 	// Per thread storage
-	b2TaskContextArray taskContexts;
-	b2SensorTaskContextArray sensorTaskContexts;
+	b2Array( b2TaskContext ) taskContexts;
+	b2Array( b2SensorTaskContext ) sensorTaskContexts;
 
-	b2BodyMoveEventArray bodyMoveEvents;
-	b2SensorBeginTouchEventArray sensorBeginEvents;
-	b2ContactBeginTouchEventArray contactBeginEvents;
+	b2Array( b2BodyMoveEvent ) bodyMoveEvents;
+	b2Array( b2SensorBeginTouchEvent ) sensorBeginEvents;
+	b2Array( b2ContactBeginTouchEvent ) contactBeginEvents;
 
 	// End events are double buffered so that the user doesn't need to flush events
-	b2SensorEndTouchEventArray sensorEndEvents[2];
-	b2ContactEndTouchEventArray contactEndEvents[2];
+	b2Array( b2SensorEndTouchEvent ) sensorEndEvents[2];
+	b2Array( b2ContactEndTouchEvent ) contactEndEvents[2];
 	int endEventArrayIndex;
 
-	b2ContactHitEventArray contactHitEvents;
+	b2Array( b2ContactHitEvent ) contactHitEvents;
+	b2Array( b2JointEvent ) jointEvents;
+
+	// todo consider deferred waking and impulses to make it possible
+	// to apply forces and impulses from multiple threads
+	// impulses must be deferred because sleeping bodies have no velocity state
+	// Problems:
+	// - multiple forces applied to the same body from multiple threads
 
 	// Used to track debug draw
 	b2BitSet debugBodySet;
@@ -131,36 +166,49 @@ typedef struct b2World
 	b2Vec2 gravity;
 	float hitEventThreshold;
 	float restitutionThreshold;
+	int restitutionIterations;
+	bool enableRestitutionPropagation;
 	float maxLinearSpeed;
-	float maxContactPushSpeed;
+	float contactSpeed;
 	float contactHertz;
 	float contactDampingRatio;
-	float jointHertz;
-	float jointDampingRatio;
+	float contactRecycleDistance;
 
-	b2FrictionCallback* frictionCallback;
-	b2RestitutionCallback* restitutionCallback;
+	b2FrictionCallbackFcn* frictionCallback;
+	b2RestitutionCallbackFcn* restitutionCallback;
 
 	uint16_t generation;
 
 	b2Profile profile;
 
-	b2PreSolveFcn* preSolveFcn;
+	b2Capacity maxCapacity;
+
+	b2PreSolveCallbackFcn* preSolveFcn;
+	b2PreContinuousCallbackFcn* preContinuousFcn;
 	void* preSolveContext;
 
-	b2CustomFilterFcn* customFilterFcn;
+	b2CustomFilterCallbackFcn* customFilterFcn;
 	void* customFilterContext;
 
 	int workerCount;
-	b2EnqueueTaskCallback* enqueueTaskFcn;
-	b2FinishTaskCallback* finishTaskFcn;
+	int simdWidth;
+	b2EnqueueTaskCallbackFcn* enqueueTaskFcn;
+	b2FinishTaskCallbackFcn* finishTaskFcn;
 	void* userTaskContext;
 	void* userTreeTask;
 
+	struct b2Scheduler* scheduler;
+
 	void* userData;
 
+	b2Recording* recording; // NULL unless b2World_StartRecording is active, owned by the host
+
 	// Remember type step used for reporting forces and torques
+	// inverse sub-step
 	float inv_h;
+
+	// inverse full-step
+	float inv_dt;
 
 	int activeTaskCount;
 	int taskCount;
@@ -171,7 +219,6 @@ typedef struct b2World
 	bool locked;
 	bool enableWarmStarting;
 	bool enableContinuous;
-	bool enableSpeculative;
 	bool inUse;
 } b2World;
 
@@ -179,14 +226,10 @@ b2World* b2GetWorldFromId( b2WorldId id );
 b2World* b2GetWorld( int index );
 b2World* b2GetWorldLocked( int index );
 
+// Union of the broad-phase root bounds across all body types. Returns false when no tree holds a
+// proxy, so callers don't fold an empty world's origin into a running bounds.
+bool b2ComputeWorldBounds( b2World* world, b2AABB* bounds );
+
 void b2ValidateConnectivity( b2World* world );
 void b2ValidateSolverSets( b2World* world );
 void b2ValidateContacts( b2World* world );
-
-B2_ARRAY_INLINE( b2BodyMoveEvent, b2BodyMoveEvent )
-B2_ARRAY_INLINE( b2ContactBeginTouchEvent, b2ContactBeginTouchEvent )
-B2_ARRAY_INLINE( b2ContactEndTouchEvent, b2ContactEndTouchEvent )
-B2_ARRAY_INLINE( b2ContactHitEvent, b2ContactHitEvent )
-B2_ARRAY_INLINE( b2SensorBeginTouchEvent, b2SensorBeginTouchEvent )
-B2_ARRAY_INLINE( b2SensorEndTouchEvent, b2SensorEndTouchEvent )
-B2_ARRAY_INLINE( b2TaskContext, b2TaskContext )

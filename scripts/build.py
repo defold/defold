@@ -322,7 +322,7 @@ if os.environ.get('TERM','') in ('cygwin',):
 EXTERNAL_LIBS = "opus box2d box2d_v2 vkquality harfbuzz sheenbidi libunibreak skribidi dawn".split()
 EXTERNAL_PACKAGE_VERSIONS = {
     "opus": "1.5.2",
-    "box2d": "3.1.0",
+    "box2d": "3.2.0",
     "box2d_v2": "2.2.1",
     "vkquality": "1.1-2642a0d",
     "harfbuzz": "13.2.1",
