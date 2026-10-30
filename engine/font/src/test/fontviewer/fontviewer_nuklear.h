@@ -29,86 +29,86 @@ extern "C"
 {
 #endif
 
-    typedef struct FontViewerNuklearBox
-    {
-        float m_X;
-        float m_Y;
-        float m_Width;
-        float m_Height;
-    } FontViewerNuklearBox;
+typedef struct FontViewerNuklearBox
+{
+    float m_X;
+    float m_Y;
+    float m_Width;
+    float m_Height;
+} FontViewerNuklearBox;
 
-    typedef struct FontViewerNuklearVertex
-    {
-        float   m_Position[2];
-        float   m_TexCoord[2];
-        uint8_t m_Color[4];
-    } FontViewerNuklearVertex;
+typedef struct FontViewerNuklearVertex
+{
+    float   m_Position[2];
+    float   m_TexCoord[2];
+    uint8_t m_Color[4];
+} FontViewerNuklearVertex;
 
-    typedef struct FontViewerNuklearDrawCommand
-    {
-        FontViewerNuklearBox m_Clip;
-        uint32_t             m_ElementCount;
-    } FontViewerNuklearDrawCommand;
+typedef struct FontViewerNuklearDrawCommand
+{
+    FontViewerNuklearBox m_Clip;
+    uint32_t             m_ElementCount;
+} FontViewerNuklearDrawCommand;
 
-    typedef struct FontViewerNuklearInput
-    {
-        int32_t m_MouseX;
-        int32_t m_MouseY;
-        float   m_ScrollY;
-        bool    m_LeftMouseDown;
-        bool    m_CopyDown;
-        bool    m_SelectAllDown;
-    } FontViewerNuklearInput;
+typedef struct FontViewerNuklearInput
+{
+    int32_t m_MouseX;
+    int32_t m_MouseY;
+    float   m_ScrollY;
+    bool    m_LeftMouseDown;
+    bool    m_CopyDown;
+    bool    m_SelectAllDown;
+} FontViewerNuklearInput;
 
-    typedef enum FontViewerRenderMode
-    {
-        FONT_VIEWER_RENDER_SDF,
-        FONT_VIEWER_RENDER_BITMAP,
-        FONT_VIEWER_RENDER_VECTOR,
-    } FontViewerRenderMode;
+typedef enum FontViewerRenderMode
+{
+    FONT_VIEWER_RENDER_SDF,
+    FONT_VIEWER_RENDER_BITMAP,
+    FONT_VIEWER_RENDER_VECTOR,
+} FontViewerRenderMode;
 
-    typedef struct FontViewerProperties
-    {
-        FontViewerRenderMode m_RenderMode;
-        float m_Alpha;
-        float m_OutlineAlpha;
-        float m_OutlineWidth;
-        float m_ShadowAlpha;
-        float m_ShadowBlur;
-        float m_ShadowX;
-        float m_ShadowY;
-        float m_FaceColor[3];
-        float m_OutlineColor[3];
-        float m_ShadowColor[3];
-        float m_BackgroundColor[3];
-    } FontViewerProperties;
+typedef struct FontViewerProperties
+{
+    FontViewerRenderMode m_RenderMode;
+    float                m_Alpha;
+    float                m_OutlineAlpha;
+    float                m_OutlineWidth;
+    float                m_ShadowAlpha;
+    float                m_ShadowBlur;
+    float                m_ShadowX;
+    float                m_ShadowY;
+    float                m_FaceColor[3];
+    float                m_OutlineColor[3];
+    float                m_ShadowColor[3];
+    float                m_BackgroundColor[3];
+} FontViewerProperties;
 
-    typedef struct FontViewerNuklearFonts
-    {
-        char*    m_LoadedFontText;
-        uint32_t m_LoadedFontCount;
-        uint32_t m_LoadedFontTextSize;
-        uint64_t m_LoadedFontDataSize;
-    } FontViewerNuklearFonts;
+typedef struct FontViewerNuklearFonts
+{
+    char*    m_LoadedFontText;
+    uint32_t m_LoadedFontCount;
+    uint32_t m_LoadedFontTextSize;
+    uint64_t m_LoadedFontDataSize;
+} FontViewerNuklearFonts;
 
-    typedef struct FontViewerNuklearLayout
-    {
-        const FontViewerNuklearVertex*      m_Vertices;
-        const uint16_t*                     m_Indices;
-        const FontViewerNuklearDrawCommand* m_DrawCommands;
-        uint32_t                            m_VertexDataSize;
-        uint32_t                            m_IndexDataSize;
-        uint32_t                            m_DrawCommandCount;
-        FontViewerNuklearBox                m_TextField;
-        float                               m_ContentWidth;
-        float                               m_TextContentHeight;
-        float                               m_TextViewportHeight;
-    } FontViewerNuklearLayout;
+typedef struct FontViewerNuklearLayout
+{
+    const FontViewerNuklearVertex*      m_Vertices;
+    const uint16_t*                     m_Indices;
+    const FontViewerNuklearDrawCommand* m_DrawCommands;
+    uint32_t                            m_VertexDataSize;
+    uint32_t                            m_IndexDataSize;
+    uint32_t                            m_DrawCommandCount;
+    FontViewerNuklearBox                m_TextField;
+    float                               m_ContentWidth;
+    float                               m_TextContentHeight;
+    float                               m_TextViewportHeight;
+} FontViewerNuklearLayout;
 
-    bool FontViewerNuklearInitialize(HWindow window, uint32_t width, uint32_t height);
-    void FontViewerNuklearFinalize(void);
-    bool FontViewerNuklearGetAtlas(const void** pixels, uint32_t* width, uint32_t* height);
-    void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, float text_content_height, const FontViewerNuklearInput* input, float* text_scroll_y, float* font_size, float* zoom, FontViewerProperties* properties, FontViewerNuklearFonts* fonts, bool* legacy_layout, bool* show_baselines, bool* show_quads, FontViewerNuklearLayout* layout);
+bool FontViewerNuklearInitialize(HWindow window, uint32_t width, uint32_t height);
+void FontViewerNuklearFinalize(void);
+bool FontViewerNuklearGetAtlas(const void** pixels, uint32_t* width, uint32_t* height);
+void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, float text_content_height, const FontViewerNuklearInput* input, float* text_scroll_y, float* font_size, float* zoom, FontViewerProperties* properties, FontViewerNuklearFonts* fonts, bool* legacy_layout, bool* show_baselines, bool* show_quads, FontViewerNuklearLayout* layout);
 
 #ifdef __cplusplus
 }

@@ -47,7 +47,9 @@ static uint32_t GlyphBankGetResourceSize(HFont hfont)
 {
     const uint64_t provider_size = GetProvider(hfont)->m_ResourceSize;
     if (provider_size > UINT32_MAX - sizeof(GlyphBankFont))
+    {
         return UINT32_MAX;
+    }
     return (uint32_t)(sizeof(GlyphBankFont) + provider_size);
 }
 
@@ -84,11 +86,17 @@ static uint32_t GlyphBankGetGlyphIndex(HFont hfont, uint32_t codepoint)
         const int32_t  mid = left + (right - left) / 2;
         const uint32_t current = provider->m_GetCodepoint(provider->m_Context, (uint32_t)mid);
         if (current == codepoint)
+        {
             return (uint32_t)mid + 1;
+        }
         if (current < codepoint)
+        {
             left = mid + 1;
+        }
         else
+        {
             right = mid - 1;
+        }
     }
     return 0;
 }
@@ -97,11 +105,15 @@ static FontResult GlyphBankGetGlyph(HFont hfont, uint32_t glyph_index, const Fon
 {
     FontGlyphBankProvider* provider = GetProvider(hfont);
     if (glyph_index == 0 || glyph_index > provider->m_GlyphCount || !options || !output)
+    {
         return FONT_RESULT_ERROR;
+    }
 
     FontGlyphBankGlyph glyph;
     if (!provider->m_GetGlyph(provider->m_Context, glyph_index - 1, &glyph))
+    {
         return FONT_RESULT_ERROR;
+    }
 
     memset(output, 0, sizeof(*output));
     output->m_GlyphIndex = glyph_index;
@@ -168,7 +180,9 @@ static FontResult GlyphBankFreeGlyph(HFont hfont, FontGlyph* glyph)
 HFont FontCreateGlyphBank(const char* path, FontGlyphBankProvider* provider)
 {
     if (!path || !provider || !provider->m_GetCodepoint || !provider->m_GetGlyph || provider->m_GlyphCount > INT32_MAX)
+    {
         return 0;
+    }
 
     GlyphBankFont* font = new GlyphBankFont;
     memset(font, 0, sizeof(*font));
