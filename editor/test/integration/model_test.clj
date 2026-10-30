@@ -20,12 +20,17 @@
             [dynamo.graph :as g]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.rig :as rig]
             [editor.types :as types]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [util.coll :as coll]
             [util.murmur :as murmur])
-  (:import [com.dynamo.gamesys.proto ModelProto$ModelDesc]
+  (:import [com.dynamo.bob.pipeline ModelBuffers]
+           [com.dynamo.gamesys.proto ModelProto$Model ModelProto$ModelDesc]
+           [com.dynamo.rig.proto Rig$MeshSet Rig$Model]
+           [java.nio.charset StandardCharsets]
            [javax.vecmath Point3d]))
 
 (defn- find-mesh-set-build-target
@@ -92,6 +97,59 @@
                      (murmur/hash64 "treasure_chest_sub_animation/treasure_chest_anim_out")
                      (murmur/hash64 "treasure_chest_sub_sub_animation/treasure_chest_anim_out")}
                    (set (map :id (:animations (g/node-value node-id :animation-set))))))))))))
+
+;; Built models contain metadata and depend directly on packed geometry.
+(deftest embedded-model-metadata
+  (test-util/with-scratch-project "test/resources/test_project"
+    (let [node-id (test-util/resource-node project "/model/mesh_selection.model")]
+      (with-open [_build (test-util/build! node-id)]
+        (let [compiled (ModelProto$Model/parseFrom (test-util/build-output project "/model/mesh_selection.model"))
+              mesh (.getMeshes (.getRawModels (.getMeshSet compiled) 0) 0)
+              paths (coll/into-> (test-util/node-built-build-resources node-id) []
+                      (map resource/proj-path))]
+          (is (.hasMeshSet compiled))
+          (is (= "" (.getRigScene compiled)))
+          (is (not (.hasSkeleton compiled)))
+          (is (not (.hasAnimationSet compiled)))
+          (is (pos? (.getVertexCount mesh)))
+          (is (zero? (.getPositionsCount mesh)))
+          (is (string/ends-with? (.getBuffers compiled) ".modelbuffersc"))
+          (is (= 1 (count (coll/into-> paths [] (filter #(string/ends-with? % ".modelbuffersc"))))))
+          (is (coll/not-any? #(or (string/ends-with? % ".rigscenec")
+                                  (string/ends-with? % ".meshsetc")) paths)))))))
+
+;; Identical model geometry shares one target; changing a range invalidates it.
+(deftest model-buffer-build-targets
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/mesh/two_meshes.gltf")
+          source-mesh-set (:mesh-set (g/node-value node-id :content))
+          source-model (get-in source-mesh-set [:models 0])
+          other-model (assoc source-model
+                        :id 1234
+                        :local (get-in source-mesh-set [:models 1 :local]))
+          mesh-set (assoc source-mesh-set :models [source-model other-model] :raw-models [])
+          target (rig/make-mesh-set-build-target workspace node-id mesh-set nil)
+          [buffer-target] (:deps target)
+          buffer-output ((:build-fn buffer-target) (:resource buffer-target) {} (:user-data buffer-target))
+          mesh-set-output ((:build-fn target) (:resource target) {} (:user-data target))
+          compiled (Rig$MeshSet/parseFrom ^bytes (:content mesh-set-output))]
+      (is (= 1 (count (:deps target))))
+      (is (= "DMMB" (String. ^bytes (:content buffer-output) 0 4 StandardCharsets/US_ASCII)))
+      (is (java.util.Arrays/equals ^bytes (:content buffer-output)
+                                   ^bytes (ModelBuffers/compile (ModelBuffers/geometries (protobuf/map->pb Rig$MeshSet mesh-set)))))
+      (is (= (:id source-model) (.getId (.getModels compiled 0))))
+      (is (= 1234 (.getId (.getModels compiled 1))))
+      (is (= (protobuf/pb->map-with-defaults (.getLocal ^Rig$Model (protobuf/map->pb Rig$Model other-model)))
+             (protobuf/pb->map-with-defaults (.getLocal (.getModels compiled 1)))))
+      (is (= (.getBufferIndex (.getMeshes (.getModels compiled 0) 0))
+             (.getBufferIndex (.getMeshes (.getModels compiled 1) 0))))
+      (is (zero? (.getPositionsCount (.getMeshes (.getModels compiled 0) 0))))
+      (is (pos? (.getVertexCount (.getMeshes (.getModels compiled 0) 0))))
+      (let [renamed-target (rig/make-mesh-set-build-target workspace node-id (assoc mesh-set :models [other-model]) nil)
+            changed-mesh-set (update-in mesh-set [:models 0 :meshes 0 :positions 0] + 1.0)
+            changed-target (rig/make-mesh-set-build-target workspace node-id changed-mesh-set nil)]
+        (is (= (:content-hash buffer-target) (get-in renamed-target [:deps 0 :content-hash])))
+        (is (not= (:content-hash buffer-target) (get-in changed-target [:deps 0 :content-hash])))))))
 
 (deftest mesh-selection
   (test-util/with-loaded-project

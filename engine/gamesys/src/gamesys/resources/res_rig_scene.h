@@ -27,6 +27,10 @@ namespace dmGameSystem
     dmResource::Result ResRigSceneDestroy(const dmResource::ResourceDestroyParams* params);
 
     dmResource::Result ResRigSceneRecreate(const dmResource::ResourceRecreateParams* params);
+
+    // The mesh metadata and dependency paths remain owned by the model DDF.
+    dmResource::Result CreateModelRigScene(dmResource::HFactory factory, dmRigDDF::MeshSet* mesh_set, const char* skeleton, const char* animation_set, RigSceneResource** resource);
+    void DestroyModelRigScene(dmResource::HFactory factory, RigSceneResource* resource);
 }
 
 #endif // DM_GAMESYS_RES_RIG_SCENE_H

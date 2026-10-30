@@ -15,6 +15,8 @@
 /model/script_model_anim_message.go
 /model/script_model_anim_missing.go
 /model/script_model_blend_weights.go
+/model/shared_model.go
+/model/shared_model_tinted.go
 /model/static_vertex_attributes.go
 /model/static_vertex_attributes_offset.go
 /model/test_comp.go

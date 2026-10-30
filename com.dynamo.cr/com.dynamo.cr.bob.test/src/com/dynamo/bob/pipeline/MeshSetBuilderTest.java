@@ -250,6 +250,7 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(1, countInputs(meshsetTask, "buffers/mesh.bin"));
     }
 
+    // Morph output discovery must skip texture packing and defer atlas limits to build().
     @Test
     public void testMorphOutputsAreDiscoveredWithImporterFallback() throws Exception {
         String gltf = "{" +
@@ -262,6 +263,8 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
                 "\"attributes\":{\"POSITION\":0},\"targets\":[{\"POSITION\":1}]}]}]," +
                 "\"nodes\":[{\"mesh\":0}],\"scenes\":[{\"nodes\":[0]}],\"scene\":0}";
         addFile("/morph.gltf", gltf);
+        getProject().getProjectProperties().putStringValue("model", "max_morph_target_texture_width", "1");
+        getProject().getProjectProperties().putStringValue("model", "max_morph_target_texture_height", "1");
 
         Task meshsetTask = getProject().createTask(getProject().getResource("/morph.gltf"), MeshsetBuilder.class);
 

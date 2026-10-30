@@ -17,6 +17,7 @@ package dmModelDDF;
 
 import "ddf/ddf_extensions.proto";
 import "graphics/graphics_ddf.proto";
+import "rig/rig_ddf.proto";
 
 option java_package = "com.dynamo.gamesys.proto";
 option java_outer_classname = "ModelProto";
@@ -57,11 +58,15 @@ message ModelDesc
 // The engine format (.modelc)
 message Model
 {
-    required string rig_scene         = 1 [(resource)=true];
+    optional string rig_scene         = 1 [(resource)=true]; // Legacy compiled content.
     optional string default_animation = 2;
     repeated Material materials       = 3;
     optional bool create_go_bones     = 4;
     optional uint32 mesh_index        = 5 [default=0xffffffff];
+    optional string skeleton         = 6 [(resource)=true];
+    optional string animation_set    = 7 [(resource)=true];
+    optional dmRigDDF.MeshSet mesh_set = 8; // Metadata only.
+    optional string buffers           = 9 [(resource)=true]; // One shared geometry resource.
 }
 
 message ResetConstant

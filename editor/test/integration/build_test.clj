@@ -42,9 +42,10 @@
            [com.dynamo.lua.proto Lua$LuaModule]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.render.proto Font$FontMap]
-           [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$RigScene Rig$Skeleton]
+           [com.dynamo.rig.proto Rig$AnimationSet Rig$Skeleton]
            [java.io ByteArrayOutputStream File]
            [java.net URI]
+           [java.nio ByteBuffer ByteOrder]
            [org.apache.commons.io IOUtils]))
 
 (def project-path "test/resources/build_project/SideScroller")
@@ -56,10 +57,8 @@
    (let [node (test-util/resource-node project path)]
      (workspace/make-build-resource (g/node-value node :resource) prefix))))
 
-(def target-pb-classes {"rigscenec" Rig$RigScene
-                        "skeletonc" Rig$Skeleton
+(def target-pb-classes {"skeletonc" Rig$Skeleton
                         "animationsetc" Rig$AnimationSet
-                        "meshsetc" Rig$MeshSet
                         "texturesetc" TextureSetProto$TextureSet
                         "collectionproxyc" CollectionProxy$CollectionProxyDesc
                         "collectionc" GameObject$CollectionDesc})
@@ -77,6 +76,12 @@
   (every? true?
           (map #(math/near? %1 %2)
                as bs)))
+
+(defn- first-mesh-index-count [model targets]
+  ;; DMMB v2: 36-byte header, 28-byte ranges, index count at range offset 16.
+  (.getInt (doto (ByteBuffer/wrap ^bytes (get targets (:buffers model)))
+             (.order ByteOrder/LITTLE_ENDIAN))
+           (+ 36 (* 28 (long (get-in model [:mesh-set :models 0 :meshes 0 :buffer-index]))) 16)))
 
 (def pb-cases {"/game.project"
                [{:label    "ParticleFX"
@@ -148,26 +153,23 @@
                 {:label "Model"
                  :path "/model/book_of_defold.model"
                  :pb-class ModelProto$Model
-                 :resource-fields [:rig-scene]
+                 :resource-fields [:buffers]
                  :test-fn (fn [pb targets]
-                            (let [rig-scene (target (:rig-scene pb) targets)
-                                  mesh-set (target (:mesh-set rig-scene) targets)]
-                              (is (= "" (:animation-set rig-scene)))
-                              (is (= "" (:skeleton rig-scene)))
-                              (is (= "" (:texture-set rig-scene)))
-                              (is (= (murmur/hash64 "Book") (-> mesh-set :models first :id)))
-                              (is (contains? targets (:material (first (:materials pb)))))
-                              (is (contains? targets (:texture (first (:textures (first (:materials pb)))))))))}
+                            (is (= "" (:rig-scene pb)))
+                            (is (= "" (:animation-set pb)))
+                            (is (= "" (:skeleton pb)))
+                            (is (= (murmur/hash64 "Book") (get-in pb [:mesh-set :models 0 :id])))
+                            (is (contains? targets (:material (first (:materials pb)))))
+                            (is (contains? targets (:texture (first (:textures (first (:materials pb))))))))}
                 {:label "Model with animations"
                  :path "/model/treasure_chest.model"
                  :pb-class ModelProto$Model
-                 :resource-fields [:rig-scene]
+                 :resource-fields [:buffers :animation-set :skeleton]
                  :test-fn (fn [pb targets]
-                            (let [rig-scene (target (:rig-scene pb) targets)
-                                  animation-set (target (:animation-set rig-scene) targets)
-                                  mesh-set (target (:mesh-set rig-scene) targets)
-                                  skeleton (target (:skeleton rig-scene) targets)]
-                              (is (= "" (:texture-set rig-scene)))
+                            (let [animation-set (target (:animation-set pb) targets)
+                                  mesh-set (:mesh-set pb)
+                                  skeleton (target (:skeleton pb) targets)]
+                              (is (= "" (:rig-scene pb)))
 
                               (let [animations (-> animation-set :animations)]
                                 (is (= 2 (count animations)))
@@ -175,10 +177,7 @@
                                          (murmur/hash64 "treasure_chest_sub_animation/treasure_chest_anim_out")}
                                        (set (map :id animations)))))
 
-                              (let [mesh (-> mesh-set :models first :meshes first)
-                                    size (.size (:indices mesh))
-                                    icount (/ size 2)] ; we know it's 16-bit indices
-                                (is (< 2 icount)))
+                              (is (< 2 (first-mesh-index-count pb targets)))
                              ; The mesh isn't connected to a node in the visual scene, thus it gets the geometry name
                               (is (= (murmur/hash64 "Cube.006") (-> mesh-set :models first :id)))
 
@@ -195,18 +194,12 @@
                [{:label "Model with empty texture"
                  :path "/model/book_of_defold_no_tex.model"
                  :pb-class ModelProto$Model
-                 :resource-fields [:rig-scene]
+                 :resource-fields [:buffers]
                  :test-fn (fn [pb targets]
-                            (let [rig-scene (target (:rig-scene pb) targets)
-                                  mesh-set (target (:mesh-set rig-scene) targets)]
-                              (is (= "" (:texture-set rig-scene)))
-                              (is (contains? targets (:material (first (:materials pb)))))
-                              (is (empty? (:textures (first (:materials pb)))))
-
-                              (let [mesh (-> mesh-set :models first :meshes first)
-                                    size (.size (:indices mesh))
-                                    icount (/ size 2)]
-                                (is (< 2 icount)))))}]})
+                            (is (= "" (:rig-scene pb)))
+                            (is (contains? targets (:material (first (:materials pb)))))
+                            (is (coll/empty? (:textures (first (:materials pb)))))
+                            (is (< 2 (first-mesh-index-count pb targets))))}]})
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))

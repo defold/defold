@@ -188,7 +188,7 @@ message Material
     optional AlphaMode alphaMode                            = 19 [default = ALPHA_MODE_OPAQUE];
     optional bool doubleSided                               = 20 [default = false];
     optional bool unlit                                     = 21 [default = false];
-    optional uint64 materialHash                            = 22;
+    optional uint64 materialHash                            = 22; // Canonical binding hash, excluding name, index and skinning.
 }
 
 message Bone
@@ -335,6 +335,10 @@ message Mesh
 
     // Kept in the producer artifact so build-time consumers can validate topology.
     optional PrimitiveType primitive_type = 19 [default = PRIMITIVE_TYPE_TRIANGLES];
+
+    // Geometry range in the model's shared .modelbuffersc resource.
+    optional uint32 buffer_index = 20 [default=0xffffffff];
+    optional uint32 vertex_count = 21;
 }
 
 message Model // E.g. the Node in the Scene

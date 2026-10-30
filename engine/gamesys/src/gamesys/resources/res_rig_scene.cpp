@@ -25,7 +25,7 @@ namespace dmGameSystem
 {
     using namespace dmVMath;
 
-    dmResource::Result AcquireResources(dmResource::HFactory factory, RigSceneResource* resource, const char* filename, bool reload)
+    static dmResource::Result AcquireResources(dmResource::HFactory factory, RigSceneResource* resource, const char* filename, bool reload, MeshSetResource* embedded_mesh_set)
     {
         dmResource::Result result;
         if (strlen(resource->m_RigScene->m_TextureSet) != 0)
@@ -74,16 +74,24 @@ namespace dmGameSystem
         {
             resource->m_AnimationSetRes = 0x0;
         }
-        result = dmResource::RESULT_INVAL;
-        if(reload)
+        result = dmResource::RESULT_OK;
+        if (embedded_mesh_set)
         {
-            result = dmResource::ReloadResource(factory, resource->m_RigScene->m_MeshSet, 0);
+            resource->m_MeshSetRes = embedded_mesh_set;
         }
-        if (result != dmResource::RESULT_OK)
+        else
         {
-            result = dmResource::Get(factory, resource->m_RigScene->m_MeshSet, (void**) &resource->m_MeshSetRes);
+            result = dmResource::RESULT_INVAL;
+            if (reload)
+            {
+                result = dmResource::ReloadResource(factory, resource->m_RigScene->m_MeshSet, 0);
+            }
             if (result != dmResource::RESULT_OK)
-                return result;
+            {
+                result = dmResource::Get(factory, resource->m_RigScene->m_MeshSet, (void**)&resource->m_MeshSetRes);
+                if (result != dmResource::RESULT_OK)
+                    return result;
+            }
         }
 
         if (result == dmResource::RESULT_OK && resource->m_SkeletonRes)
@@ -93,10 +101,15 @@ namespace dmGameSystem
         return result;
     }
 
-    static void ReleaseResources(dmResource::HFactory factory, RigSceneResource* resource)
+    static void ReleaseResources(dmResource::HFactory factory, RigSceneResource* resource, bool embedded)
     {
         if (resource->m_RigScene != 0x0)
-            dmDDF::FreeMessage(resource->m_RigScene);
+        {
+            if (embedded)
+                delete resource->m_RigScene;
+            else
+                dmDDF::FreeMessage(resource->m_RigScene);
+        }
         if (resource->m_TextureSet != 0x0)
             dmResource::Release(factory, resource->m_TextureSet);
         if (resource->m_SkeletonRes != 0x0)
@@ -104,8 +117,39 @@ namespace dmGameSystem
         if (resource->m_AnimationSetRes != 0x0)
             dmResource::Release(factory, resource->m_AnimationSetRes);
         if (resource->m_MeshSetRes != 0x0)
-            dmResource::Release(factory, resource->m_MeshSetRes);
+        {
+            if (embedded)
+                delete resource->m_MeshSetRes;
+            else
+                dmResource::Release(factory, resource->m_MeshSetRes);
+        }
+    }
 
+    dmResource::Result CreateModelRigScene(dmResource::HFactory factory, dmRigDDF::MeshSet* mesh_set, const char* skeleton, const char* animation_set, RigSceneResource** out)
+    {
+        RigSceneResource* resource = new RigSceneResource();
+        resource->m_RigScene = new dmRigDDF::RigScene();
+        resource->m_RigScene->m_Skeleton = skeleton;
+        resource->m_RigScene->m_AnimationSet = animation_set;
+        resource->m_RigScene->m_TextureSet = "";
+        resource->m_RigScene->m_MeshSet = "";
+        resource->m_MeshSetRes = new MeshSetResource();
+        resource->m_MeshSetRes->m_MeshSet = mesh_set;
+        dmResource::Result result = AcquireResources(factory, resource, "", false, resource->m_MeshSetRes);
+        if (result != dmResource::RESULT_OK)
+        {
+            ReleaseResources(factory, resource, true);
+            delete resource;
+            return result;
+        }
+        *out = resource;
+        return dmResource::RESULT_OK;
+    }
+
+    void DestroyModelRigScene(dmResource::HFactory factory, RigSceneResource* resource)
+    {
+        ReleaseResources(factory, resource, true);
+        delete resource;
     }
 
     static uint32_t GetResourceSize(RigSceneResource* res, uint32_t ddf_size)
@@ -142,7 +186,7 @@ namespace dmGameSystem
     {
         RigSceneResource* ss_resource = new RigSceneResource();
         ss_resource->m_RigScene = (dmRigDDF::RigScene*) params->m_PreloadData;
-        dmResource::Result r = AcquireResources(params->m_Factory, ss_resource, params->m_Filename, false);
+        dmResource::Result r = AcquireResources(params->m_Factory, ss_resource, params->m_Filename, false, 0);
         if (r == dmResource::RESULT_OK)
         {
             dmResource::SetResource(params->m_Resource, ss_resource);
@@ -150,7 +194,7 @@ namespace dmGameSystem
         }
         else
         {
-            ReleaseResources(params->m_Factory, ss_resource);
+            ReleaseResources(params->m_Factory, ss_resource, false);
             delete ss_resource;
         }
         return r;
@@ -159,7 +203,7 @@ namespace dmGameSystem
     dmResource::Result ResRigSceneDestroy(const dmResource::ResourceDestroyParams* params)
     {
         RigSceneResource* ss_resource = (RigSceneResource*)dmResource::GetResource(params->m_Resource);
-        ReleaseResources(params->m_Factory, ss_resource);
+        ReleaseResources(params->m_Factory, ss_resource, false);
         delete ss_resource;
         return dmResource::RESULT_OK;
     }
@@ -174,9 +218,9 @@ namespace dmGameSystem
         }
 
         RigSceneResource* ss_resource = (RigSceneResource*)dmResource::GetResource(params->m_Resource);
-        ReleaseResources(params->m_Factory, ss_resource);
+        ReleaseResources(params->m_Factory, ss_resource, false);
         ss_resource->m_RigScene = rig_scene;
-        dmResource::Result r = AcquireResources(params->m_Factory, ss_resource, params->m_Filename, true);
+        dmResource::Result r = AcquireResources(params->m_Factory, ss_resource, params->m_Filename, true, 0);
         if(r != dmResource::RESULT_OK)
         {
             return r;

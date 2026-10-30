@@ -175,6 +175,12 @@ public class ParseUtil {
                 return Rig.MeshSet.parseFrom(content);
             }
         });
+        parseMap.put("modelbuffersc", new IParser() {
+            @Override
+            public Message parse(byte[] content) {
+                return null; // Packed geometry is tested as bytes, rather than a DDF message.
+            }
+        });
         parseMap.put("animationsetc", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {

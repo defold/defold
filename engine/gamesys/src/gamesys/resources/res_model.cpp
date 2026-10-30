@@ -14,6 +14,7 @@
 
 #include "res_rig_scene.h"
 #include "res_model.h"
+#include "res_model_buffers.h"
 #include "res_meshset.h"
 #include "res_material.h"
 #include "res_render_target.h"
@@ -148,7 +149,9 @@ namespace dmGameSystem
 
                 MeshInfo info;
                 info.m_Model = model;
-                info.m_Mesh = mesh;
+                // CPU stream pointers are attached lazily and belong to the shared
+                // geometry resource. Keep them out of the shared mesh-set metadata.
+                info.m_Mesh = resource->m_Model->m_Buffers[0] ? new dmRigDDF::Mesh(*mesh) : mesh;
                 info.m_Buffers = 0;
                 info.m_MorphTargetTexture = 0;
                 info.m_MorphModelId = selected_mesh_index != ~0u ? morph_model->m_Id : model->m_Id;
@@ -290,14 +293,30 @@ namespace dmGameSystem
         return buffers;
     }
 
-    static void CreateBuffers(dmGraphics::HContext context, ModelResource* resource)
+    static dmResource::Result CreateBuffers(dmGraphics::HContext context, dmResource::HFactory factory, ModelResource* resource)
     {
+        if (resource->m_Model->m_Buffers[0])
+        {
+            dmResource::Result result = dmResource::Get(factory, resource->m_Model->m_Buffers, (void**)&resource->m_Buffers);
+            if (result != dmResource::RESULT_OK)
+                return result;
+        }
         dmArray<uint8_t> scratch_buffer;
         for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
         {
             MeshInfo& info = resource->m_Meshes[i];
-            info.m_Buffers = CreateBuffers(context, resource, info.m_Mesh, scratch_buffer);
+            if (resource->m_Buffers)
+            {
+                info.m_Buffers = GetModelBuffers(resource->m_Buffers, info.m_Mesh->m_BufferIndex);
+                if (!info.m_Buffers || info.m_Buffers->m_VertexCount != info.m_Mesh->m_VertexCount)
+                    return dmResource::RESULT_INVALID_DATA;
+            }
+            else
+            {
+                info.m_Buffers = CreateBuffers(context, resource, info.m_Mesh, scratch_buffer);
+            }
         }
+        return dmResource::RESULT_OK;
     }
 
     static dmResource::Result AcquireMorphTargetTextures(dmResource::HFactory factory, ModelResource* resource)
@@ -360,13 +379,19 @@ namespace dmGameSystem
 
     dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, ModelResource* resource)
     {
-        dmResource::Result result = dmResource::Get(factory, resource->m_Model->m_RigScene, (void**) &resource->m_RigScene);
+        dmResource::Result result;
+        if (resource->m_Model->m_RigScene[0])
+            result = dmResource::Get(factory, resource->m_Model->m_RigScene, (void**)&resource->m_RigScene);
+        else
+            result = CreateModelRigScene(factory, &resource->m_Model->m_MeshSet, resource->m_Model->m_Skeleton, resource->m_Model->m_AnimationSet, &resource->m_RigScene);
         if (result != dmResource::RESULT_OK)
             return result;
 
         dmRigDDF::MeshSet* mesh_set = resource->m_RigScene->m_MeshSetRes->m_MeshSet;
         FlattenMeshes(resource, mesh_set);
-        CreateBuffers(context, resource);
+        result = CreateBuffers(context, factory, resource);
+        if (result != dmResource::RESULT_OK)
+            return result;
         result = AcquireMorphTargetTextures(factory, resource);
         if (result != dmResource::RESULT_OK)
         {
@@ -490,16 +515,31 @@ namespace dmGameSystem
                 dmResource::Release(factory, info.m_MorphTargetTexture);
                 info.m_MorphTargetTexture = 0;
             }
-            ReleaseBuffers(info.m_Buffers);
+            if (resource->m_Model->m_Buffers[0])
+            {
+                delete info.m_Mesh;
+            }
+            else if (info.m_Buffers)
+            {
+                ReleaseBuffers(info.m_Buffers);
+            }
         }
         resource->m_Meshes.SetSize(0);
+        if (resource->m_Buffers)
+            dmResource::Release(factory, resource->m_Buffers);
+        resource->m_Buffers = 0;
 
+        if (resource->m_RigScene != 0x0)
+        {
+            if (resource->m_Model->m_RigScene[0])
+                dmResource::Release(factory, resource->m_RigScene);
+            else
+                DestroyModelRigScene(factory, resource->m_RigScene);
+        }
+        resource->m_RigScene = 0x0;
         if (resource->m_Model != 0x0)
             dmDDF::FreeMessage(resource->m_Model);
         resource->m_Model = 0x0;
-        if (resource->m_RigScene != 0x0)
-            dmResource::Release(factory, resource->m_RigScene);
-        resource->m_RigScene = 0x0;
 
         for (uint32_t i = 0; i < resource->m_Materials.Size(); ++i)
         {
@@ -543,7 +583,18 @@ namespace dmGameSystem
             }
         }
 
-        dmResource::PreloadHint(params->m_HintInfo, ddf->m_RigScene);
+        if (ddf->m_RigScene[0])
+            dmResource::PreloadHint(params->m_HintInfo, ddf->m_RigScene);
+        else
+        {
+            if (ddf->m_Skeleton[0])
+                dmResource::PreloadHint(params->m_HintInfo, ddf->m_Skeleton);
+            if (ddf->m_AnimationSet[0])
+                dmResource::PreloadHint(params->m_HintInfo, ddf->m_AnimationSet);
+            if (ddf->m_Buffers[0])
+                dmResource::PreloadHint(params->m_HintInfo, ddf->m_Buffers);
+            PreloadMeshSetResources(params, &ddf->m_MeshSet);
+        }
 
         *params->m_PreloadData = ddf;
         return dmResource::RESULT_OK;
