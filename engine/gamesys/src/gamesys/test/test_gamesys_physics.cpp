@@ -786,10 +786,13 @@ TEST_F(ComponentTest, PhysicsListenerTest)
 
 }
 
+// Verifies that with use_fixed_timestep the physics.set_event_listener() callback runs once per fixed step,
+// inside the fixed update. Guards against batched events being delivered only after update() (#10917).
 TEST_F(ComponentTest, PhysicsListenerFixedTimestepTest)
 {
     m_PhysicsContextBox2D.m_BaseContext.m_UseFixedTimestep = true;
     m_UpdateContext.m_FixedUpdateFrequency = 60;
+    m_UpdateContext.m_DT = 3.5f / 60.0f;
 
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
@@ -811,14 +814,19 @@ TEST_F(ComponentTest, PhysicsListenerFixedTimestepTest)
     }
     ASSERT_TRUE(tests_done);
 
-    lua_getglobal(L, "events_in_fixed_update");
-    int events_in_fixed_update = (int)lua_tointeger(L, -1);
-    lua_getglobal(L, "events_in_update");
-    int events_in_update = (int)lua_tointeger(L, -1);
-    lua_pop(L, 2);
+    lua_getglobal(L, "fixed_steps");
+    int fixed_steps = (int)lua_tointeger(L, -1);
+    lua_getglobal(L, "callbacks");
+    int callbacks = (int)lua_tointeger(L, -1);
+    lua_getglobal(L, "callbacks_outside_fixed_update");
+    int callbacks_outside_fixed_update = (int)lua_tointeger(L, -1);
+    lua_getglobal(L, "steps_with_multiple_callbacks");
+    int steps_with_multiple_callbacks = (int)lua_tointeger(L, -1);
+    lua_pop(L, 4);
 
-    ASSERT_LT(0, events_in_fixed_update);
-    ASSERT_EQ(0, events_in_update);
+    ASSERT_EQ(0, callbacks_outside_fixed_update);
+    ASSERT_EQ(0, steps_with_multiple_callbacks);
+    ASSERT_EQ(fixed_steps, callbacks);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }

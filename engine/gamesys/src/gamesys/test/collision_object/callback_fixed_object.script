@@ -1,28 +1,44 @@
--- Scenario: An object is on a trigger and the project uses fixed timestep physics.
--- The batched physics event listener must be invoked during the fixed update, not the regular update.
+-- Scenario: An object is on a trigger and the project uses fixed timestep physics with several fixed steps per frame.
+-- The batched physics event listener must be invoked once per fixed step, during the fixed update.
 
-events_in_fixed_update = 0
-events_in_update = 0
+fixed_steps = 0
+callbacks = 0
+callbacks_outside_fixed_update = 0
+steps_with_multiple_callbacks = 0
+frames_with_multiple_callbacks = 0
 tests_done = false -- flag end of test to C level
 
 function init(self)
 	self.phase = "init"
+	self.step_callbacks = 0
+	self.frame_callbacks = 0
 	physics.set_event_listener(function(self, events)
-		if self.phase == "fixed_update" then
-			events_in_fixed_update = events_in_fixed_update + #events
-		else
-			events_in_update = events_in_update + #events
+		if self.phase ~= "fixed_update" then
+			callbacks_outside_fixed_update = callbacks_outside_fixed_update + 1
+			return
 		end
+		callbacks = callbacks + 1
+		self.step_callbacks = self.step_callbacks + 1
+		if self.step_callbacks == 2 then
+			steps_with_multiple_callbacks = steps_with_multiple_callbacks + 1
+		end
+		self.frame_callbacks = self.frame_callbacks + 1
 	end)
 end
 
 function fixed_update(self, dt)
 	self.phase = "fixed_update"
+	self.step_callbacks = 0
+	fixed_steps = fixed_steps + 1
 end
 
 function update(self, dt)
 	self.phase = "update"
-	if events_in_fixed_update + events_in_update >= 3 then
+	if self.frame_callbacks > 1 then
+		frames_with_multiple_callbacks = frames_with_multiple_callbacks + 1
+	end
+	self.frame_callbacks = 0
+	if frames_with_multiple_callbacks >= 3 then
 		physics.set_event_listener(nil)
 		tests_done = true
 	end
