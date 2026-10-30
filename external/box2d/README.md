@@ -27,6 +27,11 @@ colors require a dynamic body.
 Build both `box2d` and `box2d_nosimd` with the external CMake build and install
 the updated headers and archives before rebuilding the engine.
 
+ARM64 engine builds select the NEON-enabled library by default when Box2D v3 is
+enabled. Pass `-DDEFOLD_DISABLE_FEATURES=simd` (or `--disable-feature=simd` through
+`scripts/build.py`) to select the scalar library. Other platforms retain their
+existing SIMD feature selection.
+
 ## Lua changes in 3.2
 
 The `physics` API keeps its existing joint definitions. The native `b2d` bindings
