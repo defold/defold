@@ -3748,6 +3748,9 @@ namespace dmGui
      * Alters the ordering of the two supplied nodes by moving the first node
      * above the second.
      * If the second argument is `nil` the first node is moved to the top.
+     * The moved node adopts the reference node's parent, or becomes a root node
+     * if the reference is `nil`. Moving a node relative to one of its descendants
+     * raises an error and leaves the hierarchy unchanged.
      *
      * @name gui.move_above
      * @param node [type:node] to move
@@ -3763,7 +3766,10 @@ namespace dmGui
             r = GetNodeHandle(LuaCheckNodeInternal(L, 2, &hnode));
         }
         Scene* scene = GuiScriptInstance_Check(L);
-        MoveNodeAbove(scene, GetNodeHandle(n), r);
+        if (MoveNodeAbove(scene, GetNodeHandle(n), r) == RESULT_INF_RECURSION)
+        {
+            return luaL_error(L, "Unable to move node above its descendant since it would cause an infinite loop");
+        }
         return 0;
     }
 
@@ -3771,6 +3777,9 @@ namespace dmGui
      * Alters the ordering of the two supplied nodes by moving the first node
      * below the second.
      * If the second argument is `nil` the first node is moved to the bottom.
+     * The moved node adopts the reference node's parent, or becomes a root node
+     * if the reference is `nil`. Moving a node relative to one of its descendants
+     * raises an error and leaves the hierarchy unchanged.
      *
      * @name gui.move_below
      * @param node [type:node] to move
@@ -3786,7 +3795,10 @@ namespace dmGui
             r = GetNodeHandle(LuaCheckNodeInternal(L, 2, &hnode));
         }
         Scene* scene = GuiScriptInstance_Check(L);
-        MoveNodeBelow(scene, GetNodeHandle(n), r);
+        if (MoveNodeBelow(scene, GetNodeHandle(n), r) == RESULT_INF_RECURSION)
+        {
+            return luaL_error(L, "Unable to move node below its descendant since it would cause an infinite loop");
+        }
         return 0;
     }
 
