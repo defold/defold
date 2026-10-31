@@ -22,6 +22,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/dstrings.h>
 #include <dlib/testutil.h>
+#include <dlib/static_assert.h>
 
 #include <ddf/ddf.h>
 #include <hid_private.h>
@@ -1705,48 +1706,102 @@ TEST_F(InputTest, GamepadSources)
     dmInput::DeleteBinding(binding);
 }
 
-extern "C" int TestInputActionBatchC(HInputActionBatch batch);
+extern "C" int TestInputActionIteratorC(HInputContext context);
 
-// C and C++ accessors read the same opaque scalar views without exposing storage layout.
-TEST(InputAPI, OpaqueActionAccessors)
+// C/C++ iterators expose identical resolved values while keeping action storage private.
+TEST(InputAPI, OpaqueActionIterator)
 {
-    dmInputAction actions[] = {
-        { dmHashString64("up"), 1.0f, INPUT_ACTION_SOURCE_KEYBOARD, 0, true, false, false, false },
-        { dmHashString64("axis"), 0.5f, INPUT_ACTION_SOURCE_GAMEPAD, 2, false, false, true, true },
-        { dmHashString64("up"), 0.0f, INPUT_ACTION_SOURCE_KEYBOARD, 0, false, true, false, false },
+    DM_STATIC_ASSERT(sizeof(dmInput::ActionIterator) == 2 * sizeof(uintptr_t), Invalid_Input_Iterator_Size);
+    dmInput::NewContextParams params = {};
+    dmInput::HContext context = dmInput::NewContext(params);
+    const dmInput::ResolvedAction actions[] = {
+        { dmHashString64("up"), 1.0f, dmInput::ACTION_SOURCE_KEYBOARD, 0, true, false, false, false },
+        { dmHashString64("axis"), 0.5f, dmInput::ACTION_SOURCE_GAMEPAD, 2, false, false, true, true },
+        { dmHashString64("up"), 0.0f, dmInput::ACTION_SOURCE_KEYBOARD, 0, false, true, false, false },
     };
-    dmInputActionBatch batch = { actions, DM_ARRAY_SIZE(actions) };
-    ASSERT_EQ(1, TestInputActionBatchC(&batch));
-    ASSERT_EQ(3u, dmInput::ActionBatchGetCount(&batch));
-    dmInput::HAction action = dmInput::ActionBatchGetAction(&batch, 0);
-    ASSERT_EQ(dmHashString64("up"), dmInput::ActionGetId(action));
-    ASSERT_EQ(1.0f, dmInput::ActionGetValue(action));
-    ASSERT_TRUE(dmInput::ActionIsPressed(action));
-    ASSERT_FALSE(dmInput::ActionIsReleased(action));
-    ASSERT_FALSE(dmInput::ActionIsRepeated(action));
-    ASSERT_EQ(dmInput::ACTION_SOURCE_KEYBOARD, dmInput::ActionGetSource(action));
+    dmInput::ResolvedActions view = { actions, DM_ARRAY_SIZE(actions) };
+    ASSERT_EQ((const dmInput::ResolvedActions*)0, dmInput::SetResolvedActions(context, &view));
+    ASSERT_EQ(1, TestInputActionIteratorC(context));
+    dmInput::ActionIterator iterator = dmInput::IterateActions(context);
+    ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
+    ASSERT_EQ(dmHashString64("up"), dmInput::ActionGetId(&iterator));
+    ASSERT_EQ(1.0f, dmInput::ActionGetValue(&iterator));
+    ASSERT_TRUE(dmInput::ActionIsPressed(&iterator));
+    ASSERT_FALSE(dmInput::ActionIsReleased(&iterator));
+    ASSERT_FALSE(dmInput::ActionIsRepeated(&iterator));
+    ASSERT_EQ(dmInput::ACTION_SOURCE_KEYBOARD, dmInput::ActionGetSource(&iterator));
     uint32_t index = 77;
-    ASSERT_FALSE(dmInput::ActionGetGamepadIndex(action, &index));
+    ASSERT_FALSE(dmInput::ActionGetGamepadIndex(&iterator, &index));
     ASSERT_EQ(77u, index);
-    action = dmInput::ActionBatchGetAction(&batch, 1);
-    ASSERT_EQ(dmInput::ACTION_SOURCE_GAMEPAD, dmInput::ActionGetSource(action));
-    ASSERT_TRUE(dmInput::ActionGetGamepadIndex(action, &index));
+    ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
+    ASSERT_EQ(dmInput::ACTION_SOURCE_GAMEPAD, dmInput::ActionGetSource(&iterator));
+    ASSERT_TRUE(dmInput::ActionGetGamepadIndex(&iterator, &index));
     ASSERT_EQ(2u, index);
-    ASSERT_TRUE(dmInput::ActionIsRepeated(action));
-    ASSERT_EQ(0.5f, dmInput::ActionGetValue(action));
-    ASSERT_TRUE(dmInput::ActionIsReleased(dmInput::ActionBatchGetAction(&batch, 2)));
-    ASSERT_EQ((dmInput::HAction)0, dmInput::ActionBatchGetAction(&batch, 3));
-    ASSERT_EQ((dmInput::HAction)0, dmInput::ActionBatchGetAction(&batch, ~0u));
+    ASSERT_TRUE(dmInput::ActionIsRepeated(&iterator));
+    ASSERT_EQ(0.5f, dmInput::ActionGetValue(&iterator));
+    ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
+    ASSERT_TRUE(dmInput::ActionIsReleased(&iterator));
+    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
+    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
+    dmInput::SetResolvedActions(context, 0);
+    dmInput::DeleteContext(context);
 }
 
-// Empty batches and out-of-range lookup remain safe without an action array.
-TEST(InputAPI, EmptyActionBatch)
+// Unpublished/empty views and exhausted iterators never yield a current action.
+TEST(InputAPI, EmptyActionIterator)
 {
-    dmInputActionBatch batch = { 0, 0 };
-    ASSERT_EQ(0u, dmInput::ActionBatchGetCount(&batch));
-    ASSERT_EQ((dmInput::HAction)0, dmInput::ActionBatchGetAction(&batch, 0));
-    ASSERT_EQ((dmInput::HAction)0, dmInput::ActionBatchGetAction(&batch, ~0u));
-    ASSERT_EQ(1, TestInputActionBatchC(&batch));
+    dmInput::NewContextParams params = {};
+    dmInput::HContext context = dmInput::NewContext(params);
+    dmInput::ActionIterator iterator = dmInput::IterateActions(context);
+    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
+    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
+    ASSERT_EQ(1, TestInputActionIteratorC(context));
+    dmInput::ResolvedActions view = { 0, 0 };
+    dmInput::SetResolvedActions(context, &view);
+    iterator = dmInput::IterateActions(context);
+    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
+    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
+    ASSERT_EQ(1, TestInputActionIteratorC(context));
+    dmInput::SetResolvedActions(context, 0);
+    dmInput::DeleteContext(context);
+}
+
+// Interleaved iterators and nested view publication preserve each cursor and restore the outer event.
+TEST(InputAPI, IndependentActionIterators)
+{
+    dmInput::NewContextParams params = {};
+    dmInput::HContext context = dmInput::NewContext(params);
+    const dmInput::ResolvedAction actions[] = {
+        { dmHashString64("up"), 1.0f, dmInput::ACTION_SOURCE_KEYBOARD, 0, true, false, false, false },
+        { dmHashString64("down"), 0.0f, dmInput::ACTION_SOURCE_KEYBOARD, 0, false, true, false, false },
+    };
+    dmInput::ResolvedActions outer = { actions, 2 };
+    dmInput::ResolvedActions inner = { actions + 1, 1 };
+    dmInput::SetResolvedActions(context, &outer);
+    dmInput::ActionIterator first = dmInput::IterateActions(context);
+    dmInput::ActionIterator second = dmInput::IterateActions(context);
+    ASSERT_TRUE(dmInput::ActionIterateNext(&first));
+    ASSERT_TRUE(dmInput::ActionIterateNext(&second));
+    ASSERT_TRUE(dmInput::ActionIterateNext(&first));
+    ASSERT_EQ(dmHashString64("down"), dmInput::ActionGetId(&first));
+    ASSERT_EQ(dmHashString64("up"), dmInput::ActionGetId(&second));
+    const dmInput::ResolvedActions* previous = dmInput::SetResolvedActions(context, &inner);
+    ASSERT_EQ(&outer, previous);
+    dmInput::ActionIterator nested = dmInput::IterateActions(context);
+    ASSERT_TRUE(dmInput::ActionIterateNext(&nested));
+    ASSERT_EQ(dmHashString64("down"), dmInput::ActionGetId(&nested));
+    ASSERT_EQ(dmHashString64("up"), dmInput::ActionGetId(&second));
+    ASSERT_FALSE(dmInput::ActionIterateNext(&nested));
+    dmInput::SetResolvedActions(context, previous);
+    dmInput::ActionIterator restored = dmInput::IterateActions(context);
+    ASSERT_TRUE(dmInput::ActionIterateNext(&restored));
+    ASSERT_EQ(dmHashString64("up"), dmInput::ActionGetId(&restored));
+    ASSERT_TRUE(dmInput::ActionIterateNext(&second));
+    ASSERT_EQ(dmHashString64("down"), dmInput::ActionGetId(&second));
+    dmInput::SetResolvedActions(context, 0);
+    dmInput::ActionIterator cleared = dmInput::IterateActions(context);
+    ASSERT_FALSE(dmInput::ActionIterateNext(&cleared));
+    dmInput::DeleteContext(context);
 }
 
 int main(int argc, char **argv)

@@ -19,3 +19,9 @@ int TestEngineWindowC(HEngine engine, HWindow expected)
 {
     return EngineGetWindow(engine) == expected;
 }
+
+// Verify that callback parameters identify their source engine through the C API.
+int TestEngineParamsC(ExtensionParams* params, HEngine expected)
+{
+    return EngineGetFromExtensionParams(params) == expected;
+}

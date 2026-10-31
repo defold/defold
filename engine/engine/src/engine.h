@@ -18,6 +18,8 @@
 #include <stdint.h>
 #include <dmsdk/engine/engine.h>
 
+#define ENGINE_CONTEXT_NAME "engine"
+
 namespace dmEngine
 {
     uint16_t GetHttpPort(HEngine engine);

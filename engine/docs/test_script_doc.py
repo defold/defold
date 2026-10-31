@@ -311,6 +311,46 @@ foobar
         self.assertIn('---@param force? boolean force activation', annotation)
 
 
+    # Verifies that generated C++ docs can include canonical C declarations
+    # without validating their external C types as C++ types.
+    def test_cpp_document_with_c_declarations(self):
+        doc = """
+/*# Test API
+ * @document
+ * @name Test
+ * @language C++
+ */
+/*# C++ accessor
+ * @name GetEngine
+ * @param params [type:dmExtension::Params*] extension parameters
+ */
+/*# C accessor
+ * @name EngineGetFromExtensionParams
+ * @language C
+ * @param params [type:ExtensionParams*] extension parameters
+ */
+"""
+        elements = script_doc.parse_document(doc).elements
+        self.assertEqual(2, len(elements))
+        self.assertEqual('C', elements[1].language)
+        self.assertEqual(['ExtensionParams*'], list(elements[1].parameters[0].types))
+
+    # Verifies that language-specific handling still rejects unknown C++ types.
+    def test_cpp_document_rejects_unknown_cpp_type(self):
+        doc = """
+/*# Test API
+ * @document
+ * @name Test
+ * @language C++
+ */
+/*# C++ accessor
+ * @name GetEngine
+ * @param params [type:UnknownParams*] extension parameters
+ */
+"""
+        with self.assertRaisesRegex(Exception, "Errors occurred when generating documentation"):
+            script_doc.parse_document(doc)
+
     def test_lua_type_validation_is_deferred(self):
         doc= """
 /*#

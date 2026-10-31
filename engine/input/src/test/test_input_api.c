@@ -14,31 +14,44 @@
 
 #include <dmsdk/input/input.h>
 
-int TestInputActionBatchC(HInputActionBatch batch)
+int TestInputActionIteratorC(HInputContext context)
 {
-    uint32_t count = InputActionBatchGetCount(batch);
-    if (count == 0)
+    InputActionIterator iterator = InputIterateActions(context);
+    uint32_t count = 0;
+    int valid = 1;
+    while (InputActionIterateNext(&iterator))
     {
-        return InputActionBatchGetAction(batch, 0) == 0;
+        uint32_t index = 77;
+        switch (count)
+        {
+            case 0:
+            {
+                valid &= !InputActionGetGamepadIndex(&iterator, &index) && index == 77;
+                valid &= InputActionGetId(&iterator) == dmHashString64("up") &&
+                         InputActionGetValue(&iterator) == 1.0f && InputActionIsPressed(&iterator) &&
+                         !InputActionIsReleased(&iterator) && !InputActionIsRepeated(&iterator) &&
+                         InputActionGetSource(&iterator) == INPUT_ACTION_SOURCE_KEYBOARD;
+                break;
+            }
+            case 1:
+            {
+                valid &= InputActionGetSource(&iterator) == INPUT_ACTION_SOURCE_GAMEPAD &&
+                         InputActionGetValue(&iterator) == 0.5f && InputActionIsRepeated(&iterator) &&
+                         InputActionGetGamepadIndex(&iterator, &index) && index == 2;
+                break;
+            }
+            case 2:
+            {
+                valid &= InputActionGetValue(&iterator) == 0.0f && InputActionIsReleased(&iterator);
+                break;
+            }
+            default:
+            {
+                valid = 0;
+                break;
+            }
+        }
+        ++count;
     }
-    if (count != 3 || InputActionBatchGetAction(batch, count) != 0)
-    {
-        return 0;
-    }
-    HInputAction key = InputActionBatchGetAction(batch, 0);
-    HInputAction pad = InputActionBatchGetAction(batch, 1);
-    HInputAction release = InputActionBatchGetAction(batch, 2);
-    uint32_t index = 77;
-    if (InputActionGetGamepadIndex(key, &index) || index != 77)
-    {
-        return 0;
-    }
-    return InputActionGetId(key) == dmHashString64("up") &&
-           InputActionGetValue(key) == 1.0f && InputActionIsPressed(key) &&
-           !InputActionIsReleased(key) && !InputActionIsRepeated(key) &&
-           InputActionGetSource(key) == INPUT_ACTION_SOURCE_KEYBOARD &&
-           InputActionGetSource(pad) == INPUT_ACTION_SOURCE_GAMEPAD &&
-           InputActionGetValue(pad) == 0.5f && InputActionIsRepeated(pad) &&
-           InputActionGetGamepadIndex(pad, &index) && index == 2 &&
-           InputActionGetValue(release) == 0.0f && InputActionIsReleased(release);
+    return valid && (count == 0 || count == 3) && !InputActionIterateNext(&iterator);
 }

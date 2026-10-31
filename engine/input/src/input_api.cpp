@@ -13,51 +13,67 @@
 // specific language governing permissions and limitations under the License.
 
 #include "input.h"
+#include "input_private.h"
+
+static const dmInput::ResolvedAction* GetIteratorAction(const InputActionIterator* iterator)
+{
+    const dmInput::ResolvedActions* actions = (const dmInput::ResolvedActions*)iterator->m_State[0];
+    return &actions->m_Actions[iterator->m_State[1] - 1];
+}
 
 extern "C"
 {
-    uint32_t InputActionBatchGetCount(HInputActionBatch batch)
+    InputActionIterator InputIterateActions(HInputContext context)
     {
-        return batch->m_Count;
+        InputActionIterator iterator = { { (uintptr_t)context->m_ResolvedActions, 0 } };
+        return iterator;
     }
 
-    HInputAction InputActionBatchGetAction(HInputActionBatch batch, uint32_t index)
+    bool InputActionIterateNext(InputActionIterator* iterator)
     {
-        return index < batch->m_Count ? &batch->m_Actions[index] : 0;
+        const dmInput::ResolvedActions* actions = (const dmInput::ResolvedActions*)iterator->m_State[0];
+        if (actions && iterator->m_State[1] < actions->m_Count)
+        {
+            ++iterator->m_State[1];
+            return true;
+        }
+        iterator->m_State[0] = 0;
+        return false;
     }
 
-    dmhash_t InputActionGetId(HInputAction action)
+    dmhash_t InputActionGetId(const InputActionIterator* iterator)
     {
-        return action->m_Id;
+        return GetIteratorAction(iterator)->m_Id;
     }
 
-    float InputActionGetValue(HInputAction action)
+    float InputActionGetValue(const InputActionIterator* iterator)
     {
-        return action->m_Value;
+        return GetIteratorAction(iterator)->m_Value;
     }
 
-    bool InputActionIsPressed(HInputAction action)
+    bool InputActionIsPressed(const InputActionIterator* iterator)
     {
-        return action->m_Pressed;
+        return GetIteratorAction(iterator)->m_Pressed;
     }
 
-    bool InputActionIsReleased(HInputAction action)
+    bool InputActionIsReleased(const InputActionIterator* iterator)
     {
-        return action->m_Released;
+        return GetIteratorAction(iterator)->m_Released;
     }
 
-    bool InputActionIsRepeated(HInputAction action)
+    bool InputActionIsRepeated(const InputActionIterator* iterator)
     {
-        return action->m_Repeated;
+        return GetIteratorAction(iterator)->m_Repeated;
     }
 
-    InputActionSource InputActionGetSource(HInputAction action)
+    InputActionSource InputActionGetSource(const InputActionIterator* iterator)
     {
-        return action->m_Source;
+        return GetIteratorAction(iterator)->m_Source;
     }
 
-    bool InputActionGetGamepadIndex(HInputAction action, uint32_t* out_index)
+    bool InputActionGetGamepadIndex(const InputActionIterator* iterator, uint32_t* out_index)
     {
+        const dmInput::ResolvedAction* action = GetIteratorAction(iterator);
         if (!action->m_IsGamepad)
         {
             return false;
@@ -65,54 +81,59 @@ extern "C"
         *out_index = action->m_GamepadIndex;
         return true;
     }
-
 }
 
 namespace dmInput
 {
-    uint32_t ActionBatchGetCount(HActionBatch batch)
+    const ResolvedActions* SetResolvedActions(HContext context, const ResolvedActions* actions)
     {
-        return InputActionBatchGetCount(batch);
+        const ResolvedActions* previous = context->m_ResolvedActions;
+        context->m_ResolvedActions = actions;
+        return previous;
     }
 
-    HAction ActionBatchGetAction(HActionBatch batch, uint32_t index)
+    ActionIterator IterateActions(HContext context)
     {
-        return InputActionBatchGetAction(batch, index);
+        return InputIterateActions(context);
     }
 
-    dmhash_t ActionGetId(HAction action)
+    bool ActionIterateNext(ActionIterator* iterator)
     {
-        return InputActionGetId(action);
+        return InputActionIterateNext(iterator);
     }
 
-    float ActionGetValue(HAction action)
+    dmhash_t ActionGetId(const ActionIterator* iterator)
     {
-        return InputActionGetValue(action);
+        return InputActionGetId(iterator);
     }
 
-    bool ActionIsPressed(HAction action)
+    float ActionGetValue(const ActionIterator* iterator)
     {
-        return InputActionIsPressed(action);
+        return InputActionGetValue(iterator);
     }
 
-    bool ActionIsReleased(HAction action)
+    bool ActionIsPressed(const ActionIterator* iterator)
     {
-        return InputActionIsReleased(action);
+        return InputActionIsPressed(iterator);
     }
 
-    bool ActionIsRepeated(HAction action)
+    bool ActionIsReleased(const ActionIterator* iterator)
     {
-        return InputActionIsRepeated(action);
+        return InputActionIsReleased(iterator);
     }
 
-    ActionSource ActionGetSource(HAction action)
+    bool ActionIsRepeated(const ActionIterator* iterator)
     {
-        return InputActionGetSource(action);
+        return InputActionIsRepeated(iterator);
     }
 
-    bool ActionGetGamepadIndex(HAction action, uint32_t* out_index)
+    ActionSource ActionGetSource(const ActionIterator* iterator)
     {
-        return InputActionGetGamepadIndex(action, out_index);
+        return InputActionGetSource(iterator);
     }
 
+    bool ActionGetGamepadIndex(const ActionIterator* iterator, uint32_t* out_index)
+    {
+        return InputActionGetGamepadIndex(iterator, out_index);
+    }
 }

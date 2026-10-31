@@ -22,28 +22,30 @@
 #include <input/input_ddf.h>
 #include <dmsdk/input/input.h>
 
-// Private scalar views for synchronous SDK input observation. Their layout is
-// independent of the public handles and the focused game-object input buffer.
-struct dmInputAction
-{
-    dmhash_t          m_Id;
-    float             m_Value;
-    InputActionSource m_Source;
-    uint32_t          m_GamepadIndex;
-    bool              m_Pressed;
-    bool              m_Released;
-    bool              m_Repeated;
-    bool              m_IsGamepad;
-};
-
-struct dmInputActionBatch
-{
-    const dmInputAction* m_Actions;
-    uint32_t             m_Count;
-};
-
 namespace dmInput
 {
+    // Private resolved views; independent of the public iterator and focused input buffer.
+    struct ResolvedAction
+    {
+        dmhash_t     m_Id;
+        float        m_Value;
+        ActionSource m_Source;
+        uint32_t     m_GamepadIndex;
+        bool         m_Pressed;
+        bool         m_Released;
+        bool         m_Repeated;
+        bool         m_IsGamepad;
+    };
+
+    struct ResolvedActions
+    {
+        const ResolvedAction* m_Actions;
+        uint32_t              m_Count;
+    };
+
+    // Publish a callback-scoped view; return the previous view for nested delivery.
+    const ResolvedActions* SetResolvedActions(HContext context, const ResolvedActions* actions);
+
     // TODO: Make proper subtypes, to keep the combinations apart, and struct small
     struct Action
     {
@@ -85,7 +87,6 @@ namespace dmInput
         uint16_t : 1;
     };
 
-    typedef struct Context* HContext;
     /**
      * Invalid context handle
      */

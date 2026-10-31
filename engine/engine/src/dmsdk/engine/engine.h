@@ -16,6 +16,7 @@
 #define DMSDK_ENGINE_H
 
 #include <dmsdk/platform/window.h>
+#include <dmsdk/extension/extension.h>
 
 /*# Engine API documentation
  * Engine instance handles and access to the engine-owned window.
@@ -47,6 +48,16 @@ typedef struct Engine* HEngine;
 #if defined(__cplusplus)
 extern "C" {
 #endif
+
+/*# get the source engine from extension parameters
+ * Available from engine creation through application finalization, including
+ * early events and cleanup after initialization failure. The handle is borrowed;
+ * do not destroy it or retain it across engine deletion or reboot.
+ * @name EngineGetFromExtensionParams
+ * @param params [type:ExtensionParams*] valid current callback parameters
+ * @return engine [type:HEngine] borrowed source engine, or null for a host without an engine
+ */
+HEngine EngineGetFromExtensionParams(ExtensionParams* params);
 
 /*# get the engine window
  * The engine owns the returned window. Do not destroy it or retain it across

@@ -26,10 +26,12 @@
                         "EngineAppEvent": "AppEvent",
                         "EngineWindowResizedEvent": "WindowResizedEvent",
                         "EngineInputActionsEvent": "InputActionsEvent",
-                        "HInputActionBatch": "dmInput::HActionBatch",
                         "ExtensionBroadcastEvent": "dmExtension::BroadcastEvent",
                         "FExtensionEventCallback": "dmExtension::FEventCallback",
-                        "EngineGetWindow": "dmEngine::GetWindow"
+                        "EngineGetWindow": "dmEngine::GetWindow",
+                        "HInputContext": "dmInput::HContext",
+                        "InputIterateActions": "dmInput::IterateActions",
+                        "EngineGetFromExtensionParams": "dmEngine::GetEngine"
                     }
                 }
             }
@@ -43,7 +45,9 @@
                         "HEngine"
                     ],
                     "rename": {
-                        "EngineGetWindow": "GetWindow"
+                        "EngineGetWindow": "GetWindow",
+                        "EngineGetFromExtensionParams": "GetEngine",
+                        "ExtensionParams": "dmExtension::Params"
                     }
                 }
             }

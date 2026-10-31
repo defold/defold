@@ -16,9 +16,8 @@
                     "rename": {
                         "InputActionSource": "ActionSource",
                         "INPUT_ACTION_SOURCE_": "ACTION_SOURCE_",
-                        "HInputActionBatch": "HActionBatch",
-                        "HInputAction": "HAction",
-                        "InputActionBatch": "ActionBatch",
+                        "HInputContext": "HContext",
+                        "InputIterateActions": "IterateActions",
                         "InputAction": "Action"
                     }
                 }

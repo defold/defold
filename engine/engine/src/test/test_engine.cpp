@@ -27,6 +27,7 @@
 #include <dlib/profile.h>
 #include <script/sys_ddf.h>
 #include <render/render_ddf.h>
+#include <extension/extension.h>
 #include <dmsdk/extension/extension.hpp>
 #include <dmsdk/engine/engine_event.h>
 #include "test_engine.h"
@@ -65,6 +66,7 @@ static uint32_t g_ExtensionUpdateCount          = 0;
 static bool     g_ExtensionFloatLookupSucceeded = true;
 
 extern "C" int TestEngineWindowC(HEngine engine, HWindow expected);
+extern "C" int TestEngineParamsC(ExtensionParams* params, HEngine expected);
 
 struct EngineEventObservations
 {
@@ -104,6 +106,8 @@ static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const vo
         }
         const dmEngine::LifecycleEvent* event = (const dmEngine::LifecycleEvent*)data;
         g_EngineEvents.m_PayloadValid &= event->m_Engine == g_EngineEvents.m_Engine;
+        g_EngineEvents.m_PayloadValid &= dmEngine::GetEngine(params) == event->m_Engine &&
+                                         TestEngineParamsC(params, event->m_Engine);
         HWindow window = dmEngine::GetWindow(event->m_Engine);
         g_EngineEvents.m_WindowAccessorValid &= window == g_EngineEvents.m_Engine->m_Window &&
                                                 TestEngineWindowC(event->m_Engine, window);
@@ -245,30 +249,36 @@ static void CaptureInput(dmExtension::Params* params, dmhash_t id, const void* d
         return;
     }
     const dmEngine::InputActionsEvent* event = (const dmEngine::InputActionsEvent*)data;
-    ctx->m_Valid &= event->m_Engine == ctx->m_Engine && event->m_Window == ctx->m_Engine->m_Window &&
-                    params->m_L == ctx->m_L && params->m_ResourceFactory == ctx->m_Engine->m_Factory && event->m_Actions;
+    ctx->m_Valid &= dmEngine::GetEngine(params) == ctx->m_Engine && TestEngineParamsC(params, ctx->m_Engine) &&
+                    event->m_Input == ctx->m_Engine->m_InputContext && params->m_L == ctx->m_L &&
+                    params->m_ResourceFactory == ctx->m_Engine->m_Factory;
     float dt = -1.0f;
     ctx->m_Valid &= dmExtension::ParamsGetFloat(params, dmExtension::PARAM_DT, &dt) && dt == 0.0f;
-    if (!event->m_Actions)
+    if (!event->m_Input)
     {
         return;
     }
     InputObservation& seen = ctx->m_Observers[observer];
     ++seen.m_Calls;
-    seen.m_Count = dmInput::ActionBatchGetCount(event->m_Actions);
+    seen.m_Count = 0;
     seen.m_LuaCalls = InputLuaCalls(params->m_L);
-    ctx->m_Valid &= seen.m_Count <= DM_ARRAY_SIZE(seen.m_Actions);
-    ctx->m_Valid &= dmInput::ActionBatchGetAction(event->m_Actions, seen.m_Count) == 0;
-    for (uint32_t i = 0; i < seen.m_Count && i < DM_ARRAY_SIZE(seen.m_Actions); ++i)
+    dmInput::ActionIterator iterator = dmInput::IterateActions(event->m_Input);
+    while (dmInput::ActionIterateNext(&iterator))
     {
-        dmInput::HAction action = dmInput::ActionBatchGetAction(event->m_Actions, i);
-        seen.m_Actions[i].m_Id = dmInput::ActionGetId(action);
-        seen.m_Actions[i].m_Value = dmInput::ActionGetValue(action);
-        seen.m_Actions[i].m_Source = dmInput::ActionGetSource(action);
-        seen.m_Actions[i].m_Pressed = dmInput::ActionIsPressed(action);
-        seen.m_Actions[i].m_Released = dmInput::ActionIsReleased(action);
-        seen.m_Actions[i].m_Repeated = dmInput::ActionIsRepeated(action);
+        uint32_t i = seen.m_Count++;
+        if (i >= DM_ARRAY_SIZE(seen.m_Actions))
+        {
+            ctx->m_Valid = false;
+            continue;
+        }
+        seen.m_Actions[i].m_Id = dmInput::ActionGetId(&iterator);
+        seen.m_Actions[i].m_Value = dmInput::ActionGetValue(&iterator);
+        seen.m_Actions[i].m_Source = dmInput::ActionGetSource(&iterator);
+        seen.m_Actions[i].m_Pressed = dmInput::ActionIsPressed(&iterator);
+        seen.m_Actions[i].m_Released = dmInput::ActionIsReleased(&iterator);
+        seen.m_Actions[i].m_Repeated = dmInput::ActionIsRepeated(&iterator);
     }
+    ctx->m_Valid &= !dmInput::ActionIterateNext(&iterator);
 }
 
 static void ObserveInputFirst(dmExtension::Params* params, dmhash_t id, const void* data, uint32_t size)
@@ -676,6 +686,28 @@ TEST_F(EngineTest, WindowResizeBeforeRenderContext)
     dmEngineFinalize();
 }
 
+// Source engines are available before initialization; standalone or empty registries return null.
+TEST_F(EngineTest, ExtensionEngineContext)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    dmExtension::Params params;
+    dmExtension::ParamsInitialize(&params);
+    bool standalone = dmEngine::GetEngine(&params) == 0 && TestEngineParamsC(&params, 0);
+    HContextRegistry empty = ContextRegistryCreate();
+    ExtensionParamsSetContextRegistry(&params, empty);
+    bool missing = dmEngine::GetEngine(&params) == 0 && TestEngineParamsC(&params, 0);
+    ExtensionParamsSetContextRegistry(&params, engine->m_ContextRegistry);
+    bool source = dmEngine::GetEngine(&params) == engine && TestEngineParamsC(&params, engine);
+    dmExtension::ParamsFinalize(&params);
+    ContextRegistryDestroy(empty);
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+    ASSERT_TRUE(standalone);
+    ASSERT_TRUE(missing);
+    ASSERT_TRUE(source);
+}
+
 static EngineEventObservations RunEngineEventCycle(bool fail_initialization)
 {
     dmEngineInitialize();
@@ -705,7 +737,7 @@ static EngineEventObservations RunEngineEventCycle(bool fail_initialization)
     return g_EngineEvents;
 }
 
-// Observers see the current ordered batch before Lua consumption, including held/released and empty updates.
+// Observers independently iterate the current ordered view before Lua consumption, including held/released and empty updates.
 TEST_F(EngineTest, InputObserversBeforeFocusedDispatch)
 {
     dmEngineInitialize();
@@ -746,6 +778,8 @@ TEST_F(EngineTest, InputObserversBeforeFocusedDispatch)
             }
 
             dmEngine::Step(engine);
+            dmInput::ActionIterator outside = dmInput::IterateActions(engine->m_InputContext);
+            ctx.m_Valid &= !dmInput::ActionIterateNext(&outside);
             for (uint32_t observer = 0; observer < DM_ARRAY_SIZE(ctx.m_Observers); ++observer)
             {
                 observations[frame][observer] = ctx.m_Observers[observer];

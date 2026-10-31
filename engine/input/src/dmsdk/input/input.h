@@ -19,19 +19,38 @@
 #include <stdint.h>
 #include <dmsdk/dlib/hash.h>
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 /*# Input action API
- * Read resolved input actions delivered by engine input events. Batches and
- * actions are immutable and borrowed only during the synchronous event callback.
- * Do not retain handles or use them from another thread. Use batch accessors;
- * action storage has no public layout or stride.
+ * Iterate the resolved actions published during an engine input event. Action
+ * storage is private; getters read the iterator's current action. Getters require
+ * the last InputActionIterateNext call to have returned true.
+ *
+ * Call only on the engine thread. Iterators and current actions are borrowed
+ * for the synchronous input callback; do not retain them or use another thread.
+ * Iteration is read-only, allocation-free and independent between listeners.
  * @document
  * @name Input
  * @language C
  */
+
+/*# input context handle
+ * Borrowed engine-owned input context. Do not destroy it. The resolved action
+ * view is available during its engine input event, including empty updates.
+ * @typedef
+ * @name HInputContext
+ */
+#if defined(__cplusplus)
+namespace dmInput
+{
+    struct Context;
+}
+typedef dmInput::Context* HInputContext;
+#else
+typedef struct dmInputContext* HInputContext;
+#endif
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 /*# resolved action source
  * @enum
@@ -55,85 +74,85 @@ typedef enum InputActionSource
     INPUT_ACTION_SOURCE_ACCELEROMETER = 5,
 } InputActionSource;
 
-/*# read-only resolved action
- * Borrowed from a batch for the duration of its engine event callback.
- * @typedef
- * @name HInputAction
+/*# input action iterator
+ * Small value-type cursor with reserved opaque state. Do not access its members;
+ * initialize it with InputIterateActions and advance with InputActionIterateNext.
+ * Its ABI occupies two uintptr_t words and requires no allocation or destruction.
+ * @struct
+ * @name InputActionIterator
  */
-typedef const struct dmInputAction* HInputAction;
+typedef struct InputActionIterator
+{
+    uintptr_t m_State[2];
+} InputActionIterator;
 
-/*# read-only resolved action batch
- * One completed input update, including updates with no active actions.
- * Borrowed for the duration of its engine event callback.
- * @typedef
- * @name HInputActionBatch
+/*# iterate resolved input actions
+ * Captures the current event's immutable action view in dispatch order. The
+ * iterator starts before the first action. New iterations outside input event
+ * delivery are empty. Multiple iterators advance independently.
+ * @name InputIterateActions
+ * @param context [type:HInputContext] live borrowed input context
+ * @return iterator [type:InputActionIterator] cursor positioned before the first action
  */
-typedef const struct dmInputActionBatch* HInputActionBatch;
+InputActionIterator InputIterateActions(HInputContext context);
 
-/*# count resolved actions
- * @name InputActionBatchGetCount
- * @param batch [type:HInputActionBatch] valid borrowed batch
- * @return count [type:uint32_t] number of actions; zero for an empty update
+/*# advance to the next resolved action
+ * A false result invalidates the current action. Further advances remain false.
+ * @name InputActionIterateNext
+ * @param iterator [type:InputActionIterator*] iterator initialized by InputIterateActions
+ * @return result [type:bool] true when positioned on an action; false when exhausted or empty
  */
-uint32_t InputActionBatchGetCount(HInputActionBatch batch);
-
-/*# read one resolved action
- * @name InputActionBatchGetAction
- * @param batch [type:HInputActionBatch] valid borrowed batch
- * @param index [type:uint32_t] zero-based action index
- * @return action [type:HInputAction] borrowed action, or null when index is out of range
- */
-HInputAction InputActionBatchGetAction(HInputActionBatch batch, uint32_t index);
+bool InputActionIterateNext(InputActionIterator* iterator);
 
 /*# read the action identifier
  * @name InputActionGetId
- * @param action [type:HInputAction] valid borrowed action
+ * @param iterator [type:const InputActionIterator*] iterator positioned by a successful InputActionIterateNext
  * @return id [type:dmhash_t] hashed binding name; zero for unnamed pointer or acceleration samples
  */
-dmhash_t InputActionGetId(HInputAction action);
+dmhash_t InputActionGetId(const InputActionIterator* iterator);
 
 /*# read the scalar binding value
  * @name InputActionGetValue
- * @param action [type:HInputAction] valid borrowed action
+ * @param iterator [type:const InputActionIterator*] iterator positioned by a successful InputActionIterateNext
  * @return value [type:float] resolved scalar value, including zero on release
  */
-float InputActionGetValue(HInputAction action);
+float InputActionGetValue(const InputActionIterator* iterator);
 
 /*# test the press transition
  * @name InputActionIsPressed
- * @param action [type:HInputAction] valid borrowed action
+ * @param iterator [type:const InputActionIterator*] iterator positioned by a successful InputActionIterateNext
  * @return pressed [type:bool] true if the binding became active this input update
  */
-bool InputActionIsPressed(HInputAction action);
+bool InputActionIsPressed(const InputActionIterator* iterator);
 
 /*# test the release transition
  * @name InputActionIsReleased
- * @param action [type:HInputAction] valid borrowed action
+ * @param iterator [type:const InputActionIterator*] iterator positioned by a successful InputActionIterateNext
  * @return released [type:bool] true if the binding became inactive this input update
  */
-bool InputActionIsReleased(HInputAction action);
+bool InputActionIsReleased(const InputActionIterator* iterator);
 
 /*# test binding repeat
  * @name InputActionIsRepeated
- * @param action [type:HInputAction] valid borrowed action
+ * @param iterator [type:const InputActionIterator*] iterator positioned by a successful InputActionIterateNext
  * @return repeated [type:bool] true if repeat was triggered this input update
  */
-bool InputActionIsRepeated(HInputAction action);
+bool InputActionIsRepeated(const InputActionIterator* iterator);
 
 /*# read the device category
  * @name InputActionGetSource
- * @param action [type:HInputAction] valid borrowed action
+ * @param iterator [type:const InputActionIterator*] iterator positioned by a successful InputActionIterateNext
  * @return source [type:InputActionSource] device category, or INPUT_ACTION_SOURCE_UNKNOWN
  */
-InputActionSource InputActionGetSource(HInputAction action);
+InputActionSource InputActionGetSource(const InputActionIterator* iterator);
 
 /*# read the gamepad index
  * @name InputActionGetGamepadIndex
- * @param action [type:HInputAction] valid borrowed action
+ * @param iterator [type:const InputActionIterator*] iterator positioned by a successful InputActionIterateNext
  * @param out_index [type:uint32_t*] non-null output; unchanged for a non-gamepad action
- * @return result [type:bool] true if the action belongs to a gamepad
+ * @return result [type:bool] true if the current action belongs to a gamepad
  */
-bool InputActionGetGamepadIndex(HInputAction action, uint32_t* out_index);
+bool InputActionGetGamepadIndex(const InputActionIterator* iterator, uint32_t* out_index);
 
 #if defined(__cplusplus)
 }

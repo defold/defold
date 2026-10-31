@@ -511,6 +511,7 @@ namespace dmEngine
         m_DependenciesJsonResource = 0;
         m_DependenciesJsonSize = 0;
         m_ContextRegistry = ContextRegistryCreate();
+        ContextRegistrySet(m_ContextRegistry, ENGINE_CONTEXT_NAME, this);
         dmGameObject::SetContextRegistry(m_Register, m_ContextRegistry);
     }
 
@@ -2168,7 +2169,7 @@ bail:
 
                 dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
                 uint32_t input_buffer_size = input_buffer.Size();
-                dmArray<dmInputAction>& resolved = engine->m_ResolvedInputActions;
+                dmArray<dmInput::ResolvedAction>& resolved = engine->m_ResolvedInputActions;
                 if (resolved.Capacity() < input_buffer_size)
                 {
                     resolved.SetCapacity(dmMath::Max(input_buffer_size, resolved.Capacity() + 64));
@@ -2177,7 +2178,7 @@ bail:
                 for (uint32_t i = 0; i < input_buffer_size; ++i)
                 {
                     const dmGameObject::InputAction& source = input_buffer[i];
-                    dmInputAction& action = resolved[i];
+                    dmInput::ResolvedAction& action = resolved[i];
                     action.m_Id = source.m_ActionId;
                     action.m_Value = source.m_Value;
                     action.m_Source = GetInputActionSource((dmHID::InputSource)source.m_Source);
@@ -2187,9 +2188,11 @@ bail:
                     action.m_Released = source.m_Released;
                     action.m_Repeated = source.m_Repeated;
                 }
-                dmInputActionBatch batch = { resolved.Begin(), input_buffer_size };
-                dmEngine::InputActionsEvent event = { engine, engine->m_Window, &batch };
+                dmInput::ResolvedActions actions = { resolved.Begin(), input_buffer_size };
+                const dmInput::ResolvedActions* previous = dmInput::SetResolvedActions(engine->m_InputContext, &actions);
+                dmEngine::InputActionsEvent event = { engine->m_InputContext };
                 dmExtension::BroadcastEvent(extension_params, dmEngine::EVENT_INPUT_ACTIONS, &event, sizeof(event));
+                dmInput::SetResolvedActions(engine->m_InputContext, previous);
                 if (input_buffer_size > 0)
                 {
                     dmGameObject::DispatchInput(GetMainCollection(engine), &input_buffer[0], input_buffer.Size());

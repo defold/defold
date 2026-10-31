@@ -35,11 +35,23 @@
  */
 
 #include <dmsdk/platform/window.h>
+#include <dmsdk/extension/extension.h>
 
 #include <dmsdk/engine/engine.h>
 
 namespace dmEngine
 {
+    /*# get the source engine from extension parameters
+     * Available from engine creation through application finalization, including
+     * early events and cleanup after initialization failure. The handle is borrowed;
+     * do not destroy it or retain it across engine deletion or reboot.
+     * @name GetEngine
+     * @language C++
+     * @param params [type:dmExtension::Params*] valid current callback parameters
+     * @return engine [type:HEngine] borrowed source engine, or null for a host without an engine
+     */
+    HEngine GetEngine(dmExtension::Params* params);
+
     /*# get the engine window
      * The engine owns the returned window. Do not destroy it or retain it across
      * engine deletion or reboot. Call only on the engine thread with a live engine.
@@ -62,6 +74,16 @@ namespace dmEngine
  * @typedef
  * @name HEngine
  * @language C
+ */
+
+/*# get the source engine from extension parameters
+ * Available from engine creation through application finalization, including
+ * early events and cleanup after initialization failure. The handle is borrowed;
+ * do not destroy it or retain it across engine deletion or reboot.
+ * @name EngineGetFromExtensionParams
+ * @language C
+ * @param params [type:ExtensionParams*] valid current callback parameters
+ * @return engine [type:HEngine] borrowed source engine, or null for a host without an engine
  */
 
 /*# get the engine window

@@ -966,6 +966,8 @@ def parse_document(doc_str, file=None):
                             errors.append("'%s' has unknown type '%s' for return value '%s' in file %s" % (element.name, t, returnvalue.name, file))
         elif doc.info.language == "C++":
             for element in doc.elements:
+                if element.language == "C":
+                    continue
                 for param in element.parameters:
                     for t in param.types:
                         if t == "":

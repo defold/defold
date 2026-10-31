@@ -13,9 +13,16 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dmsdk/engine/extension.hpp>
+#include "engine.h"
 
 namespace dmEngine
 {
+    HEngine GetEngine(dmExtension::Params* params)
+    {
+        HContextRegistry registry = ExtensionParamsGetContextRegistry(params);
+        return registry ? (HEngine)ContextRegistryGet(registry, ENGINE_CONTEXT_NAME) : 0;
+    }
+
     dmConfigFile::HConfig GetConfigFile(dmExtension::AppParams* app_params)
     {
         HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(app_params);
@@ -39,4 +46,9 @@ namespace dmEngine
         HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(app_params);
         return (dmHID::HContext)ContextRegistryGet(context_registry, HID_CONTEXT_NAME);
     }
+}
+
+extern "C" HEngine EngineGetFromExtensionParams(ExtensionParams* params)
+{
+    return dmEngine::GetEngine(params);
 }

@@ -146,6 +146,7 @@ namespace dmInput
         dmHashTable32<bool>             m_UnmappedGamepads;
         dmHID::HContext                 m_HidContext;
         Binding*                        m_Binding;
+        const ResolvedActions*          m_ResolvedActions;
         float                           m_RepeatDelay;
         float                           m_RepeatInterval;
         float                           m_PressedThreshold;
