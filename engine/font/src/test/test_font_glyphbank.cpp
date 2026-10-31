@@ -139,7 +139,7 @@ TEST(FontGlyphBank, LookupMetricsBitmapAndOwnership)
     ASSERT_EQ(1.0f, FontGetScaleFromSize(font, 42.0f));
 
     const uint32_t provider_resource_size = (uint32_t)(sizeof(*glyph_bank) +
-                                                        sizeof(FontGlyphBankGlyph) * 3);
+                                                       sizeof(FontGlyphBankGlyph) * 3);
     ASSERT_EQ(provider_resource_size, (uint32_t)glyph_bank->m_Provider.m_ResourceSize);
     const uint32_t resource_size = FontGetResourceSize(font);
     ASSERT_GT(resource_size, provider_resource_size);
@@ -377,11 +377,13 @@ TEST(FontAlignment, CompiledFontMatchesPreviewAtEveryPivot)
         for (uint32_t vertex = 0; vertex < 42; ++vertex)
         {
             for (uint32_t axis = 0; axis < 2; ++axis)
+            {
                 max_difference = dmMath::Max(max_difference, fabsf(compiled.m_Vertices[vertex].m_Position[axis] - preview.m_Vertices[vertex].m_Position[axis]));
+            }
         }
         printf("pivot=%s compiled-preview=(%.6f, %.6f) max_error=%.6f px\n", FONT_ALIGNMENT_PIVOTS[pivot].m_Name,
-            compiled.m_Vertices[0].m_Position[0] - preview.m_Vertices[0].m_Position[0],
-            compiled.m_Vertices[0].m_Position[1] - preview.m_Vertices[0].m_Position[1], max_difference);
+               compiled.m_Vertices[0].m_Position[0] - preview.m_Vertices[0].m_Position[0],
+               compiled.m_Vertices[0].m_Position[1] - preview.m_Vertices[0].m_Position[1], max_difference);
         mismatched_pivots += max_difference > 0.01f;
     }
     ASSERT_EQ(0u, mismatched_pivots);

@@ -89,8 +89,8 @@ class FontEffectTest : public jc_test_base_class
                   "font_effect_face_color(test_coordinates, test_face_color, test_mode > 1.5); }\n",
                   512 - sizeof(prefix) + 1);
         const char vertex_prefix[] =
-        "#version 140\nin vec2 position;\nin vec4 effect;\nin vec4 face_color;\nin float mode;\n"
-        "out highp vec4 test_coordinates;\nout vec4 test_face_color;\nout float test_mode;\n";
+            "#version 140\nin vec2 position;\nin vec4 effect;\nin vec4 face_color;\nin float mode;\n"
+            "out highp vec4 test_coordinates;\nout vec4 test_face_color;\nout float test_mode;\n";
         dmArray<char> vertex;
         vertex.SetCapacity((uint32_t)size + 1024);
         vertex.SetSize(vertex.Capacity());
@@ -214,7 +214,7 @@ class FontEffectTest : public jc_test_base_class
                 {
                     memcpy(effect.m_Colors[i], colors[i], 4);
                     effect.m_Positions[i] = custom ? positions[i] : count > 1 ? (float)i / (count - 1) :
-                                                                                0.0f;
+                                            0.0f;
                 }
                 // At pixel row 32, both gradients run from t=0 at x=16 to t=1 at x=80.
                 if (type == FONT_COLOR_EFFECT_RADIAL)
@@ -244,7 +244,7 @@ class FontEffectTest : public jc_test_base_class
                         const uint32_t right = left + 1 < count ? left + 1 : left;
                         float          weight = right == left ? 0.0f : (t - effect.m_Positions[left]) / (effect.m_Positions[right] - effect.m_Positions[left]);
                         weight = weight < 0.0f ? 0.0f : weight > 1.0f ? 1.0f :
-                                                                        weight;
+                                 weight;
                         for (uint32_t channel = 0; channel < 4; ++channel)
                         {
                             const float expected = colors[left][channel] * (1.0f - weight) + colors[right][channel] * weight;

@@ -15,6 +15,7 @@
 package com.dynamo.bob.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -141,6 +142,33 @@ public class EngineArtifactsProviderTest {
             File symbols = new File(project.getBinaryOutputDirectory(), platform.getExtenderPair() + "/" + filename);
             assertEquals("unstripped symbols", Files.readString(symbols.toPath()));
             assertEquals("stripped engine", Files.readString(engine.toPath()));
+        }
+    }
+
+    // Verifies Linux --with-symbols fetches the unstripped engine under a name that can't be mistaken for an
+    // extender built dmengine, and that switching variant replaces it (#11999).
+    @Test
+    public void testLinuxSymbolsUseUnstrippedEngine() throws Exception {
+        Platform platform = Platform.X86_64Linux;
+        File cacheDir = new File(cache, platform.getPair() + "/" + EngineVersion.sha1);
+        FileUtils.writeStringToFile(new File(cacheDir, "dmengine"), "unstripped debug", StandardCharsets.UTF_8);
+        FileUtils.writeStringToFile(new File(cacheDir, "dmengine_release"), "unstripped release", StandardCharsets.UTF_8);
+        writeArtifact(platform.getPair(), "stripped/dmengine", "stripped debug");
+
+        try (Project project = new Project(new DefaultFileSystem(), temporaryFolder.newFolder("project").getAbsolutePath(), "build")) {
+            project.setOption("architectures", platform.getPair());
+            File platformDir = new File(project.getBinaryOutputDirectory(), platform.getExtenderPair());
+            File symbols = new File(platformDir, EngineArtifactsProvider.LINUX_UNSTRIPPED_ENGINE_NAME);
+
+            project.setOption("variant", Bob.VARIANT_DEBUG);
+            EngineArtifactsProvider.downloadSymbols(project, Progress.discarding());
+            assertEquals("unstripped debug", Files.readString(symbols.toPath()));
+            assertFalse(new File(platformDir, "dmengine").exists());
+            assertEquals("stripped debug", Files.readString(downloadExes(platform, Bob.VARIANT_DEBUG).get(0).toPath()));
+
+            project.setOption("variant", Bob.VARIANT_RELEASE);
+            EngineArtifactsProvider.downloadSymbols(project, Progress.discarding());
+            assertEquals("unstripped release", Files.readString(symbols.toPath()));
         }
     }
 

@@ -50,19 +50,19 @@ struct FontImageCase
     const char* m_Name;
     const char* m_Source;
     const char* m_Text;
-    float m_Size;
-    float m_Outline;
-    float m_OutlineAlpha;
-    float m_FaceAlpha;
-    float m_ShadowAlpha;
-    float m_ShadowBlur;
-    float m_ShadowX;
-    float m_ShadowY;
-    bool  m_Multi;
-    bool  m_Markup;
-    bool  m_Change;
-    float m_EdgeScale; // Nonzero selects an 8x edge capture at this screen scale.
-    int32_t m_Pivot; // -1 for ordinary cases; otherwise FONT_ALIGNMENT_PIVOTS index.
+    float       m_Size;
+    float       m_Outline;
+    float       m_OutlineAlpha;
+    float       m_FaceAlpha;
+    float       m_ShadowAlpha;
+    float       m_ShadowBlur;
+    float       m_ShadowX;
+    float       m_ShadowY;
+    bool        m_Multi;
+    bool        m_Markup;
+    bool        m_Change;
+    float       m_EdgeScale; // Nonzero selects an 8x edge capture at this screen scale.
+    int32_t     m_Pivot; // -1 for ordinary cases; otherwise FONT_ALIGNMENT_PIVOTS index.
     uint32_t    m_Mapping; // 0: flat, 1: arc, 2: circle, 3: wavy path, 4: spatial path.
 };
 

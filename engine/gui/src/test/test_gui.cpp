@@ -2248,6 +2248,7 @@ TEST_F(dmGuiTest, PostMessageToGuiDDF)
     message->m_UserData2 = 0;
     dmTestGuiDDF::AMessage* amessage = (dmTestGuiDDF::AMessage*)message->m_Data;
     amessage->m_A = 123;
+    amessage->m_B = 0;
     r = dmGui::DispatchMessage(m_Scene, message);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 

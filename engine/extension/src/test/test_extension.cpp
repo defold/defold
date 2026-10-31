@@ -18,6 +18,7 @@
 #include "../extension.h"
 #include "../extension.hpp"
 #include "test_extension.h"
+#include <dlib/array.h>
 #include <dlib/context_registry.h>
 #include <dlib/hashtable.h>
 
@@ -32,6 +33,7 @@ extern "C"
 extern int g_TestAppInitCount;
 extern int g_TestInitCount;
 extern int g_TestUpdateCount;
+extern float g_TestUpdateDT;
 extern int g_TestAppEventCount;
 extern int g_TestContextCount;
 
@@ -53,6 +55,23 @@ TEST(dmExtension, CallbackTypeCompatibility)
 {
     FExtensionInitialize initialize = TypedInitialize;
     ASSERT_EQ(EXTENSION_RESULT_OK, initialize(0));
+}
+
+// Float lookup returns the default delta and preserves the output for unsupported parameters.
+TEST(dmExtension, FloatParameterLookup)
+{
+    ExtensionParams params;
+    ExtensionParamsInitialize(&params);
+
+    float dt = -1.0f;
+    ASSERT_TRUE(ExtensionParamsGetFloat(&params, EXTENSION_PARAM_DT, &dt));
+    ASSERT_EQ(0.0f, dt);
+
+    float value = 42.0f;
+    ASSERT_FALSE(dmExtension::ParamsGetFloat(&params, (dmExtension::Param)(dmExtension::PARAM_DT + 1), &value));
+    ASSERT_EQ(42.0f, value);
+
+    ExtensionParamsFinalize(&params);
 }
 
 TEST(dmExtension, Basic)
@@ -95,11 +114,15 @@ TEST(dmExtension, Basic)
     ASSERT_EQ(1, g_TestContextCount);
     ASSERT_NE((void*)0, ContextRegistryGet(context_registry, "init"));
 
-    for (int i = 0; i < 5; ++i)
+    const float update_dts[] = { 1.0f / 60.0f, 0.0f, 1.0f / 30.0f, 1.0f / 120.0f, 0.1f };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(update_dts); ++i)
     {
-        ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Update(&params));
+        ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Update(&params, update_dts[i]));
         ASSERT_EQ(i+1, g_TestUpdateCount);
-
+        ASSERT_EQ(update_dts[i], g_TestUpdateDT);
+        float dt = -1.0f;
+        ASSERT_TRUE(ExtensionParamsGetFloat(&params, EXTENSION_PARAM_DT, &dt));
+        ASSERT_EQ(0.0f, dt);
     }
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Finalize(&params));
     ASSERT_EQ(0, g_TestInitCount);

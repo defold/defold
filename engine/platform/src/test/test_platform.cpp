@@ -251,6 +251,14 @@ TEST(iOSPlatform, NullPlatformHomeIndicatorMode)
     dmPlatform::SetiOSHomeIndicatorMode("auto_hide");
 }
 
+// Verifies frame rate configuration links and runs with platform_null, guarding against headless iOS link failures.
+TEST(iOSPlatform, NullPlatformFrameRate)
+{
+    dmPlatform::SetiOSFrameRate(false, 0);
+    dmPlatform::SetiOSFrameRate(true, 0);
+    dmPlatform::SetiOSFrameRate(true, 90);
+}
+
 // Verifies platform_null provides the iOS delegate registration functions used by
 // dmExtension::RegisteriOSUI*Delegate, guarding against headless iOS link failures.
 TEST(iOSPlatform, NullPlatformDelegateRegistration)

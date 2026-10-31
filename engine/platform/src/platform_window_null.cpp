@@ -423,6 +423,12 @@ namespace dmPlatform
         (void) mode;
     }
 
+    void SetiOSFrameRate(bool use_high_refresh_rate, uint32_t frequency)
+    {
+        (void) use_high_refresh_rate;
+        (void) frequency;
+    }
+
     void RegisteriOSApplicationDelegate(void* delegate)
     {
         (void) delegate;

@@ -124,6 +124,16 @@ if(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")
     defold_target_link_socket(test_platform_home_indicator "${TARGET_PLATFORM}" PRIVATE)
     defold_register_test_target(test_platform_home_indicator ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
+    defold_add_executable(test_platform_frame_rate
+        "${CMAKE_CURRENT_LIST_DIR}/test_platform_frame_rate.mm")
+    defold_target_link_libraries(test_platform_frame_rate "${TARGET_PLATFORM}"
+        dlib profile_null testmain platform)
+    defold_target_link_app(test_platform_frame_rate "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_opengl(test_platform_frame_rate "${TARGET_PLATFORM}" PRIVATE)
+    target_link_libraries(test_platform_frame_rate PRIVATE "-framework QuartzCore")
+    defold_target_link_socket(test_platform_frame_rate "${TARGET_PLATFORM}" PRIVATE)
+    defold_register_test_target(test_platform_frame_rate ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+
     defold_add_executable(test_platform_safe_area
         "${CMAKE_CURRENT_LIST_DIR}/test_platform_safe_area.mm")
     defold_target_link_libraries(test_platform_safe_area "${TARGET_PLATFORM}"

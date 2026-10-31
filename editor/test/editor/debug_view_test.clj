@@ -29,6 +29,7 @@
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [service.log :as log]
             [support.dap-util :as dap-util]
             [support.process-util :as process-util]
             [support.test-support :as test-support]
@@ -355,7 +356,8 @@
                                                :workspace workspace
                                                :prefs settings})])]
             (is command)
-            (handler/run command)))
+            (log/without-logging
+              (handler/run command))))
         (is (nil? (prefs/get settings [:run :simulated-resolution])))
         (is (false? (prefs/get settings [:run :simulate-rotated-device])))
         (is (= ["POST" "/post/@render/resize"

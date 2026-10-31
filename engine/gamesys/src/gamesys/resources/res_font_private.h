@@ -38,7 +38,7 @@ namespace dmGameSystem
     struct FontJobResourceInfo
     {
         dmArray<void*>          m_Resources; // the resources that are incref'ed for this job
-        FontGenJobData*         m_FontGenJobData; // the job scratch data, owned by the sentinel job
+        FontGenJobData*         m_FontGenJobData; // scratch data retained until completion or cancellation
         FontResource*           m_Resource;
         HJob                    m_Job;
 
@@ -63,12 +63,14 @@ namespace dmGameSystem
         uint8_t                 m_Prewarming:1;         // If true, it is currently waiting for glyphs to be prewamed (dynamic fonts only)
         uint8_t                 m_PrewarmDone:1;
         uint8_t                 m_Destroying:1;
+        uint8_t                 m_PostCreatePending:1;  // Retained across recreation until PostCreate completes, including initially empty fonts
 
         dmHashTable64<TTFResource*> m_TTFResources;  // Maps path hash to a resource
         dmHashTable32<uint64_t>     m_FontHashes;    // Maps HFont path hash to a resource
         dmhash_t                    m_PathHash;
 
         dmArray<FontJobResourceInfo*>  m_PendingJobs;
+        FontJobResourceInfo*          m_PrewarmJob; // consumed by PostCreate during resource loading
 
         FontResource();
 

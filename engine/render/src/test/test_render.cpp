@@ -277,6 +277,27 @@ protected:
     }
 };
 
+// Renderer clients stay inline by default even when threaded execution is compiled in.
+TEST_F(dmRenderTest, RenderContextOwnsInlineExecution)
+{
+    dmRender::HRenderExecution execution = dmRender::GetRenderExecution(m_Context);
+    ASSERT_NE((dmRender::HRenderExecution)0, execution);
+    ASSERT_EQ(dmRender::EXECUTION_MODE_INLINE, dmRender::GetRenderExecutionMode(execution));
+    ASSERT_TRUE(dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_GAME));
+    ASSERT_TRUE(dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_RENDER));
+}
+
+// A compiled-in capability alone must not enable an unmigrated renderer without an executor.
+TEST(RenderContext, ThreadedExecutionRequiresExecutor)
+{
+    if (!dmRender::GetExecutionCapabilities(false).m_BuildEnabled)
+        return;
+
+    dmRender::RenderContextParams params;
+    params.m_UseThread = true;
+    ASSERT_EQ((dmRender::HRenderContext)0, dmRender::NewRenderContext(0, params));
+}
+
 // Effects stay immutable within a frame, grow when pinned, and reuse unpinned rows later.
 TEST_F(dmRenderTest, FontEffectCachePinsRecordsUntilNextFrame)
 {
@@ -6483,8 +6504,8 @@ TEST_F(dmRenderTest, LightBufferTestSimple)
         dmRender::HLightInstance light0 = dmRender::NewLightInstance(m_Context, light_prototype);
         ASSERT_NE((dmRender::HLightInstance)0, light0);
 
-        dmVMath::Point3 p0;
-        dmVMath::Quat r0;
+        dmVMath::Point3 p0(0.0f, 0.0f, 0.0f);
+        dmVMath::Quat r0 = dmVMath::Quat::identity();
         dmRender::SetLightInstance(m_Context, light0, p0, r0, 1.0f);
         dmRender::DeleteLightInstance(m_Context, light0);
     }

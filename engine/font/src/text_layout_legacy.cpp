@@ -40,7 +40,9 @@ static inline uint32_t NextBreak(TextGlyph* glyphs, uint32_t num_glyphs, uint32_
     {
         c = (*cursor) < num_glyphs ? glyphs[(*cursor)++].m_Codepoint : 0;
         if (c != 0)
+        {
             *n = *n + 1;
+        }
     } while (c != 0 && !dmUtf8::IsBreaking(c));
 
     // Count CRLF as one separator so neither codepoint contributes to line width.
@@ -59,7 +61,9 @@ static inline uint32_t SkipWS(TextGlyph* glyphs, uint32_t num_glyphs, uint32_t* 
     {
         c = (*cursor) < num_glyphs ? glyphs[(*cursor)++].m_Codepoint : 0;
         if (c != 0)
+        {
             *n = *n + 1;
+        }
     } while (c != 0 && (c == dmUtf8::UTF_WHITESPACE_SPACE || c == dmUtf8::UTF_WHITESPACE_ZERO_WIDTH_SPACE));
 
     if (c == '\r' && *cursor < num_glyphs && glyphs[*cursor].m_Codepoint == CHAR_NEWLINE)
@@ -77,10 +81,10 @@ static inline uint32_t SkipWS(TextGlyph* glyphs, uint32_t num_glyphs, uint32_t* 
  */
 template <typename Metric>
 void Layout(TextLayout*     layout,
-                float       width,
-                float*      text_width,
-                Metric      metrics,
-                bool        measure_trailing_space)
+            float       width,
+            float*      text_width,
+            Metric      metrics,
+            bool        measure_trailing_space)
 {
     TextGlyph*  glyphs = layout->m_Glyphs.Begin();
     uint32_t    num_glyphs = layout->m_Glyphs.Size();
@@ -100,7 +104,9 @@ void Layout(TextLayout*     layout,
             {
                 int trim = 0;
                 if (c != 0)
+                {
                     trim = 1;
+                }
                 w = metrics(row_start, n - trim, measure_trailing_space);
                 if (dmMath::Abs(w) <= width)
                 {
@@ -108,7 +114,9 @@ void Layout(TextLayout*     layout,
                     last_w = w;
                     last_cursor = cursor;
                     if (c != CHAR_NEWLINE && !measure_trailing_space)
+                    {
                         c = SkipWS(glyphs, num_glyphs, &cursor, &n);
+                    }
                 }
                 else if (last_n != 0)
                 {
@@ -122,7 +130,9 @@ void Layout(TextLayout*     layout,
         {
             int trim = 0;
             if (c != 0)
+            {
                 trim = 1;
+            }
             last_n = n - trim;
             last_w = w;
         }
@@ -130,18 +140,24 @@ void Layout(TextLayout*     layout,
         if ((c != 0 || last_n > 0))
         {
             if (layout->m_Lines.Full())
+            {
                 layout->m_Lines.OffsetCapacity(8);
+            }
 
-            TextLine line = {0};
+            TextLine line = { 0 };
             line.m_Width = last_w;
             line.m_Index = row_start;
             line.m_Length = last_n;
             layout->m_Lines.Push(line);
 
             if (last_w < 0)
+            {
                 max_width = dmMath::Min(max_width, last_w);
+            }
             else
+            {
                 max_width = dmMath::Max(max_width, last_w);
+            }
         }
     } while (c);
 
@@ -151,23 +167,27 @@ void Layout(TextLayout*     layout,
 static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t n, bool monospace, float padding, float tracking, bool measure_trailing_space)
 {
     if (n <= 0)
+    {
         return 0;
+    }
 
     glyphs += row_start;
     if (!measure_trailing_space)
     {
-        if (glyphs[n-1].m_Codepoint == dmUtf8::UTF_WHITESPACE_SPACE)
+        if (glyphs[n - 1].m_Codepoint == dmUtf8::UTF_WHITESPACE_SPACE)
         {
             --n;
             if (n <= 0)
+            {
                 return 0;
+            }
         }
     }
 
     // note: tracking is ignored since it's already added in TextLayoutLegacyCreate
     // note: padding is only intended for monospaced fonts, see comment in fontmap.h
 
-    TextGlyph last = glyphs[n-1];
+    TextGlyph last = glyphs[n - 1];
 
     float row_start_x = glyphs[0].m_X;
 
@@ -192,7 +212,9 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
         trailing_space_width += g.m_Advance;
     }
     if (last.m_Codepoint == dmUtf8::UTF_WHITESPACE_SPACE)
+    {
         return last.m_X - row_start_x + last.m_Advance;
+    }
 
     float extent_last = last.m_LeftBearing + last.m_Width;
     float width = last.m_X - row_start_x + extent_last + trailing_space_width;
@@ -210,7 +232,8 @@ struct LayoutMetrics
     , m_Monospace(monospace)
     , m_Padding(padding)
     , m_Tracking(tracking)
-    {}
+    {
+    }
     float operator()(uint32_t row_start, uint32_t n, bool measure_trailing_space)
     {
         return GetLineTextMetrics(m_Glyphs, row_start, n, m_Monospace, m_Padding, m_Tracking, measure_trailing_space);
@@ -229,7 +252,9 @@ static uint32_t GetParagraphIndex(const dmArray<TextParagraph>& paragraphs, uint
 
     while (paragraph_index + 1 < paragraphs.Size() &&
            text_index >= paragraphs[paragraph_index + 1].m_TextIndex)
+    {
         ++paragraph_index;
+    }
 
     return paragraph_index;
 }
@@ -403,7 +428,7 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
     for (uint32_t i = 0; i < num_codepoints; ++i)
     {
         uint32_t c = codepoints[i];
-        TextGlyph g = {0};
+        TextGlyph g = { 0 };
         g.m_Font = font;
         g.m_Codepoint = c;
         g.m_Cluster = i;
@@ -465,7 +490,7 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
         {
             while (resolved_span_index < layout->m_ResolvedSpans.Size() &&
                    i >= layout->m_ResolvedSpans[resolved_span_index].m_TextOffset +
-                        layout->m_ResolvedSpans[resolved_span_index].m_TextLength)
+                   layout->m_ResolvedSpans[resolved_span_index].m_TextLength)
             {
                 ++resolved_span_index;
             }
@@ -509,7 +534,9 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
 
     float width = settings->m_Width;
     if (!settings->m_LineBreak)
+    {
         width = 1000000.0f;
+    }
     Layout(layout, width, &max_line_width, lm, !settings->m_LineBreak);
     CreateParagraphs(layout, codepoints, num_codepoints);
     TextLayoutFinalizeLineBaselines(layout, settings);
