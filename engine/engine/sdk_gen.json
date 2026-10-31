@@ -17,13 +17,16 @@
                         "ENGINE_EVENT_APP_DEICONIFY": "dmhash_t",
                         "ENGINE_EVENT_ENGINE_INITIALIZED": "dmhash_t",
                         "ENGINE_EVENT_ENGINE_DELETE": "dmhash_t",
-                        "ENGINE_EVENT_WINDOW_RESIZED": "dmhash_t"
+                        "ENGINE_EVENT_WINDOW_RESIZED": "dmhash_t",
+                        "ENGINE_EVENT_INPUT_ACTIONS": "dmhash_t"
                     },
                     "rename": {
                         "ENGINE_EVENT_": "EVENT_",
                         "EngineLifecycleEvent": "LifecycleEvent",
                         "EngineAppEvent": "AppEvent",
                         "EngineWindowResizedEvent": "WindowResizedEvent",
+                        "EngineInputActionsEvent": "InputActionsEvent",
+                        "HInputActionBatch": "dmInput::HActionBatch",
                         "ExtensionBroadcastEvent": "dmExtension::BroadcastEvent",
                         "FExtensionEventCallback": "dmExtension::FEventCallback"
                     }

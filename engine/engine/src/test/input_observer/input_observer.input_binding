@@ -1,0 +1,2 @@
+key_trigger { input: KEY_UP action: "up" }
+text_trigger { input: TEXT action: "text" }

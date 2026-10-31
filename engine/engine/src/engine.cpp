@@ -1864,6 +1864,41 @@ bail:
         g_EngineRenderEnabled = enabled;
     }
 
+    static InputActionSource GetInputActionSource(dmHID::InputSource source)
+    {
+        switch (source)
+        {
+            case dmHID::INPUT_SOURCE_KEYBOARD:
+            {
+                return INPUT_ACTION_SOURCE_KEYBOARD;
+            }
+            case dmHID::INPUT_SOURCE_TEXT:
+            {
+                return INPUT_ACTION_SOURCE_TEXT;
+            }
+            case dmHID::INPUT_SOURCE_MOUSE:
+            {
+                return INPUT_ACTION_SOURCE_MOUSE;
+            }
+            case dmHID::INPUT_SOURCE_TOUCH:
+            {
+                return INPUT_ACTION_SOURCE_TOUCH;
+            }
+            case dmHID::INPUT_SOURCE_GAMEPAD:
+            {
+                return INPUT_ACTION_SOURCE_GAMEPAD;
+            }
+            case dmHID::INPUT_SOURCE_ACCELEROMETER:
+            {
+                return INPUT_ACTION_SOURCE_ACCELEROMETER;
+            }
+            default:
+            {
+                return INPUT_ACTION_SOURCE_UNKNOWN;
+            }
+        }
+    }
+
     static void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
     {
         Engine* engine = (Engine*)user_data;
@@ -2081,6 +2116,7 @@ bail:
                     dmResource::UpdateFactory(engine->m_Factory); // Process Reload event
                 }
 
+                ScopedExtensionParams extension_params(engine);
                 {
                     DM_PROFILE("Extension");
 
@@ -2088,8 +2124,6 @@ bail:
                     dmGameSystem::ScriptLibContext script_lib_context;
                     script_lib_context.m_Factory  = engine->m_Factory;
                     script_lib_context.m_Register = engine->m_Register;
-
-                    ScopedExtensionParams extension_params(engine);
 
                     script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_ScriptContext);
                     dmGameSystem::UpdateScriptLibs(script_lib_context);
@@ -2128,6 +2162,28 @@ bail:
 
                 dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
                 uint32_t input_buffer_size = input_buffer.Size();
+                dmArray<dmInputAction>& resolved = engine->m_ResolvedInputActions;
+                if (resolved.Capacity() < input_buffer_size)
+                {
+                    resolved.SetCapacity(dmMath::Max(input_buffer_size, resolved.Capacity() + 64));
+                }
+                resolved.SetSize(input_buffer_size);
+                for (uint32_t i = 0; i < input_buffer_size; ++i)
+                {
+                    const dmGameObject::InputAction& source = input_buffer[i];
+                    dmInputAction& action = resolved[i];
+                    action.m_Id = source.m_ActionId;
+                    action.m_Value = source.m_Value;
+                    action.m_Source = GetInputActionSource((dmHID::InputSource)source.m_Source);
+                    action.m_GamepadIndex = source.m_GamepadIndex;
+                    action.m_IsGamepad = source.m_IsGamepad;
+                    action.m_Pressed = source.m_Pressed;
+                    action.m_Released = source.m_Released;
+                    action.m_Repeated = source.m_Repeated;
+                }
+                dmInputActionBatch batch = { resolved.Begin(), input_buffer_size };
+                dmEngine::InputActionsEvent event = { engine, engine->m_Window, &batch };
+                dmExtension::BroadcastEvent(extension_params, dmEngine::EVENT_INPUT_ACTIONS, &event, sizeof(event));
                 if (input_buffer_size > 0)
                 {
                     dmGameObject::DispatchInput(GetMainCollection(engine), &input_buffer[0], input_buffer.Size());

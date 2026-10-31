@@ -58,6 +58,9 @@ def _find_node(inp, expected, debug=False):
 def is_struct_typedef(inp):
     # typedef struct Foo* HFoo;
     n = _find_node(inp, ['TypedefDecl', 'PointerType', 'ElaboratedType', 'RecordType'])
+    # typedef const struct Foo* HFoo;
+    if not n:
+        n = _find_node(inp, ['TypedefDecl', 'PointerType', 'QualType', 'ElaboratedType', 'RecordType'])
     # typedef struct Foo {} Foo;
     if not n:
         n = _find_node(inp, ['TypedefDecl', 'ElaboratedType', 'RecordType'])

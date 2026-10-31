@@ -18,6 +18,7 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/engine/engine.h>
 #include <dmsdk/platform/window.h>
+#include <dmsdk/input/input.h>
 
 /*# Engine event definitions
  * Built-in event hashes and payloads published through the generic extension
@@ -35,6 +36,7 @@
  * | `ENGINE_EVENT_ENGINE_INITIALIZED` | `_dm_event_engine_initialized` | EngineLifecycleEvent. Successful engine initialization has completed. |
  * | `ENGINE_EVENT_ENGINE_DELETE` | `_dm_event_engine_delete` | EngineLifecycleEvent. Engine deletion begins, before collections and systems are torn down. Also delivered after initialization failure if AppInitialize succeeded. |
  * | `ENGINE_EVENT_WINDOW_RESIZED` | `_dm_event_window_resized` | EngineWindowResizedEvent, after the existing window state updates and notifications. One event per native resize callback; no initial-size replay. May precede engine Initialize. |
+ * | `ENGINE_EVENT_INPUT_ACTIONS` | `_dm_event_input_actions` | EngineInputActionsEvent. One batch per completed input update, after binding resolution and text-last ordering, before focused collection dispatch. Includes empty updates. |
  *
  * Payloads and their handles are borrowed for the synchronous callback. Engine
  * events identify the source instance, and window-driven events identify its
@@ -102,6 +104,38 @@
  * @name ENGINE_EVENT_WINDOW_RESIZED
  */
 #define ENGINE_EVENT_WINDOW_RESIZED (dmHashString64("_dm_event_window_resized"))
+
+/*# input actions have been resolved
+ * Hash of `_dm_event_input_actions` for ExtensionBroadcastEvent and FExtensionEventCallback.
+ * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+ * @constant
+ * @name ENGINE_EVENT_INPUT_ACTIONS
+ */
+#define ENGINE_EVENT_INPUT_ACTIONS (dmHashString64("_dm_event_input_actions"))
+
+/*# resolved input action batch
+ * Published once per completed input update after application bindings are
+ * resolved, coordinates converted and text/marked-text sorted last, before
+ * focused game-object dispatch. Empty updates are published; skipped input
+ * updates are not. This is independent of extension Update and rendered-frame
+ * count. Input events use the generic handler's application lifetime.
+ *
+ * Read scalar binding state through the input batch/action accessors. Batches
+ * and actions are immutable and borrowed only for the callback. Do not retain
+ * their handles. Observation cannot consume input or change focused dispatch.
+ * Focused gameplay should use native component input/update callbacks.
+ * @struct
+ * @name EngineInputActionsEvent
+ * @member m_Engine [type:HEngine] borrowed source engine
+ * @member m_Window [type:HWindow] borrowed engine window, or null if unavailable
+ * @member m_Actions [type:HInputActionBatch] valid borrowed batch, including empty updates
+ */
+typedef struct EngineInputActionsEvent
+{
+    HEngine           m_Engine;
+    HWindow           m_Window;
+    HInputActionBatch m_Actions;
+} EngineInputActionsEvent;
 
 /*# engine lifecycle event payload
  * Payload for ENGINE_EVENT_ENGINE_INITIALIZED and ENGINE_EVENT_ENGINE_DELETE

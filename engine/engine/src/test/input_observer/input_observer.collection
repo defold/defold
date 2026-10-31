@@ -1,0 +1,7 @@
+name: "input_observer"
+instances {
+  id: "observer"
+  prototype: "/input_observer/input_observer.go"
+  position { x: 0.0 y: 0.0 z: 0.0 }
+  rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 }
+}

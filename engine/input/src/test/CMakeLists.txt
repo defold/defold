@@ -52,7 +52,9 @@ defold_protoc_encode(
 #***********************************************************************
 
 # Build the input test executable
-defold_add_executable(test_input "${CMAKE_CURRENT_LIST_DIR}/test_input.cpp")
+defold_add_executable(test_input
+    "${CMAKE_CURRENT_LIST_DIR}/test_input.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/test_input_api.c")
 
 # make sure the test data is built
 add_custom_target(input_test_data DEPENDS

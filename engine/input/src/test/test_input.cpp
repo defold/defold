@@ -1705,6 +1705,50 @@ TEST_F(InputTest, GamepadSources)
     dmInput::DeleteBinding(binding);
 }
 
+extern "C" int TestInputActionBatchC(HInputActionBatch batch);
+
+// C and C++ accessors read the same opaque scalar views without exposing storage layout.
+TEST(InputAPI, OpaqueActionAccessors)
+{
+    dmInputAction actions[] = {
+        { dmHashString64("up"), 1.0f, INPUT_ACTION_SOURCE_KEYBOARD, 0, true, false, false, false },
+        { dmHashString64("axis"), 0.5f, INPUT_ACTION_SOURCE_GAMEPAD, 2, false, false, true, true },
+        { dmHashString64("up"), 0.0f, INPUT_ACTION_SOURCE_KEYBOARD, 0, false, true, false, false },
+    };
+    dmInputActionBatch batch = { actions, DM_ARRAY_SIZE(actions) };
+    ASSERT_EQ(1, TestInputActionBatchC(&batch));
+    ASSERT_EQ(3u, dmInput::ActionBatchGetCount(&batch));
+    dmInput::HAction action = dmInput::ActionBatchGetAction(&batch, 0);
+    ASSERT_EQ(dmHashString64("up"), dmInput::ActionGetId(action));
+    ASSERT_EQ(1.0f, dmInput::ActionGetValue(action));
+    ASSERT_TRUE(dmInput::ActionIsPressed(action));
+    ASSERT_FALSE(dmInput::ActionIsReleased(action));
+    ASSERT_FALSE(dmInput::ActionIsRepeated(action));
+    ASSERT_EQ(dmInput::ACTION_SOURCE_KEYBOARD, dmInput::ActionGetSource(action));
+    uint32_t index = 77;
+    ASSERT_FALSE(dmInput::ActionGetGamepadIndex(action, &index));
+    ASSERT_EQ(77u, index);
+    action = dmInput::ActionBatchGetAction(&batch, 1);
+    ASSERT_EQ(dmInput::ACTION_SOURCE_GAMEPAD, dmInput::ActionGetSource(action));
+    ASSERT_TRUE(dmInput::ActionGetGamepadIndex(action, &index));
+    ASSERT_EQ(2u, index);
+    ASSERT_TRUE(dmInput::ActionIsRepeated(action));
+    ASSERT_EQ(0.5f, dmInput::ActionGetValue(action));
+    ASSERT_TRUE(dmInput::ActionIsReleased(dmInput::ActionBatchGetAction(&batch, 2)));
+    ASSERT_EQ((dmInput::HAction)0, dmInput::ActionBatchGetAction(&batch, 3));
+    ASSERT_EQ((dmInput::HAction)0, dmInput::ActionBatchGetAction(&batch, ~0u));
+}
+
+// Empty batches and out-of-range lookup remain safe without an action array.
+TEST(InputAPI, EmptyActionBatch)
+{
+    dmInputActionBatch batch = { 0, 0 };
+    ASSERT_EQ(0u, dmInput::ActionBatchGetCount(&batch));
+    ASSERT_EQ((dmInput::HAction)0, dmInput::ActionBatchGetAction(&batch, 0));
+    ASSERT_EQ((dmInput::HAction)0, dmInput::ActionBatchGetAction(&batch, ~0u));
+    ASSERT_EQ(1, TestInputActionBatchC(&batch));
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);
