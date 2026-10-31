@@ -1195,10 +1195,17 @@ var LibraryDefoldPlatform = {
     return _emscripten_GetProcAddress(procname);
   },
 
-  dmNativeShowKeyboard: function(show_keyboard) {
-    Module['canvas'].contentEditable = show_keyboard ? true : false;
+  dmNativeShowKeyboard: function(show_keyboard, type, auto_close) {
+    var canvas = Module['canvas'];
+    canvas.contentEditable = show_keyboard ? true : false;
     if (show_keyboard) {
-      Module['canvas'].focus();
+      // Browsers choose the on-screen layout from the inputmode of the editable element, which is
+      // the closest equivalent of the keyboard type the native platforms take. A password field
+      // cannot be expressed by contentEditable, so it shares the plain text layout.
+      var input_modes = ['text', 'numeric', 'email', 'text'];
+      canvas.setAttribute('inputmode', input_modes[type] || 'text');
+      // auto_close is decided by the browser and cannot be influenced from here.
+      canvas.focus();
     }
   },
 

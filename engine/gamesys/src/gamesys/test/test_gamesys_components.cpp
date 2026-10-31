@@ -1583,6 +1583,53 @@ TEST(ScriptWindowTest, ReservedAreas)
     lua_close(scriptlibcontext.m_LuaState);
 }
 
+// Verifies that window.show_soft_keyboard(), window.hide_soft_keyboard() and
+// window.set_android_input_method() are registered, that the KEYBOARD_TYPE_* constants match dmHID,
+// and that the calls are safe on a platform without an on-screen keyboard: the test binary is a
+// desktop build, so a regression that raises instead of doing nothing fails here.
+TEST_F(WindowTest, SoftKeyboard)
+{
+    WindowCreateParams window_params;
+    WindowCreateParamsInitialize(&window_params);
+    window_params.m_GraphicsApi            = WINDOW_GRAPHICS_API_NULL;
+
+    dmHID::NewContextParams hid_params = {};
+    dmHID::HContext hid_context = dmHID::NewContext(hid_params);
+    dmHID::Init(hid_context);
+
+    HWindow window = dmPlatform::NewWindow();
+    dmPlatform::OpenWindow(window, window_params);
+    dmHID::SetWindow(hid_context, window);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_HidContext      = hid_context;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    // Spawn the game object with the script we want to call
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/window/soft_keyboard.goc", dmHashString64("/soft_keyboard"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go);
+
+    // The script asserts the keyboard type constants and the return value contract of
+    // window.show_soft_keyboard() / window.hide_soft_keyboard().
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+
+    dmHID::Final(hid_context);
+    dmHID::DeleteContext(hid_context);
+    dmPlatform::DeleteWindow(window);
+}
+
 TEST_F(WindowTest, Events)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;

@@ -1,0 +1,27 @@
+function init(self)
+	self.update_counter = 0
+end
+
+function update(self, dt)
+	if self.update_counter == 0 then
+		-- The constants are a mirror of dmHID::KeyboardType, the same values gui.KEYBOARD_TYPE_* exposes.
+		assert(window.KEYBOARD_TYPE_DEFAULT == 0)
+		assert(window.KEYBOARD_TYPE_NUMBER_PAD == 1)
+		assert(window.KEYBOARD_TYPE_EMAIL == 2)
+		assert(window.KEYBOARD_TYPE_PASSWORD == 3)
+
+		-- The test binary is a desktop build, which has no on-screen keyboard, so these calls have to
+		-- be safe to make and must not raise. Both the default and the explicit arguments are
+		-- exercised, and so is the session setting that only has an effect on Android.
+		window.show_soft_keyboard()
+		window.hide_soft_keyboard()
+
+		window.show_soft_keyboard(window.KEYBOARD_TYPE_NUMBER_PAD, false)
+		window.hide_soft_keyboard()
+
+		window.set_android_input_method(true)
+		window.set_android_input_method(false)
+	end
+
+	self.update_counter = self.update_counter + 1
+end

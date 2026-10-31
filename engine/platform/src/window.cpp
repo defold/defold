@@ -14,6 +14,7 @@
 
 #include "window.hpp"
 
+#include <dlib/log.h>
 #include <math.h>
 #include <string.h>
 
@@ -45,6 +46,15 @@ namespace dmPlatform
         out->m_Height = max_y - y;
         return true;
     }
+
+#if !defined(ANDROID)
+    void SetAndroidInputMethod(bool use_hidden_inputfield)
+    {
+        // Android only. Defined here so that the script bindings can expose the setting on every
+        // platform; Android builds use the implementation in platform_window_android.cpp.
+        (void) use_hidden_inputfield;
+    }
+#endif
 }
 
 extern "C"
