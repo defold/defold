@@ -1231,6 +1231,11 @@ var LibraryDefoldPlatform = {
   dmNativeGetDisplayScaleFactor: function() {
     // Match the canvas rendering ratio so pixel-ratio limits do not change camera zoom.
     return Module['getPixelRatio'](DefoldPlatform.params[21]); // WINDOW_STATE_HIGH_DPI
+  },
+
+  dmNativeGetDisplayDensity: function() {
+    // A CSS pixel is 1/96 inch, so the device pixel ratio converts to dots per inch directly.
+    return (window.devicePixelRatio || 1) * 96;
   }
 };
 

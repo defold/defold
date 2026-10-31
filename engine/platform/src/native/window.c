@@ -736,3 +736,17 @@ float dmNativeGetDisplayScaleFactor()
 {
     return dmNativeOSGetDisplayScaleFactor();
 }
+
+//========================================================================
+// Get display density
+//========================================================================
+float dmNativeGetDisplayDensity()
+{
+#if !defined(DM_PLATFORM_VENDOR)
+    return dmNativeOSGetDisplayDensity();
+#else
+    // The vendor platforms do not implement the OS query yet, so they report the same nominal value
+    // as a desktop driver without a physical monitor size.
+    return 96.0f;
+#endif
+}
