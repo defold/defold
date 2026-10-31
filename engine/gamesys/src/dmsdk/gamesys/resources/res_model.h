@@ -21,6 +21,7 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>
 #include <dmsdk/render/render.h>
+#include <dmsdk/resource/resource.h>
 #include <rig/rig_ddf.h>
 
 namespace dmRigDDF
@@ -38,6 +39,7 @@ namespace dmModelDDF
 namespace dmGameSystem
 {
     struct MaterialResource;
+    struct ModelMaterialBuffer;
     struct RigSceneResource;
     struct TextureResource;
     struct RenderTargetResource;
@@ -88,13 +90,15 @@ namespace dmGameSystem
 
     struct ModelResource
     {
-        dmModelDDF::Model*       m_Model;
-        uint32_t                 m_ModelsCount;
-        RigSceneResource*        m_RigScene;
-
-        dmArray<MeshInfo>        m_Meshes;
-        dmArray<MaterialInfo>    m_Materials;    // List matches the list of material names in the dmRigDDF::Model
-        dmRigDDF::Model          m_SelectedModel;
+        dmRigDDF::Model               m_SelectedModel;
+        dmArray<MeshInfo>             m_Meshes;
+        dmArray<MaterialInfo>         m_Materials;    // List matches the list of material names in the dmRigDDF::Model
+        dmArray<ModelMaterialBuffer*> m_MaterialBuffers; // Immutable PBR data per material index and program generation.
+        dmGraphics::HContext          m_GraphicsContext;
+        HResourceFactory              m_Factory;
+        dmModelDDF::Model*            m_Model;
+        RigSceneResource*             m_RigScene;
+        uint32_t                      m_ModelsCount;
     };
 }
 

@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import com.dynamo.bob.ClassLoaderResourceScanner;
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics;
@@ -370,6 +371,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(materialGreen.getProgram(), materialBlue.getProgram());
     }
 
+    // All supported PBR channel structs remain available after validating their fixed uniform ABI.
     @Test
     public void testPbrParameters() throws Exception {
         String vsShaderStr = """
@@ -438,6 +440,8 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
                 {
                     vec4 pbrAlphaCutoffAndDoubleSidedAndIsUnlit;
                     vec4 pbrCommonTextures;
+                    vec4 pbrEmissiveFactorAndStrength;
+                    vec4 pbrNormalScaleAndOcclusionStrength;
                     PbrMetallicRoughness pbrMetallicRoughness;
                     PbrSpecularGlossiness pbrSpecularGlossiness;
                     PbrClearCoat pbrClearCoat;
@@ -484,5 +488,125 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(pbrParameters.getHasSheen());
         assertTrue(pbrParameters.getHasEmissiveStrength());
         assertTrue(pbrParameters.getHasIridescence());
+    }
+
+    private static final String PBR_COMMON_FIELDS = """
+            vec4 pbrAlphaCutoffAndDoubleSidedAndIsUnlit;
+            vec4 pbrCommonTextures;
+            vec4 pbrEmissiveFactorAndStrength;
+            vec4 pbrNormalScaleAndOcclusionStrength;
+            """;
+
+    private Graphics.ShaderDesc.ShaderReflection buildPbrReflection(String name, String definitions, String commonFields, String channels) throws Exception {
+        String vertex = "#version 140\nin vec4 position;\nvoid main() { gl_Position = position; }\n";
+        String fragment = "#version 140\n" + definitions + "\nuniform PbrMaterial {\n" + commonFields + channels +
+                "\n};\nout vec4 color;\nvoid main() { color = pbrAlphaCutoffAndDoubleSidedAndIsUnlit; }\n";
+        return addAndBuildShaderDescs(new String[] {"/" + name + ".vp", "/" + name + ".fp"},
+                new String[] {vertex, fragment}, "/" + name + ".shbundle").getReflection();
+    }
+
+    // A block containing only the fixed common fields still needs material data even when all channels are disabled.
+    @Test
+    public void testPbrCommonParametersOnly() throws Exception {
+        MaterialDesc.PbrParameters parameters = MaterialBuilder.makePbrParametersProtoMessage(
+                buildPbrReflection("pbr_common_only", "", PBR_COMMON_FIELDS, ""));
+        assertNotNull(parameters);
+        assertTrue(parameters.getHasParameters());
+        assertFalse(parameters.getHasMetallicRoughness());
+        assertFalse(parameters.getHasClearcoat());
+        assertNull(MaterialBuilder.makePbrParametersProtoMessage(null));
+    }
+
+    // Conditional channels and reordered whole structs must retain their own reflection offsets and feature flags.
+    @Test
+    public void testPbrParameterSubsets() throws Exception {
+        String definitions = """
+                struct PbrMetallicRoughness {
+                    vec4 baseColorFactor;
+                    vec4 metallicAndRoughnessFactor;
+                    vec4 metallicRoughnessTextures;
+                };
+                struct PbrClearCoat {
+                    vec4 clearCoatAndClearCoatRoughnessFactor;
+                    vec4 clearCoatTextures;
+                };
+                """;
+        for (int mask = 0; mask < 4; ++mask) {
+            String defines = ((mask & 1) != 0 ? "#define PBR_METALLIC_ROUGHNESS\n" : "") +
+                    ((mask & 2) != 0 ? "#define PBR_CLEARCOAT\n" : "");
+            String channels = """
+                    #ifdef PBR_CLEARCOAT
+                    PbrClearCoat pbrClearCoat;
+                    #endif
+                    #ifdef PBR_METALLIC_ROUGHNESS
+                    PbrMetallicRoughness pbrMetallicRoughness;
+                    #endif
+                    """;
+            Graphics.ShaderDesc.ShaderReflection reflection = buildPbrReflection("pbr_subset_" + mask, defines + definitions, PBR_COMMON_FIELDS, channels);
+            MaterialDesc.PbrParameters parameters = MaterialBuilder.makePbrParametersProtoMessage(reflection);
+            assertNotNull(parameters);
+            assertTrue(parameters.getHasParameters());
+            assertEquals((mask & 1) != 0, parameters.getHasMetallicRoughness());
+            assertEquals((mask & 2) != 0, parameters.getHasClearcoat());
+            assertFalse(parameters.getHasSpecularGlossiness());
+            if (mask == 3) {
+                Graphics.ShaderDesc.ResourceBinding block = reflection.getUniformBuffers(0);
+                Graphics.ShaderDesc.ResourceTypeInfo type = reflection.getTypes(block.getType().getTypeIndex());
+                assertEquals("pbrClearCoat", type.getMembers(4).getName());
+                assertEquals(64, type.getMembers(4).getOffset());
+                assertEquals("pbrMetallicRoughness", type.getMembers(5).getName());
+                assertEquals(96, type.getMembers(5).getOffset());
+                assertEquals(144, block.getBlockSize());
+            }
+        }
+    }
+
+    // Reject partial, reordered, mistyped, array and extended channel structs before native whole-struct copies can misinterpret them.
+    @Test
+    public void testPbrRejectsMalformedChannelStructs() throws Exception {
+        String[] malformedMembers = {
+            "vec4 baseColorFactor; vec4 metallicAndRoughnessFactor;",
+            "vec4 metallicAndRoughnessFactor; vec4 baseColorFactor; vec4 metallicRoughnessTextures;",
+            "vec3 baseColorFactor; vec4 metallicAndRoughnessFactor; vec4 metallicRoughnessTextures;",
+            "vec4 baseColorFactor[2]; vec4 metallicAndRoughnessFactor; vec4 metallicRoughnessTextures;",
+            "vec4 baseColorFactor; vec4 metallicAndRoughnessFactor; vec4 metallicRoughnessTextures; vec4 extra;",
+        };
+        for (int i = 0; i < malformedMembers.length; ++i) {
+            Graphics.ShaderDesc.ShaderReflection reflection = buildPbrReflection("pbr_malformed_" + i,
+                    "struct PbrMetallicRoughness { " + malformedMembers[i] + " };", PBR_COMMON_FIELDS,
+                    "PbrMetallicRoughness pbrMetallicRoughness;");
+            try {
+                MaterialBuilder.makePbrParametersProtoMessage(reflection);
+                fail("Expected malformed PbrMetallicRoughness to be rejected: " + i);
+            } catch (CompileExceptionError error) {
+                assertTrue(error.getMessage(), error.getMessage().contains("Invalid PbrMaterial uniform layout"));
+                assertTrue(error.getMessage(), error.getMessage().contains("PbrMetallicRoughness"));
+            }
+        }
+    }
+
+    // Root fields and channel identities are fixed; unrelated, duplicate, renamed and array channels cannot claim the PBR ABI.
+    @Test
+    public void testPbrRejectsMalformedMaterialBlocks() throws Exception {
+        String definitions = "struct PbrIor { vec4 ior; }; struct Other { vec4 value; };";
+        String[][] malformedBlocks = {
+            {"vec4 pbrAlphaCutoffAndDoubleSidedAndIsUnlit; vec4 pbrCommonTextures;", "PbrIor pbrIor;"},
+            {PBR_COMMON_FIELDS.replace("vec4 pbrCommonTextures", "vec3 pbrCommonTextures"), ""},
+            {PBR_COMMON_FIELDS, "Other extra;"},
+            {PBR_COMMON_FIELDS, "vec4 extra;"},
+            {PBR_COMMON_FIELDS, "PbrIor pbrIor; PbrIor duplicate;"},
+            {PBR_COMMON_FIELDS, "PbrIor renamed;"},
+            {PBR_COMMON_FIELDS, "PbrIor pbrIor[2];"},
+        };
+        for (int i = 0; i < malformedBlocks.length; ++i) {
+            Graphics.ShaderDesc.ShaderReflection reflection = buildPbrReflection("pbr_malformed_block_" + i,
+                    definitions, malformedBlocks[i][0], malformedBlocks[i][1]);
+            try {
+                MaterialBuilder.makePbrParametersProtoMessage(reflection);
+                fail("Expected malformed PbrMaterial to be rejected: " + i);
+            } catch (CompileExceptionError error) {
+                assertTrue(error.getMessage(), error.getMessage().contains("Invalid PbrMaterial uniform layout"));
+            }
+        }
     }
 }

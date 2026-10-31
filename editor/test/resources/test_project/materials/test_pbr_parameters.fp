@@ -65,6 +65,8 @@ uniform PbrMaterial
 {
 	vec4 pbrAlphaCutoffAndDoubleSidedAndIsUnlit;
 	vec4 pbrCommonTextures;
+	vec4 pbrEmissiveFactorAndStrength;
+	vec4 pbrNormalScaleAndOcclusionStrength;
 	PbrMetallicRoughness  pbrMetallicRoughness;
 	PbrSpecularGlossiness pbrSpecularGlossiness;
 	PbrClearCoat pbrClearCoat;
@@ -83,6 +85,7 @@ void main()
 {
 	FragColor =
 		pbrAlphaCutoffAndDoubleSidedAndIsUnlit + pbrCommonTextures +
+		pbrEmissiveFactorAndStrength + pbrNormalScaleAndOcclusionStrength +
 		pbrMetallicRoughness.baseColorFactor + pbrMetallicRoughness.metallicAndRoughnessFactor + pbrMetallicRoughness.metallicRoughnessTextures +
 		pbrSpecularGlossiness.diffuseFactor + pbrSpecularGlossiness.specularAndSpecularGlossinessFactor + pbrSpecularGlossiness.specularGlossinessTextures +
 		pbrClearCoat.clearCoatAndClearCoatRoughnessFactor + pbrClearCoat.clearCoatTextures +
@@ -94,4 +97,3 @@ void main()
 		pbrEmissiveStrength.emissiveStrength +
 		pbrIridescence.iridescenceFactorAndIorAndThicknessMinMax + pbrIridescence.iridescenceTextures;
 }
-

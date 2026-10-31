@@ -30,6 +30,15 @@
 
 namespace dmRender
 {
+    // Immutable block data supplied by a render object. Resolved against the effective draw material.
+    struct UniformBufferBinding
+    {
+        dmhash_t                        m_NameHash;
+        dmGraphics::HUniformBuffer      m_Buffer;
+        dmGraphics::UniformBufferLayout m_Layout;
+        uint32_t                        m_Size;
+    };
+
     extern const char* RENDER_SOCKET_NAME;
 
     static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
@@ -442,7 +451,7 @@ namespace dmRender
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
     void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
 
-    void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer);
+    void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer, const RenderObject* render_object = 0);
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HComputeProgram program, HNamedConstantBuffer buffer);
 
     HPredicate                      NewPredicate();

@@ -1591,13 +1591,16 @@ namespace dmRender
                 }
             }
 
+            if (!ValidateRenderObjectUniformBuffers(material, ro))
+                continue;
+
             ApplyMaterialConstants(render_context, material, ro);
 
             if (ro->m_ConstantBuffer) // from components/scripts
-                ApplyNamedConstantBuffer(render_context, material, ro->m_ConstantBuffer);
+                ApplyNamedConstantBuffer(render_context, material, ro->m_ConstantBuffer, ro);
 
             if (constant_buffer) // from render script
-                ApplyNamedConstantBuffer(render_context, material, constant_buffer);
+                ApplyNamedConstantBuffer(render_context, material, constant_buffer, ro);
 
             ApplyRenderState(render_context, render_context->m_GraphicsContext, dmGraphics::GetPipelineState(context), ro);
 
@@ -1625,6 +1628,7 @@ namespace dmRender
             }
 
             ApplyMaterialProgramLightBuffers(render_context, material);
+            EnableRenderObjectUniformBuffers(render_context, material, ro);
 
             dmGraphics::HProgram material_program = GetMaterialProgram(material);
 
@@ -1644,6 +1648,8 @@ namespace dmRender
                 dmGraphics::DrawElements(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer, ro->m_InstanceCount);
             else
                 dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_InstanceCount);
+
+            DisableRenderObjectUniformBuffers(render_context, ro);
 
             for (int i = 0; i < RenderObject::MAX_VERTEX_BUFFER_COUNT; ++i)
             {

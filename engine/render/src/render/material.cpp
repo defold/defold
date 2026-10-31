@@ -370,6 +370,132 @@ namespace dmRender
         delete material;
     }
 
+    static void CacheUniformBufferMembers(HMaterial material, dmhash_t block_name_hash, const dmGraphics::UniformBufferBindingInfo& binding,
+                                         uint32_t type_index, dmArray<char>& name, uint32_t prefix_length)
+    {
+        const dmGraphics::ShaderResourceTypeInfo& type = binding.m_Types[type_index];
+        for (uint32_t i = 0; i < type.m_MemberCount; ++i)
+        {
+            const dmGraphics::ShaderResourceMember& member = type.m_Members[i];
+            uint32_t member_length = (uint32_t) strlen(member.m_Name);
+            uint32_t length = prefix_length + (prefix_length ? 1 : 0) + member_length;
+            if (name.Capacity() < length + 1)
+                name.SetCapacity(length + 1);
+            name.SetSize(length + 1);
+            uint32_t offset = prefix_length;
+            if (offset)
+                name[offset++] = '.';
+            memcpy(name.Begin() + offset, member.m_Name, member_length + 1);
+            if (member.m_Type.m_UseTypeIndex)
+            {
+                CacheUniformBufferMembers(material, block_name_hash, binding, member.m_Type.m_TypeIndex, name, length);
+            }
+            else
+            {
+                if (material->m_ConstantUniformBuffers.Full())
+                {
+                    uint32_t capacity = material->m_ConstantUniformBuffers.Capacity() + 16;
+                    material->m_ConstantUniformBuffers.SetCapacity(capacity, capacity * 2);
+                }
+                material->m_ConstantUniformBuffers.Put(dmHashString64(name.Begin()), block_name_hash);
+            }
+        }
+    }
+
+    static const MaterialUniformBufferBinding* GetMaterialUniformBufferBinding(HMaterial material, dmhash_t name_hash)
+    {
+        uint64_t version = dmGraphics::GetProgramVersion(material->m_Program);
+        if (material->m_UniformBufferProgramVersion != version)
+        {
+            material->m_UniformBufferBindings.Clear();
+            material->m_ConstantUniformBuffers.Clear();
+            material->m_UniformBufferProgramVersion = version;
+        }
+        MaterialUniformBufferBinding* cached = material->m_UniformBufferBindings.Get(name_hash);
+        if (cached)
+            return cached;
+
+        MaterialUniformBufferBinding entry = {};
+        dmGraphics::UniformBufferBindingInfo binding;
+        if (dmGraphics::GetUniformBufferBinding(material->m_Program, name_hash, &binding))
+        {
+            entry.m_Layout = binding.m_Layout;
+            entry.m_Size = binding.m_Size;
+            entry.m_Set = binding.m_Set;
+            entry.m_Binding = binding.m_Binding;
+            entry.m_Valid = true;
+            dmArray<char> name;
+            uint32_t prefix_length = binding.m_InstanceName ? (uint32_t) strlen(binding.m_InstanceName) : 0;
+            if (prefix_length)
+            {
+                name.SetCapacity(prefix_length + 1);
+                name.SetSize(prefix_length + 1);
+                memcpy(name.Begin(), binding.m_InstanceName, prefix_length + 1);
+            }
+            CacheUniformBufferMembers(material, name_hash, binding, binding.m_RootTypeIndex, name, prefix_length);
+        }
+        if (material->m_UniformBufferBindings.Full())
+        {
+            uint32_t capacity = material->m_UniformBufferBindings.Capacity() + 4;
+            material->m_UniformBufferBindings.SetCapacity(capacity, capacity * 2);
+        }
+        material->m_UniformBufferBindings.Put(name_hash, entry);
+        return material->m_UniformBufferBindings.Get(name_hash);
+    }
+
+    bool ValidateRenderObjectUniformBuffers(HMaterial material, const RenderObject* render_object)
+    {
+        if (render_object->m_UniformBufferCount &&
+            !dmGraphics::IsContextFeatureSupported(GetGraphicsContext(material->m_RenderContext), dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER))
+        {
+            dmLogError("Explicit uniform buffers are unsupported by the graphics context; skipping draw.");
+            return false;
+        }
+        for (uint32_t i = 0; i < render_object->m_UniformBufferCount; ++i)
+        {
+            const UniformBufferBinding& buffer = render_object->m_UniformBuffers[i];
+            const MaterialUniformBufferBinding* binding = GetMaterialUniformBufferBinding(material, buffer.m_NameHash);
+            if (!buffer.m_Buffer || !binding->m_Valid ||
+                !dmGraphics::IsUniformBufferLayoutCompatible(buffer.m_Layout, buffer.m_Size, binding->m_Layout, binding->m_Size))
+            {
+                dmLogError("Uniform buffer '%s' is incompatible with the draw material; skipping draw.", dmHashReverseSafe64(buffer.m_NameHash));
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool IsRenderObjectUniformBufferConstant(HMaterial material, const RenderObject* render_object, dmhash_t name_hash)
+    {
+        if (!render_object || !render_object->m_UniformBufferCount)
+            return false;
+        const dmhash_t* block_name_hash = material->m_ConstantUniformBuffers.Get(name_hash);
+        if (!block_name_hash)
+            return false;
+        for (uint32_t i = 0; i < render_object->m_UniformBufferCount; ++i)
+        {
+            if (render_object->m_UniformBuffers[i].m_NameHash == *block_name_hash)
+                return true;
+        }
+        return false;
+    }
+
+    void EnableRenderObjectUniformBuffers(HRenderContext render_context, HMaterial material, const RenderObject* render_object)
+    {
+        for (uint32_t i = 0; i < render_object->m_UniformBufferCount; ++i)
+        {
+            const UniformBufferBinding& buffer = render_object->m_UniformBuffers[i];
+            const MaterialUniformBufferBinding* binding = material->m_UniformBufferBindings.Get(buffer.m_NameHash);
+            dmGraphics::EnableUniformBuffer(render_context->m_GraphicsContext, buffer.m_Buffer, binding->m_Set, binding->m_Binding);
+        }
+    }
+
+    void DisableRenderObjectUniformBuffers(HRenderContext render_context, const RenderObject* render_object)
+    {
+        for (uint32_t i = 0; i < render_object->m_UniformBufferCount; ++i)
+            dmGraphics::DisableUniformBuffer(render_context->m_GraphicsContext, render_object->m_UniformBuffers[i].m_Buffer);
+    }
+
     void ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* render_object)
     {
         dmGraphics::HContext graphics_context    = dmRender::GetGraphicsContext(render_context);
@@ -380,6 +506,8 @@ namespace dmRender
         {
             const RenderConstant& material_constant      = constants[i];
             const HConstant constant                     = material_constant.m_Constant;
+            if (IsRenderObjectUniformBufferConstant(material, render_object, GetConstantName(constant)))
+                continue;
             dmGraphics::HUniformLocation location        = GetConstantLocation(constant);
             dmRenderDDF::MaterialDesc::ConstantType type = GetConstantType(constant);
             SetProgramConstant(render_context, graphics_context, render_object->m_WorldTransform, render_object->m_TextureTransform, type, location, constant);

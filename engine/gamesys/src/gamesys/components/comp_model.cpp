@@ -598,6 +598,11 @@ namespace dmGameSystem
         dmRender::HMaterial material = material_res->m_Material;
         dmGraphics::HVertexDeclaration instance_vx_decl = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
 
+        // A draw can supply only one immutable PBR material, including when a render
+        // script selects a PBR shader for a model whose normal shader has no PBR block.
+        dmHashUpdateBuffer32(state, &component->m_Resource->m_RigScene->m_MeshSetRes, sizeof(component->m_Resource->m_RigScene->m_MeshSetRes));
+        dmHashUpdateBuffer32(state, &item.m_MaterialIndex, sizeof(item.m_MaterialIndex));
+
         // Include material textures in the hash
         MaterialInfo* material_info = &component->m_Resource->m_Materials[item.m_MaterialIndex];
         dmHashUpdateBuffer32(state, material_info->m_Textures, sizeof(dmGameSystem::MaterialTextureInfo) * material_info->m_TexturesCount);
@@ -1645,6 +1650,23 @@ namespace dmGameSystem
         return true;
     }
 
+    static bool ApplyPBRMaterial(dmGraphics::HContext graphics_context, ModelComponent* component, MeshRenderItem* render_item,
+                                 dmRender::HMaterial material, HComponentRenderConstants* constants, dmRender::RenderObject* ro)
+    {
+        if (dmGraphics::IsContextFeatureSupported(graphics_context, dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER))
+        {
+            return SetModelMaterialBuffer(graphics_context, component->m_Resource, material, render_item->m_MaterialIndex, ro);
+        }
+
+        if (FillPBRConstants(component->m_Resource, &component->m_Resource->m_Materials[render_item->m_MaterialIndex],
+                             &render_item->m_RenderConstants, material, render_item->m_MaterialIndex))
+        {
+            CopyRenderConstants(render_item->m_RenderConstants, *constants);
+            *constants = render_item->m_RenderConstants;
+        }
+        return true;
+    }
+
     static void RenderBatchLocalVSInstanced(ModelWorld* world, dmRender::HRenderContext render_context,
         dmRender::HMaterial render_context_material, uint32_t material_index,
         ModelComponent* component, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end, dmGraphics::HVertexDeclaration inst_decl)
@@ -1877,15 +1899,9 @@ namespace dmGameSystem
             }
         }
 
-        // If the material supports PBR data, we need to use the render item's constants.
-        // Otherwise, each render item will overwrite the component render constants with new values
-        // before the render object is processed and the draw call is dispatched.
         HComponentRenderConstants constants = component->m_RenderConstants;
-        if (FillPBRConstants(component->m_Resource, &component->m_Resource->m_Materials[material_index], &render_item->m_RenderConstants, render_material, material_index))
-        {
-            CopyRenderConstants(render_item->m_RenderConstants, constants);
-            constants = render_item->m_RenderConstants;
-        }
+        if (!ApplyPBRMaterial(graphics_context, component, render_item, render_material, &constants, &ro))
+            return;
 
         if (!constants && MorphTargetsNeedUniformWeights(render_item, render_material))
         {
@@ -2030,14 +2046,8 @@ namespace dmGameSystem
                 SetRenderConstant(constants, dmRender::VERTEX_STREAM_ANIMATION_DATA, &animation_data, 1);
             }
 
-            // If the material supports PBR data, we need to use the render item's constants.
-            // Otherwise, each render item will overwrite the component render constants with new values
-            // before the render object is processed and the draw call is dispatched.
-            if (FillPBRConstants(component->m_Resource, &component->m_Resource->m_Materials[material_index], &render_item->m_RenderConstants, render_material, material_index))
-            {
-                CopyRenderConstants(render_item->m_RenderConstants, constants);
-                constants = render_item->m_RenderConstants;
-            }
+            if (!ApplyPBRMaterial(graphics_context, component, render_item, render_material, &constants, &ro))
+                continue;
 
             if (!constants && MorphTargetsNeedUniformWeights(render_item, render_material))
             {
@@ -2204,8 +2214,8 @@ namespace dmGameSystem
     {
         DM_PROFILE("RenderBatchWorld");
 
-        const MeshRenderItem* render_item      = (MeshRenderItem*) buf[*begin].m_UserData;
-        const ModelComponent* component        = render_item->m_Component;
+        MeshRenderItem* render_item            = (MeshRenderItem*) buf[*begin].m_UserData;
+        ModelComponent* component              = render_item->m_Component;
         uint32_t material_index                = render_item->m_MaterialIndex;
         dmRender::HMaterial material           = GetRenderMaterial(render_context_material, component, component->m_Resource, material_index);
         // vx_decl is the _shared_ vertex declaration here since we can't use instancing for WorldVs batches
@@ -2270,10 +2280,11 @@ namespace dmGameSystem
 
         FillTextures(&ro, component, material_index);
 
-        if (component->m_RenderConstants)
-        {
-            dmGameSystem::EnableRenderObjectConstants(&ro, component->m_RenderConstants);
-        }
+        HComponentRenderConstants constants = component->m_RenderConstants;
+        if (!ApplyPBRMaterial(dmRender::GetGraphicsContext(render_context), component, render_item, material, &constants, &ro))
+            return;
+        if (constants)
+            dmGameSystem::EnableRenderObjectConstants(&ro, constants);
 
         dmRender::AddToRender(render_context, &ro);
 
