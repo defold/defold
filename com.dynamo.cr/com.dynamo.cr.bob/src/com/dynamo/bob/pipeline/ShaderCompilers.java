@@ -414,6 +414,34 @@ public class ShaderCompilers {
                 compileResult.reflectors.add(pipeline.getReflectionData(type));
             }
 
+            ArrayList<ShaderDesc.Language> visibleLanguages = new ArrayList<>();
+            for (ShaderDesc.Language language : shaderLanguages)
+                if (language == ShaderDesc.Language.LANGUAGE_MSL_22 || language == ShaderDesc.Language.LANGUAGE_SPIRV || language == ShaderDesc.Language.LANGUAGE_WGSL)
+                    visibleLanguages.add(language);
+            if (!isComputeType && !visibleLanguages.isEmpty()) {
+                ShaderCompilePipeline variant = pipeline.createVisibleInstancePipeline("visible-instance");
+                if (variant != null) {
+                    try {
+                        ShaderProgramBuilder.ShaderCompileResult result = new ShaderProgramBuilder.ShaderCompileResult();
+                        result.shaderBuildResults = new ArrayList<>();
+                        for (ShaderDesc.Language language : visibleLanguages) {
+                            for (ShaderCompilePipeline.ShaderModuleDesc module : shaderModules) {
+                                Shaderc.ShaderCompileResult compiled = variant.crossCompile(module.type, language);
+                                result.shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(ShaderProgramBuilder.makeShaderBuilder(compiled, language, module.type)));
+                            }
+                        }
+                        // Keep sampler units and reflection ordering aligned with the parent program.
+                        for (ShaderDesc.ShaderType type : shaderTypeKeys.keySet())
+                            result.reflectors.add(variant.getReflectionData(type));
+                        compileResult.visibleInstanceProgram = ShaderProgramBuilder.buildResultsToShaderDescBuildResults(result).shaderDesc;
+                        for (Shaderc.ShaderResource resource : pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX).getInputs())
+                            if (resource.type.columnCount == 4) compileResult.visibleInstanceAttribute = resource.nameHash;
+                    } finally {
+                        ShaderCompilePipeline.destroyShaderPipeline(variant);
+                    }
+                }
+            }
+
             compileResult.hlslRootSignature = hlslRootSignature != null ? hlslRootSignature.hLSLRootSignature : null;
 
                 return compileResult;

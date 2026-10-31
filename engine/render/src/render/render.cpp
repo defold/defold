@@ -32,6 +32,8 @@
 #include "font/font_renderer.h"
 
 DM_PROPERTY_GROUP(rmtp_Render, "Renderer", 0);
+DM_PROPERTY_U32(rmtp_GpuBatchCacheHits, 0, PROFILE_PROPERTY_FRAME_RESET, "# GPU draws reusing prepared candidates and batches", &rmtp_Render);
+DM_PROPERTY_U32(rmtp_GpuBatchCacheBuilds, 0, PROFILE_PROPERTY_FRAME_RESET, "# prepared GPU candidate lists rebuilt", &rmtp_Render);
 
 namespace dmRender
 {
@@ -122,6 +124,8 @@ namespace dmRender
     , m_MaxCharacters(0)
     , m_CommandBufferSize(1024)
     , m_MaxDebugVertexCount(0)
+    , m_InstanceCullingShaderProgramDesc(0)
+    , m_GpuCullingStatistics(false)
     , m_UseThread(false)
     {
 
@@ -156,6 +160,8 @@ namespace dmRender
         context->m_RenderObjects.SetSize(0);
 
         context->m_GraphicsContext = graphics_context;
+        InitializeGpuIndirect(context, params);
+        context->m_GpuIndirect.m_RenderBatches.SetCapacity(params.m_MaxInstances);
         context->m_ConstantBufferCloneCursor = 0;
 
         context->m_SystemFontMap = params.m_SystemFontMap;
@@ -237,6 +243,7 @@ namespace dmRender
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
         FinalizeLightData(render_context);
+        FinalizeGpuIndirect(render_context);
         for (uint32_t i = 0; i < render_context->m_ConstantBufferClones.Size(); ++i)
             DeleteNamedConstantBuffer(render_context->m_ConstantBufferClones[i]);
         for (uint32_t i = 0; i < render_context->m_RenderItemDispatches.Size(); ++i)
@@ -261,6 +268,9 @@ namespace dmRender
     void RenderListBegin(HRenderContext render_context)
     {
         render_context->m_ConstantBufferCloneCursor = 0;
+        ++render_context->m_GpuIndirect.m_Frame;
+        render_context->m_GpuIndirect.m_DrawCursor = 0;
+        render_context->m_GpuIndirect.m_DrawCache = 0;
         render_context->m_RenderList.SetSize(render_context->m_PersistentRenderItems.Size());
         render_context->m_TransientRenderList.SetSize(0);
         render_context->m_TransientRenderListIndices.SetSize(0);
@@ -447,6 +457,10 @@ namespace dmRender
             return RESULT_OUT_OF_RESOURCES;
         }
         context->m_RenderObjects.Push(ro);
+        if (context->m_GpuIndirect.m_RenderBatches.Capacity() < context->m_RenderObjects.Size())
+            context->m_GpuIndirect.m_RenderBatches.SetCapacity(context->m_RenderObjects.Capacity());
+        context->m_GpuIndirect.m_RenderBatches.SetSize(context->m_RenderObjects.Size());
+        context->m_GpuIndirect.m_RenderBatches.Back() = 0;
 
         return RESULT_OK;
     }
@@ -454,6 +468,7 @@ namespace dmRender
     Result ClearRenderObjects(HRenderContext context)
     {
         context->m_RenderObjects.SetSize(0);
+        context->m_GpuIndirect.m_BatchCursor = 0;
         ClearDebugRenderObjects(context);
 
         // Should probably be moved and/or refactored, see case 2261
@@ -1055,7 +1070,7 @@ namespace dmRender
         return changed;
     }
 
-    static bool TestBoundingVolume(const dmIntersection::Frustum& frustum, const PersistentRenderItem& item)
+    bool TestRenderItemBoundingVolume(const dmIntersection::Frustum& frustum, const PersistentRenderItem& item)
     {
         const float* bounds = item.m_Bounds;
         if (item.m_BoundingVolumeType == BOUNDING_VOLUME_SPHERE)
@@ -1104,39 +1119,85 @@ namespace dmRender
         return changed;
     }
 
-    static void FrustumCulling(HRenderContext context, const dmIntersection::Frustum& frustum, uint32_t frustum_hash)
+    static bool IsGpuRenderItem(HRenderContext context, uint32_t index)
+    {
+        if (!context->m_GpuIndirect.m_DrawEnabled || index >= context->m_PersistentRenderItems.Size())
+            return false;
+        const PersistentRenderItem& item = context->m_PersistentRenderItems[index];
+        return item.m_GpuDriven && item.m_BoundingVolumeType != BOUNDING_VOLUME_NONE;
+    }
+
+    // Select the CPU or GPU loop once per range. CPU fallback does not need a
+    // GPU eligibility check per item; unchanged GPU candidates retain theirs.
+    template <bool gpu_culling>
+    static void CullPersistentRenderItems(HRenderContext context, const RenderItemDispatch& dispatch, const uint32_t* indices, uint32_t num_indices, const dmIntersection::Frustum& frustum, uint32_t frustum_hash)
+    {
+        RenderListEntry* entries = context->m_RenderList.Begin();
+        for (uint32_t i = 0; i < num_indices; ++i)
+        {
+            uint32_t         index = indices[i];
+            RenderListEntry& entry = entries[index];
+            entry.m_Dispatch = dispatch.m_FrameDispatch;
+            if (gpu_culling)
+            {
+                if (entry.m_FrustumHash == FRUSTUM_HASH_GPU_CULLING)
+                    continue;
+                if (IsGpuRenderItem(context, index))
+                {
+                    entry.m_Visibility = VISIBILITY_FULL;
+                    entry.m_FrustumHash = FRUSTUM_HASH_GPU_CULLING;
+                    continue;
+                }
+            }
+            if (entry.m_FrustumHash == frustum_hash)
+                continue;
+            const PersistentRenderItem& item = context->m_PersistentRenderItems[index];
+            if (item.m_BoundingVolumeType != BOUNDING_VOLUME_NONE)
+            {
+                entry.m_Visibility = TestRenderItemBoundingVolume(frustum, item) ? VISIBILITY_FULL : VISIBILITY_NONE;
+                entry.m_FrustumHash = frustum_hash;
+            }
+            else
+            {
+                uint32_t count = 1;
+                while (i + 1 < num_indices && indices[i + 1] == index + count &&
+                       context->m_PersistentRenderItems[index + count].m_BoundingVolumeType == BOUNDING_VOLUME_NONE)
+                {
+                    entries[index + count].m_Dispatch = dispatch.m_FrameDispatch;
+                    ++i;
+                    ++count;
+                }
+                CullRenderListEntries(context, &entry, count, frustum, frustum_hash);
+            }
+        }
+    }
+
+    static void FrustumCulling(HRenderContext context, const dmIntersection::Frustum& frustum, uint32_t frustum_hash, HPredicate predicate)
     {
         DM_PROFILE("FrustumCulling");
-        RenderListEntry* entries = context->m_RenderList.Begin();
         for (uint32_t d = 0; d < context->m_SubmittedRenderItemDispatches.Size(); ++d)
         {
             const RenderItemDispatch& dispatch = *context->m_RenderItemDispatches[context->m_SubmittedRenderItemDispatches[d]];
             const dmArray<uint32_t>&  persistent = dispatch.m_SortIndices;
-            for (uint32_t i = 0; i < persistent.Size(); ++i)
+            const bool                filter = predicate && predicate->m_TagCount;
+            uint32_t                  ranges = filter ? dispatch.m_Ranges.Size() : 1;
+            for (uint32_t r = 0; r < ranges; ++r)
             {
-                uint32_t         index = persistent[i];
-                RenderListEntry& entry = entries[index];
-                entry.m_Dispatch = dispatch.m_FrameDispatch;
-                if (entry.m_FrustumHash == frustum_hash)
-                    continue;
-                const PersistentRenderItem& item = context->m_PersistentRenderItems[index];
-                if (item.m_BoundingVolumeType != BOUNDING_VOLUME_NONE)
+                // Match the cached tag range before touching individual entries.
+                // A model's GPU visibility is not consumed by an unrelated pass.
+                if (filter)
                 {
-                    entry.m_Visibility = TestBoundingVolume(frustum, item) ? VISIBILITY_FULL : VISIBILITY_NONE;
-                    entry.m_FrustumHash = frustum_hash;
+                    MaterialTagList tags;
+                    GetMaterialTagList(context, dispatch.m_Ranges[r].m_TagListKey, &tags);
+                    if (!MatchMaterialTags(tags.m_Count, tags.m_Tags, predicate->m_TagCount, predicate->m_Tags))
+                        continue;
                 }
+                uint32_t start = filter ? dispatch.m_Ranges[r].m_Start : 0;
+                uint32_t end = filter ? start + dispatch.m_Ranges[r].m_Count : persistent.Size();
+                if (context->m_GpuIndirect.m_DrawEnabled)
+                    CullPersistentRenderItems<true>(context, dispatch, persistent.Begin() + start, end - start, frustum, frustum_hash);
                 else
-                {
-                    uint32_t count = 1;
-                    while (i + 1 < persistent.Size() && persistent[i + 1] == index + count &&
-                           context->m_PersistentRenderItems[index + count].m_BoundingVolumeType == BOUNDING_VOLUME_NONE)
-                    {
-                        entries[index + count].m_Dispatch = dispatch.m_FrameDispatch;
-                        ++i;
-                        ++count;
-                    }
-                    CullRenderListEntries(context, &entry, count, frustum, frustum_hash);
-                }
+                    CullPersistentRenderItems<false>(context, dispatch, persistent.Begin() + start, end - start, frustum, frustum_hash);
             }
         }
 
@@ -1152,16 +1213,33 @@ namespace dmRender
         }
     }
 
-    static void ResetRenderListVisibility(HRenderContext context)
+    static void ResetRenderListVisibility(HRenderContext context, HPredicate predicate)
     {
         for (uint32_t d = 0; d < context->m_SubmittedRenderItemDispatches.Size(); ++d)
         {
             const RenderItemDispatch& dispatch = *context->m_RenderItemDispatches[context->m_SubmittedRenderItemDispatches[d]];
-            for (uint32_t i = 0; i < dispatch.m_SortIndices.Size(); ++i)
+            const bool                filter = predicate && predicate->m_TagCount;
+            uint32_t                  ranges = filter ? dispatch.m_Ranges.Size() : 1;
+            for (uint32_t r = 0; r < ranges; ++r)
             {
-                RenderListEntry& entry = context->m_RenderList[dispatch.m_SortIndices[i]];
-                entry.m_Dispatch = dispatch.m_FrameDispatch;
-                SetVisibility(1, &entry, VISIBILITY_FULL, FRUSTUM_HASH_UNINITIALIZED);
+                // Unculled GUI/text draws must not invalidate model visibility
+                // and GPU classification in unrelated cached tag ranges.
+                if (filter)
+                {
+                    MaterialTagList tags;
+                    GetMaterialTagList(context, dispatch.m_Ranges[r].m_TagListKey, &tags);
+                    if (!MatchMaterialTags(tags.m_Count, tags.m_Tags, predicate->m_TagCount, predicate->m_Tags))
+                        continue;
+                }
+                uint32_t start = filter ? dispatch.m_Ranges[r].m_Start : 0;
+                uint32_t end = filter ? start + dispatch.m_Ranges[r].m_Count : dispatch.m_SortIndices.Size();
+                for (uint32_t i = start; i < end; ++i)
+                {
+                    RenderListEntry& entry = context->m_RenderList[dispatch.m_SortIndices[i]];
+                    entry.m_Dispatch = dispatch.m_FrameDispatch;
+                    uint32_t key = IsGpuRenderItem(context, dispatch.m_SortIndices[i]) ? FRUSTUM_HASH_GPU_CULLING : FRUSTUM_HASH_UNINITIALIZED;
+                    SetVisibility(1, &entry, VISIBILITY_FULL, key);
+                }
             }
         }
         context->m_TransientRenderListDirty |= SetVisibility(context->m_TransientRenderList.Size(), context->m_TransientRenderList.Begin(), VISIBILITY_FULL, FRUSTUM_HASH_UNINITIALIZED);
@@ -1315,6 +1393,135 @@ namespace dmRender
         }
     }
 
+    static bool MatchGpuDrawTags(HRenderContext context, uint32_t key, HPredicate predicate)
+    {
+        if (!predicate || !predicate->m_TagCount)
+            return true;
+        MaterialTagList tags;
+        GetMaterialTagList(context, key, &tags);
+        return MatchMaterialTags(tags.m_Count, tags.m_Tags, predicate->m_TagCount, predicate->m_Tags);
+    }
+
+    static GpuRenderListCache* PrepareGpuRenderListCache(HRenderContext context, HPredicate predicate, SortOrder sort_order)
+    {
+        GpuIndirectContext& gpu = context->m_GpuIndirect;
+        if (!gpu.m_DrawEnabled)
+        {
+            // A blended or overridden draw can replace the cached entries' CPU
+            // visibility. Reclassify overlapping candidates before their next GPU draw.
+            for (uint32_t i = 0; i < gpu.m_DrawCaches.Size(); ++i)
+            {
+                GpuRenderListCache& cache = *gpu.m_DrawCaches[i];
+                for (uint32_t s = 0; s < cache.m_Sources.Size(); ++s)
+                    if (MatchGpuDrawTags(context, cache.m_Sources[s].m_TagListKey, predicate))
+                    {
+                        cache.m_Prepared = false;
+                        break;
+                    }
+            }
+            return 0;
+        }
+
+        uint32_t cursor = gpu.m_DrawCursor++;
+        if (cursor == gpu.m_DrawCaches.Size())
+        {
+            if (gpu.m_DrawCaches.Full())
+                gpu.m_DrawCaches.OffsetCapacity(8);
+            gpu.m_DrawCaches.Push(new GpuRenderListCache());
+        }
+        GpuRenderListCache&           cache = *gpu.m_DrawCaches[cursor];
+        dmArray<GpuRenderListSource>& sources = gpu.m_DrawSources;
+        sources.SetSize(0);
+        for (uint32_t r = 0; r < context->m_RenderListRanges.Size(); ++r)
+        {
+            const RenderListRange& range = context->m_RenderListRanges[r];
+            if (!MatchGpuDrawTags(context, range.m_TagListKey, predicate))
+                continue;
+            for (uint32_t s = range.m_SpanStart; s < range.m_SpanStart + range.m_SpanCount; ++s)
+            {
+                const RenderListSpan& span = context->m_RenderListSpans[s];
+                GpuRenderListSource   source;
+                source.m_Indices = span.m_Indices;
+                source.m_Count = span.m_Count;
+                source.m_TagListKey = span.m_TagListKey;
+                source.m_Dispatch = span.m_Dispatch;
+                source.m_FrameDispatch = span.m_Dispatch ? context->m_RenderItemDispatches[span.m_Dispatch]->m_FrameDispatch : RENDERLIST_INVALID_DISPATCH;
+                source.m_Revision = span.m_Dispatch ? context->m_RenderItemDispatches[span.m_Dispatch]->m_GpuBatchRevision : 0;
+                if (sources.Full())
+                    sources.OffsetCapacity(8);
+                sources.Push(source);
+            }
+        }
+
+        bool changed = cache.m_SortOrder != sort_order || cache.m_Sources.Size() != sources.Size();
+        for (uint32_t i = 0; !changed && i < sources.Size(); ++i)
+        {
+            const GpuRenderListSource& a = cache.m_Sources[i];
+            const GpuRenderListSource& b = sources[i];
+            changed = a.m_Indices != b.m_Indices || a.m_Count != b.m_Count || a.m_TagListKey != b.m_TagListKey ||
+            a.m_Dispatch != b.m_Dispatch || a.m_FrameDispatch != b.m_FrameDispatch || a.m_Revision != b.m_Revision;
+        }
+        if (changed)
+        {
+            cache.m_Sources.SetSize(0);
+            if (cache.m_Sources.Capacity() < sources.Size())
+                cache.m_Sources.SetCapacity(sources.Size());
+            cache.m_Sources.PushArray(sources.Begin(), sources.Size());
+            cache.m_SortOrder = sort_order;
+            cache.m_Prepared = false;
+            cache.m_Eligible = !sources.Empty();
+            for (uint32_t s = 0; cache.m_Eligible && s < sources.Size(); ++s)
+            {
+                const GpuRenderListSource& source = sources[s];
+                if (!source.m_Dispatch)
+                {
+                    cache.m_Eligible = false;
+                    break;
+                }
+                for (uint32_t i = 0; i < source.m_Count; ++i)
+                {
+                    uint32_t index = source.m_Indices[i];
+                    if (!IsGpuRenderItem(context, index) || context->m_RenderList[index].m_MajorOrder != RENDER_ORDER_BEFORE_WORLD)
+                    {
+                        cache.m_Eligible = false;
+                        break;
+                    }
+                }
+            }
+        }
+        return cache.m_Eligible ? &cache : 0;
+    }
+
+    static void BuildGpuRenderListCache(HRenderContext context, GpuRenderListCache& cache)
+    {
+        uint32_t count = context->m_RenderListSortBuffer.Size();
+        cache.m_Indices.SetSize(0);
+        if (cache.m_Indices.Capacity() < count)
+            cache.m_Indices.SetCapacity(count);
+        cache.m_Indices.PushArray(context->m_RenderListSortBuffer.Begin(), count);
+        cache.m_Batches.SetSize(0);
+        for (uint32_t start = 0; start < count;)
+        {
+            const RenderListEntry& entry = context->m_RenderList[cache.m_Indices[start]];
+            uint32_t               end = start + 1;
+            while (end < count)
+            {
+                const RenderListEntry& next = context->m_RenderList[cache.m_Indices[end]];
+                if (entry.m_Dispatch != next.m_Dispatch || entry.m_BatchKey != next.m_BatchKey || entry.m_MinorOrder != next.m_MinorOrder)
+                    break;
+                ++end;
+            }
+            GpuRenderListBatch batch = { start, end, (HRenderListDispatch)entry.m_Dispatch };
+            if (cache.m_Batches.Full())
+                cache.m_Batches.OffsetCapacity(16);
+            cache.m_Batches.Push(batch);
+            start = end;
+        }
+        ++cache.m_Generation;
+        cache.m_Prepared = true;
+        DM_PROPERTY_ADD_U32(rmtp_GpuBatchCacheBuilds, 1);
+    }
+
     Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order)
     {
         DM_PROFILE("DrawRenderList");
@@ -1359,7 +1566,21 @@ namespace dmRender
             SortRenderList(context);
         }
 
+        GpuIndirectContext&       indirect = context->m_GpuIndirect;
+        dmGraphics::PipelineState pipeline = dmGraphics::GetPipelineState(context->m_GraphicsContext);
+        // Atomic compaction does not preserve instance order. Keep ordered draws
+        // on the CPU, including passes without depth writes or with stencil tests.
+        bool depth_ordered = pipeline.m_DepthTestFunc == dmGraphics::COMPARE_FUNC_LESS ||
+        pipeline.m_DepthTestFunc == dmGraphics::COMPARE_FUNC_LEQUAL ||
+        pipeline.m_DepthTestFunc == dmGraphics::COMPARE_FUNC_GREATER ||
+        pipeline.m_DepthTestFunc == dmGraphics::COMPARE_FUNC_GEQUAL;
+        indirect.m_DrawEnabled = indirect.m_Program && !context->m_Material && !pipeline.m_BlendEnabled &&
+        pipeline.m_DepthTestEnabled && pipeline.m_WriteDepth && depth_ordered && !pipeline.m_StencilEnabled;
+        memset(&indirect.m_Frustum, 0, sizeof(indirect.m_Frustum));
         uint32_t frustum_hash = 0;
+        SortOrder           effective_sort_order = (sort_order == SORT_UNSPECIFIED) ? SORT_BACK_TO_FRONT : sort_order;
+        GpuRenderListCache* cache = PrepareGpuRenderListCache(context, predicate, effective_sort_order);
+        bool                cached = cache && cache->m_Prepared;
 
         if (frustum_matrix)
         {
@@ -1367,26 +1588,29 @@ namespace dmRender
             memcpy(frustum_key_buffer, frustum_matrix, sizeof(Matrix4));
             memcpy(frustum_key_buffer + sizeof(Matrix4), &frustum_num_planes, sizeof(frustum_num_planes));
             frustum_hash = dmHashBuffer32(frustum_key_buffer, (uint32_t)sizeof(frustum_key_buffer));
+            if (frustum_hash == FRUSTUM_HASH_GPU_CULLING)
+                --frustum_hash;
 
             dmIntersection::Frustum frustum;
             dmIntersection::CreateFrustumFromMatrix(*frustum_matrix, true, (int) frustum_num_planes, frustum);
-            FrustumCulling(context, frustum, frustum_hash);
+            indirect.m_Frustum.m_NumPlanes = frustum.m_NumPlanes;
+            memcpy(indirect.m_Frustum.m_Planes, frustum.m_Planes, frustum.m_NumPlanes * sizeof(Vector4));
+            if (!cached)
+                FrustumCulling(context, frustum, frustum_hash, predicate);
         }
         else
         {
             // Reset the visibility
-            ResetRenderListVisibility(context);
+            if (!cached)
+                ResetRenderListVisibility(context, predicate);
         }
 
-        PrepareRenderList(context);
-        SortOrder effective_sort_order = (sort_order == SORT_UNSPECIFIED) ? SORT_BACK_TO_FRONT : sort_order;
-
-        MakeSortBuffer(context, predicate?predicate->m_TagCount:0, predicate?predicate->m_Tags:0, effective_sort_order);
-
-        if (context->m_RenderListSortBuffer.Empty())
-            return RESULT_OK;
-
+        if (!cached)
         {
+            PrepareRenderList(context);
+            MakeSortBuffer(context, predicate ? predicate->m_TagCount : 0, predicate ? predicate->m_Tags : 0, effective_sort_order);
+            if (context->m_RenderListSortBuffer.Empty())
+                return RESULT_OK;
             if (effective_sort_order != SORT_NONE)
             {
                 DM_PROFILE("DrawRenderList_SORT");
@@ -1394,10 +1618,16 @@ namespace dmRender
                 sort.values = context->m_RenderListSortValues.Begin();
                 StableSortRenderListIndices(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.Size(), sort);
             }
+            if (cache)
+                BuildGpuRenderListCache(context, *cache);
         }
+        else
+            DM_PROPERTY_ADD_U32(rmtp_GpuBatchCacheHits, 1);
+        indirect.m_DrawCache = cache;
 
         // Construct render objects
         context->m_RenderObjects.SetSize(0);
+        indirect.m_BatchCursor = 0;
 
         RenderListDispatchParams params;
         memset(&params, 0x00, sizeof(params));
@@ -1422,34 +1652,53 @@ namespace dmRender
 
         // Make batches for matching dispatch, batch key & minor order
         RenderListEntry *base = context->m_RenderList.Begin();
-        uint32_t *last = context->m_RenderListSortBuffer.Begin();
-        uint32_t count = context->m_RenderListSortBuffer.Size();
+        uint32_t*        last = cache ? cache->m_Indices.Begin() : context->m_RenderListSortBuffer.Begin();
+        uint32_t         count = cache ? cache->m_Indices.Size() : context->m_RenderListSortBuffer.Size();
 
         {
             DM_PROFILE("Dispatch_Batch");
 
-            for (uint32_t i=1;i<=count;i++)
+            if (cache)
             {
-                uint32_t *idx = context->m_RenderListSortBuffer.Begin() + i;
-                const RenderListEntry *last_entry = &base[*last];
-                // continue batch on match, or dispatch
-                if (i < count)
+                for (uint32_t i = 0; i < cache->m_Batches.Size(); ++i)
                 {
-                    const RenderListEntry *current_entry = &base[*idx];
-                    if (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder)
-                        continue;
+                    const GpuRenderListBatch& batch = cache->m_Batches[i];
+                    const RenderListDispatch& dispatch = context->m_RenderListDispatch[batch.m_Dispatch];
+                    params.m_UserData = dispatch.m_UserData;
+                    params.m_Begin = last + batch.m_Begin;
+                    params.m_End = last + batch.m_End;
+                    dispatch.m_DispatchFn(params);
                 }
-                if (last_entry->m_Dispatch != RENDERLIST_INVALID_DISPATCH)
+            }
+            else
+            {
+                bool gpu_batch = base[*last].m_FrustumHash == FRUSTUM_HASH_GPU_CULLING;
+                for (uint32_t i = 1; i <= count; i++)
                 {
-                    assert(last_entry->m_Dispatch < context->m_RenderListDispatch.Size());
-                    const RenderListDispatch* d = &context->m_RenderListDispatch[last_entry->m_Dispatch];
-                    params.m_UserData = d->m_UserData;
-                    params.m_Begin = last;
-                    params.m_End = idx;
-                    d->m_DispatchFn(params);
-                }
+                    uint32_t*              idx = context->m_RenderListSortBuffer.Begin() + i;
+                    const RenderListEntry* last_entry = &base[*last];
+                    // continue batch on match, or dispatch
+                    if (i < count)
+                    {
+                        const RenderListEntry* current_entry = &base[*idx];
+                        if (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder &&
+                            gpu_batch == (current_entry->m_FrustumHash == FRUSTUM_HASH_GPU_CULLING))
+                            continue;
+                    }
+                    if (last_entry->m_Dispatch != RENDERLIST_INVALID_DISPATCH)
+                    {
+                        assert(last_entry->m_Dispatch < context->m_RenderListDispatch.Size());
+                        const RenderListDispatch* d = &context->m_RenderListDispatch[last_entry->m_Dispatch];
+                        params.m_UserData = d->m_UserData;
+                        params.m_Begin = last;
+                        params.m_End = idx;
+                        d->m_DispatchFn(params);
+                    }
 
-                last = idx;
+                    last = idx;
+                    if (i < count)
+                        gpu_batch = base[*last].m_FrustumHash == FRUSTUM_HASH_GPU_CULLING;
+                }
             }
 
         }
@@ -1470,6 +1719,7 @@ namespace dmRender
             }
         }
 
+        indirect.m_DrawCache = 0;
         return Draw(context, predicate, constant_buffer);
     }
 
@@ -1553,6 +1803,7 @@ namespace dmRender
 
         HMaterial material         = render_context->m_Material;
         HMaterial context_material = render_context->m_Material;
+        dmGraphics::HProgram active_program = context_material ? GetMaterialProgram(context_material) : 0;
 
         if(context_material)
         {
@@ -1582,13 +1833,19 @@ namespace dmRender
                 if(material != ro->m_Material)
                 {
                     material = ro->m_Material;
-                    dmGraphics::EnableProgram(context, GetMaterialProgram(material));
-
                     // Reset the override texture binding array. The new material may have a different
                     // resource layout than the current material.
                     memset(render_context_textures, 0, sizeof(render_context_textures));
                     GetRenderContextTextures(render_context, material->m_Samplers, render_context_textures);
                 }
+            }
+
+            HGpuRenderBatch      gpu_batch = render_context->m_GpuIndirect.m_RenderBatches[i];
+            dmGraphics::HProgram material_program = gpu_batch && gpu_batch->m_VisibleInstanceProgram ? gpu_batch->m_VisibleInstanceProgram : GetMaterialProgram(material);
+            if (active_program != material_program)
+            {
+                dmGraphics::EnableProgram(context, material_program);
+                active_program = material_program;
             }
 
             ApplyMaterialConstants(render_context, material, ro);
@@ -1626,8 +1883,6 @@ namespace dmRender
 
             ApplyMaterialProgramLightBuffers(render_context, material);
 
-            dmGraphics::HProgram material_program = GetMaterialProgram(material);
-
             for (int i = 0; i < RenderObject::MAX_VERTEX_BUFFER_COUNT; ++i)
             {
                 if (ro->m_VertexBuffers[i])
@@ -1640,7 +1895,21 @@ namespace dmRender
                 }
             }
 
-            if (ro->m_IndexBuffer)
+            if (gpu_batch)
+            {
+                if (gpu_batch->m_VisibleInstanceProgram)
+                {
+                    dmGraphics::EnableStorageBuffer(context, render_context->m_GpuIndirect.m_WorldBuffer, 3, 0);
+                    dmGraphics::EnableStorageBuffer(context, gpu_batch->m_InstanceBuffer, 3, 1);
+                }
+                dmGraphics::DrawElementsIndirect(context, ro->m_PrimitiveType, ro->m_IndexType, ro->m_IndexBuffer, gpu_batch->m_ArgumentBuffer, 0);
+                if (gpu_batch->m_VisibleInstanceProgram)
+                {
+                    dmGraphics::DisableStorageBuffer(context, render_context->m_GpuIndirect.m_WorldBuffer);
+                    dmGraphics::DisableStorageBuffer(context, gpu_batch->m_InstanceBuffer);
+                }
+            }
+            else if (ro->m_IndexBuffer)
                 dmGraphics::DrawElements(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer, ro->m_InstanceCount);
             else
                 dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_InstanceCount);

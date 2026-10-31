@@ -26,6 +26,16 @@ The predicate in the `render.draw(pred)` call tells the renderer which material 
 If a frustum is being passed to the draw function (`render.draw(pred, {frustum = frustum})`), each render list entry will be checked if it's intersecting the frustum.
 Each component type will calculate this visibility based, allowing each type to choose bounding volume representations (sphere, OBB etc).
 
+### GPU model culling
+
+GPU frustum culling and indexed indirect drawing are enabled by default for eligible instanced models. Set `render.gpu_culling = 0` in `game.project` to disable them. Metal, Vulkan and WebGPU support this path when the device provides compute shaders, storage buffers and indirect drawing; unsupported graphics contexts use CPU culling.
+
+Eligible models use indexed geometry, local vertex space and an instance layout containing world and/or normal matrices. Skinned models, morph targets and dynamic vertex attributes retain CPU culling. The renderer also uses the CPU path for material overrides, blending, stencil tests, disabled depth testing or depth writes, and depth comparisons other than less/less-equal/greater/greater-equal. These passes require instance order, which GPU compaction does not preserve. Storage-buffer allocation failures or device limits fall back to CPU culling and conventional instancing.
+
+GPU batches retain bounds and world matrices between frames and upload changed values. Compute compacts visible instances, and indirect drawing consumes their count without CPU readback. Compatible shaders fetch world matrices through compacted instance IDs; other supported layouts use compacted matrices.
+
+Set `render.gpu_culling_stats = 1` to collect optional asynchronous visibility statistics in the profiler. This requires GPU culling and is disabled by default. Counts can describe an earlier completed frame; rendering does not wait for or depend on them.
+
 ## Batching
 
 Once any pruning is done based on material tags and/or frustum intersection, the remaining entries' are updated with a camera view Z value and is put into its batch key.

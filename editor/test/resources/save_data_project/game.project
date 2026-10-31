@@ -274,6 +274,8 @@ clear_color_red = 0.0
 clear_color_green = 0.0
 clear_color_blue = 0.0
 clear_color_alpha = 0.0
+gpu_culling = 0
+gpu_culling_stats = 1
 
 [resource]
 http_cache = 1

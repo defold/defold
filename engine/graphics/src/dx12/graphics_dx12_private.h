@@ -93,6 +93,7 @@ namespace dmGraphics
         uint8_t*        m_MappedDataPtr;
         uint32_t        m_DataSize;  // Valid/uploaded bytes
         uint32_t        m_Capacity;  // Allocated resource size in bytes
+        D3D12_RESOURCE_STATES m_ResourceState;
         uint32_t        m_Destroyed : 1;
     };
 
@@ -106,7 +107,6 @@ namespace dmGraphics
     {
         StorageBuffer         m_BaseStorageBuffer;
         DX12DeviceBuffer      m_DeviceBuffer;
-        D3D12_RESOURCE_STATES m_ResourceState;
     };
 
     struct DX12VertexBuffer
@@ -336,6 +336,7 @@ namespace dmGraphics
         ID3D12DescriptorHeap*              m_RtvDescriptorHeap;
         ID3D12DescriptorHeap*              m_DsvDescriptorHeap;
         ID3D12GraphicsCommandList*         m_CommandList;
+        ID3D12CommandSignature*            m_DrawIndexedSignature;
         HANDLE                             m_FenceEvent;
         DX12FrameResource                  m_FrameResources[MAX_FRAMEBUFFERS];
         CD3DX12_CPU_DESCRIPTOR_HANDLE      m_RtvHandle;

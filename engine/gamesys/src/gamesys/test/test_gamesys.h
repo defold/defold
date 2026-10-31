@@ -629,6 +629,11 @@ void GamesysTest<T>::SetUp()
 
     WindowCreateParams win_params;
     WindowCreateParamsInitialize(&win_params);
+#if defined(DM_TEST_GAMESYS_METAL)
+    win_params.m_GraphicsApi = WINDOW_GRAPHICS_API_METAL;
+    win_params.m_Width = 64;
+    win_params.m_Height = 64;
+#endif
     m_Window = dmPlatform::NewWindow();
     dmPlatform::OpenWindow(m_Window, win_params);
 
@@ -643,6 +648,11 @@ void GamesysTest<T>::SetUp()
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_Window = m_Window;
     graphics_context_params.m_JobContext = m_JobContext;
+#if defined(DM_TEST_GAMESYS_METAL)
+    graphics_context_params.m_VerifyGraphicsCalls = true;
+    graphics_context_params.m_Width = 64;
+    graphics_context_params.m_Height = 64;
+#endif
 
     m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 

@@ -2353,13 +2353,99 @@ namespace dmGraphics
     {
         g_functions.m_DispatchCompute(context, group_count_x, group_count_y, group_count_z);
     }
+
+    static HProgram NewProgramWithStorageBufferLimits(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
+    {
+        GraphicsContextLimits limits;
+        GetGraphicsContextLimits(context, limits);
+        const uint32_t stages[] = { SHADER_STAGE_FLAG_VERTEX, SHADER_STAGE_FLAG_FRAGMENT, SHADER_STAGE_FLAG_COMPUTE };
+        const char* stage_names[] = { "vertex", "fragment", "compute" };
+        for (uint32_t stage = 0; stage < DM_ARRAY_SIZE(stages); ++stage)
+        {
+            uint32_t count = 0;
+            for (uint32_t i = 0; i < ddf->m_Reflection.m_StorageBuffers.m_Count; ++i)
+                if (ddf->m_Reflection.m_StorageBuffers[i].m_StageFlags & stages[stage])
+                    ++count;
+            if (count > limits.m_MaxStorageBuffersPerStage)
+            {
+                if (error_buffer && error_buffer_size)
+                    dmSnPrintf(error_buffer, error_buffer_size, "%s shader requires %u storage buffers; device limit is %u.", stage_names[stage], count, limits.m_MaxStorageBuffersPerStage);
+                return 0;
+            }
+        }
+        return g_functions.m_NewProgram(context, ddf, error_buffer, error_buffer_size);
+    }
+
+    struct VisibleInstanceProgram
+    {
+        HProgram m_Program;
+        dmhash_t m_Attribute;
+        uint8_t* m_Bytes;
+        uint32_t m_ByteCount;
+    };
+
+    static void CreateVisibleInstanceProgram(HProgram program, ShaderDesc* ddf)
+    {
+        Program* base = (Program*)program;
+        base->m_VisibleInstanceProgram = 0;
+        AdapterFamily family = GetInstalledAdapterFamily();
+        if (!ddf->m_VisibleInstanceProgram.m_Count ||
+            (family != ADAPTER_FAMILY_METAL && family != ADAPTER_FAMILY_VULKAN && family != ADAPTER_FAMILY_WEBGPU))
+            return;
+        VisibleInstanceProgram* companion = new VisibleInstanceProgram;
+        companion->m_Program = 0;
+        companion->m_Attribute = ddf->m_VisibleInstanceAttribute;
+        companion->m_ByteCount = ddf->m_VisibleInstanceProgram.m_Count;
+        companion->m_Bytes = new uint8_t[companion->m_ByteCount];
+        memcpy(companion->m_Bytes, ddf->m_VisibleInstanceProgram.m_Data, companion->m_ByteCount);
+        base->m_VisibleInstanceProgram = companion;
+    }
+
+    static void DeleteVisibleInstanceProgram(HContext context, VisibleInstanceProgram* companion)
+    {
+        if (!companion)
+            return;
+        if (companion->m_Program)
+            DeleteProgram(context, companion->m_Program);
+        delete[] companion->m_Bytes;
+        delete companion;
+    }
+
+    HProgram GetVisibleInstanceProgram(HContext context, HProgram program, dmhash_t world_attribute)
+    {
+        VisibleInstanceProgram* companion = ((Program*)program)->m_VisibleInstanceProgram;
+        if (!companion || companion->m_Attribute != world_attribute)
+            return 0;
+        if (companion->m_Bytes)
+        {
+            ShaderDesc* variant = 0;
+            if (dmDDF::LoadMessage(companion->m_Bytes, companion->m_ByteCount, &variant) == dmDDF::RESULT_OK)
+            {
+                char error[512] = {};
+                companion->m_Program = NewProgramWithStorageBufferLimits(context, variant, error, sizeof(error));
+                if (companion->m_Program)
+                    ((Program*)companion->m_Program)->m_VisibleInstanceProgram = 0;
+                else
+                    dmLogWarning("Visible-instance shader unavailable; using matrix compaction: %s", error);
+                dmDDF::FreeMessage(variant);
+            }
+            delete[] companion->m_Bytes;
+            companion->m_Bytes = 0;
+        }
+        return companion->m_Program;
+    }
+
     HProgram NewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return g_functions.m_NewProgram(context, ddf, error_buffer, error_buffer_size);
+        HProgram program = g_functions.m_NewProgram(context, ddf, error_buffer, error_buffer_size);
+        if (program)
+            CreateVisibleInstanceProgram(program, ddf);
+        return program;
     }
     void DeleteProgram(HContext context, HProgram program)
     {
-        DestroyProgram((Program*) program);
+        DeleteVisibleInstanceProgram(context, ((Program*)program)->m_VisibleInstanceProgram);
+        DestroyProgram((Program*)program);
         g_functions.m_DeleteProgram(context, program);
     }
     ShaderDesc::Language GetProgramLanguage(HProgram program)
@@ -2380,10 +2466,21 @@ namespace dmGraphics
     }
     bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        VisibleInstanceProgram* visible_program = ((Program*)program)->m_VisibleInstanceProgram;
         // DX12 constructs a replacement first, preserving the active program on a failed reload.
         if (GetInstalledAdapterFamily() != ADAPTER_FAMILY_DIRECTX)
-            DestroyProgram((Program*) program);
-        return g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);
+            DestroyProgram((Program*)program);
+        bool result = g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);
+        if (result)
+        {
+            DeleteVisibleInstanceProgram(context, visible_program);
+            CreateVisibleInstanceProgram(program, ddf);
+        }
+        else
+        {
+            ((Program*)program)->m_VisibleInstanceProgram = visible_program;
+        }
+        return result;
     }
     uint32_t GetAttributeCount(HProgram prog)
     {
@@ -2752,6 +2849,37 @@ namespace dmGraphics
     {
         g_functions.m_DisableStorageBuffer(context, storage_buffer);
     }
+
+    HVertexBuffer GetStorageBufferVertexBuffer(HContext context, HStorageBuffer buffer)
+    {
+        return g_functions.m_GetStorageBufferVertexBuffer ? g_functions.m_GetStorageBufferVertexBuffer(context, buffer) : 0;
+    }
+
+    void DrawElementsIndirect(HContext context, PrimitiveType primitive, Type index_type, HIndexBuffer indices, HStorageBuffer arguments, uint32_t offset)
+    {
+        g_functions.m_DrawElementsIndirect(context, primitive, index_type, indices, arguments, offset);
+    }
+
+    HAsyncBufferReadback RequestStorageBufferReadback(HContext context, HStorageBuffer buffer, uint32_t offset, uint32_t size)
+    {
+        if (!g_functions.m_RequestStorageBufferReadback)
+            return 0;
+        uint32_t buffer_size = GetStorageBufferSize(context, buffer);
+        if (offset > buffer_size || size > buffer_size - offset)
+            return 0;
+        return g_functions.m_RequestStorageBufferReadback(context, buffer, offset, size);
+    }
+
+    bool PollStorageBufferReadback(HAsyncBufferReadback request, void* data)
+    {
+        return g_functions.m_PollStorageBufferReadback && g_functions.m_PollStorageBufferReadback(request, data);
+    }
+
+    void DeleteStorageBufferReadback(HAsyncBufferReadback request)
+    {
+        g_functions.m_DeleteStorageBufferReadback(request);
+    }
+
 // TODO: Make graphics.cpp backend agnostic
 #if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
