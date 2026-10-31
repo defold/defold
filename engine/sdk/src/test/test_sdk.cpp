@@ -40,9 +40,10 @@ TEST(testSdk, Basic)
 
     dmExtension::Params params;
     dmExtension::ParamsInitialize(&params);
-    dmExtension::BroadcastEvent(&params, dmEngine::EVENT_ACTIVATEAPP, 0, 0);
+    dmEngine::AppEvent event = { 0, 0 };
+    dmExtension::BroadcastEvent(&params, dmEngine::EVENT_APP_ACTIVATE, &event, sizeof(event));
     ASSERT_EQ(1, g_TestAppEventCount);
-    dmExtension::BroadcastEvent(&params, dmEngine::EVENT_DEACTIVATEAPP, 0, 0);
+    dmExtension::BroadcastEvent(&params, dmEngine::EVENT_APP_DEACTIVATE, &event, sizeof(event));
     ASSERT_EQ(0, g_TestAppEventCount);
 
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Initialize(&params));

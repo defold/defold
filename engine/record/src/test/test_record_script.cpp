@@ -287,7 +287,8 @@ protected:
 
     void EngineDelete()
     {
-        dmExtension::BroadcastEvent(&m_Params, dmEngine::EVENT_ENGINE_DELETE, 0, 0);
+        dmEngine::LifecycleEvent event = { 0 };
+        dmExtension::BroadcastEvent(&m_Params, dmEngine::EVENT_ENGINE_DELETE, &event, sizeof(event));
     }
 
     bool Run(const char* source)
@@ -676,7 +677,8 @@ TEST(RecordScriptExtension, ShutdownBeforeLuaInitialization)
     ExtensionAppParamsInitialize(&app_params);
     ExtensionParamsInitialize(&params);
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&app_params));
-    dmExtension::BroadcastEvent(&params, dmEngine::EVENT_ENGINE_DELETE, 0, 0);
+    dmEngine::LifecycleEvent event = { 0 };
+    dmExtension::BroadcastEvent(&params, dmEngine::EVENT_ENGINE_DELETE, &event, sizeof(event));
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Finalize(&params));
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppFinalize(&app_params));
     ExtensionParamsFinalize(&params);

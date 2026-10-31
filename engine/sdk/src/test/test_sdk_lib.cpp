@@ -58,11 +58,11 @@ dmExtension::Result UpdateTest(dmExtension::Params* params)
 
 void OnEventTest(dmExtension::Params* params, dmhash_t event_id, const void* data, uint32_t data_size)
 {
-    if (event_id == dmEngine::EVENT_ACTIVATEAPP)
+    if (event_id == dmEngine::EVENT_APP_ACTIVATE)
     {
         ++g_TestAppEventCount;
     }
-    else if (event_id == dmEngine::EVENT_DEACTIVATEAPP)
+    else if (event_id == dmEngine::EVENT_APP_DEACTIVATE)
     {
         --g_TestAppEventCount;
     }

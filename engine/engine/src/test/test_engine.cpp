@@ -90,6 +90,17 @@ static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const vo
     {
         return;
     }
+    if (event_id == dmEngine::EVENT_ENGINE_INITIALIZED || event_id == dmEngine::EVENT_ENGINE_DELETE)
+    {
+        bool valid = data && data_size == sizeof(dmEngine::LifecycleEvent);
+        g_EngineEvents.m_PayloadValid &= valid;
+        if (!valid)
+        {
+            return;
+        }
+        const dmEngine::LifecycleEvent* event = (const dmEngine::LifecycleEvent*)data;
+        g_EngineEvents.m_PayloadValid &= event->m_Engine == g_EngineEvents.m_Engine;
+    }
     if (event_id == dmEngine::EVENT_ENGINE_INITIALIZED)
     {
         ++g_EngineEvents.m_Initialized;
@@ -114,6 +125,8 @@ static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const vo
             return;
         }
         const dmEngine::WindowResizedEvent* resized = (const dmEngine::WindowResizedEvent*)data;
+        g_EngineEvents.m_PayloadValid &= resized->m_Engine == g_EngineEvents.m_Engine &&
+                                         resized->m_Window == g_EngineEvents.m_Engine->m_Window;
         ++g_EngineEvents.m_Resized;
         g_EngineEvents.m_Width = resized->m_Width;
         g_EngineEvents.m_Height = resized->m_Height;
@@ -603,6 +616,7 @@ TEST_F(EngineTest, GenericEngineDeleteAfterInitializationFailure)
     ASSERT_EQ(1u, events.m_Deleted);
     ASSERT_TRUE(events.m_DeletedBeforeFinalize);
     ASSERT_TRUE(events.m_DeletedContexts);
+    ASSERT_TRUE(events.m_PayloadValid);
 }
 
 // Extension and engine time must agree after every update, including when delta time is zero.

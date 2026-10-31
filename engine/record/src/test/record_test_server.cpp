@@ -215,7 +215,8 @@ extern "C" void EngineRecord();
 
 static void EngineDelete()
 {
-    dmExtension::BroadcastEvent(&g_Params, dmEngine::EVENT_ENGINE_DELETE, 0, 0);
+    dmEngine::LifecycleEvent event = { 0 };
+    dmExtension::BroadcastEvent(&g_Params, dmEngine::EVENT_ENGINE_DELETE, &event, sizeof(event));
     DM_MUTEX_SCOPED_LOCK(dmRecord::g_Mutex);
     dmRecord::g_Teardown = true;
 }
@@ -398,7 +399,8 @@ static void TestHandler(void*, dmWebServer::Request* request)
     }
     else if (!strcmp(request->m_Resource, "/test/deactivate"))
     {
-        dmExtension::BroadcastEvent(&g_Params, dmEngine::EVENT_DEACTIVATEAPP, 0, 0);
+        dmEngine::AppEvent event = { 0, 0 };
+        dmExtension::BroadcastEvent(&g_Params, dmEngine::EVENT_APP_DEACTIVATE, &event, sizeof(event));
         SendLifecycle(request);
     }
     else if (!strcmp(request->m_Resource, "/test/unregister"))

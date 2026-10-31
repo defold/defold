@@ -26,15 +26,17 @@ int g_TypeCDeleteCount;
 uint32_t g_TypeCWindowWidth;
 uint32_t g_TypeCWindowHeight;
 int g_TypeCUserDataValid = 1;
+HEngine g_TypeCEventEngine;
+HWindow g_TypeCEventWindow;
 static int* g_UserData;
 
-void TestTypeCBroadcastBuiltinEvent(ExtensionParams* params, uint32_t index)
+void TestTypeCBroadcastBuiltinEvent(ExtensionParams* params, uint32_t index, HEngine engine, HWindow window)
 {
     const dmhash_t events[] = {
-        ENGINE_EVENT_ACTIVATEAPP,
-        ENGINE_EVENT_DEACTIVATEAPP,
-        ENGINE_EVENT_ICONIFYAPP,
-        ENGINE_EVENT_DEICONIFYAPP,
+        ENGINE_EVENT_APP_ACTIVATE,
+        ENGINE_EVENT_APP_DEACTIVATE,
+        ENGINE_EVENT_APP_ICONIFY,
+        ENGINE_EVENT_APP_DEICONIFY,
         ENGINE_EVENT_ENGINE_INITIALIZED,
         ENGINE_EVENT_ENGINE_DELETE,
         ENGINE_EVENT_WINDOW_RESIZED,
@@ -42,13 +44,23 @@ void TestTypeCBroadcastBuiltinEvent(ExtensionParams* params, uint32_t index)
     if (events[index] == ENGINE_EVENT_WINDOW_RESIZED)
     {
         EngineWindowResizedEvent data = {
-            640, 360
+            engine, window, 640, 360
+        };
+        ExtensionBroadcastEvent(params, events[index], &data, sizeof(data));
+    }
+    else if (index < 4)
+    {
+        EngineAppEvent data = {
+            engine, window
         };
         ExtensionBroadcastEvent(params, events[index], &data, sizeof(data));
     }
     else
     {
-        ExtensionBroadcastEvent(params, events[index], 0, 0);
+        EngineLifecycleEvent data = {
+            engine
+        };
+        ExtensionBroadcastEvent(params, events[index], &data, sizeof(data));
     }
 }
 
@@ -65,6 +77,20 @@ static void OnEvent(ExtensionParams* params, dmhash_t event_id, const void* data
 {
     CheckUserData(ExtensionParamsGetUserData(params));
     ++g_TypeCEventCount;
+    if (data && data_size == sizeof(EngineAppEvent) &&
+        (event_id == ENGINE_EVENT_APP_ACTIVATE || event_id == ENGINE_EVENT_APP_DEACTIVATE ||
+         event_id == ENGINE_EVENT_APP_ICONIFY || event_id == ENGINE_EVENT_APP_DEICONIFY))
+    {
+        const EngineAppEvent* event = (const EngineAppEvent*)data;
+        g_TypeCEventEngine = event->m_Engine;
+        g_TypeCEventWindow = event->m_Window;
+    }
+    if (data && data_size == sizeof(EngineLifecycleEvent) &&
+        (event_id == ENGINE_EVENT_ENGINE_INITIALIZED || event_id == ENGINE_EVENT_ENGINE_DELETE))
+    {
+        g_TypeCEventEngine = ((const EngineLifecycleEvent*)data)->m_Engine;
+        g_TypeCEventWindow = 0;
+    }
     if (event_id == ENGINE_EVENT_ENGINE_DELETE)
     {
         ++g_TypeCDeleteCount;
@@ -74,6 +100,8 @@ static void OnEvent(ExtensionParams* params, dmhash_t event_id, const void* data
         if (data && data_size == sizeof(EngineWindowResizedEvent))
         {
             const EngineWindowResizedEvent* resized = (const EngineWindowResizedEvent*)data;
+            g_TypeCEventEngine = resized->m_Engine;
+            g_TypeCEventWindow = resized->m_Window;
             ++g_TypeCWindowCount;
             g_TypeCWindowWidth = resized->m_Width;
             g_TypeCWindowHeight = resized->m_Height;

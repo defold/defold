@@ -331,7 +331,7 @@ namespace dmEngine
         dmGameSystem::OnWindowResized(width, height);
 
         ScopedExtensionParams params(engine);
-        dmEngine::WindowResizedEvent event = { width, height };
+        dmEngine::WindowResizedEvent event = { engine, engine->m_Window, width, height };
         dmExtension::BroadcastEvent(params, dmEngine::EVENT_WINDOW_RESIZED, &event, sizeof(event));
     }
 
@@ -350,7 +350,8 @@ namespace dmEngine
         Engine* engine = (Engine*)user_data;
         ScopedExtensionParams params(engine);
 
-        dmExtension::BroadcastEvent(params, focus ? dmEngine::EVENT_ACTIVATEAPP : dmEngine::EVENT_DEACTIVATEAPP, 0, 0);
+        dmEngine::AppEvent event = { engine, engine->m_Window };
+        dmExtension::BroadcastEvent(params, focus ? dmEngine::EVENT_APP_ACTIVATE : dmEngine::EVENT_APP_DEACTIVATE, &event, sizeof(event));
 
         dmGameSystem::OnWindowFocus(focus != 0);
     }
@@ -365,7 +366,8 @@ namespace dmEngine
 
         ScopedExtensionParams params(engine);
 
-        dmExtension::BroadcastEvent(params, iconify ? dmEngine::EVENT_ICONIFYAPP : dmEngine::EVENT_DEICONIFYAPP, 0, 0);
+        dmEngine::AppEvent event = { engine, engine->m_Window };
+        dmExtension::BroadcastEvent(params, iconify ? dmEngine::EVENT_APP_ICONIFY : dmEngine::EVENT_APP_DEICONIFY, &event, sizeof(event));
 
         dmGameSystem::OnWindowIconify(iconify != 0);
     }
@@ -530,7 +532,8 @@ namespace dmEngine
         {
             ScopedExtensionParams params(engine);
 
-            dmExtension::BroadcastEvent(params, dmEngine::EVENT_ENGINE_DELETE, 0, 0);
+            dmEngine::LifecycleEvent event = { engine };
+            dmExtension::BroadcastEvent(params, dmEngine::EVENT_ENGINE_DELETE, &event, sizeof(event));
         }
 
         if (engine->m_MainCollectionResource)
@@ -1825,7 +1828,8 @@ namespace dmEngine
         {
             ScopedExtensionParams params(engine);
 
-            dmExtension::BroadcastEvent(params, dmEngine::EVENT_ENGINE_INITIALIZED, 0, 0);
+            dmEngine::LifecycleEvent event = { engine };
+            dmExtension::BroadcastEvent(params, dmEngine::EVENT_ENGINE_INITIALIZED, &event, sizeof(event));
         }
 
         // Establish the elapsed-time origin and first pacing deadline only after

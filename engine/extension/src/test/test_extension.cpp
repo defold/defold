@@ -47,7 +47,7 @@ extern "C" void dmExportedSymbols();
 extern "C" void TestTypeCpp();
 extern "C"
 {
-    void TestTypeCBroadcastBuiltinEvent(ExtensionParams* params, uint32_t index);
+    void TestTypeCBroadcastBuiltinEvent(ExtensionParams* params, uint32_t index, HEngine engine, HWindow window);
     extern int g_TypeCRegisterCount;
     extern int g_TypeCUnregisterCount;
     extern int g_TypeCUpdateCount;
@@ -58,6 +58,8 @@ extern "C"
     extern uint32_t g_TypeCWindowWidth;
     extern uint32_t g_TypeCWindowHeight;
     extern int g_TypeCUserDataValid;
+    extern HEngine g_TypeCEventEngine;
+    extern HWindow g_TypeCEventWindow;
 }
 
 struct Initializer {
@@ -145,6 +147,8 @@ struct EventTestState
     const void*              m_LastData;
     uint32_t                 m_LastDataSize;
     bool                     m_DispatchNested;
+    dmEngine::HEngine        m_SourceEngine;
+    HWindow                  m_SourceWindow;
 };
 static EventTestState g_EventTest = {};
 static bool g_OmitEventCallback = false;
@@ -157,6 +161,20 @@ static void TypeEvent(dmExtension::Params* params, dmhash_t event_id, const void
     g_EventTest.m_LastId = event_id;
     g_EventTest.m_LastData = data;
     g_EventTest.m_LastDataSize = data_size;
+    if (data && data_size == sizeof(dmEngine::AppEvent) &&
+        (event_id == dmEngine::EVENT_APP_ACTIVATE || event_id == dmEngine::EVENT_APP_DEACTIVATE ||
+         event_id == dmEngine::EVENT_APP_ICONIFY || event_id == dmEngine::EVENT_APP_DEICONIFY))
+    {
+        const dmEngine::AppEvent* event = (const dmEngine::AppEvent*)data;
+        g_EventTest.m_SourceEngine = event->m_Engine;
+        g_EventTest.m_SourceWindow = event->m_Window;
+    }
+    if (data && data_size == sizeof(dmEngine::LifecycleEvent) &&
+        (event_id == dmEngine::EVENT_ENGINE_INITIALIZED || event_id == dmEngine::EVENT_ENGINE_DELETE))
+    {
+        g_EventTest.m_SourceEngine = ((const dmEngine::LifecycleEvent*)data)->m_Engine;
+        g_EventTest.m_SourceWindow = 0;
+    }
     if (event_id == dmEngine::EVENT_ENGINE_DELETE)
     {
         ++g_EventTest.m_DeleteCount;
@@ -166,6 +184,8 @@ static void TypeEvent(dmExtension::Params* params, dmhash_t event_id, const void
         if (data && data_size == sizeof(dmEngine::WindowResizedEvent))
         {
             const dmEngine::WindowResizedEvent* resized = (const dmEngine::WindowResizedEvent*)data;
+            g_EventTest.m_SourceEngine = resized->m_Engine;
+            g_EventTest.m_SourceWindow = resized->m_Window;
             ++g_EventTest.m_WindowCount;
             g_EventTest.m_Width = resized->m_Width;
             g_EventTest.m_Height = resized->m_Height;
@@ -411,9 +431,9 @@ TEST(dmExtension, Basic)
     dmLog::LogInitialize(&log_params);
     dmLogRegisterListener(CaptureDeprecation);
 
-    dmExtension::BroadcastEvent(&params, dmEngine::EVENT_ACTIVATEAPP, 0, 0);
+    dmExtension::BroadcastEvent(&params, dmEngine::EVENT_APP_ACTIVATE, 0, 0);
     ASSERT_EQ(1, g_TestAppEventCount);
-    dmExtension::BroadcastEvent(&params, dmEngine::EVENT_DEACTIVATEAPP, 0, 0);
+    dmExtension::BroadcastEvent(&params, dmEngine::EVENT_APP_DEACTIVATE, 0, 0);
     ASSERT_EQ(0, g_TestAppEventCount);
     ASSERT_EQ(2, g_TestEventCount);
     ASSERT_EQ(2, g_TestNewEventCount);
@@ -553,35 +573,43 @@ static void FinalizeEventTest(EventTestContext* context)
     g_OmitEventCallback = false;
 }
 
-// Public C/C++ event constants retain their documented hashes and deliver through the C publisher.
+// C/C++ receivers preserve the documented hashes and source handles from the C publisher.
 TEST(dmExtension, BuiltinEventHashes)
 {
     EventTestContext context;
     InitializeEventTest(&context);
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));
     const dmhash_t events[] = {
-        dmEngine::EVENT_ACTIVATEAPP,
-        dmEngine::EVENT_DEACTIVATEAPP,
-        dmEngine::EVENT_ICONIFYAPP,
-        dmEngine::EVENT_DEICONIFYAPP,
+        dmEngine::EVENT_APP_ACTIVATE,
+        dmEngine::EVENT_APP_DEACTIVATE,
+        dmEngine::EVENT_APP_ICONIFY,
+        dmEngine::EVENT_APP_DEICONIFY,
         dmEngine::EVENT_ENGINE_INITIALIZED,
         dmEngine::EVENT_ENGINE_DELETE,
         dmEngine::EVENT_WINDOW_RESIZED,
     };
     const char* names[] = {
-        "_dm_event_activate_app",
-        "_dm_event_deactivate_app",
-        "_dm_event_iconify_app",
-        "_dm_event_deiconify_app",
+        "_dm_event_app_activate",
+        "_dm_event_app_deactivate",
+        "_dm_event_app_iconify",
+        "_dm_event_app_deiconify",
         "_dm_event_engine_initialized",
         "_dm_event_engine_delete",
         "_dm_event_window_resized",
     };
+    // Compare opaque identity tokens without invoking engine or window APIs.
+    dmEngine::HEngine engine = (dmEngine::HEngine)&context.m_Engine;
+    HWindow window = (HWindow) & context;
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(events); ++i)
     {
         EXPECT_EQ(dmHashString64(names[i]), events[i]);
-        TestTypeCBroadcastBuiltinEvent(&context.m_Params, i);
+        TestTypeCBroadcastBuiltinEvent(&context.m_Params, i, engine, window);
         EXPECT_EQ(events[i], g_EventTest.m_LastId);
+        EXPECT_EQ(engine, g_EventTest.m_SourceEngine);
+        EXPECT_EQ(engine, g_TypeCEventEngine);
+        HWindow expected_window = i == 4 || i == 5 ? 0 : window;
+        EXPECT_EQ(expected_window, g_EventTest.m_SourceWindow);
+        EXPECT_EQ(expected_window, g_TypeCEventWindow);
     }
     EXPECT_EQ(7u, g_EventTest.m_Count);
     EXPECT_EQ(7, g_TypeCEventCount);
@@ -638,10 +666,10 @@ TEST(dmExtension, GenericBroadcastDelivery)
     int fixture_count = g_TestEventCount;
     int new_fixture_count = g_TestNewEventCount;
     const dmhash_t ids[] = {
-        dmEngine::EVENT_ACTIVATEAPP,
-        dmEngine::EVENT_DEACTIVATEAPP,
-        dmEngine::EVENT_ICONIFYAPP,
-        dmEngine::EVENT_DEICONIFYAPP,
+        dmEngine::EVENT_APP_ACTIVATE,
+        dmEngine::EVENT_APP_DEACTIVATE,
+        dmEngine::EVENT_APP_ICONIFY,
+        dmEngine::EVENT_APP_DEICONIFY,
         dmEngine::EVENT_ENGINE_INITIALIZED,
         dmEngine::EVENT_ENGINE_DELETE,
     };
@@ -649,7 +677,7 @@ TEST(dmExtension, GenericBroadcastDelivery)
     {
         dmExtension::BroadcastEvent(&context.m_Params, ids[i], 0, 0);
     }
-    dmEngine::WindowResizedEvent window = { 321, 123 };
+    dmEngine::WindowResizedEvent window = { 0, 0, 321, 123 };
     dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW_RESIZED, &window, sizeof(window));
     EXPECT_EQ(7u, g_EventTest.m_Count);
     EXPECT_EQ(7, g_TypeCEventCount);
@@ -683,7 +711,7 @@ TEST(dmExtension, UserDataLifecycle)
         g_DispatchDuringUpdate = false;
         dmExtension::PostRender(&context.m_Params);
         g_EventTest.m_DispatchNested = true;
-        dmEngine::WindowResizedEvent window = { 100, 50 };
+        dmEngine::WindowResizedEvent window = { 0, 0, 100, 50 };
         dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW_RESIZED, &window, sizeof(window));
         dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_ENGINE_DELETE, 0, 0);
         EXPECT_EQ((void*)0, dmExtension::AppParamsGetUserData(&context.m_AppParams));
@@ -720,7 +748,7 @@ TEST(dmExtension, GenericEventCallbackArguments)
     EventTestContext context;
     InitializeEventTest(&context);
     EXPECT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));
-    dmEngine::WindowResizedEvent data = { 320, 200 };
+    dmEngine::WindowResizedEvent data = { 0, 0, 320, 200 };
     dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW_RESIZED, &data, sizeof(data));
     EXPECT_EQ(dmEngine::EVENT_WINDOW_RESIZED, g_EventTest.m_LastId);
     EXPECT_EQ((const void*)&data, g_EventTest.m_LastData);
@@ -741,7 +769,7 @@ TEST(dmExtension, GenericEventLifecycle)
 {
     EventTestContext context;
     InitializeEventTest(&context);
-    dmEngine::WindowResizedEvent window = { 123, 45 };
+    dmEngine::WindowResizedEvent window = { 0, 0, 123, 45 };
     dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW_RESIZED, &window, sizeof(window));
     EXPECT_EQ(0u, g_EventTest.m_Count);
     EXPECT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));
@@ -752,18 +780,18 @@ TEST(dmExtension, GenericEventLifecycle)
     uint32_t observer_count = g_SecondEventCalls;
     int fixture_count = g_TestEventCount;
     const dmhash_t ids[] = {
-        dmEngine::EVENT_ACTIVATEAPP,
-        dmEngine::EVENT_DEACTIVATEAPP,
-        dmEngine::EVENT_ICONIFYAPP,
-        dmEngine::EVENT_DEICONIFYAPP,
+        dmEngine::EVENT_APP_ACTIVATE,
+        dmEngine::EVENT_APP_DEACTIVATE,
+        dmEngine::EVENT_APP_ICONIFY,
+        dmEngine::EVENT_APP_DEICONIFY,
         dmEngine::EVENT_ENGINE_INITIALIZED,
         dmEngine::EVENT_ENGINE_DELETE,
     };
     const char* names[] = {
-        "_dm_event_activate_app",
-        "_dm_event_deactivate_app",
-        "_dm_event_iconify_app",
-        "_dm_event_deiconify_app",
+        "_dm_event_app_activate",
+        "_dm_event_app_deactivate",
+        "_dm_event_app_iconify",
+        "_dm_event_app_deiconify",
         "_dm_event_engine_initialized",
         "_dm_event_engine_delete",
     };

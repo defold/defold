@@ -11,16 +11,18 @@
                 "cpp": {
                     "namespace": "dmEngine",
                     "constant_aliases": {
-                        "ENGINE_EVENT_ACTIVATEAPP": "dmhash_t",
-                        "ENGINE_EVENT_DEACTIVATEAPP": "dmhash_t",
-                        "ENGINE_EVENT_ICONIFYAPP": "dmhash_t",
-                        "ENGINE_EVENT_DEICONIFYAPP": "dmhash_t",
+                        "ENGINE_EVENT_APP_ACTIVATE": "dmhash_t",
+                        "ENGINE_EVENT_APP_DEACTIVATE": "dmhash_t",
+                        "ENGINE_EVENT_APP_ICONIFY": "dmhash_t",
+                        "ENGINE_EVENT_APP_DEICONIFY": "dmhash_t",
                         "ENGINE_EVENT_ENGINE_INITIALIZED": "dmhash_t",
                         "ENGINE_EVENT_ENGINE_DELETE": "dmhash_t",
                         "ENGINE_EVENT_WINDOW_RESIZED": "dmhash_t"
                     },
                     "rename": {
                         "ENGINE_EVENT_": "EVENT_",
+                        "EngineLifecycleEvent": "LifecycleEvent",
+                        "EngineAppEvent": "AppEvent",
                         "EngineWindowResizedEvent": "WindowResizedEvent",
                         "ExtensionBroadcastEvent": "dmExtension::BroadcastEvent",
                         "FExtensionEventCallback": "dmExtension::FEventCallback"

@@ -16,6 +16,8 @@
 #define DMSDK_ENGINE_EVENT_H
 
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/engine/engine.h>
+#include <dmsdk/platform/window.h>
 
 /*# Engine event definitions
  * Built-in event hashes and payloads published through the generic extension
@@ -26,50 +28,56 @@
  *
  * | Constant | Name | Payload and delivery |
  * | -------- | ---- | -------------------- |
- * | `ENGINE_EVENT_ACTIVATEAPP` | `_dm_event_activate_app` | No payload. Application gains focus. |
- * | `ENGINE_EVENT_DEACTIVATEAPP` | `_dm_event_deactivate_app` | No payload. Application loses focus. |
- * | `ENGINE_EVENT_ICONIFYAPP` | `_dm_event_iconify_app` | No payload. Application is iconified. |
- * | `ENGINE_EVENT_DEICONIFYAPP` | `_dm_event_deiconify_app` | No payload. Application is restored. |
- * | `ENGINE_EVENT_ENGINE_INITIALIZED` | `_dm_event_engine_initialized` | No payload. Successful engine initialization has completed. |
- * | `ENGINE_EVENT_ENGINE_DELETE` | `_dm_event_engine_delete` | No payload. Engine deletion begins, before collections and systems are torn down. Also delivered after initialization failure if AppInitialize succeeded. |
+ * | `ENGINE_EVENT_APP_ACTIVATE` | `_dm_event_app_activate` | EngineAppEvent. The engine window gains focus. |
+ * | `ENGINE_EVENT_APP_DEACTIVATE` | `_dm_event_app_deactivate` | EngineAppEvent. The engine window loses focus. |
+ * | `ENGINE_EVENT_APP_ICONIFY` | `_dm_event_app_iconify` | EngineAppEvent. The engine window is iconified. |
+ * | `ENGINE_EVENT_APP_DEICONIFY` | `_dm_event_app_deiconify` | EngineAppEvent. The engine window is restored. |
+ * | `ENGINE_EVENT_ENGINE_INITIALIZED` | `_dm_event_engine_initialized` | EngineLifecycleEvent. Successful engine initialization has completed. |
+ * | `ENGINE_EVENT_ENGINE_DELETE` | `_dm_event_engine_delete` | EngineLifecycleEvent. Engine deletion begins, before collections and systems are torn down. Also delivered after initialization failure if AppInitialize succeeded. |
  * | `ENGINE_EVENT_WINDOW_RESIZED` | `_dm_event_window_resized` | EngineWindowResizedEvent, after the existing window state updates and notifications. One event per native resize callback; no initial-size replay. May precede engine Initialize. |
+ *
+ * Payloads and their handles are borrowed for the synchronous callback. Engine
+ * events identify the source instance, and window-driven events identify its
+ * window too. A window handle may be null during early startup or failure cleanup.
+ * APP events retain their window focus/iconify semantics; they do not aggregate
+ * activity across multiple windows or represent separate process lifecycle events.
  *
  * @document
  * @name EngineEvent
  * @language C
  */
 
-/*# Application gains focus.
- * Hash of `_dm_event_activate_app` for ExtensionBroadcastEvent and FExtensionEventCallback.
+/*# The engine window gains focus.
+ * Hash of `_dm_event_app_activate` for ExtensionBroadcastEvent and FExtensionEventCallback.
  * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
  * @constant
- * @name ENGINE_EVENT_ACTIVATEAPP
+ * @name ENGINE_EVENT_APP_ACTIVATE
  */
-#define ENGINE_EVENT_ACTIVATEAPP (dmHashString64("_dm_event_activate_app"))
+#define ENGINE_EVENT_APP_ACTIVATE (dmHashString64("_dm_event_app_activate"))
 
-/*# Application loses focus.
- * Hash of `_dm_event_deactivate_app` for ExtensionBroadcastEvent and FExtensionEventCallback.
+/*# The engine window loses focus.
+ * Hash of `_dm_event_app_deactivate` for ExtensionBroadcastEvent and FExtensionEventCallback.
  * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
  * @constant
- * @name ENGINE_EVENT_DEACTIVATEAPP
+ * @name ENGINE_EVENT_APP_DEACTIVATE
  */
-#define ENGINE_EVENT_DEACTIVATEAPP (dmHashString64("_dm_event_deactivate_app"))
+#define ENGINE_EVENT_APP_DEACTIVATE (dmHashString64("_dm_event_app_deactivate"))
 
-/*# Application is iconified.
- * Hash of `_dm_event_iconify_app` for ExtensionBroadcastEvent and FExtensionEventCallback.
+/*# The engine window is iconified.
+ * Hash of `_dm_event_app_iconify` for ExtensionBroadcastEvent and FExtensionEventCallback.
  * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
  * @constant
- * @name ENGINE_EVENT_ICONIFYAPP
+ * @name ENGINE_EVENT_APP_ICONIFY
  */
-#define ENGINE_EVENT_ICONIFYAPP (dmHashString64("_dm_event_iconify_app"))
+#define ENGINE_EVENT_APP_ICONIFY (dmHashString64("_dm_event_app_iconify"))
 
-/*# Application is restored.
- * Hash of `_dm_event_deiconify_app` for ExtensionBroadcastEvent and FExtensionEventCallback.
+/*# The engine window is restored.
+ * Hash of `_dm_event_app_deiconify` for ExtensionBroadcastEvent and FExtensionEventCallback.
  * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
  * @constant
- * @name ENGINE_EVENT_DEICONIFYAPP
+ * @name ENGINE_EVENT_APP_DEICONIFY
  */
-#define ENGINE_EVENT_DEICONIFYAPP (dmHashString64("_dm_event_deiconify_app"))
+#define ENGINE_EVENT_APP_DEICONIFY (dmHashString64("_dm_event_app_deiconify"))
 
 /*# Successful engine initialization has completed.
  * Hash of `_dm_event_engine_initialized` for ExtensionBroadcastEvent and FExtensionEventCallback.
@@ -95,16 +103,46 @@
  */
 #define ENGINE_EVENT_WINDOW_RESIZED (dmHashString64("_dm_event_window_resized"))
 
+/*# engine lifecycle event payload
+ * Payload for ENGINE_EVENT_ENGINE_INITIALIZED and ENGINE_EVENT_ENGINE_DELETE
+ * with data_size equal to sizeof(EngineLifecycleEvent).
+ * @struct
+ * @name EngineLifecycleEvent
+ * @member m_Engine [type:HEngine] borrowed source engine; initialization may be incomplete
+ */
+typedef struct EngineLifecycleEvent
+{
+    HEngine m_Engine;
+} EngineLifecycleEvent;
+
+/*# application window event payload
+ * Payload for all four ENGINE_EVENT_APP_* events with data_size equal to
+ * sizeof(EngineAppEvent). The event id specifies the focus or iconify transition.
+ * @struct
+ * @name EngineAppEvent
+ * @member m_Engine [type:HEngine] borrowed source engine
+ * @member m_Window [type:HWindow] borrowed source window, or null if not yet available
+ */
+typedef struct EngineAppEvent
+{
+    HEngine m_Engine;
+    HWindow m_Window;
+} EngineAppEvent;
+
 /*# window resized event payload
  * Payload for `ENGINE_EVENT_WINDOW_RESIZED` with data_size equal to
  * `sizeof(EngineWindowResizedEvent)`.
  * @struct
  * @name EngineWindowResizedEvent
+ * @member m_Engine [type:HEngine] borrowed source engine
+ * @member m_Window [type:HWindow] borrowed source window, or null if not yet available
  * @member m_Width [type:uint32_t] physical framebuffer width in pixels
  * @member m_Height [type:uint32_t] physical framebuffer height in pixels
  */
 typedef struct EngineWindowResizedEvent
 {
+    HEngine  m_Engine;
+    HWindow  m_Window;
     uint32_t m_Width;
     uint32_t m_Height;
 } EngineWindowResizedEvent;

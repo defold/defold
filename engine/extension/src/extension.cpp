@@ -640,10 +640,10 @@ namespace dmExtension
     };
 
     static const EngineEventMapping g_EngineEvents[] = {
-        { EVENT_ID_ACTIVATEAPP, dmEngine::EVENT_ACTIVATEAPP },
-        { EVENT_ID_DEACTIVATEAPP, dmEngine::EVENT_DEACTIVATEAPP },
-        { EVENT_ID_ICONIFYAPP, dmEngine::EVENT_ICONIFYAPP },
-        { EVENT_ID_DEICONIFYAPP, dmEngine::EVENT_DEICONIFYAPP },
+        { EVENT_ID_ACTIVATEAPP, dmEngine::EVENT_APP_ACTIVATE },
+        { EVENT_ID_DEACTIVATEAPP, dmEngine::EVENT_APP_DEACTIVATE },
+        { EVENT_ID_ICONIFYAPP, dmEngine::EVENT_APP_ICONIFY },
+        { EVENT_ID_DEICONIFYAPP, dmEngine::EVENT_APP_DEICONIFY },
         { EVENT_ID_ENGINE_INITIALIZED, dmEngine::EVENT_ENGINE_INITIALIZED },
         { EVENT_ID_ENGINE_DELETE, dmEngine::EVENT_ENGINE_DELETE },
     };
