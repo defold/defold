@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dmsdk/input/input.h>
+#include <string.h>
 
 int TestInputActionIteratorC(HInputContext context)
 {
@@ -54,4 +55,26 @@ int TestInputActionIteratorC(HInputContext context)
         ++count;
     }
     return valid && (count == 0 || count == 3) && !InputActionIterateNext(&iterator);
+}
+
+// Verify the canonical C getters, including null names for other or unknown devices.
+int TestInputGamepadMetadataC(HInputContext context)
+{
+    InputActionIterator iterator = InputIterateActions(context);
+    uint32_t count = 0;
+    while (InputActionIterateNext(&iterator))
+    {
+        const char* name = InputActionGetGamepadName(&iterator);
+        if (InputActionIsGamepadConnected(&iterator) != (count == 0 || count == 4) ||
+            InputActionIsGamepadDisconnected(&iterator) != (count == 2))
+        {
+            return 0;
+        }
+        if (count < 3 ? !name || strcmp(name, "Controller A") != 0 : name != 0)
+        {
+            return 0;
+        }
+        ++count;
+    }
+    return count == 5;
 }

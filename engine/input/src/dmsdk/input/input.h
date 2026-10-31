@@ -154,6 +154,34 @@ InputActionSource InputActionGetSource(const InputActionIterator* iterator);
  */
 bool InputActionGetGamepadIndex(const InputActionIterator* iterator, uint32_t* out_index);
 
+/*# read the gamepad name
+ * Returns the input mapping's device name captured for this update, including
+ * the last known name on disconnect. The string is NUL-terminated and borrowed
+ * only for the synchronous input callback. Copy it to retain the name.
+ * @name InputActionGetGamepadName
+ * @param iterator [type:const InputActionIterator*] iterator positioned by a successful InputActionIterateNext
+ * @return name [type:const char*] borrowed name, or null for a non-gamepad action or unavailable name
+ */
+const char* InputActionGetGamepadName(const InputActionIterator* iterator);
+
+/*# test a gamepad connection notification
+ * True only when this action reports a connection transition, not while the
+ * device remains connected. Requires a GAMEPAD_CONNECTED input binding.
+ * @name InputActionIsGamepadConnected
+ * @param iterator [type:const InputActionIterator*] iterator positioned by a successful InputActionIterateNext
+ * @return connected [type:bool] true for a connection notification; false for other actions
+ */
+bool InputActionIsGamepadConnected(const InputActionIterator* iterator);
+
+/*# test a gamepad disconnection notification
+ * True only when this action reports a disconnection transition. Requires a
+ * GAMEPAD_DISCONNECTED input binding. The gamepad index may later be reused.
+ * @name InputActionIsGamepadDisconnected
+ * @param iterator [type:const InputActionIterator*] iterator positioned by a successful InputActionIterateNext
+ * @return disconnected [type:bool] true for a disconnection notification; false for other actions
+ */
+bool InputActionIsGamepadDisconnected(const InputActionIterator* iterator);
+
 #if defined(__cplusplus)
 }
 #include "input.hpp"

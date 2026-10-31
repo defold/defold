@@ -471,6 +471,7 @@ namespace dmInput
             }
             if (gamepad_binding->m_Connected)
             {
+                dmStrlCpy(gamepad_binding->m_DeviceName, device_name_out, sizeof(gamepad_binding->m_DeviceName));
                 LogGamepadMapping(binding, gamepad_index, gamepad, selected_config, device_name_out);
             }
             ResetGamepadBindings(binding, gamepad_binding, gamepad_index);
@@ -1155,6 +1156,7 @@ namespace dmInput
                     {
                         char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
                         GamepadConfig* selected_config = GetGamepadConfig(binding, gamepad, device_name_out);
+                        dmStrlCpy(gamepad_binding->m_DeviceName, device_name_out, sizeof(gamepad_binding->m_DeviceName));
                         if (selected_config)
                         {
                             gamepad_binding->m_DeviceId = selected_config->m_DeviceId;
@@ -1235,6 +1237,7 @@ namespace dmInput
                                     {
                                         char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
                                         GetGamepadConfig(binding, gamepad, device_name_out);
+                                        dmStrlCpy(gamepad_binding->m_DeviceName, device_name_out, sizeof(gamepad_binding->m_DeviceName));
 
                                         // TODO: Check if it's a legacy mapping or not, and choose the old or new controller name
 
@@ -1487,6 +1490,19 @@ namespace dmInput
         }
     }
 
+    const char* GetGamepadName(HBinding binding, uint32_t gamepad_index)
+    {
+        for (uint32_t i = 0; i < binding->m_GamepadBindings.Size(); ++i)
+        {
+            GamepadBinding* gamepad_binding = binding->m_GamepadBindings[i];
+            if (gamepad_binding->m_Index == gamepad_index)
+            {
+                return gamepad_binding->m_DeviceName[0] ? gamepad_binding->m_DeviceName : 0;
+            }
+        }
+        return 0;
+    }
+
     float ApplyGamepadModifiers(dmHID::GamepadPacket* packet, const GamepadInput& input)
     {
         float v = 0.0f;
@@ -1683,6 +1699,7 @@ namespace dmInput
                 // Apply the mapping before HID captures the first reconnect packet.
                 char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
                 GamepadConfig* selected_config = GetGamepadConfig(binding, gamepad_binding->m_Gamepad, device_name_out);
+                dmStrlCpy(gamepad_binding->m_DeviceName, device_name_out, sizeof(gamepad_binding->m_DeviceName));
                 if (selected_config)
                 {
                     gamepad_binding->m_DeviceId = selected_config->m_DeviceId;

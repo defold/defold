@@ -81,6 +81,21 @@ extern "C"
         *out_index = action->m_GamepadIndex;
         return true;
     }
+
+    const char* InputActionGetGamepadName(const InputActionIterator* iterator)
+    {
+        return GetIteratorAction(iterator)->m_GamepadName;
+    }
+
+    bool InputActionIsGamepadConnected(const InputActionIterator* iterator)
+    {
+        return GetIteratorAction(iterator)->m_GamepadConnected;
+    }
+
+    bool InputActionIsGamepadDisconnected(const InputActionIterator* iterator)
+    {
+        return GetIteratorAction(iterator)->m_GamepadDisconnected;
+    }
 }
 
 namespace dmInput
@@ -135,5 +150,20 @@ namespace dmInput
     bool ActionGetGamepadIndex(const ActionIterator* iterator, uint32_t* out_index)
     {
         return InputActionGetGamepadIndex(iterator, out_index);
+    }
+
+    const char* ActionGetGamepadName(const ActionIterator* iterator)
+    {
+        return InputActionGetGamepadName(iterator);
+    }
+
+    bool ActionIsGamepadConnected(const ActionIterator* iterator)
+    {
+        return InputActionIsGamepadConnected(iterator);
+    }
+
+    bool ActionIsGamepadDisconnected(const ActionIterator* iterator)
+    {
+        return InputActionIsGamepadDisconnected(iterator);
     }
 }

@@ -2175,6 +2175,9 @@ bail:
                     resolved.SetCapacity(dmMath::Max(input_buffer_size, resolved.Capacity() + 64));
                 }
                 resolved.SetSize(input_buffer_size);
+                // Snapshot names independently of bindings, which callbacks may reload.
+                char gamepad_name_storage[dmHID::MAX_GAMEPAD_COUNT][dmHID::MAX_GAMEPAD_NAME_LENGTH];
+                const char* gamepad_names[dmHID::MAX_GAMEPAD_COUNT] = {};
                 for (uint32_t i = 0; i < input_buffer_size; ++i)
                 {
                     const dmGameObject::InputAction& source = input_buffer[i];
@@ -2187,6 +2190,20 @@ bail:
                     action.m_Pressed = source.m_Pressed;
                     action.m_Released = source.m_Released;
                     action.m_Repeated = source.m_Repeated;
+                    action.m_GamepadConnected = source.m_GamepadConnected;
+                    action.m_GamepadDisconnected = source.m_GamepadDisconnected;
+                    action.m_GamepadName = 0;
+                    if (source.m_IsGamepad)
+                    {
+                        uint32_t index = source.m_GamepadIndex;
+                        if (!gamepad_names[index])
+                        {
+                            const char* name = dmInput::GetGamepadName(engine->m_GameInputBinding, index);
+                            dmStrlCpy(gamepad_name_storage[index], name ? name : "", sizeof(gamepad_name_storage[index]));
+                            gamepad_names[index] = gamepad_name_storage[index];
+                        }
+                        action.m_GamepadName = gamepad_names[index][0] ? gamepad_names[index] : 0;
+                    }
                 }
                 dmInput::ResolvedActions actions = { resolved.Begin(), input_buffer_size };
                 const dmInput::ResolvedActions* previous = dmInput::SetResolvedActions(engine->m_InputContext, &actions);

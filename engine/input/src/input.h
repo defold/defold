@@ -35,6 +35,9 @@ namespace dmInput
         bool         m_Released;
         bool         m_Repeated;
         bool         m_IsGamepad;
+        bool         m_GamepadConnected;
+        bool         m_GamepadDisconnected;
+        const char*  m_GamepadName;
     };
 
     struct ResolvedActions
@@ -135,6 +138,11 @@ namespace dmInput
 
     // Pointer movement and accelerometer samples are separate callbacks, both with action id 0.
     void ForEachActive(HBinding binding, ActionCallback callback, void* user_data);
+
+    // Last known mapping-aware name, or null when unavailable. The binding owns
+    // the string and may replace it on reconnect or reload.
+    const char* GetGamepadName(HBinding binding, uint32_t gamepad_index);
+
     bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* context);
 }
 

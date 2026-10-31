@@ -34,6 +34,7 @@
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
 #include "../engine_private.h"
+#include "../../../input/src/input_private.h"
 
 #if defined(DM_PLATFORM_IOS) || defined(__EMSCRIPTEN__)
 #include <stdlib.h>
@@ -208,6 +209,10 @@ struct ObservedInputAction
     bool                  m_Pressed;
     bool                  m_Released;
     bool                  m_Repeated;
+    uint32_t              m_GamepadIndex;
+    char                  m_GamepadName[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+    bool                  m_GamepadConnected;
+    bool                  m_GamepadDisconnected;
 };
 
 struct InputObservation
@@ -224,6 +229,8 @@ struct InputObserverContext
     lua_State*        m_L;
     InputObservation  m_Observers[2];
     bool              m_Valid;
+    bool              m_ReloadInputBinding;
+    uint32_t          m_InputBindingReloads;
 };
 static InputObserverContext* g_InputObserver = 0;
 
@@ -277,8 +284,21 @@ static void CaptureInput(dmExtension::Params* params, dmhash_t id, const void* d
         seen.m_Actions[i].m_Pressed = dmInput::ActionIsPressed(&iterator);
         seen.m_Actions[i].m_Released = dmInput::ActionIsReleased(&iterator);
         seen.m_Actions[i].m_Repeated = dmInput::ActionIsRepeated(&iterator);
+        seen.m_Actions[i].m_GamepadIndex = UINT32_MAX;
+        dmInput::ActionGetGamepadIndex(&iterator, &seen.m_Actions[i].m_GamepadIndex);
+        const char* name = dmInput::ActionGetGamepadName(&iterator);
+        dmStrlCpy(seen.m_Actions[i].m_GamepadName, name ? name : "", sizeof(seen.m_Actions[i].m_GamepadName));
+        seen.m_Actions[i].m_GamepadConnected = dmInput::ActionIsGamepadConnected(&iterator);
+        seen.m_Actions[i].m_GamepadDisconnected = dmInput::ActionIsGamepadDisconnected(&iterator);
     }
     ctx->m_Valid &= !dmInput::ActionIterateNext(&iterator);
+    if (ctx->m_ReloadInputBinding)
+    {
+        ctx->m_ReloadInputBinding = false;
+        dmInputDDF::InputBinding empty = {};
+        dmInput::SetBinding(ctx->m_Engine->m_GameInputBinding, &empty);
+        ++ctx->m_InputBindingReloads;
+    }
 }
 
 static void ObserveInputFirst(dmExtension::Params* params, dmhash_t id, const void* data, uint32_t size)
@@ -831,6 +851,87 @@ TEST_F(EngineTest, InputObserversBeforeFocusedDispatch)
     }
     ASSERT_EQ(5u, ctx.m_Observers[0].m_Calls);
     ASSERT_EQ(5u, ctx.m_Observers[1].m_Calls);
+}
+
+// Gamepad metadata survives disconnect/reconnect and a binding reload between observers.
+TEST_F(EngineTest, GamepadActionMetadata)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=display.update_frequency=0",
+        "--config=bootstrap.main_collection=/input_observer/input_observer.collectionc",
+        "--config=input.game_binding=/input_observer/input_observer.input_bindingc",
+        project_path
+    };
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    InputObserverContext ctx = {};
+    InputObservation observations[7][2];
+    char departed_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+    memset(departed_name, 'G', sizeof(departed_name) - 1);
+    departed_name[sizeof(departed_name) - 1] = 0;
+    if (initialized)
+    {
+        ctx.m_Engine = engine;
+        ctx.m_L = dmScript::GetLuaState(engine->m_ScriptContext);
+        ctx.m_Valid = true;
+        g_InputObserver = &ctx;
+        for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(observations); ++frame)
+        {
+            if (frame == 1 || frame == 4)
+            {
+                dmHID::SetGamepadConnectivity(engine->m_HidContext, 0, true);
+            }
+            else if (frame == 3 || frame == 5)
+            {
+                dmHID::SetGamepadConnectivity(engine->m_HidContext, 0, false);
+            }
+            ctx.m_ReloadInputBinding = frame == 5;
+            dmEngine::Step(engine);
+            for (uint32_t observer = 0; observer < DM_ARRAY_SIZE(ctx.m_Observers); ++observer)
+            {
+                observations[frame][observer] = ctx.m_Observers[observer];
+            }
+            if (frame == 1 || frame == 4)
+            {
+                // Model a full-length departed device name; the null backend always reports null_device.
+                dmInput::GamepadBinding* gamepad = engine->m_GameInputBinding->m_GamepadBindings[0];
+                dmStrlCpy(gamepad->m_DeviceName, departed_name, sizeof(gamepad->m_DeviceName));
+            }
+        }
+    }
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+    g_InputObserver = 0;
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(ctx.m_Valid);
+    const uint32_t counts[] = { 0, 1, 0, 1, 1, 1, 0 };
+    ASSERT_EQ(1u, ctx.m_InputBindingReloads);
+    for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(observations); ++frame)
+    {
+        for (uint32_t observer = 0; observer < DM_ARRAY_SIZE(ctx.m_Observers); ++observer)
+        {
+            const InputObservation& seen = observations[frame][observer];
+            ASSERT_EQ(frame + 1, seen.m_Calls);
+            ASSERT_EQ(counts[frame], seen.m_Count);
+            if (counts[frame])
+            {
+                const ObservedInputAction& action = seen.m_Actions[0];
+                bool connected = frame == 1 || frame == 4;
+                ASSERT_EQ(dmHashString64(connected ? "connected" : "disconnected"), action.m_Id);
+                ASSERT_EQ(dmInput::ACTION_SOURCE_GAMEPAD, action.m_Source);
+                ASSERT_EQ(0u, action.m_GamepadIndex);
+                ASSERT_EQ(connected, action.m_GamepadConnected);
+                ASSERT_EQ(!connected, action.m_GamepadDisconnected);
+                ASSERT_STREQ(frame == 3 || frame == 5 ? departed_name : "null_device", action.m_GamepadName);
+            }
+        }
+    }
 }
 
 // A step that exits before binding resolution must not publish a synthetic empty input batch.

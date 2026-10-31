@@ -1,2 +1,4 @@
 key_trigger { input: KEY_UP action: "up" }
 text_trigger { input: TEXT action: "text" }
+gamepad_trigger { input: GAMEPAD_CONNECTED action: "connected" }
+gamepad_trigger { input: GAMEPAD_DISCONNECTED action: "disconnected" }

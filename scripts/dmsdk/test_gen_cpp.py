@@ -70,7 +70,10 @@ class CppDocumentationTests(unittest.TestCase):
         functions = []
         for name, ret, typ in [('InputIterateActions', 'InputActionIterator', 'HInputContext'),
                                ('InputActionIterateNext', 'bool', 'InputActionIterator *'),
-                               ('InputActionGetId', 'dmhash_t', 'const InputActionIterator *')]:
+                               ('InputActionGetId', 'dmhash_t', 'const InputActionIterator *'),
+                               ('InputActionGetGamepadName', 'const char *', 'const InputActionIterator *'),
+                               ('InputActionIsGamepadConnected', 'bool', 'const InputActionIterator *'),
+                               ('InputActionIsGamepadDisconnected', 'bool', 'const InputActionIterator *')]:
             functions.append(({'name': name, 'type': {'qualType': ret + ' (' + typ + ')'},
                 'inner': [{'kind': 'ParmVarDecl', 'name': 'value', 'type': {'qualType': typ}}]}, None))
         state = SimpleNamespace(enum_types=[], struct_typedefs=[({'name': 'HInputContext'}, None), ({'name': 'InputActionIterator'}, None)],
@@ -82,6 +85,11 @@ class CppDocumentationTests(unittest.TestCase):
         self.assertIn('ActionIterator IterateActions(HContext value);', header)
         self.assertIn('bool ActionIterateNext(ActionIterator * value);', header)
         self.assertIn('dmhash_t ActionGetId(const ActionIterator * value);', header)
+        self.assertIn('const char * ActionGetGamepadName(const ActionIterator * value);', header)
+        self.assertIn('bool ActionIsGamepadConnected(const ActionIterator * value);', header)
+        self.assertIn('bool ActionIsGamepadDisconnected(const ActionIterator * value);', header)
+        self.assertIn('NUL-terminated', header)
+        self.assertIn('Requires a GAMEPAD_CONNECTED input binding.', header)
         self.assertIn('@param iterator [type:const ActionIterator*]', header)
         self.assertNotIn('HActionBatch', header)
 
