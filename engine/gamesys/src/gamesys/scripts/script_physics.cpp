@@ -1893,6 +1893,7 @@ namespace dmGameSystem
         int m_StackIndices[PHYSICS_LUA_KEY_COUNT];
     };
 
+    static const uint32_t PHYSICS_LUA_ID_CACHE_CAPACITY = 256;
     static const uint32_t PHYSICS_LUA_GROUP_CACHE_CAPACITY = 16;
     static const uint32_t PHYSICS_LUA_EVENT_TYPE_COUNT = PHYSICS_MESSAGE_TYPE_RAY_CAST_MISSED + 1;
 
@@ -1902,7 +1903,27 @@ namespace dmGameSystem
         uint32_t m_GroupCount;
         int      m_GroupValues;
         int      m_TypeValues;
+        dmhash_t m_IdKeys[PHYSICS_LUA_ID_CACHE_CAPACITY];
+        bool     m_IdValid[PHYSICS_LUA_ID_CACHE_CAPACITY];
+        int      m_IdValues;
     };
+
+    static void PushPhysicsIdHash(lua_State* L, dmhash_t id, PhysicsLuaHashes& hashes)
+    {
+        uint32_t slot = (uint32_t)id & (PHYSICS_LUA_ID_CACHE_CAPACITY - 1);
+        if (hashes.m_IdValid[slot] && hashes.m_IdKeys[slot] == id)
+        {
+            lua_rawgeti(L, hashes.m_IdValues, slot + 1);
+            return;
+        }
+
+        dmScript::PushHash(L, id);
+        hashes.m_IdKeys[slot] = id;
+        hashes.m_IdValid[slot] = true;
+        // Replacing a cache reference leaves hashes retained by event tables intact.
+        lua_pushvalue(L, -1);
+        lua_rawseti(L, hashes.m_IdValues, slot + 1);
+    }
 
     static void PushPhysicsGroupHash(lua_State* L, dmhash_t group, PhysicsLuaHashes& hashes)
     {
@@ -1944,7 +1965,7 @@ namespace dmGameSystem
         PushVector3WithMetatable(L, *((dmVMath::Vector3*) &collision->m_Position), vector3_metatable_index);
         lua_rawset(L, table_index);
         lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_ID]);
-        dmScript::PushHash(L, collision->m_Id);
+        PushPhysicsIdHash(L, collision->m_Id, hashes);
         lua_rawset(L, table_index);
         lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_GROUP]);
         PushPhysicsGroupHash(L, collision->m_Group, hashes);
@@ -1992,7 +2013,7 @@ namespace dmGameSystem
         lua_rawset(L, table_index);
 
         lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_ID]);
-        dmScript::PushHash(L, point->m_Id);
+        PushPhysicsIdHash(L, point->m_Id, hashes);
         lua_rawset(L, table_index);
         lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_GROUP]);
         PushPhysicsGroupHash(L, point->m_Group, hashes);
@@ -2027,7 +2048,7 @@ namespace dmGameSystem
         const int table_index = lua_gettop(L);
 
         lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_ID]);
-        dmScript::PushHash(L, trigger->m_Id);
+        PushPhysicsIdHash(L, trigger->m_Id, hashes);
         lua_rawset(L, table_index);
         lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_GROUP]);
         PushPhysicsGroupHash(L, trigger->m_Group, hashes);
@@ -2067,7 +2088,7 @@ namespace dmGameSystem
         lua_pushnumber(L, event->m_Fraction);
         lua_rawset(L, table_index);
         lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_ID]);
-        dmScript::PushHash(L, event->m_Id);
+        PushPhysicsIdHash(L, event->m_Id, hashes);
         lua_rawset(L, table_index);
         lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_GROUP]);
         PushPhysicsGroupHash(L, event->m_Group, hashes);
@@ -2116,7 +2137,7 @@ namespace dmGameSystem
         // SetupCallback, cached keys and hashes, the largest event table, and
         // transient values from creating uncached hashes can exceed Lua's
         // guaranteed LUA_MINSTACK slots.
-        const int required_stack_slots = 32 + PHYSICS_LUA_EVENT_TYPE_COUNT + PHYSICS_LUA_GROUP_CACHE_CAPACITY;
+        const int required_stack_slots = 33 + PHYSICS_LUA_EVENT_TYPE_COUNT + PHYSICS_LUA_GROUP_CACHE_CAPACITY;
         if (!lua_checkstack(L, required_stack_slots))
         {
             dmLogError("Failed to grow Lua stack for physics.set_event_listener() callback");
@@ -2145,6 +2166,10 @@ namespace dmGameSystem
         hashes.m_GroupValues = lua_gettop(L) + 1;
         for (uint32_t i = 0; i < PHYSICS_LUA_GROUP_CACHE_CAPACITY; ++i)
             lua_pushnil(L);
+
+        memset(hashes.m_IdValid, 0, sizeof(hashes.m_IdValid));
+        lua_createtable(L, PHYSICS_LUA_ID_CACHE_CAPACITY, 0);
+        hashes.m_IdValues = lua_gettop(L);
 
         lua_createtable(L, count, 0);
         // -1: events table

@@ -1088,6 +1088,58 @@ TEST_F(ComponentTest, PhysicsBatchedEventRetentionTest)
     DestroyPhysicsTestCallback(L, &callback);
 }
 
+// Hash bucket collisions, including zero and matching low bits, must preserve retained IDs across batches and GC.
+TEST_F(ComponentTest, PhysicsBatchedEventIdCacheTest)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    AssertLua(L,
+              "retained_id_batches = {}\n"
+              "function retain_id_batch(self, events)\n"
+              "    retained_id_batches[#retained_id_batches + 1] = events\n"
+              "end\n");
+    PhysicsTestCallback callback = CreatePhysicsTestCallback(L, "retain_id_batch");
+    const uint32_t event_count = 300;
+    dmPhysicsDDF::CollisionEvent events[event_count] = {};
+    dmGameSystem::PhysicsMessage messages[event_count];
+    int top = lua_gettop(L);
+    for (uint32_t batch = 0; batch < 2; ++batch)
+    {
+        for (uint32_t i = 0; i < event_count; ++i)
+        {
+            // Every ID shares the low 32 bits; both sides repeat it before eviction.
+            events[i].m_A.m_Id = (dmhash_t)(batch * event_count + i) << 32;
+            events[i].m_B.m_Id = events[i].m_A.m_Id;
+            messages[i].m_Offset = i * sizeof(events[0]);
+            messages[i].m_Type = dmGameSystem::PHYSICS_MESSAGE_TYPE_COLLISION;
+        }
+        dmGameSystem::RunBatchedEventCallback(callback.m_Callback, event_count, messages, (const uint8_t*)events);
+        ASSERT_EQ(top, lua_gettop(L));
+        lua_gc(L, LUA_GCCOLLECT, 0);
+    }
+    lua_getglobal(L, "retained_id_batches");
+    for (uint32_t batch = 0; batch < 2; ++batch)
+    {
+        lua_rawgeti(L, -1, batch + 1);
+        for (uint32_t i = 0; i < event_count; ++i)
+        {
+            lua_rawgeti(L, -1, i + 1);
+            const char* sides[] = { "a", "b" };
+            for (uint32_t side = 0; side < 2; ++side)
+            {
+                lua_getfield(L, -1, sides[side]);
+                lua_getfield(L, -1, "id");
+                ASSERT_EQ((dmhash_t)(batch * event_count + i) << 32, dmScript::CheckHash(L, -1));
+                lua_pop(L, 2);
+            }
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1);
+    AssertLua(L, "retained_id_batches = nil; retain_id_batch = nil");
+    DestroyPhysicsTestCallback(L, &callback);
+}
+
 /* Update mass for physics collision object */
 TEST_F(ComponentTest, PhysicsUpdateMassTest)
 {
