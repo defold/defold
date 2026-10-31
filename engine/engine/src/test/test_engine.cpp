@@ -64,6 +64,8 @@ static float    g_ExtensionTotalDT              = 0.0f;
 static uint32_t g_ExtensionUpdateCount          = 0;
 static bool     g_ExtensionFloatLookupSucceeded = true;
 
+extern "C" int TestEngineWindowC(HEngine engine, HWindow expected);
+
 struct EngineEventObservations
 {
     dmEngine::HEngine m_Engine;
@@ -80,6 +82,8 @@ struct EngineEventObservations
     bool              m_CollectionAliveAtDelete;
     bool              m_WindowStateApplied;
     bool              m_PayloadValid;
+    bool              m_WindowAccessorValid;
+    bool              m_WindowClearedAtAppFinalize;
 };
 static EngineEventObservations g_EngineEvents = {};
 static bool g_ObserveEngineEvents = false;
@@ -100,6 +104,9 @@ static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const vo
         }
         const dmEngine::LifecycleEvent* event = (const dmEngine::LifecycleEvent*)data;
         g_EngineEvents.m_PayloadValid &= event->m_Engine == g_EngineEvents.m_Engine;
+        HWindow window = dmEngine::GetWindow(event->m_Engine);
+        g_EngineEvents.m_WindowAccessorValid &= window == g_EngineEvents.m_Engine->m_Window &&
+                                                TestEngineWindowC(event->m_Engine, window);
     }
     if (event_id == dmEngine::EVENT_ENGINE_INITIALIZED)
     {
@@ -167,8 +174,19 @@ static dmExtension::Result DeltaTimeTestFinalize(dmExtension::Params*)
     return dmExtension::RESULT_OK;
 }
 
+static dmExtension::Result EngineEventAppFinalize(dmExtension::AppParams*)
+{
+    if (g_ObserveEngineEvents)
+    {
+        g_EngineEvents.m_WindowClearedAtAppFinalize = dmEngine::GetWindow(g_EngineEvents.m_Engine) == 0 &&
+                                                      TestEngineWindowC(g_EngineEvents.m_Engine, 0);
+    }
+    return dmExtension::RESULT_OK;
+}
+
 static dmExtension::Result RegisterDeltaTimeTest(dmExtension::HExtension extension)
 {
+    dmExtension::SetAppFinalizeFn(extension, EngineEventAppFinalize);
     dmExtension::SetInitializeFn(extension, DeltaTimeTestLifecycle);
     dmExtension::SetUpdateFn(extension, DeltaTimeTestUpdate);
     dmExtension::SetFinalizeFn(extension, DeltaTimeTestFinalize);
@@ -665,6 +683,8 @@ static EngineEventObservations RunEngineEventCycle(bool fail_initialization)
     g_EngineEvents.m_PayloadValid = true;
     g_EngineEvents.m_WindowStateApplied = true;
     g_EngineEvents.m_Engine = dmEngine::New(0);
+    g_EngineEvents.m_WindowAccessorValid = dmEngine::GetWindow(g_EngineEvents.m_Engine) == 0 &&
+                                           TestEngineWindowC(g_EngineEvents.m_Engine, 0);
     g_ObserveEngineEvents = true;
 
     char project_path[512];
@@ -810,7 +830,7 @@ TEST_F(EngineTest, SkippedInputResolutionHasNoEvent)
     ASSERT_EQ(0u, ctx.m_Observers[1].m_Calls);
 }
 
-// Engine lifecycle uses the generic handler before teardown; payloads reflect applied state across restarts.
+// Lifecycle handles expose the engine-owned window through C/C++ accessors across startup, events and restarts.
 TEST_F(EngineTest, GenericLifecycleEventsBeforeTeardown)
 {
     for (uint32_t run = 0; run < 2; ++run)
@@ -826,6 +846,8 @@ TEST_F(EngineTest, GenericLifecycleEventsBeforeTeardown)
         ASSERT_TRUE(events.m_CollectionAliveAtDelete);
         ASSERT_TRUE(events.m_WindowStateApplied);
         ASSERT_TRUE(events.m_PayloadValid);
+        ASSERT_TRUE(events.m_WindowAccessorValid);
+        ASSERT_TRUE(events.m_WindowClearedAtAppFinalize);
         ASSERT_EQ(1u, events.m_Resized);
         ASSERT_EQ(321u, events.m_Width);
         ASSERT_EQ(123u, events.m_Height);
@@ -842,6 +864,8 @@ TEST_F(EngineTest, GenericEngineDeleteAfterInitializationFailure)
     ASSERT_TRUE(events.m_DeletedBeforeFinalize);
     ASSERT_TRUE(events.m_DeletedContexts);
     ASSERT_TRUE(events.m_PayloadValid);
+    ASSERT_TRUE(events.m_WindowAccessorValid);
+    ASSERT_TRUE(events.m_WindowClearedAtAppFinalize);
 }
 
 // Extension and engine time must agree after every update, including when delta time is zero.

@@ -51,7 +51,7 @@ void TestTypeCBroadcastBuiltinEvent(ExtensionParams* params, uint32_t index, HEn
     else if (index < 4)
     {
         EngineAppEvent data = {
-            engine, window
+            engine
         };
         ExtensionBroadcastEvent(params, events[index], &data, sizeof(data));
     }
@@ -83,7 +83,7 @@ static void OnEvent(ExtensionParams* params, dmhash_t event_id, const void* data
     {
         const EngineAppEvent* event = (const EngineAppEvent*)data;
         g_TypeCEventEngine = event->m_Engine;
-        g_TypeCEventWindow = event->m_Window;
+        g_TypeCEventWindow = 0;
     }
     if (data && data_size == sizeof(EngineLifecycleEvent) &&
         (event_id == ENGINE_EVENT_ENGINE_INITIALIZED || event_id == ENGINE_EVENT_ENGINE_DELETE))

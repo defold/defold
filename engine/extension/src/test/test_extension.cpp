@@ -167,7 +167,7 @@ static void TypeEvent(dmExtension::Params* params, dmhash_t event_id, const void
     {
         const dmEngine::AppEvent* event = (const dmEngine::AppEvent*)data;
         g_EventTest.m_SourceEngine = event->m_Engine;
-        g_EventTest.m_SourceWindow = event->m_Window;
+        g_EventTest.m_SourceWindow = 0;
     }
     if (data && data_size == sizeof(dmEngine::LifecycleEvent) &&
         (event_id == dmEngine::EVENT_ENGINE_INITIALIZED || event_id == dmEngine::EVENT_ENGINE_DELETE))
@@ -607,7 +607,7 @@ TEST(dmExtension, BuiltinEventHashes)
         EXPECT_EQ(events[i], g_EventTest.m_LastId);
         EXPECT_EQ(engine, g_EventTest.m_SourceEngine);
         EXPECT_EQ(engine, g_TypeCEventEngine);
-        HWindow expected_window = i == 4 || i == 5 ? 0 : window;
+        HWindow expected_window = i == 6 ? window : 0;
         EXPECT_EQ(expected_window, g_EventTest.m_SourceWindow);
         EXPECT_EQ(expected_window, g_TypeCEventWindow);
     }

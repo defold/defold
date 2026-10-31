@@ -350,7 +350,7 @@ namespace dmEngine
         Engine* engine = (Engine*)user_data;
         ScopedExtensionParams params(engine);
 
-        dmEngine::AppEvent event = { engine, engine->m_Window };
+        dmEngine::AppEvent event = { engine };
         dmExtension::BroadcastEvent(params, focus ? dmEngine::EVENT_APP_ACTIVATE : dmEngine::EVENT_APP_DEACTIVATE, &event, sizeof(event));
 
         dmGameSystem::OnWindowFocus(focus != 0);
@@ -366,7 +366,7 @@ namespace dmEngine
 
         ScopedExtensionParams params(engine);
 
-        dmEngine::AppEvent event = { engine, engine->m_Window };
+        dmEngine::AppEvent event = { engine };
         dmExtension::BroadcastEvent(params, iconify ? dmEngine::EVENT_APP_ICONIFY : dmEngine::EVENT_APP_DEICONIFY, &event, sizeof(event));
 
         dmGameSystem::OnWindowIconify(iconify != 0);
@@ -612,6 +612,7 @@ namespace dmEngine
         {
             dmPlatform::CloseWindow(engine->m_Window);
             dmPlatform::DeleteWindow(engine->m_Window);
+            engine->m_Window = 0;
         }
 
         if (engine->m_SystemSocket)
@@ -1981,6 +1982,11 @@ bail:
         input_buffer->Push(input_action);
     }
 
+    HWindow GetWindow(HEngine engine)
+    {
+        return engine->m_Window;
+    }
+
     uint16_t GetHttpPort(HEngine engine)
     {
         if (engine->m_EngineService)
@@ -2743,6 +2749,11 @@ bail:
     {
         stats = engine->m_Stats;
     }
+}
+
+extern "C" HWindow EngineGetWindow(HEngine engine)
+{
+    return dmEngine::GetWindow(engine);
 }
 
 void dmEngineInitialize()

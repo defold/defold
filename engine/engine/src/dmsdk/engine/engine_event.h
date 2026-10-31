@@ -39,8 +39,9 @@
  * | `ENGINE_EVENT_INPUT_ACTIONS` | `_dm_event_input_actions` | EngineInputActionsEvent. One batch per completed input update, after binding resolution and text-last ordering, before focused collection dispatch. Includes empty updates. |
  *
  * Payloads and their handles are borrowed for the synchronous callback. Engine
- * events identify the source instance, and window-driven events identify its
- * window too. A window handle may be null during early startup or failure cleanup.
+ * events identify the source instance. Use EngineGetWindow to obtain its current
+ * window; window-specific payloads also identify the window directly. A window
+ * handle may be null during early startup or failure cleanup.
  * APP events retain their window focus/iconify semantics; they do not aggregate
  * activity across multiple windows or represent separate process lifecycle events.
  *
@@ -149,18 +150,17 @@ typedef struct EngineLifecycleEvent
     HEngine m_Engine;
 } EngineLifecycleEvent;
 
-/*# application window event payload
+/*# application event payload
  * Payload for all four ENGINE_EVENT_APP_* events with data_size equal to
  * sizeof(EngineAppEvent). The event id specifies the focus or iconify transition.
+ * Use EngineGetWindow to obtain the source engine's current window.
  * @struct
  * @name EngineAppEvent
  * @member m_Engine [type:HEngine] borrowed source engine
- * @member m_Window [type:HWindow] borrowed source window, or null if not yet available
  */
 typedef struct EngineAppEvent
 {
     HEngine m_Engine;
-    HWindow m_Window;
 } EngineAppEvent;
 
 /*# window resized event payload

@@ -28,7 +28,22 @@
                         "EngineInputActionsEvent": "InputActionsEvent",
                         "HInputActionBatch": "dmInput::HActionBatch",
                         "ExtensionBroadcastEvent": "dmExtension::BroadcastEvent",
-                        "FExtensionEventCallback": "dmExtension::FEventCallback"
+                        "FExtensionEventCallback": "dmExtension::FEventCallback",
+                        "EngineGetWindow": "dmEngine::GetWindow"
+                    }
+                }
+            }
+        },
+        {
+            "file": "src/dmsdk/engine/engine.h",
+            "languages": {
+                "cpp": {
+                    "namespace": "dmEngine",
+                    "ignore": [
+                        "HEngine"
+                    ],
+                    "rename": {
+                        "EngineGetWindow": "GetWindow"
                     }
                 }
             }
