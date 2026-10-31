@@ -37,6 +37,10 @@ namespace dmMessage { struct URL; }
 
 namespace dmGameSystem
 {
+    struct Context;
+    typedef Context* HContext;
+    struct ComponentRenderType;
+
     /// Config key to use for tweaking maximum number of collision objects
     extern const char* PHYSICS_MAX_COLLISION_OBJECTS_KEY;
     /// Config key to use for tweaking maximum number of collisions reported
@@ -306,6 +310,97 @@ namespace dmGameSystem
         dmScript::HContext m_ScriptContext;
         uint32_t m_MaxCollectionFactoryCount;
     };
+
+    /**
+     * Borrowed services for a game-system instance. The context owns its built-in
+     * component contexts and render bridge, not these services. Internal, not an SDK API.
+     */
+    struct ContextParams
+    {
+        dmResource::HFactory     m_Factory;
+        dmGameObject::HRegister  m_Register;
+        dmRender::HRenderContext m_RenderContext;
+        dmScript::HContext       m_ScriptContext;
+        dmInput::HContext        m_InputContext;
+        PhysicsContext*          m_PhysicsContext;
+    };
+
+    /**
+     * Create game-system state on the game owner, before registering component types.
+     * Creates no production thread; frame storage is allocated only when a type opts in.
+     * @param params Borrowed services, kept alive through Finalize
+     * @return New context, or null on render-bridge allocation failure
+     */
+    HContext NewContext(const ContextParams& params);
+
+    /**
+     * Configure built-in component contexts and register their resources/components once.
+     * Call after resource descriptors are registered, before component descriptors or worlds.
+     * A failed initialization still requires Finalize and DeleteContext; the resource
+     * factory and register retain any types already registered for normal shutdown.
+     * @param context Game-system instance
+     * @param config Project configuration, read only during initialization
+     * @return True on success, false on registration failure
+     */
+    bool Initialize(HContext context, dmConfigFile::HConfig config);
+
+    /**
+     * Register a component and optional render-input callbacks together, before worlds exist.
+     * Failure leaves neither a new game type nor a render binding registered.
+     * @param context Game-system instance
+     * @param type Game-side component registration
+     * @param render_type Optional owned-input capture and renderer callbacks; copied on success
+     * @return Game-object registration result
+     */
+    dmGameObject::Result RegisterComponentType(HContext context, const dmGameObject::ComponentType& type, const ComponentRenderType* render_type = 0);
+
+    /**
+     * Begin a game-system frame before jobs, resource reloads, scripts and simulation.
+     * Handles outstanding work internally so simulation cannot run ahead of rendering.
+     * Finish with PostUpdate even when drawing is skipped, or Finalize when exiting.
+     * @param context Game-system instance
+     * @return True if the frame can begin; errors are logged internally
+     */
+    bool BeginFrame(HContext context);
+
+    /**
+     * Render components after final transforms/PreRender, before destructive PostUpdate.
+     * Requires successful BeginFrame. Rendering and handoff use the selected execution
+     * mode internally; callers use the same frame phases in either mode. Capture failures
+     * are logged and cancel that frame; persistent renderer errors also fail PostUpdate.
+     * @param context Game-system instance
+     * @param collection Root collection to render
+     * @return True on success, false on capture or consumer failure
+     */
+    bool Render(HContext context, dmGameObject::HCollection collection);
+
+    /**
+     * Finish the frame after drawing, including frames where drawing was skipped. Performs
+     * collection and register PostUpdate, with internal frame retirement before game-world
+     * cleanup and deferred renderer cleanup afterwards. Game-object callback errors retain
+     * their existing non-fatal policy; service or persistent renderer errors return false.
+     * @param context Game-system instance
+     * @param collection Root collection, or null when only register cleanup is needed
+     * @return True if frame processing can continue; errors are logged internally
+     */
+    bool PostUpdate(HContext context, dmGameObject::HCollection collection);
+
+    /**
+     * Finish pending work and release internal rendering state after all collections have
+     * been deleted. Coordinates executor shutdown internally before deleting callback state.
+     * Keeps built-in context storage alive for resource destruction. Also used after failed
+     * initialization or an unfinished frame. No frame work is allowed afterwards.
+     * @param context Game-system instance on the game owner
+     * @return True when finalized; false leaves state alive and logs the shutdown error
+     */
+    bool Finalize(HContext context);
+
+    /**
+     * Free context storage after Finalize and destruction of the resource factory/register.
+     * This does not access or destroy borrowed services.
+     * @param context Finalized game-system instance
+     */
+    void DeleteContext(HContext context);
 
     bool InitializeScriptLibs(const ScriptLibContext& context);
     void FinalizeScriptLibs(const ScriptLibContext& context);

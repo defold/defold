@@ -113,6 +113,24 @@ libc++ linkage. It cannot be combined with other sanitizers. See the
 [Android HWASan workflow](../mobile/README_ANDROID.md#hwasan-android-14-arm64)
 for building and repacking an APK for Android 14 or newer.
 
+#### Threaded rendering
+
+Pass `--with-threaded-rendering` after the separator to enable the internal rendering
+execution capability:
+
+```bash
+./scripts/build.py build_engine --platform=arm64-macos -- --with-threaded-rendering
+```
+
+This maps to `WITH_THREADED_RENDERING=ON` in CMake, which adds the engine compile
+definition `DM_THREADED_RENDERING=1`. Omitting the flag explicitly
+sets it to `OFF`, including on subsequent builds in the same directory. Direct
+CMake configuration remains available. This is a development gate, not a released engine feature.
+The build define alone selects inline (off) or threaded (on) startup; there is no
+runtime selector yet. Enabled builds currently reject startup because the threaded
+executor and component/resource migration are not available. This option
+does not enable Emscripten pthreads or select a different web binary.
+
 ## Invocation
 
 Run `./scripts/build.py --platform=<platform> install_ext` before the first

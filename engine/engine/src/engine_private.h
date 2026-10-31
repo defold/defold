@@ -114,18 +114,13 @@ namespace dmEngine
         HJobContext                                 m_JobThreadContext;
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
+        dmGameSystem::HContext                      m_GameSystem;
         dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
         dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
         dmScript::HContext                          m_ScriptContext;
         dmResource::HFactory                        m_Factory;
         dmGui::HContext                             m_GuiContext;
         dmMessage::HSocket                          m_SystemSocket;
-        dmGameSystem::SpriteContext                 m_SpriteContext;
-        dmGameSystem::CollectionProxyContext        m_CollectionProxyContext;
-        dmGameSystem::FactoryContext                m_FactoryContext;
-        dmGameSystem::CollectionFactoryContext      m_CollectionFactoryContext;
-        dmGameSystem::ModelContext                  m_ModelContext;
-        dmGameSystem::LabelContext                  m_LabelContext;
         dmGameObject::ModuleContext                 m_ModuleContext;
 
         dmGameSystem::FontResource*                 m_SystemFont;
@@ -144,6 +139,7 @@ namespace dmEngine
         bool                                        m_QuitOnEsc;
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
         bool                                        m_RunWhileIconified;
+        bool                                        m_UseHighRefreshRate;       // iOS: allow display link rates above 60 Hz
         uint32_t                                    m_SwapInterval;             // Swap interval requested by the application
         uint32_t                                    m_EffectiveSwapInterval;    // Swap interval currently applied to the graphics context
         uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
@@ -252,6 +248,12 @@ namespace dmEngine
     // adds at most max(0, max_time_step - fixed_dt); negative balance shortens the
     // step without allowing negative dt. Exposed for deterministic unit testing.
     float CalcPacedTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& frame_time_balance);
+
+    // Calculates the simulation step for a platform-paced callback. Elapsed time
+    // is capped at max(max_time_step, max_frame_intervals * fixed_dt) and
+    // accumulated; callbacks that arrive faster than fixed_dt run no step until
+    // a full step has accumulated. Exposed for deterministic unit testing.
+    float CalcCallbackTimeStep(float frame_dt, float fixed_dt, float max_time_step, uint32_t max_frame_intervals, float& accum_frame_time, uint32_t& num_steps);
 
     /**
      *
