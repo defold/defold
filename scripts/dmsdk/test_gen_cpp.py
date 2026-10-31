@@ -85,7 +85,7 @@ class CppDocumentationTests(unittest.TestCase):
         self.assertIn('typedef HInputAction HAction;', header)
         self.assertIn('typedef HInputActionBatch HActionBatch;', header)
 
-    # Runtime hash macros need typed C++ aliases and matching documentation after regeneration.
+    # Precomputed hash constants need typed C++ aliases and matching documentation after regeneration.
     def test_hash_constant_aliases(self):
         engine = self.root / 'engine/engine'
         docs = gen_doc.parse_docs(str(engine / 'src/dmsdk/engine/engine_event.h'))

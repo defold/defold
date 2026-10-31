@@ -25,6 +25,9 @@
  * event transport in `<dmsdk/extension/extension.h>`. Custom events may use
  * arbitrary name hashes and payloads without central registration.
  *
+ * Built-in IDs are precomputed dmHashString64 values and integer constant
+ * expressions in C and C++.
+ *
  * Built-in event hashes and their names:
  *
  * | Constant | Name | Payload and delivery |
@@ -52,67 +55,67 @@
 
 /*# The engine window gains focus.
  * Hash of `_dm_event_app_activate` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+ * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
  * @name ENGINE_EVENT_APP_ACTIVATE
  */
-#define ENGINE_EVENT_APP_ACTIVATE (dmHashString64("_dm_event_app_activate"))
+#define ENGINE_EVENT_APP_ACTIVATE ((dmhash_t)0xbe4d4370ee0c2abeULL)
 
 /*# The engine window loses focus.
  * Hash of `_dm_event_app_deactivate` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+ * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
  * @name ENGINE_EVENT_APP_DEACTIVATE
  */
-#define ENGINE_EVENT_APP_DEACTIVATE (dmHashString64("_dm_event_app_deactivate"))
+#define ENGINE_EVENT_APP_DEACTIVATE ((dmhash_t)0x695861ad27760b07ULL)
 
 /*# The engine window is iconified.
  * Hash of `_dm_event_app_iconify` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+ * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
  * @name ENGINE_EVENT_APP_ICONIFY
  */
-#define ENGINE_EVENT_APP_ICONIFY (dmHashString64("_dm_event_app_iconify"))
+#define ENGINE_EVENT_APP_ICONIFY ((dmhash_t)0x4adf48e23070b20dULL)
 
 /*# The engine window is restored.
  * Hash of `_dm_event_app_deiconify` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+ * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
  * @name ENGINE_EVENT_APP_DEICONIFY
  */
-#define ENGINE_EVENT_APP_DEICONIFY (dmHashString64("_dm_event_app_deiconify"))
+#define ENGINE_EVENT_APP_DEICONIFY ((dmhash_t)0x74b60ff5566fd9d6ULL)
 
 /*# Successful engine initialization has completed.
  * Hash of `_dm_event_engine_initialized` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+ * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
  * @name ENGINE_EVENT_ENGINE_INITIALIZED
  */
-#define ENGINE_EVENT_ENGINE_INITIALIZED (dmHashString64("_dm_event_engine_initialized"))
+#define ENGINE_EVENT_ENGINE_INITIALIZED ((dmhash_t)0x1a23d009fce5c274ULL)
 
 /*# Engine deletion begins, before collections and systems are torn down.
  * Hash of `_dm_event_engine_delete` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+ * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
  * @name ENGINE_EVENT_ENGINE_DELETE
  */
-#define ENGINE_EVENT_ENGINE_DELETE (dmHashString64("_dm_event_engine_delete"))
+#define ENGINE_EVENT_ENGINE_DELETE ((dmhash_t)0x18a5362db07c4597ULL)
 
 /*# Window size changed; the payload is EngineWindowResizedEvent.
  * Hash of `_dm_event_window_resized` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+ * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
  * @name ENGINE_EVENT_WINDOW_RESIZED
  */
-#define ENGINE_EVENT_WINDOW_RESIZED (dmHashString64("_dm_event_window_resized"))
+#define ENGINE_EVENT_WINDOW_RESIZED ((dmhash_t)0x7dc2351509a8562eULL)
 
 /*# input actions have been resolved
  * Hash of `_dm_event_input_actions` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+ * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
  * @name ENGINE_EVENT_INPUT_ACTIONS
  */
-#define ENGINE_EVENT_INPUT_ACTIONS (dmHashString64("_dm_event_input_actions"))
+#define ENGINE_EVENT_INPUT_ACTIONS ((dmhash_t)0x9075043efcdbe0e2ULL)
 
 /*# resolved input action batch
  * Published once per completed input update after application bindings are

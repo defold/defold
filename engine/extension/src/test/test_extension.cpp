@@ -23,6 +23,7 @@
 #include <dlib/context_registry.h>
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
+#include <dlib/static_assert.h>
 
 extern "C"
 {
@@ -573,9 +574,18 @@ static void FinalizeEventTest(EventTestContext* context)
     g_OmitEventCallback = false;
 }
 
-// C/C++ receivers preserve the documented hashes and source handles from the C publisher.
+// IDs must be matching C/C++ constant expressions; runtime checks verify their names and source handles.
 TEST(dmExtension, BuiltinEventHashes)
 {
+    DM_STATIC_ASSERT(ENGINE_EVENT_APP_ACTIVATE == dmEngine::EVENT_APP_ACTIVATE, Engine_Event_APP_ACTIVATE_Mismatch);
+    DM_STATIC_ASSERT(ENGINE_EVENT_APP_DEACTIVATE == dmEngine::EVENT_APP_DEACTIVATE, Engine_Event_APP_DEACTIVATE_Mismatch);
+    DM_STATIC_ASSERT(ENGINE_EVENT_APP_ICONIFY == dmEngine::EVENT_APP_ICONIFY, Engine_Event_APP_ICONIFY_Mismatch);
+    DM_STATIC_ASSERT(ENGINE_EVENT_APP_DEICONIFY == dmEngine::EVENT_APP_DEICONIFY, Engine_Event_APP_DEICONIFY_Mismatch);
+    DM_STATIC_ASSERT(ENGINE_EVENT_ENGINE_INITIALIZED == dmEngine::EVENT_ENGINE_INITIALIZED, Engine_Event_ENGINE_INITIALIZED_Mismatch);
+    DM_STATIC_ASSERT(ENGINE_EVENT_ENGINE_DELETE == dmEngine::EVENT_ENGINE_DELETE, Engine_Event_ENGINE_DELETE_Mismatch);
+    DM_STATIC_ASSERT(ENGINE_EVENT_WINDOW_RESIZED == dmEngine::EVENT_WINDOW_RESIZED, Engine_Event_WINDOW_RESIZED_Mismatch);
+    DM_STATIC_ASSERT(ENGINE_EVENT_INPUT_ACTIONS == dmEngine::EVENT_INPUT_ACTIONS, Engine_Event_INPUT_ACTIONS_Mismatch);
+
     EventTestContext context;
     InitializeEventTest(&context);
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));
@@ -619,6 +629,7 @@ TEST(dmExtension, BuiltinEventHashes)
     EXPECT_EQ(360u, g_EventTest.m_Height);
     EXPECT_EQ(640u, g_TypeCWindowWidth);
     EXPECT_EQ(360u, g_TypeCWindowHeight);
+    EXPECT_EQ(dmHashString64("_dm_event_input_actions"), dmEngine::EVENT_INPUT_ACTIONS);
     FinalizeEventTest(&context);
 }
 

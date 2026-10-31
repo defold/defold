@@ -29,6 +29,9 @@
  * event transport in `<dmsdk/extension/extension.h>`. Custom events may use
  * arbitrary name hashes and payloads without central registration.
  *
+ * Built-in IDs are precomputed dmHashString64 values and integer constant
+ * expressions in C and C++.
+ *
  * Built-in event hashes and their names:
  *
  * | Constant | Name | Payload and delivery |
@@ -67,7 +70,7 @@ namespace dmEngine
 {
     /*# The engine window gains focus.
      * Hash of `_dm_event_app_activate` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
-     * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+     * Precomputed dmHashString64 value; no runtime hashing.
      * @constant
      * @name EVENT_APP_ACTIVATE
      * @language C++
@@ -76,7 +79,7 @@ namespace dmEngine
 
     /*# The engine window loses focus.
      * Hash of `_dm_event_app_deactivate` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
-     * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+     * Precomputed dmHashString64 value; no runtime hashing.
      * @constant
      * @name EVENT_APP_DEACTIVATE
      * @language C++
@@ -85,7 +88,7 @@ namespace dmEngine
 
     /*# The engine window is iconified.
      * Hash of `_dm_event_app_iconify` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
-     * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+     * Precomputed dmHashString64 value; no runtime hashing.
      * @constant
      * @name EVENT_APP_ICONIFY
      * @language C++
@@ -94,7 +97,7 @@ namespace dmEngine
 
     /*# The engine window is restored.
      * Hash of `_dm_event_app_deiconify` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
-     * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+     * Precomputed dmHashString64 value; no runtime hashing.
      * @constant
      * @name EVENT_APP_DEICONIFY
      * @language C++
@@ -103,7 +106,7 @@ namespace dmEngine
 
     /*# Successful engine initialization has completed.
      * Hash of `_dm_event_engine_initialized` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
-     * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+     * Precomputed dmHashString64 value; no runtime hashing.
      * @constant
      * @name EVENT_ENGINE_INITIALIZED
      * @language C++
@@ -112,7 +115,7 @@ namespace dmEngine
 
     /*# Engine deletion begins, before collections and systems are torn down.
      * Hash of `_dm_event_engine_delete` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
-     * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+     * Precomputed dmHashString64 value; no runtime hashing.
      * @constant
      * @name EVENT_ENGINE_DELETE
      * @language C++
@@ -121,7 +124,7 @@ namespace dmEngine
 
     /*# Window size changed; the payload is WindowResizedEvent.
      * Hash of `_dm_event_window_resized` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
-     * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+     * Precomputed dmHashString64 value; no runtime hashing.
      * @constant
      * @name EVENT_WINDOW_RESIZED
      * @language C++
@@ -130,7 +133,7 @@ namespace dmEngine
 
     /*# input actions have been resolved
      * Hash of `_dm_event_input_actions` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
-     * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+     * Precomputed dmHashString64 value; no runtime hashing.
      * @constant
      * @name EVENT_INPUT_ACTIONS
      * @language C++
@@ -197,7 +200,7 @@ namespace dmEngine
 #endif // #define DMSDK_ENGINE_EVENT_GEN_HPP
 /*# The engine window gains focus.
  * Hash of `_dm_event_app_activate` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+ * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
  * @name ENGINE_EVENT_APP_ACTIVATE
  * @language C
@@ -205,7 +208,7 @@ namespace dmEngine
 
 /*# The engine window loses focus.
  * Hash of `_dm_event_app_deactivate` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+ * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
  * @name ENGINE_EVENT_APP_DEACTIVATE
  * @language C
@@ -213,7 +216,7 @@ namespace dmEngine
 
 /*# The engine window is iconified.
  * Hash of `_dm_event_app_iconify` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+ * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
  * @name ENGINE_EVENT_APP_ICONIFY
  * @language C
@@ -221,7 +224,7 @@ namespace dmEngine
 
 /*# The engine window is restored.
  * Hash of `_dm_event_app_deiconify` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+ * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
  * @name ENGINE_EVENT_APP_DEICONIFY
  * @language C
@@ -229,7 +232,7 @@ namespace dmEngine
 
 /*# Successful engine initialization has completed.
  * Hash of `_dm_event_engine_initialized` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+ * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
  * @name ENGINE_EVENT_ENGINE_INITIALIZED
  * @language C
@@ -237,7 +240,7 @@ namespace dmEngine
 
 /*# Engine deletion begins, before collections and systems are torn down.
  * Hash of `_dm_event_engine_delete` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+ * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
  * @name ENGINE_EVENT_ENGINE_DELETE
  * @language C
@@ -245,7 +248,7 @@ namespace dmEngine
 
 /*# Window size changed; the payload is EngineWindowResizedEvent.
  * Hash of `_dm_event_window_resized` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+ * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
  * @name ENGINE_EVENT_WINDOW_RESIZED
  * @language C
@@ -253,7 +256,7 @@ namespace dmEngine
 
 /*# input actions have been resolved
  * Hash of `_dm_event_input_actions` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Evaluates dmHashString64; this is a hash value, not a legacy ExtensionEventID.
+ * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
  * @name ENGINE_EVENT_INPUT_ACTIONS
  * @language C
