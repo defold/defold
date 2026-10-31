@@ -25,6 +25,9 @@
    :native-extensions {:build-server-url "https://build.defold.com"
                        :custom-build-servers {"alpha" "https://build-stage.defold.com"
                                               "beta" "https://build-stage.defold.com"}}
+   :beta {:info-url-template "%s/beta/info.json"
+          :release-notes-url-template "%s/editor2/channels/beta/release-notes/%s.json"
+          :download-url-template "%s/archive/%s/beta/editor2/Defold-%s.%s"}
    :updater {:download-url-template "https://%s/archive/%s/%s/editor2/Defold-%s.zip"
              :update-url-template "https://%s/editor2/channels/%s/update-v4.json"
              :release-notes-manifest-url-template "https://%s/editor2/channels/%s/release-notes/manifest.json"
