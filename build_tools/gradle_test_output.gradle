@@ -1,0 +1,26 @@
+import groovy.json.JsonOutput
+import org.gradle.api.tasks.testing.Test
+import org.gradle.api.tasks.testing.TestResult
+
+gradle.allprojects {
+    tasks.withType(Test).configureEach { testTask ->
+        testTask.doFirst {
+            // Quiet method-only results have no class separator or output event to identify their task.
+            testTask.logger.lifecycle('DEFOLD_TEST_TASK ' + JsonOutput.toJson(testTask.path))
+        }
+        testTask.afterTest { descriptor, result ->
+            // Worker termination also produces SKIPPED results, without an assumption failure.
+            if (result.resultType == TestResult.ResultType.SKIPPED && result.assumptionFailure != null) {
+                def names = []
+                for (def test = descriptor; test != null; test = test.parent) {
+                    names.add(0, test.displayName)
+                }
+                def granularity = testTask.testLogging.displayGranularity
+                def start = granularity == -1 ? names.size() - 1 : Math.min(granularity, names.size() - 1)
+                def name = names.drop(start).join(' > ')
+                // A pair avoids field names colliding with credential redaction in the output reader.
+                testTask.logger.lifecycle('DEFOLD_TEST_SKIPPED ' + JsonOutput.toJson([testTask.path, name]))
+            }
+        }
+    }
+}
