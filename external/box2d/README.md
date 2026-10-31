@@ -21,6 +21,7 @@ cp box2d-3.2.0/LICENSE Box2D/
 
 The patch preserves Defold's kinematic contacts, 16-vertex polygons, world lock
 query, total force query, and the `posix_memalign` fallback for older iOS targets.
+PS4 builds set `BOX2D_SIMD_USE_SSE2` to lock Box2D to SSE2.
 Kinematic-only contacts use the scalar overflow solver because upstream's graph
 colors require a dynamic body.
 
