@@ -2346,9 +2346,50 @@ bool HasUnresolvedBuffers(Scene* scene)
     return HasUnresolvedBuffersInternal((GltfData*)scene->m_OpaqueSceneData);
 }
 
+// Node metadata is loaded while the editor scans a project, so the recursive
+// node and bone traversals that follow must not depend on unbounded file data.
+static const uint32_t MAX_NODE_METADATA_DEPTH = 256;
+
+static bool IsNodeDepthWithinLimit(cgltf_data* data, uint32_t max_depth)
+{
+    uint32_t nodes_count = (uint32_t)data->nodes_count;
+    dmArray<uint32_t> depths;
+    InitSize(depths, nodes_count, nodes_count);
+    dmArray<cgltf_node*> queue;
+    queue.SetCapacity(nodes_count);
+
+    for (uint32_t i = 0; i < nodes_count; ++i)
+    {
+        if (data->nodes[i].parent == 0)
+        {
+            depths[i] = 1;
+            queue.Push(&data->nodes[i]);
+        }
+    }
+
+    for (uint32_t head = 0; head < queue.Size(); ++head)
+    {
+        cgltf_node* node = queue[head];
+        uint32_t depth = depths[(uint32_t)(node - data->nodes)];
+        if (depth > max_depth)
+            return false;
+        for (cgltf_size c = 0; c < node->children_count; ++c)
+        {
+            if (queue.Full())
+                return false;
+            cgltf_node* child = node->children[c];
+            depths[(uint32_t)(child - data->nodes)] = depth + 1;
+            queue.Push(child);
+        }
+    }
+    return true;
+}
+
 static void LoadScene(Scene* scene, cgltf_data* data, bool load_materials_only, bool load_mesh_metadata, bool skip_image_data, bool load_node_metadata)
 {
     dmHashTable64<void*> cache;
+    if (load_materials_only && load_node_metadata && !IsNodeDepthWithinLimit(data, MAX_NODE_METADATA_DEPTH))
+        load_node_metadata = false;
     if (!load_materials_only || load_node_metadata)
     {
         LoadSkins(scene, data, !load_materials_only);
