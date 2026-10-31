@@ -16,6 +16,7 @@
 #define DM_BOX2D_PHYSICS_H
 
 #include <box2d/box2d.h>
+#include <box2d/src/scheduler.h>
 
 #include <dlib/array.h>
 #include <dlib/hashtable.h>
@@ -117,6 +118,9 @@ namespace dmPhysics
         b2ContactData m_Data;
     };
 
+    // Each world owns its scheduler. Finish all tasks before destroying it.
+    b2Scheduler* NewBox2DScheduler(uint32_t worker_count);
+
     struct World2D
     {
         World2D(HContext2D context, const NewWorldParams& params);
@@ -124,6 +128,7 @@ namespace dmPhysics
         OverlapCache                m_TriggerOverlaps;
         HContext2D                  m_Context;
         b2WorldId                   m_WorldId;
+        b2Scheduler*                m_TaskContext;
         dmArray<RayCastRequest>     m_RayCastRequests;
         DebugDraw2D                 m_DebugDraw;
         GetWorldTransformCallback   m_GetWorldTransformCallback;

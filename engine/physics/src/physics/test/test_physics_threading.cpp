@@ -18,6 +18,9 @@
 #include <box2d/constants.h>
 #include <dlib/dstrings.h>
 #include <dlib/thread.h>
+#include <dlib/atomic.h>
+#include <dlib/condition_variable.h>
+#include <dlib/mutex.h>
 
 #include "../box2d/box2d_physics.h"
 
@@ -52,6 +55,7 @@ TEST(Box2DThreading, WorkerConfiguration)
         dmPhysics::HWorld2D world = dmPhysics::NewWorld2D(context, params);
         ASSERT_NE((void*)0, world);
         ASSERT_EQ(has_thread_support ? expected[i] : 1, b2World_GetWorkerCount(world->m_WorldId));
+        ASSERT_EQ(has_thread_support && settings[i] > 0, world->m_TaskContext != 0);
         dmPhysics::DeleteWorld2D(context, world);
         dmPhysics::DeleteContext2D(context);
     }
@@ -221,7 +225,7 @@ TEST(Box2DThreading, SerialAndThreadedStateAndCallbacks)
     dmThread::FreeTls(key);
 }
 
-// Deleting a context with live worlds must release native worlds and join their schedulers.
+// Deleting a context with live worlds must release native worlds and join their workers.
 TEST(Box2DThreading, ContextDeletesWorldsAndWorkers)
 {
     size_t initial_bytes = b2GetByteCount();
@@ -235,6 +239,127 @@ TEST(Box2DThreading, ContextDeletesWorldsAndWorkers)
     ASSERT_FALSE(b2World_IsValid(ids[1]));
     ASSERT_EQ(initial_bytes, b2GetByteCount());
 }
+
+#if defined(DM_HAS_THREADS) && (defined(_WIN32) || defined(__linux__) || defined(__APPLE__))
+static uint32_t g_ThreadsCreated;
+static uint32_t g_ThreadsJoined;
+
+static void* CreateTrackedThread(void (*function)(void*), void* context, const char* name)
+{
+    ++g_ThreadsCreated;
+    dmThread::Thread* thread = new dmThread::Thread;
+    *thread = dmThread::New(function, 0x80000, context, name);
+    return thread;
+}
+
+static void JoinTrackedThread(void* handle)
+{
+    ++g_ThreadsJoined;
+    dmThread::Thread* thread = (dmThread::Thread*)handle;
+    dmThread::Join(*thread);
+    delete thread;
+}
+
+// The native scheduler must use the supplied thread interface and retain its own copy for cleanup.
+TEST(Box2DThreading, SchedulerThreadInterface)
+{
+    g_ThreadsCreated = 0;
+    g_ThreadsJoined = 0;
+    b2SchedulerThreadInterface thread_interface = { CreateTrackedThread, JoinTrackedThread };
+    b2Scheduler* scheduler = b2CreateScheduler(4, &thread_interface);
+    ASSERT_EQ(3U, g_ThreadsCreated);
+    thread_interface.createThread = 0;
+    thread_interface.joinThread = 0;
+    b2DestroyScheduler(scheduler);
+    ASSERT_EQ(3U, g_ThreadsJoined);
+}
+
+struct WorkerGate
+{
+    dmMutex::HMutex                         m_Mutex;
+    dmConditionVariable::HConditionVariable m_Condition;
+    uint32_t                                m_Entered;
+    bool                                    m_Release;
+};
+
+static void WaitAtGate(void* data)
+{
+    WorkerGate* gate = (WorkerGate*)data;
+    dmMutex::Lock(gate->m_Mutex);
+    ++gate->m_Entered;
+    dmConditionVariable::Broadcast(gate->m_Condition);
+    while (!gate->m_Release)
+    {
+        dmConditionVariable::Wait(gate->m_Condition, gate->m_Mutex);
+    }
+    dmMutex::Unlock(gate->m_Mutex);
+}
+
+static void CountTask(void* data)
+{
+    dmAtomicIncrement32((int32_atomic_t*)data);
+}
+
+// All workers must run, and Finish must execute queued work when every background worker is occupied.
+TEST(Box2DThreading, CallingThreadHelpsBusyWorkers)
+{
+    b2Scheduler* context = dmPhysics::NewBox2DScheduler(3);
+    WorkerGate gate = { dmMutex::New(), dmConditionVariable::New(), 0, false };
+    void* tasks[3];
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        tasks[i] = b2SchedulerEnqueueTask(WaitAtGate, &gate, context);
+    }
+    dmMutex::Lock(gate.m_Mutex);
+    while (gate.m_Entered != 3)
+    {
+        dmConditionVariable::Wait(gate.m_Condition, gate.m_Mutex);
+    }
+    dmMutex::Unlock(gate.m_Mutex);
+
+    int32_atomic_t completed = 0;
+    void* task = b2SchedulerEnqueueTask(CountTask, (void*)&completed, context);
+    b2SchedulerFinishTask(task, context);
+    ASSERT_EQ(1, dmAtomicGet32(&completed));
+
+    dmMutex::Lock(gate.m_Mutex);
+    gate.m_Release = true;
+    dmConditionVariable::Broadcast(gate.m_Condition);
+    dmMutex::Unlock(gate.m_Mutex);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        b2SchedulerFinishTask(tasks[i], context);
+    }
+    b2DestroyScheduler(context);
+    dmConditionVariable::Delete(gate.m_Condition);
+    dmMutex::Delete(gate.m_Mutex);
+}
+
+// Maximum-size batches and reverse-order waits must execute each task once and recycle every handle.
+TEST(Box2DThreading, TaskCapacityAndReuse)
+{
+    b2Scheduler* context = dmPhysics::NewBox2DScheduler(3);
+    int32_atomic_t counts[B2_MAX_TASKS] = {};
+    void* tasks[B2_MAX_TASKS];
+    for (uint32_t batch = 0; batch < 100; ++batch)
+    {
+        b2ResetScheduler(context);
+        for (uint32_t i = 0; i < B2_MAX_TASKS; ++i)
+        {
+            tasks[i] = b2SchedulerEnqueueTask(CountTask, (void*)&counts[i], context);
+        }
+        for (uint32_t i = B2_MAX_TASKS; i > 0; --i)
+        {
+            b2SchedulerFinishTask(tasks[i - 1], context);
+        }
+        for (uint32_t i = 0; i < B2_MAX_TASKS; ++i)
+        {
+            ASSERT_EQ((int32_t)batch + 1, dmAtomicGet32(&counts[i]));
+        }
+    }
+    b2DestroyScheduler(context);
+}
+#endif
 
 int main(int argc, char** argv)
 {

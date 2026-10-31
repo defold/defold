@@ -295,7 +295,7 @@ b2WorldId b2CreateWorld( const b2WorldDef* def )
 	{
 		// Built-in scheduler
 		world->workerCount = b2MinInt( def->workerCount, B2_MAX_WORKERS );
-		world->scheduler = b2CreateScheduler( world->workerCount );
+		world->scheduler = b2CreateScheduler( world->workerCount, NULL );
 		world->enqueueTaskFcn = b2SchedulerEnqueueTask;
 		world->finishTaskFcn = b2SchedulerFinishTask;
 		world->userTaskContext = world->scheduler;

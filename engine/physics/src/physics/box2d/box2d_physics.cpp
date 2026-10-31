@@ -52,6 +52,7 @@ namespace dmPhysics
     World2D::World2D(HContext2D context, const NewWorldParams& params)
     : m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
     , m_Context(context)
+    , m_TaskContext(0)
     , m_RayCastRequests()
     , m_DebugDraw(&context->m_DebugCallbacks)
     , m_GetWorldTransformCallback(params.m_GetWorldTransformCallback)
@@ -69,8 +70,15 @@ namespace dmPhysics
         worldDef.contactHertz = 30.0f;
         worldDef.contactDampingRatio = 10.0f;
         worldDef.enableContinuous = true;
-        // Box2D owns the scheduler; its worker count includes the calling thread.
+        // Box2D schedules the work using dmThread workers. The count includes the calling thread.
         worldDef.workerCount = context->m_WorkerCount;
+        if (context->m_WorkerCount > 1)
+        {
+            m_TaskContext = NewBox2DScheduler(context->m_WorkerCount - 1);
+            worldDef.enqueueTask = b2SchedulerEnqueueTask;
+            worldDef.finishTask = b2SchedulerFinishTask;
+            worldDef.userTaskContext = m_TaskContext;
+        }
         m_WorldId = b2CreateWorld(&worldDef);
 
         m_Bodies.SetCapacity(32);
@@ -168,7 +176,7 @@ namespace dmPhysics
             dmLogWarning("box2d.worker_count must be in the range 0 - %d and has been clamped.", B2_MAX_WORKERS - 1);
             worker_count = dmMath::Clamp(worker_count, 0, B2_MAX_WORKERS - 1);
         }
-        // Box2D's built-in scheduler has native thread implementations for these platforms.
+        // Box2D's scheduler still uses native timer and semaphore implementations.
         bool has_thread_support = false;
 #if defined(_WIN32) || defined(__linux__) || defined(__APPLE__)
         has_thread_support = dmThread::PlatformHasThreadSupport();
@@ -263,6 +271,10 @@ namespace dmPhysics
             b2DestroyWorld(world->m_WorldId);
         }
 
+        if (world->m_TaskContext)
+        {
+            b2DestroyScheduler(world->m_TaskContext);
+        }
         delete world;
     }
 
@@ -592,6 +604,10 @@ namespace dmPhysics
         {
             DM_PROFILE("StepSimulation");
 
+            if (world->m_TaskContext)
+            {
+                b2ResetScheduler(world->m_TaskContext);
+            }
             b2World_Step(world->m_WorldId, dt, step_context.m_Box2DSubStepCount);
 
             // Post-solve must happen after stepping
