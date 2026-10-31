@@ -312,5 +312,6 @@ public class Modelimporter {
         public boolean loadMaterialsOnly = false;
         public boolean loadMeshMetadata = false;
         public boolean skipImageData = false;
+        public boolean loadNodeMetadata = false;
     };
 }

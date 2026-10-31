@@ -76,6 +76,7 @@ struct GltfData
     bool             m_LoadMaterialsOnly;
     bool             m_LoadMeshMetadata;
     bool             m_SkipImageData;
+    bool             m_LoadNodeMetadata;
 };
 
 static dmTransform::Transform& ToTransform(const dmModelImporter::Transform& in, dmTransform::Transform& out)
@@ -1583,7 +1584,9 @@ static void SortSkinBones(Skin* skin)
     delete[] infos;
 }
 
-static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
+// Without bind poses, the joint hierarchy is read from the JSON alone, so no
+// buffers are needed and the accessors are left for the full load to validate.
+static void LoadSkins(Scene* scene, cgltf_data* gltf_data, bool load_bind_poses)
 {
     if (gltf_data->skins_count == 0)
         return;
@@ -1600,7 +1603,7 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
 
         InitSize(skin->m_Bones, gltf_skin->joints_count+1, gltf_skin->joints_count);
 
-        cgltf_accessor* accessor = gltf_skin->inverse_bind_matrices;
+        cgltf_accessor* accessor = load_bind_poses ? gltf_skin->inverse_bind_matrices : 0;
         if (accessor && (accessor->is_sparse || accessor->count < gltf_skin->joints_count ||
                          accessor->type != cgltf_type_mat4 || accessor->component_type != cgltf_component_type_r_32f))
         {
@@ -1791,6 +1794,20 @@ static bool RemapMeshBoneIndices(Scene* scene, Skin* skin, Mesh* mesh)
         }
     }
     return true;
+}
+
+// Mesh metadata has no vertex data, so only the node to model links are made.
+static void LinkMeshMetadataWithNodes(Scene* scene, cgltf_data* gltf_data)
+{
+    if (scene->m_Models.Size() != gltf_data->meshes_count)
+        return;
+
+    for (uint32_t i = 0; i < gltf_data->nodes_count; ++i)
+    {
+        cgltf_node* gltf_node = &gltf_data->nodes[i];
+        if (gltf_node->mesh)
+            scene->m_Nodes[i].m_Model = &scene->m_Models[gltf_node->mesh - gltf_data->meshes];
+    }
 }
 
 static void LinkMeshesWithNodes(Scene* scene, cgltf_data* gltf_data)
@@ -2329,12 +2346,12 @@ bool HasUnresolvedBuffers(Scene* scene)
     return HasUnresolvedBuffersInternal((GltfData*)scene->m_OpaqueSceneData);
 }
 
-static void LoadScene(Scene* scene, cgltf_data* data, bool load_materials_only, bool load_mesh_metadata, bool skip_image_data)
+static void LoadScene(Scene* scene, cgltf_data* data, bool load_materials_only, bool load_mesh_metadata, bool skip_image_data, bool load_node_metadata)
 {
     dmHashTable64<void*> cache;
-    if (!load_materials_only)
+    if (!load_materials_only || load_node_metadata)
     {
-        LoadSkins(scene, data);
+        LoadSkins(scene, data, !load_materials_only);
         if (scene->m_LoadError)
             return;
         LoadNodes(scene, data);
@@ -2349,6 +2366,12 @@ static void LoadScene(Scene* scene, cgltf_data* data, bool load_materials_only, 
     {
         if (load_mesh_metadata)
             LoadMeshMetadata(scene, data);
+        if (load_node_metadata)
+        {
+            LinkNodesWithBones(scene, data);
+            LinkMeshMetadataWithNodes(scene, data);
+            GenerateRootBone(scene);
+        }
         return;
     }
     LoadMeshes(scene, data);
@@ -2860,7 +2883,7 @@ static bool LoadFinalizeGltf(Scene* scene)
         return false;
     if (!data->m_LoadMaterialsOnly && !ValidateSparseAccessorsForUnpack(scene, data->m_Data))
         return false;
-    LoadScene(scene, data->m_Data, data->m_LoadMaterialsOnly, data->m_LoadMeshMetadata, data->m_SkipImageData);
+    LoadScene(scene, data->m_Data, data->m_LoadMaterialsOnly, data->m_LoadMeshMetadata, data->m_SkipImageData, data->m_LoadNodeMetadata);
     return scene->m_LoadError == 0;
 }
 
@@ -2914,6 +2937,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     scenedata->m_LoadMaterialsOnly = importeroptions && importeroptions->m_LoadMaterialsOnly;
     scenedata->m_LoadMeshMetadata = importeroptions && importeroptions->m_LoadMeshMetadata;
     scenedata->m_SkipImageData = importeroptions && importeroptions->m_SkipImageData;
+    scenedata->m_LoadNodeMetadata = importeroptions && importeroptions->m_LoadNodeMetadata;
 
     scene->m_OpaqueSceneData = scenedata;
     scene->m_LoadFinalizeFn = LoadFinalizeGltf;

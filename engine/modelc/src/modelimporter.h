@@ -387,6 +387,7 @@ namespace dmModelImporter
         bool m_LoadMaterialsOnly;
         bool m_LoadMeshMetadata;
         bool m_SkipImageData; // Enumerate image locations without resolving their contents
+        bool m_LoadNodeMetadata; // With m_LoadMaterialsOnly: load node and skin joint names without reading buffers
     };
 
     // End of JNI struct api

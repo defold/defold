@@ -525,6 +525,21 @@ public class GltfMountPointTest {
         }
     }
 
+    // Verifies that inspection reports unnamed meshes with their counts while
+    // they stay out of the resources. Guards against the editor outline losing
+    // meshes whose instances still have runtime mesh ids.
+    @Test
+    public void testInspectionReportsUnnamedMeshes() throws Exception {
+        byte[] source = meshMetadataGltf(null, "", "   ", "Body").getBytes(StandardCharsets.UTF_8);
+        GltfContainer.Extraction extraction = GltfContainer.inspect(new ByteArrayInputStream(source), "models/unnamed.gltf");
+        assertEquals(List.of(new GltfContainer.UnnamedMeshMetadata(0, 1, 3),
+                        new GltfContainer.UnnamedMeshMetadata(1, 1, 3),
+                        new GltfContainer.UnnamedMeshMetadata(2, 1, 3)),
+                extraction.unnamedMeshes());
+        assertEquals(List.of(3), extraction.meshes().stream().map(GltfContainer.MeshMetadata::index).toList());
+        assertEquals(List.of(0), extraction.meshInstances().stream().map(GltfContainer.MeshInstance::meshIndex).toList());
+    }
+
     @Test
     public void testMeshPathNaming() throws Exception {
         String longName = String.join("", Collections.nCopies(256, "a"));

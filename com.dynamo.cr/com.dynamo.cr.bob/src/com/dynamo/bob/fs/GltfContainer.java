@@ -122,14 +122,33 @@ public final class GltfContainer {
         }
     }
 
+    /**
+     * A scene node that instantiates a mesh. The node name is the runtime mesh id
+     * (model.set_mesh_enabled), and instances are in MeshSet model order.
+     */
+    public record MeshInstance(String name, int meshIndex) {}
+
+    /**
+     * A bone of the first skin, as seen by the runtime. The name is the runtime
+     * bone id (model.get_go), and parentIndex is -1 for the root bone.
+     */
+    public record BoneMetadata(String name, int index, int parentIndex) {}
+
+    /** A mesh without a glTF name. It has no virtual resource, only outline metadata. */
+    public record UnnamedMeshMetadata(int index, int primitiveCount, int vertexCount) {}
+
     /** Immutable result from the native-backed, file-system-independent extractor. */
     public record Extraction(List<Asset> assets, List<MeshMetadata> meshes, List<String> diagnostics,
-                             List<ImageReference> externalImages) {
+                             List<ImageReference> externalImages, List<MeshInstance> meshInstances,
+                             List<BoneMetadata> bones, List<UnnamedMeshMetadata> unnamedMeshes) {
         public Extraction {
             assets = List.copyOf(assets);
             meshes = List.copyOf(meshes);
             diagnostics = List.copyOf(diagnostics);
             externalImages = List.copyOf(externalImages);
+            meshInstances = List.copyOf(meshInstances);
+            bones = List.copyOf(bones);
+            unnamedMeshes = List.copyOf(unnamedMeshes);
         }
     }
 
@@ -235,7 +254,65 @@ public final class GltfContainer {
             case ImageAsset _ -> 1;
             case MeshMetadata _ -> 2;
         }).thenComparingInt(Asset::index));
-        return new Extraction(assets, meshes, diagnostics, externalImages);
+        return new Extraction(assets, meshes, diagnostics, externalImages,
+                extractMeshInstances(scene), extractBones(scene), extractUnnamedMeshes(scene));
+    }
+
+    // Empty unless the scene was loaded with node metadata.
+    private static List<MeshInstance> extractMeshInstances(Modelimporter.Scene scene) {
+        List<MeshInstance> instances = new ArrayList<>();
+        if (scene.rootNodes == null) {
+            return instances;
+        }
+        for (Modelimporter.Node node : ModelUtil.collectModelNodes(scene)) {
+            instances.add(new MeshInstance(node.name, node.model.index));
+        }
+        return instances;
+    }
+
+    private static List<UnnamedMeshMetadata> extractUnnamedMeshes(Modelimporter.Scene scene) {
+        List<UnnamedMeshMetadata> meshes = new ArrayList<>();
+        if (scene.models == null) {
+            return meshes;
+        }
+        for (Modelimporter.Model model : scene.models) {
+            if (!isNamedModel(model)) {
+                meshes.add(new UnnamedMeshMetadata(model.index, primitiveCount(model), vertexCount(model)));
+            }
+        }
+        return meshes;
+    }
+
+    private static boolean isNamedModel(Modelimporter.Model model) {
+        return !model.nameIsGenerated && !isBlank(model.name);
+    }
+
+    private static int primitiveCount(Modelimporter.Model model) {
+        return model.meshes == null ? 0 : model.meshes.length;
+    }
+
+    private static int vertexCount(Modelimporter.Model model) {
+        long vertexCount = 0;
+        if (model.meshes != null) {
+            for (Modelimporter.Mesh mesh : model.meshes) {
+                vertexCount += Math.max(0, mesh.vertexCount);
+                if (vertexCount >= Integer.MAX_VALUE) {
+                    return Integer.MAX_VALUE;
+                }
+            }
+        }
+        return (int)vertexCount;
+    }
+
+    private static List<BoneMetadata> extractBones(Modelimporter.Scene scene) {
+        List<BoneMetadata> bones = new ArrayList<>();
+        if (scene.skins == null) {
+            return bones;
+        }
+        for (Modelimporter.Bone bone : ModelUtil.loadSkeleton(scene)) {
+            bones.add(new BoneMetadata(bone.name, bone.index, bone.parent != null ? bone.parent.index : -1));
+        }
+        return bones;
     }
 
     /**
@@ -249,6 +326,7 @@ public final class GltfContainer {
         options.loadMaterialsOnly = true;
         options.loadMeshMetadata = true;
         options.skipImageData = true;
+        options.loadNodeMetadata = true;
         // The importer accepts JSON for both suffixes; sourcePath still anchors image URIs.
         Modelimporter.Scene scene = ModelUtil.loadScene(source.json(), sourcePath, options, null);
         Map<Integer, byte[]> dataBuffers = new LinkedHashMap<>();
@@ -416,8 +494,8 @@ public final class GltfContainer {
                 materials.put(material.index(), material);
             }
         }
-        var models = Arrays.stream(scene.models)
-                .filter(model -> !model.nameIsGenerated && !isBlank(model.name))
+        Modelimporter.Model[] models = Arrays.stream(scene.models)
+                .filter(GltfContainer::isNamedModel)
                 .toArray(Modelimporter.Model[]::new);
         var pathNameCandidates = new ArrayList<PathNameCandidate>(models.length);
         for (var model : models) {
@@ -425,17 +503,6 @@ public final class GltfContainer {
         }
         Map<Integer, String> pathNames = resourcePathNames(pathNameCandidates, MAX_MESH_PATH_NAME_BYTES);
         for (var model : models) {
-            int primitiveCount = model.meshes == null ? 0 : model.meshes.length;
-            long vertexCount = 0;
-            if (model.meshes != null) {
-                for (Modelimporter.Mesh mesh : model.meshes) {
-                    vertexCount += Math.max(0, mesh.vertexCount);
-                    if (vertexCount >= Integer.MAX_VALUE) {
-                        vertexCount = Integer.MAX_VALUE;
-                        break;
-                    }
-                }
-            }
             var modelDesc = ModelProto.ModelDesc.newBuilder()
                     .setMesh(sourceResourcePath)
                     .setMeshIndex(model.index)
@@ -462,7 +529,7 @@ public final class GltfContainer {
             }
             String resourcePath = sourceResourcePath + "/meshes/" + pathNames.get(model.index);
             meshes.add(new MeshMetadata(resourcePath, model.index, model.name, model.nameIsGenerated,
-                    primitiveCount, (int)vertexCount, ByteString.copyFromUtf8(TextFormat.printToString(modelDesc.build()))));
+                    primitiveCount(model), vertexCount(model), ByteString.copyFromUtf8(TextFormat.printToString(modelDesc.build()))));
         }
         return meshes;
     }
