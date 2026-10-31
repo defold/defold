@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipEntry;
@@ -75,6 +76,7 @@ import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.util.DependencyMetadata;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @RunWith(Parameterized.class)
 public class BundlerTest {
@@ -84,6 +86,7 @@ public class BundlerTest {
     private String contentRootUnused;
     private File buildReportJsonFile;
     private File buildReportHtmlFile;
+    private File downloadSizeReportFile;
     private Platform platform;
 
     @Parameters
@@ -360,6 +363,9 @@ public class BundlerTest {
             }
             if (buildReportHtmlFile != null) {
                 project.setOption("build-report-html", buildReportHtmlFile.getAbsolutePath());
+            }
+            if (downloadSizeReportFile != null) {
+                project.setOption("download-size-report", downloadSizeReportFile.getAbsolutePath());
             }
 
             List<TaskResult> result = project.build(Progress.discarding(), "clean", "build", "bundle");
@@ -979,6 +985,30 @@ public class BundlerTest {
                         bundleFiles.contains(expectedLibPath));
             }
         }
+    }
+
+    @Test
+    public void testAndroidDownloadSizeReport() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        if (platform != Platform.Armv7Android && platform != Platform.Arm64Android) {
+            return;
+        }
+
+        createDefaultFiles(contentRoot);
+        downloadSizeReportFile = new File(outputDir, "download_size.json");
+        build();
+
+        checkFileExist(new File(outputDir), downloadSizeReportFile);
+        Map<?, ?> report = new ObjectMapper().readValue(downloadSizeReportFile, Map.class);
+        long min = ((Number) report.get("min")).longValue();
+        long max = ((Number) report.get("max")).longValue();
+        assertTrue(report.toString(), min > 0 && min <= max);
+        Map<?, ?> abis = (Map<?, ?>) report.get("abis");
+        String abi = platform == Platform.Armv7Android ? "armeabi-v7a" : "arm64-v8a";
+        assertEquals(Set.of(abi), abis.keySet());
+
+        File bundleDir = getOutputDirFile(outputDir, "unnamed");
+        assertFalse(new File(bundleDir, "unnamed.aab").exists());
+        assertEquals(0, FileUtils.listFiles(bundleDir, new String[] {"apks"}, true).size());
     }
 
     private String getExpectedDynamicLibraryPath(String libName) {

@@ -600,6 +600,7 @@ dialog.bundle.label.android.key-pass = Key password
 dialog.bundle.label.android.bundle-format = Bundle format
 dialog.bundle.option.bundle-format.apk = APK
 dialog.bundle.option.bundle-format.aab = AAB
+dialog.bundle.option.android.download-size-report = Download size estimate
 dialog.bundle.title.choose-keystore = Choose Keystore
 dialog.bundle.filter.keystore = Keystore (*.keystore, *.jks)
 dialog.bundle.title.choose-keystore-pass = Choose Keystore password

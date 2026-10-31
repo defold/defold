@@ -517,6 +517,7 @@ public class Bob {
                 opt("br", "build-report", ONE, ABS_OR_CWD_REL_PATH, "DEPRECATED! Use --build-report-json instead"),
                 opt("brjson", "build-report-json", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a build report as JSON"),
                 opt("brhtml", "build-report-html", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a build report as HTML"),
+                opt(null, "download-size-report", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save the estimated Google Play download size as JSON (Android)"),
 
                 opt(null, "build-server", ONE, "The build server (when using native extensions)"),
                 opt(null, "build-server-header", MANY, "Additional build server header to set"),
