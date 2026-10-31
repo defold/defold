@@ -213,6 +213,7 @@ namespace dmTexc
         if (status != ASTCENC_SUCCESS)
         {
             dmLogError("ERROR: Codec compress failed: %s", astcenc_get_error_string(status));
+            free(comp_data);
             return false;
         }
 
