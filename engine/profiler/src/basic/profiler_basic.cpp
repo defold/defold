@@ -1049,4 +1049,11 @@ static dmExtension::Result ProfilerBasic_AppFinalize(dmExtension::AppParams* par
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(ProfilerBasic, g_ProfilerName, ProfilerBasic_AppInitialize, ProfilerBasic_AppFinalize, 0, 0, 0, 0);
+static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+{
+    dmExtension::SetAppInitializeFn(extension, ProfilerBasic_AppInitialize);
+    dmExtension::SetAppFinalizeFn(extension, ProfilerBasic_AppFinalize);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(ProfilerBasic, RegisterExtension, 0);

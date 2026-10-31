@@ -1,0 +1,11 @@
+function init(self)
+    _G.input_observer_lua_calls = 0
+    msg.post(".", "acquire_input_focus")
+end
+
+function on_input(self, action_id, action)
+    if action_id == hash("up") or action_id == hash("text") then
+        _G.input_observer_lua_calls = _G.input_observer_lua_calls + 1
+        return true
+    end
+end

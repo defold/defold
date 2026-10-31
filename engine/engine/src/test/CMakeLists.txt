@@ -75,6 +75,7 @@ set(ENGINE_TEST_CONTENT_SETTINGS
   "issue-12703.ini"
   "render_script.ini"
   "camera_acquire_input_focus.ini"
+  "input_observer.ini"
   "text_input.ini")
 
 set(ENGINE_TEST_CLASSPATH "${ENGINE_BOB_ENGINE_JAR}")
@@ -187,6 +188,7 @@ defold_create_exported_symbols_file("${ENGINE_TEST_EXPORTS_CPP}" "${ENGINE_TEST_
 
 defold_add_executable(test_engine
   "${ENGINE_TEST_ROOT}/test_engine.cpp"
+  "${ENGINE_TEST_ROOT}/test_engine_api.c"
   "${ENGINE_TEST_ROOT}/test_engine_service.cpp"
   "${ENGINE_TEST_EXPORTS_CPP}")
 if(NOT DEFOLD_MSVC_IDE_SOLUTION)

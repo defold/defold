@@ -178,6 +178,7 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
     language = 'C++'
     brief = docs.get('brief', '')
     description = docs.get('desc', '')
+    description = rename_symbols({key: value for key, value in info.get('rename', {}).items() if value}, description)
     description = description.replace('\n', '\n * ')
 
     if api_name is None:
@@ -206,6 +207,14 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
     ignores = info.get('ignore', [])
     prefixes = info.get('rename', {})
+
+    for name, typ in info.get('constant_aliases', {}).items():
+        if name in ignores:
+            continue
+        renamed = rename_symbols(prefixes, name)
+        l(gen_doc(docs, name, renamed, renames=prefixes))
+        l('    static const %s %s = %s;' % (typ, renamed, name))
+        l('')
 
     for enum_type, doc in state.enum_types:
         n = enum_type.name

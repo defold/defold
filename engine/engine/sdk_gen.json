@@ -1,0 +1,52 @@
+{
+    "basepath": "src",
+    "includes": [
+        "src",
+        "${DYNAMO_HOME}/sdk/include"
+    ],
+    "files": [
+        {
+            "file": "src/dmsdk/engine/engine_event.h",
+            "languages": {
+                "cpp": {
+                    "namespace": "dmEngine",
+                    "constant_aliases": {
+                        "ENGINE_EVENT_APP_ACTIVATE": "dmhash_t",
+                        "ENGINE_EVENT_APP_DEACTIVATE": "dmhash_t",
+                        "ENGINE_EVENT_APP_ICONIFY": "dmhash_t",
+                        "ENGINE_EVENT_APP_DEICONIFY": "dmhash_t",
+                        "ENGINE_EVENT_ENGINE_INITIALIZED": "dmhash_t",
+                        "ENGINE_EVENT_ENGINE_DELETE": "dmhash_t",
+                        "ENGINE_EVENT_WINDOW_RESIZED": "dmhash_t",
+                        "ENGINE_EVENT_INPUT_ACTIONS": "dmhash_t"
+                    },
+                    "rename": {
+                        "ENGINE_EVENT_": "EVENT_",
+                        "EngineLifecycleEvent": "LifecycleEvent",
+                        "EngineAppEvent": "AppEvent",
+                        "EngineWindowResizedEvent": "WindowResizedEvent",
+                        "EngineInputActionsEvent": "InputActionsEvent",
+                        "HInputActionBatch": "dmInput::HActionBatch",
+                        "ExtensionBroadcastEvent": "dmExtension::BroadcastEvent",
+                        "FExtensionEventCallback": "dmExtension::FEventCallback",
+                        "EngineGetWindow": "dmEngine::GetWindow"
+                    }
+                }
+            }
+        },
+        {
+            "file": "src/dmsdk/engine/engine.h",
+            "languages": {
+                "cpp": {
+                    "namespace": "dmEngine",
+                    "ignore": [
+                        "HEngine"
+                    ],
+                    "rename": {
+                        "EngineGetWindow": "GetWindow"
+                    }
+                }
+            }
+        }
+    ]
+}

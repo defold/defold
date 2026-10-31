@@ -16,11 +16,10 @@
 #define DM_ENGINE_H
 
 #include <stdint.h>
+#include <dmsdk/engine/engine.h>
 
 namespace dmEngine
 {
-    typedef struct Engine* HEngine;
-
     uint16_t GetHttpPort(HEngine engine);
 
     enum UpdateResult

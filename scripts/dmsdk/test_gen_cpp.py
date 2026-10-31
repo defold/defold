@@ -1,7 +1,9 @@
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 import gen_cpp
 import gen_doc
@@ -62,6 +64,46 @@ class CppDocumentationTests(unittest.TestCase):
         self.assertIn('@param app_params [type:dmExtension::AppParams*]', doc)
         self.assertIn('dmExtension::AppInitialize', doc)
         self.assertIn('@return code [type:AppExitCode]', doc)
+
+    # Const opaque record pointers must retain their C++ aliases and read-only C type.
+    def test_const_opaque_action_handles(self):
+        with patch.dict(os.environ, {'DYNAMO_HOME': str(self.root / 'tmp/dynamo_home')}):
+            import gen_sdk
+        config = json.loads((self.root / 'engine/input/sdk_gen.json').read_text())['files'][0]['languages']['cpp']
+        docs = gen_doc.parse_docs(str(self.root / 'engine/input/src/dmsdk/input/input.h'))
+        declarations = []
+        for name in ['HInputAction', 'HInputActionBatch']:
+            node = {'kind': 'RecordType'}
+            for kind in ['ElaboratedType', 'QualType', 'PointerType', 'TypedefDecl']:
+                node = {'kind': kind, 'inner': [node]}
+            node['name'] = name
+            self.assertTrue(gen_sdk.is_struct_typedef(node))
+            declarations.append((node, None))
+        state = SimpleNamespace(enum_types=[], struct_typedefs=declarations, function_typedefs=[], functions=[])
+        header = gen_cpp.gen_cpp_header(str(self.root), 'dmsdk/input/input.h',
+            str(self.root / 'engine/input/src/dmsdk/input/input_gen.hpp'), config, None, state, [], docs)
+        self.assertIn('typedef HInputAction HAction;', header)
+        self.assertIn('typedef HInputActionBatch HActionBatch;', header)
+
+    # Precomputed hash constants need typed C++ aliases and matching documentation after regeneration.
+    def test_hash_constant_aliases(self):
+        engine = self.root / 'engine/engine'
+        docs = gen_doc.parse_docs(str(engine / 'src/dmsdk/engine/engine_event.h'))
+        info = json.loads((engine / 'sdk_gen.json').read_text())['files'][0]['languages']['cpp']
+        state = SimpleNamespace(enum_types=[], struct_typedefs=[], function_typedefs=[], functions=[])
+        header = gen_cpp.gen_cpp_header(
+            str(self.root), 'dmsdk/engine/engine_event.h',
+            str(engine / 'src/dmsdk/engine/engine_event_gen.hpp'),
+            info, None, state, [], docs)
+        cpp_docs, c_docs = header.split('} // namespace dmEngine', 1)
+        aliases = info['constant_aliases']
+        self.assertEqual(8, len(aliases))
+        self.assertIn('| `EVENT_WINDOW_RESIZED` |', cpp_docs)
+        for name in aliases:
+            renamed = gen_cpp.rename_symbols(info['rename'], name)
+            self.assertIn('static const dmhash_t %s = %s;' % (renamed, name), cpp_docs)
+            self.assertIn('@name ' + renamed, cpp_docs)
+            self.assertIn('@name ' + name, c_docs)
 
 
 if __name__ == '__main__':

@@ -155,7 +155,14 @@ namespace dmGameSystem
     }
 
 
-    DM_DECLARE_EXTENSION(ScriptBox2DExt, "ScriptBox2d", 0, 0, ScriptBox2DInitialize, 0, 0, ScriptBox2DFinalize)
+    static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+    {
+        dmExtension::SetInitializeFn(extension, ScriptBox2DInitialize);
+        dmExtension::SetFinalizeFn(extension, ScriptBox2DFinalize);
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptBox2DExt, RegisterExtension, 0)
 
 }
 

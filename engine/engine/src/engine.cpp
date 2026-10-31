@@ -17,6 +17,7 @@
 #include "engine_private.h"
 
 #include <dmsdk/dlib/configfile.h>
+#include <dmsdk/engine/engine_event.h>
 #include <dmsdk/dlib/jobsystem.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/webserver.h>
@@ -328,6 +329,10 @@ namespace dmEngine
         }
 
         dmGameSystem::OnWindowResized(width, height);
+
+        ScopedExtensionParams params(engine);
+        dmEngine::WindowResizedEvent event = { engine, engine->m_Window, width, height };
+        dmExtension::BroadcastEvent(params, dmEngine::EVENT_WINDOW_RESIZED, &event, sizeof(event));
     }
 
     static int OnWindowClose(void* user_data)
@@ -345,9 +350,8 @@ namespace dmEngine
         Engine* engine = (Engine*)user_data;
         ScopedExtensionParams params(engine);
 
-        dmExtension::Event event;
-        event.m_Event = focus ? EXTENSION_EVENT_ID_ACTIVATEAPP : EXTENSION_EVENT_ID_DEACTIVATEAPP;
-        dmExtension::DispatchEvent( params, &event );
+        dmEngine::AppEvent event = { engine };
+        dmExtension::BroadcastEvent(params, focus ? dmEngine::EVENT_APP_ACTIVATE : dmEngine::EVENT_APP_DEACTIVATE, &event, sizeof(event));
 
         dmGameSystem::OnWindowFocus(focus != 0);
     }
@@ -362,9 +366,8 @@ namespace dmEngine
 
         ScopedExtensionParams params(engine);
 
-        dmExtension::Event event;
-        event.m_Event = iconify ? EXTENSION_EVENT_ID_ICONIFYAPP : EXTENSION_EVENT_ID_DEICONIFYAPP;
-        dmExtension::DispatchEvent( params, &event );
+        dmEngine::AppEvent event = { engine };
+        dmExtension::BroadcastEvent(params, iconify ? dmEngine::EVENT_APP_ICONIFY : dmEngine::EVENT_APP_DEICONIFY, &event, sizeof(event));
 
         dmGameSystem::OnWindowIconify(iconify != 0);
     }
@@ -527,9 +530,8 @@ namespace dmEngine
         {
             ScopedExtensionParams params(engine);
 
-            dmExtension::Event event;
-            event.m_Event = EXTENSION_EVENT_ID_ENGINE_DELETE;
-            dmExtension::DispatchEvent( params, &event );
+            dmEngine::LifecycleEvent event = { engine };
+            dmExtension::BroadcastEvent(params, dmEngine::EVENT_ENGINE_DELETE, &event, sizeof(event));
         }
 
         if (engine->m_MainCollectionResource)
@@ -616,6 +618,7 @@ namespace dmEngine
         {
             dmPlatform::CloseWindow(engine->m_Window);
             dmPlatform::DeleteWindow(engine->m_Window);
+            engine->m_Window = 0;
         }
 
         if (engine->m_SystemSocket)
@@ -1826,9 +1829,8 @@ namespace dmEngine
         {
             ScopedExtensionParams params(engine);
 
-            dmExtension::Event event;
-            event.m_Event = EXTENSION_EVENT_ID_ENGINE_INITIALIZED;
-            dmExtension::DispatchEvent( params, &event );
+            dmEngine::LifecycleEvent event = { engine };
+            dmExtension::BroadcastEvent(params, dmEngine::EVENT_ENGINE_INITIALIZED, &event, sizeof(event));
         }
 
         // Establish the elapsed-time origin and first pacing deadline only after
@@ -1861,6 +1863,41 @@ bail:
     void SetRenderEnabled(bool enabled)
     {
         g_EngineRenderEnabled = enabled;
+    }
+
+    static InputActionSource GetInputActionSource(dmHID::InputSource source)
+    {
+        switch (source)
+        {
+            case dmHID::INPUT_SOURCE_KEYBOARD:
+            {
+                return INPUT_ACTION_SOURCE_KEYBOARD;
+            }
+            case dmHID::INPUT_SOURCE_TEXT:
+            {
+                return INPUT_ACTION_SOURCE_TEXT;
+            }
+            case dmHID::INPUT_SOURCE_MOUSE:
+            {
+                return INPUT_ACTION_SOURCE_MOUSE;
+            }
+            case dmHID::INPUT_SOURCE_TOUCH:
+            {
+                return INPUT_ACTION_SOURCE_TOUCH;
+            }
+            case dmHID::INPUT_SOURCE_GAMEPAD:
+            {
+                return INPUT_ACTION_SOURCE_GAMEPAD;
+            }
+            case dmHID::INPUT_SOURCE_ACCELEROMETER:
+            {
+                return INPUT_ACTION_SOURCE_ACCELEROMETER;
+            }
+            default:
+            {
+                return INPUT_ACTION_SOURCE_UNKNOWN;
+            }
+        }
     }
 
     static void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
@@ -1943,6 +1980,11 @@ bail:
         input_action.m_UserID = action->m_UserID;
 
         input_buffer->Push(input_action);
+    }
+
+    HWindow GetWindow(HEngine engine)
+    {
+        return engine->m_Window;
     }
 
     uint16_t GetHttpPort(HEngine engine)
@@ -2087,6 +2129,7 @@ bail:
                     dmResource::UpdateFactory(engine->m_Factory); // Process Reload event
                 }
 
+                ScopedExtensionParams extension_params(engine);
                 {
                     DM_PROFILE("Extension");
 
@@ -2094,8 +2137,6 @@ bail:
                     dmGameSystem::ScriptLibContext script_lib_context;
                     script_lib_context.m_Factory  = engine->m_Factory;
                     script_lib_context.m_Register = engine->m_Register;
-
-                    ScopedExtensionParams extension_params(engine);
 
                     script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_ScriptContext);
                     dmGameSystem::UpdateScriptLibs(script_lib_context);
@@ -2135,6 +2176,28 @@ bail:
 
                 dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
                 uint32_t input_buffer_size = input_buffer.Size();
+                dmArray<dmInputAction>& resolved = engine->m_ResolvedInputActions;
+                if (resolved.Capacity() < input_buffer_size)
+                {
+                    resolved.SetCapacity(dmMath::Max(input_buffer_size, resolved.Capacity() + 64));
+                }
+                resolved.SetSize(input_buffer_size);
+                for (uint32_t i = 0; i < input_buffer_size; ++i)
+                {
+                    const dmGameObject::InputAction& source = input_buffer[i];
+                    dmInputAction& action = resolved[i];
+                    action.m_Id = source.m_ActionId;
+                    action.m_Value = source.m_Value;
+                    action.m_Source = GetInputActionSource((dmHID::InputSource)source.m_Source);
+                    action.m_GamepadIndex = source.m_GamepadIndex;
+                    action.m_IsGamepad = source.m_IsGamepad;
+                    action.m_Pressed = source.m_Pressed;
+                    action.m_Released = source.m_Released;
+                    action.m_Repeated = source.m_Repeated;
+                }
+                dmInputActionBatch batch = { resolved.Begin(), input_buffer_size };
+                dmEngine::InputActionsEvent event = { engine, engine->m_Window, &batch };
+                dmExtension::BroadcastEvent(extension_params, dmEngine::EVENT_INPUT_ACTIONS, &event, sizeof(event));
                 if (input_buffer_size > 0)
                 {
                     dmGameObject::DispatchInput(GetMainCollection(engine), &input_buffer[0], input_buffer.Size());
@@ -2705,6 +2768,11 @@ bail:
     {
         stats = engine->m_Stats;
     }
+}
+
+extern "C" HWindow EngineGetWindow(HEngine engine)
+{
+    return dmEngine::GetWindow(engine);
 }
 
 void dmEngineInitialize()

@@ -31,6 +31,7 @@
 #include <render/render_ddf.h>
 #include <gameobject/component.h>
 #include <dmsdk/extension/extension.hpp>
+#include <dmsdk/engine/engine_event.h>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
@@ -66,6 +67,88 @@ static float    g_ExtensionTotalDT              = 0.0f;
 static uint32_t g_ExtensionUpdateCount          = 0;
 static bool     g_ExtensionFloatLookupSucceeded = true;
 
+extern "C" int TestEngineWindowC(HEngine engine, HWindow expected);
+
+struct EngineEventObservations
+{
+    dmEngine::HEngine m_Engine;
+    uint32_t          m_Initialized;
+    uint32_t          m_Deleted;
+    uint32_t          m_Finalized;
+    uint32_t          m_Resized;
+    uint32_t          m_Width;
+    uint32_t          m_Height;
+    bool              m_InitSucceeded;
+    bool              m_InitializedContexts;
+    bool              m_DeletedContexts;
+    bool              m_DeletedBeforeFinalize;
+    bool              m_CollectionAliveAtDelete;
+    bool              m_WindowStateApplied;
+    bool              m_PayloadValid;
+    bool              m_WindowAccessorValid;
+    bool              m_WindowClearedAtAppFinalize;
+};
+static EngineEventObservations g_EngineEvents = {};
+static bool g_ObserveEngineEvents = false;
+
+static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const void* data, uint32_t data_size)
+{
+    if (!g_ObserveEngineEvents)
+    {
+        return;
+    }
+    if (event_id == dmEngine::EVENT_ENGINE_INITIALIZED || event_id == dmEngine::EVENT_ENGINE_DELETE)
+    {
+        bool valid = data && data_size == sizeof(dmEngine::LifecycleEvent);
+        g_EngineEvents.m_PayloadValid &= valid;
+        if (!valid)
+        {
+            return;
+        }
+        const dmEngine::LifecycleEvent* event = (const dmEngine::LifecycleEvent*)data;
+        g_EngineEvents.m_PayloadValid &= event->m_Engine == g_EngineEvents.m_Engine;
+        HWindow window = dmEngine::GetWindow(event->m_Engine);
+        g_EngineEvents.m_WindowAccessorValid &= window == g_EngineEvents.m_Engine->m_Window &&
+                                                TestEngineWindowC(event->m_Engine, window);
+    }
+    if (event_id == dmEngine::EVENT_ENGINE_INITIALIZED)
+    {
+        ++g_EngineEvents.m_Initialized;
+        g_EngineEvents.m_InitializedContexts = params->m_L && params->m_ResourceFactory;
+    }
+    else if (event_id == dmEngine::EVENT_ENGINE_DELETE)
+    {
+        ++g_EngineEvents.m_Deleted;
+        g_EngineEvents.m_DeletedBeforeFinalize = g_EngineEvents.m_Finalized == 0;
+        g_EngineEvents.m_DeletedContexts = params->m_L && params->m_ResourceFactory &&
+                                           g_EngineEvents.m_Engine->m_RenderContext && g_EngineEvents.m_Engine->m_HidContext;
+        dmhash_t collection_path;
+        g_EngineEvents.m_CollectionAliveAtDelete = g_EngineEvents.m_Engine->m_MainCollectionResource &&
+                                                   ResourceGetPath(params->m_ResourceFactory, g_EngineEvents.m_Engine->m_MainCollectionResource, &collection_path) == RESOURCE_RESULT_OK;
+    }
+    else if (event_id == dmEngine::EVENT_WINDOW_RESIZED)
+    {
+        bool valid = data && data_size == sizeof(dmEngine::WindowResizedEvent);
+        g_EngineEvents.m_PayloadValid &= valid;
+        if (!valid)
+        {
+            return;
+        }
+        const dmEngine::WindowResizedEvent* resized = (const dmEngine::WindowResizedEvent*)data;
+        g_EngineEvents.m_PayloadValid &= resized->m_Engine == g_EngineEvents.m_Engine &&
+                                         resized->m_Window == g_EngineEvents.m_Engine->m_Window;
+        ++g_EngineEvents.m_Resized;
+        g_EngineEvents.m_Width = resized->m_Width;
+        g_EngineEvents.m_Height = resized->m_Height;
+        if (resized->m_Width && resized->m_Height)
+        {
+            float dx = g_EngineEvents.m_Engine->m_InvPhysicalWidth - 1.0f / resized->m_Width;
+            float dy = g_EngineEvents.m_Engine->m_InvPhysicalHeight - 1.0f / resized->m_Height;
+            g_EngineEvents.m_WindowStateApplied &= dx < 0.00001f && dx > -0.00001f && dy < 0.00001f && dy > -0.00001f;
+        }
+    }
+}
+
 static dmExtension::Result DeltaTimeTestLifecycle(dmExtension::Params*)
 {
     return dmExtension::RESULT_OK;
@@ -85,7 +168,136 @@ static dmExtension::Result DeltaTimeTestUpdate(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(EngineDeltaTimeTestExt, "test_dt", 0, 0, DeltaTimeTestLifecycle, DeltaTimeTestUpdate, 0, DeltaTimeTestLifecycle);
+static dmExtension::Result DeltaTimeTestFinalize(dmExtension::Params*)
+{
+    if (g_ObserveEngineEvents)
+    {
+        ++g_EngineEvents.m_Finalized;
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result EngineEventAppFinalize(dmExtension::AppParams*)
+{
+    if (g_ObserveEngineEvents)
+    {
+        g_EngineEvents.m_WindowClearedAtAppFinalize = dmEngine::GetWindow(g_EngineEvents.m_Engine) == 0 &&
+                                                      TestEngineWindowC(g_EngineEvents.m_Engine, 0);
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result RegisterDeltaTimeTest(dmExtension::HExtension extension)
+{
+    dmExtension::SetAppFinalizeFn(extension, EngineEventAppFinalize);
+    dmExtension::SetInitializeFn(extension, DeltaTimeTestLifecycle);
+    dmExtension::SetUpdateFn(extension, DeltaTimeTestUpdate);
+    dmExtension::SetFinalizeFn(extension, DeltaTimeTestFinalize);
+    dmExtension::SetEventFn(extension, EngineEvent);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineDeltaTimeTestExt, RegisterDeltaTimeTest, 0);
+
+struct ObservedInputAction
+{
+    dmhash_t              m_Id;
+    float                 m_Value;
+    dmInput::ActionSource m_Source;
+    bool                  m_Pressed;
+    bool                  m_Released;
+    bool                  m_Repeated;
+};
+
+struct InputObservation
+{
+    uint32_t            m_Calls;
+    uint32_t            m_Count;
+    uint32_t            m_LuaCalls;
+    ObservedInputAction m_Actions[8];
+};
+
+struct InputObserverContext
+{
+    dmEngine::HEngine m_Engine;
+    lua_State*        m_L;
+    InputObservation  m_Observers[2];
+    bool              m_Valid;
+};
+static InputObserverContext* g_InputObserver = 0;
+
+static uint32_t InputLuaCalls(lua_State* L)
+{
+    lua_getglobal(L, "input_observer_lua_calls");
+    uint32_t calls = (uint32_t)lua_tointeger(L, -1);
+    lua_pop(L, 1);
+    return calls;
+}
+
+static void CaptureInput(dmExtension::Params* params, dmhash_t id, const void* data, uint32_t size, uint32_t observer)
+{
+    if (id != dmEngine::EVENT_INPUT_ACTIONS || !g_InputObserver)
+    {
+        return;
+    }
+    InputObserverContext* ctx = g_InputObserver;
+    bool valid = data && size == sizeof(dmEngine::InputActionsEvent);
+    ctx->m_Valid &= valid;
+    if (!valid)
+    {
+        return;
+    }
+    const dmEngine::InputActionsEvent* event = (const dmEngine::InputActionsEvent*)data;
+    ctx->m_Valid &= event->m_Engine == ctx->m_Engine && event->m_Window == ctx->m_Engine->m_Window &&
+                    params->m_L == ctx->m_L && params->m_ResourceFactory == ctx->m_Engine->m_Factory && event->m_Actions;
+    float dt = -1.0f;
+    ctx->m_Valid &= dmExtension::ParamsGetFloat(params, dmExtension::PARAM_DT, &dt) && dt == 0.0f;
+    if (!event->m_Actions)
+    {
+        return;
+    }
+    InputObservation& seen = ctx->m_Observers[observer];
+    ++seen.m_Calls;
+    seen.m_Count = dmInput::ActionBatchGetCount(event->m_Actions);
+    seen.m_LuaCalls = InputLuaCalls(params->m_L);
+    ctx->m_Valid &= seen.m_Count <= DM_ARRAY_SIZE(seen.m_Actions);
+    ctx->m_Valid &= dmInput::ActionBatchGetAction(event->m_Actions, seen.m_Count) == 0;
+    for (uint32_t i = 0; i < seen.m_Count && i < DM_ARRAY_SIZE(seen.m_Actions); ++i)
+    {
+        dmInput::HAction action = dmInput::ActionBatchGetAction(event->m_Actions, i);
+        seen.m_Actions[i].m_Id = dmInput::ActionGetId(action);
+        seen.m_Actions[i].m_Value = dmInput::ActionGetValue(action);
+        seen.m_Actions[i].m_Source = dmInput::ActionGetSource(action);
+        seen.m_Actions[i].m_Pressed = dmInput::ActionIsPressed(action);
+        seen.m_Actions[i].m_Released = dmInput::ActionIsReleased(action);
+        seen.m_Actions[i].m_Repeated = dmInput::ActionIsRepeated(action);
+    }
+}
+
+static void ObserveInputFirst(dmExtension::Params* params, dmhash_t id, const void* data, uint32_t size)
+{
+    CaptureInput(params, id, data, size, 0);
+}
+
+static void ObserveInputSecond(dmExtension::Params* params, dmhash_t id, const void* data, uint32_t size)
+{
+    CaptureInput(params, id, data, size, 1);
+}
+
+static dmExtension::Result RegisterInputFirst(dmExtension::HExtension extension)
+{
+    dmExtension::SetEventFn(extension, ObserveInputFirst);
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result RegisterInputSecond(dmExtension::HExtension extension)
+{
+    dmExtension::SetEventFn(extension, ObserveInputSecond);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineInputObserverTestExt, RegisterInputFirst, 0);
+DM_DECLARE_EXTENSION(EngineInputObserverSecondTestExt, RegisterInputSecond, 0);
 
 static void TestEngineInitialize(void* _ctx)
 {
@@ -579,6 +791,198 @@ TEST_F(EngineTest, WindowResizeBeforeRenderContext)
 
     dmEngine::Delete(engine);
     dmEngineFinalize();
+}
+
+static EngineEventObservations RunEngineEventCycle(bool fail_initialization)
+{
+    dmEngineInitialize();
+    memset(&g_EngineEvents, 0, sizeof(g_EngineEvents));
+    g_EngineEvents.m_PayloadValid = true;
+    g_EngineEvents.m_WindowStateApplied = true;
+    g_EngineEvents.m_Engine = dmEngine::New(0);
+    g_EngineEvents.m_WindowAccessorValid = dmEngine::GetWindow(g_EngineEvents.m_Engine) == 0 &&
+                                           TestEngineWindowC(g_EngineEvents.m_Engine, 0);
+    g_ObserveEngineEvents = true;
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine", "--config=dmengine.unload_builtins=0", project_path, "--config=bootstrap.main_collection=/missing_event_test.collectionc"
+    };
+    g_EngineEvents.m_InitSucceeded = dmEngine::Init(g_EngineEvents.m_Engine, fail_initialization ? DM_ARRAY_SIZE(argv) : DM_ARRAY_SIZE(argv) - 1, (char**)argv);
+    if (g_EngineEvents.m_InitSucceeded)
+    {
+        g_EngineEvents.m_Resized = 0;
+        dmEngine::OnWindowResize(g_EngineEvents.m_Engine, 321, 123);
+    }
+    dmEngine::Delete(g_EngineEvents.m_Engine);
+    dmEngineFinalize();
+    g_ObserveEngineEvents = false;
+    g_EngineEvents.m_Engine = 0;
+    return g_EngineEvents;
+}
+
+// Observers see the current ordered batch before Lua consumption, including held/released and empty updates.
+TEST_F(EngineTest, InputObserversBeforeFocusedDispatch)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=display.update_frequency=0",
+        "--config=input.repeat_delay=0",
+        "--config=input.repeat_interval=1",
+        "--config=bootstrap.main_collection=/input_observer/input_observer.collectionc",
+        "--config=input.game_binding=/input_observer/input_observer.input_bindingc",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    InputObserverContext ctx = {};
+    InputObservation observations[5][2];
+    uint32_t lua_calls[5] = {};
+    ctx.m_Engine = engine;
+    bool consumed[5] = {};
+    if (initialized)
+    {
+        ctx.m_L = dmScript::GetLuaState(engine->m_ScriptContext);
+        ctx.m_Valid = true;
+        g_InputObserver = &ctx;
+
+        // The null HID backend preserves injected key state across polling.
+        dmHID::HKeyboard keyboard = dmHID::GetKeyboard(engine->m_HidContext, 0);
+        for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(observations); ++frame)
+        {
+            dmHID::SetKey(keyboard, dmHID::KEY_UP, frame == 1 || frame == 2);
+            if (frame == 1)
+            {
+                dmHID::AddKeyboardChar(engine->m_HidContext, 'A');
+            }
+
+            dmEngine::Step(engine);
+            for (uint32_t observer = 0; observer < DM_ARRAY_SIZE(ctx.m_Observers); ++observer)
+            {
+                observations[frame][observer] = ctx.m_Observers[observer];
+            }
+            lua_calls[frame] = InputLuaCalls(ctx.m_L);
+            consumed[frame] = true;
+            for (uint32_t i = 0; i < engine->m_InputBuffer.Size(); ++i)
+            {
+                consumed[frame] &= engine->m_InputBuffer[i].m_Consumed != 0;
+            }
+        }
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    g_InputObserver = 0;
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(ctx.m_Valid);
+    const uint32_t counts[] = { 0, 2, 1, 1, 0 };
+    const uint32_t before_lua[] = { 0, 0, 2, 3, 4 };
+    const uint32_t after_lua[] = { 0, 2, 3, 4, 4 };
+    for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(observations); ++frame)
+    {
+        ASSERT_EQ(after_lua[frame], lua_calls[frame]);
+        ASSERT_TRUE(consumed[frame]);
+        for (uint32_t observer = 0; observer < DM_ARRAY_SIZE(ctx.m_Observers); ++observer)
+        {
+            const InputObservation& seen = observations[frame][observer];
+            ASSERT_EQ(frame + 1, seen.m_Calls);
+            ASSERT_EQ(counts[frame], seen.m_Count);
+            ASSERT_EQ(before_lua[frame], seen.m_LuaCalls);
+            if (counts[frame])
+            {
+                ASSERT_EQ(dmHashString64("up"), seen.m_Actions[0].m_Id);
+                ASSERT_EQ(dmInput::ACTION_SOURCE_KEYBOARD, seen.m_Actions[0].m_Source);
+                ASSERT_EQ(frame != 3 ? 1.0f : 0.0f, seen.m_Actions[0].m_Value);
+                ASSERT_EQ(frame == 1, seen.m_Actions[0].m_Pressed != 0);
+                ASSERT_EQ(frame == 2, seen.m_Actions[0].m_Repeated != 0);
+                ASSERT_EQ(frame == 3, seen.m_Actions[0].m_Released != 0);
+            }
+            if (frame == 1)
+            {
+                ASSERT_EQ(dmHashString64("text"), seen.m_Actions[1].m_Id);
+                ASSERT_EQ(dmInput::ACTION_SOURCE_TEXT, seen.m_Actions[1].m_Source);
+            }
+        }
+    }
+    ASSERT_EQ(5u, ctx.m_Observers[0].m_Calls);
+    ASSERT_EQ(5u, ctx.m_Observers[1].m_Calls);
+}
+
+// A step that exits before binding resolution must not publish a synthetic empty input batch.
+TEST_F(EngineTest, SkippedInputResolutionHasNoEvent)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine", "--config=dmengine.unload_builtins=0",
+        "--config=bootstrap.main_collection=/input_observer/input_observer.collectionc", project_path
+    };
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    InputObserverContext ctx = {};
+    if (initialized)
+    {
+        ctx.m_Engine = engine;
+        ctx.m_L = dmScript::GetLuaState(engine->m_ScriptContext);
+        ctx.m_Valid = true;
+        g_InputObserver = &ctx;
+        engine->m_QuitOnEsc = true;
+        dmHID::SetKey(dmHID::GetKeyboard(engine->m_HidContext, 0), dmHID::KEY_ESC, true);
+        dmEngine::Step(engine);
+    }
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+    g_InputObserver = 0;
+    ASSERT_TRUE(initialized);
+    ASSERT_EQ(0u, ctx.m_Observers[0].m_Calls);
+    ASSERT_EQ(0u, ctx.m_Observers[1].m_Calls);
+}
+
+// Lifecycle handles expose the engine-owned window through C/C++ accessors across startup, events and restarts.
+TEST_F(EngineTest, GenericLifecycleEventsBeforeTeardown)
+{
+    for (uint32_t run = 0; run < 2; ++run)
+    {
+        EngineEventObservations events = RunEngineEventCycle(false);
+        ASSERT_TRUE(events.m_InitSucceeded);
+        ASSERT_EQ(1u, events.m_Initialized);
+        ASSERT_EQ(1u, events.m_Deleted);
+        ASSERT_EQ(1u, events.m_Finalized);
+        ASSERT_TRUE(events.m_InitializedContexts);
+        ASSERT_TRUE(events.m_DeletedContexts);
+        ASSERT_TRUE(events.m_DeletedBeforeFinalize);
+        ASSERT_TRUE(events.m_CollectionAliveAtDelete);
+        ASSERT_TRUE(events.m_WindowStateApplied);
+        ASSERT_TRUE(events.m_PayloadValid);
+        ASSERT_TRUE(events.m_WindowAccessorValid);
+        ASSERT_TRUE(events.m_WindowClearedAtAppFinalize);
+        ASSERT_EQ(1u, events.m_Resized);
+        ASSERT_EQ(321u, events.m_Width);
+        ASSERT_EQ(123u, events.m_Height);
+    }
+}
+
+// Failed bootstrap initialization still emits generic engine-delete while the initialized systems remain alive.
+TEST_F(EngineTest, GenericEngineDeleteAfterInitializationFailure)
+{
+    EngineEventObservations events = RunEngineEventCycle(true);
+    ASSERT_FALSE(events.m_InitSucceeded);
+    ASSERT_EQ(0u, events.m_Initialized);
+    ASSERT_EQ(1u, events.m_Deleted);
+    ASSERT_TRUE(events.m_DeletedBeforeFinalize);
+    ASSERT_TRUE(events.m_DeletedContexts);
+    ASSERT_TRUE(events.m_PayloadValid);
+    ASSERT_TRUE(events.m_WindowAccessorValid);
+    ASSERT_TRUE(events.m_WindowClearedAtAppFinalize);
 }
 
 // Extension and engine time must agree after every update, including when delta time is zero.
@@ -1766,6 +2170,8 @@ int main(int argc, char **argv)
 #endif
     dmExportedSymbols();
     EngineDeltaTimeTestExt();
+    EngineInputObserverTestExt();
+    EngineInputObserverSecondTestExt();
     TestMainPlatformInit();
 
     ProfileInitialize();

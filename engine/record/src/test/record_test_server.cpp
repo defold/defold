@@ -25,6 +25,7 @@
 #include <dlib/thread.h>
 #include <dlib/webserver.h>
 #include <extension/extension.hpp>
+#include <dmsdk/engine/engine_event.h>
 #include <dmsdk/engine/extension.hpp>
 #if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_WINDOWS)
 #include <dmsdk/graphics/graphics_native.h>
@@ -214,9 +215,8 @@ extern "C" void EngineRecord();
 
 static void EngineDelete()
 {
-    dmExtension::Event event;
-    event.m_Event = EXTENSION_EVENT_ID_ENGINE_DELETE;
-    dmExtension::DispatchEvent(&g_Params, &event);
+    dmEngine::LifecycleEvent event = { 0 };
+    dmExtension::BroadcastEvent(&g_Params, dmEngine::EVENT_ENGINE_DELETE, &event, sizeof(event));
     DM_MUTEX_SCOPED_LOCK(dmRecord::g_Mutex);
     dmRecord::g_Teardown = true;
 }
@@ -399,9 +399,8 @@ static void TestHandler(void*, dmWebServer::Request* request)
     }
     else if (!strcmp(request->m_Resource, "/test/deactivate"))
     {
-        dmExtension::Event event;
-        event.m_Event = EXTENSION_EVENT_ID_DEACTIVATEAPP;
-        dmExtension::DispatchEvent(&g_Params, &event);
+        dmEngine::AppEvent event = { 0, 0 };
+        dmExtension::BroadcastEvent(&g_Params, dmEngine::EVENT_APP_DEACTIVATE, &event, sizeof(event));
         SendLifecycle(request);
     }
     else if (!strcmp(request->m_Resource, "/test/unregister"))
