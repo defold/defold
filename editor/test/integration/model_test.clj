@@ -294,6 +294,9 @@
         (test-util/with-prop [node-id :mesh-name "LeftMesh"]
           (test-util/with-prop [node-id :mesh-index 0]
             (is (= ["LeftMesh"] (mapv :label (:children (first (:children (g/node-value node-id :node-outline)))))))))
+        (test-util/with-prop [node-id :mesh-name "RightMesh"]
+          (test-util/with-prop [node-id :mesh-index 0] ; Stale index, the name selects the mesh.
+            (is (= ["RightMesh"] (mapv :label (:children (first (:children (g/node-value node-id :node-outline)))))))))
         (test-util/with-prop [node-id :mesh-name ""]
           (test-util/with-prop [node-id :mesh-index -1]
             (is (= ["LeftMesh (LeftNode)" "RightMesh (RightNode)" "LooseMesh"]

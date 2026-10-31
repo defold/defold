@@ -365,12 +365,18 @@
             dep-build-targets (into [rig-scene-build-target] (flatten dep-build-targets))]
         [(pipeline/make-protobuf-build-target _node-id resource ModelProto$Model rt-pb-msg dep-build-targets)])))
 
+(defn- selected-mesh-index
+  "Returns -1 when the Model renders all meshes, otherwise the index of the
+  rendered mesh, or nil when it cannot be resolved."
+  [mesh-name mesh-index collision-meshes]
+  (if (str/blank? mesh-name)
+    -1
+    (when-not (g/error-value? collision-meshes)
+      (:index (model-loader/resolve-named-mesh collision-meshes mesh-name mesh-index)))))
+
 (g/defnk produce-scene [_node-id scene mesh-name mesh-index ^:try collision-meshes material-name->material-scene-info skeleton-resource]
   (if scene
-    (let [selected-mesh-index (if (str/blank? mesh-name)
-                                -1
-                                (when-not (g/error-value? collision-meshes)
-                                  (:index (model-loader/resolve-named-mesh collision-meshes mesh-name mesh-index))))]
+    (let [selected-mesh-index (selected-mesh-index mesh-name mesh-index collision-meshes)]
       (model-scene/augment-scene scene
                                  _node-id
                                  "model"
@@ -388,26 +394,26 @@
   key here, since the Model scene has no such level and the mesh rows must match
   it to be hideable. A Model that renders a single mesh lists only that mesh,
   under the mesh name that is its runtime id."
-  [mesh-group-outline mesh-name mesh-index]
+  [mesh-group-outline selected-mesh-index]
   (cond-> (assoc mesh-group-outline :node-outline-key nil)
-    (not (str/blank? mesh-name))
+    (not= -1 selected-mesh-index)
     (update :children
             (fn [mesh-outlines]
               (coll/into-> mesh-outlines []
-                (filter #(= mesh-index (:mesh-index %)))
+                (filter #(= selected-mesh-index (:mesh-index %)))
                 (map #(assoc % :label (:mesh-name %))))))))
 
 (g/defnk produce-node-outline
   [_node-id _overridden-properties mesh-index mesh-name own-build-errors resource
-   ^:try mesh-group-outline ^:try skeleton-group-outline]
+   ^:try collision-meshes ^:try mesh-group-outline ^:try skeleton-group-outline]
   (let [resource-type (resource/resource-type resource)]
     {:node-id _node-id
-     :node-outline-key (:ext resource-type)
-     :label (:label resource-type)
+     :node-outline-key (or (:ext resource-type) "unknown")
+     :label (or (:label resource-type) (:ext resource-type) (localization/message "outline.unknown"))
      :icon model-icon
      :children (cond-> []
                  (and mesh-group-outline (not (g/error-value? mesh-group-outline)))
-                 (conj (model-mesh-group-outline mesh-group-outline mesh-name mesh-index))
+                 (conj (model-mesh-group-outline mesh-group-outline (selected-mesh-index mesh-name mesh-index collision-meshes)))
 
                  (and skeleton-group-outline (not (g/error-value? skeleton-group-outline)))
                  (conj skeleton-group-outline))

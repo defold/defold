@@ -836,6 +836,7 @@ TEST(ModelGLTF, ResolvedBufferSizeIsBounded)
     dmModelImporter::ResolveBuffer(scene, "payload.bin", buffer, sizeof(buffer));
     ASSERT_EQ((char*)0, scene->m_LoadError);
     ASSERT_FALSE(dmModelImporter::NeedsResolve(scene));
+    ASSERT_TRUE(dmModelImporter::LoadFinalize(scene));
     ASSERT_EQ(4U, scene->m_Buffers[0].m_BufferCount);
     ASSERT_ARRAY_EQ_LEN(buffer, scene->m_Buffers[0].m_Buffer, 4);
     dmModelImporter::DestroyScene(scene);
@@ -946,6 +947,7 @@ TEST(ModelGLTF, NormalizedIntegerMorphWeightsAnimationChannel)
     ASSERT_NE((dmModelImporter::Scene*)0, scene);
     ASSERT_TRUE(dmModelImporter::NeedsResolve(scene));
     dmModelImporter::ResolveBuffer(scene, "payload.bin", buffer, sizeof(buffer));
+    ASSERT_TRUE(dmModelImporter::LoadFinalize(scene));
     ASSERT_EQ((char*)0, scene->m_LoadError);
 
     const dmModelImporter::NodeAnimation& animation = scene->m_Animations[0].m_NodeAnimations[0];

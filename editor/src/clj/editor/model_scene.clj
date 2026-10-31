@@ -1044,7 +1044,7 @@
                                        (format " (%s)" mesh-ids))]
                       (if-not name-generated
                         (str outline-label ids-suffix)
-                        (let [unnamed-label (localization/message "outline.gltf.unnamed-mesh" {"index" index})]
+                        (let [unnamed-label (localization/message "outline.gltf.unnamed-mesh" {"index" (str index)})]
                           (if ids-suffix
                             (localization/join [unnamed-label ids-suffix])
                             unnamed-label))))
@@ -1212,19 +1212,30 @@
       []
       (g/connect item-node scene-info-output-label model-scene-node :mesh-scene-infos))))
 
+(defn- create-gltf-group-tx
+  "Creates a glTF outline group, and its items using create-items-tx-fn."
+  [model-scene-node kind create-items-tx-fn]
+  (g/make-nodes [group-node [GltfMetadataGroupNode :kind kind]]
+    (g/connect group-node :_node-id model-scene-node :nodes)
+    (g/connect group-node :node-outline model-scene-node :child-outlines)
+    (when-let [group-outline-input-label (case kind
+                                           :meshes :mesh-group-outline
+                                           :skeleton :skeleton-group-outline
+                                           nil)]
+      (g/connect group-node :node-outline model-scene-node group-outline-input-label))
+    (create-items-tx-fn group-node)))
+
 (defn- create-gltf-metadata-group-tx
   "Creates a glTF outline group for non-empty descriptors."
   [model-scene-node kind node-type descriptors property-keys scene-info-output-label]
   (when-not (coll/empty? descriptors)
-    (g/make-nodes [group-node [GltfMetadataGroupNode :kind kind]]
-      (g/connect group-node :_node-id model-scene-node :nodes)
-      (g/connect group-node :node-outline model-scene-node :child-outlines)
-      (when (= :meshes kind)
-        (g/connect group-node :node-outline model-scene-node :mesh-group-outline))
-      (coll/into-> (add-gltf-outline-labels descriptors) []
-        (map (fn [descriptor]
-               (let [properties (select-keys descriptor property-keys)]
-                 (create-gltf-metadata-item-tx group-node model-scene-node node-type properties scene-info-output-label))))))))
+    (create-gltf-group-tx
+      model-scene-node kind
+      (fn create-metadata-items-tx [group-node]
+        (coll/into-> (add-gltf-outline-labels descriptors) []
+          (map (fn [descriptor]
+                 (let [properties (select-keys descriptor property-keys)]
+                   (create-gltf-metadata-item-tx group-node model-scene-node node-type properties scene-info-output-label)))))))))
 
 (defn- create-gltf-bone-tx [parent-node bones-by-parent-index {:keys [index name]}]
   (g/make-nodes [bone-node [GltfBoneInfoNode :index index :name name]]
@@ -1237,13 +1248,12 @@
   "Creates the bone hierarchy of the first skin, as seen by the runtime."
   [model-scene-node bones]
   (when-not (coll/empty? bones)
-    (g/make-nodes [group-node [GltfMetadataGroupNode :kind :skeleton]]
-      (g/connect group-node :_node-id model-scene-node :nodes)
-      (g/connect group-node :node-outline model-scene-node :child-outlines)
-      (g/connect group-node :node-outline model-scene-node :skeleton-group-outline)
-      (let [bones-by-parent-index (util/group-into {} [] :parent-index bones)]
-        (coll/into-> (bones-by-parent-index -1) []
-          (mapcat #(create-gltf-bone-tx group-node bones-by-parent-index %)))))))
+    (let [bones-by-parent-index (util/group-into {} [] :parent-index bones)]
+      (create-gltf-group-tx
+        model-scene-node :skeleton
+        (fn create-root-bones-tx [group-node]
+          (coll/into-> (bones-by-parent-index -1) []
+            (mapcat #(create-gltf-bone-tx group-node bones-by-parent-index %))))))))
 
 (g/defnode GltfPreviewTextureBinding
   (property sampler g/Str)

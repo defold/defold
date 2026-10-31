@@ -221,12 +221,14 @@
            :primitive-count primitive-count
            :vertex-count vertex-count})
 
+        named-mesh-descriptors
+        (coll/into-> asset-resources []
+          (map asset-info)
+          (filter #(= :mesh (:kind %)))
+          (map #(mesh-descriptor % (:name %) false)))
+
         mesh-descriptors
-        (coll/into-> (get-in source-resource [:data :unnamed-meshes])
-          (coll/into-> asset-resources []
-            (map asset-info)
-            (filter #(= :mesh (:kind %)))
-            (map #(mesh-descriptor % (:name %) false)))
+        (coll/into-> (get-in source-resource [:data :unnamed-meshes]) named-mesh-descriptors
           (map #(mesh-descriptor % "" true)))]
 
     {:bones (get-in source-resource [:data :bones] [])
