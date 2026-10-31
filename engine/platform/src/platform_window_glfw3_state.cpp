@@ -191,6 +191,19 @@ namespace dmPlatform
         {
             glfwSetWindowSize(window->m_Window, rect.m_Width, rect.m_Height);
         }
+        if (restore_size && glfwGetPlatform() == GLFW_PLATFORM_WIN32)
+        {
+            // The initial move can leave the larger startup window mostly on
+            // another monitor. Resizing or clamping it can then trigger a DPI
+            // transition that scales the saved screen dimensions again. Once
+            // those transitions have completed, enforce the requested size.
+            int width, height;
+            glfwGetWindowSize(window->m_Window, &width, &height);
+            if (width != rect.m_Width || height != rect.m_Height)
+            {
+                glfwSetWindowSize(window->m_Window, rect.m_Width, rect.m_Height);
+            }
+        }
         return true;
     }
 

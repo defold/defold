@@ -156,6 +156,46 @@ TEST_F(WindowPlacementTest, RecreateRestoresActualGeometry)
     ASSERT_EQ(expected.m_Height, height);
 }
 
+// Verifies repeated launches preserve a smaller window on each secondary monitor, including mixed DPI.
+TEST_F(WindowPlacementTest, RecreateRestoresSecondaryMonitorSize)
+{
+    if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
+    {
+        SKIP();
+    }
+    int count;
+    GLFWmonitor** monitors = glfwGetMonitors(&count);
+    if (count < 2)
+    {
+        SKIP();
+    }
+    m_Params.m_Width = 1200;
+    m_Params.m_Height = 800;
+    OpenAndShow();
+    for (int i = 1; i < count; ++i)
+    {
+        int x, y, width, height;
+        glfwGetMonitorWorkarea(monitors[i], &x, &y, &width, &height);
+        // Establish the target DPI before arranging a smaller window near its
+        // bottom-right corner. At this position, the larger startup window can
+        // overlap a different monitor until the saved size is applied.
+        dmPlatform::SetWindowSize(m_Window, 401, 301);
+        SetPosition(x + width / 2 - 200, y + height / 2 - 150);
+        dmPlatform::SetWindowSize(m_Window, 401, 301);
+        SetPosition(x + width - 465, y + height - 365);
+        int expected_width, expected_height;
+        glfwGetWindowSize(m_Window->m_Window, &expected_width, &expected_height);
+        for (int restart = 0; restart < 5; ++restart)
+        {
+            Recreate();
+            int actual_width, actual_height;
+            glfwGetWindowSize(m_Window->m_Window, &actual_width, &actual_height);
+            ASSERT_EQ(expected_width, actual_width);
+            ASSERT_EQ(expected_height, actual_height);
+        }
+    }
+}
+
 // Verifies reset requests are observed while running, and survive closing before the next poll.
 TEST_F(WindowPlacementTest, ResetSize)
 {

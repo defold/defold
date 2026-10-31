@@ -32,6 +32,16 @@ if(PLATFORM_USE_GLFW3)
         "${CMAKE_CURRENT_LIST_DIR}/test_window_state.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../window_state.cpp")
 
+    # Exercise the real persistence code with deterministic Win32 DPI transitions.
+    defold_add_executable(test_window_placement_dpi
+        "${CMAKE_CURRENT_LIST_DIR}/test_window_placement_dpi.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../platform_window_glfw3_state.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../window_state.cpp")
+    target_compile_definitions(test_window_placement_dpi PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+    defold_target_link_libraries(test_window_placement_dpi "${TARGET_PLATFORM}" dlib profile_null testmain)
+    defold_target_link_socket(test_window_placement_dpi "${TARGET_PLATFORM}" PRIVATE)
+    defold_register_test_target(test_window_placement_dpi ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+
     defold_add_executable(test_window_placement "${CMAKE_CURRENT_LIST_DIR}/test_window_placement.cpp")
     defold_target_link_libraries(test_window_placement "${TARGET_PLATFORM}" dlib profile_null testmain platform)
     defold_target_link_opengl(test_window_placement "${TARGET_PLATFORM}" PRIVATE)
