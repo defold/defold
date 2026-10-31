@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "box2d/math_functions.h"
 #include "box2d/types.h"
 
 // Ray cast an AABB
@@ -48,9 +49,16 @@ static inline bool b2EnlargeAABB( b2AABB* a, b2AABB b )
 	return changed;
 }
 
-/// Do a and b overlap
-static inline bool b2AABB_Overlaps( b2AABB a, b2AABB b )
+// Translate a relative AABB into world space, rounding outward so the float box always contains
+// the true box far from the origin where a float coordinate cannot resolve the shape extent.
+// Float ULP at 1e8 dwarfs the AABB margin, plain truncation could clip a shape out of its own
+// box. The broadphase pair order rides on the deterministic directed rounding.
+static inline b2AABB b2OffsetAABB( b2AABB box, b2Pos origin )
 {
-	return !( b.lowerBound.x > a.upperBound.x || b.lowerBound.y > a.upperBound.y || a.lowerBound.x > b.upperBound.x ||
-			  a.lowerBound.y > b.upperBound.y );
+	b2AABB result;
+	result.lowerBound.x = b2RoundDownFloat( origin.x + (double)box.lowerBound.x );
+	result.lowerBound.y = b2RoundDownFloat( origin.y + (double)box.lowerBound.y );
+	result.upperBound.x = b2RoundUpFloat( origin.x + (double)box.upperBound.x );
+	result.upperBound.y = b2RoundUpFloat( origin.y + (double)box.upperBound.y );
+	return result;
 }

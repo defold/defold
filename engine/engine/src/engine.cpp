@@ -457,6 +457,7 @@ namespace dmEngine
     , m_JobThreadContext(0)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
+    , m_GameSystem(0)
     , m_ScriptContext(0x0)
     , m_Factory(0x0)
     , m_SystemSocket(0x0)
@@ -471,6 +472,7 @@ namespace dmEngine
     , m_QuitOnEsc(false)
     , m_ConnectionAppMode(false)
     , m_RunWhileIconified(false)
+    , m_UseHighRefreshRate(false)
     , m_SwapInterval(0)
     , m_EffectiveSwapInterval(~0U)
     , m_PreviousFrameTime(dmTime::GetMonotonicTime())
@@ -503,10 +505,6 @@ namespace dmEngine
         m_PhysicsContextBullet3D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BULLET3D;
         m_PhysicsContextBullet3D.m_BaseContext.m_Debug = false;
         m_GuiContext = 0x0;
-        m_SpriteContext.m_RenderContext = 0x0;
-        m_SpriteContext.m_MaxSpriteCount = 0;
-        m_ModelContext.m_RenderContext = 0x0;
-        m_ModelContext.m_MaxModelCount = 0;
         m_HttpCache = 0;
         m_DependenciesJsonResource = 0;
         m_DependenciesJsonSize = 0;
@@ -542,6 +540,10 @@ namespace dmEngine
         dmGameObject::PostUpdate(engine->m_Register);
 
         dmGameObject::DeleteCollections(engine->m_Register); // Delete all collections and game objects
+
+        // Finish deferred game-system work before resource/type teardown.
+        if (engine->m_GameSystem && !dmGameSystem::Finalize(engine->m_GameSystem))
+            return;
 
         dmHttpClient::ShutdownConnectionPool();
 
@@ -602,6 +604,10 @@ namespace dmEngine
         {
             dmResource::DeleteFactory(engine->m_Factory);
         }
+
+        // Resource type contexts remain alive until factory teardown completes.
+        if (engine->m_GameSystem)
+            dmGameSystem::DeleteContext(engine->m_GameSystem);
 
         if (engine->m_GraphicsContext)
         {
@@ -877,6 +883,10 @@ namespace dmEngine
         }
 
         engine->m_UpdateFrequency = validated_frequency;
+
+#if defined(DM_PLATFORM_IOS)
+        dmPlatform::SetiOSFrameRate(engine->m_UseHighRefreshRate, validated_frequency);
+#endif
 
         // Timing balances are measured in seconds and remain valid when the
         // frequency changes. Reset only the cadence, not elapsed time.
@@ -1353,6 +1363,9 @@ namespace dmEngine
 
 #if defined(DM_PLATFORM_IOS)
         dmPlatform::SetiOSHomeIndicatorMode(dmConfigFile::GetString(engine->m_Config, "ios.home_indicator_mode", "deferred"));
+        // Reset the rate a previous engine instance may have requested before a reboot
+        engine->m_UseHighRefreshRate = dmConfigFile::GetInt(engine->m_Config, "ios.use_high_refresh_rate", 0) != 0;
+        dmPlatform::SetiOSFrameRate(engine->m_UseHighRefreshRate, 0);
 #endif
 
         bool setting_vsync     = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true); // Deprecated
@@ -1485,6 +1498,10 @@ namespace dmEngine
         dmGameObject::SetInputStackDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY, dmGameObject::DEFAULT_MAX_INPUT_STACK_CAPACITY));
 
         dmRender::RenderContextParams render_params;
+        // TODO: Replace the development build selector with a render.use_thread project setting.
+#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
+        render_params.m_UseThread = true;
+#endif
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
         render_params.m_MaxRenderTargets = 32;
@@ -1506,7 +1523,13 @@ namespace dmEngine
         }
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
         if (render_params.m_InstanceCullingShaderProgramDesc)
+        {
             dmDDF::FreeMessage(render_params.m_InstanceCullingShaderProgramDesc);
+        }
+        if (!engine->m_RenderContext)
+        {
+            return false;
+        }
         FlushPendingWindowResize(engine);
         PopulateContextRegistry(engine);
 
@@ -1630,31 +1653,6 @@ namespace dmEngine
         }
 #endif
 
-        engine->m_SpriteContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_SpriteContext.m_Factory = engine->m_Factory;
-        engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);
-        engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 1);
-
-        engine->m_ModelContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_ModelContext.m_Factory = engine->m_Factory;
-        engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
-        engine->m_ModelContext.m_MaxBoneMatrixTextureWidth  = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_width", 1024);
-        engine->m_ModelContext.m_MaxBoneMatrixTextureHeight = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_height", 1024);
-
-        engine->m_LabelContext.m_RenderContext      = engine->m_RenderContext;
-        engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);
-        engine->m_LabelContext.m_Subpixels          = dmConfigFile::GetInt(engine->m_Config, "label.subpixels", 1);
-
-        engine->m_CollectionProxyContext.m_Factory = engine->m_Factory;
-        engine->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_PROXY_MAX_COUNT_KEY, 8);
-
-        engine->m_FactoryContext.m_MaxFactoryCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::FACTORY_MAX_COUNT_KEY, 128);
-        engine->m_FactoryContext.m_Factory = engine->m_Factory;
-        engine->m_CollectionFactoryContext.m_MaxCollectionFactoryCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_FACTORY_MAX_COUNT_KEY, 128);
-        engine->m_CollectionFactoryContext.m_Factory = engine->m_Factory;
-        engine->m_FactoryContext.m_ScriptContext = engine->m_ScriptContext;
-        engine->m_CollectionFactoryContext.m_ScriptContext = engine->m_ScriptContext;
-
         dmGameObject::ComponentTypeCreateCtxImpl component_create_ctx_impl;
         dmGameObject::ComponentTypeCreateCtx component_create_ctx;
         SetupComponentCreateContext(engine, component_create_ctx, component_create_ctx_impl);
@@ -1664,6 +1662,19 @@ namespace dmEngine
 
         // Variables need to be declared up here due to the goto's
         bool has_host_mount = dmSys::GetEnv("DM_HOSTFS") != 0;
+
+        {
+            dmGameSystem::ContextParams params;
+            params.m_Factory = engine->m_Factory;
+            params.m_Register = engine->m_Register;
+            params.m_RenderContext = engine->m_RenderContext;
+            params.m_ScriptContext = engine->m_ScriptContext;
+            params.m_InputContext = engine->m_InputContext;
+            params.m_PhysicsContext = physics_context;
+            engine->m_GameSystem = dmGameSystem::NewContext(params);
+            if (!engine->m_GameSystem)
+                goto bail;
+        }
 
         engine->m_ResourceTypeContexts.Put(dmHashString64("goc"), engine->m_Register);
         engine->m_ResourceTypeContexts.Put(dmHashString64("collectionc"), engine->m_Register);
@@ -1682,14 +1693,7 @@ namespace dmEngine
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, engine->m_InputContext, physics_context, &engine->m_ModelContext);
-        if (fact_result != dmResource::RESULT_OK)
-            goto bail;
-
-        go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, physics_context, &engine->m_SpriteContext,
-                                                                                                &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext,
-                                                                                                &engine->m_ModelContext, &engine->m_LabelContext);
-        if (go_result != dmGameObject::RESULT_OK)
+        if (!dmGameSystem::Initialize(engine->m_GameSystem, engine->m_Config))
             goto bail;
 
         // register the component extensions
@@ -2076,6 +2080,13 @@ bail:
                         return;
                     }
                 }
+
+                if (!dmGameSystem::BeginFrame(engine->m_GameSystem))
+                {
+                    Exit(engine, 1);
+                    ProfileFrameEnd(profile);
+                    return;
+                }
 #if defined(DM_HAS_THREADS)
                 uint64_t jobthread_max_time_us = 0;
 #else
@@ -2104,7 +2115,7 @@ bail:
                     dmGameSystem::UpdateScriptLibs(script_lib_context);
                     dmScript::Update(engine->m_ScriptContext);
                     extension_params.SetLuaContext(engine->m_ScriptContext);
-                    dmExtension::Update(extension_params);
+                    dmExtension::Update(extension_params, dt);
                 }
 
                 bool esc_pressed = false;
@@ -2119,6 +2130,7 @@ bail:
                 if (esc_pressed || !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_OPENED))
                 {
                     Exit(engine, 0);
+                    ProfileFrameEnd(profile);
                     return;
                 }
 
@@ -2171,7 +2183,7 @@ bail:
 
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmGameObject::Render(GetMainCollection(engine));
+                    dmGameSystem::Render(engine->m_GameSystem, GetMainCollection(engine));
 
                     // Make sure we dispatch messages to the render script
                     // since it could have some "draw_text" messages waiting.
@@ -2201,8 +2213,8 @@ bail:
                     }
                 }
 
-                dmGameObject::PostUpdate(GetMainCollection(engine));
-                dmGameObject::PostUpdate(engine->m_Register);
+                if (!dmGameSystem::PostUpdate(engine->m_GameSystem, GetMainCollection(engine)))
+                    Exit(engine, 1);
 
                 if (do_render)
                 {
@@ -2384,6 +2396,35 @@ bail:
         return step_dt;
     }
 
+    float CalcCallbackTimeStep(float frame_dt, float fixed_dt, float max_time_step, uint32_t max_frame_intervals, float& accum_frame_time, uint32_t& num_steps)
+    {
+        // Never allow for large hitches. As with timer pacing, a requested
+        // interval longer than max_time_step is intentional, e.g. a display
+        // link running at a low update frequency.
+        frame_dt = dmMath::Min(frame_dt, dmMath::Max(max_time_step, max_frame_intervals * fixed_dt));
+
+        // We don't allow having a higher framerate than the platform callback
+        // rate since update and render are currently coupled together and
+        // Flip() would otherwise be called more than once per callback.
+        // E.g. if fixed_dt == 1/120 and frame_dt == 1/60.
+        if (fixed_dt < frame_dt)
+        {
+            fixed_dt = frame_dt;
+        }
+
+        // Platform-owned loops may call Step more frequently than the requested
+        // fixed update rate. Accumulate their elapsed time so early callbacks run
+        // no update, while retaining any fractional time for the next callback.
+        accum_frame_time += frame_dt;
+
+        float num_steps_f = accum_frame_time / fixed_dt;
+
+        num_steps = (uint32_t)num_steps_f;
+
+        accum_frame_time = accum_frame_time - num_steps * fixed_dt;
+        return fixed_dt;
+    }
+
     static void CalcTimeStep(HEngine engine, bool frame_was_paced, float& step_dt, uint32_t& num_steps)
     {
         uint64_t time = dmTime::GetMonotonicTime();
@@ -2429,30 +2470,12 @@ bail:
         }
         else
         {
-            // Never allow for large hitches. Timer-paced frames perform this
-            // clamp relative to their intentional interval above.
-            frame_dt = dmMath::Min(frame_dt, engine->m_MaxTimeStep);
-
-            // We don't allow having a higher framerate than the platform callback
-            // rate since update and render are currently coupled together and
-            // Flip() would otherwise be called more than once per callback.
-            // E.g. if fixed_dt == 1/120 and frame_dt == 1/60.
-            if (fixed_dt < frame_dt)
-            {
-                fixed_dt = frame_dt;
-            }
-
-            // Platform-owned loops may call Step more frequently than the requested
-            // fixed update rate. Accumulate their elapsed time so early callbacks run
-            // no update, while retaining any fractional time for the next callback.
-            engine->m_AccumFrameTime += frame_dt;
-
-            float num_steps_f = engine->m_AccumFrameTime / fixed_dt;
-
-            num_steps = (uint32_t)num_steps_f;
-            step_dt = fixed_dt;
-
-            engine->m_AccumFrameTime = engine->m_AccumFrameTime - num_steps * fixed_dt;
+            // Only set on iOS. A display link can only fire at rates the display
+            // supports, and iOS approximates other rates by alternating
+            // neighbouring intervals, e.g. 33.3 and 50 ms for 24 Hz. Allow two
+            // requested intervals so that rounding is not discarded as a hitch.
+            uint32_t max_frame_intervals = engine->m_UseHighRefreshRate ? 2 : 1;
+            step_dt = CalcCallbackTimeStep(frame_dt, fixed_dt, engine->m_MaxTimeStep, max_frame_intervals, engine->m_AccumFrameTime, num_steps);
         }
     }
 

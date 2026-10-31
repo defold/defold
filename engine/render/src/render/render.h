@@ -26,6 +26,7 @@
 #include <script/lua_source_ddf.h>
 #include <graphics/graphics.h>
 #include "render/material_ddf.h"
+#include "render_execution.h"
 
 namespace dmRender
 {
@@ -191,6 +192,8 @@ namespace dmRender
         /// Collect asynchronous GPU visibility statistics when compaction changes.
         /// Disabled by default; indirect rendering does not require readback.
         bool                            m_GpuCullingStatistics;
+        /// Request threaded rendering. Defaults to false; subject to renderer capabilities.
+        bool                            m_UseThread;
     };
 
     bool IsGpuIndirectSupported(HRenderContext context);
@@ -253,8 +256,25 @@ namespace dmRender
         float                        m_MaxAnisotropy;
     };
 
+    /**
+     * Create renderer state and its execution context on the game owner. The current
+     * integration is inline-only; unsupported modes log a diagnostic and return null
+     * before initializing renderer state.
+     */
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
+    /**
+     * Delete renderer state and its owned execution context after all component
+     * lifetimes, frame queues and executor callbacks have drained/stopped.
+     */
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context);
+
+    /**
+     * Borrow execution state for internal frame-queue and component-bridge setup.
+     * The render context owns its lifetime; callers must not delete it or outlive it.
+     * @param render_context Render context owning execution state
+     * @return Borrowed execution context
+     */
+    HRenderExecution GetRenderExecution(HRenderContext render_context);
 
     dmScript::HContext GetScriptContext(HRenderContext render_context);
 

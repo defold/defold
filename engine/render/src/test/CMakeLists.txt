@@ -52,6 +52,9 @@ endfunction()
 
 foreach(_render_test IN ITEMS
   test_render
+  test_render_execution
+  test_render_frame
+  test_render_frame_queue
   test_display_profiles
   test_render_programs
   test_render_script
@@ -124,6 +127,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)-macos$" AND "engine" IN_LIST DEFOLD_
     defold_register_test_target(${_gpu_target} OFF)
   endforeach()
 endif()
+target_sources(test_render_frame_queue PRIVATE "${RENDER_TEST_ROOT}/render_frame_benchmark.cpp")
 
 # Vector-font tests load sibling font fixtures that are outside Node's mounted
 # working directory. Embed them at the paths used by the tests in the web VFS.

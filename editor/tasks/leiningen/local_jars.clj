@@ -82,8 +82,8 @@
 
 (defn- git-sha1 []
   (-> (shell/sh "git" "rev-parse" "HEAD")
-    :out
-    string/trim))
+      :out
+      string/trim))
 
 (defn- env-file
   ^File [env-name]
@@ -111,6 +111,12 @@
         jar-decls [{:artifact-id "bob"
                     :group-id "com.defold.lib"
                     :jar-file (.getAbsolutePath (bob-artifact-file archive-domain sha))
+                    :version "1.0"}
+                   {:artifact-id "dmengine"
+                    :group-id "com.defold.lib"
+                    :jar-file (str (if sha
+                                     (http-cache/download (format "https://%s/archive/%s/engine/share/java/dmengine.jar" archive-domain sha))
+                                     (io/file (dynamo-home) "share/java/dmengine.jar")))
                     :version "1.0"}
                    {:artifact-id "icu4j"
                     :group-id "com.defold.lib"

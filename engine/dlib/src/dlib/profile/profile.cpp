@@ -110,7 +110,13 @@ void ProfileRegisterProfiler(const char* name, ProfileListener* profiler)
         ProfileListener* p = g_ProfileListeners;
         while (p)
         {
-            if (strcmp(name, p->m_Name) == 0)
+            // A registered listener may have failed to initialize, or its name
+            // may have been truncated. Never link the same listener twice.
+            if (p == profiler)
+                return;
+
+            // Names are identified by the prefix retained in m_Name.
+            if (strncmp(name, p->m_Name, sizeof(p->m_Name) - 1) == 0)
             {
                 dmLogError("Profiler '%s' already registered", name);
                 return;
@@ -158,7 +164,7 @@ void ProfileUnregisterProfiler(const char* name)
     ProfileListener* prev = 0;
     for (ProfileListener* p = g_ProfileListeners; p; p = p->m_Next)
     {
-        if (strcmp(name, p->m_Name) == 0)
+        if (strncmp(name, p->m_Name, sizeof(p->m_Name) - 1) == 0)
         {
             if (prev)
                 prev->m_Next = p->m_Next;
@@ -168,7 +174,6 @@ void ProfileUnregisterProfiler(const char* name)
         }
         prev = p;
     }
-    g_ProfileListeners = 0;
 }
 
 #define DO_LOOP_NOARGS(_FUNC)                                           \

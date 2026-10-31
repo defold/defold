@@ -13,6 +13,9 @@ add_compile_definitions(DLIB_LOG_DOMAIN="GAMESYS")
 set(GS_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(GS_SRC_DIR "${GS_ROOT}/src/gamesys")
 set(GS_DMSDK_SRC_DIR "${GS_ROOT}/src")
+if(TARGET_PLATFORM MATCHES "^(x86_64|arm64)-(macos|linux)$|^x86_64-win32$")
+  add_subdirectory(src/gamesys/jni)
+endif()
 set(GS_PROTO_DIR "${GS_ROOT}/proto/gamesys")
 set(GS_DLIB_PROTO_ROOT "${GS_ROOT}/../dlib/proto")
 set(GS_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}")
@@ -160,7 +163,7 @@ set(GAMESYS_PROTO_PY_DIR "${GS_PROTO_PY_DIR}" CACHE INTERNAL "Generated gamesys 
 
 # Mirror ant_glob patterns from wscript:
 #   ['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp']
-file(GLOB GS_TOP_LEVEL
+file(GLOB GS_TOP_LEVEL CONFIGURE_DEPENDS
     "${GS_SRC_DIR}/*.cpp"
     "${GS_SRC_DIR}/scripts/*.cpp")
 file(GLOB_RECURSE GS_RESOURCES "${GS_SRC_DIR}/resources/*.cpp")

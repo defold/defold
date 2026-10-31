@@ -42,6 +42,7 @@ namespace dmResourceProvider
         FReadFile               m_ReadFile;
         FReadFilePartial        m_ReadFilePartial;
         FWriteFile              m_WriteFile;        // For writeable archives
+        FInvalidateFileCache    m_InvalidateFileCache; // Optional invalidation before a resource reload
 
         void Verify();
 

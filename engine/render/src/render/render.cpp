@@ -126,6 +126,7 @@ namespace dmRender
     , m_MaxDebugVertexCount(0)
     , m_InstanceCullingShaderProgramDesc(0)
     , m_GpuCullingStatistics(false)
+    , m_UseThread(false)
     {
 
     }
@@ -139,7 +140,21 @@ namespace dmRender
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params)
     {
+        // No production executor is available yet. Standalone queue/executor tests
+        // create their own execution context without initializing renderer state.
+        ExecutionSelection selection;
+        ExecutionMode mode = params.m_UseThread ? EXECUTION_MODE_THREADED : EXECUTION_MODE_INLINE;
+        HRenderExecution execution = NewRenderExecution(mode, false, &selection);
+        if (!execution)
+        {
+            dmLogError("Unable to create render context: %s", GetExecutionResultString(selection.m_ExecutionResult));
+            return 0;
+        }
+        dmLogInfo("Render execution: %s (%s)", GetExecutionModeName(selection.m_ExecutionMode),
+            GetExecutionResultString(selection.m_ExecutionResult));
+
         RenderContext* context = new RenderContext;
+        context->m_Execution = execution;
 
         context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
         context->m_RenderObjects.SetSize(0);
@@ -234,9 +249,15 @@ namespace dmRender
         for (uint32_t i = 0; i < render_context->m_RenderItemDispatches.Size(); ++i)
             delete render_context->m_RenderItemDispatches[i];
         dmMessage::DeleteSocket(render_context->m_Socket);
+        DeleteRenderExecution(render_context->m_Execution);
         delete render_context;
 
         return RESULT_OK;
+    }
+
+    HRenderExecution GetRenderExecution(HRenderContext render_context)
+    {
+        return render_context->m_Execution;
     }
 
     dmScript::HContext GetScriptContext(HRenderContext render_context)
