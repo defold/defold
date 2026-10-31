@@ -46,7 +46,7 @@ public class AndroidDownloadSize {
         this.abis = Collections.unmodifiableMap(abis);
     }
 
-    // The output also contains whatever bundletool and the JVM print to stderr, so lines
+    // The output also contains whatever bundletool prints to stderr, so lines
     // that aren't size rows are skipped
     public static AndroidDownloadSize parse(String getSizeOutput) throws IOException {
         Map<String, Range> abis = new TreeMap<>();

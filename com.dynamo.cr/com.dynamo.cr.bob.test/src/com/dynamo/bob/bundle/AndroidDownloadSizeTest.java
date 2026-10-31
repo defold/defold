@@ -27,11 +27,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class AndroidDownloadSizeTest {
 
-    // Output of `bundletool get-size total --dimensions=ABI` as captured by bob, with the JVM
-    // warnings bundletool prints to stderr mixed in.
+    // Output of `bundletool get-size total --dimensions=ABI`
     private static final String TWO_ABIS_OUTPUT = String.join("\n",
-            "WARNING: A terminally deprecated method in sun.misc.Unsafe has been called",
-            "WARNING: sun.misc.Unsafe::arrayBaseOffset will be removed in a future release",
             "ABI,MIN,MAX",
             "arm64-v8a,25009448,25009450",
             "armeabi-v7a,18208826,18908828",
@@ -80,7 +77,7 @@ public class AndroidDownloadSizeTest {
     @Test
     public void testParseFailsWithoutSizes() {
         try {
-            AndroidDownloadSize.parse("WARNING: something\nABI,MIN,MAX\n");
+            AndroidDownloadSize.parse("ABI,MIN,MAX\n");
             fail("Expected parsing to fail when bundletool reported no sizes");
         } catch (IOException e) {
         }
