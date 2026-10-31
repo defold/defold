@@ -121,6 +121,8 @@ namespace dmPhysics
     // Each world owns its scheduler. Finish all tasks before destroying it.
     b2Scheduler* NewBox2DScheduler(uint32_t worker_count);
 
+    struct ContactCollection;
+
     struct World2D
     {
         World2D(HContext2D context, const NewWorldParams& params);
@@ -129,6 +131,7 @@ namespace dmPhysics
         HContext2D                  m_Context;
         b2WorldId                   m_WorldId;
         b2Scheduler*                m_TaskContext;
+        ContactCollection*          m_ContactCollection;
         dmArray<RayCastRequest>     m_RayCastRequests;
         DebugDraw2D                 m_DebugDraw;
         GetWorldTransformCallback   m_GetWorldTransformCallback;

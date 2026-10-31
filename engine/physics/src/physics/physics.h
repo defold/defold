@@ -365,6 +365,9 @@ namespace dmPhysics
         /// Time step
         float                   m_DT;
         bool                    m_FixedTimeStep;
+        /// Collision/contact callbacks do not modify physics. Box2D v3 may collect contacts in parallel.
+        /// Callbacks still run on the calling thread. Defaults to false for immediate/mutating callbacks.
+        bool                    m_ContactCallbacksReadOnly;
         uint32_t                m_MaxFixedTimeSteps;
         uint32_t                m_Box2DVelocityIterations;
         uint32_t                m_Box2DPositionIterations;

@@ -74,10 +74,15 @@ struct Callbacks
     uint32_t         m_Collisions;
     uint32_t         m_Contacts;
     bool             m_OnCallingThread;
+    uint64_t         m_Hash;
+    bool             m_StopCallbacks;
+    bool             m_MutateCallbacks;
 };
 
 struct Body
 {
+    b2BodyId        m_PhysicsBody;
+    uint32_t        m_Id;
     dmVMath::Point3 m_Position;
     dmVMath::Quat   m_Rotation;
     Callbacks*      m_Callbacks;
@@ -105,24 +110,44 @@ static void SetTransform(void* user_data, const dmVMath::Point3& position, const
     body->m_Rotation = rotation;
 }
 
-static bool Collision(void*, uint16_t, void*, uint16_t, void* user_data)
+static void HashBytes(Callbacks* callbacks, const void* data, uint32_t size)
+{
+    const uint8_t* bytes = (const uint8_t*)data;
+    for (uint32_t i = 0; i < size; ++i)
+    {
+        callbacks->m_Hash = (callbacks->m_Hash ^ bytes[i]) * 1099511628211ULL;
+    }
+}
+
+static bool Collision(void* a, uint16_t group_a, void* b, uint16_t group_b, void* user_data)
 {
     Callbacks* callbacks = (Callbacks*)user_data;
     CheckCallingThread(callbacks);
     ++callbacks->m_Collisions;
-    return true;
+    // Probe legacy immediate callbacks, which may change data consumed by later contacts.
+    if (callbacks->m_MutateCallbacks)
+    {
+        const b2Vec2 velocity = { 10.0f, 0.0f };
+        b2Body_SetLinearVelocity(((Body*)b)->m_PhysicsBody, velocity);
+    }
+    const uint32_t values[] = { ((Body*)a)->m_Id, group_a, ((Body*)b)->m_Id, group_b };
+    HashBytes(callbacks, values, sizeof(values));
+    return !callbacks->m_StopCallbacks || callbacks->m_Collisions < 3;
 }
 
-static bool Contact(const dmPhysics::ContactPoint&, void* user_data)
+static bool Contact(const dmPhysics::ContactPoint& point, void* user_data)
 {
     Callbacks* callbacks = (Callbacks*)user_data;
     CheckCallingThread(callbacks);
     ++callbacks->m_Contacts;
-    return true;
+    const uint32_t ids[] = { ((Body*)point.m_UserDataA)->m_Id, point.m_GroupA, ((Body*)point.m_UserDataB)->m_Id, point.m_GroupB };
+    HashBytes(callbacks, ids, sizeof(ids));
+    const float values[] = { point.m_PositionA.getX(), point.m_PositionA.getY(), point.m_PositionA.getZ(), point.m_PositionB.getX(), point.m_PositionB.getY(), point.m_PositionB.getZ(), point.m_Normal.getX(), point.m_Normal.getY(), point.m_Normal.getZ(), point.m_RelativeVelocity.getX(), point.m_RelativeVelocity.getY(), point.m_RelativeVelocity.getZ(), point.m_Distance, point.m_AppliedImpulse, point.m_MassA, point.m_MassB };
+    HashBytes(callbacks, values, sizeof(values));
+    return !callbacks->m_StopCallbacks || callbacks->m_Contacts < 3;
 }
 
-// Worker steps must produce the same transforms, contacts and synchronous queries at both fixed rates.
-TEST(Box2DThreading, SerialAndThreadedStateAndCallbacks)
+static void CompareThreadedCallbacks(bool read_only, bool stop_callbacks, bool mutate_callbacks)
 {
     const uint32_t body_count = 257;
     dmThread::TlsKey key = dmThread::AllocTls();
@@ -137,6 +162,9 @@ TEST(Box2DThreading, SerialAndThreadedStateAndCallbacks)
         Callbacks callbacks[2];
         for (uint32_t mode = 0; mode < 2; ++mode)
         {
+            callbacks[mode].m_Hash = 14695981039346656037ULL;
+            callbacks[mode].m_StopCallbacks = stop_callbacks;
+            callbacks[mode].m_MutateCallbacks = mutate_callbacks;
             callbacks[mode].m_Key = key;
             callbacks[mode].m_Collisions = 0;
             callbacks[mode].m_Contacts = 0;
@@ -155,6 +183,7 @@ TEST(Box2DThreading, SerialAndThreadedStateAndCallbacks)
             for (uint32_t i = 0; i < body_count; ++i)
             {
                 Body* body = &bodies[mode][i];
+                body->m_Id = i;
                 body->m_Position = i ? dmVMath::Point3(float((i - 1) % 16) - 7.5f, float((i - 1) / 16), 0.0f) : dmVMath::Point3(0.0f, -1.0f, 0.0f);
                 body->m_Rotation = dmVMath::Quat::identity();
                 body->m_Callbacks = &callbacks[mode];
@@ -163,6 +192,7 @@ TEST(Box2DThreading, SerialAndThreadedStateAndCallbacks)
                 data.m_Mass = i ? 1.0f : 0.0f;
                 data.m_UserData = body;
                 objects[mode][i] = dmPhysics::NewCollisionObject2D(worlds[mode], data, &shapes[mode][i ? 1 + i % 2 : 0], 1);
+                body->m_PhysicsBody = ((dmPhysics::Body*)objects[mode][i])->m_BodyId;
             }
         }
 
@@ -172,6 +202,7 @@ TEST(Box2DThreading, SerialAndThreadedStateAndCallbacks)
             {
                 dmThread::SetTlsValue(key, &callbacks[mode]);
                 dmPhysics::StepWorldContext step;
+                step.m_ContactCallbacksReadOnly = read_only;
                 step.m_DT = 1.0f / rates[rate];
                 step.m_Box2DSubStepCount = rates[rate] == 30 ? 8 : 4;
                 step.m_CollisionCallback = Collision;
@@ -183,6 +214,7 @@ TEST(Box2DThreading, SerialAndThreadedStateAndCallbacks)
             }
             ASSERT_EQ(callbacks[0].m_Collisions, callbacks[1].m_Collisions);
             ASSERT_EQ(callbacks[0].m_Contacts, callbacks[1].m_Contacts);
+            ASSERT_EQ(callbacks[0].m_Hash, callbacks[1].m_Hash);
             for (uint32_t i = 1; i < body_count; ++i)
             {
                 for (uint32_t axis = 0; axis < 3; ++axis)
@@ -194,6 +226,7 @@ TEST(Box2DThreading, SerialAndThreadedStateAndCallbacks)
             }
         }
         ASSERT_GT(callbacks[0].m_Contacts, 0u);
+        ASSERT_EQ(read_only && worlds[1]->m_TaskContext != 0, worlds[1]->m_ContactCollection != 0);
 
         dmArray<dmPhysics::RayCastResponse> results[2];
         dmPhysics::RayCastRequest ray;
@@ -223,6 +256,31 @@ TEST(Box2DThreading, SerialAndThreadedStateAndCallbacks)
         }
     }
     dmThread::FreeTls(key);
+}
+
+// Worker steps preserve transforms, ordered contact data and synchronous queries at both fixed rates.
+TEST(Box2DThreading, SerialAndThreadedStateAndCallbacks)
+{
+    CompareThreadedCallbacks(false, false, false);
+}
+
+// Deferred contact collection must deliver identical ordered payloads on the calling thread.
+TEST(Box2DThreading, DeferredContactCallbacks)
+{
+    CompareThreadedCallbacks(true, false, false);
+}
+
+// Stopping either callback must discard later collected entries without changing the delivered order.
+TEST(Box2DThreading, DeferredCallbacksStopEarly)
+{
+    CompareThreadedCallbacks(true, true, false);
+}
+
+// Immediate callbacks must observe velocity changes made by earlier callbacks, even with workers enabled.
+TEST(Box2DThreading, ImmediateCallbacksCanChangeVelocity)
+{
+    ASSERT_FALSE(dmPhysics::StepWorldContext().m_ContactCallbacksReadOnly);
+    CompareThreadedCallbacks(false, false, true);
 }
 
 // Deleting a context with live worlds must release native worlds and join their workers.
