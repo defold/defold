@@ -15,6 +15,7 @@
 #include "gamesys.h"
 
 #include "gamesys_private.h"
+#include "gamesys_context_private.h"
 
 #include <dmsdk/dlib/log.h>
 #include <dlib/static_assert.h>
@@ -171,7 +172,8 @@ namespace dmGameSystem
         return e;
     }
 
-    dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
+    static dmGameObject::Result RegisterComponentTypesInternal(HContext game_system,
+                                                dmResource::HFactory factory,
                                                 dmGameObject::HRegister regist,
                                                 dmRender::HRenderContext render_context,
                                                 PhysicsContext* physics_context,
@@ -226,7 +228,7 @@ namespace dmGameSystem
     component_type.m_ReadsTransforms = set_reads_transforms;\
     component_type.m_InstanceHasUserData = (uint32_t)true;\
     component_type.m_UpdateOrderPrio = prio;\
-    go_result = dmGameObject::RegisterComponentType(regist, component_type);\
+    go_result = game_system ? RegisterComponentType(game_system, component_type) : dmGameObject::RegisterComponentType(regist, component_type);\
     if (go_result != dmGameObject::RESULT_OK)\
         return go_result;
 
@@ -316,5 +318,67 @@ namespace dmGameSystem
         #undef REGISTER_COMPONENT_TYPE
 
         return go_result;
+    }
+
+    dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
+                                                dmGameObject::HRegister regist,
+                                                dmRender::HRenderContext render_context,
+                                                PhysicsContext* physics_context,
+                                                SpriteContext* sprite_context,
+                                                CollectionProxyContext* collection_proxy_context,
+                                                FactoryContext* factory_context,
+                                                CollectionFactoryContext* collectionfactory_context,
+                                                ModelContext* model_context,
+                                                LabelContext* label_context)
+    {
+        // Existing isolated component tests supply their own type contexts.
+        return RegisterComponentTypesInternal(0, factory, regist, render_context, physics_context,
+            sprite_context, collection_proxy_context, factory_context, collectionfactory_context, model_context, label_context);
+    }
+
+    bool Initialize(HContext context, dmConfigFile::HConfig config)
+    {
+        const ContextParams& params = context->m_Params;
+        context->m_SpriteContext.m_RenderContext = params.m_RenderContext;
+        context->m_SpriteContext.m_Factory = params.m_Factory;
+        context->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(config, "sprite.max_count", 128);
+        context->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(config, "sprite.subpixels", 1);
+
+        context->m_ModelContext.m_RenderContext = params.m_RenderContext;
+        context->m_ModelContext.m_Factory = params.m_Factory;
+        context->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(config, "model.max_count", 128);
+        context->m_ModelContext.m_MaxBoneMatrixTextureWidth = (uint16_t)dmConfigFile::GetInt(config, "model.max_bone_matrix_texture_width", 1024);
+        context->m_ModelContext.m_MaxBoneMatrixTextureHeight = (uint16_t)dmConfigFile::GetInt(config, "model.max_bone_matrix_texture_height", 1024);
+
+        context->m_LabelContext.m_RenderContext = params.m_RenderContext;
+        context->m_LabelContext.m_MaxLabelCount = dmConfigFile::GetInt(config, "label.max_count", 64);
+        context->m_LabelContext.m_Subpixels = dmConfigFile::GetInt(config, "label.subpixels", 1);
+
+        context->m_CollectionProxyContext.m_Factory = params.m_Factory;
+        context->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(config, COLLECTION_PROXY_MAX_COUNT_KEY, 8);
+
+        context->m_FactoryContext.m_Factory = params.m_Factory;
+        context->m_FactoryContext.m_ScriptContext = params.m_ScriptContext;
+        context->m_FactoryContext.m_MaxFactoryCount = dmConfigFile::GetInt(config, FACTORY_MAX_COUNT_KEY, 128);
+
+        context->m_CollectionFactoryContext.m_Factory = params.m_Factory;
+        context->m_CollectionFactoryContext.m_ScriptContext = params.m_ScriptContext;
+        context->m_CollectionFactoryContext.m_MaxCollectionFactoryCount = dmConfigFile::GetInt(config, COLLECTION_FACTORY_MAX_COUNT_KEY, 128);
+
+        dmResource::Result resource_result = RegisterResourceTypes(params.m_Factory, params.m_RenderContext,
+            params.m_InputContext, params.m_PhysicsContext, &context->m_ModelContext);
+        if (resource_result != dmResource::RESULT_OK)
+            return false;
+
+        dmGameObject::Result component_result = RegisterComponentTypesInternal(context, params.m_Factory,
+            params.m_Register, params.m_RenderContext, params.m_PhysicsContext, &context->m_SpriteContext,
+            &context->m_CollectionProxyContext, &context->m_FactoryContext, &context->m_CollectionFactoryContext,
+            &context->m_ModelContext, &context->m_LabelContext);
+        if (component_result != dmGameObject::RESULT_OK)
+        {
+            dmLogError("Unable to register game-system components (%d)", component_result);
+            return false;
+        }
+        return true;
     }
 }

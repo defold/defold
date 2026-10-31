@@ -18,7 +18,7 @@ def main():
     args = parser.parse_args()
 
     context = {
-        'ios': {'default_language': 'en', 'pre_renderered_icons': 'false', 'bundle_identifier': args.bundle_id},
+        'ios': {'default_language': 'en', 'pre_renderered_icons': 'false', 'use_high_refresh_rate': 'false', 'bundle_identifier': args.bundle_id},
         'project': {'title': args.executable, 'version': '1.0', 'write_log': 'false'},
         'exe-name': args.executable,
         'bundle-name': args.executable,

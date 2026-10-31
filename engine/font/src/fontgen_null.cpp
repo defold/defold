@@ -78,10 +78,10 @@ HFont FontLoadFromMemoryTTF(const char*, const void*, uint32_t, bool)
 
 namespace dmGameSystem
 {
-HFont GetFont(TTFResource*)
-{
-    return 0;
-}
+    HFont GetFont(TTFResource*)
+    {
+        return 0;
+    }
 }
 
 extern "C" void ResourceTypeTTF()

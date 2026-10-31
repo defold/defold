@@ -81,7 +81,7 @@ struct FontLayoutVertexConfig
     FontLayoutResolveEffect m_ResolveEffect;
     void*                   m_ResolveEffectContext;
     // Curve previews render SDF effects in a separate pass.
-    bool                   m_FaceOnly;
+    bool                    m_FaceOnly;
 };
 
 struct FontLayoutVertexMetrics

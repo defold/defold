@@ -14,11 +14,13 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include <string.h>
 
 #include <testmain/testmain.h>
 #include <dlib/testutil.h>
 
 #include <dlib/array.h>
+#include <dlib/configfile.h>
 #include <dlib/http/http_client.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
@@ -27,6 +29,8 @@
 #include <dlib/profile.h>
 #include <script/sys_ddf.h>
 #include <render/render_ddf.h>
+#include <gameobject/component.h>
+#include <dmsdk/extension/extension.hpp>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
@@ -51,12 +55,37 @@ extern "C" void dmExportedSymbols();
 #endif
 #define MAKE_PATH(_VAR, _NAME)  dmTestUtil::MakeHostPathf(_VAR, sizeof(_VAR), "%s%s", CONTENT_ROOT, _NAME)
 
-typedef void (*PreRun)(dmEngine::HEngine engine, void* context);
-typedef void (*PostRun)(dmEngine::HEngine engine, void* context);
+typedef void (*FPreRun)(dmEngine::HEngine engine, void* context);
+typedef void (*FPostRun)(dmEngine::HEngine engine, void* context);
 
-PreRun g_PreRun = 0;
-PostRun g_PostRun = 0;
-void* g_TextCtx = 0;
+static FPreRun  g_PreRun  = 0;
+static FPostRun g_PostRun = 0;
+static void*    g_TextCtx = 0;
+
+static float    g_ExtensionTotalDT              = 0.0f;
+static uint32_t g_ExtensionUpdateCount          = 0;
+static bool     g_ExtensionFloatLookupSucceeded = true;
+
+static dmExtension::Result DeltaTimeTestLifecycle(dmExtension::Params*)
+{
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result DeltaTimeTestUpdate(dmExtension::Params* params)
+{
+    float dt;
+    if (!dmExtension::ParamsGetFloat(params, dmExtension::PARAM_DT, &dt))
+    {
+        g_ExtensionFloatLookupSucceeded = false;
+        return dmExtension::RESULT_INIT_ERROR;
+    }
+
+    g_ExtensionTotalDT += dt;
+    ++g_ExtensionUpdateCount;
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineDeltaTimeTestExt, "test_dt", 0, 0, DeltaTimeTestLifecycle, DeltaTimeTestUpdate, 0, DeltaTimeTestLifecycle);
 
 static void TestEngineInitialize(void* _ctx)
 {
@@ -178,7 +207,7 @@ static int RunTestEngineLoop(const dmEngine::RunLoopParams* params)
 }
 #endif
 
-static int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
+static int Launch(int argc, char* argv[], FPreRun pre_run, FPostRun post_run, void* context)
 {
     g_PreRun = pre_run;
     g_PostRun = post_run;
@@ -253,6 +282,120 @@ TEST_F(EngineTest, ProjectFail)
     ASSERT_NE(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 
     ProfileFinalize(); // Making sure it is cleaned up
+}
+
+// Verify the development build gate selects inline startup or rejection at render-context
+// creation, and both partial initialization and public engine creation clean up their contexts.
+TEST_F(EngineTest, RenderExecutionBuildGateStartupCleanup)
+{
+#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
+    const bool expected_success = false;
+#else
+    const bool expected_success = true;
+#endif
+    char project_path[256];
+    const char* argv[] = {
+        "test_engine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=bootstrap.main_collection=/text_input/text_input.collectionc",
+        "--config=input.game_binding=/text_input/text_input.input_bindingc",
+        MAKE_PATH(project_path, "/game.projectc"),
+    };
+
+    dmEngineInitialize();
+
+    // Inspect a rejected partial initialization before Delete can clear its contexts.
+    bool rejected_at_render_context = true;
+    bool partial_graphics_cleaned = true;
+    if (!expected_success)
+    {
+        dmEngine::HEngine partial = dmEngine::New(0);
+        bool initialized = dmEngine::Init(partial, DM_ARRAY_SIZE(argv), (char**)argv);
+        // Earlier startup failures must not masquerade as execution-mode rejection.
+        rejected_at_render_context = !initialized && partial->m_Config && !partial->m_ConnectionAppMode && partial->m_Window &&
+            partial->m_GraphicsContext && partial->m_ScriptContext && !partial->m_RenderContext && !partial->m_GameSystem;
+        dmEngine::Delete(partial);
+        partial_graphics_cleaned = dmGraphics::GetInstalledContext() == 0;
+    }
+
+    // Exercise the public creation path too: it owns cleanup on initialization failure.
+    dmEngine::HEngine engine = dmEngineCreate(DM_ARRAY_SIZE(argv), (char**)argv);
+    bool created = engine != 0;
+    dmRender::HRenderExecution execution = engine && engine->m_RenderContext ? dmRender::GetRenderExecution(engine->m_RenderContext) : 0;
+    bool owns_all_roles = execution &&
+        dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_GAME) &&
+        dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_RENDER);
+    bool has_game_system = engine && engine->m_GameSystem;
+
+    if (engine)
+        dmEngineDestroy(engine);
+
+    bool graphics_cleaned = dmGraphics::GetInstalledContext() == 0;
+    dmEngineFinalize();
+
+    ASSERT_EQ(expected_success, created);
+    ASSERT_TRUE(graphics_cleaned);
+    ASSERT_TRUE(rejected_at_render_context);
+    ASSERT_TRUE(partial_graphics_cleaned);
+    if (expected_success)
+    {
+        ASSERT_TRUE(owns_all_roles);
+        ASSERT_TRUE(has_game_system);
+    }
+}
+
+// Verify gamesys owns/configures the shared component/resource contexts, including cleanup after late startup failure.
+TEST_F(EngineTest, GameSystemContextStartupCleanup)
+{
+#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
+    return; // The development gate rejects startup before gamesys is created.
+#endif
+    for (uint32_t attempt = 0; attempt < 2; ++attempt)
+    {
+        char project_path[256];
+        const char* argv[] = {
+            "test_engine",
+            "--config=dmengine.unload_builtins=0",
+            attempt == 0 ? "--config=bootstrap.main_collection=/text_input/text_input.collectionc" :
+                           "--config=bootstrap.main_collection=/missing_gamesys_test.collectionc",
+            "--config=input.game_binding=/text_input/text_input.input_bindingc",
+            "--config=sprite.max_count=73",
+            "--config=model.max_count=91",
+            "--config=model.max_bone_matrix_texture_width=512",
+            MAKE_PATH(project_path, "/game.projectc"),
+        };
+
+        dmEngineInitialize();
+        dmEngine::HEngine engine = dmEngine::New(0);
+        bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+        bool configured = false;
+        HResourceType sprite_type = 0;
+        HResourceType model_type = 0;
+        if (engine->m_GameSystem &&
+            dmResource::GetTypeFromExtension(engine->m_Factory, "spritec", &sprite_type) == dmResource::RESULT_OK &&
+            dmResource::GetTypeFromExtension(engine->m_Factory, "modelc", &model_type) == dmResource::RESULT_OK)
+        {
+            dmGameObject::ComponentType* sprite = dmGameObject::FindComponentType(engine->m_Register, sprite_type, 0);
+            dmGameObject::ComponentType* model = dmGameObject::FindComponentType(engine->m_Register, model_type, 0);
+            if (sprite && model)
+            {
+                dmGameSystem::SpriteContext* sprite_context = (dmGameSystem::SpriteContext*)sprite->m_Context;
+                dmGameSystem::ModelContext* model_context = (dmGameSystem::ModelContext*)model->m_Context;
+                configured = sprite_context->m_MaxSpriteCount == 73 && model_context->m_MaxModelCount == 91 &&
+                    model_context->m_MaxBoneMatrixTextureWidth == 512 &&
+                    model_context->m_RenderContext == engine->m_RenderContext &&
+                    model_context == ResourceTypeGetContext(model_type);
+            }
+        }
+
+        dmEngine::Delete(engine);
+        bool graphics_cleaned = dmGraphics::GetInstalledContext() == 0;
+        dmEngineFinalize();
+
+        ASSERT_EQ(attempt == 0, initialized);
+        ASSERT_TRUE(configured);
+        ASSERT_TRUE(graphics_cleaned);
+    }
 }
 
 TEST_F(EngineTest, NonProjectLastArgumentDoesNotOverrideProjectFile)
@@ -436,6 +579,48 @@ TEST_F(EngineTest, WindowResizeBeforeRenderContext)
 
     dmEngine::Delete(engine);
     dmEngineFinalize();
+}
+
+// Extension and engine time must agree after every update, including when delta time is zero.
+TEST_F(EngineTest, ExtensionDeltaTime)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=display.update_frequency=0",
+        project_path
+    };
+
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    g_ExtensionTotalDT = 0.0f;
+    g_ExtensionUpdateCount = 0;
+    g_ExtensionFloatLookupSucceeded = true;
+
+    dmEngine::Stats engine_stats[3];
+    dmEngine::Stats extension_stats[DM_ARRAY_SIZE(engine_stats)];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(engine_stats); ++i)
+    {
+        dmEngine::Step(engine);
+        dmEngine::GetStats(engine, engine_stats[i]);
+        extension_stats[i].m_FrameCount = g_ExtensionUpdateCount;
+        extension_stats[i].m_TotalTime = g_ExtensionTotalDT;
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(g_ExtensionFloatLookupSucceeded);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(engine_stats); ++i)
+    {
+        ASSERT_EQ(i + 1, extension_stats[i].m_FrameCount);
+        ASSERT_EQ(engine_stats[i].m_FrameCount, extension_stats[i].m_FrameCount);
+        ASSERT_EQ(engine_stats[i].m_TotalTime, extension_stats[i].m_TotalTime);
+    }
 }
 
 TEST_F(EngineTest, SetEngineThrottle)
@@ -683,6 +868,103 @@ TEST_F(EngineTest, PacedTimeCreditLargerThanStepIsRepaidGradually)
     }
     ASSERT_NEAR(0.0f, balance, 0.000001f);
     ASSERT_NEAR(0.01f, dmEngine::CalcPacedTimeStep(0.01f, 0.01f, 1.0f / 30.0f, balance), 0.000001f);
+}
+
+TEST_F(EngineTest, LowFrequencyCallbacksAdvanceFullInterval)
+{
+    // A platform callback slowed to the update frequency (e.g. an iOS display
+    // link) arrives after fixed_dt, which can exceed max_time_step. Each
+    // callback must run one full step so game time keeps up with wall time.
+    const float max_time_step = 1.0f / 30.0f;
+    const uint32_t frequencies[] = { 10, 15, 20, 24, 30, 60, 120 };
+    for (uint32_t frequency_index = 0; frequency_index < DM_ARRAY_SIZE(frequencies); ++frequency_index)
+    {
+        const float fixed_dt = 1.0f / frequencies[frequency_index];
+        const uint32_t frame_count = frequencies[frequency_index] * 5;
+        float accum_frame_time = 0.0f;
+        double simulation_time = 0.0;
+        for (uint32_t i = 0; i < frame_count; ++i)
+        {
+            uint32_t num_steps = 0;
+            float step_dt = dmEngine::CalcCallbackTimeStep(fixed_dt, fixed_dt, max_time_step, 1, accum_frame_time, num_steps);
+            ASSERT_EQ(1u, num_steps);
+            ASSERT_NEAR(fixed_dt, step_dt, 0.000001f);
+            simulation_time += step_dt;
+        }
+        ASSERT_NEAR(5.0, simulation_time, 0.0001);
+    }
+}
+
+TEST_F(EngineTest, CallbackHitchIsClamped)
+{
+    const float max_time_step = 1.0f / 30.0f;
+
+    // Above 1/max_time_step, a hitch is limited to max_time_step as before.
+    float accum_frame_time = 0.0f;
+    uint32_t num_steps = 0;
+    float step_dt = dmEngine::CalcCallbackTimeStep(1.0f, 1.0f / 60.0f, max_time_step, 1, accum_frame_time, num_steps);
+    ASSERT_EQ(1u, num_steps);
+    ASSERT_NEAR(max_time_step, step_dt, 0.000001f);
+    ASSERT_NEAR(0.0f, accum_frame_time, 0.000001f);
+
+    // Below it, a hitch is limited to one requested interval.
+    accum_frame_time = 0.0f;
+    step_dt = dmEngine::CalcCallbackTimeStep(1.0f, 1.0f / 15.0f, max_time_step, 1, accum_frame_time, num_steps);
+    ASSERT_EQ(1u, num_steps);
+    ASSERT_NEAR(1.0f / 15.0f, step_dt, 0.000001f);
+    ASSERT_NEAR(0.0f, accum_frame_time, 0.000001f);
+
+    // With two allowed intervals, a hitch is still a single step.
+    accum_frame_time = 0.0f;
+    step_dt = dmEngine::CalcCallbackTimeStep(1.0f, 1.0f / 15.0f, max_time_step, 2, accum_frame_time, num_steps);
+    ASSERT_EQ(1u, num_steps);
+    ASSERT_NEAR(2.0f / 15.0f, step_dt, 0.000001f);
+    ASSERT_NEAR(0.0f, accum_frame_time, 0.000001f);
+}
+
+TEST_F(EngineTest, AlternatingCallbackIntervalsKeepGameTime)
+{
+    // iOS approximates a 24 Hz display link by alternating 30 Hz and 20 Hz
+    // intervals. Allowing two requested intervals keeps game time in step with
+    // elapsed time, without running more than one step per callback.
+    const float fixed_dt = 1.0f / 24.0f;
+    const float max_time_step = 1.0f / 30.0f;
+    const float frame_times[] = { 1.0f / 30.0f, 1.0f / 20.0f };
+    float accum_frame_time = 0.0f;
+    double elapsed_time = 0.0;
+    double simulation_time = 0.0;
+    for (uint32_t i = 0; i < 1200; ++i)
+    {
+        float frame_dt = frame_times[i % DM_ARRAY_SIZE(frame_times)];
+        uint32_t num_steps = 0;
+        float step_dt = dmEngine::CalcCallbackTimeStep(frame_dt, fixed_dt, max_time_step, 2, accum_frame_time, num_steps);
+        ASSERT_LE(num_steps, 1u);
+        elapsed_time += frame_dt;
+        if (num_steps)
+            simulation_time += step_dt;
+    }
+    ASSERT_NEAR(50.0, elapsed_time, 0.001);
+    ASSERT_NEAR(elapsed_time, simulation_time + accum_frame_time, 0.001);
+}
+
+TEST_F(EngineTest, FastCallbacksAccumulateLowFrequencySteps)
+{
+    // A 60 Hz callback with a 15 Hz update frequency runs a step on every
+    // fourth callback.
+    const float fixed_dt = 1.0f / 15.0f;
+    float accum_frame_time = 0.0f;
+    uint32_t total_steps = 0;
+    for (uint32_t i = 0; i < 60; ++i)
+    {
+        uint32_t num_steps = 0;
+        float step_dt = dmEngine::CalcCallbackTimeStep(1.0f / 60.0f, fixed_dt, 1.0f / 30.0f, 1, accum_frame_time, num_steps);
+        ASSERT_LE(num_steps, 1u);
+        ASSERT_NEAR(fixed_dt, step_dt, 0.000001f);
+        total_steps += num_steps;
+    }
+    // Float accumulation may leave the last step one callback short.
+    ASSERT_GE(total_steps, 14u);
+    ASSERT_LE(total_steps, 15u);
 }
 
 TEST_F(EngineTest, LowFrameCapToVariableUpdateResumesImmediately)
@@ -1483,6 +1765,7 @@ int main(int argc, char **argv)
     dmLog::CloseConsoleWindow();
 #endif
     dmExportedSymbols();
+    EngineDeltaTimeTestExt();
     TestMainPlatformInit();
 
     ProfileInitialize();

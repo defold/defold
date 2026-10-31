@@ -266,6 +266,12 @@ TEST(dmImage, Hdr)
     ASSERT_TRUE(dmImage::IsHDR(HDR_2X2, sizeof(HDR_2X2)));
     ASSERT_EQ((dmImage::HImage)0, dmImage::NewImage(HDR_2X2, sizeof(HDR_2X2), false));
 
+    dmImage::ImageInfo info;
+    ASSERT_EQ(dmImage::RESULT_OK, dmImage::GetInfo(HDR_2X2, sizeof(HDR_2X2), &info));
+    ASSERT_EQ(2U, info.m_Width);
+    ASSERT_EQ(2U, info.m_Height);
+    ASSERT_EQ(dmImage::TYPE_RGBA32F, info.m_Type);
+
     dmImage::Image image;
     dmImage::Result r = dmImage::Load(HDR_2X2, sizeof(HDR_2X2), false, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);

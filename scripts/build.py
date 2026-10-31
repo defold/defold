@@ -47,6 +47,7 @@ SOURCE_BUILT_PACKAGE_PREFIXES = (
     'harfbuzz-', 'SheenBidi-', 'libunibreak-', 'SkriBidi-', 'luajit-', 'ogg-')
 
 _CMAKE_FEATURE_FLAG_MAP = {
+    '--with-threaded-rendering': 'WITH_THREADED_RENDERING',
     '--with-asan': 'WITH_ASAN',
     '--with-hwasan': 'WITH_HWASAN',
     '--with-msan': 'WITH_MSAN',
@@ -322,7 +323,7 @@ if os.environ.get('TERM','') in ('cygwin',):
 EXTERNAL_LIBS = "opus box2d box2d_v2 vkquality harfbuzz sheenbidi libunibreak skribidi dawn".split()
 EXTERNAL_PACKAGE_VERSIONS = {
     "opus": "1.5.2",
-    "box2d": "3.1.0",
+    "box2d": "3.2.0",
     "box2d_v2": "2.2.1",
     "vkquality": "1.1-2642a0d",
     "harfbuzz": "13.2.1",
@@ -1680,6 +1681,8 @@ class Configuration(object):
 
         if self.target_platform in ['x86_64-linux']:
             # Archive the platform-independent JARs once, from the Linux build.
+            self.upload_to_archive(join(dynamo_home, 'share/java/dmengine.jar'),
+                                   join(sha1, 'engine/share/java/dmengine.jar').replace('\\', '/'))
             for path in self._bob_archive_artifacts():
                 if path.startswith('share/java/') and path.endswith('.jar'):
                     self.upload_to_archive(join(dynamo_home, path), join(sha1, 'engine', path).replace('\\', '/'))
@@ -1697,7 +1700,7 @@ class Configuration(object):
             self.upload_to_archive(resources, '%s/android-resources.zip' % (full_archive_path))
 
         if self.is_desktop_target():
-            libs = ['dlib', 'texc', 'particle', 'modelc', 'shaderc']
+            libs = ['dlib', 'texc', 'particle', 'modelc', 'shaderc', 'dmengine']
             for lib in libs:
                 lib_name = format_lib('%s_shared' % (lib), self.target_platform)
                 lib_path = join(dynamo_home, 'lib', self.target_platform, lib_name)
@@ -3753,6 +3756,7 @@ Multiple commands can be specified
 
 CMake shorthand defaults from build.py shell: CMAKE_GENERATOR=Ninja, omitted --platform uses the host platform, CMAKE_BUILD_TYPE=RelWithDebInfo, and BUILD_TESTS=ON.
 Use -- --opt-level=0 for Debug, -- --skip-build-tests to skip building tests, or --skip-tests to skip running tests.
+Use -- --with-threaded-rendering to enable the internal threaded-rendering build capability (off by default).
 
 To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
 '''

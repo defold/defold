@@ -526,9 +526,9 @@ TEST(Markup, InvalidUtf8)
 TEST(Markup, EveryPrefixOfLongValidText)
 {
     const char text[] =
-    "Start <wave amplitude=4 hz=2 wavelength=6>"
-    "This <gradient left=#FF00FF right=#FFFFFF>Whole</gradient> Text Wobbles!"
-    "</wave> End \xF0\x9F\x98\x80";
+        "Start <wave amplitude=4 hz=2 wavelength=6>"
+        "This <gradient left=#FF00FF right=#FFFFFF>Whole</gradient> Text Wobbles!"
+        "</wave> End \xF0\x9F\x98\x80";
     const uint32_t text_length = sizeof(text) - 1;
 
     for (uint32_t length = 0; length <= text_length; ++length)
@@ -572,7 +572,7 @@ TEST(Markup, ExplicitLengthDoesNotRequireTerminator)
 TEST(Markup, EveryPrefixOfLongTextWithManyTags)
 {
     static const char segment[] =
-    "<wave amplitude=4>A<gradient left=#FF00FF right=#FFFFFF>BC</gradient>D</wave>";
+        "<wave amplitude=4>A<gradient left=#FF00FF right=#FFFFFF>BC</gradient>D</wave>";
     static const uint32_t segment_count = 64;
     static const uint32_t segment_length = sizeof(segment) - 1;
     char                  text[segment_count * segment_length];
