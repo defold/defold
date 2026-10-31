@@ -113,7 +113,60 @@ libc++ linkage. It cannot be combined with other sanitizers. See the
 [Android HWASan workflow](../mobile/README_ANDROID.md#hwasan-android-14-arm64)
 for building and repacking an APK for Android 14 or newer.
 
+#### Threaded rendering
+
+Pass `--with-threaded-rendering` after the separator to enable the internal rendering
+execution capability:
+
+```bash
+./scripts/build.py build_engine --platform=arm64-macos -- --with-threaded-rendering
+```
+
+This maps to `WITH_THREADED_RENDERING=ON` in CMake, which adds the engine compile
+definition `DM_THREADED_RENDERING=1`. Omitting the flag explicitly
+sets it to `OFF`, including on subsequent builds in the same directory. Direct
+CMake configuration remains available. This is a development gate, not a released engine feature.
+The build define alone selects inline (off) or threaded (on) startup; there is no
+runtime selector yet. Enabled builds currently reject startup because the threaded
+executor and component/resource migration are not available. This option
+does not enable Emscripten pthreads or select a different web binary.
+
 ## Invocation
+
+`scripts/build.py` shows compact CMake and Ninja progress by default. A terminal
+updates one progress line; redirected output and CI print progress at ten-percent
+intervals, with updates during longer builds. Complete command output is
+saved under `logs/` in each CMake build directory. On failure, the console shows
+the failed command and its diagnostics and prints the full log's location.
+Engine CI uploads these logs as `cmake-logs-<platform>` artifacts, including when
+the build fails. Pass `--verbose` to stream the complete command output instead.
+
+Compiler diagnostics retain their colors on terminals, including through the
+runner's output capture. Redirected output, CI output, and saved logs stay plain.
+Use `--no-colors`, `NO_COLOR`, `NOCOLOR=1`, or `CLICOLOR=0` to disable colors.
+Build phase headings are cyan, component headings are brown,
+completed steps are green, and failed steps are red. Timing summary headings use
+the same colors to separate the final report from the build output.
+Command timing rows use the terminal's default foreground for both labels and
+values, keeping them readable on light and dark backgrounds.
+Build-owned command headings and status lines have a cyan `DEFOLD - ` prefix;
+the prefix remains as plain text when colors are disabled or output is redirected.
+Active progress bars use neutral text after that prefix. They are drawn by the
+runner using Ninja's counters; native CMake and compiler diagnostics retain their
+own colors.
+Shell-style command echoes use brown command names, green environment variable
+names, and cyan options. Values and paths use the terminal's normal foreground;
+arguments are quoted when needed. Verbose command echoes use the same formatting
+after credential redaction.
+Build-owned color roles are defined in `build_tools/build_console.py` as
+`Style` constants. Headings, SDK checks, progress, and shell echoes share that
+palette. Command timing rows and active progress text use the terminal's
+default foreground; native tool diagnostics keep their own colors.
+
+CMake has no separate rich console mode. With the Ninja generator, this display
+uses Ninja's native completed and total job counts. The build time summary and
+`build_times.json` retain command timings; nested commands contribute only once
+to the session total.
 
 Run `./scripts/build.py --platform=<platform> install_ext` before the first
 engine build, with the platform SDK already set up. It installs the remaining

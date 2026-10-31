@@ -1,0 +1,245 @@
+--- a/include/box2d/box2d.h
++++ b/include/box2d/box2d.h
+@@ -41,6 +41,11 @@
+ 
+ /// World id validation. Provides validation for up to 64K allocations.
+ B2_API bool b2World_IsValid( b2WorldId id );
++
++// DEFOLD EDIT BEGIN
++/// Get the lock status of the world.
++B2_API bool b2World_IsLocked( b2WorldId worldId );
++// DEFOLD EDIT END
+ 
+ /// Simulate a world for one time step. This performs collision detection, integration, and
+ /// constraint solution.
+@@ -480,6 +485,11 @@
+ /// @param wake also wake up the body
+ B2_API void b2Body_ApplyForceToCenter( b2BodyId bodyId, b2Vec2 force, bool wake );
+ 
++// DEFOLD EDIT BEGIN
++/// Get the total force on a body due to all forces acting on it.
++B2_API b2Vec2 b2Body_GetTotalForce( b2BodyId bodyId );
++// DEFOLD EDIT END
++
+ /// Apply a torque. This affects the angular velocity without affecting the linear velocity. This
+ /// optionally wakes the body. The torque is ignored if the body is not awake.
+ /// @param bodyId The body id
+--- a/include/box2d/collision.h
++++ b/include/box2d/collision.h
+@@ -23,7 +23,9 @@
+ 
+ /// The maximum number of vertices on a convex polygon. Changing this affects performance even if
+ /// you don't use more vertices.
+-#define B2_MAX_POLYGON_VERTICES 8
++// DEFOLD EDIT BEGIN: Defold supports convex hulls with up to 16 vertices.
++#define B2_MAX_POLYGON_VERTICES 16
++// DEFOLD EDIT END
+ 
+ /// Low level ray cast input data
+ typedef struct b2RayCastInput
+--- a/src/body.c
++++ b/src/body.c
+@@ -1008,6 +1008,19 @@
+ 		bodySim->force = b2Add( bodySim->force, force );
+ 	}
+ }
++
++// DEFOLD EDIT BEGIN
++b2Vec2 b2Body_GetTotalForce( b2BodyId bodyId )
++{
++	b2World* world = b2GetWorld( bodyId.world0 );
++	b2Body* body = b2GetBodyFullId( world, bodyId );
++	if ( b2GetBodyState( world, body ) == NULL )
++	{
++		return b2Vec2_zero;
++	}
++	return b2GetBodySim( world, body )->force;
++}
++// DEFOLD EDIT END
+ 
+ void b2Body_ApplyTorque( b2BodyId bodyId, float torque, bool wake )
+ {
+@@ -2138,7 +2151,9 @@
+ 
+ bool b2ShouldBodiesCollide( b2World* world, b2Body* bodyA, b2Body* bodyB )
+ {
+-	if ( bodyA->type != b2_dynamicBody && bodyB->type != b2_dynamicBody )
++	// DEFOLD EDIT BEGIN: Support kinematic contacts.
++	if ( bodyA->type == b2_staticBody && bodyB->type == b2_staticBody )
++	// DEFOLD EDIT END
+ 	{
+ 		return false;
+ 	}
+--- a/src/broad_phase.c
++++ b/src/broad_phase.c
+@@ -389,14 +389,25 @@
+ 	}
+ }
+ 
++// DEFOLD EDIT BEGIN: Also query the kinematic tree against itself.
++typedef struct b2SelfContext
++{
++	b2World* world;
++	b2BodyType treeType;
++} b2SelfContext;
++// DEFOLD EDIT END
++
+ // This takes moved internal nodes and collides their sub-trees against each other.
+ static void b2SelfPairsTask( int startIndex, int endIndex, int workerIndex, void* context )
+ {
+ 	b2TracyCZoneNC( self_pairs, "Self", b2_colorCoral, true );
+ 
+-	b2World* world = context;
++	// DEFOLD EDIT BEGIN
++	b2SelfContext* selfContext = context;
++	b2World* world = selfContext->world;
+ 	b2BroadPhase* bp = &world->broadPhase;
+-	const b2DynamicTree* tree = bp->trees + b2_dynamicBody;
++	const b2DynamicTree* tree = bp->trees + selfContext->treeType;
++	// DEFOLD EDIT END
+ 	const b2TreeNode* nodes = tree->nodes;
+ 	const int* siblingIndices = bp->movedSiblings;
+ 
+@@ -482,6 +493,9 @@
+ 	b2World* world;
+ 	const b2NodePair* seeds;
+ 	int staticSeedCount;
++	// DEFOLD EDIT BEGIN
++	b2BodyType treeType;
++	// DEFOLD EDIT END
+ } b2CrossContext;
+ 
+ static void b2CrossPairsTask( int startIndex, int endIndex, int workerIndex, void* context )
+@@ -493,7 +507,9 @@
+ 	b2BroadPhase* bp = &world->broadPhase;
+ 	const b2TreeNode* staticNodes = bp->trees[b2_staticBody].nodes;
+ 	const b2TreeNode* kinematicNodes = bp->trees[b2_kinematicBody].nodes;
+-	const b2TreeNode* dynamicNodes = bp->trees[b2_dynamicBody].nodes;
++	// DEFOLD EDIT BEGIN
++	const b2TreeNode* movingNodes = bp->trees[crossContext->treeType].nodes;
++	// DEFOLD EDIT END
+ 
+ 	b2PairContext pairContext = { .world = world, .pairKeys = &world->taskContexts.data[workerIndex].pairKeys };
+ 
+@@ -501,7 +517,7 @@
+ 	{
+ 		const b2TreeNode* nodesB = i < crossContext->staticSeedCount ? staticNodes : kinematicNodes;
+ 		b2NodePair seed = crossContext->seeds[i];
+-		b2CollideCrossPairs( dynamicNodes, nodesB, &seed.a, &seed.b, &pairContext );
++		b2CollideCrossPairs( movingNodes, nodesB, &seed.a, &seed.b, &pairContext );
+ 	}
+ 
+ 	b2FlushCandidatePairs( &pairContext );
+@@ -613,33 +629,48 @@
+ 		b2Array_Clear( world->taskContexts.data[i].pairKeys );
+ 	}
+ 
+-	// Generate pairs by querying the dynamic body tree against itself and against
+-	// the kinematic and static trees.
+-	{
+-		// Get the sibling pairs of the dynamic body tree that have moved.
+-		const b2DynamicTree* dynamicTree = bp->trees + b2_dynamicBody;
+-		int pairCapacity = dynamicTree->nodeEnd / 2;
++	// DEFOLD EDIT BEGIN: Include kinematic-static and kinematic-kinematic contacts.
++	for ( int treeType = b2_kinematicBody; treeType <= b2_dynamicBody; ++treeType )
++	// DEFOLD EDIT END
++	{
++		// Get the sibling pairs of the moving body tree that have moved.
++		// DEFOLD EDIT BEGIN
++		const b2DynamicTree* movingTree = bp->trees + treeType;
++		// DEFOLD EDIT END
++		int pairCapacity = movingTree->nodeEnd / 2;
+ 		bp->movedSiblings = b2StackAlloc( alloc, pairCapacity * sizeof( int ), "moved pairs" );
+-		int dynamicMoveCount = b2GatherMovedSiblings( dynamicTree, bp->movedSiblings );
++		int moveCount = b2GatherMovedSiblings( movingTree, bp->movedSiblings );
+ 
+ 		// Get seeds for colliding against the static and kinematic trees.
+ 		b2NodePair crossSeeds[2 * B2_CROSS_SEED_COUNT];
+-		int staticSeedCount = b2GatherCrossSeeds( dynamicTree, bp->trees + b2_staticBody, crossSeeds );
++		int staticSeedCount = b2GatherCrossSeeds( movingTree, bp->trees + b2_staticBody, crossSeeds );
+ 		B2_ASSERT( staticSeedCount <= B2_CROSS_SEED_COUNT );
+-		int kinematicSeedCount = b2GatherCrossSeeds( dynamicTree, bp->trees + b2_kinematicBody, crossSeeds + staticSeedCount );
++		// DEFOLD EDIT BEGIN
++		int kinematicSeedCount = treeType == b2_dynamicBody
++			? b2GatherCrossSeeds( movingTree, bp->trees + b2_kinematicBody, crossSeeds + staticSeedCount )
++			: 0;
++		// DEFOLD EDIT END
+ 		B2_ASSERT( kinematicSeedCount <= B2_CROSS_SEED_COUNT );
+ 		int crossMoveCount = staticSeedCount + kinematicSeedCount;
+ 
+-		// Collide the dynamic body tree against the static and kinematic trees.
++		// Collide the moving body tree against the other body trees.
+ 		b2CrossContext crossContext = {
+ 			.world = world,
+ 			.seeds = crossSeeds,
+ 			.staticSeedCount = staticSeedCount,
++			// DEFOLD EDIT BEGIN
++			.treeType = treeType,
++			// DEFOLD EDIT END
+ 		};
+ 		b2ParallelFor( world, &b2CrossPairsTask, crossMoveCount, 1, &crossContext );
+ 
+-		// Collide the dynamic body tree against itself.
+-		b2ParallelFor( world, &b2SelfPairsTask, dynamicMoveCount, 64, world );
++		// Collide the moving body tree against itself.
++		// DEFOLD EDIT BEGIN
++		b2SelfContext selfContext = { .world = world, .treeType = treeType };
++		b2ParallelFor( world, &b2SelfPairsTask, moveCount, 64, &selfContext );
++		b2StackFree( alloc, bp->movedSiblings );
++		bp->movedSiblings = NULL;
++		// DEFOLD EDIT END
+ 	}
+ 
+ 	b2DynamicTree_ClearMoved( bp->trees + b2_staticBody );
+@@ -691,9 +722,6 @@
+ 
+ 	b2StackFree( alloc, pairKeys );
+ 
+-	b2StackFree( alloc, bp->movedSiblings );
+-	bp->movedSiblings = NULL;
+-
+ 	b2ValidateSolverSets( world );
+ 
+ 	b2TracyCZoneEnd( create_contacts );
+--- a/src/constraint_graph.c
++++ b/src/constraint_graph.c
+@@ -105,7 +105,9 @@
+ 
+ 	b2BodyType typeA = bodyA->type;
+ 	b2BodyType typeB = bodyB->type;
+-	B2_ASSERT( typeA == b2_dynamicBody || typeB == b2_dynamicBody );
++	// DEFOLD EDIT BEGIN: Kinematic-only contacts use the scalar overflow solver.
++	B2_ASSERT( typeA != b2_staticBody || typeB != b2_staticBody );
++	// DEFOLD EDIT END
+ 
+ #if B2_FORCE_OVERFLOW == 0
+ 	if ( typeA == b2_dynamicBody && typeB == b2_dynamicBody )
+--- a/src/core.c
++++ b/src/core.c
+@@ -153,7 +153,9 @@
+ 
+ #ifdef B2_PLATFORM_WINDOWS
+ 	void* ptr = _aligned_malloc( alignedSize, B2_ALIGNMENT );
+-#elif defined( B2_PLATFORM_ANDROID )
++// DEFOLD EDIT BEGIN: iOS 11 does not support aligned_alloc.
++#elif defined( B2_PLATFORM_ANDROID ) || defined( DEFOLD_USE_POSIX_MEMALIGN )
++// DEFOLD EDIT END
+ 	void* ptr = NULL;
+ 	if ( posix_memalign( &ptr, B2_ALIGNMENT, alignedSize ) != 0 )
+ 	{
+--- a/src/physics_world.c
++++ b/src/physics_world.c
+@@ -880,6 +880,13 @@
+ 	b2TracyCZoneEnd( contact_state );
+ 	b2TracyCZoneEnd( collide );
+ }
++
++// DEFOLD EDIT BEGIN
++bool b2World_IsLocked( b2WorldId worldId )
++{
++	return b2GetWorldFromId( worldId )->locked;
++}
++// DEFOLD EDIT END
+ 
+ void b2World_Step( b2WorldId worldId, float timeStep, int subStepCount )
+ {

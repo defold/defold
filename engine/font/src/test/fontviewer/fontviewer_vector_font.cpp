@@ -40,15 +40,15 @@ struct FontViewerVectorVertex
 
 struct FontViewerVectorFont
 {
-    FontVectorSlugData             m_Slug;
-    FontVectorPaintCache           m_Paint;
+    FontVectorSlugData              m_Slug;
+    FontVectorPaintCache            m_Paint;
     dmArray<FontViewerVectorVertex> m_Vertices;
-    dmGraphics::HContext           m_Context;
-    dmGraphics::HProgram           m_Program;
-    dmGraphics::HTexture           m_Textures[3];
-    dmGraphics::HVertexBuffer      m_VertexBuffer;
-    dmGraphics::HVertexDeclaration m_Declaration;
-    bool                           m_Dirty;
+    dmGraphics::HContext            m_Context;
+    dmGraphics::HProgram            m_Program;
+    dmGraphics::HTexture            m_Textures[3];
+    dmGraphics::HVertexBuffer       m_VertexBuffer;
+    dmGraphics::HVertexDeclaration  m_Declaration;
+    bool                            m_Dirty;
 };
 
 FontViewerVectorFont* FontViewerVectorFontCreate()
@@ -67,19 +67,29 @@ FontViewerVectorFont* FontViewerVectorFontCreate()
 void FontViewerVectorFontClear(FontViewerVectorFont* cache)
 {
     if (!cache)
+    {
         return;
+    }
     for (uint32_t i = 0; i < 3; ++i)
     {
         if (cache->m_Textures[i])
+        {
             dmGraphics::DeleteTexture(cache->m_Context, cache->m_Textures[i]);
+        }
         cache->m_Textures[i] = 0;
     }
     if (cache->m_Program)
+    {
         dmGraphics::DeleteProgram(cache->m_Context, cache->m_Program);
+    }
     if (cache->m_VertexBuffer)
+    {
         dmGraphics::DeleteVertexBuffer(cache->m_VertexBuffer);
+    }
     if (cache->m_Declaration)
+    {
         dmGraphics::DeleteVertexDeclaration(cache->m_Declaration);
+    }
     cache->m_Program = 0;
     cache->m_VertexBuffer = 0;
     cache->m_Declaration = 0;
@@ -92,7 +102,9 @@ void FontViewerVectorFontClear(FontViewerVectorFont* cache)
 void FontViewerVectorFontDestroy(FontViewerVectorFont* cache)
 {
     if (!cache)
+    {
         return;
+    }
     FontViewerVectorFontClear(cache);
     delete cache;
 }
@@ -116,7 +128,9 @@ void FontViewerVectorFontPack(FontViewerVectorFont* cache, uint32_t index, float
     uint32_t                    first = cache->m_Vertices.Size();
     uint32_t                    end = first + 6;
     if (cache->m_Vertices.Capacity() < end)
+    {
         cache->m_Vertices.SetCapacity(end + 192);
+    }
     cache->m_Vertices.SetSize(end);
     FontVectorPaintVertex packed[6];
     FontVectorPaintPackGlyph(glyph, scale, pixel_scale, x + render_data.m_OffsetX, y + render_data.m_OffsetY, transform, clip, render_data.m_FaceColors, packed);
@@ -149,10 +163,14 @@ void FontViewerVectorFontPack(FontViewerVectorFont* cache, uint32_t index, float
     else
     {
         for (uint32_t i = 0; i < 6; ++i)
+        {
             memset(cache->m_Vertices[first + i].m_Effect, 0, sizeof(cache->m_Vertices[first + i].m_Effect));
+        }
     }
     for (uint32_t i = 0; i < 6; ++i)
+    {
         cache->m_Vertices[first + i].m_Glyph = packed[i];
+    }
 }
 
 static bool CreateProgram(FontViewerVectorFont* cache)
@@ -207,7 +225,9 @@ static bool CreateProgram(FontViewerVectorFont* cache)
     char error[1024] = {};
     cache->m_Program = dmGraphics::NewProgram(cache->m_Context, shaders.Get(), error, sizeof(error));
     if (!cache->m_Program)
+    {
         dmLogError("Unable to create color Slug shader: %s", error);
+    }
     return cache->m_Program != 0;
 }
 
@@ -216,7 +236,9 @@ static bool UploadTexture(FontViewerVectorFont* cache, uint32_t index, const voi
     const uint32_t width = FONT_VECTOR_SLUG_WIDTH;
     const uint32_t height = (size + width * bytes_per_texel - 1) / (width * bytes_per_texel);
     if (!height || height > FONT_VECTOR_SLUG_MAX_HEIGHT)
+    {
         return false;
+    }
     dmArray<uint8_t> padded;
     padded.SetCapacity(width * height * bytes_per_texel);
     padded.SetSize(padded.Capacity());
@@ -244,20 +266,28 @@ static bool UploadTexture(FontViewerVectorFont* cache, uint32_t index, const voi
 bool FontViewerVectorFontUpload(FontViewerVectorFont* cache, dmGraphics::HContext context)
 {
     if (cache->m_Vertices.Empty())
+    {
         return true;
+    }
     cache->m_Context = context;
     if (!cache->m_Program && !CreateProgram(cache))
+    {
         return false;
+    }
     if (cache->m_Dirty)
     {
         if (!UploadTexture(cache, 0, cache->m_Slug.m_Curves.Begin(), cache->m_Slug.m_Curves.Size() * sizeof(uint16_t), 8, dmGraphics::TEXTURE_FORMAT_RGBA16F) ||
             !UploadTexture(cache, 1, cache->m_Slug.m_Bands.Begin(), cache->m_Slug.m_Bands.Size() * sizeof(uint32_t), 4, dmGraphics::TEXTURE_FORMAT_R32UI) ||
             !UploadTexture(cache, 2, cache->m_Paint.m_Paints.Begin(), cache->m_Paint.m_Paints.Size() * sizeof(Vector4), 16, dmGraphics::TEXTURE_FORMAT_RGBA32F))
+        {
             return false;
+        }
         cache->m_Dirty = false;
     }
     if (!cache->m_VertexBuffer)
+    {
         cache->m_VertexBuffer = dmGraphics::NewVertexBuffer(context, 0, 0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+    }
     dmGraphics::SetVertexBufferData(cache->m_VertexBuffer, cache->m_Vertices.Size() * sizeof(FontViewerVectorVertex), cache->m_Vertices.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
     return cache->m_VertexBuffer != 0;
 }
@@ -265,7 +295,9 @@ bool FontViewerVectorFontUpload(FontViewerVectorFont* cache, dmGraphics::HContex
 void FontViewerVectorFontDraw(FontViewerVectorFont* cache, dmGraphics::HTexture effects)
 {
     if (cache->m_Vertices.Empty())
+    {
         return;
+    }
     dmGraphics::HContext context = cache->m_Context;
     dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
     dmGraphics::EnableProgram(context, cache->m_Program);
@@ -284,6 +316,8 @@ void FontViewerVectorFontDraw(FontViewerVectorFont* cache, dmGraphics::HTexture 
     dmGraphics::DisableVertexBuffer(context, cache->m_VertexBuffer);
     dmGraphics::DisableTexture(context, 3, effects);
     for (uint32_t i = 0; i < 3; ++i)
+    {
         dmGraphics::DisableTexture(context, i, cache->m_Textures[i]);
+    }
     dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
 }

@@ -109,7 +109,9 @@ static bool HasMarkupShadow(const TextRenderStyle* style)
 static uint8_t GetGlyphLayerMask(const FontLayoutVertexConfig& config, const TextGlyph& glyph)
 {
     if (config.m_FaceOnly)
+    {
         return FONT_RENDER_LAYER_FACE;
+    }
 
     const TextRenderStyle* style = GetGlyphStyle(config.m_Layout, glyph);
     uint8_t                mask = FONT_RENDER_LAYER_FACE;
@@ -965,7 +967,7 @@ void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
         // Preserve their shadow channel in both layer modes; authored shadow
         // overrides retain the face-based coverage used by rich text.
         const uint32_t override_flags = glyph.m_StyleIndex < config.m_Layout->m_StyleOverrideFlags.Size() ?
-                                         config.m_Layout->m_StyleOverrideFlags[glyph.m_StyleIndex] : render_data.m_StyleFlags;
+                                        config.m_Layout->m_StyleOverrideFlags[glyph.m_StyleIndex] : render_data.m_StyleFlags;
         const bool inherited_shadow = (override_flags & SHADOW_STYLE_FLAGS) == 0;
         const bool use_baked_shadow = (inherited_shadow || config.m_BaseLayerMask == FONT_RENDER_LAYER_FACE) &&
                                       config.m_BaseShadowAlpha > 0.0f && requested_blur >= config.m_ShadowBlur &&

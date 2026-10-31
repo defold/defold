@@ -3,11 +3,9 @@
 
 #pragma once
 
-#include "box2d/math_functions.h"
+#include "box2d/base.h"
 
 // clang-format off
-
-#define B2_NULL_INDEX ( -1 )
 
 // for performance comparisons
 #define B2_RESTRICT restrict
@@ -16,12 +14,6 @@
 	#define B2_DEBUG 0
 #else
 	#define B2_DEBUG 1
-#endif
-
-#if defined( BOX2D_VALIDATE ) && !defined( NDEBUG )
-	#define B2_VALIDATE 1
-#else
-	#define B2_VALIDATE 0
 #endif
 
 // Define platform
@@ -58,28 +50,38 @@
 // Define SIMD
 #if defined( BOX2D_DISABLE_SIMD )
 	#define B2_SIMD_NONE
-	// note: I tried width of 1 and got no performance change
-	#define B2_SIMD_WIDTH 4
 #else
 	#if defined( B2_CPU_X86_X64 )
-		#if defined( BOX2D_AVX2 )
+		#define B2_SIMD_SSE2
+		#define B2_SIMD_HAS_WIDTH_8
+		#if defined( __AVX2__ ) || ( defined( B2_SIMD_WIDTH ) && B2_SIMD_WIDTH == 8 )
 			#define B2_SIMD_AVX2
-			#define B2_SIMD_WIDTH 8
-		#else
-			#define B2_SIMD_SSE2
-			#define B2_SIMD_WIDTH 4
 		#endif
 	#elif defined( B2_CPU_ARM )
-		#define B2_SIMD_NEON
-		#define B2_SIMD_WIDTH 4
+		#if defined( __aarch64__ ) || defined( _M_ARM64 )
+			#define B2_SIMD_NEON
+		#else
+			// arm32 gets scalar math because 32-bit Neon has determinism problems
+			// and unverifiable performance.
+			#define B2_SIMD_NONE
+		#endif
 	#elif defined( B2_CPU_WASM )
 		#define B2_CPU_WASM
 		#define B2_SIMD_SSE2
-		#define B2_SIMD_WIDTH 4
 	#else
 		#define B2_SIMD_NONE
-		#define B2_SIMD_WIDTH 4
 	#endif
+#endif
+
+#if defined( B2_SIMD_AVX2 ) && defined( __clang__ )
+	#define B2_AVX2_BEGIN _Pragma( "clang attribute push( __attribute__( ( target( \"avx2\" ) ) ), apply_to = function )" )
+	#define B2_AVX2_END _Pragma( "clang attribute pop" )
+#elif defined( B2_SIMD_AVX2 ) && defined( __GNUC__ )
+	#define B2_AVX2_BEGIN _Pragma( "GCC push_options" ) _Pragma( "GCC target( \"avx2\" )" )
+	#define B2_AVX2_END _Pragma( "GCC pop_options" )
+#else
+	#define B2_AVX2_BEGIN
+	#define B2_AVX2_END
 #endif
 
 // Define compiler
@@ -98,19 +100,23 @@
 	#define b2TracyCZoneC( ctx, color, active ) TracyCZoneC( ctx, color, active )
 	#define b2TracyCZoneNC( ctx, name, color, active ) TracyCZoneNC( ctx, name, color, active )
 	#define b2TracyCZoneEnd( ctx ) TracyCZoneEnd( ctx )
+	#define b2TracyCFrame TracyCFrameMark
+	#define b2TracyCSetThreadName( name ) TracyCSetThreadName( name )
 #else
 	#define b2TracyCZoneC( ctx, color, active )
 	#define b2TracyCZoneNC( ctx, name, color, active )
 	#define b2TracyCZoneEnd( ctx )
+	#define b2TracyCFrame
+	#define b2TracyCSetThreadName( name )
 #endif
 
 // clang-format on
 
 // Returns the number of elements of an array
-#define B2_ARRAY_COUNT( A ) (int)( sizeof( A ) / sizeof( A[0] ) )
+#define B2_ARRAY_COUNT( A ) ( (int)( sizeof( A ) / sizeof( *A ) ) )
 
 // Used to prevent the compiler from warning about unused variables
-#define B2_UNUSED( ... ) (void)sizeof( ( __VA_ARGS__, 0 ) )
+#define B2_UNUSED( ... ) (void)sizeof(( __VA_ARGS__, 0 ))
 
 // Use to validate definitions. Do not take my cookie.
 #define B2_SECRET_COOKIE 1152023
@@ -126,7 +132,47 @@
 #define B2_SNOOP_TOI_COUNTERS 0
 #endif
 
+#ifdef __cplusplus
+#define B2_TYPE_OF( A ) decltype( A )
+#else
+#define B2_TYPE_OF( A ) __typeof__( A )
+#endif
+
+#define B2_SWAP( x, y )                                                                                                          \
+	do                                                                                                                           \
+	{                                                                                                                            \
+		B2_TYPE_OF( x ) B2_SWAP_TEMP = x;                                                                                        \
+		x = y;                                                                                                                   \
+		y = B2_SWAP_TEMP;                                                                                                        \
+	}                                                                                                                            \
+	while ( 0 )
+
 #define B2_CHECK_DEF( DEF ) B2_ASSERT( DEF->internalValue == B2_SECRET_COOKIE )
+
+// Used to validate API inputs.
+#define B2_CHECK_INPUT( CONDITION )                                                                                              \
+	do                                                                                                                           \
+	{                                                                                                                            \
+		if ( ( CONDITION ) == false )                                                                                            \
+		{                                                                                                                        \
+			b2Log( "invalid input: %s in %s\n", #CONDITION, __func__ );                                                          \
+			B2_ASSERT( CONDITION );                                                                                              \
+			return;                                                                                                              \
+		}                                                                                                                        \
+	}                                                                                                                            \
+	while ( 0 )
+
+#define B2_CHECK_INPUT_RETURN( CONDITION, RESULT )                                                                               \
+	do                                                                                                                           \
+	{                                                                                                                            \
+		if ( ( CONDITION ) == false )                                                                                            \
+		{                                                                                                                        \
+			b2Log( "invalid input: %s in %s\n", #CONDITION, __func__ );                                                          \
+			B2_ASSERT( CONDITION );                                                                                              \
+			return RESULT;                                                                                                       \
+		}                                                                                                                        \
+	}                                                                                                                            \
+	while ( 0 )
 
 typedef struct b2AtomicInt
 {
@@ -138,12 +184,46 @@ typedef struct b2AtomicU32
 	uint32_t value;
 } b2AtomicU32;
 
-void* b2Alloc( int size );
-#define B2_ALLOC_STRUCT( type ) b2Alloc(sizeof(type))
-#define B2_ALLOC_ARRAY( count, type ) b2Alloc(count * sizeof(type))
+typedef struct b2AtomicI64
+{
+	// 64-bit atomic wants 8-byte alignment
+	_Alignas( 8 ) int64_t value;
+} b2AtomicI64;
 
-void b2Free( void* mem, int size );
-#define B2_FREE_STRUCT( mem, type ) b2Free( mem, sizeof(type));
-#define B2_FREE_ARRAY( mem, count, type ) b2Free(mem, count * sizeof(type))
+// Use 64 byte alignment for everything. Needed for tree nodes.
+#define B2_ALIGNMENT 64
 
-void* b2GrowAlloc( void* oldMem, int oldSize, int newSize );
+void* b2Alloc( size_t size );
+void* b2AllocZero( size_t size );
+#define B2_ALLOC_STRUCT( type ) b2Alloc( sizeof( type ) )
+#define B2_ALLOC_ARRAY( count, type ) b2Alloc( count * sizeof( type ) )
+
+void b2Free( void* mem, size_t size );
+#define B2_FREE_STRUCT( mem, type ) b2Free( mem, sizeof( type ) );
+#define B2_FREE_ARRAY( mem, count, type ) b2Free( mem, count * sizeof( type ) )
+
+void* b2GrowAlloc( void* oldMem, size_t oldSize, size_t newSize );
+void* b2GrowAllocZero( void* oldMem, size_t oldSize, size_t newSize );
+
+#define B2_GROW( A, N, M ) b2GrowAlloc( ( A ), ( N ) * sizeof( *( A ) ), ( M ) * sizeof( *( A ) ) )
+#define B2_GROW_ZERO( A, N, M ) b2GrowAllocZero( ( A ), ( N ) * sizeof( *( A ) ), ( M ) * sizeof( *( A ) ) )
+
+void b2Log( const char* format, ... );
+
+typedef struct b2Mutex b2Mutex;
+b2Mutex* b2CreateMutex( void );
+void b2DestroyMutex( b2Mutex* m );
+void b2LockMutex( b2Mutex* m );
+void b2UnlockMutex( b2Mutex* m );
+
+typedef struct b2Semaphore b2Semaphore;
+b2Semaphore* b2CreateSemaphore( int initCount );
+void b2DestroySemaphore( b2Semaphore* s );
+void b2WaitSemaphore( b2Semaphore* s );
+void b2SignalSemaphore( b2Semaphore* s );
+
+typedef void b2ThreadFunction( void* context );
+typedef struct b2Thread b2Thread;
+// Name may be NULL, otherwise it is copied.
+b2Thread* b2CreateThread( b2ThreadFunction* function, void* context, const char* name );
+void b2JoinThread( b2Thread* t );
