@@ -83,7 +83,6 @@
                             (fn [{:keys [message on-action]}]
                               {:fx/type fx.button/lifecycle
                                :style-class ["button" "notification-card-button"]
-                               :focus-traversable false
                                :text (localization-state message)
                                :on-action (fn [_]
                                             (invoke-action! notifications-node id on-action))})
