@@ -39,6 +39,8 @@ public class AndroidDownloadSizeTest {
             "armeabi-v7a,3008826,3008828",
             "");
 
+    // Verifies per-ABI rows are parsed and the total spans the smallest min and largest max,
+    // guarding against a headline range that ignores one of the architectures.
     @Test
     public void testParseTwoAbis() throws IOException {
         AndroidDownloadSize size = AndroidDownloadSize.parse(TWO_ABIS_OUTPUT);
@@ -49,6 +51,8 @@ public class AndroidDownloadSizeTest {
         assertEquals(new AndroidDownloadSize.Range(18208826, 18908828), size.getAbis().get("armeabi-v7a"));
     }
 
+    // Verifies the report JSON keeps exact byte counts for the total and each ABI, guarding
+    // against CI size tracking reading rounded or missing values.
     @Test
     public void testJson() throws IOException {
         String json = AndroidDownloadSize.parse(TWO_ABIS_OUTPUT).toJson();
@@ -62,18 +66,23 @@ public class AndroidDownloadSizeTest {
         assertEquals(expected, new ObjectMapper().readValue(json, Map.class));
     }
 
+    // Verifies the log line shows decimal MB with a per-ABI breakdown and collapses ranges
+    // that round to the same value.
     @Test
     public void testLogMessageTwoAbis() throws IOException {
         assertEquals("Estimated Play Store download size: 18.2 MB - 25.0 MB (arm64-v8a: 25.0 MB, armeabi-v7a: 18.2 MB - 18.9 MB)",
                 AndroidDownloadSize.parse(TWO_ABIS_OUTPUT).toLogMessage());
     }
 
+    // Verifies a single-architecture bundle logs one number without a redundant breakdown.
     @Test
     public void testLogMessageOneAbi() throws IOException {
         assertEquals("Estimated Play Store download size: 3.0 MB",
                 AndroidDownloadSize.parse(ONE_ABI_OUTPUT).toLogMessage());
     }
 
+    // Verifies output without size rows is an error, guarding against writing an empty
+    // report when bundletool changes its output format.
     @Test
     public void testParseFailsWithoutSizes() {
         try {

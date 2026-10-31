@@ -987,6 +987,9 @@ public class BundlerTest {
         }
     }
 
+    // Verifies an APK-only Android bundle with download-size-report writes the per-ABI JSON
+    // report and leaves no temporary AAB or split APK set behind, guarding against the
+    // estimate step breaking the bundle or polluting its output directory.
     @Test
     public void testAndroidDownloadSizeReport() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
         if (platform != Platform.Armv7Android && platform != Platform.Arm64Android) {
