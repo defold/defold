@@ -1118,6 +1118,149 @@ TEST(ModelGLTF, GeneratedBone01)
     dmModelImporter::DestroyScene(scene);
 }
 
+static void LoadNodeMetadataOptions(dmModelImporter::Options* options)
+{
+    options->m_LoadMaterialsOnly = true;
+    options->m_LoadMeshMetadata = true;
+    options->m_SkipImageData = true;
+    options->m_LoadNodeMetadata = true;
+}
+
+// Verifies that a node metadata load produces the same node, model and bone
+// names as a full load, including a generated root bone. Guards against the
+// editor showing mesh and bone ids that the runtime does not accept.
+TEST(ModelGLTF, NodeMetadataMatchesFullLoad)
+{
+    const char* path = "./src/test/assets/generatedbone01.glb";
+    dmModelImporter::Options full_options;
+    dmModelImporter::Scene* full = LoadScene(path, full_options);
+    ASSERT_NE((dmModelImporter::Scene*)0, full);
+
+    dmModelImporter::Options options;
+    LoadNodeMetadataOptions(&options);
+    dmModelImporter::Scene* scene = LoadScene(path, options);
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    ASSERT_EQ((char*)0, scene->m_LoadError);
+
+    ASSERT_EQ(full->m_Nodes.Size(), scene->m_Nodes.Size());
+    ASSERT_EQ(full->m_RootNodes.Size(), scene->m_RootNodes.Size());
+    for (uint32_t i = 0; i < full->m_Nodes.Size(); ++i)
+    {
+        dmModelImporter::Node* full_node = &full->m_Nodes[i];
+        dmModelImporter::Node* node = &scene->m_Nodes[i];
+        ASSERT_STREQ(full_node->m_Name, node->m_Name);
+        ASSERT_EQ(full_node->m_Model != 0, node->m_Model != 0);
+        if (node->m_Model)
+            ASSERT_EQ(full_node->m_Model->m_Index, node->m_Model->m_Index);
+    }
+
+    ASSERT_EQ(full->m_Skins.Size(), scene->m_Skins.Size());
+    for (uint32_t i = 0; i < full->m_Skins.Size(); ++i)
+    {
+        dmModelImporter::Skin* full_skin = &full->m_Skins[i];
+        dmModelImporter::Skin* skin = &scene->m_Skins[i];
+        ASSERT_EQ(full_skin->m_Bones.Size(), skin->m_Bones.Size());
+        for (uint32_t j = 0; j < full_skin->m_Bones.Size(); ++j)
+        {
+            ASSERT_STREQ(full_skin->m_Bones[j].m_Name, skin->m_Bones[j].m_Name);
+            ASSERT_EQ(full_skin->m_Bones[j].m_ParentIndex, skin->m_Bones[j].m_ParentIndex);
+        }
+    }
+    ASSERT_STREQ("_generated_root", scene->m_Skins[0].m_Bones[0].m_Name);
+
+    dmModelImporter::DestroyScene(scene);
+    dmModelImporter::DestroyScene(full);
+}
+
+// Verifies that a node metadata load reads skin joints without the buffer that
+// holds the inverse bind matrices. Guards against glTF resource discovery
+// failing for skinned files whose buffers are external or not yet available.
+TEST(ModelGLTF, NodeMetadataDoesNotRequireBufferContents)
+{
+    const char* json =
+        "{\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{\"uri\":\"missing.bin\",\"byteLength\":128}],"
+        "\"bufferViews\":[{\"buffer\":0,\"byteLength\":128}],"
+        "\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":2,\"type\":\"MAT4\"}],"
+        "\"meshes\":[{\"name\":\"Body\",\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}],"
+        "\"skins\":[{\"inverseBindMatrices\":0,\"joints\":[1,2]}],"
+        "\"nodes\":[{\"name\":\"Hero\",\"mesh\":0,\"skin\":0},"
+        "{\"name\":\"Hips\",\"children\":[2]},"
+        "{\"name\":\"Spine\"}]}";
+
+    dmModelImporter::Options options;
+    LoadNodeMetadataOptions(&options);
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, "gltf", (void*)json, (uint32_t)strlen(json));
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    ASSERT_FALSE(dmModelImporter::NeedsResolve(scene));
+    ASSERT_EQ((char*)0, scene->m_LoadError);
+
+    ASSERT_EQ(3U, scene->m_Nodes.Size());
+    ASSERT_STREQ("Hero", scene->m_Nodes[0].m_Name);
+    ASSERT_EQ(&scene->m_Models[0], scene->m_Nodes[0].m_Model);
+    ASSERT_STREQ("Body", scene->m_Models[0].m_Name);
+
+    ASSERT_EQ(1U, scene->m_Skins.Size());
+    dmModelImporter::Skin* skin = &scene->m_Skins[0];
+    ASSERT_EQ(2U, skin->m_Bones.Size());
+    ASSERT_STREQ("Hips", skin->m_Bones[0].m_Name);
+    ASSERT_STREQ("Spine", skin->m_Bones[1].m_Name);
+    ASSERT_EQ(0U, skin->m_Bones[1].m_ParentIndex);
+
+    dmModelImporter::DestroyScene(scene);
+}
+
+static dmModelImporter::Scene* LoadNodeChainMetadata(uint32_t depth)
+{
+    dmArray<char> json;
+    json.SetCapacity(128 + depth * 32);
+    char buffer[64];
+    const char* header =
+        "{\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{\"uri\":\"missing.bin\",\"byteLength\":36}],"
+        "\"bufferViews\":[{\"buffer\":0,\"byteLength\":36}],"
+        "\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\",\"min\":[0,0,0],\"max\":[1,1,0]}],"
+        "\"meshes\":[{\"name\":\"Body\",\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}],"
+        "\"nodes\":[";
+    json.PushArray(header, (uint32_t)strlen(header));
+    for (uint32_t i = 0; i < depth; ++i)
+    {
+        if (i + 1 < depth)
+            dmSnPrintf(buffer, sizeof(buffer), "%s{\"children\":[%u]}", i ? "," : "", i + 1);
+        else
+            dmSnPrintf(buffer, sizeof(buffer), "%s{\"mesh\":0}", i ? "," : "");
+        json.PushArray(buffer, (uint32_t)strlen(buffer));
+    }
+    json.PushArray("]}", 2);
+
+    dmModelImporter::Options options;
+    LoadNodeMetadataOptions(&options);
+    return dmModelImporter::LoadFromBuffer(&options, "gltf", json.Begin(), json.Size());
+}
+
+// Verifies that a node metadata load skips the nodes of a hierarchy deeper than
+// the limit but still reports the meshes. Guards against a crafted glTF
+// overflowing the stack in the recursive node traversals while the editor
+// scans a project.
+TEST(ModelGLTF, NodeMetadataSkipsTooDeepHierarchy)
+{
+    dmModelImporter::Scene* scene = LoadNodeChainMetadata(256);
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    ASSERT_EQ((char*)0, scene->m_LoadError);
+    ASSERT_EQ(256U, scene->m_Nodes.Size());
+    ASSERT_EQ(&scene->m_Models[0], scene->m_Nodes[255].m_Model);
+    dmModelImporter::DestroyScene(scene);
+
+    scene = LoadNodeChainMetadata(257);
+    ASSERT_NE((dmModelImporter::Scene*)0, scene);
+    ASSERT_EQ((char*)0, scene->m_LoadError);
+    ASSERT_EQ(0U, scene->m_Nodes.Size());
+    ASSERT_EQ(0U, scene->m_RootNodes.Size());
+    ASSERT_EQ(1U, scene->m_Models.Size());
+    ASSERT_STREQ("Body", scene->m_Models[0].m_Name);
+    dmModelImporter::DestroyScene(scene);
+}
+
 // Some tests are simply loading the file to make sure it doesn't crash
 
 static dmModelImporter::Scene* TestLoading(const char* path)

@@ -49,6 +49,7 @@
             [editor.shaders :as shaders]
             [editor.texture-util :as texture-util]
             [editor.workspace :as workspace]
+            [internal.util :as util]
             [util.coll :as coll :refer [pair]]
             [util.num :as num])
   (:import [com.google.protobuf ByteString]
@@ -63,6 +64,8 @@
 (def mesh-icon "icons/32/Icons_27-AT-Mesh.png")
 (def material-icon "icons/32/Icons_31-Material.png")
 (def texture-icon "icons/32/Icons_25-AT-Image.png")
+;; model.get_go() returns the game object of a bone.
+(def ^:private bone-icon "icons/32/Icons_06-Game-object.png")
 (def model-file-types ["gltf" "glb"])
 (def animation-file-types ["animationset" "gltf" "glb"])
 
@@ -959,12 +962,18 @@
    :label (localization/message "outline.gltf.textures")
    :order 2})
 
+(def ^:private skeleton-gltf-metadata-group-presentation
+  {:icon bone-icon
+   :label (localization/message "outline.gltf.skeleton")
+   :order 3})
+
 (defn- gltf-metadata-group-presentation
   "Returns the localized label, icon and ordering for a glTF metadata group."
   [kind]
   (case kind
     :materials materials-gltf-metadata-group-presentation
     :meshes meshes-gltf-metadata-group-presentation
+    :skeleton skeleton-gltf-metadata-group-presentation
     :textures textures-gltf-metadata-group-presentation))
 
 (g/defnode GltfMetadataGroupNode
@@ -996,10 +1005,16 @@
             (dynamic tooltip (properties/tooltip-dynamic :gltf :index)))
   (property name g/Str
             (dynamic read-only? (g/constantly true))
+            (dynamic visible (g/fnk [name-generated] (not name-generated)))
             (dynamic tooltip (properties/tooltip-dynamic :gltf :name)))
   (property name-generated g/Bool
             (dynamic read-only? (g/constantly true))
             (dynamic visible (g/constantly false)))
+  (property mesh-ids g/Str
+            (dynamic read-only? (g/constantly true))
+            (dynamic visible (g/fnk [mesh-ids] (not (string/blank? mesh-ids))))
+            (dynamic label (properties/label-dynamic :gltf :mesh-ids))
+            (dynamic tooltip (properties/tooltip-dynamic :gltf :mesh-ids)))
   (property primitive-count g/Int
             (dynamic read-only? (g/constantly true))
             (dynamic label (properties/label-dynamic :gltf :primitive-count))
@@ -1009,7 +1024,7 @@
             (dynamic label (properties/label-dynamic :gltf :vertex-count))
             (dynamic tooltip (properties/tooltip-dynamic :gltf :vertex-count)))
 
-  (display-order [:index :name :name-generated :primitive-count :vertex-count])
+  (display-order [:index :name :mesh-ids :name-generated :primitive-count :vertex-count])
 
   (output mesh-scene-info g/Any
           (g/fnk [_node-id index]
@@ -1017,14 +1032,48 @@
              :node-id _node-id
              :node-outline-key (format "gltf-mesh-%d" index)}))
 
+  ;; The runtime mesh ids are the names of the scene nodes that instantiate the
+  ;; mesh, so the label lists them when they differ from the mesh name. A Model
+  ;; that selects a single mesh uses the mesh name instead, see :mesh-name.
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id index outline-label]
+          (g/fnk [_node-id index mesh-ids name name-generated outline-label]
             {:node-id _node-id
              :node-outline-key (format "gltf-mesh-%d" index)
-             :label outline-label
+             :label (let [ids-suffix (when-not (or (string/blank? mesh-ids)
+                                                   (= name mesh-ids))
+                                       (format " (%s)" mesh-ids))]
+                      (if-not name-generated
+                        (str outline-label ids-suffix)
+                        (let [unnamed-label (localization/message "outline.gltf.unnamed-mesh" {"index" (str index)})]
+                          (if ids-suffix
+                            (localization/join [unnamed-label ids-suffix])
+                            unnamed-label))))
              :icon mesh-icon
              :order index
-             :read-only true})))
+             :read-only true
+             :mesh-index index
+             :mesh-name name})))
+
+(g/defnode GltfBoneInfoNode
+  (inherits core/Scope)
+  (inherits outline/OutlineNode)
+
+  (property index g/Int
+            (dynamic visible (g/constantly false)))
+  (property name g/Str
+            (dynamic read-only? (g/constantly true))
+            (dynamic label (properties/label-dynamic :gltf :bone-id))
+            (dynamic tooltip (properties/tooltip-dynamic :gltf :bone-id)))
+
+  (output node-outline outline/OutlineData :cached
+          (g/fnk [_node-id child-outlines index name]
+            {:node-id _node-id
+             :node-outline-key (format "gltf-bone-%d" index)
+             :label name
+             :icon bone-icon
+             :order index
+             :read-only true
+             :children (vec (sort-by :order child-outlines))})))
 
 (g/defnode GltfMaterialInfoNode
   (inherits outline/OutlineNode)
@@ -1163,19 +1212,48 @@
       []
       (g/connect item-node scene-info-output-label model-scene-node :mesh-scene-infos))))
 
+(defn- create-gltf-group-tx
+  "Creates a glTF outline group, and its items using create-items-tx-fn."
+  [model-scene-node kind create-items-tx-fn]
+  (g/make-nodes [group-node [GltfMetadataGroupNode :kind kind]]
+    (g/connect group-node :_node-id model-scene-node :nodes)
+    (g/connect group-node :node-outline model-scene-node :child-outlines)
+    (when-let [group-outline-input-label (case kind
+                                           :meshes :mesh-group-outline
+                                           :skeleton :skeleton-group-outline
+                                           nil)]
+      (g/connect group-node :node-outline model-scene-node group-outline-input-label))
+    (create-items-tx-fn group-node)))
+
 (defn- create-gltf-metadata-group-tx
   "Creates a glTF outline group for non-empty descriptors."
   [model-scene-node kind node-type descriptors property-keys scene-info-output-label]
   (when-not (coll/empty? descriptors)
-    (g/make-nodes [group-node [GltfMetadataGroupNode :kind kind]]
-      (g/connect group-node :_node-id model-scene-node :nodes)
-      (g/connect group-node :node-outline model-scene-node :child-outlines)
-      (when (= :meshes kind)
-        (g/connect group-node :node-outline model-scene-node :mesh-group-outline))
-      (coll/into-> (add-gltf-outline-labels descriptors) []
-        (map (fn [descriptor]
-               (let [properties (select-keys descriptor property-keys)]
-                 (create-gltf-metadata-item-tx group-node model-scene-node node-type properties scene-info-output-label))))))))
+    (create-gltf-group-tx
+      model-scene-node kind
+      (fn create-metadata-items-tx [group-node]
+        (coll/into-> (add-gltf-outline-labels descriptors) []
+          (map (fn [descriptor]
+                 (let [properties (select-keys descriptor property-keys)]
+                   (create-gltf-metadata-item-tx group-node model-scene-node node-type properties scene-info-output-label)))))))))
+
+(defn- create-gltf-bone-tx [parent-node bones-by-parent-index {:keys [index name]}]
+  (g/make-nodes [bone-node [GltfBoneInfoNode :index index :name name]]
+    (g/connect bone-node :_node-id parent-node :nodes)
+    (g/connect bone-node :node-outline parent-node :child-outlines)
+    (coll/into-> (bones-by-parent-index index) []
+      (mapcat #(create-gltf-bone-tx bone-node bones-by-parent-index %)))))
+
+(defn- create-gltf-skeleton-group-tx
+  "Creates the bone hierarchy of the first skin, as seen by the runtime."
+  [model-scene-node bones]
+  (when-not (coll/empty? bones)
+    (let [bones-by-parent-index (util/group-into {} [] :parent-index bones)]
+      (create-gltf-group-tx
+        model-scene-node :skeleton
+        (fn create-root-bones-tx [group-node]
+          (coll/into-> (bones-by-parent-index -1) []
+            (mapcat #(create-gltf-bone-tx group-node bones-by-parent-index %))))))))
 
 (g/defnode GltfPreviewTextureBinding
   (property sampler g/Str)
@@ -1289,13 +1367,14 @@
               (mapcat #(create-gltf-preview-material-binding-tx self %))
               (gltf/material-binding-descriptors resource nil resolve-resource))
 
-        {:keys [materials meshes textures]} (gltf/metadata-descriptors resource resolve-resource)]
+        {:keys [bones materials meshes textures]} (gltf/metadata-descriptors resource resolve-resource)]
 
     (into preview-tx-data
           (comp (keep identity) cat)
           [(create-gltf-metadata-group-tx
-             self :meshes GltfMeshInfoNode meshes
-             [:index :name :name-generated :outline-label :primitive-count :vertex-count]
+             self :meshes GltfMeshInfoNode
+             (mapv (fn [mesh] (update mesh :mesh-ids #(coll/join-to-string ", " %))) meshes)
+             [:index :mesh-ids :name :name-generated :outline-label :primitive-count :vertex-count]
              :mesh-scene-info)
            (create-gltf-metadata-group-tx
              self :materials GltfMaterialInfoNode materials
@@ -1304,7 +1383,8 @@
            (create-gltf-metadata-group-tx
              self :textures GltfTextureInfoNode textures
              [:basisu :image :image-index :image-name :index :mag-filter :mime-type :min-filter :name :outline-label :sampler-index :source-kind :uri :wrap-s :wrap-t]
-             nil)])))
+             nil)
+           (create-gltf-skeleton-group-tx self bones)])))
 
 (g/defnode ModelSceneNode
   (inherits resource-node/ResourceNode)
@@ -1319,6 +1399,7 @@
   (input mesh-group-outline outline/OutlineData)
   (input mesh-scene-infos g/Any :array)
   (input project-settings g/Any)
+  (input skeleton-group-outline outline/OutlineData)
 
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id _overridden-properties child-outlines own-build-errors resource source-outline]
@@ -1329,6 +1410,11 @@
              :children (cond-> child-outlines source-outline (into (:children source-outline)))
              :outline-error? (g/error-fatal? own-build-errors)
              :outline-overridden? (not (coll/empty? _overridden-properties))}))
+
+  ;; Re-exported for the Model component outline. A node replacement on reload
+  ;; only transfers arcs that originate at the resource node itself.
+  (output mesh-group-outline g/Any (gu/passthrough mesh-group-outline))
+  (output skeleton-group-outline g/Any (gu/passthrough skeleton-group-outline))
 
   (output content g/Any :cached produce-content)
   (output bones g/Any produce-bones)
@@ -1365,6 +1451,7 @@
 (node-types/register-node-type-name! GltfMeshInfoNode "gltf-mesh")
 (node-types/register-node-type-name! GltfMaterialInfoNode "gltf-material")
 (node-types/register-node-type-name! GltfTextureInfoNode "gltf-texture")
+(node-types/register-node-type-name! GltfBoneInfoNode "gltf-bone")
 
 (defn- load-gltf-mesh-node
   "Connects a virtual mesh preview to its source scene so materials and reloads are shared."

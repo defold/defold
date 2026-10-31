@@ -299,6 +299,7 @@ struct OptionsJNI {
     jfieldID loadMaterialsOnly;
     jfieldID loadMeshMetadata;
     jfieldID skipImageData;
+    jfieldID loadNodeMetadata;
 };
 struct TypeInfos {
     Vector3JNI m_Vector3JNI;

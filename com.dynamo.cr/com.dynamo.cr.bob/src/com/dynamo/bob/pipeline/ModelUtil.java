@@ -1774,16 +1774,25 @@ public class ModelUtil {
         return modelBuilder.build();
     }
 
-    private static void loadModelInstances(Node node, ArrayList<Modelimporter.Bone> skeleton, ArrayList<Rig.Model> models, int maxMorphTexW, int maxMorphTexH, MorphTargetTextureCollector morphTextureCollector) throws LoaderException {
-
+    private static void collectModelNodes(Node node, ArrayList<Node> modelNodes) {
         if (node.model != null)
         {
-            models.add(loadModel(node, node.model, skeleton, maxMorphTexW, maxMorphTexH, morphTextureCollector));
+            modelNodes.add(node);
         }
 
         for (Node child : node.children) {
-            loadModelInstances(child, skeleton, models, maxMorphTexW, maxMorphTexH, morphTextureCollector);
+            collectModelNodes(child, modelNodes);
         }
+    }
+
+    // The scene nodes that each produce one Rig.Model, in the order they end up
+    // in the MeshSet. This is the single source of truth for that order.
+    public static ArrayList<Node> collectModelNodes(Scene scene) {
+        ArrayList<Node> modelNodes = new ArrayList<>();
+        for (Node root : scene.rootNodes) {
+            collectModelNodes(root, modelNodes);
+        }
+        return modelNodes;
     }
 
     private static void collectMorphTargetMeshes(Node node, HashMap<MorphTargetTextureKey, Boolean> meshes) {
@@ -1834,8 +1843,8 @@ public class ModelUtil {
         meshSetBuilder.addAllMaterials(loadMaterials(scene));
 
         ArrayList<Rig.Model> models = new ArrayList<>();
-        for (Node root : scene.rootNodes) {
-            loadModelInstances(root, skeleton, models, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector);
+        for (Node node : collectModelNodes(scene)) {
+            models.add(loadModel(node, node.model, skeleton, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector));
         }
         meshSetBuilder.addAllModels(models);
 

@@ -14,6 +14,7 @@
 
 (ns integration.model-scene-test
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
@@ -23,6 +24,7 @@
             [editor.gl.pass :as pass]
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
+            [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
             [editor.model-scene :as model-scene]
@@ -38,7 +40,8 @@
             [internal.graph.types :as gt]
             [service.log :as log]
             [support.test-support :as test-support]
-            [util.coll :as coll :refer [pair]])
+            [util.coll :as coll :refer [pair]]
+            [util.murmur :as murmur])
   (:import [ch.qos.logback.classic Logger]
            [com.dynamo.rig.proto Rig$Material]
            [ch.qos.logback.core.read ListAppender]
@@ -341,7 +344,7 @@
                 (is (= "icons/32/Icons_27-AT-Mesh.png" (:icon source-outline)))
                 (is (= ["Meshes" "Materials" "Textures"]
                        (mapv (comp test-util/localization :label) groups)))
-                (is (= ["Body"] (mapv :label (:children meshes-group))))
+                (is (= ["Body (PreviewNode)"] (mapv :label (:children meshes-group))))
                 (is (= ["Shared [0]" "Shared [1]"] (mapv :label material-outlines)))
                 (is (= ["PaintAlbedoTexture" "ChromeAlbedoTexture"]
                        (mapv :label texture-outlines)))
@@ -374,6 +377,7 @@
 
                   (assert-read-only-property mesh-node-id :index 0)
                   (assert-read-only-property mesh-node-id :name "Body")
+                  (assert-read-only-property mesh-node-id :mesh-ids "PreviewNode")
                   (assert-read-only-property mesh-node-id :primitive-count 2)
                   (assert-read-only-property mesh-node-id :vertex-count 6)
                   (assert-selected-property app-view mesh-node-id :primitive-count 2)
@@ -421,6 +425,88 @@
 
                 (let [texture-node-id (:node-id (nth texture-outlines 1))]
                   (assert-selected-property app-view texture-node-id :name "ChromeAlbedoTexture"))))))))))
+
+;; Verifies that glTF mesh rows show the runtime mesh ids, which are the names
+;; of the scene nodes that instantiate each mesh. Guards against the outline
+;; offering ids that model.set_mesh_enabled() does not accept.
+(deftest gltf-outline-shows-runtime-mesh-ids
+  (test-util/with-loaded-project
+    (let [mesh-outlines (fn mesh-outlines [proj-path]
+                          (let [node-id (test-util/resource-node project proj-path)
+                                groups (:children (g/node-value node-id :node-outline))]
+                            (:children (coll/first-where #(= "gltf-meshes" (:node-outline-key %)) groups))))]
+      (is (= ["LeftMesh (LeftNode)" "RightMesh (RightNode)" "LooseMesh"]
+             (mapv :label (mesh-outlines "/mesh/two_meshes.gltf"))))
+      (is (= ["Cube.001 (Cube)"]
+             (mapv :label (mesh-outlines "/builtins/assets/gltf/cube.gltf"))))
+      (is (= ["Cube"]
+             (mapv :label (mesh-outlines "/mesh/treasure_chest.gltf"))))
+
+      (let [[left-outline right-outline loose-outline] (mesh-outlines "/mesh/two_meshes.gltf")]
+        (assert-read-only-property (:node-id left-outline) :mesh-ids "LeftNode")
+        (assert-read-only-property (:node-id right-outline) :mesh-ids "RightNode")
+        (is (false? (get-in (g/node-value (:node-id loose-outline) :_properties)
+                            [:properties :mesh-ids :visible]))))
+
+      (doseq [proj-path ["/mesh/two_meshes.gltf"
+                         "/builtins/assets/gltf/cube.gltf"
+                         "/mesh/treasure_chest.gltf"]]
+        (testing proj-path
+          (let [node-id (test-util/resource-node project proj-path)
+                models (get-in (g/node-value node-id :content) [:mesh-set :models])
+
+                mesh-ids
+                (coll/into-> (mesh-outlines proj-path) []
+                  (map #(g/node-value (:node-id %) :mesh-ids))
+                  (remove string/blank?)
+                  (mapcat #(string/split % #", ")))]
+            (is (= (sort (map :id models))
+                   (sort (map murmur/hash64 mesh-ids))))))))))
+
+;; Verifies that an unnamed glTF mesh gets a row marked as unnamed that still
+;; lists the runtime mesh ids of its instances. Guards against the outline
+;; hiding meshes that have no glTF name but can be toggled at runtime.
+(deftest gltf-outline-shows-unnamed-meshes
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/mesh/morph_weights_anim.gltf")
+          groups (:children (g/node-value node-id :node-outline))
+          [mesh-outline :as mesh-outlines] (:children (coll/first-where #(= "gltf-meshes" (:node-outline-key %)) groups))
+          mesh-node-id (:node-id mesh-outline)
+          models (get-in (g/node-value node-id :content) [:mesh-set :models])]
+      (is (= ["<Unnamed Mesh 0> (MorphedMesh)"]
+             (mapv (comp test-util/localization :label) mesh-outlines)))
+      (assert-read-only-property mesh-node-id :mesh-ids "MorphedMesh")
+      (is (false? (get-in (g/node-value mesh-node-id :_properties) [:properties :name :visible])))
+      (is (= 1 (g/node-value mesh-node-id :primitive-count)))
+      (is (= [(murmur/hash64 "MorphedMesh")] (mapv :id models))))))
+
+;; Verifies that skinned glTF files show the bone hierarchy with the runtime
+;; bone ids, where the first bone is renamed to "root". Guards against the
+;; outline offering ids that model.get_go() does not accept.
+(deftest gltf-outline-shows-skeleton
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/mesh/treasure_chest.gltf")
+          skeleton-label (test-util/localization (localization/message "outline.gltf.skeleton"))
+          groups (:children (g/node-value node-id :node-outline))
+          skeleton-outline (coll/first-where #(= "gltf-skeleton" (:node-outline-key %)) groups)
+          root-outline (first (:children skeleton-outline))
+          bone-outlines (coll/into-> [skeleton-outline] []
+                          (coll/tree-xf :children :children)
+                          (drop 1))]
+      (is (= skeleton-label (test-util/localization (:label skeleton-outline))))
+      (is (= ["root"] (mapv :label (:children skeleton-outline))))
+      (is (= ["Middle"] (mapv :label (:children root-outline))))
+      (is (= ["Top"] (mapv :label (:children (first (:children root-outline))))))
+      (is (= (get-in (g/node-value node-id :content) [:mesh-set :bone-list])
+             (mapv (comp murmur/hash64 :label) (sort-by :order bone-outlines))))
+      (is (coll/every? :read-only bone-outlines))
+      (is (= (count bone-outlines) (count (coll/into-> bone-outlines #{} (map :node-id)))))
+      (assert-read-only-property (:node-id root-outline) :name "root"))
+
+    (testing "a file without a skin has no Skeleton group"
+      (let [node-id (test-util/resource-node project "/mesh/two_meshes.gltf")]
+        (is (coll/not-any? #(= "gltf-skeleton" (:node-outline-key %))
+                           (:children (g/node-value node-id :node-outline))))))))
 
 (deftest gltf-invalid-scene
   (test-util/with-loaded-project

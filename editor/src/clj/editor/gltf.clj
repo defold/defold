@@ -29,7 +29,7 @@
             [util.fn :as fn]
             [util.http-server.types :as http-server.types]
             [util.path :as path])
-  (:import [com.dynamo.bob.fs GltfContainer GltfContainer$Asset GltfContainer$Extraction GltfContainer$ImageAsset GltfContainer$ImageLocation GltfContainer$ImageReference GltfContainer$MaterialAsset GltfContainer$MeshMetadata GltfContainer$SamplerBinding GltfContainer$TextureMetadata]
+  (:import [com.dynamo.bob.fs GltfContainer GltfContainer$Asset GltfContainer$BoneMetadata GltfContainer$Extraction GltfContainer$ImageAsset GltfContainer$ImageLocation GltfContainer$ImageReference GltfContainer$MaterialAsset GltfContainer$MeshInstance GltfContainer$MeshMetadata GltfContainer$SamplerBinding GltfContainer$TextureMetadata GltfContainer$UnnamedMeshMetadata]
            [com.dynamo.bob.pipeline ModelImporterJni$DataResolver]
            [java.io FileNotFoundException IOException]
            [java.util Map]
@@ -206,18 +206,33 @@
                           :name (or (coll/not-empty name) (format "Material %d" index))
                           :samplers (coll/join-to-string ", " sampler-descriptions))))))))
 
-        mesh-descriptors
+        mesh-ids-by-mesh-index
+        (util/group-into
+          {} []
+          :mesh-index :name
+          (get-in source-resource [:data :mesh-instances]))
+
+        mesh-descriptor
+        (fn mesh-descriptor [{:keys [index primitive-count vertex-count]} name name-generated]
+          {:index index
+           :mesh-ids (get mesh-ids-by-mesh-index index [])
+           :name name
+           :name-generated name-generated
+           :primitive-count primitive-count
+           :vertex-count vertex-count})
+
+        named-mesh-descriptors
         (coll/into-> asset-resources []
           (map asset-info)
           (filter #(= :mesh (:kind %)))
-          (map (fn [{:keys [index name name-generated primitive-count vertex-count]}]
-                 {:index index
-                  :name (if name-generated (format "Mesh %d" index) name)
-                  :name-generated name-generated
-                  :primitive-count primitive-count
-                  :vertex-count vertex-count})))]
+          (map #(mesh-descriptor % (:name %) false)))
 
-    {:materials material-descriptors
+        mesh-descriptors
+        (coll/into-> (get-in source-resource [:data :unnamed-meshes]) named-mesh-descriptors
+          (map #(mesh-descriptor % "" true)))]
+
+    {:bones (get-in source-resource [:data :bones] [])
+     :materials material-descriptors
      :meshes (vec (sort-by :index mesh-descriptors))
      :textures (vec (sort-by :index texture-descriptors))}))
 
@@ -399,7 +414,27 @@
                       :mime-type (.mimeType image)
                       :source-kind "external-uri"
                       :textures (texture-metadata (.textures image))})
-                   (.externalImages extraction))}
+                   (.externalImages extraction))
+
+             :bones
+             (coll/into-> (.bones extraction) []
+               (map (fn [^GltfContainer$BoneMetadata bone]
+                      {:index (.index bone)
+                       :name (.name bone)
+                       :parent-index (.parentIndex bone)})))
+
+             :mesh-instances
+             (coll/into-> (.meshInstances extraction) []
+               (map (fn [^GltfContainer$MeshInstance mesh-instance]
+                      {:mesh-index (.meshIndex mesh-instance)
+                       :name (.name mesh-instance)})))
+
+             :unnamed-meshes
+             (coll/into-> (.unnamedMeshes extraction) []
+               (map (fn [^GltfContainer$UnnamedMeshMetadata mesh]
+                      {:index (.index mesh)
+                       :primitive-count (.primitiveCount mesh)
+                       :vertex-count (.vertexCount mesh)})))}
       :children (coll/into-> children-by-group-proj-path []
                   (map (fn [[group-proj-path children]]
                          (resource/make-resource-entry source group-proj-path :children children)))))))
