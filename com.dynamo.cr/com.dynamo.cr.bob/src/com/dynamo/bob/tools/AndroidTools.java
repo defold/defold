@@ -220,7 +220,10 @@ public class AndroidTools {
         init();
 
         List<String> args = new ArrayList<>();
-        args.add(ToolsHelper.getJavaBinFile("java")); args.add("-jar");
+        args.add(ToolsHelper.getJavaBinFile("java"));
+        // bundletool's bundled protobuf uses sun.misc.Unsafe, which makes the JVM print deprecation warnings
+        args.add("--sun-misc-unsafe-memory-access=allow");
+        args.add("-jar");
         args.add(Bob.getLibExecPath("bundletool-all.jar"));
         args.addAll(bundletoolargs);
 
