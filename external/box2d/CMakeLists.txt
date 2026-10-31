@@ -26,7 +26,11 @@ endforeach()
 
 target_compile_definitions(box2d_nosimd PRIVATE BOX2D_DISABLE_SIMD)
 
-if(MSVC AND CMAKE_C_COMPILER_ID STREQUAL "MSVC" AND TARGET_PLATFORM STREQUAL "x86_64-win32")
+if(TARGET_PLATFORM STREQUAL "x86_64-ps4")
+  target_compile_definitions(box2d PRIVATE BOX2D_SIMD_USE_SSE2)
+endif()
+
+if(MSVC AND CMAKE_C_COMPILER_ID STREQUAL "MSVC" AND TARGET_PLATFORM MATCHES "^x86_64-(win32|xbone)$")
   set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/Box2D/src/contact_solver_w8.c"
     PROPERTIES COMPILE_OPTIONS /arch:AVX2)
 endif()
