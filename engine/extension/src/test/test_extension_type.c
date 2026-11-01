@@ -28,30 +28,36 @@ uint32_t g_TypeCWindowHeight;
 int g_TypeCUserDataValid = 1;
 HEngine g_TypeCEventEngine;
 EngineState g_TypeCEventState;
+EngineWindowEventType g_TypeCWindowType;
 HWindow g_TypeCEventWindow;
 static int* g_UserData;
 
 void TestTypeCBroadcastBuiltinEvent(ExtensionParams* params, uint32_t index, HEngine engine, HWindow window)
 {
-    const EngineState states[] = {
-        ENGINE_STATE_APP_ACTIVATE,
-        ENGINE_STATE_APP_DEACTIVATE,
-        ENGINE_STATE_APP_ICONIFY,
-        ENGINE_STATE_APP_DEICONIFY,
-        ENGINE_STATE_INITIALIZED,
-        ENGINE_STATE_DELETE,
+    const EngineWindowEventType types[] = {
+        ENGINE_WINDOW_EVENT_FOCUS_GAINED,
+        ENGINE_WINDOW_EVENT_FOCUS_LOST,
+        ENGINE_WINDOW_EVENT_ICONIFIED,
+        ENGINE_WINDOW_EVENT_DEICONIFIED,
     };
-    if (index == 6)
+    if (index < 4 || index == 6)
     {
-        EngineWindowResizedEvent data = {
-            engine, window, 640, 360
+        EngineWindowEvent data = {
+            engine,
+            window,
+            index == 6 ? ENGINE_WINDOW_EVENT_RESIZED : types[index],
+            {
+                {
+                    640, 360
+                }
+            }
         };
-        ExtensionBroadcastEvent(params, ENGINE_EVENT_WINDOW_RESIZED, &data, sizeof(data));
+        ExtensionBroadcastEvent(params, ENGINE_WINDOW_EVENT, &data, sizeof(data));
     }
     else
     {
         EngineStateEvent data = {
-            engine, states[index]
+            engine, index == 4 ? ENGINE_STATE_INITIALIZED : ENGINE_STATE_DELETE
         };
         ExtensionBroadcastEvent(params, ENGINE_STATE_EVENT, &data, sizeof(data));
     }
@@ -81,16 +87,17 @@ static void OnEvent(ExtensionParams* params, dmhash_t event_id, const void* data
             ++g_TypeCDeleteCount;
         }
     }
-    if (event_id == ENGINE_EVENT_WINDOW_RESIZED)
+    if (event_id == ENGINE_WINDOW_EVENT && data && data_size == sizeof(EngineWindowEvent))
     {
-        if (data && data_size == sizeof(EngineWindowResizedEvent))
+        const EngineWindowEvent* event = (const EngineWindowEvent*)data;
+        g_TypeCEventEngine = event->m_Engine;
+        g_TypeCEventWindow = event->m_Window;
+        g_TypeCWindowType = event->m_Type;
+        if (event->m_Type == ENGINE_WINDOW_EVENT_RESIZED)
         {
-            const EngineWindowResizedEvent* resized = (const EngineWindowResizedEvent*)data;
-            g_TypeCEventEngine = resized->m_Engine;
-            g_TypeCEventWindow = resized->m_Window;
             ++g_TypeCWindowCount;
-            g_TypeCWindowWidth = resized->m_Width;
-            g_TypeCWindowHeight = resized->m_Height;
+            g_TypeCWindowWidth = event->m_Data.m_Size.m_Width;
+            g_TypeCWindowHeight = event->m_Data.m_Size.m_Height;
         }
     }
 }

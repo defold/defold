@@ -12,16 +12,19 @@
                     "namespace": "dmEngine",
                     "constant_aliases": {
                         "ENGINE_STATE_EVENT": "dmhash_t",
-                        "ENGINE_EVENT_WINDOW_RESIZED": "dmhash_t",
+                        "ENGINE_WINDOW_EVENT": "dmhash_t",
                         "ENGINE_EVENT_INPUT_ACTIONS": "dmhash_t"
                     },
                     "rename": {
+                        "ENGINE_WINDOW_EVENT_": "WINDOW_EVENT_",
+                        "ENGINE_WINDOW_EVENT": "EVENT_WINDOW",
+                        "EngineWindowEventType": "WindowEventType",
+                        "EngineWindowEvent": "WindowEvent",
                         "ENGINE_STATE_EVENT": "EVENT_STATE",
                         "ENGINE_STATE_": "STATE_",
                         "EngineStateEvent": "StateEvent",
                         "EngineState": "State",
                         "ENGINE_EVENT_": "EVENT_",
-                        "EngineWindowResizedEvent": "WindowResizedEvent",
                         "EngineInputActionsEvent": "InputActionsEvent",
                         "ExtensionBroadcastEvent": "dmExtension::BroadcastEvent",
                         "FExtensionEventCallback": "dmExtension::FEventCallback",
@@ -31,7 +34,8 @@
                         "EngineGetFromExtensionParams": "dmEngine::GetEngine"
                     },
                     "enum_aliases": [
-                        "EngineState"
+                        "EngineState",
+                        "EngineWindowEventType"
                     ]
                 }
             }

@@ -128,24 +128,28 @@ static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const vo
                                                        ResourceGetPath(params->m_ResourceFactory, g_EngineEvents.m_Engine->m_MainCollectionResource, &collection_path) == RESOURCE_RESULT_OK;
         }
     }
-    else if (event_id == dmEngine::EVENT_WINDOW_RESIZED)
+    else if (event_id == dmEngine::EVENT_WINDOW)
     {
-        bool valid = data && data_size == sizeof(dmEngine::WindowResizedEvent);
+        bool valid = data && data_size == sizeof(dmEngine::WindowEvent);
         g_EngineEvents.m_PayloadValid &= valid;
         if (!valid)
         {
             return;
         }
-        const dmEngine::WindowResizedEvent* resized = (const dmEngine::WindowResizedEvent*)data;
+        const dmEngine::WindowEvent* resized = (const dmEngine::WindowEvent*)data;
+        if (resized->m_Type != dmEngine::WINDOW_EVENT_RESIZED)
+        {
+            return;
+        }
         g_EngineEvents.m_PayloadValid &= resized->m_Engine == g_EngineEvents.m_Engine &&
                                          resized->m_Window == g_EngineEvents.m_Engine->m_Window;
         ++g_EngineEvents.m_Resized;
-        g_EngineEvents.m_Width = resized->m_Width;
-        g_EngineEvents.m_Height = resized->m_Height;
-        if (resized->m_Width && resized->m_Height)
+        g_EngineEvents.m_Width = resized->m_Data.m_Size.m_Width;
+        g_EngineEvents.m_Height = resized->m_Data.m_Size.m_Height;
+        if (resized->m_Data.m_Size.m_Width && resized->m_Data.m_Size.m_Height)
         {
-            float dx = g_EngineEvents.m_Engine->m_InvPhysicalWidth - 1.0f / resized->m_Width;
-            float dy = g_EngineEvents.m_Engine->m_InvPhysicalHeight - 1.0f / resized->m_Height;
+            float dx = g_EngineEvents.m_Engine->m_InvPhysicalWidth - 1.0f / resized->m_Data.m_Size.m_Width;
+            float dy = g_EngineEvents.m_Engine->m_InvPhysicalHeight - 1.0f / resized->m_Data.m_Size.m_Height;
             g_EngineEvents.m_WindowStateApplied &= dx < 0.00001f && dx > -0.00001f && dy < 0.00001f && dy > -0.00001f;
         }
     }

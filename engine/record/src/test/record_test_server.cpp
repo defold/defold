@@ -399,8 +399,8 @@ static void TestHandler(void*, dmWebServer::Request* request)
     }
     else if (!strcmp(request->m_Resource, "/test/deactivate"))
     {
-        dmEngine::StateEvent event = { 0, dmEngine::STATE_APP_DEACTIVATE };
-        dmExtension::BroadcastEvent(&g_Params, dmEngine::EVENT_STATE, &event, sizeof(event));
+        dmEngine::WindowEvent event = { 0, 0, dmEngine::WINDOW_EVENT_FOCUS_LOST, { { 0, 0 } } };
+        dmExtension::BroadcastEvent(&g_Params, dmEngine::EVENT_WINDOW, &event, sizeof(event));
         SendLifecycle(request);
     }
     else if (!strcmp(request->m_Resource, "/test/unregister"))

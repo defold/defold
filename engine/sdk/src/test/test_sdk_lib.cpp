@@ -58,14 +58,14 @@ dmExtension::Result UpdateTest(dmExtension::Params* params)
 
 void OnEventTest(dmExtension::Params* params, dmhash_t event_id, const void* data, uint32_t data_size)
 {
-    if (event_id == dmEngine::EVENT_STATE && data && data_size == sizeof(dmEngine::StateEvent))
+    if (event_id == dmEngine::EVENT_WINDOW && data && data_size == sizeof(dmEngine::WindowEvent))
     {
-        const dmEngine::StateEvent* event = (const dmEngine::StateEvent*)data;
-        if (event->m_State == dmEngine::STATE_APP_ACTIVATE)
+        const dmEngine::WindowEvent* event = (const dmEngine::WindowEvent*)data;
+        if (event->m_Type == dmEngine::WINDOW_EVENT_FOCUS_GAINED)
         {
             ++g_TestAppEventCount;
         }
-        else if (event->m_State == dmEngine::STATE_APP_DEACTIVATE)
+        else if (event->m_Type == dmEngine::WINDOW_EVENT_FOCUS_LOST)
         {
             --g_TestAppEventCount;
         }

@@ -106,7 +106,7 @@ class CppDocumentationTests(unittest.TestCase):
         cpp_docs, c_docs = header.split('} // namespace dmEngine', 1)
         aliases = info['constant_aliases']
         self.assertEqual(3, len(aliases))
-        self.assertIn('| `EVENT_WINDOW_RESIZED` |', cpp_docs)
+        self.assertIn('| `EVENT_WINDOW` |', cpp_docs)
         for name in aliases:
             renamed = gen_cpp.rename_symbols(info['rename'], name)
             self.assertIn('static const dmhash_t %s = %s;' % (renamed, name), cpp_docs)
@@ -127,6 +127,22 @@ class CppDocumentationTests(unittest.TestCase):
         self.assertIn('static const State STATE_DELETE = ::ENGINE_STATE_DELETE;', header)
         self.assertIn('typedef EngineStateEvent StateEvent;', header)
         self.assertIn('static const dmhash_t EVENT_STATE = ENGINE_STATE_EVENT;', header)
+
+    # A generated window alias must retain the canonical C union and enum identity.
+    def test_window_event_aliases(self):
+        engine = self.root / 'engine/engine'
+        docs = gen_doc.parse_docs(str(engine / 'src/dmsdk/engine/engine_event.h'))
+        info = json.loads((engine / 'sdk_gen.json').read_text())['files'][0]['languages']['cpp']
+        enum = SimpleNamespace(name='EngineWindowEventType', values=[{'name': 'ENGINE_WINDOW_EVENT_RESIZED'}])
+        state = SimpleNamespace(enum_types=[(enum, None)], struct_typedefs=[({'name': 'EngineWindowEvent'}, None)],
+                                function_typedefs=[], functions=[])
+        header = gen_cpp.gen_cpp_header(str(self.root), 'dmsdk/engine/engine_event.h',
+            str(engine / 'src/dmsdk/engine/engine_event_gen.hpp'), info, None, state, [], docs)
+        self.assertIn('typedef ::EngineWindowEventType WindowEventType;', header)
+        self.assertIn('static const WindowEventType WINDOW_EVENT_RESIZED = ::ENGINE_WINDOW_EVENT_RESIZED;', header)
+        self.assertIn('typedef EngineWindowEvent WindowEvent;', header)
+        self.assertIn('m_Data.m_Size.m_Width', header)
+        self.assertIn('static const dmhash_t EVENT_WINDOW = ENGINE_WINDOW_EVENT;', header)
 
 
 if __name__ == '__main__':

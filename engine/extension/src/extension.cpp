@@ -633,40 +633,67 @@ namespace dmExtension
         return RESULT_OK;
     }
 
-    struct EngineEventMapping
+    static bool GetLegacyEvent(dmhash_t event_id, const void* data, uint32_t data_size, Event* out_event)
     {
-        EventID         m_LegacyId;
-        dmEngine::State m_State;
-    };
-
-    static const EngineEventMapping g_EngineEvents[] = {
-        { EVENT_ID_ACTIVATEAPP, dmEngine::STATE_APP_ACTIVATE },
-        { EVENT_ID_DEACTIVATEAPP, dmEngine::STATE_APP_DEACTIVATE },
-        { EVENT_ID_ICONIFYAPP, dmEngine::STATE_APP_ICONIFY },
-        { EVENT_ID_DEICONIFYAPP, dmEngine::STATE_APP_DEICONIFY },
-        { EVENT_ID_ENGINE_INITIALIZED, dmEngine::STATE_INITIALIZED },
-        { EVENT_ID_ENGINE_DELETE, dmEngine::STATE_DELETE },
-    };
+        if (event_id == dmEngine::EVENT_STATE && data && data_size == sizeof(dmEngine::StateEvent))
+        {
+            switch (((const dmEngine::StateEvent*)data)->m_State)
+            {
+                case dmEngine::STATE_INITIALIZED:
+                {
+                    out_event->m_Event = EXTENSION_EVENT_ID_ENGINE_INITIALIZED;
+                    return true;
+                }
+                case dmEngine::STATE_DELETE:
+                {
+                    out_event->m_Event = EXTENSION_EVENT_ID_ENGINE_DELETE;
+                    return true;
+                }
+                default:
+                {
+                    return false;
+                }
+            }
+        }
+        if (event_id == dmEngine::EVENT_WINDOW && data && data_size == sizeof(dmEngine::WindowEvent))
+        {
+            switch (((const dmEngine::WindowEvent*)data)->m_Type)
+            {
+                case dmEngine::WINDOW_EVENT_FOCUS_GAINED:
+                {
+                    out_event->m_Event = EXTENSION_EVENT_ID_ACTIVATEAPP;
+                    return true;
+                }
+                case dmEngine::WINDOW_EVENT_FOCUS_LOST:
+                {
+                    out_event->m_Event = EXTENSION_EVENT_ID_DEACTIVATEAPP;
+                    return true;
+                }
+                case dmEngine::WINDOW_EVENT_ICONIFIED:
+                {
+                    out_event->m_Event = EXTENSION_EVENT_ID_ICONIFYAPP;
+                    return true;
+                }
+                case dmEngine::WINDOW_EVENT_DEICONIFIED:
+                {
+                    out_event->m_Event = EXTENSION_EVENT_ID_DEICONIFYAPP;
+                    return true;
+                }
+                default:
+                {
+                    return false;
+                }
+            }
+        }
+        return false;
+    }
 
     void BroadcastEvent(Params* params, dmhash_t event_id, const void* data, uint32_t data_size)
     {
         float previous_dt = params->m_Impl->m_DT;
         params->m_Impl->m_DT = 0.0f;
         Event legacy_event;
-        bool has_legacy_event = false;
-        if (event_id == dmEngine::EVENT_STATE && data && data_size == sizeof(dmEngine::StateEvent))
-        {
-            const dmEngine::StateEvent* state = (const dmEngine::StateEvent*)data;
-            for (uint32_t i = 0; i < DM_ARRAY_SIZE(g_EngineEvents); ++i)
-            {
-                if (g_EngineEvents[i].m_State == state->m_State)
-                {
-                    legacy_event.m_Event = (ExtensionEventID)g_EngineEvents[i].m_LegacyId;
-                    has_legacy_event = true;
-                    break;
-                }
-            }
-        }
+        bool has_legacy_event = GetLegacyEvent(event_id, data, data_size, &legacy_event);
 
         const ExtensionDesc* ed = dmExtension::GetFirstExtension();
         while (ed) {

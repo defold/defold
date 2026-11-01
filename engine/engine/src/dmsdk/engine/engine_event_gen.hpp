@@ -36,16 +36,16 @@
  *
  * | Constant | Name | Payload and delivery |
  * | -------- | ---- | -------------------- |
- * | `EVENT_STATE` | `_dm_event_engine_state` | StateEvent. Application focus/iconify changes, successful initialization and engine deletion. |
- * | `EVENT_WINDOW_RESIZED` | `_dm_event_window_resized` | WindowResizedEvent, after the existing window state updates and notifications. One event per native resize callback; no initial-size replay. May precede engine Initialize. |
+ * | `EVENT_STATE` | `_dm_event_engine_state` | StateEvent. Successful initialization and engine deletion. |
+ * | `EVENT_WINDOW` | `_dm_event_engine_window` | WindowEvent. Resize, iconify and focus notifications from the window callbacks. May precede engine Initialize. |
  * | `EVENT_INPUT_ACTIONS` | `_dm_event_input_actions` | InputActionsEvent. One action view per completed input update, after binding resolution and text-last ordering, before focused collection dispatch. Includes empty updates. |
  *
  * Payloads and their handles are borrowed for the synchronous callback. Engine
  * events identify the source instance. Use dmEngine::GetWindow to obtain its current
  * window; window-specific payloads also identify the window directly. A window
  * handle may be null during early startup or failure cleanup.
- * App state notifications retain their window focus/iconify semantics; they do not aggregate
- * activity across multiple windows or represent separate process lifecycle events.
+ * Window notifications retain the backend focus/iconify semantics. Iconification
+ * is distinct from hide/show visibility; platform callback availability is unchanged.
  *
  * @document
  * @language C++
@@ -72,14 +72,14 @@ namespace dmEngine
      */
     static const dmhash_t EVENT_STATE = ENGINE_STATE_EVENT;
 
-    /*# Window size changed; the payload is WindowResizedEvent.
-     * Hash of `_dm_event_window_resized` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
+    /*# engine window notification
+     * Hash of `_dm_event_engine_window` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
      * Precomputed dmHashString64 value; no runtime hashing.
      * @constant
-     * @name EVENT_WINDOW_RESIZED
+     * @name EVENT_WINDOW
      * @language C++
      */
-    static const dmhash_t EVENT_WINDOW_RESIZED = ENGINE_EVENT_WINDOW_RESIZED;
+    static const dmhash_t EVENT_WINDOW = ENGINE_WINDOW_EVENT;
 
     /*# input actions have been resolved
      * Hash of `_dm_event_input_actions` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
@@ -91,25 +91,34 @@ namespace dmEngine
     static const dmhash_t EVENT_INPUT_ACTIONS = ENGINE_EVENT_INPUT_ACTIONS;
 
     /*# engine state notification kind
-     * Identifies the notification carried by StateEvent. Focus and iconify
-     * transitions are independent of engine initialization and deletion.
+     * Identifies the initialization or deletion notification in StateEvent.
      * @enum
      * @name State
      * @language C++
-     * @member  STATE_APP_ACTIVATE The engine window gains focus.
-     * @member  STATE_APP_DEACTIVATE The engine window loses focus.
-     * @member  STATE_APP_ICONIFY The engine window is iconified.
-     * @member  STATE_APP_DEICONIFY The engine window is restored.
      * @member  STATE_INITIALIZED Successful engine initialization has completed.
      * @member  STATE_DELETE Engine deletion begins, before collections and systems are torn down. Also delivered after initialization failure if AppInitialize succeeded.
      */
     typedef ::EngineState State;
-    static const State STATE_APP_ACTIVATE = ::ENGINE_STATE_APP_ACTIVATE;
-    static const State STATE_APP_DEACTIVATE = ::ENGINE_STATE_APP_DEACTIVATE;
-    static const State STATE_APP_ICONIFY = ::ENGINE_STATE_APP_ICONIFY;
-    static const State STATE_APP_DEICONIFY = ::ENGINE_STATE_APP_DEICONIFY;
     static const State STATE_INITIALIZED = ::ENGINE_STATE_INITIALIZED;
     static const State STATE_DELETE = ::ENGINE_STATE_DELETE;
+
+    /*# window notification kind
+     * Identifies the active payload in WindowEvent.
+     * @enum
+     * @name WindowEventType
+     * @language C++
+     * @member  WINDOW_EVENT_RESIZED Resize notification. Read physical dimensions from m_Data.m_Size.
+     * @member  WINDOW_EVENT_ICONIFIED The window was iconified/minimized; not a hide notification.
+     * @member  WINDOW_EVENT_DEICONIFIED The window was restored from iconification; not a show notification.
+     * @member  WINDOW_EVENT_FOCUS_GAINED The window or app screen gained focus.
+     * @member  WINDOW_EVENT_FOCUS_LOST The window or app screen lost focus.
+     */
+    typedef ::EngineWindowEventType WindowEventType;
+    static const WindowEventType WINDOW_EVENT_RESIZED = ::ENGINE_WINDOW_EVENT_RESIZED;
+    static const WindowEventType WINDOW_EVENT_ICONIFIED = ::ENGINE_WINDOW_EVENT_ICONIFIED;
+    static const WindowEventType WINDOW_EVENT_DEICONIFIED = ::ENGINE_WINDOW_EVENT_DEICONIFIED;
+    static const WindowEventType WINDOW_EVENT_FOCUS_GAINED = ::ENGINE_WINDOW_EVENT_FOCUS_GAINED;
+    static const WindowEventType WINDOW_EVENT_FOCUS_LOST = ::ENGINE_WINDOW_EVENT_FOCUS_LOST;
 
     /*# resolved input actions
      * Published once per completed input update after application bindings are
@@ -141,18 +150,25 @@ namespace dmEngine
      */
     typedef EngineStateEvent StateEvent;
 
-    /*# window resized event payload
-     * Payload for `EVENT_WINDOW_RESIZED` with data_size equal to
-     * `sizeof(WindowResizedEvent)`.
+    /*# engine window event payload
+     * Payload for EVENT_WINDOW with data_size equal to sizeof(WindowEvent).
+     * m_Type selects the valid union member. Only WINDOW_EVENT_RESIZED has
+     * event-specific data: m_Data.m_Size contains the physical framebuffer dimensions.
+     * Do not read that member for other notification types.
+     *
+     * Resize delivery follows the existing window state updates and notifications,
+     * once per native resize callback with no initial-size replay. Window events may
+     * arrive before engine Initialize; m_Window can be null during early startup.
      * @struct
-     * @name WindowResizedEvent
+     * @name WindowEvent
      * @language C++
      * @member m_Engine [type:HEngine] borrowed source engine
      * @member m_Window [type:HWindow] borrowed source window, or null if not yet available
-     * @member m_Width [type:uint32_t] physical framebuffer width in pixels
-     * @member m_Height [type:uint32_t] physical framebuffer height in pixels
+     * @member m_Type [type:WindowEventType] notification selecting the valid payload
+     * @member  m_Data.m_Size.m_Width [type:uint32_t] physical framebuffer width; valid only for WINDOW_EVENT_RESIZED
+     * @member  m_Data.m_Size.m_Height [type:uint32_t] physical framebuffer height; valid only for WINDOW_EVENT_RESIZED
      */
-    typedef EngineWindowResizedEvent WindowResizedEvent;
+    typedef EngineWindowEvent WindowEvent;
 
 
 } // namespace dmEngine
@@ -167,25 +183,32 @@ namespace dmEngine
  */
 
 /*# engine state notification kind
- * Identifies the notification carried by EngineStateEvent. Focus and iconify
- * transitions are independent of engine initialization and deletion.
+ * Identifies the initialization or deletion notification in EngineStateEvent.
  * @enum
  * @name EngineState
  * @language C
- * @member  ENGINE_STATE_APP_ACTIVATE The engine window gains focus.
- * @member  ENGINE_STATE_APP_DEACTIVATE The engine window loses focus.
- * @member  ENGINE_STATE_APP_ICONIFY The engine window is iconified.
- * @member  ENGINE_STATE_APP_DEICONIFY The engine window is restored.
  * @member  ENGINE_STATE_INITIALIZED Successful engine initialization has completed.
  * @member  ENGINE_STATE_DELETE Engine deletion begins, before collections and systems are torn down. Also delivered after initialization failure if AppInitialize succeeded.
  */
 
-/*# Window size changed; the payload is EngineWindowResizedEvent.
- * Hash of `_dm_event_window_resized` for ExtensionBroadcastEvent and FExtensionEventCallback.
+/*# engine window notification
+ * Hash of `_dm_event_engine_window` for ExtensionBroadcastEvent and FExtensionEventCallback.
  * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
- * @name ENGINE_EVENT_WINDOW_RESIZED
+ * @name ENGINE_WINDOW_EVENT
  * @language C
+ */
+
+/*# window notification kind
+ * Identifies the active payload in EngineWindowEvent.
+ * @enum
+ * @name EngineWindowEventType
+ * @language C
+ * @member  ENGINE_WINDOW_EVENT_RESIZED Resize notification. Read physical dimensions from m_Data.m_Size.
+ * @member  ENGINE_WINDOW_EVENT_ICONIFIED The window was iconified/minimized; not a hide notification.
+ * @member  ENGINE_WINDOW_EVENT_DEICONIFIED The window was restored from iconification; not a show notification.
+ * @member  ENGINE_WINDOW_EVENT_FOCUS_GAINED The window or app screen gained focus.
+ * @member  ENGINE_WINDOW_EVENT_FOCUS_LOST The window or app screen lost focus.
  */
 
 /*# input actions have been resolved
@@ -224,14 +247,21 @@ namespace dmEngine
  * @member m_State [type:EngineState] notification being delivered
  */
 
-/*# window resized event payload
- * Payload for `ENGINE_EVENT_WINDOW_RESIZED` with data_size equal to
- * `sizeof(EngineWindowResizedEvent)`.
+/*# engine window event payload
+ * Payload for ENGINE_WINDOW_EVENT with data_size equal to sizeof(EngineWindowEvent).
+ * m_Type selects the valid union member. Only ENGINE_WINDOW_EVENT_RESIZED has
+ * event-specific data: m_Data.m_Size contains the physical framebuffer dimensions.
+ * Do not read that member for other notification types.
+ *
+ * Resize delivery follows the existing window state updates and notifications,
+ * once per native resize callback with no initial-size replay. Window events may
+ * arrive before engine Initialize; m_Window can be null during early startup.
  * @struct
- * @name EngineWindowResizedEvent
+ * @name EngineWindowEvent
  * @language C
  * @member m_Engine [type:HEngine] borrowed source engine
  * @member m_Window [type:HWindow] borrowed source window, or null if not yet available
- * @member m_Width [type:uint32_t] physical framebuffer width in pixels
- * @member m_Height [type:uint32_t] physical framebuffer height in pixels
+ * @member m_Type [type:EngineWindowEventType] notification selecting the valid payload
+ * @member  m_Data.m_Size.m_Width [type:uint32_t] physical framebuffer width; valid only for ENGINE_WINDOW_EVENT_RESIZED
+ * @member  m_Data.m_Size.m_Height [type:uint32_t] physical framebuffer height; valid only for ENGINE_WINDOW_EVENT_RESIZED
  */

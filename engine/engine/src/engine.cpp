@@ -331,8 +331,8 @@ namespace dmEngine
         dmGameSystem::OnWindowResized(width, height);
 
         ScopedExtensionParams params(engine);
-        dmEngine::WindowResizedEvent event = { engine, engine->m_Window, width, height };
-        dmExtension::BroadcastEvent(params, dmEngine::EVENT_WINDOW_RESIZED, &event, sizeof(event));
+        dmEngine::WindowEvent event = { engine, engine->m_Window, dmEngine::WINDOW_EVENT_RESIZED, { { width, height } } };
+        dmExtension::BroadcastEvent(params, dmEngine::EVENT_WINDOW, &event, sizeof(event));
     }
 
     static int OnWindowClose(void* user_data)
@@ -350,8 +350,8 @@ namespace dmEngine
         Engine* engine = (Engine*)user_data;
         ScopedExtensionParams params(engine);
 
-        dmEngine::StateEvent event = { engine, focus ? dmEngine::STATE_APP_ACTIVATE : dmEngine::STATE_APP_DEACTIVATE };
-        dmExtension::BroadcastEvent(params, dmEngine::EVENT_STATE, &event, sizeof(event));
+        dmEngine::WindowEvent event = { engine, engine->m_Window, focus ? dmEngine::WINDOW_EVENT_FOCUS_GAINED : dmEngine::WINDOW_EVENT_FOCUS_LOST, { { 0, 0 } } };
+        dmExtension::BroadcastEvent(params, dmEngine::EVENT_WINDOW, &event, sizeof(event));
 
         dmGameSystem::OnWindowFocus(focus != 0);
     }
@@ -366,8 +366,8 @@ namespace dmEngine
 
         ScopedExtensionParams params(engine);
 
-        dmEngine::StateEvent event = { engine, iconify ? dmEngine::STATE_APP_ICONIFY : dmEngine::STATE_APP_DEICONIFY };
-        dmExtension::BroadcastEvent(params, dmEngine::EVENT_STATE, &event, sizeof(event));
+        dmEngine::WindowEvent event = { engine, engine->m_Window, iconify ? dmEngine::WINDOW_EVENT_ICONIFIED : dmEngine::WINDOW_EVENT_DEICONIFIED, { { 0, 0 } } };
+        dmExtension::BroadcastEvent(params, dmEngine::EVENT_WINDOW, &event, sizeof(event));
 
         dmGameSystem::OnWindowIconify(iconify != 0);
     }
