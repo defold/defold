@@ -1555,36 +1555,45 @@ namespace dmGameSystem
         return (scene_order << 20) | (world_order << 13) | sub_order;
     }
 
-    template <typename T>
-    static void SetBlendMode(T& ro, dmGui::BlendMode blend_mode)
+    static void GetBlendFactors(dmGui::BlendMode blend_mode, dmGraphics::BlendFactor& source, dmGraphics::BlendFactor& destination)
     {
         switch (blend_mode)
         {
             case dmGui::BLEND_MODE_ALPHA:
-                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-            break;
+            {
+                source = dmGraphics::BLEND_FACTOR_ONE;
+                destination = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                break;
+            }
 
             case dmGui::BLEND_MODE_ADD:
             case dmGui::BLEND_MODE_ADD_ALPHA:
-                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-            break;
+            {
+                source = dmGraphics::BLEND_FACTOR_ONE;
+                destination = dmGraphics::BLEND_FACTOR_ONE;
+                break;
+            }
 
             case dmGui::BLEND_MODE_MULT:
-                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_DST_COLOR;
-                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-            break;
+            {
+                source = dmGraphics::BLEND_FACTOR_DST_COLOR;
+                destination = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                break;
+            }
 
             case dmGui::BLEND_MODE_SCREEN:
-                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR;
-                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-            break;
+            {
+                source = dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                destination = dmGraphics::BLEND_FACTOR_ONE;
+                break;
+            }
 
             default:
+            {
                 dmLogError("Unknown blend mode: %d\n", blend_mode);
                 assert(0);
-            break;
+                break;
+            }
         }
     }
 
@@ -1865,7 +1874,7 @@ namespace dmGameSystem
             dmRender::HMaterial material = GetTextNodeMaterial(gui_context, scene, node, font_map);
 
             dmRender::DrawTextParams params;
-            SetBlendMode(params, dmGui::GetNodeBlendMode(scene, node));
+            GetBlendFactors(dmGui::GetNodeBlendMode(scene, node), params.m_SourceBlendFactor, params.m_DestinationBlendFactor);
             float opacity = node_opacities[i];
             params.m_FaceColor = Vector4(color.getXYZ(), opacity);
             params.m_OutlineColor = Vector4(outline.getXYZ(), outline.getW() * opacity);
@@ -2009,7 +2018,7 @@ namespace dmGameSystem
 
         ro.m_VertexCount = total_vertex_count;
         dmGui::BlendMode blend_mode = ddf_blendmode_map.m_Table[first_emitter_render_data->m_BlendMode];
-        SetBlendMode(ro, blend_mode);
+        GetBlendFactors(blend_mode, ro.m_SourceBlendFactor, ro.m_DestinationBlendFactor);
         ro.m_SetBlendFactors = 1;
 
         // If we need new render constants
@@ -2138,7 +2147,7 @@ namespace dmGameSystem
         ro.m_Material          = GetNodeMaterial(gui_context, scene, first_node);
 
         dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
-        SetBlendMode(ro, blend_mode);
+        GetBlendFactors(blend_mode, ro.m_SourceBlendFactor, ro.m_DestinationBlendFactor);
         ro.m_SetBlendFactors = 1;
 
         ApplyStencilClipping(gui_context, stencil_scopes[0], ro);
@@ -2228,7 +2237,7 @@ namespace dmGameSystem
 
 
         dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
-        SetBlendMode(ro, blend_mode);
+        GetBlendFactors(blend_mode, ro.m_SourceBlendFactor, ro.m_DestinationBlendFactor);
         ro.m_SetBlendFactors   = 1;
         ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
         ro.m_VertexBuffer      = gui_world->m_VertexBuffer;
@@ -2478,7 +2487,7 @@ namespace dmGameSystem
         }
 
         dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
-        SetBlendMode(ro, blend_mode);
+        GetBlendFactors(blend_mode, ro.m_SourceBlendFactor, ro.m_DestinationBlendFactor);
         ro.m_SetBlendFactors   = 1;
         ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
         ro.m_VertexBuffer      = gui_world->m_VertexBuffer;
