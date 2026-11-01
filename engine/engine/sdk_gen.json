@@ -31,7 +31,7 @@
                         "EngineGetWindow": "dmEngine::GetWindow",
                         "HInputContext": "dmInput::HContext",
                         "InputIterateActions": "dmInput::IterateActions",
-                        "EngineGetFromExtensionParams": "dmEngine::GetEngine"
+                        "ExtensionParamsGetContextRegistry": "dmExtension::ParamsGetContextRegistry"
                     },
                     "enum_aliases": [
                         "EngineState",
@@ -50,8 +50,8 @@
                     ],
                     "rename": {
                         "EngineGetWindow": "GetWindow",
-                        "EngineGetFromExtensionParams": "GetEngine",
-                        "ExtensionParams": "dmExtension::Params"
+                        "ExtensionParamsGetContextRegistry": "dmExtension::ParamsGetContextRegistry",
+                        "ExtensionAppParamsGetContextRegistry": "dmExtension::AppParamsGetContextRegistry"
                     }
                 }
             }

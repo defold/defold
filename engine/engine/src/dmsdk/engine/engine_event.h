@@ -37,8 +37,10 @@
  * | `ENGINE_EVENT_INPUT_ACTIONS` | `_dm_event_input_actions` | EngineInputActionsEvent. One action view per completed input update, after binding resolution and text-last ordering, before focused collection dispatch. Includes empty updates. |
  *
  * Payloads and their handles are borrowed for the synchronous callback. Obtain
- * the source engine through EngineGetFromExtensionParams and its current window
- * through EngineGetWindow. Window payloads identify the source window directly. A window
+ * the source engine from the callback registry using ENGINE_CONTEXT_NAME.
+ * Get the registry with ExtensionParamsGetContextRegistry, then use ContextRegistryGet
+ * and cast the result to HEngine. Use EngineGetWindow for its current window.
+ * Window payloads identify the source window directly. A window
  * handle may be null during early startup or failure cleanup.
  * Window notifications retain the backend focus/minimize semantics. Minimization
  * is distinct from hide/show visibility; platform callback availability is unchanged.
@@ -113,9 +115,9 @@ typedef enum EngineWindowEventType
  *
  * Iterate the current resolved view through InputIterateActions and the iterator
  * getters. Iteration is immutable and borrowed only for the callback; it cannot
- * consume input or change focused dispatch. Obtain the source engine through
- * EngineGetFromExtensionParams. Focused gameplay should use native component
- * input/update callbacks.
+ * consume input or change focused dispatch. Obtain the source engine from the
+ * extension context registry using ENGINE_CONTEXT_NAME. Focused gameplay should
+ * use native component input/update callbacks.
  * @struct
  * @name EngineInputActionsEvent
  * @member m_Input [type:HInputContext] valid borrowed input context, including empty updates
@@ -127,7 +129,7 @@ typedef struct EngineInputActionsEvent
 
 /*# engine state event payload
  * Payload for ENGINE_STATE_EVENT with data_size equal to sizeof(EngineStateEvent).
- * Obtain the source engine through EngineGetFromExtensionParams.
+ * Obtain the source engine from the extension context registry using ENGINE_CONTEXT_NAME.
  * @struct
  * @name EngineStateEvent
  * @member m_State [type:EngineState] notification being delivered
@@ -146,7 +148,7 @@ typedef struct EngineStateEvent
  * Resize delivery follows the existing window state updates and notifications,
  * once per native resize callback with no initial-size replay. Window events may
  * arrive before engine Initialize; m_Window can be null during early startup.
- * Obtain the source engine through EngineGetFromExtensionParams.
+ * Obtain the source engine from the extension context registry using ENGINE_CONTEXT_NAME.
  * @struct
  * @name EngineWindowEvent
  * @member m_Window [type:HWindow] borrowed source window, or null if not yet available

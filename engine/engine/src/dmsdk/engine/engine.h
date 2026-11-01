@@ -45,19 +45,21 @@ typedef dmEngine::HEngine HEngine;
 typedef struct Engine* HEngine;
 #endif
 
+/*# engine context name
+ * Engine-owned entry in the extension context registry, containing a borrowed
+ * HEngine. Available from engine creation through application finalization,
+ * including early events and cleanup after initialization failure.
+ * Obtain the registry with ExtensionAppParamsGetContextRegistry or
+ * ExtensionParamsGetContextRegistry, then look up this name with ContextRegistryGet.
+ * A standalone host may have no registry or no engine entry.
+ * @constant
+ * @name ENGINE_CONTEXT_NAME
+ */
+#define ENGINE_CONTEXT_NAME "engine"
+
 #if defined(__cplusplus)
 extern "C" {
 #endif
-
-/*# get the source engine from extension parameters
- * Available from engine creation through application finalization, including
- * early events and cleanup after initialization failure. The handle is borrowed;
- * do not destroy it or retain it across engine deletion or reboot.
- * @name EngineGetFromExtensionParams
- * @param params [type:ExtensionParams*] valid current callback parameters
- * @return engine [type:HEngine] borrowed source engine, or null for a host without an engine
- */
-HEngine EngineGetFromExtensionParams(ExtensionParams* params);
 
 /*# get the engine window
  * The engine owns the returned window. Do not destroy it or retain it across

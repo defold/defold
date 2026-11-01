@@ -68,6 +68,7 @@ static bool     g_ExtensionFloatLookupSucceeded = true;
 
 extern "C" int TestEngineWindowC(HEngine engine, HWindow expected);
 extern "C" int TestEngineParamsC(ExtensionParams* params, HEngine expected);
+extern "C" int TestEngineAppParamsC(ExtensionAppParams* params, HEngine expected);
 
 struct EngineEventObservations
 {
@@ -106,7 +107,8 @@ static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const vo
             return;
         }
         const dmEngine::StateEvent* event = (const dmEngine::StateEvent*)data;
-        dmEngine::HEngine engine = dmEngine::GetEngine(params);
+        HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
+        dmEngine::HEngine engine = (dmEngine::HEngine)ContextRegistryGet(registry, ENGINE_CONTEXT_NAME);
         g_EngineEvents.m_PayloadValid &= engine == g_EngineEvents.m_Engine && TestEngineParamsC(params, engine);
         HWindow window = dmEngine::GetWindow(engine);
         g_EngineEvents.m_WindowAccessorValid &= window == g_EngineEvents.m_Engine->m_Window &&
@@ -140,7 +142,8 @@ static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const vo
         {
             return;
         }
-        dmEngine::HEngine engine = dmEngine::GetEngine(params);
+        HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
+        dmEngine::HEngine engine = (dmEngine::HEngine)ContextRegistryGet(registry, ENGINE_CONTEXT_NAME);
         g_EngineEvents.m_PayloadValid &= engine == g_EngineEvents.m_Engine && TestEngineParamsC(params, engine) &&
                                          resized->m_Window == g_EngineEvents.m_Engine->m_Window;
         ++g_EngineEvents.m_Resized;
@@ -183,10 +186,13 @@ static dmExtension::Result DeltaTimeTestFinalize(dmExtension::Params*)
     return dmExtension::RESULT_OK;
 }
 
-static dmExtension::Result EngineEventAppFinalize(dmExtension::AppParams*)
+static dmExtension::Result EngineEventAppFinalize(dmExtension::AppParams* params)
 {
     if (g_ObserveEngineEvents)
     {
+        HContextRegistry registry = dmExtension::AppParamsGetContextRegistry(params);
+        g_EngineEvents.m_PayloadValid &= ContextRegistryGet(registry, ENGINE_CONTEXT_NAME) == g_EngineEvents.m_Engine &&
+                                         TestEngineAppParamsC(params, g_EngineEvents.m_Engine);
         g_EngineEvents.m_WindowClearedAtAppFinalize = dmEngine::GetWindow(g_EngineEvents.m_Engine) == 0 &&
                                                       TestEngineWindowC(g_EngineEvents.m_Engine, 0);
     }
@@ -260,7 +266,8 @@ static void CaptureInput(dmExtension::Params* params, dmhash_t id, const void* d
         return;
     }
     const dmEngine::InputActionsEvent* event = (const dmEngine::InputActionsEvent*)data;
-    ctx->m_Valid &= dmEngine::GetEngine(params) == ctx->m_Engine && TestEngineParamsC(params, ctx->m_Engine) &&
+    HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
+    ctx->m_Valid &= ContextRegistryGet(registry, ENGINE_CONTEXT_NAME) == ctx->m_Engine && TestEngineParamsC(params, ctx->m_Engine) &&
                     event->m_Input == ctx->m_Engine->m_InputContext && params->m_L == ctx->m_L &&
                     params->m_ResourceFactory == ctx->m_Engine->m_Factory;
     float dt = -1.0f;
@@ -710,19 +717,32 @@ TEST_F(EngineTest, WindowResizeBeforeRenderContext)
     dmEngineFinalize();
 }
 
-// Source engines are available before initialization; standalone or empty registries return null.
+// App and update parameters share the engine registry before initialization; standalone and missing entries are supported.
 TEST_F(EngineTest, ExtensionEngineContext)
 {
     dmEngineInitialize();
     dmEngine::HEngine engine = dmEngine::New(0);
     dmExtension::Params params;
     dmExtension::ParamsInitialize(&params);
-    bool standalone = dmEngine::GetEngine(&params) == 0 && TestEngineParamsC(&params, 0);
+    dmExtension::AppParams app_params;
+    dmExtension::AppParamsInitialize(&app_params);
+    bool standalone = dmExtension::ParamsGetContextRegistry(&params) == 0 && TestEngineParamsC(&params, 0) &&
+                      dmExtension::AppParamsGetContextRegistry(&app_params) == 0 && TestEngineAppParamsC(&app_params, 0);
     HContextRegistry empty = ContextRegistryCreate();
     ExtensionParamsSetContextRegistry(&params, empty);
-    bool missing = dmEngine::GetEngine(&params) == 0 && TestEngineParamsC(&params, 0);
+    ExtensionAppParamsSetContextRegistry(&app_params, empty);
+    bool missing = dmExtension::ParamsGetContextRegistry(&params) == empty &&
+                   dmExtension::AppParamsGetContextRegistry(&app_params) == empty &&
+                   ContextRegistryGet(empty, ENGINE_CONTEXT_NAME) == 0 &&
+                   TestEngineParamsC(&params, 0) && TestEngineAppParamsC(&app_params, 0);
     ExtensionParamsSetContextRegistry(&params, engine->m_ContextRegistry);
-    bool source = dmEngine::GetEngine(&params) == engine && TestEngineParamsC(&params, engine);
+    ExtensionAppParamsSetContextRegistry(&app_params, engine->m_ContextRegistry);
+    HContextRegistry registry = dmExtension::ParamsGetContextRegistry(&params);
+    bool source = registry == engine->m_ContextRegistry && dmExtension::AppParamsGetContextRegistry(&app_params) == registry &&
+                  ContextRegistryGet(registry, ENGINE_CONTEXT_NAME) == engine &&
+                  ContextRegistryGetByHash(registry, dmHashString64(ENGINE_CONTEXT_NAME)) == engine &&
+                  TestEngineParamsC(&params, engine) && TestEngineAppParamsC(&app_params, engine);
+    dmExtension::AppParamsFinalize(&app_params);
     dmExtension::ParamsFinalize(&params);
     ContextRegistryDestroy(empty);
     dmEngine::Delete(engine);

@@ -41,8 +41,10 @@
  * | `EVENT_INPUT_ACTIONS` | `_dm_event_input_actions` | InputActionsEvent. One action view per completed input update, after binding resolution and text-last ordering, before focused collection dispatch. Includes empty updates. |
  *
  * Payloads and their handles are borrowed for the synchronous callback. Obtain
- * the source engine through dmEngine::GetEngine and its current window
- * through dmEngine::GetWindow. Window payloads identify the source window directly. A window
+ * the source engine from the callback registry using ENGINE_CONTEXT_NAME.
+ * Get the registry with dmExtension::ParamsGetContextRegistry, then use ContextRegistryGet
+ * and cast the result to HEngine. Use dmEngine::GetWindow for its current window.
+ * Window payloads identify the source window directly. A window
  * handle may be null during early startup or failure cleanup.
  * Window notifications retain the backend focus/minimize semantics. Minimization
  * is distinct from hide/show visibility; platform callback availability is unchanged.
@@ -129,9 +131,9 @@ namespace dmEngine
      *
      * Iterate the current resolved view through dmInput::IterateActions and the iterator
      * getters. Iteration is immutable and borrowed only for the callback; it cannot
-     * consume input or change focused dispatch. Obtain the source engine through
-     * dmEngine::GetEngine. Focused gameplay should use native component
-     * input/update callbacks.
+     * consume input or change focused dispatch. Obtain the source engine from the
+     * extension context registry using ENGINE_CONTEXT_NAME. Focused gameplay should
+     * use native component input/update callbacks.
      * @struct
      * @name InputActionsEvent
      * @language C++
@@ -141,7 +143,7 @@ namespace dmEngine
 
     /*# engine state event payload
      * Payload for EVENT_STATE with data_size equal to sizeof(StateEvent).
-     * Obtain the source engine through dmEngine::GetEngine.
+     * Obtain the source engine from the extension context registry using ENGINE_CONTEXT_NAME.
      * @struct
      * @name StateEvent
      * @language C++
@@ -158,7 +160,7 @@ namespace dmEngine
      * Resize delivery follows the existing window state updates and notifications,
      * once per native resize callback with no initial-size replay. Window events may
      * arrive before engine Initialize; m_Window can be null during early startup.
-     * Obtain the source engine through dmEngine::GetEngine.
+     * Obtain the source engine from the extension context registry using ENGINE_CONTEXT_NAME.
      * @struct
      * @name WindowEvent
      * @language C++
@@ -227,9 +229,9 @@ namespace dmEngine
  *
  * Iterate the current resolved view through InputIterateActions and the iterator
  * getters. Iteration is immutable and borrowed only for the callback; it cannot
- * consume input or change focused dispatch. Obtain the source engine through
- * EngineGetFromExtensionParams. Focused gameplay should use native component
- * input/update callbacks.
+ * consume input or change focused dispatch. Obtain the source engine from the
+ * extension context registry using ENGINE_CONTEXT_NAME. Focused gameplay should
+ * use native component input/update callbacks.
  * @struct
  * @name EngineInputActionsEvent
  * @language C
@@ -238,7 +240,7 @@ namespace dmEngine
 
 /*# engine state event payload
  * Payload for ENGINE_STATE_EVENT with data_size equal to sizeof(EngineStateEvent).
- * Obtain the source engine through EngineGetFromExtensionParams.
+ * Obtain the source engine from the extension context registry using ENGINE_CONTEXT_NAME.
  * @struct
  * @name EngineStateEvent
  * @language C
@@ -254,7 +256,7 @@ namespace dmEngine
  * Resize delivery follows the existing window state updates and notifications,
  * once per native resize callback with no initial-size replay. Window events may
  * arrive before engine Initialize; m_Window can be null during early startup.
- * Obtain the source engine through EngineGetFromExtensionParams.
+ * Obtain the source engine from the extension context registry using ENGINE_CONTEXT_NAME.
  * @struct
  * @name EngineWindowEvent
  * @language C

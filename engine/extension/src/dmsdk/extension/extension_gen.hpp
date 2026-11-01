@@ -257,6 +257,24 @@ namespace dmExtension
     void ParamsFinalize(Params * params);
 
     /*#
+     * Gets the context registry used by the extension app params.
+     * @name AppParamsGetContextRegistry
+     * @language C++
+     * @param params [type:AppParams*] the params
+     * @return context_registry [type:HContextRegistry] the context registry
+     */
+    HContextRegistry AppParamsGetContextRegistry(AppParams* params);
+
+    /*#
+     * Gets the context registry used by the extension params.
+     * @name ParamsGetContextRegistry
+     * @language C++
+     * @param params [type:Params*] the params
+     * @return context_registry [type:HContextRegistry] the context registry
+     */
+    HContextRegistry ParamsGetContextRegistry(Params* params);
+
+    /*#
      * Gets a float from the extension callback parameters.
      *
      * Supported parameters:
@@ -958,6 +976,22 @@ namespace dmExtension
  * @name ExtensionParam
  * @language C
  * @member  EXTENSION_PARAM_DT engine update delta time
+ */
+
+/*#
+ * Gets the context registry used by the extension app params.
+ * @name ExtensionAppParamsGetContextRegistry
+ * @language C
+ * @param params [type:ExtensionAppParams*] the params
+ * @return context_registry [type:HContextRegistry] the context registry
+ */
+
+/*#
+ * Gets the context registry used by the extension params.
+ * @name ExtensionParamsGetContextRegistry
+ * @language C
+ * @param params [type:ExtensionParams*] the params
+ * @return context_registry [type:HContextRegistry] the context registry
  */
 
 /*#

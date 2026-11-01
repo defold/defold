@@ -321,11 +321,11 @@ foobar
  * @language C++
  */
 /*# C++ accessor
- * @name GetEngine
+ * @name ParamsGetContextRegistry
  * @param params [type:dmExtension::Params*] extension parameters
  */
 /*# C accessor
- * @name EngineGetFromExtensionParams
+ * @name ExtensionParamsGetContextRegistry
  * @language C
  * @param params [type:ExtensionParams*] extension parameters
  */
@@ -344,7 +344,7 @@ foobar
  * @language C++
  */
 /*# C++ accessor
- * @name GetEngine
+ * @name ParamsGetContextRegistry
  * @param params [type:UnknownParams*] extension parameters
  */
 """

@@ -20,8 +20,18 @@ int TestEngineWindowC(HEngine engine, HWindow expected)
     return EngineGetWindow(engine) == expected;
 }
 
-// Verify that callback parameters identify their source engine through the C API.
+// Verify that callback parameters expose the source engine through the C registry API.
 int TestEngineParamsC(ExtensionParams* params, HEngine expected)
 {
-    return EngineGetFromExtensionParams(params) == expected;
+    HContextRegistry registry = ExtensionParamsGetContextRegistry(params);
+    HEngine engine = registry ? (HEngine)ContextRegistryGetByHash(registry, dmHashString64(ENGINE_CONTEXT_NAME)) : 0;
+    return engine == expected;
+}
+
+// Application callbacks use the same registry and borrowed engine entry.
+int TestEngineAppParamsC(ExtensionAppParams* params, HEngine expected)
+{
+    HContextRegistry registry = ExtensionAppParamsGetContextRegistry(params);
+    HEngine engine = registry ? (HEngine)ContextRegistryGet(registry, ENGINE_CONTEXT_NAME) : 0;
+    return engine == expected;
 }

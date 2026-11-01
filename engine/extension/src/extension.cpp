@@ -319,6 +319,16 @@ namespace dmExtension
         ExtensionParamsFinalize(params);
     }
 
+    HContextRegistry AppParamsGetContextRegistry(AppParams* params)
+    {
+        return ExtensionAppParamsGetContextRegistry(params);
+    }
+
+    HContextRegistry ParamsGetContextRegistry(Params* params)
+    {
+        return ExtensionParamsGetContextRegistry(params);
+    }
+
     // A parameter struct is reused for different extensions. Restore its previous
     // value so nested delivery using the same parameters preserves its caller.
     struct ScopedUserData
