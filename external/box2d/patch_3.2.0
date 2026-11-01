@@ -229,6 +229,15 @@
  	{
 --- a/src/physics_world.c
 +++ b/src/physics_world.c
+@@ -295,7 +295,7 @@
+ 	{
+ 		// Built-in scheduler
+ 		world->workerCount = b2MinInt( def->workerCount, B2_MAX_WORKERS );
+-		world->scheduler = b2CreateScheduler( world->workerCount );
++		world->scheduler = b2CreateScheduler( world->workerCount, NULL );
+ 		world->enqueueTaskFcn = b2SchedulerEnqueueTask;
+ 		world->finishTaskFcn = b2SchedulerFinishTask;
+ 		world->userTaskContext = world->scheduler;
 @@ -880,6 +880,13 @@
  	b2TracyCZoneEnd( contact_state );
  	b2TracyCZoneEnd( collide );
@@ -243,3 +252,101 @@
  
  void b2World_Step( b2WorldId worldId, float timeStep, int subStepCount )
  {
+--- a/src/scheduler.c
++++ b/src/scheduler.c
+@@ -37,8 +37,9 @@
+ 
+ typedef struct b2Scheduler
+ {
+-	b2Thread* threads[B2_MAX_WORKERS];
++	void* threads[B2_MAX_WORKERS];
+ 	b2SchedulerWorkerContext workerContexts[B2_MAX_WORKERS];
++	b2SchedulerThreadInterface threadInterface;
+ 
+ 	// total workers including main thread
+ 	int workerCount;
+@@ -168,12 +169,31 @@
+ 	}
+ }
+ 
+-b2Scheduler* b2CreateScheduler( int workerCount )
++static void* b2SchedulerCreateThread( void ( *function )( void* ), void* context, const char* name )
++{
++	return b2CreateThread( function, context, name );
++}
++
++static void b2SchedulerJoinThread( void* thread )
++{
++	b2JoinThread( thread );
++}
++
++b2Scheduler* b2CreateScheduler( int workerCount, const b2SchedulerThreadInterface* threadInterface )
+ {
+ 	B2_ASSERT( 0 < workerCount && workerCount <= B2_MAX_WORKERS );
+ 
+ 	b2Scheduler* scheduler = b2Alloc( sizeof( b2Scheduler ) );
+ 	memset( scheduler, 0, sizeof( b2Scheduler ) );
++	if ( threadInterface != NULL )
++	{
++		scheduler->threadInterface = *threadInterface;
++	}
++	else
++	{
++		scheduler->threadInterface.createThread = b2SchedulerCreateThread;
++		scheduler->threadInterface.joinThread = b2SchedulerJoinThread;
++	}
+ 
+ 	scheduler->workerCount = workerCount;
+ 	int threadCount = workerCount - 1;
+@@ -192,7 +212,7 @@
+ 
+ 		char name[16];
+ 		snprintf( name, sizeof( name ), "box2d_worker_%02d", i + 1 );
+-		scheduler->threads[i] = b2CreateThread( b2SchedulerWorkerMain, scheduler->workerContexts + i, name );
++		scheduler->threads[i] = scheduler->threadInterface.createThread( b2SchedulerWorkerMain, scheduler->workerContexts + i, name );
+ 	}
+ 
+ 	return scheduler;
+@@ -210,7 +230,7 @@
+ 
+ 	for ( int i = 0; i < scheduler->threadCount; ++i )
+ 	{
+-		b2JoinThread( scheduler->threads[i] );
++		scheduler->threadInterface.joinThread( scheduler->threads[i] );
+ 		scheduler->threads[i] = NULL;
+ 	}
+ 
+--- a/src/scheduler.h
++++ b/src/scheduler.h
+@@ -3,13 +3,30 @@
+ 
+ #pragma once
+ 
++#ifdef __cplusplus
++extern "C"
++{
++#endif
++
+ typedef void b2TaskCallbackFcn( void* taskContext );
+ typedef struct b2Scheduler b2Scheduler;
+ 
+-b2Scheduler* b2CreateScheduler( int workerCount );
++// The scheduler owns each returned handle. joinThread must wait for the thread and release its handle.
++typedef struct b2SchedulerThreadInterface
++{
++	void* ( *createThread )( void ( *function )( void* ), void* context, const char* name );
++	void ( *joinThread )( void* thread );
++} b2SchedulerThreadInterface;
++
++// NULL selects native threads. The interface is copied; callbacks must remain valid until destruction.
++b2Scheduler* b2CreateScheduler( int workerCount, const b2SchedulerThreadInterface* threadInterface );
+ void b2DestroyScheduler( b2Scheduler* scheduler );
+ void b2ResetScheduler( b2Scheduler* scheduler );
+ 
+ // See b2EnqueueTaskCallbackFcn and b2FinishTaskCallbackFcn
+ void* b2SchedulerEnqueueTask( b2TaskCallbackFcn* task, void* taskContext, void* userContext );
+ void b2SchedulerFinishTask( void* userTask, void* userContext );
++
++#ifdef __cplusplus
++}
++#endif

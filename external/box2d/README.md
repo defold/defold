@@ -21,6 +21,8 @@ cp box2d-3.2.0/LICENSE Box2D/
 
 The patch preserves Defold's kinematic contacts, 16-vertex polygons, world lock
 query, total force query, and the `posix_memalign` fallback for older iOS targets.
+It also adds thread creation and join callbacks so Box2D's scheduler can use
+Defold's `dmThread`. Box2D retains its task scheduling and synchronization.
 Kinematic-only contacts use the scalar overflow solver because upstream's graph
 colors require a dynamic body.
 
