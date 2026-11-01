@@ -26,13 +26,12 @@ int g_TypeCDeleteCount;
 uint32_t g_TypeCWindowWidth;
 uint32_t g_TypeCWindowHeight;
 int g_TypeCUserDataValid = 1;
-HEngine g_TypeCEventEngine;
 EngineState g_TypeCEventState;
 EngineWindowEventType g_TypeCWindowType;
 HWindow g_TypeCEventWindow;
 static int* g_UserData;
 
-void TestTypeCBroadcastBuiltinEvent(ExtensionParams* params, uint32_t index, HEngine engine, HWindow window)
+void TestTypeCBroadcastBuiltinEvent(ExtensionParams* params, uint32_t index, HWindow window)
 {
     const EngineWindowEventType types[] = {
         ENGINE_WINDOW_EVENT_FOCUS_GAINED,
@@ -43,7 +42,6 @@ void TestTypeCBroadcastBuiltinEvent(ExtensionParams* params, uint32_t index, HEn
     if (index < 4 || index == 6)
     {
         EngineWindowEvent data = {
-            engine,
             window,
             index == 6 ? ENGINE_WINDOW_EVENT_RESIZED : types[index],
             {
@@ -57,7 +55,7 @@ void TestTypeCBroadcastBuiltinEvent(ExtensionParams* params, uint32_t index, HEn
     else
     {
         EngineStateEvent data = {
-            engine, index == 4 ? ENGINE_STATE_INITIALIZED : ENGINE_STATE_DELETE
+            index == 4 ? ENGINE_STATE_INITIALIZED : ENGINE_STATE_DELETE
         };
         ExtensionBroadcastEvent(params, ENGINE_STATE_EVENT, &data, sizeof(data));
     }
@@ -79,7 +77,6 @@ static void OnEvent(ExtensionParams* params, dmhash_t event_id, const void* data
     if (event_id == ENGINE_STATE_EVENT && data && data_size == sizeof(EngineStateEvent))
     {
         const EngineStateEvent* event = (const EngineStateEvent*)data;
-        g_TypeCEventEngine = event->m_Engine;
         g_TypeCEventState = event->m_State;
         g_TypeCEventWindow = 0;
         if (event->m_State == ENGINE_STATE_DELETE)
@@ -90,7 +87,6 @@ static void OnEvent(ExtensionParams* params, dmhash_t event_id, const void* data
     if (event_id == ENGINE_WINDOW_EVENT && data && data_size == sizeof(EngineWindowEvent))
     {
         const EngineWindowEvent* event = (const EngineWindowEvent*)data;
-        g_TypeCEventEngine = event->m_Engine;
         g_TypeCEventWindow = event->m_Window;
         g_TypeCWindowType = event->m_Type;
         if (event->m_Type == ENGINE_WINDOW_EVENT_RESIZED)

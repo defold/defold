@@ -49,7 +49,7 @@ extern "C" void dmExportedSymbols();
 extern "C" void TestTypeCpp();
 extern "C"
 {
-    void TestTypeCBroadcastBuiltinEvent(ExtensionParams* params, uint32_t index, HEngine engine, HWindow window);
+    void TestTypeCBroadcastBuiltinEvent(ExtensionParams* params, uint32_t index, HWindow window);
     extern int g_TypeCRegisterCount;
     extern int g_TypeCUnregisterCount;
     extern int g_TypeCUpdateCount;
@@ -60,7 +60,6 @@ extern "C"
     extern uint32_t g_TypeCWindowWidth;
     extern uint32_t g_TypeCWindowHeight;
     extern int g_TypeCUserDataValid;
-    extern HEngine g_TypeCEventEngine;
     extern EngineState g_TypeCEventState;
     extern EngineWindowEventType g_TypeCWindowType;
     extern HWindow g_TypeCEventWindow;
@@ -151,7 +150,6 @@ struct EventTestState
     const void*              m_LastData;
     uint32_t                  m_LastDataSize;
     bool                      m_DispatchNested;
-    dmEngine::HEngine         m_SourceEngine;
     dmEngine::State           m_State;
     dmEngine::WindowEventType m_WindowType;
     HWindow                   m_SourceWindow;
@@ -162,13 +160,13 @@ static const uint8_t g_NestedPayload[] = { 1, 2, 3 };
 
 static void BroadcastStateEvent(dmExtension::Params* params, dmEngine::State state)
 {
-    dmEngine::StateEvent event = { 0, state };
+    dmEngine::StateEvent event = { state };
     dmExtension::BroadcastEvent(params, dmEngine::EVENT_STATE, &event, sizeof(event));
 }
 
 static void BroadcastWindowEvent(dmExtension::Params* params, dmEngine::WindowEventType type)
 {
-    dmEngine::WindowEvent event = { 0, 0, type, { { 0, 0 } } };
+    dmEngine::WindowEvent event = { 0, type, { { 0, 0 } } };
     dmExtension::BroadcastEvent(params, dmEngine::EVENT_WINDOW, &event, sizeof(event));
 }
 
@@ -182,7 +180,6 @@ static void TypeEvent(dmExtension::Params* params, dmhash_t event_id, const void
     if (event_id == dmEngine::EVENT_STATE && data && data_size == sizeof(dmEngine::StateEvent))
     {
         const dmEngine::StateEvent* event = (const dmEngine::StateEvent*)data;
-        g_EventTest.m_SourceEngine = event->m_Engine;
         g_EventTest.m_State = event->m_State;
         g_EventTest.m_SourceWindow = 0;
         if (event->m_State == dmEngine::STATE_DELETE)
@@ -193,7 +190,6 @@ static void TypeEvent(dmExtension::Params* params, dmhash_t event_id, const void
     if (event_id == dmEngine::EVENT_WINDOW && data && data_size == sizeof(dmEngine::WindowEvent))
     {
         const dmEngine::WindowEvent* event = (const dmEngine::WindowEvent*)data;
-        g_EventTest.m_SourceEngine = event->m_Engine;
         g_EventTest.m_SourceWindow = event->m_Window;
         g_EventTest.m_WindowType = event->m_Type;
         if (event->m_Type == dmEngine::WINDOW_EVENT_RESIZED)
@@ -585,7 +581,7 @@ static void FinalizeEventTest(EventTestContext* context)
     g_OmitEventCallback = false;
 }
 
-// IDs must be matching C/C++ constant expressions; runtime checks verify their names and source handles.
+// IDs must be matching C/C++ constant expressions; runtime checks verify their names and source windows.
 TEST(dmExtension, BuiltinEventHashes)
 {
     DM_STATIC_ASSERT(ENGINE_STATE_EVENT == dmEngine::EVENT_STATE, Engine_State_Event_Mismatch);
@@ -611,16 +607,13 @@ TEST(dmExtension, BuiltinEventHashes)
         dmEngine::WINDOW_EVENT_ICONIFIED,
         dmEngine::WINDOW_EVENT_DEICONIFIED,
     };
-    // Compare opaque identity tokens without invoking engine or window APIs.
-    dmEngine::HEngine engine = (dmEngine::HEngine)&context.m_Engine;
+    // Compare the opaque window identity without invoking window APIs.
     HWindow window = (HWindow) & context;
     for (uint32_t i = 0; i < 7; ++i)
     {
-        TestTypeCBroadcastBuiltinEvent(&context.m_Params, i, engine, window);
+        TestTypeCBroadcastBuiltinEvent(&context.m_Params, i, window);
         bool window_event = i < 4 || i == 6;
         EXPECT_EQ(window_event ? dmEngine::EVENT_WINDOW : dmEngine::EVENT_STATE, g_EventTest.m_LastId);
-        EXPECT_EQ(engine, g_EventTest.m_SourceEngine);
-        EXPECT_EQ(engine, g_TypeCEventEngine);
         HWindow expected_window = window_event ? window : 0;
         EXPECT_EQ(expected_window, g_EventTest.m_SourceWindow);
         EXPECT_EQ(expected_window, g_TypeCEventWindow);
@@ -655,7 +648,7 @@ TEST(dmExtension, StateEventLegacyValidation)
     InitializeEventTest(&context);
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));
     int legacy_count = g_TestEventCount;
-    dmEngine::StateEvent event = { 0, (dmEngine::State)7 };
+    dmEngine::StateEvent event = { (dmEngine::State)7 };
     dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_STATE, &event, sizeof(event));
     event.m_State = (dmEngine::State)0;
     dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_STATE, &event, sizeof(event));
@@ -675,7 +668,7 @@ TEST(dmExtension, WindowEventLegacyValidation)
     InitializeEventTest(&context);
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));
     int legacy_count = g_TestEventCount;
-    dmEngine::WindowEvent event = { 0, 0, (dmEngine::WindowEventType)7, { { 0, 0 } } };
+    dmEngine::WindowEvent event = { 0, (dmEngine::WindowEventType)7, { { 0, 0 } } };
     dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &event, sizeof(event));
     uint8_t short_payload = 0;
     dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &short_payload, sizeof(short_payload));
@@ -693,7 +686,7 @@ TEST(dmExtension, WindowEventSizeUnion)
     InitializeEventTest(&context);
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));
     int legacy_count = g_TestEventCount;
-    dmEngine::WindowEvent event = { 0, 0, dmEngine::WINDOW_EVENT_RESIZED, { { 123, 456 } } };
+    dmEngine::WindowEvent event = { 0, dmEngine::WINDOW_EVENT_RESIZED, { { 123, 456 } } };
     dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &event, sizeof(event));
     EXPECT_EQ(legacy_count, g_TestEventCount);
     EXPECT_EQ(123u, g_EventTest.m_Width);
@@ -769,10 +762,10 @@ TEST(dmExtension, GenericBroadcastDelivery)
     };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(legacy_ids); ++i)
     {
-        TestTypeCBroadcastBuiltinEvent(&context.m_Params, i, 0, 0);
+        TestTypeCBroadcastBuiltinEvent(&context.m_Params, i, 0);
         EXPECT_EQ((int)legacy_ids[i], g_TestLastEvent);
     }
-    dmEngine::WindowEvent window = { 0, 0, dmEngine::WINDOW_EVENT_RESIZED, { { 321, 123 } } };
+    dmEngine::WindowEvent window = { 0, dmEngine::WINDOW_EVENT_RESIZED, { { 321, 123 } } };
     dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &window, sizeof(window));
     EXPECT_EQ(7u, g_EventTest.m_Count);
     EXPECT_EQ(7, g_TypeCEventCount);
@@ -806,7 +799,7 @@ TEST(dmExtension, UserDataLifecycle)
         g_DispatchDuringUpdate = false;
         dmExtension::PostRender(&context.m_Params);
         g_EventTest.m_DispatchNested = true;
-        dmEngine::WindowEvent window = { 0, 0, dmEngine::WINDOW_EVENT_RESIZED, { { 100, 50 } } };
+        dmEngine::WindowEvent window = { 0, dmEngine::WINDOW_EVENT_RESIZED, { { 100, 50 } } };
         dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &window, sizeof(window));
         BroadcastStateEvent(&context.m_Params, dmEngine::STATE_DELETE);
         EXPECT_EQ((void*)0, dmExtension::AppParamsGetUserData(&context.m_AppParams));
@@ -843,7 +836,7 @@ TEST(dmExtension, GenericEventCallbackArguments)
     EventTestContext context;
     InitializeEventTest(&context);
     EXPECT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));
-    dmEngine::WindowEvent data = { 0, 0, dmEngine::WINDOW_EVENT_RESIZED, { { 320, 200 } } };
+    dmEngine::WindowEvent data = { 0, dmEngine::WINDOW_EVENT_RESIZED, { { 320, 200 } } };
     dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &data, sizeof(data));
     EXPECT_EQ(dmEngine::EVENT_WINDOW, g_EventTest.m_LastId);
     EXPECT_EQ((const void*)&data, g_EventTest.m_LastData);
@@ -864,7 +857,7 @@ TEST(dmExtension, GenericEventLifecycle)
 {
     EventTestContext context;
     InitializeEventTest(&context);
-    dmEngine::WindowEvent window = { 0, 0, dmEngine::WINDOW_EVENT_RESIZED, { { 123, 45 } } };
+    dmEngine::WindowEvent window = { 0, dmEngine::WINDOW_EVENT_RESIZED, { { 123, 45 } } };
     dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &window, sizeof(window));
     EXPECT_EQ(0u, g_EventTest.m_Count);
     EXPECT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));
@@ -884,7 +877,7 @@ TEST(dmExtension, GenericEventLifecycle)
     };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(legacy_ids); ++i)
     {
-        TestTypeCBroadcastBuiltinEvent(&context.m_Params, i, 0, 0);
+        TestTypeCBroadcastBuiltinEvent(&context.m_Params, i, 0);
         EXPECT_EQ((int)legacy_ids[i], g_TestLastEvent);
         EXPECT_EQ(i < 4 ? dmEngine::EVENT_WINDOW : dmEngine::EVENT_STATE, g_EventTest.m_LastId);
         EXPECT_NE((const void*)0, g_EventTest.m_LastData);

@@ -40,7 +40,7 @@ TEST(testSdk, Basic)
 
     dmExtension::Params params;
     dmExtension::ParamsInitialize(&params);
-    dmEngine::WindowEvent event = { 0, 0, dmEngine::WINDOW_EVENT_FOCUS_GAINED, { { 0, 0 } } };
+    dmEngine::WindowEvent event = { 0, dmEngine::WINDOW_EVENT_FOCUS_GAINED, { { 0, 0 } } };
     dmExtension::BroadcastEvent(&params, dmEngine::EVENT_WINDOW, &event, sizeof(event));
     ASSERT_EQ(1, g_TestAppEventCount);
     event.m_Type = dmEngine::WINDOW_EVENT_FOCUS_LOST;

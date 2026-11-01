@@ -106,12 +106,11 @@ static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const vo
             return;
         }
         const dmEngine::StateEvent* event = (const dmEngine::StateEvent*)data;
-        g_EngineEvents.m_PayloadValid &= event->m_Engine == g_EngineEvents.m_Engine;
-        g_EngineEvents.m_PayloadValid &= dmEngine::GetEngine(params) == event->m_Engine &&
-                                         TestEngineParamsC(params, event->m_Engine);
-        HWindow window = dmEngine::GetWindow(event->m_Engine);
+        dmEngine::HEngine engine = dmEngine::GetEngine(params);
+        g_EngineEvents.m_PayloadValid &= engine == g_EngineEvents.m_Engine && TestEngineParamsC(params, engine);
+        HWindow window = dmEngine::GetWindow(engine);
         g_EngineEvents.m_WindowAccessorValid &= window == g_EngineEvents.m_Engine->m_Window &&
-                                                TestEngineWindowC(event->m_Engine, window);
+                                                TestEngineWindowC(engine, window);
         if (event->m_State == dmEngine::STATE_INITIALIZED)
         {
             ++g_EngineEvents.m_Initialized;
@@ -141,7 +140,8 @@ static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const vo
         {
             return;
         }
-        g_EngineEvents.m_PayloadValid &= resized->m_Engine == g_EngineEvents.m_Engine &&
+        dmEngine::HEngine engine = dmEngine::GetEngine(params);
+        g_EngineEvents.m_PayloadValid &= engine == g_EngineEvents.m_Engine && TestEngineParamsC(params, engine) &&
                                          resized->m_Window == g_EngineEvents.m_Engine->m_Window;
         ++g_EngineEvents.m_Resized;
         g_EngineEvents.m_Width = resized->m_Data.m_Size.m_Width;

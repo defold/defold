@@ -40,9 +40,9 @@
  * | `EVENT_WINDOW` | `_dm_event_engine_window` | WindowEvent. Resize, iconify and focus notifications from the window callbacks. May precede engine Initialize. |
  * | `EVENT_INPUT_ACTIONS` | `_dm_event_input_actions` | InputActionsEvent. One action view per completed input update, after binding resolution and text-last ordering, before focused collection dispatch. Includes empty updates. |
  *
- * Payloads and their handles are borrowed for the synchronous callback. Engine
- * events identify the source instance. Use dmEngine::GetWindow to obtain its current
- * window; window-specific payloads also identify the window directly. A window
+ * Payloads and their handles are borrowed for the synchronous callback. Obtain
+ * the source engine through dmEngine::GetEngine and its current window
+ * through dmEngine::GetWindow. Window payloads identify the source window directly. A window
  * handle may be null during early startup or failure cleanup.
  * Window notifications retain the backend focus/iconify semantics. Iconification
  * is distinct from hide/show visibility; platform callback availability is unchanged.
@@ -141,11 +141,10 @@ namespace dmEngine
 
     /*# engine state event payload
      * Payload for EVENT_STATE with data_size equal to sizeof(StateEvent).
-     * Use dmEngine::GetWindow to obtain the source engine's current window.
+     * Obtain the source engine through dmEngine::GetEngine.
      * @struct
      * @name StateEvent
      * @language C++
-     * @member m_Engine [type:HEngine] borrowed source engine; initialization may be incomplete
      * @member m_State [type:State] notification being delivered
      */
     typedef EngineStateEvent StateEvent;
@@ -159,10 +158,10 @@ namespace dmEngine
      * Resize delivery follows the existing window state updates and notifications,
      * once per native resize callback with no initial-size replay. Window events may
      * arrive before engine Initialize; m_Window can be null during early startup.
+     * Obtain the source engine through dmEngine::GetEngine.
      * @struct
      * @name WindowEvent
      * @language C++
-     * @member m_Engine [type:HEngine] borrowed source engine
      * @member m_Window [type:HWindow] borrowed source window, or null if not yet available
      * @member m_Type [type:WindowEventType] notification selecting the valid payload
      * @member  m_Data.m_Size.m_Width [type:uint32_t] physical framebuffer width; valid only for WINDOW_EVENT_RESIZED
@@ -239,11 +238,10 @@ namespace dmEngine
 
 /*# engine state event payload
  * Payload for ENGINE_STATE_EVENT with data_size equal to sizeof(EngineStateEvent).
- * Use EngineGetWindow to obtain the source engine's current window.
+ * Obtain the source engine through EngineGetFromExtensionParams.
  * @struct
  * @name EngineStateEvent
  * @language C
- * @member m_Engine [type:HEngine] borrowed source engine; initialization may be incomplete
  * @member m_State [type:EngineState] notification being delivered
  */
 
@@ -256,10 +254,10 @@ namespace dmEngine
  * Resize delivery follows the existing window state updates and notifications,
  * once per native resize callback with no initial-size replay. Window events may
  * arrive before engine Initialize; m_Window can be null during early startup.
+ * Obtain the source engine through EngineGetFromExtensionParams.
  * @struct
  * @name EngineWindowEvent
  * @language C
- * @member m_Engine [type:HEngine] borrowed source engine
  * @member m_Window [type:HWindow] borrowed source window, or null if not yet available
  * @member m_Type [type:EngineWindowEventType] notification selecting the valid payload
  * @member  m_Data.m_Size.m_Width [type:uint32_t] physical framebuffer width; valid only for ENGINE_WINDOW_EVENT_RESIZED

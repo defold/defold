@@ -26,7 +26,7 @@
  */
 
 /*# engine instance handle
- * Identifies an engine instance. Event payloads borrow the handle for the
+ * Identifies an engine instance. Extension callbacks borrow the handle for the
  * callback; do not destroy the engine or retain the handle after engine deletion.
  * Engine initialization may be incomplete when handling events during startup
  * or cleanup after an initialization failure. Reboot creates a new instance.
