@@ -22,6 +22,10 @@
 #include <dlib/condition_variable.h>
 #include <dlib/mutex.h>
 
+#if defined(_WIN32)
+#include <dmsdk/dlib/safe_windows.h>
+#endif
+
 #include "../box2d/box2d_physics.h"
 
 static void CreateContext(int workers, dmPhysics::HContext2D* context)
@@ -377,6 +381,34 @@ TEST(Box2DThreading, ContextDeletesWorldsAndWorkers)
     ASSERT_EQ(initial_bytes, b2GetByteCount());
 }
 
+#if defined(_WIN32) && defined(DM_HAS_THREADS)
+// Recreating worlds must release Windows worker handles, including when context deletion owns cleanup.
+TEST(Box2DThreading, WorkerHandlesReleased)
+{
+    dmPhysics::HContext2D context = 0;
+    CreateContext(3, &context);
+    dmPhysics::HWorld2D world = dmPhysics::NewWorld2D(context, dmPhysics::NewWorldParams());
+    ASSERT_NE((void*)0, world->m_TaskContext);
+    dmPhysics::DeleteContext2D(context);
+
+    DWORD initial_handles = 0;
+    ASSERT_TRUE(GetProcessHandleCount(GetCurrentProcess(), &initial_handles));
+    for (uint32_t i = 0; i < 16; ++i)
+    {
+        CreateContext(3, &context);
+        world = dmPhysics::NewWorld2D(context, dmPhysics::NewWorldParams());
+        if (i % 2 == 0)
+        {
+            dmPhysics::DeleteWorld2D(context, world);
+        }
+        dmPhysics::DeleteContext2D(context);
+    }
+    DWORD final_handles = 0;
+    ASSERT_TRUE(GetProcessHandleCount(GetCurrentProcess(), &final_handles));
+    ASSERT_EQ(initial_handles, final_handles);
+}
+#endif
+
 #if defined(DM_HAS_THREADS) && (defined(_WIN32) || defined(__linux__) || defined(__APPLE__))
 static uint32_t g_ThreadsCreated;
 static uint32_t g_ThreadsJoined;
@@ -394,6 +426,9 @@ static void JoinTrackedThread(void* handle)
     ++g_ThreadsJoined;
     dmThread::Thread* thread = (dmThread::Thread*)handle;
     dmThread::Join(*thread);
+#if defined(_WIN32)
+    dmThread::Detach(*thread);
+#endif
     delete thread;
 }
 

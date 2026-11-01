@@ -30,6 +30,10 @@ namespace dmPhysics
     {
         dmThread::Thread* thread = (dmThread::Thread*)handle;
         dmThread::Join(*thread);
+#if defined(_WIN32)
+        // Win32 Join waits for termination; Detach closes the thread handle.
+        dmThread::Detach(*thread);
+#endif
         delete thread;
     }
 #endif
