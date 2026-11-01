@@ -1896,6 +1896,7 @@ namespace dmGameSystem
     static const uint32_t PHYSICS_LUA_ID_CACHE_CAPACITY = 256;
     static const uint32_t PHYSICS_LUA_GROUP_CACHE_CAPACITY = 16;
     static const uint32_t PHYSICS_LUA_EVENT_TYPE_COUNT = PHYSICS_MESSAGE_TYPE_RAY_CAST_MISSED + 1;
+    static const uint32_t PHYSICS_LUA_BASE_STACK_SLOTS = 33;
 
     struct PhysicsLuaHashes
     {
@@ -2137,7 +2138,7 @@ namespace dmGameSystem
         // SetupCallback, cached keys and hashes, the largest event table, and
         // transient values from creating uncached hashes can exceed Lua's
         // guaranteed LUA_MINSTACK slots.
-        const int required_stack_slots = 33 + PHYSICS_LUA_EVENT_TYPE_COUNT + PHYSICS_LUA_GROUP_CACHE_CAPACITY;
+        const int required_stack_slots = PHYSICS_LUA_BASE_STACK_SLOTS + PHYSICS_LUA_EVENT_TYPE_COUNT + PHYSICS_LUA_GROUP_CACHE_CAPACITY;
         if (!lua_checkstack(L, required_stack_slots))
         {
             dmLogError("Failed to grow Lua stack for physics.set_event_listener() callback");
