@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
+#include <dlib/thread.h>
 #include <gamesys/components/comp_collision_object.h>
 #include <gamesys/physics_ddf.h>
 
@@ -24,6 +25,11 @@
 #include "gamesys_private.h"
 #include "scripts/bullet3d/script_bullet3d.h"
 #include "test_gamesys.h"
+
+#if defined(DM_PHYSICS_BOX2D_V3)
+#include <box2d/box2d.h>
+#include "components/box2d/comp_collision_object_box2d.h"
+#endif
 
 using namespace dmVMath;
 
@@ -830,6 +836,66 @@ TEST_F(ComponentTest, PhysicsListenerFixedTimestepTest)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
+
+#if defined(DM_PHYSICS_BOX2D_V3)
+class PhysicsWorkerListenerTest : public ScriptBaseTest
+{
+    const char* GetContentFolder() const override
+    {
+        return "collision_object";
+    }
+
+    void SetUp() override
+    {
+        m_projectOptions.m_PhysicsWorkerCount = (uint32_t)atoi(GetParam());
+        ScriptBaseTest::SetUp();
+    }
+};
+
+// Verify real worker-backed steps flush Lua events before the next fixed tick, and listener mutations
+// are immediately queryable and affect the following tick, including two physics ticks per game update.
+TEST_P(PhysicsWorkerListenerTest, FixedTicksWithMutationAndRaycast)
+{
+    m_PhysicsContextBox2D.m_BaseContext.m_UseFixedTimestep = true;
+    m_UpdateContext.m_FixedUpdateFrequency = 30;
+    m_UpdateContext.m_DT = 2.0f / 30.0f;
+
+    dmGameObject::HInstance floor = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_static.goc", dmHashString64("/floor"), 0, Point3(0, -9.99f, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, floor);
+    ASSERT_NE((dmGameObject::HInstance)0, Spawn(m_Factory, m_Collection, "/collision_object/body.goc", dmHashString64("/body")));
+    ASSERT_NE((dmGameObject::HInstance)0, Spawn(m_Factory, m_Collection, "/collision_object/body.goc", dmHashString64("/query_target"), 0, Point3(100, 100, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1)));
+
+    uint32_t component_type = 0;
+    dmGameObject::HComponent component = 0;
+    dmGameObject::HComponentWorld component_world = 0;
+    ASSERT_EQ(dmGameObject::RESULT_OK,
+              dmGameObject::GetComponent(floor, dmHashString64("collisionobject"), &component_type, &component, &component_world));
+    b2WorldId world = *(b2WorldId*)dmGameSystem::CompCollisionObjectGetBox2DWorld(component_world);
+    uint32_t expected_workers = 1;
+#if defined(_WIN32) || defined(__linux__) || defined(__APPLE__)
+    if (dmThread::PlatformHasThreadSupport())
+    {
+        expected_workers += m_projectOptions.m_PhysicsWorkerCount;
+    }
+#endif
+    ASSERT_EQ(expected_workers, (uint32_t)b2World_GetWorkerCount(world));
+
+    ASSERT_NE((dmGameObject::HInstance)0, Spawn(m_Factory, m_Collection, "/collision_object/callback_workers.goc", dmHashString64("/listener")));
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    for (uint32_t frame = 0; frame < 3; ++frame)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        lua_getglobal(L, "worker_callbacks");
+        ASSERT_EQ(2 * (frame + 1), (uint32_t)lua_tointeger(L, -1));
+        lua_pop(L, 1);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+static const char* physics_worker_counts[] = { "0", "3" };
+INSTANTIATE_TEST_CASE_P(Workers, PhysicsWorkerListenerTest, jc_test_values_in(physics_worker_counts));
+#endif
 
 TEST_F(ComponentTest, PhysicsDDFDecoderTest)
 {
