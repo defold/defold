@@ -36,8 +36,8 @@ void TestTypeCBroadcastBuiltinEvent(ExtensionParams* params, uint32_t index, HWi
     const EngineWindowEventType types[] = {
         ENGINE_WINDOW_EVENT_FOCUS_GAINED,
         ENGINE_WINDOW_EVENT_FOCUS_LOST,
-        ENGINE_WINDOW_EVENT_ICONIFIED,
-        ENGINE_WINDOW_EVENT_DEICONIFIED,
+        ENGINE_WINDOW_EVENT_MINIMIZED,
+        ENGINE_WINDOW_EVENT_RESTORED,
     };
     if (index < 4 || index == 6)
     {

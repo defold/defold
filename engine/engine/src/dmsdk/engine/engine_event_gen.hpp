@@ -37,14 +37,14 @@
  * | Constant | Name | Payload and delivery |
  * | -------- | ---- | -------------------- |
  * | `EVENT_STATE` | `_dm_event_engine_state` | StateEvent. Successful initialization and engine deletion. |
- * | `EVENT_WINDOW` | `_dm_event_engine_window` | WindowEvent. Resize, iconify and focus notifications from the window callbacks. May precede engine Initialize. |
+ * | `EVENT_WINDOW` | `_dm_event_engine_window` | WindowEvent. Resize, minimize/restore and focus notifications from the window callbacks. May precede engine Initialize. |
  * | `EVENT_INPUT_ACTIONS` | `_dm_event_input_actions` | InputActionsEvent. One action view per completed input update, after binding resolution and text-last ordering, before focused collection dispatch. Includes empty updates. |
  *
  * Payloads and their handles are borrowed for the synchronous callback. Obtain
  * the source engine through dmEngine::GetEngine and its current window
  * through dmEngine::GetWindow. Window payloads identify the source window directly. A window
  * handle may be null during early startup or failure cleanup.
- * Window notifications retain the backend focus/iconify semantics. Iconification
+ * Window notifications retain the backend focus/minimize semantics. Minimization
  * is distinct from hide/show visibility; platform callback availability is unchanged.
  *
  * @document
@@ -108,15 +108,15 @@ namespace dmEngine
      * @name WindowEventType
      * @language C++
      * @member  WINDOW_EVENT_RESIZED Resize notification. Read physical dimensions from m_Data.m_Size.
-     * @member  WINDOW_EVENT_ICONIFIED The window was iconified/minimized; not a hide notification.
-     * @member  WINDOW_EVENT_DEICONIFIED The window was restored from iconification; not a show notification.
+     * @member  WINDOW_EVENT_MINIMIZED The window was minimized; not a hide notification.
+     * @member  WINDOW_EVENT_RESTORED The window was restored from minimization; not a show notification.
      * @member  WINDOW_EVENT_FOCUS_GAINED The window or app screen gained focus.
      * @member  WINDOW_EVENT_FOCUS_LOST The window or app screen lost focus.
      */
     typedef ::EngineWindowEventType WindowEventType;
     static const WindowEventType WINDOW_EVENT_RESIZED = ::ENGINE_WINDOW_EVENT_RESIZED;
-    static const WindowEventType WINDOW_EVENT_ICONIFIED = ::ENGINE_WINDOW_EVENT_ICONIFIED;
-    static const WindowEventType WINDOW_EVENT_DEICONIFIED = ::ENGINE_WINDOW_EVENT_DEICONIFIED;
+    static const WindowEventType WINDOW_EVENT_MINIMIZED = ::ENGINE_WINDOW_EVENT_MINIMIZED;
+    static const WindowEventType WINDOW_EVENT_RESTORED = ::ENGINE_WINDOW_EVENT_RESTORED;
     static const WindowEventType WINDOW_EVENT_FOCUS_GAINED = ::ENGINE_WINDOW_EVENT_FOCUS_GAINED;
     static const WindowEventType WINDOW_EVENT_FOCUS_LOST = ::ENGINE_WINDOW_EVENT_FOCUS_LOST;
 
@@ -204,8 +204,8 @@ namespace dmEngine
  * @name EngineWindowEventType
  * @language C
  * @member  ENGINE_WINDOW_EVENT_RESIZED Resize notification. Read physical dimensions from m_Data.m_Size.
- * @member  ENGINE_WINDOW_EVENT_ICONIFIED The window was iconified/minimized; not a hide notification.
- * @member  ENGINE_WINDOW_EVENT_DEICONIFIED The window was restored from iconification; not a show notification.
+ * @member  ENGINE_WINDOW_EVENT_MINIMIZED The window was minimized; not a hide notification.
+ * @member  ENGINE_WINDOW_EVENT_RESTORED The window was restored from minimization; not a show notification.
  * @member  ENGINE_WINDOW_EVENT_FOCUS_GAINED The window or app screen gained focus.
  * @member  ENGINE_WINDOW_EVENT_FOCUS_LOST The window or app screen lost focus.
  */

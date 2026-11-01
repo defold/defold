@@ -669,12 +669,12 @@ namespace dmExtension
                     out_event->m_Event = EXTENSION_EVENT_ID_DEACTIVATEAPP;
                     return true;
                 }
-                case dmEngine::WINDOW_EVENT_ICONIFIED:
+                case dmEngine::WINDOW_EVENT_MINIMIZED:
                 {
                     out_event->m_Event = EXTENSION_EVENT_ID_ICONIFYAPP;
                     return true;
                 }
-                case dmEngine::WINDOW_EVENT_DEICONIFIED:
+                case dmEngine::WINDOW_EVENT_RESTORED:
                 {
                     out_event->m_Event = EXTENSION_EVENT_ID_DEICONIFYAPP;
                     return true;

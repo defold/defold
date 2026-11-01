@@ -590,8 +590,8 @@ TEST(dmExtension, BuiltinEventHashes)
     DM_STATIC_ASSERT(ENGINE_STATE_INITIALIZED == dmEngine::STATE_INITIALIZED, Engine_State_INITIALIZED_Mismatch);
     DM_STATIC_ASSERT(ENGINE_STATE_DELETE == dmEngine::STATE_DELETE, Engine_State_DELETE_Mismatch);
     DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT_RESIZED == dmEngine::WINDOW_EVENT_RESIZED, Engine_Window_RESIZED_Mismatch);
-    DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT_ICONIFIED == dmEngine::WINDOW_EVENT_ICONIFIED, Engine_Window_ICONIFIED_Mismatch);
-    DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT_DEICONIFIED == dmEngine::WINDOW_EVENT_DEICONIFIED, Engine_Window_DEICONIFIED_Mismatch);
+    DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT_MINIMIZED == dmEngine::WINDOW_EVENT_MINIMIZED, Engine_Window_MINIMIZED_Mismatch);
+    DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT_RESTORED == dmEngine::WINDOW_EVENT_RESTORED, Engine_Window_RESTORED_Mismatch);
     DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT_FOCUS_GAINED == dmEngine::WINDOW_EVENT_FOCUS_GAINED, Engine_Window_FOCUS_GAINED_Mismatch);
     DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT_FOCUS_LOST == dmEngine::WINDOW_EVENT_FOCUS_LOST, Engine_Window_FOCUS_LOST_Mismatch);
 
@@ -604,8 +604,8 @@ TEST(dmExtension, BuiltinEventHashes)
     const dmEngine::WindowEventType types[] = {
         dmEngine::WINDOW_EVENT_FOCUS_GAINED,
         dmEngine::WINDOW_EVENT_FOCUS_LOST,
-        dmEngine::WINDOW_EVENT_ICONIFIED,
-        dmEngine::WINDOW_EVENT_DEICONIFIED,
+        dmEngine::WINDOW_EVENT_MINIMIZED,
+        dmEngine::WINDOW_EVENT_RESTORED,
     };
     // Compare the opaque window identity without invoking window APIs.
     HWindow window = (HWindow) & context;
@@ -693,11 +693,11 @@ TEST(dmExtension, WindowEventSizeUnion)
     EXPECT_EQ(456u, g_EventTest.m_Height);
     EXPECT_EQ(123u, g_TypeCWindowWidth);
     EXPECT_EQ(456u, g_TypeCWindowHeight);
-    event.m_Type = dmEngine::WINDOW_EVENT_ICONIFIED;
+    event.m_Type = dmEngine::WINDOW_EVENT_MINIMIZED;
     memset(&event.m_Data, 0xa5, sizeof(event.m_Data));
     dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &event, sizeof(event));
-    EXPECT_EQ(dmEngine::WINDOW_EVENT_ICONIFIED, g_EventTest.m_WindowType);
-    EXPECT_EQ(ENGINE_WINDOW_EVENT_ICONIFIED, g_TypeCWindowType);
+    EXPECT_EQ(dmEngine::WINDOW_EVENT_MINIMIZED, g_EventTest.m_WindowType);
+    EXPECT_EQ(ENGINE_WINDOW_EVENT_MINIMIZED, g_TypeCWindowType);
     EXPECT_EQ(1u, g_EventTest.m_WindowCount);
     EXPECT_EQ(1, g_TypeCWindowCount);
     EXPECT_EQ(123u, g_EventTest.m_Width);

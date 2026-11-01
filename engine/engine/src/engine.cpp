@@ -366,7 +366,7 @@ namespace dmEngine
 
         ScopedExtensionParams params(engine);
 
-        dmEngine::WindowEvent event = { engine->m_Window, iconify ? dmEngine::WINDOW_EVENT_ICONIFIED : dmEngine::WINDOW_EVENT_DEICONIFIED, { { 0, 0 } } };
+        dmEngine::WindowEvent event = { engine->m_Window, iconify ? dmEngine::WINDOW_EVENT_MINIMIZED : dmEngine::WINDOW_EVENT_RESTORED, { { 0, 0 } } };
         dmExtension::BroadcastEvent(params, dmEngine::EVENT_WINDOW, &event, sizeof(event));
 
         dmGameSystem::OnWindowIconify(iconify != 0);
