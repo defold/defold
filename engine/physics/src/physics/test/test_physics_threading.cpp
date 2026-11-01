@@ -276,6 +276,85 @@ TEST(Box2DThreading, DeferredCallbacksStopEarly)
     CompareThreadedCallbacks(true, true, false);
 }
 
+// Stopping solid-contact collisions must also stop sensor collisions later in the same step.
+TEST(Box2DThreading, CollisionCancellationIncludesSensors)
+{
+    dmThread::TlsKey key = dmThread::AllocTls();
+    for (uint32_t workers = 0; workers <= 3; workers += 3)
+    {
+        for (uint32_t read_only = 0; read_only < 2; ++read_only)
+        {
+            Callbacks callbacks = {};
+            callbacks.m_Key = key;
+            callbacks.m_OnCallingThread = true;
+            dmThread::SetTlsValue(key, &callbacks);
+            dmPhysics::HContext2D context = 0;
+            CreateContext(workers, &context);
+            context->m_TriggerOverlapCapacity = 16;
+            dmPhysics::NewWorldParams params;
+            params.m_GetWorldTransformCallback = GetTransform;
+            dmPhysics::HWorld2D world = dmPhysics::NewWorld2D(context, params);
+            dmPhysics::HCollisionShape2D shapes[] = {
+                dmPhysics::NewBoxShape2D(context, dmVMath::Vector3(8.0f, 0.5f, 0.0f)),
+                dmPhysics::NewBoxShape2D(context, dmVMath::Vector3(0.5f, 0.5f, 0.0f)),
+                dmPhysics::NewBoxShape2D(context, dmVMath::Vector3(8.0f, 2.0f, 0.0f)),
+            };
+            Body bodies[5];
+            dmPhysics::HCollisionObject2D objects[5];
+            for (uint32_t i = 0; i < 5; ++i)
+            {
+                Body* body = &bodies[i];
+                body->m_Id = i;
+                body->m_Position = i == 0 ? dmVMath::Point3(0.0f, -0.5f, 0.0f) : dmVMath::Point3(2.0f * i - 4.0f, 0.4f, 0.0f);
+                body->m_Rotation = dmVMath::Quat::identity();
+                body->m_Callbacks = &callbacks;
+                dmPhysics::CollisionObjectData data;
+                data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+                uint32_t shape_index = 1;
+                if (i == 0)
+                {
+                    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+                    shape_index = 0;
+                }
+                else if (i == 4)
+                {
+                    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER;
+                    shape_index = 2;
+                }
+                data.m_Mass = shape_index == 1 ? 1.0f : 0.0f;
+                data.m_UserData = body;
+                objects[i] = dmPhysics::NewCollisionObject2D(world, data, &shapes[shape_index], 1);
+            }
+            dmPhysics::StepWorldContext step;
+            step.m_DT = 1.0f / 60.0f;
+            step.m_Box2DSubStepCount = 4;
+            step.m_ContactCallbacksReadOnly = read_only != 0;
+            step.m_CollisionCallback = Collision;
+            step.m_CollisionUserData = &callbacks;
+            dmPhysics::StepWorld2D(world, step);
+            ASSERT_GT(callbacks.m_Collisions, 3U);
+
+            callbacks.m_Collisions = 0;
+            callbacks.m_StopCallbacks = true;
+            dmPhysics::StepWorld2D(world, step);
+            ASSERT_EQ(3U, callbacks.m_Collisions);
+            ASSERT_TRUE(callbacks.m_OnCallingThread);
+
+            for (uint32_t i = 0; i < 5; ++i)
+            {
+                dmPhysics::DeleteCollisionObject2D(world, objects[i]);
+            }
+            for (uint32_t i = 0; i < 3; ++i)
+            {
+                dmPhysics::DeleteCollisionShape2D(shapes[i]);
+            }
+            dmPhysics::DeleteWorld2D(context, world);
+            dmPhysics::DeleteContext2D(context);
+        }
+    }
+    dmThread::FreeTls(key);
+}
+
 // Immediate callbacks must observe velocity changes made by earlier callbacks, even with workers enabled.
 TEST(Box2DThreading, ImmediateCallbacksCanChangeVelocity)
 {

@@ -564,7 +564,8 @@ namespace dmPhysics
     }
     #endif
 
-    static void SerialPostSolve(World2D* world, const StepWorldContext& step_context, CollisionCallback collision_callback, ContactPointCallback contact_point_callback)
+    // Preserve collision callback cancellation for the sensor pass later in StepWorld2D.
+    static void SerialPostSolve(World2D* world, const StepWorldContext& step_context, CollisionCallback& collision_callback, ContactPointCallback contact_point_callback)
     {
         float inv_scale = world->m_Context->m_InvScale;
 
@@ -741,7 +742,7 @@ namespace dmPhysics
     }
 
     // Only used when callbacks promise not to modify the world. Delivery remains on the calling thread.
-    static void ParallelPostSolve(World2D* world, const StepWorldContext& step_context, CollisionCallback collision_callback, ContactPointCallback contact_point_callback)
+    static void ParallelPostSolve(World2D* world, const StepWorldContext& step_context, CollisionCallback& collision_callback, ContactPointCallback contact_point_callback)
     {
         if (world->m_Bodies.Empty())
         {
