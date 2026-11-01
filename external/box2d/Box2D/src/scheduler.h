@@ -3,14 +3,17 @@
 
 #pragma once
 
+// DEFOLD EDIT BEGIN
 #ifdef __cplusplus
 extern "C"
 {
 #endif
+// DEFOLD EDIT END
 
 typedef void b2TaskCallbackFcn( void* taskContext );
 typedef struct b2Scheduler b2Scheduler;
 
+// DEFOLD EDIT BEGIN
 // The scheduler owns each returned handle. joinThread must wait for the thread and release its handle.
 typedef struct b2SchedulerThreadInterface
 {
@@ -20,6 +23,7 @@ typedef struct b2SchedulerThreadInterface
 
 // NULL selects native threads. The interface is copied; callbacks must remain valid until destruction.
 b2Scheduler* b2CreateScheduler( int workerCount, const b2SchedulerThreadInterface* threadInterface );
+// DEFOLD EDIT END
 void b2DestroyScheduler( b2Scheduler* scheduler );
 void b2ResetScheduler( b2Scheduler* scheduler );
 
@@ -27,6 +31,8 @@ void b2ResetScheduler( b2Scheduler* scheduler );
 void* b2SchedulerEnqueueTask( b2TaskCallbackFcn* task, void* taskContext, void* userContext );
 void b2SchedulerFinishTask( void* userTask, void* userContext );
 
+// DEFOLD EDIT BEGIN
 #ifdef __cplusplus
 }
 #endif
+// DEFOLD EDIT END

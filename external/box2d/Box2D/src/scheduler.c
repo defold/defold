@@ -37,9 +37,11 @@ typedef struct b2SchedulerWorkerContext
 
 typedef struct b2Scheduler
 {
+	// DEFOLD EDIT BEGIN
 	void* threads[B2_MAX_WORKERS];
 	b2SchedulerWorkerContext workerContexts[B2_MAX_WORKERS];
 	b2SchedulerThreadInterface threadInterface;
+	// DEFOLD EDIT END
 
 	// total workers including main thread
 	int workerCount;
@@ -169,6 +171,7 @@ static void b2SchedulerWorkerMain( void* context )
 	}
 }
 
+// DEFOLD EDIT BEGIN
 static void* b2SchedulerCreateThread( void ( *function )( void* ), void* context, const char* name )
 {
 	return b2CreateThread( function, context, name );
@@ -180,11 +183,13 @@ static void b2SchedulerJoinThread( void* thread )
 }
 
 b2Scheduler* b2CreateScheduler( int workerCount, const b2SchedulerThreadInterface* threadInterface )
+// DEFOLD EDIT END
 {
 	B2_ASSERT( 0 < workerCount && workerCount <= B2_MAX_WORKERS );
 
 	b2Scheduler* scheduler = b2Alloc( sizeof( b2Scheduler ) );
 	memset( scheduler, 0, sizeof( b2Scheduler ) );
+	// DEFOLD EDIT BEGIN
 	if ( threadInterface != NULL )
 	{
 		scheduler->threadInterface = *threadInterface;
@@ -194,6 +199,7 @@ b2Scheduler* b2CreateScheduler( int workerCount, const b2SchedulerThreadInterfac
 		scheduler->threadInterface.createThread = b2SchedulerCreateThread;
 		scheduler->threadInterface.joinThread = b2SchedulerJoinThread;
 	}
+	// DEFOLD EDIT END
 
 	scheduler->workerCount = workerCount;
 	int threadCount = workerCount - 1;
@@ -212,7 +218,9 @@ b2Scheduler* b2CreateScheduler( int workerCount, const b2SchedulerThreadInterfac
 
 		char name[16];
 		snprintf( name, sizeof( name ), "box2d_worker_%02d", i + 1 );
+		// DEFOLD EDIT BEGIN
 		scheduler->threads[i] = scheduler->threadInterface.createThread( b2SchedulerWorkerMain, scheduler->workerContexts + i, name );
+		// DEFOLD EDIT END
 	}
 
 	return scheduler;
@@ -230,7 +238,9 @@ void b2DestroyScheduler( b2Scheduler* scheduler )
 
 	for ( int i = 0; i < scheduler->threadCount; ++i )
 	{
+		// DEFOLD EDIT BEGIN
 		scheduler->threadInterface.joinThread( scheduler->threads[i] );
+		// DEFOLD EDIT END
 		scheduler->threads[i] = NULL;
 	}
 
