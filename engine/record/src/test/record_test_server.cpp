@@ -399,7 +399,7 @@ static void TestHandler(void*, dmWebServer::Request* request)
     }
     else if (!strcmp(request->m_Resource, "/test/deactivate"))
     {
-        dmEngine::AppEvent event = { 0, 0 };
+        dmEngine::AppEvent event = { 0 };
         dmExtension::BroadcastEvent(&g_Params, dmEngine::EVENT_APP_DEACTIVATE, &event, sizeof(event));
         SendLifecycle(request);
     }
