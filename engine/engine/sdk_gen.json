@@ -11,19 +11,16 @@
                 "cpp": {
                     "namespace": "dmEngine",
                     "constant_aliases": {
-                        "ENGINE_EVENT_APP_ACTIVATE": "dmhash_t",
-                        "ENGINE_EVENT_APP_DEACTIVATE": "dmhash_t",
-                        "ENGINE_EVENT_APP_ICONIFY": "dmhash_t",
-                        "ENGINE_EVENT_APP_DEICONIFY": "dmhash_t",
-                        "ENGINE_EVENT_ENGINE_INITIALIZED": "dmhash_t",
-                        "ENGINE_EVENT_ENGINE_DELETE": "dmhash_t",
+                        "ENGINE_STATE_EVENT": "dmhash_t",
                         "ENGINE_EVENT_WINDOW_RESIZED": "dmhash_t",
                         "ENGINE_EVENT_INPUT_ACTIONS": "dmhash_t"
                     },
                     "rename": {
+                        "ENGINE_STATE_EVENT": "EVENT_STATE",
+                        "ENGINE_STATE_": "STATE_",
+                        "EngineStateEvent": "StateEvent",
+                        "EngineState": "State",
                         "ENGINE_EVENT_": "EVENT_",
-                        "EngineLifecycleEvent": "LifecycleEvent",
-                        "EngineAppEvent": "AppEvent",
                         "EngineWindowResizedEvent": "WindowResizedEvent",
                         "EngineInputActionsEvent": "InputActionsEvent",
                         "ExtensionBroadcastEvent": "dmExtension::BroadcastEvent",
@@ -32,7 +29,10 @@
                         "HInputContext": "dmInput::HContext",
                         "InputIterateActions": "dmInput::IterateActions",
                         "EngineGetFromExtensionParams": "dmEngine::GetEngine"
-                    }
+                    },
+                    "enum_aliases": [
+                        "EngineState"
+                    ]
                 }
             }
         },

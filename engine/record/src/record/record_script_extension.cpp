@@ -378,9 +378,10 @@ namespace dmRecord
         return dmExtension::RESULT_OK;
     }
 
-    static void OnEvent(dmExtension::Params*, dmhash_t event_id, const void*, uint32_t)
+    static void OnEvent(dmExtension::Params*, dmhash_t event_id, const void* data, uint32_t data_size)
     {
-        if (event_id == dmEngine::EVENT_ENGINE_DELETE)
+        if (event_id == dmEngine::EVENT_STATE && data && data_size == sizeof(dmEngine::StateEvent) &&
+            ((const dmEngine::StateEvent*)data)->m_State == dmEngine::STATE_DELETE)
         {
             // Stop capture and release callbacks before scripts, sound or the window.
             FinalizeScript();

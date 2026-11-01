@@ -635,17 +635,17 @@ namespace dmExtension
 
     struct EngineEventMapping
     {
-        EventID  m_LegacyId;
-        dmhash_t m_Id;
+        EventID         m_LegacyId;
+        dmEngine::State m_State;
     };
 
     static const EngineEventMapping g_EngineEvents[] = {
-        { EVENT_ID_ACTIVATEAPP, dmEngine::EVENT_APP_ACTIVATE },
-        { EVENT_ID_DEACTIVATEAPP, dmEngine::EVENT_APP_DEACTIVATE },
-        { EVENT_ID_ICONIFYAPP, dmEngine::EVENT_APP_ICONIFY },
-        { EVENT_ID_DEICONIFYAPP, dmEngine::EVENT_APP_DEICONIFY },
-        { EVENT_ID_ENGINE_INITIALIZED, dmEngine::EVENT_ENGINE_INITIALIZED },
-        { EVENT_ID_ENGINE_DELETE, dmEngine::EVENT_ENGINE_DELETE },
+        { EVENT_ID_ACTIVATEAPP, dmEngine::STATE_APP_ACTIVATE },
+        { EVENT_ID_DEACTIVATEAPP, dmEngine::STATE_APP_DEACTIVATE },
+        { EVENT_ID_ICONIFYAPP, dmEngine::STATE_APP_ICONIFY },
+        { EVENT_ID_DEICONIFYAPP, dmEngine::STATE_APP_DEICONIFY },
+        { EVENT_ID_ENGINE_INITIALIZED, dmEngine::STATE_INITIALIZED },
+        { EVENT_ID_ENGINE_DELETE, dmEngine::STATE_DELETE },
     };
 
     void BroadcastEvent(Params* params, dmhash_t event_id, const void* data, uint32_t data_size)
@@ -654,13 +654,17 @@ namespace dmExtension
         params->m_Impl->m_DT = 0.0f;
         Event legacy_event;
         bool has_legacy_event = false;
-        for (uint32_t i = 0; i < DM_ARRAY_SIZE(g_EngineEvents); ++i)
+        if (event_id == dmEngine::EVENT_STATE && data && data_size == sizeof(dmEngine::StateEvent))
         {
-            if (g_EngineEvents[i].m_Id == event_id)
+            const dmEngine::StateEvent* state = (const dmEngine::StateEvent*)data;
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(g_EngineEvents); ++i)
             {
-                legacy_event.m_Event = (ExtensionEventID)g_EngineEvents[i].m_LegacyId;
-                has_legacy_event = true;
-                break;
+                if (g_EngineEvents[i].m_State == state->m_State)
+                {
+                    legacy_event.m_Event = (ExtensionEventID)g_EngineEvents[i].m_LegacyId;
+                    has_legacy_event = true;
+                    break;
+                }
             }
         }
 

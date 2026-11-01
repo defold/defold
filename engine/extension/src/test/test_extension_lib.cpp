@@ -31,6 +31,7 @@ int g_TestUpdateCount = 0;
 float g_TestUpdateDT = 0.0f;
 int g_TestAppEventCount = 0;
 int g_TestEventCount = 0;
+int g_TestLastEvent = -1;
 int g_TestNewEventCount = 0;
 int g_TestContextCount = 0;
 int g_TestRegisterCount = 0;
@@ -97,6 +98,7 @@ static dmExtension::Result UpdateTest(dmExtension::Params* params)
 static void OnEventTest(dmExtension::Params* params, const dmExtension::Event* event)
 {
     ++g_TestEventCount;
+    g_TestLastEvent = event->m_Event;
     if( event->m_Event == EXTENSION_EVENT_ID_ACTIVATEAPP )
         ++g_TestAppEventCount;
     else if(event->m_Event == EXTENSION_EVENT_ID_DEACTIVATEAPP)

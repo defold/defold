@@ -97,36 +97,36 @@ static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const vo
     {
         return;
     }
-    if (event_id == dmEngine::EVENT_ENGINE_INITIALIZED || event_id == dmEngine::EVENT_ENGINE_DELETE)
+    if (event_id == dmEngine::EVENT_STATE)
     {
-        bool valid = data && data_size == sizeof(dmEngine::LifecycleEvent);
+        bool valid = data && data_size == sizeof(dmEngine::StateEvent);
         g_EngineEvents.m_PayloadValid &= valid;
         if (!valid)
         {
             return;
         }
-        const dmEngine::LifecycleEvent* event = (const dmEngine::LifecycleEvent*)data;
+        const dmEngine::StateEvent* event = (const dmEngine::StateEvent*)data;
         g_EngineEvents.m_PayloadValid &= event->m_Engine == g_EngineEvents.m_Engine;
         g_EngineEvents.m_PayloadValid &= dmEngine::GetEngine(params) == event->m_Engine &&
                                          TestEngineParamsC(params, event->m_Engine);
         HWindow window = dmEngine::GetWindow(event->m_Engine);
         g_EngineEvents.m_WindowAccessorValid &= window == g_EngineEvents.m_Engine->m_Window &&
                                                 TestEngineWindowC(event->m_Engine, window);
-    }
-    if (event_id == dmEngine::EVENT_ENGINE_INITIALIZED)
-    {
-        ++g_EngineEvents.m_Initialized;
-        g_EngineEvents.m_InitializedContexts = params->m_L && params->m_ResourceFactory;
-    }
-    else if (event_id == dmEngine::EVENT_ENGINE_DELETE)
-    {
-        ++g_EngineEvents.m_Deleted;
-        g_EngineEvents.m_DeletedBeforeFinalize = g_EngineEvents.m_Finalized == 0;
-        g_EngineEvents.m_DeletedContexts = params->m_L && params->m_ResourceFactory &&
-                                           g_EngineEvents.m_Engine->m_RenderContext && g_EngineEvents.m_Engine->m_HidContext;
-        dmhash_t collection_path;
-        g_EngineEvents.m_CollectionAliveAtDelete = g_EngineEvents.m_Engine->m_MainCollectionResource &&
-                                                   ResourceGetPath(params->m_ResourceFactory, g_EngineEvents.m_Engine->m_MainCollectionResource, &collection_path) == RESOURCE_RESULT_OK;
+        if (event->m_State == dmEngine::STATE_INITIALIZED)
+        {
+            ++g_EngineEvents.m_Initialized;
+            g_EngineEvents.m_InitializedContexts = params->m_L && params->m_ResourceFactory;
+        }
+        else if (event->m_State == dmEngine::STATE_DELETE)
+        {
+            ++g_EngineEvents.m_Deleted;
+            g_EngineEvents.m_DeletedBeforeFinalize = g_EngineEvents.m_Finalized == 0;
+            g_EngineEvents.m_DeletedContexts = params->m_L && params->m_ResourceFactory &&
+                                               g_EngineEvents.m_Engine->m_RenderContext && g_EngineEvents.m_Engine->m_HidContext;
+            dmhash_t collection_path;
+            g_EngineEvents.m_CollectionAliveAtDelete = g_EngineEvents.m_Engine->m_MainCollectionResource &&
+                                                       ResourceGetPath(params->m_ResourceFactory, g_EngineEvents.m_Engine->m_MainCollectionResource, &collection_path) == RESOURCE_RESULT_OK;
+        }
     }
     else if (event_id == dmEngine::EVENT_WINDOW_RESIZED)
     {

@@ -32,12 +32,7 @@
  *
  * | Constant | Name | Payload and delivery |
  * | -------- | ---- | -------------------- |
- * | `ENGINE_EVENT_APP_ACTIVATE` | `_dm_event_app_activate` | EngineAppEvent. The engine window gains focus. |
- * | `ENGINE_EVENT_APP_DEACTIVATE` | `_dm_event_app_deactivate` | EngineAppEvent. The engine window loses focus. |
- * | `ENGINE_EVENT_APP_ICONIFY` | `_dm_event_app_iconify` | EngineAppEvent. The engine window is iconified. |
- * | `ENGINE_EVENT_APP_DEICONIFY` | `_dm_event_app_deiconify` | EngineAppEvent. The engine window is restored. |
- * | `ENGINE_EVENT_ENGINE_INITIALIZED` | `_dm_event_engine_initialized` | EngineLifecycleEvent. Successful engine initialization has completed. |
- * | `ENGINE_EVENT_ENGINE_DELETE` | `_dm_event_engine_delete` | EngineLifecycleEvent. Engine deletion begins, before collections and systems are torn down. Also delivered after initialization failure if AppInitialize succeeded. |
+ * | `ENGINE_STATE_EVENT` | `_dm_event_engine_state` | EngineStateEvent. Application focus/iconify changes, successful initialization and engine deletion. |
  * | `ENGINE_EVENT_WINDOW_RESIZED` | `_dm_event_window_resized` | EngineWindowResizedEvent, after the existing window state updates and notifications. One event per native resize callback; no initial-size replay. May precede engine Initialize. |
  * | `ENGINE_EVENT_INPUT_ACTIONS` | `_dm_event_input_actions` | EngineInputActionsEvent. One action view per completed input update, after binding resolution and text-last ordering, before focused collection dispatch. Includes empty updates. |
  *
@@ -45,7 +40,7 @@
  * events identify the source instance. Use EngineGetWindow to obtain its current
  * window; window-specific payloads also identify the window directly. A window
  * handle may be null during early startup or failure cleanup.
- * APP events retain their window focus/iconify semantics; they do not aggregate
+ * App state notifications retain their window focus/iconify semantics; they do not aggregate
  * activity across multiple windows or represent separate process lifecycle events.
  *
  * @document
@@ -53,53 +48,35 @@
  * @language C
  */
 
-/*# The engine window gains focus.
- * Hash of `_dm_event_app_activate` for ExtensionBroadcastEvent and FExtensionEventCallback.
+/*# engine state notification
+ * Hash of `_dm_event_engine_state` for ExtensionBroadcastEvent and FExtensionEventCallback.
  * Precomputed dmHashString64 value; no runtime hashing.
  * @constant
- * @name ENGINE_EVENT_APP_ACTIVATE
+ * @name ENGINE_STATE_EVENT
  */
-#define ENGINE_EVENT_APP_ACTIVATE ((dmhash_t)0xbe4d4370ee0c2abeULL)
+#define ENGINE_STATE_EVENT ((dmhash_t)0xd92614b3c5b3e228ULL)
 
-/*# The engine window loses focus.
- * Hash of `_dm_event_app_deactivate` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Precomputed dmHashString64 value; no runtime hashing.
- * @constant
- * @name ENGINE_EVENT_APP_DEACTIVATE
+/*# engine state notification kind
+ * Identifies the notification carried by EngineStateEvent. Focus and iconify
+ * transitions are independent of engine initialization and deletion.
+ * @enum
+ * @name EngineState
+ * @member ENGINE_STATE_APP_ACTIVATE The engine window gains focus.
+ * @member ENGINE_STATE_APP_DEACTIVATE The engine window loses focus.
+ * @member ENGINE_STATE_APP_ICONIFY The engine window is iconified.
+ * @member ENGINE_STATE_APP_DEICONIFY The engine window is restored.
+ * @member ENGINE_STATE_INITIALIZED Successful engine initialization has completed.
+ * @member ENGINE_STATE_DELETE Engine deletion begins, before collections and systems are torn down. Also delivered after initialization failure if AppInitialize succeeded.
  */
-#define ENGINE_EVENT_APP_DEACTIVATE ((dmhash_t)0x695861ad27760b07ULL)
-
-/*# The engine window is iconified.
- * Hash of `_dm_event_app_iconify` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Precomputed dmHashString64 value; no runtime hashing.
- * @constant
- * @name ENGINE_EVENT_APP_ICONIFY
- */
-#define ENGINE_EVENT_APP_ICONIFY ((dmhash_t)0x4adf48e23070b20dULL)
-
-/*# The engine window is restored.
- * Hash of `_dm_event_app_deiconify` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Precomputed dmHashString64 value; no runtime hashing.
- * @constant
- * @name ENGINE_EVENT_APP_DEICONIFY
- */
-#define ENGINE_EVENT_APP_DEICONIFY ((dmhash_t)0x74b60ff5566fd9d6ULL)
-
-/*# Successful engine initialization has completed.
- * Hash of `_dm_event_engine_initialized` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Precomputed dmHashString64 value; no runtime hashing.
- * @constant
- * @name ENGINE_EVENT_ENGINE_INITIALIZED
- */
-#define ENGINE_EVENT_ENGINE_INITIALIZED ((dmhash_t)0x1a23d009fce5c274ULL)
-
-/*# Engine deletion begins, before collections and systems are torn down.
- * Hash of `_dm_event_engine_delete` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Precomputed dmHashString64 value; no runtime hashing.
- * @constant
- * @name ENGINE_EVENT_ENGINE_DELETE
- */
-#define ENGINE_EVENT_ENGINE_DELETE ((dmhash_t)0x18a5362db07c4597ULL)
+typedef enum EngineState
+{
+    ENGINE_STATE_APP_ACTIVATE   = 0,
+    ENGINE_STATE_APP_DEACTIVATE = 1,
+    ENGINE_STATE_APP_ICONIFY    = 2,
+    ENGINE_STATE_APP_DEICONIFY  = 3,
+    ENGINE_STATE_INITIALIZED    = 4,
+    ENGINE_STATE_DELETE         = 5,
+} EngineState;
 
 /*# Window size changed; the payload is EngineWindowResizedEvent.
  * Hash of `_dm_event_window_resized` for ExtensionBroadcastEvent and FExtensionEventCallback.
@@ -138,30 +115,19 @@ typedef struct EngineInputActionsEvent
     HInputContext m_Input;
 } EngineInputActionsEvent;
 
-/*# engine lifecycle event payload
- * Payload for ENGINE_EVENT_ENGINE_INITIALIZED and ENGINE_EVENT_ENGINE_DELETE
- * with data_size equal to sizeof(EngineLifecycleEvent).
- * @struct
- * @name EngineLifecycleEvent
- * @member m_Engine [type:HEngine] borrowed source engine; initialization may be incomplete
- */
-typedef struct EngineLifecycleEvent
-{
-    HEngine m_Engine;
-} EngineLifecycleEvent;
-
-/*# application event payload
- * Payload for all four ENGINE_EVENT_APP_* events with data_size equal to
- * sizeof(EngineAppEvent). The event id specifies the focus or iconify transition.
+/*# engine state event payload
+ * Payload for ENGINE_STATE_EVENT with data_size equal to sizeof(EngineStateEvent).
  * Use EngineGetWindow to obtain the source engine's current window.
  * @struct
- * @name EngineAppEvent
- * @member m_Engine [type:HEngine] borrowed source engine
+ * @name EngineStateEvent
+ * @member m_Engine [type:HEngine] borrowed source engine; initialization may be incomplete
+ * @member m_State [type:EngineState] notification being delivered
  */
-typedef struct EngineAppEvent
+typedef struct EngineStateEvent
 {
-    HEngine m_Engine;
-} EngineAppEvent;
+    HEngine          m_Engine;
+    enum EngineState m_State;
+} EngineStateEvent;
 
 /*# window resized event payload
  * Payload for `ENGINE_EVENT_WINDOW_RESIZED` with data_size equal to

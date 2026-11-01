@@ -105,13 +105,28 @@ class CppDocumentationTests(unittest.TestCase):
             info, None, state, [], docs)
         cpp_docs, c_docs = header.split('} // namespace dmEngine', 1)
         aliases = info['constant_aliases']
-        self.assertEqual(8, len(aliases))
+        self.assertEqual(3, len(aliases))
         self.assertIn('| `EVENT_WINDOW_RESIZED` |', cpp_docs)
         for name in aliases:
             renamed = gen_cpp.rename_symbols(info['rename'], name)
             self.assertIn('static const dmhash_t %s = %s;' % (renamed, name), cpp_docs)
             self.assertIn('@name ' + renamed, cpp_docs)
             self.assertIn('@name ' + name, c_docs)
+
+    # Engine state aliases must preserve the C enum type used by the shared event payload.
+    def test_engine_state_aliases(self):
+        engine = self.root / 'engine/engine'
+        docs = gen_doc.parse_docs(str(engine / 'src/dmsdk/engine/engine_event.h'))
+        info = json.loads((engine / 'sdk_gen.json').read_text())['files'][0]['languages']['cpp']
+        enum = SimpleNamespace(name='EngineState', values=[{'name': 'ENGINE_STATE_DELETE'}])
+        state = SimpleNamespace(enum_types=[(enum, None)], struct_typedefs=[({'name': 'EngineStateEvent'}, None)],
+                                function_typedefs=[], functions=[])
+        header = gen_cpp.gen_cpp_header(str(self.root), 'dmsdk/engine/engine_event.h',
+            str(engine / 'src/dmsdk/engine/engine_event_gen.hpp'), info, None, state, [], docs)
+        self.assertIn('typedef ::EngineState State;', header)
+        self.assertIn('static const State STATE_DELETE = ::ENGINE_STATE_DELETE;', header)
+        self.assertIn('typedef EngineStateEvent StateEvent;', header)
+        self.assertIn('static const dmhash_t EVENT_STATE = ENGINE_STATE_EVENT;', header)
 
 
 if __name__ == '__main__':

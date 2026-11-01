@@ -58,13 +58,17 @@ dmExtension::Result UpdateTest(dmExtension::Params* params)
 
 void OnEventTest(dmExtension::Params* params, dmhash_t event_id, const void* data, uint32_t data_size)
 {
-    if (event_id == dmEngine::EVENT_APP_ACTIVATE)
+    if (event_id == dmEngine::EVENT_STATE && data && data_size == sizeof(dmEngine::StateEvent))
     {
-        ++g_TestAppEventCount;
-    }
-    else if (event_id == dmEngine::EVENT_APP_DEACTIVATE)
-    {
-        --g_TestAppEventCount;
+        const dmEngine::StateEvent* event = (const dmEngine::StateEvent*)data;
+        if (event->m_State == dmEngine::STATE_APP_ACTIVATE)
+        {
+            ++g_TestAppEventCount;
+        }
+        else if (event->m_State == dmEngine::STATE_APP_DEACTIVATE)
+        {
+            --g_TestAppEventCount;
+        }
     }
     else if (event_id == dmHashString64("sdk.custom_event") && data_size == sizeof(uint32_t))
     {
