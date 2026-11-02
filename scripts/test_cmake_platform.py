@@ -176,6 +176,58 @@ add_subdirectory("${DEFOLD_HOME}/external/dxc" "${CMAKE_BINARY_DIR}/dxc")
                 self.assertIn('/lib/' + platform, install)
                 self.assertIn('dxcompiler', install)
 
+    # Graphics-only Windows builds must resolve DXC without configuring shaderc first.
+    def test_focused_graphics_dxc_dependency(self):
+        for in_tree in ('OFF', 'ON'):
+            with self.subTest(in_tree=in_tree), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'CMakeLists.txt').write_text('''cmake_minimum_required(VERSION 4.0)
+project(focused_graphics_test LANGUAGES C CXX)
+set(TARGET_PLATFORM x86_64-win32)
+set(DEFOLD_SDK_ROOT "${DEFOLD_BUILD_HOME}/sdk")
+set(DEFOLD_EXT_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/ext/include")
+file(MAKE_DIRECTORY "${DEFOLD_EXT_INCLUDE_DIR}/directx")
+file(WRITE "${DEFOLD_SDK_ROOT}/ext/bin/${TARGET_PLATFORM}/dxcompiler.dll" "runtime")
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+if(IN_TREE_SHADERC)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/sibling/CMakeLists.txt"
+        "include(shaderc_dxc)\\nshaderc_import_dxc()\\nadd_library(shaderc INTERFACE)\\n")
+    add_subdirectory("${CMAKE_CURRENT_BINARY_DIR}/sibling" sibling-build)
+endif()
+add_library(graphics_dx12 INTERFACE)
+function(defold_create_exported_symbols_file path)
+    file(WRITE "${path}" "")
+endfunction()
+function(defold_add_executable name)
+    add_executable(${name} ${ARGN})
+endfunction()
+function(defold_target_link_libraries name platform)
+    target_link_libraries(${name} PRIVATE ${ARGN})
+endfunction()
+function(defold_target_link_socket)
+endfunction()
+function(defold_target_link_platform)
+endfunction()
+function(defold_target_link_glfw)
+endfunction()
+function(defold_register_test_target)
+endfunction()
+function(defold_get_graphics_symbols)
+endfunction()
+add_subdirectory("${DEFOLD_HOME}/engine/graphics/src/test" graphics-tests)
+''')
+                consumer = self.configure_target(root, 'test_graphics_dx12', IN_TREE_SHADERC=in_tree)
+                sources = [source['path'] for source in consumer['sources']]
+                self.assertTrue(any(path.endswith('/shaderc_dxc.cpp') for path in sources), sources)
+                libraries = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments'])
+                self.assertIn('dxcompiler.dll', libraries)
+                self.assertNotRegex(libraries, r'(?<![a-z])(?:lib)?shaderc(?:\.lib|\.a|\s)')
+                includes = [item['path'] for group in consumer['compileGroups'] for item in group.get('includes', [])]
+                self.assertIn((root / 'sdk/ext/include/directx').as_posix(), includes)
+                build = (root / 'build/build.ninja').read_text()
+                self.assertIn('copy_if_different', build)
+                self.assertIn('dxcompiler.dll', build)
+
     def write_linux_dxc_project(self, root):
         (root / 'CMakeLists.txt').write_text('''
 cmake_minimum_required(VERSION 4.0)

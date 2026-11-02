@@ -47,20 +47,21 @@ static void RequireHR(HRESULT hr)
     ASSERT_EQ(S_OK, hr);
 }
 
-static HRESULT CompileShaderSM6(const char* source, const char* profile, IDxcBlob** shader)
+static HRESULT CompileShaderSM6(const char* source, const char* profile, IDxcBlob** shader, ID3D12ShaderReflection** reflection = 0)
 {
-    IDxcBlobUtf8* errors = 0;
-    HRESULT hr = dmShaderc::CompileDXC(source, strlen(source), "main", profile, shader, &errors, 0);
+    ComPtr<IDxcBlobUtf8> errors;
+    HRESULT hr = dmShaderc::CompileDXC(source, strlen(source), "main", profile, shader, &errors, reflection);
     if (FAILED(hr) && errors)
+    {
         printf("%s\n", errors->GetStringPointer());
-    if (errors) errors->Release();
+    }
     return hr;
 }
 
 // Build real DXIL and serialized signatures, then load via the public program API.
 struct TestProgram
 {
-    ShaderDesc m_Desc;
+    ShaderDesc         m_Desc;
     // Own the compiled blobs referenced by the descriptor until the test finishes.
     dmArray<IUnknown*> m_Blobs;
 
@@ -73,10 +74,15 @@ struct TestProgram
     ~TestProgram()
     {
         for (uint32_t i = 0; i < m_Desc.m_Shaders.m_Count; ++i)
+        {
             free(m_Desc.m_Shaders[i].m_HlslResourceMapping.m_Data);
+            free(m_Desc.m_Shaders[i].m_HlslShaderOutputs.m_Data);
+        }
         DeleteShaderDesc(&m_Desc);
         for (uint32_t i = 0; i < m_Blobs.Size(); ++i)
+        {
             m_Blobs[i]->Release();
+        }
     }
 
     void AddShaderStage(const char* source, ShaderDesc::ShaderType stage)
@@ -84,14 +90,47 @@ struct TestProgram
         ComPtr<IDxcBlob> code;
         const char* profile = "ps_6_0";
         if (stage == ShaderDesc::SHADER_TYPE_COMPUTE)
+        {
             profile = "cs_6_0";
+        }
         else if (stage == ShaderDesc::SHADER_TYPE_VERTEX)
+        {
             profile = "vs_6_0";
-        HRESULT hr = CompileShaderSM6(source, profile, &code);
+        }
+        ComPtr<ID3D12ShaderReflection> reflection;
+        HRESULT hr = CompileShaderSM6(source, profile, &code, &reflection);
         RequireHR(hr);
         AddShader(&m_Desc, ShaderDesc::LANGUAGE_HLSL_60, stage, (uint8_t*)code->GetBufferPointer(), (uint32_t)code->GetBufferSize());
+        if (stage == ShaderDesc::SHADER_TYPE_FRAGMENT)
+        {
+            dmArray<dmShaderc::HLSLShaderOutput> outputs;
+            RequireHR(dmShaderc::GetHLSLShaderOutputs(reflection.Get(), outputs));
+            ShaderDesc::Shader& shader = m_Desc.m_Shaders[m_Desc.m_Shaders.m_Count - 1];
+            shader.m_HlslShaderOutputs.m_Count = outputs.Size();
+            shader.m_HlslShaderOutputs.m_Data = (ShaderDesc::HLSLShaderOutput*)calloc(outputs.Size(), sizeof(ShaderDesc::HLSLShaderOutput));
+            for (uint32_t i = 0; i < outputs.Size(); ++i)
+            {
+                ShaderDesc::HLSLShaderOutput& output = shader.m_HlslShaderOutputs[i];
+                output.m_Location = outputs[i].m_Location;
+                output.m_ComponentCount = outputs[i].m_ComponentCount;
+                switch (outputs[i].m_Type)
+                {
+                    case dmShaderc::BASE_TYPE_UINT32:
+                        output.m_ComponentType = ShaderDesc::HLSLShaderOutput::COMPONENT_TYPE_UINT32;
+                        break;
+                    case dmShaderc::BASE_TYPE_INT32:
+                        output.m_ComponentType = ShaderDesc::HLSLShaderOutput::COMPONENT_TYPE_SINT32;
+                        break;
+                    default:
+                        output.m_ComponentType = ShaderDesc::HLSLShaderOutput::COMPONENT_TYPE_FLOAT32;
+                        break;
+                }
+            }
+        }
         if (m_Blobs.Full())
+        {
             m_Blobs.OffsetCapacity(4);
+        }
         m_Blobs.Push(code.Detach());
     }
 
@@ -108,7 +147,9 @@ struct TestProgram
         m_Desc.m_HlslRootSignature.m_Data = (uint8_t*)root->GetBufferPointer();
         m_Desc.m_HlslRootSignature.m_Count = (uint32_t)root->GetBufferSize();
         if (m_Blobs.Full())
+        {
             m_Blobs.OffsetCapacity(4);
+        }
         m_Blobs.Push(root.Detach());
     }
 
@@ -130,7 +171,9 @@ struct TestProgram
         char error[1024] = {};
         HProgram program = NewProgram(context, &m_Desc, error, sizeof(error));
         if (!program)
+        {
             printf("Program load: %s\n", error);
+        }
         return program;
     }
 };
@@ -760,15 +803,9 @@ TEST_F(DX12Test, BoundTargetResizeRestoresClearAttachments)
     DeleteRenderTarget(GetContext(), other);
 }
 
-// Verifies MRT shaders can draw to a single color attachment without DX12 validation errors.
+// Verifies sparse, typed MRT outputs use compiler metadata with no DX12 validation warnings.
 TEST_F(DX12Test, MRTShaderWithSingleBoundAttachment)
 {
-    // DXIL validation warns about the deliberately unbound second output.
-    D3D12_MESSAGE_ID expected = D3D12_MESSAGE_ID_CREATEGRAPHICSPIPELINESTATE_RENDERTARGETVIEW_NOT_SET;
-    D3D12_INFO_QUEUE_FILTER filter = {};
-    filter.DenyList.NumIDs = 1;
-    filter.DenyList.pIDList = &expected;
-    RequireHR(m_Info->PushStorageFilter(&filter));
     HRenderTarget target = CreateTestRenderTarget(4, 4);
     SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
     SetViewport(GetContext(), 0, 0, 4, 4);
@@ -778,16 +815,21 @@ TEST_F(DX12Test, MRTShaderWithSingleBoundAttachment)
     shader.AddShaderStage(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
     shader.AddShaderStage(
         "struct Out {float4 color:SV_Target0;"
-        "float4 extra:SV_Target1;"
+        "uint2 extra:SV_Target3;"
         "};"
         " Out main(){Out o;"
         "o.color=float4(1,0,0,1);"
-        "o.extra=float4(0,1,0,1);"
+        "o.extra=uint2(1,2);"
         "return o;"
         "}", ShaderDesc::SHADER_TYPE_FRAGMENT);
     shader.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
     HProgram program = shader.CreateProgram(GetContext());
     ASSERT_NE((HProgram)0, program);
+    DX12ShaderProgram* dx12_program = (DX12ShaderProgram*)program;
+    ASSERT_EQ(4u, dx12_program->m_PixelShaderOutputCount);
+    ASSERT_EQ(DXGI_FORMAT_R32G32B32A32_FLOAT, dx12_program->m_PixelShaderOutputFormats[0]);
+    ASSERT_EQ(DXGI_FORMAT_UNKNOWN, dx12_program->m_PixelShaderOutputFormats[1]);
+    ASSERT_EQ(DXGI_FORMAT_R32G32_UINT, dx12_program->m_PixelShaderOutputFormats[3]);
     EnableProgram(GetContext(), program);
     Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
     uint8_t pixel[4] = {};
@@ -798,7 +840,6 @@ TEST_F(DX12Test, MRTShaderWithSingleBoundAttachment)
     DisableProgram(GetContext());
     DeleteProgram(GetContext(), program);
     DeleteRenderTarget(GetContext(), target);
-    m_Info->PopStorageFilter();
 }
 
 // Verifies multisample MRT clears, resize and public readback preserve attachment colors.

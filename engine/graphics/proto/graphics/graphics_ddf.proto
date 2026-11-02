@@ -461,6 +461,19 @@ message ShaderDesc
         required uint32 root_parameter_index = 4;
     }
 
+    message HLSLShaderOutput
+    {
+        enum ComponentType
+        {
+            COMPONENT_TYPE_UINT32  = 0;
+            COMPONENT_TYPE_SINT32  = 1;
+            COMPONENT_TYPE_FLOAT32 = 2;
+        }
+        required uint32        location        = 1;
+        required ComponentType component_type  = 2;
+        required uint32        component_count = 3;
+    }
+
     message MSLResourceMapping
     {
         optional uint64 name_hash = 1;
@@ -485,6 +498,7 @@ message ShaderDesc
         repeated HLSLResourceMapping hlsl_resource_mapping  = 5;
         repeated MSLResourceMapping  msl_resource_mapping   = 6;
         optional WorkGroupSize       work_group_size        = 7;
+        repeated HLSLShaderOutput    hlsl_shader_outputs    = 8;
     }
 
     repeated Shader shaders              = 1;

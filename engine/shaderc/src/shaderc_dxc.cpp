@@ -116,6 +116,52 @@ namespace dmShaderc
         return hr;
     }
 
+    HRESULT GetHLSLShaderOutputs(ID3D12ShaderReflection* reflection, dmArray<HLSLShaderOutput>& outputs)
+    {
+        D3D12_SHADER_DESC desc;
+        HRESULT hr = reflection->GetDesc(&desc);
+        if (FAILED(hr))
+        {
+            return hr;
+        }
+        outputs.SetCapacity(desc.OutputParameters);
+        outputs.SetSize(0);
+        for (uint32_t i = 0; i < desc.OutputParameters; ++i)
+        {
+            D3D12_SIGNATURE_PARAMETER_DESC parameter;
+            hr = reflection->GetOutputParameterDesc(i, &parameter);
+            if (FAILED(hr))
+            {
+                return hr;
+            }
+            if (parameter.SystemValueType != D3D_NAME_TARGET)
+            {
+                continue;
+            }
+            HLSLShaderOutput output;
+            // SV_TargetN identifies the render-target slot, including sparse outputs.
+            output.m_Location = parameter.SemanticIndex;
+            output.m_ComponentCount = ((parameter.Mask & 1) != 0) + ((parameter.Mask & 2) != 0) +
+                                      ((parameter.Mask & 4) != 0) + ((parameter.Mask & 8) != 0);
+            switch (parameter.ComponentType)
+            {
+                case D3D_REGISTER_COMPONENT_UINT32:
+                    output.m_Type = BASE_TYPE_UINT32;
+                    break;
+                case D3D_REGISTER_COMPONENT_SINT32:
+                    output.m_Type = BASE_TYPE_INT32;
+                    break;
+                case D3D_REGISTER_COMPONENT_FLOAT32:
+                    output.m_Type = BASE_TYPE_FP32;
+                    break;
+                default:
+                    return E_INVALIDARG;
+            }
+            outputs.Push(output);
+        }
+        return S_OK;
+    }
+
     // Loads a DXC container and extracts its RTS0 part: the serialized root-signature
     // payload without the container wrapper. Used when attaching a signature to a
     // shader or wrapping an extracted signature in its own container. The caller

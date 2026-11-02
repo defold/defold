@@ -19,6 +19,7 @@
     #include <windows.h>
 #endif
 
+#include "shaderc.h"
 #include <dxc/dxcapi.h>
 
 #if !defined(_WIN32)
@@ -39,6 +40,8 @@ namespace dmShaderc
     // Outputs belong to the caller. Reflection is optional; diagnostics are also
     // returned on compiler errors. No Windows SDK is required on Unix hosts.
     HRESULT CompileDXC(const void* source, size_t size, const char* entry, const char* profile, IDxcBlob** object, IDxcBlobUtf8** errors, ID3D12ShaderReflection** reflection);
+    // Only call for pixel shaders; other stages reuse the same system-value numbers.
+    HRESULT GetHLSLShaderOutputs(ID3D12ShaderReflection* reflection, dmArray<HLSLShaderOutput>& outputs);
     HRESULT SetDXCRootSignature(const void* object, size_t object_size, const void* root, size_t root_size, IDxcBlob** result);
     HRESULT GetDXCRootSignature(IDxcBlob* object, IDxcBlob** root_signature);
 }
