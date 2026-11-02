@@ -167,6 +167,9 @@ dialog.button.cancel = 取消
 dialog.button.delete = 刪除
 dialog.button.apply = 应用
 
+# Model glTF Auto Fill Dialog
+
+
 # Error Dialog
 
 dialog.error.title = 错误
@@ -314,7 +317,7 @@ dialog.save-and-upgrade.button.upgrade-editable-files = 升级可编辑文件
 dialog.save-and-upgrade.button.upgrade-project-files = 升级项目文件
 dialog.save-and-upgrade.button.upgrade-all-files = 升级所有文件
 
-# Plugin load error dialog
+# Plugin error dialogs
 
 dialog.plugin-load-error.title = 无法加载插件
 dialog.plugin-load-error.header = 编辑器插件"{plugin}"与此版本的编辑器不兼容。请编辑您的项目依赖项以引用合适的版本。
@@ -1081,7 +1084,6 @@ dialog.about.label.build-time = 构建时间：
 dialog.about.label.editor-sha1 = 编辑器 SHA1：
 dialog.about.label.engine-sha1 = 引擎 SHA1：
 dialog.about.value.unavailable = 不可用
-dialog.about.footer.copyright = 版权所有 © 2009-{year}
 dialog.about.footer.foundation = Defold 基金会
 dialog.about.sponsor = Defold 基金会 开发基金
 
@@ -1221,6 +1223,9 @@ property.atlas.max-page-height = 最大页面高度
 property.atlas.max-page-size = 最大页面尺寸
 property.atlas.rename-patterns = 重命名模式
 
+# Properties: KTX2
+
+
 # Properties: camera
 
 property.camera.aspect-ratio = 纵横比
@@ -1293,6 +1298,9 @@ property.font.cache-width = 缓存宽度
 property.font.cache-height = 缓存高度
 property.font.characters = 字符
 property.font.all-chars = 所有字符
+
+# Properties: glTF
+
 
 # Properties: gui
 
@@ -1792,7 +1800,6 @@ form.label.project.display.fullscreen = 全屏
 form.label.project.display.display_profiles = 显示配置文件
 form.label.project.display.dynamic_orientation = 动态方向
 form.label.project.display.update_frequency = 更新频率
-form.help.project.display.update_frequency = 期望的游戏循环和渲染频率，以赫兹为单位。`0` 使用可变帧率。在由 Defold 控制应用程序循环的平台上，正值会使用计时器进行帧调度，并暂时禁用呈现垂直同步；将此值设回 `0` 后，会恢复所请求的**交换间隔**。
 form.label.project.display.swap_interval = 交换间隔
 form.label.project.display.vsync = 垂直同步
 form.help.project.display.vsync = **已弃用的兼容性设置。**禁用时，会强制将所请求的**交换间隔**设为 `0`；启用时，行为由**交换间隔**决定，除非正值的**更新频率**启用了计时器帧调度。新项目请使用**交换间隔**。
