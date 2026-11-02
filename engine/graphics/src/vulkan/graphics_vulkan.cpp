@@ -2809,6 +2809,7 @@ bail:
         context->m_MainVertexDeclaration[binding_index].m_StepFunction = vertex_declaration->m_StepFunction;
         context->m_MainVertexDeclaration[binding_index].m_PipelineHash = vertex_declaration->m_PipelineHash;
 
+        context->m_EnabledVertexDeclarations[binding_index]            = vertex_declaration;
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
         context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
 
@@ -2852,8 +2853,9 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
-            if (context->m_CurrentVertexDeclaration[i] == vertex_declaration)
+            if (context->m_EnabledVertexDeclarations[i] == vertex_declaration)
             {
+                context->m_EnabledVertexDeclarations[i] = 0;
                 context->m_CurrentVertexDeclaration[i]  = 0;
                 context->m_CurrentVertexBufferOffset[i] = 0;
             }

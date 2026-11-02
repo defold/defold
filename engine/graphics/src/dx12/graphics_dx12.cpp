@@ -2814,6 +2814,7 @@ namespace dmGraphics
         context->m_MainVertexDeclaration[binding_index].m_StepFunction = vertex_declaration->m_StepFunction;
         context->m_MainVertexDeclaration[binding_index].m_PipelineHash = vertex_declaration->m_PipelineHash;
 
+        context->m_EnabledVertexDeclarations[binding_index]            = vertex_declaration;
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
         context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
 
@@ -2858,8 +2859,9 @@ namespace dmGraphics
         DX12Context* context = (DX12Context*) _context;
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
-            if (context->m_CurrentVertexDeclaration[i] == vertex_declaration)
+            if (context->m_EnabledVertexDeclarations[i] == vertex_declaration)
             {
+                context->m_EnabledVertexDeclarations[i] = 0;
                 context->m_CurrentVertexDeclaration[i]  = 0;
                 context->m_CurrentVertexBufferOffset[i] = 0;
             }
@@ -3153,7 +3155,7 @@ namespace dmGraphics
         return cached_pipeline;
     }
 
-    static void CreatePipeline(DX12Context* context, DX12RenderTarget* rt, const PipelineState& pipeline_state, DX12Pipeline* pipeline)
+    static void CreatePipeline(DX12Context* context, DX12RenderTarget* rt, const PipelineState& pipeline_state, uint32_t num_vx_decls, DX12Pipeline* pipeline)
     {
         D3D12_SHADER_BYTECODE vs_byte_code = {};
         vs_byte_code.BytecodeLength        = context->m_CurrentProgram->m_VertexModule->m_DataSize;
@@ -3168,7 +3170,7 @@ namespace dmGraphics
         char matrix_semantic_names[64][32];
         uint32_t matrix_semantic_name_count = 0;
 
-        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+        for (uint32_t i = 0; i < num_vx_decls; ++i)
         {
             if (context->m_CurrentVertexDeclaration[i])
             {
@@ -3449,7 +3451,7 @@ namespace dmGraphics
 
             context->m_PipelineCache.Put(pipeline_hash, {});
             cached_pipeline = context->m_PipelineCache.Get(pipeline_hash);
-            CreatePipeline(context, current_rt, pipeline_state, cached_pipeline);
+            CreatePipeline(context, current_rt, pipeline_state, num_vx_decls, cached_pipeline);
 
             dmLogDebug("Created new DX12 Pipeline with hash %llu", (unsigned long long) pipeline_hash);
         }
