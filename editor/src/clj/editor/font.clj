@@ -1424,7 +1424,7 @@
   (output runtime-generation-build-target g/Any :cached
           (g/fnk [_node-id resource]
             (resource-io/with-error-translation resource _node-id :runtime-generation-build-target
-              (pipeline/make-source-bytes-build-target _node-id resource)))))
+              (pipeline/make-source-bytes-build-target _node-id resource (resource/resource->path-inclusive-sha1-hex resource))))))
 
 (g/defnode OpenTypeFontSourceNode
   (inherits TrueTypeFontSourceNode))

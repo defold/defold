@@ -1993,19 +1993,19 @@
   ([endpoint]
    (case (g/endpoint-label endpoint)
      (:repaint-info :right-split-desc :scene-view-ids :tick-info) true
-     (:build-targets) (project-resource-node? (g/now) (g/endpoint-node-id endpoint))
+     (:build-targets :source-bytes-hash) (project-resource-node? (g/now) (g/endpoint-node-id endpoint))
      (:save-data :save-value) (project-file-resource-node? (g/now) (g/endpoint-node-id endpoint))
      false))
   ([basis endpoint]
    (case (g/endpoint-label endpoint)
      (:repaint-info :right-split-desc :scene-view-ids :tick-info) true
-     (:build-targets) (project-resource-node? basis (g/endpoint-node-id endpoint))
+     (:build-targets :source-bytes-hash) (project-resource-node? basis (g/endpoint-node-id endpoint))
      (:save-data :save-value) (project-file-resource-node? basis (g/endpoint-node-id endpoint))
      false)))
 
 (defn- cached-build-target-output? [node-id label evaluation-context]
   (case label
-    (:build-targets) (project-resource-node? (:basis evaluation-context) node-id)
+    (:build-targets :source-bytes-hash) (project-resource-node? (:basis evaluation-context) node-id)
     false))
 
 (defn- cached-save-data-output? [node-id label evaluation-context]

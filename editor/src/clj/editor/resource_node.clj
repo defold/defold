@@ -141,6 +141,14 @@
   (output save-data g/Any :cached produce-save-data)
   (output save-value g/Any (g/constantly nil))
   (output source-value g/Any :unjammable produce-source-value)
+  (output source-bytes-hash g/Str :cached :unjammable
+          #_{:clj-kondo/ignore [:unused-binding]}
+          (g/fnk [_node-id resource source-value]
+            ;; Unlike :sha256, this fingerprints the bytes on disk without
+            ;; serialization. Depend on source-value to invalidate after saves;
+            ;; resource synchronization invalidates it after external changes.
+            (resource-io/with-error-translation resource _node-id :source-bytes-hash
+              (resource/resource->path-inclusive-sha1-hex resource))))
   (output lines types/Lines produce-lines)
 
   (output dirty g/Bool (g/fnk [save-data] (:dirty save-data false)))

@@ -27,7 +27,8 @@
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [util.coll :as coll]
-            [util.fn :as fn])
+            [util.fn :as fn]
+            [util.path :as path])
   (:import [java.util ArrayDeque HashMap HashSet]))
 
 (set! *warn-on-reflection* true)
@@ -71,10 +72,22 @@
                     (g/node-value node :build-targets evaluation-context))]
       (if (or (g/error-value? targets) (coll/not-empty targets))
         targets
-        (let [save-data (g/node-value node :save-data evaluation-context)
-              content (when (:dirty save-data) (resource-node/save-data-content save-data))]
-          [(pipeline/make-source-content-build-target
-             node source (if content (.getBytes ^String content java.nio.charset.StandardCharsets/UTF_8) (resource/resource->bytes source)))])))
+        (resource-io/with-error-translation source node :build-targets
+          (let [save-data (g/node-value node :save-data evaluation-context)
+                content (when (:dirty save-data) (resource-node/save-data-content save-data))]
+            (cond
+              content
+              [(pipeline/make-source-content-build-target
+                 node source (.getBytes ^String content java.nio.charset.StandardCharsets/UTF_8))]
+
+              (not (path/exists? source))
+              (resource-io/file-not-found-error node :build-targets :fatal source)
+
+              :else
+              (let [source-hash (g/node-value node :source-bytes-hash evaluation-context)]
+                (if (g/error-value? source-hash)
+                  source-hash
+                  [(pipeline/make-source-bytes-build-target node (pipeline/->CustomResource source) source-hash)])))))))
     (resource-io/file-not-found-error nil nil :fatal (project/resolve-path-or-resource project proj-path evaluation-context))))
 
 (defn- resolve-deps-impl

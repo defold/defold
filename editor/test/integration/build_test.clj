@@ -26,11 +26,12 @@
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [internal.graph.types :as gt]
+            [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.test-util :refer [with-loaded-project] :as test-util]
+            [internal.graph.types :as gt]
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll]
             [util.http-server :as http-server]
@@ -1048,6 +1049,51 @@
                                        {"property" "network.ssl_certificates"
                                         "resource" "/assets"})
                  error-message)))))))
+
+;; Custom files retain their source hashes across builds, invalidate on disk
+;; edits and saves, and report files removed between discovery and building.
+(deftest custom-resource-build-inputs
+  (test-util/with-scratch-project "test/resources/custom_resources_project"
+    (let [game-project (test-util/resource-node project "/game.project")
+          source (workspace/file-resource workspace "/root.stuff")
+          source-node (project/get-resource-node project "/root.stuff")]
+      (test-util/set-setting! game-project ["project" "custom_resources"] "/root.stuff")
+      (let [targets (build/resolve-node-dependencies game-project project)]
+        (is (not (g/error-value? targets)))
+        (when-not (g/error-value? targets)
+          (let [target (coll/first-where #(= "/root.stuff" (resource/proj-path (:resource %))) targets)]
+            (is (string? (get-in target [:user-data :source-hash]))))))
+      (g/clear-system-cache!)
+      (let [evaluation-context (g/make-evaluation-context)]
+        (is (nil? (:error (project-build-impl! project game-project evaluation-context))))
+        (project/update-system-cache-build-targets! evaluation-context))
+      (is (contains? (test-util/cached-endpoints) (g/endpoint source-node :source-bytes-hash)))
+      (let [source-hash (g/node-value source-node :source-bytes-hash)]
+        (is (nil? (:error (project-build! project game-project))))
+        (is (identical? source-hash (g/node-value source-node :source-bytes-hash))))
+      (check-file-contents workspace [["root.stuff" "root.stuff"]])
+      (io/delete-file source)
+      (let [error (:error (project-build! project game-project))
+            missing (coll/first-where resource-io/file-not-found-error?
+                                     (coll/into-> [error] [] (coll/tree-xf :causes :causes)))]
+        (is (g/error-value? error))
+        (is (= source-node (:_node-id missing)))
+        (is (= "/root.stuff" (some-> missing :user-data :resource resource/proj-path))))
+      (spit source "restored custom contents")
+      (workspace/resource-sync! workspace)
+      (is (nil? (:error (project-build! project game-project))))
+      (check-file-contents workspace [["root.stuff" "restored custom contents"]])
+      (let [source-node (project/get-resource-node project "/root.stuff")]
+        (test-util/set-code-editor-source! source-node "edited custom contents")
+        (is (nil? (:error (project-build! project game-project))))
+        (check-file-contents workspace [["root.stuff" "edited custom contents"]])
+        (test-util/save-project! project)
+        (is (nil? (:error (project-build! project game-project))))
+        (check-file-contents workspace [["root.stuff" "edited custom contents"]]))
+      (spit source "edited custom contents\r\n")
+      (workspace/resource-sync! workspace)
+      (is (nil? (:error (project-build! project game-project))))
+      (check-file-contents workspace [["root.stuff" "edited custom contents\r\n"]]))))
 
 (deftest custom-resources-cached
   (testing "Check custom resources are only rebuilt when source has changed"
