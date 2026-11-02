@@ -47,20 +47,17 @@ public final class PackagePreview {
         Map<String, PackageProvider.ResourceInfo> resources = new LinkedHashMap<>();
         for (List<ArchiveEntry> entries : List.of(project.getArchiveBuilder().getIncludedEntries(), project.getArchiveBuilder().getExcludedEntries())) {
             for (ArchiveEntry entry : entries) {
-                String path = PackageResolver.normalize(entry.getRelativeFilename());
-                resources.put(path, new PackageProvider.ResourceInfo(path, entry.getHexDigest(), entry.getSize(),
-                        entry.getCompressedSize(), entry.getFlags() | ArchiveEntry.FLAG_LIVEUPDATE));
+                PackageProvider.ResourceInfo info = new PackageProvider.ResourceInfo(entry);
+                resources.put(info.path(), info);
             }
         }
-        PackageProvider.Context context = PackageWriter.createContext(project, plan, resources);
-        Map<String, PackageProvider> providers = PackageWriter.providers(project);
+        Map<String, PackageProvider> providers = PackageProviders.discover(project.getProjectClassLoaderScanner());
+        PackageProvider.Context context = PackageProviders.context(project, plan, resources, providers);
         Path directory = PackageBuilder.outputDirectory(project, projectRoot);
         Map<String, List<String>> paths = new LinkedHashMap<>();
         for (PackageResolver.Package pkg : plan.packages().values()) {
             context.checkCanceled();
-            String providerId = pkg.description().getProvider();
-            PackageProvider provider = providers.get(providerId);
-            if (provider == null) throw new CompileExceptionError("Unknown Live Update provider: " + providerId);
+            PackageProvider provider = providers.get(pkg.description().getProvider());
             paths.put(pkg.description().getName(), provider.describeOutputs(context, pkg).stream()
                     .map(artifact -> directory.resolve(artifact.name()).normalize().toString().replace('\\', '/'))
                     .toList());

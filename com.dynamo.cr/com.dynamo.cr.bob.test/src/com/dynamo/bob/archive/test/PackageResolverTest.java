@@ -210,6 +210,28 @@ public class PackageResolverTest {
         assertTrue(eager.locks().containsKey("/dynamic-go"));
     }
 
+    // A descriptor-only visit must not hide a later eager route; dependency cycles still terminate in both traversals.
+    @Test
+    public void eagerRouteAfterDescriptorVisit() {
+        var graph = Map.of(
+                "/factory", new Resource(Map.of("/collection", Loading.DESCRIPTOR)),
+                "/main", new Resource(Map.of("/intermediate", Loading.EAGER)),
+                "/intermediate", new Resource(Map.of("/collection", Loading.EAGER)),
+                "/collection", new Resource(Map.of("/child", Loading.EAGER)),
+                "/child", new Resource(Map.of("/collection", Loading.EAGER)));
+        for (var roots : List.of(List.of("/factory", "/main"), List.of("/main", "/factory"))) {
+            var plan = PackageResolver.resolve(manifest(pkg("content", path("Factory", RuleOperation.ADD, "/factory"))),
+                    Map.of("/factory", List.of("/factory")), graph, roots, List.of(), true);
+            assertFalse(plan.hasErrors());
+            assertEquals(graph.keySet(), plan.base());
+            assertEquals(List.of("/factory", "/collection"), plan.locks().get("/collection"));
+            assertEquals(List.of("/main", "/intermediate", "/collection", "/child"), plan.locks().get("/child"));
+            var content = plan.packages().get("content");
+            assertEquals(Set.of("/factory", "/collection", "/child"), content.resources());
+            assertEquals(List.of("/factory", "/collection", "/child"), content.provenance().get("/child").getFirst().dependencyPath());
+        }
+    }
+
     // Package requirements retain alternative suppliers and exclude resources already provided by the base.
     @Test
     public void dependencyAlternativesAndMissingContent() {

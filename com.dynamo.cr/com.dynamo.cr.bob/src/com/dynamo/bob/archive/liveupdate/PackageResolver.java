@@ -103,8 +103,8 @@ public final class PackageResolver {
     private static <K, V> Map<K, V> immutableMap(Map<K, V> values) {
         return Collections.unmodifiableMap(new LinkedHashMap<>(values));
     }
-    private static <T> Set<T> immutableSet(Collection<T> values) {
-        return Collections.unmodifiableSet(new LinkedHashSet<>(values));
+    private static Set<String> immutableSet(Collection<String> values) {
+        return Collections.unmodifiableSet(new TreeSet<>(values));
     }
     public static String normalize(String path) {
         String normalized = path.replace('\\', '/');
@@ -221,20 +221,27 @@ public final class PackageResolver {
         diagnostics = new ArrayList<>(selection.diagnostics());
     }
 
-    private Map<String, List<String>> closure(Collection<String> roots) {
+    private Map<String, List<String>> closure(Collection<String> roots, boolean startup) {
         Map<String, List<String>> paths = new LinkedHashMap<>();
+        Set<String> expanded = new LinkedHashSet<>();
         ArrayDeque<List<String>> pending = new ArrayDeque<>();
         for (String root : roots) pending.add(List.of(root));
         while (!pending.isEmpty()) {
             List<String> path = pending.remove();
-            String resource = path.get(path.size() - 1);
-            if (paths.putIfAbsent(resource, path) != null) continue;
+            String resource = path.getLast();
+            paths.putIfAbsent(resource, path);
+            // A descriptor-only visit must not prevent a later eager route from expanding it.
+            if (!expanded.add(resource)) continue;
             Resource node = resources.get(resource);
             if (node != null) {
-                for (String dependency : node.dependencies().keySet()) {
+                for (var edge : node.dependencies().entrySet()) {
+                    Loading loading = startup ? edge.getValue() : Loading.EAGER;
+                    if (loading == Loading.DEFERRED) continue;
                     List<String> childPath = new ArrayList<>(path);
-                    childPath.add(dependency);
-                    pending.add(List.copyOf(childPath));
+                    childPath.add(edge.getKey());
+                    List<String> child = List.copyOf(childPath);
+                    if (startup) paths.putIfAbsent(edge.getKey(), child);
+                    if (loading == Loading.EAGER) pending.add(child);
                 }
             }
         }
@@ -250,66 +257,40 @@ public final class PackageResolver {
             // Selection has already reported the offending reference rules.
             return null;
         }
-        Map<String, LinkedHashSet<Contribution>> members = new LinkedHashMap<>();
+        Map<String, List<Contribution>> members = new LinkedHashMap<>();
         for (int i = 0; i < description.getRulesCount(); ++i) {
             RuleDesc rule = description.getRules(i);
             RuleId id = new RuleId(name, i);
-            Map<String, List<Contribution>> selected = new LinkedHashMap<>();
+            boolean remove = rule.getOperation() == RuleOperation.REMOVE;
             if (rule.hasPath()) {
                 for (String source : selection.matches().getOrDefault(id, List.of())) {
-                    closure(sourceOutputs.get(source)).forEach((output, path) ->
-                            selected.computeIfAbsent(output, k -> new ArrayList<>()).add(new Contribution(List.of(id), source, path)));
+                    closure(sourceOutputs.get(source), false).forEach((output, path) -> {
+                        if (remove) members.remove(output);
+                        else members.computeIfAbsent(output, k -> new ArrayList<>()).add(new Contribution(List.of(id), source, path));
+                    });
                 }
             } else if (rule.hasPackage()) {
                 Package referenced = resolvePackage(rule.getPackage());
                 if (referenced != null) {
                     referenced.provenance().forEach((output, contributions) -> {
-                        List<Contribution> inherited = new ArrayList<>();
+                        if (remove) {
+                            members.remove(output);
+                            return;
+                        }
+                        List<Contribution> inherited = members.computeIfAbsent(output, k -> new ArrayList<>());
                         for (Contribution contribution : contributions) {
                             List<RuleId> rules = new ArrayList<>(contribution.rules());
                             rules.add(id);
                             inherited.add(new Contribution(rules, contribution.source(), contribution.dependencyPath()));
                         }
-                        selected.put(output, inherited);
                     });
                 }
             }
-            if (rule.getOperation() == RuleOperation.REMOVE) {
-                selected.keySet().forEach(members::remove);
-            } else {
-                selected.forEach((output, contributions) -> members.computeIfAbsent(output, k -> new LinkedHashSet<>()).addAll(contributions));
-            }
         }
-        Map<String, List<Contribution>> provenance = new LinkedHashMap<>();
-        members.forEach((output, contributions) -> provenance.put(output, List.copyOf(contributions)));
-        Package result = new Package(description, members.keySet(), provenance);
+        Package result = new Package(description, members.keySet(), members);
         resolving.remove(name);
         resolved.put(name, result);
         return result;
-    }
-
-    private Map<String, List<String>> startupLocks(Collection<String> roots) {
-        Map<String, List<String>> locks = new LinkedHashMap<>();
-        Set<String> expanded = new LinkedHashSet<>();
-        ArrayDeque<List<String>> pending = new ArrayDeque<>();
-        for (String root : roots) pending.add(List.of(root));
-        while (!pending.isEmpty()) {
-            List<String> path = pending.remove();
-            String resource = path.get(path.size() - 1);
-            locks.putIfAbsent(resource, path);
-            if (!expanded.add(resource)) continue;
-            Resource node = resources.get(resource);
-            if (node == null) continue;
-            node.dependencies().forEach((dependency, loading) -> {
-                if (loading == Loading.DEFERRED) return;
-                List<String> childPath = new ArrayList<>(path);
-                childPath.add(dependency);
-                List<String> frozen = List.copyOf(childPath);
-                locks.putIfAbsent(dependency, frozen);
-                if (loading == Loading.EAGER) pending.add(frozen);
-            });
-        }
-        return locks;
     }
 
     public static Plan resolve(ManifestDesc manifest, Map<String, List<String>> sourceOutputs,
@@ -326,8 +307,8 @@ public final class PackageResolver {
         for (PackageDesc pkg : manifest.getPackagesList()) packages.put(pkg.getName(), resolver.resolvePackage(pkg.getName()));
         Set<String> roots = new LinkedHashSet<>(bootstrapRoots);
         roots.addAll(customRoots);
-        Set<String> base = new TreeSet<>(resolver.closure(roots).keySet());
-        Map<String, List<String>> locks = resolver.startupLocks(bootstrapRoots);
+        Set<String> base = new TreeSet<>(resolver.closure(roots, false).keySet());
+        Map<String, List<String>> locks = resolver.closure(bootstrapRoots, true);
         Set<String> assigned = new TreeSet<>();
         for (Package pkg : packages.values()) assigned.addAll(pkg.resources());
         if (export) base.removeAll(assigned);
@@ -351,7 +332,7 @@ public final class PackageResolver {
         Map<String, Map<String, List<String>>> requirements = new LinkedHashMap<>();
         for (Package pkg : packages.values()) {
             Map<String, List<String>> external = new LinkedHashMap<>();
-            for (String dependency : resolver.closure(pkg.resources()).keySet()) {
+            for (String dependency : resolver.closure(pkg.resources(), false).keySet()) {
                 if (base.contains(dependency) || pkg.resources().contains(dependency)) continue;
                 List<String> alternatives = new ArrayList<>();
                 for (Package supplier : packages.values()) {

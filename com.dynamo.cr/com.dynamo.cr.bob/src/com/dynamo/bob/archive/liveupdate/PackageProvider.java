@@ -15,6 +15,7 @@
 package com.dynamo.bob.archive.liveupdate;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.archive.ArchiveEntry;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -28,7 +29,12 @@ import java.util.function.BooleanSupplier;
 /** Implement in com.defold.extension.pipeline to add a package output format. */
 public interface PackageProvider {
     record Artifact(String name, boolean directory) {}
-    record ResourceInfo(String path, String hash, long size, long compressedSize, int flags) {}
+    record ResourceInfo(String path, String hash, long size, long compressedSize, int flags) {
+        ResourceInfo(ArchiveEntry entry) {
+            this(PackageResolver.normalize(entry.getRelativeFilename()), entry.getHexDigest(), entry.getSize(),
+                    entry.getCompressedSize(), entry.getFlags() | ArchiveEntry.FLAG_LIVEUPDATE);
+        }
+    }
 
     enum PropertyType { STRING, BOOLEAN, INTEGER, NUMBER }
 
@@ -81,7 +87,7 @@ public interface PackageProvider {
                    Map<String, String> options, String projectSettings, Map<String, Map<String, Object>> providerSettings,
                    BooleanSupplier canceled) {
         public Context {
-            resources = Map.copyOf(resources);
+            resources = Collections.unmodifiableMap(new LinkedHashMap<>(resources));
             architectures = List.copyOf(architectures);
             // CLI options without an argument can have a null value. Preserve their presence.
             options = Collections.unmodifiableMap(new LinkedHashMap<>(options));
@@ -90,9 +96,7 @@ public interface PackageProvider {
             providerSettings = Collections.unmodifiableMap(settings);
         }
         public void checkCanceled() throws IOException {
-            if (canceled.getAsBoolean() || Thread.currentThread().isInterrupted()) {
-                throw new java.io.InterruptedIOException("Live Update package build cancelled");
-            }
+            PackageCache.checkCanceled(canceled);
         }
     }
 

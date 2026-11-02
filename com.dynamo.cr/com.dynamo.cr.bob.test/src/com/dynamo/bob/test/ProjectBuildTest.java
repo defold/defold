@@ -2276,16 +2276,21 @@ public class ProjectBuildTest {
             Files.writeString(settings, Files.readString(settings) + "\n[display]\nwidth=641\n");
             buildPackageProject(true, false);
             assertEquals(2, PackageProviderFixture.writes);
-            PackageProviderFixture.cacheKey = "fixture-v2";
+
+            // Rule provenance is part of the custom provider context, even when packaged bytes are unchanged.
+            savePackages(livePackage("custom", "test-package", addPath("Renamed", "/extra/.*")));
             buildPackageProject(true, false);
             assertEquals(3, PackageProviderFixture.writes);
+            PackageProviderFixture.cacheKey = "fixture-v2";
+            buildPackageProject(true, false);
+            assertEquals(4, PackageProviderFixture.writes);
 
             PackageProviderFixture.cacheKey = null;
             buildPackageProject(true, false);
-            assertEquals(4, PackageProviderFixture.writes);
+            assertEquals(5, PackageProviderFixture.writes);
             Files.writeString(settings, Files.readString(settings) + "\n\n");
             buildPackageProject(true, false);
-            assertEquals(5, PackageProviderFixture.writes);
+            assertEquals(6, PackageProviderFixture.writes);
         } finally {
             PackageProviderFixture.cacheKey = "fixture-v1";
         }
@@ -2405,8 +2410,13 @@ public class ProjectBuildTest {
             BundleHelper.moveBundleIfNeed(project, bundle.toFile());
             Path zip = bundle.resolve("episode.zip");
             Path manifest = bundle.resolve("copy/liveupdate.game.dmanifest");
+            Path payload;
+            try (var files = Files.list(manifest.getParent())) {
+                payload = files.filter(path -> !path.equals(manifest)).findFirst().orElseThrow();
+            }
             Files.setLastModifiedTime(zip, unchanged);
             Files.setLastModifiedTime(manifest, unchanged);
+            Files.setLastModifiedTime(payload, unchanged);
             BundleHelper.moveBundleIfNeed(project, bundle.toFile());
             assertEquals(unchanged, Files.getLastModifiedTime(zip));
             assertEquals(unchanged, Files.getLastModifiedTime(manifest));
@@ -2418,6 +2428,7 @@ public class ProjectBuildTest {
             assertFalse(Files.exists(extra));
             assertArrayEquals(Files.readAllBytes(Path.of(contentRoot, "packages/copy/liveupdate.game.dmanifest")), Files.readAllBytes(manifest));
             assertEquals(unchanged, Files.getLastModifiedTime(zip));
+            assertEquals(unchanged, Files.getLastModifiedTime(payload));
 
             Files.delete(zip);
             BundleHelper.moveBundleIfNeed(project, bundle.toFile());

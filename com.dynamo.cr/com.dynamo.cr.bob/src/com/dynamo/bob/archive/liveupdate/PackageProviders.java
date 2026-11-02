@@ -16,8 +16,11 @@ package com.dynamo.bob.archive.liveupdate;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.IClassScanner;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.ManifestDesc;
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -33,10 +36,24 @@ public final class PackageProviders {
 
     private PackageProviders() {}
 
+    static PackageProvider.Context context(Project project, PackageResolver.Plan plan,
+                                           Map<String, PackageProvider.ResourceInfo> resources,
+                                           Map<String, PackageProvider> providers) throws IOException, CompileExceptionError {
+        String manifestPath = PackageBuilder.manifestPath(project);
+        ManifestDesc manifest = manifestPath.isEmpty()
+                ? ManifestDesc.newBuilder().addAllPackages(plan.packages().values().stream().map(PackageResolver.Package::description).toList()).build()
+                : PackageBuilder.parse(project.getResource(manifestPath).getContent());
+        String architectureOption = project.option("architectures", null);
+        List<String> architectures = architectureOption == null ? List.of(project.getPlatform().getArchitectures().getDefaultArchitectures()) :
+                Arrays.stream(architectureOption.split(",")).map(String::trim).filter(value -> !value.isEmpty()).toList();
+        return new PackageProvider.Context(plan, resources, project.getPlatform().getPair(), architectures,
+                project.option("variant", "release"), project.getOptions(), project.getProjectProperties().serialize(),
+                settings(manifest, schemas(providers), project.getPublisher().getPublisherSettings().getCompressionLevelValue()), project::isBuildCanceled);
+    }
+
     static Map<String, PackageProvider> discover(IClassScanner scanner) throws CompileExceptionError {
         Map<String, PackageProvider> providers = new LinkedHashMap<>();
-        providers.put("zip", new ZipPackageProvider());
-        providers.put("folder", new FolderPackageProvider());
+        for (PackageProvider provider : BuiltinPackageProvider.values()) providers.put(provider.getId(), provider);
         List<PackageProvider> plugins = PluginScanner.getOrCreatePlugins(scanner, "com.defold.extension.pipeline", PackageProvider.class);
         if (plugins != null) {
             for (PackageProvider provider : plugins) {

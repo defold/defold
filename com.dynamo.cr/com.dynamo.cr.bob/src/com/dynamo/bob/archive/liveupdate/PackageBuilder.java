@@ -136,7 +136,7 @@ public final class PackageBuilder {
         if (project.option("liveupdate", "false").equals("true")) {
             task.addExtraCacheKey(outputDirectory(project, Path.of(project.getRootDirectory())).toString());
         }
-        Map<String, PackageProvider> providers = PackageWriter.providers(project);
+        Map<String, PackageProvider> providers = PackageProviders.discover(project.getProjectClassLoaderScanner());
         for (String providerId : manifest.getPackagesList().stream().map(pkg -> pkg.getProvider()).distinct().sorted().toList()) {
             PackageProvider provider = providers.get(providerId);
             if (provider != null) task.addExtraCacheKey(providerId + ":" + PackageCache.providerSignature(provider));
@@ -239,21 +239,17 @@ public final class PackageBuilder {
                     }
                 }
             } else {
+                List<String> outputs = task.getOutputs().stream().map(output -> outputPath(project, output))
+                        .filter(resources::containsKey).toList();
                 IResource primary = task.firstInput();
                 if (!primary.isOutput()) {
-                    for (IResource output : task.getOutputs()) {
-                        String path = outputPath(project, output);
-                        if (resources.containsKey(path)) primarySources.put(path, PackageResolver.normalize(primary.getPath()));
-                    }
+                    String source = PackageResolver.normalize(primary.getPath());
+                    outputs.forEach(output -> primarySources.put(output, source));
                 }
                 for (IResource input : task.getInputs()) {
                     if (input.isOutput()) continue;
-                    String source = PackageResolver.normalize(input.getPath());
-                    if (!sourceOutputs.containsKey(source)) continue;
-                    for (IResource output : task.getOutputs()) {
-                        String path = outputPath(project, output);
-                        if (resources.containsKey(path)) sourceOutputs.get(source).add(path);
-                    }
+                    List<String> mapped = sourceOutputs.get(PackageResolver.normalize(input.getPath()));
+                    if (mapped != null) mapped.addAll(outputs);
                 }
             }
         }

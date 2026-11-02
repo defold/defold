@@ -14,20 +14,14 @@
 
 package com.dynamo.bob.archive.liveupdate;
 
-import com.dynamo.bob.Builder;
+import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
-import java.io.IOException;
 
 /** Passthrough for manifest-selected custom resources without a resource compiler. */
-public final class CopyPackageResource extends Builder {
+public final class CopyPackageResource extends CopyBuilder {
     @Override
     public Task create(IResource input) {
         return Task.newBuilder(this).setName("Copy package resource").addInput(input).addOutput(input.output()).build();
-    }
-
-    @Override
-    public void build(Task task) throws IOException {
-        task.output(0).setContent(task.input(0).getContent());
     }
 }

@@ -37,11 +37,8 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.function.BooleanSupplier;
 
 /** Package fingerprints and artifact checks, independent of filesystem timestamps. */
@@ -101,24 +98,17 @@ final class PackageCache {
         MessageDigest digest = digest();
         add(digest, providerSignature(provider));
         add(digest, manifest);
-        if (provider instanceof ZipPackageProvider) {
+        if (provider == BuiltinPackageProvider.ZIP) {
             add(digest, JSON.writeValueAsBytes(context.providerSettings().get("zip")));
-        } else if (!(provider instanceof FolderPackageProvider)) {
-            // Custom providers can inspect the entire context, including other packages and
-            // provenance. Canonicalize unordered collections before fingerprinting it.
-            PackageResolver.Plan plan = context.plan();
-            Map<String, PackageResolver.Package> packages = new LinkedHashMap<>();
-            plan.packages().forEach((name, pkg) -> packages.put(name,
-                    new PackageResolver.Package(pkg.description(), new TreeSet<>(pkg.resources()), pkg.provenance())));
-            PackageResolver.Plan canonicalPlan = new PackageResolver.Plan(packages, new TreeSet<>(plan.base()),
-                    plan.locks(), plan.sourceOutputs(), plan.primarySources(), plan.resources(), plan.diagnostics(), plan.requirements());
-            add(digest, JSON.writeValueAsBytes(List.of(canonicalPlan, new TreeMap<>(context.resources()), context.platform(),
+        } else if (provider != BuiltinPackageProvider.FOLDER) {
+            // Plans keep resource sets sorted; the mapper orders map keys. Omit the cancellation callback.
+            add(digest, JSON.writeValueAsBytes(List.of(context.plan(), context.resources(), context.platform(),
                     context.architectures(), context.variant(), context.options(), context.projectSettings(), context.providerSettings())));
         }
         return HexFormat.of().formatHex(digest.digest());
     }
 
-    private static void checkCanceled(BooleanSupplier canceled) throws IOException {
+    static void checkCanceled(BooleanSupplier canceled) throws IOException {
         if (canceled.getAsBoolean() || Thread.currentThread().isInterrupted()) {
             throw new java.io.InterruptedIOException("Live Update package build cancelled");
         }
@@ -166,26 +156,22 @@ final class PackageCache {
         else Files.deleteIfExists(path);
     }
 
-    /** Update only changed files and remove stale files inside this owned artifact. */
-    static void copy(Path source, Path destination, BooleanSupplier canceled) throws IOException {
+    /** Copy into an empty staging path, retaining timestamps of unchanged previously delivered files. */
+    static void copy(Path source, Path destination, Path previous, BooleanSupplier canceled) throws IOException {
         checkCanceled(canceled);
         if (Files.isDirectory(source)) {
-            if (!Files.isDirectory(destination, LinkOption.NOFOLLOW_LINKS)) {
-                delete(destination);
-                Files.createDirectories(destination);
-            }
-            try (var entries = Files.list(destination)) {
+            Files.createDirectories(destination);
+            try (var entries = Files.list(source)) {
                 for (Path entry : entries.toList()) {
-                    checkCanceled(canceled);
-                    if (!Files.exists(source.resolve(entry.getFileName()), LinkOption.NOFOLLOW_LINKS)) delete(entry);
+                    Path name = entry.getFileName();
+                    copy(entry, destination.resolve(name), previous == null ? null : previous.resolve(name), canceled);
                 }
             }
-            try (var entries = Files.list(source)) {
-                for (Path entry : entries.toList()) copy(entry, destination.resolve(entry.getFileName()), canceled);
+        } else {
+            if (previous != null && Files.isRegularFile(previous, LinkOption.NOFOLLOW_LINKS) &&
+                    Files.isExecutable(source) == Files.isExecutable(previous) && Files.mismatch(source, previous) == -1) {
+                source = previous;
             }
-        } else if (!Files.isRegularFile(destination, LinkOption.NOFOLLOW_LINKS) ||
-                   Files.isExecutable(source) != Files.isExecutable(destination) || Files.mismatch(source, destination) != -1) {
-            delete(destination);
             Files.createDirectories(destination.getParent());
             Files.copy(source, destination, StandardCopyOption.COPY_ATTRIBUTES);
         }
