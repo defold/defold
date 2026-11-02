@@ -15,15 +15,16 @@
 #include "record_service.h"
 #include <dmsdk/engine/engine_event.h>
 #include "record_window.h"
-#include <dmsdk/engine/extension.hpp>
 #include <dmsdk/extension/extension.hpp>
+#include <dmsdk/dlib/webserver.h>
 #include <dmsdk/dlib/log.h>
 
 namespace dmRecord
 {
     static dmExtension::Result AppInitialize(dmExtension::AppParams* params)
     {
-        dmWebServer::HServer server = dmEngine::GetWebServer(params);
+        HContextRegistry registry = dmExtension::AppParamsGetContextRegistry(params);
+        dmWebServer::HServer server = registry ? (dmWebServer::HServer)ContextRegistryGet(registry, WEBSERVER_CONTEXT_NAME) : 0;
         if (server && !RegisterService(server, GetRecordingWindow))
         {
             dmLogError("Unable to register the recording service");

@@ -30,6 +30,7 @@
 #include <extension/extension.h>
 #include <dmsdk/extension/extension.hpp>
 #include <dmsdk/engine/engine_event.h>
+#include <dmsdk/engine/extension.hpp>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
@@ -716,6 +717,88 @@ TEST_F(EngineTest, WindowResizeBeforeRenderContext)
     dmEngine::Delete(engine);
     dmEngineFinalize();
 }
+
+static const char* g_DeprecatedEngineContextNames[] = {
+    "dmEngine::GetConfigFile is deprecated.",
+    "dmEngine::GetWebServer is deprecated.",
+    "dmEngine::GetGameObjectRegister is deprecated.",
+    "dmEngine::GetHIDContext is deprecated.",
+};
+static uint32_t g_DeprecatedEngineContextWarnings[4];
+
+static void CaptureDeprecatedEngineContextWarning(LogSeverity severity, const char*, const char* message)
+{
+    if (severity != LOG_SEVERITY_WARNING)
+    {
+        return;
+    }
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(g_DeprecatedEngineContextNames); ++i)
+    {
+        if (strstr(message, g_DeprecatedEngineContextNames[i]))
+        {
+            ++g_DeprecatedEngineContextWarnings[i];
+        }
+    }
+}
+
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable:4996)
+#endif
+
+// Deprecated helpers preserve context identity and warn once per helper across repeated calls.
+TEST(dmEngine, DeprecatedContextAccessors)
+{
+    int contexts[4] = { 1, 2, 3, 4 };
+    HContextRegistry registry = ContextRegistryCreate();
+    ContextRegistrySet(registry, CONFIGFILE_CONTEXT_NAME, &contexts[0]);
+    ContextRegistrySet(registry, WEBSERVER_CONTEXT_NAME, &contexts[1]);
+    ContextRegistrySet(registry, GAMEOBJECT_CONTEXT_NAME, &contexts[2]);
+    ContextRegistrySet(registry, HID_CONTEXT_NAME, &contexts[3]);
+    dmExtension::AppParams params;
+    dmExtension::AppParamsInitialize(&params);
+    ExtensionAppParamsSetContextRegistry(&params, registry);
+
+    memset(g_DeprecatedEngineContextWarnings, 0, sizeof(g_DeprecatedEngineContextWarnings));
+    LogSeverity level = dmLogGetLevel();
+    dmLogSetLevel(LOG_SEVERITY_WARNING);
+    dmLog::LogParams log_params;
+    dmLog::LogInitialize(&log_params);
+    dmLogRegisterListener(CaptureDeprecatedEngineContextWarning);
+    bool contexts_valid = true;
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        contexts_valid &= dmEngine::GetConfigFile(&params) == (dmConfigFile::HConfig)&contexts[0];
+        contexts_valid &= dmEngine::GetWebServer(&params) == (dmWebServer::HServer)&contexts[1];
+        contexts_valid &= dmEngine::GetGameObjectRegister(&params) == (dmGameObject::HRegister)&contexts[2];
+        contexts_valid &= dmEngine::GetHIDContext(&params) == (dmHID::HContext)&contexts[3];
+    }
+    dmLog::LogFinalize();
+    dmLogUnregisterListener(CaptureDeprecatedEngineContextWarning);
+    dmLogSetLevel(level);
+    dmExtension::AppParamsFinalize(&params);
+    ContextRegistryDestroy(registry);
+
+    ASSERT_TRUE(contexts_valid);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(g_DeprecatedEngineContextWarnings); ++i)
+    {
+        ASSERT_EQ(1u, g_DeprecatedEngineContextWarnings[i]);
+    }
+}
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 // App and update parameters share the engine registry before initialization; standalone and missing entries are supported.
 TEST_F(EngineTest, ExtensionEngineContext)
