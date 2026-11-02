@@ -83,6 +83,7 @@ typedef enum InputActionSource
  */
 typedef struct InputActionIterator
 {
+    // private
     uintptr_t m_State[2];
 } InputActionIterator;
 
