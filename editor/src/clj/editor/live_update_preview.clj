@@ -17,7 +17,8 @@
             [editor.pipeline.bob :as bob]
             [editor.resource :as resource]
             [internal.java :as java]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.digest :as digest])
   (:import [com.dynamo.bob.archive.liveupdate PackagePreview]
            [java.io ByteArrayInputStream InputStream]
            [java.nio.file CopyOption DirectoryNotEmptyException Files LinkOption OpenOption Path StandardCopyOption]
@@ -30,7 +31,7 @@
   (atom {:closed false :job nil :result nil :error nil
          :close-completion (promise)
          :directory (delay (Files/createTempDirectory "defold-liveupdate-preview-" (make-array FileAttribute 0)))
-         :paths (atom #{})}))
+         :source-versions (atom {})}))
 
 (defn close! [controller]
   (let [[previous _] (swap-vals! controller assoc :closed true :job nil :result nil)]
@@ -55,9 +56,9 @@
 (defn update! [controller fingerprint work!]
   (let [job {:cancelled (atom false) :completion (promise)}
         [previous current] (swap-vals! controller
-                                      #(if (or (:closed %) (= fingerprint (:fingerprint %)))
-                                         %
-                                         (assoc % :fingerprint fingerprint :job job :error nil)))]
+                                       #(if (or (:closed %) (= fingerprint (:fingerprint %)))
+                                          %
+                                          (assoc % :fingerprint fingerprint :job job :error nil)))]
     (when (identical? job (:job current))
       (when-let [previous-job (:job previous)]
         (reset! (:cancelled previous-job) true))
@@ -86,14 +87,14 @@
             (deliver (:completion job) true))))
       (:completion job))))
 
-(defn build! [controller resources contents manifest-path options cancelled?]
+(defn build! [controller resources resource-statuses contents manifest-path options cancelled?]
   (let [^Path snapshot @(:directory @controller)
-        paths (:paths @controller)
+        source-versions (:source-versions @controller)
         ;; Bob mounts its own builtins, so do not copy them into the snapshot.
         resources (coll/into-> resources {} (remove #(.startsWith ^String (key %) "/builtins/")))
         current-paths (set (coll/keys resources))
-        previous-paths @paths]
-    (doseq [path previous-paths :when (not (contains? current-paths path))]
+        previous-versions @source-versions]
+    (doseq [[path] previous-versions :when (not (contains? current-paths path))]
       (let [destination (.resolve snapshot ^String (subs path 1))]
         (Files/deleteIfExists destination)
         (loop [parent (.getParent destination)]
@@ -101,19 +102,27 @@
                      (try (Files/deleteIfExists parent) (catch DirectoryNotEmptyException _ false)))
             (recur (.getParent parent))))))
     ;; Record paths first, so the next refresh also cleans cancelled copies.
-    (reset! paths current-paths)
+    (reset! source-versions (coll/pair-map-by identity previous-versions current-paths))
     (doseq [[path source] resources]
       (when (cancelled?) (throw (java.util.concurrent.CancellationException.)))
       (let [destination (.resolve snapshot ^String (subs path 1))
-            input! #(if-let [content (get contents path)]
-                      (ByteArrayInputStream. (.getBytes ^String content java.nio.charset.StandardCharsets/UTF_8))
-                      (io/input-stream source))]
-        (when-not (and (Files/isRegularFile destination (make-array LinkOption 0))
-                      (with-open [^InputStream input (input!)
-                                  previous (Files/newInputStream destination (make-array OpenOption 0))]
-                        (IOUtils/contentEquals input previous)))
-          (Files/createDirectories (.getParent destination) (make-array FileAttribute 0))
-          (with-open [^InputStream input (input!)]
-            (Files/copy input destination ^"[Ljava.nio.file.CopyOption;" (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING]))))))
+            content (get contents path)
+            version [source (get resource-statuses path) (some-> content digest/string->sha1-hex)]]
+        (when-not (and (= version (get previous-versions path))
+                       (Files/isRegularFile destination (make-array LinkOption 0)))
+          ;; A failed copy must not leave the previous version marked valid.
+          (swap! source-versions assoc path nil)
+          (let [input! (fn input! []
+                         (if content
+                           (ByteArrayInputStream. (.getBytes ^String content java.nio.charset.StandardCharsets/UTF_8))
+                           (io/input-stream source)))]
+            (when-not (and (Files/isRegularFile destination (make-array LinkOption 0))
+                           (with-open [^InputStream input (input!)
+                                       previous (Files/newInputStream destination (make-array OpenOption 0))]
+                             (IOUtils/contentEquals input previous)))
+              (Files/createDirectories (.getParent destination) (make-array FileAttribute 0))
+              (with-open [^InputStream input (input!)]
+                (Files/copy input destination ^"[Ljava.nio.file.CopyOption;" (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING])))))
+          (swap! source-versions assoc path version))))
     (PackagePreview/build snapshot (.toPath (.getParentFile (io/file (resource/abs-path (get resources "/game.project")))))
                           manifest-path options java/class-loader (bob/->progress (constantly nil) cancelled?))))

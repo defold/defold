@@ -461,6 +461,29 @@
       (is (= 5 (child-count root)))
       (is (some? (g/node-value (:node-id (outline root [3])) :scene))))))
 
+;; Pasted packages get unique names before attachment, so renaming the copy
+;; preserves references to the original package through undo and redo.
+(deftest copy-paste-live-update-package
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (let [root (test-util/resource-node project "/packages.lumanifest")
+          original (g/node-value root :save-value)
+          [levels copy] (:packages original)
+          pasted (assoc original :packages [levels (assoc levels :name "levels1") copy])
+          renamed (assoc-in pasted [:packages 1 :name] "renamed")]
+      (copy-paste! project app-view root [1])
+      (is (= pasted (g/node-value root :save-value)))
+      (is (coll/empty? (g/node-value root :diagnostics)))
+      (g/transact (g/set-property (:node-id (outline root [2])) :id "renamed"))
+      (is (= renamed (g/node-value root :save-value)))
+      (g/undo! :undo/global)
+      (is (= pasted (g/node-value root :save-value)))
+      (g/undo! :undo/global)
+      (is (= original (g/node-value root :save-value)))
+      (g/redo! :undo/global)
+      (is (= pasted (g/node-value root :save-value)))
+      (g/redo! :undo/global)
+      (is (= renamed (g/node-value root :save-value))))))
+
 (deftest copied-contents
   (test-util/with-loaded-project
     (let [root (test-util/resource-node project "/collection/sub_sub_props.collection")]

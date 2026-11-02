@@ -286,8 +286,8 @@
    :style-class "ext-resource-picker"
    :children
    [(assoc (make-control-view (assoc-in property [:edit-type :type] g/Str) context localization-state)
-           :h-box/hgrow :always
-           :style-class "ext-resource-picker-field")
+      :h-box/hgrow :always
+      :style-class "ext-resource-picker-field")
     {:fx/type fxui/button
      :text "..."
      :style-class "ext-resource-picker-browse-button"

@@ -44,11 +44,11 @@
     nil
     (catch PatternSyntaxException error
       (g/->error node-id :path :fatal path
-                (if (neg? (.getIndex error))
-                  (localization/message "liveupdate.invalid-regex" {"reason" (.getDescription error)})
-                  (localization/message "liveupdate.invalid-regex-at-column"
-                                        {"column" (inc (.getIndex error))
-                                         "reason" (.getDescription error)}))))))
+                 (if (neg? (.getIndex error))
+                   (localization/message "liveupdate.invalid-regex" {"reason" (.getDescription error)})
+                   (localization/message "liveupdate.invalid-regex-at-column"
+                                         {"column" (inc (.getIndex error))
+                                          "reason" (.getDescription error)}))))))
 
 (defn- set-target [evaluation-context self old-target new-target]
   ;; Preserve authored references during loading, but do not restore a stale
@@ -75,15 +75,15 @@
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-rule :operation))
             (dynamic edit-type (g/constantly {:type :radio-group
-                                            :options [[:add (localization/message "liveupdate.add")]
-                                                      [:remove (localization/message "liveupdate.remove")]]})))
+                                              :options [[:add (localization/message "liveupdate.add")]
+                                                        [:remove (localization/message "liveupdate.remove")]]})))
   (property target g/Keyword (default :path)
             (set set-target)
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-rule :target))
             (dynamic edit-type (g/constantly {:type :radio-group
-                                            :options [[:path (localization/message "liveupdate.path")]
-                                                      [:package (localization/message "liveupdate.package")]]})))
+                                              :options [[:path (localization/message "liveupdate.path")]
+                                                        [:package (localization/message "liveupdate.package")]]})))
   (property path g/Str
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-rule :path))
@@ -100,9 +100,9 @@
             (dynamic label (properties/label-dynamic :liveupdate-rule :no-match))
             (dynamic visible (g/fnk [target] (not= :package target)))
             (dynamic edit-type (g/constantly {:type :radio-group
-                                            :options [[:warn (localization/message "liveupdate.no-match.warn")]
-                                                      [:error (localization/message "liveupdate.no-match.error")]
-                                                      [:ignore (localization/message "liveupdate.no-match.ignore")]]})))
+                                              :options [[:warn (localization/message "liveupdate.no-match.warn")]
+                                                        [:error (localization/message "liveupdate.no-match.error")]
+                                                        [:ignore (localization/message "liveupdate.no-match.ignore")]]})))
   (property package g/Str (default "")
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-rule :package))
@@ -174,9 +174,9 @@
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-package :provider))
             (dynamic edit-type (g/constantly {:type :choicebox
-                                            :options [[:zip "ZIP"]
-                                                      [:folder (localization/message "liveupdate.folder")]
-                                                      [:custom (localization/message "liveupdate.custom")]]})))
+                                              :options [[:zip "ZIP"]
+                                                        [:folder (localization/message "liveupdate.folder")]
+                                                        [:custom (localization/message "liveupdate.custom")]]})))
   (property custom-provider g/Str (default "")
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-package :custom-provider))
@@ -231,6 +231,14 @@
    (g/connect child :_node-id parent :package-nodes)
    (g/connect child :data parent :package-data)
    (g/connect child :node-outline parent :child-outlines)])
+
+(defn- attach-pasted-package [parent child]
+  [(g/expand-ec
+     (fn resolve-package-id [evaluation-context]
+       (g/update-property child :id id/resolve
+                          (mapv #(get-in % [:value :name])
+                                (g/node-value parent :package-data evaluation-context)))))
+   (attach-package parent child)])
 
 (defn source-resources [resource-map generated-paths]
   (coll/into-> resource-map {}
@@ -297,9 +305,9 @@
      :original-value (:value default)
      :error error
      :edit-type (cond-> {:type (if error g/Str type)
-                        :category-separator true
-                        :set-fn (fn/partial set-provider-property provider id)
-                        :clear-fn (fn/partial clear-provider-property provider id)}
+                         :category-separator true
+                         :set-fn (fn/partial set-provider-property provider id)
+                         :clear-fn (fn/partial clear-provider-property provider id)}
                   (coll/not-empty choices)
                   (assoc :type :choicebox
                          :options (mapv (fn [choice] [(.parse description choice) choice]) choices)))}))
@@ -308,11 +316,11 @@
   (if (g/error? schemas)
     (-> declared-properties
         (assoc-in [:properties :provider-error] {:node-id node-id
-                                               :type g/Str
-                                               :label (localization/message "liveupdate.providers")
-                                               :read-only? true
-                                               :value ""
-                                               :error schemas})
+                                                 :type g/Str
+                                                 :label (localization/message "liveupdate.providers")
+                                                 :read-only? true
+                                                 :value ""
+                                                 :error schemas})
         (update :display-order conj :provider-error))
     (reduce (fn [properties provider]
               (let [^PackageProviders$Schema schema (get schemas provider)
@@ -332,8 +340,8 @@
                   (-> properties
                       (update :properties into
                               (mapv (fn [key description]
-                                     [key (provider-property node-id read-only provider description authored legacy-zip-compression)])
-                                   property-keys descriptions))
+                                      [key (provider-property node-id read-only provider description authored legacy-zip-compression)])
+                                    property-keys descriptions))
                       (update :display-order conj
                               (into [(localization/message (str "liveupdate.provider." provider ".label") {} (if schema (.label schema) provider))]
                                     property-keys))))))
@@ -396,28 +404,28 @@
              :label (localization/message "resource.type.lumanifest")
              :icon icon
              :children (into [base-outline] (sort-by :order child-outlines))
-             :child-reqs [{:node-type PackageNode :tx-attach-fn attach-package}]}))
+             :child-reqs [{:node-type PackageNode :tx-attach-fn attach-pasted-package}]}))
   (output build-targets g/Any (g/constantly [])))
 
 (defn- make-rule [parent order rule]
   (g/make-nodes [child [RuleNode :id (:name rule)
-                       :order order
-                       :operation (:operation rule :add)
-                       :target (cond
-                                 (and (contains? rule :path) (contains? rule :package)) :invalid
-                                 (contains? rule :package) :package
-                                 :else :path)
-                       :path (:path rule)
-                       :no-match (:no-match rule :warn)
-                       :package (:package rule "")]]
+                        :order order
+                        :operation (:operation rule :add)
+                        :target (cond
+                                  (and (contains? rule :path) (contains? rule :package)) :invalid
+                                  (contains? rule :package) :package
+                                  :else :path)
+                        :path (:path rule)
+                        :no-match (:no-match rule :warn)
+                        :package (:package rule "")]]
     (attach-rule parent child)))
 
 (defn- make-package [parent order package]
   (let [provider (:provider package "zip")]
     (g/make-nodes [child [PackageNode :id (:name package)
-                         :order order
-                         :provider (case provider "zip" :zip "folder" :folder :custom)
-                         :custom-provider (if (#{"zip" "folder"} provider) "" provider)]]
+                          :order order
+                          :provider (case provider "zip" :zip "folder" :folder :custom)
+                          :custom-provider (if (#{"zip" "folder"} provider) "" provider)]]
       (attach-package parent child)
       (coll/into-> (:rules package) []
         (map-indexed (fn [index rule] (make-rule child index rule)))))))
