@@ -24,6 +24,7 @@
             [editor.gamepads :as gamepads]
             [editor.graph-util :as gu]
             [editor.localization :as localization]
+            [editor.pipeline :as pipeline]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.settings :as settings]
@@ -182,7 +183,7 @@
    ["native_extension" "app_manifest"] [[:use-font-layout :use-font-layout]
                                         [:use-rich-text :use-rich-text]]})
 
-(g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info manifest-selected-paths custom-resource+versions custom-resources-setting resource-settings dep-build-targets dependencies gamepads-build-targets gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
+(g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info manifest-selected-paths custom-build-targets custom-resource+versions custom-resources-setting resource-settings dep-build-targets dependencies gamepads-build-targets gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
   (g/precluding-errors [manifest-selected-paths
                         (some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
                         gamepads-pb
@@ -196,7 +197,7 @@
           gamepads-build-target (if (and gamepads-build-targets (not gamepad-database-resource))
                                   (peek gamepads-build-targets)
                                   (gamepads/make-build-target _node-id gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines))
-          dep-build-targets (cond-> (vec (flatten dep-build-targets))
+          dep-build-targets (cond-> (vec (into (flatten dep-build-targets) custom-build-targets))
                               gamepads-build-target (conj gamepads-build-target))
           deps-by-source (into {}
                                (map (fn [{build-resource :resource}]
@@ -218,7 +219,7 @@
                                                    :path->built-resource-settings path->built-resource-settings}
                                        :deps dep-build-targets
                                        :dynamic-resource-deps (filterv (complement custom-resource-paths) manifest-selected-paths)
-                                       :dynamic-custom-resource-deps (vec (sort custom-resource-paths))})]
+                                       :dynamic-custom-resource-deps (filterv custom-resource-paths manifest-selected-paths)})]
       (cond-> [game-project-build-target]
         (and (get settings-map dependencies-metadata-setting-path)
              (coll/not-empty dependencies))
@@ -332,6 +333,23 @@
                              resource-status (status-map proj-path)
                              version (:version resource-status)]
                          (pair resource version))))))))
+
+  (output custom-build-targets g/Any :cached
+          (g/fnk [_node-id custom-resource+versions manifest-selected-paths]
+            (try
+              (mapv (fn [[source-resource _version]]
+                      ;; We don't actually need the version here, since we will
+                      ;; generate a hash from the contents of each file.
+                      (pipeline/make-source-bytes-build-target _node-id (pipeline/->CustomResource source-resource)))
+                    (filterv (fn [[source-resource]]
+                               (not (contains? manifest-selected-paths (resource/proj-path source-resource))))
+                             custom-resource+versions))
+              (catch Throwable error
+                (g/map->error
+                  {:_node-id _node-id
+                   :_label :custom-build-targets
+                   :message (ex-message error)
+                   :severity :fatal})))))
 
   (input save-value g/Any)
   (output save-value g/Any (gu/passthrough save-value))

@@ -798,13 +798,11 @@
   "Task priority in descending order (from highest to lowest)"
   [:save-all :resource-sync :fetch-libraries :build :build-engine :download-update :live-update-preview :main])
 
-(defn- status-bar-controls [^Scene scene]
-  (or (ui/user-data scene ::status-bar-controls)
-      (let [controls (ui/collect-controls
-                       (.lookup (.getRoot scene) "#status-bar")
-                       ["progress-bar" "progress-hbox" "progress-percentage-label" "status-label" "progress-cancel-button"])]
-        (ui/user-data! scene ::status-bar-controls controls)
-        controls)))
+(def status-bar-controls-delay
+  (delay
+    (ui/collect-controls
+      (.. (ui/main-stage) (getScene) (getRoot) (lookup "#status-bar"))
+      ["progress-bar" "progress-hbox" "progress-percentage-label" "status-label" "progress-cancel-button"])))
 
 (declare ^:private render-task-progress-ui!)
 
@@ -836,9 +834,8 @@
           show-progress-hbox (boolean (and (not= key :main)
                                            progress
                                            (not (progress/done? progress))))
-          scene (.getScene (ui/main-stage))
-          localization (ui/user-data scene :localization)
-          {:keys [progress-bar progress-hbox progress-percentage-label status-label progress-cancel-button]} (status-bar-controls scene)]
+          localization (ui/user-data (.getScene (ui/main-stage)) :localization)
+          {:keys [progress-bar progress-hbox progress-percentage-label status-label progress-cancel-button]} @status-bar-controls-delay]
       (ui/render-progress-message!
         (if key progress (task-progress-snapshot :main))
         status-label
@@ -1426,8 +1423,7 @@
           ;; We're about to create an evaluation-context. Make sure it is
           ;; created from the main thread, so it makes sense to update the cache
           ;; from it after the project build concludes. Note that we selectively
-          ;; transfer only the cached build targets and source byte hashes back
-          ;; to the system cache.
+          ;; transfer only the cached build-targets back to the system cache.
           ;; We do this because the project build process involves most of the
           ;; cached outputs in the project graph, and the intermediate steps
           ;; risk evicting the previous build targets as the cache fills up.

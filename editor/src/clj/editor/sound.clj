@@ -81,7 +81,7 @@
   (try
     (or (validate-if-ogg _node-id resource)
         [(if-not (= "ogg" (resource/ext resource))
-           (pipeline/make-source-bytes-build-target _node-id resource (resource/resource->path-inclusive-sha1-hex resource))
+           (pipeline/make-source-bytes-build-target _node-id resource)
            (bt/with-content-hash
              {:node-id _node-id
               :resource (workspace/make-build-resource resource)

@@ -136,12 +136,17 @@
     {:resource build-resource
      :content source-bytes}))
 
-(defn make-source-bytes-build-target [node-id source-resource source-hash]
-  (bt/with-content-hash
-    {:node-id node-id
-     :resource (workspace/make-build-resource source-resource)
-     :build-fn build-source-bytes
-     :user-data {:source-hash source-hash}}))
+(defn make-source-bytes-build-target [node-id source-resource]
+  ;; Warning: May throw IOException.
+  ;; We hash the source resource contents to ensure the build target is
+  ;; invalidated from the on-disk build cache when the contents change.
+  (let [build-resource (workspace/make-build-resource source-resource)
+        source-hash (resource/resource->path-inclusive-sha1-hex source-resource)]
+    (bt/with-content-hash
+      {:node-id node-id
+       :resource build-resource
+       :build-fn build-source-bytes
+       :user-data {:source-hash source-hash}})))
 
 (defn- build-source-content [build-resource _dep-resources content]
   {:resource build-resource :content content})

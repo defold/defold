@@ -253,10 +253,13 @@
         ^PackagePreview$Result compiled (get-in result [:value :compiled])
         export-paths (when (and compiled (not searching)) (get (.exportPaths compiled) package-name))
         diagnostics (if compiled (.diagnostics (.plan compiled)) (:diagnostics model))
-        diagnostic-text (coll/join-to-string "\n" (coll/into-> [diagnostics (:diagnostics model)] []
-                                                    cat
-                                                    (map #(.message ^PackageResolver$Diagnostic %))
-                                                    (distinct)))
+        messages (coll/into-> [diagnostics (:diagnostics model)] []
+                   cat
+                   (map #(.message ^PackageResolver$Diagnostic %)))
+        error (:error preview-state)
+        diagnostic-text (coll/join-to-string "\n"
+                                             (coll/into-> (cond-> messages error (conj (or (ex-message error) (str error)))) []
+                                               (distinct)))
         query (string/lower-case (string/trim (:filter ui-state "")))
         rows (if-not searching
                rows
@@ -267,9 +270,7 @@
         displayed-rows (if searching rows (resource-tree rows))
         row (when (= package-name (:package ui-state))
               (coll/first-where #(= (:selected-path ui-state) (:path %)) rows))
-        message #(localization-state (localization/message %))
-        status (when-let [error (:error preview-state)]
-                 (or (ex-message error) (str error)))]
+        message #(localization-state (localization/message %))]
     {:fx/type fxui/ext-with-anchor-pane-props
      :desc {:fx/type ui/ext-value :value parent}
      :props {:children
@@ -278,9 +279,7 @@
                :padding 12 :spacing 8
                :children
                (filterv some?
-                        [(when status
-                           {:fx/type fxui/label :fx/key :status :text status :wrap-text true :min-width 0})
-                         {:fx/type :h-box :fx/key :filter :id "liveupdate-search" :spacing 4
+                        [{:fx/type :h-box :fx/key :filter :id "liveupdate-search" :spacing 4
                           :children [{:fx/type fxui/text-field :id "liveupdate-filter" :h-box/hgrow :always
                                       :prompt-text (message "liveupdate.search")
                                       :text (:filter ui-state "") :on-text-changed {:event/type :filter}}

@@ -30,25 +30,12 @@
   (:import [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageOutputPath PackageProvider$Property PackageProvider$PropertyType PackageProviders PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Selection PackageResolver$Severity]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc]
            [java.nio.file Path]
-           [java.util.function Function]
-           [java.util.regex Pattern PatternSyntaxException]))
+           [java.util.function Function]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:private icon "icons/32/Icons_04-Project-file.png")
 (def ^:private package-icon "icons/32/Icons_42-Layers.png")
-
-(defn- regex-error [node-id path]
-  (try
-    (Pattern/compile path)
-    nil
-    (catch PatternSyntaxException error
-      (g/->error node-id :path :fatal path
-                 (if (neg? (.getIndex error))
-                   (localization/message "liveupdate.invalid-regex" {"reason" (.getDescription error)})
-                   (localization/message "liveupdate.invalid-regex-at-column"
-                                         {"column" (inc (.getIndex error))
-                                          "reason" (.getDescription error)}))))))
 
 (defn- set-target [evaluation-context self old-target new-target]
   ;; Preserve authored references during loading, but do not restore a stale
@@ -90,11 +77,10 @@
             (dynamic visible (g/fnk [target] (not= :package target)))
             (dynamic error (g/fnk [_node-id target path rule-diagnostics]
                              (when (and (not= :package target) path)
-                               (or (regex-error _node-id path)
-                                   (when-let [^PackageResolver$Diagnostic diagnostic (get rule-diagnostics _node-id)]
-                                     (g/->error _node-id :path
-                                                (if (= PackageResolver$Severity/ERROR (.severity diagnostic)) :fatal :warning)
-                                                path (.message diagnostic))))))))
+                               (when-let [^PackageResolver$Diagnostic diagnostic (get rule-diagnostics _node-id)]
+                                 (g/->error _node-id :path
+                                            (if (= PackageResolver$Severity/ERROR (.severity diagnostic)) :fatal :warning)
+                                            path (.message diagnostic)))))))
   (property no-match g/Keyword (default :warn)
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-rule :no-match))
@@ -247,15 +233,6 @@
                    (not (PackageArtifacts/isGeneratedPath path generated-paths))
                    (or (resource/file-resource? source) (resource/zip-resource? source)))))))
 
-(defn- selection
-  ^PackageResolver$Selection [save-value resource-map generated-paths]
-  (PackageResolver/select
-    (protobuf/map->pb LiveUpdateManifest$ManifestDesc save-value)
-    (vec (coll/keys (source-resources resource-map generated-paths)))))
-
-(defn- diagnostics [save-value resource-map generated-paths]
-  (.diagnostics (selection save-value resource-map generated-paths)))
-
 (defn- set-provider-value [settings provider property value]
   (let [provider-index (coll/first-index-where #(= provider (:provider %)) settings)
         provider-index (or provider-index (count settings))
@@ -388,15 +365,20 @@
   (output package-references g/Any :cached
           (g/fnk [save-value]
             (PackageResolver/packageReferences (protobuf/map->pb LiveUpdateManifest$ManifestDesc save-value))))
-  (output diagnostics g/Any :cached (g/fnk [save-value resource-map generated-paths] (diagnostics save-value resource-map generated-paths)))
+  (output selection g/Any :cached
+          (g/fnk [save-value resource-map generated-paths]
+            (PackageResolver/select
+              (protobuf/map->pb LiveUpdateManifest$ManifestDesc save-value)
+              (vec (coll/keys (source-resources resource-map generated-paths))))))
+  (output diagnostics g/Any (g/fnk [selection] (.diagnostics ^PackageResolver$Selection selection)))
   (output selected-paths g/Any :cached
-          (g/fnk [_node-id save-value resource-map generated-paths diagnostics]
+          (g/fnk [_node-id selection diagnostics]
             (or (g/flatten-errors
                   (coll/into-> diagnostics []
                     (keep (fn [^PackageResolver$Diagnostic diagnostic]
                             (when (= PackageResolver$Severity/ERROR (.severity diagnostic))
                               (g/->error _node-id :selected-paths :fatal nil (.message diagnostic)))))))
-                (coll/into-> (.values (.matches (selection save-value resource-map generated-paths))) (sorted-set) cat))))
+                (coll/into-> (.values (.matches ^PackageResolver$Selection selection)) (sorted-set) cat))))
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id child-outlines base-outline]
             {:node-id _node-id

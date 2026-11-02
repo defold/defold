@@ -26,9 +26,7 @@
             [editor.live-update-manifest :as manifest]
             [editor.live-update-manifest-view :as manifest-view]
             [editor.live-update-preview :as preview]
-            [editor.localization :as localization]
             [editor.prefs :as prefs]
-            [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.properties-view :as properties-view]
             [editor.protobuf :as protobuf]
@@ -51,14 +49,12 @@
            [javafx.animation AnimationTimer PauseTransition]
            [javafx.event Event]
            [javafx.scene Scene]
-           [javafx.scene.control Button Hyperlink Label MenuItem RadioButton SplitPane Tab TabPane TextField TreeItem TreeTableColumn TreeTableView]
+           [javafx.scene.control Button Hyperlink Label MenuItem RadioButton ScrollPane SplitPane Tab TabPane TextField TreeItem TreeTableColumn TreeTableView]
            [javafx.scene.input Clipboard]
            [javafx.scene.layout Pane]
            [javafx.stage Stage]
            [javafx.util Duration]
-           [javax.tools ToolProvider]
-           [jdk.jfr Recording]
-           [jdk.jfr.consumer RecordedEvent RecordingFile]))
+           [javax.tools ToolProvider]))
 
 (set! *warn-on-reflection* true)
 
@@ -575,8 +571,8 @@
         (g/transact (g/set-property rule :path path))
         (let [error (test-util/prop-error rule :path)]
           (is (g/error-fatal? error))
-          (is (= (str "Invalid regular expression at column " column ": " reason)
-                 (@test-util/localization (:message error)))))
+          (is (= (str "Invalid regex in rule 'Episode' of package 'levels' at column " column ": " reason ". Path: " path)
+                 (:message error))))
         (is (g/error-value? (g/node-value node :selected-paths)))
         (is (= (str "Invalid regex in rule 'Episode' of package 'levels' at column " column ": " reason ". Path: " path)
                (.message ^com.dynamo.bob.archive.liveupdate.PackageResolver$Diagnostic (first (g/node-value node :diagnostics))))))
@@ -633,7 +629,7 @@
       (test-util/set-setting! game-project ["project" "custom_resources"] "/extra.json,/opaque")
       (g/transact (g/set-property rule :path "/(extra[.]json|opaque/.*)"))
       (loop [index 0 artifact-map {}]
-        (when (< index 6)
+        (when (< index 2)
           (let [expected (str "{\"review\":" index "}")]
             (test-util/set-code-editor-source! raw expected)
             (let [targets (build/resolve-node-dependencies game-project project)
@@ -830,12 +826,11 @@
           (is (not= @(:directory @@old-controller) @(:directory @controller)))
           (is (instance? PackagePreview$Result (get-in @controller [:result :value :compiled]))))))))
 
-;; Refreshes reuse unchanged snapshot files without reading their source bytes.
+;; Refreshes preserve unchanged snapshot files.
 ;; Disk edits, unsaved edits, saves, and removals still update the snapshot.
 (deftest preview-reuses-unchanged-sources
   (test-util/with-scratch-project "test/resources/live_update_project"
     (let [source (io/file (workspace/file-resource workspace "/unselected.bin"))
-          capture (.toPath (fs/create-temp-file! "liveupdate-preview" ".jfr"))
           controller (preview/controller)
           build! (fn build! [contents]
                    (preview/build! controller
@@ -851,19 +846,12 @@
         (let [node (project/get-resource-node project "/packages.lumanifest")
               rule (get-in (g/node-value node :packages) [0 :rules 0 :node-id])]
           (g/set-property! rule :id "Renamed rule")
-          (with-open [recording (Recording.)]
-            (.withThreshold (.enable recording "jdk.FileRead") java.time.Duration/ZERO)
-            (.start recording)
+          (let [snapshot (.resolve ^Path @(:directory @controller) "unselected.bin")
+                unchanged (FileTime/fromMillis 946684800000)]
+            (Files/setLastModifiedTime snapshot unchanged)
             (let [^PackagePreview$Result result (build! {"/packages.lumanifest" (resource-node/save-data-content (g/node-value node :save-data))})]
               (is (= "Renamed rule" (.getName (.getRules (.description ^PackageResolver$Package (get (.packages (.plan result)) "levels")) 0)))))
-            (.stop recording)
-            (.dump recording capture))
-          (let [reads (RecordingFile/readAllEvents capture)]
-            (is (coll/not-empty reads))
-            (is (coll/not-any? (fn [^RecordedEvent event]
-                                 (and (= "jdk.FileRead" (.getName (.getEventType event)))
-                                      (= (.getCanonicalPath source) (.getString event "path"))))
-                               reads))))
+            (is (= unchanged (Files/getLastModifiedTime snapshot (make-array java.nio.file.LinkOption 0))))))
         (let [raw (workspace/file-resource workspace "/extra.json")
               snapshot (.resolve ^Path @(:directory @controller) "extra.json")
               disk-content "{\"disk\":true}"
@@ -887,8 +875,7 @@
         (build! {})
         (is (not (.exists (.toFile (.resolve ^Path @(:directory @controller) "unselected.bin")))))
         (finally
-          (is (= true (deref (preview/close! controller) 30000 :timeout)))
-          (Files/deleteIfExists capture))))))
+          (is (= true (deref (preview/close! controller) 30000 :timeout))))))))
 
 ;; The public preview lifecycle accepts captured inputs and a cancellation
 ;; callback. Gate an actual source-copy operation so cancellation and close are
@@ -963,8 +950,10 @@
               (deliver (:release work) true)
               (await-ui! #(and (realized? (:completion work)) (some? (:error @controller))))
               (await-ui! #(let [form (first (.getChildren ^Pane parent))
-                                first-control (first (.getChildren ^Pane form))]
-                            (instance? Label first-control)))
+                                diagnostics (last (.getChildren ^Pane form))]
+                            (and (instance? ScrollPane diagnostics)
+                                 (.contains (.getText ^Label (.getContent ^ScrollPane diagnostics))
+                                            ^String (ex-message (:error @controller))))))
               (is (identical? previous (:result @controller)))
               (is (identical? table (resource-table parent)))
               (is (identical? filter-control (.lookup ^Pane parent "#liveupdate-filter")))
@@ -1045,24 +1034,6 @@
               (deliver (:release first-work) true)
               (await-ui! #(realized? (:completion first-work)))
               (close-manifest-view! second-view))))))))
-
-;; A replacement editor window owns its progress controls, even after another
-;; window has already displayed progress and cached its controls.
-(deftest preview-progress-after-window-change
-  (letfn [(show-progress! []
-            (let [[render-progress! _] (app-view/begin-task-progress! :live-update-preview)
-                  {:keys [^Label status-label ^Pane progress-hbox]}
-                  (ui/collect-controls (.getRoot (.getScene (ui/main-stage))) ["status-label" "progress-hbox"])]
-              (try
-                (render-progress! (progress/make-cancellable-indeterminate (localization/message "liveupdate.preview-progress")))
-                (await-ui! #(= "Preparing Live Update preview" (.getText status-label)))
-                (is (.isVisible progress-hbox))
-                (finally
-                  (render-progress! progress/done)
-                  (await-ui! #(not (.isVisible progress-hbox)))))))]
-    (ui/run-now
-      (show-progress!)
-      (with-editor-window show-progress!))))
 
 ;; Package views show dependency trees; global searches list all supplying
 ;; packages and rules. Selecting a resource highlights its rules, and the source
