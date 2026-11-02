@@ -31,6 +31,8 @@ struct GLFWmonitor
     dmWindowState::Monitor m_State;
     GLFWvidmode            m_Mode;
     const char*            m_Name;
+    bool                   m_HasContentScale;
+    bool                   m_HasWorkArea;
 };
 
 struct GLFWwindow
@@ -41,6 +43,8 @@ struct GLFWwindow
 
 static GLFWmonitor  g_Monitors[2];
 static GLFWmonitor* g_MonitorHandles[] = { &g_Monitors[0], &g_Monitors[1] };
+static int          g_MonitorCount;
+static bool         g_HasWindowContentScale;
 
 // Model the relevant GLFW/Win32 contract: the monitor follows the largest
 // overlap, and either a move or a resize can synchronously trigger automatic
@@ -50,7 +54,7 @@ static void SetGeometry(GLFWwindow* window, dmWindowState::Rect rect)
 {
     int64_t largest_overlap = 0;
     GLFWmonitor* monitor = window->m_Monitor;
-    for (uint32_t i = 0; i < 2; ++i)
+    for (int i = 0; i < g_MonitorCount; ++i)
     {
         const dmWindowState::Rect& work = g_Monitors[i].m_State.m_WorkArea;
         int64_t width = dmMath::Max(0, dmMath::Min(rect.m_X + rect.m_Width, work.m_X + work.m_Width) - dmMath::Max(rect.m_X, work.m_X));
@@ -86,13 +90,13 @@ int glfwGetWindowAttrib(GLFWwindow*, int)
 
 GLFWmonitor** glfwGetMonitors(int* count)
 {
-    *count = 2;
+    *count = g_MonitorCount;
     return g_MonitorHandles;
 }
 
 GLFWmonitor* glfwGetPrimaryMonitor()
 {
-    return &g_Monitors[0];
+    return g_MonitorCount ? &g_Monitors[0] : 0;
 }
 
 const char* glfwGetMonitorName(GLFWmonitor* monitor)
@@ -116,19 +120,26 @@ void glfwGetMonitorWorkarea(GLFWmonitor* monitor, int* x, int* y, int* width, in
     const dmWindowState::Rect& work = monitor->m_State.m_WorkArea;
     *x = work.m_X;
     *y = work.m_Y;
-    *width = work.m_Width;
-    *height = work.m_Height;
+    *width = monitor->m_HasWorkArea ? work.m_Width : 0;
+    *height = monitor->m_HasWorkArea ? work.m_Height : 0;
 }
 
 void glfwGetMonitorContentScale(GLFWmonitor* monitor, float* x, float* y)
 {
-    *x = monitor->m_State.m_ScaleX;
-    *y = monitor->m_State.m_ScaleY;
+    *x = monitor->m_HasContentScale ? monitor->m_State.m_ScaleX : 0.0f;
+    *y = monitor->m_HasContentScale ? monitor->m_State.m_ScaleY : 0.0f;
 }
 
 void glfwGetWindowContentScale(GLFWwindow* window, float* x, float* y)
 {
-    glfwGetMonitorContentScale(window->m_Monitor, x, y);
+    if (g_HasWindowContentScale)
+    {
+        glfwGetMonitorContentScale(window->m_Monitor, x, y);
+    }
+    else
+    {
+        *x = *y = 0.0f;
+    }
 }
 
 void glfwGetWindowPos(GLFWwindow* window, int* x, int* y)
@@ -203,8 +214,12 @@ class WindowPlacementDpiTest : public jc_test_base_class
         remove("test-window-placement-dpi/reset-size");
 
         memset(g_Monitors, 0, sizeof(g_Monitors));
+        g_MonitorCount = 2;
+        g_HasWindowContentScale = true;
         for (uint32_t i = 0; i < 2; ++i)
         {
+            g_Monitors[i].m_HasContentScale = true;
+            g_Monitors[i].m_HasWorkArea = true;
             g_Monitors[i].m_Name = i == 0 ? "Primary" : "Secondary";
             g_Monitors[i].m_Mode.width = 3840;
             g_Monitors[i].m_Mode.height = 2160;
@@ -363,6 +378,138 @@ TEST_F(WindowPlacementDpiTest, PrimaryMonitor)
     m_Saved.m_Rect.m_X = 100;
     m_Saved.m_Monitor = g_Monitors[0].m_State;
     CheckRestarts(100, 100, 600, 400);
+}
+
+// Verifies an unavailable saved monitor restores onto the primary monitor at its DPI.
+TEST_F(WindowPlacementDpiTest, DisconnectedMonitor)
+{
+    g_MonitorCount = 1;
+    CheckRestarts(3024, 133, 800, 533);
+}
+
+// Verifies falling back from the reporter's 225% screen to the 100% primary scales the saved geometry once.
+TEST_F(WindowPlacementDpiTest, DisconnectedHighDpiMonitor)
+{
+    g_Monitors[0].m_State.m_ScaleX = g_Monitors[0].m_State.m_ScaleY = 1.0f;
+    g_Monitors[1].m_State.m_ScaleX = g_Monitors[1].m_State.m_ScaleY = 2.25f;
+    m_Saved.m_Monitor = g_Monitors[1].m_State;
+    m_Saved.m_Rect.m_X = -2600;
+    m_Saved.m_Rect.m_Y = 300;
+    g_MonitorCount = 1;
+    CheckRestarts(551, 133, 267, 178);
+}
+
+// Verifies a monitor still appearing in GLFW during activation is skipped if its DPI query fails.
+TEST_F(WindowPlacementDpiTest, MonitorDpiUnavailable)
+{
+    g_Monitors[1].m_HasContentScale = false;
+    CheckRestarts(3024, 133, 800, 533);
+}
+
+// Verifies a monitor without a usable work area cannot strand the restored window off-screen.
+TEST_F(WindowPlacementDpiTest, MonitorWorkAreaUnavailable)
+{
+    g_Monitors[1].m_HasWorkArea = false;
+    CheckRestarts(3024, 133, 800, 533);
+}
+
+// Verifies failed DPI queries preserve the last good state and capture resumes when DPI is available.
+TEST_F(WindowPlacementDpiTest, WindowDpiUnavailableDuringCapture)
+{
+    ASSERT_TRUE(dmWindowState::Save(m_Path, m_Saved));
+    Restore();
+    m_NativeWindow.m_Rect.m_Width = 720;
+    g_HasWindowContentScale = false;
+    dmPlatform::UpdateWindowPlacement(&m_Window, true);
+    dmWindowState::State saved;
+    ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &saved));
+    ASSERT_EQ(600, saved.m_Rect.m_Width);
+    ASSERT_EQ(1.5f, saved.m_Monitor.m_ScaleX);
+    g_HasWindowContentScale = true;
+    dmPlatform::UpdateWindowPlacement(&m_Window, true);
+    ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &saved));
+    ASSERT_EQ(720, saved.m_Rect.m_Width);
+}
+
+// Verifies a transient failure on every monitor does not replace saved geometry with invalid values.
+TEST_F(WindowPlacementDpiTest, NoMonitorDpiAvailable)
+{
+    ASSERT_TRUE(dmWindowState::Save(m_Path, m_Saved));
+    dmWindowState::Rect rect = { 100, 100, 1920, 1280 };
+    m_NativeWindow.m_Rect = rect;
+    m_NativeWindow.m_Monitor = &g_Monitors[0];
+    g_Monitors[0].m_HasContentScale = g_Monitors[1].m_HasContentScale = false;
+    dmPlatform::InitWindowPlacement(&m_Window, m_Params);
+    ASSERT_FALSE(dmPlatform::RestoreWindowPlacement(&m_Window));
+    dmPlatform::WindowPlacementShown(&m_Window);
+    dmPlatform::UpdateWindowPlacement(&m_Window, true);
+    dmWindowState::State saved;
+    ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &saved));
+    ASSERT_EQ(m_Saved.m_Rect.m_Width, saved.m_Rect.m_Width);
+    ASSERT_EQ(m_Saved.m_Rect.m_X, saved.m_Rect.m_X);
+    ASSERT_EQ(m_Saved.m_Monitor.m_ScaleX, saved.m_Monitor.m_ScaleX);
+}
+
+// Verifies disconnecting the current monitor moves a running player into the primary work area.
+TEST_F(WindowPlacementDpiTest, DisconnectMonitorWhileRunning)
+{
+    ASSERT_TRUE(dmWindowState::Save(m_Path, m_Saved));
+    Restore();
+    g_MonitorCount = 1;
+    dmPlatform::WindowPlacementMonitorsChanged();
+    dmPlatform::UpdateWindowPlacement(&m_Window, true);
+    ASSERT_EQ(&g_Monitors[0], m_NativeWindow.m_Monitor);
+    const dmWindowState::Rect rect = m_NativeWindow.m_Rect;
+    ASSERT_EQ(800, rect.m_Width);
+    ASSERT_EQ(533, rect.m_Height);
+    ASSERT_GE(rect.m_X, 16);
+    ASSERT_GE(rect.m_Y, 60);
+    ASSERT_LE(rect.m_X + rect.m_Width + 16, 3840);
+    ASSERT_LE(rect.m_Y + rect.m_Height + 16, 2120);
+    Restore();
+    ASSERT_EQ(rect.m_X, m_NativeWindow.m_Rect.m_X);
+    ASSERT_EQ(rect.m_Y, m_NativeWindow.m_Rect.m_Y);
+    ASSERT_EQ(rect.m_Width, m_NativeWindow.m_Rect.m_Width);
+    ASSERT_EQ(rect.m_Height, m_NativeWindow.m_Rect.m_Height);
+}
+
+// Verifies missing display data during disconnection is retried without discarding the saved state.
+TEST_F(WindowPlacementDpiTest, DisconnectWithUnavailableWorkArea)
+{
+    ASSERT_TRUE(dmWindowState::Save(m_Path, m_Saved));
+    Restore();
+    g_MonitorCount = 1;
+    g_Monitors[0].m_HasWorkArea = false;
+    dmPlatform::WindowPlacementMonitorsChanged();
+    dmPlatform::UpdateWindowPlacement(&m_Window, true);
+    dmWindowState::State saved;
+    ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &saved));
+    ASSERT_EQ(m_Saved.m_Rect.m_X, saved.m_Rect.m_X);
+    g_Monitors[0].m_HasWorkArea = true;
+    dmPlatform::UpdateWindowPlacement(&m_Window, true);
+    ASSERT_EQ(&g_Monitors[0], m_NativeWindow.m_Monitor);
+    ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &saved));
+    ASSERT_EQ(g_Monitors[0].m_State.m_NameHash, saved.m_Monitor.m_NameHash);
+}
+
+// Verifies a temporary empty monitor list preserves geometry until a display reconnects.
+TEST_F(WindowPlacementDpiTest, DisconnectAllMonitors)
+{
+    ASSERT_TRUE(dmWindowState::Save(m_Path, m_Saved));
+    Restore();
+    g_MonitorCount = 0;
+    dmPlatform::WindowPlacementMonitorsChanged();
+    dmPlatform::UpdateWindowPlacement(&m_Window, true);
+    dmWindowState::State saved;
+    ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &saved));
+    ASSERT_EQ(m_Saved.m_Rect.m_X, saved.m_Rect.m_X);
+    ASSERT_EQ(m_Saved.m_Rect.m_Width, saved.m_Rect.m_Width);
+    g_MonitorCount = 1;
+    dmPlatform::WindowPlacementMonitorsChanged();
+    dmPlatform::UpdateWindowPlacement(&m_Window, true);
+    ASSERT_EQ(&g_Monitors[0], m_NativeWindow.m_Monitor);
+    ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &saved));
+    ASSERT_EQ(g_Monitors[0].m_State.m_NameHash, saved.m_Monitor.m_NameHash);
 }
 
 // Verifies a reset still restores the project dimensions at the target DPI, ignoring the saved size.
