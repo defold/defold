@@ -64,6 +64,34 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Pixel output metadata survives DXC, JNI and protobuf serialization, including sparse MRT slots.
+    @Test
+    public void testSM6PixelOutputMetadata() throws Exception {
+        String source = "#version 450\n"
+            + "layout(location=0) out vec4 color;\n"
+            + "layout(location=2) out ivec2 signedValue;\n"
+            + "layout(location=5) out uvec3 unsignedValue;\n"
+            + "void main() { color=vec4(1); signedValue=ivec2(-1,2); unsignedValue=uvec3(3,4,5); gl_FragDepth=0.5; }\n";
+        ShaderDesc shader = compileShaderWithCompiler(getProject().getShaderCompiler(Platform.X86_64Win32),
+            "dx12", "sm6-output-metadata", source);
+        shader = ShaderDesc.parseFrom(shader.toByteArray());
+        ShaderDesc.Shader stage = shader.getShaders(0);
+        assertEquals(3, stage.getHlslShaderOutputsCount());
+        int[] locations = {0, 2, 5};
+        int[] components = {4, 2, 3};
+        ShaderDesc.HLSLShaderOutput.ComponentType[] types = {
+            ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_FLOAT32,
+            ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_SINT32,
+            ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_UINT32
+        };
+        for (int i = 0; i < locations.length; ++i) {
+            ShaderDesc.HLSLShaderOutput output = stage.getHlslShaderOutputs(i);
+            assertEquals(locations[i], output.getLocation());
+            assertEquals(components[i], output.getComponentCount());
+            assertEquals(types[i], output.getComponentType());
+        }
+    }
+
     // Xbox's shared language selection uses SM6; the bolt-on supplies its final platform compiler.
     @Test
     public void testSM6XboxLanguageSelection() throws Exception {

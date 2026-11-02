@@ -158,6 +158,8 @@ namespace dmGraphics
         DX12ShaderModule*            m_VertexModule;
         DX12ShaderModule*            m_FragmentModule;
         DX12ShaderModule*            m_ComputeModule;
+        DXGI_FORMAT                  m_PixelShaderOutputFormats[D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT];
+        uint32_t                     m_PixelShaderOutputCount;
         uint64_t                     m_Hash;
         uint32_t                     m_UniformDataSizeAligned;
         uint16_t                     m_UniformBufferCount;

@@ -18,7 +18,7 @@
 #include <jni.h> // JDK
 #include <jni/jni_util.h> // defold
 
-#include "jni/Shaderc_jni.h"
+#include "Shaderc_jni.h"
 
 #include <dlib/array.h>
 #include <dlib/log.h>

@@ -102,35 +102,11 @@ if(SHADERC_IS_DESKTOP)
   set(SHADERC_DEFINES)
   set(SHADERC_EXTRA_INCLUDES)
   set(SHADERC_EXTRA_LIBS)
-  # DXC is an asset compiler dependency only; engine runtime targets do not link it.
-  # Graphics tests and top-level Bob staging also need to resolve this target.
-  add_library(shaderc_dxcompiler SHARED IMPORTED GLOBAL)
-  if(WIN32)
-    set(_dxc_runtime "${DEFOLD_SDK_ROOT}/ext/bin/${TARGET_PLATFORM}/dxcompiler.dll")
-    set_target_properties(shaderc_dxcompiler PROPERTIES
-      IMPORTED_IMPLIB "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}/dxcompiler.lib")
-  else()
-    set(_dxc_runtime "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}/${CMAKE_SHARED_LIBRARY_PREFIX}dxcompiler${CMAKE_SHARED_LIBRARY_SUFFIX}")
-    list(APPEND SHADERC_EXTRA_INCLUDES
-      "${DEFOLD_EXT_INCLUDE_DIR}/dxc/DirectX-Headers"
-      "${DEFOLD_EXT_INCLUDE_DIR}/dxc/DirectX-Headers/wsl/stubs"
-      "${DEFOLD_EXT_INCLUDE_DIR}/dxc/DirectX-Headers/directx")
-  endif()
-  set_target_properties(shaderc_dxcompiler PROPERTIES IMPORTED_LOCATION "${_dxc_runtime}")
+  include(shaderc_dxc)
+  shaderc_import_dxc()
   list(APPEND SHADERC_EXTRA_LIBS shaderc_dxcompiler)
-
-  function(shaderc_stage_dxc target)
-    add_custom_command(TARGET ${target} POST_BUILD
-      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:shaderc_dxcompiler>" "$<TARGET_FILE_DIR:${target}>"
-      VERBATIM)
-    if(APPLE)
-      set_target_properties(${target} PROPERTIES SKIP_BUILD_RPATH FALSE BUILD_RPATH "@loader_path" INSTALL_RPATH "@loader_path")
-    elseif(UNIX)
-      set_target_properties(${target} PROPERTIES SKIP_BUILD_RPATH FALSE BUILD_RPATH "$ORIGIN" INSTALL_RPATH "$ORIGIN")
-    endif()
-  endfunction()
-  install(FILES "${_dxc_runtime}" DESTINATION lib/${TARGET_PLATFORM})
-  install(FILES "${_dxc_runtime}" DESTINATION bin/${TARGET_PLATFORM})
+  install(FILES "$<TARGET_FILE:shaderc_dxcompiler>" DESTINATION lib/${TARGET_PLATFORM})
+  install(FILES "$<TARGET_FILE:shaderc_dxcompiler>" DESTINATION bin/${TARGET_PLATFORM})
   list(APPEND SHADERC_DEFINES DM_BINARY_HLSL_SUPPORTED)
   if(TARGET_PLATFORM MATCHES "win32$")
     list(APPEND SHADERC_EXTRA_INCLUDES "${DEFOLD_EXT_INCLUDE_DIR}/directx")

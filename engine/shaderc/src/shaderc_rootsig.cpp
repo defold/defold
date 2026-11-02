@@ -104,7 +104,8 @@ namespace dmShaderc
             }
             // All offsets below are relative to the root-signature payload,
             // not the surrounding DXBC container.
-            data = part; size = part_size;
+            data = part;
+            size = part_size;
         }
 
         // The payload starts with six 32-bit words: version, parameter count and
@@ -115,8 +116,10 @@ namespace dmShaderc
         }
 
         uint32_t version = Read32(data);
-        uint32_t count = Read32(data + 4), offset = Read32(data + 8);
-        uint32_t samplers = Read32(data + 12), sampler_offset = Read32(data + 16);
+        uint32_t count = Read32(data + 4);
+        uint32_t offset = Read32(data + 8);
+        uint32_t samplers = Read32(data + 12);
+        uint32_t sampler_offset = Read32(data + 16);
 
         // Wire versions 1 and 2 mean root-signature versions 1.0 and 1.1.
         // Parameter headers occupy 12 bytes each; static samplers occupy 52.
@@ -146,7 +149,9 @@ namespace dmShaderc
             // because resource mappings refer to these indices.
             const uint8_t* p = data + offset + 12 * i;
             RS_ROOT_PARAMETER& param = params[i];
-            uint32_t type = Read32(p), visibility = Read32(p + 4), payload = Read32(p + 8);
+            uint32_t type = Read32(p);
+            uint32_t visibility = Read32(p + 4);
+            uint32_t payload = Read32(p + 8);
 
             if (type > 4 || visibility > 7)
             {
@@ -170,7 +175,9 @@ namespace dmShaderc
                 // Version 1.1 adds a flags word before the final table offset,
                 // increasing each range from 20 to 24 bytes. Decode both into
                 // the version 1.0 layout, omitting the 1.1 flags.
-                uint32_t n = Read32(values), start = Read32(values + 4), stride = version == 1 ? 20 : 24;
+                uint32_t n = Read32(values);
+                uint32_t start = Read32(values + 4);
+                uint32_t stride = version == 1 ? 20 : 24;
                 if (!Fits(size, start, n, stride))
                 {
                     return E_INVALIDARG;
@@ -223,17 +230,20 @@ namespace dmShaderc
         // The public static-sampler structure contains thirteen 32-bit fields.
         // Copy through integers so float bits and enum values round-trip exactly.
         for (uint32_t i = 0; i < samplers; ++i)
+        {
             for (uint32_t j = 0; j < 13; ++j)
             {
                 uint32_t value = Read32(data + sampler_offset + i * 52 + j * 4);
                 memcpy((uint8_t*)&ss[i] + j * 4, &value, 4);
             }
+        }
         return S_OK;
     }
 
     HRESULT WriteRootSignature(const RS_ROOT_SIGNATURE_DESC* desc, IDxcBlob** blob, IDxcBlob** errors)
     {
-        *blob = 0; *errors = 0;
+        *blob = 0;
+        *errors = 0;
         if (desc->m_NumParameters > 64 || (desc->m_NumParameters && !desc->m_Parameters) ||
             (desc->m_NumStaticSamplers && !desc->m_StaticSamplers))
         {
