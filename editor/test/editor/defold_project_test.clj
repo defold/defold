@@ -71,48 +71,48 @@
           (let [project (test-util/setup-project! workspace)
                 consumer (g/make-node! ANode)]
             (doseq [proj-path ["/missing.trace" "/unloaded.trace"]]
-              (let [resource (workspace/resolve-workspace-resource workspace proj-path)
-                    evaluation-context (g/make-evaluation-context)]
-                ;; Cache the real :nodes-by-resource-path map before the dry
-                ;; run. A cold lookup would return a nil placeholder, making
-                ;; even /unloaded.trace appear missing. Warming the map ensures
-                ;; the test exercises both pending-node creation for
-                ;; /missing.trace and pending-load bookkeeping for the existing
-                ;; /unloaded.trace node.
-                (g/node-value project :nodes-by-resource-path evaluation-context)
-                (let [dry-evaluation-context (g/dry-run-evaluation-context evaluation-context)
-                      {:keys [node-id]} (project/connect-resource-node
-                                          dry-evaluation-context project resource consumer [[:value :value-input]])]
-                  (if (= "/missing.trace" proj-path)
-                    (is (= node-id (get-in @(:tx-data-context-atom dry-evaluation-context) [:created-resource-nodes resource])))
-                    (is (contains? (:loaded-resources @(:tx-data-context-atom dry-evaluation-context)) resource))))
-                (is (coll/empty? @(:tx-data-context-atom evaluation-context)))
-                (is (= (if (= "/missing.trace" proj-path) 0 1) @reads))
-                (let [{:keys [node-id tx-data]}
-                      (project/connect-resource-node evaluation-context project resource consumer [[:value :value-input]])]
-                  (g/transact tx-data)
-                  (is (= node-id (project/get-resource-node project resource)))
-                  (if (= "/missing.trace" proj-path)
-                    (is (g/error? (g/node-value node-id :value)))
-                    (do
-                      (is (= 2 @reads))
-                      (is (= "loaded value" (g/node-value node-id :value)))
-                      (is (= "loaded value" (g/node-value consumer :value-input))))))))))))))
+              (let [resource (workspace/resolve-workspace-resource workspace proj-path)]
+                (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+                  ;; Cache the real :nodes-by-resource-path map before the dry
+                  ;; run. A cold lookup would return a nil placeholder, making
+                  ;; even /unloaded.trace appear missing. Warming the map
+                  ;; ensures the test exercises both pending-node creation
+                  ;; for /missing.trace and pending-load bookkeeping for the
+                  ;; existing /unloaded.trace node.
+                  (g/node-value project :nodes-by-resource-path evaluation-context)
+                  (let [dry-evaluation-context (g/dry-run-evaluation-context evaluation-context)
+                        {:keys [node-id]} (project/connect-resource-node
+                                            dry-evaluation-context project resource consumer [[:value :value-input]])]
+                    (if (= "/missing.trace" proj-path)
+                      (is (= node-id (get-in @(:tx-data-context-atom dry-evaluation-context) [:created-resource-nodes resource])))
+                      (is (contains? (:loaded-resources @(:tx-data-context-atom dry-evaluation-context)) resource))))
+                  (is (coll/empty? @(:tx-data-context-atom evaluation-context)))
+                  (is (= (if (= "/missing.trace" proj-path) 0 1) @reads))
+                  (let [{:keys [node-id tx-data]}
+                        (project/connect-resource-node evaluation-context project resource consumer [[:value :value-input]])]
+                    (g/transact tx-data)
+                    (is (= node-id (project/get-resource-node project resource)))
+                    (if (= "/missing.trace" proj-path)
+                      (is (g/error? (g/node-value node-id :value)))
+                      (do
+                        (is (= 2 @reads))
+                        (is (= "loaded value" (g/node-value node-id :value)))
+                        (is (= "loaded value" (g/node-value consumer :value-input)))))))))))))))
 
 ;; Progress tracing must isolate the save callback's transaction cache before
 ;; it wraps node-value, so the real save does not reuse a nil placeholder.
 (deftest save-data-tracing-isolates-transaction-context-test
   (with-clean-system
     (let [workspace (test-util/setup-workspace! "test/resources/empty_project")
-          project (test-util/setup-project! workspace)
-          evaluation-context (g/make-evaluation-context)
-          _ (g/materialize-node! (project/get-resource-node project "/game.project" evaluation-context) evaluation-context)
-          save-data-fn (fn save-data [project evaluation-context]
-                         (g/tx-cached-value! evaluation-context [::save-data]
-                           (project/all-save-data project evaluation-context)))
-          save-data (project/save-data-with-progress project evaluation-context save-data-fn progress/null-render-progress!)]
-      (is (coll/any? #(= "/game.project" (resource/proj-path (:resource %))) save-data))
-      (is (identical? save-data (::save-data @(:tx-data-context-atom evaluation-context)))))))
+          project (test-util/setup-project! workspace)]
+      (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+        (g/materialize-node! (project/get-resource-node project "/game.project" evaluation-context) evaluation-context)
+        (let [save-data-fn (fn save-data [project evaluation-context]
+                             (g/tx-cached-value! evaluation-context [::save-data]
+                               (project/all-save-data project evaluation-context)))
+              save-data (project/save-data-with-progress project evaluation-context save-data-fn progress/null-render-progress!)]
+          (is (coll/any? #(= "/game.project" (resource/proj-path (:resource %))) save-data))
+          (is (identical? save-data (::save-data @(:tx-data-context-atom evaluation-context)))))))))
 
 (defn- register-resource-types [workspace types]
   (for [type types]

@@ -17,13 +17,16 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
+            [editor.lsp :as lsp]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.resource-update :as resource-update]
+            [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.graph.types :as gt]
-            [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime]]))
+            [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime]]
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -41,11 +44,19 @@
                  (and (= :file (resource/source-type resource))
                       (not (resource/internal? resource)))))))
 
+(defn- resource-sync-and-await! [workspace]
+  (try
+    (workspace/resource-sync! workspace)
+    (finally
+      ;; LSP work queues evaluation-context merges on the UI thread.
+      (lsp/await (lsp/get-lsp))
+      (ui/run-now nil))))
+
 (defn- touch-and-resource-sync! [resources]
   (doseq [resource resources]
     (touch-until-new-mtime (io/as-file resource)))
-  (when-some [workspace (some resource/workspace resources)]
-    (workspace/resource-sync! workspace)))
+  (when-let [workspace (coll/some resource/workspace resources)]
+    (resource-sync-and-await! workspace)))
 
 (defn resources->proj-paths [resources]
   (->> resources
@@ -179,7 +190,7 @@
       (doseq [[resource content] resource+edited-contents]
         (spit-until-new-mtime resource content))
 
-      (workspace/resource-sync! workspace)
+      (resource-sync-and-await! workspace)
 
       ;; Ensure all the externally edited resources are reloaded in the
       ;; resulting resource change plan.

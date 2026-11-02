@@ -105,7 +105,7 @@
 (deftest dry-run-evaluation-context-isolates-state-test
   (doseq [no-local-temp [false true]]
     (ts/with-clean-system
-      (let [evaluation-context (g/make-evaluation-context {:no-local-temp no-local-temp})]
+      (g/with-evaluation-context [evaluation-context (g/make-evaluation-context {:no-local-temp no-local-temp})]
         (swap! (:tx-data-context-atom evaluation-context) assoc ::existing-value false)
         (let [dry-evaluation-context (g/dry-run-evaluation-context evaluation-context)
               live-run-evaluation-context (g/live-run-evaluation-context dry-evaluation-context)]
@@ -142,44 +142,44 @@
           tracer (fn trace-node [_state _node-id _output-type _label]
                    (swap! traces inc))
           inherited-tracer (fn inherited-tracer [_state _node-id _output-type _label]
-                             (swap! inherited-traces inc))
-          evaluation-context (g/make-evaluation-context {:tracer inherited-tracer})
-          dry-evaluation-context (g/dry-run-evaluation-context evaluation-context tracer)
-          retraced-context (g/dry-run-evaluation-context dry-evaluation-context inherited-tracer)
-          live-run-evaluation-context (g/live-run-evaluation-context dry-evaluation-context)]
-      (is (nil? (:tracer (g/dry-run-evaluation-context evaluation-context))))
-      (is (nil? (:tracer (g/dry-run-evaluation-context dry-evaluation-context nil))))
-      (is (identical? tracer (:tracer dry-evaluation-context)))
-      (is (identical? inherited-tracer (:tracer retraced-context)))
-      (doseq [atom-key [:local-atom :local-temp-atom :hits-atom :tx-data-context-atom]]
-        (is (identical? (get dry-evaluation-context atom-key) (get retraced-context atom-key))))
-      (is (nil? (g/node-value node :uncached-value dry-evaluation-context)))
-      (is (pos? @traces))
-      (is (nil? (g/node-value node :uncached-value retraced-context)))
-      (is (pos? @inherited-traces))
-      (let [trace-counts [@traces @inherited-traces]]
-        (doseq [context [live-run-evaluation-context
-                         (g/live-run-evaluation-context evaluation-context)]]
-          (is (not (contains? context :tracer)))
-          (is (= "live value" (g/node-value node :uncached-value context))))
-        (is (= trace-counts [@traces @inherited-traces]))))))
+                             (swap! inherited-traces inc))]
+      (g/with-evaluation-context [evaluation-context (g/make-evaluation-context {:tracer inherited-tracer})]
+        (let [dry-evaluation-context (g/dry-run-evaluation-context evaluation-context tracer)
+              retraced-context (g/dry-run-evaluation-context dry-evaluation-context inherited-tracer)
+              live-run-evaluation-context (g/live-run-evaluation-context dry-evaluation-context)]
+          (is (nil? (:tracer (g/dry-run-evaluation-context evaluation-context))))
+          (is (nil? (:tracer (g/dry-run-evaluation-context dry-evaluation-context nil))))
+          (is (identical? tracer (:tracer dry-evaluation-context)))
+          (is (identical? inherited-tracer (:tracer retraced-context)))
+          (doseq [atom-key [:local-atom :local-temp-atom :hits-atom :tx-data-context-atom]]
+            (is (identical? (get dry-evaluation-context atom-key) (get retraced-context atom-key))))
+          (is (nil? (g/node-value node :uncached-value dry-evaluation-context)))
+          (is (pos? @traces))
+          (is (nil? (g/node-value node :uncached-value retraced-context)))
+          (is (pos? @inherited-traces))
+          (let [trace-counts [@traces @inherited-traces]]
+            (doseq [context [live-run-evaluation-context
+                             (g/live-run-evaluation-context evaluation-context)]]
+              (is (not (contains? context :tracer)))
+              (is (= "live value" (g/node-value node :uncached-value context))))
+            (is (= trace-counts [@traces @inherited-traces]))))))))
 
 ;; Raw mode changes would expose shared caches to placeholders or let live
 ;; evaluation consume them. Require conversion before evaluating any output.
 (deftest evaluation-mode-requires-context-conversion-test
   (ts/with-clean-system
-    (let [node (g/make-node! CacheTestNode :scalar "live value")
-          evaluation-context (g/make-evaluation-context)
-          dry-evaluation-context (g/dry-run-evaluation-context evaluation-context)]
-      (doseq [context [(assoc evaluation-context :dry-run true)
-                       (dissoc dry-evaluation-context :dry-run)
-                       (assoc dry-evaluation-context :dry-run false)]]
-        (is (thrown-with-msg? AssertionError #"Use g/dry-run-evaluation-context or g/live-run-evaluation-context"
-                              (g/node-value node :uncached-value context))))
-      (doseq [dry-run [false true]]
-        (is (thrown? AssertionError (g/make-evaluation-context {:dry-run dry-run}))))
-      (is (= 0 (get-tally node 'produce-simple-value)))
-      (is (= "live value" (g/node-value node :uncached-value evaluation-context))))))
+    (let [node (g/make-node! CacheTestNode :scalar "live value")]
+      (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+        (let [dry-evaluation-context (g/dry-run-evaluation-context evaluation-context)]
+          (doseq [context [(assoc evaluation-context :dry-run true)
+                           (dissoc dry-evaluation-context :dry-run)
+                           (assoc dry-evaluation-context :dry-run false)]]
+            (is (thrown-with-msg? AssertionError #"Use g/dry-run-evaluation-context or g/live-run-evaluation-context"
+                                  (g/node-value node :uncached-value context))))
+          (doseq [dry-run [false true]]
+            (is (thrown? AssertionError (g/make-evaluation-context {:dry-run dry-run}))))
+          (is (= 0 (get-tally node 'produce-simple-value)))
+          (is (= "live value" (g/node-value node :uncached-value evaluation-context))))))))
 
 ;; Converting and committing a dry-run context must isolate a supplied atom
 ;; and exclude tracing placeholders from the system cache.
@@ -201,28 +201,28 @@
 (deftest tx-cached-values-isolate-dry-run-misses-test
   (doseq [value [nil false 7]]
     (ts/with-clean-system
-      (let [evaluation-context (g/make-evaluation-context)
-            dry-evaluation-context (g/dry-run-evaluation-context evaluation-context)
-            context-evaluations (atom 0)
-            path-evaluations (atom 0)
-            value-evaluations (atom 0)
-            query (fn query [context]
-                    (g/tx-cached-value!
-                      (do (swap! context-evaluations inc) context)
-                      (do (swap! path-evaluations inc) [::cached-value])
-                      (do (swap! value-evaluations inc) value)))]
-        (dotimes [_ 2]
-          (is (= value (query dry-evaluation-context))))
-        (is (= {} @(:tx-data-context-atom evaluation-context)))
-        (is (= {::cached-value value} @(:tx-data-context-atom dry-evaluation-context)))
-        (is (= 1 @value-evaluations))
-        (is (= value (query evaluation-context)))
-        (is (= {::cached-value value} @(:tx-data-context-atom evaluation-context)))
-        (is (= value (query dry-evaluation-context)))
-        (is (= value (query evaluation-context)))
-        (is (= value (query (g/dry-run-evaluation-context evaluation-context))))
-        (is (= 2 @value-evaluations))
-        (is (= 6 @context-evaluations @path-evaluations))))))
+      (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+        (let [dry-evaluation-context (g/dry-run-evaluation-context evaluation-context)
+              context-evaluations (atom 0)
+              path-evaluations (atom 0)
+              value-evaluations (atom 0)
+              query (fn query [context]
+                      (g/tx-cached-value!
+                        (do (swap! context-evaluations inc) context)
+                        (do (swap! path-evaluations inc) [::cached-value])
+                        (do (swap! value-evaluations inc) value)))]
+          (dotimes [_ 2]
+            (is (= value (query dry-evaluation-context))))
+          (is (= {} @(:tx-data-context-atom evaluation-context)))
+          (is (= {::cached-value value} @(:tx-data-context-atom dry-evaluation-context)))
+          (is (= 1 @value-evaluations))
+          (is (= value (query evaluation-context)))
+          (is (= {::cached-value value} @(:tx-data-context-atom evaluation-context)))
+          (is (= value (query dry-evaluation-context)))
+          (is (= value (query evaluation-context)))
+          (is (= value (query (g/dry-run-evaluation-context evaluation-context))))
+          (is (= 2 @value-evaluations))
+          (is (= 6 @context-evaluations @path-evaluations)))))))
 
 ;; A transaction cache miss surrounding node-value must not leak its tracing
 ;; placeholder, including the node helper's fallback without a system cache.
@@ -230,39 +230,40 @@
   (doseq [node-helper [false true]
           system-cache [false true]]
     (ts/with-clean-system
-      (let [node (g/make-node! CacheTestNode :scalar "real value")
-            evaluation-context (if system-cache
-                                 (g/make-evaluation-context)
-                                 (in/custom-evaluation-context {:basis (g/now)}))
-            query (fn query [context]
-                    (if node-helper
-                      (g/tx-cached-node-value! node :uncached-value context)
-                      (g/tx-cached-value! context [::node-value]
-                        (g/node-value node :uncached-value context))))]
-        (is (nil? (query (g/dry-run-evaluation-context evaluation-context))))
-        (is (= {} @(:tx-data-context-atom evaluation-context)))
-        (is (= "real value" (query evaluation-context)))
-        (is (= "real value" (g/node-value node :uncached-value evaluation-context)))))))
+      (let [node (g/make-node! CacheTestNode :scalar "real value")]
+        (g/with-evaluation-context [evaluation-context
+                                    (if system-cache
+                                      (g/make-evaluation-context)
+                                      (in/custom-evaluation-context {:basis (g/now)}))]
+          (let [query (fn query [context]
+                        (if node-helper
+                          (g/tx-cached-node-value! node :uncached-value context)
+                          (g/tx-cached-value! context [::node-value]
+                            (g/node-value node :uncached-value context))))]
+            (is (nil? (query (g/dry-run-evaluation-context evaluation-context))))
+            (is (= {} @(:tx-data-context-atom evaluation-context)))
+            (is (= "real value" (query evaluation-context)))
+            (is (= "real value" (g/node-value node :uncached-value evaluation-context)))))))))
 
 ;; Tracing records migrations only in its isolated context. A transaction
 ;; preview still executes real callbacks and reports their migration metadata.
 (deftest migrated-nodes-isolate-dependency-tracing-test
   (ts/with-clean-system
-    (let [node (g/make-node! CacheTestNode :scalar "original")
-          evaluation-context (g/make-evaluation-context)
-          dry-evaluation-context (g/dry-run-evaluation-context evaluation-context)]
-      (is (nil? (g/flag-nodes-as-migrated! dry-evaluation-context [node])))
-      (is (= #{node} (:migrated-node-ids @(:tx-data-context-atom dry-evaluation-context))))
-      (is (= {} @(:tx-data-context-atom evaluation-context)))
-      (g/flag-nodes-as-migrated! evaluation-context [node])
-      (is (= #{node} (:migrated-node-ids @(:tx-data-context-atom evaluation-context))))
-      (let [tx-result (g/transact {:dry-run true}
-                        [(g/set-property node :scalar "preview")
-                         (g/callback-ec
-                           (fn record-migration [context]
-                             (g/flag-nodes-as-migrated! context [node])))])]
-        (is (= #{node} (get-in tx-result [:tx-data-context :migrated-node-ids])))
-        (is (= "original" (g/node-value node :scalar)))))))
+    (let [node (g/make-node! CacheTestNode :scalar "original")]
+      (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+        (let [dry-evaluation-context (g/dry-run-evaluation-context evaluation-context)]
+          (is (nil? (g/flag-nodes-as-migrated! dry-evaluation-context [node])))
+          (is (= #{node} (:migrated-node-ids @(:tx-data-context-atom dry-evaluation-context))))
+          (is (= {} @(:tx-data-context-atom evaluation-context)))
+          (g/flag-nodes-as-migrated! evaluation-context [node])
+          (is (= #{node} (:migrated-node-ids @(:tx-data-context-atom evaluation-context))))
+          (let [tx-result (g/transact {:dry-run true}
+                            [(g/set-property node :scalar "preview")
+                             (g/callback-ec
+                               (fn record-migration [context]
+                                 (g/flag-nodes-as-migrated! context [node])))])]
+            (is (= #{node} (get-in tx-result [:tx-data-context :migrated-node-ids])))
+            (is (= "original" (g/node-value node :scalar)))))))))
 
 (deftest project-cache
   (ts/with-clean-system

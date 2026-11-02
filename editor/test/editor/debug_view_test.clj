@@ -224,7 +224,10 @@
                       (finally
                         (when-let [session (debug-view/current-session view)]
                           (dap/close! session))))))
-                (finally (dap/close! old-session))))))))))
+                (finally
+                  (dap/close! old-session)
+                  ;; Closing leaves UI callbacks queued after tasks finish.
+                  (ui/run-now nil))))))))))
 
 ;; Prompt evaluation uses the selected frame during selection notifications, and
 ;; the public console stream contains the evaluated table's formatted result.

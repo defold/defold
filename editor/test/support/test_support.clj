@@ -14,6 +14,7 @@
 
 (ns support.test-support
   (:require [clojure.java.io :as io]
+            [clojure.test :as test]
             [dynamo.graph :as g]
             [editor.fs :as fs]
             [editor.library :as library]
@@ -38,7 +39,11 @@
     `(let [system# (is/make-system ~configuration)
            ~'cache (is/system-cache system#)]
        (binding [g/*the-system* (atom system#)]
-         ~@forms))))
+         (try
+           ~@forms
+           (finally
+             (test/is (zero? (g/evaluation-context-count))
+                      "Evaluation contexts must be closed before leaving with-clean-system.")))))))
 
 (defn tx-nodes [& txs]
   (g/tx-nodes-added (g/transact txs)))

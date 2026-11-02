@@ -185,16 +185,16 @@
     (with-clean-system
       (let [[n n2] (tx-nodes (g/make-nodes [n (TestNode :val "initial")
                                             n2 PassthroughNode]
-                               (g/connect n :val n2 :str-in)))
-            initial-evaluation-context (g/make-evaluation-context)]
-        (g/transact (g/set-property n :val "changed"))
-        (is (= "changed" (g/node-value n :val)))
-        (is (= "changed" (g/node-value n2 :str-out)))
-        (is (= "initial" (g/node-value n :val initial-evaluation-context)))
-        (is (= "initial" (g/node-value n2 :str-out initial-evaluation-context)))
-        (g/transact (g/delete-node n))
-        (is (= nil (g/node-value n2 :str-out)))
-        (is (= "initial" (g/node-value n2 :str-out initial-evaluation-context))))))
+                               (g/connect n :val n2 :str-in)))]
+        (g/with-evaluation-context [initial-evaluation-context (g/make-evaluation-context)]
+          (g/transact (g/set-property n :val "changed"))
+          (is (= "changed" (g/node-value n :val)))
+          (is (= "changed" (g/node-value n2 :str-out)))
+          (is (= "initial" (g/node-value n :val initial-evaluation-context)))
+          (is (= "initial" (g/node-value n2 :str-out initial-evaluation-context)))
+          (g/transact (g/delete-node n))
+          (is (= nil (g/node-value n2 :str-out)))
+          (is (= "initial" (g/node-value n2 :str-out initial-evaluation-context)))))))
 
   (testing "passing evaluation context does not automatically update cache"
     (with-clean-system
@@ -314,7 +314,8 @@
                                            n1 PassthroughNode]
                               (g/connect tn :custom-val n1 :str-in)))
           result (atom nil)]
-      (g/node-value n1 :str-out (g/make-evaluation-context {:tracer (g/make-tree-tracer result)}))
+      (g/with-evaluation-context [evaluation-context (g/make-evaluation-context {:tracer (g/make-tree-tracer result)})]
+        (g/node-value n1 :str-out evaluation-context))
       (is (= @result
              {:node-id n1,
               :output-type :output,
@@ -338,7 +339,7 @@
               :state :end}))
 
       ;; Disable :local-temp-atom to test only :local-atom caching.
-      (let [evaluation-context (g/make-evaluation-context {:tracer (g/make-tree-tracer result) :no-local-temp true})]
+      (g/with-evaluation-context [evaluation-context (g/make-evaluation-context {:tracer (g/make-tree-tracer result) :no-local-temp true})]
         (g/node-value n1 :_properties evaluation-context)
         (is (= @result
                {:node-id n1,
@@ -395,7 +396,7 @@
 
       (g/transact (g/set-property tn :val "throw"))
 
-      (let [evaluation-context (g/make-evaluation-context {:tracer (g/make-tree-tracer result)})]
+      (g/with-evaluation-context [evaluation-context (g/make-evaluation-context {:tracer (g/make-tree-tracer result)})]
         (is (thrown? Exception (g/node-value n1 :_properties evaluation-context)))
         (is (= @result
                {:node-id n1,
@@ -437,12 +438,12 @@
       (g/transact (g/set-property tn :val "no throw"))
       (reset! result nil)
 
-      (let [evaluation-context
-            (g/make-evaluation-context
-              {:tracer (juxt (g/make-tree-tracer result)
-                             (fn [state node-id _output-type label]
-                               (when (= [state node-id label] [:end tn :custom-val])
-                                 (throw (ex-info "tracer somehow failed" {})))))})]
+      (g/with-evaluation-context [evaluation-context
+                                  (g/make-evaluation-context
+                                    {:tracer (juxt (g/make-tree-tracer result)
+                                                   (fn [state node-id _output-type label]
+                                                     (when (= [state node-id label] [:end tn :custom-val])
+                                                       (throw (ex-info "tracer somehow failed" {})))))})]
 
         (is (thrown? Exception (g/node-value n1 :_properties evaluation-context)))
         (is (= @result
@@ -498,14 +499,14 @@
 (defn- trace [node-id label]
   (let [result-atom (atom nil)
         tracer (g/make-tree-tracer result-atom)
-        basis (g/now)
-        evaluation-context (g/make-evaluation-context
-                             {:basis basis
-                              :cache c/null-cache
-                              :no-local-temp true
-                              :tracer tracer})]
-    (g/node-value node-id label evaluation-context)
-    @result-atom))
+        basis (g/now)]
+    (g/with-evaluation-context [evaluation-context (g/make-evaluation-context
+                                                     {:basis basis
+                                                      :cache c/null-cache
+                                                      :no-local-temp true
+                                                      :tracer tracer})]
+      (g/node-value node-id label evaluation-context)
+      @result-atom)))
 
 (defn- cache-trace [node-id label]
   {:node-id node-id

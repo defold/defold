@@ -104,26 +104,26 @@
           _ (rt/invoke-immediate-1 rt (rt/bind rt (rt/read "global = -1")))
           inc-and-get (rt/read "return function () global = global + 1; return global end")
           lua-inc-and-get (rt/invoke-immediate-1 rt (rt/bind rt inc-and-get))
-          ec (g/make-evaluation-context)
           threads 10
           per-thread-calls 1000
           iterations 100]
-      (dotimes [i iterations]
-        (let [results (->> (fn []
-                             (future
-                               (->> #(rt/invoke-immediate-1 rt {:evaluation-context ec} lua-inc-and-get)
-                                    (repeatedly per-thread-calls)
-                                    (vec))))
-                           (repeatedly threads)
-                           (vec)                 ;; launch all threads in parallel
-                           (mapcat deref)        ;; await
-                           (map #(rt/->clj rt %)))
-              expected-count (* threads per-thread-calls)]
-          (when-not (and (is (= expected-count (count results)))
-                         (is (distinct? results))
-                         (is (= (range (* i expected-count) (* (inc i) expected-count))
-                                (sort results))))
-            (throw (Exception. "Lua runtime is not thread-safe!"))))))))
+      (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+        (dotimes [i iterations]
+          (let [results (->> (fn []
+                               (future
+                                 (->> #(rt/invoke-immediate-1 rt {:evaluation-context evaluation-context} lua-inc-and-get)
+                                      (repeatedly per-thread-calls)
+                                      (vec))))
+                             (repeatedly threads)
+                             (vec)                 ;; launch all threads in parallel
+                             (mapcat deref)        ;; await
+                             (map #(rt/->clj rt %)))
+                expected-count (* threads per-thread-calls)]
+            (when-not (and (is (= expected-count (count results)))
+                           (is (distinct? results))
+                           (is (= (range (* i expected-count) (* (inc i) expected-count))
+                                  (sort results))))
+              (throw (Exception. "Lua runtime is not thread-safe!")))))))))
 
 (deftest immediate-invocations-complete-while-suspending-invocations-are-suspended
   (test-support/with-clean-system

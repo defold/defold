@@ -597,11 +597,13 @@
 
       (testing "check :no-local-temp is respected"
         (reset! production-count 0)
-        (is (= (g/node-value consumer :result (g/make-evaluation-context {:no-local-temp true})) ""))
+        (g/with-evaluation-context [evaluation-context (g/make-evaluation-context {:no-local-temp true})]
+          (is (= (g/node-value consumer :result evaluation-context) "")))
         (is (= @production-count 2))
 
         (reset! production-count 0)
-        (is (= (g/node-value consumer :result (g/make-evaluation-context {:no-local-temp false})) ""))
+        (g/with-evaluation-context [evaluation-context (g/make-evaluation-context {:no-local-temp false})]
+          (is (= (g/node-value consumer :result evaluation-context) "")))
         (is (= @production-count 1))))))
 
 (g/defnode CachedDependencyTestNode
