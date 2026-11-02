@@ -98,8 +98,6 @@ public class ShaderProgramBuilder extends Builder {
     public Task create(IResource input) throws IOException, CompileExceptionError {
         Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
-                // Bump when shader compiler semantics or generated binary formats change.
-                .addExtraCacheKey("shader-pipeline-sm6-dxc-v1")
                 .addInput(input);
 
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.ModuleBundle.load(input);

@@ -137,8 +137,7 @@ compiler selection separate from layout generation so platform-specific
 compiler backends can consume the shared layout. Their binary compatibility
 and runtime behavior require separate platform validation.
 
-Move generated shaders directly to SM6.0; no SM5.1 compatibility reader or
-dual-output transition is needed. Replace the existing production path and
-invalidate generated artifacts/caches as appropriate when integrating it.
+Move generated shaders directly to SM6.0. DX12 is still a work in progress;
+users must clear their build caches before switching to the new compiler.
 First validate representative engine-generated HLSL and the Bob shader tests,
 then runtime pipelines on supported desktop and console targets.

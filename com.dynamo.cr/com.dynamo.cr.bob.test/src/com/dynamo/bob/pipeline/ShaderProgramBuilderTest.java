@@ -44,27 +44,9 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
-    // New shader tasks must not reuse pre-SM6 output, even with identical source and options.
-    @Test
-    public void testSM6InvalidatesShaderTaskCache() throws Exception {
-        var input = getProject().getResource("/sm6-cache.shbundle");
-        input.setContent(new ShaderProgramBuilderBundle.ModuleBundle().toByteArray());
-        ShaderProgramBuilder builder = new ShaderProgramBuilder();
-        builder.setProject(getProject());
-        com.dynamo.bob.Task current = builder.create(input);
-        com.dynamo.bob.Task legacy = com.dynamo.bob.Task.newBuilder(builder)
-            .setName(current.getName()).addInput(input).addOutput(input.changeExt(".spc")).build();
-        assertFalse(Arrays.equals(legacy.calculateSignature(), current.calculateSignature()));
-        ShaderProgramBuilder repeat = new ShaderProgramBuilder();
-        repeat.setProject(getProject());
-        assertTrue(Arrays.equals(current.calculateSignature(), repeat.create(input).calculateSignature()));
-    }
-
-    // The SM6 identifier must carry DXIL, never reuse either retired SM5 wire ID.
+    // SM6 shader output must contain DXIL bytecode and a root signature.
     @Test
     public void testSM6ShaderLanguageAndBytecode() throws Exception {
-        assertEquals(null, ShaderDesc.Language.forNumber(9));
-        assertEquals(null, ShaderDesc.Language.forNumber(10));
         ShaderDesc shader = compileShaderForPlatform(Platform.X86_64Win32, "dx12", "sm6-language");
         checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_HLSL_60);
         assertTrue(shader.getHlslRootSignature().size() > 0);

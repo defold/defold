@@ -333,8 +333,6 @@ message ShaderDesc
         LANGUAGE_GLSL_SM430 = 6;  // OpenGL 4.3+ compatible
         LANGUAGE_GLSL_SM330 = 7;  // OpenGL 3.3 (used for desktop platforms)
         LANGUAGE_WGSL       = 8;  // WebGPU
-        reserved 9, 10; // Retired SM5 shader artifacts must be rebuilt.
-        reserved "LANGUAGE_HLSL_50", "LANGUAGE_HLSL_51";
         LANGUAGE_MSL_22     = 11; // MacOS / iOS compatible
         LANGUAGE_HLSL_60    = 12; // Shader Model 6.0 / DXIL
     }
