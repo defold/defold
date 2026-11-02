@@ -412,6 +412,12 @@ namespace dmPlatform
         return dmNativeGetDisplayScaleFactor();
     }
 
+    float GetDisplayDensity(HWindow window)
+    {
+        (void) window;
+        return dmNativeGetDisplayDensity();
+    }
+
     uintptr_t GetProcAddress(HWindow window, const char* proc_name)
     {
         return (uintptr_t) dmNativeGetProcAddress(proc_name);
