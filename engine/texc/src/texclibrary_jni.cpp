@@ -28,6 +28,23 @@
 
 namespace
 {
+    // The generated JNI converters allocate these copies; native callers borrow them.
+    template <typename T>
+    struct ScopedEncodeSettings
+    {
+        T* m_Settings;
+
+        ScopedEncodeSettings(T* settings) : m_Settings(settings)
+        {
+        }
+
+        ~ScopedEncodeSettings()
+        {
+            delete[] m_Settings->m_Data;
+            free((void*)m_Settings->m_Path);
+        }
+    };
+
     bool GetPixelFormat(dmImage::Type type, dmTexc::PixelFormat* pixel_format, uint32_t* bytes_per_pixel)
     {
         switch (type)
@@ -126,7 +143,7 @@ JNIEXPORT jlong JNICALL Java_TexcLibraryJni_CreateImage(JNIEnv* env, jclass cls,
         //dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
 
         dmJNI::ScopedString j_path(env, _path);
-        const char* path = strdup(j_path.m_String ? j_path.m_String : "null");
+        const char* path = j_path.m_String;
 
         dmJNI::ScopedByteArrayCritical j_array(env, array);
 
@@ -470,7 +487,8 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_BasisUEncode(JNIEnv* env, jclass c
         dmTexc::jni::ScopedContext jni_scope(env);
         dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
 
-        dmTexc::BasisUEncodeSettings input;
+        dmTexc::BasisUEncodeSettings input = {};
+        ScopedEncodeSettings<dmTexc::BasisUEncodeSettings> input_scope(&input);
         bool result = J2C_CreateBasisUEncodeSettings(env, types, settings, &input);
         if (!result)
         {
@@ -513,7 +531,8 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_ASTCEncode(JNIEnv* env, jclass cls
         dmTexc::jni::ScopedContext jni_scope(env);
         dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
 
-        dmTexc::ASTCEncodeSettings input;
+        dmTexc::ASTCEncodeSettings input = {};
+        ScopedEncodeSettings<dmTexc::ASTCEncodeSettings> input_scope(&input);
         bool result = J2C_CreateASTCEncodeSettings(env, types, settings, &input);
         if (!result)
         {
@@ -546,7 +565,8 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_DefaultEncode(JNIEnv* env, jclass 
         dmTexc::jni::ScopedContext jni_scope(env);
         dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
 
-        dmTexc::DefaultEncodeSettings input;
+        dmTexc::DefaultEncodeSettings input = {};
+        ScopedEncodeSettings<dmTexc::DefaultEncodeSettings> input_scope(&input);
         bool result = J2C_CreateDefaultEncodeSettings(env, types, settings, &input);
         if (!result)
         {
@@ -569,7 +589,7 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_DefaultEncode(JNIEnv* env, jclass 
         result = dmTexc::DefaultEncode(&input, &out, &out_size);
         if (!result)
         {
-            dmLogError("%s: dmTexc::BasisUEncode failed", __FUNCTION__);
+            dmLogError("%s: dmTexc::DefaultEncode failed", __FUNCTION__);
             return 0;
         }
 
