@@ -174,6 +174,12 @@ Result GetFileSize(HArchive archive, dmhash_t path_hash, const char* path, uint3
     return archive->m_Loader->m_GetFileSize(archive->m_Internal, path_hash, path, file_size);
 }
 
+void InvalidateFileCache(HArchive archive, dmhash_t path_hash, const char* path)
+{
+    if (archive->m_Loader->m_InvalidateFileCache)
+        archive->m_Loader->m_InvalidateFileCache(archive->m_Internal, path_hash, path);
+}
+
 Result ReadFile(HArchive archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len)
 {
     return archive->m_Loader->m_ReadFile(archive->m_Internal, path_hash, path, buffer, buffer_len);

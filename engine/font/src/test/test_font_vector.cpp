@@ -38,7 +38,9 @@ static uint8_t* FindFontTable(uint8_t* data, const char* tag)
     {
         uint8_t* record = data + 12 + i * 16;
         if (memcmp(record, tag, 4) == 0)
+        {
             return data + ReadFontU32(record + 8);
+        }
     }
     return 0;
 }
@@ -65,7 +67,9 @@ TEST(FontVector, ColorBoundsWithoutBaseOutline)
             memcpy(colr, v0, sizeof(v0)); // A paints C's square outline.
         }
         else if (version == 1)
+        {
             memset(colr + 22, 0, 4); // Optional ClipList.
+        }
         else
         {
             uint8_t* base = colr + ReadFontU32(colr + 14);
@@ -125,14 +129,20 @@ TEST(FontVector, ColorPaintCacheFallbackAndReuse)
         ASSERT_TRUE(color);
         const FontVectorPaintGlyph& glyph = cache.m_Glyphs[index];
         if (i == 0)
+        {
             ASSERT_GT(glyph.m_LayerCount, 1u);
+        }
         else
         {
             ASSERT_EQ(1u, glyph.m_LayerCount);
             bool notdef = false;
             for (uint32_t p = 0; p < cache.m_Paths.Size(); ++p)
+            {
                 if (cache.m_Paths[p].m_Glyph == 0)
+                {
                     notdef = cache.m_Paths[p].m_Slug.m_BandTexel == (uint32_t)cache.m_Paints[glyph.m_Paint + 1].getW();
+                }
+            }
             ASSERT_TRUE(notdef);
             uint32_t paint = (uint32_t)cache.m_Paints[glyph.m_Paint + 2].getW();
             ASSERT_EQ(0.0f, cache.m_Paints[paint].getX()); // Solid fallback, no partial graph.
@@ -190,7 +200,9 @@ TEST(FontVector, ColorPaintScratchReuse)
         ASSERT_EQ(64u, cache.m_LayerScratch.Capacity());
         ASSERT_GE(cache.m_Paints.Size(), original.Size());
         if (!original.Empty())
+        {
             ASSERT_EQ(0, memcmp(original.Begin(), cache.m_Paints.Begin(), original.Size() * sizeof(dmVMath::Vector4)));
+        }
         original.SetCapacity(cache.m_Paints.Size());
         original.SetSize(cache.m_Paints.Size());
         memcpy(original.Begin(), cache.m_Paints.Begin(), original.Size() * sizeof(dmVMath::Vector4));
@@ -344,7 +356,9 @@ TEST(FontVector, CpuEffectsPreserveFaceCurvesAndOutlineDistanceField)
         ASSERT_TRUE(FontVectorSlugAddFontGlyph(&data, glyph, 8, &encoded));
         ASSERT_GT(encoded.m_CurveCount, 0u);
         if (i == 0)
+        {
             curve_count = encoded.m_CurveCount;
+        }
         ASSERT_EQ(curve_count, encoded.m_CurveCount);
         FontGlyphOptions options;
         options.m_Scale = params.m_Scale;
@@ -365,11 +379,15 @@ TEST(FontVector, CpuEffectsPreserveFaceCurvesAndOutlineDistanceField)
             outline_only += pixel[1] > outline_edge && pixel[0] == 0;
             shadow_only += pixel[1] < outline_edge && pixel[2] > 0;
             if (i == 0)
+            {
                 ASSERT_GE(pixel[2], pixel[0]);
+            }
         }
         ASSERT_GT(outline_only, 0u);
         if (i > 0)
+        {
             ASSERT_GT(shadow_only, 0u);
+        }
         FontFreeGlyph(font, &sdf);
         FontFreeGlyph(font, &glyph);
     }
@@ -404,7 +422,9 @@ TEST(FontVector, CubicOpenTypeOutlinesGenerateSizeIndependentVectorCurves)
                 ASSERT_TRUE(FontVectorSlugAddFontGlyph(&data, glyph, 8, &encoded));
                 ASSERT_GT(encoded.m_CurveCount, 0u);
                 if (pass == 0)
+                {
                     curve_count = encoded.m_CurveCount;
+                }
                 else
                 {
                     ASSERT_EQ(curve_count, encoded.m_CurveCount);

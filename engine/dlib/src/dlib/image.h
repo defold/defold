@@ -21,9 +21,6 @@
 
 namespace dmImage
 {
-    // Internal float image type used by the texture build pipeline.
-    static const Type TYPE_RGBA32F = (Type)4;
-
     // https://chromium.googlesource.com/external/github.com/ARM-software/astc-encoder/+/HEAD/Docs/FileFormat.md
     struct AstcHeader
     {
@@ -42,6 +39,24 @@ namespace dmImage
         Type     m_Type;
         void*    m_Buffer;
     };
+
+    struct ImageInfo
+    {
+        ImageInfo() : m_Width(0), m_Height(0), m_Type(TYPE_RGB) {}
+        uint32_t m_Width;
+        uint32_t m_Height;
+        Type     m_Type;
+    };
+
+    /**
+     * Read image metadata from a buffer without decoding its pixels.
+     *
+     * @param buffer image buffer
+     * @param buffer_size image buffer size
+     * @param info output
+     * @return RESULT_OK on success
+     */
+    Result GetInfo(const void* buffer, uint32_t buffer_size, ImageInfo* info);
 
     /**
      * Load image from buffer.

@@ -651,8 +651,7 @@ public class ShaderCompilePipelineTest {
         try {
             ShaderCompilePipeline.createShaderPipeline(pipeline, fsDesc, new ShaderCompilePipeline.Options());
             for (ShaderDesc.Language language : new ShaderDesc.Language[] {
-                    ShaderDesc.Language.LANGUAGE_HLSL_50,
-                    ShaderDesc.Language.LANGUAGE_HLSL_51,
+                    ShaderDesc.Language.LANGUAGE_HLSL_60,
                     ShaderDesc.Language.LANGUAGE_MSL_22}) {
                 try {
                     pipeline.crossCompile(fsDesc.type, language, null, false);

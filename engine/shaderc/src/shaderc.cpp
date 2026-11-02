@@ -152,6 +152,7 @@ namespace dmShaderc
         result->m_Data.SetCapacity(0);
         result->m_MSLResourceMappings.SetCapacity(0);
         result->m_HLSLResourceMappings.SetCapacity(0);
+        result->m_HLSLShaderOutputs.SetCapacity(0);
         result->m_HLSLRootSignature.SetCapacity(0);
         free(result);
     }

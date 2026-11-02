@@ -10,6 +10,7 @@
 		{"file": "src/dmsdk/resource/resource.h", "languages": {
 			"cpp": {
 				"namespace": "dmResource",
+				"enum_aliases": ["ResourceResult"],
 				"ignore": [
 					"HResourceType",
 					"ResourcePreloadGetFactory",

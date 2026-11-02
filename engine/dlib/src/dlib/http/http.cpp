@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <dlib/atomic.h>
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 
@@ -784,7 +785,7 @@ namespace dmHttpService
         }
 
         UnregisterRequest(request);
-        SendComplete(request, request->m_CancelFlag ? HTTP_RESULT_INVAL : MapResult(result), status);
+        SendComplete(request, dmAtomicGet32(&request->m_CancelFlag) ? HTTP_RESULT_INVAL : MapResult(result), status);
         DestroyRequest(request);
     }
 

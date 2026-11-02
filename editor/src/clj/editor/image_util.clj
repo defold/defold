@@ -15,9 +15,11 @@
 (ns editor.image-util
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.resource :as resource]
             [editor.types :as types]
             [schema.core :as s])
-  (:import [editor.types Image Rect]
+  (:import [com.dynamo.bob.pipeline TexcLibraryJni]
+           [editor.types Image Rect]
            [java.awt.image BufferedImage]
            [javax.imageio ImageIO]))
 
@@ -41,18 +43,24 @@
 
 (defn read-size
   [source]
-  (with-open [source-stream (io/input-stream source)
-              image-stream (ImageIO/createImageInputStream source-stream)]
-    (let [readers (ImageIO/getImageReaders image-stream)]
-      (if (.hasNext readers)
-        (let [^javax.imageio.ImageReader reader (.next readers)]
-          (try
-            (.setInput reader image-stream true true)
-            {:width (.getWidth reader 0)
-             :height (.getHeight reader 0)}
-            (finally
-              (.dispose reader))))
-        (throw (ex-info "No matching ImageReader" {}))))))
+  (if (and (resource/resource? source)
+           (= "hdr" (resource/type-ext source)))
+    (if-let [info (TexcLibraryJni/GetImageInfo (resource/resource->bytes source))]
+      {:width (.-width info)
+       :height (.-height info)}
+      (throw (ex-info "Unable to read HDR image metadata" {})))
+    (with-open [source-stream (io/input-stream source)
+                image-stream (ImageIO/createImageInputStream source-stream)]
+      (let [readers (ImageIO/getImageReaders image-stream)]
+        (if (.hasNext readers)
+          (let [^javax.imageio.ImageReader reader (.next readers)]
+            (try
+              (.setInput reader image-stream true true)
+              {:width (.getWidth reader 0)
+               :height (.getHeight reader 0)}
+              (finally
+                (.dispose reader))))
+          (throw (ex-info "No matching ImageReader" {})))))))
 
 (defmacro with-graphics
   [binding & body]

@@ -45,6 +45,8 @@
     #include "test_app_graphics_assets_vendor.h"
 #endif
 
+#include "graphics_test_sanitizers.h"
+
 // From engine_private.h
 
 enum UpdateResult
@@ -843,8 +845,8 @@ struct DrawTriangleTest : ITest
         dmGraphics::ShaderDesc shader_desc = {};
 
     #if defined(DM_TEST_APP_GRAPHICS_HAS_VENDOR_ASSETS)
-        AddShader(&shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_50, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*) graphics_assets::vendor_vertex_program, sizeof(graphics_assets::vendor_vertex_program));
-        AddShader(&shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_50, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*) graphics_assets::vendor_fragment_program, sizeof(graphics_assets::vendor_fragment_program));
+        AddShader(&shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_60, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*) graphics_assets::vendor_vertex_program, sizeof(graphics_assets::vendor_vertex_program));
+        AddShader(&shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_60, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*) graphics_assets::vendor_fragment_program, sizeof(graphics_assets::vendor_fragment_program));
     #else
         assert(0); // TODO
     #endif

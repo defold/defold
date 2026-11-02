@@ -1,0 +1,20 @@
+#version 140
+
+in mediump vec4 position;
+in mediump vec2 texcoord0;
+in mediump vec4 face_color;
+
+out mediump vec2 var_texcoord0;
+out mediump vec4 var_face_color;
+
+uniform vs_uniforms
+{
+    mat4 view_proj;
+};
+
+void main()
+{
+    var_texcoord0 = texcoord0;
+    var_face_color = vec4(face_color.rgb * face_color.a, face_color.a);
+    gl_Position = view_proj * vec4(position.xyz, 1.0);
+}

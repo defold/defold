@@ -313,8 +313,8 @@ namespace dmGameObject
     static bool FinalInstance(Collection* collection, Instance* instance);
 
     static Collection* AllocCollection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances);
-    static void CreateComponentWorlds(Collection* collection, uint32_t max_instances, dmGameObjectDDF::CollectionDesc* collection_desc);
-    static void DeallocCollection(Collection* collection);
+    static bool CreateComponentWorlds(Collection* collection, uint32_t max_instances, dmGameObjectDDF::CollectionDesc* collection_desc);
+    static void DeallocCollection(Collection* collection, HCollection original_handle);
     static bool InitCollection(Collection* collection);
     static bool FinalCollection(Collection* collection);
 
@@ -417,6 +417,8 @@ namespace dmGameObject
     Register::Register()
     {
         m_ComponentTypeCount = 0;
+        memset(&m_ComponentWorldCallbacks, 0, sizeof(m_ComponentWorldCallbacks));
+        m_ComponentWorldCreationStarted = false;
         m_FirstFreeCollection = INVALID_COLLECTION_INDEX;
         m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
         m_DefaultInputStackCapacity = DEFAULT_MAX_INPUT_STACK_CAPACITY;
@@ -497,6 +499,8 @@ namespace dmGameObject
         m_Factory = factory;
         m_Register = regist;
         m_CollectionResource = 0;
+        memset(m_ComponentWorlds, 0, sizeof(m_ComponentWorlds));
+        m_ComponentWorldsCreated = 0;
         m_Instances.EnsureSize(max_instances);
         m_InstanceIndices.SetCapacity(max_instances);
         m_WorldTransforms.EnsureSize(max_instances);
@@ -701,28 +705,54 @@ namespace dmGameObject
         return collection;
     }
 
-    static void CreateComponentWorlds(Collection* collection, uint32_t max_instances, dmGameObjectDDF::CollectionDesc* collection_desc)
+    static bool CreateComponentWorlds(Collection* collection, uint32_t max_instances, dmGameObjectDDF::CollectionDesc* collection_desc)
     {
         HRegister regist = collection->m_Register;
+
+        // Establish the boundary before callbacks, including failed/reentrant creation.
+        regist->m_ComponentWorldCreationStarted = true;
+
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
+            uint32_t max_components = GetMaxComponentInstances(regist->m_ComponentTypes[i].m_NameHash, collection_desc);
             if (regist->m_ComponentTypes[i].m_NewWorldFunction)
             {
                 ComponentNewWorldParams params;
                 params.m_Context = regist->m_ComponentTypes[i].m_Context;
                 params.m_ComponentIndex = i;
-                params.m_MaxComponentInstances = GetMaxComponentInstances(regist->m_ComponentTypes[i].m_NameHash, collection_desc);
+                params.m_MaxComponentInstances = max_components;
                 params.m_MaxInstances = max_instances;
                 params.m_World = &collection->m_ComponentWorlds[i];
                 regist->m_ComponentTypes[i].m_NewWorldFunction(params);
             }
+
+            // The game world must also be unwound if its owner notification fails.
+            // Keep legacy NewWorld return handling unchanged in this internal addition.
+            collection->m_ComponentWorldsCreated = i + 1;
+            const ComponentWorldCallbacks& callbacks = regist->m_ComponentWorldCallbacks;
+            if (callbacks.m_OnWorldCreated)
+            {
+                ComponentWorldCreateParams params;
+                params.m_World = collection->m_ComponentWorlds[i];
+                params.m_Context = regist->m_ComponentTypes[i].m_Context;
+                params.m_Collection = collection->m_HCollection;
+                params.m_ComponentIndex = i;
+                params.m_MaxInstances = max_instances;
+                params.m_MaxComponentInstances = max_components;
+                if (!callbacks.m_OnWorldCreated(callbacks.m_Context, params))
+                {
+                    dmLogError("World creation notification failed for component '%s'.", regist->m_ComponentTypes[i].m_Name);
+                    return false;
+                }
+            }
         }
+        return true;
     }
 
-    static void DeallocCollectionStorage(Collection* collection)
+    static void DeallocCollectionStorage(Collection* collection, HCollection original_handle)
     {
         HRegister regist = collection->m_Register;
-        for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
+        for (uint32_t i = 0; i < collection->m_ComponentWorldsCreated; ++i)
         {
             DM_PROFILE_DYN(regist->m_ComponentTypes[i].m_Name, 0);
 
@@ -731,15 +761,20 @@ namespace dmGameObject
             params.m_World = collection->m_ComponentWorlds[i];
             if (regist->m_ComponentTypes[i].m_DeleteWorldFunction)
                 regist->m_ComponentTypes[i].m_DeleteWorldFunction(params);
+            collection->m_ComponentWorlds[i] = 0;
+            const ComponentWorldCallbacks& callbacks = regist->m_ComponentWorldCallbacks;
+            if (callbacks.m_OnWorldDeleted)
+                callbacks.m_OnWorldDeleted(callbacks.m_Context, original_handle, i);
         }
+        collection->m_ComponentWorldsCreated = 0;
         dmMutex::Delete(collection->m_Mutex);
     }
 
-    void DeallocCollection(Collection* collection)
+    void DeallocCollection(Collection* collection, HCollection original_handle)
     {
         DM_PROFILE("DeallocCollection");
 
-        DeallocCollectionStorage(collection);
+        DeallocCollectionStorage(collection, original_handle);
         delete collection;
     }
 
@@ -882,12 +917,18 @@ namespace dmGameObject
         }
         collection->m_HCollection = hcollection;
 
-        CreateComponentWorlds(collection, max_instances, (dmGameObjectDDF::CollectionDesc*)collection_desc);
+        if (!CreateComponentWorlds(collection, max_instances, (dmGameObjectDDF::CollectionDesc*)collection_desc))
+        {
+            DeallocCollectionStorage(collection, hcollection);
+            UnregisterCollection(hcollection);
+            delete collection;
+            return 0;
+        }
 
         Result result = AttachCollection(collection, name);
         if (result != RESULT_OK)
         {
-            DeallocCollectionStorage(collection);
+            DeallocCollectionStorage(collection, hcollection);
             UnregisterCollection(hcollection);
             delete collection;
             return 0;
@@ -941,8 +982,11 @@ namespace dmGameObject
         DoDeleteAll(collection);
         ReleaseDynamicResources(collection);
 
+        // Detach invalidates the public handle before world destruction. Owner
+        // notifications still need the original identity to release their associations.
+        HCollection original_handle = collection->m_HCollection;
         DetachCollection(collection);
-        DeallocCollection(collection);
+        DeallocCollection(collection, original_handle);
     }
 
     // Really should be renamed "DelayDelete"
@@ -1059,6 +1103,31 @@ namespace dmGameObject
         regist->m_ComponentTypesOrder[regist->m_ComponentTypeCount] = regist->m_ComponentTypeCount;
         regist->m_ComponentTypeCount++;
         return RESULT_OK;
+    }
+
+    Result SetComponentWorldCallbacks(HRegister regist, const ComponentWorldCallbacks& callbacks)
+    {
+        if (!callbacks.m_OnWorldCreated || !callbacks.m_OnWorldDeleted || !callbacks.m_Render || regist->m_ComponentWorldCreationStarted)
+        {
+            return RESULT_INVALID_OPERATION;
+        }
+        else if (regist->m_ComponentWorldCallbacks.m_OnWorldCreated)
+        {
+            return RESULT_ALREADY_REGISTERED;
+        }
+
+        regist->m_ComponentWorldCallbacks = callbacks;
+        return RESULT_OK;
+    }
+
+    void ClearComponentWorldCallbacks(HRegister regist)
+    {
+        memset(&regist->m_ComponentWorldCallbacks, 0, sizeof(regist->m_ComponentWorldCallbacks));
+    }
+
+    bool HasComponentWorldCreationStarted(HRegister regist)
+    {
+        return regist->m_ComponentWorldCreationStarted;
     }
 
     Result SetUpdateOrderPrio(HRegister regist, HResourceType resource_type, uint16_t prio)
@@ -3317,20 +3386,28 @@ namespace dmGameObject
         if (!collection)
             return false;
 
+        // Update normally resolves transforms, but PreRender or another game-side
+        // caller can change them before Render. Dispatch the final hierarchy.
+        if (collection->m_DirtyTransforms)
+            UpdateTransforms(collection);
+
         bool ret = true;
         uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
         for (uint32_t i = 0; i < component_types; ++i)
         {
             uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
             ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
-            if (component_type->m_RenderFunction)
+            const ComponentWorldCallbacks& callbacks = collection->m_Register->m_ComponentWorldCallbacks;
+            if (callbacks.m_Render || component_type->m_RenderFunction)
             {
                 DM_PROFILE_DYN(component_type->m_Name, 0);
                 ComponentsRenderParams params;
                 params.m_Collection = hcollection;
                 params.m_World = collection->m_ComponentWorlds[update_index];
                 params.m_Context = component_type->m_Context;
-                UpdateResult res = component_type->m_RenderFunction(params);
+                UpdateResult res = callbacks.m_Render
+                    ? callbacks.m_Render(callbacks.m_Context, update_index, params, component_type->m_RenderFunction)
+                    : component_type->m_RenderFunction(params);
                 if (res != UPDATE_RESULT_OK)
                     ret = false;
             }

@@ -65,9 +65,13 @@ if(TARGET profiler_remotery)
   defold_target_link_libraries(test_profiler_remotery "${TARGET_PLATFORM}"
     testmain
     dlib
-    profile_null
+    zip
+    mbedtls
+    extension
+    profile
     profiler_remotery)
   defold_target_link_socket(test_profiler_remotery "${TARGET_PLATFORM}" PRIVATE)
+  defold_target_link_app(test_profiler_remotery "${TARGET_PLATFORM}" SCOPE PRIVATE)
   if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
     find_package(Threads REQUIRED)
     target_link_libraries(test_profiler_remotery PRIVATE Threads::Threads m)
