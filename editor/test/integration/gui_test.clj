@@ -4510,6 +4510,37 @@
         (is (g/error-fatal? (g/node-value node :own-build-errors)))
         (is (not (g/error? (g/node-value node :text-data))))))))
 
+;; Invalid GUI arc edits retain textbox positioning, guides and framing bounds;
+;; correcting the edit restores the curved preview.
+(deftest gui-text-invalid-arc-preview-test
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/logic/main.gui")
+          node (gui-node scene "multi_line_text")]
+      (test-util/prop! node :pivot :pivot-nw)
+      (let [straight-layout (g/node-value node :text-layout)
+            straight-offset (:offset (g/node-value node :text-data))
+            straight-aabb (g/node-value node :aabb)
+            straight-lines (:line-data (g/node-value node :scene-renderable-user-data))]
+        (test-util/prop! node :arc-angle 120.0)
+        (let [arc-aabb (g/node-value node :aabb)
+              arc-lines (:line-data (g/node-value node :scene-renderable-user-data))]
+          (doseq [[property value] [[:arc-angle -1.0]
+                                    [:arc-angle 361.0]
+                                    [:arc-radius Double/POSITIVE_INFINITY]
+                                    [:arc-radius Double/NaN]]]
+            (testing (str property " = " value)
+              (test-util/with-prop [node property value]
+                (is (g/error-fatal? (test-util/prop-error node property)))
+                (is (g/error-fatal? (g/node-value scene :build-targets)))
+                (is (= straight-layout (g/node-value node :text-layout)))
+                (is (= straight-offset (:offset (g/node-value node :text-data))))
+                (is (= straight-aabb (g/node-value node :aabb)))
+                (is (= straight-lines (:line-data (g/node-value node :scene-renderable-user-data))))
+                (is (not (test-util/prop-read-only? node :manual-size))))
+              (is (= arc-aabb (g/node-value node :aabb)))
+              (is (= arc-lines (:line-data (g/node-value node :scene-renderable-user-data))))
+              (is (test-util/prop-read-only? node :manual-size)))))))))
+
 ;; Arc mode keeps Line Break editable, ignores stored Size and restores the
 ;; original textbox layout when disabled.
 (deftest gui-text-arc-layout-mode-test

@@ -180,7 +180,7 @@
     :font-size font-size))
 
 (g/defnk produce-scene
-  [_node-id aabb size gpu-texture material-shader blend-mode pivot text-data arc-data arc-angle]
+  [_node-id aabb size gpu-texture material-shader blend-mode pivot text-data arc-data arc-active]
   (let [scene {:node-id _node-id
                :aabb aabb}
         font-map (get-in text-data [:font-data :font-map])
@@ -191,7 +191,7 @@
     (if text-data
       (let [[w h _] size
             offset (pivot-offset pivot size)
-            lines (if-not (zero? (double arc-angle))
+            lines (if arc-active
                     (:line-data arc-data)
                     (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0)))]
         (assoc scene :renderable {:render-fn render-tris
@@ -212,7 +212,7 @@
                                                 :user-data {:line-data lines
                                                             :selected-line-data (:selected-line-data arc-data)}
                                                 :passes [pass/outline]}}
-                            (not (zero? (double arc-angle)))
+                            arc-active
                             (assoc :selection-id _node-id))]))
       scene)))
 
@@ -265,7 +265,7 @@
             (dynamic label (properties/label-dynamic :label :text))
             (dynamic tooltip (properties/tooltip-dynamic :label :text)))
   (property size types/Vec3 ; Required protobuf field.
-            (dynamic read-only? (g/fnk [arc-angle] (not (zero? (double arc-angle)))))
+            (dynamic read-only? (g/fnk [arc-active] arc-active))
             (dynamic label (properties/label-dynamic :label :size))
             (dynamic tooltip (properties/tooltip-dynamic :label :size)))
   (property arc-radius g/Num (default (protobuf/default Label$LabelDesc :arc-radius))
@@ -359,6 +359,9 @@
 
   (output arc-error g/Any (g/fnk [_node-id arc-radius arc-angle]
                             (font/arc-error _node-id arc-radius arc-angle)))
+  (output arc-active g/Bool (g/fnk [arc-angle ^:try arc-error]
+                              (and (not (g/error-value? arc-error))
+                                   (not (zero? (double arc-angle))))))
   (output save-value g/Any :cached produce-save-value)
   (output markup-error g/Any :cached (g/fnk [_node-id ^:try font-map text]
                                        (when-not (g/error-value? font-map)
@@ -369,7 +372,7 @@
                                                                 (font/with-arc-properties arc-radius arc-angle arc-error))
                                                         text line-break (first size) tracking leading
                                                         (when (:vector? font-data) font-size))))
-  (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size color outline shadow pivot size arc-radius arc-angle ^:try arc-error]
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size color outline shadow pivot size arc-radius arc-angle arc-active ^:try arc-error]
                                    (-> {:text-layout text-layout
                                         :font-data font-data
                                         :color color
@@ -379,13 +382,13 @@
                                         :align (pivot->h-align pivot)}
                                        (cond-> font-data
                                          (assoc :box-height (second size)
-                                                :offset (if (zero? (double arc-angle)) (pivot-offset pivot size) [0.0 0.0])
+                                                :offset (if arc-active [0.0 0.0] (pivot-offset pivot size))
                                                 :vertical-align (pivot->v-align pivot)))
                                        (font/with-arc-properties arc-radius arc-angle arc-error))))
   (output arc-data g/Any :cached (g/fnk [font-map text-data]
                                    (font/arc-data font-map text-data)))
-  (output aabb g/Any :cached (g/fnk [pivot size arc-data arc-angle]
-                               (if-not (zero? (double arc-angle))
+  (output aabb g/Any :cached (g/fnk [pivot size arc-data arc-active]
+                               (if arc-active
                                  (or (:aabb arc-data) geom/empty-bounding-box)
                                  (let [[min-x min-y] (pivot-offset pivot size)
                                        [width height] size]

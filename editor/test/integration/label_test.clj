@@ -434,6 +434,36 @@
         (is (not (g/error? (g/node-value node :text-data))))
         (is (not (contains? (g/node-value node :text-data) :arc-radius)))))))
 
+;; Invalid arc edits retain textbox positioning, guides and framing bounds;
+;; correcting the edit restores the curved preview.
+(deftest label-invalid-arc-preview-test
+  (test-util/with-loaded-project
+    (let [node (project/get-resource-node project "/label/test.label")]
+      (test-util/prop! node :pivot :pivot-nw)
+      (let [straight-layout (g/node-value node :text-layout)
+            straight-offset (:offset (g/node-value node :text-data))
+            straight-aabb (g/node-value node :aabb)
+            straight-lines (get-in (g/node-value node :scene) [:children 0 :renderable :user-data :line-data])]
+        (test-util/prop! node :arc-angle 120.0)
+        (let [arc-aabb (g/node-value node :aabb)
+              arc-lines (get-in (g/node-value node :scene) [:children 0 :renderable :user-data :line-data])]
+          (doseq [[property value] [[:arc-angle -1.0]
+                                    [:arc-angle 361.0]
+                                    [:arc-radius Double/POSITIVE_INFINITY]
+                                    [:arc-radius Double/NaN]]]
+            (testing (str property " = " value)
+              (test-util/with-prop [node property value]
+                (is (g/error-fatal? (test-util/prop-error node property)))
+                (is (g/error-fatal? (g/node-value node :build-targets)))
+                (is (= straight-layout (g/node-value node :text-layout)))
+                (is (= straight-offset (:offset (g/node-value node :text-data))))
+                (is (= straight-aabb (g/node-value node :aabb)))
+                (is (= straight-lines (get-in (g/node-value node :scene) [:children 0 :renderable :user-data :line-data])))
+                (is (not (test-util/prop-read-only? node :size))))
+              (is (= arc-aabb (g/node-value node :aabb)))
+              (is (= arc-lines (get-in (g/node-value node :scene) [:children 0 :renderable :user-data :line-data])))
+              (is (test-util/prop-read-only? node :size)))))))))
+
 ;; The standard angle field preserves typed values and reports errors outside
 ;; the bounds declared for numeric scrubbing.
 (deftest label-arc-angle-edit-range-test

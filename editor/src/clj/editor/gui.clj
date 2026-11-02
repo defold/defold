@@ -2134,7 +2134,7 @@
 
   ; Text
   (property manual-size types/Vec3 (default (protobuf/vector4->vector3 (protobuf/default Gui$NodeDesc :size)))
-            (dynamic read-only? (g/fnk [arc-angle] (not (zero? (double arc-angle)))))
+            (dynamic read-only? (g/fnk [arc-active] arc-active))
             (dynamic label (properties/label-dynamic :size))
             (dynamic tooltip (properties/tooltip-dynamic :size))
             (dynamic edit-type (layout-property-edit-type manual-size {:type types/Vec3}))
@@ -2259,12 +2259,12 @@
   (output node-msg g/Any :cached produce-text-node-msg)
   (output gpu-texture TextureLifecycle (g/fnk [font-data] (:texture font-data)))
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [costly-gui-scene-info manual-size font material material-shader pivot text-data color+alpha arc-data arc-angle]
+          (g/fnk [costly-gui-scene-info manual-size font material material-shader pivot text-data color+alpha arc-data arc-active]
             (let [[w h] manual-size
                   offset (pivot-offset pivot manual-size)
-                  lines (if (zero? (double arc-angle))
-                          (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))
-                          (:line-data arc-data))
+                  lines (if arc-active
+                          (:line-data arc-data)
+                          (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0)))
                   font-map (get-in text-data [:font-data :font-map])
                   material-shader (when (not (empty? material)) material-shader)
                   font-shaders (:font-shaders costly-gui-scene-info)
@@ -2288,6 +2288,9 @@
                                        (font/markup-error _node-id :text (:font-map font-data) text)))
   (output arc-error g/Any (g/fnk [_node-id arc-radius arc-angle]
                             (font/arc-error _node-id arc-radius arc-angle)))
+  (output arc-active g/Bool (g/fnk [arc-angle ^:try arc-error]
+                              (and (not (g/error-value? arc-error))
+                                   (not (zero? (double arc-angle))))))
   (output text-layout g/Any :cached (g/fnk [manual-size font-data font-size text line-break text-leading text-tracking style arc-radius arc-angle ^:try arc-error]
                                       (font/layout-text (some-> font-data :font-map
                                                                 (assoc :style style)
@@ -2296,13 +2299,13 @@
                                                         (when (:vector? font-data) font-size))))
   (output arc-data g/Any :cached (g/fnk [font-data text-data]
                                    (font/arc-data (:font-map font-data) text-data)))
-  (output aabb g/Any :cached (g/fnk [pivot manual-size arc-data arc-angle]
-                               (if (zero? (double arc-angle))
-                                 (calc-aabb pivot manual-size)
-                                 (or (:aabb arc-data) geom/empty-bounding-box))))
+  (output aabb g/Any :cached (g/fnk [pivot manual-size arc-data arc-active]
+                               (if arc-active
+                                 (or (:aabb arc-data) geom/empty-bounding-box)
+                                 (calc-aabb pivot manual-size))))
   (output aabb-size g/Any :cached (g/fnk [text-layout]
                                     [(:width text-layout) (:height text-layout) 0]))
-  (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size color alpha outline outline-alpha shadow shadow-alpha manual-size pivot arc-radius arc-angle ^:try arc-error]
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size color alpha outline outline-alpha shadow shadow-alpha manual-size pivot arc-radius arc-angle arc-active ^:try arc-error]
                                    (-> {:text-layout text-layout
                                         :font-data font-data
                                         :color (assoc color 3 alpha)
@@ -2312,7 +2315,7 @@
                                         :align (pivot->h-align pivot)}
                                        (cond-> font-data
                                          (assoc :box-height (second manual-size)
-                                                :offset (if (zero? (double arc-angle)) (pivot-offset pivot manual-size) [0.0 0.0])
+                                                :offset (if arc-active [0.0 0.0] (pivot-offset pivot manual-size))
                                                 :vertical-align (pivot->v-align pivot)))
                                        (font/with-arc-properties arc-radius arc-angle arc-error))))
   (output own-build-errors g/Any
