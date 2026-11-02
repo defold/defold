@@ -87,6 +87,8 @@ public class ArchiveBuilder {
 
     public void setPreparedResourceConsumer(PreparedResourceConsumer consumer) {
         preparedResourceConsumer = consumer;
+        // Package placement owns publication, including when export is disabled.
+        publisher = null;
     }
 
     private Project project;

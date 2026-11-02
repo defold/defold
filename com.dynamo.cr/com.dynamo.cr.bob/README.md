@@ -184,8 +184,15 @@ run `inline_libraries.py` from `share/report_libs/` and insert its generated
 ## Live Update package manifests
 
 Set `liveupdate.manifest = /content.lumanifest` in `game.project` to use named
-packages. Leaving this setting empty preserves the legacy proxy/publisher
-workflow. The [example project](../../editor/test/resources/live_update_packages_project)
+packages. Leaving this setting empty preserves legacy resource selection:
+a resource reachable through any non-excluded route remains bundled. Bob adapts
+the final legacy base/Live Update sets to one internal package and uses the same
+preparation and writers as manifest projects. It does not generate rules or change
+project files. ZIP/folder destinations and compression still come from
+`liveupdate.settings`; package manifests contain only their packaged resources.
+Legacy folder outputs retain previous resources and unrelated files, as before.
+Existing legacy ZIP/folder outputs in a bundle can be replaced without an ownership receipt.
+The [example project](../../editor/test/resources/live_update_packages_project)
 separates common content, two episode ranges, and seasonal content:
 
 ```protobuf
@@ -271,8 +278,10 @@ The `publish` command runs after all other requested commands succeed. Bob check
 the complete set against `game.lupackages` before contacting Amazon; missing or
 modified artifacts require a build first. Publishing uploads the full set again
 and does not delete remote objects. An interrupted upload can leave a partial
-remote set; retry publishing to complete it. Projects without a manifest retain
-the legacy resource publishing behavior.
+remote set; retry publishing to complete it. Projects without a manifest also
+publish after bundling (or with `publish`), retaining the legacy hash-based object
+keys and manifest object key. Their resources are prepared in `build/liveupdate`
+before uploading. Build-only commands do not contact Amazon in either mode.
 
 Each package contains a `liveupdate.game.dmanifest` with only that package's
 resource entries. Optional metadata identifies outputs and external requirements,
@@ -283,7 +292,8 @@ packages with the existing Live Update API.
 ### Package reports
 
 Use `--bundle-report-html` with `bundle` to inspect the base and all Live Update
-packages in one standalone file. This report requires `liveupdate.manifest`:
+packages in one standalone file. This report requires an archive build and also
+supports legacy projects:
 
 ```sh
 java -jar bob.jar --archive --liveupdate yes --bundle-report-html build/bundle-report.html build bundle
@@ -335,6 +345,9 @@ recreation of their application output; package copies are restored when that
 output directory is recreated.
 Failed or cancelled delivery restores the previous artifacts and ownership receipt,
 so the bundle step can be retried.
+Legacy `save-zip-in-bundle-folder` and `save-folder-in-bundle-folder` settings also
+use this copy path; the prepared artifacts remain at their configured destinations
+for reuse.
 
 ### Java providers
 
@@ -405,21 +418,6 @@ stop active preview work and remove its cache; obsolete completions cannot
 replace a newer result. Ordinary editor builds
 also include manifest-selected resources. Bundling always resolves and validates
 the manifest again. Proxy `Exclude` values remain serialized, but the manifest
-controls packaging when selected. When opening a bundle dialog without a configured
-manifest, the editor offers to migrate existing Live Update settings and checked
-proxy `Exclude` values into a manifest. Choosing **Not Now** leaves the project
-unchanged. Accepting creates exact collection path rules in one package.
-Remove rules for unchecked proxy targets preserve
-their content and shared dependencies in the base. This conservatively retains
-their entire closures, including nested proxy content; the generated rules can
-be refined afterward. It creates `liveupdate.lumanifest` (with a numeric suffix
-if that path is occupied) and selects it in `game.project` through an undoable edit.
-The normal save and bundle workflow saves that setting. The legacy settings file
-and proxy files remain unchanged. Existing manifests are not migrated.
-The migration retains the ZIP or folder provider, defaulting to ZIP for other
-modes. Amazon publishing settings remain in `liveupdate.settings` for the final
-publishing phase. It keeps valid output names and uses `liveupdate` otherwise,
-adding a numeric suffix when the package output already exists to preserve it,
-and copies the legacy output directory and ZIP compression into the manifest. Bundle-copy
-settings continue to apply. Bob alone retains the
-legacy workflow until a manifest is selected.
+controls packaging when selected. Without `liveupdate.manifest` in `game.project`,
+both the editor and Bob use proxy `Exclude` values and `liveupdate.settings`.
+Opening a bundle dialog does not migrate or change these settings.

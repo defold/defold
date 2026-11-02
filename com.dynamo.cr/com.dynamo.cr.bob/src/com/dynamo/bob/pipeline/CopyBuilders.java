@@ -36,7 +36,12 @@ public class CopyBuilders {
 
 
     @BuilderParams(name = "Glsl", inExts = ".glsl", outExt = ".glslc")
-    public static class GlslBuilder extends CopyBuilder {}
+    public static class GlslBuilder extends CopyBuilder {
+        @Override
+        public Task create(IResource input) {
+            return defaultTask(input, Task.OutputFlags.BUILD_ONLY);
+        }
+    }
 
     @BuilderParams(name = "TTF", inExts = ".ttf", outExt = ".ttf")
     public static class TTFBuilder extends CopyBuilder {}

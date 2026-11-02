@@ -88,7 +88,10 @@ import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.AWSPublisher;
+import com.dynamo.bob.archive.publisher.FolderPublisher;
+import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
+import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.bundle.HTML5Bundler;
 import com.dynamo.bob.bundle.LinuxBundler;
 import com.dynamo.bob.bundle.IBundler;
@@ -848,9 +851,9 @@ public class ProjectBuildTest {
         assertTrue(hasResource(bundledManifestData, "/logic/level.scriptc"));
     }
 
+    // Archive preparation uses package writers without starting a publisher during compilation.
     @Test
-    // Verifies archive builds start the publisher once, so stateful publishers do not leak or reset temp outputs.
-    public void testArchiveBuildStartsPublisherOnce() throws IOException, CompileExceptionError, MultipleCompileException {
+    public void testArchiveBuildDoesNotStartPublisher() throws IOException, CompileExceptionError, MultipleCompileException {
         createDefaultFiles();
         CountingPublisher publisher = new CountingPublisher();
 
@@ -871,12 +874,13 @@ public class ProjectBuildTest {
             }
         }
 
-        assertEquals(1, publisher.startCount);
-        assertEquals(1, publisher.stopCount);
+        assertEquals(0, publisher.startCount);
+        assertEquals(0, publisher.stopCount);
     }
 
+    // An empty legacy package contains no manifest entries for resources already in the base archive.
     @Test
-    public void testArchiveBuildWithoutExcludedResourcesKeepsManifestUnchanged() throws IOException, CompileExceptionError, MultipleCompileException {
+    public void testArchiveBuildWithoutExcludedResourcesKeepsPackageManifestEmpty() throws IOException, CompileExceptionError, MultipleCompileException {
         createDefaultFiles();
         createLiveUpdatePublisherSettings();
         createFile(contentRoot, "game.project", "[display]\nwidth=640\nheight=480\n[liveupdate]\nsettings = /liveupdate.settings\n");
@@ -890,7 +894,8 @@ public class ProjectBuildTest {
         assertEquals(0, countExcludedEntries(publishedManifestData));
         assertFalse(bundledManifestData.getHasExcludedResources());
         assertFalse(publishedManifestData.getHasExcludedResources());
-        assertEquals(publishedManifestData, bundledManifestData);
+        assertEquals(0, publishedManifestData.getResourcesCount());
+        assertTrue(bundledManifestData.getResourcesCount() > 0);
     }
 
     @Test
@@ -1078,6 +1083,237 @@ public class ProjectBuildTest {
 
     private File getPublishedManifestFile() {
         return new File(contentRoot, "liveupdate_output/published/liveupdate.game.dmanifest");
+    }
+
+    private void createLegacyPackageProject() throws IOException {
+        createExcludedLiveUpdateProject(null);
+        Files.writeString(Path.of(contentRoot, "game.project"), "\n[project]\ncustom_resources = /custom\n", java.nio.file.StandardOpenOption.APPEND);
+        createFile(contentRoot, "custom/message.txt", "Custom content stays in the base.\n");
+        createFile(contentRoot, "logic/shared.script", "function init(self) self.shared = true end");
+        createFile(contentRoot, "logic/shared.go", "components { id: \"shared\" component: \"/logic/shared.script\" }");
+        createFile(contentRoot, "logic/included.collection", collection("included", "/logic/shared.go"));
+        createFile(contentRoot, "logic/included.collectionproxy", "collection: \"/logic/included.collection\" exclude: false");
+        createFile(contentRoot, "logic/mixed.collection", "name: \"mixed\"");
+        createFile(contentRoot, "logic/mixed-in.collectionproxy", "collection: \"/logic/mixed.collection\" exclude: false");
+        createFile(contentRoot, "logic/mixed-out.collectionproxy", "collection: \"/logic/mixed.collection\" exclude: true");
+        createFile(contentRoot, "logic/unused.collectionproxy", "collection: \"/logic/level.collection\" exclude: false");
+        createFile(contentRoot, "logic/nested.collection", "name: \"nested\"");
+        createFile(contentRoot, "logic/nested.collectionproxy", "collection: \"/logic/nested.collection\" exclude: false");
+        Files.writeString(Path.of(contentRoot, "logic/level.collection"), "\ninstances { id: \"shared\" prototype: \"/logic/shared.go\" }", java.nio.file.StandardOpenOption.APPEND);
+        Files.writeString(Path.of(contentRoot, "logic/level.go"), "\ncomponents { id: \"nested\" component: \"/logic/nested.collectionproxy\" }", java.nio.file.StandardOpenOption.APPEND);
+        Files.writeString(Path.of(contentRoot, "logic/main.go"), """
+                components { id: "included" component: "/logic/included.collectionproxy" }
+                components { id: "mixed-in" component: "/logic/mixed-in.collectionproxy" }
+                components { id: "mixed-out" component: "/logic/mixed-out.collectionproxy" }
+                """, java.nio.file.StandardOpenOption.APPEND);
+    }
+
+    private static void publishLegacyOutput(Publisher publisher) throws Exception {
+        publisher.start();
+        try {
+            publisher.publish(new ArchiveEntry("previous-release"), "previous release".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } finally {
+            publisher.stop();
+        }
+    }
+
+    // Adopting a legacy folder preserves old resources and unrelated files across rebuilds and mode changes.
+    @Test
+    public void testLegacyFolderPreservesExistingFiles() throws Exception {
+        createLegacyPackageProject();
+        Path folder = Path.of(contentRoot, "liveupdate_output/published");
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            publishLegacyOutput(new FolderPublisher(contentRoot, PublisherSettings.load(project.getResource("/liveupdate.settings"))));
+        }
+        Path notes = folder.resolve("notes/readme.txt");
+        Files.createDirectories(notes.getParent());
+        Files.writeString(notes, "User content");
+        FileTime unchanged = FileTime.fromMillis(946684800000L);
+        Files.setLastModifiedTime(notes, unchanged);
+        var plan = buildPackageProject(true, false);
+        assertEquals("previous release", Files.readString(folder.resolve("previous-release")));
+        assertEquals("User content", Files.readString(notes));
+        assertEquals(unchanged, Files.getLastModifiedTime(notes));
+        assertEquals(plan.packages().get("liveupdate").resources(), manifestPaths(readManifestData(getPublishedManifestFile())));
+        Set<String> originalFiles;
+        try (var files = Files.list(folder)) {
+            originalFiles = files.map(path -> path.getFileName().toString()).collect(Collectors.toSet());
+        }
+        createFile(contentRoot, "logic/level.script", "function init(self) self.changed = true end");
+        buildPackageProject(true, false);
+        for (String name : originalFiles) assertTrue(name, Files.exists(folder.resolve(name)));
+        assertEquals("User content", Files.readString(notes));
+        // A later manifest build must not retire a folder containing unowned files.
+        createPackageProject();
+        savePackages(livePackage("published", "folder", addPath("Data", "/extra/.*")));
+        setPackageOutputDirectory("liveupdate_output");
+        try {
+            buildPackageProject(true, false);
+            org.junit.Assert.fail("A manifest package must not replace an adopted legacy folder");
+        } catch (AssertionError expected) {
+            assertTrue(expected.getMessage(), expected.getMessage().contains("overwrite an existing file or directory"));
+        }
+        setPackageOutputDirectory("packages");
+        buildPackageProject(true, false);
+        assertEquals("User content", Files.readString(notes));
+        assertEquals("previous release", Files.readString(folder.resolve("previous-release")));
+        assertTrue(PackageArtifacts.generatedPaths(Path.of(contentRoot)).contains("/liveupdate_output/published"));
+        assertNoPackageStaging();
+    }
+
+    // Changing the legacy ZIP filename preserves earlier releases and keeps them out of future source matching.
+    @Test
+    public void testLegacyZipRetainsEarlierReleases() throws Exception {
+        createLegacyPackageProject();
+        Map<Path, byte[]> releases = new LinkedHashMap<>();
+        for (String name : List.of("first", "second")) {
+            createFile(contentRoot, "liveupdate.settings", "[liveupdate]\nmode=Zip\nzip-filepath=legacy\nzip-filename=" + name + ".zip\n");
+            buildPackageProject(true, false);
+            Path output = Path.of(contentRoot, "legacy", name + ".zip");
+            releases.put(output, Files.readAllBytes(output));
+        }
+        for (var release : releases.entrySet()) assertArrayEquals(release.getValue(), Files.readAllBytes(release.getKey()));
+        createPackageProject();
+        savePackages(livePackage("episode", "zip", addPath("Data and archives", "/.*[.](json|zip)")));
+        var plan = buildPackageProject(true, false);
+        assertEquals(Set.of("/extra/data.json"), plan.packages().get("episode").resources());
+        for (var release : releases.entrySet()) assertArrayEquals(release.getValue(), Files.readAllBytes(release.getKey()));
+        assertNoPackageStaging();
+    }
+
+    // Existing ZIP/folder bundle outputs created by the old publishers can be replaced without ownership receipts.
+    @Test
+    public void testLegacyBundleAdoptsExistingOutputs() throws Exception {
+        createLegacyPackageProject();
+        for (String mode : List.of("Zip", "Folder")) {
+            createFile(contentRoot, "liveupdate.settings", "[liveupdate]\nmode=" + mode + "\nzip-filepath=legacy\nzip-filename=episode.zip\n"
+                    + "output-directory=legacy\noutput-folder-name=episode\nsave-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n");
+            buildPackageProject(true, false);
+            Path bundle = Files.createDirectories(Path.of(contentRoot, "bundle-" + mode));
+            PublisherSettings settings = new PublisherSettings();
+            settings.setZipFilepath(bundle.toString());
+            settings.setZipFilename("episode.zip");
+            settings.setOutputDirectory(bundle.toString());
+            settings.setOutputFolderName("episode");
+            Path bundled = bundle.resolve(mode.equals("Zip") ? "episode.zip" : "episode");
+            try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+                if (mode.equals("Zip")) {
+                    Files.createDirectory(bundled);
+                    Files.writeString(bundled.resolve("readme.txt"), "User content");
+                    try {
+                        BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+                        org.junit.Assert.fail("A legacy ZIP must not replace an unrelated directory");
+                    } catch (IOException expected) {
+                        assertTrue(expected.getMessage(), expected.getMessage().contains("overwrite an existing bundle output"));
+                    }
+                    assertEquals("User content", Files.readString(bundled.resolve("readme.txt")));
+                    FileUtils.deleteDirectory(bundled.toFile());
+                }
+                publishLegacyOutput(mode.equals("Zip") ? new ZipPublisher(contentRoot, settings) : new FolderPublisher(contentRoot, settings));
+                BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+                if (mode.equals("Zip")) {
+                    assertArrayEquals(Files.readAllBytes(Path.of(contentRoot, "legacy/episode.zip")), Files.readAllBytes(bundled));
+                } else {
+                    assertFalse(Files.exists(bundled.resolve("previous-release")));
+                    assertArrayEquals(Files.readAllBytes(Path.of(contentRoot, "legacy/episode/liveupdate.game.dmanifest")),
+                            Files.readAllBytes(bundled.resolve("liveupdate.game.dmanifest")));
+                }
+                FileTime unchanged = FileTime.fromMillis(946684800000L);
+                Files.setLastModifiedTime(bundled, unchanged);
+                BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+                assertEquals(unchanged, Files.getLastModifiedTime(bundled));
+            }
+            assertNoPackageStaging();
+        }
+    }
+
+    // Legacy mixed routes, inherited exclusion and custom files keep their exact archive membership.
+    // ZIP/folder providers use the same payloads and tight manifests while retaining configured names.
+    @Test
+    public void testLegacyPackageContentsAndIncrementalOutput() throws Exception {
+        createLegacyPackageProject();
+        Set<String> excluded = Set.of("/logic/level.collectionc", "/logic/level.goc", "/logic/level.scriptc",
+                "/logic/nested.collectionproxyc", "/logic/nested.collectionc");
+        Set<String> base = Set.of("/logic/main.collectionc", "/logic/main.goc", "/logic/level.collectionproxyc",
+                "/logic/shared.goc", "/logic/shared.scriptc", "/logic/included.collectionproxyc", "/logic/included.collectionc",
+                "/logic/mixed-in.collectionproxyc", "/logic/mixed-out.collectionproxyc", "/logic/mixed.collectionc", "/custom/message.txt",
+                "/builtins/render/default.renderc", "/builtins/render/default.render_scriptc", "/builtins/render/default.display_profilesc",
+                "/builtins/input/default.gamepadsc", "/input/game.input_bindingc");
+        Map<String, byte[]> zipPayloads = new LinkedHashMap<>();
+        for (String mode : List.of("Zip", "Folder")) {
+            createFile(contentRoot, "liveupdate.settings", "[liveupdate]\nmode=" + mode + "\nzip-filepath=legacy\n"
+                    + "zip-filename=nested/episode assets.zip\noutput-directory=legacy/nested\noutput-folder-name=episode assets\n"
+                    + "save-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n");
+            Path output = Path.of(contentRoot, "legacy/nested/episode assets" + (mode.equals("Zip") ? ".zip" : ""));
+            // Existing legacy outputs predate ownership receipts and must remain valid destinations.
+            if (mode.equals("Zip")) {
+                Files.createDirectories(output.getParent());
+                Files.writeString(output, "Previous legacy archive");
+            } else {
+                Files.createDirectories(output);
+                Files.writeString(output.resolve("liveupdate.game.dmanifest"), "Previous legacy manifest");
+            }
+            PackageResolver.Plan plan = buildPackageProject(true, false);
+            assertEquals(base, plan.base());
+            assertEquals(excluded, plan.packages().get("liveupdate").resources());
+            assertEquals(base, manifestPaths(readManifestData(getBundledManifestFile())));
+            ArchiveReader reader = new ArchiveReader(Path.of(contentRoot, "build/game.arci").toString(),
+                    Path.of(contentRoot, "build/game.arcd").toString(), getBundledManifestFile().toString());
+            try {
+                reader.read();
+                Set<String> expectedHashes = readManifestData(getBundledManifestFile()).getResourcesList().stream()
+                        .map(resource -> com.dynamo.bob.archive.ManifestBuilder.CryptographicOperations.hexdigest(resource.getHash().getData().toByteArray())).collect(Collectors.toSet());
+                Set<String> storedHashes = reader.getEntries().stream()
+                        .map(entry -> com.dynamo.bob.archive.ManifestBuilder.CryptographicOperations.hexdigest(Arrays.copyOf(entry.getHash(), 20))).collect(Collectors.toSet());
+                assertEquals(expectedHashes, storedHashes);
+            } finally {
+                reader.close();
+            }
+            Map<String, byte[]> payloads = new LinkedHashMap<>();
+            if (mode.equals("Zip")) {
+                try (ZipFile zip = new ZipFile(output.toFile())) {
+                    for (var entry : zip.stream().toList()) payloads.put(entry.getName(), zip.getInputStream(entry).readAllBytes());
+                }
+            } else {
+                try (var files = Files.list(output)) {
+                    for (Path file : files.toList()) payloads.put(file.getFileName().toString(), Files.readAllBytes(file));
+                }
+            }
+            Manifest.ManifestData manifest = Manifest.ManifestData.parseFrom(Manifest.ManifestFile.parseFrom(payloads.remove("liveupdate.game.dmanifest")).getData());
+            assertEquals(excluded, manifestPaths(manifest));
+            Set<String> hashes = manifest.getResourcesList().stream()
+                    .map(resource -> com.dynamo.bob.archive.ManifestBuilder.CryptographicOperations.hexdigest(resource.getHash().getData().toByteArray())).collect(Collectors.toSet());
+            assertEquals(hashes, payloads.keySet());
+            if (mode.equals("Zip")) zipPayloads.putAll(payloads);
+            else for (String hash : hashes) assertArrayEquals(zipPayloads.get(hash), payloads.get(hash));
+            FileTime unchanged = FileTime.fromMillis(946684800000L);
+            Files.setLastModifiedTime(output, unchanged);
+            buildPackageProject(true, false);
+            assertEquals(unchanged, Files.getLastModifiedTime(output));
+            try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+                Path bundle = Files.createDirectories(Path.of(contentRoot, "bundle-" + mode));
+                BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+                assertTrue(Files.exists(bundle.resolve(output.getFileName())));
+                assertTrue(Files.exists(output));
+            }
+            if (mode.equals("Zip")) Files.delete(output);
+            else Files.delete(output.resolve("liveupdate.game.dmanifest"));
+            buildPackageProject(true, false);
+            assertTrue(Files.exists(output));
+            assertNoPackageStaging();
+        }
+        createFile(contentRoot, "logic/included.collectionproxy", "collection: \"/logic/included.collection\" exclude: true");
+        Set<String> changedExcluded = new HashSet<>(excluded);
+        changedExcluded.addAll(Set.of("/logic/included.collectionc", "/logic/shared.goc", "/logic/shared.scriptc"));
+        assertEquals(changedExcluded, buildPackageProject(true, false).packages().get("liveupdate").resources());
+        assertEquals(changedExcluded, manifestPaths(readManifestData(Path.of(contentRoot, "legacy/nested/episode assets/liveupdate.game.dmanifest").toFile())));
+        Set<String> all = new HashSet<>(base);
+        all.addAll(excluded);
+        PackageResolver.Plan disabled = buildPackageProject(false, false);
+        assertEquals(all, disabled.base());
+        assertEquals(all, manifestPaths(readManifestData(getBundledManifestFile())));
+        assertTrue(disabled.packages().get("liveupdate").resources().isEmpty());
+        assertFalse(Files.exists(Path.of(contentRoot, "content.lumanifest")));
     }
 
     private void createPackageProject() throws IOException {
@@ -1468,6 +1704,79 @@ public class ProjectBuildTest {
         }
     }
 
+    // Legacy Amazon publication retains hash-named resources and the manifest key, and waits for all bundles.
+    @Test
+    public void testLegacyAmazonPackagesPublishAfterAllBundles() throws Exception {
+        createLegacyPackageProject();
+        for (String mode : List.of("Zip", "Folder")) {
+            createFile(contentRoot, "liveupdate.settings", "[liveupdate]\nmode=" + mode + "\nzip-filepath=legacy\nzip-filename=episode.zip\n"
+                    + "output-directory=legacy\noutput-folder-name=episode\n");
+            if (mode.equals("Folder")) createFile(contentRoot, "legacy/episode/notes.txt", "User content");
+            buildPackageProject(true, false);
+            try (PackagePublication publication = new PackagePublication();
+                 Project project = amazonPackageProject(publication)) {
+                try {
+                    project.build(Progress.discarding(), "publish");
+                    org.junit.Assert.fail("Changing a legacy " + mode + " publisher to Amazon requires prepared resource files");
+                } catch (CompileExceptionError expected) {
+                    assertTrue(expected.getMessage().contains("run build before publishing"));
+                }
+                assertTrue(publication.events.isEmpty());
+            }
+        }
+        try (PackagePublication publication = new PackagePublication();
+             Project project = amazonPackageProject(publication)) {
+            for (TaskResult result : project.build(Progress.discarding(), "build")) assertTrue(result.toString(), result.isOk());
+            assertTrue(publication.events.isEmpty());
+            publication.failBundle = 2;
+            try {
+                project.build(Progress.discarding(), "bundle", "bundle");
+                org.junit.Assert.fail("Expected second bundle failure");
+            } catch (CompileExceptionError expected) {
+                assertTrue(expected.getMessage().contains("Deliberate bundle failure"));
+            }
+            assertEquals(List.of("bundle1", "bundle2"), publication.events);
+            publication.failBundle = 0;
+            publication.bundles = 0;
+            publication.events.clear();
+            project.build(Progress.discarding(), "publish", "bundle", "bundle");
+            assertEquals(List.of("bundle1", "bundle2", "start"), publication.events.subList(0, 3));
+            PackageWriter.Output output = PackageWriter.readOutputs(project).getFirst();
+            assertFalse(output.bundle());
+            Manifest.ManifestData manifest = readManifestData(output.path().resolve("liveupdate.game.dmanifest").toFile());
+            assertEquals(project.getLiveUpdatePlan().packages().get("liveupdate").resources(), manifestPaths(manifest));
+            Map<String, byte[]> expected = new LinkedHashMap<>();
+            for (Manifest.ResourceEntry resource : manifest.getResourcesList()) {
+                String hash = com.dynamo.bob.archive.ManifestBuilder.CryptographicOperations.hexdigest(resource.getHash().getData().toByteArray());
+                expected.put("releases/v1/" + hash, Files.readAllBytes(output.path().resolve(hash)));
+            }
+            expected.put("releases/v1/null", Files.readAllBytes(output.path().resolve("liveupdate.game.dmanifest")));
+            assertEquals(expected.keySet(), publication.uploaded.keySet());
+            for (var file : expected.entrySet()) assertArrayEquals(file.getValue(), publication.uploaded.get(file.getKey()));
+            int uploaded = publication.uploads;
+            project.build(Progress.discarding(), "publish");
+            assertEquals(uploaded * 2, publication.uploads);
+            assertEquals("User content", Files.readString(Path.of(contentRoot, "legacy/episode/notes.txt")));
+        }
+    }
+
+    // Amazon staging must not replace an additive legacy folder at the same path or upload its retained files.
+    @Test
+    public void testLegacyAmazonPreservesFolderOutput() throws Exception {
+        createLegacyPackageProject();
+        createFile(contentRoot, "liveupdate.settings", "[liveupdate]\nmode=Folder\noutput-directory=build\noutput-folder-name=liveupdate\n");
+        createFile(contentRoot, "build/liveupdate/notes.txt", "User content");
+        buildPackageProject(true, false);
+        try (PackagePublication publication = new PackagePublication();
+             Project project = amazonPackageProject(publication)) {
+            List<TaskResult> results = project.build(Progress.discarding(), "build", "publish");
+            assertTrue(results.stream().anyMatch(result -> !result.isOk() && result.toString().contains("overwrite an existing file or directory")));
+            assertTrue(publication.events.isEmpty());
+        }
+        assertEquals("User content", Files.readString(Path.of(contentRoot, "build/liveupdate/notes.txt")));
+        assertNoPackageStaging();
+    }
+
     // A failed second bundle, failed build, disabled export, preview, or cancellation must not start remote publishing.
     @Test
     public void testAmazonPublicationRequiresSuccessfulBundles() throws Exception {
@@ -1613,7 +1922,7 @@ public class ProjectBuildTest {
             PackageWriter.Output second = outputs.get(1);
             // Preserve both validated artifacts while giving them the same relative publishing destination.
             PackageWriter.receipt(project).setContent(PackageWriter.serializeOutputs(project, List.of(first,
-                    new PackageWriter.Output(second.path(), first.name(), false, false, second.inputSignature(), second.contentHash()))));
+                    new PackageWriter.Output(second.path(), first.name(), false, false, second.inputSignature(), second.contentHash(), second.legacy()))));
             try {
                 project.build(Progress.discarding(), "publish");
                 org.junit.Assert.fail("Expected a publication name collision");
@@ -1938,7 +2247,14 @@ public class ProjectBuildTest {
         }
         Files.writeString(receipt, legacy);
         buildPackageProject(true, false);
-        assertTrue(Files.readAllLines(receipt).stream().filter(line -> !line.startsWith("project-root ")).allMatch(line -> line.split(" ", -1).length == 6));
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            var outputs = PackageWriter.validatedOutputs(project);
+            assertEquals(2, outputs.size());
+            for (var output : outputs) {
+                assertFalse(output.inputSignature().isEmpty());
+                assertFalse(output.legacy());
+            }
+        }
         assertNoPackageStaging();
     }
 
@@ -2533,6 +2849,38 @@ public class ProjectBuildTest {
         assertNoPackageStaging();
     }
 
+    // Case-only renames replace owned ZIP/folder outputs and their bundle copies on every filesystem.
+    @Test
+    public void testPackageCaseOnlyRename() throws Exception {
+        createPackageProject();
+        Files.writeString(Path.of(contentRoot, "liveupdate.settings"),
+                "save-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n", java.nio.file.StandardOpenOption.APPEND);
+        Path bundle = Path.of(contentRoot, "bundle");
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.setOption("package-manifest", "/content.lumanifest");
+            for (String name : List.of("episode", "Episode", "episode")) {
+                savePackages(livePackage(name, "zip", addPath("Data", "/extra/.*")),
+                        livePackage(name + "-folder", "folder", addPath("Data", "/extra/.*")));
+                buildPackageProject(true, false);
+                BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+                assertEquals(Set.of("/extra/data.json"), manifestPaths(zipManifest(name)));
+                for (Path directory : List.of(Path.of(contentRoot, "packages"), bundle)) {
+                    try (var files = Files.list(directory)) {
+                        assertEquals(Set.of(name + ".zip", name + "-folder"),
+                                files.map(path -> path.getFileName().toString()).collect(Collectors.toSet()));
+                    }
+                }
+                FileTime unchanged = FileTime.fromMillis(946684800000L);
+                Path zip = bundle.resolve(name + ".zip");
+                Files.setLastModifiedTime(zip, unchanged);
+                buildPackageProject(true, false);
+                BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+                assertEquals(unchanged, Files.getLastModifiedTime(zip));
+            }
+        }
+        assertNoPackageStaging();
+    }
+
     // A delivery must reject application collisions before copying anything, even if that path used to hold a package.
     @Test
     public void testPackageBundleProtectsApplicationOutputs() throws Exception {
@@ -2688,6 +3036,14 @@ public class ProjectBuildTest {
         assertFalse(plan.base().contains("/logic/level.collectionc"));
         assertEquals(plan.base(), manifestPaths(readManifestData(getBundledManifestFile())));
         assertTrue(plan.packages().get("episode").resources().contains("/logic/shared.scriptc"));
+        // Removing the manifest restores legacy inclusion for every factory prototype and unchecked proxy.
+        Path gameProject = Path.of(contentRoot, "game.project");
+        Files.writeString(gameProject, Files.readString(gameProject).replace("manifest = /content.lumanifest\n", ""));
+        PackageResolver.Plan legacy = buildPackageProject(true, false);
+        assertTrue(legacy.packages().get("liveupdate").resources().isEmpty());
+        assertEquals(legacy.resources().keySet(), legacy.base());
+        assertTrue(legacy.base().containsAll(Set.of("/parts/dynamic-go.goc", "/parts/dynamic-collection.goc", "/logic/level.collectionc")));
+        assertEquals(legacy.base(), manifestPaths(readManifestData(getBundledManifestFile())));
     }
 
     // Add/Remove reference cycles fail during task creation, before any provider can publish output.
@@ -2776,6 +3132,27 @@ public class ProjectBuildTest {
         }
     }
 
+    // Build outputs are reserved before they exist, and collisions must not invoke any package writer.
+    @Test
+    public void testPackageRejectsBuildOutputCollisions() throws Exception {
+        createPackageProject();
+        PackageProviderFixture.writes = 0;
+        savePackages(livePackage("custom", "test-package", addPath("Data", "/extra/.*")),
+                livePackage("game.lupackages", "folder", addPath("Data", "/extra/.*")));
+        setPackageOutputDirectory("build");
+        try {
+            buildPackageProject(true, false);
+            org.junit.Assert.fail("Package output should collide with the build receipt");
+        } catch (AssertionError expected) {
+            assertTrue(expected.getMessage(), expected.getMessage().contains("Colliding Live Update outputs"));
+        }
+        assertEquals(0, PackageProviderFixture.writes);
+        assertFalse(Files.exists(Path.of(contentRoot, "build/game.lupackages")));
+        assertFalse(Files.exists(Path.of(contentRoot, "build/custom.custom")));
+        assertFalse(Files.exists(Path.of(contentRoot, ".internal/liveupdate")));
+        assertNoPackageStaging();
+    }
+
     // Parent/child artifacts collide in either declaration order, including native Windows paths, before providers write.
     @Test
     public void testPackageRejectsNestedProviderOutputs() throws Exception {
@@ -2832,6 +3209,44 @@ public class ProjectBuildTest {
         assertEquals("/extra/atlas.atlas", plan.primarySources().get("/extra/atlas.texturec"));
         assertEquals("/extra/data.json", plan.primarySources().get("/extra/data.json"));
         assertFalse(plan.sourceOutputs().containsKey("/extra/ignored.json"));
+    }
+
+    // A folder rule reuses the atlas task when it also matches a same-stem input image.
+    @Test
+    public void testPackageFolderRuleWithAtlasInputs() throws Exception {
+        createPackageProject();
+        Files.copy(Path.of(contentRoot, "test.png"), Path.of(contentRoot, "extra/art.png"));
+        createFile(contentRoot, "extra/art.atlas", "images { image: \"/extra/art.png\" }\n");
+        savePackages(livePackage("episode", "zip", addPath("Folder", "/extra/.*")));
+        var plan = buildPackageProject(true, false);
+        assertEquals(Set.of("/extra/art.a.texturesetc", "/extra/art.texturec", "/extra/data.json"), manifestPaths(zipManifest("episode")));
+        assertEquals(plan.sourceOutputs().get("/extra/art.atlas"), plan.sourceOutputs().get("/extra/art.png"));
+        assertEquals("/extra/art.atlas", plan.primarySources().get("/extra/art.texturec"));
+        // A PNG needed independently at runtime still conflicts with the atlas's texture output.
+        createFile(contentRoot, "extra/texture.script", "go.property(\"texture\", resource.texture(\"/extra/art.png\"))\n");
+        try {
+            buildPackageProject(true, false);
+            org.junit.Assert.fail("Two runtime textures must not silently share an output");
+        } catch (CompileExceptionError expected) {
+            assertTrue(expected.getMessage(), expected.getMessage().contains("Conflicting output resource"));
+        }
+    }
+
+    // Broad rules export custom files but omit compiler-only texture profiles and shader includes, also without export.
+    @Test
+    public void testPackageSkipsBuildOnlyOutputs() throws Exception {
+        createPackageProject();
+        createFile(contentRoot, "extra/local.texture_profiles", "");
+        createFile(contentRoot, "extra/include.glsl", "#define VALUE 1\n");
+        savePackages(livePackage("episode", "zip", addPath("Folder", "/extra/.*")));
+        var plan = buildPackageProject(true, false);
+        assertEquals(Set.of("/extra/data.json"), manifestPaths(zipManifest("episode")));
+        assertEquals(List.of(), plan.sourceOutputs().get("/extra/local.texture_profiles"));
+        assertEquals(List.of(), plan.sourceOutputs().get("/extra/include.glsl"));
+        var disabled = buildPackageProject(false, false);
+        assertTrue(disabled.base().contains("/extra/data.json"));
+        assertFalse(disabled.base().contains("/extra/local.texture_profilesc"));
+        assertFalse(disabled.base().contains("/extra/include.glslc"));
     }
 
     // Cancelling during a provider write prevents finalization and removes staging without timing-dependent sleeps.

@@ -43,9 +43,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-import com.dynamo.bob.archive.publisher.FolderPublisher;
-import com.dynamo.bob.archive.publisher.Publisher;
-import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.util.TimeProfiler;
 import com.sun.istack.Nullable;
 import org.apache.commons.io.FileUtils;
@@ -1063,43 +1060,22 @@ public class BundleHelper {
     }
 
     public static void validateBundleOutputs(Project project, File bundleDir, File... applicationOutputs) throws IOException {
-        if (!com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(project).isEmpty()) {
-            com.dynamo.bob.archive.liveupdate.PackageWriter.validateBundleOutputs(project, bundleDir.toPath(),
-                    java.util.Arrays.stream(applicationOutputs).map(File::toPath).toList());
-        }
+        com.dynamo.bob.archive.liveupdate.PackageWriter.validateBundleOutputs(project, bundleDir.toPath(),
+                java.util.Arrays.stream(applicationOutputs).map(File::toPath).toList());
     }
 
-    // move archive into bundle folder if it's requested by a user
+    // Copy prepared Live Update artifacts into the bundle when requested.
     public static void moveBundleIfNeed(Project project, File bundleDir) throws IOException {
         moveBundleIfNeed(project, bundleDir, new File[0]);
     }
 
     public static void moveBundleIfNeed(Project project, File bundleDir, File... applicationOutputs) throws IOException {
-        if (!com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(project).isEmpty()) {
-            if (!isArchiveIncluded(project)) return;
+        if (!isArchiveIncluded(project)) return;
+        if (com.dynamo.bob.archive.liveupdate.PackageWriter.receipt(project).exists() ||
+                project.option("liveupdate", "false").equals("true") ||
+                !com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(project).isEmpty()) {
             com.dynamo.bob.archive.liveupdate.PackageWriter.copyOutputs(project, bundleDir.toPath(),
                     java.util.Arrays.stream(applicationOutputs).map(File::toPath).toList());
-            return;
-        }
-        Publisher publisher = project.getPublisher();
-        if (publisher != null)  {
-            if (publisher.shouldBeMovedIntoBundleFolder() && publisher instanceof ZipPublisher) {
-                ZipPublisher zipPublisher = (ZipPublisher) publisher;
-                File zipFile = zipPublisher.getZipFile();
-                if (zipFile != null && zipFile.exists()) {
-                    Files.move(zipFile.toPath(), (new File(bundleDir, zipFile.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
-                }
-            } else if (publisher.shouldFolderBeMovedIntoBundleFolder() && publisher instanceof FolderPublisher) {
-                FolderPublisher folderPublisher = (FolderPublisher) publisher;
-                File outputDirectory = folderPublisher.getOutputDirectory();
-                if (outputDirectory != null && outputDirectory.exists()) {
-                    File destFolder = new File(bundleDir, outputDirectory.getName());
-                    if (destFolder.exists()) {
-                        FileUtils.deleteDirectory(destFolder);
-                    }
-                    FileUtils.moveDirectory(outputDirectory, destFolder);
-                }
-            }
         }
     }
 

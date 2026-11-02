@@ -474,7 +474,8 @@ public class HTML5Bundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         File destination = new File(bundleDirectory, enginePrefix);
-        boolean packages = !PackageBuilder.manifestPath(project).isEmpty();
+        boolean packages = BundleHelper.isArchiveIncluded(project) &&
+                (PackageWriter.receipt(project).exists() || project.option("liveupdate", "false").equals("true") || !PackageBuilder.manifestPath(project).isEmpty());
         Files.createDirectories(bundleDirectory.toPath());
         File appDir = packages ? Files.createTempDirectory(bundleDirectory.toPath(), ".liveupdate-html5-").toFile() : destination;
         try {

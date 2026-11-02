@@ -39,10 +39,8 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.archive.ArchiveBuilder;
-import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.archive.ManifestBuilder;
-import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.archive.liveupdate.PackageBuilder;
 import com.dynamo.bob.archive.liveupdate.PackageResolver;
 import com.dynamo.bob.archive.liveupdate.PackageReport;
@@ -209,7 +207,7 @@ public class GameProjectBuilder extends Builder {
             builder.addInput(publisherSettingsResorce);
         }
 
-        if (!PackageBuilder.manifestPath(project).isEmpty()) {
+        if (project.option("archive", "false").equals("true") || !PackageBuilder.manifestPath(project).isEmpty()) {
             packages = new PackageBuilder(project, builder);
             builder.addExtraCacheKey("package-preview=" + project.option("package-preview", "false"));
             builder.addExtraCacheKey("package-manifest=" + project.option("package-manifest", ""));
@@ -260,8 +258,6 @@ public class GameProjectBuilder extends Builder {
 
         TimeProfiler.start("writeArchive");
 
-        Publisher publisher = project.getPublisher();
-        if (packages == null && publisher != null) publisher.start();
         archiveBuilder.write(archiveIndex, archiveData, excludedResources);
         archiveIndex.close();
         archiveData.close();
@@ -393,7 +389,7 @@ public class GameProjectBuilder extends Builder {
         File dataFile = project.createTempFile("defold.data_", ".arcd");
         boolean writePackages = export && !project.option("package-preview", "false").equals("true");
         try (PackageWriter writer = writePackages ? new PackageWriter(project, plan) : null) {
-            if (writer != null) archive.setPreparedResourceConsumer(writer);
+            archive.setPreparedResourceConsumer(writer);
             try (RandomAccessFile index = createRandomAccessFile(indexFile);
                  RandomAccessFile data = createRandomAccessFile(dataFile)) {
                 createArchive(archive, resources, index, data, excluded);
@@ -404,7 +400,7 @@ public class GameProjectBuilder extends Builder {
             task.output(3).setContent(manifest.buildManifest(true));
             graph.setHexDigests(archive.getCachedHexDigests());
             task.output(4).setContent(graph.toJSON().getBytes(StandardCharsets.UTF_8));
-            PackageWriter.WriteResult outputs = writer == null ? new PackageWriter.WriteResult(java.util.List.of(), java.util.Map.of()) : writer.write(manifest);
+            PackageWriter.WriteResult outputs = writer == null ? new PackageWriter.WriteResult(java.util.List.of(), java.util.Map.of()) : writer.write(manifest, task.getOutputs());
             task.output(5).setContent(PackageWriter.serializeOutputs(project, outputs.outputs()));
             task.output(6).setContent(PackageReport.create(project, archive, plan, outputs.packages()));
         } finally {
@@ -420,90 +416,8 @@ public class GameProjectBuilder extends Builder {
         BobProjectProperties properties = Project.loadProperties(project, input, project.getPropertyFiles(), true);
         final String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
 
-        if (project.option("archive", "false").equals("true") && packages != null) {
+        if (project.option("archive", "false").equals("true")) {
             buildPackages(task, root);
-        } else if (project.option("archive", "false").equals("true")) {
-            // create the resource graphs
-            // the full graph contains all resources in the project
-            TimeProfiler.start("Generate resource graph");
-            logger.info("Generating the resource graph");
-            long tstart = System.currentTimeMillis();
-            ResourceGraph resourceGraph = createResourceGraph(project);
-            long tend = System.currentTimeMillis();
-            logger.info("Generating the resource graph took %f s", (tend-tstart)/1000.0);
-            TimeProfiler.stop();
-
-            // create full list of resources including the custom resources
-            // make sure to not archive the .arci, .arcd, .projectc, .dmanifest, or .resourcepack.zip
-            // also make sure to not archive the comp counter files
-            Set<IResource> resources = getCustomResources(project);
-            resources.addAll(resourceGraph.getResources());
-            for (IResource resource : task.getOutputs()) {
-                resources.remove(resource);
-            }
-
-            TimeProfiler.start("Create excluded resources");
-            logger.info("Creation of the excluded resources list.");
-            tstart = System.currentTimeMillis();
-            boolean shouldPublishLU = project.option("liveupdate", "false").equals("true");
-            Set<String> excludedResources;
-            if (shouldPublishLU) {
-                excludedResources = resourceGraph.createExcludedResourcesList();
-            }
-            else {
-                excludedResources = new HashSet<String>();
-            }
-            tend = System.currentTimeMillis();
-            logger.info("Creation of the excluded resources list took %f s", (tend-tstart)/1000.0);
-            TimeProfiler.stop();
-
-            // Create output for the data archive
-            String platform = project.option("platform", "generic");
-            project.getPublisher().setPlatform(platform);
-            File archiveIndexHandle = project.createTempFile("defold.index_", ".arci");
-            File archiveDataHandle = project.createTempFile("defold.data_", ".arcd");
-
-            // create the archive and manifest
-            ManifestBuilder manifestBuilder = createManifestBuilder(resourceGraph);
-            ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding(), project);
-            try (RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
-                 RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle)) {
-                createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources);
-            }
-            byte[] fullManifestFile = manifestBuilder.buildManifest();
-            byte[] bundledManifestFile = manifestBuilder.buildManifest(true);
-            this.project.setArchiveBuilder(archiveBuilder);
-
-            // Write outputs to the build system
-            // game.arci
-            setOutputContentFromFile(task.getOutputs().get(1), archiveIndexHandle);
-
-            // game.arcd
-            setOutputContentFromFile(task.getOutputs().get(2), archiveDataHandle);
-
-            // game.dmanifest
-            task.getOutputs().get(3).setContent(bundledManifestFile);
-
-            // game.graph.json
-            resourceGraph.setHexDigests(archiveBuilder.getCachedHexDigests());
-            logger.info("Writing the resource graph to json");
-            tstart = System.currentTimeMillis();
-            String resourceGraphJSON = resourceGraph.toJSON();
-            task.getOutputs().get(4).setContent(resourceGraphJSON.getBytes());
-            tend = System.currentTimeMillis();
-            logger.info("Writing the resource graph to json took %f s", (tend-tstart)/1000.0);
-
-            // Add copy of game.dmanifest to be published with liveupdate resources
-            File manifestFileHandle = new File(task.getOutputs().get(3).getAbsPath());
-            String liveupdateManifestFilename = "liveupdate.game.dmanifest";
-            File manifestTmpFileHandle = new File(FilenameUtils.concat(manifestFileHandle.getParent(), liveupdateManifestFilename));
-            FileUtils.writeByteArrayToFile(manifestTmpFileHandle, fullManifestFile);
-
-            ArchiveEntry manifestArchiveEntry = new ArchiveEntry(root, manifestTmpFileHandle.getAbsolutePath());
-            project.getPublisher().publish(manifestArchiveEntry, manifestTmpFileHandle);
-            project.getPublisher().stop();
-
-            manifestTmpFileHandle.delete();
         }
 
         if (project.option("archive", "false").equals("true")) {

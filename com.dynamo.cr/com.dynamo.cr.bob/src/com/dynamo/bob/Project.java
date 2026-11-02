@@ -2193,8 +2193,7 @@ public class Project implements AutoCloseable {
                 try (var publishProgress = split.subtask()) {
                     BundleHelper.throwIfCanceled(publishProgress);
                     if (option("liveupdate", "false").equals("true") &&
-                            !option("package-preview", "false").equals("true") &&
-                            !com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(this).isEmpty()) {
+                            !option("package-preview", "false").equals("true")) {
                         createPublisher();
                         if (publisher instanceof AWSPublisher awsPublisher) {
                             awsPublisher.publishPackages(this, publishProgress);
@@ -2450,6 +2449,11 @@ public class Project implements AutoCloseable {
 
     public List<Task> getTasks() {
         return Collections.unmodifiableList(new ArrayList(this.tasks.values()));
+    }
+
+    /** Remove a redundant task during discovery, before task validation and execution. */
+    public void removeTask(Task task) {
+        tasks.values().remove(task);
     }
 
 }

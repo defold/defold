@@ -46,7 +46,7 @@ import java.util.function.BooleanSupplier;
 
 /** Package fingerprints and artifact checks, independent of filesystem timestamps. */
 final class PackageCache {
-    static final String VERSION = "liveupdate-packages-v5";
+    static final String VERSION = "liveupdate-packages-v6";
     private static final ObjectMapper JSON = createMapper();
 
     private static ObjectMapper createMapper() {

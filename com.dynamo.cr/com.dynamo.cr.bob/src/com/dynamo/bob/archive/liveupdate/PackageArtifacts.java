@@ -77,7 +77,7 @@ public final class PackageArtifacts {
                 // Legacy receipts without an origin cannot establish external ownership.
                 continue;
             }
-            outputs.add(new PackageWriter.Output(path, output.name(), output.directory(), output.bundle(), output.inputSignature(), output.contentHash()));
+            outputs.add(new PackageWriter.Output(path, output.name(), output.directory(), output.bundle(), output.inputSignature(), output.contentHash(), output.legacy()));
         }
         return List.copyOf(outputs);
     }
@@ -95,7 +95,7 @@ public final class PackageArtifacts {
         for (PackageWriter.Output output : read(Path.of(project.getRootDirectory()), receipt)) outputs.put(output.path(), output);
         for (Path path : paths) {
             path = path.toAbsolutePath().normalize();
-            outputs.put(path, new PackageWriter.Output(path, path.getFileName().toString(), false, false, "", ""));
+            outputs.put(path, new PackageWriter.Output(path, path.getFileName().toString(), false, false, "", "", false));
         }
         Files.createDirectories(receipt.getParent());
         Path staged = Files.createTempFile(receipt.getParent(), ".reports-", ".tmp");

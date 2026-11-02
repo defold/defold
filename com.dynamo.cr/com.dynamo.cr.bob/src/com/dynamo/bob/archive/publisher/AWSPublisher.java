@@ -30,6 +30,7 @@ import com.dynamo.bob.IProgress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.liveupdate.PackageWriter;
+import com.dynamo.bob.archive.liveupdate.PackageBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -101,13 +102,20 @@ public class AWSPublisher extends Publisher {
     /** Publish finalized package artifacts, independently of resource compilation and bundle placement. */
     public void publishPackages(Project project, IProgress progress) throws IOException, CompileExceptionError {
         progress.message(IProgress.Message.PublishingLiveUpdate.INSTANCE);
+        boolean legacy = PackageBuilder.manifestPath(project).isEmpty();
         Map<String, Path> files = new LinkedHashMap<>();
         for (PackageWriter.Output output : PackageWriter.validatedOutputs(project)) {
             checkCanceled(progress);
+            if (output.legacy() || (legacy && !output.directory())) {
+                throw new CompileExceptionError("Legacy Amazon publication requires prepared resource files; run build before publishing");
+            }
             if (output.directory()) {
                 try (var entries = Files.walk(output.path())) {
                     for (Path file : entries.filter(Files::isRegularFile).sorted().toList()) {
-                        addArtifactFile(files, output.name() + "/" + output.path().relativize(file).toString().replace('\\', '/'), file);
+                        String name = output.path().relativize(file).toString().replace('\\', '/');
+                        // Legacy uploads used a null resource digest for the manifest's object key.
+                        if (legacy && name.equals("liveupdate.game.dmanifest")) name = "null";
+                        addArtifactFile(files, legacy ? name : output.name() + "/" + name, file);
                     }
                 }
             } else {
