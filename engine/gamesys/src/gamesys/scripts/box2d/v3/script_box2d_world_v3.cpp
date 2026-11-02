@@ -424,14 +424,14 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         b2WorldId world = *CheckWorld(L, 1);
         CheckWorldUnlocked(L, world, "set_maximum_linear_speed");
-        b2World_SetMaximumLinearSpeed(world, luaL_checknumber(L, 2) * GetPhysicsScale());
+        b2World_SetMaxLinearSpeed(world, luaL_checknumber(L, 2) * GetPhysicsScale());
         return 0;
     }
 
     static int World_GetMaximumLinearSpeed(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushnumber(L, b2World_GetMaximumLinearSpeed(*CheckWorld(L, 1)) * (lua_Number)GetInvPhysicsScale());
+        lua_pushnumber(L, b2World_GetMaxLinearSpeed(*CheckWorld(L, 1)) * (lua_Number)GetInvPhysicsScale());
         return 1;
     }
 
@@ -467,15 +467,6 @@ namespace dmGameSystem
         return 0;
     }
 
-    static int World_SetJointTuning(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 0);
-        b2WorldId world = *CheckWorld(L, 1);
-        CheckWorldUnlocked(L, world, "set_joint_tuning");
-        b2World_SetJointTuning(world, luaL_checknumber(L, 2), luaL_checknumber(L, 3));
-        return 0;
-    }
-
     static int World_GetProfile(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -491,16 +482,15 @@ namespace dmGameSystem
         SET_PROFILE_FIELD(pairs, "pairs");
         SET_PROFILE_FIELD(collide, "collide");
         SET_PROFILE_FIELD(solve, "solve");
-        SET_PROFILE_FIELD(mergeIslands, "merge_islands");
-        SET_PROFILE_FIELD(prepareStages, "prepare_stages");
-        SET_PROFILE_FIELD(solveConstraints, "solve_constraints");
+        SET_PROFILE_FIELD(solverSetup, "solver_setup");
+        SET_PROFILE_FIELD(constraints, "constraints");
         SET_PROFILE_FIELD(prepareConstraints, "prepare_constraints");
         SET_PROFILE_FIELD(integrateVelocities, "integrate_velocities");
         SET_PROFILE_FIELD(warmStart, "warm_start");
         SET_PROFILE_FIELD(solveImpulses, "solve_impulses");
         SET_PROFILE_FIELD(integratePositions, "integrate_positions");
         SET_PROFILE_FIELD(relaxImpulses, "relax_impulses");
-        SET_PROFILE_FIELD(applyRestitution, "apply_restitution");
+        SET_PROFILE_FIELD(restitution, "restitution");
         SET_PROFILE_FIELD(storeImpulses, "store_impulses");
         SET_PROFILE_FIELD(splitIslands, "split_islands");
         SET_PROFILE_FIELD(transforms, "transforms");
@@ -540,7 +530,7 @@ namespace dmGameSystem
 #undef SET_COUNTER_FIELD
 
         lua_newtable(L);
-        for (int i = 0; i < 12; ++i)
+        for (int i = 0; i < B2_GRAPH_COLOR_COUNT; ++i)
         {
             lua_pushinteger(L, counters.colorCounts[i]);
             lua_rawseti(L, -2, i + 1);
@@ -595,15 +585,6 @@ namespace dmGameSystem
         return 0;
     }
 
-    static int World_EnableSpeculative(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 0);
-        b2WorldId world = *CheckWorld(L, 1);
-        CheckWorldUnlocked(L, world, "enable_speculative");
-        b2World_EnableSpeculative(world, lua_toboolean(L, 2));
-        return 0;
-    }
-
     static int World_OverlapAABB(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 2);
@@ -614,7 +595,7 @@ namespace dmGameSystem
 
         lua_newtable(L);
         QueryContext context = { L, AbsIndex(L, -1), 0, CheckMaxResults(L, 4) };
-        b2TreeStats stats = b2World_OverlapAABB(world, aabb, filter, OverlapResultCallback, &context);
+        b2TreeStats stats = b2World_OverlapAABB(world, b2Pos_zero, aabb, filter, OverlapResultCallback, &context);
 
         PushTreeStats(L, stats);
         return 2;
@@ -631,7 +612,7 @@ namespace dmGameSystem
 
         lua_newtable(L);
         QueryContext context = { L, AbsIndex(L, -1), 0, CheckMaxResults(L, 4) };
-        b2TreeStats stats = b2World_OverlapShape(world, &proxy, filter, OverlapResultCallback, &context);
+        b2TreeStats stats = b2World_OverlapShape(world, b2Pos_zero, &proxy, filter, OverlapResultCallback, &context);
 
         PushTreeStats(L, stats);
         return 2;
@@ -690,7 +671,7 @@ namespace dmGameSystem
 
         lua_newtable(L);
         QueryContext context = { L, AbsIndex(L, -1), 0, CheckMaxResults(L, 5) };
-        b2TreeStats stats = b2World_CastShape(world, &proxy, translation, filter, CastResultCallback, &context);
+        b2TreeStats stats = b2World_CastShape(world, b2Pos_zero, &proxy, translation, filter, CastResultCallback, &context);
 
         PushTreeStats(L, stats);
         return 2;
@@ -705,7 +686,7 @@ namespace dmGameSystem
         b2Vec2 translation = CheckVec2(L, 3, GetPhysicsScale());
         b2QueryFilter filter = CheckQueryFilter(L, 4);
 
-        lua_pushnumber(L, b2World_CastMover(world, &capsule, translation, filter));
+        lua_pushnumber(L, b2World_CastMover(world, b2Pos_zero, &capsule, translation, filter));
         return 1;
     }
 
@@ -719,7 +700,7 @@ namespace dmGameSystem
 
         lua_newtable(L);
         QueryContext context = { L, AbsIndex(L, -1), 0, CheckMaxResults(L, 4) };
-        b2World_CollideMover(world, &capsule, filter, PlaneResultCallback, &context);
+        b2World_CollideMover(world, b2Pos_zero, &capsule, filter, PlaneResultCallback, &context);
         return 1;
     }
 
@@ -770,12 +751,10 @@ namespace dmGameSystem
         {"is_warm_starting_enabled", World_IsWarmStartingEnabled},
         {"get_awake_body_count", World_GetAwakeBodyCount},
         {"set_contact_tuning", World_SetContactTuning},
-        {"set_joint_tuning", World_SetJointTuning},
         {"get_profile", World_GetProfile},
         {"get_counters", World_GetCounters},
         {"explode", World_Explode},
         {"rebuild_static_tree", World_RebuildStaticTree},
-        {"enable_speculative", World_EnableSpeculative},
         {"overlap_aabb", World_OverlapAABB},
         {"overlap_shape", World_OverlapShape},
         {"cast_ray", World_CastRay},
@@ -947,14 +926,6 @@ namespace dmGameSystem
  * @param pushout [type: number] pushout velocity in project units per second
  */
 
-/*# Set joint solver tuning.
- * @warning This function is locked during callbacks.
- * @name b2d.world.set_joint_tuning
- * @param world [type: b2World] world
- * @param hertz [type: number] joint stiffness frequency in hertz
- * @param damping_ratio [type: number] joint damping ratio
- */
-
 /*# Get world profiling data.
  * @name b2d.world.get_profile
  * @param world [type: b2World] world
@@ -978,13 +949,6 @@ namespace dmGameSystem
  * @warning This function is locked during callbacks.
  * @name b2d.world.rebuild_static_tree
  * @param world [type: b2World] world
- */
-
-/*# Enable or disable speculative collision.
- * @warning This function is locked during callbacks.
- * @name b2d.world.enable_speculative
- * @param world [type: b2World] world
- * @param enable [type: boolean] true to enable speculative collision
  */
 
 /*# Find shapes overlapping an AABB.

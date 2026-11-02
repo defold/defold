@@ -211,6 +211,7 @@ namespace dmGameObject
         uint32_t                    m_ComponentTypeCount;
         ComponentType               m_ComponentTypes[MAX_COMPONENT_TYPES];
         uint16_t                    m_ComponentTypesOrder[MAX_COMPONENT_TYPES];
+        ComponentWorldCallbacks     m_ComponentWorldCallbacks;
         dmMutex::HMutex             m_Mutex;
 
         // All collections. Protected by m_Mutex
@@ -227,6 +228,7 @@ namespace dmGameObject
         uint32_t                    m_DefaultCollectionCapacity;
         uint32_t                    m_DefaultInputStackCapacity;
         HContextRegistry            m_ContextRegistry;
+        uint8_t                     m_ComponentWorldCreationStarted : 1;
 
         Register();
         ~Register();
@@ -253,6 +255,8 @@ namespace dmGameObject
 
         // Component type specific worlds
         void*                    m_ComponentWorlds[MAX_COMPONENT_TYPES];
+        // Number of initialized slots, including a slot whose owner notification failed.
+        uint32_t                 m_ComponentWorldsCreated;
 
         // Array of instances. Zero values for free slots. Order must
         // always be preserved. Slots are allocated using index-pool

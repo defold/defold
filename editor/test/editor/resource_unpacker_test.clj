@@ -165,6 +165,8 @@
           (is (not (.contains message (.toString gamma-path))))
           (is (= 2 (count (.getSuppressed e)))))))))
 
+;; Verifies native libraries, including the engine JNI library, resolve from the
+;; unpacked bundle.
 (deftest unpack-resources-preloads-host-bundled-native-libraries
   (ResourceUnpacker/unpackResources)
   (let [platform (Platform/getHostPlatform)
@@ -177,7 +179,9 @@
     (doseq [^Map$Entry entry (.entrySet discovered)]
       (is (= (.getValue entry)
              (ResourceUnpacker/getPreloadedLibraryPath (.getKey entry)))))
-    (doseq [logical-name ["particle_shared" "mouse_capture_shared"]]
+    (is (= (str (ResourceUnpacker/getPreloadedLibraryPath "dmengine_shared"))
+           (System/getProperty "dmengine.library")))
+    (doseq [logical-name ["particle_shared" "mouse_capture_shared" "dmengine_shared"]]
       (when-let [^Path library-path (.get preloaded logical-name)]
         (is (.startsWith library-path lib-dir))
         (is (= library-path
