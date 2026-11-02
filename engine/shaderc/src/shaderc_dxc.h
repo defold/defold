@@ -16,23 +16,29 @@
 #define DM_SHADERC_DXC_H
 
 #if defined(_WIN32)
-#include <windows.h>
+    #include <windows.h>
 #endif
+
 #include <dxc/dxcapi.h>
+
 #if !defined(_WIN32)
-#define interface struct
+    #define interface struct
 #endif
+
 #include <d3d12shader.h>
+
 #if !defined(_WIN32)
-#undef interface
+    #undef interface
 #endif
 
 namespace dmShaderc
 {
+    // Checks the container signature only, without validating its contents.
+    bool HasDXBCHeader(const void* data, size_t size);
+
     // Outputs belong to the caller. Reflection is optional; diagnostics are also
     // returned on compiler errors. No Windows SDK is required on Unix hosts.
-    HRESULT CompileDXC(const void* source, size_t size, const char* entry, const char* profile,
-                       IDxcBlob** object, IDxcBlobUtf8** errors, ID3D12ShaderReflection** reflection);
+    HRESULT CompileDXC(const void* source, size_t size, const char* entry, const char* profile, IDxcBlob** object, IDxcBlobUtf8** errors, ID3D12ShaderReflection** reflection);
     HRESULT SetDXCRootSignature(const void* object, size_t object_size, const void* root, size_t root_size, IDxcBlob** result);
     HRESULT GetDXCRootSignature(IDxcBlob* object, IDxcBlob** root_signature);
 }

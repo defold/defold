@@ -146,11 +146,10 @@ In this standalone build, the focused target is `dxc_build_external`, and
 `external` builds contain no DXC targets; use the standalone project or explicit
 package commands above for source rebuilds.
 
-After installing the package into the engine SDK, build and run `test_shaderc`,
-`test_shaderc_dxc`, and `test_shaderc_rootsig` using the
-[focused CMake test workflow](../../scripts/cmake/README.md). These cover shader
-compilation, native reflection, and root-signature handling in the production
-compiler.
+After installing the package into the engine SDK, build and run `test_shaderc`
+using the [focused CMake test workflow](../../scripts/cmake/README.md). The suite
+exercises DXC compilation and resource mapping on desktop hosts. The detailed
+root-signature tests use Windows SDK validation and run on Windows.
 
 ## Linux compatibility
 
@@ -209,8 +208,7 @@ a newer runtime; the source build and runtime checks establish that separately.
   contents, explicit package architecture selection, and macOS build graphs
   that exclude DXC compilation.
 - The arm64 shaderc integration passed 23 unit tests (four Windows-only tests
-  skipped), all four standalone CLI tests, and the dedicated DXC and
-  root-signature tests using the installed package.
+  skipped) and all four standalone CLI tests using the installed package.
 
 ## Windows package validation (2026-10-27)
 
@@ -221,7 +219,7 @@ a newer runtime; the source build and runtime checks establish that separately.
   installation. SM6 vertex, pixel, and compute compilation, reflection, and
   root-signature checks passed for versions 1.0 and 1.1. The executable and DLLs
   import only Windows system libraries.
-- All 27 shaderc tests and the dedicated DXC and root-signature tests passed
+- All 27 shaderc tests passed
   using the packaged compiler DLL. The packaging tests cover runtime archive
   contents and package installation across six host/target combinations.
 - The normal Windows external build graph contains no DXC targets.

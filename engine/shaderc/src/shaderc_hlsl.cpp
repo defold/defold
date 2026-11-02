@@ -558,22 +558,22 @@ namespace dmShaderc
 
     static const char* DescriptorRangeToString(const RS_DESCRIPTOR_RANGE& range, char* tmp, uint32_t tmp_len)
     {
-        switch (range.RangeType)
+        switch (range.m_RangeType)
         {
             case RS_DESCRIPTOR_RANGE_TYPE_CBV:
-                dmSnPrintf(tmp, tmp_len, "CBV(b%u,space=%u,numDescriptors=%u,offset=%u)", (uint32_t) range.BaseShaderRegister, (uint32_t) range.RegisterSpace, range.NumDescriptors, range.OffsetInDescriptorsFromTableStart);
+                dmSnPrintf(tmp, tmp_len, "CBV(b%u,space=%u,numDescriptors=%u,offset=%u)", (uint32_t) range.m_BaseShaderRegister, (uint32_t) range.m_RegisterSpace, range.m_NumDescriptors, range.m_OffsetInDescriptorsFromTableStart);
                 return tmp;
             case RS_DESCRIPTOR_RANGE_TYPE_SRV:
-                dmSnPrintf(tmp, tmp_len, "SRV(t%u,space=%u,numDescriptors=%u,offset=%u)", (uint32_t) range.BaseShaderRegister, (uint32_t) range.RegisterSpace, range.NumDescriptors, range.OffsetInDescriptorsFromTableStart);
+                dmSnPrintf(tmp, tmp_len, "SRV(t%u,space=%u,numDescriptors=%u,offset=%u)", (uint32_t) range.m_BaseShaderRegister, (uint32_t) range.m_RegisterSpace, range.m_NumDescriptors, range.m_OffsetInDescriptorsFromTableStart);
                 return tmp;
             case RS_DESCRIPTOR_RANGE_TYPE_UAV:
-                dmSnPrintf(tmp, tmp_len, "UAV(u%u,space=%u,numDescriptors=%u,offset=%u)", (uint32_t) range.BaseShaderRegister, (uint32_t) range.RegisterSpace, range.NumDescriptors, range.OffsetInDescriptorsFromTableStart);
+                dmSnPrintf(tmp, tmp_len, "UAV(u%u,space=%u,numDescriptors=%u,offset=%u)", (uint32_t) range.m_BaseShaderRegister, (uint32_t) range.m_RegisterSpace, range.m_NumDescriptors, range.m_OffsetInDescriptorsFromTableStart);
                 return tmp;
             case RS_DESCRIPTOR_RANGE_TYPE_SAMPLER:
-                dmSnPrintf(tmp, tmp_len, "Sampler(s%u,space=%u,numDescriptors=%u,offset=%u)", (uint32_t) range.BaseShaderRegister, (uint32_t) range.RegisterSpace, range.NumDescriptors, range.OffsetInDescriptorsFromTableStart);
+                dmSnPrintf(tmp, tmp_len, "Sampler(s%u,space=%u,numDescriptors=%u,offset=%u)", (uint32_t) range.m_BaseShaderRegister, (uint32_t) range.m_RegisterSpace, range.m_NumDescriptors, range.m_OffsetInDescriptorsFromTableStart);
                 return tmp;
             default:
-                dmSnPrintf(tmp, tmp_len, "SRV(t%u,space=%u,numDescriptors=%u,offset=%u)", (uint32_t) range.BaseShaderRegister, (uint32_t) range.RegisterSpace, range.NumDescriptors, range.OffsetInDescriptorsFromTableStart);
+                dmSnPrintf(tmp, tmp_len, "SRV(t%u,space=%u,numDescriptors=%u,offset=%u)", (uint32_t) range.m_BaseShaderRegister, (uint32_t) range.m_RegisterSpace, range.m_NumDescriptors, range.m_OffsetInDescriptorsFromTableStart);
                 return tmp;
         }
     }
@@ -609,44 +609,44 @@ namespace dmShaderc
         uint32_t pos = 0;
         bool ok = AppendRootSignatureText(out_text.Begin(), MAX_ROOTSIG_TEXT, &pos, "[RootSignature(\"");
 
-        for (uint32_t i = 0; ok && i < desc->NumParameters; ++i)
+        for (uint32_t i = 0; ok && i < desc->m_NumParameters; ++i)
         {
-            const RS_ROOT_PARAMETER& param = desc->pParameters[i];
+            const RS_ROOT_PARAMETER& param = desc->m_Parameters[i];
             if (i > 0)
                 ok = AppendRootSignatureText(out_text.Begin(), MAX_ROOTSIG_TEXT, &pos, ",");
 
-            const char* visibility = RootVisibilityToString(param.ShaderVisibility);
+            const char* visibility = RootVisibilityToString(param.m_ShaderVisibility);
             if (!ok)
                 break;
 
-            switch (param.ParameterType)
+            switch (param.m_ParameterType)
             {
                 case RS_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS:
                     ok = AppendRootSignatureText(out_text.Begin(), MAX_ROOTSIG_TEXT, &pos, "RootConstants(num32BitConstants=%u,b%u,space=%u,visibility=%s)",
-                        param.Constants.Num32BitValues, param.Constants.ShaderRegister, param.Constants.RegisterSpace, visibility);
+                        param.m_Constants.m_Num32BitValues, param.m_Constants.m_ShaderRegister, param.m_Constants.m_RegisterSpace, visibility);
                     break;
                 case RS_ROOT_PARAMETER_TYPE_CBV:
                     ok = AppendRootSignatureText(out_text.Begin(), MAX_ROOTSIG_TEXT, &pos, "CBV(b%u,space=%u,visibility=%s)",
-                        (uint32_t) param.Descriptor.ShaderRegister,
-                        (uint32_t) param.Descriptor.RegisterSpace,
+                        (uint32_t) param.m_Descriptor.m_ShaderRegister,
+                        (uint32_t) param.m_Descriptor.m_RegisterSpace,
                         visibility);
                     break;
                 case RS_ROOT_PARAMETER_TYPE_SRV:
                     ok = AppendRootSignatureText(out_text.Begin(), MAX_ROOTSIG_TEXT, &pos, "SRV(t%u,space=%u,visibility=%s)",
-                        (uint32_t) param.Descriptor.ShaderRegister,
-                        (uint32_t) param.Descriptor.RegisterSpace,
+                        (uint32_t) param.m_Descriptor.m_ShaderRegister,
+                        (uint32_t) param.m_Descriptor.m_RegisterSpace,
                         visibility);
                     break;
                 case RS_ROOT_PARAMETER_TYPE_UAV:
                     ok = AppendRootSignatureText(out_text.Begin(), MAX_ROOTSIG_TEXT, &pos, "UAV(u%u,space=%u,visibility=%s)",
-                        (uint32_t) param.Descriptor.ShaderRegister,
-                        (uint32_t) param.Descriptor.RegisterSpace,
+                        (uint32_t) param.m_Descriptor.m_ShaderRegister,
+                        (uint32_t) param.m_Descriptor.m_RegisterSpace,
                         visibility);
                     break;
                 case RS_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE:
                 {
                     ok = AppendRootSignatureText(out_text.Begin(), MAX_ROOTSIG_TEXT, &pos, "DescriptorTable(");
-                    for (uint32_t r = 0; ok && r < param.DescriptorTable.NumDescriptorRanges; ++r)
+                    for (uint32_t r = 0; ok && r < param.m_DescriptorTable.m_NumDescriptorRanges; ++r)
                     {
                         if (r > 0)
                             ok = AppendRootSignatureText(out_text.Begin(), MAX_ROOTSIG_TEXT, &pos, ",");
@@ -655,7 +655,7 @@ namespace dmShaderc
                             break;
 
                         char range_tmp[128];
-                        const char* range_text = DescriptorRangeToString(param.DescriptorTable.pDescriptorRanges[r], range_tmp, sizeof(range_tmp));
+                        const char* range_text = DescriptorRangeToString(param.m_DescriptorTable.m_DescriptorRanges[r], range_tmp, sizeof(range_tmp));
                         ok = AppendRootSignatureText(out_text.Begin(), MAX_ROOTSIG_TEXT, &pos, "%s", range_text);
                     }
                     if (ok)
@@ -670,9 +670,9 @@ namespace dmShaderc
             }
         }
 
-        for (uint32_t i = 0; ok && i < desc->NumStaticSamplers; ++i)
+        for (uint32_t i = 0; ok && i < desc->m_NumStaticSamplers; ++i)
         {
-            const RS_STATIC_SAMPLER_DESC& sampler = desc->pStaticSamplers[i];
+            const RS_STATIC_SAMPLER_DESC& sampler = desc->m_StaticSamplers[i];
             const char* addresses[] = {"", "TEXTURE_ADDRESS_WRAP", "TEXTURE_ADDRESS_MIRROR", "TEXTURE_ADDRESS_CLAMP", "TEXTURE_ADDRESS_BORDER", "TEXTURE_ADDRESS_MIRROR_ONCE"};
             const char* comparisons[] = {"", "COMPARISON_NEVER", "COMPARISON_LESS", "COMPARISON_EQUAL", "COMPARISON_LESS_EQUAL", "COMPARISON_GREATER", "COMPARISON_NOT_EQUAL", "COMPARISON_GREATER_EQUAL", "COMPARISON_ALWAYS"};
             const char* borders[] = {"STATIC_BORDER_COLOR_TRANSPARENT_BLACK", "STATIC_BORDER_COLOR_OPAQUE_BLACK", "STATIC_BORDER_COLOR_OPAQUE_WHITE"};
@@ -680,21 +680,21 @@ namespace dmShaderc
             const char* filters[] = {"MIN_MAG_MIP_POINT", "MIN_MAG_POINT_MIP_LINEAR", "MIN_POINT_MAG_LINEAR_MIP_POINT", "MIN_POINT_MAG_MIP_LINEAR", "MIN_LINEAR_MAG_MIP_POINT", "MIN_LINEAR_MAG_POINT_MIP_LINEAR", "MIN_MAG_LINEAR_MIP_POINT", "MIN_MAG_MIP_LINEAR", "ANISOTROPIC"};
             const uint32_t filter_values[] = {0, 1, 4, 5, 16, 17, 20, 21, 85};
             uint32_t filter = 0;
-            while (filter < 9 && filter_values[filter] != (sampler.Filter & 127)) ++filter;
-            if (filter == 9 || sampler.Filter > 511 || sampler.AddressU < 1 || sampler.AddressU > 5 ||
-                sampler.AddressV < 1 || sampler.AddressV > 5 || sampler.AddressW < 1 || sampler.AddressW > 5 ||
-                sampler.ComparisonFunc < 1 || sampler.ComparisonFunc > 8 || sampler.BorderColor > 2)
+            while (filter < 9 && filter_values[filter] != (sampler.m_Filter & 127)) ++filter;
+            if (filter == 9 || sampler.m_Filter > 511 || sampler.m_AddressU < 1 || sampler.m_AddressU > 5 ||
+                sampler.m_AddressV < 1 || sampler.m_AddressV > 5 || sampler.m_AddressW < 1 || sampler.m_AddressW > 5 ||
+                sampler.m_ComparisonFunc < 1 || sampler.m_ComparisonFunc > 8 || sampler.m_BorderColor > 2)
             { ok = false; break; }
-            if (i || desc->NumParameters) ok = AppendRootSignatureText(out_text.Begin(), MAX_ROOTSIG_TEXT, &pos, ",");
+            if (i || desc->m_NumParameters) ok = AppendRootSignatureText(out_text.Begin(), MAX_ROOTSIG_TEXT, &pos, ",");
             if (ok) ok = AppendRootSignatureText(out_text.Begin(), MAX_ROOTSIG_TEXT, &pos,
                 "StaticSampler(s%u,space=%u,filter=FILTER_%s%s,addressU=%s,addressV=%s,addressW=%s,mipLODBias=%.17g,maxAnisotropy=%u,comparisonFunc=%s,borderColor=%s,minLOD=%.17g,maxLOD=%.17g,visibility=%s)",
-                sampler.ShaderRegister, sampler.RegisterSpace, reductions[sampler.Filter >> 7], filters[filter],
-                addresses[sampler.AddressU], addresses[sampler.AddressV], addresses[sampler.AddressW], sampler.MipLODBias,
-                sampler.MaxAnisotropy, comparisons[sampler.ComparisonFunc], borders[sampler.BorderColor], sampler.MinLOD, sampler.MaxLOD,
-                RootVisibilityToString(sampler.ShaderVisibility));
+                sampler.m_ShaderRegister, sampler.m_RegisterSpace, reductions[sampler.m_Filter >> 7], filters[filter],
+                addresses[sampler.m_AddressU], addresses[sampler.m_AddressV], addresses[sampler.m_AddressW], sampler.m_MipLODBias,
+                sampler.m_MaxAnisotropy, comparisons[sampler.m_ComparisonFunc], borders[sampler.m_BorderColor], sampler.m_MinLOD, sampler.m_MaxLOD,
+                RootVisibilityToString(sampler.m_ShaderVisibility));
         }
 
-        if (ok && desc->Flags != RS_ROOT_SIGNATURE_FLAG_NONE)
+        if (ok && desc->m_Flags != RS_ROOT_SIGNATURE_FLAG_NONE)
         {
             struct FlagEntry
             {
@@ -710,11 +710,11 @@ namespace dmShaderc
                 { RS_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS, "DENY_GEOMETRY_SHADER_ROOT_ACCESS" },
                 { RS_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS, "DENY_PIXEL_SHADER_ROOT_ACCESS" },
                 { RS_ROOT_SIGNATURE_FLAG_ALLOW_STREAM_OUTPUT, "ALLOW_STREAM_OUTPUT" },
-                { 128, "LOCAL_ROOT_SIGNATURE" },
-                { 256, "DENY_AMPLIFICATION_SHADER_ROOT_ACCESS" },
-                { 512, "DENY_MESH_SHADER_ROOT_ACCESS" },
-                { 1024, "CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED" },
-                { 2048, "SAMPLER_HEAP_DIRECTLY_INDEXED" },
+                { RS_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE, "LOCAL_ROOT_SIGNATURE" },
+                { RS_ROOT_SIGNATURE_FLAG_DENY_AMPLIFICATION_SHADER_ROOT_ACCESS, "DENY_AMPLIFICATION_SHADER_ROOT_ACCESS" },
+                { RS_ROOT_SIGNATURE_FLAG_DENY_MESH_SHADER_ROOT_ACCESS, "DENY_MESH_SHADER_ROOT_ACCESS" },
+                { RS_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED, "CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED" },
+                { RS_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED, "SAMPLER_HEAP_DIRECTLY_INDEXED" },
             };
 
             RS_ROOT_SIGNATURE_FLAGS known_flags = RS_ROOT_SIGNATURE_FLAG_NONE;
@@ -723,15 +723,15 @@ namespace dmShaderc
                 known_flags = (RS_ROOT_SIGNATURE_FLAGS) (known_flags | kFlagEntries[i].m_Flag);
             }
 
-            if (desc->Flags & ~known_flags)
+            if (desc->m_Flags & ~known_flags)
             {
                 out_text.SetSize(0);
                 return false;
             }
-            RS_ROOT_SIGNATURE_FLAGS flags_to_write = (RS_ROOT_SIGNATURE_FLAGS) (desc->Flags & known_flags);
+            RS_ROOT_SIGNATURE_FLAGS flags_to_write = (RS_ROOT_SIGNATURE_FLAGS) (desc->m_Flags & known_flags);
             if (flags_to_write != RS_ROOT_SIGNATURE_FLAG_NONE)
             {
-                if (desc->NumParameters > 0 || desc->NumStaticSamplers > 0)
+                if (desc->m_NumParameters > 0 || desc->m_NumStaticSamplers > 0)
                     ok = AppendRootSignatureText(out_text.Begin(), MAX_ROOTSIG_TEXT, &pos, ",");
 
                 if (ok)
@@ -968,37 +968,37 @@ namespace dmShaderc
             }
 
             RS_ROOT_PARAMETER& param = root_params[parameter_index];
-            param.ShaderVisibility = visibility;
+            param.m_ShaderVisibility = visibility;
 
             switch (bind_desc.Type)
             {
                 case D3D_SIT_CBUFFER:
-                    param.ParameterType = RS_ROOT_PARAMETER_TYPE_CBV;
-                    param.Descriptor.ShaderRegister = bind_desc.BindPoint;
-                    param.Descriptor.RegisterSpace = bind_desc.Space;
+                    param.m_ParameterType = RS_ROOT_PARAMETER_TYPE_CBV;
+                    param.m_Descriptor.m_ShaderRegister = bind_desc.BindPoint;
+                    param.m_Descriptor.m_RegisterSpace = bind_desc.Space;
                     break;
                 case D3D_SIT_TBUFFER:
                 case D3D_SIT_TEXTURE:
                 case D3D_SIT_STRUCTURED:
                 case D3D_SIT_BYTEADDRESS:
-                    ranges[parameter_index].RangeType = RS_DESCRIPTOR_RANGE_TYPE_SRV;
-                    ranges[parameter_index].NumDescriptors = bind_desc.BindCount;
-                    ranges[parameter_index].BaseShaderRegister = bind_desc.BindPoint;
-                    ranges[parameter_index].RegisterSpace = bind_desc.Space;
-                    ranges[parameter_index].OffsetInDescriptorsFromTableStart = RS_DESCRIPTOR_RANGE_OFFSET_APPEND;
-                    param.ParameterType = RS_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-                    param.DescriptorTable.NumDescriptorRanges = 1;
-                    param.DescriptorTable.pDescriptorRanges = &ranges[parameter_index];
+                    ranges[parameter_index].m_RangeType = RS_DESCRIPTOR_RANGE_TYPE_SRV;
+                    ranges[parameter_index].m_NumDescriptors = bind_desc.BindCount;
+                    ranges[parameter_index].m_BaseShaderRegister = bind_desc.BindPoint;
+                    ranges[parameter_index].m_RegisterSpace = bind_desc.Space;
+                    ranges[parameter_index].m_OffsetInDescriptorsFromTableStart = RS_DESCRIPTOR_RANGE_OFFSET_APPEND;
+                    param.m_ParameterType = RS_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                    param.m_DescriptorTable.m_NumDescriptorRanges = 1;
+                    param.m_DescriptorTable.m_DescriptorRanges = &ranges[parameter_index];
                     break;
                 case D3D_SIT_SAMPLER:
-                    ranges[parameter_index].RangeType = RS_DESCRIPTOR_RANGE_TYPE_SAMPLER;
-                    ranges[parameter_index].NumDescriptors = bind_desc.BindCount;
-                    ranges[parameter_index].BaseShaderRegister = bind_desc.BindPoint;
-                    ranges[parameter_index].RegisterSpace = bind_desc.Space;
-                    ranges[parameter_index].OffsetInDescriptorsFromTableStart = RS_DESCRIPTOR_RANGE_OFFSET_APPEND;
-                    param.ParameterType = RS_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-                    param.DescriptorTable.NumDescriptorRanges = 1;
-                    param.DescriptorTable.pDescriptorRanges = &ranges[parameter_index];
+                    ranges[parameter_index].m_RangeType = RS_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+                    ranges[parameter_index].m_NumDescriptors = bind_desc.BindCount;
+                    ranges[parameter_index].m_BaseShaderRegister = bind_desc.BindPoint;
+                    ranges[parameter_index].m_RegisterSpace = bind_desc.Space;
+                    ranges[parameter_index].m_OffsetInDescriptorsFromTableStart = RS_DESCRIPTOR_RANGE_OFFSET_APPEND;
+                    param.m_ParameterType = RS_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                    param.m_DescriptorTable.m_NumDescriptorRanges = 1;
+                    param.m_DescriptorTable.m_DescriptorRanges = &ranges[parameter_index];
                     break;
                 case D3D_SIT_UAV_RWTYPED:
                 case D3D_SIT_UAV_RWSTRUCTURED:
@@ -1006,14 +1006,14 @@ namespace dmShaderc
                 case D3D_SIT_UAV_APPEND_STRUCTURED:
                 case D3D_SIT_UAV_CONSUME_STRUCTURED:
                 case D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER:
-                    ranges[parameter_index].RangeType = RS_DESCRIPTOR_RANGE_TYPE_UAV;
-                    ranges[parameter_index].NumDescriptors = bind_desc.BindCount;
-                    ranges[parameter_index].BaseShaderRegister = bind_desc.BindPoint;
-                    ranges[parameter_index].RegisterSpace = bind_desc.Space;
-                    ranges[parameter_index].OffsetInDescriptorsFromTableStart = RS_DESCRIPTOR_RANGE_OFFSET_APPEND;
-                    param.ParameterType = RS_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-                    param.DescriptorTable.NumDescriptorRanges = 1;
-                    param.DescriptorTable.pDescriptorRanges = &ranges[parameter_index];
+                    ranges[parameter_index].m_RangeType = RS_DESCRIPTOR_RANGE_TYPE_UAV;
+                    ranges[parameter_index].m_NumDescriptors = bind_desc.BindCount;
+                    ranges[parameter_index].m_BaseShaderRegister = bind_desc.BindPoint;
+                    ranges[parameter_index].m_RegisterSpace = bind_desc.Space;
+                    ranges[parameter_index].m_OffsetInDescriptorsFromTableStart = RS_DESCRIPTOR_RANGE_OFFSET_APPEND;
+                    param.m_ParameterType = RS_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                    param.m_DescriptorTable.m_NumDescriptorRanges = 1;
+                    param.m_DescriptorTable.m_DescriptorRanges = &ranges[parameter_index];
                     break;
                 default:
                     break;
@@ -1023,11 +1023,11 @@ namespace dmShaderc
         }
 
         RS_ROOT_SIGNATURE_DESC desc = {};
-        desc.NumParameters = parameter_count;
-        desc.pParameters = parameter_count > 0 ? root_params.Begin() : 0;
-        desc.NumStaticSamplers = 0;
-        desc.pStaticSamplers = 0;
-        desc.Flags = GetRootFlags(stage);
+        desc.m_NumParameters = parameter_count;
+        desc.m_Parameters = parameter_count > 0 ? root_params.Begin() : 0;
+        desc.m_NumStaticSamplers = 0;
+        desc.m_StaticSamplers = 0;
+        desc.m_Flags = GetRootFlags(stage);
 
         IDxcBlob* signature_blob = 0;
         IDxcBlob* error_blob = 0;
@@ -1407,27 +1407,27 @@ namespace dmShaderc
                 return false;
 
             uint32_t root_index = 0;
-            for (; root_index < desc->NumParameters; ++root_index)
+            for (; root_index < desc->m_NumParameters; ++root_index)
             {
-                const RS_ROOT_PARAMETER& param = desc->pParameters[root_index];
-                if (param.ShaderVisibility != RS_SHADER_VISIBILITY_ALL && param.ShaderVisibility != GetRootVisibility(stage))
+                const RS_ROOT_PARAMETER& param = desc->m_Parameters[root_index];
+                if (param.m_ShaderVisibility != RS_SHADER_VISIBILITY_ALL && param.m_ShaderVisibility != GetRootVisibility(stage))
                     continue;
-                if (binding.Type == D3D_SIT_CBUFFER && param.ParameterType == RS_ROOT_PARAMETER_TYPE_CBV &&
-                    param.Descriptor.ShaderRegister == binding.BindPoint && param.Descriptor.RegisterSpace == binding.Space)
+                if (binding.Type == D3D_SIT_CBUFFER && param.m_ParameterType == RS_ROOT_PARAMETER_TYPE_CBV &&
+                    param.m_Descriptor.m_ShaderRegister == binding.BindPoint && param.m_Descriptor.m_RegisterSpace == binding.Space)
                     break;
 
-                if (param.ParameterType != RS_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE || param.DescriptorTable.NumDescriptorRanges != 1)
+                if (param.m_ParameterType != RS_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE || param.m_DescriptorTable.m_NumDescriptorRanges != 1)
                     continue;
-                const RS_DESCRIPTOR_RANGE& range = param.DescriptorTable.pDescriptorRanges[0];
+                const RS_DESCRIPTOR_RANGE& range = param.m_DescriptorTable.m_DescriptorRanges[0];
                 const bool matching_type =
-                    (IsHLSLShaderResourceView(binding.Type) && range.RangeType == RS_DESCRIPTOR_RANGE_TYPE_SRV) ||
-                    (binding.Type == D3D_SIT_SAMPLER && range.RangeType == RS_DESCRIPTOR_RANGE_TYPE_SAMPLER) ||
-                    (IsHLSLUnorderedAccessView(binding.Type) && range.RangeType == RS_DESCRIPTOR_RANGE_TYPE_UAV) ||
-                    (binding.Type == D3D_SIT_CBUFFER && range.RangeType == RS_DESCRIPTOR_RANGE_TYPE_CBV);
-                if (matching_type && range.BaseShaderRegister == binding.BindPoint && range.RegisterSpace == binding.Space)
+                    (IsHLSLShaderResourceView(binding.Type) && range.m_RangeType == RS_DESCRIPTOR_RANGE_TYPE_SRV) ||
+                    (binding.Type == D3D_SIT_SAMPLER && range.m_RangeType == RS_DESCRIPTOR_RANGE_TYPE_SAMPLER) ||
+                    (IsHLSLUnorderedAccessView(binding.Type) && range.m_RangeType == RS_DESCRIPTOR_RANGE_TYPE_UAV) ||
+                    (binding.Type == D3D_SIT_CBUFFER && range.m_RangeType == RS_DESCRIPTOR_RANGE_TYPE_CBV);
+                if (matching_type && range.m_BaseShaderRegister == binding.BindPoint && range.m_RegisterSpace == binding.Space)
                     break;
             }
-            if (root_index == desc->NumParameters)
+            if (root_index == desc->m_NumParameters)
             {
                 dmLogError("No root parameter for HLSL resource '%s'", binding.Name);
                 return false;
@@ -1618,7 +1618,7 @@ namespace dmShaderc
         const RS_ROOT_SIGNATURE_DESC* desc = &deserializer.m_Desc;
 
         RS_ROOT_SIGNATURE_DESC patched_desc = *desc;
-        patched_desc.Flags = (RS_ROOT_SIGNATURE_FLAGS) (desc->Flags | flags_to_or);
+        patched_desc.m_Flags = (RS_ROOT_SIGNATURE_FLAGS) (desc->m_Flags | flags_to_or);
 
         IDxcBlob* error_blob = NULL;
         hr = WriteRootSignature(&patched_desc, out_blob, &error_blob);
@@ -1638,38 +1638,38 @@ namespace dmShaderc
 
     static bool RootDescriptorRangeEqual(const RS_DESCRIPTOR_RANGE& a, const RS_DESCRIPTOR_RANGE& b)
     {
-        return a.RangeType == b.RangeType &&
-               a.NumDescriptors == b.NumDescriptors &&
-               a.BaseShaderRegister == b.BaseShaderRegister &&
-               a.RegisterSpace == b.RegisterSpace &&
-               a.OffsetInDescriptorsFromTableStart == b.OffsetInDescriptorsFromTableStart;
+        return a.m_RangeType == b.m_RangeType &&
+               a.m_NumDescriptors == b.m_NumDescriptors &&
+               a.m_BaseShaderRegister == b.m_BaseShaderRegister &&
+               a.m_RegisterSpace == b.m_RegisterSpace &&
+               a.m_OffsetInDescriptorsFromTableStart == b.m_OffsetInDescriptorsFromTableStart;
     }
 
     static bool RootParameterBindingsEqual(const RS_ROOT_PARAMETER& a, const RS_ROOT_PARAMETER& b)
     {
-        if (a.ParameterType != b.ParameterType)
+        if (a.m_ParameterType != b.m_ParameterType)
             return false;
 
-        switch (a.ParameterType)
+        switch (a.m_ParameterType)
         {
             case RS_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE:
-                if (a.DescriptorTable.NumDescriptorRanges != b.DescriptorTable.NumDescriptorRanges)
+                if (a.m_DescriptorTable.m_NumDescriptorRanges != b.m_DescriptorTable.m_NumDescriptorRanges)
                     return false;
-                for (uint32_t i = 0; i < a.DescriptorTable.NumDescriptorRanges; ++i)
+                for (uint32_t i = 0; i < a.m_DescriptorTable.m_NumDescriptorRanges; ++i)
                 {
-                    if (!RootDescriptorRangeEqual(a.DescriptorTable.pDescriptorRanges[i], b.DescriptorTable.pDescriptorRanges[i]))
+                    if (!RootDescriptorRangeEqual(a.m_DescriptorTable.m_DescriptorRanges[i], b.m_DescriptorTable.m_DescriptorRanges[i]))
                         return false;
                 }
                 return true;
             case RS_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS:
-                return a.Constants.ShaderRegister == b.Constants.ShaderRegister &&
-                       a.Constants.RegisterSpace == b.Constants.RegisterSpace &&
-                       a.Constants.Num32BitValues == b.Constants.Num32BitValues;
+                return a.m_Constants.m_ShaderRegister == b.m_Constants.m_ShaderRegister &&
+                       a.m_Constants.m_RegisterSpace == b.m_Constants.m_RegisterSpace &&
+                       a.m_Constants.m_Num32BitValues == b.m_Constants.m_Num32BitValues;
             case RS_ROOT_PARAMETER_TYPE_CBV:
             case RS_ROOT_PARAMETER_TYPE_SRV:
             case RS_ROOT_PARAMETER_TYPE_UAV:
-                return a.Descriptor.ShaderRegister == b.Descriptor.ShaderRegister &&
-                       a.Descriptor.RegisterSpace == b.Descriptor.RegisterSpace;
+                return a.m_Descriptor.m_ShaderRegister == b.m_Descriptor.m_ShaderRegister &&
+                       a.m_Descriptor.m_RegisterSpace == b.m_Descriptor.m_RegisterSpace;
             default:
                 return false;
         }
@@ -1688,8 +1688,8 @@ namespace dmShaderc
         dmArray<uint32_t> indices;
         indices.SetCapacity(mapping_count);
         dmArray<const HLSLResourceMapping*> owners;
-        owners.SetCapacity(merged_desc->NumParameters);
-        owners.SetSize(merged_desc->NumParameters);
+        owners.SetCapacity(merged_desc->m_NumParameters);
+        owners.SetSize(merged_desc->m_NumParameters);
         if (!owners.Empty())
             memset(owners.Begin(), 0, owners.Size() * sizeof(owners[0]));
 
@@ -1704,18 +1704,18 @@ namespace dmShaderc
             for (uint32_t j = 0; j < shaders[i].m_HLSLResourceMappings.Size(); ++j)
             {
                 const HLSLResourceMapping& mapping = shaders[i].m_HLSLResourceMappings[j];
-                if (mapping.m_RootParameterIndex >= source_desc->NumParameters)
+                if (mapping.m_RootParameterIndex >= source_desc->m_NumParameters)
                     return false;
-                const RS_ROOT_PARAMETER& source = source_desc->pParameters[mapping.m_RootParameterIndex];
+                const RS_ROOT_PARAMETER& source = source_desc->m_Parameters[mapping.m_RootParameterIndex];
                 uint32_t root_index = 0;
-                for (; root_index < merged_desc->NumParameters; ++root_index)
+                for (; root_index < merged_desc->m_NumParameters; ++root_index)
                 {
-                    const RS_ROOT_PARAMETER& target = merged_desc->pParameters[root_index];
+                    const RS_ROOT_PARAMETER& target = merged_desc->m_Parameters[root_index];
                     if (RootParameterBindingsEqual(source, target) &&
-                        (target.ShaderVisibility == source.ShaderVisibility || target.ShaderVisibility == RS_SHADER_VISIBILITY_ALL))
+                        (target.m_ShaderVisibility == source.m_ShaderVisibility || target.m_ShaderVisibility == RS_SHADER_VISIBILITY_ALL))
                         break;
                 }
-                if (root_index == merged_desc->NumParameters)
+                if (root_index == merged_desc->m_NumParameters)
                     return false;
                 const HLSLResourceMapping* owner = owners[root_index];
                 if (owner && (owner->m_ShaderResourceSet != mapping.m_ShaderResourceSet ||
@@ -1749,7 +1749,7 @@ namespace dmShaderc
         {
             if (RootParameterBindingsEqual(root_params[i], param))
             {
-                root_params[i].ShaderVisibility = MergeRootParameterVisibility(root_params[i].ShaderVisibility, param.ShaderVisibility);
+                root_params[i].m_ShaderVisibility = MergeRootParameterVisibility(root_params[i].m_ShaderVisibility, param.m_ShaderVisibility);
                 return;
             }
         }
@@ -1760,18 +1760,18 @@ namespace dmShaderc
 
     static bool StaticSamplerDescEqualIgnoringVisibility(const RS_STATIC_SAMPLER_DESC& a, const RS_STATIC_SAMPLER_DESC& b)
     {
-        return a.Filter == b.Filter &&
-               a.AddressU == b.AddressU &&
-               a.AddressV == b.AddressV &&
-               a.AddressW == b.AddressW &&
-               a.MipLODBias == b.MipLODBias &&
-               a.MaxAnisotropy == b.MaxAnisotropy &&
-               a.ComparisonFunc == b.ComparisonFunc &&
-               a.BorderColor == b.BorderColor &&
-               a.MinLOD == b.MinLOD &&
-               a.MaxLOD == b.MaxLOD &&
-               a.ShaderRegister == b.ShaderRegister &&
-               a.RegisterSpace == b.RegisterSpace;
+        return a.m_Filter == b.m_Filter &&
+               a.m_AddressU == b.m_AddressU &&
+               a.m_AddressV == b.m_AddressV &&
+               a.m_AddressW == b.m_AddressW &&
+               a.m_MipLODBias == b.m_MipLODBias &&
+               a.m_MaxAnisotropy == b.m_MaxAnisotropy &&
+               a.m_ComparisonFunc == b.m_ComparisonFunc &&
+               a.m_BorderColor == b.m_BorderColor &&
+               a.m_MinLOD == b.m_MinLOD &&
+               a.m_MaxLOD == b.m_MaxLOD &&
+               a.m_ShaderRegister == b.m_ShaderRegister &&
+               a.m_RegisterSpace == b.m_RegisterSpace;
     }
 
     static void AddStaticSamplerDeduplicated(RS_STATIC_SAMPLER_DESC* static_samplers, UINT* static_sampler_count, const RS_STATIC_SAMPLER_DESC& sampler)
@@ -1780,7 +1780,7 @@ namespace dmShaderc
         {
             if (StaticSamplerDescEqualIgnoringVisibility(static_samplers[i], sampler))
             {
-                static_samplers[i].ShaderVisibility = MergeRootParameterVisibility(static_samplers[i].ShaderVisibility, sampler.ShaderVisibility);
+                static_samplers[i].m_ShaderVisibility = MergeRootParameterVisibility(static_samplers[i].m_ShaderVisibility, sampler.m_ShaderVisibility);
                 return;
             }
         }
@@ -1835,8 +1835,8 @@ namespace dmShaderc
         const RS_ROOT_SIGNATURE_DESC* desc_b = &deserializer_b.m_Desc;
 
         // Allocate combined arrays
-        UINT total_params = desc_a->NumParameters + desc_b->NumParameters;
-        UINT total_samplers = desc_a->NumStaticSamplers + desc_b->NumStaticSamplers;
+        UINT total_params = desc_a->m_NumParameters + desc_b->m_NumParameters;
+        UINT total_samplers = desc_a->m_NumStaticSamplers + desc_b->m_NumStaticSamplers;
 
         RS_ROOT_PARAMETER* root_params = (RS_ROOT_PARAMETER*) calloc(total_params, sizeof(RS_ROOT_PARAMETER));
         RS_STATIC_SAMPLER_DESC* static_samplers = NULL;
@@ -1847,33 +1847,33 @@ namespace dmShaderc
         }
 
         UINT unique_params = 0;
-        for (UINT i = 0; i < desc_a->NumParameters; ++i)
+        for (UINT i = 0; i < desc_a->m_NumParameters; ++i)
         {
-            AddRootParameterDeduplicated(root_params, &unique_params, desc_a->pParameters[i]);
+            AddRootParameterDeduplicated(root_params, &unique_params, desc_a->m_Parameters[i]);
         }
-        for (UINT i = 0; i < desc_b->NumParameters; ++i)
+        for (UINT i = 0; i < desc_b->m_NumParameters; ++i)
         {
-            AddRootParameterDeduplicated(root_params, &unique_params, desc_b->pParameters[i]);
+            AddRootParameterDeduplicated(root_params, &unique_params, desc_b->m_Parameters[i]);
         }
 
         UINT unique_samplers = 0;
         if (static_samplers)
         {
-            for (UINT i = 0; i < desc_a->NumStaticSamplers; ++i)
+            for (UINT i = 0; i < desc_a->m_NumStaticSamplers; ++i)
             {
-                AddStaticSamplerDeduplicated(static_samplers, &unique_samplers, desc_a->pStaticSamplers[i]);
+                AddStaticSamplerDeduplicated(static_samplers, &unique_samplers, desc_a->m_StaticSamplers[i]);
             }
-            for (UINT i = 0; i < desc_b->NumStaticSamplers; ++i)
+            for (UINT i = 0; i < desc_b->m_NumStaticSamplers; ++i)
             {
-                AddStaticSamplerDeduplicated(static_samplers, &unique_samplers, desc_b->pStaticSamplers[i]);
+                AddStaticSamplerDeduplicated(static_samplers, &unique_samplers, desc_b->m_StaticSamplers[i]);
             }
         }
 
         RS_ROOT_SIGNATURE_DESC merged_desc;
-        merged_desc.NumParameters     = unique_params;
-        merged_desc.pParameters       = root_params;
-        merged_desc.NumStaticSamplers = unique_samplers;
-        merged_desc.pStaticSamplers   = static_samplers;
+        merged_desc.m_NumParameters     = unique_params;
+        merged_desc.m_Parameters       = root_params;
+        merged_desc.m_NumStaticSamplers = unique_samplers;
+        merged_desc.m_StaticSamplers   = static_samplers;
         const RS_ROOT_SIGNATURE_FLAGS graphics_root_flags =
             (RS_ROOT_SIGNATURE_FLAGS)
             (
@@ -1882,7 +1882,7 @@ namespace dmShaderc
                 RS_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
                 RS_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS
             );
-        merged_desc.Flags             = graphics_root_flags | ((desc_a->Flags | desc_b->Flags) & ~0x3eu);
+        merged_desc.m_Flags             = (RS_ROOT_SIGNATURE_FLAGS) (graphics_root_flags | ((desc_a->m_Flags | desc_b->m_Flags) & ~0x3eu));
 
         DM_TRACE_LINE();
         IDxcBlob* error_blob = NULL;
@@ -1890,7 +1890,7 @@ namespace dmShaderc
         if (FAILED(hr))
         {
         DM_TRACE_LINE();
-            dmLogError("Failed to serialize merged HLSL root signature (HRESULT 0x%08X, params %u/%u -> %u, static samplers %u/%u -> %u)", (uint32_t) hr, desc_a->NumParameters, desc_b->NumParameters, unique_params, desc_a->NumStaticSamplers, desc_b->NumStaticSamplers, unique_samplers);
+            dmLogError("Failed to serialize merged HLSL root signature (HRESULT 0x%08X, params %u/%u -> %u, static samplers %u/%u -> %u)", (uint32_t) hr, desc_a->m_NumParameters, desc_b->m_NumParameters, unique_params, desc_a->m_NumStaticSamplers, desc_b->m_NumStaticSamplers, unique_samplers);
             if (error_blob)
             {
                 dmLogError("%s", (const char*) error_blob->GetBufferPointer());
