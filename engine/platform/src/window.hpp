@@ -34,6 +34,12 @@ namespace dmPlatform
     uint32_t       GetWindowHeight(HWindow window);
     uint32_t       GetWindowStateParam(HWindow window, WindowState state);
     float          GetDisplayScaleFactor(HWindow window);
+    // Logical density in dots per inch, as reported by the backend. 96 when the platform cannot
+    // report one.
+    float          GetDisplayDensity(HWindow window);
+    // Density of a display with the given physical width and framebuffer width. Shared by the
+    // backends and by the tests, which cannot create a display.
+    float          CalculateDisplayDensity(int32_t physical_width_mm, float pixel_width);
     uintptr_t      GetProcAddress(HWindow window, const char* proc_name);
 
     int32_t        GetKey(HWindow window, int32_t code);

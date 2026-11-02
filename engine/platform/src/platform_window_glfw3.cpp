@@ -557,6 +557,97 @@ namespace dmPlatform
         return dmMath::Max(window->m_XScale, window->m_YScale);
     }
 
+    static GLFWmonitor* MonitorContainingWindow(GLFWwindow* glfw_window)
+    {
+        GLFWmonitor* monitor = glfwGetWindowMonitor(glfw_window);
+        if (monitor)
+        {
+            return monitor;
+        }
+
+        // glfwGetWindowMonitor() only reports a monitor for full screen windows and returns null for
+        // every windowed window, so a windowed window is matched against the monitor it overlaps the
+        // most. Falling back to the primary monitor would report the density of the wrong display
+        // once the window is moved to a secondary monitor.
+        //
+        // Wayland has no global window coordinates: glfwGetWindowPos() leaves the values untouched
+        // and reports GLFW_PLATFORM_ERROR, so the overlap would be computed around the origin and
+        // would log an error on every query. The window state code treats the same platform as
+        // having no position, so there is nothing to match against and the primary monitor is used.
+        if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
+        {
+            return glfwGetPrimaryMonitor();
+        }
+
+        int window_x = 0;
+        int window_y = 0;
+        int window_width = 0;
+        int window_height = 0;
+        glfwGetWindowPos(glfw_window, &window_x, &window_y);
+        glfwGetWindowSize(glfw_window, &window_width, &window_height);
+
+        int monitor_count = 0;
+        GLFWmonitor** monitors = glfwGetMonitors(&monitor_count);
+        GLFWmonitor* best = glfwGetPrimaryMonitor();
+        int64_t largest_overlap = 0;
+
+        for (int i = 0; i < monitor_count; ++i)
+        {
+            int monitor_x = 0;
+            int monitor_y = 0;
+            glfwGetMonitorPos(monitors[i], &monitor_x, &monitor_y);
+            const GLFWvidmode* video_mode = glfwGetVideoMode(monitors[i]);
+            if (!video_mode)
+            {
+                continue;
+            }
+
+            int64_t overlap_width = dmMath::Min(window_x + window_width, monitor_x + video_mode->width) - dmMath::Max(window_x, monitor_x);
+            int64_t overlap_height = dmMath::Min(window_y + window_height, monitor_y + video_mode->height) - dmMath::Max(window_y, monitor_y);
+            overlap_width = dmMath::Max((int64_t) 0, overlap_width);
+            overlap_height = dmMath::Max((int64_t) 0, overlap_height);
+
+            int64_t overlap = overlap_width * overlap_height;
+            if (overlap > largest_overlap)
+            {
+                largest_overlap = overlap;
+                best = monitors[i];
+            }
+        }
+
+        return best;
+    }
+
+    float GetDisplayDensity(HWindow window)
+    {
+        GLFWmonitor* monitor = MonitorContainingWindow(window->m_Window);
+        if (!monitor)
+        {
+            return 96.0f;
+        }
+
+        int32_t width_mm = 0;
+        int32_t height_mm = 0;
+        glfwGetMonitorPhysicalSize(monitor, &width_mm, &height_mm);
+
+        const GLFWvidmode* video_mode = glfwGetVideoMode(monitor);
+        if (!video_mode)
+        {
+            return 96.0f;
+        }
+
+        // glfwGetVideoMode() reports the mode in screen coordinates. On a display with a content
+        // scale above 1 the framebuffer is larger than that, and the density has to be computed from
+        // the framebuffer pixels: a Retina display would otherwise report half its density, and a
+        // caller deriving a scale from it would get half the multiplier it needs.
+        float scale_x = 1.0f;
+        float scale_y = 1.0f;
+        glfwGetMonitorContentScale(monitor, &scale_x, &scale_y);
+        const float pixel_width = (float) video_mode->width * dmMath::Max(scale_x, scale_y);
+
+        return CalculateDisplayDensity(width_mm, pixel_width);
+    }
+
     void* AcquireAuxContext(HWindow window)
     {
         glfwMakeContextCurrent(window->m_AuxWindow);
