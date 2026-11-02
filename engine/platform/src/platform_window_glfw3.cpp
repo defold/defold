@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>
+#include <string.h>
 
 #include "window.hpp"
 #include "platform_window_constants.h"
@@ -44,7 +45,19 @@ namespace dmPlatform
 
     static void OnError(int error, const char* description)
     {
+        if (error == GLFW_PLATFORM_ERROR && !strcmp(description, "Win32: Failed to query monitor DPI"))
+        {
+            // Display activation/disconnection can briefly make DPI unavailable.
+            // Placement ignores the failed query and retries once it is usable.
+            dmLogDebug("GLFW: %s", description);
+            return;
+        }
         dmLogError("GLFW Error: %s", description);
+    }
+
+    static void OnMonitor(GLFWmonitor*, int)
+    {
+        WindowPlacementMonitorsChanged();
     }
 
     static void OnWindowResize(GLFWwindow* glfw_window, int width, int height)
@@ -117,8 +130,11 @@ namespace dmPlatform
     static void OnContentScaleCallback(GLFWwindow* glfw_window, float xscale, float yscale)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
-        window->m_XScale = xscale;
-        window->m_YScale = yscale;
+        if (xscale > 0.0f && yscale > 0.0f)
+        {
+            window->m_XScale = xscale;
+            window->m_YScale = yscale;
+        }
 
         int width, height;
         glfwGetWindowSize(glfw_window, &width, &height);
@@ -181,6 +197,7 @@ namespace dmPlatform
 
         dmWindow* wnd = new dmWindow;
         memset(wnd, 0, sizeof(dmWindow));
+        glfwSetMonitorCallback(OnMonitor);
 
         // Reset context
         memset(&g_GLFW3Context, 0, sizeof(PlatformContext));
@@ -386,6 +403,10 @@ namespace dmPlatform
             }
 
             glfwGetWindowContentScale(window->m_Window, &window->m_XScale, &window->m_YScale);
+            if (!(window->m_XScale > 0.0f && window->m_YScale > 0.0f))
+            {
+                window->m_XScale = window->m_YScale = 1.0f;
+            }
             glfwSetWindowUserPointer(window->m_Window, (void*) window);
             glfwSetWindowSizeCallback(window->m_Window, OnWindowResize);
             glfwSetWindowPosCallback(window->m_Window, OnWindowPosition);
