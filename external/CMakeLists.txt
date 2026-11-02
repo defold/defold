@@ -39,4 +39,5 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|
   add_subdirectory(draco)
   add_subdirectory(ogg)
   add_subdirectory(protobuf)
+  # DXC is installed from packages by install_ext_packages on all desktop hosts.
 endif()
