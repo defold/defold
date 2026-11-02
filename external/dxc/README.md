@@ -111,9 +111,8 @@ These builds write `packages/dxc-1.9.2609-x86_64-linux.tar.gz` and
 includes the executable, `libdxcompiler.so`, matching headers, and licenses.
 The container architecture must match the selected Defold platform. Running
 either container through Docker's emulation on macOS is supported; a physical
-Linux machine of each architecture is not required. Run the prototype and native
-reflection checks below inside the matching container before publishing either
-archive.
+Linux machine of each architecture is not required. Run the shaderc tests below
+inside the matching container before publishing either archive.
 
 ### Updating packages
 
@@ -135,9 +134,6 @@ cmake -S external/dxc -B tmp/dxc-build -G Ninja \
   -DDEFOLD_EXTERNAL_INSTALL_PREFIX=/absolute/path/to/dxc-install
 cmake --build tmp/dxc-build
 cmake --install tmp/dxc-build
-python3 engine/shaderc/src/test/dxc_prototype/run.py \
-  --dxc /absolute/path/to/dxc-install/bin/x86_64-linux/dxc \
-  --out tmp/dxc-results
 ```
 
 Adjust the platform and executable suffix for other hosts. The wrapper limits
@@ -150,18 +146,11 @@ In this standalone build, the focused target is `dxc_build_external`, and
 `external` builds contain no DXC targets; use the standalone project or explicit
 package commands above for source rebuilds.
 
-Build the native reflection probe using the installed headers:
-
-```sh
-g++ -std=c++11 \
-  -I/absolute/path/to/dxc-install/include \
-  -I/absolute/path/to/dxc-install/include/dxc/DirectX-Headers/directx \
-  -I/absolute/path/to/dxc-install/include/dxc/DirectX-Headers/wsl/stubs \
-  engine/shaderc/src/test/dxc_prototype/reflect.cpp -ldl -o /tmp/dxc-reflect
-```
-
-Pass `--reflect /tmp/dxc-reflect --dxcompiler /absolute/path/to/dxc-install/lib/x86_64-linux/libdxcompiler.so`
-to the prototype runner to check native reflection too.
+After installing the package into the engine SDK, build and run `test_shaderc`,
+`test_shaderc_dxc`, and `test_shaderc_rootsig` using the
+[focused CMake test workflow](../../scripts/cmake/README.md). These cover shader
+compilation, native reflection, and root-signature handling in the production
+compiler.
 
 ## Linux compatibility
 
@@ -174,7 +163,7 @@ environment's system-library requirements. The packages do not bundle a newer
 glibc or libstdc++.
 
 Building on a newer workstation is not evidence of compatibility with the
-release baseline. Run the prototype on the baseline environment and inspect
+release baseline. Run the shaderc tests on the baseline environment and inspect
 the installed binaries' ELF dependencies and symbol versions before publishing
 packages. A compiler may require a newer C++ language version without requiring
 a newer runtime; the source build and runtime checks establish that separately.
@@ -236,22 +225,6 @@ a newer runtime; the source build and runtime checks establish that separately.
   using the packaged compiler DLL. The packaging tests cover runtime archive
   contents and package installation across six host/target combinations.
 - The normal Windows external build graph contains no DXC targets.
-
-## Source-build validation (2026-10-20)
-
-- Windows x64: built and installed from the parent `external` project used by
-  `build_ext`. The prototype passed for SM6.0 vertex, pixel, and compute shaders
-  with root-signature versions 1.0 and 1.1. Import inspection found only Windows
-  system DLL dependencies, with no dynamic MSVC CRT dependency. A repeated build
-  reported no work.
-- Linux x64: built with GCC 9.4 on Ubuntu 20.04/WSL, using the original glibc
-  2.31 and no replacement runtime libraries. Both prototype variants passed
-  against the installed executable, including native reflection compiled against
-  the installed headers. Reflected layouts and serialized root signatures match
-  the Windows build.
-- The Linux compiler library's highest referenced GLIBC and GLIBCXX symbol
-  versions were `GLIBC_2.29` and `GLIBCXX_3.4.21`. These are observations for this
-  build, not a claim of testing every distribution with those versions.
 
 GPU execution and private platform compilers still require their own validation.
 No changes to the production shader compilation path or platform-specific
