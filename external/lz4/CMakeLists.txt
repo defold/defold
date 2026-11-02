@@ -6,6 +6,9 @@ include(defold)
 project(lz4 VERSION 1.10.0 LANGUAGES C)
 
 set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}/ext" CACHE PATH "External library install prefix" FORCE)
+if(DEFOLD_EXTERNAL_INSTALL_PREFIX)
+  set(CMAKE_INSTALL_PREFIX "${DEFOLD_EXTERNAL_INSTALL_PREFIX}" CACHE PATH "External library install prefix" FORCE)
+endif()
 
 add_library(lz4 STATIC src/lz4.c src/lz4hc.c)
 target_link_libraries(lz4 PRIVATE defold_sdk)

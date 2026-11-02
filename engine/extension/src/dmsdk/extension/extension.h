@@ -206,6 +206,36 @@ HContextRegistry ExtensionAppParamsGetContextRegistry(ExtensionAppParams* params
  */
 HContextRegistry ExtensionParamsGetContextRegistry(ExtensionParams* params);
 
+/*# extension parameter enumeration
+ *
+ * Parameters available through [ref:ExtensionParamsGetFloat].
+ *
+ * @enum
+ * @name ExtensionParam
+ * @member EXTENSION_PARAM_DT engine update delta time
+ */
+typedef enum ExtensionParam
+{
+    EXTENSION_PARAM_DT,
+} ExtensionParam;
+
+/*#
+ * Gets a float from the extension callback parameters.
+ *
+ * Supported parameters:
+ *
+ * | Parameter | Description |
+ * | --------- | ----------- |
+ * | `EXTENSION_PARAM_DT` | Current engine update delta in seconds, before collection-proxy time scaling. Zero outside the extension update callback. |
+ *
+ * @name ExtensionParamsGetFloat
+ * @param params [type:const ExtensionParams*] valid parameters for the current callback
+ * @param param [type:ExtensionParam] parameter to read, for example `EXTENSION_PARAM_DT`
+ * @param out_value [type:float*] output value; left unchanged if the parameter is unsupported
+ * @return result [type:bool] true if the parameter is supported, otherwise false
+ */
+bool ExtensionParamsGetFloat(const ExtensionParams* params, ExtensionParam param, float* out_value);
+
 /*#
  * Sets a context using a specified name
  * @note Deprecated. Use [ref:ContextRegistrySet] on [ref:HContextRegistry] instead.

@@ -3,9 +3,9 @@
 
 #include "table.h"
 
-#include "atomic.h"
+#include "bitset.h"
 #include "core.h"
-#include "ctz.h"
+#include "platform.h"
 
 #include <stdbool.h>
 #include <string.h>
@@ -14,8 +14,6 @@
 b2AtomicInt b2_findCount;
 b2AtomicInt b2_probeCount;
 #endif
-
-// todo compare with https://github.com/skeeto/scratch/blob/master/set32/set32.h
 
 b2HashSet b2CreateSet( int capacity )
 {
@@ -32,8 +30,8 @@ b2HashSet b2CreateSet( int capacity )
 	}
 
 	set.count = 0;
-	set.items = b2Alloc( capacity * sizeof( b2SetItem ) );
-	memset( set.items, 0, capacity * sizeof( b2SetItem ) );
+	set.items = b2Alloc( set.capacity * sizeof( b2SetItem ) );
+	memset( set.items, 0, set.capacity * sizeof( b2SetItem ) );
 
 	return set;
 }
@@ -52,35 +50,16 @@ void b2ClearSet( b2HashSet* set )
 	memset( set->items, 0, set->capacity * sizeof( b2SetItem ) );
 }
 
-// I need a good hash because the keys are built from pairs of increasing integers.
-// A simple hash like hash = (integer1 XOR integer2) has many collisions.
-// https://lemire.me/blog/2018/08/15/fast-strongly-universal-64-bit-hashing-everywhere/
-// https://preshing.com/20130107/this-hash-set-is-faster-than-a-judy-array/
-// todo try: https://www.jandrewrogers.com/2019/02/12/fast-perfect-hashing/
-// todo try: https://probablydance.com/2018/06/16/fibonacci-hashing-the-optimization-that-the-world-forgot-or-a-better-alternative-to-integer-modulo/
-static uint32_t b2KeyHash( uint64_t key )
+static int b2FindSlot( const b2HashSet* set, uint64_t key, uint64_t hash )
 {
-	// Murmur hash
-	uint64_t h = key;
-	h ^= h >> 33;
-	h *= 0xff51afd7ed558ccduLL;
-	h ^= h >> 33;
-	h *= 0xc4ceb9fe1a85ec53uLL;
-	h ^= h >> 33;
-
-	return (uint32_t)h;
-}
-
-static int b2FindSlot( const b2HashSet* set, uint64_t key, uint32_t hash )
-{
-#if B2_SNOOP_TABLE_COUNTERS 
-		b2AtomicFetchAddInt( &b2_findCount, 1 );
+#if B2_SNOOP_TABLE_COUNTERS
+	b2AtomicFetchAddInt( &b2_findCount, 1 );
 #endif
 
 	uint32_t capacity = set->capacity;
-	int index = hash & ( capacity - 1 );
+	uint32_t index = (uint32_t)hash & ( capacity - 1 );
 	const b2SetItem* items = set->items;
-	while ( items[index].hash != 0 && items[index].key != key )
+	while ( items[index].key != 0 && items[index].key != key )
 	{
 #if B2_SNOOP_TABLE_COUNTERS
 		b2AtomicFetchAddInt( &b2_probeCount, 1 );
@@ -91,14 +70,13 @@ static int b2FindSlot( const b2HashSet* set, uint64_t key, uint32_t hash )
 	return index;
 }
 
-static void b2AddKeyHaveCapacity( b2HashSet* set, uint64_t key, uint32_t hash )
+static void b2AddKeyHaveCapacity( b2HashSet* set, uint64_t key, uint64_t hash )
 {
 	int index = b2FindSlot( set, key, hash );
 	b2SetItem* items = set->items;
-	B2_ASSERT( items[index].hash == 0 );
 
+	B2_ASSERT( items[index].key == 0 );
 	items[index].key = key;
-	items[index].hash = hash;
 	set->count += 1;
 }
 
@@ -120,13 +98,14 @@ static void b2GrowTable( b2HashSet* set )
 	for ( uint32_t i = 0; i < oldCapacity; ++i )
 	{
 		b2SetItem* item = oldItems + i;
-		if ( item->hash == 0 )
+		if ( item->key == 0 )
 		{
 			// this item was empty
 			continue;
 		}
 
-		b2AddKeyHaveCapacity( set, item->key, item->hash );
+		uint64_t hash = b2KeyHash( item->key );
+		b2AddKeyHaveCapacity( set, item->key, hash );
 	}
 
 	B2_ASSERT( set->count == oldCount );
@@ -137,8 +116,16 @@ static void b2GrowTable( b2HashSet* set )
 bool b2ContainsKey( const b2HashSet* set, uint64_t key )
 {
 	// key of zero is a sentinel
-	B2_ASSERT( key != 0 );
-	uint32_t hash = b2KeyHash( key );
+	B2_VALIDATE( key != 0 );
+	uint64_t hash = b2KeyHash( key );
+	int index = b2FindSlot( set, key, hash );
+	return set->items[index].key == key;
+}
+
+bool b2ContainsHashedKey( const b2HashSet* set, uint64_t key, uint64_t hash )
+{
+	// key of zero is a sentinel
+	B2_VALIDATE( key != 0 );
 	int index = b2FindSlot( set, key, hash );
 	return set->items[index].key == key;
 }
@@ -153,14 +140,14 @@ bool b2AddKey( b2HashSet* set, uint64_t key )
 	// key of zero is a sentinel
 	B2_ASSERT( key != 0 );
 
-	uint32_t hash = b2KeyHash( key );
+	uint64_t hash = b2KeyHash( key );
 	B2_ASSERT( hash != 0 );
 
 	int index = b2FindSlot( set, key, hash );
-	if ( set->items[index].hash != 0 )
+	if ( set->items[index].key != 0 )
 	{
 		// Already in set
-		B2_ASSERT( set->items[index].hash == hash && set->items[index].key == key );
+		B2_ASSERT( set->items[index].key == key );
 		return true;
 	}
 
@@ -176,10 +163,10 @@ bool b2AddKey( b2HashSet* set, uint64_t key )
 // See https://en.wikipedia.org/wiki/Open_addressing
 bool b2RemoveKey( b2HashSet* set, uint64_t key )
 {
-	uint32_t hash = b2KeyHash( key );
+	uint64_t hash = b2KeyHash( key );
 	int i = b2FindSlot( set, key, hash );
 	b2SetItem* items = set->items;
-	if ( items[i].hash == 0 )
+	if ( items[i].key == 0 )
 	{
 		// Not in set
 		return false;
@@ -187,7 +174,6 @@ bool b2RemoveKey( b2HashSet* set, uint64_t key )
 
 	// Mark item i as unoccupied
 	items[i].key = 0;
-	items[i].hash = 0;
 
 	B2_ASSERT( set->count > 0 );
 	set->count -= 1;
@@ -198,13 +184,14 @@ bool b2RemoveKey( b2HashSet* set, uint64_t key )
 	for ( ;; )
 	{
 		j = ( j + 1 ) & ( capacity - 1 );
-		if ( items[j].hash == 0 )
+		if ( items[j].key == 0 )
 		{
 			break;
 		}
 
 		// k is the first item for the hash of j
-		int k = items[j].hash & ( capacity - 1 );
+		uint64_t hash_j = b2KeyHash( items[j].key );
+		int k = hash_j & ( capacity - 1 );
 
 		// determine if k lies cyclically in (i,j]
 		// i <= j: | i..k..j |
@@ -229,10 +216,23 @@ bool b2RemoveKey( b2HashSet* set, uint64_t key )
 
 		// Mark item j as unoccupied
 		items[j].key = 0;
-		items[j].hash = 0;
 
 		i = j;
 	}
 
 	return true;
+}
+
+// This function is here because ctz.h is included by
+// this file but not in bitset.c
+int b2CountSetBits( b2BitSet* bitSet )
+{
+	int popCount = 0;
+	uint32_t blockCount = bitSet->blockCount;
+	for ( uint32_t i = 0; i < blockCount; ++i )
+	{
+		popCount += b2PopCount64( bitSet->bits[i] );
+	}
+
+	return popCount;
 }

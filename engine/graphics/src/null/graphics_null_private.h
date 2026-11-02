@@ -134,6 +134,7 @@ namespace dmGraphics
         HJobContext                        m_JobContext;
 
         SetTextureAsyncState               m_SetTextureAsyncState;
+        dmArray<HTexture>                  m_AsyncDeleteTextures;
         VertexStreamBufferList             m_VertexStreams[MAX_VERTEX_BUFFERS];
 
         HVertexDeclaration                 m_VertexDeclarations[MAX_VERTEX_BUFFERS];

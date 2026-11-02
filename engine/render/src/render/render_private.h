@@ -422,6 +422,7 @@ namespace dmRender
         DebugRenderer               m_DebugRenderer;
         TextContext                 m_TextContext;
         dmScript::HContext          m_ScriptContext;
+        HRenderExecution            m_Execution;
         RenderScriptContext         m_RenderScriptContext;
         dmArray<RenderObject*>      m_RenderObjects;
         dmScript::ScriptWorld*      m_ScriptWorld;

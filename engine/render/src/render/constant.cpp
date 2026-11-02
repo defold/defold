@@ -28,6 +28,7 @@ Constant::Constant(dmhash_t name_hash, dmGraphics::HUniformLocation location)
     , m_Type(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
     , m_Location(location)
     , m_NumValues(0)
+    , m_AllocatedValues(0)
 {
 }
 

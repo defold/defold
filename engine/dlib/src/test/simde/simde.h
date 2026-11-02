@@ -1654,7 +1654,7 @@ simde_mm512_or_si512(simde__m512i a, simde__m512i b)
     a_ = simde__m512i_to_private(a),
     b_ = simde__m512i_to_private(b);
 
-    for (size_t i = 0; i < (sizeof(r_.i32) / sizeof(r_.i32[0])); i++)
+    for (size_t i = 0; i < (sizeof(r_.i32f) / sizeof(r_.i32f[0])); i++)
     {
         r_.i32f[i] = a_.i32f[i] | b_.i32f[i];
     }

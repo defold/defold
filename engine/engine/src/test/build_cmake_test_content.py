@@ -61,6 +61,7 @@ def main():
     parser.add_argument("--stage-root", required=True)
     parser.add_argument("--stamp", required=True)
     parser.add_argument("--platform", required=True)
+    parser.add_argument("--use-uncompressed-lua-source", action="store_true")
     parser.add_argument("--java", required=True)
     parser.add_argument("--builtins-root")
     parser.add_argument("--classpath", action="append", required=True)
@@ -84,7 +85,7 @@ def main():
         "--platform=%s" % args.platform,
         "--variant=debug",
     ]
-    if args.platform in ("js-web", "wasm-web", "wasm_pthread-web"):
+    if args.use_uncompressed_lua_source or args.platform in ("js-web", "wasm-web", "wasm_pthread-web"):
         bob_flags.append("--use-uncompressed-lua-source")
 
     print("  Bob root: %s" % bob_workspace_root, flush=True)

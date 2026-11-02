@@ -36,6 +36,7 @@
             [editor.lsp :as lsp]
             [editor.notifications :as notifications]
             [editor.outline :as outline]
+            [editor.placeholder-resource :as placeholder-resource]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
@@ -59,7 +60,7 @@
             [util.eduction :as e]
             [util.fn :as fn]
             [util.thread-util :as thread-util])
-  (:import [clojure.lang ExceptionInfo]
+  (:import [clojure.lang ArityException ExceptionInfo]
            [java.io File FileNotFoundException]
            [java.util.concurrent.atomic AtomicLong]
            [org.apache.commons.io FilenameUtils]))
@@ -80,8 +81,11 @@
 (defn code-transpilers [basis]
   (g/graph-value basis :code-transpilers))
 
-(defn resource-node-type [resource]
-  (:node-type (resource/resource-type resource)))
+(defn- resource-type->node-type [resource-type]
+  (or (:node-type resource-type)
+      placeholder-resource/PlaceholderResourceNode))
+
+(def resource-node-type (comp resource-type->node-type resource/resource-type))
 
 (defn make-load-opts-in-evaluation-context [project evaluation-context]
   (let [{:keys [basis-ref]} evaluation-context
@@ -113,13 +117,27 @@
   (g/with-auto-evaluation-context evaluation-context
     (make-load-opts-in-evaluation-context project evaluation-context)))
 
+(defn- resource-load-error [node-id resource exception]
+  (if-not (instance? ArityException exception)
+    (resource-io/invalid-content-error node-id nil :fatal resource exception)
+    ;; Only callback arity errors get extension-update advice. Other illegal
+    ;; arguments can come from malformed content in built-in resource types.
+    (g/->error
+      node-id nil :fatal nil
+      (localization/message
+        "error.resource-not-loaded-update-extension"
+        {"resource" (resource/proj-path resource)})
+      {:type :invalid-content
+       :resource resource
+       :exception exception})))
+
 (defn- load-resource-node [{:keys [project] :as load-opts} {:keys [node-id resource resource-type] :as node-load-info}]
   (let [load-error-tx-data
         (fn load-error-tx-data [exception]
           (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception exception)
-          (let [node-type (:node-type resource-type)
-                invalid-content-error (resource-io/invalid-content-error node-id nil :fatal resource exception)]
-            (g/mark-defective node-id node-type invalid-content-error)))
+          (let [node-type (resource-type->node-type resource-type)
+                error-value (resource-load-error node-id resource exception)]
+            (g/mark-defective node-id node-type error-value)))
 
         tx-data
         (try
@@ -143,7 +161,7 @@
           (catch Exception exception
             (load-error-tx-data exception))
           (catch Throwable throwable
-            (let [node-type (:node-type resource-type)
+            (let [node-type (resource-type->node-type resource-type)
                   proj-path (resource/proj-path resource)]
               (throw (ex-info (format "Error when loading resource '%s'" proj-path)
                               {:node-type node-type
@@ -198,6 +216,11 @@
             (try
               (du/measuring resource-metrics (resource/proj-path resource) :find-new-reload-dependencies
                 (coll/not-empty (vec (dependencies-fn read-opts resource source-value))))
+              (catch ArityException exception
+                (log/warn :msg (format "Unable to determine dependencies for resource '%s'"
+                                       (resource/proj-path resource))
+                          :exception exception)
+                (resource-load-error node-id resource exception))
               (catch Exception exception
                 (log/warn :msg (format "Unable to determine dependencies for resource '%s', assuming none."
                                        (resource/proj-path resource))
@@ -211,10 +234,12 @@
               (du/measuring resource-metrics (resource/proj-path resource) :find-new-reload-dependencies
                 (coll/not-empty (vec (prerequisites-fn read-opts resource source-value))))
               (catch Exception exception
-                (resource-io/invalid-content-error node-id nil :fatal resource exception)))))
+                (resource-load-error node-id resource exception)))))
 
         read-error
         (or read-error
+            (when (g/error-value? dependency-proj-paths)
+              dependency-proj-paths)
             (when (g/error-value? prerequisite-result)
               prerequisite-result))
 
@@ -224,7 +249,8 @@
                  :resource resource
                  :resource-type resource-type}
           (and read-result (not (g/error-value? read-result)))
-          (assoc :source-value source-value :disk-sha256 disk-sha256))]
+          (assoc :source-value source-value
+                 :disk-sha256 disk-sha256))]
 
     (if read-error
       (assoc node-load-info :read-error read-error)
@@ -301,11 +327,11 @@
               (make-file-not-found-error node-id resource))
             (catch Exception exception
               (log/warn :msg (format "Unable to read resource '%s'" (resource/proj-path resource)) :exception exception)
-              (resource-io/invalid-content-error node-id nil :fatal resource exception))
+              (resource-load-error node-id resource exception))
             (catch Throwable throwable
               (let [proj-path (resource/proj-path resource)]
                 (throw (ex-info (format "Error when reading resource '%s'" proj-path)
-                                {:node-type (:node-type resource-type)
+                                {:node-type (resource-type->node-type resource-type)
                                  :proj-path proj-path}
                                 throwable)))))
 
@@ -354,13 +380,21 @@
 
 (defn ^{:dynamic (system/defold-dev?)} node-load-info-tx-data [{:keys [node-id read-error resource-type] :as node-load-info} load-opts]
   ;; At this point, the node-id refers to a created node in the graph.
-  (e/concat
-    (g/materialize-shell node-id)
-    (g/set-property node-id :loaded true)
-    (if read-error
-      (let [node-type (:node-type resource-type)]
-        (g/mark-defective node-id node-type read-error))
-      (load-resource-node load-opts node-load-info))))
+  (let [load-tx-data
+        (if-not read-error
+          (load-resource-node load-opts node-load-info)
+          (let [node-type (resource-type->node-type resource-type)]
+            (g/mark-defective node-id node-type read-error)))]
+
+    (e/concat
+      (g/materialize-shell node-id)
+      (g/set-property node-id :loaded true)
+      (g/expand-ec
+        (fn apply-resource-load-tx-data [evaluation-context]
+          ;; Connection, reading, or source-value conversion may have failed.
+          ;; Keep that error and avoid applying load or save connections.
+          (when-not (g/defective? @(:basis-ref evaluation-context) node-id)
+            load-tx-data))))))
 
 (defn- sort-node-load-infos-for-loading
   "Sorts the node-load-infos so that referenced nodes are loaded before the
@@ -518,8 +552,22 @@
         ;; Types whose source-value is a hash must supply their own
         ;; :search-value-fn.
         (when-let [source-value (or source-value read-error)]
-          (g/set-property node-id :source-value
-            (resource-node/save-value->source-value source-value (resource/resource-type resource))))))))
+          (let [resource-type (resource/resource-type resource)
+
+                stored-source-value
+                (try
+                  (resource-node/save-value->source-value source-value resource-type)
+                  (catch ArityException exception
+                    (log/warn :msg (format "Unable to convert source value for resource '%s'"
+                                           (resource/proj-path resource))
+                              :exception exception)
+                    (resource-load-error node-id resource exception)))]
+
+            (e/concat
+              (g/set-property node-id :source-value stored-source-value)
+              (when (g/error-value? stored-source-value)
+                (let [node-type (resource-type->node-type resource-type)]
+                  (g/mark-defective node-id node-type stored-source-value))))))))))
 
 (defn log-cache-info! [cache message]
   ;; Disabled during tests to minimize log spam.
@@ -1227,20 +1275,29 @@
   {:pre [(g/node-id? project)
          (g/node-id? node-id)
          (resource/resource? resource)]}
-  (e/concat
-    (let [node-type (:node-type resource-type)
-          node-properties {:_node-id node-id
-                           :resource resource}]
-      (g/add-node
-        (if (nil? (:load-fn resource-type))
-          (g/construct node-type node-properties)
-          (g/construct-shell node-type node-properties
-            (when (resource/loaded? resource)
-              materialize-resource-node)))))
-    (g/connect node-id :node-id+resource project :node-id+resources)
-    (transpiler-tx-data-fn! node-id resource)
-    (when-let [connect-fn (:connect-fn resource-type)]
-      (connect-fn project node-id resource))))
+  (let [node-type (resource-type->node-type resource-type)]
+    (e/concat
+      (let [node-properties {:_node-id node-id
+                             :resource resource}]
+        (g/add-node
+          (if (nil? (:load-fn resource-type))
+            (g/construct node-type node-properties)
+            (g/construct-shell node-type node-properties
+              (when (resource/loaded? resource)
+                materialize-resource-node)))))
+      (g/connect node-id :node-id+resource project :node-id+resources)
+      (transpiler-tx-data-fn! node-id resource)
+      (when-let [connect-fn (:connect-fn resource-type)]
+        (try
+          (g/eager-tx-data
+            (connect-fn project node-id resource))
+          (catch ArityException exception
+            (log/warn :msg (format "Unable to connect resource '%s'" (resource/proj-path resource)) :exception exception)
+            (let [error-value (resource-load-error node-id resource exception)]
+              (e/concat
+                ;; Marking a shell defective must not invoke its load callback.
+                (g/materialize-shell node-id)
+                (g/mark-defective node-id node-type error-value)))))))))
 
 (defn make-resource-nodes-tx-data [project node-id+resource-pairs]
   {:pre [(g/node-id? project)]}
@@ -1261,7 +1318,7 @@
                  (let [resource-type (resource/lookup-resource-type resource editable->type-ext->resource-type)]
                    [node-id resource resource-type])))
          (coll/sort-by (fn [[_node-id _resource resource-type]]
-                         (:k (:node-type resource-type))))
+                         (:k (resource-type->node-type resource-type))))
          (e/map (fn [[node-id resource resource-type]]
                   (make-resource-node-tx-data project transpiler-tx-data-fn! node-id resource resource-type))))))
 
@@ -2030,7 +2087,7 @@
   (when-let [resource (resolve-path-or-resource project path-or-resource evaluation-context)]
     (let [{:keys [basis-ref tx-data-context-atom]} evaluation-context
           resource-type (resource/resource-type resource @basis-ref)
-          node-type (:node-type resource-type)
+          node-type (resource-type->node-type resource-type)
           existing-resource-node-id (get-resource-node project resource evaluation-context)
 
           [node-id creation-tx-data]

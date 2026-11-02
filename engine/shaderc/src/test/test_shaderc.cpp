@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "shaderc.h"
+#include "shaderc_dxc.h"
 
 #include "shaderc_private.h"
 
@@ -277,7 +278,7 @@ TEST(Shaderc, SamplerlessIntegerTextureRetainsNativeResources)
     {
         dmShaderc::ShaderCompilerSPVC* compiler = dmShaderc::NewShaderCompilerSPVC(shader_ctx, languages[i]);
         dmShaderc::ShaderCompilerOptions options;
-        options.m_Version = languages[i] == dmShaderc::SHADER_LANGUAGE_HLSL ? 51 : 22;
+        options.m_Version = languages[i] == dmShaderc::SHADER_LANGUAGE_HLSL ? 60 : 22;
         dmShaderc::ShaderCompileResult* dst = dmShaderc::CompileSPVC(shader_ctx, compiler, options);
         ASSERT_STREQ("", dst->m_LastError);
         ASSERT_NE((const char*)0, FindFirstOccurrence(dst->m_Data, declarations[i]));
@@ -290,7 +291,36 @@ TEST(Shaderc, SamplerlessIntegerTextureRetainsNativeResources)
     free(data);
 }
 
-#if defined(_WIN32)
+// Pixel output metadata preserves sparse target slots and numeric types, excluding depth.
+TEST(Shaderc, HLSLPixelOutputMetadata)
+{
+    const char* source =
+        "struct Out { float4 color:SV_Target0; int2 signedValue:SV_Target2; uint3 unsignedValue:SV_Target5; float depth:SV_Depth; };"
+        "Out main() { Out o; o.color=1; o.signedValue=int2(-1,2); o.unsignedValue=uint3(3,4,5); o.depth=0.5; return o; }";
+    IDxcBlob* code = 0;
+    IDxcBlobUtf8* errors = 0;
+    ID3D12ShaderReflection* reflection = 0;
+    ASSERT_EQ(S_OK, dmShaderc::CompileDXC(source, strlen(source), "main", "ps_6_0", &code, &errors, &reflection));
+    dmArray<dmShaderc::HLSLShaderOutput> outputs;
+    ASSERT_EQ(S_OK, dmShaderc::GetHLSLShaderOutputs(reflection, outputs));
+    ASSERT_EQ(3u, outputs.Size());
+    const uint32_t locations[] = {0, 2, 5};
+    const uint32_t components[] = {4, 2, 3};
+    const dmShaderc::BaseType types[] = {dmShaderc::BASE_TYPE_FP32, dmShaderc::BASE_TYPE_INT32, dmShaderc::BASE_TYPE_UINT32};
+    for (uint32_t i = 0; i < outputs.Size(); ++i)
+    {
+        ASSERT_EQ(locations[i], outputs[i].m_Location);
+        ASSERT_EQ(components[i], outputs[i].m_ComponentCount);
+        ASSERT_EQ(types[i], outputs[i].m_Type);
+    }
+    reflection->Release();
+    code->Release();
+    if (errors)
+    {
+        errors->Release();
+    }
+}
+
 // HLSL binary compilation must succeed and preserve the samplerless texture binding.
 TEST(Shaderc, SamplerlessIntegerTextureCompilesToHLSLBinary)
 {
@@ -300,7 +330,7 @@ TEST(Shaderc, SamplerlessIntegerTextureCompilesToHLSLBinary)
     dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
     dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
     dmShaderc::ShaderCompilerOptions options;
-    options.m_Version = 51;
+    options.m_Version = 60;
     dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
     ASSERT_NE((void*)0, dst);
     ASSERT_STREQ("", dst->m_LastError);
@@ -309,13 +339,16 @@ TEST(Shaderc, SamplerlessIntegerTextureCompilesToHLSLBinary)
     ASSERT_EQ(dmHashString64("band_texture"), dst->m_HLSLResourceMappings[0].m_NameHash);
     ASSERT_EQ(0u, dst->m_HLSLResourceMappings[0].m_ShaderResourceSet);
     ASSERT_EQ(0u, dst->m_HLSLResourceMappings[0].m_ShaderResourceBinding);
+    ASSERT_EQ(1u, dst->m_HLSLShaderOutputs.Size());
+    ASSERT_EQ(0u, dst->m_HLSLShaderOutputs[0].m_Location);
+    ASSERT_EQ(dmShaderc::BASE_TYPE_FP32, dst->m_HLSLShaderOutputs[0].m_Type);
+    ASSERT_EQ(4u, dst->m_HLSLShaderOutputs[0].m_ComponentCount);
     ASSERT_GT(dst->m_HLSLRootSignature.Size(), 0u);
     dmShaderc::FreeShaderCompileResult(dst);
     dmShaderc::DeleteShaderCompiler(compiler);
     dmShaderc::DeleteShaderContext(shader_ctx);
     free(data);
 }
-#endif
 
 TEST(Shaderc, UniformBlocksAreDefault)
 {
@@ -701,7 +734,7 @@ TEST(Shaderc, TestHLSLSimple)
     dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
 
     dmShaderc::ShaderCompilerOptions options;
-    options.m_Version    = 51;
+    options.m_Version    = 60;
     options.m_EntryPoint = "main";
 
     dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
@@ -726,7 +759,7 @@ TEST(Shaderc, HLSLStorageBufferRootSignature)
     dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_COMPUTE, data, data_size);
     dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
     dmShaderc::ShaderCompilerOptions options;
-    options.m_Version = 51;
+    options.m_Version = 60;
     dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
     ASSERT_NE((void*) 0, result);
     ASSERT_GT(result->m_Data.Size(), 4u);
@@ -784,7 +817,7 @@ TEST(Shaderc, HLSLStorageBufferRootParameterIndicesWithOverride)
     dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_COMPUTE, data, data_size);
     dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
     dmShaderc::ShaderCompilerOptions options;
-    options.m_Version = 51;
+    options.m_Version = 60;
     options.m_RootSignatureOverride = "[RootSignature(\"DescriptorTable(UAV(u3,space=1)),DescriptorTable(SRV(t2,space=1))\")]";
     dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
     ASSERT_NE((void*) 0, result);
@@ -838,7 +871,7 @@ static void TestHLSLStorageBufferType(const char* path, const char* expected_typ
     dmShaderc::ShaderCompilerSPVC* compiler = dmShaderc::NewShaderCompilerSPVC(shader_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
 
     dmShaderc::ShaderCompilerOptions options;
-    options.m_Version    = 51;
+    options.m_Version    = 60;
     options.m_EntryPoint = "main";
 
     dmShaderc::ShaderCompileResult* result = dmShaderc::CompileSPVC(shader_ctx, compiler, options);
@@ -859,7 +892,6 @@ TEST(Shaderc, TestHLSLStorageBuffersUseByteAddressResources)
     TestHLSLStorageBufferType("./build/src/test/data/ssbo_readonly.spv", "ByteAddressBuffer", "register(t3, space2)");
 }
 
-#if defined(_WIN32)
 // Verifies readonly storage buffers retain their set, binding and root parameter index.
 TEST(Shaderc, TestHLSLStorageBufferResourceMapping)
 {
@@ -871,7 +903,7 @@ TEST(Shaderc, TestHLSLStorageBufferResourceMapping)
     dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
 
     dmShaderc::ShaderCompilerOptions options;
-    options.m_Version    = 51;
+    options.m_Version    = 60;
     options.m_EntryPoint = "main";
 
     dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(shader_ctx, compiler, options);
@@ -888,7 +920,6 @@ TEST(Shaderc, TestHLSLStorageBufferResourceMapping)
     dmShaderc::DeleteShaderContext(shader_ctx);
     free(data);
 }
-#endif
 
 TEST(Shaderc, TestMetal)
 {
@@ -1031,7 +1062,7 @@ TEST(Shaderc, HLSLWritableImageRootBindings)
     dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_COMPUTE, data, size);
     dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
     dmShaderc::ShaderCompilerOptions options;
-    options.m_Version = 51;
+    options.m_Version = 60;
     dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
     ASSERT_NE((void*) 0, result);
     ASSERT_GT(result->m_Data.Size(), 0u);
@@ -1071,7 +1102,7 @@ TEST(Shaderc, HLSLRootParameterIndicesWithOverride)
     dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
     dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
     dmShaderc::ShaderCompilerOptions options;
-    options.m_Version = 51;
+    options.m_Version = 60;
     options.m_EntryPoint = "main";
 
     dmShaderc::ShaderCompileResult* original = dmShaderc::Compile(context, compiler, options);
@@ -1321,7 +1352,7 @@ static int TestStandalone(const char* filename, const char* languageStr, const c
         {
             dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
             dmShaderc::ShaderCompilerOptions options;
-            options.m_Version                    = 51;
+            options.m_Version                    = 60;
             options.m_No420PackExtension         = 0;
             options.m_GlslEmitUboAsPlainUniforms = 0;
             options.m_GlslEs                     = 0;

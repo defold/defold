@@ -21,7 +21,9 @@ endif()
 set(STYLE_DEFAULTS [=[#else
   hb_blob_ptr_t<OT::fvar> fvar (hb_sanitize_context_t ().reference_table<OT::fvar> (face));
   hb_ot_var_axis_info_t axis;
-  if (fvar->find_axis_info (style_tag, &axis))
+  bool found = fvar->find_axis_info (style_tag, &axis);
+  fvar.destroy ();
+  if (found)
     return axis.default_value;
 #endif
 

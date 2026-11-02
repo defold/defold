@@ -72,6 +72,7 @@
                      [net.java.dev.jna/jna-platform               "4.1.0"]
 
                      [com.defold.lib/bob                          "1.0"]
+                     [com.defold.lib/dmengine                     "1.0"]
                      [com.defold.lib/icu4j                        "1.0"]
 
                      [metosin/reitit-core "0.8.0-alpha1"]

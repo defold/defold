@@ -2860,6 +2860,13 @@ TYPED_TEST(PhysicsTest, ScaledImpulses)
     steps = 10;
     float y = 0.0f;
     float applied_impulse = ud.m_AppliedImpulse;
+#if defined(PHYSICS_TEST_BOX2D)
+    // Box2D v3 reports the last substep's impulse, not the total impact impulse.
+    // Previously duplicate callbacks doubled this value before the test halved it.
+    const float impulse_velocity_factor = 1.0f;
+#else
+    const float impulse_velocity_factor = 0.5f;
+#endif
 #if defined(PHYSICS_TEST_BULLET_3D)
     const float position_tolerance = 0.015f;
 #else
@@ -2867,7 +2874,7 @@ TYPED_TEST(PhysicsTest, ScaledImpulses)
 #endif
 
     for (int i = 0; i < steps; ++i) {
-        (*TestFixture::m_Test.m_ApplyForceFunc)(TestFixture::m_Context, box_co_a, Vector3(0, -applied_impulse * 0.5f / TestFixture::m_StepWorldContext.m_DT + 10, 0), vo_a.m_Position);
+        (*TestFixture::m_Test.m_ApplyForceFunc)(TestFixture::m_Context, box_co_a, Vector3(0, -applied_impulse * impulse_velocity_factor / TestFixture::m_StepWorldContext.m_DT + 10, 0), vo_a.m_Position);
         applied_impulse = 0.0f;
         (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 

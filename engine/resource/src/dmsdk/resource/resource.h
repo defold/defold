@@ -190,6 +190,10 @@ void ResourceRegisterDecryptionFunction(FResourceDecryption decrypt_resource);
 /*#
  * Get (load) a resource from factory
  * @note if successful, it increments the ref count by one
+ * @note An in-flight shared load keeps Create/PostCreate on the thread that first
+ * requested it. That thread must continue updating its resource requests.
+ * @note Resource callbacks can consume already-created dependencies while their
+ * PostCreate is pending. The owning request retains finalization and its result.
  * @name ResourceGet
  * @param factory [type: HResourceFactory] Factory handle
  * @param path [type: const char*] Resource path
@@ -219,7 +223,7 @@ ResourceResult ResourceGetWithExt(HResourceFactory factory, const char* path, co
  * @param factory [type: HResourceFactory] Factory handle
  * @param path_hash [type: dmhash_t] Resource path hash
  * @param resource [type: void**] Created resource
- * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
+ * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success, RESOURCE_RESULT_PENDING while finalization is pending.
  */
 ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t path_hash, void** resource);
 
@@ -230,7 +234,7 @@ ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t path_hash, v
  * @param path_hash [type: dmhash_t] Resource path hash
  * @param ext_hash [type: dmhash_t] Resource extension hash (e.g. "texturec", "ttf"). Must match the extension of the path.
  * @param resource [type: void**] Created resource
- * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success.
+ * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success, RESOURCE_RESULT_PENDING while finalization is pending.
  *                                       RESOURCE_RESULT_INVALID_FILE_EXTENSION if the path extension doesn't match the required extension.
  */
 ResourceResult ResourceGetByHashAndExt(HResourceFactory factory, dmhash_t path_hash, dmhash_t ext_hash, void** resource);
@@ -285,13 +289,15 @@ ResourceResult ResourceGetDescriptorByHash(HResourceFactory factory, dmhash_t pa
 void ResourceRelease(HResourceFactory factory, void* resource);
 
 /*#
- * Hint the preloader what to load before Create is called on the resource.
- * The resources are not guaranteed to be loaded before Create is called.
+ * Declare a direct dependency while decoding a resource in Preload.
+ * The shared resource scheduler creates accepted dependencies before invoking
+ * the resource's Create callback. Create is still called after a dependency
+ * failure so that the resource type can release its preload data.
  * This function can be called from a worker thread.
  * @name ResourcePreloadHint
- * @param preloader [type: dmResource::HResourcePreloadHintInfo] Preloader handle
+ * @param preloader [type: dmResource::HResourcePreloadHintInfo] Dependency-discovery handle supplied to Preload
  * @param path [type: const char*] Resource path
- * @return result [type: bool] if successfully invoking preloader.
+ * @return result [type: bool] true if accepted, false for an invalid path or dependency cycle.
  */
 bool ResourcePreloadHint(HResourcePreloadHintInfo preloader, const char* path);
 
@@ -503,6 +509,9 @@ typedef ResourceResult (*FResourceCreate)(const struct ResourceCreateParams* par
 /*#
  * Resource postcreate function
  * @note returning RESOURCE_CREATE_RESULT_PENDING will result in a repeated callback the following update.
+ * PostCreate must consume its resource's asynchronous results directly. Resource
+ * loading does not dispatch shared job callbacks, including during synchronous Get.
+ * On platforms without workers, PostCreate must advance its own pending work.
  * @typedef
  * @name FResourcePostCreate
  * @param param [type: const dmResource::ResourcePostCreateParams*] Resource parameters
@@ -520,8 +529,10 @@ typedef ResourceResult (*FResourcePostCreate)(const struct ResourcePostCreatePar
 typedef ResourceResult (*FResourceDestroy)(const struct ResourceDestroyParams* params);
 
 /*#
- * Resource recreate function. Recreate resource in-place.
- * @note Beware that any "in flight" resource pointers to the actual resource must remain valid after this call.
+ * Resource recreate function. Prefer recreating the resource in-place.
+ * @note Existing resource pointers must remain valid or be updated in resource-reloaded callbacks.
+ * If replacing the pointer with ResourceDescriptorSetResource, use ResourceDescriptorSetPrevResource
+ * to keep the previous resource alive until those callbacks finish. The resource system then destroys it.
  * @typedef
  * @name FResourceRecreate
  * @param param [type: const dmResource::ResourceRecreateParams*] Resource parameters
