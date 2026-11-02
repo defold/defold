@@ -281,7 +281,7 @@ protected:
 
     void UpdateExtension()
     {
-        ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Update(&m_Params));
+        ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Update(&m_Params, 0.0f));
     }
 
     void EngineDelete()

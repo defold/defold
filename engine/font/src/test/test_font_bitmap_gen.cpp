@@ -78,17 +78,23 @@ static bool                           MakeImageDirectory(const char* directory)
 {
     char path[1024];
     if (!directory[0] || dmStrlCpy(path, directory, sizeof(path)) >= sizeof(path))
+    {
         return false;
+    }
     for (char* cursor = path + 1; *cursor; ++cursor)
     {
         if (*cursor != '/' && *cursor != '\\')
+        {
             continue;
+        }
         char separator = *cursor;
         *cursor = 0;
         dmSys::Result result = dmSys::Mkdir(path, 0755);
         *cursor = separator;
         if (result != dmSys::RESULT_OK && result != dmSys::RESULT_EXIST)
+        {
             return false;
+        }
     }
     dmSys::Result result = dmSys::Mkdir(path, 0755);
     return result == dmSys::RESULT_OK || result == dmSys::RESULT_EXIST;
@@ -98,7 +104,9 @@ static bool LoadImageShader(const char* path, dmArray<char>& data)
 {
     FILE* file = fopen(path, "rb");
     if (!file)
+    {
         return false;
+    }
     fseek(file, 0, SEEK_END);
     long size = ftell(file);
     rewind(file);
@@ -132,7 +140,9 @@ static bool LoadImageShader(const char* path, dmArray<char>& data)
 static void InitializeFontImages()
 {
     if (g_ImageContext)
+    {
         return;
+    }
 #if defined(__linux__)
     // Mesa's optimized 8-bit AoS filtering rounds differently across CPU
     // architectures, which SDF smoothstep amplifies. Use float sampling for
@@ -172,7 +182,9 @@ static void InitializeFontImages()
         const char*                            inputs[] = { "position", "texcoord0", "face_color", "outline_color", "shadow_color", "sdf_params", "layer_mask" };
         dmGraphics::ShaderDesc::ShaderDataType types[] = { dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC2, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3 };
         for (uint32_t j = 0; j < 7; ++j)
+        {
             shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, inputs[j], j, types[j]);
+        }
         if (i == 0)
         {
             shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "effect", 7, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
@@ -184,7 +196,9 @@ static void InitializeFontImages()
         char error[1024] = {};
         g_ImagePrograms[i] = dmGraphics::NewProgram(g_ImageContext, shaders.Get(), error, sizeof(error));
         if (!g_ImagePrograms[i])
+        {
             printf("Font shader: %s\n", error);
+        }
         ASSERT_NE((dmGraphics::HProgram)0, g_ImagePrograms[i]);
     }
 }
@@ -192,10 +206,16 @@ static void InitializeFontImages()
 static void FinalizeFontImages()
 {
     if (!g_ImageContext)
+    {
         return;
+    }
     for (uint32_t i = 0; i < 3; ++i)
+    {
         if (g_ImagePrograms[i])
+        {
             dmGraphics::DeleteProgram(g_ImageContext, g_ImagePrograms[i]);
+        }
+    }
     FontDeleteEffectCache(g_ImageEffects);
     g_ImageEffects = 0;
     dmGraphics::DeleteVertexDeclaration(g_ImageDeclaration);
@@ -250,7 +270,9 @@ static void CreateImageBank(ImageBank& bank, HFont source, const FontGlyphGenPar
         for (int i = 0; i < width * height; ++i)
         {
             for (int channel = 0; channel < 3; ++channel)
+            {
                 bank.m_Atlas[i * 4 + channel] = bank.m_Atlas[i * 4 + channel] * bank.m_Atlas[i * 4 + 3] / 255;
+            }
         }
         FILE* file = fopen("src/test/data/font_render/bmfont_example.fnt", "rb");
         ASSERT_NE((FILE*)0, file);
@@ -259,7 +281,9 @@ static void CreateImageBank(ImageBank& bank, HFont source, const FontGlyphGenPar
         {
             int id, x, y, w, h, ox, oy, advance;
             if (sscanf(line, "char id=%d x=%d y=%d width=%d height=%d xoffset=%d yoffset=%d xadvance=%d", &id, &x, &y, &w, &h, &ox, &oy, &advance) != 8)
+            {
                 continue;
+            }
             // Validate the atlas rectangle before converting dimensions to unsigned byte sizes.
             ASSERT_GE(x, 0);
             ASSERT_GE(y, 0);
@@ -278,7 +302,9 @@ static void CreateImageBank(ImageBank& bank, HFont source, const FontGlyphGenPar
                 glyph.m_Bitmap.m_Data = (uint8_t*)malloc(glyph_bytes);
                 ASSERT_NE((uint8_t*)0, glyph.m_Bitmap.m_Data);
                 for (int row = 0; row < h; ++row)
+                {
                     memcpy(glyph.m_Bitmap.m_Data + (size_t)row * row_bytes, bank.m_Atlas + ((size_t)(y + row) * width + x) * 4, row_bytes);
+                }
             }
             FontGlyphBankGlyph entry = {};
             entry.m_Codepoint = id;
@@ -319,12 +345,14 @@ static void CreateImageBank(ImageBank& bank, HFont source, const FontGlyphGenPar
     }
     // BMFont files need not be sorted, while the provider uses binary search.
     for (uint32_t i = 1; i < bank.m_Entries.Size(); ++i)
+    {
         for (uint32_t j = i; j > 0 && bank.m_Entries[j].m_Codepoint < bank.m_Entries[j - 1].m_Codepoint; --j)
         {
             FontGlyphBankGlyph tmp = bank.m_Entries[j];
             bank.m_Entries[j] = bank.m_Entries[j - 1];
             bank.m_Entries[j - 1] = tmp;
         }
+    }
     for (uint32_t i = 0; i < bank.m_Entries.Size(); ++i)
     {
         bank.m_Provider.m_MaxAscent = dmMath::Max(bank.m_Provider.m_MaxAscent, bank.m_Entries[i].m_Ascent);
@@ -340,6 +368,7 @@ static bool ResolveImageGlyph(void* context, const TextGlyph& glyph, FontLayoutC
 {
     dmArray<ImageGlyph>* cache = (dmArray<ImageGlyph>*)context;
     for (uint32_t i = 0; i < cache->Size(); ++i)
+    {
         if ((*cache)[i].m_Font == glyph.m_Font && (*cache)[i].m_Index == glyph.m_GlyphIndex)
         {
             output->m_Glyph = &(*cache)[i].m_Glyph;
@@ -347,6 +376,7 @@ static bool ResolveImageGlyph(void* context, const TextGlyph& glyph, FontLayoutC
             output->m_CellY = 0;
             return true;
         }
+    }
     return false;
 }
 
@@ -354,13 +384,17 @@ static void CopyFontImageGlyph(const FontGlyphBitmap& bitmap, const uint8_t* dat
                                uint32_t left, uint32_t top, uint32_t atlas_width, dmArray<uint8_t>& atlas)
 {
     for (uint32_t y = 0; y < bitmap.m_Height; ++y)
+    {
         for (uint32_t x = 0; x < bitmap.m_Width; ++x)
         {
             uint32_t dst = ((top + y) * atlas_width + left + x) * 4;
             uint32_t src = (y * bitmap.m_Width + x) * bitmap.m_Channels;
             for (uint32_t channel = 0; channel < 4; ++channel)
+            {
                 atlas[dst + channel] = channel == 3 && !rgba ? 255 : data[src + (bitmap.m_Channels == 1 ? 0 : channel)];
+            }
         }
+    }
 }
 
 static dmGraphics::HTexture CreateFontImageTexture(uint32_t atlas_width, uint32_t atlas_height, const dmArray<uint8_t>& atlas)
@@ -416,6 +450,7 @@ static void WriteFontImage(const char* directory, const char* name, uint32_t wid
     // fontviewer's ConvertBgraToRgbaAndUpdateBounds. Do not flip it twice.
     uint32_t left = width, top = height, right = 0, bottom = 0;
     for (uint32_t y = 0; y < height; ++y)
+    {
         for (uint32_t x = 0; x < width; ++x)
         {
             uint8_t* pixel = pixels.Begin() + (y * width + x) * 4;
@@ -430,6 +465,7 @@ static void WriteFontImage(const char* directory, const char* name, uint32_t wid
                 bottom = dmMath::Max(bottom, y);
             }
         }
+    }
     ASSERT_LE(left, right);
     ASSERT_LE(top, bottom);
     // Detect capture clipping independently of the likeness comparison.
@@ -587,8 +623,8 @@ static void TestFontImage(const FontImageCase& c)
     const bool  arabic = strcmp(c.m_Source, "arabic") == 0;
     const bool  paragraph = arabic || strcmp(c.m_Source, "latin") == 0;
     const char* path = arabic ? "src/test/data/NotoSansArabic-Regular.ttf" : paragraph ? "src/test/data/NotoSans-Regular.ttf" :
-    strncmp(c.m_Source, "otf", 3) == 0                                                 ? "src/test/data/SourceCodePro-Regular.otf" :
-                                                                                         "src/test/data/WorkSans.ttf";
+                       strncmp(c.m_Source, "otf", 3) == 0 ? "src/test/data/SourceCodePro-Regular.otf" :
+                       "src/test/data/WorkSans.ttf";
     HFont       source = FontLoadFromPath(path);
     ASSERT_NE((HFont)0, source);
     FontGlyphGenParams params;
@@ -665,13 +701,17 @@ static void TestFontImage(const FontImageCase& c)
     }
     ASSERT_GT(TextLayoutGetGlyphCount(layout), 0u);
     if (paragraph)
+    {
         ASSERT_GT(TextLayoutGetLineCount(layout), 1u);
+    }
     if (arabic)
     {
         bool rtl = false;
         bool shaped = false;
         for (uint32_t i = 0; i < TextLayoutGetParagraphCount(layout); ++i)
+        {
             rtl |= TextLayoutGetParagraphs(layout)[i].m_Direction == TEXT_DIRECTION_RTL;
+        }
         for (uint32_t i = 0; i < TextLayoutGetGlyphCount(layout); ++i)
         {
             const TextGlyph& glyph = TextLayoutGetGlyphs(layout)[i];
@@ -694,7 +734,9 @@ static void TestFontImage(const FontImageCase& c)
         TextGlyph&            text = text_glyphs[i];
         FontLayoutCachedGlyph cached;
         if (ResolveImageGlyph(&glyphs, text, &cached) || dmUtf8::IsWhiteSpace(text.m_Codepoint))
+        {
             continue;
+        }
         ImageGlyph image = {};
         image.m_Font = text.m_Font;
         image.m_Index = text.m_GlyphIndex;
@@ -716,7 +758,9 @@ static void TestFontImage(const FontImageCase& c)
         glyphs.Push(image);
     }
     for (uint32_t i = 0; i < glyphs.Size(); ++i)
+    {
         atlas_height = dmMath::Max(atlas_height, (uint32_t)(max_ascent - glyphs[i].m_Glyph.m_Ascent + glyphs[i].m_Glyph.m_Bitmap.m_Height + 2));
+    }
     dmArray<uint8_t> atlas;
     atlas.SetCapacity(atlas_width * atlas_height * 4);
     atlas.SetSize(atlas.Capacity());
@@ -780,9 +824,13 @@ static void TestFontImage(const FontImageCase& c)
     ASSERT_EQ(metrics.m_VertexCount, FontCreateLayoutVertices(config, metrics, vertices.Begin(), vertices.Size()));
     bool outline_data = false;
     for (uint32_t i = 0; i < vertices.Size(); ++i)
+    {
         outline_data |= vertices[i].m_OutlineColor[3] != 0 && vertices[i].m_LayerMasks[1] != 0;
+    }
     if (!fnt && !c.m_Markup && c.m_OutlineAlpha > 0 && c.m_Outline > 0)
+    {
         ASSERT_TRUE(outline_data);
+    }
     // Inspect output alpha as well as screenshots: a duplicated 0.5 multiplier
     // produces 0.25 and must fail independently of reference image availability.
     if (!fnt && !c.m_Markup)
@@ -792,12 +840,18 @@ static void TestFontImage(const FontImageCase& c)
         for (uint32_t i = 0; i < vertices.Size(); ++i)
         {
             if (vertices[i].m_LayerMasks[1] != 0)
+            {
                 outline_alpha = dmMath::Max(outline_alpha, vertices[i].m_OutlineColor[3]);
+            }
             if (vertices[i].m_LayerMasks[2] != 0)
+            {
                 shadow_alpha = dmMath::Max(shadow_alpha, vertices[i].m_ShadowColor[3]);
+            }
         }
         if (c.m_Outline > 0)
+        {
             ASSERT_NEAR(c.m_OutlineAlpha * 255, outline_alpha, 1);
+        }
         ASSERT_NEAR(c.m_ShadowAlpha * 255, shadow_alpha, 1);
     }
     // Fixed origin and dimensions preserve the same sampling phase as the
@@ -825,7 +879,7 @@ static void TestFontImage(const FontImageCase& c)
     dmGraphics::HRenderTarget target = CreateFontImageTarget(width, height);
     dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(g_ImageContext, vertices.Size() * sizeof(FontGlyphVertex), vertices.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
     dmGraphics::HProgram      program = g_ImagePrograms[fnt ? 2 : bitmap ? 1 :
-                                                                           0];
+                                                        0];
     dmArray<uint8_t> previous_pixels;
     if (c.m_Change)
     {
@@ -861,7 +915,9 @@ static void TestFontImage(const FontImageCase& c)
         CaptureFontImage(target, texture, buffer, program, previous_vertices.Size(), width, height, previous_pixels);
         bool previous_visible = false;
         for (uint32_t i = 0; i < previous_pixels.Size(); i += 4)
+        {
             previous_visible |= previous_pixels[i] || previous_pixels[i + 1] || previous_pixels[i + 2];
+        }
         ASSERT_TRUE(previous_visible);
         TextLayoutRelease(previous_layout);
 
@@ -889,11 +945,11 @@ static void TestFontImage(const FontImageCase& c)
     }
     char metadata[1024];
     dmSnPrintf(metadata, sizeof(metadata), "{\"backend\":\"opengl\",\"source\":\"render-target\",\"glyphs\":%u,\"lines\":%u,\"vertices\":%u,\"layers\":%u,\"width\":%u,\"height\":%u,\"origin_x\":%d,\"origin_top\":%d,\"layout_width\":%u,\"font_ascent\":%.9g,\"font_descent\":%.9g,\"outline_data\":%s,\"atlas_width\":%u,\"atlas_height\":%u,\"atlas_hash\":\"%016llx\",\"vertex_hash\":\"%016llx\"}",
-        TextLayoutGetGlyphCount(layout), TextLayoutGetLineCount(layout), metrics.m_VertexCount, metrics.m_LayerCount,
-        width, height, geometry.m_OriginX, geometry.m_OriginTop, geometry.m_LayoutWidth,
-        FontGetAscent(font, FontGetScaleFromSize(font, c.m_Size)), FontGetDescent(font, FontGetScaleFromSize(font, c.m_Size)), outline_data ? "true" : "false",
-        atlas_width, atlas_height, (unsigned long long)dmHashBuffer64(atlas.Begin(), atlas.Size()),
-        (unsigned long long)dmHashBuffer64(vertices.Begin(), vertices.Size() * sizeof(FontGlyphVertex)));
+               TextLayoutGetGlyphCount(layout), TextLayoutGetLineCount(layout), metrics.m_VertexCount, metrics.m_LayerCount,
+               width, height, geometry.m_OriginX, geometry.m_OriginTop, geometry.m_LayoutWidth,
+               FontGetAscent(font, FontGetScaleFromSize(font, c.m_Size)), FontGetDescent(font, FontGetScaleFromSize(font, c.m_Size)), outline_data ? "true" : "false",
+               atlas_width, atlas_height, (unsigned long long)dmHashBuffer64(atlas.Begin(), atlas.Size()),
+               (unsigned long long)dmHashBuffer64(vertices.Begin(), vertices.Size() * sizeof(FontGlyphVertex)));
     WriteFontTestImage(c, width, height, pixels, metadata);
 
     char directory[1024];
@@ -930,7 +986,9 @@ static void TestFontImage(const FontImageCase& c)
             CaptureFontImage(target, texture, buffer, program, actual_vertices.Size(), width, height, captures[1]);
             const int difference = memcmp(captures[0].Begin(), captures[1].Begin(), captures[0].Size());
             if (difference)
+            {
                 printf("%s: node alpha %u, font alpha 0.5, expected byte 255\n", c.m_Name, node_alpha);
+            }
             EXPECT_EQ(0, difference);
             for (uint32_t i = 0; i < DM_ARRAY_SIZE(captures); ++i)
             {
@@ -949,22 +1007,34 @@ static void TestFontImage(const FontImageCase& c)
     dmGraphics::DeleteTexture(g_ImageContext, texture);
     dmGraphics::DeleteRenderTarget(g_ImageContext, target);
     for (uint32_t i = 0; i < glyphs.Size(); ++i)
+    {
         FontFreeGlyph(glyphs[i].m_Font, &glyphs[i].m_Glyph);
+    }
     TextLayoutRelease(layout);
     FontCollectionDestroy(collection);
     if (bank_source)
     {
         FontDestroy(font);
         for (uint32_t i = 0; i < bank.m_Glyphs.Size(); ++i)
+        {
             if (fnt)
+            {
                 free(bank.m_Glyphs[i].m_Bitmap.m_Data);
+            }
             else
+            {
                 FontFreeGlyph(source, &bank.m_Glyphs[i]);
+            }
+        }
         if (bank.m_Atlas)
+        {
             stbi_image_free(bank.m_Atlas);
+        }
     }
     if (fallback)
+    {
         FontDestroy(fallback);
+    }
     FontDestroy(source);
 }
 
@@ -980,16 +1050,16 @@ TEST(FontBitmapManual, Render)
 static void PrintUsage(const char* executable)
 {
     printf(
-    "Usage: %s [--output folder] [--case matrix-case | manual options]\n"
-    "No case/options: generate the complete supported matrix.\n"
-    "Manual defaults: ttf_sdf, size 40, single layer, outline 4, opaque face/outline, no shadow.\n"
-    "  --source ttf_sdf|otf_sdf|ttf_bitmap|otf_bitmap|ttf_sdf_bank|otf_sdf_bank|ttf_bitmap_bank|otf_bitmap_bank|fnt|ttf_vector|otf_vector|ttf_vector_bank|otf_vector_bank\n"
-    "  --layers single|multi  --text text  --markup\n"
-    "  --size pixels  --outline pixels  --outline-alpha 0..1  --face-alpha 0..1\n"
-    "  --shadow-alpha 0..1  --shadow-blur pixels  --shadow-x pixels  --shadow-y pixels\n"
-    "  --alignment-preview  Render a pivot reference candidate using editor TTF metrics\n"
-    "Manual output: <folder>/<layout>-<rich|plain>/manual.png\n",
-    executable);
+        "Usage: %s [--output folder] [--case matrix-case | manual options]\n"
+        "No case/options: generate the complete supported matrix.\n"
+        "Manual defaults: ttf_sdf, size 40, single layer, outline 4, opaque face/outline, no shadow.\n"
+        "  --source ttf_sdf|otf_sdf|ttf_bitmap|otf_bitmap|ttf_sdf_bank|otf_sdf_bank|ttf_bitmap_bank|otf_bitmap_bank|fnt|ttf_vector|otf_vector|ttf_vector_bank|otf_vector_bank\n"
+        "  --layers single|multi  --text text  --markup\n"
+        "  --size pixels  --outline pixels  --outline-alpha 0..1  --face-alpha 0..1\n"
+        "  --shadow-alpha 0..1  --shadow-blur pixels  --shadow-x pixels  --shadow-y pixels\n"
+        "  --alignment-preview  Render a pivot reference candidate using editor TTF metrics\n"
+        "Manual output: <folder>/<layout>-<rich|plain>/manual.png\n",
+        executable);
 }
 
 int main(int argc, char** argv)
@@ -1027,7 +1097,9 @@ int main(int argc, char** argv)
         if (strcmp(option, "--output") == 0 || strcmp(option, "--write-test-images") == 0)
         {
             if (!value[0])
+            {
                 return 2;
+            }
             g_TestImageDirectory = value;
             continue;
         }
@@ -1047,7 +1119,9 @@ int main(int argc, char** argv)
             const char* sources[] = { "ttf_sdf", "otf_sdf", "ttf_bitmap", "otf_bitmap", "ttf_sdf_bank", "otf_sdf_bank", "ttf_bitmap_bank", "otf_bitmap_bank", "fnt", "ttf_vector", "otf_vector", "ttf_vector_bank", "otf_vector_bank" };
             bool        supported = false;
             for (uint32_t j = 0; j < sizeof(sources) / sizeof(sources[0]); ++j)
+            {
                 supported |= strcmp(value, sources[j]) == 0;
+            }
             if (!supported)
             {
                 fprintf(stderr, "Unsupported source: %s\n", value);
@@ -1059,7 +1133,9 @@ int main(int argc, char** argv)
         if (strcmp(option, "--layers") == 0)
         {
             if (strcmp(value, "single") != 0 && strcmp(value, "multi") != 0)
+            {
                 return 2;
+            }
             g_ManualCase.m_Multi = strcmp(value, "multi") == 0;
             continue;
         }
@@ -1084,10 +1160,12 @@ int main(int argc, char** argv)
         for (uint32_t j = 0; j < sizeof(options) / sizeof(options[0]); ++j)
         {
             if (strcmp(option, options[j].m_Name) != 0)
+            {
                 continue;
+            }
             char* end = 0;
             float number = strtof(value, &end);
-            if (!value[0] || *end || !isfinite(number) || number < options[j].m_Min || number > options[j].m_Max)
+            if (!value[0] || *end || !isfinite(number) || number <options[j].m_Min || number> options[j].m_Max)
             {
                 fprintf(stderr, "Invalid value for %s (expected %g..%g): %s\n", option, options[j].m_Min, options[j].m_Max, value);
                 return 2;
@@ -1121,7 +1199,9 @@ int main(int argc, char** argv)
     {
         bool found = false;
         for (uint32_t i = 0; i < sizeof(g_ImageCaseNames) / sizeof(g_ImageCaseNames[0]); ++i)
+        {
             found |= strcmp(selected, g_ImageCaseNames[i]) == 0;
+        }
         if (!found)
         {
             fprintf(stderr, "Unknown or unsupported case: %s\n", selected);
