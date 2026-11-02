@@ -85,6 +85,41 @@
     (assert (contains? #{nil :log :log-once :throw} strict-evaluation-context-scopes-setting))
     strict-evaluation-context-scopes-setting))
 
+(defn- make-evaluation-context-impl [options]
+  ;; Register the snapshot atomically with respect to last-context cleanup.
+  ;; Construct it first so invalid options cannot leave a registration behind.
+  (loop []
+    (let [system @*the-system*
+          evaluation-context (if options
+                               (is/custom-evaluation-context system options)
+                               (is/default-evaluation-context system))]
+      (if (compare-and-set! *the-system* system (update system :evaluation-context-count inc))
+        evaluation-context
+        (recur)))))
+
+(defn evaluation-context-count
+  "Returns the number of open evaluations, including scopes opened by
+  with-evaluation-contexts-open."
+  ^long []
+  (:evaluation-context-count @*the-system*))
+
+(defmacro with-evaluation-contexts-open
+  "Keeps shared materializations available throughout body without creating an
+  evaluation-context. Adds one to the open evaluation-context count and releases
+  it on exit, including when body throws. Use for transaction-local evaluations
+  that share the materialization registry without being counted individually."
+  [& body]
+  `(let [shared-materialization-registry-atom#
+         (-> *the-system*
+             (swap! update :evaluation-context-count inc)
+             (:shared-materialization-registry-atom))]
+     (try
+       ~@body
+       (finally
+         (swap! *the-system*
+                is/decrement-evaluation-context-count
+                shared-materialization-registry-atom#)))))
+
 (defn ^{:dynamic strict-evaluation-context-scopes} make-evaluation-context
   "Returns a new evaluation-context from the current state of *the-system*. Will
   assert if called inside an auto evaluation-context scope when strict
@@ -93,7 +128,8 @@
   An evaluation-context must only be used by one thread at a time. It may be
   handed off to another thread, but the previous owner must stop using it until
   ownership is returned. This also applies to derived evaluation-contexts
-  sharing its mutable state.
+  sharing its mutable state. Tests that rebind *the-system* must preserve that
+  binding until the evaluation-context is committed or closed.
 
   Destructure :basis-ref to retain a reference to the evaluation-context's
   current basis. Dereference it when passing a basis to graph functions, so
@@ -101,9 +137,33 @@
   dereferenced basis is an immutable snapshot. Committing with
   update-system-from-evaluation-context! resets the reference to nil and closes
   the evaluation-context. Discard the evaluation-context after committing it.
+  Use close-evaluation-context! to discard an evaluation without committing it.
+  Every context must be committed or closed, including after an exception.
+  Shared materializations are retained while evaluations remain open. A later
+  context created from an older basis can materialize its shells again.
   Use dry-run-evaluation-context to enable dependency tracing."
-  ([] (is/default-evaluation-context @*the-system*))
-  ([options] (is/custom-evaluation-context @*the-system* options)))
+  ([] (make-evaluation-context-impl nil))
+  ([options] (make-evaluation-context-impl options)))
+
+(defn close-evaluation-context!
+  "Discards an evaluation-context without committing its changes or cache.
+  Closes derived evaluation-contexts sharing its state too. Safe to call again
+  after commit or close. Uses the current binding of *the-system*. The caller
+  must have exclusive ownership."
+  [{:keys [basis-ref] :as evaluation-context}]
+  (when (first (reset-vals! basis-ref nil))
+    (swap! *the-system* is/release-results-from-evaluation-context evaluation-context))
+  nil)
+
+(defmacro with-evaluation-context
+  "Evaluates body with the supplied evaluation-context and closes it on exit.
+  Does not commit it; the body may explicitly commit or discard its work."
+  [[evaluation-context init-expr] & body]
+  `(let [~evaluation-context ~init-expr]
+     (try
+       ~@body
+       (finally
+         (close-evaluation-context! ~evaluation-context)))))
 
 (defn dry-run-evaluation-context
   "Returns a dependency-tracing context with isolated graph caches and
@@ -441,15 +501,18 @@
    ;; Producing transaction steps can materialize nodes in the system. Realize
    ;; them before taking the transaction's basis snapshot, also when strict
    ;; evaluation-context scope checks are disabled.
-   (let [txs (eager-tx-data txs)
-         transaction-context (make-transaction-context opts)
-         pre-tx-basis (:basis transaction-context)
-         undoable-changes (when (:undoable opts true)
-                            (transient []))
-         tx-result (do-strict-evaluation-context-scope-body
-                     (it/transact* transaction-context undoable-changes txs))]
-     (commit-tx-result! tx-result opts pre-tx-basis)
-     tx-result)))
+   ;; Transaction-local evaluations share the registry too. Keep it alive until
+   ;; all steps finish, including failed and dry-run transactions.
+   (with-evaluation-contexts-open
+     (let [txs (eager-tx-data txs)
+           transaction-context (make-transaction-context opts)
+           pre-tx-basis (:basis transaction-context)
+           undoable-changes (when (:undoable opts true)
+                              (transient []))
+           tx-result (do-strict-evaluation-context-scope-body
+                       (it/transact* transaction-context undoable-changes txs))]
+       (commit-tx-result! tx-result opts pre-tx-basis)
+       tx-result))))
 
 ;; ---------------------------------------------------------------------------
 ;; Using transaction data
@@ -1241,7 +1304,12 @@
         :end (assoc step :depth (+ 1 (or (:depth (first (:dependencies step))) 0)))
         :fail (assoc step :depth 0)))
 
-    (g/node-value node :output (g/make-evaluation-context {:tracer (g/make-tree-tracer result-atom timing-decorator)}))"
+    (g/with-evaluation-context
+      [evaluation-context (g/make-evaluation-context
+                            {:tracer (g/make-tree-tracer
+                                       result-atom
+                                       timing-decorator)})]
+      (g/node-value node :output evaluation-context))"
   ([result-atom]
    (make-tree-tracer result-atom (fn [step _] step)))
   ([result-atom step-decorator]
@@ -1280,22 +1348,30 @@
 
 (defn update-system-from-evaluation-context!
   "Commits materializations, shell property initializations and cache entries
-  that remain valid in the system. Reuses the evaluated basis when the system
-  basis is unchanged; otherwise re-performs the realized TransactionChanges on
-  the system. Does not rerun the materialize-fn or property setters. Stale
-  prerequisites reject the pending changes and cache entries; a later evaluation
-  can materialize the shell again. Call on the system mutation thread after
-  evaluation has finished, with exclusive ownership of the evaluation-context.
+  that remain valid in *the-system*. If that system has been replaced,
+  discards the evaluation instead. Reuses the evaluated basis when the system
+  basis is unchanged; otherwise re-performs the realized TransactionChanges.
+  Does not rerun the materialize-fn or property setters. Stale prerequisites
+  reject pending changes and cache entries; a later evaluation can materialize
+  the shell again. Call on the system mutation thread after evaluation has
+  finished, with exclusive ownership of the evaluation-context.
   Background evaluations must hand off their evaluation-context to that thread
-  before calling this function. Closes the evaluation-context and all
-  evaluation-contexts sharing its state. They must be discarded after this call,
-  even if their changes were incompatible with the system. For a tracing
-  context, commits only real changes and cache entries, excluding placeholders."
+  before calling this function, including for cache-only or empty evaluations.
+  A commit rejected for running on the wrong thread leaves the
+  evaluation-context open for handoff or explicit close. Otherwise, closes the
+  evaluation-context and all evaluation-contexts sharing its state,
+  including if the commit fails. They must then be discarded, even if their
+  changes were incompatible with the system. For a tracing context, commits
+  only real changes and cache entries, excluding placeholders."
   [{:keys [basis-ref] :as evaluation-context}]
   (assert @basis-ref "Evaluation context is closed.")
-  (let [[old-system new-system] (swap-vals! *the-system* is/update-system-from-evaluation-context evaluation-context)]
-    (reset! basis-ref nil)
-    (it/log-committed-materialization-results! @(:materialization-results-atom evaluation-context) old-system new-system))
+  (is/assert-system-thread! @*the-system*)
+  (try
+    (let [[old-system new-system] (swap-vals! *the-system* is/update-system-from-evaluation-context evaluation-context)]
+      (reset! basis-ref nil)
+      (it/log-committed-materialization-results! @(:materialization-results-atom evaluation-context) old-system new-system))
+    (finally
+      (close-evaluation-context! evaluation-context)))
   nil)
 
 (defmacro with-auto-evaluation-context
@@ -1303,10 +1379,10 @@
   initializations and cache entries on the calling thread. Background callers
   must instead schedule the merge on the system mutation thread."
   [evaluation-context & body]
-  `(let [~evaluation-context (make-evaluation-context)
-         result# (do-strict-evaluation-context-scope-body ~@body)]
-     (update-system-from-evaluation-context! ~evaluation-context)
-     result#))
+  `(with-evaluation-context [~evaluation-context (make-evaluation-context)]
+     (let [result# (do-strict-evaluation-context-scope-body ~@body)]
+       (update-system-from-evaluation-context! ~evaluation-context)
+       result#)))
 
 (defn- let-ec-strict-form
   [bindings & body]
@@ -1345,21 +1421,29 @@
   {:pre [(symbol? evaluation-context-sym)
          (vector? bindings)
          (even? (count bindings))]}
-  (list*
-    `let
-    (coll/into-> bindings
-      [evaluation-context-sym `(make-evaluation-context)]
-      (partition-all 2)
-      (mapcat (fn [[binding-form init-expr]]
-                ;; Using a generated symbol ensures the evaluation-context
-                ;; cannot be referenced from the body after it has been closed.
-                (pair binding-form
-                      (if (form-references-evaluation-context? init-expr)
-                        `(let [~'evaluation-context ~evaluation-context-sym]
-                           ~init-expr)
-                        init-expr)))))
-    `(update-system-from-evaluation-context! ~evaluation-context-sym)
-    body))
+  (let [private-bindings
+        (coll/into-> bindings []
+          (partition-all 2)
+          (mapcat
+            (fn [[binding-form init-expr]]
+              (destructure
+                [binding-form
+                 (if-not (form-references-evaluation-context? init-expr)
+                   init-expr
+                   `(let [~'evaluation-context ~evaluation-context-sym]
+                      ~init-expr))]))))
+
+        public-symbols
+        (coll/into-> private-bindings []
+          (take-nth 2)
+          (distinct))]
+
+    `(let [~public-symbols
+           (with-evaluation-context [~evaluation-context-sym (make-evaluation-context)]
+             (let ~private-bindings
+               (update-system-from-evaluation-context! ~evaluation-context-sym)
+               ~public-symbols))]
+       ~@body)))
 
 (defmacro let-ec
   "binding => binding-form init-expr
@@ -1392,11 +1476,17 @@
 
 (defmacro with-auto-or-fake-evaluation-context [evaluation-context & body]
   `(let [real-system# @*the-system*
-         ~evaluation-context (is/default-evaluation-context (or real-system# fake-system))
-         result# (do-strict-evaluation-context-scope-body ~@body)]
-     (when (some? real-system#)
-       (update-system-from-evaluation-context! ~evaluation-context))
-     result#))
+
+         evaluation-context#
+         (if real-system#
+           (make-evaluation-context)
+           (is/default-evaluation-context fake-system))]
+
+     (with-evaluation-context [~evaluation-context evaluation-context#]
+       (let [result# (do-strict-evaluation-context-scope-body ~@body)]
+         (when real-system#
+           (update-system-from-evaluation-context! ~evaluation-context))
+         result#))))
 
 (defn node-value
   "Pull a value from a node's output, property or input, identified by `label`.
@@ -2127,7 +2217,8 @@
   Example:
   `(undo! undo-key)`"
   [undo-key]
-  (swap! *the-system* is/undo-action undo-key)
+  (with-evaluation-contexts-open
+    (swap! *the-system* is/undo-action undo-key))
   nil)
 
 (defn has-undo?
@@ -2160,7 +2251,8 @@
   Example:
   `(redo! undo-key)`"
   [undo-key]
-  (swap! *the-system* is/redo-action undo-key)
+  (with-evaluation-contexts-open
+    (swap! *the-system* is/redo-action undo-key))
   nil)
 
 (defn has-redo?
@@ -2184,7 +2276,8 @@
   Example:
   `(cancel! undo-key :a)`"
   [undo-key sequence-id]
-  (swap! *the-system* is/cancel-undo undo-key sequence-id)
+  (with-evaluation-contexts-open
+    (swap! *the-system* is/cancel-undo undo-key sequence-id))
   nil)
 
 (defn evaluation-context?

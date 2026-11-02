@@ -41,27 +41,25 @@
 (defn- queue [item]
   (conj PersistentQueue/EMPTY item))
 
-(defn- openable-resource [evaluation-context node-id]
-  (let [{:keys [basis-ref]} evaluation-context]
-    (when-let [owner-resource-node-id (resource-node/owner-resource-node-id @basis-ref node-id)]
-      (when-some [resource (g/node-value owner-resource-node-id :resource evaluation-context)]
-        (when (resource/openable-resource? resource)
-          {:node-id owner-resource-node-id
-           :resource resource})))))
+(defn- openable-resource [basis node-id]
+  (when-let [owner-resource-node-id (resource-node/owner-resource-node-id basis node-id)]
+    (when-let [resource (resource-node/resource basis owner-resource-node-id)]
+      (when (resource/openable-resource? resource)
+        {:node-id owner-resource-node-id
+         :resource resource}))))
 
-(defn- node-id-at-override-depth [override-depth node-id]
-  (if (and (some? node-id) (pos? override-depth))
-    (recur (dec override-depth) (g/override-original node-id))
+(defn- node-id-at-override-depth [basis override-depth node-id]
+  (if (and node-id (pos? override-depth))
+    (recur basis (dec override-depth) (g/override-original basis node-id))
     node-id))
 
-(defn- parent-resource [evaluation-context errors origin-override-depth origin-override-id]
-  (or (when-some [node-id (node-id-at-override-depth origin-override-depth (:_node-id (first errors)))]
-        (let [{:keys [basis-ref]} evaluation-context]
-          (when (or (nil? origin-override-id)
-                    (not= origin-override-id (g/override-id @basis-ref node-id)))
-            (openable-resource evaluation-context node-id))))
-      (when-some [remaining-errors (next errors)]
-        (recur evaluation-context remaining-errors origin-override-depth origin-override-id))))
+(defn- parent-resource [basis errors origin-override-depth origin-override-id]
+  (or (when-let [node-id (node-id-at-override-depth basis origin-override-depth (:_node-id (first errors)))]
+        (when (or (nil? origin-override-id)
+                  (not= origin-override-id (g/override-id basis node-id)))
+          (openable-resource basis node-id)))
+      (when-let [remaining-errors (next errors)]
+        (recur basis remaining-errors origin-override-depth origin-override-id))))
 
 (defn- error-outline-node-id
   "This deals with the fact that the Property Editor can display properties from
@@ -71,11 +69,11 @@
   ScriptNode. When focusing on such an error, we want to select the OutlineNode
   that displays the property."
   [basis errors origin-override-depth]
-  (some (fn [error]
-          (when-some [node-id (node-id-at-override-depth origin-override-depth (:_node-id error))]
-            (when (g/node-instance? basis outline/OutlineNode node-id)
-              node-id)))
-        errors))
+  (coll/some (fn [error]
+               (when-let [node-id (node-id-at-override-depth basis origin-override-depth (:_node-id error))]
+                 (when (g/node-instance? basis outline/OutlineNode node-id)
+                   node-id)))
+             errors))
 
 (defn- find-override-value-origin [basis node-id label depth]
   (if (and node-id (g/override? basis node-id))
@@ -87,27 +85,26 @@
 (defn- error-cursor-range [error]
   (some-> error :user-data :cursor-range))
 
-(defn- missing-resource-node? [{:keys [basis-ref] :as evaluation-context} node-id]
-  (and (g/node-instance? @basis-ref resource/ResourceNode node-id)
-       (some? (g/node-value node-id :resource evaluation-context))
-       (if-some [output-jammers (g/node-value node-id :_output-jammers evaluation-context)]
-         (resource-io/file-not-found-error? (first (vals output-jammers)))
+(defn- missing-resource-node? [basis node-id]
+  (and (g/node-instance? basis resource/ResourceNode node-id)
+       (resource-node/resource basis node-id)
+       (if-let [[_ output-jammer] (first (g/raw-property-value basis node-id :_output-jammers))]
+         (resource-io/file-not-found-error? output-jammer)
          false)))
 
-(defn- error-item [evaluation-context root-cause]
+(defn- error-item [basis root-cause]
   (let [{:keys [message severity file-path]} (first root-cause)
         cursor-range (error-cursor-range (first root-cause))
-        errors (drop-while (comp (fn [node-id]
-                                   (or (nil? node-id)
-                                       (missing-resource-node? evaluation-context node-id)))
-                                 :_node-id)
-                           root-cause)
+        errors (e/drop-while (comp (fn [node-id]
+                                     (or (nil? node-id)
+                                         (missing-resource-node? basis node-id)))
+                                   :_node-id)
+                             root-cause)
         error (assoc (first errors) :message message)
-        basis @(:basis-ref evaluation-context)
         [origin-node-id origin-override-depth] (find-override-value-origin basis (:_node-id error) (:_label error) 0)
         origin-override-id (when (some? origin-node-id) (g/override-id basis origin-node-id))
         outline-node-id (error-outline-node-id basis errors origin-override-depth)
-        parent (parent-resource evaluation-context errors origin-override-depth origin-override-id)
+        parent (parent-resource basis errors origin-override-depth origin-override-id)
         cursor-range (or cursor-range (error-cursor-range error))]
     (cond-> {:parent parent
              :node-id outline-node-id
@@ -136,15 +133,15 @@
               (root-causes-helper (pop queue)))))))
 
 (defn- root-causes
-  "Returns a lazy sequence of distinct error items from the causes in the supplied ErrorValue."
+  "Returns distinct error items from the causes in the supplied ErrorValue."
   [error-value]
-  ;; Use a throwaway evaluation context to avoid context creation overhead.
-  ;; We don't evaluate any outputs, so there is no need to update the cache.
-  (let [evaluation-context (g/make-evaluation-context)]
-    (sequence (comp (take 10000)
-                    (map (partial error-item evaluation-context))
-                    (distinct))
-              (root-causes-helper (queue (pair error-value (list)))))))
+  (let [basis (g/now)
+        queue (queue (pair error-value (list)))
+        root-causes (root-causes-helper queue)]
+    (coll/into-> root-causes []
+      (take 10000)
+      (map (partial error-item basis))
+      (distinct))))
 
 (defn severity->int [severity]
   (case severity

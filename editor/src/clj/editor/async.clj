@@ -26,10 +26,14 @@
   evaluation-context create their own evaluation-context and commit on the
   calling thread."
   [evaluation-context & body]
-  `(let [~evaluation-context (g/make-evaluation-context)
-         result# (g/do-strict-evaluation-context-scope-body ~@body)]
-     (fx/on-fx-thread (g/update-system-from-evaluation-context! ~evaluation-context))
-     result#))
+  `(let [~evaluation-context (g/make-evaluation-context)]
+     (try
+       (let [result# (g/do-strict-evaluation-context-scope-body ~@body)]
+         (fx/on-fx-thread (g/update-system-from-evaluation-context! ~evaluation-context))
+         result#)
+       (catch Throwable error#
+         (g/close-evaluation-context! ~evaluation-context)
+         (throw error#)))))
 
 (defmacro let-ec
   "Like g/let-ec, but queues the evaluation-context merge on the UI thread.

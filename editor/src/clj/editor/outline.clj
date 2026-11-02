@@ -198,15 +198,16 @@
         (update :arcs (partial filterv #(not (contains? tx-attach-arcs %)))))))
 
 (defn- default-copy-traverse [basis ^Arc arc]
-  (let [src-node (.source-id arc)
-        tgt-node (.target-id arc)
+  (let [src-node-id (.source-id arc)
+        tgt-node-id (.target-id arc)
         tgt-label (.target-label arc)]
     (or (= :copied-nodes tgt-label)
         (and (or (= :child-outlines tgt-label)
                  (= :source-outline tgt-label))
-             (g/node-instance? basis OutlineNode tgt-node)
-             (not (and (g/node-instance? basis resource/ResourceNode src-node)
-                       (some? (resource/path (g/node-value src-node :resource (g/make-evaluation-context {:basis basis :cache c/null-cache}))))))))))
+             (g/node-instance? basis OutlineNode tgt-node-id)
+             (let [src-node (g/node-by-id basis src-node-id)]
+               (not (and (g/node-instance*? resource/ResourceNode src-node)
+                         (some? (resource/path (resource/node-resource basis src-node))))))))))
 
 (defn copy
   ([project src-item-iterators]

@@ -1265,18 +1265,14 @@
           (assert (ui/on-ui-thread?))
           (cancel-engine-build!)
           (when build-engine
-            (let [evaluation-context (g/make-evaluation-context)
-                  platform (engine/current-platform)]
+            (let [platform (engine/current-platform)]
               (reset! engine-build-future-atom
                       (future
                         (try
-                          (let [engine (engine/get-engine project evaluation-context prefs platform)]
-                            (ui/run-later
-                              ;; This potentially saves us from having to
-                              ;; re-calculate native extension file hashes the
-                              ;; next time we build the project.
-                              (g/update-system-from-evaluation-context! evaluation-context))
-                            engine)
+                          (ea/with-auto-evaluation-context evaluation-context
+                            ;; Retain native extension file hashes for the
+                            ;; next build.
+                            (engine/get-engine project evaluation-context prefs platform))
                           (catch Throwable error
                             error))))
               nil)))
@@ -1407,15 +1403,19 @@
             (render-progress! (progress/make (localization/message "progress.building-project") 1))
             (run-on-background-thread!
               (fn run-project-build-on-background-thread! []
-                (let [extra-build-targets
-                      (when debug
-                        (debug-view/build-targets project evaluation-context))
+                (try
+                  (let [extra-build-targets
+                        (when debug
+                          (debug-view/build-targets project evaluation-context))
 
-                      opts
-                      {:extra-build-targets extra-build-targets
-                       :render-progress! render-progress!
-                       :task-cancelled? task-cancelled?}]
-                  (build-project! project old-artifact-map opts evaluation-context)))
+                        opts
+                        {:extra-build-targets extra-build-targets
+                         :render-progress! render-progress!
+                         :task-cancelled? task-cancelled?}]
+                    (build-project! project old-artifact-map opts evaluation-context))
+                  (catch Throwable error
+                    (g/close-evaluation-context! evaluation-context)
+                    (throw error))))
               (fn process-project-build-results-on-ui-thread! [project-build-results]
                 (project/update-system-cache-build-targets! evaluation-context)
                 (project/log-cache-info! (g/cache) "Cached compiled build targets in system cache.")
@@ -1638,28 +1638,28 @@
   (if-not (compare-and-set! bob-task-in-progress-atom false true)
     {:error (g/error-fatal (localization/message "error.bob.project-operation-in-progress"))}
     (try
-      (let [evaluation-context (g/make-evaluation-context)
-            options (cond-> options
-                      (not (contains? options "build-server"))
-                      (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
+      (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+        (let [options (cond-> options
+                        (not (contains? options "build-server"))
+                        (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
 
-                      (not (contains? options "build-server-header"))
-                      (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
-            main-scene (g/node-value app-view :scene evaluation-context)
-            tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
-            render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-            render-reload-progress! (make-render-task-progress :resource-sync)
-            render-save-progress! (make-render-task-progress :save-all)
-            [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
-            _ (ui/run-now
-                (g/update-system-from-evaluation-context! evaluation-context)
-                (build-errors-view/clear-build-errors build-errors-view))
-            build-results (with-open [out (start-new-log-pipe!)]
-                            (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
-                                             out build-task-cancelled? commands options project changes-view))]
-        (when-let [error (:error build-results)]
-          (ui/run-now (render-build-error! error)))
-        build-results)
+                        (not (contains? options "build-server-header"))
+                        (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
+              main-scene (g/node-value app-view :scene evaluation-context)
+              tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
+              render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+              render-reload-progress! (make-render-task-progress :resource-sync)
+              render-save-progress! (make-render-task-progress :save-all)
+              [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
+              _ (ui/run-now
+                  (g/update-system-from-evaluation-context! evaluation-context)
+                  (build-errors-view/clear-build-errors build-errors-view))
+              build-results (with-open [out (start-new-log-pipe!)]
+                              (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
+                                               out build-task-cancelled? commands options project changes-view))]
+          (when-let [error (:error build-results)]
+            (ui/run-now (render-build-error! error)))
+          build-results))
       (finally
         (reset! bob-task-in-progress-atom false)))))
 

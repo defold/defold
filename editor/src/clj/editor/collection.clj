@@ -43,7 +43,6 @@
             [editor.util :as eutil]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.cache :as c]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]]
             [util.eduction :as e])
@@ -297,7 +296,8 @@
                               (gen-embed-ddf id child-ids position rotation scale proto-msg))))
 
 (defn- component-source-resource [basis component-node-id]
-  (g/node-value component-node-id :source-resource (g/make-evaluation-context {:basis basis :cache c/null-cache})))
+  (when-let [resource-node-id (g/node-feeding-into basis component-node-id :source-resource)]
+    (resource-node/resource basis resource-node-id)))
 
 (def ^:private override-traverse-fn
   (g/make-override-traverse-fn

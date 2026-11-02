@@ -37,6 +37,8 @@
                  dynamo.graph/user-data-swap! [[:block 3]]
                  dynamo.graph/with-auto-evaluation-context [[:inner 0]]
                  dynamo.graph/with-auto-or-fake-evaluation-context [[:inner 0]]
+                 dynamo.graph/with-evaluation-context [[:block 1]]
+                 dynamo.graph/with-evaluation-contexts-open [[:inner 0]]
                  dynamo.graph/with-system [[:inner 0]]
                  editor.analytics-test/with-config! [[:inner 0]]
                  editor.async/let-ec [[:inner 0]]

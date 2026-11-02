@@ -692,22 +692,24 @@
    (set-values! property values (gensym)))
   ([property values op-seq]
    (when (not (read-only? property))
-     (let [evaluation-context (g/make-evaluation-context)
-           set-operations (resolve-set-operations property values)
-           prepare-user-edit-fn (get-in property [:edit-type :prepare-user-edit-fn])
-           edited-endpoints (edited-endpoints set-operations)
+     (g/let-ec [set-operations (resolve-set-operations property values)
+                prepare-user-edit-fn (get-in property [:edit-type :prepare-user-edit-fn])
+                edited-endpoints (edited-endpoints set-operations)
 
-           tx-data-context
-           (-> (when prepare-user-edit-fn
-                 (prepare-user-edit-fn evaluation-context property set-operations))
-               (assoc :edited-endpoints edited-endpoints))]
+                tx-data-context
+                (-> (when prepare-user-edit-fn
+                      (prepare-user-edit-fn evaluation-context property set-operations))
+                    (assoc :edited-endpoints edited-endpoints))
+
+                tx-data
+                (g/eager-tx-data
+                  (set-values evaluation-context property set-operations))]
 
        (g/transact
          {:tx-data-context tx-data-context}
-         (concat
-           (g/operation-label (localization/message "operation.property.set" {"property" (label property)}))
-           (g/operation-sequence op-seq)
-           (set-values evaluation-context property set-operations)))))))
+         [(g/operation-label (localization/message "operation.property.set" {"property" (label property)}))
+          (g/operation-sequence op-seq)
+          tx-data])))))
 
 (defn unify-values [values]
   (loop [v0 (first values)

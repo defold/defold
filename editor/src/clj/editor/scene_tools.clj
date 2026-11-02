@@ -551,7 +551,8 @@
      :original-values original-values
      :project-fn project-fn
      :start-pos start-pos
-     :start-action start-action}))
+     :start-action start-action
+     :initial-evaluation-context initial-evaluation-context}))
 
 (defn- apply-manipulator [manip-phase drag-start-state action]
   (let [{:keys [active-manip lead-transform manip-rotation project-fn start-pos manipulations-fn]} drag-start-state
@@ -564,31 +565,41 @@
 (defn handle-input [self _input-state action selection-data]
   (case (:type action)
     :mouse-pressed (if-let [manip (first (get selection-data self))]
-                     (let [initial-evaluation-context (g/make-evaluation-context)
-                           active-tool (g/node-value self :active-tool initial-evaluation-context)
-                           tool (get transform-tools active-tool)
-                           filter-fn (:filter-fn tool)
-                           selected-renderables (filter #(filter-fn (:node-id %)) (g/node-value self :selected-renderables initial-evaluation-context))
-                           original-values (->> selected-renderables
-                                                scene-picking/top-nodes
-                                                (mapv original-values))]
-                       (when (and (not (empty? original-values))
-                                  (= (:button action) :primary))
-                         (let [manip-opts (g/node-value self :manip-opts initial-evaluation-context)
-                               manip-space (g/node-value self :manip-space initial-evaluation-context)
-                               camera (g/node-value self :camera initial-evaluation-context)
-                               viewport (g/node-value self :viewport initial-evaluation-context)
-                               drag-start-state (make-drag-start-state manip-opts original-values manip manip-space action camera viewport initial-evaluation-context)]
-                           (g/transact
-                             {:undoable false}
-                             (concat
-                               (g/set-property self :drag-start-state drag-start-state)
-                               (g/set-property self :preview-overrides {})
-                               (g/set-property self :hot-manip nil)))))
-                       nil)
+                     (let [initial-evaluation-context (g/make-evaluation-context)]
+                       (try
+                         (let [previous-evaluation-context (:initial-evaluation-context (g/node-value self :drag-start-state initial-evaluation-context))
+                               active-tool (g/node-value self :active-tool initial-evaluation-context)
+                               tool (get transform-tools active-tool)
+                               filter-fn (:filter-fn tool)
+                               selected-renderables (filter #(filter-fn (:node-id %)) (g/node-value self :selected-renderables initial-evaluation-context))
+                               original-values (->> selected-renderables
+                                                    scene-picking/top-nodes
+                                                    (mapv original-values))]
+                           (when (and (not (empty? original-values))
+                                      (= (:button action) :primary))
+                             (let [manip-opts (g/node-value self :manip-opts initial-evaluation-context)
+                                   manip-space (g/node-value self :manip-space initial-evaluation-context)
+                                   camera (g/node-value self :camera initial-evaluation-context)
+                                   viewport (g/node-value self :viewport initial-evaluation-context)
+                                   drag-start-state (make-drag-start-state manip-opts original-values manip manip-space action camera viewport initial-evaluation-context)]
+                               (g/transact
+                                 {:undoable false}
+                                 (concat
+                                   (g/set-property self :drag-start-state drag-start-state)
+                                   (g/set-property self :preview-overrides {})
+                                   (g/set-property self :hot-manip nil)))
+                               (when previous-evaluation-context
+                                 (g/close-evaluation-context! previous-evaluation-context))))
+                           (when-not (identical? initial-evaluation-context
+                                                 (:initial-evaluation-context (g/node-value self :drag-start-state)))
+                             (g/close-evaluation-context! initial-evaluation-context))
+                           nil)
+                         (catch Throwable error
+                           (g/close-evaluation-context! initial-evaluation-context)
+                           (throw error))))
                      action)
     :mouse-released (if-let [drag-start-state (g/node-value self :drag-start-state)]
-                      (do
+                      (g/with-evaluation-context [_evaluation-context (:initial-evaluation-context drag-start-state)]
                         (let [active-tool (g/node-value self :active-tool)
                               op-seq (:op-seq drag-start-state)
                               combined-manipulations (apply-manipulator :manip-phase/commit drag-start-state action)
@@ -667,6 +678,7 @@
   (input viewport g/Any)
   (input selected-renderables g/Any)
 
+  (output evaluation-context g/Any (g/fnk [drag-start-state] (:initial-evaluation-context drag-start-state)))
   (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
   (output mouse-binding-context g/Keyword (g/constantly nil))

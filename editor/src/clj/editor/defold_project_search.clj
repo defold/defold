@@ -35,8 +35,8 @@
   "Returns a future yielding search data for every project resource that passes
   search-resource?, each with its :search-value built and ready to match against."
   [report-error! project search-resource?]
-  (let [evaluation-context (g/make-evaluation-context)]
-    (future
+  (future
+    (let [evaluation-context (g/make-evaluation-context)]
       (try
         (let [search-data
               (->> (g/node-value project :node-id+resources evaluation-context)

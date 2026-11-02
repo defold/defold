@@ -7,6 +7,10 @@ Applies to your changes only, keep the rest of the code untouched unless explici
 
 # Rules
 
+## Naming
+
+Use full names when referring to concepts or values. For example, shortening "evaluation-context" to just "context" can confuse it with "transaction-context".
+
 ## if/if-not
 
 When one branch of an `if` spans multiple lines, prefer placing it in the false position.

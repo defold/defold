@@ -410,67 +410,77 @@
 (def ^:private lua-str-dead (->lua "dead"))
 
 (defn- invoke-suspending-impl [execution-context ^EditorExtensionsRuntime runtime co & lua-args]
-  (binding [*execution-context* execution-context]
-    (let [vm (.-lua-vm runtime)
-          ^Varargs lua-success+rest-varargs (apply vm/invoke vm (.-resume runtime) co lua-args)]
-      (if (->clj runtime coerce/boolean (.arg1 lua-success+rest-varargs))
-        (if (= lua-str-dead (vm/invoke-1 vm (.-status runtime) co))
-          (let [result (.subargs lua-success+rest-varargs 2)
-                evaluation-context (:evaluation-context execution-context)
-                has-materializations (coll/not-empty @(:changes-atom evaluation-context))
-                completed (future/make)]
-            ;; Returned values may refer to children created by the final Lua
-            ;; evaluation. Publish them only after those nodes reach the system.
-            (fx/on-fx-thread
-              (try
-                (g/update-system-from-evaluation-context! evaluation-context)
-                (future/complete! completed result)
-                (catch Throwable error
-                  (future/fail! completed error))))
-            ;; We only need to wait for the system to be updated if evaluation
-            ;; caused any node materializations. If not, we can proceed
-            ;; immediately.
-            (when-not has-materializations
-              (future/complete! completed result))
-            completed)
-          (let [^Suspend suspend (->clj runtime coerce/userdata (.arg lua-success+rest-varargs 2))
-                materializations-committed (future/make)]
-            ;; Suspended functions can transact using node ids discovered by
-            ;; the script. Those nodes must exist in the system first.
-            (fx/on-fx-thread
-              (try
-                (g/update-system-from-evaluation-context! (:evaluation-context execution-context))
-                (future/complete! materializations-committed
-                  (assoc execution-context :evaluation-context (g/make-evaluation-context)))
-                (catch Throwable error
-                  (future/fail! materializations-committed error))))
-            (future/then-async materializations-committed
-              (fn [execution-context]
-                (-> (try
-                      (future/wrap (apply (.-f suspend) execution-context (.-args suspend)))
-                      (catch Throwable error
-                        (future/failed error)))
-                    ;; treat thrown Exceptions as error signals to the scripts
-                    (future/catch (fn [e]
-                                    (if (instance? OrphanedThread e)
-                                      (throw e)
-                                      e)))
-                    (future/then-async
-                      (fn [result]
-                        (if-not (refresh-execution-context? result)
-                          (invoke-suspending-impl execution-context runtime co (vm/wrap-userdata result))
-                          (let [refreshed-execution-context (future/make)]
-                            (fx/on-fx-thread
-                              (try
-                                (g/update-system-from-evaluation-context! (:evaluation-context execution-context))
-                                (future/complete! refreshed-execution-context
-                                  (assoc execution-context :evaluation-context (g/make-evaluation-context)))
-                                (catch Throwable error
-                                  (future/fail! refreshed-execution-context error))))
-                            (future/then-async refreshed-execution-context
-                              (fn [new-execution-context]
-                                (invoke-suspending-impl new-execution-context runtime co (vm/wrap-userdata result)))))))))))))
-        (future/failed (LuaError. ^String (->clj runtime coerce/to-string (.arg lua-success+rest-varargs 2))))))))
+  (try
+    (binding [*execution-context* execution-context]
+      (let [vm (.-lua-vm runtime)
+            ^Varargs lua-success+rest-varargs (apply vm/invoke vm (.-resume runtime) co lua-args)]
+        (if (->clj runtime coerce/boolean (.arg1 lua-success+rest-varargs))
+          (if (= lua-str-dead (vm/invoke-1 vm (.-status runtime) co))
+            (let [result (.subargs lua-success+rest-varargs 2)
+                  evaluation-context (:evaluation-context execution-context)
+                  has-materializations (coll/not-empty @(:changes-atom evaluation-context))
+                  completed (future/make)]
+              ;; Returned values may refer to children created by the final Lua
+              ;; evaluation. Publish them only after those nodes reach the
+              ;; system.
+              (fx/on-fx-thread
+                (try
+                  (g/update-system-from-evaluation-context! evaluation-context)
+                  (future/complete! completed result)
+                  (catch Throwable error
+                    (future/fail! completed error))))
+              ;; We only need to wait for the system to be updated if evaluation
+              ;; caused any node materializations. If not, we can proceed
+              ;; immediately.
+              (when-not has-materializations
+                (future/complete! completed result))
+              completed)
+            (let [^Suspend suspend (->clj runtime coerce/userdata (.arg lua-success+rest-varargs 2))
+                  materializations-committed (future/make)]
+              ;; Suspended functions can transact using node ids discovered by
+              ;; the script. Those nodes must exist in the system first.
+              (fx/on-fx-thread
+                (try
+                  (g/update-system-from-evaluation-context! (:evaluation-context execution-context))
+                  (future/complete! materializations-committed
+                    (assoc execution-context :evaluation-context (g/make-evaluation-context)))
+                  (catch Throwable error
+                    (future/fail! materializations-committed error))))
+              (future/then-async materializations-committed
+                (fn [execution-context]
+                  (-> (try
+                        (future/wrap (apply (.-f suspend) execution-context (.-args suspend)))
+                        (catch Throwable error
+                          (future/failed error)))
+                      ;; treat thrown Exceptions as error signals to the scripts
+                      (future/catch
+                        (fn [e]
+                          (if-not (instance? OrphanedThread e)
+                            e
+                            (do
+                              (g/close-evaluation-context! (:evaluation-context execution-context))
+                              (throw e)))))
+                      (future/then-async
+                        (fn [result]
+                          (if-not (refresh-execution-context? result)
+                            (invoke-suspending-impl execution-context runtime co (vm/wrap-userdata result))
+                            (let [refreshed-execution-context (future/make)]
+                              (fx/on-fx-thread
+                                (try
+                                  (g/update-system-from-evaluation-context! (:evaluation-context execution-context))
+                                  (future/complete! refreshed-execution-context
+                                    (assoc execution-context :evaluation-context (g/make-evaluation-context)))
+                                  (catch Throwable error
+                                    (future/fail! refreshed-execution-context error))))
+                              (future/then-async refreshed-execution-context
+                                (fn [new-execution-context]
+                                  (invoke-suspending-impl new-execution-context runtime co (vm/wrap-userdata result)))))))))))))
+          (do
+            (g/close-evaluation-context! (:evaluation-context execution-context))
+            (future/failed (LuaError. ^String (->clj runtime coerce/to-string (.arg lua-success+rest-varargs 2))))))))
+    (catch Throwable error
+      (g/close-evaluation-context! (:evaluation-context execution-context))
+      (throw error))))
 
 (defn stdout
   "Get runtime output stream"
@@ -535,17 +545,26 @@
 (defn- invoke-immediate-impl [^EditorExtensionsRuntime runtime opts vm-invoke-fn lua-fn lua-args]
   (let [context-provided (contains? opts :evaluation-context)
         execution-context (execution-context runtime :immediate opts)
-        result (binding [*execution-context* execution-context]
-                 (apply vm-invoke-fn (.-lua-vm runtime) lua-fn lua-args))]
-    (when-not context-provided
-      (g/update-system-from-evaluation-context! (:evaluation-context execution-context)))
-    result))
+        evaluation-context (:evaluation-context execution-context)]
+    (try
+      (let [result (binding [*execution-context* execution-context]
+                     (apply vm-invoke-fn (.-lua-vm runtime) lua-fn lua-args))]
+        (when-not context-provided
+          (g/update-system-from-evaluation-context! evaluation-context))
+        result)
+      (finally
+        (when-not context-provided
+          (g/close-evaluation-context! evaluation-context))))))
 
 (defn invoke-immediate-1
   "Invoke a short-running LuaFunction
 
   Returns the first returned LuaValue. No calls to suspending functions are
   allowed during this invocation.
+
+  Without an explicit :evaluation-context, commits the evaluation on the
+  calling thread, which must be the system thread. Background callers must
+  supply an :evaluation-context and arrange its commit or close themselves.
 
   Args:
     runtime                the editor Lua runtime
@@ -563,6 +582,10 @@
 
   Returns all returned LuaValues as a Varargs object. No calls to suspending
   functions are allowed during this invocation.
+
+  Without an explicit :evaluation-context, commits the evaluation on the
+  calling thread, which must be the system thread. Background callers must
+  supply an :evaluation-context and arrange its commit or close themselves.
 
   Args:
     runtime                the editor Lua runtime

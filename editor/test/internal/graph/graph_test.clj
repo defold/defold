@@ -274,8 +274,10 @@
         (is (= "initialinitial" (g/node-value n :val-val initial-evaluation-context)))
 
         (add-watch g/*the-system* watch-key
-                   (fn [_ _ _ system]
-                     (swap! published-systems conj system)))
+                   (fn record-invalidation [_ _ old-system new-system]
+                     (when-not (identical? (:invalidate-counters old-system)
+                                           (:invalidate-counters new-system))
+                       (swap! published-systems conj new-system))))
         (try
           (g/transact {:full-invalidation true}
             (g/set-property n :val "changed"))
@@ -300,7 +302,7 @@
         (g/node-value n :val-val initial-evaluation-context)
 
         (is (= :empty (:status (g/transact {:full-invalidation true} []))))
-        (is (identical? system-before @g/*the-system*))
+        (is (= system-before @g/*the-system*))
 
         (g/update-system-from-evaluation-context! initial-evaluation-context)
 
@@ -1000,30 +1002,13 @@
                  ~'dirty (g/raw-property-value ~'basis ~'node-id :dirty)]
                `(make-save-data ~'node-id ~'resource ~'save-value ~'dirty)))))))
 
-(defmacro let-ec-relaxed [bindings & body]
-  (apply #'g/let-ec-relaxed-form 'hidden-evaluation-context bindings body))
-
+;; Public evaluation bindings retain let destructuring semantics, close their
+;; snapshot before the body, and do not shadow a surrounding context there.
 (deftest let-ec-relaxed-test
-  (check-let-ec let-ec-relaxed)
-
-  (testing "Evaluation context is inaccessible outside let bindings."
-    (let [evaluation-context-sym (gensym "evaluation-context__")]
-      (is (= (macro/conform-gensyms
-               `(let [~evaluation-context-sym (g/make-evaluation-context)
-                      ~'basis (let [~'evaluation-context ~evaluation-context-sym]
-                                @(:basis-ref ~'evaluation-context))
-                      [~'node-id ~'resource :as ~'node-id+resource] (let [~'evaluation-context ~evaluation-context-sym]
-                                                                      (g/node-value ~'resource-node :node-id+resource ~'evaluation-context))
-                      ~'save-value (let [~'evaluation-context ~evaluation-context-sym]
-                                     (g/node-value ~'node-id :save-value ~'evaluation-context))
-                      ~'dirty (g/raw-property-value ~'basis ~'node-id :dirty)]
-                  (g/update-system-from-evaluation-context! ~evaluation-context-sym)
-                  (make-save-data ~'node-id ~'resource ~'save-value ~'dirty)))
-             (macro/conform-gensyms
-               (#'g/let-ec-relaxed-form
-                 evaluation-context-sym
-                 `[~'basis @(:basis-ref ~'evaluation-context)
-                   [~'node-id ~'resource :as ~'node-id+resource] (g/node-value ~'resource-node :node-id+resource ~'evaluation-context)
-                   ~'save-value (g/node-value ~'node-id :save-value ~'evaluation-context)
-                   ~'dirty (g/raw-property-value ~'basis ~'node-id :dirty)]
-                 `(make-save-data ~'node-id ~'resource ~'save-value ~'dirty))))))))
+  (check-let-ec g/let-ec)
+  (with-clean-system
+    (let [evaluation-context :outer]
+      (g/let-ec [scoped-context evaluation-context]
+        (is (= :outer evaluation-context))
+        (is (nil? @(:basis-ref scoped-context)))
+        (is (zero? (g/evaluation-context-count)))))))

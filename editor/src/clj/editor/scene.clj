@@ -912,6 +912,7 @@
   (property render-mode g/Keyword (default :normal))
 
   (input active-view g/NodeID)
+  (input disposed-evaluation-contexts g/Any :array)
   (input scene g/Any :substitute substitute-scene)
   (input preview-overrides g/Any)
   (input selection g/Any)
@@ -1457,6 +1458,10 @@
 
 (defn dispose-scene-view! [node-id]
   (when (g/node-by-id node-id)
+    ;; A view can close during a drag, before its controller receives release.
+    (doseq [evaluation-context (g/node-value node-id :disposed-evaluation-contexts)
+            :when evaluation-context]
+      (g/close-evaluation-context! evaluation-context))
     (destroy-drawables! node-id)
     (ui/advance-graph-user-data-component! node-id :overlay-anchor-pane nil)))
 
@@ -2287,6 +2292,8 @@
           (g/connect camera      :camera                        axis-gizmo      :camera)))
 
       (g/connect tool-controller :input-handler                 view-id         :input-handlers)
+      (when (g/has-output? tool-controller-type :evaluation-context)
+        (g/connect tool-controller :evaluation-context view-id :disposed-evaluation-contexts))
       (g/connect tool-controller :mouse-binding-context         view-id         :mouse-binding-context)
       (g/connect tool-controller :info-text                     view-id         :tool-info-text)
       (g/connect tool-controller :renderables                   view-id         :tool-renderables)

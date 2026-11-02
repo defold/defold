@@ -147,41 +147,39 @@
                (into children))})
 
 (defn make [workspace project options]
-  (let [evaluation-context (g/make-evaluation-context)
-        localization (workspace/localization workspace evaluation-context)
-        exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
-        accepted-ext (if (seq exts) (set exts) fn/constantly-true)
-        accept-fn    (or (:accept-fn options) fn/constantly-true)
-        items        (into []
-                           (filter #(and (= :file (resource/source-type %))
-                                         (accepted-ext (resource/type-ext %))
-                                         (resource/loaded? %)
-                                         (not (resource/internal? %))
-                                         (accept-fn %)))
-                           (g/node-value workspace :resource-list evaluation-context))
-        tooltip-gen (:tooltip-gen options)
-        special-filter-fns {"refs" (partial refs-filter-fn project)
-                            "deps" (partial deps-filter-fn project)}
-        options (-> {:title (localization/message "dialog.select-resource.title")
-                     :cell-fn (fn cell-fn [r _localization]
-                                (let [text (resource/proj-path r)
-                                      icon (workspace/resource-icon r)
-                                      tooltip (when tooltip-gen (tooltip-gen r))
-                                      matching-indices (:matching-indices (meta r))]
-                                  (cond-> {:style-class (into ["list-cell"] (resource/style-classes r))
-                                           :graphic {:fx/type matched-list-item-view
-                                                     :icon icon
-                                                     :text text
-                                                     :matching-indices matching-indices}}
-                                    tooltip
-                                    (assoc :tooltip tooltip))))
-                     :filter-fn (fn filter-fn [filter-value items]
-                                  (let [[command arg] (let [parts (string/split filter-value #":")]
-                                                        (if (< 1 (count parts))
-                                                          parts
-                                                          [nil (first parts)]))
-                                        f (get special-filter-fns command fuzzy-resource-filter-fn)]
-                                    (f arg items)))}
-                    (merge options))]
-    (g/update-system-from-evaluation-context! evaluation-context)
+  (g/let-ec [localization (workspace/localization workspace evaluation-context)
+             exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
+             accepted-ext (if (seq exts) (set exts) fn/constantly-true)
+             accept-fn    (or (:accept-fn options) fn/constantly-true)
+             items        (into []
+                                (filter #(and (= :file (resource/source-type %))
+                                              (accepted-ext (resource/type-ext %))
+                                              (resource/loaded? %)
+                                              (not (resource/internal? %))
+                                              (accept-fn %)))
+                                (g/node-value workspace :resource-list evaluation-context))
+             tooltip-gen (:tooltip-gen options)
+             special-filter-fns {"refs" (partial refs-filter-fn project)
+                                 "deps" (partial deps-filter-fn project)}
+             options (-> {:title (localization/message "dialog.select-resource.title")
+                          :cell-fn (fn cell-fn [r _localization]
+                                     (let [text (resource/proj-path r)
+                                           icon (workspace/resource-icon r)
+                                           tooltip (when tooltip-gen (tooltip-gen r))
+                                           matching-indices (:matching-indices (meta r))]
+                                       (cond-> {:style-class (into ["list-cell"] (resource/style-classes r))
+                                                :graphic {:fx/type matched-list-item-view
+                                                          :icon icon
+                                                          :text text
+                                                          :matching-indices matching-indices}}
+                                         tooltip
+                                         (assoc :tooltip tooltip))))
+                          :filter-fn (fn filter-fn [filter-value items]
+                                       (let [[command arg] (let [parts (string/split filter-value #":")]
+                                                             (if (< 1 (count parts))
+                                                               parts
+                                                               [nil (first parts)]))
+                                             f (get special-filter-fns command fuzzy-resource-filter-fn)]
+                                         (f arg items)))}
+                         (merge options))]
     (dialogs/make-select-list-dialog items localization options)))

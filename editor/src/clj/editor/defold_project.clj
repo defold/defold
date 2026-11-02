@@ -1495,216 +1495,218 @@
                          (pair resource
                                (du/measuring resource-metrics (resource/proj-path resource) :collect-overridden-properties
                                  (g/collect-overridden-properties old-node-id evaluation-context)))))
-                  (:transfer-overrides plan))))
+                  (:transfer-overrides plan))))]
+    (g/with-evaluation-context [old-evaluation-context (g/make-evaluation-context)]
+      (let [old-basis @(:basis-ref old-evaluation-context)
+            old-node-ids-by-proj-path (g/valid-node-value project :nodes-by-resource-path old-evaluation-context)
+            new-node-id+resource-pairs (make-node-id+resource-pairs (:new plan))
+            workspace (workspace project old-evaluation-context)
 
-        old-evaluation-context (g/make-evaluation-context)
-        old-basis @(:basis-ref old-evaluation-context)
-        old-node-ids-by-proj-path (g/valid-node-value project :nodes-by-resource-path old-evaluation-context)
-        new-node-id+resource-pairs (make-node-id+resource-pairs (:new plan))
-        workspace (workspace project old-evaluation-context)
+            new-node-ids-by-proj-path
+            (into {}
+                  (map (fn [[node-id resource]]
+                         (let [proj-path (resource/proj-path resource)]
+                           (pair proj-path node-id))))
+                  new-node-id+resource-pairs)
 
-        new-node-ids-by-proj-path
-        (into {}
-              (map (fn [[node-id resource]]
-                     (let [proj-path (resource/proj-path resource)]
-                       (pair proj-path node-id))))
-              new-node-id+resource-pairs)
+            resource->new-node-id (comp new-node-ids-by-proj-path resource/proj-path)
+            resource->old-node-id (comp old-node-ids-by-proj-path resource/proj-path)
 
-        resource->new-node-id (comp new-node-ids-by-proj-path resource/proj-path)
-        resource->old-node-id (comp old-node-ids-by-proj-path resource/proj-path)
+            resource->node-id
+            (fn resource->node-id [resource]
+              ;; When transferring overrides and arcs, the target is either a
+              ;; newly created or already (still!) existing node.
+              (or (resource->new-node-id resource)
+                  (resource->old-node-id resource)))]
 
-        resource->node-id
-        (fn resource->node-id [resource]
-          ;; When transferring overrides and arcs, the target is either a newly
-          ;; created or already (still!) existing node.
-          (or (resource->new-node-id resource)
-              (resource->old-node-id resource)))]
+        ;; Significant resource changes can replace or delete nodes referenced
+        ;; by existing undo entries, so clear undo before the first mutation.
+        ;; Doing this up front also prevents a failed reload from leaving stale
+        ;; undo entries. All transactions from this point on will be
+        ;; non-undoable. Find out if we have any significant changes, but take
+        ;; care to exclude non-change information such as the list of :kept
+        ;; resources from this check.
+        (when (coll/any? coll/not-empty (vals (dissoc plan :invalidate-outputs :kept)))
+          (g/reset-undo! :undo/global))
 
-    ;; Significant resource changes can replace or delete nodes referenced by
-    ;; existing undo entries, so clear undo before the first mutation. Doing this
-    ;; up front also prevents a failed reload from leaving stale undo entries.
-    ;; All transactions from this point on will be non-undoable. Find out if we
-    ;; have any significant changes, but take care to exclude non-change
-    ;; information such as the list of :kept resources from this check.
-    (when (coll/any? coll/not-empty (vals (dissoc plan :invalidate-outputs :kept)))
-      (g/reset-undo! :undo/global))
+        (let [prelude-tx-data
+              (e/concat
+                ;; Create the new nodes in the graph.
+                (make-resource-nodes-tx-data project new-node-id+resource-pairs)
 
-    (let [prelude-tx-data
-          (e/concat
-            ;; Create the new nodes in the graph.
-            (make-resource-nodes-tx-data project new-node-id+resource-pairs)
+                ;; Transfer of overrides must happen before we delete the
+                ;; original nodes below. The new target nodes do not need to be
+                ;; loaded. When loading the new targets, corresponding
+                ;; override-nodes for the incoming connections will be created
+                ;; in the overrides.
+                (du/if-metrics
+                  ;; Doing metrics - Submit separate transaction steps for each
+                  ;; resource.
+                  (e/map (fn make-transfer-overrides-tx-data [[resource old-node-id]]
+                           (g/transfer-overrides {old-node-id (resource->node-id resource)}))
+                         (:transfer-overrides plan))
 
-            ;; Transfer of overrides must happen before we delete the original
-            ;; nodes below. The new target nodes do not need to be loaded. When
-            ;; loading the new targets, corresponding override-nodes for the
-            ;; incoming connections will be created in the overrides.
-            (du/if-metrics
-              ;; Doing metrics - Submit separate transaction steps for each
-              ;; resource.
-              (e/map (fn make-transfer-overrides-tx-data [[resource old-node-id]]
-                       (g/transfer-overrides {old-node-id (resource->node-id resource)}))
-                     (:transfer-overrides plan))
+                  ;; Not doing metrics - submit as a single transaction step.
+                  (g/transfer-overrides
+                    (coll/into-> (:transfer-overrides plan) {}
+                      (map (fn [[resource old-node-id]]
+                             (pair old-node-id (resource->node-id resource)))))))
 
-              ;; Not doing metrics - submit as a single transaction step.
-              (g/transfer-overrides
-                (coll/into-> (:transfer-overrides plan) {}
-                  (map (fn [[resource old-node-id]]
-                         (pair old-node-id (resource->node-id resource)))))))
+                ;; Must delete old versions of resource nodes before loading to
+                ;; avoid load functions finding these when doing lookups of
+                ;; dependencies.
+                (e/map g/delete-node (:delete plan)))
 
-            ;; Must delete old versions of resource nodes before loading to
-            ;; avoid load functions finding these when doing lookups of
-            ;; dependencies.
-            (e/map g/delete-node (:delete plan)))
+              read-progress-span 1
+              load-progress-span 3
+              total-progress-span (+ read-progress-span load-progress-span)
+              total-progress (progress/make localization/empty-message total-progress-span 0)
+              deleted-node-id? (set (:delete plan))
 
-          read-progress-span 1
-          load-progress-span 3
-          total-progress-span (+ read-progress-span load-progress-span)
-          total-progress (progress/make localization/empty-message total-progress-span 0)
-          deleted-node-id? (set (:delete plan))
+              old-node-id->old-node-state
+              (fn old-node-id->old-node-state [old-node-id]
+                ;; Returns the state of the supplied old-node-id as it existed
+                ;; in the graph before the resource change plan was executed.
+                (if (resource-node/loaded? old-basis old-node-id)
+                  :loaded
+                  :not-loaded))
 
-          old-node-id->old-node-state
-          (fn old-node-id->old-node-state [old-node-id]
-            ;; Returns the state of the supplied old-node-id as it existed in
-            ;; the graph before the resource change plan was executed.
-            (if (resource-node/loaded? old-basis old-node-id)
-              :loaded
-              :not-loaded))
+              read-opts
+              (workspace/make-read-opts
+                old-basis workspace
+                :include-editor-dependencies true
+                :resource-metrics resource-metrics)
 
-          read-opts
-          (workspace/make-read-opts
-            old-basis workspace
-            :include-editor-dependencies true
-            :resource-metrics resource-metrics)
+              old-node-id->dependency-proj-paths
+              (fn/memoize
+                (fn old-node-id->dependency-proj-paths [old-node-id]
+                  (when (and (not (deleted-node-id? old-node-id))
+                             (= :loaded (old-node-id->old-node-state old-node-id)))
+                    (let [resource (g/valid-node-value old-node-id :resource old-evaluation-context)]
+                      (du/measuring resource-metrics (resource/proj-path resource) :find-old-reload-dependencies
+                        (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
+                          (let [save-value (g/node-value old-node-id :save-value old-evaluation-context)]
+                            (when-not (g/error? save-value)
+                              (dependencies-fn read-opts resource save-value)))))))))
 
-          old-node-id->dependency-proj-paths
-          (fn/memoize
-            (fn old-node-id->dependency-proj-paths [old-node-id]
-              (when (and (not (deleted-node-id? old-node-id))
-                         (= :loaded (old-node-id->old-node-state old-node-id)))
-                (let [resource (g/valid-node-value old-node-id :resource old-evaluation-context)]
-                  (du/measuring resource-metrics (resource/proj-path resource) :find-old-reload-dependencies
-                    (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
-                      (let [save-value (g/node-value old-node-id :save-value old-evaluation-context)]
-                        (when-not (g/error? save-value)
-                          (dependencies-fn read-opts resource save-value)))))))))
+              node-load-infos
+              (let [render-progress! (progress/nest-render-progress render-progress! total-progress read-progress-span)]
+                (du/measuring process-metrics :read-new-nodes
+                  (read-nodes old-basis new-node-id+resource-pairs
+                    :old-node-id->dependency-proj-paths old-node-id->dependency-proj-paths
+                    :old-node-id->old-node-state old-node-id->old-node-state
+                    :old-node-ids-by-proj-path old-node-ids-by-proj-path
+                    :render-progress! render-progress!
+                    :resource-metrics resource-metrics)))
 
-          node-load-infos
-          (let [render-progress! (progress/nest-render-progress render-progress! total-progress read-progress-span)]
-            (du/measuring process-metrics :read-new-nodes
-              (read-nodes old-basis new-node-id+resource-pairs
-                :old-node-id->dependency-proj-paths old-node-id->dependency-proj-paths
-                :old-node-id->old-node-state old-node-id->old-node-state
-                :old-node-ids-by-proj-path old-node-ids-by-proj-path
-                :render-progress! render-progress!
-                :resource-metrics resource-metrics)))
+              total-progress (progress/advance total-progress read-progress-span)
 
-          total-progress (progress/advance total-progress read-progress-span)
+              migrated-node-ids
+              (let [render-progress! (progress/nest-render-progress render-progress! total-progress load-progress-span)]
+                (du/measuring process-metrics :load-new-nodes
+                  (load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))]
 
-          migrated-node-ids
-          (let [render-progress! (progress/nest-render-progress render-progress! total-progress load-progress-span)]
-            (du/measuring process-metrics :load-new-nodes
-              (load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))]
+          (du/measuring process-metrics :update-cache-with-dependencies
+            ;; Write any cached values created for old non-replaced resource
+            ;; node outputs during the process of querying their dependencies.
+            (g/update-system-from-evaluation-context! old-evaluation-context))
+          (du/measuring process-metrics :update-cache-with-save-data
+            (cache-loaded-save-data! node-load-infos project migrated-node-ids))
+          (render-progress! progress/done))
 
-      (du/measuring process-metrics :update-cache-with-dependencies
-        ;; Write any cached values created for old non-replaced resource node
-        ;; outputs during the process of querying their dependencies.
-        (g/update-system-from-evaluation-context! old-evaluation-context))
-      (du/measuring process-metrics :update-cache-with-save-data
-        (cache-loaded-save-data! node-load-infos project migrated-node-ids))
-      (render-progress! progress/done))
+        (du/measuring process-metrics :transfer-outgoing-arcs
+          (g/transact transact-opts
+            (for [[source-resource output-arcs] (:transfer-outgoing-arcs plan)]
+              (let [source-node (resource->node-id source-resource)
+                    existing-arcs (set (gu/explicit-outputs source-node))]
+                (for [[source-label [target-node target-label]] (remove existing-arcs output-arcs)]
+                  ;; if (g/node-by-id target-node), the target of the outgoing
+                  ;; arc has not been deleted above - implying it has not been
+                  ;; replaced by a new version. Otherwise, the target-node has
+                  ;; probably been replaced by another version (reloaded) and
+                  ;; that should have reestablished any incoming arcs to it
+                  ;; already
+                  (when (g/node-by-id target-node)
+                    (g/connect source-node source-label target-node target-label)))))))
 
-    (du/measuring process-metrics :transfer-outgoing-arcs
-      (g/transact transact-opts
-        (for [[source-resource output-arcs] (:transfer-outgoing-arcs plan)]
-          (let [source-node (resource->node-id source-resource)
-                existing-arcs (set (gu/explicit-outputs source-node))]
-            (for [[source-label [target-node target-label]] (remove existing-arcs output-arcs)]
-              ;; if (g/node-by-id target-node), the target of the outgoing arc
-              ;; has not been deleted above - implying it has not been replaced by a
-              ;; new version.
-              ;; Otherwise, the target-node has probably been replaced by another version
-              ;; (reloaded) and that should have reestablished any incoming arcs to it already
-              (when (g/node-by-id target-node)
-                (g/connect source-node source-label target-node target-label)))))))
+        (du/measuring process-metrics :redirect
+          (g/transact transact-opts
+            (for [[resource-node new-resource] (:redirect plan)]
+              (g/set-property resource-node :resource new-resource))))
 
-    (du/measuring process-metrics :redirect
-      (g/transact transact-opts
-        (for [[resource-node new-resource] (:redirect plan)]
-          (g/set-property resource-node :resource new-resource))))
-
-    (du/measuring process-metrics :mark-deleted
-      (let [basis (g/now)]
-        (g/transact transact-opts
-          (for [node-id (:mark-deleted plan)]
-            (let [resource (resource-node/resource basis node-id)
-                  flaw (make-file-not-found-error node-id resource)]
-              (g/mark-defective node-id flaw))))))
-
-    ;; Invalidate all outputs of changed stateless nodes
-    (du/measuring process-metrics :invalidate-outputs
-      (let [basis (g/now)]
-        (du/if-metrics
-          (doseq [node-id (:invalidate-outputs plan)]
-            (du/measuring resource-metrics (resource/proj-path (resource-node/resource basis node-id)) :invalidate-outputs
-              (g/invalidate-outputs! (mapv #(g/endpoint node-id %)
-                                           (g/output-labels (g/node-type* basis node-id))))))
-          (g/invalidate-outputs!
-            (coll/into-> (:invalidate-outputs plan) []
-              (mapcat (fn [node-id]
-                        (mapv #(g/endpoint node-id %)
-                              (g/output-labels (g/node-type* basis node-id))))))))))
-
-    ;; restore overridden properties.
-    (du/measuring process-metrics :restore-overridden-properties
-      (du/if-metrics
-        (g/with-auto-evaluation-context evaluation-context
-          (doseq [[resource collected-properties] collected-properties-by-resource]
-            (when-some [new-node-id (resource->new-node-id resource)]
-              (du/measuring resource-metrics (resource/proj-path resource) :restore-overridden-properties
-                (let [restore-properties-tx-data (g/restore-overridden-properties new-node-id collected-properties evaluation-context)]
-                  (when (seq restore-properties-tx-data)
-                    (g/transact transact-opts restore-properties-tx-data)))))))
-        (let [restore-properties-tx-data
-              (g/with-auto-evaluation-context evaluation-context
-                (into []
-                      (mapcat (fn [[resource collected-properties]]
-                                (when-some [new-node-id (resource->new-node-id resource)]
-                                  (g/restore-overridden-properties new-node-id collected-properties evaluation-context))))
-                      collected-properties-by-resource))]
-          (when (seq restore-properties-tx-data)
+        (du/measuring process-metrics :mark-deleted
+          (let [basis (g/now)]
             (g/transact transact-opts
-              restore-properties-tx-data)))))
+              (for [node-id (:mark-deleted plan)]
+                (let [resource (resource-node/resource basis node-id)
+                      flaw (make-file-not-found-error node-id resource)]
+                  (g/mark-defective node-id flaw))))))
 
-    (du/measuring process-metrics :update-selection
-      (g/let-ec [{:keys [basis-ref]} evaluation-context
-                 old->new (into {}
-                                (map (fn [[p n]]
-                                       [(old-node-ids-by-proj-path p) n]))
-                                new-node-ids-by-proj-path)
-                 dissoc-deleted (fn [x] (apply dissoc x (:mark-deleted plan)))
-                 old-all-selections (g/node-value project :all-selections evaluation-context)
-                 old-all-sub-selections (g/node-value project :all-sub-selections evaluation-context)
-                 tx-data (g/eager-tx-data
-                           (concat
-                             (let [all-selections (-> old-all-selections
-                                                      (dissoc-deleted)
-                                                      (remap-selection old->new (comp vector first)))]
-                               (when (not= old-all-selections all-selections)
-                                 (perform-selection @basis-ref project all-selections)))
-                             (let [all-sub-selections (-> old-all-sub-selections
+        ;; Invalidate all outputs of changed stateless nodes
+        (du/measuring process-metrics :invalidate-outputs
+          (let [basis (g/now)]
+            (du/if-metrics
+              (doseq [node-id (:invalidate-outputs plan)]
+                (du/measuring resource-metrics (resource/proj-path (resource-node/resource basis node-id)) :invalidate-outputs
+                  (g/invalidate-outputs! (mapv #(g/endpoint node-id %)
+                                               (g/output-labels (g/node-type* basis node-id))))))
+              (g/invalidate-outputs!
+                (coll/into-> (:invalidate-outputs plan) []
+                  (mapcat (fn [node-id]
+                            (mapv #(g/endpoint node-id %)
+                                  (g/output-labels (g/node-type* basis node-id))))))))))
+
+        ;; restore overridden properties.
+        (du/measuring process-metrics :restore-overridden-properties
+          (du/if-metrics
+            (g/with-auto-evaluation-context evaluation-context
+              (doseq [[resource collected-properties] collected-properties-by-resource]
+                (when-some [new-node-id (resource->new-node-id resource)]
+                  (du/measuring resource-metrics (resource/proj-path resource) :restore-overridden-properties
+                    (let [restore-properties-tx-data (g/restore-overridden-properties new-node-id collected-properties evaluation-context)]
+                      (when (seq restore-properties-tx-data)
+                        (g/transact transact-opts restore-properties-tx-data)))))))
+            (let [restore-properties-tx-data
+                  (g/with-auto-evaluation-context evaluation-context
+                    (into []
+                          (mapcat (fn [[resource collected-properties]]
+                                    (when-some [new-node-id (resource->new-node-id resource)]
+                                      (g/restore-overridden-properties new-node-id collected-properties evaluation-context))))
+                          collected-properties-by-resource))]
+              (when (seq restore-properties-tx-data)
+                (g/transact transact-opts
+                  restore-properties-tx-data)))))
+
+        (du/measuring process-metrics :update-selection
+          (g/let-ec [{:keys [basis-ref]} evaluation-context
+                     old->new (into {}
+                                    (map (fn [[p n]]
+                                           [(old-node-ids-by-proj-path p) n]))
+                                    new-node-ids-by-proj-path)
+                     dissoc-deleted (fn [x] (apply dissoc x (:mark-deleted plan)))
+                     old-all-selections (g/node-value project :all-selections evaluation-context)
+                     old-all-sub-selections (g/node-value project :all-sub-selections evaluation-context)
+                     tx-data (g/eager-tx-data
+                               (concat
+                                 (let [all-selections (-> old-all-selections
                                                           (dissoc-deleted)
-                                                          (remap-selection old->new (constantly [])))]
-                               (when (not= old-all-sub-selections all-sub-selections)
-                                 (perform-sub-selection project all-sub-selections)))))]
-        (g/transact transact-opts tx-data)))
+                                                          (remap-selection old->new (comp vector first)))]
+                                   (when (not= old-all-selections all-selections)
+                                     (perform-selection @basis-ref project all-selections)))
+                                 (let [all-sub-selections (-> old-all-sub-selections
+                                                              (dissoc-deleted)
+                                                              (remap-selection old->new (constantly [])))]
+                                   (when (not= old-all-sub-selections all-sub-selections)
+                                     (perform-sub-selection project all-sub-selections)))))]
+            (g/transact transact-opts tx-data)))
 
-    (du/when-metrics
-      (reset! resource-change-metrics-atom
-              {:old-nodes-by-path old-node-ids-by-proj-path
-               :new-nodes-by-path new-node-ids-by-proj-path
-               :process-metrics @process-metrics
-               :resource-metrics @resource-metrics
-               :transaction-metrics @transaction-metrics}))))
+        (du/when-metrics
+          (reset! resource-change-metrics-atom
+                  {:old-nodes-by-path old-node-ids-by-proj-path
+                   :new-nodes-by-path new-node-ids-by-proj-path
+                   :process-metrics @process-metrics
+                   :resource-metrics @resource-metrics
+                   :transaction-metrics @transaction-metrics}))))))
 
 (defn reload-plugins! [project touched-resources]
   (g/let-ec [{:keys [basis-ref]} evaluation-context
@@ -2175,8 +2177,9 @@
 
 (defn- update-system-cache-from-pruned-evaluation-context! [cache-entry-pred evaluation-context]
   ;; To avoid cache churn, we only transfer the most important entries to the system cache.
-  (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cache-entry-pred)]
-    (g/update-system-from-evaluation-context! pruned-evaluation-context)))
+  (g/with-evaluation-context [evaluation-context evaluation-context]
+    (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cache-entry-pred)]
+      (g/update-system-from-evaluation-context! pruned-evaluation-context))))
 
 (defn update-system-cache-build-targets! [evaluation-context]
   (update-system-cache-from-pruned-evaluation-context! cached-build-target-output? evaluation-context))

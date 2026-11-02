@@ -241,6 +241,46 @@
       (properties/set-values! p [1])
       (is (= 1 @(g/node-value n :count))))))
 
+;; Property edits must commit materialized nodes before applying edit steps and
+;; realize deferred set-fn results before closing the evaluation-context.
+(deftest set-values-materialization-test
+  (with-clean-system
+    (let [node-id (g/make-node! NumProp :my-prop 1)
+          [shell-node-id generated-node-id] (g/take-node-ids 2)]
+      (g/transact
+        (g/add-node
+          (g/construct-shell NumProp {:_node-id shell-node-id}
+            (fn materialize-property-node [self _evaluation-context]
+              [(g/add-node (g/construct NumProp {:_node-id generated-node-id :my-prop 10}))
+               (g/set-property self :my-prop generated-node-id)]))))
+      (let [property
+            (-> (:my-prop (coalesce-nodes [node-id]))
+                (assoc-in [:edit-type :prepare-user-edit-fn]
+                          (fn prepare-user-edit [evaluation-context _property _set-operations]
+                            {:generated-node-id (g/node-value shell-node-id :my-prop evaluation-context)}))
+                (assoc-in [:edit-type :set-fn]
+                          (fn set-property-value [evaluation-context self _old-value new-value]
+                            (eduction
+                              (map
+                                (fn make-edit-steps [new-value]
+                                  (let [generated-node-id (g/node-value shell-node-id :my-prop evaluation-context)]
+                                    [(g/set-property self :my-prop new-value)
+                                     (g/set-property generated-node-id :my-prop new-value)
+                                     (g/expand-ec
+                                       (fn check-user-edit [evaluation-context]
+                                         (is (properties/user-edit? self :my-prop evaluation-context))
+                                         (is (= generated-node-id
+                                                (:generated-node-id @(:tx-data-context-atom evaluation-context))))
+                                         []))])))
+                              [new-value]))))]
+        (properties/set-values! property [7]))
+      (is (= 7 (g/node-value node-id :my-prop)))
+      (is (= 7 (g/node-value generated-node-id :my-prop)))
+      (is (zero? (g/evaluation-context-count)))
+      (g/undo! :undo/global)
+      (is (= 1 (g/node-value node-id :my-prop)))
+      (is (= 10 (g/node-value generated-node-id :my-prop))))))
+
 (g/defnode DynamicClearFn
   (property a g/Keyword)
   (property cleared g/Any)

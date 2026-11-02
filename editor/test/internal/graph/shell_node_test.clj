@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [internal.graph.types :as gt]
             [internal.node :as in]
+            [internal.transaction :as it]
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll])
   (:import [clojure.lang ExceptionInfo]
@@ -41,6 +42,306 @@
             (set (fn set-value [_evaluation-context self _old-value _new-value]
                    (g/set-property self :value 5))))
   (output cached-identity g/Str :cached :unjammable (g/fnk [identity] identity)))
+
+;; Overlapping snapshots must share materializations until the last evaluation
+;; closes, after which the system must release both copies of the replay data.
+(deftest materialization-results-lifetime-test
+  (doseq [discard-first [false true]]
+    (with-clean-system
+      (let [[shell] (g/take-node-ids 1)
+            calls (atom 0)]
+        (g/transact
+          (g/add-node
+            (g/construct-shell ShellTestNode {:_node-id shell}
+              (fn materialize-test-shell [self _evaluation-context]
+                (swap! calls inc)
+                (g/set-property self :value 7)))))
+        (let [first-context (g/make-evaluation-context)
+              second-context (g/make-evaluation-context)
+              derived-context (g/dry-run-evaluation-context first-context)]
+          (is (= 2 (g/evaluation-context-count)))
+          (is (= 7 (g/node-value shell :result first-context)))
+          (if discard-first
+            (g/close-evaluation-context! derived-context)
+            (g/update-system-from-evaluation-context! first-context))
+          (g/close-evaluation-context! first-context)
+          (is (= 1 (g/evaluation-context-count)))
+          (is (contains? @(:shared-materialization-registry-atom @g/*the-system*) shell))
+          (is (= 7 (g/node-value shell :result second-context)))
+          (is (= 1 @calls))
+          (g/update-system-from-evaluation-context! second-context)
+          (is (zero? (g/evaluation-context-count)))
+          (is (= {} (:materialization-results @g/*the-system*)))
+          (is (= {} @(:shared-materialization-registry-atom @g/*the-system*)))
+          (is (= 7 (g/node-value shell :result)))
+          (is (= 1 @calls)))))))
+
+;; Nested retention scopes must preserve replay data across closed evaluations
+;; and release it on either normal or exceptional exit.
+(deftest evaluation-contexts-open-lifetime-test
+  (doseq [commit [false true]
+          fail [false true]]
+    (with-clean-system
+      (let [[shell] (g/take-node-ids 1)
+            calls (atom 0)]
+        (g/transact
+          (g/add-node
+            (g/construct-shell ShellTestNode {:_node-id shell}
+              (fn materialize-test-shell [self _evaluation-context]
+                (swap! calls inc)
+                (g/set-property self :value 7)))))
+        (let [basis (g/now)
+
+              run-scope!
+              (fn run-scope! []
+                (g/with-evaluation-contexts-open
+                  (is (= 1 (g/evaluation-context-count)))
+                  (g/with-evaluation-contexts-open
+                    (is (= 2 (g/evaluation-context-count)))
+                    (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+                      (is (= 7 (g/node-value shell :result evaluation-context)))
+                      (when commit
+                        (g/update-system-from-evaluation-context! evaluation-context))))
+                  (is (= 1 (g/evaluation-context-count)))
+                  (is (= commit (contains? (:materialization-results @g/*the-system*) shell)))
+                  (is (contains? @(:shared-materialization-registry-atom @g/*the-system*) shell))
+                  (g/with-evaluation-context [evaluation-context (g/make-evaluation-context {:basis basis})]
+                    (is (= 7 (g/node-value shell :result evaluation-context))))
+                  (is (= 1 @calls))
+                  (when fail
+                    (throw (ex-info "Expected scope failure" {})))
+                  ::scope-result))]
+
+          (if-not fail
+            (is (= ::scope-result (run-scope!)))
+            (is (thrown-with-msg? ExceptionInfo #"Expected scope failure"
+                                  (run-scope!)))))
+        (is (zero? (g/evaluation-context-count)))
+        (is (= {} (:materialization-results @g/*the-system*)))
+        (is (= {} @(:shared-materialization-registry-atom @g/*the-system*)))
+        (is (= (not commit) (in/shell-node? (g/node-by-id shell))))))))
+
+;; A retention scope belonging to a replaced system must not decrement the
+;; replacement system's count when the scope exits.
+(deftest evaluation-contexts-open-replaced-system-test
+  (with-clean-system
+    (g/with-evaluation-context
+      [evaluation-context
+       (g/with-evaluation-contexts-open
+         (reset! g/*the-system* (g/clone-system))
+         (g/make-evaluation-context))]
+      (is (= 1 (g/evaluation-context-count)))
+      (is (some? @(:basis-ref evaluation-context))))
+    (is (zero? (g/evaluation-context-count)))))
+
+;; Completing the last evaluation must publish its count and released replay
+;; data together, without changing the count in earlier system snapshots.
+(deftest evaluation-context-completion-is-atomic-test
+  (doseq [commit [false true]]
+    (with-clean-system
+      (let [[shell] (g/take-node-ids 1)]
+        (g/transact
+          (g/add-node
+            (g/construct-shell ShellTestNode {:_node-id shell}
+              (fn materialize-test-shell [self _evaluation-context]
+                (g/set-property self :value 7)))))
+        (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+          (is (= 7 (g/node-value shell :result evaluation-context)))
+          (let [snapshot @g/*the-system*
+                published-systems (atom [])]
+            (add-watch g/*the-system* ::completion
+                       (fn record-system [_ _ _ system]
+                         (swap! published-systems conj system)))
+            (try
+              (if commit
+                (g/update-system-from-evaluation-context! evaluation-context)
+                (g/close-evaluation-context! evaluation-context))
+              (finally
+                (remove-watch g/*the-system* ::completion)))
+            (is (= 1 (:evaluation-context-count snapshot)))
+            (is (integer? (:evaluation-context-count snapshot)))
+            (is (= 1 (count @published-systems)))
+            (let [system (first @published-systems)]
+              (is (zero? (:evaluation-context-count system)))
+              (is (= {} (:materialization-results system)))
+              (is (= {} @(:shared-materialization-registry-atom system))))
+            (is (= (not commit) (in/shell-node? (g/node-by-id shell)))))
+          (g/close-evaluation-context! evaluation-context)
+          (is (zero? (g/evaluation-context-count))))))))
+
+;; Concurrent registration and discards must retain shared materializations
+;; through a system-thread commit until the final evaluation finishes.
+(deftest concurrent-evaluation-context-lifetimes-test
+  (with-clean-system
+    (let [[shell] (g/take-node-ids 1)
+          ordinary (g/make-node! ShellTestNode :value 11)
+          worker-count 8
+          start (promise)
+          ready (CountDownLatch. worker-count)
+          release (promise)]
+      (g/transact
+        (g/add-node
+          (g/construct-shell ShellTestNode {:_node-id shell}
+            (fn materialize-test-shell [self _evaluation-context]
+              (g/set-property self :value 7)))))
+      (g/with-evaluation-context [materializing-context (g/make-evaluation-context)]
+        (is (= 7 (g/node-value shell :result materializing-context)))
+        (let [workers (mapv (fn [_]
+                              (future
+                                (when (= ::timeout (deref start 10000 ::timeout))
+                                  (throw (ex-info "Timed out starting evaluations." {})))
+                                (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+                                  (let [result (g/node-value ordinary :result evaluation-context)]
+                                    (.countDown ready)
+                                    (when (= ::timeout (deref release 10000 ::timeout))
+                                      (throw (ex-info "Timed out finishing evaluations." {})))
+                                    result))))
+                            (range worker-count))]
+          (try
+            (deliver start true)
+            (is (.await ready 10 TimeUnit/SECONDS))
+            (is (= (inc worker-count) (g/evaluation-context-count)))
+            (g/update-system-from-evaluation-context! materializing-context)
+            (is (= worker-count (g/evaluation-context-count)))
+            (is (contains? (:materialization-results @g/*the-system*) shell))
+            (is (contains? @(:shared-materialization-registry-atom @g/*the-system*) shell))
+            (deliver release true)
+            (is (coll/every? #(= 11 %)
+                             (mapv #(deref % 10000 ::timeout) workers)))
+            (is (zero? (g/evaluation-context-count)))
+            (is (= {} (:materialization-results @g/*the-system*)))
+            (is (= {} @(:shared-materialization-registry-atom @g/*the-system*)))
+            (finally
+              (deliver start true)
+              (deliver release true)
+              (doseq [worker workers]
+                (future-cancel worker)))))))))
+
+;; Failed evaluations and binding initializers must release their snapshots
+;; without publishing partially evaluated graph changes.
+(deftest evaluation-context-exception-cleanup-test
+  (with-clean-system
+    (let [[shell] (g/take-node-ids 1)
+          fail! (fn fail-evaluation! [evaluation-context]
+                  (g/materialize-node! shell evaluation-context)
+                  (throw (ex-info "Evaluation failed" {})))]
+      (g/transact
+        (g/add-node
+          (g/construct-shell ShellTestNode {:_node-id shell}
+            (fn materialize-test-shell [self _evaluation-context]
+              (g/set-property self :value 7)))))
+      (is (thrown-with-msg? ExceptionInfo #"Evaluation failed"
+                            (g/with-auto-evaluation-context evaluation-context
+                              (fail! evaluation-context))))
+      (is (zero? (g/evaluation-context-count)))
+      (is (in/shell-node? (g/node-by-id shell)))
+      (is (= {} @(:shared-materialization-registry-atom @g/*the-system*)))
+      (is (thrown-with-msg? ExceptionInfo #"Evaluation failed"
+                            (g/let-ec [_ (fail! evaluation-context)]
+                              :unreachable)))
+      (is (zero? (g/evaluation-context-count)))
+      (is (in/shell-node? (g/node-by-id shell)))
+      (is (= {} @(:shared-materialization-registry-atom @g/*the-system*)))
+      (is (thrown? AssertionError (g/make-evaluation-context {:cache (g/cache)})))
+      (is (zero? (g/evaluation-context-count))))))
+
+;; Evaluation handoffs must convey the originating system binding so completion
+;; updates its count without affecting a different system bound by the caller.
+(deftest evaluation-context-system-binding-test
+  (doseq [complete! [g/update-system-from-evaluation-context! g/close-evaluation-context!]]
+    (with-clean-system
+      (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+        (let [complete-evaluation-context! (bound-fn complete-evaluation-context! []
+                                             (complete! evaluation-context))]
+          (with-clean-system
+            (g/with-evaluation-context [other-evaluation-context (g/make-evaluation-context)]
+              @(future (complete-evaluation-context!))
+              (is (= 1 (g/evaluation-context-count)))
+              (is (some? @(:basis-ref other-evaluation-context))))))
+        (is (nil? @(:basis-ref evaluation-context)))
+        (is (zero? (g/evaluation-context-count)))))))
+
+;; Closing a fake evaluation before system initialization must leave the system
+;; unset, including when the evaluation fails.
+(deftest fake-evaluation-context-cleanup-test
+  (binding [g/*the-system* (atom nil)]
+    (let [basis-ref (g/with-auto-or-fake-evaluation-context evaluation-context
+                      (:basis-ref evaluation-context))]
+      (is (nil? @basis-ref))
+      (is (nil? @g/*the-system*)))
+    (is (thrown-with-msg? ExceptionInfo #"Expected evaluation failure"
+                          (g/with-auto-or-fake-evaluation-context _evaluation-context
+                            (throw (ex-info "Expected evaluation failure" {})))))
+    (is (nil? @g/*the-system*))))
+
+;; Replacing a system while evaluations remain open must isolate both the
+;; replacement's counter and graph from late commits or discards.
+(deftest evaluation-context-replaced-system-test
+  (doseq [complete! [g/update-system-from-evaluation-context! g/close-evaluation-context!]]
+    (with-clean-system
+      (let [[shell] (g/take-node-ids 1)]
+        (g/transact
+          (g/add-node
+            (g/construct-shell ShellTestNode {:_node-id shell}
+              (fn materialize-test-shell [self _evaluation-context]
+                (g/set-property self :value 7)))))
+        (g/with-evaluation-context [old-context (g/make-evaluation-context)]
+          (is (= 7 (g/node-value shell :result old-context)))
+          (reset! g/*the-system* (g/clone-system))
+          (g/with-evaluation-context [new-context (g/make-evaluation-context)]
+            (complete! old-context)
+            (is (nil? @(:basis-ref old-context)))
+            (is (= 1 (g/evaluation-context-count)))
+            (is (in/shell-node? (g/node-by-id shell)))
+            (is (some? @(:basis-ref new-context)))))
+        (is (zero? (g/evaluation-context-count)))))))
+
+;; Materializations performed by transaction-local setters must not remain in
+;; the shared registry after a transaction fails or is only a dry run.
+(deftest discarded-transaction-releases-materializations-test
+  (doseq [fail [false true]]
+    (with-clean-system
+      (let [[shell] (g/take-node-ids 1)
+            consumer (g/make-node! ShellConsumer)]
+        (g/transact
+          (g/add-node
+            (g/construct-shell ShellTestNode {:_node-id shell}
+              (fn materialize-test-shell [self _evaluation-context]
+                (g/set-property self :value 7)))))
+        (if-not fail
+          (g/transact {:dry-run true} (g/set-property consumer :source shell))
+          (is (thrown? ExceptionInfo
+                       (g/transact
+                         [(g/set-property consumer :source shell)
+                          (g/expand nil (fn fail-transaction []
+                                          (throw (ex-info "Expected transaction failure" {}))))]))))
+        (is (in/shell-node? (g/node-by-id shell)))
+        (is (zero? (g/evaluation-context-count)))
+        (is (= {} (:materialization-results @g/*the-system*)))
+        (is (= {} @(:shared-materialization-registry-atom @g/*the-system*)))))))
+
+;; The manual transaction path used by load_project.clj must release replay
+;; data as part of committing, even when no evaluation scope is open.
+(deftest manually-committed-transaction-releases-materializations-test
+  (with-clean-system
+    (let [[shell] (g/take-node-ids 1)
+          consumer (g/make-node! ShellConsumer)]
+      (g/transact
+        (g/add-node
+          (g/construct-shell ShellTestNode {:_node-id shell}
+            (fn materialize-test-shell [self _evaluation-context]
+              (g/set-property self :value 7)))))
+      (let [transaction-context (g/make-transaction-context {})
+            tx-result (it/transact* transaction-context nil
+                                    [(g/set-property consumer :source shell)])]
+        (is (zero? (g/evaluation-context-count)))
+        (is (contains? @(:shared-materialization-registry-atom @g/*the-system*) shell))
+        (g/commit-tx-result! tx-result {} (:basis transaction-context))
+        (is (= 7 (g/raw-property-value (g/now) consumer :value)))
+        (is (not (in/shell-node? (g/node-by-id shell))))
+        (is (zero? (g/evaluation-context-count)))
+        (is (= {} (:materialization-results @g/*the-system*)))
+        (is (= {} @(:shared-materialization-registry-atom @g/*the-system*)))))))
 
 ;; Shell reads remain local until committed, invalidate cached outputs, survive
 ;; undo and can be replayed together with a subsequent materialization.
@@ -1075,22 +1376,28 @@
         (g/update-system-from-evaluation-context! second-evaluation-context)
         (is (= 99 (g/node-value shell :result)))))))
 
+;; Explicit historical bases can share results while an evaluation keeps them
+;; alive, or materialize again after all earlier evaluations have closed.
 (deftest shared-materialization-can-replay-into-explicit-old-basis-test
-  (with-clean-system
-    (let [shell (first (g/take-node-ids 1))
-          calls (atom 0)]
-      (g/transact
-        (g/add-node
-          (g/construct-shell ShellTestNode
-            {:_node-id shell}
-            (fn [self _evaluation-context]
-              (swap! calls inc)
-              (g/set-property self :value 5)))))
-      (let [old-basis (g/now)]
-        (is (= 5 (g/node-value shell :result)))
-        (let [evaluation-context (g/make-evaluation-context {:basis old-basis})]
-          (is (= 5 (g/node-value shell :result evaluation-context)))
-          (is (= 1 @calls)))))))
+  (doseq [keep-results [false true]]
+    (with-clean-system
+      (let [shell (first (g/take-node-ids 1))
+            calls (atom 0)]
+        (g/transact
+          (g/add-node
+            (g/construct-shell ShellTestNode
+              {:_node-id shell}
+              (fn materialize-test-shell [self _evaluation-context]
+                (swap! calls inc)
+                (g/set-property self :value 5)))))
+        (g/with-evaluation-context [pending-context (g/make-evaluation-context)]
+          (let [old-basis @(:basis-ref pending-context)]
+            (when-not keep-results
+              (g/close-evaluation-context! pending-context))
+            (is (= 5 (g/node-value shell :result)))
+            (g/with-evaluation-context [evaluation-context (g/make-evaluation-context {:basis old-basis})]
+              (is (= 5 (g/node-value shell :result evaluation-context)))
+              (is (= (if keep-results 1 2) @calls)))))))))
 
 ;; Failure of a dependent must preserve a successfully published prerequisite.
 (deftest failed-materialization-retains-completed-prerequisites-test

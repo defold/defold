@@ -794,41 +794,40 @@
         refresh-view!
         (fn refresh-view! []
           (swap! state-atom assoc :progress :searching)
-          (let [evaluation-context (g/make-evaluation-context)
-
-                search-future
+          (let [search-future
                 (future
-                  (try
-                    (let [has-specific-properties (not= :all properties)
-                          property-pred (if has-specific-properties (set properties) any?)
-                          tree (make-override-tree node-id property-pred evaluation-context)
+                  (let [evaluation-context (g/make-evaluation-context)]
+                    (try
+                      (let [has-specific-properties (not= :all properties)
+                            property-pred (if has-specific-properties (set properties) any?)
+                            tree (make-override-tree node-id property-pred evaluation-context)
 
-                          display-order
-                          (->> (if has-specific-properties
-                                 properties
-                                 (coll/into-> (tree-seq :children :children tree) #{}
-                                   (drop 1)
-                                   (mapcat :overridden-properties)))
-                               (sort-by property-keyword->display-order)
-                               (vec))
+                            display-order
+                            (->> (if has-specific-properties
+                                   properties
+                                   (coll/into-> (tree-seq :children :children tree) #{}
+                                     (drop 1)
+                                     (mapcat :overridden-properties)))
+                                 (sort-by property-keyword->display-order)
+                                 (vec))
 
-                          queried-properties
-                          (when has-specific-properties
-                            display-order)]
-                      (ui/run-later
-                        (g/update-system-from-evaluation-context! evaluation-context))
-                      (swap! state-atom assoc
-                             :queried-properties queried-properties
-                             :progress :done
-                             :selected-item nil
-                             :tree tree
-                             :display-order display-order))
-                    (catch InterruptedException _
-                      nil)
-                    (catch Throwable ex
-                      (error-reporting/report-exception! ex))
-                    (finally
-                      (reset! search-future-atom nil))))]
+                            queried-properties
+                            (when has-specific-properties
+                              display-order)]
+                        (swap! state-atom assoc
+                               :queried-properties queried-properties
+                               :progress :done
+                               :selected-item nil
+                               :tree tree
+                               :display-order display-order))
+                      (catch InterruptedException _
+                        nil)
+                      (catch Throwable ex
+                        (error-reporting/report-exception! ex))
+                      (finally
+                        (ui/run-later
+                          (g/update-system-from-evaluation-context! evaluation-context))
+                        (reset! search-future-atom nil)))))]
             (when-some [old-search-future (thread-util/preset! search-future-atom search-future)]
               (future-cancel old-search-future))
             nil))

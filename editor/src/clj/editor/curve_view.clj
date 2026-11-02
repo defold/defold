@@ -250,6 +250,8 @@
          (<= (.y min-p) (.y p) (.y max-p)))))
 
 (defn- reset-controller! [controller]
+  (when-let [context-atom (g/node-value controller :initial-evaluation-context)]
+    (g/close-evaluation-context! @context-atom))
   (g/transact
     {:undoable false}
     (concat
@@ -258,6 +260,23 @@
       (g/set-property controller :op-seq nil)
       (g/set-property controller :handle nil)
       (g/set-property controller :initial-evaluation-context nil))))
+
+(defn- start-controller! [self op-seq cursor-pos handle data]
+  (let [evaluation-context (g/make-evaluation-context)]
+    (try
+      (let [previous-context (g/node-value self :initial-evaluation-context evaluation-context)]
+        (g/transact {:undoable false}
+          [(g/set-property self :op-seq op-seq)
+           (g/set-property self :start cursor-pos)
+           (g/set-property self :current cursor-pos)
+           (g/set-property self :handle handle)
+           (g/set-property self :handle-data data)
+           (g/set-property self :initial-evaluation-context (atom evaluation-context))])
+        (when previous-context
+          (g/close-evaluation-context! @previous-context)))
+      (catch Throwable error
+        (g/close-evaluation-context! evaluation-context)
+        (throw error)))))
 
 (defn handle-input [self _input-state action _user-data]
   (let [^Point3d start (g/node-value self :start)
@@ -318,15 +337,7 @@
                                                 (let [select-fn (g/node-value self :select-fn)
                                                       sub-selection [data]]
                                                   (select-fn sub-selection op-seq)))
-                                              (g/transact
-                                                {:undoable false}
-                                                (concat
-                                                  (g/set-property self :op-seq op-seq)
-                                                  (g/set-property self :start cursor-pos)
-                                                  (g/set-property self :current cursor-pos)
-                                                  (g/set-property self :handle handle)
-                                                  (g/set-property self :handle-data data)
-                                                  (g/set-property self :initial-evaluation-context (atom (g/make-evaluation-context)))))
+                                              (start-controller! self op-seq cursor-pos handle data)
                                               true)))))]
                        (if handled? nil action))
       :mouse-released (do
@@ -387,8 +398,11 @@
   (property op-seq g/Any)
   (property initial-evaluation-context g/Any)
   (property select-fn Runnable)
+
   (input sub-selection g/Any)
   (input curve-handle g/Any)
+
+  (output evaluation-context g/Any (g/fnk [initial-evaluation-context] (some-> initial-evaluation-context deref)))
   (output input-handler Runnable :cached (g/constantly handle-input))
   (output preview-overrides g/Any (g/constantly nil))
   (output info-text g/Str (g/constantly nil)))
@@ -676,6 +690,7 @@
                          (g/connect camera :_node-id view-id :camera-id)
                          (g/connect grid :_node-id view-id :grid-id)
                          (g/connect controller :_node-id view-id :controller-id)
+                         (g/connect controller :evaluation-context view-id :disposed-evaluation-contexts)
                          (g/connect selection :_node-id view-id :selection-id)
                          (g/connect rulers :_node-id view-id :rulers-id)
                          (g/connect camera :local-camera view-id :local-camera)

@@ -185,10 +185,10 @@
                  (format "Concurrent modification of graph: transaction revision %s, current revision %s"
                          start-tx current-tx)))))))
 
-(defn- assert-system-thread! [system]
+(defn assert-system-thread! [system]
   (when-let [on-system-thread? (:on-system-thread? system)]
     (assert (on-system-thread?)
-            "Graph changes must be committed on the system thread.")))
+            "System updates must be committed on the system thread.")))
 
 (defn- commit-basis
   [system pre-tx-basis post-tx-basis]
@@ -198,15 +198,40 @@
       (assert-system-thread! system)
       (assoc system :graph (update post-tx-basis :tx-id util/safe-inc)))))
 
-(defn merge-materialization-results [system materialization-results]
-  (if (identical? (:materialization-results system) materialization-results)
+(defn- clear-unused-materialization-results [system]
+  (if-not (and (zero? (long (:evaluation-context-count system)))
+               (or (coll/not-empty (:materialization-results system))
+                   (coll/not-empty @(:shared-materialization-registry-atom system))))
     system
-    (coll/reduce-kv-> materialization-results system
-      (fn [system node-id materialize-info]
-        (if (or (identical? materialize-info (get (:materialization-results system) node-id))
-                (nil? (ig/node-by-id-at (basis system) node-id)))
-          system
-          (assoc-in system [:materialization-results node-id] materialize-info))))))
+    ;; Replace the registry instead of mutating it in a retryable swap.
+    (assoc system
+      :materialization-results {}
+      :shared-materialization-registry-atom (atom {}))))
+
+(defn decrement-evaluation-context-count [system shared-materialization-registry-atom]
+  ;; A replacement system has its own registry. Finishing an old evaluation
+  ;; or scope must not decrement its count or release its materializations.
+  (if-not (identical? (:shared-materialization-registry-atom system)
+                      shared-materialization-registry-atom)
+    system
+    (-> system
+        (update :evaluation-context-count dec)
+        clear-unused-materialization-results)))
+
+(defn release-results-from-evaluation-context [system evaluation-context]
+  (decrement-evaluation-context-count system (:shared-materialization-registry-atom evaluation-context)))
+
+(defn merge-materialization-results [system materialization-results]
+  (if (zero? (long (:evaluation-context-count system)))
+    (clear-unused-materialization-results system)
+    (if (identical? (:materialization-results system) materialization-results)
+      system
+      (coll/reduce-kv-> materialization-results system
+        (fn [system node-id materialize-info]
+          (if (or (identical? materialize-info (get (:materialization-results system) node-id))
+                  (nil? (ig/node-by-id-at (basis system) node-id)))
+            system
+            (assoc-in system [:materialization-results node-id] materialize-info)))))))
 
 (defn- replay-changes
   [system transaction-changes change-fn]
@@ -292,7 +317,7 @@
 
 (defn make-system
   "Creates an isolated graph system. The optional :on-system-thread? predicate
-  asserts thread ownership before graph changes are committed."
+  asserts thread ownership before graph changes or evaluations are committed."
   [configuration]
   {:on-system-thread? (:on-system-thread? configuration)
    :graph (or (:initial-graph configuration) (ig/empty-graph))
@@ -302,6 +327,7 @@
    :cache (make-cache configuration)
    :invalidate-counters (ic/make)
    :user-data {}
+   :evaluation-context-count 0
    :shared-materialization-registry-atom (atom {})
    :materialization-results {}})
 
@@ -411,7 +437,7 @@
                 (update :cache c/cache-encache safe-cache-misses @(:basis-ref evaluation-context))))))))
     system))
 
-(defn update-system-from-evaluation-context
+(defn- merge-results-from-evaluation-context
   [system {:keys [initial-basis initial-invalidate-counters] :as evaluation-context}]
   (let [evaluation-context (in/live-run-evaluation-context evaluation-context)
         changes @(:changes-atom evaluation-context)
@@ -457,6 +483,14 @@
               system
               (throw error))))))))
 
+(defn update-system-from-evaluation-context [system evaluation-context]
+  (if-not (identical? (:shared-materialization-registry-atom system)
+                      (:shared-materialization-registry-atom evaluation-context))
+    system ; The evaluation-context was not created from our system.
+    (-> system
+        (merge-results-from-evaluation-context evaluation-context)
+        (release-results-from-evaluation-context evaluation-context))))
+
 (defn user-data [system node-id key]
   (get-in system [:user-data node-id key]))
 
@@ -483,5 +517,6 @@
    :cache (:cache system)
    :user-data (:user-data system)
    :invalidate-counters (:invalidate-counters system)
+   :evaluation-context-count 0
    :shared-materialization-registry-atom (atom {})
-   :materialization-results (:materialization-results system)})
+   :materialization-results {}})

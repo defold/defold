@@ -1343,11 +1343,10 @@
 
 (defn handle-input
   [self input-state action state]
-  (let [evaluation-context (g/make-evaluation-context)
-        mode (g/node-value self :mode evaluation-context)]
-    (case mode
+  (g/with-auto-evaluation-context evaluation-context
+    (case (g/node-value self :mode evaluation-context)
       :palette (handle-input-palette self action state evaluation-context)
-      :editor  (handle-input-editor self input-state action state evaluation-context))))
+      :editor (handle-input-editor self input-state action state evaluation-context))))
 
 (defn make-input-handler []
   (let [state (atom nil)]
