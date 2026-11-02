@@ -113,8 +113,16 @@ namespace dmPlatform
         glfwGetWindowFrameSize(window->m_Window, &left, &top, &right, &bottom);
         int x = rect.m_X, y = rect.m_Y;
         dmWindowState::ClampPosition(&rect, target.m_WorkArea, left, top, right, bottom);
+        if (glfwGetPlatform() == GLFW_PLATFORM_WIN32)
+        {
+            // Win32 moves are synchronous, but changing DPI can shift the
+            // client origin when the title bar and borders change size.
+            glfwGetWindowPos(window->m_Window, &x, &y);
+        }
         if (rect.m_X != x || rect.m_Y != y)
+        {
             glfwSetWindowPos(window->m_Window, rect.m_X, rect.m_Y);
+        }
     }
 
     void InitWindowPlacement(HWindow window, const WindowCreateParams& params)
@@ -159,6 +167,7 @@ namespace dmPlatform
         const dmWindowState::State& saved = placement->m_Normal;
         dmWindowState::Rect rect = saved.m_Rect;
         bool restore_size = dmWindowState::RestoreSize(saved, placement->m_ConfigWidth, placement->m_ConfigHeight, placement->m_ResetToken);
+        GLFWmonitor* restored_monitor = 0;
         if (HasPosition() && saved.m_HasPosition)
         {
             int count;
@@ -170,6 +179,7 @@ namespace dmPlatform
             for (int i = 0; i < count; ++i)
                 monitors.Push(ReadMonitor(handles[i]));
             uint32_t monitor_index = dmWindowState::SelectMonitor(saved, monitors.Begin(), count);
+            restored_monitor = handles[monitor_index];
             const dmWindowState::Monitor& monitor = monitors[monitor_index];
             bool scale_coordinates = glfwGetPlatform() != GLFW_PLATFORM_COCOA;
             rect = dmWindowState::RestoreRect(saved, monitor, scale_coordinates);
@@ -185,23 +195,32 @@ namespace dmPlatform
             // restored offset completely outside its current bounds. Clamp the
             // requested rectangle: X11 may still report the previous position
             // while the window manager processes the move asynchronously.
-            ClampToMonitor(window, handles[monitor_index], rect);
+            ClampToMonitor(window, restored_monitor, rect);
         }
         else if (restore_size)
         {
             glfwSetWindowSize(window->m_Window, rect.m_Width, rect.m_Height);
         }
-        if (restore_size && glfwGetPlatform() == GLFW_PLATFORM_WIN32)
+        if (glfwGetPlatform() == GLFW_PLATFORM_WIN32)
         {
             // The initial move can leave the larger startup window mostly on
             // another monitor. Resizing or clamping it can then trigger a DPI
             // transition that scales the saved screen dimensions again. Once
             // those transitions have completed, enforce the requested size.
-            int width, height;
-            glfwGetWindowSize(window->m_Window, &width, &height);
-            if (width != rect.m_Width || height != rect.m_Height)
+            if (restore_size)
             {
-                glfwSetWindowSize(window->m_Window, rect.m_Width, rect.m_Height);
+                int width, height;
+                glfwGetWindowSize(window->m_Window, &width, &height);
+                if (width != rect.m_Width || height != rect.m_Height)
+                {
+                    glfwSetWindowSize(window->m_Window, rect.m_Width, rect.m_Height);
+                }
+            }
+            if (restored_monitor)
+            {
+                // Reapply the client position with the final DPI's frame
+                // insets, including when a reset discards the saved size.
+                ClampToMonitor(window, restored_monitor, rect);
             }
         }
         return true;

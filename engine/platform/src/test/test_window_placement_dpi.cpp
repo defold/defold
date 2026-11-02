@@ -44,7 +44,8 @@ static GLFWmonitor* g_MonitorHandles[] = { &g_Monitors[0], &g_Monitors[1] };
 
 // Model the relevant GLFW/Win32 contract: the monitor follows the largest
 // overlap, and either a move or a resize can synchronously trigger automatic
-// DPI scaling. No display server or event timing is involved in these tests.
+// DPI scaling. The outer origin stays fixed while frame insets change with DPI,
+// shifting the client origin. No display server or event timing is involved.
 static void SetGeometry(GLFWwindow* window, dmWindowState::Rect rect)
 {
     int64_t largest_overlap = 0;
@@ -62,6 +63,8 @@ static void SetGeometry(GLFWwindow* window, dmWindowState::Rect rect)
     }
     rect.m_Width = (int32_t) roundf(rect.m_Width * monitor->m_State.m_ScaleX / window->m_Monitor->m_State.m_ScaleX);
     rect.m_Height = (int32_t) roundf(rect.m_Height * monitor->m_State.m_ScaleY / window->m_Monitor->m_State.m_ScaleY);
+    rect.m_X += (int) (8 * monitor->m_State.m_ScaleX) - (int) (8 * window->m_Monitor->m_State.m_ScaleX);
+    rect.m_Y += (int) (30 * monitor->m_State.m_ScaleY) - (int) (30 * window->m_Monitor->m_State.m_ScaleY);
     window->m_Rect = rect;
     window->m_Monitor = monitor;
 }
@@ -240,7 +243,7 @@ class WindowPlacementDpiTest : public jc_test_base_class
         dmPlatform::UpdateWindowPlacement(&m_Window, true);
     }
 
-    void CheckRestarts(int width, int height)
+    void CheckRestarts(int x, int y, int width, int height)
     {
         ASSERT_TRUE(dmWindowState::Save(m_Path, m_Saved));
         for (uint32_t i = 0; i < 5; ++i)
@@ -248,10 +251,14 @@ class WindowPlacementDpiTest : public jc_test_base_class
             Restore();
             ASSERT_EQ(width, m_NativeWindow.m_Rect.m_Width);
             ASSERT_EQ(height, m_NativeWindow.m_Rect.m_Height);
+            ASSERT_EQ(x, m_NativeWindow.m_Rect.m_X);
+            ASSERT_EQ(y, m_NativeWindow.m_Rect.m_Y);
             dmWindowState::State saved;
             ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &saved));
             ASSERT_EQ(width, saved.m_Rect.m_Width);
             ASSERT_EQ(height, saved.m_Rect.m_Height);
+            ASSERT_EQ(x, saved.m_Rect.m_X);
+            ASSERT_EQ(y, saved.m_Rect.m_Y);
         }
     }
 
@@ -269,7 +276,7 @@ class WindowPlacementDpiTest : public jc_test_base_class
 // Verifies a resize-triggered DPI transition cannot shrink saved dimensions on every launch.
 TEST_F(WindowPlacementDpiTest, SmallerWindowOnSecondaryMonitor)
 {
-    CheckRestarts(600, 400);
+    CheckRestarts(-700, 100, 600, 400);
 }
 
 // Verifies clamping onto a monitor after its work area shrinks cannot rescale the restored size.
@@ -277,14 +284,14 @@ TEST_F(WindowPlacementDpiTest, DpiChangeDuringClamping)
 {
     m_Saved.m_Monitor.m_WorkArea.m_Width = 7680;
     m_Saved.m_Rect.m_X = 1160;
-    CheckRestarts(600, 400);
+    CheckRestarts(-612, 100, 600, 400);
 }
 
 // Verifies a real change in the saved monitor's DPI is applied once across repeated launches.
 TEST_F(WindowPlacementDpiTest, ChangedMonitorDpi)
 {
     m_Saved.m_Monitor.m_ScaleX = m_Saved.m_Monitor.m_ScaleY = 1.25f;
-    CheckRestarts(720, 480);
+    CheckRestarts(-732, 120, 720, 480);
 }
 
 // Verifies larger saved windows retain their dimensions when moving to the secondary monitor.
@@ -293,7 +300,7 @@ TEST_F(WindowPlacementDpiTest, LargerWindowOnSecondaryMonitor)
     m_Saved.m_Rect.m_X = -2600;
     m_Saved.m_Rect.m_Width = 2400;
     m_Saved.m_Rect.m_Height = 1600;
-    CheckRestarts(2400, 1600);
+    CheckRestarts(-2600, 100, 2400, 1600);
 }
 
 // Verifies restoring between monitors with equal DPI does not alter the saved size.
@@ -301,7 +308,7 @@ TEST_F(WindowPlacementDpiTest, EqualMonitorDpi)
 {
     g_Monitors[1].m_State.m_ScaleX = g_Monitors[1].m_State.m_ScaleY = 2.0f;
     m_Saved.m_Monitor = g_Monitors[1].m_State;
-    CheckRestarts(600, 400);
+    CheckRestarts(-700, 100, 600, 400);
 }
 
 // Verifies restoring onto a higher-DPI secondary monitor cannot grow the saved size on each launch.
@@ -310,7 +317,44 @@ TEST_F(WindowPlacementDpiTest, HigherDpiSecondaryMonitor)
     g_Monitors[0].m_State.m_ScaleX = g_Monitors[0].m_State.m_ScaleY = 1.5f;
     g_Monitors[1].m_State.m_ScaleX = g_Monitors[1].m_State.m_ScaleY = 2.0f;
     m_Saved.m_Monitor = g_Monitors[1].m_State;
-    CheckRestarts(600, 400);
+    CheckRestarts(-700, 100, 600, 400);
+}
+
+// Verifies a larger window frame at 225% DPI cannot move the saved position on each launch.
+TEST_F(WindowPlacementDpiTest, HighDpiSecondaryMonitorPosition)
+{
+    g_Monitors[0].m_State.m_ScaleX = g_Monitors[0].m_State.m_ScaleY = 1.0f;
+    g_Monitors[1].m_State.m_ScaleX = g_Monitors[1].m_State.m_ScaleY = 2.25f;
+    m_Saved.m_Monitor = g_Monitors[1].m_State;
+    m_Saved.m_Rect.m_X = -2600;
+    m_Saved.m_Rect.m_Y = 300;
+    CheckRestarts(-2600, 300, 600, 400);
+}
+
+// Verifies position correction uses the target DPI's frame insets when clamping to the work area.
+TEST_F(WindowPlacementDpiTest, HighDpiPositionClampedToWorkArea)
+{
+    g_Monitors[0].m_State.m_ScaleX = g_Monitors[0].m_State.m_ScaleY = 1.0f;
+    g_Monitors[1].m_State.m_ScaleX = g_Monitors[1].m_State.m_ScaleY = 2.25f;
+    m_Saved.m_Monitor = g_Monitors[1].m_State;
+    m_Saved.m_Rect.m_X = -3832;
+    m_Saved.m_Rect.m_Y = 30;
+    CheckRestarts(-3822, 67, 600, 400);
+}
+
+// Verifies resetting the saved size still corrects position drift when the window frame changes DPI.
+TEST_F(WindowPlacementDpiTest, HighDpiPositionAfterSizeReset)
+{
+    g_Monitors[0].m_State.m_ScaleX = g_Monitors[0].m_State.m_ScaleY = 1.0f;
+    g_Monitors[1].m_State.m_ScaleX = g_Monitors[1].m_State.m_ScaleY = 2.25f;
+    m_Saved.m_Monitor = g_Monitors[1].m_State;
+    m_Saved.m_Rect.m_X = -2600;
+    m_Saved.m_Rect.m_Y = 300;
+    FILE* file = fopen("test-window-placement-dpi/reset-size", "wb");
+    ASSERT_NE((FILE*) 0, file);
+    fputs("deadbeef-1234", file);
+    fclose(file);
+    CheckRestarts(-2600, 300, 2160, 1440);
 }
 
 // Verifies the primary-monitor restore path retains the saved size.
@@ -318,7 +362,7 @@ TEST_F(WindowPlacementDpiTest, PrimaryMonitor)
 {
     m_Saved.m_Rect.m_X = 100;
     m_Saved.m_Monitor = g_Monitors[0].m_State;
-    CheckRestarts(600, 400);
+    CheckRestarts(100, 100, 600, 400);
 }
 
 // Verifies a reset still restores the project dimensions at the target DPI, ignoring the saved size.
@@ -328,7 +372,7 @@ TEST_F(WindowPlacementDpiTest, ResetSize)
     ASSERT_NE((FILE*) 0, file);
     fputs("deadbeef-1234", file);
     fclose(file);
-    CheckRestarts(1440, 960);
+    CheckRestarts(-1932, 100, 1440, 960);
 }
 
 int main(int argc, char** argv)
