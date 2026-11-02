@@ -75,7 +75,6 @@ local function test_native_b2d_world_and_chains(body_a, body_b, body_c)
     b2d.world.set_maximum_linear_speed(world, max_linear_speed)
 
     b2d.world.set_contact_tuning(world, 30, 10, 3)
-    b2d.world.set_joint_tuning(world, 60, 2)
     assert(type(b2d.world.get_awake_body_count(world)) == "number")
 
     local profile = b2d.world.get_profile(world)
@@ -86,6 +85,7 @@ local function test_native_b2d_world_and_chains(body_a, body_b, body_c)
     assert(type(counters) == "table")
     assert(type(counters.body_count) == "number")
     assert(type(counters.color_counts) == "table")
+    assert(#counters.color_counts == 24)
 
     b2d.world.explode(world, {
         position = vmath.vector3(100000, 100000, 0),
@@ -94,8 +94,6 @@ local function test_native_b2d_world_and_chains(body_a, body_b, body_c)
         impulse_per_length = 1,
     })
     b2d.world.rebuild_static_tree(world)
-    b2d.world.enable_speculative(world, false)
-    b2d.world.enable_speculative(world, true)
 
     assert(b2d.body.is_valid(body_a))
     b2d.body.set_name(body_a, "joint-test-a")
@@ -466,8 +464,10 @@ local function test_native_b2d_joints(self)
     physics.destroy_joint(self.a_coll, managed_joint_id)
 
     local joint = b2d.joint.create_distance(body_a, body_b, {
-        local_anchor_a = vmath.vector3(1, 2, 0),
-        local_anchor_b = vmath.vector3(3, 4, 0),
+        local_anchor_a = PHYSICS ~= "box2dv3" and vmath.vector3(1, 2, 0) or nil,
+        local_anchor_b = PHYSICS ~= "box2dv3" and vmath.vector3(3, 4, 0) or nil,
+        local_frame_a = PHYSICS == "box2dv3" and { position = vmath.vector3(1, 2, 0), angle = 0.2 } or nil,
+        local_frame_b = PHYSICS == "box2dv3" and { position = vmath.vector3(3, 4, 0), angle = -0.3 } or nil,
         length = 5,
         collide_connected = false,
     })
@@ -476,8 +476,15 @@ local function test_native_b2d_joints(self)
     assert(b2d.joint.get_body_a(joint) == body_a)
     assert(b2d.joint.get_body_b(joint) == body_b)
     assert(not b2d.joint.get_collide_connected(joint))
-    assert_vec3_near(b2d.joint.get_local_anchor_a(joint), vmath.vector3(1, 2, 0))
-    assert_vec3_near(b2d.joint.get_local_anchor_b(joint), vmath.vector3(3, 4, 0))
+    if PHYSICS == "box2dv3" then
+        assert_vec3_near(b2d.joint.get_local_frame_a(joint).position, vmath.vector3(1, 2, 0))
+        assert_vec3_near(b2d.joint.get_local_frame_b(joint).position, vmath.vector3(3, 4, 0))
+        assert_near(b2d.joint.get_local_frame_a(joint).angle, 0.2, 0.002)
+        assert_near(b2d.joint.get_local_frame_b(joint).angle, -0.3, 0.002)
+    else
+        assert_vec3_near(b2d.joint.get_local_anchor_a(joint), vmath.vector3(1, 2, 0))
+        assert_vec3_near(b2d.joint.get_local_anchor_b(joint), vmath.vector3(3, 4, 0))
+    end
     assert(b2d.joint.get_reaction_force(joint) ~= nil)
     assert(type(b2d.joint.get_reaction_torque(joint)) == "number")
 
@@ -497,24 +504,34 @@ local function test_native_b2d_joints(self)
         b2d.joint.set_collide_connected(joint, true)
         assert(b2d.joint.get_collide_connected(joint))
         b2d.joint.wake_bodies(joint)
+        b2d.joint.set_constraint_tuning(joint, 60, 2)
+        local hertz, damping_ratio = b2d.joint.get_constraint_tuning(joint)
+        assert_near(hertz, 60)
+        assert_near(damping_ratio, 2)
     else
         assert(b2d.joint.set_collide_connected == nil)
         assert(b2d.joint.wake_bodies == nil)
     end
 
-    local mouse_joint = b2d.joint.create_mouse(body_a, body_b, {
-        target = vmath.vector3(5, 6, 0),
-        max_force = 10,
-    })
-    b2d.joint.set_mouse_target(mouse_joint, vmath.vector3(7, 8, 0))
-    assert_vec3_near(b2d.joint.get_mouse_target(mouse_joint), vmath.vector3(7, 8, 0))
-    b2d.joint.set_max_force(mouse_joint, 11)
-    assert_near(b2d.joint.get_max_force(mouse_joint), 11)
-    b2d.joint.set_frequency(mouse_joint, 12)
-    assert_near(b2d.joint.get_frequency(mouse_joint), 12)
-    b2d.joint.set_damping_ratio(mouse_joint, 0.7)
-    assert_near(b2d.joint.get_damping_ratio(mouse_joint), 0.7)
-    b2d.joint.destroy(mouse_joint)
+    if PHYSICS ~= "box2dv3" then
+        local mouse_joint = b2d.joint.create_mouse(body_a, body_b, {
+            target = vmath.vector3(5, 6, 0),
+            max_force = 10,
+        })
+        b2d.joint.set_mouse_target(mouse_joint, vmath.vector3(7, 8, 0))
+        assert_vec3_near(b2d.joint.get_mouse_target(mouse_joint), vmath.vector3(7, 8, 0))
+        b2d.joint.set_max_force(mouse_joint, 11)
+        assert_near(b2d.joint.get_max_force(mouse_joint), 11)
+        b2d.joint.set_frequency(mouse_joint, 12)
+        assert_near(b2d.joint.get_frequency(mouse_joint), 12)
+        b2d.joint.set_damping_ratio(mouse_joint, 0.7)
+        assert_near(b2d.joint.get_damping_ratio(mouse_joint), 0.7)
+        b2d.joint.destroy(mouse_joint)
+    else
+        assert(b2d.joint.create_mouse == nil)
+        assert(b2d.joint.set_mouse_target == nil)
+        assert(b2d.joint.JOINT_TYPE_MOUSE == nil)
+    end
 
     b2d.joint.set_length(joint, 6)
     assert_near(b2d.joint.get_length(joint), 6)
@@ -555,13 +572,19 @@ local function test_native_b2d_joints(self)
     b2d.joint.destroy(revolute_joint)
 
     local weld_joint = b2d.joint.create_weld(body_a, body_b, {
-        reference_angle = 0.25,
+        reference_angle = PHYSICS ~= "box2dv3" and 0.25 or nil,
+        local_frame_a = PHYSICS == "box2dv3" and { angle = 0.25 } or nil,
     })
-    assert_near(b2d.joint.get_reference_angle(weld_joint), 0.25)
+    if PHYSICS == "box2dv3" then
+        assert_near(b2d.joint.get_local_frame_a(weld_joint).angle, 0.25, 0.002)
+    else
+        assert_near(b2d.joint.get_reference_angle(weld_joint), 0.25)
+    end
     b2d.joint.destroy(weld_joint)
 
     local wheel_joint = b2d.joint.create_wheel(body_a, body_b, {
-        local_axis_a = vmath.vector3(0, 1, 0),
+        local_axis_a = PHYSICS ~= "box2dv3" and vmath.vector3(0, 1, 0) or nil,
+        local_frame_a = PHYSICS == "box2dv3" and { angle = math.pi / 2 } or nil,
     })
     b2d.joint.enable_motor(wheel_joint, true)
     b2d.joint.set_motor_speed(wheel_joint, 8)
@@ -582,22 +605,62 @@ local function test_native_b2d_joints(self)
         assert_near(b2d.joint.get_max_length(joint), 7)
         assert(type(b2d.joint.get_current_length(joint)) == "number")
 
-        local motor_joint = b2d.joint.create_motor(body_a, body_b)
-        b2d.joint.set_linear_offset(motor_joint, vmath.vector3(1, 2, 0))
-        assert_vec3_near(b2d.joint.get_linear_offset(motor_joint), vmath.vector3(1, 2, 0))
-        b2d.joint.set_angular_offset(motor_joint, 0.3)
-        assert_near(b2d.joint.get_angular_offset(motor_joint), 0.3)
-        b2d.joint.set_max_force(motor_joint, 14)
-        assert_near(b2d.joint.get_max_force(motor_joint), 14)
-        b2d.joint.set_max_torque(motor_joint, 15)
-        assert_near(b2d.joint.get_max_torque(motor_joint), 15)
-        b2d.joint.set_correction_factor(motor_joint, 0.4)
-        assert_near(b2d.joint.get_correction_factor(motor_joint), 0.4)
+        -- Verify 3.2 motor targets, spring limits and local frames replace mouse/offset controls.
+        local motor_joint = b2d.joint.create_motor(body_a, body_b, {
+            linear_velocity = vmath.vector3(1, 2, 0),
+            angular_velocity = 0.3,
+            max_velocity_force = 14,
+            max_velocity_torque = 15,
+            linear_hertz = 5,
+            linear_damping_ratio = 0.7,
+            max_spring_force = 11,
+            angular_hertz = 6,
+            angular_damping_ratio = 0.8,
+            max_spring_torque = 12,
+        })
+        assert_vec3_near(b2d.joint.get_linear_velocity(motor_joint), vmath.vector3(1, 2, 0))
+        assert_near(b2d.joint.get_angular_velocity(motor_joint), 0.3)
+        assert_near(b2d.joint.get_max_velocity_force(motor_joint), 14)
+        assert_near(b2d.joint.get_max_velocity_torque(motor_joint), 15)
+        assert_near(b2d.joint.get_max_spring_force(motor_joint), 11)
+        assert_near(b2d.joint.get_max_spring_torque(motor_joint), 12)
+        assert_near(b2d.joint.get_linear_hertz(motor_joint), 5)
+        assert_near(b2d.joint.get_angular_hertz(motor_joint), 6)
+        assert_near(b2d.joint.get_linear_damping_ratio(motor_joint), 0.7)
+        assert_near(b2d.joint.get_angular_damping_ratio(motor_joint), 0.8)
+        b2d.joint.set_linear_velocity(motor_joint, vmath.vector3(3, 4, 0))
+        assert_vec3_near(b2d.joint.get_linear_velocity(motor_joint), vmath.vector3(3, 4, 0))
+        b2d.joint.set_angular_velocity(motor_joint, 0.5)
+        assert_near(b2d.joint.get_angular_velocity(motor_joint), 0.5)
+        b2d.joint.set_max_velocity_force(motor_joint, 16)
+        assert_near(b2d.joint.get_max_velocity_force(motor_joint), 16)
+        b2d.joint.set_max_velocity_torque(motor_joint, 17)
+        assert_near(b2d.joint.get_max_velocity_torque(motor_joint), 17)
+        b2d.joint.set_max_spring_force(motor_joint, 18)
+        assert_near(b2d.joint.get_max_spring_force(motor_joint), 18)
+        b2d.joint.set_max_spring_torque(motor_joint, 19)
+        assert_near(b2d.joint.get_max_spring_torque(motor_joint), 19)
+        b2d.joint.set_linear_hertz(motor_joint, 7)
+        b2d.joint.set_angular_hertz(motor_joint, 8)
+        b2d.joint.set_linear_damping_ratio(motor_joint, 0.6)
+        b2d.joint.set_angular_damping_ratio(motor_joint, 0.9)
+        assert_near(b2d.joint.get_linear_hertz(motor_joint), 7)
+        assert_near(b2d.joint.get_angular_hertz(motor_joint), 8)
+        assert_near(b2d.joint.get_linear_damping_ratio(motor_joint), 0.6)
+        assert_near(b2d.joint.get_angular_damping_ratio(motor_joint), 0.9)
         b2d.joint.destroy(motor_joint)
 
         local weld_v3_joint = b2d.joint.create_weld(body_a, body_b)
-        b2d.joint.set_reference_angle(weld_v3_joint, 0.6)
-        assert_near(b2d.joint.get_reference_angle(weld_v3_joint), 0.6)
+        b2d.joint.set_local_frame_a(weld_v3_joint, { position = vmath.vector3(2, 3, 0), angle = 0.6 })
+        assert_near(b2d.joint.get_local_frame_a(weld_v3_joint).angle, 0.6, 0.002)
+        assert_vec3_near(b2d.joint.get_local_frame_a(weld_v3_joint).position, vmath.vector3(2, 3, 0))
+        -- A position-only update must preserve the stored rotation without another approximation.
+        local original_angle = b2d.joint.get_local_frame_a(weld_v3_joint).angle
+        b2d.joint.set_local_frame_a(weld_v3_joint, { position = vmath.vector3(4, 5, 0) })
+        assert(b2d.joint.get_local_frame_a(weld_v3_joint).angle == original_angle)
+        assert_vec3_near(b2d.joint.get_local_frame_a(weld_v3_joint).position, vmath.vector3(4, 5, 0))
+        b2d.joint.set_local_frame_b(weld_v3_joint, { angle = -0.2 })
+        assert_near(b2d.joint.get_local_frame_b(weld_v3_joint).angle, -0.2, 0.002)
         b2d.joint.set_linear_hertz(weld_v3_joint, 16)
         assert_near(b2d.joint.get_linear_hertz(weld_v3_joint), 16)
         b2d.joint.set_angular_hertz(weld_v3_joint, 17)
@@ -1123,8 +1186,9 @@ local joint_tests = {
         local length = vmath.length(p_c - p_b)
 
         if PHYSICS=="box2dv3" then
-            assert_near(152.207, length, 0.01)
-            assert_near(95.709, p_b.x)
+            -- Expected trajectory with the Box2D 3.2 solver.
+            assert_near(69.937622, length, 0.01)
+            assert_near(-15.796986, p_b.x)
         else
             assert_near(70.472, length, 0.01)
             assert_near(54.736, p_b.x)

@@ -21,3 +21,4 @@
 /model/texture_transform_model.go
 /model/valid_material.go
 /model/valid_model.go
+/model/retained_transform_cache.go

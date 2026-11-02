@@ -472,6 +472,61 @@ static int GetDisplayScale(lua_State* L)
     return 1;
 }
 
+/*# get the display density
+ *
+ * Returns a platform specific estimate of the display density, in dots per inch. Returns 96 on
+ * platforms that do not support it. This is not the same value as `window.get_display_scale()`,
+ * which reports the ratio between framebuffer pixels and logical pixels and is therefore 1 on most
+ * mobile devices.
+ *
+ * The value is a logical density used for pixel scaling rather than a measurement of the display:
+ * the density bucket on Android, which a user or an OEM can override and which `densityDpi` reports,
+ * the native scale of the screen expressed as dpi on iOS, the device pixel ratio expressed as dpi on
+ * HTML5 and the monitor size on desktop platforms.
+ *
+ * Use it together with `window.get_display_density_scale()` to scale sizes against a reference
+ * density rather than to measure the display.
+ *
+ * @name window.get_display_density
+ * @return density [type:number] platform specific display density estimate in dots per inch
+ */
+static int GetDisplayDensity(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    float density = dmPlatform::GetDisplayDensity(g_Window.m_Window);
+    lua_pushnumber(L, density);
+
+    return 1;
+}
+
+/*# get the display density relative to a reference density
+ *
+ * Returns the display density divided by a reference density, which is the multiplier UI code
+ * multiplies its sizes with. A common reference is 160 dots per inch, the Android mdpi baseline that
+ * density values are normally expressed against; a project tuned against another baseline passes
+ * that one instead.
+ *
+ * @name window.get_display_density_scale
+ * @param reference_dpi [type:number] reference density in dots per inch
+ * @return scale [type:number] display density divided by the reference density
+ */
+static int GetDisplayDensityScale(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    float reference_dpi = (float) luaL_checknumber(L, 1);
+    if (reference_dpi <= 0.0f)
+    {
+        return DM_LUA_ERROR("reference_dpi must be greater than 0");
+    }
+
+    float density = dmPlatform::GetDisplayDensity(g_Window.m_Window);
+    lua_pushnumber(L, density / reference_dpi);
+
+    return 1;
+}
+
 /*# set the title of the window
  *
  * Sets the window title. Works on desktop platforms.
@@ -541,6 +596,8 @@ static const luaL_reg Module_methods[] =
     {"set_size",          SetSize},
     {"set_position",      SetPosition},
     {"get_display_scale", GetDisplayScale},
+    {"get_display_density", GetDisplayDensity},
+    {"get_display_density_scale", GetDisplayDensityScale},
     {"get_mouse_lock",    GetMouseLock},
     {0, 0}
 };

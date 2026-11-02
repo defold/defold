@@ -55,7 +55,9 @@ static const uint8_t* Read(const FontColr* font, uint64_t offset, uint64_t size)
 static bool ReadList(const FontColr* font, uint32_t offset, uint32_t stride)
 {
     if (!offset)
+    {
         return true;
+    }
     const uint8_t* list = Read(font, offset, 4);
     return list && Read(font, (uint64_t)offset + 4, (uint64_t)U32(list) * stride);
 }
@@ -64,14 +66,18 @@ bool FontColrInitialize(FontColr* font, const void* colr, uint32_t size, const v
 {
     memset(font, 0, sizeof(*font));
     if (!colr || size < 14 || !cpal || cpal_size < 14)
+    {
         return false;
+    }
     const uint8_t* p = (const uint8_t*)cpal;
     uint32_t       colors = U16(p + 2), palettes = U16(p + 4), records = U16(p + 6);
     uint32_t       color_offset = U32(p + 8), first = U16(p + 12);
     if (U16(p) > 1 || !palettes || palettes > (cpal_size - 12) / 2 ||
         first > records || colors > records - first || color_offset > cpal_size ||
         records > (cpal_size - color_offset) / 4)
+    {
         return false;
+    }
     FontColr view = {};
     view.m_Data = (const uint8_t*)colr;
     view.m_Size = size;
@@ -80,7 +86,9 @@ bool FontColrInitialize(FontColr* font, const void* colr, uint32_t size, const v
     p = view.m_Data;
     uint32_t version = U16(p);
     if (version > 1 || (version == 1 && size < 34))
+    {
         return false;
+    }
     view.m_BaseGlyphCount = U16(p + 2);
     view.m_BaseGlyphs = U32(p + 4);
     view.m_Layers = U32(p + 8);
@@ -88,19 +96,25 @@ bool FontColrInitialize(FontColr* font, const void* colr, uint32_t size, const v
     if ((view.m_BaseGlyphCount && !view.m_BaseGlyphs) || (view.m_LayerCount && !view.m_Layers) ||
         !Read(&view, view.m_BaseGlyphs, view.m_BaseGlyphCount * 6) ||
         !Read(&view, view.m_Layers, view.m_LayerCount * 4))
+    {
         return false;
+    }
     if (version == 1)
     {
         view.m_BaseGlyphList = U32(p + 14);
         view.m_LayerList = U32(p + 18);
         view.m_ClipList = U32(p + 22);
         if (!ReadList(&view, view.m_BaseGlyphList, 6) || !ReadList(&view, view.m_LayerList, 4))
+        {
             return false;
+        }
         if (view.m_ClipList)
         {
             const uint8_t* clips = Read(&view, view.m_ClipList, 5);
             if (!clips || clips[0] != 1 || !Read(&view, (uint64_t)view.m_ClipList + 5, (uint64_t)U32(clips + 1) * 7))
+            {
                 return false;
+            }
         }
     }
     *font = view;
@@ -110,7 +124,9 @@ bool FontColrInitialize(FontColr* font, const void* colr, uint32_t size, const v
 static const uint8_t* FindGlyph(const FontColr* font, uint32_t glyph, bool v1)
 {
     if (!font->m_Data || glyph > 0xffff || (v1 && !font->m_BaseGlyphList))
+    {
         return 0;
+    }
     const uint8_t* records = font->m_Data + (v1 ? font->m_BaseGlyphList + 4 : font->m_BaseGlyphs);
     uint32_t       low = 0, high = v1 ? U32(font->m_Data + font->m_BaseGlyphList) : font->m_BaseGlyphCount;
     while (low < high)
@@ -119,11 +135,17 @@ static const uint8_t* FindGlyph(const FontColr* font, uint32_t glyph, bool v1)
         const uint8_t* record = records + mid * 6;
         uint32_t       id = U16(record);
         if (id == glyph)
+        {
             return record;
+        }
         if (id < glyph)
+        {
             low = mid + 1;
+        }
         else
+        {
             high = mid;
+        }
     }
     return 0;
 }
@@ -137,7 +159,9 @@ static FontResult ClipBox(const FontColr* font, uint32_t glyph, const uint8_t** 
 {
     *box = 0;
     if (!font->m_ClipList)
+    {
         return FONT_RESULT_OK;
+    }
     const uint8_t* list = font->m_Data + font->m_ClipList;
     uint32_t       low = 0, high = U32(list + 1);
     while (low < high)
@@ -145,19 +169,29 @@ static FontResult ClipBox(const FontColr* font, uint32_t glyph, const uint8_t** 
         uint32_t       mid = low + (high - low) / 2;
         const uint8_t* record = list + 5 + mid * 7;
         if (glyph < U16(record))
+        {
             high = mid;
+        }
         else if (glyph > U16(record + 2))
+        {
             low = mid + 1;
+        }
         else
         {
             uint32_t       relative = U24(record + 4);
             const uint8_t* clip = relative ? Read(font, (uint64_t)font->m_ClipList + relative, 9) : 0;
             if (!clip)
+            {
                 return FONT_RESULT_ERROR;
+            }
             if (clip[0] != 1)
+            {
                 return FONT_RESULT_NOT_SUPPORTED;
+            }
             if (S16(clip + 1) > S16(clip + 5) || S16(clip + 3) > S16(clip + 7))
+            {
                 return FONT_RESULT_ERROR;
+            }
             *box = clip;
             return FONT_RESULT_OK;
         }
@@ -184,7 +218,9 @@ static bool Color(const FontColr* font, uint32_t palette, float alpha, FontColrS
         return true;
     }
     if (palette >= font->m_ColorCount)
+    {
         return false;
+    }
     const uint8_t* p = font->m_Colors + palette * 4;
     stop->m_Color[0] = p[2] / 255.0f;
     stop->m_Color[1] = p[1] / 255.0f;
@@ -197,7 +233,9 @@ static FontResult Solid(PaintContext* c, uint32_t palette, float alpha)
 {
     FontColrStop stop = {};
     if (!Color(c->m_Font, palette, alpha, &stop))
+    {
         return FONT_RESULT_ERROR;
+    }
     FontColrPaint paint = {};
     paint.m_Type = FONT_COLR_SOLID;
     paint.m_Stops = &stop;
@@ -213,14 +251,20 @@ static FontResult Gradient(PaintContext* c, uint64_t offset, const uint8_t* p)
     uint32_t       relative = U24(p + 1);
     const uint8_t* line = relative ? Read(c->m_Font, offset + relative, 3) : 0;
     if (!line || line[0] > 2)
+    {
         return FONT_RESULT_ERROR;
+    }
     uint32_t       count = U16(line + 1);
     const uint8_t* records = Read(c->m_Font, offset + relative + 3, count * 6);
     if (!records || count > c->m_WorkLeft)
+    {
         return FONT_RESULT_ERROR;
+    }
     c->m_WorkLeft -= count;
     if (!count)
+    {
         return FONT_RESULT_OK; // Empty color lines are transparent.
+    }
     dmArray<FontColrStop> stops;
     stops.SetCapacity(count);
     stops.SetSize(count);
@@ -230,14 +274,18 @@ static FontResult Gradient(PaintContext* c, uint64_t offset, const uint8_t* p)
         FontColrStop   stop = {};
         stop.m_Offset = F2Dot14(record);
         if (!Color(c->m_Font, U16(record + 2), F2Dot14(record + 4), &stop))
+        {
             return FONT_RESULT_ERROR;
+        }
         // Stable insertion preserves the specified ordering of coincident
         // stops. Charge comparisons to the traversal budget as well as nodes.
         uint32_t j = i;
         while (j && stops[j - 1].m_Offset > stop.m_Offset)
         {
             if (!c->m_WorkLeft)
+            {
                 return FONT_RESULT_ERROR;
+            }
             --c->m_WorkLeft;
             stops[j] = stops[j - 1];
             --j;
@@ -245,14 +293,18 @@ static FontResult Gradient(PaintContext* c, uint64_t offset, const uint8_t* p)
         stops[j] = stop;
     }
     if (line[0] && stops[0].m_Offset == stops[count - 1].m_Offset)
+    {
         return FONT_RESULT_OK; // Degenerate repeat/reflect gradients paint nothing.
+    }
     FontColrPaint paint = {};
     paint.m_Type = p[0] == 4 ? FONT_COLR_LINEAR_GRADIENT : FONT_COLR_RADIAL_GRADIENT;
     paint.m_Extend = line[0];
     paint.m_Stops = stops.Begin();
     paint.m_StopCount = count;
     for (uint32_t i = 0; i < 6; ++i)
+    {
         paint.m_Points[i] = p[0] == 6 && (i == 2 || i == 5) ? U16(p + 4 + i * 2) : S16(p + 4 + i * 2);
+    }
     return c->m_Callbacks->m_Paint(c->m_Context, &paint) ? FONT_RESULT_OK : FONT_RESULT_NOT_SUPPORTED;
 }
 
@@ -266,9 +318,13 @@ static FontResult Transform(PaintContext* c, uint64_t offset, const uint8_t* p, 
         uint32_t       relative = U24(p + 4);
         const uint8_t* matrix = relative ? Read(c->m_Font, offset + relative, 24) : 0;
         if (!matrix)
+        {
             return FONT_RESULT_ERROR;
+        }
         for (uint32_t i = 0; i < 6; ++i)
+        {
             m[i] = Fixed(matrix + i * 4);
+        }
     }
     else if (format == 14)
     {
@@ -316,7 +372,9 @@ static FontResult Transform(PaintContext* c, uint64_t offset, const uint8_t* p, 
     m[5] += cy - m[1] * cx - m[3] * cy;
     uint32_t child = U24(p + 1);
     if (!child)
+    {
         return FONT_RESULT_ERROR;
+    }
     bool       ok = c->m_Callbacks->m_PushTransform(c->m_Context, m);
     FontResult result = ok ? Paint(c, offset + child, depth + 1) : FONT_RESULT_NOT_SUPPORTED;
     c->m_Callbacks->m_PopTransform(c->m_Context);
@@ -326,47 +384,69 @@ static FontResult Transform(PaintContext* c, uint64_t offset, const uint8_t* p, 
 static FontResult Paint(PaintContext* c, uint64_t offset, uint32_t depth)
 {
     if (depth >= 64 || !c->m_WorkLeft)
+    {
         return FONT_RESULT_ERROR;
+    }
     --c->m_WorkLeft;
     const uint8_t* p = Read(c->m_Font, offset, 1);
     if (!p)
+    {
         return FONT_RESULT_ERROR;
+    }
     uint32_t format = p[0];
     // Zero entries represent paints whose semantics are not supported here.
     static const uint8_t sizes[] = { 0, 6, 5, 0, 16, 0, 16, 0, 0, 0, 6, 3, 7, 0, 8, 0, 8, 0, 12, 0, 6, 0, 10, 0, 6, 0, 10, 0, 8, 0, 12, 0, 8 };
     if (format >= sizeof(sizes) || !sizes[format])
+    {
         return FONT_RESULT_NOT_SUPPORTED;
+    }
     if (!Read(c->m_Font, offset, sizes[format]))
+    {
         return FONT_RESULT_ERROR;
+    }
     if (format == 1)
     {
         uint32_t list = c->m_Font->m_LayerList;
         if (!list)
+        {
             return FONT_RESULT_ERROR;
+        }
         uint32_t first = U32(p + 2), count = p[1];
         uint32_t total = U32(c->m_Font->m_Data + list);
         if (first > total || count > total - first)
+        {
             return FONT_RESULT_ERROR;
+        }
         for (uint32_t i = 0; i < count; ++i)
         {
             uint32_t relative = U32(c->m_Font->m_Data + list + 4 + (first + i) * 4);
             if (!relative)
+            {
                 return FONT_RESULT_ERROR;
+            }
             FontResult result = Paint(c, (uint64_t)list + relative, depth + 1);
             if (result != FONT_RESULT_OK)
+            {
                 return result;
+            }
         }
         return FONT_RESULT_OK;
     }
     if (format == 2)
+    {
         return Solid(c, U16(p + 1), F2Dot14(p + 3));
+    }
     if (format == 4 || format == 6)
+    {
         return Gradient(c, offset, p);
+    }
     if (format == 10)
     {
         uint32_t child = U24(p + 1);
         if (!child)
+        {
             return FONT_RESULT_ERROR;
+        }
         bool       ok = c->m_Callbacks->m_PushClipGlyph(c->m_Context, U16(p + 4));
         FontResult result = ok ? Paint(c, offset + child, depth + 1) : FONT_RESULT_NOT_SUPPORTED;
         c->m_Callbacks->m_PopClip(c->m_Context);
@@ -375,20 +455,28 @@ static FontResult Paint(PaintContext* c, uint64_t offset, uint32_t depth)
     if (format == 11)
     {
         if (!FindGlyph(c->m_Font, U16(p + 1), true))
+        {
             return FONT_RESULT_ERROR;
+        }
         return Glyph(c, U16(p + 1), depth + 1);
     }
     if (format == 32)
     {
         if (p[4] != 3)
+        {
             return FONT_RESULT_NOT_SUPPORTED; // SRC_OVER
+        }
         uint32_t source = U24(p + 1), backdrop = U24(p + 5);
         if (!source || !backdrop)
+        {
             return FONT_RESULT_ERROR;
+        }
         bool       ok = c->m_Callbacks->m_PushComposite(c->m_Context);
         FontResult result = ok ? Paint(c, offset + backdrop, depth + 1) : FONT_RESULT_NOT_SUPPORTED;
         if (result == FONT_RESULT_OK)
+        {
             result = Paint(c, offset + source, depth + 1);
+        }
         c->m_Callbacks->m_PopComposite(c->m_Context);
         return result;
     }
@@ -398,7 +486,9 @@ static FontResult Paint(PaintContext* c, uint64_t offset, uint32_t depth)
 static FontResult Glyph(PaintContext* c, uint32_t glyph, uint32_t depth)
 {
     if (depth >= 64)
+    {
         return FONT_RESULT_ERROR;
+    }
     const FontColr* font = c->m_Font;
     const uint8_t*  record = FindGlyph(font, glyph, true);
     if (record)
@@ -406,22 +496,32 @@ static FontResult Glyph(PaintContext* c, uint32_t glyph, uint32_t depth)
         const uint8_t* box;
         FontResult     result = ClipBox(font, glyph, &box);
         if (result != FONT_RESULT_OK)
+        {
             return result;
+        }
         uint32_t relative = U32(record + 2);
         if (!relative)
+        {
             return FONT_RESULT_ERROR;
+        }
         bool ok = !box || c->m_Callbacks->m_PushClipRectangle(c->m_Context, S16(box + 1), S16(box + 3), S16(box + 5), S16(box + 7));
         result = ok ? Paint(c, (uint64_t)font->m_BaseGlyphList + relative, depth) : FONT_RESULT_NOT_SUPPORTED;
         if (box)
+        {
             c->m_Callbacks->m_PopClip(c->m_Context);
+        }
         return result;
     }
     record = FindGlyph(font, glyph, false);
     if (!record)
+    {
         return FONT_RESULT_NOT_SUPPORTED;
+    }
     uint32_t first = U16(record + 2), count = U16(record + 4);
     if (first > font->m_LayerCount || count > font->m_LayerCount - first || count > c->m_WorkLeft)
+    {
         return FONT_RESULT_ERROR;
+    }
     c->m_WorkLeft -= count;
     for (uint32_t i = 0; i < count; ++i)
     {
@@ -430,7 +530,9 @@ static FontResult Glyph(PaintContext* c, uint32_t glyph, uint32_t depth)
         FontResult     result = ok ? Solid(c, U16(layer + 2), 1) : FONT_RESULT_NOT_SUPPORTED;
         c->m_Callbacks->m_PopClip(c->m_Context);
         if (result != FONT_RESULT_OK)
+        {
             return result;
+        }
     }
     return FONT_RESULT_OK;
 }
@@ -461,7 +563,9 @@ struct BoundsContext
 static void PushBounds(BoundsContext* c, const BoundsState& state)
 {
     if (c->m_Stack.Full())
+    {
         c->m_Stack.OffsetCapacity(16);
+    }
     c->m_Stack.Push(state);
 }
 
@@ -501,7 +605,9 @@ static bool BoundsGlyph(void* context, uint32_t glyph)
     BoundsContext* c = (BoundsContext*)context;
     int32_t        x0, y0, x1, y1;
     if (c->m_GetBox(c->m_Context, glyph, &x0, &y0, &x1, &y1))
+    {
         return BoundsRectangle(context, x0, y0, x1, y1);
+    }
     BoundsState state = c->m_Stack.Back();
     state.m_Clip = dmVMath::Vector4(0, 0, 0, 0);
     PushBounds(c, state);
@@ -512,14 +618,18 @@ static bool BoundsComposite(void*)
 {
     return true;
 }
-static void BoundsEndComposite(void*) {}
+static void BoundsEndComposite(void*)
+{
+}
 
 static bool BoundsPaint(void* context, const FontColrPaint* paint)
 {
     BoundsContext*          c = (BoundsContext*)context;
     const dmVMath::Vector4& clip = c->m_Stack.Back().m_Clip;
     if (clip.getX() >= clip.getZ() || clip.getY() >= clip.getW())
+    {
         return true;
+    }
     for (uint32_t i = 0; i < paint->m_StopCount; ++i)
     {
         if (paint->m_Stops[i].m_Color[3] > 0)
@@ -536,10 +646,14 @@ bool FontColrGetGlyphBox(const FontColr* font, uint32_t glyph, FontColrGlyphBoxC
 {
     const uint8_t* record = FindGlyph(font, glyph, true);
     if (!record && !FindGlyph(font, glyph, false))
+    {
         return false;
+    }
     const uint8_t* box = 0;
     if (record && ClipBox(font, glyph, &box) != FONT_RESULT_OK)
+    {
         return false;
+    }
     if (box)
     {
         *x0 = S16(box + 1);
@@ -556,11 +670,17 @@ bool FontColrGetGlyphBox(const FontColr* font, uint32_t glyph, FontColrGlyphBoxC
     PushBounds(&c, initial);
     const FontColrCallbacks callbacks = { BoundsTransform, BoundsPop, BoundsGlyph, BoundsRectangle, BoundsPop, BoundsComposite, BoundsEndComposite, BoundsPaint };
     if (FontColrPaintGlyph(font, glyph, &callbacks, &c) != FONT_RESULT_OK || c.m_Bounds.getX() >= c.m_Bounds.getZ() || c.m_Bounds.getY() >= c.m_Bounds.getW())
+    {
         return false;
+    }
     // Extreme/malformed transforms must not overflow the integer metrics API.
     for (uint32_t i = 0; i < 4; ++i)
+    {
         if (!isfinite(c.m_Bounds[i]) || c.m_Bounds[i] < -2147483648.0 || c.m_Bounds[i] >= 2147483648.0)
+        {
             return false;
+        }
+    }
     *x0 = (int32_t)floorf(c.m_Bounds.getX());
     *y0 = (int32_t)floorf(c.m_Bounds.getY());
     *x1 = (int32_t)ceilf(c.m_Bounds.getZ());

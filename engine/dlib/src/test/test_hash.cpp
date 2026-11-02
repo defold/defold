@@ -24,6 +24,27 @@ class hash : public jc_test_base_class
 {
 };
 
+// Empty buffers may be null even when reverse hashing records their empty strings.
+TEST_F(hash, EmptyReverseHash)
+{
+    dmHashEnableReverseHash(false);
+    dmHashEnableReverseHash(true);
+    ASSERT_EQ(dmHashBufferNoReverse32("", 0), dmHashBuffer32(0, 0));
+    ASSERT_EQ(dmHashBufferNoReverse64("", 0), dmHashBuffer64(0, 0));
+    HashState32 state32, clone32;
+    dmHashInit32(&state32, true);
+    dmHashClone32(&clone32, &state32, true);
+    dmHashUpdateBuffer32(&state32, 0, 0);
+    ASSERT_EQ(dmHashBufferNoReverse32("", 0), dmHashFinal32(&state32));
+    ASSERT_EQ(dmHashBufferNoReverse32("", 0), dmHashFinal32(&clone32));
+    HashState64 state64, clone64;
+    dmHashInit64(&state64, true);
+    dmHashClone64(&clone64, &state64, true);
+    dmHashUpdateBuffer64(&state64, 0, 0);
+    ASSERT_EQ(dmHashBufferNoReverse64("", 0), dmHashFinal64(&state64));
+    ASSERT_EQ(dmHashBufferNoReverse64("", 0), dmHashFinal64(&clone64));
+}
+
 TEST_F(hash, Hash)
 {
     uint32_t h1 = dmHashBuffer32("foo", 3);

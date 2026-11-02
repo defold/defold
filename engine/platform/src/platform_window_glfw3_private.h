@@ -19,10 +19,13 @@
 
 #include "window.hpp"
 
+struct WindowPlacement;
+
 struct dmWindow
 {
     GLFWwindow*                    m_Window;
     GLFWwindow*                    m_AuxWindow;
+    WindowPlacement*               m_Placement;
 
     FWindowResizeCallback          m_ResizeCallback;
     void*                          m_ResizeCallbackUserData;
@@ -55,6 +58,15 @@ struct dmWindow
 
 namespace dmPlatform
 {
+    void InitWindowPlacement(HWindow window, const WindowCreateParams& params);
+    bool RestoreWindowPlacement(HWindow window);
+    void WindowPlacementChanged(HWindow window);
+    void WindowPlacementSizeRequested(HWindow window);
+    void WindowPlacementShown(HWindow window);
+    void UpdateWindowPlacement(HWindow window, bool flush);
+    void ClampWindowPlacement(HWindow window);
+    void DeleteWindowPlacement(HWindow window);
+
     struct WindowModeParams
     {
         GLFWmonitor* m_Monitor;

@@ -16,9 +16,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[4] / 'build_tools'))
 import build_ios
 
 
-def completed_capture(process):
+def completed_capture(process, result_key='GRAPHICS_CAPTURE_RESULT'):
     # simctl can exit successfully when the app crashes or returns a failure.
-    results = re.findall(r'^GRAPHICS_CAPTURE_RESULT=(-?\d+)$', process.stdout, re.MULTILINE)
+    results = re.findall(r'^' + re.escape(result_key) + r'=(-?\d+)$', process.stdout, re.MULTILINE)
     code = int(results[0]) if len(results) == 1 and process.returncode == 0 else 1
     if len(results) != 1:
         process.stdout += '\nERROR:GRAPHICS: Simulator capture did not report exactly one completion result\n'
@@ -37,26 +37,31 @@ class SimulatorCapture:
                              simulator=simulator.udid)
 
     def run(self, command, **options):
-        output = Path(command[command.index('--output-file') + 1])
-        device_output = self.directory / 'captures' / output.parent.name / output.name
-        device_output.parent.mkdir(parents=True, exist_ok=True)
+        result_key = options.pop('result_key', 'GRAPHICS_CAPTURE_RESULT')
         arguments = list(command[1:])
-        arguments[arguments.index('--output-file') + 1] = str(device_output)
+        output = None
+        if '--output-file' in arguments:
+            index = arguments.index('--output-file') + 1
+            output = Path(arguments[index])
+            device_output = self.directory / 'captures' / output.parent.name / output.name
+            device_output.parent.mkdir(parents=True, exist_ok=True)
+            arguments[index] = str(device_output)
         launch = ['xcrun', 'simctl', 'launch', '--console', '--terminate-running-process',
                   self.simulator.udid, self.bundle_id, *arguments]
         env = dict(os.environ, SIMCTL_CHILD_DEFOLD_TEST_WORKDIR=str(self.directory))
         if 'MTL_DEBUG_LAYER' in os.environ:
             env['SIMCTL_CHILD_MTL_DEBUG_LAYER'] = os.environ['MTL_DEBUG_LAYER']
         try:
-            return completed_capture(subprocess.run(launch, env=env, **options))
+            return completed_capture(subprocess.run(launch, env=env, **options), result_key)
         except subprocess.TimeoutExpired:
             self.runner._simctl(['terminate', self.simulator.udid, self.bundle_id], allow_failure=True)
             raise
         finally:
             # Failed captures can still contain useful images and diagnostics.
-            for image in device_output.parent.glob(device_output.name + '*'):
-                if image.suffix == '.png':
-                    shutil.copy2(image, output.parent / image.name)
+            if output is not None:
+                for image in device_output.parent.glob(device_output.name + '*'):
+                    if image.suffix == '.png':
+                        shutil.copy2(image, output.parent / image.name)
 
 
 @contextmanager

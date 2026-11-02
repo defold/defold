@@ -42,6 +42,8 @@ void dmNativeReleaseAndroidWindow(ANativeWindow* window);
 id dmNativeGetiOSUIWindow(void);
 id dmNativeGetiOSUIView(void);
 id dmNativeGetiOSEAGLContext(void);
+// Requests a fixed display link rate in hertz, or the system default when 0. Survives view recreation.
+void dmNativeSetiOSPreferredFrameRate(int frame_rate);
     // See documentation in engine.h
     typedef void (*EngineInit)(void* ctx);
     typedef void (*EngineExit)(void* ctx);

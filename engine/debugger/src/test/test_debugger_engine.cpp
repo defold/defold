@@ -45,7 +45,7 @@ static void Check(bool ok, const char* message)
 }
 static int Pump(lua_State*)
 {
-    dmExtension::Update(&g_Params);
+    dmExtension::Update(&g_Params, 0.0f);
     return 0;
 }
 
@@ -211,12 +211,12 @@ int main(int argc, char** argv)
             lua_getglobal(L, "update");
             Check(dmScript::PCall(L, 0, 0) == 0, "Update callback failed");
             Check(lua_gettop(L) == 0, "DAP corrupted the callback Lua stack");
-            dmExtension::Update(&g_Params);
+            dmExtension::Update(&g_Params, 0.0f);
         }
     }
     for (int i = 0; i < 50; ++i)
     {
-        dmExtension::Update(&g_Params);
+        dmExtension::Update(&g_Params, 0.0f);
         dmTime::Sleep(1000);
     }
     for (int i = 1; i < argc; ++i)
