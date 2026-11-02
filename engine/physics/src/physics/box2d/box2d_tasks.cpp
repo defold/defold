@@ -41,6 +41,8 @@ namespace dmPhysics
     b2Scheduler* NewBox2DScheduler(uint32_t worker_count)
     {
 #if defined(DM_HAS_THREADS)
+        // Initialize Box2D's lazy timer before any worker reads it.
+        b2GetMilliseconds(b2GetTicks());
         const b2SchedulerThreadInterface thread_interface = { CreateThread, JoinThread };
         return b2CreateScheduler(worker_count + 1, &thread_interface);
 #else
