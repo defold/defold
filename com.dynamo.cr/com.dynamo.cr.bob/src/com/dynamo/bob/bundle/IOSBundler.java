@@ -762,7 +762,7 @@ public class IOSBundler implements IBundler {
         Files.move( Paths.get(zipFileTmp.getAbsolutePath()), Paths.get(zipFile.getAbsolutePath()), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         logger.info("Finished ipa: " + BundleHelper.getFileDescription(zipFile));
 
-        BundleHelper.moveBundleIfNeed(project, bundleDir, appDir, zipFile, new File(bundleDir, title + ".dSYM"));
+        BundleHelper.moveBundleIfNeed(project, bundleDir);
     }
 
 }

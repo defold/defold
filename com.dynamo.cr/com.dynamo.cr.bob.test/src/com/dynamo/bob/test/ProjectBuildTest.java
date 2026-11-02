@@ -2744,9 +2744,9 @@ public class ProjectBuildTest {
         }
     }
 
-    // Rebuilding a web application retains unchanged package copies and removes stale application files transactionally.
+    // Web bundles copy the prepared packages without rebuilding them and reject collisions with application files.
     @Test
-    public void testHtml5PackageCopiesAreIncremental() throws Exception {
+    public void testHtml5PackagePlacement() throws Exception {
         createPackageProject();
         Files.writeString(Path.of(contentRoot, "liveupdate.settings"),
                 "save-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n", java.nio.file.StandardOpenOption.APPEND);
@@ -2771,15 +2771,18 @@ public class ProjectBuildTest {
             FileTime unchanged = FileTime.fromMillis(946684800000L);
             Path zip = app.resolve("episode.zip");
             Path manifest = app.resolve("copy/liveupdate.game.dmanifest");
-            Files.setLastModifiedTime(zip, unchanged);
-            Files.setLastModifiedTime(manifest, unchanged);
+            Path sourceZip = Path.of(contentRoot, "packages/episode.zip");
+            Path sourceManifest = Path.of(contentRoot, "packages/copy/liveupdate.game.dmanifest");
+            Files.setLastModifiedTime(sourceZip, unchanged);
+            Files.setLastModifiedTime(sourceManifest, unchanged);
             Files.writeString(app.resolve("obsolete.txt"), "stale application file");
             bundler.bundleApplication(project, Platform.WasmWeb, bundle, () -> false);
-            assertEquals(unchanged, Files.getLastModifiedTime(zip));
-            assertEquals(unchanged, Files.getLastModifiedTime(manifest));
+            assertEquals(unchanged, Files.getLastModifiedTime(sourceZip));
+            assertEquals(unchanged, Files.getLastModifiedTime(sourceManifest));
+            assertArrayEquals(Files.readAllBytes(sourceZip), Files.readAllBytes(zip));
+            assertArrayEquals(Files.readAllBytes(sourceManifest), Files.readAllBytes(manifest));
             assertFalse(Files.exists(app.resolve("obsolete.txt")));
             byte[] previousHtml = Files.readAllBytes(app.resolve("index.html"));
-            byte[] previousZip = Files.readAllBytes(zip);
             savePackages(livePackage("archive", "folder", addPath("Data", "/extra/.*")));
             buildPackageProject(true, false);
             try {
@@ -2789,7 +2792,21 @@ public class ProjectBuildTest {
                 assertTrue(expected.getMessage().contains("collides with an application output"));
             }
             assertArrayEquals(previousHtml, Files.readAllBytes(app.resolve("index.html")));
-            assertArrayEquals(previousZip, Files.readAllBytes(zip));
+            assertTrue(Files.isRegularFile(app.resolve("archive/archive_files.json")));
+
+            // Package exports placed inside the application directory must be rejected before it is deleted.
+            savePackages(livePackage("episode", "zip", addPath("Data", "/extra/.*")));
+            setPackageOutputDirectory("bundle/Packages/exported");
+            buildPackageProject(true, false);
+            Path exported = app.resolve("exported/episode.zip");
+            byte[] exportedZip = Files.readAllBytes(exported);
+            try {
+                bundler.bundleApplication(project, Platform.WasmWeb, bundle, () -> false);
+                org.junit.Assert.fail("Application must not delete the package exports");
+            } catch (IOException expected) {
+                assertTrue(expected.getMessage().contains("collides with an application output"));
+            }
+            assertArrayEquals(exportedZip, Files.readAllBytes(exported));
             assertNoPackageStaging();
         }
     }

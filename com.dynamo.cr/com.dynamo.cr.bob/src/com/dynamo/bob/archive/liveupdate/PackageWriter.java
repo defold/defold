@@ -383,15 +383,15 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         copyOutputs(project, bundleDirectory, List.of());
     }
 
-    public static void copyOutputs(Project project, Path bundleDirectory, Collection<Path> applicationOutputs) throws IOException {
-        copyOutputs(project, bundleDirectory, applicationOutputs, Map.of());
-    }
-
-    /** Check before a native bundler replaces application files, including previously delivered packages. */
+    /** Check before a bundler replaces application files; source packages must always survive. */
     public static void validateBundleOutputs(Project project, Path bundleDirectory, Collection<Path> applicationOutputs) throws IOException {
         bundleDirectory = bundleDirectory.toAbsolutePath().normalize();
         for (Output output : PackageArtifacts.readBuildOutputs(project)) {
             validateApplicationOutput(output.path(), applicationOutputs);
+        }
+        // HTML5 recreates the package-copy directory with the application. Its copies are restored afterwards.
+        for (Path applicationOutput : applicationOutputs) {
+            if (applicationOutput.toAbsolutePath().normalize().equals(bundleDirectory)) return;
         }
         for (Output output : readOutputs(project)) {
             if (output.bundle()) validateApplicationOutput(bundleDirectory.resolve(output.name()), applicationOutputs);
@@ -401,30 +401,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         }
     }
 
-    /** Publish a rebuilt web application while retaining unchanged package files in its directory. */
-    public static void publishBundle(Project project, Path applicationDirectory, Path bundleDirectory) throws IOException {
-        Map<Path, Path> applicationOutputs = new LinkedHashMap<>();
-        try (var files = Files.list(applicationDirectory)) {
-            for (Path file : files.sorted().toList()) {
-                applicationOutputs.put(bundleDirectory.resolve(file.getFileName()).toAbsolutePath().normalize(), file);
-            }
-        }
-        copyOutputs(project, bundleDirectory, applicationOutputs.keySet(), applicationOutputs);
-    }
-
-    private static void collectObsoleteFiles(Path directory, Set<Path> retained, Set<Path> obsolete) throws IOException {
-        if (!Files.isDirectory(directory)) return;
-        try (var files = Files.list(directory)) {
-            for (Path file : files.toList()) {
-                if (retained.contains(file)) continue;
-                if (retained.stream().anyMatch(path -> path.startsWith(file))) collectObsoleteFiles(file, retained, obsolete);
-                else obsolete.add(file);
-            }
-        }
-    }
-
-    private static void copyOutputs(Project project, Path bundleDirectory, Collection<Path> applicationOutputs,
-                                    Map<Path, Path> stagedApplication) throws IOException {
+    public static void copyOutputs(Project project, Path bundleDirectory, Collection<Path> applicationOutputs) throws IOException {
         bundleDirectory = bundleDirectory.toAbsolutePath().normalize();
         Path receipt = PackageArtifacts.bundleReceipt(project, bundleDirectory);
         Map<Path, Output> previous = new LinkedHashMap<>();
@@ -451,18 +428,13 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         Set<Path> obsolete = new LinkedHashSet<>(previous.keySet());
         removeCurrentOutputs(obsolete, previous, outputs);
         for (Path path : obsolete) validateApplicationOutput(path, applicationOutputs);
-        if (!stagedApplication.isEmpty()) {
-            Set<Path> retained = new LinkedHashSet<>(applicationOutputs);
-            for (Output output : outputs) retained.add(output.path());
-            collectObsoleteFiles(bundleDirectory, retained, obsolete);
-        }
         // Stage changed artifacts and the receipt together. A cancelled delivery
-        // restores the previous bundle and its ownership, so it can be retried.
+        // restores the previous package copies and their ownership, so it can be retried.
         Path buildDirectory = Path.of(project.getRootDirectory(), project.getBuildDirectory());
         Files.createDirectories(buildDirectory);
         Path stage = Files.createTempDirectory(buildDirectory, ".liveupdate-bundle-");
         try {
-            Map<Path, Path> stagedOutputs = new LinkedHashMap<>(stagedApplication);
+            Map<Path, Path> stagedOutputs = new LinkedHashMap<>();
             for (Map.Entry<Path, Output> copy : copies.entrySet()) {
                 Path destination = copy.getKey();
                 Output output = copy.getValue();

@@ -338,12 +338,10 @@ it does not transfer ownership of external output directories.
 During `bundle`, unchanged artifact copies are preserved. Missing or changed files
 are copied, and obsolete owned artifacts are removed. Package destinations are
 checked against application outputs before copying. Missing or
-modified source artifacts require another `build` before bundling. HTML5 stages
-its rebuilt application files and publishes them together with changed packages,
-preserving unchanged package copies. Other platform bundlers still control
-recreation of their application output; package copies are restored when that
-output directory is recreated.
-Failed or cancelled delivery restores the previous artifacts and ownership receipt,
+modified source artifacts require another `build` before bundling. Platform bundlers
+control recreation of their application output; package copies are restored when
+that output directory is recreated.
+Failed or cancelled package delivery restores the previous package copies and ownership receipt,
 so the bundle step can be retried.
 Legacy `save-zip-in-bundle-folder` and `save-folder-in-bundle-folder` settings also
 use this copy path; the prepared artifacts remain at their configured destinations

@@ -218,6 +218,6 @@ public class MacOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        BundleHelper.moveBundleIfNeed(project, bundleDir, appDir, new File(bundleDir, title + ".dSYM"));
+        BundleHelper.moveBundleIfNeed(project, bundleDir);
     }
 }
