@@ -16,13 +16,15 @@
 #define DM_GAMESYS_COMPONENT_RENDER_STATE_PRIVATE_H
 
 #include <gameobject/component.h>
+#include <render/render.h>
 #include <render/render_frame_queue.h>
 
 #include "component_render.h"
 
 namespace dmGameSystem
 {
-    // Reserved gamesys dispatch table type; component input tables must not use it.
+    // Reserved gamesys dispatch table type. Renderer commands/metadata also reserve
+    // UINT32_MAX-1 through UINT32_MAX-4; component input tables must use other IDs.
     static const uint32_t COMPONENT_RENDER_DISPATCH_TABLE_TYPE = UINT32_MAX;
 
     struct ComponentRenderContext;
@@ -37,14 +39,16 @@ namespace dmGameSystem
      * Owned by gamesys, one per register, installed before collection creation. Owns
      * render descriptors, collection-to-lifetime associations and the active capture scope;
      * gameobject only reports world lifecycle and dispatches its ordered Render traversal.
-     * Creates no thread or frame buffers.
+     * Creates no thread. A render context allocates a queue even without opted-in
+     * components, so default and command-only frames can be submitted.
      * Borrows execution, which must outlive the bridge; also usable by isolated tests.
      * @param regist Game-object register, which must outlive the bridge
      * @param execution Borrowed execution context
-     * @param limits Per-slot storage limits used when the first component opts in
+     * @param limits Per-slot storage limits
+     * @param render_context Borrowed renderer, or null for component-only lifecycle tests
      * @return New bridge, or null on allocation failure or unavailable world-owner hooks
      */
-    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits);
+    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context = 0);
 
     /**
      * Register a game type and optional render bridge in one operation on the game owner.
@@ -69,7 +73,7 @@ namespace dmGameSystem
 
     /**
      * Acquire a frame before simulation. The renderer handles backpressure and any wait.
-     * With no registered render types, does not allocate/reserve frame storage.
+     * Component-only contexts without registered render types need no storage.
      * @param context Component rendering bridge
      * @return RENDER_FRAME_OK, or an admission/component error
      */
@@ -87,14 +91,30 @@ namespace dmGameSystem
     bool CaptureComponentRenderData(HComponentRenderContext context, dmGameObject::HCollection collection, dmRender::HRenderFrame frame);
 
     /**
-     * Capture into the admitted frame, then submit the same inputs despite backpressure.
-     * Inline consumes now; threaded execution consumes on its render owner.
-     * With no registered render types, calls the existing game-object Render path.
+     * Capture components into the admitted frame without submitting it. Pass commands
+     * must be recorded before SubmitComponentRenderFrame. Legacy callbacks run only
+     * inline; they are rejected by the test-threaded path until migrated.
      * @param context Component rendering bridge with an admitted frame
      * @param collection Root collection to render/capture
      * @return True on success; false on traversal, capture or renderer failure
      */
     bool RenderComponents(HComponentRenderContext context, dmGameObject::HCollection collection);
+
+    /**
+     * Borrow admitted storage for pass recording. No caller may publish it directly.
+     * @param context Component rendering bridge
+     * @return Building frame, or null if no frame is admitted
+     */
+    dmRender::HRenderFrame GetComponentRenderFrame(HComponentRenderContext context);
+
+    /**
+     * Submit the complete packet after component and pass recording. Inline executes
+     * through the same consumer; threaded waits for credit without recapturing inputs.
+     * Failure cancels unpublished storage and releases all partial captures.
+     * @param context Component rendering bridge with an admitted frame
+     * @return Frame submission result; consumer errors surface at BeginFrame/PostUpdate
+     */
+    dmRender::RenderFrameResult SubmitComponentRenderFrame(HComponentRenderContext context);
 
     /**
      * Retire completed frame references on the game owner. Call after surrounding
@@ -154,7 +174,8 @@ namespace dmGameSystem
 
     /**
      * Write owned input tables/references on the game owner. Do not publish/reset the frame
-     * or reenter the manager. UINT32_MAX is reserved for internal dispatch table types.
+     * or reenter the manager. UINT32_MAX through UINT32_MAX-4 are reserved for the
+     * complete-frame dispatch, pass and metadata tables.
      * @param frame Building frame to append inputs to
      * @param producer_context Borrowed producer data, never stored in the frame
      * @return dmRender::RENDER_FRAME_OK on success; any error rejects the complete capture

@@ -108,6 +108,31 @@ TEST(RenderFrame, CopiedAndDirectTables)
     DeleteRenderFrame(frame);
 }
 
+// Verify compound tables can account for copied subranges without adding more table entries.
+TEST(RenderFrame, CompoundTableCopies)
+{
+    RenderFrameLimits limits = { 16, 1, 0 };
+    HRenderFrame frame = NewRenderFrame(limits);
+    BeginRenderFrame(frame, 1);
+    uint32_t input[] = { 10, 20 };
+    uint32_t table_index;
+    void* destination;
+    ASSERT_EQ(RENDER_FRAME_OK, CopyRenderFrameTable(frame, 101, 2, sizeof(uint32_t), 4, input, &table_index, &destination));
+    uint32_t replacement = 30;
+    ASSERT_EQ(RENDER_FRAME_OK, CopyRenderFrameData(frame, destination, &replacement, sizeof(replacement)));
+    ASSERT_EQ(RENDER_FRAME_OK, CopyRenderFrameData(frame, destination, 0, 0));
+    ASSERT_EQ(12u, GetRenderFrameStatistics(frame).m_CopiedBytes);
+    ASSERT_EQ(1u, GetRenderFrameStatistics(frame).m_TableCount);
+    ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(frame));
+
+    const uint32_t* values = (const uint32_t*)GetRenderFrameTableData(*GetRenderFrameView(frame), table_index);
+    ASSERT_EQ(30u, values[0]);
+    ASSERT_EQ(20u, values[1]);
+    ASSERT_EQ(RENDER_FRAME_INVALID_STATE, CopyRenderFrameData(frame, destination, input, sizeof(input)));
+    ASSERT_EQ(30u, values[0]);
+    DeleteRenderFrame(frame);
+}
+
 // Verify each supported alignment and its padding are reflected in the fixed payload budget.
 TEST(RenderFrame, Alignment)
 {

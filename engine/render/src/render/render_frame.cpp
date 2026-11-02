@@ -169,19 +169,41 @@ namespace dmRender
     }
 
     RenderFrameResult CopyRenderFrameTable(HRenderFrame frame, uint32_t type, uint32_t count,
-        uint32_t stride, uint32_t alignment, const void* data, uint32_t* table_index)
+                                           uint32_t stride, uint32_t alignment, const void* data, uint32_t* table_index, void** copied_data)
     {
         if (!data)
+        {
             return FailRenderFrame(frame, RENDER_FRAME_INVALID_ARGUMENT);
+        }
 
         void* destination;
         RenderFrameResult result = AllocateRenderFrameTable(frame, type, count, stride, alignment, table_index, &destination);
         if (result != RENDER_FRAME_OK)
+        {
             return result;
+        }
 
         // Allocation validated the product against the uint32_t payload capacity.
         const uint32_t bytes = count * stride;
-        memcpy(destination, data, bytes);
+        CopyRenderFrameData(frame, destination, data, bytes);
+        if (copied_data)
+        {
+            *copied_data = destination;
+        }
+        return RENDER_FRAME_OK;
+    }
+
+    RenderFrameResult CopyRenderFrameData(HRenderFrame frame, void* destination, const void* source, uint32_t bytes)
+    {
+        RenderFrameResult result = CheckCapture(frame);
+        if (result != RENDER_FRAME_OK)
+        {
+            return result;
+        }
+        if (bytes)
+        {
+            memcpy(destination, source, bytes);
+        }
         frame->m_View.m_Statistics.m_CopiedBytes += bytes;
         return RENDER_FRAME_OK;
     }

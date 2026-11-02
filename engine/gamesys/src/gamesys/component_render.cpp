@@ -20,6 +20,8 @@
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
 #include <gameobject/component.h>
+#include <render/render_command.h>
+#include <render/render_pass.h>
 
 #include "component_render.h"
 #include "component_render_state_private.h"
@@ -40,6 +42,7 @@ namespace dmGameSystem
         uint64_t                                  m_NextWorldId;
         dmGameObject::HRegister                   m_Register;
         dmRender::HRenderExecution                m_Execution;
+        dmRender::HRenderContext                  m_RenderContext;
         HComponentRenderStateContext              m_StateContext;
         dmRender::HRenderFrameQueue               m_Queue;
         // Active only during traversal, not while producer credit is merely reserved.
@@ -59,6 +62,41 @@ namespace dmGameSystem
         ComponentRenderCaptureParams m_Params;
         FComponentRenderCapture      m_Capture;
     };
+
+    // One accepted packet contains component inputs followed by pass commands. The
+    // renderer library only sees generic frame tables; gamesys owns their composition.
+    static void ConsumeFrame(void* user_context, const dmRender::RenderFrameView& frame)
+    {
+        ComponentRenderContext* context = (ComponentRenderContext*)user_context;
+        if (context->m_RenderContext)
+        {
+            dmRender::BeginRenderFrameConsumption(context->m_RenderContext, frame);
+        }
+        ConsumeComponentRenderFrame(context->m_StateContext, frame);
+        if (context->m_RenderContext)
+        {
+            dmRender::RenderListEnd(context->m_RenderContext);
+            dmRender::ConsumeRenderCommands(context->m_RenderContext, frame);
+        }
+    }
+
+    static bool CreateFrameQueue(HComponentRenderContext context)
+    {
+        dmRender::RenderFrameQueueParams params = {};
+        params.m_Execution = context->m_Execution;
+        params.m_Limits = context->m_Limits;
+        params.m_Consume = ConsumeFrame;
+        params.m_ConsumeContext = context;
+        params.m_Service = ServiceComponentRenderState;
+        params.m_ServiceContext = context->m_StateContext;
+        context->m_Queue = dmRender::NewRenderFrameQueue(params);
+        if (!context->m_Queue)
+        {
+            return false;
+        }
+        SetComponentRenderStateQueue(context->m_StateContext, context->m_Queue);
+        return true;
+    }
 
     static ComponentRenderType* GetRenderType(ComponentRenderContext* context, uint32_t component_index)
     {
@@ -147,7 +185,16 @@ namespace dmGameSystem
         ComponentRenderContext* owner = (ComponentRenderContext*)context;
         ComponentRenderType* type = GetRenderType(owner, component_index);
         if (!type)
+        {
+            // Legacy callbacks can access live game worlds and persistent render
+            // items. They are compatibility-only, never admitted to overlap.
+            if (render && dmRender::GetRenderExecutionMode(owner->m_Execution) == dmRender::EXECUTION_MODE_THREADED)
+            {
+                dmLogError("Component %u has not migrated to owned render inputs.", component_index);
+                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+            }
             return render ? render(params) : dmGameObject::UPDATE_RESULT_OK;
+        }
         if (!owner->m_ActiveFrame)
         {
             dmLogError("Component %u requires a render data capture frame.", component_index);
@@ -165,7 +212,7 @@ namespace dmGameSystem
     }
 
     HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist,
-        dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits)
+                                                      dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context)
     {
         assert(dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_GAME));
         ComponentRenderContext* context = new ComponentRenderContext();
@@ -177,12 +224,22 @@ namespace dmGameSystem
 
         context->m_Register = regist;
         context->m_Execution = execution;
+        context->m_RenderContext = render_context;
         context->m_Limits = limits;
         context->m_NextWorldId = 1;
         context->m_StateContext = NewComponentRenderStateContext(execution);
 
         if (!context->m_StateContext)
         {
+            delete context;
+            return 0;
+        }
+
+        // A clear-only frame needs storage even when no component opts into capture.
+        // Graphics-free lifecycle tests retain lazy allocation on first registration.
+        if (render_context && !CreateFrameQueue(context))
+        {
+            DeleteComponentRenderStateContext(context->m_StateContext);
             delete context;
             return 0;
         }
@@ -194,6 +251,11 @@ namespace dmGameSystem
         callbacks.m_Render = RenderWorld;
         if (dmGameObject::SetComponentWorldCallbacks(regist, callbacks) != dmGameObject::RESULT_OK)
         {
+            if (context->m_Queue)
+            {
+                dmRender::StopRenderFrameQueue(context->m_Queue);
+                dmRender::DeleteRenderFrameQueue(context->m_Queue);
+            }
             DeleteComponentRenderStateContext(context->m_StateContext);
             delete context;
             return 0;
@@ -212,23 +274,9 @@ namespace dmGameSystem
         }
 
         *created_queue = !context->m_Queue;
-        if (*created_queue)
+        if (*created_queue && !CreateFrameQueue(context))
         {
-            dmRender::RenderFrameQueueParams params = {};
-            params.m_Execution = context->m_Execution;
-            params.m_Limits = context->m_Limits;
-            params.m_Consume = ConsumeComponentRenderFrame;
-            params.m_ConsumeContext = context->m_StateContext;
-            params.m_Service = ServiceComponentRenderState;
-            params.m_ServiceContext = context->m_StateContext;
-            context->m_Queue = dmRender::NewRenderFrameQueue(params);
-
-            if (!context->m_Queue)
-            {
-                return dmGameObject::RESULT_UNKNOWN_ERROR;
-            }
-
-            SetComponentRenderStateQueue(context->m_StateContext, context->m_Queue);
+            return dmGameObject::RESULT_UNKNOWN_ERROR;
         }
 
         return dmGameObject::RESULT_OK;
@@ -367,13 +415,40 @@ namespace dmGameSystem
             return false;
         }
 
+        // Pass recording follows this traversal. Publication must wait until Lua
+        // (or the default pass recorder) has completed the same packet.
+        return true;
+    }
+
+    dmRender::HRenderFrame GetComponentRenderFrame(HComponentRenderContext context)
+    {
+        return context->m_Capture.m_Frame;
+    }
+
+    dmRender::RenderFrameResult SubmitComponentRenderFrame(HComponentRenderContext context)
+    {
+        assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
+        if (!context->m_Queue)
+        {
+            return dmRender::RENDER_FRAME_OK;
+        }
+        if (!context->m_Capture.m_Frame)
+        {
+            return dmRender::RENDER_FRAME_INVALID_STATE;
+        }
+
         // A slow reader delays publication of this exact snapshot. Never recapture
         // or discard it just because the previous accepted frame is still in use.
         dmRender::RenderFrameResult result = dmRender::SubmitRenderFrame(context->m_Queue, context->m_Capture);
         if (result != dmRender::RENDER_FRAME_OK)
+        {
             dmRender::CancelRenderFrameCapture(context->m_Queue, context->m_Capture);
+        }
         context->m_Capture.m_Frame = 0;
-        return result == dmRender::RENDER_FRAME_OK && GetComponentRenderResult(context) == dmRender::RENDER_FRAME_OK;
+        // Acceptance has the same meaning in both modes. Consumer errors are
+        // observed at BeginFrame/PostUpdate, never reported as rejected publication
+        // after an inline consumer has already issued graphics work.
+        return result;
     }
 
     void EndComponentRenderFrame(HComponentRenderContext context)

@@ -837,26 +837,73 @@ namespace dmRender
 
     bool InsertCommand(RenderScriptInstance* i, const Command& command)
     {
-        if (i->m_CommandBuffer.Full())
+        if (i->m_RecordingFrame && i->m_RecordingResult != RENDER_FRAME_OK)
+        {
             return false;
+        }
+        if (i->m_CommandBuffer.Full())
+        {
+            if (i->m_RecordingFrame)
+            {
+                i->m_RecordingResult = FailRenderFrame(i->m_RecordingFrame, RENDER_FRAME_CAPACITY_EXCEEDED);
+            }
+            return false;
+        }
+
+        if (i->m_RecordingFrame)
+        {
+            Command recorded = command;
+            // Selection persists between frames, while Lua can edit camera values
+            // between draws. Snapshot those values at the draw, not at selection.
+            const bool capture_camera = command.m_Type == COMMAND_TYPE_DRAW || command.m_Type == COMMAND_TYPE_DRAW_DEBUG3D;
+            i->m_RecordingResult = RecordRenderCommand(i->m_RenderContext, i->m_RecordingFrame, command, &recorded,
+                i->m_SelectedRenderCamera, i->m_SelectedCameraUseFrustum, capture_camera);
+            if (i->m_RecordingResult != RENDER_FRAME_OK)
+            {
+                return false;
+            }
+            i->m_CommandBuffer.Push(recorded);
+            // The Lua bindings allocate temporary matrices/frusta. The command now
+            // refers to its own frame copy, so those temporary allocations can go.
+            Command source = command;
+            ReleaseRenderCommandOperands(&source, 1);
+        }
         else
+        {
             i->m_CommandBuffer.Push(command);
+        }
+
+        if (i->m_RecordingFrame && command.m_Type == COMMAND_TYPE_SET_RENDER_CAMERA)
+        {
+            i->m_SelectedRenderCamera = (HRenderCamera)command.m_Operands[0];
+            i->m_SelectedCameraUseFrustum = command.m_Operands[1] != 0;
+        }
         return true;
     }
 
     static bool InsertDrawCommand(RenderScriptInstance* i, HPredicate predicate, HNamedConstantBuffer constant_buffer, FrustumOptions* frustum_options, SortOrder sort_order)
     {
         if (!InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t)constant_buffer, (uint64_t)frustum_options, (uint64_t)sort_order)))
+        {
             return false;
-        i->m_CommandBuffer.Back().m_Operands[1] = (uint64_t)PushRenderConstants(i->m_RenderContext, constant_buffer);
+        }
+        if (!i->m_RecordingFrame)
+        {
+            i->m_CommandBuffer.Back().m_Operands[1] = (uint64_t)PushRenderConstants(i->m_RenderContext, constant_buffer);
+        }
         return true;
     }
 
     static bool InsertDispatchComputeCommand(RenderScriptInstance* i, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer)
     {
         if (!InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE, group_count_x, group_count_y, group_count_z, (uint64_t)constant_buffer)))
+        {
             return false;
-        i->m_CommandBuffer.Back().m_Operands[3] = (uint64_t)PushRenderConstants(i->m_RenderContext, constant_buffer);
+        }
+        if (!i->m_RecordingFrame)
+        {
+            i->m_CommandBuffer.Back().m_Operands[3] = (uint64_t)PushRenderConstants(i->m_RenderContext, constant_buffer);
+        }
         return true;
     }
 
@@ -2032,9 +2079,11 @@ namespace dmRender
         }
 
         if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uint64_t)frustum_options)))
+        {
             return 0;
-        else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
+        delete frustum_options;
+        return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
     /*# sets the view matrix
@@ -2077,9 +2126,11 @@ namespace dmRender
         dmVMath::Matrix4* matrix = new dmVMath::Matrix4;
         *matrix = view;
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_VIEW, (uint64_t)matrix)))
+        {
             return 0;
-        else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
+        delete matrix;
+        return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
     /*# sets the projection matrix
@@ -2103,9 +2154,11 @@ namespace dmRender
         dmVMath::Matrix4* matrix = new dmVMath::Matrix4;
         *matrix = projection;
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_PROJECTION, (uint64_t)matrix)))
+        {
             return 0;
-        else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
+        delete matrix;
+        return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
 
@@ -3113,7 +3166,7 @@ namespace dmRender
         DM_LUA_STACK_CHECK(L, 0);
 
         RenderScriptInstance* script_instance = RenderScriptInstance_Check(L);
-        dmScript::LuaCallbackInfo* cbk = script_instance->m_RenderContext->m_CallbackInfo;
+        dmScript::LuaCallbackInfo* cbk = script_instance->m_RenderContext->m_Recording.m_CallbackInfo;
 
         int type = lua_type(L, 1);
         if (type == LUA_TNONE || type == LUA_TNIL)
@@ -3121,7 +3174,7 @@ namespace dmRender
             if (cbk != 0x0)
             {
                 dmScript::DestroyCallback(cbk);
-                script_instance->m_RenderContext->m_CallbackInfo = 0x0;
+                script_instance->m_RenderContext->m_Recording.m_CallbackInfo = 0x0;
             }
         }
         else if (type == LUA_TFUNCTION)
@@ -3129,10 +3182,10 @@ namespace dmRender
             if (cbk != 0x0)
             {
                 dmScript::DestroyCallback(cbk);
-                script_instance->m_RenderContext->m_CallbackInfo = 0x0;
+                script_instance->m_RenderContext->m_Recording.m_CallbackInfo = 0x0;
             }
             cbk = dmScript::CreateCallback(L, 1);
-            script_instance->m_RenderContext->m_CallbackInfo = cbk;
+            script_instance->m_RenderContext->m_Recording.m_CallbackInfo = cbk;
         }
         else
         {
@@ -3317,7 +3370,7 @@ bail:
 
     static void ClearRenderScript(HRenderContext render_context, HRenderScript render_script, bool release_instance_reference)
     {
-        lua_State* L = render_script->m_RenderContext->m_RenderScriptContext.m_LuaState;
+        lua_State* L = render_script->m_RenderContext->m_Recording.m_RenderScriptContext.m_LuaState;
         for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
         {
             if (render_script->m_FunctionReferences[i] != LUA_NOREF)
@@ -3344,7 +3397,7 @@ bail:
 
     HRenderScript NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source)
     {
-        lua_State* L = render_context->m_RenderScriptContext.m_LuaState;
+        lua_State* L = render_context->m_Recording.m_RenderScriptContext.m_LuaState;
         int top = lua_gettop(L);
         (void)top;
 
@@ -3372,7 +3425,7 @@ bail:
     bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source)
     {
         ClearRenderScript(render_context, render_script, false);
-        return LoadRenderScript(render_context->m_RenderScriptContext.m_LuaState, source, render_script);
+        return LoadRenderScript(render_context->m_Recording.m_RenderScriptContext.m_LuaState, source, render_script);
     }
 
     static void ResetRenderScriptInstance(HRenderScriptInstance render_script_instance) {
@@ -3384,7 +3437,7 @@ bail:
 
     HRenderScriptInstance NewRenderScriptInstance(dmRender::HRenderContext render_context, HRenderScript render_script)
     {
-        lua_State* L = render_context->m_RenderScriptContext.m_LuaState;
+        lua_State* L = render_context->m_Recording.m_RenderScriptContext.m_LuaState;
 
         int top = lua_gettop(L);
         (void) top;
@@ -3394,9 +3447,9 @@ bail:
         i->m_PredicateCount = 0;
         i->m_UniqueScriptId = dmScript::GenerateUniqueScriptId();
         i->m_RenderScript = render_script;
-        i->m_ScriptWorld = render_context->m_ScriptWorld;
+        i->m_ScriptWorld = render_context->m_Recording.m_ScriptWorld;
         i->m_RenderContext = render_context;
-        i->m_CommandBuffer.SetCapacity(render_context->m_RenderScriptContext.m_CommandBufferSize);
+        i->m_CommandBuffer.SetCapacity(render_context->m_Recording.m_RenderScriptContext.m_CommandBufferSize);
         i->m_RenderResources.SetCapacity(16, 8);
 
         lua_pushvalue(L, -1);
@@ -3423,7 +3476,7 @@ bail:
 
     void DeleteRenderScriptInstance(HRenderScriptInstance render_script_instance)
     {
-        lua_State* L = render_script_instance->m_RenderContext->m_RenderScriptContext.m_LuaState;
+        lua_State* L = render_script_instance->m_RenderContext->m_Recording.m_RenderScriptContext.m_LuaState;
 
         int top = lua_gettop(L);
         (void) top;
@@ -3443,6 +3496,7 @@ bail:
         for (uint32_t i = 0; i < render_script_instance->m_PredicateCount; ++i) {
             delete render_script_instance->m_Predicates[i];
         }
+        ReleaseRenderCommandOperands(render_script_instance->m_CommandBuffer.Begin(), render_script_instance->m_CommandBuffer.Size());
         render_script_instance->~RenderScriptInstance();
         ResetRenderScriptInstance(render_script_instance);
     }
@@ -3479,7 +3533,7 @@ bail:
         HRenderScript script = script_instance->m_RenderScript;
         if (script->m_FunctionReferences[script_function] != LUA_NOREF)
         {
-            lua_State* L = script_instance->m_RenderContext->m_RenderScriptContext.m_LuaState;
+            lua_State* L = script_instance->m_RenderContext->m_Recording.m_RenderScriptContext.m_LuaState;
             int top = lua_gettop(L);
             (void) top;
 
@@ -3628,6 +3682,9 @@ bail:
     RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance, float dt)
     {
         DM_PROFILE("UpdateRSI");
+        // Synchronous compatibility entry point for existing render-library callers.
+        // The engine frame pipeline uses RecordRenderScriptInstance and owned replay.
+        ReleaseRenderCommandOperands(instance->m_CommandBuffer.Begin(), instance->m_CommandBuffer.Size());
         instance->m_CommandBuffer.SetSize(0);
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
@@ -3637,7 +3694,47 @@ bail:
         if (instance->m_CommandBuffer.Size() > 0)
         {
             ParseCommands(instance->m_RenderContext, &instance->m_CommandBuffer.Front(), instance->m_CommandBuffer.Size());
+            // Only executed commands commit selection. Commands issued by init or
+            // on_message are discarded at the update boundary, as before.
+            instance->m_SelectedRenderCamera = instance->m_RenderContext->m_CurrentRenderCamera;
+            instance->m_SelectedCameraUseFrustum = instance->m_RenderContext->m_CurrentRenderCameraUseFrustum;
         }
+        return result;
+    }
+
+    RenderFrameResult RecordRenderScriptInstance(HRenderScriptInstance instance, float dt, HRenderFrame frame)
+    {
+        DM_PROFILE("RecordRSI");
+        const HRenderCamera previous_camera = instance->m_SelectedRenderCamera;
+        const bool previous_use_frustum = instance->m_SelectedCameraUseFrustum;
+        ReleaseRenderCommandOperands(instance->m_CommandBuffer.Begin(), instance->m_CommandBuffer.Size());
+        instance->m_CommandBuffer.SetSize(0);
+        instance->m_RecordingFrame = frame;
+        instance->m_RecordingResult = RENDER_FRAME_OK;
+
+        dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
+        RenderScriptResult script_result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, (void*)&dt);
+        RenderFrameResult result = instance->m_RecordingResult;
+        if (script_result == RENDER_SCRIPT_RESULT_FAILED)
+        {
+            result = FailRenderFrame(frame, RENDER_FRAME_INVALID_ARGUMENT);
+        }
+        if (result == RENDER_FRAME_OK)
+        {
+            result = AppendRenderCommands(frame, instance->m_CommandBuffer.Begin(), instance->m_CommandBuffer.Size());
+        }
+        if (result != RENDER_FRAME_OK)
+        {
+            // A rejected snapshot must not change the selection inherited by the
+            // next frame. Per-draw selections within this partial frame die with it.
+            instance->m_SelectedRenderCamera = previous_camera;
+            instance->m_SelectedCameraUseFrustum = previous_use_frustum;
+        }
+
+        // Operand bytes belong to the frame, including a cancelled partial capture.
+        // The producer can reuse this command array immediately after copying it.
+        instance->m_CommandBuffer.SetSize(0);
+        instance->m_RecordingFrame = 0;
         return result;
     }
 

@@ -15,6 +15,9 @@
 #include <dlib/memory.h>
 #include <render/render.h>
 #include <render/render_private.h>
+#include <render/render_command.h>
+
+#include <new>
 
 namespace dmRender
 {
@@ -128,6 +131,46 @@ struct NamedConstantBuffer
     dmArray<Constant>           m_Constants;
     dmArray<dmVMath::Vector4>   m_Values;
 };
+
+RenderFrameResult CopyRenderCommandConstants(HRenderFrame frame, HNamedConstantBuffer source, HNamedConstantBuffer* destination)
+{
+    *destination = 0;
+    if (!source)
+    {
+        return RENDER_FRAME_OK;
+    }
+
+    const uint32_t constant_count = source->m_Constants.Size();
+    const uint32_t value_count = source->m_Values.Size();
+    const uint32_t constants_offset = (sizeof(NamedConstantBuffer) + 7) & ~7;
+    const uint64_t values_offset = ((uint64_t)constants_offset + (uint64_t)constant_count * sizeof(NamedConstantBuffer::Constant) + 15) & ~(uint64_t)15;
+    const uint64_t storage_size = values_offset + (uint64_t)value_count * sizeof(dmVMath::Vector4);
+    if (storage_size > UINT32_MAX)
+    {
+        return FailRenderFrame(frame, RENDER_FRAME_CAPACITY_EXCEEDED);
+    }
+
+    uint32_t table_index;
+    void* storage;
+    RenderFrameResult result = AllocateRenderFrameTable(frame, RENDER_COMMAND_PAYLOAD_TABLE_TYPE, 1, (uint32_t)storage_size, 16, &table_index, &storage);
+    if (result != RENDER_FRAME_OK)
+    {
+        return result;
+    }
+
+    NamedConstantBuffer* copy = new (storage) NamedConstantBuffer;
+    NamedConstantBuffer::Constant* constants = (NamedConstantBuffer::Constant*)((uint8_t*)storage + constants_offset);
+    dmVMath::Vector4* values = (dmVMath::Vector4*)((uint8_t*)storage + values_offset);
+    CopyRenderFrameData(frame, constants, source->m_Constants.Begin(), constant_count * sizeof(NamedConstantBuffer::Constant));
+    CopyRenderFrameData(frame, values, source->m_Values.Begin(), value_count * sizeof(dmVMath::Vector4));
+
+    // Both arrays borrow frame bytes. No heap allocation or retirement callback is needed;
+    // consumers may only read this buffer, and all storage expires together with the frame.
+    copy->m_Constants.Set(constants, constant_count, constant_count, true);
+    copy->m_Values.Set(values, value_count, value_count, true);
+    *destination = copy;
+    return RENDER_FRAME_OK;
+}
 
 static inline NamedConstantBuffer::Constant* FindNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash)
 {

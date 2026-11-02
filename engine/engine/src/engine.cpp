@@ -63,6 +63,7 @@
 #include <hid/hid.h>
 #include <sound/sound.h>
 #include <render/render.h>
+#include <render/render_pass.h>
 #include <render/render_ddf.h>
 #include <profiler/profiler.h>
 #include <platform/window.hpp>
@@ -2157,8 +2158,11 @@ bail:
                     if (engine->m_EngineService)
                         dmEngineService::BeginFrame(engine->m_EngineService);
 
-                    // Begin the renderer frame with current time since engine start and frame delta-time.
-                    // Use the same dt that is passed into script updates and the accumulated engine time.
+                    // Record simulation timing; graphics execution starts only after
+                    // component inputs and render-script passes form one complete packet.
+                    dmRender::BeginRenderFrameRecording(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
+                    // Legacy list/light preparation must precede their inline component
+                    // callbacks until D2.2/D3 move those inputs to the consumer.
                     dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
 
                     // Call pre render functions for extensions, if available.
@@ -2168,8 +2172,10 @@ bail:
                     dmExtension::PreRender(ext_params);
 
                     // Make the render list that will be used later.
+                    // Legacy component/list writes and extension hooks are inline-only
+                    // until their later migration. Do not admit this path to overlap yet.
                     dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmGameSystem::Render(engine->m_GameSystem, GetMainCollection(engine));
+                    bool captured = dmGameSystem::Render(engine->m_GameSystem, GetMainCollection(engine));
 
                     // Make sure we dispatch messages to the render script
                     // since it could have some "draw_text" messages waiting.
@@ -2178,24 +2184,14 @@ bail:
                         dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
                     }
 
-                    dmRender::RenderListEnd(engine->m_RenderContext);
-
-                    dmGraphics::BeginFrame(engine->m_GraphicsContext);
-
-                    if (engine->m_RenderScriptPrototype)
+                    dmRender::HRenderScriptInstance script = engine->m_RenderScriptPrototype ? engine->m_RenderScriptPrototype->m_Instance : 0;
+                    if (!captured || !dmGameSystem::SubmitRender(engine->m_GameSystem, script, dt, engine->m_ClearColor))
                     {
-                        dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);
-                    }
-                    else
-                    {
-                        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
-                                            (float)((engine->m_ClearColor>> 0)&0xFF),
-                                            (float)((engine->m_ClearColor>> 8)&0xFF),
-                                            (float)((engine->m_ClearColor>>16)&0xFF),
-                                            (float)((engine->m_ClearColor>>24)&0xFF),
-                                            1.0f, 0);
-                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+                        // A failed recording cancels its packet, but the legacy inline
+                        // presentation boundary still needs a frame. Keep Flip/vsync,
+                        // extension callbacks and engine-service Begin/End balanced so
+                        // an editable Lua error does not turn into an uncapped game loop.
+                        dmGraphics::BeginFrame(engine->m_GraphicsContext);
                     }
                 }
 

@@ -156,9 +156,20 @@ namespace dmRender
      * @param alignment Power-of-two alignment, from 1 through 16 bytes
      * @param data Nonnull source containing count * stride bytes
      * @param table_index Output index, assigned only on success
+     * @param copied_data Optional output pointer to the copied table while the frame is building
      * @return RENDER_FRAME_OK, or a sticky argument/state/capacity error
      */
-    RenderFrameResult CopyRenderFrameTable(HRenderFrame frame, uint32_t type, uint32_t count, uint32_t stride, uint32_t alignment, const void* data, uint32_t* table_index);
+    RenderFrameResult CopyRenderFrameTable(HRenderFrame frame, uint32_t type, uint32_t count, uint32_t stride, uint32_t alignment, const void* data, uint32_t* table_index, void** copied_data = 0);
+
+    /**
+     * Copy into an already reserved table and include those bytes in capture statistics.
+     * @param frame Building storage
+     * @param destination Caller-owned range within an allocated frame table
+     * @param source Input bytes; may be null when bytes is zero
+     * @param bytes Number of bytes to copy, within the reserved destination range
+     * @return RENDER_FRAME_OK, or a sticky state error
+     */
+    RenderFrameResult CopyRenderFrameData(HRenderFrame frame, void* destination, const void* source, uint32_t bytes);
 
     /**
      * Adopt an already-retained reference, released on game-owner cancellation/retirement.
