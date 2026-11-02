@@ -87,7 +87,7 @@ allprojects {
 
 repositories {
     flatDir {
-        dirs 'lib', "${bobDir}/lib", "${bobDir}/lib/aws"
+        dirs 'lib', "${bobDir}/lib"
     }
 }
 
@@ -244,11 +244,9 @@ def bobLibraryJars = fileTree("${bobDir}/lib") {
     exclude bobArtifacts.engineJars.keySet() + ['android.jar']
 }
 def bobDependencyJars = files(bobLibraryJars, bobArtifacts.engineJars.values())
-def bobAwsJars = fileTree("${bobDir}/lib/aws") { include '*.jar' }
 
 dependencies {
     implementation bobDependencyJars
-    implementation bobAwsJars
     implementation files("${dynamoHome}/ext/share/java/android.jar")
 }
 
@@ -673,7 +671,6 @@ def writeBobArchive = { File outputFile, Collection<File> dependencyJars, Map<St
             dependencyJars = bobDependencyJars.files.toList()
         } else {
             dependencyJars = new HashSet<>()
-            dependencyJars.addAll(bobAwsJars.files)
             dependencyJars.addAll(bobDependencyJars.files)
         }
         def outputFile = file("${bobDir}/dist/${light ? 'bob-light' : 'bob'}.jar")
