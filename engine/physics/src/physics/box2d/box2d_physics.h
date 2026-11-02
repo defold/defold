@@ -16,7 +16,6 @@
 #define DM_BOX2D_PHYSICS_H
 
 #include <box2d/box2d.h>
-#include <box2d/src/scheduler.h>
 
 #include <dlib/array.h>
 #include <dlib/hashtable.h>
@@ -118,8 +117,14 @@ namespace dmPhysics
         b2ContactData m_Data;
     };
 
-    // Each world owns its scheduler. Finish all tasks before destroying it.
-    b2Scheduler* NewBox2DScheduler(uint32_t worker_count);
+    struct Box2DTaskContext;
+    // Each world owns its task context. Finish all tasks before resetting or destroying it.
+    // Enqueue, finish, reset and destruction are called from the world's owning thread.
+    Box2DTaskContext* NewBox2DTaskContext(uint32_t worker_count);
+    void DeleteBox2DTaskContext(Box2DTaskContext* context);
+    void ResetBox2DTaskContext(Box2DTaskContext* context);
+    void* EnqueueBox2DTask(b2TaskCallbackFcn* callback, void* task_context, void* user_context);
+    void FinishBox2DTask(void* task, void* user_context);
 
     struct ContactCollection;
 
@@ -130,7 +135,7 @@ namespace dmPhysics
         OverlapCache                m_TriggerOverlaps;
         HContext2D                  m_Context;
         b2WorldId                   m_WorldId;
-        b2Scheduler*                m_TaskContext;
+        Box2DTaskContext*           m_TaskContext;
         ContactCollection*          m_ContactCollection;
         dmArray<RayCastRequest>     m_RayCastRequests;
         DebugDraw2D                 m_DebugDraw;

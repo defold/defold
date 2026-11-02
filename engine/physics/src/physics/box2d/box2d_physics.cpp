@@ -95,13 +95,13 @@ namespace dmPhysics
         worldDef.contactHertz = 30.0f;
         worldDef.contactDampingRatio = 10.0f;
         worldDef.enableContinuous = true;
-        // Box2D schedules the work using dmThread workers. The count includes the calling thread.
+        // Defold schedules Box2D tasks. The count includes the calling thread.
         worldDef.workerCount = context->m_WorkerCount;
         if (context->m_WorkerCount > 1)
         {
-            m_TaskContext = NewBox2DScheduler(context->m_WorkerCount - 1);
-            worldDef.enqueueTask = b2SchedulerEnqueueTask;
-            worldDef.finishTask = b2SchedulerFinishTask;
+            m_TaskContext = NewBox2DTaskContext(context->m_WorkerCount - 1);
+            worldDef.enqueueTask = EnqueueBox2DTask;
+            worldDef.finishTask = FinishBox2DTask;
             worldDef.userTaskContext = m_TaskContext;
         }
         m_WorldId = b2CreateWorld(&worldDef);
@@ -201,7 +201,7 @@ namespace dmPhysics
             dmLogWarning("box2d.worker_count must be in the range 0 - %d and has been clamped.", B2_MAX_WORKERS - 1);
             worker_count = dmMath::Clamp(worker_count, 0, B2_MAX_WORKERS - 1);
         }
-        // Box2D's scheduler still uses native timer and semaphore implementations.
+        // Keep the validated platform set until the external task system is tested elsewhere.
         bool has_thread_support = false;
 #if defined(_WIN32) || defined(__linux__) || defined(__APPLE__)
         has_thread_support = dmThread::PlatformHasThreadSupport();
@@ -298,7 +298,7 @@ namespace dmPhysics
 
         if (world->m_TaskContext)
         {
-            b2DestroyScheduler(world->m_TaskContext);
+            DeleteBox2DTaskContext(world->m_TaskContext);
         }
         delete world->m_ContactCollection;
         delete world;
@@ -754,7 +754,7 @@ namespace dmPhysics
         }
         uint32_t chunk_count = dmMath::Min(world->m_Bodies.Size(), dmMath::Min(16U, (uint32_t)world->m_Context->m_WorkerCount * 2U));
         void* tasks[16];
-        b2ResetScheduler(world->m_TaskContext);
+        ResetBox2DTaskContext(world->m_TaskContext);
         for (uint32_t i = 0; i < chunk_count; ++i)
         {
             ContactChunk* chunk = &world->m_ContactCollection->m_Chunks[i];
@@ -762,11 +762,11 @@ namespace dmPhysics
             chunk->m_Begin = (uint32_t)((uint64_t)world->m_Bodies.Size() * i / chunk_count);
             chunk->m_End = (uint32_t)((uint64_t)world->m_Bodies.Size() * (i + 1) / chunk_count);
             chunk->m_ContactPoints = contact_point_callback != 0;
-            tasks[i] = b2SchedulerEnqueueTask(CollectContactChunk, chunk, world->m_TaskContext);
+            tasks[i] = EnqueueBox2DTask(CollectContactChunk, chunk, world->m_TaskContext);
         }
         for (uint32_t i = 0; i < chunk_count; ++i)
         {
-            b2SchedulerFinishTask(tasks[i], world->m_TaskContext);
+            FinishBox2DTask(tasks[i], world->m_TaskContext);
         }
         for (uint32_t i = 0; i < chunk_count && (collision_callback || contact_point_callback); ++i)
         {
@@ -857,7 +857,7 @@ namespace dmPhysics
 
             if (world->m_TaskContext)
             {
-                b2ResetScheduler(world->m_TaskContext);
+                ResetBox2DTaskContext(world->m_TaskContext);
             }
             b2World_Step(world->m_WorldId, dt, step_context.m_Box2DSubStepCount);
 
