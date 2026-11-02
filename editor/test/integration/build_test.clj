@@ -1075,7 +1075,7 @@
       (io/delete-file source)
       (let [error (:error (project-build! project game-project))
             missing (coll/first-where resource-io/file-not-found-error?
-                                     (coll/into-> [error] [] (coll/tree-xf :causes :causes)))]
+                                      (coll/into-> [error] [] (coll/tree-xf :causes :causes)))]
         (is (g/error-value? error))
         (is (= source-node (:_node-id missing)))
         (is (= "/root.stuff" (some-> missing :user-data :resource resource/proj-path))))

@@ -699,8 +699,8 @@ ordinary paths."
 
 (defn make-snapshot-info [workspace project-path dependencies snapshot-cache]
   (let [snapshot-info (assoc-in (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)
-                               [:snapshot :live-update-output-paths]
-                               (set (PackageArtifacts/generatedPaths (.toPath (io/file project-path)))))]
+                                [:snapshot :live-update-output-paths]
+                                (set (PackageArtifacts/generatedPaths (.toPath (io/file project-path)))))]
     (assoc snapshot-info :map (resource-watch/make-resource-map (:snapshot snapshot-info)))))
 
 (defn update-snapshot-cache! [workspace snapshot-cache]

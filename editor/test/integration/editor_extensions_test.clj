@@ -393,9 +393,9 @@
   (test-util/with-loaded-project
     (reload-editor-scripts! project)
     (let [rt (:rt (g/with-auto-evaluation-context evaluation-context
-                   (extensions/ext-state project evaluation-context)))
+                    (extensions/ext-state project evaluation-context)))
           check-bundle (rt/invoke-immediate-1 rt
-                         (rt/bind rt (rt/read "return function()
+                                              (rt/bind rt (rt/read "return function()
                                                 local options
                                                 editor.bob = function(opts) options = opts end
                                                 editor.prefs.set('bundle.open-output-directory', false)

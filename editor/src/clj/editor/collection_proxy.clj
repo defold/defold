@@ -83,8 +83,8 @@
   (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     [(g/connect project :settings self :project-settings)
      (gu/set-properties-from-pb-map self CollectionProxy$CollectionProxyDesc collection-proxy-desc
-      collection (resolve-resource :collection)
-      exclude :exclude)]))
+       collection (resolve-resource :collection)
+       exclude :exclude)]))
 
 (g/defnode CollectionProxyNode
   (inherits resource-node/ResourceNode)
