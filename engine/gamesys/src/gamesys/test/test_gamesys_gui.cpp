@@ -2603,6 +2603,48 @@ TEST_F(GuiTest, GuiPreparedTextLayoutDestroyedBeforeDraw)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Labels apply all four blend modes to their render objects, including after resource reloads.
+TEST_F(LabelComponentTest, BlendModes)
+{
+    const char* path = "/label/valid.labelc";
+    dmGameSystem::LabelResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, (void**)&resource));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/link_hover.goc", dmHashString64("/go"));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    const dmGameSystemDDF::LabelDesc::BlendMode modes[] = { dmGameSystemDDF::LabelDesc::BLEND_MODE_ALPHA, dmGameSystemDDF::LabelDesc::BLEND_MODE_ADD, dmGameSystemDDF::LabelDesc::BLEND_MODE_MULT, dmGameSystemDDF::LabelDesc::BLEND_MODE_SCREEN };
+    const dmGraphics::BlendFactor source_factors[] = { dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_DST_COLOR, dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR };
+    const dmGraphics::BlendFactor destination_factors[] = { dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE };
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(modes); ++i)
+    {
+        dmGameSystemDDF::LabelDesc replacement = *resource->m_DDF;
+        replacement.m_BlendMode = modes[i];
+        dmArray<uint8_t> buffer;
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&replacement, dmGameSystemDDF::LabelDesc::m_DDFDescriptor, buffer));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+
+        dmRender::ClearRenderObjects(m_RenderContext);
+        dmRender::RenderListBegin(m_RenderContext);
+        ASSERT_TRUE(dmGameObject::Render(m_Collection));
+        dmRender::RenderListEnd(m_RenderContext);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+        ASSERT_EQ(1u, context->m_TextContext.m_RenderObjectIndex);
+        const dmRender::RenderObject& ro = context->m_TextContext.m_RenderObjects[0];
+        ASSERT_TRUE(ro.m_SetBlendFactors);
+        ASSERT_GT(ro.m_VertexCount, 0u);
+        ASSERT_EQ(source_factors[i], ro.m_SourceBlendFactor);
+        ASSERT_EQ(destination_factors[i], ro.m_DestinationBlendFactor);
+        dmGraphics::Flip(m_GraphicsContext);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path, 0));
+    dmResource::Release(m_Factory, resource);
+}
+
 TEST_F(LabelComponentTest, LabelTextProperty)
 {
     const dmhash_t go_id = dmHashString64("/go");
@@ -3205,6 +3247,70 @@ TEST_F(LabelComponentTest, LabelPreparedTextLayoutFallbackMutation)
     dmResource::Release(m_Factory, extra_ttf_resource);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, extra_ttf_path));
     dmMemory::AlignedFree(extra_ttf_data);
+}
+
+// GUI text honors each blend mode, keeps mixed modes in separate batches, and updates
+// retained render objects when modes change between frames (regression for #6508).
+TEST_F(GuiTest, TextBlendModes)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"));
+    ASSERT_NE((dmGameObject::HInstance)0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGui::HScene scene = GetGuiComponent(m_Collection)->m_Scene;
+    dmGui::HNode nodes[4];
+    nodes[0] = dmGui::GetNodeById(scene, "text");
+    ASSERT_NE((dmGui::HNode)0, nodes[0]);
+    for (uint32_t i = 1; i < DM_ARRAY_SIZE(nodes); ++i)
+    {
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::CloneNode(scene, nodes[0], &nodes[i]));
+    }
+
+    const dmGui::BlendMode modes[] = { dmGui::BLEND_MODE_ALPHA, dmGui::BLEND_MODE_ADD, dmGui::BLEND_MODE_MULT, dmGui::BLEND_MODE_SCREEN };
+    const dmGraphics::BlendFactor source_factors[] = { dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_DST_COLOR, dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR };
+    const dmGraphics::BlendFactor destination_factors[] = { dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE };
+    const uint32_t frame_modes[][4] = { { 0, 1, 2, 3 }, { 2, 2, 2, 2 }, { 3, 2, 1, 0 }, { 0, 0, 0, 0 } };
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+
+    for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(frame_modes); ++frame)
+    {
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(nodes); ++i)
+        {
+            dmGui::SetNodeBlendMode(scene, nodes[i], modes[frame_modes[frame][i]]);
+        }
+
+        dmRender::ClearRenderObjects(m_RenderContext);
+        dmRender::RenderListBegin(m_RenderContext);
+        ASSERT_TRUE(dmGameObject::Render(m_Collection));
+        dmRender::RenderListEnd(m_RenderContext);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+
+        uint32_t expected_batches = frame % 2 == 0 ? 4 : 1;
+        ASSERT_EQ(expected_batches, context->m_TextContext.m_RenderObjectIndex);
+        uint32_t mode_counts[4] = {};
+        for (uint32_t i = 0; i < expected_batches; ++i)
+        {
+            const dmRender::RenderObject& ro = context->m_TextContext.m_RenderObjects[i];
+            ASSERT_TRUE(ro.m_SetBlendFactors);
+            ASSERT_GT(ro.m_VertexCount, 0u);
+            for (uint32_t mode = 0; mode < DM_ARRAY_SIZE(modes); ++mode)
+            {
+                if (ro.m_SourceBlendFactor == source_factors[mode] && ro.m_DestinationBlendFactor == destination_factors[mode])
+                {
+                    ++mode_counts[mode];
+                }
+            }
+        }
+        for (uint32_t mode = 0; mode < DM_ARRAY_SIZE(modes); ++mode)
+        {
+            uint32_t expected_count = expected_batches == 4 || mode == frame_modes[frame][0] ? 1 : 0;
+            ASSERT_EQ(expected_count, mode_counts[mode]);
+        }
+        dmGraphics::Flip(m_GraphicsContext);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 /* GUI Box Render */
