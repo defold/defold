@@ -613,7 +613,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: "bob-jar"
-          path: "${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar"
+          path: |
+            ${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
+            ${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist/bob-light.jar
           retention-days: 2
       - &step_stop_gradle
         name: "Stop Gradle Daemon"
