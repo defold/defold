@@ -44,7 +44,6 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.library :as library]
-            [editor.live-update-preview :as live-update-preview]
             [editor.localization :as localization]
             [editor.lsp.async :as lsp.async]
             [editor.os :as os]
@@ -57,6 +56,7 @@
             [editor.util :as util]
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
+            [internal.java :as java]
             [util.coll :as coll]
             [util.eduction :as e]
             [util.fn :as fn]
@@ -64,8 +64,8 @@
             [util.http-server :as http-server]
             [util.path :as path])
   (:import [clojure.lang IDeref Murmur3]
-           [com.dynamo.bob Platform]
-           [com.dynamo.bob.archive.liveupdate PackagePreview$Result PackageResolver]
+           [com.dynamo.bob Platform Progress]
+           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackagePreview PackageResolver]
            [com.dynamo.bob.bundle BundleHelper]
            [com.dynamo.bob.util Library$Result]
            [java.io InputStream PrintStream PushbackReader]
@@ -435,27 +435,38 @@
 (defn- make-ext-live-update-rules-fn [project prefs]
   (rt/suspendable-lua-fn live-update-rules [{:keys [evaluation-context]}]
     (let [workspace (project/workspace project evaluation-context)
+          project-directory (workspace/project-directory (:basis evaluation-context) workspace)
           resource-map (g/node-value workspace :resource-map evaluation-context)
           generated-paths (g/node-value project :live-update-output-paths evaluation-context)
-          statuses (:status-map (g/node-value workspace :resource-snapshot evaluation-context))
           save-data (mapv (fn [{:keys [resource save-value]}]
                             [(resource/proj-path resource) save-value (resource/resource-type resource (:basis evaluation-context))])
                           (project/dirty-save-data project evaluation-context))
           options (prefs/get prefs [:bundle :last-bob-options])]
       (future/io
-        (let [controller (live-update-preview/controller)]
+        ;; Conversion is a one-off operation. Bob uses a temporary snapshot so
+        ;; it sees unsaved content without writing into the user's project.
+        (let [snapshot (fs/create-temp-directory! "defold-liveupdate-conversion-")]
           (try
-            (let [resources (live-update-preview/source-resources resource-map generated-paths)
-                  contents (coll/into-> save-data {}
+            (let [contents (coll/into-> save-data {}
                              (keep (fn [[path save-value resource-type]]
                                      (when-let [content (resource-node/save-content save-value resource-type)]
-                                       [path content]))))
-                  ;; An empty override selects the legacy graph. All work stays
-                  ;; in the preview snapshot, including unsaved source content.
-                  ^PackagePreview$Result result (live-update-preview/build! controller resources statuses contents "" options (constantly false))]
-              (coll/join-to-string "\n" (mapv #(str "rules {\n" % "}\n") (PackageResolver/migrateLegacy (.plan result)))))
+                                       [path content]))))]
+              (doseq [[path source] resource-map
+                      :when (and (= :file (resource/source-type source))
+                                 (or (resource/file-resource? source) (resource/zip-resource? source))
+                                 (not (string/starts-with? path "/builtins/"))
+                                 (not (PackageArtifacts/isGeneratedPath path generated-paths)))]
+                (let [destination (io/file snapshot (subs path 1))]
+                  (fs/create-parent-directories! destination)
+                  (if-let [content (get contents path)]
+                    (spit destination content :encoding "UTF-8")
+                    (with-open [input (io/input-stream source)]
+                      (io/copy input destination)))))
+              (let [result (PackagePreview/build (.toPath snapshot) (.toPath project-directory)
+                                                 "" options java/class-loader (Progress/discarding))]
+                (coll/join-to-string "\n" (mapv #(str "rules {\n" % "}\n") (PackageResolver/migrateLegacy (.plan result))))))
             (finally
-              @(live-update-preview/close! controller))))))))
+              (fs/delete-directory! snapshot))))))))
 
 (defn- ensure-file-path-in-project-directory
   ^Path [^Path project-path ^String file-name]

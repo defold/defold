@@ -19,7 +19,6 @@
             [editor.core :as core]
             [editor.handler :as handler]
             [editor.id :as id]
-            [editor.live-update-preview :as preview]
             [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.properties :as properties]
@@ -28,7 +27,7 @@
             [editor.resource-node :as resource-node]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [com.dynamo.bob.archive.liveupdate PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Selection PackageResolver$Severity]
+  (:import [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Selection PackageResolver$Severity]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc]
            [java.nio.file Path]
            [java.util.function Function]))
@@ -361,11 +360,19 @@
   (output package-references g/Any :cached
           (g/fnk [save-value]
             (PackageResolver/packageReferences (protobuf/map->pb LiveUpdateManifest$ManifestDesc save-value))))
+  (output source-paths g/Any :cached
+          (g/fnk [resource-map generated-paths]
+            (coll/into-> resource-map []
+              (keep (fn [[path source]]
+                      (when (and (= :file (resource/source-type source))
+                                 (not (PackageArtifacts/isGeneratedPath path generated-paths))
+                                 (or (resource/file-resource? source) (resource/zip-resource? source)))
+                        path))))))
   (output selection g/Any :cached
-          (g/fnk [save-value resource-map generated-paths]
+          (g/fnk [save-value source-paths]
             (PackageResolver/select
               (protobuf/map->pb LiveUpdateManifest$ManifestDesc save-value)
-              (vec (coll/keys (preview/source-resources resource-map generated-paths))))))
+              source-paths)))
   (output diagnostics g/Any (g/fnk [selection] (.diagnostics ^PackageResolver$Selection selection)))
   (output selected-paths g/Any :cached
           (g/fnk [_node-id selection diagnostics]

@@ -25,7 +25,6 @@
             [editor.fs :as fs]
             [editor.live-update-manifest :as manifest]
             [editor.live-update-manifest-view :as manifest-view]
-            [editor.live-update-preview :as preview]
             [editor.prefs :as prefs]
             [editor.properties :as properties]
             [editor.properties-view :as properties-view]
@@ -35,21 +34,20 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.java :as java]
             [support.test-support :as test-support]
             [util.coll :as coll])
   (:import [com.dynamo.bob ClassLoaderResourceScanner Platform Progress Project TaskResult]
-           [com.dynamo.bob.archive.liveupdate PackagePreview$Result PackageResolver$Package PackageResolver$Plan PackageResolver$Severity]
+           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackagePreview PackagePreview$Result PackageResolver$Package PackageResolver$Plan PackageResolver$Severity]
            [com.dynamo.bob.fs DefaultFileSystem]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc]
            [java.net URI]
            [java.nio.charset StandardCharsets]
-           [java.nio.file Files Path]
-           [java.nio.file.attribute FileTime]
            [java.util.zip ZipEntry ZipOutputStream]
            [javafx.animation AnimationTimer PauseTransition]
            [javafx.event Event]
            [javafx.scene Scene]
-           [javafx.scene.control Button Hyperlink Label MenuItem RadioButton ScrollPane SplitPane Tab TabPane TextField TreeItem TreeTableColumn TreeTableView]
+           [javafx.scene.control Button Hyperlink Label MenuItem RadioButton SplitPane Tab TabPane TextField TreeItem TreeTableColumn TreeTableView]
            [javafx.scene.input Clipboard]
            [javafx.scene.layout Pane]
            [javafx.stage Stage]
@@ -131,27 +129,23 @@
     (let [tab (.getSelectedItem (.getSelectionModel ^TabPane (first (.getItems split))))
           view (editor-tab/view-node-id tab)]
       {:tab tab :view view :parent (.getContent ^Tab tab)
-       :preferences preferences :controller (g/user-data view :preview-controller)
-       :rows-controller (g/user-data view :rows-controller)})))
+       :preferences preferences :state (g/user-data view :preview-state)})))
 
-(defn- close-manifest-view! [{:keys [^Tab tab view controller rows-controller]}]
-  (Event/fireEvent tab (Event. Tab/CLOSED_EVENT))
-  (.remove (.getTabs (.getTabPane tab)) tab)
-  (await-ui! #(and (nil? (g/node-by-id view))
-                   (realized? (:close-completion @controller))
-                   (realized? (:close-completion @rows-controller))))
-  (is (true? @(:close-completion @controller)))
-  (is (true? @(:close-completion @rows-controller)))
-  (when (realized? (:directory @controller))
-    (is (not (.exists (.toFile ^Path @(:directory @controller)))))))
+(defn- close-manifest-view! [{:keys [^Tab tab view state]}]
+  (let [job (:job @state)]
+    (Event/fireEvent tab (Event. Tab/CLOSED_EVENT))
+    (.remove (.getTabs (.getTabPane tab)) tab)
+    (await-ui! #(nil? (g/node-by-id view)))
+    (when job (is (future-cancelled? job)))
+    (is (= {} @state))))
 
-(defn- await-preview! [controller previous]
+(defn- await-preview! [state previous]
   (await-ui!
     (fn []
-      (let [{:keys [job result error]} @controller]
+      (let [{:keys [job result error]} @state]
         (when error (throw error))
         (when (and (nil? job) result (not (identical? result previous)))
-          (:compiled (:value result)))))))
+          (:compiled result))))))
 
 (defn- resource-table
   ^TreeTableView [^Pane parent]
@@ -174,7 +168,7 @@
           preferences (prefs/make :scopes {:global prefs-file :project prefs-file} :schemas [:default])
           view (open-manifest-view! project app-view path preferences)]
       (try
-        (let [^PackagePreview$Result compiled (await-preview! (:controller view) nil)]
+        (let [^PackagePreview$Result compiled (await-preview! (:state view) nil)]
           (await-ui! #(when-let [table (resource-table (:parent view))]
                         (= (.base (.plan compiled))
                            (coll/into-> (table-rows table) #{} (map :path))))))
@@ -184,14 +178,21 @@
 
 (defn- build-preview! [project contents manifest-path options cancelled?]
   (let [workspace (project/workspace project)
-        controller (preview/controller)
-        resources (preview/source-resources (g/node-value workspace :resource-map)
-                                            (g/node-value project :live-update-output-paths))
-        statuses (:status-map (g/node-value workspace :resource-snapshot))]
-    (try
-      (preview/build! controller resources statuses contents manifest-path options cancelled?)
-      (finally
-        (is (= true (deref (preview/close! controller) 30000 :timeout)))))))
+        generated-paths (g/node-value project :live-update-output-paths)]
+    (test-util/with-temp-dir! snapshot
+      (doseq [[path source] (g/node-value workspace :resource-map)
+              :when (and (= :file (resource/source-type source))
+                         (not (.startsWith ^String path "/builtins/"))
+                         (not (PackageArtifacts/isGeneratedPath path generated-paths)))]
+        (let [destination (io/file snapshot (subs path 1))]
+          (fs/create-parent-directories! destination)
+          (if-let [content (get contents path)]
+            (spit destination content :encoding "UTF-8")
+            (with-open [input (io/input-stream source)]
+              (io/copy input destination)))))
+      (is (not (cancelled?)))
+      (PackagePreview/build (.toPath snapshot) (.toPath (workspace/project-directory workspace))
+                            manifest-path options java/class-loader (Progress/discarding)))))
 
 ;; Package/rule edits must use graph history and preserve the authoring format
 ;; on reload.
@@ -680,8 +681,7 @@
       (is (contains? (g/node-value workspace :resource-map) "/episode.zip"))
       (is (= #{"/episode.zip"} (g/node-value project :live-update-output-paths)))
       (is (= #{"/extra.json"} (g/node-value node :selected-paths)))
-      (let [sources (preview/source-resources (g/node-value workspace :resource-map)
-                                              (g/node-value project :live-update-output-paths))
+      (let [sources (set (g/node-value node :source-paths))
             ^PackagePreview$Result refreshed (build-preview! project {} "/packages.lumanifest" {} (constantly false))]
         (is (not (contains? sources "/episode.zip")))
         (is (= (.base packaged) (.base (.plan refreshed))))
@@ -709,38 +709,30 @@
                                        "/episodes/19/episode.collectionc" "/episodes/19/episode.goc" "/episodes/19/episode.scriptc" "/episodes/19/description.txt"}
                     "halloween" #{"/halloween/halloween.collectionc" "/halloween/pumpkin.goc" "/halloween/event.txt" "/common/shared.scriptc"}}]
       (test-util/set-code-editor-source! raw unsaved)
-      (let [controller (preview/controller)
-            resources (preview/source-resources (g/node-value workspace :resource-map)
-                                                (g/node-value project :live-update-output-paths))
-            statuses (:status-map (g/node-value workspace :resource-snapshot))
-            contents (coll/into-> (g/node-value project :save-data) {}
+      (let [contents (coll/into-> (g/node-value project :save-data) {}
                        (keep (fn [data]
                                (when-let [content (resource-node/save-data-content data)]
-                                 [(resource/proj-path (:resource data)) content]))))]
-        (try
-          (let [^PackagePreview$Result result (preview/build! controller resources statuses contents "/liveupdate.lumanifest" {} (constantly false))
-                plan (.plan result)
-                graph-plan (g/with-auto-evaluation-context evaluation-context
-                             (.plan ^PackagePreview$Result (preview/resolve-graph project (project/get-resource-node project "/liveupdate.lumanifest" evaluation-context)
-                                                                                  evaluation-context (constantly false))))]
-            (is (= (set (coll/keys expected)) (set (.keySet (.packages plan)))))
-            (doseq [[name paths] expected]
-              (is (= paths (set (.resources ^PackageResolver$Package (get (.packages plan) name)))) name)
-              (is (= paths (set (.resources ^PackageResolver$Package (get (.packages graph-plan) name)))) name))
-            (is (= (.base plan) (.base graph-plan)))
-            (is (= (.requirements plan) (.requirements graph-plan)))
-            (doseq [name ["episodes_00_09" "episodes_10_19"]]
-              (is (= {"/episodes/common/actor.goc" ["episodes_common"]
-                      "/common/shared.scriptc" ["common" "episodes_common" "halloween"]}
-                     (get (.requirements plan) name))))
-            (is (= unsaved (Files/readString (.resolve ^Path @(:directory @controller) "build/episodes/00/description.txt"))))
-            (is (= #{"common" "episodes_common" "halloween"}
-                   (coll/into-> (.packages plan) #{}
-                     (keep (fn [[name package]]
-                             (when (contains? (.resources ^PackageResolver$Package package) "/common/shared.scriptc")
-                               name)))))))
-          (finally
-            (is (= true (deref (preview/close! controller) 30000 :timeout))))))
+                                 [(resource/proj-path (:resource data)) content]))))
+            ^PackagePreview$Result result (build-preview! project contents "/liveupdate.lumanifest" {} (constantly false))
+            plan (.plan result)]
+        (with-manifest-view! project app-view "/liveupdate.lumanifest"
+          (fn [{:keys [state]}]
+            (let [graph-plan (.plan ^PackagePreview$Result (get-in @state [:result :compiled]))]
+              (is (= (set (coll/keys expected)) (set (.keySet (.packages plan)))))
+              (doseq [[name paths] expected]
+                (is (= paths (set (.resources ^PackageResolver$Package (get (.packages plan) name)))) name)
+                (is (= paths (set (.resources ^PackageResolver$Package (get (.packages graph-plan) name)))) name))
+              (is (= (.base plan) (.base graph-plan)))
+              (is (= (.requirements plan) (.requirements graph-plan)))
+              (doseq [name ["episodes_00_09" "episodes_10_19"]]
+                (is (= {"/episodes/common/actor.goc" ["episodes_common"]
+                        "/common/shared.scriptc" ["common" "episodes_common" "halloween"]}
+                       (get (.requirements plan) name))))
+              (is (= #{"common" "episodes_common" "halloween"}
+                     (coll/into-> (.packages plan) #{}
+                       (keep (fn [[name package]]
+                               (when (contains? (.resources ^PackageResolver$Package package) "/common/shared.scriptc")
+                                 name))))))))))
       (with-open [_ (test-util/build! (project/get-resource-node project "/game.project"))]
         (is (= unsaved (slurp (workspace/build-path workspace "/episodes/00/description.txt") :encoding "UTF-8")))
         (is (= "Welcome to the Live Update example.\n"
@@ -789,22 +781,22 @@
     (spit (workspace/file-resource workspace "/shared.script") "function init(self) end\n")
     (spit (workspace/file-resource workspace "/extra.lua") "return {}\n")
     (workspace/resource-sync! workspace)
-    (let [node (project/get-resource-node project "/packages.lumanifest")
-          resolve! (fn resolve! []
-                     (g/with-auto-evaluation-context evaluation-context
-                       (.plan ^PackagePreview$Result (preview/resolve-graph project node evaluation-context (constantly false)))))
-          ^PackageResolver$Plan initial (resolve!)]
-      (is (contains? (.locks initial) "/regular.goc"))
-      (is (contains? (.locks initial) "/payload.collectionc"))
-      (is (contains? (.locks initial) "/shared.scriptc"))
-      (is (not (contains? (.locks initial) "/child.goc")))
-      (is (not (contains? (.locks initial) "/dynamic.goc")))
-      (test-util/prop! (project/get-resource-node project "/dynamic.factory") :load-dynamically false)
-      (is (contains? (.locks ^PackageResolver$Plan (resolve!)) "/dynamic.goc"))
-      (test-util/set-code-editor-source! (project/get-resource-node project "/shared.script") "local extra = require 'extra'\n")
-      (let [^PackageResolver$Plan changed (resolve!)]
-        (is (contains? (.base changed) "/extra.luac"))
-        (is (contains? (.resources ^PackageResolver$Package (get (.packages changed) "content")) "/extra.luac"))))))
+    (with-manifest-view! project app-view "/packages.lumanifest"
+      (fn [{:keys [state]}]
+        (let [initial (.plan ^PackagePreview$Result (get-in @state [:result :compiled]))]
+          (is (contains? (.locks initial) "/regular.goc"))
+          (is (contains? (.locks initial) "/payload.collectionc"))
+          (is (contains? (.locks initial) "/shared.scriptc"))
+          (is (not (contains? (.locks initial) "/child.goc")))
+          (is (not (contains? (.locks initial) "/dynamic.goc"))))
+        (let [previous (:result @state)]
+          (test-util/prop! (project/get-resource-node project "/dynamic.factory") :load-dynamically false)
+          (is (contains? (.locks (.plan ^PackagePreview$Result (await-preview! state previous))) "/dynamic.goc")))
+        (let [previous (:result @state)]
+          (test-util/set-code-editor-source! (project/get-resource-node project "/shared.script") "local extra = require 'extra'\n")
+          (let [changed (.plan ^PackagePreview$Result (await-preview! state previous))]
+            (is (contains? (.base changed) "/extra.luac"))
+            (is (contains? (.resources ^PackageResolver$Package (get (.packages changed) "content")) "/extra.luac"))))))))
 
 ;; Registered views refresh from unsaved edits and inventory without compiling.
 ;; Reordering retains the controls and cached editor targets; closing and
@@ -815,12 +807,12 @@
           raw (project/get-resource-node project "/extra.json")
           packages (g/node-value node :packages)
           episode (get-in packages [0 :rules 0 :node-id])
-          old-controller (atom nil)]
+          old-state (atom nil)]
       (with-manifest-view! project app-view "/packages.lumanifest"
-        (fn [{:keys [controller parent preferences]}]
-          (reset! old-controller controller)
-          (let [initial (:result @controller)
-                ^PackagePreview$Result compiled (get-in initial [:value :compiled])
+        (fn [{:keys [state parent preferences]}]
+          (reset! old-state state)
+          (let [initial (:result @state)
+                ^PackagePreview$Result compiled (:compiled initial)
                 table (resource-table parent)
                 form (first (.getChildren ^Pane parent))
                 children (vec (.getChildren ^Pane form))
@@ -830,18 +822,19 @@
                    (set (.resources ^PackageResolver$Package (get (.packages (.plan compiled)) "levels")))))
             (g/transact {:undoable false} (app-view/select app-view node [episode]))
             (await-ui! #(= "Package: levels" (.getText ^Label (.lookup ^Pane parent "#liveupdate-package-heading"))))
-            (is (identical? initial (:result @controller)))
-            (is (nil? (:job @controller)))
-            (test-util/handler-run :edit.reorder-down
-                                   [{:name :workbench :env {:selection [episode]}}] nil)
-            (let [^PackagePreview$Result result (await-preview! controller initial)]
+            (is (identical? compiled (get-in @state [:result :compiled])))
+            (is (nil? (:job @state)))
+            (let [previous (:result @state)
+                  _ (test-util/handler-run :edit.reorder-down
+                                           [{:name :workbench :env {:selection [episode]}}] nil)
+                  ^PackagePreview$Result result (await-preview! state previous)]
               (is (= "Data" (.getName (.getRules (.description ^PackageResolver$Package (get (.packages (.plan result)) "levels")) 0))))
               (is (identical? episode-targets (g/node-value episode-node :build-targets))))
             (is (= children (vec (.getChildren ^Pane form))))
             (is (identical? table (resource-table parent))))
-          (let [previous (:result @controller)]
+          (let [previous (:result @state)]
             (g/transact (g/set-property node :output-directory "exports/packages"))
-            (await-preview! controller previous)
+            (await-preview! state previous)
             (await-ui! #(= "exports/packages/levels.zip" (.getText ^Label (.lookup ^Pane parent "#liveupdate-export-path")))))
           (let [^Label path-label (.lookup ^Pane parent "#liveupdate-export-path")
                 clipboard (Clipboard/getSystemClipboard)
@@ -854,272 +847,160 @@
                      (io/file (.getString clipboard))))
               (finally
                 (.setContent clipboard previous))))
-          (let [previous (:result @controller)]
+          (let [previous (:result @state)]
             (g/transact (g/set-property episode :path "/nothing[.]collection"))
             (test-util/set-code-editor-source! raw "{\"unsaved\":true}")
-            (await-preview! controller previous)
-            (is (not (realized? (:directory @controller))))
+            (await-preview! state previous)
             (await-ui! #(= [["/extra.json" []]] (table-tree (resource-table parent))))
             (let [row (.getValue ^TreeItem (first (.getChildren (.getRoot (resource-table parent)))))]
               (is (= "/extra.json" (:source row)))
               (is (= [(get-in packages [0 :rules 1 :node-id])] (:rule-nodes row)))
               (is (= "Data" (:added-by row)))))
-          (let [previous (:result @controller)]
+          (let [previous (:result @state)]
             (test-util/make-resource! workspace "/nothing.collection" {:name "new"})
             (workspace/resource-sync! workspace)
-            (let [^PackagePreview$Result result (await-preview! controller previous)]
+            (let [^PackagePreview$Result result (await-preview! state previous)]
               (is (= #{"/nothing.collectionc" "/extra.json"}
                      (set (.resources ^PackageResolver$Package (get (.packages (.plan result)) "levels")))))))
-          (let [previous (:result @controller)]
+          (let [previous (:result @state)]
             (prefs/set! preferences [:bundle :last-bob-options] {"variant" "release"})
-            (is (identical? previous (:result @controller))))))
-      (is (:closed @@old-controller))
+            (is (identical? previous (:result @state))))))
+      (is (= {} @@old-state))
       (with-manifest-view! project app-view "/packages.lumanifest"
-        (fn [{:keys [controller]}]
-          (is (not (identical? @old-controller controller)))
-          (is (not (realized? (:directory @controller))))
-          (is (instance? PackagePreview$Result (get-in @controller [:result :value :compiled]))))))))
+        (fn [{:keys [state]}]
+          (is (not (identical? @old-state state)))
+          (is (instance? PackagePreview$Result (get-in @state [:result :compiled]))))))))
 
-;; Refreshes preserve unchanged snapshot files.
-;; Disk edits, unsaved edits, saves, and removals still update the snapshot.
-(deftest preview-reuses-unchanged-sources
-  (test-util/with-scratch-project "test/resources/live_update_project"
-    (let [source (io/file (workspace/file-resource workspace "/unselected.bin"))
-          controller (preview/controller)
-          build! (fn build! [contents]
-                   (preview/build! controller
-                                   (preview/source-resources (g/node-value workspace :resource-map)
-                                                             (g/node-value project :live-update-output-paths))
-                                   (:status-map (g/node-value workspace :resource-snapshot))
-                                   contents "/packages.lumanifest" {} (constantly false)))]
-      (try
-        (with-open [output (io/output-stream source)]
-          (.write output (byte-array 4096)))
-        (workspace/resource-sync! workspace)
-        (build! {})
-        (let [node (project/get-resource-node project "/packages.lumanifest")
-              rule (get-in (g/node-value node :packages) [0 :rules 0 :node-id])]
-          (g/set-property! rule :id "Renamed rule")
-          (let [snapshot (.resolve ^Path @(:directory @controller) "unselected.bin")
-                unchanged (FileTime/fromMillis 946684800000)]
-            (Files/setLastModifiedTime snapshot unchanged)
-            (let [^PackagePreview$Result result (build! {"/packages.lumanifest" (resource-node/save-data-content (g/node-value node :save-data))})]
-              (is (= "Renamed rule" (.getName (.getRules (.description ^PackageResolver$Package (get (.packages (.plan result)) "levels")) 0)))))
-            (is (= unchanged (Files/getLastModifiedTime snapshot (make-array java.nio.file.LinkOption 0))))))
-        (let [raw (workspace/file-resource workspace "/extra.json")
-              snapshot (.resolve ^Path @(:directory @controller) "extra.json")
-              compiled (.resolve ^Path @(:directory @controller) "build/extra.json")
-              disk-content "{\"disk\":true}"
-              unsaved "{\"unsaved\":true}"
-              unchanged (FileTime/fromMillis 946684800000)]
-          (spit raw disk-content)
-          (workspace/resource-sync! workspace)
-          (build! {})
-          (is (= disk-content (Files/readString compiled)))
-          (is (= disk-content (Files/readString snapshot)))
-          (test-util/set-code-editor-source! (project/get-resource-node project "/extra.json") unsaved)
-          (build! {"/extra.json" unsaved})
-          (is (= unsaved (Files/readString compiled)))
-          (is (= unsaved (Files/readString snapshot)))
-          (Files/setLastModifiedTime snapshot unchanged)
-          (test-util/save-project! project)
-          (build! {})
-          (is (= unchanged (Files/getLastModifiedTime snapshot (make-array java.nio.file.LinkOption 0)))))
-        (io/delete-file source)
-        (workspace/resource-sync! workspace)
-        (build! {})
-        (is (not (.exists (.toFile (.resolve ^Path @(:directory @controller) "unselected.bin")))))
-        (finally
-          (is (= true (deref (preview/close! controller) 30000 :timeout))))))))
+(g/defnode PausedBuildTargets
+  (inherits resource-node/ResourceNode)
+  (input targets g/Any)
+  (property gate g/Any)
+  (output build-targets g/Any :cached
+          (g/fnk [targets gate]
+            (when gate
+              (deliver (:started gate) (not (ui/on-ui-thread?)))
+              (try
+                (when (= :timeout (deref (:release gate) 30000 :timeout))
+                  (throw (ex-info "Timed out waiting to release build targets" {})))
+                (finally
+                  (deliver (:finished gate) true))))
+            targets)))
 
-(defn- start-paused-preview! [project controller manifest-path]
-  (let [manifest-node (project/get-resource-node project manifest-path)
-        packages (g/node-value manifest-node :packages)
-        evaluation-context (g/make-evaluation-context)
-        fingerprint (:fingerprint @controller)
-        started (promise)
-        release (promise)
-        first-check (atom true)]
-    (preview/invalidate! controller)
-    {:started started :release release
-     :completion
-     (preview/update! controller fingerprint
-                      (fn [cancelled?]
-                        {:packages packages
-                         :compiled (preview/resolve-graph project manifest-node evaluation-context
-                                                          (fn []
-                                                            (when (compare-and-set! first-check true false)
-                                                              (deliver started true)
-                                                              (when-not (= true (deref release 30000 :timeout))
-                                                                (throw (ex-info "Timed out waiting to release graph traversal" {}))))
-                                                            (cancelled?)))}))}))
+(defn- pause-preview! [project manifest-path]
+  ;; Insert a graph node into the actual dependency traversal. This exercises
+  ;; cancellation through the view without replacing functions or its worker.
+  (let [source (project/get-resource-node project "/episode.collection")
+        manifest (project/get-resource-node project manifest-path)
+        rule (get-in (g/node-value manifest :packages) [0 :rules 0 :node-id])
+        gate {:started (promise) :release (promise) :finished (promise)}
+        node (first (g/tx-nodes-added
+                      (g/transact
+                        (g/make-nodes [paused [PausedBuildTargets :resource (g/node-value source :resource) :gate gate]]
+                          (g/connect source :build-targets paused :targets)
+                          (g/disconnect source :node-id+resource project :node-id+resources)
+                          (g/connect paused :node-id+resource project :node-id+resources)
+                          (g/update-property rule :id str " updated")))))]
+    (assoc gate :node node)))
 
-;; Edits during graph traversal discard obsolete results. A read failure keeps
-;; the existing table usable, and restoring the file allows another refresh.
+;; Edits and search input remain usable during traversal. Cancelled results
+;; cannot replace newer content, and a validation error preserves the table.
 (deftest preview-superseded-and-failed
   (test-util/with-scratch-project "test/resources/live_update_project"
     (test-util/make-resource! workspace "/bonus.collection" {:name "bonus"})
     (workspace/resource-sync! workspace)
     (with-manifest-view! project app-view "/packages.lumanifest"
-      (fn [{:keys [controller parent]}]
+      (fn [{:keys [state parent]}]
         (let [node (project/get-resource-node project "/packages.lumanifest")
               rule (get-in (g/node-value node :packages) [0 :rules 0 :node-id])
               table (resource-table parent)
-              filter-control (.lookup ^Pane parent "#liveupdate-filter")
-              previous (:result @controller)
-              work (start-paused-preview! project controller "/packages.lumanifest")
-              job (:job @controller)]
+              filter-control ^TextField (.lookup ^Pane parent "#liveupdate-filter")
+              previous (:result @state)
+              work (pause-preview! project "/packages.lumanifest")]
           (try
             (await-ui! #(realized? (:started work)))
-            (g/transact (g/set-property rule :path "/nothing[.]collection"))
-            (await-ui! #(deref (:cancelled job)))
-            (g/transact (g/set-property rule :path "/bonus[.]collection"))
-            (is (identical? previous (:result @controller)))
-            (is (identical? table (resource-table parent)))
-            (is (identical? filter-control (.lookup ^Pane parent "#liveupdate-filter")))
-            (deliver (:release work) true)
-            (let [^PackagePreview$Result result (await-preview! controller previous)]
+            (is (true? @(:started work)))
+            (let [job (:job @state)]
+              (g/transact (g/set-property (:node work) :gate nil)
+                (g/set-property rule :path "/bonus[.]collection"))
+              (.setText filter-control "episode")
+              (.setText filter-control "extra.json")
+              (is (= "extra.json" (.getText filter-control)))
+              (is (identical? previous (:result @state)))
+              (await-ui! #(realized? (:finished work)))
+              (is (future-cancelled? job)))
+            (let [result (await-preview! state previous)]
               (is (= #{"/bonus.collectionc" "/extra.json"}
-                     (set (.resources ^PackageResolver$Package (get (.packages (.plan result)) "levels"))))))
-            (finally
-              (deliver (:release work) true)
-              (await-ui! #(realized? (:completion work)))))
-          (let [source (workspace/file-resource workspace "/extra.json")
-                original (slurp source)
-                previous (:result @controller)
-                work (start-paused-preview! project controller "/packages.lumanifest")]
-            (try
-              (await-ui! #(realized? (:started work)))
-              (io/delete-file source)
-              (deliver (:release work) true)
-              (await-ui! #(and (realized? (:completion work)) (some? (:error @controller))))
-              (await-ui! #(let [form (first (.getChildren ^Pane parent))
-                                diagnostics (last (.getChildren ^Pane form))]
-                            (and (instance? ScrollPane diagnostics)
-                                 (.contains (.getText ^Label (.getContent ^ScrollPane diagnostics))
-                                            ^String (ex-message (:error @controller))))))
-              (is (identical? previous (:result @controller)))
+                     (set (.resources ^PackageResolver$Package (get (.packages (.plan ^PackagePreview$Result result)) "levels")))))
+              (await-ui! #(= [["/extra.json" []]] (table-tree table)))
+              (.setText filter-control "bonus")
+              (await-ui! #(= [["/bonus.collectionc" []]] (table-tree table)))
+              (is (identical? result (get-in @state [:result :compiled]))))
+            (let [previous (:result @state)]
+              (g/set-property! rule :path "[")
+              (await-ui! #(some? (:error @state)))
+              (is (identical? previous (:result @state)))
               (is (identical? table (resource-table parent)))
               (is (identical? filter-control (.lookup ^Pane parent "#liveupdate-filter")))
-              (spit source original)
-              (preview/invalidate! controller)
-              (await-preview! controller previous)
-              (is (nil? (:error @controller)))
-              (finally
-                (spit source original)
-                (deliver (:release work) true)
-                (await-ui! #(realized? (:completion work)))))))))))
+              (g/set-property! rule :path "/bonus[.]collection")
+              (await-ui! #(nil? (:error @state)))
+              (await-preview! state previous)
+              (is (nil? (:error @state))))
+            (finally
+              (deliver (:release work) true)
+              (await-ui! #(realized? (:finished work))))))))))
 
-;; Closing a registered tab cancels its active graph traversal and waits for
-;; completion. Closing releases the traversal gate without a sleep.
+;; Closing a tab interrupts active graph evaluation. Reopening creates a fresh
+;; view after the old worker has signalled completion.
 (deftest close-active-preview
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (let [closed-during-work (promise)
-          cleanup (atom nil)]
+    (let [active (atom nil)]
       (try
         (with-manifest-view! project app-view "/packages.lumanifest"
-          (fn [{:keys [controller]}]
-            (let [work (start-paused-preview! project controller "/packages.lumanifest")]
-              (reset! cleanup [controller work])
-              (add-watch controller ::closing
-                         (fn [_ _ previous current]
-                           (when (and (:closed current) (not (:closed previous)))
-                             (deliver closed-during-work (not (realized? (:completion work))))
-                             (deliver (:release work) true))))
+          (fn [_]
+            (let [work (pause-preview! project "/packages.lumanifest")]
+              (reset! active work)
               (await-ui! #(realized? (:started work))))))
-        (is (= true (deref closed-during-work 30000 :timeout)))
-        (is (nil? (:result @(first @cleanup))))
+        (is (= true (deref (:finished @active) 30000 :timeout)))
+        (g/set-property! (:node @active) :gate nil)
+        (with-manifest-view! project app-view "/packages.lumanifest"
+          (fn [{:keys [state]}]
+            (is (instance? PackagePreview$Result (get-in @state [:result :compiled])))))
         (finally
-          (when-let [[controller work] @cleanup]
+          (when-let [work @active]
             (deliver (:release work) true)
-            (is (= true (deref (:completion work) 30000 :timeout)))
-            (remove-watch controller ::closing)))))))
+            (is (= true (deref (:finished work) 30000 :timeout)))))))))
 
-;; Real status-bar cancellation stops an in-flight build, preserves the last
-;; result, and never cancels another view. Closing releases the preview cache.
+;; Status-bar cancellation stops an in-flight traversal and preserves its last
+;; result. Finishing another view must not dismiss the active task's progress.
 (deftest delayed-preview-progress
   (test-util/with-scratch-project "test/resources/live_update_project"
     (test-util/make-resource! workspace "/other.lumanifest"
                               {:packages [{:name "other" :rules [{:name "Data" :path "/extra[.]json"}]}]})
     (workspace/resource-sync! workspace)
     (with-manifest-view! project app-view "/packages.lumanifest"
-      (fn [{:keys [controller preferences]}]
-        (let [previous (:result @controller)
-              first-work (start-paused-preview! project controller "/packages.lumanifest")
-              second-view (open-manifest-view! project app-view "/other.lumanifest" preferences)]
+      (fn [{:keys [state preferences]}]
+        (let [previous (:result @state)
+              work (pause-preview! project "/packages.lumanifest")
+              _ (await-ui! #(realized? (:started work)))
+              second-view (open-manifest-view! project app-view "/other.lumanifest" preferences)
+              {:keys [^Button progress-cancel-button ^Label status-label ^Pane progress-hbox]}
+              (ui/collect-controls (.getRoot (.getScene (ui/main-stage)))
+                                   ["progress-cancel-button" "status-label" "progress-hbox"])]
           (try
-            (await-ui! #(realized? (:started first-work)))
-            (await-preview! (:controller second-view) nil)
-            (let [other-controller (:controller second-view)
-                  other-work (start-paused-preview! project other-controller "/other.lumanifest")
-                  {:keys [^Button progress-cancel-button ^Label status-label ^Pane progress-hbox]}
-                  (ui/collect-controls (.getRoot (.getScene (ui/main-stage)))
-                                       ["progress-cancel-button" "status-label" "progress-hbox"])]
-              (try
-                (await-ui! #(and (realized? (:started other-work)) (.isVisible progress-cancel-button)))
-                (is (= "Preparing Live Update preview" (.getText status-label)))
-                (.fire progress-cancel-button)
-                (await-ui! #(deref (get-in @controller [:job :cancelled])))
-                (is (false? @(get-in @other-controller [:job :cancelled])))
-                (is (identical? previous (:result @controller)))
-                (deliver (:release first-work) true)
-                (await-ui! #(realized? (:completion first-work)))
-                (is (identical? previous (:result @controller)))
-                (await-ui! #(and (.isVisible progress-hbox) (not (.isDisabled progress-cancel-button))))
-                (deliver (:release other-work) true)
-                (await-ui! #(realized? (:completion other-work)))
-                (await-ui! #(not (.isVisible progress-hbox)))
-                (is (nil? (:error @other-controller)))
-                (is (instance? PackagePreview$Result (get-in @other-controller [:result :value :compiled])))
-                (finally
-                  (deliver (:release other-work) true)
-                  (await-ui! #(realized? (:completion other-work))))))
+            (await-preview! (:state second-view) nil)
+            (await-ui! #(.isVisible progress-cancel-button))
+            (is (= "Preparing Live Update preview" (.getText status-label)))
+            (let [job (:job @state)]
+              (.fire progress-cancel-button)
+              (await-ui! #(realized? (:finished work)))
+              (is (future-cancelled? job)))
+            (await-ui! #(nil? (:job @state)))
+            (is (identical? previous (:result @state)))
+            (await-ui! #(not (.isVisible progress-hbox)))
             (finally
-              (deliver (:release first-work) true)
-              (await-ui! #(realized? (:completion first-work)))
+              (deliver (:release work) true)
+              (await-ui! #(realized? (:finished work)))
               (close-manifest-view! second-view))))))))
-
-;; Pending table preparation must allow UI input, discard superseded queries,
-;; and reuse the compiled graph when only the selection or search changes.
-(deftest asynchronous-resource-rows
-  (test-util/with-scratch-project "test/resources/live_update_project"
-    (with-manifest-view! project app-view "/packages.lumanifest"
-      (fn [{:keys [controller rows-controller parent]}]
-        (let [compiled-result (:result @controller)
-              previous (:result @rows-controller)
-              fingerprint (:fingerprint @rows-controller)
-              started (promise)
-              release (promise)
-              _ (preview/invalidate! rows-controller)
-              completion (preview/update! rows-controller fingerprint
-                                          (fn [cancelled?]
-                                            (deliver started (not (ui/on-ui-thread?)))
-                                            (when-not (= true (deref release 30000 :timeout))
-                                              (throw (ex-info "Timed out waiting to release table preparation" {})))
-                                            (is (cancelled?))
-                                            (:value previous)))
-              job (:job @rows-controller)
-              filter-control ^TextField (.lookup ^Pane parent "#liveupdate-filter")
-              node (project/get-resource-node project "/packages.lumanifest")
-              package-node (get-in (g/node-value node :packages) [0 :node-id])]
-          (try
-            (await-ui! #(realized? started))
-            (is (true? @started))
-            (g/transact {:undoable false} (app-view/select app-view node [package-node]))
-            (.setText filter-control "episode")
-            (await-ui! #(deref (:cancelled job)))
-            (.setText filter-control "extra.json")
-            (await-ui! #(= "extra.json" (peek (:fingerprint @rows-controller))))
-            (is (= "extra.json" (.getText filter-control)))
-            (is (identical? previous (:result @rows-controller)))
-            (deliver release true)
-            (await-ui! #(= [["/extra.json" []]] (table-tree (resource-table parent))))
-            (is (= "extra.json" (peek (get-in @rows-controller [:result :fingerprint]))))
-            (is (identical? compiled-result (:result @controller)))
-            (is (nil? (:job @controller)))
-            (finally
-              (deliver release true)
-              (await-ui! #(realized? completion)))))))))
 
 ;; Package views show dependency trees; global searches list all supplying
 ;; packages and rules. Selecting a resource highlights its rules, and the source
@@ -1222,7 +1103,7 @@
 (deftest graph-preview-selection-details
   (test-util/with-scratch-project "test/resources/live_update_project"
     (with-manifest-view! project app-view "/packages.lumanifest"
-      (fn [{:keys [controller parent]}]
+      (fn [{:keys [state parent]}]
         (let [node (project/get-resource-node project "/packages.lumanifest")
               package (first (g/node-value node :packages))
               rule (get-in package [:rules 1 :node-id])
@@ -1233,9 +1114,9 @@
                                              (.getChildren (.getRoot table))))]
             (.select (.getSelectionModel table) item))
           (await-ui! #(.lookup ^Pane parent "#liveupdate-source"))
-          (let [previous (:result @controller)]
+          (let [previous (:result @state)]
             (g/transact (g/set-property rule :path "/episode[.]collection"))
-            (await-preview! controller previous))
+            (await-preview! state previous))
           (await-ui! #(nil? (.lookup ^Pane parent "#liveupdate-source")))
           (is (coll/not-any? #(= "/extra.json" (:path %)) (table-rows table)))
           (is (nil? (.getSelectedItem (.getSelectionModel table)))))))))
@@ -1315,34 +1196,6 @@
                   "/z.goc" [["/a.scriptc" []]]}
                  (select-keys (into {} (table-tree table))
                               ["/custom.json" "/main.collectionc" "/z.goc"]))))))))
-
-;; The controller coalesces queued changes and never restarts unchanged work.
-;; All blocked jobs are released and awaited even if an assertion fails.
-(deftest preview-lifecycle
-  (let [controller (preview/controller)
-        started (promise)
-        release (promise)
-        finished (preview/update! controller :old
-                                  (fn [cancelled?]
-                                    (deliver started true)
-                                    (is (= true (deref release 30000 :timeout)))
-                                    (is (cancelled?))
-                                    :obsolete))]
-    (try
-      (is (= true (deref started 30000 :timeout)))
-      (is (nil? (preview/update! controller :old (fn [_] (is false "Unchanged inputs must not rebuild")))))
-      (let [queued-finished (preview/update! controller :queued (fn [_] (is false "Superseded queued work must not run")))
-            new-finished (preview/update! controller :new (constantly :current))]
-        (is (not (realized? new-finished)))
-        (deliver release true)
-        (is (= true (deref finished 30000 :timeout)))
-        (is (= true (deref queued-finished 30000 :timeout)))
-        (is (= true (deref new-finished 30000 :timeout)))
-        (is (= :current (get-in @controller [:result :value])))
-        (is (nil? (preview/update! controller :new (fn [_] (is false "Completed inputs must not rebuild"))))))
-      (finally
-        (deliver release true)
-        (is (= true (deref (preview/close! controller) 30000 :timeout)))))))
 
 ;; Library manifests expose the same outline and selection with read-only edits.
 (deftest library-manifest-read-only

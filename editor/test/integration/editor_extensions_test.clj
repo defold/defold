@@ -29,13 +29,13 @@
             [editor.editor-extensions.server :as ext.server]
             [editor.editor-extensions.vm :as vm]
             [editor.form :as form]
+            [editor.fs :as fs]
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.graphics.types :as graphics.types]
             [editor.handler :as handler]
             [editor.html-view :as html-view]
             [editor.library :as library]
-            [editor.live-update-preview :as live-update-preview]
             [editor.os :as os]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
@@ -59,7 +59,8 @@
             [util.http-client :as http]
             [util.http-server :as http-server]
             [util.path :as path])
-  (:import [com.dynamo.bob.archive.liveupdate PackagePreview$Result PackageResolver$Package]
+  (:import [com.dynamo.bob Progress]
+           [com.dynamo.bob.archive.liveupdate PackagePreview PackagePreview$Result PackageResolver$Package]
            [java.io StringWriter]
            [java.nio.file.attribute PosixFilePermission]
            [java.util.zip ZipEntry]
@@ -536,21 +537,20 @@
         (is (some? context))
         (is (nil? (try @(handler/run context) nil (catch Throwable error error)))))
       (is (coll/not-empty (get-in (g/node-value (test-util/resource-node project "/liveupdate1.lumanifest") :save-value) [:packages 0 :rules])))
-      (let [controller (live-update-preview/controller)
-            resources (live-update-preview/source-resources (g/node-value workspace :resource-map) (g/node-value project :live-update-output-paths))
-            statuses (:status-map (g/node-value workspace :resource-snapshot))
-            contents {"/episode.collectionproxy" "collection: \"/episodes/00/episode.collection\"\nexclude: true\n"}]
-        (try
-          (let [^PackagePreview$Result legacy (live-update-preview/build! controller resources statuses contents "" {} (constantly false))
-                ^PackagePreview$Result converted (live-update-preview/build! controller resources statuses contents "/liveupdate1.lumanifest" {} (constantly false))
-                excluded #{"/episodes/00/episode.collectionc" "/episodes/00/episode.goc" "/episodes/00/episode.scriptc"}]
-            (is (= excluded (.resources ^PackageResolver$Package (get (.packages (.plan legacy)) "liveupdate"))))
-            (is (= excluded (.resources ^PackageResolver$Package (get (.packages (.plan converted)) "liveupdate"))))
-            (is (= (.base (.plan legacy)) (.base (.plan converted))))
-            (is (coll/every? #(.contains (.base (.plan converted)) %)
-                             ["/episodes/09/episode.collectionc" "/episodes/09/episode.goc" "/episodes/common/actor.goc" "/common/shared.scriptc"])))
-          (finally
-            (is (= true (deref (live-update-preview/close! controller) 30000 :timeout))))))
+      (test-util/with-temp-dir! snapshot
+        (fs/copy-directory! (workspace/project-directory workspace) snapshot)
+        (spit (io/file snapshot "episode.collectionproxy") "collection: \"/episodes/00/episode.collection\"\nexclude: true\n")
+        (let [build! (fn build! [manifest-path]
+                       (PackagePreview/build (.toPath snapshot) (.toPath (workspace/project-directory workspace))
+                                             manifest-path {} (.getContextClassLoader (Thread/currentThread)) (Progress/discarding)))
+              ^PackagePreview$Result legacy (build! "")
+              ^PackagePreview$Result converted (build! "/liveupdate1.lumanifest")
+              excluded #{"/episodes/00/episode.collectionc" "/episodes/00/episode.goc" "/episodes/00/episode.scriptc"}]
+          (is (= excluded (.resources ^PackageResolver$Package (get (.packages (.plan legacy)) "liveupdate"))))
+          (is (= excluded (.resources ^PackageResolver$Package (get (.packages (.plan converted)) "liveupdate"))))
+          (is (= (.base (.plan legacy)) (.base (.plan converted))))
+          (is (coll/every? #(.contains (.base (.plan converted)) %)
+                           ["/episodes/09/episode.collectionc" "/episodes/09/episode.goc" "/episodes/common/actor.goc" "/common/shared.scriptc"]))))
       (is (= original-proxy (slurp (workspace/find-resource workspace "/episode.collectionproxy"))))
       (is (= original-project (slurp (workspace/find-resource workspace "/game.project")))))))
 
