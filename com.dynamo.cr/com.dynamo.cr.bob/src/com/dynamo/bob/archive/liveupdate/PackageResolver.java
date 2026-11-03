@@ -299,6 +299,59 @@ public final class PackageResolver {
         return result;
     }
 
+    /** Converts the resolved legacy selection to ordered source rules without moving shared base content. */
+    public static List<RuleDesc> migrateLegacy(Plan plan) {
+        Set<String> excluded = new TreeSet<>();
+        plan.packages().values().forEach(pkg -> excluded.addAll(pkg.resources()));
+        if (excluded.isEmpty()) return List.of();
+        PackageResolver resolver = new PackageResolver(ManifestDesc.getDefaultInstance(), plan.sourceOutputs(), plan.resources());
+        Set<String> affected = resolver.closure(excluded, false).keySet();
+        Map<String, Set<String>> candidates = new LinkedHashMap<>();
+        for (String source : new TreeSet<>(plan.primarySources().values())) {
+            List<String> outputs = resolver.sourceOutputs.get(source);
+            if (!Collections.disjoint(outputs, affected)) {
+                candidates.put(source, resolver.sourceClosures.computeIfAbsent(outputs, roots -> resolver.closure(roots, false)).keySet());
+            }
+        }
+        // Work backwards: the last rule affecting a resource must agree with
+        // its legacy membership. Once assigned, earlier rules may overlap it.
+        Set<String> assigned = new LinkedHashSet<>();
+        List<RuleDesc> reversed = new ArrayList<>();
+        while (!assigned.containsAll(excluded)) {
+            boolean progressed = false;
+            for (var iterator = candidates.entrySet().iterator(); iterator.hasNext();) {
+                var candidate = iterator.next();
+                Set<String> remaining = new LinkedHashSet<>(candidate.getValue());
+                remaining.removeAll(assigned);
+                boolean add = excluded.containsAll(remaining);
+                if (!add && !Collections.disjoint(excluded, remaining)) continue;
+                iterator.remove();
+                if (remaining.isEmpty()) continue;
+                reversed.add(RuleDesc.newBuilder().setName(candidate.getKey())
+                        .setPath(Pattern.quote(candidate.getKey()))
+                        .setOperation(add ? RuleOperation.ADD : RuleOperation.REMOVE).build());
+                assigned.addAll(remaining);
+                progressed = true;
+                if (assigned.containsAll(excluded)) break;
+            }
+            if (!progressed) {
+                Set<String> unresolved = new TreeSet<>(excluded);
+                unresolved.removeAll(assigned);
+                throw new IllegalArgumentException("Cannot preserve the legacy Live Update selection for " + unresolved.iterator().next()
+                        + ": its source outputs or dependency cycle also include resources kept in Base.");
+            }
+        }
+        Collections.reverse(reversed);
+        Set<String> selected = new LinkedHashSet<>();
+        List<RuleDesc> rules = new ArrayList<>();
+        for (RuleDesc rule : reversed) {
+            Set<String> closure = resolver.sourceClosures.get(resolver.sourceOutputs.get(rule.getName())).keySet();
+            boolean changed = rule.getOperation() == RuleOperation.ADD ? selected.addAll(closure) : selected.removeAll(closure);
+            if (changed) rules.add(rule);
+        }
+        return List.copyOf(rules);
+    }
+
     public static Plan resolve(ManifestDesc manifest, Map<String, List<String>> sourceOutputs,
                                Map<String, Resource> resources, Collection<String> bootstrapRoots,
                                Collection<String> customRoots, boolean export) {

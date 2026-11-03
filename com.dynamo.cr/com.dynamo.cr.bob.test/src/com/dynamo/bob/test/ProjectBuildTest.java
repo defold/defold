@@ -1312,6 +1312,26 @@ public class ProjectBuildTest {
         assertFalse(Files.exists(Path.of(contentRoot, "content.lumanifest")));
     }
 
+    // Conversion preserves mixed proxy routes, inherited exclusion, shared content and custom files in the emitted archives.
+    @Test
+    public void testLegacyManifestConversion() throws Exception {
+        createLegacyPackageProject();
+        PackageResolver.Plan legacy = buildPackageProject(true, false);
+        var manifest = LiveUpdateManifest.ManifestDesc.newBuilder().setOutputDirectory("packages")
+                .addPackages(LiveUpdateManifest.PackageDesc.newBuilder().setName("liveupdate")
+                        .addAllRules(PackageResolver.migrateLegacy(legacy))).build();
+        createFile(contentRoot, "converted.lumanifest", TextFormat.printer().printToString(manifest));
+        Files.writeString(Path.of(contentRoot, "game.project"), "\n[liveupdate]\nmanifest = /converted.lumanifest\n",
+                java.nio.file.StandardOpenOption.APPEND);
+        PackageResolver.Plan converted = buildPackageProject(true, false);
+        assertEquals(legacy.base(), converted.base());
+        assertEquals(legacy.packages().get("liveupdate").resources(), converted.packages().get("liveupdate").resources());
+        assertEquals(legacy.base(), manifestPaths(readManifestData(getBundledManifestFile())));
+        assertEquals(legacy.packages().get("liveupdate").resources(), manifestPaths(zipManifest("liveupdate")));
+        assertEquals("collection: \"/logic/level.collection\"\nexclude: true\n",
+                Files.readString(Path.of(contentRoot, "logic/level.collectionproxy")));
+    }
+
     private void createPackageProject() throws IOException {
         createExcludedLiveUpdateProject("manifest = /content.lumanifest\n");
         createFile(contentRoot, "liveupdate.settings", "[liveupdate]\nmode=Folder\nzip-filepath=packages\noutput-directory=packages\nzip-filename=ignored.zip\noutput-folder-name=ignored\n");

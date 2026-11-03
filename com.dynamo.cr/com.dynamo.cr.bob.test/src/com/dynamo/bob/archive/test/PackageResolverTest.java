@@ -43,6 +43,24 @@ public class PackageResolverTest {
     }
     private static Resource leaf() { return new Resource(Map.of()); }
 
+    // A source with inseparable base/LU outputs must fail conversion rather than silently change membership.
+    @Test
+    public void legacyConversionRejectsInseparableOutputs() {
+        var packageDescription = pkg("liveupdate");
+        var plan = new PackageResolver.Plan(
+                Map.of("liveupdate", new PackageResolver.Package(packageDescription, Set.of("/excluded"), Map.of())),
+                Set.of("/included"), Map.of(), Map.of("/source", List.of("/excluded", "/included")),
+                Map.of("/excluded", "/source", "/included", "/source"),
+                Map.of("/excluded", leaf(), "/included", leaf()), List.of(), Map.of());
+        try {
+            PackageResolver.migrateLegacy(plan);
+            fail("Mixed outputs from one source must not silently move base resources into a package");
+        } catch (IllegalArgumentException error) {
+            assertTrue(error.getMessage().contains("/excluded"));
+            assertTrue(error.getMessage().contains("kept in Base"));
+        }
+    }
+
     // Shared compiled roots and converging cyclic dependencies retain separate source/rule provenance.
     @Test
     public void sharedCompiledRootsRetainProvenance() {

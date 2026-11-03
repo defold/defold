@@ -28,12 +28,14 @@
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.server :as ext.server]
             [editor.editor-extensions.vm :as vm]
+            [editor.form :as form]
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.graphics.types :as graphics.types]
             [editor.handler :as handler]
             [editor.html-view :as html-view]
             [editor.library :as library]
+            [editor.live-update-preview :as live-update-preview]
             [editor.os :as os]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
@@ -57,7 +59,8 @@
             [util.http-client :as http]
             [util.http-server :as http-server]
             [util.path :as path])
-  (:import [java.io StringWriter]
+  (:import [com.dynamo.bob.archive.liveupdate PackagePreview$Result PackageResolver$Package]
+           [java.io StringWriter]
            [java.nio.file.attribute PosixFilePermission]
            [java.util.zip ZipEntry]
            [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
@@ -439,6 +442,118 @@
     (g/with-auto-evaluation-context evaluation-context
       (handler/eval-contexts [command-context] false evaluation-context))))
 
+;; The conversion command preserves legacy settings and existing manifests,
+;; including when publisher settings have unsaved edits.
+(deftest live-update-settings-editor-script-test
+  (doseq [[mode publisher-settings expected]
+          [["Zip" {"zip-filepath" "${HOME}/Live \"Update\""
+                   "zip-filename" "episodes.zip"
+                   "zip-compression-level" 7}
+            {:output-directory "${HOME}/Live \"Update\""
+             :packages [{:name "episodes"}]
+             :providers [{:provider "zip" :properties [{:name "compression-level" :value "7"}]}]}]
+           ["Folder" {"output-directory" "bundle/packages"
+                      "output-folder-name" "episodes"}
+            {:output-directory "bundle/packages"
+             :packages [{:name "episodes" :provider "folder"}]}]
+           [nil {}
+            {:output-directory "."
+             :packages [{:name "liveupdate"}]
+             :providers [{:provider "zip" :properties [{:name "compression-level" :value "1"}]}]}]]]
+    (testing (or mode "default publisher")
+      (test-util/with-scratch-project "test/resources/live_update_packages_project"
+        (when-not mode
+          (spit (workspace/find-resource workspace "/liveupdate.settings") "[liveupdate]\n")
+          (workspace/resource-sync! workspace))
+        (let [settings-node (test-util/resource-node project "/liveupdate.settings")
+              original-settings (slurp (workspace/find-resource workspace "/liveupdate.settings"))
+              original-manifest (slurp (workspace/find-resource workspace "/liveupdate.lumanifest"))
+              original-project (g/node-value (test-util/resource-node project "/game.project") :save-value)
+              unseen-collision (io/file (workspace/project-directory workspace) "liveupdate2.lumanifest")
+              opened (atom [])
+              form-ops (:form-ops (g/node-value settings-node :form-data))]
+          (g/transact
+            (e/mapcat (fn [[key value]] (form/set-value form-ops ["liveupdate" key] value))
+                      (cond-> publisher-settings mode (assoc "mode" mode))))
+          (reload-editor-scripts! project :open-resource! (fn open-resource! [resource _opts]
+                                                            (swap! opened conj (resource/proj-path resource))
+                                                            (future/completed nil)))
+          (let [command :defold.liveupdate.convert-settings
+                handler-context (handler/active command (eval-handler-contexts :asset-browser [settings-node]) {})]
+            (is (coll/any? #(= command (:command %)) (handler/realize-menu :editor.asset-browser/context-menu-end)))
+            (is (some? handler-context))
+            (is (nil? (handler/active command (eval-handler-contexts :asset-browser [(test-util/resource-node project "/main.collection")]) {})))
+            (is (nil? (handler/active command (eval-handler-contexts :asset-browser [settings-node settings-node]) {})))
+            (is (nil? (try @(handler/run handler-context) nil (catch Throwable error error))))
+            (spit unseen-collision original-manifest)
+            (is (nil? (workspace/find-resource workspace "/liveupdate2.lumanifest")))
+            (is (nil? (try @(handler/run handler-context) nil (catch Throwable error error))))
+            (is (= ["/liveupdate1.lumanifest" "/liveupdate3.lumanifest"] @opened))
+            (doseq [path @opened]
+              (is (= expected (g/node-value (test-util/resource-node project path) :save-value))))
+            (is (= original-settings (slurp (workspace/find-resource workspace "/liveupdate.settings"))))
+            (is (= original-manifest (slurp (workspace/find-resource workspace "/liveupdate.lumanifest"))))
+            (is (= original-manifest (slurp unseen-collision)))
+            (is (= original-project (g/node-value (test-util/resource-node project "/game.project") :save-value)))))))))
+
+;; Unsupported publisher modes must not silently convert to folder packages.
+(deftest live-update-settings-unsupported-publisher-test
+  (test-util/with-scratch-project "test/resources/live_update_packages_project"
+    (let [settings-node (test-util/resource-node project "/liveupdate.settings")
+          output (atom [])
+          form-ops (:form-ops (g/node-value settings-node :form-data))]
+      (g/transact (form/set-value form-ops ["liveupdate" "mode"] "Amazon"))
+      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+      (let [context (handler/active :defold.liveupdate.convert-settings (eval-handler-contexts :asset-browser [settings-node]) {})]
+        (is (some? context))
+        @(handler/run context))
+      (is (coll/any? (fn [[stream text]]
+                       (and (= :err stream)
+                            (string/includes? text "Amazon")))
+                     @output))
+      (is (nil? (workspace/find-resource workspace "/liveupdate1.lumanifest")))
+      (is (not (.exists (io/file (workspace/project-directory workspace) "liveupdate1.lumanifest")))))))
+
+;; Conversion includes unsaved Exclude edits, while shared and mixed-route
+;; resources retain the same base/package membership as legacy bundling.
+(deftest live-update-excluded-content-editor-script-test
+  (test-util/with-scratch-project "test/resources/live_update_packages_project"
+    (test-util/make-resource! workspace "/included.collectionproxy" {:collection "/episodes/09/episode.collection"})
+    (test-util/make-resource! workspace "/mixed.collectionproxy" {:collection "/episodes/09/episode.collection" :exclude true})
+    (spit (workspace/find-resource workspace "/main.go")
+          "components { id: \"episode\" component: \"/episode.collectionproxy\" }\ncomponents { id: \"included\" component: \"/included.collectionproxy\" }\ncomponents { id: \"mixed\" component: \"/mixed.collectionproxy\" }\n")
+    (spit (workspace/find-resource workspace "/game.project")
+          (string/replace (slurp (workspace/find-resource workspace "/game.project"))
+                          "manifest = /liveupdate.lumanifest" "settings = /liveupdate.settings"))
+    (workspace/resource-sync! workspace)
+    (let [proxy-node (test-util/resource-node project "/episode.collectionproxy")
+          settings-node (test-util/resource-node project "/liveupdate.settings")
+          original-proxy (slurp (workspace/find-resource workspace "/episode.collectionproxy"))
+          original-project (slurp (workspace/find-resource workspace "/game.project"))]
+      (test-util/prop! proxy-node :exclude true)
+      (reload-editor-scripts! project)
+      (let [context (handler/active :defold.liveupdate.convert-settings (eval-handler-contexts :asset-browser [settings-node]) {})]
+        (is (some? context))
+        (is (nil? (try @(handler/run context) nil (catch Throwable error error)))))
+      (is (coll/not-empty (get-in (g/node-value (test-util/resource-node project "/liveupdate1.lumanifest") :save-value) [:packages 0 :rules])))
+      (let [controller (live-update-preview/controller)
+            resources (live-update-preview/source-resources (g/node-value workspace :resource-map) (g/node-value project :live-update-output-paths))
+            statuses (:status-map (g/node-value workspace :resource-snapshot))
+            contents {"/episode.collectionproxy" "collection: \"/episodes/00/episode.collection\"\nexclude: true\n"}]
+        (try
+          (let [^PackagePreview$Result legacy (live-update-preview/build! controller resources statuses contents "" {} (constantly false))
+                ^PackagePreview$Result converted (live-update-preview/build! controller resources statuses contents "/liveupdate1.lumanifest" {} (constantly false))
+                excluded #{"/episodes/00/episode.collectionc" "/episodes/00/episode.goc" "/episodes/00/episode.scriptc"}]
+            (is (= excluded (.resources ^PackageResolver$Package (get (.packages (.plan legacy)) "liveupdate"))))
+            (is (= excluded (.resources ^PackageResolver$Package (get (.packages (.plan converted)) "liveupdate"))))
+            (is (= (.base (.plan legacy)) (.base (.plan converted))))
+            (is (coll/every? #(.contains (.base (.plan converted)) %)
+                             ["/episodes/09/episode.collectionc" "/episodes/09/episode.goc" "/episodes/common/actor.goc" "/common/shared.scriptc"])))
+          (finally
+            (is (= true (deref (live-update-preview/close! controller) 30000 :timeout))))))
+      (is (= original-proxy (slurp (workspace/find-resource workspace "/episode.collectionproxy"))))
+      (is (= original-project (slurp (workspace/find-resource workspace "/game.project")))))))
+
 (defn- decorated-outline [resource-node outline-path]
   (let [node-outline (g/node-value resource-node :node-outline)
         decorated-outline (:outline (outline-view/decorate-outline node-outline #{} #{} @test-util/localization #{}))]
@@ -533,10 +648,9 @@
   (test-util/with-scratch-project "test/resources/editor_extensions/refresh_context_project"
     (let [output (atom [])
           _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
-          handler+context (handler/active
-                            (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
-                            (eval-handler-contexts :asset-browser [(test-util/resource-node project "/test.txt")])
-                            {})]
+          contexts (eval-handler-contexts :asset-browser [(test-util/resource-node project "/test.txt")])
+          handler+context (coll/some #(handler/active (:command %) contexts {})
+                                     (handler/realize-menu :editor.asset-browser/context-menu-end))]
       @(handler/run handler+context)
       ;; see test.editor_script:
       ;; first, it gets the selection text (Initial content)
@@ -616,10 +730,9 @@
   (test-util/with-scratch-project "test/resources/editor_extensions/save_test"
     (let [output (atom [])
           _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
-          handler+context (handler/active
-                            (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
-                            (eval-handler-contexts :asset-browser [])
-                            {})]
+          contexts (eval-handler-contexts :asset-browser [])
+          handler+context (coll/some #(handler/active (:command %) contexts {})
+                                     (handler/realize-menu :editor.asset-browser/context-menu-end))]
       @(handler/run handler+context)
       ;; see test.editor_script: it uses editor.transact() to set a file text, then reads
       ;; the file text from file system, then saves, then reads it again.

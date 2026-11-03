@@ -44,12 +44,14 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.library :as library]
+            [editor.live-update-preview :as live-update-preview]
             [editor.localization :as localization]
             [editor.lsp.async :as lsp.async]
             [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.process :as process]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.system :as system]
             [editor.ui :as ui]
             [editor.util :as util]
@@ -63,6 +65,7 @@
             [util.path :as path])
   (:import [clojure.lang IDeref Murmur3]
            [com.dynamo.bob Platform]
+           [com.dynamo.bob.archive.liveupdate PackagePreview$Result PackageResolver]
            [com.dynamo.bob.bundle BundleHelper]
            [com.dynamo.bob.util Library$Result]
            [java.io InputStream PrintStream PushbackReader]
@@ -428,6 +431,31 @@
                                                     (rest lua-args))]
                                  [options commands]))]
       (invoke-bob! options commands))))
+
+(defn- make-ext-live-update-rules-fn [project prefs]
+  (rt/suspendable-lua-fn live-update-rules [{:keys [evaluation-context]}]
+    (let [workspace (project/workspace project evaluation-context)
+          resource-map (g/node-value workspace :resource-map evaluation-context)
+          generated-paths (g/node-value project :live-update-output-paths evaluation-context)
+          statuses (:status-map (g/node-value workspace :resource-snapshot evaluation-context))
+          save-data (mapv (fn [{:keys [resource save-value]}]
+                            [(resource/proj-path resource) save-value (resource/resource-type resource (:basis evaluation-context))])
+                          (project/dirty-save-data project evaluation-context))
+          options (prefs/get prefs [:bundle :last-bob-options])]
+      (future/io
+        (let [controller (live-update-preview/controller)]
+          (try
+            (let [resources (live-update-preview/source-resources resource-map generated-paths)
+                  contents (coll/into-> save-data {}
+                             (keep (fn [[path save-value resource-type]]
+                                     (when-let [content (resource-node/save-content save-value resource-type)]
+                                       [path content]))))
+                  ;; An empty override selects the legacy graph. All work stays
+                  ;; in the preview snapshot, including unsaved source content.
+                  ^PackagePreview$Result result (live-update-preview/build! controller resources statuses contents "" options (constantly false))]
+              (coll/join-to-string "\n" (mapv #(str "rules {\n" % "}\n") (PackageResolver/migrateLegacy (.plan result)))))
+            (finally
+              @(live-update-preview/close! controller))))))))
 
 (defn- ensure-file-path-in-project-directory
   ^Path [^Path project-path ^String file-name]
@@ -966,19 +994,19 @@
                          :on_target_launched coerce/function
                          :on_target_terminated coerce/function}))
 
-(defn- read-bundle-editor-script []
-  (rt/read (io/resource "bundle.editor_script") "bundle.editor_script"))
+(defn- read-built-in-editor-scripts []
+  (mapv #(rt/read (io/resource %) %) ["bundle.editor_script" "liveupdate.editor_script"]))
 
-(def ^:private bundle-editor-script-prototype
+(def ^:private built-in-editor-script-prototypes
   ;; reloadable in dev
   (if (system/defold-dev?)
-    (reify IDeref (deref [_] (read-bundle-editor-script)))
-    (reduced (read-bundle-editor-script))))
+    (reify IDeref (deref [_] (read-built-in-editor-scripts)))
+    (reduced (read-built-in-editor-scripts))))
 
 (defn- re-create-ext-state [initial-state evaluation-context]
   (let [{:keys [rt]} initial-state]
     (->> (e/concat
-           [@bundle-editor-script-prototype]
+           @built-in-editor-script-prototypes
            (:library-prototypes initial-state)
            (:project-prototypes initial-state))
          (reduce
@@ -1110,6 +1138,7 @@
                   :out (line-writer #(display-output! :out %))
                   :err (line-writer #(display-output! :err %))
                   :env {"editor" {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!
+                                  "liveupdate" {"legacy_rules" (make-ext-live-update-rules-fn project prefs)} ;; built-in conversion script only
                                   "get" (make-ext-get-fn project localization)
                                   "can_add" (graph/make-ext-can-add-fn project)
                                   "can_get" (make-ext-can-get-fn project)
