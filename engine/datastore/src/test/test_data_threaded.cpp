@@ -154,6 +154,7 @@ static DSResult TryFromWorker(HDSQuery query)
     return attempt.m_Result;
 }
 
+// Conflicting accesses wait while independent fields proceed and releases unblock work.
 TEST(DataThreaded, ConflictsIndependentFieldsAndRelease)
 {
     ThreadFixture fixture = CreateFixture();
@@ -224,6 +225,7 @@ TEST(DataThreaded, WholeRowReservations)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(fixture.m_Store));
 }
 
+// Readers can overlap; even empty queries cannot reserve the same handle twice.
 TEST(DataThreaded, ReadOnlyAndEmptyQueryReservations)
 {
     ThreadFixture fixture = CreateFixture();
@@ -256,6 +258,7 @@ TEST(DataThreaded, ReadOnlyAndEmptyQueryReservations)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(fixture.m_Store));
 }
 
+// Active-query pool growth and compaction preserve conflicts while freed entries are reused.
 TEST(DataThreaded, ActiveQueryPoolGrowthAndReuse)
 {
     ThreadFixture fixture = CreateFixture();
@@ -290,6 +293,7 @@ TEST(DataThreaded, ActiveQueryPoolGrowthAndReuse)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(fixture.m_Store));
 }
 
+// Parent/whole-row access conflicts with child writes while sibling fields can run together.
 TEST(DataThreaded, NestedRangesAndWholeRows)
 {
     ThreadFixture fixture = CreateFixture();
@@ -310,6 +314,7 @@ TEST(DataThreaded, NestedRangesAndWholeRows)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(fixture.m_Store));
 }
 
+// Disjoint ranges visit group-filtered rows once and refresh their coverage after removal.
 TEST(DataThreaded, RangesCoverOwnerFilteredRowsAndRefreshAfterMutation)
 {
     ThreadFixture fixture = CreateFixture();
@@ -451,6 +456,7 @@ static void RaceAdmission(void* context)
         DSQueryEnd(race->m_Query);
 }
 
+// Simultaneous conflicting reservations admit exactly one worker until access is released.
 TEST(DataThreaded, SimultaneousBeginsAdmitExactlyOne)
 {
     ThreadFixture fixture = CreateFixture();
@@ -782,6 +788,7 @@ TEST(DataThreaded, SchedulerRetriesAdmissionBeforeEnd)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(fixture.m_Store));
 }
 
+// Disjoint job ranges update each row once per pass with 1, 2, 4 or 8 workers.
 TEST(DataThreaded, JobRangesWithOneTwoFourEightWorkers)
 {
     for (uint32_t workers = 1; workers <= 8; workers *= 2)

@@ -212,6 +212,7 @@ static DSId FirstId(HDSContext store)
     return id;
 }
 
+// Row insertion and string replacement own their bytes, including self-assignment.
 TEST(Data, StringOwnershipAndSelfAssignment)
 {
     HDSContext store = DSStoreCreate(0);
@@ -236,6 +237,7 @@ TEST(Data, StringOwnershipAndSelfAssignment)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Growth and swap removal preserve live IDs while reused slots invalidate old generations.
 TEST(Data, GrowthSwapRemovalAndStaleIds)
 {
     HDSContext store = DSStoreCreate(0);
@@ -273,6 +275,7 @@ TEST(Data, GrowthSwapRemovalAndStaleIds)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Live queries copy tag/group filters and track later table and row changes.
 TEST(Data, LiveQueriesTagsGroupsAndCopiedDescriptors)
 {
     HDSContext  store = DSStoreCreate(0);
@@ -403,6 +406,7 @@ TEST(Data, QueryReservationBlocksMutations)
     delete[] bytes;
 }
 
+// Nested query iteration and writes leave each iterator's batch state independent.
 TEST(Data, NestedQueriesAndWritesPreserveBatches)
 {
     HDSContext store = DSStoreCreate(0);
@@ -472,6 +476,7 @@ TEST(Data, NestedQueriesAndWritesPreserveBatches)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Bound field handles match name/type filters across different native row layouts.
 TEST(Data, BoundFieldQueries)
 {
     HDSContext  store = DSStoreCreate(0);
@@ -549,6 +554,7 @@ TEST(Data, BoundFieldQueries)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Bound queries read packed fields and stop matching after their blob is unloaded.
 TEST(Data, BoundPackedFields)
 {
     HDSContext source = DSStoreCreate(0);
@@ -605,6 +611,7 @@ TEST(Data, BoundPackedFields)
     delete[] bytes;
 }
 
+// Rows share copied metadata and fixed layouts while reset restores retained defaults.
 TEST(Data, SharedMetadataAndDenseRows)
 {
     HDSContext  store = DSStoreCreate(0);
@@ -646,6 +653,7 @@ TEST(Data, SharedMetadataAndDenseRows)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Invalid layouts and decoded batches publish no rows and preserve output IDs.
 TEST(Data, MetadataAndBulkValidation)
 {
     HDSContext  store = DSStoreCreate(0);
@@ -714,6 +722,7 @@ TEST(Data, MetadataAndBulkValidation)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Bulk appends reuse slots without changing existing rows, padding or retained defaults.
 TEST(Data, BulkAppendPreservesDefaultsAndReusesSlots)
 {
     DSFieldDesc fields[] = {
@@ -774,6 +783,7 @@ TEST(Data, BulkAppendPreservesDefaultsAndReusesSlots)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Inline batches validate all members before publishing, regardless of input field order.
 TEST(Data, InlineBulkValidationIsAtomicAcrossMemberOrders)
 {
     DSFieldDesc members[] = {
@@ -855,6 +865,7 @@ TEST(Data, InlineBulkValidationIsAtomicAcrossMemberOrders)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// The C API creates and destroys a datastore without C++ lifecycle helpers.
 TEST(Data, CApiStoreLifecycle)
 {
     ASSERT_EQ(0, TestDataStoreLifecycleFromC());
@@ -866,6 +877,7 @@ TEST(Data, CApiQuerySetup)
     ASSERT_EQ(0, TestDataQuerySetupFromC());
 }
 
+// C callers read math and nested values consistently across blob loading and reset.
 TEST(Data, CApiMathAndNestedViews)
 {
     HDSContext  store = DSStoreCreate(0);
@@ -918,6 +930,7 @@ TEST(Data, CApiMathAndNestedViews)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Typed math reads preserve float bits in native, packed and writable storage.
 TEST(Data, AlignedMathReadsPreserveFloatBits)
 {
     // Zero, negative zero, subnormal, infinities and a NaN with a payload.
@@ -1046,6 +1059,7 @@ TEST(Data, BinaryGoldenSharedMetadata)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Blob instances share immutable data while row changes and group lifetimes stay separate.
 TEST(Data, BlobMutableRowsSharedMetadataAndGroupLifetime)
 {
     HDSContext source = DSStoreCreate(0);
@@ -1174,6 +1188,7 @@ TEST(Data, BlobMutableRowsSharedMetadataAndGroupLifetime)
     delete[] memory;
 }
 
+// Nested views cover every value kind and return to borrowed blob defaults on reset.
 TEST(Data, NestedViewsAllKindsAndReset)
 {
     DSValue vec4 = {};
@@ -1249,6 +1264,7 @@ TEST(Data, NestedViewsAllKindsAndReset)
     delete[] roundtrip;
 }
 
+// Nested bulk storage stays compact while insertion copies values from borrowed views.
 TEST(Data, CompactNestedBulkStorageAndBorrowedInsertion)
 {
     HDSContext  store = DSStoreCreate(0);
@@ -1426,6 +1442,7 @@ TEST(Data, OwnedStructRowsReleaseRecursiveTrees)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Owned dynamic-struct rows preserve borrowed blob defaults through mutation and reset.
 TEST(Data, OwnedStructRowsKeepBlobDefaultsBorrowed)
 {
     HDSContext  source = DSStoreCreate(0);
@@ -1476,6 +1493,7 @@ TEST(Data, OwnedStructRowsKeepBlobDefaultsBorrowed)
     delete[] bytes;
 }
 
+// Invalid nested values and excessive depth cannot replace existing row values.
 TEST(Data, NestedValidationAndDepth)
 {
     HDSContext  store = DSStoreCreate(0);
@@ -1528,6 +1546,7 @@ TEST(Data, NestedValidationAndDepth)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Malformed blob directories, layouts and payloads leave the output handle unchanged.
 TEST(Data, MalformedBlobDirectoryLayoutAndValues)
 {
     HDSContext  source = DSStoreCreate(0);
@@ -1590,6 +1609,7 @@ TEST(Data, MalformedBlobDirectoryLayoutAndValues)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(source));
 }
 
+// Empty blobs and NULL values remain reusable while their source bytes are borrowed.
 TEST(Data, EmptyNullAndBorrowedResourceReuse)
 {
     HDSContext source = DSStoreCreate(0);
@@ -1636,6 +1656,7 @@ TEST(Data, EmptyNullAndBorrowedResourceReuse)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(source));
 }
 
+// Reset retains insertion defaults across later edits and releases their override storage.
 TEST(Data, ResetAddedValuesAllocationBlocksAndDefaults)
 {
     HDSContext store = DSStoreCreate(0);
@@ -1679,6 +1700,7 @@ int main(int argc, char** argv)
     return jc_test_run_all();
 }
 
+// Typed lookup resolves hash collisions and metadata indices above 255 without truncation.
 TEST(Data, TypedLookupHashCollisionsAndWideIndexes)
 {
     const uint32_t count = 258;
@@ -1737,6 +1759,7 @@ TEST(Data, TypedLookupHashCollisionsAndWideIndexes)
     delete[] bytes;
 }
 
+// Typed errors preserve outputs; packed writes and resets leave borrowed blob bytes intact.
 TEST(Data, TypedAccessErrorsPackedValuesAndReset)
 {
     HDSContext source = DSStoreCreate(0);
@@ -1849,6 +1872,7 @@ TEST(Data, TypedAccessErrorsPackedValuesAndReset)
     delete[] bytes;
 }
 
+// Bound queries track repeated native and blob registrations without retaining stale matches.
 TEST(Data, BoundQueryRegistrationChurn)
 {
     HDSContext source = DSStoreCreate(0);
@@ -1937,6 +1961,7 @@ TEST(Data, BoundQueryRegistrationChurn)
 
 extern "C" int TestInlineDataFromC(HDSContext store);
 
+// Inline composition preserves C offsets, nested field access and blob round trips.
 TEST(Data, InlineCompositionQueriesAndRoundtrip)
 {
     // Nested fixed layouts preserve C alignment and include variable data.
@@ -2085,6 +2110,7 @@ TEST(Data, InlineCompositionQueriesAndRoundtrip)
     delete[] allocation;
 }
 
+// Invalid inline layouts and ambiguous dotted names fail during registration or loading.
 TEST(Data, InlineLayoutAndNameValidation)
 {
     HDSContext   store = DSStoreCreate(0);
@@ -2180,6 +2206,7 @@ TEST(Data, InlineLayoutAndNameValidation)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Dotted field names bind across layouts and keep matching after table re-registration.
 TEST(Data, InlineNamesBindDifferentTablesAndTrackRegistration)
 {
     HDSContext  store = DSStoreCreate(0);
@@ -2245,6 +2272,7 @@ TEST(Data, InlineNamesBindDifferentTablesAndTrackRegistration)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Component reset leaves other rows unchanged and reuses the existing value storage.
 TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
 {
     HDSContext  store = DSStoreCreate(0);
@@ -2327,6 +2355,7 @@ TEST(Data, ResetOneComponentPreservesOtherRowsAndReusesStorage)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Queries without field filters still visit native and packed rows with correct IDs/groups.
 TEST(Data, RowIterationWithoutFieldFilters)
 {
     HDSContext  source = DSStoreCreate(0);
@@ -2383,6 +2412,7 @@ TEST(Data, RowIterationWithoutFieldFilters)
     delete[] bytes;
 }
 
+// Row access stays relative to its query batch after swap removal moves row records.
 TEST(Data, RowAccessUsesBatchRelativeRowsAfterRemoval)
 {
     HDSContext store = DSStoreCreate(0);
@@ -2431,6 +2461,7 @@ TEST(Data, RowAccessUsesBatchRelativeRowsAfterRemoval)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// IDs collected during queries support deferred deletion and reject rows already removed.
 TEST(Data, DeferredRemovalUsesStableIds)
 {
     HDSContext store = DSStoreCreate(0);
@@ -2503,6 +2534,7 @@ TEST(Data, DeferredRemovalUsesStableIds)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Rows with no fields are valid and appear once in row iteration.
 TEST(Data, EmptyRowHasNoFields)
 {
     HDSContext  store = DSStoreCreate(0);
@@ -2526,6 +2558,7 @@ TEST(Data, EmptyRowHasNoFields)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Native registration and blob loading reject layouts that violate C alignment.
 TEST(Data, AlignedLayoutValidation)
 {
     HDSContext   store = DSStoreCreate(0);
@@ -2586,6 +2619,7 @@ TEST(Data, AlignedLayoutValidation)
 
 extern "C" int TestDataPointersFromC(HDSContext store, int write);
 
+// Native pointers retain typed values while edits and reset leave borrowed blob bytes intact.
 TEST(Data, NativeFieldPointersAndReset)
 {
     struct NativeRow
@@ -2655,6 +2689,7 @@ TEST(Data, NativeFieldPointersAndReset)
     delete[] bytes;
 }
 
+// Bound field handles remain stable while matching tables are added, removed and reset.
 TEST(Data, QueryFieldHandlesSurviveTableChanges)
 {
     HDSContext  store = DSStoreCreate(0);
@@ -2715,6 +2750,7 @@ TEST(Data, QueryFieldHandlesSurviveTableChanges)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Nested field pointers share payload storage without overwriting sibling members.
 TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
 {
     DSFieldDesc       members[] = { { 10, DS_TYPE_VECTOR3, 0, 0, "10" }, { 20, DS_TYPE_NUMBER, 16, 0, "20" }, { 30, DS_TYPE_STRING, 24, 0, "30" } };
@@ -2840,6 +2876,7 @@ TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
     delete[] bytes;
 }
 
+// Mutable inline references reset correctly after rows are removed from their blob instance.
 TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
 {
     DSFieldDesc  members[] = { { 10, DS_TYPE_NUMBER, 0, 0, "10" }, { 20, DS_TYPE_STRING, 8, 0, "20" }, { 30, DS_TYPE_LIST, 16, 0, "30" } };
@@ -2937,6 +2974,7 @@ TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
     delete[] bytes;
 }
 
+// Reset and unload leave independent rows that reused pooled registration slots untouched.
 TEST(Data, PooledRegistrationResetAndRemovalAfterSlotReuse)
 {
     HDSContext source = DSStoreCreate(0);
@@ -3018,6 +3056,7 @@ TEST(Data, PooledRegistrationResetAndRemovalAfterSlotReuse)
     delete[] bytes;
 }
 
+// Metadata and tag counts round-trip at the 65,535-entry limit without truncation.
 TEST(Data, CompactMetadataLimitsRoundTrip)
 {
     // A reusable binary tree reaches 65,535 entries with only two siblings per
@@ -3086,6 +3125,7 @@ TEST(Data, CompactMetadataLimitsRoundTrip)
     delete[] tags;
 }
 
+// Compact metadata preserves 32-bit row strides and field offsets above 64 KiB.
 TEST(Data, CompactMetadataPreservesWideByteOffsets)
 {
     HDSContext  store = DSStoreCreate(0);
@@ -3272,6 +3312,7 @@ TEST(Data, CompactQueryFieldsValidateBeforeNarrowing)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Retired generations are excluded from free-slot counts used by later bulk appends.
 TEST(Data, FreeSlotCountExcludesRetiredGenerations)
 {
     HDSContext  store = DSStoreCreate(0);
@@ -3305,6 +3346,7 @@ TEST(Data, FreeSlotCountExcludesRetiredGenerations)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Vector3 batch reads match scalar results for native, packed, stale and invalid IDs.
 TEST(Data, BatchVector3MatchesScalarGetter)
 {
     HDSContext  store = DSStoreCreate(0);
@@ -3395,6 +3437,7 @@ TEST(Data, BatchVector3MatchesScalarGetter)
     delete[] bytes;
 }
 
+// Groups share native tables while filtered queries stay correct across row changes.
 TEST(Data, NativeRowsShareGroupsWithoutSplittingTables)
 {
     HDSContext  store = DSStoreCreate(0);
@@ -3456,6 +3499,7 @@ TEST(Data, NativeRowsShareGroupsWithoutSplittingTables)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Native, SoA and decoded creation allow omitted output IDs without losing row identity.
 TEST(Data, CreateRowsWithoutReturningIds)
 {
     HDSContext  store = DSStoreCreate(0);
@@ -3519,6 +3563,7 @@ TEST(Data, CreateRowsWithoutReturningIds)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Native batches validate every row before writing across row-storage block boundaries.
 TEST(Data, NativeRowsValidateBeforeWritingAcrossBlocks)
 {
     const uint32_t count = 1031;
@@ -3569,6 +3614,7 @@ TEST(Data, NativeRowsValidateBeforeWritingAcrossBlocks)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// String batch reads cover native and packed rows while preserving typed error results.
 TEST(Data, BatchStringsAcrossOwnedAndPackedRows)
 {
     HDSContext store = DSStoreCreate(0);
@@ -3606,16 +3652,19 @@ TEST(Data, BatchStringsAcrossOwnedAndPackedRows)
     delete[] bytes;
 }
 
+// C callers create, query, update and remove native AoS rows through the public API.
 TEST(Data, NativeRowLifecycleFromC)
 {
     ASSERT_EQ(0, TestDataNativeRowsFromC());
 }
 
+// C callers create and query rows from field arrays through the public SoA input API.
 TEST(Data, SoARowLifecycleFromC)
 {
     ASSERT_EQ(0, TestDataSoARowsFromC());
 }
 
+// Large SoA batches validate every field before publishing and preserve rows after slot reuse.
 TEST(Data, SoARowsWithManyFieldsValidateBeforePublishing)
 {
     const uint32_t field_count = 40;
@@ -3715,6 +3764,7 @@ static void CheckNativeReferences(HDSContext store, const DSId ids[2])
     }
 }
 
+// Native C reference inputs become owned payloads and survive serialization and reset.
 TEST(Data, NativeReferencesFromC)
 {
     for (uint32_t soa = 0; soa < 2; ++soa)
@@ -3748,6 +3798,7 @@ TEST(Data, NativeReferencesFromC)
     }
 }
 
+// Invalid native reference batches publish nothing; empty lists still need no values array.
 TEST(Data, NativeReferenceValidation)
 {
     for (uint32_t soa = 0; soa < 2; ++soa)
@@ -3803,6 +3854,7 @@ TEST(Data, NativeReferenceValidation)
     }
 }
 
+// Native dynamic structs validate their layouts and support empty structs and nested lists.
 TEST(Data, NativeDynamicStructAndNestedListInput)
 {
     HDSContext  store = DSStoreCreate(0);
@@ -3892,6 +3944,7 @@ static void CheckMixedList(const DSList* list)
     ASSERT_EQ(1.0f, value.m_Value.m_Matrix4[15]);
 }
 
+// Mixed lists created from C retain their values across ownership, reset and blob loading.
 TEST(Data, MixedListCreationFromC)
 {
     for (uint32_t soa = 0; soa < 2; ++soa)
@@ -3934,6 +3987,7 @@ TEST(Data, MixedListCreationFromC)
     }
 }
 
+// Invalid mixed-list inputs publish no rows or payloads; empty mixed lists remain valid.
 TEST(Data, MixedListValidationBeforePublishing)
 {
     for (uint32_t soa = 0; soa < 2; ++soa)
