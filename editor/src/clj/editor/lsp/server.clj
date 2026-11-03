@@ -429,7 +429,7 @@
         {:processId (.pid (ProcessHandle/current))
          :rootUri uri
          :capabilities {:workspace {:configuration true
-                                    :diagnostics {}
+                                    :diagnostics {:refreshSupport true}
                                     :workspaceEdit {:documentChanges false
                                                     :normalizesLineEndings true}}
                         :textDocument {:definition {:dynamicRegistration false
@@ -503,6 +503,7 @@
   See also:
     https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#lifeCycleMessages"
   [project server in out & {:keys [on-publish-diagnostics
+                                   on-diagnostic-refresh
                                    on-initialized
                                    on-response]}]
   (a/go
@@ -521,7 +522,9 @@
             (let [[base-source base-sink base-err] (lsp.base/make (input-stream connection) (output-stream connection))
                   jsonrpc (lsp.jsonrpc/make
                             {"textDocument/publishDiagnostics" (diagnostics-handler project out on-publish-diagnostics)
-                             "workspace/diagnostic/refresh" (constantly nil)
+                             "workspace/diagnostic/refresh" (fn [_]
+                                                              (a/put! out (on-diagnostic-refresh))
+                                                              nil)
                              "workspace/configuration" (configuration-handler project server)
                              "window/showMessageRequest" lua-language-server-show-message-request-handler
                              "window/workDoneProgress/create" (constantly nil)}
