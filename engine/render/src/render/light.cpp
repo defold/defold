@@ -494,11 +494,6 @@ namespace dmRender
         return true;
     }
 
-    uint64_t GetLightBufferRevision(HRenderContext context)
-    {
-        return context->m_LightBufferRevision;
-    }
-
     static void WriteLightInstanceData(HRenderContext render_context, dmGraphics::HUniformBuffer light_buffer)
     {
         PrepareLightBuffer(render_context);

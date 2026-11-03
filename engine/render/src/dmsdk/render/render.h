@@ -152,6 +152,10 @@ namespace dmRender
 
     /*#
      * Copied light data from the same CPU snapshot used to upload the light buffer.
+     * m_BufferRevision changes when a frame begins or light buffer inputs are invalidated,
+     * even if the resulting data is identical. Queries and GPU uploads do not change it.
+     * Revisions are scoped to the owning render context's lifetime and describe buffer
+     * validity, not per-light changes for shadow cache invalidation.
      * @struct
      * @name LightInstanceRenderData
      * @member m_Position [type: dmVMath::Point3] world position
@@ -170,13 +174,13 @@ namespace dmRender
         dmVMath::Point3  m_Position;
         dmVMath::Vector3 m_Direction;
         dmVMath::Vector4 m_Color;
-        uint64_t        m_BufferRevision;
-        uint32_t        m_BufferIndex;
-        LightType       m_Type;
-        float           m_Range;
-        float           m_Intensity;
-        float           m_InnerConeAngle;
-        float           m_OuterConeAngle;
+        uint64_t         m_BufferRevision;
+        uint32_t         m_BufferIndex;
+        LightType        m_Type;
+        float            m_Range;
+        float            m_Intensity;
+        float            m_InnerConeAngle;
+        float            m_OuterConeAngle;
     };
 
     /*#
@@ -184,7 +188,8 @@ namespace dmRender
      * Call on the engine thread after component light submission, for example from render-script update.
      * Before submission, including component init and the start of a frame, the light has no buffer entry.
      * The first query after invalidation prepares the CPU snapshot; subsequent queries reuse it.
-     * The index remains valid only while GetLightBufferRevision returns the copied revision.
+     * The index is valid only for the returned m_BufferRevision. Compare revisions across
+     * queries to verify that their data belongs to the same snapshot.
      * Query again after frame changes, submissions, creation, deletion or light data updates.
      * Indices address the project-sized buffer; shaders with smaller lights arrays must respect their own capacity.
      * @name GetLightInstanceRenderData
@@ -194,17 +199,6 @@ namespace dmRender
      * @return result [type: bool] true if the instance is valid, submitted and non-ambient; false for invalid, deleted, unsubmitted or ambient lights
      */
     bool GetLightInstanceRenderData(HRenderContext context, HLightInstance instance, LightInstanceRenderData* out_data);
-
-    /*#
-     * Get the light buffer invalidation revision without preparing or uploading data.
-     * Changes when a frame begins or light buffer inputs are invalidated, even if the resulting data is identical.
-     * Queries and GPU uploads do not change it. This is not a per-light revision for shadow cache invalidation.
-     * Revisions and handles are scoped to the lifetime of the owning render context. Call on the engine thread.
-     * @name GetLightBufferRevision
-     * @param context [type: HRenderContext] render context
-     * @return revision [type: uint64_t] current light buffer revision
-     */
-    uint64_t GetLightBufferRevision(HRenderContext context);
 
     /*#
      * @enum

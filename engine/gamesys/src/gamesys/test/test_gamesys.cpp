@@ -739,7 +739,9 @@ TEST_F(LightResourceTest, LightComponentRenderDataMatchesUpload)
     dmGameSystem::MaterialResource* material_res = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/light_buffer.materialc", (void**) &material_res));
     dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, material_res->m_Material);
-    ASSERT_EQ(data.m_BufferRevision, dmRender::GetLightBufferRevision(m_RenderContext));
+    dmRender::LightInstanceRenderData after_upload;
+    ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_RenderContext, light, &after_upload));
+    ASSERT_EQ(data.m_BufferRevision, after_upload.m_BufferRevision);
     ASSERT_FALSE(render_ctx->m_LightBufferDirty);
     dmGraphics::NullUniformBuffer* buffer = (dmGraphics::NullUniformBuffer*) render_ctx->m_LightUniformBuffer;
     ASSERT_NE((void*)0, buffer);
@@ -764,7 +766,6 @@ TEST_F(LightResourceTest, LightComponentRenderDataMatchesUpload)
     dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, material_res->m_Material);
     ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_RenderContext, light, &data));
     ASSERT_GT(data.m_BufferRevision, revision);
-    ASSERT_EQ(dmRender::GetLightBufferRevision(m_RenderContext), data.m_BufferRevision);
     ASSERT_VEC3(dmGameObject::GetWorldPosition(go), data.m_Position);
     memcpy(&uploaded, buffer->m_Buffer + render_ctx->m_LightBufferDataWriteStart + data.m_BufferIndex * sizeof(uploaded), sizeof(uploaded));
     ASSERT_VEC4(Vector4(data.m_Position), uploaded.m_Position);

@@ -6616,7 +6616,8 @@ TEST_F(dmRenderTest, LightRenderDataCompaction)
 
     dmRender::LightInstanceRenderData data;
     const uint32_t slots[] = {1, 4, 5};
-    uint64_t revision = dmRender::GetLightBufferRevision(m_Context);
+    ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_Context, lights[slots[0]], &data));
+    uint64_t revision = data.m_BufferRevision;
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(slots); ++i)
     {
         ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_Context, lights[slots[i]], &data));
@@ -6664,7 +6665,8 @@ TEST_F(dmRenderTest, LightRenderDataRevisionsAndLifetime)
     revision = data.m_BufferRevision;
     dmRender::SubmitLightInstance(m_Context, b);
     dmRender::RenderListBegin(m_Context);
-    ASSERT_EQ(revision, dmRender::GetLightBufferRevision(m_Context));
+    ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_Context, b, &data));
+    ASSERT_EQ(revision, data.m_BufferRevision);
 
     dmRender::SubmitLightInstance(m_Context, a);
     ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_Context, b, &data));
@@ -6682,7 +6684,8 @@ TEST_F(dmRenderTest, LightRenderDataRevisionsAndLifetime)
     dmRender::HLightInstance replacement = dmRender::NewLightInstance(m_Context, prototype);
     ASSERT_NE(a, replacement);
     ASSERT_EQ(a & 0xFFFF, replacement & 0xFFFF);
-    ASSERT_GT(dmRender::GetLightBufferRevision(m_Context), revision);
+    ASSERT_FALSE(dmRender::GetLightInstanceRenderData(m_Context, replacement, &data));
+    ASSERT_GT(data.m_BufferRevision, revision);
     dmRender::SubmitLightInstance(m_Context, replacement);
     ASSERT_FALSE(dmRender::GetLightInstanceRenderData(m_Context, a, &data));
     ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_Context, replacement, &data));
@@ -6690,21 +6693,24 @@ TEST_F(dmRenderTest, LightRenderDataRevisionsAndLifetime)
     revision = data.m_BufferRevision;
 
     dmRender::BeginFrame(m_Context, 1.0f, 1.0f / 60.0f);
-    ASSERT_GT(dmRender::GetLightBufferRevision(m_Context), revision);
     ASSERT_FALSE(dmRender::GetLightInstanceRenderData(m_Context, replacement, &data));
+    ASSERT_GT(data.m_BufferRevision, revision);
+    revision = data.m_BufferRevision;
     ASSERT_FALSE(dmRender::GetLightInstanceRenderData(m_Context, b, &data));
+    ASSERT_EQ(revision, data.m_BufferRevision);
     dmRender::SubmitLightInstance(m_Context, b);
     ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_Context, b, &data));
     ASSERT_EQ(0u, data.m_BufferIndex);
-    ASSERT_EQ(dmRender::GetLightBufferRevision(m_Context), data.m_BufferRevision);
+    ASSERT_GT(data.m_BufferRevision, revision);
 
     dmRender::DeleteLightInstance(m_Context, b);
     dmRender::DeleteLightInstance(m_Context, replacement);
     dmRender::DeleteLightPrototype(m_Context, prototype);
-    revision = dmRender::GetLightBufferRevision(m_Context);
-    dmRender::SetLightBufferCount(m_Context, 0);
-    ASSERT_GT(dmRender::GetLightBufferRevision(m_Context), revision);
     ASSERT_FALSE(dmRender::GetLightInstanceRenderData(m_Context, b, &data));
+    revision = data.m_BufferRevision;
+    dmRender::SetLightBufferCount(m_Context, 0);
+    ASSERT_FALSE(dmRender::GetLightInstanceRenderData(m_Context, b, &data));
+    ASSERT_GT(data.m_BufferRevision, revision);
 }
 
 // Verifies queries expose resolved transforms and prototype changes for all punctual types, not raw resource data.
@@ -6741,7 +6747,8 @@ TEST_F(dmRenderTest, LightRenderDataResolvedTransforms)
         ASSERT_NEAR(type == dmRender::LIGHT_TYPE_SPOT ? 0.7f : 0.0f, data.m_OuterConeAngle, EPSILON);
         uint64_t revision = data.m_BufferRevision;
         dmRender::SetLightInstance(m_Context, light, position, rotation, 3.0f);
-        ASSERT_EQ(revision, dmRender::GetLightBufferRevision(m_Context));
+        ASSERT_TRUE(dmRender::GetLightInstanceRenderData(m_Context, light, &data));
+        ASSERT_EQ(revision, data.m_BufferRevision);
 
         params.m_Color = dmVMath::Vector4(1, 0, 0, 1);
         params.m_Intensity = 2.0f;
