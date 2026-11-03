@@ -28,10 +28,12 @@ Platforms without a local engine still use the archive. The local preference als
 includes available headless engines and local platforms omitted from
 `archive-artifacts.json`.
 
-`./scripts/build.py sync_archive` downloads Bob's engine inputs from S3. The public
-paths in `archive-artifacts.json` are shared with Gradle's artifact selection;
-update that list when adding an archived input. Private-platform archive folders
-retain their existing download filters.
+`./scripts/build.py sync_archive` downloads Bob's public engine inputs through
+CloudFront at `https://d.defold.com`. S3 is used to list available files, and private
+archive buckets retain authenticated S3 downloads. The public paths in
+`archive-artifacts.json` are shared with Gradle's artifact selection; update that
+list when adding an archived input. Private-platform archive folders retain their
+existing download filters.
 
 Tool packaging is defined by two additional manifests:
 

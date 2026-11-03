@@ -450,6 +450,7 @@ class Configuration(object):
                  dynamo_home = None,
                  target_platform = None,
                  sdk_platforms = None,
+                 sdk_artifacts_dir = None,
                  skip_tests = False,
                  test_device = None,
                  ios_identity = None,
@@ -504,6 +505,7 @@ class Configuration(object):
         self.host = get_host_platform()
         self.target_platform = target_platform
         self.sdk_platforms = sdk_platforms
+        self.sdk_artifacts_dir = sdk_artifacts_dir
         self.sdk_info = None
 
         self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
@@ -1828,9 +1830,19 @@ class Configuration(object):
             self.upload_to_archive(join(dynamo_home, 'lib', self.target_platform, dxc_name),
                                    '%s/%s' % (full_archive_path, dxc_name))
 
+        self._archive_platform_sdk(full_archive_path)
+
+    def _archive_platform_sdk(self, full_archive_path):
         sdkpath, sdk_sig_path = self._package_platform_sdk(self.target_platform)
-        self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
-        self.upload_to_archive(sdk_sig_path, '%s/defoldsdk.sha256' % full_archive_path)
+        if self.sdk_artifacts_dir is not None:
+            platform_dir = join(self.sdk_artifacts_dir, self.target_platform)
+            os.makedirs(platform_dir, exist_ok=True)
+            shutil.copyfile(sdkpath, join(platform_dir, 'defoldsdk.zip'))
+            shutil.copyfile(sdk_sig_path, join(platform_dir, 'defoldsdk.sha256'))
+            print('Staged platform SDK for CI:', platform_dir)
+        else:
+            self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
+            self.upload_to_archive(sdk_sig_path, '%s/defoldsdk.sha256' % full_archive_path)
 
     def _can_run_tests(self):
         supported_tests = {}
@@ -2823,6 +2835,7 @@ class Configuration(object):
                 platforms=platforms,
                 output_zip_path=sdkpath,
                 zipmerge_path=zipmerge_path,
+                sdk_artifacts_dir=self.sdk_artifacts_dir,
                 canonical_platform='x86_64-linux')
         else:
             print("zipmerge not found; using Python platform SDK archive merge")
@@ -2832,6 +2845,7 @@ class Configuration(object):
                 base_prefix=base_prefix,
                 platforms=platforms,
                 extract_dir=tempdir,
+                sdk_artifacts_dir=self.sdk_artifacts_dir,
                 canonical_platform='x86_64-linux')
 
             # Due to an issue with how the attributes are preserved, let's go through the bin/ folders
@@ -3425,7 +3439,7 @@ class Configuration(object):
 # ------------------------------------------------------------
 
     def sync_archive(self):
-        """Download Bob's engine inputs; the editor downloads its archives separately."""
+        """Download Bob's engine inputs, using CloudFront for public archives."""
         u = urlparse(self.get_archive_path())
         bucket_name = u.hostname
         bucket = s3.get_bucket(bucket_name)
@@ -3436,9 +3450,9 @@ class Configuration(object):
         if not self.thread_pool:
             self.thread_pool = ThreadPool(8)
 
-        def download(obj, path):
-            self._log('s3://%s/%s -> %s' % (bucket_name, obj.key, path))
-            obj.download_file(path)
+        def download(key, path):
+            s3.download_archive_file(bucket_name, key, path)
+            self._log('Downloaded %s/%s -> %s' % (bucket_name, key, path))
 
         futures = []
         sha1 = self._git_sha1()
@@ -3463,7 +3477,7 @@ class Configuration(object):
             if not rel.endswith('/') and (rel in bob_artifacts or private_artifact):
                 p = os.path.join(local_dir, sha1, rel)
                 self._mkdirs(os.path.dirname(p))
-                f = Future(self.thread_pool, download, bucket.Object(obj_summary.key), p)
+                f = Future(self.thread_pool, download, obj_summary.key, p)
                 futures.append(f)
 
         for f in futures:
@@ -3873,7 +3887,7 @@ build_ext        - Build and install source dependencies for the host and target
 build_external   - Build external packages, optionally filtered with --package
 install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk
-sync_archive     - Download engine artifacts needed by Bob from S3
+sync_archive     - Download engine artifacts needed by Bob (public archives use CloudFront)
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
 build_editor2    - Build editor
@@ -3911,6 +3925,10 @@ To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
     parser.add_option('--platforms', dest='sdk_platforms',
                       default = None,
                       help = 'Comma-separated target platforms to include with build_sdk')
+
+    parser.add_option('--sdk-artifacts-dir', dest='sdk_artifacts_dir',
+                      default = None,
+                      help = 'Stage platform SDKs here instead of S3 with archive_engine; read them here with build_sdk')
 
     parser.add_option('--skip-tests', dest='skip_tests',
                       action = 'store_true',
@@ -4123,6 +4141,7 @@ To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
                       sdk_platforms = sdk_platforms,
+                      sdk_artifacts_dir = options.sdk_artifacts_dir,
                       skip_tests = options.skip_tests,
                       test_device = options.test_device,
                       ios_identity = options.ios_identity,
