@@ -45,7 +45,10 @@ import com.dynamo.rig.proto.Rig.Model;
 public final class ModelBuffers {
     private static final String MAGIC = "DMMB";
     static final int VERSION = 2;
-    /** Identifies the serialized format in Bob and editor build-cache keys. */
+    /**
+     * Invalidates Bob and editor caches when the serialized format changes,
+     * including header-only changes that leave the source geometry unchanged.
+     */
     public static final String FORMAT_ID = MAGIC + "-v" + VERSION;
     private static final int HEADER_SIZE = 36;
     private static final int RANGE_SIZE = 28;
@@ -87,13 +90,27 @@ public final class ModelBuffers {
     // the larger vertex layout. It does not strip unused GPU attribute slots.
     private static int attributeMask(Mesh mesh) {
         int mask = 1 << ATTRIBUTE_POSITION;
-        if (mesh.getNormalsCount() != 0) mask |= 1 << ATTRIBUTE_NORMAL;
-        if (mesh.getTangentsCount() != 0) mask |= 1 << ATTRIBUTE_TANGENT;
-        if (mesh.getColorsCount() != 0) mask |= 1 << ATTRIBUTE_COLOR;
-        if (mesh.getTexcoord0Count() != 0) mask |= 1 << ATTRIBUTE_TEXCOORD0;
-        if (mesh.getTexcoord1Count() != 0) mask |= 1 << ATTRIBUTE_TEXCOORD1;
-        if (mesh.getWeightsCount() != 0) mask |= 1 << ATTRIBUTE_WEIGHTS;
-        if (mesh.getBoneIndicesCount() != 0) mask |= 1 << ATTRIBUTE_BONE_INDICES;
+        if (mesh.getNormalsCount() != 0) {
+            mask |= 1 << ATTRIBUTE_NORMAL;
+        }
+        if (mesh.getTangentsCount() != 0) {
+            mask |= 1 << ATTRIBUTE_TANGENT;
+        }
+        if (mesh.getColorsCount() != 0) {
+            mask |= 1 << ATTRIBUTE_COLOR;
+        }
+        if (mesh.getTexcoord0Count() != 0) {
+            mask |= 1 << ATTRIBUTE_TEXCOORD0;
+        }
+        if (mesh.getTexcoord1Count() != 0) {
+            mask |= 1 << ATTRIBUTE_TEXCOORD1;
+        }
+        if (mesh.getWeightsCount() != 0) {
+            mask |= 1 << ATTRIBUTE_WEIGHTS;
+        }
+        if (mesh.getBoneIndicesCount() != 0) {
+            mask |= 1 << ATTRIBUTE_BONE_INDICES;
+        }
         return mask;
     }
 
@@ -112,13 +129,18 @@ public final class ModelBuffers {
     public static MeshSet selectMeshes(MeshSet source, int meshIndex) {
         MeshSet.Builder result = source.toBuilder().clearModels().clearRawModels();
         for (Model model : source.getModelsList()) {
-            if (meshIndex < 0 || model.getMeshIndex() == meshIndex) result.addModels(model);
+            if (meshIndex < 0 || model.getMeshIndex() == meshIndex) {
+                result.addModels(model);
+            }
         }
         if (meshIndex >= 0) {
             for (Model model : source.getRawModelsList()) {
-                if (model.getMeshIndex() == meshIndex) result.addRawModels(model);
+                if (model.getMeshIndex() == meshIndex) {
+                    result.addRawModels(model);
+                }
             }
         }
+
         return result.build();
     }
 
@@ -189,6 +211,7 @@ public final class ModelBuffers {
         int[] indexOffsets = new int[count];
         int vertexSize = 0;
         int indexSize = 0;
+
         for (int i = 0; i < count; ++i) {
             Mesh mesh = geometries.get(i);
             int stride = (attributeMask(mesh) & ATTRIBUTE_MASK_SKINNING) == ATTRIBUTE_MASK_SKINNING ? SKINNED_VERTEX_STRIDE : STATIC_VERTEX_STRIDE;
@@ -197,14 +220,19 @@ public final class ModelBuffers {
             vertexSize = Math.addExact(vertexOffsets[i], Math.multiplyExact(mesh.getPositionsCount() / ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_POSITION], stride));
             indexSize = Math.addExact(indexOffsets[i], mesh.getIndices().size());
         }
+
         vertexSize = align(vertexSize, 16);
         int vertexStart = align(Math.addExact(HEADER_SIZE, Math.multiplyExact(count, RANGE_SIZE)), 16);
         int indexStart = Math.addExact(vertexStart, vertexSize);
         ByteBuffer out = ByteBuffer.allocate(Math.addExact(indexStart, indexSize)).order(ByteOrder.LITTLE_ENDIAN);
+
         out.put(MAGIC.getBytes(StandardCharsets.US_ASCII)).putInt(VERSION);
         out.putInt(0); // Archive compression is handled by the resource loader.
         out.putInt(Math.addExact(vertexSize, indexSize));
-        out.putInt(count).putInt(vertexStart).putInt(vertexSize).putInt(indexStart).putInt(indexSize);
+        out.putInt(count);
+        out.putInt(vertexStart).putInt(vertexSize);
+        out.putInt(indexStart).putInt(indexSize);
+
         for (int i = 0; i < count; ++i) {
             Mesh mesh = geometries.get(i);
             int mask = attributeMask(mesh);
@@ -212,9 +240,16 @@ public final class ModelBuffers {
             int vertexCount = mesh.getPositionsCount() / ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_POSITION];
             int stride = skinned ? SKINNED_VERTEX_STRIDE : STATIC_VERTEX_STRIDE;
             int indexElementSize = mesh.getIndicesFormat() == IndexBufferFormat.INDEXBUFFER_FORMAT_16 ? Short.BYTES : Integer.BYTES;
+
             out.position(HEADER_SIZE + i * RANGE_SIZE);
-            out.putInt(vertexOffsets[i]).putInt(vertexCount).putInt(stride);
-            out.putInt(indexOffsets[i]).putInt(mesh.getIndices().size() / indexElementSize).putInt(indexElementSize).putInt(mask);
+            out.putInt(vertexOffsets[i]);
+            out.putInt(vertexCount);
+            out.putInt(stride);
+            out.putInt(indexOffsets[i]);
+            out.putInt(mesh.getIndices().size() / indexElementSize);
+            out.putInt(indexElementSize);
+            out.putInt(mask);
+
             out.position(vertexStart + vertexOffsets[i]);
             for (int v = 0; v < vertexCount; ++v) {
                 putAttribute(out, mesh.getPositionsList(), v, ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_POSITION], 0);
@@ -223,14 +258,19 @@ public final class ModelBuffers {
                 putAttribute(out, mesh.getColorsList(), v, ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_COLOR], 1);
                 putAttribute(out, mesh.getTexcoord0List(), v, ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_TEXCOORD0], 0);
                 putAttribute(out, mesh.getTexcoord1List(), v, ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_TEXCOORD1], 0);
+
                 if (skinned) {
                     putAttribute(out, mesh.getWeightsList(), v, ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_WEIGHTS], 0);
                     int boneIndexComponents = ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_BONE_INDICES];
-                    for (int c = 0; c < boneIndexComponents; ++c) out.putFloat(mesh.getBoneIndices(v * boneIndexComponents + c));
+                    for (int c = 0; c < boneIndexComponents; ++c) {
+                        out.putFloat(mesh.getBoneIndices(v * boneIndexComponents + c));
+                    }
                 }
             }
+
             mesh.getIndices().copyTo(out.array(), indexStart + indexOffsets[i]);
         }
+
         return out.array();
     }
 
@@ -243,12 +283,16 @@ public final class ModelBuffers {
      */
     public static MeshSet metadata(MeshSet source, List<Mesh> geometries) {
         Map<Mesh, Integer> indices = new HashMap<>();
-        for (int i = 0; i < geometries.size(); ++i) indices.put(geometry(geometries.get(i)), i);
+        for (int i = 0; i < geometries.size(); ++i) {
+            indices.put(geometry(geometries.get(i)), i);
+        }
+
         MeshSet.Builder result = source.toBuilder();
         for (Material.Builder material : result.getMaterialsBuilderList()) {
             byte[] values = material.clone().clearName().clearIndex().clearIsSkinned().clearMaterialHash().build().toByteArray();
             material.setMaterialHash(MurmurHash.hash64(values, values.length));
         }
+
         for (List<Model.Builder> models : List.of(result.getModelsBuilderList(), result.getRawModelsBuilderList())) {
             for (Model.Builder model : models) {
                 for (int i = 0; i < model.getMeshesCount(); ++i) {
@@ -261,6 +305,7 @@ public final class ModelBuffers {
                 }
             }
         }
+
         return result.build();
     }
 }

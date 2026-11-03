@@ -93,8 +93,8 @@ namespace dmGameSystem
     {
         dmModelDDF::Model*       m_Model;
         uint32_t                 m_ModelsCount;
-        RigSceneResource*        m_RigScene;    // Model-owned metadata view, or a factory resource for legacy content.
-        ModelBuffersResource*    m_Buffers;     // One factory reference owning the shared geometry; null for legacy content.
+        RigSceneResource*        m_RigScene;    // Model-owned view of embedded metadata and rig dependencies.
+        ModelBuffersResource*    m_Buffers;     // One factory reference owning the shared geometry.
 
         dmArray<MeshInfo>        m_Meshes;
         dmArray<MaterialInfo>    m_Materials;    // List matches the list of material names in the dmRigDDF::Model

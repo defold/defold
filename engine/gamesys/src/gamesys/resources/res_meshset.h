@@ -20,8 +20,6 @@
 
 namespace dmGameSystem
 {
-    void PreloadMeshSetResources(const dmResource::ResourcePreloadParams* params, const dmRigDDF::MeshSet* mesh_set);
-
     dmResource::Result ResMeshSetPreload(const dmResource::ResourcePreloadParams* params);
 
     dmResource::Result ResMeshSetCreate(const dmResource::ResourceCreateParams* params);

@@ -28,9 +28,9 @@ namespace dmGameSystem
     // The returned range is owned by the shared geometry resource.
     ModelResourceBuffers* GetModelBuffers(ModelBuffersResource* resource, uint32_t index);
 
-    // Restores CPU streams on demand for world-space rendering and custom attributes.
+    // The first call reloads and unpacks CPU streams for world-space rendering and custom attributes.
     // Storage belongs to the shared buffer resource and remains valid until its last release.
-    dmResource::Result EnsureModelMeshData(dmResource::HFactory factory, ModelResourceBuffers* buffers, dmRigDDF::Mesh* mesh);
+    dmResource::Result LoadModelMeshData(dmResource::HFactory factory, ModelResourceBuffers* buffers, dmRigDDF::Mesh* mesh);
 } // namespace dmGameSystem
 
 #endif

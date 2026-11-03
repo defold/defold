@@ -108,7 +108,6 @@
               paths (coll/into-> (test-util/node-built-build-resources node-id) []
                       (map resource/proj-path))]
           (is (.hasMeshSet compiled))
-          (is (= "" (.getRigScene compiled)))
           (is (not (.hasSkeleton compiled)))
           (is (not (.hasAnimationSet compiled)))
           (is (pos? (.getVertexCount mesh)))

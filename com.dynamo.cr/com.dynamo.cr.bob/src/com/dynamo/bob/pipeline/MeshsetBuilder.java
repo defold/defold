@@ -58,18 +58,23 @@ public class MeshsetBuilder extends Builder  {
         ModelGeometry geometry = modelGeometry.get(meshIndex);
         if (geometry == null) {
             List<Rig.Mesh> meshes = ModelBuffers.geometries(ModelBuffers.selectMeshes(meshSet, meshIndex));
-            // The fixed model wrapper only stores the unique meshes in this build-time input.
+
+            // Rig.Model requires id and local, but node identity and placement must not
+            // affect sharing. Fixed defaults give equal meshes the same generated input.
             byte[] data = Rig.Model.newBuilder().setId(0).setLocal(Transform.getDefaultInstance())
                     .addAllMeshes(meshes).build().toByteArray();
+
             long hash = MurmurHash.hash64(data, data.length);
             IResource source = project.getGeneratedResource(hash, "modelbuffers");
             if (source == null) {
                 source = project.createGeneratedResource("model_buffers_v" + ModelBuffers.VERSION, hash, "modelbuffers");
                 source.setContent(data);
             }
+
             geometry = new ModelGeometry(meshes, source);
             modelGeometry.put(meshIndex, geometry);
         }
+
         return geometry;
     }
 
@@ -162,8 +167,7 @@ public class MeshsetBuilder extends Builder  {
             .addInput(input)
             .addOutput(input.changeExt(params.outExt()))
             .addOutput(input.changeExt(".skeletonc"))
-            .addOutput(input.changeExt("_generated_0.animationsetc"))
-            .addExtraCacheKey("model-source-meshset-v2");
+            .addOutput(input.changeExt("_generated_0.animationsetc"));
 
         byte[] sceneContent;
         ModelUtil.ModelMetadata metadata;

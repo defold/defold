@@ -1935,7 +1935,6 @@ TEST_F(ModelTest, SharedModelBuffers)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/empty_texture.modelc", (void**)&second));
     ASSERT_GT(first->m_Meshes.Size(), 0u);
     ASSERT_EQ(first->m_Meshes.Size(), second->m_Meshes.Size());
-    ASSERT_EQ('\0', first->m_Model->m_RigScene[0]);
     ASSERT_EQ(&first->m_Model->m_MeshSet, first->m_RigScene->m_MeshSetRes->m_MeshSet);
     dmGameSystem::ModelResourceBuffers* buffers = first->m_Meshes[0].m_Buffers;
     ASSERT_EQ(buffers, second->m_Meshes[0].m_Buffers);
@@ -1947,10 +1946,10 @@ TEST_F(ModelTest, SharedModelBuffers)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetDescriptor(m_Factory, first->m_Model->m_Buffers, &descriptor));
     const uint32_t initial_size = dmResource::GetResourceSize(descriptor);
 
-    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::EnsureModelMeshData(m_Factory, buffers, first->m_Meshes[0].m_Mesh));
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::LoadModelMeshData(m_Factory, buffers, first->m_Meshes[0].m_Mesh));
     const uint32_t cpu_size = dmResource::GetResourceSize(descriptor);
     ASSERT_GT(cpu_size, initial_size);
-    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::EnsureModelMeshData(m_Factory, buffers, second->m_Meshes[0].m_Mesh));
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::LoadModelMeshData(m_Factory, buffers, second->m_Meshes[0].m_Mesh));
     ASSERT_EQ(cpu_size, dmResource::GetResourceSize(descriptor));
     const float* positions = second->m_Meshes[0].m_Mesh->m_Positions.m_Data;
     ASSERT_NE((const float*)0, positions);
@@ -1987,7 +1986,7 @@ TEST_F(ModelTest, SharedModelBufferRanges)
         ASSERT_EQ(first->m_VertexBuffer, info.m_Buffers->m_VertexBuffer);
         ASSERT_EQ(first->m_IndexBuffer, info.m_Buffers->m_IndexBuffer);
         different_range |= first->m_VertexBufferOffset != info.m_Buffers->m_VertexBufferOffset;
-        ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::EnsureModelMeshData(m_Factory, info.m_Buffers, info.m_Mesh));
+        ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::LoadModelMeshData(m_Factory, info.m_Buffers, info.m_Mesh));
         const dmRig::RigModelVertex* vertex = (const dmRig::RigModelVertex*)(vertices + info.m_Buffers->m_VertexBufferOffset);
         ASSERT_EQ(vertex->pos[0], info.m_Mesh->m_Positions[0]);
         ASSERT_EQ(vertex->pos[1], info.m_Mesh->m_Positions[1]);
@@ -2017,7 +2016,9 @@ TEST_F(ModelTest, SharedModelBufferDrawRanges)
         TestShaderDesc shader("void main() {}");
         shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
         if (instanced)
+        {
             shader.AddInput("instance_world", 1, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+        }
         dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
         dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
         dmRender::SetMaterialVertexSpace(material, dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL);
@@ -2049,7 +2050,9 @@ TEST_F(ModelTest, SharedModelBufferDrawRanges)
             {
                 const dmRender::RenderObject& ro = *context->m_RenderObjects[j];
                 if (ro.m_VertexBufferOffsets[0] != buffers->m_VertexBufferOffset)
+                {
                     continue;
+                }
                 ASSERT_EQ(buffers->m_VertexBuffer, ro.m_VertexBuffers[0]);
                 ASSERT_EQ(buffers->m_IndexBuffer, ro.m_IndexBuffer);
                 ASSERT_EQ(buffers->m_IndexBufferOffset, ro.m_VertexStart);
@@ -2136,7 +2139,7 @@ class ModelBufferInstancingTest : public ModelTest
         {
             if (frame)
             {
-                ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::EnsureModelMeshData(m_Factory, first->m_Meshes[0].m_Buffers, first->m_Meshes[0].m_Mesh));
+                ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::LoadModelMeshData(m_Factory, first->m_Meshes[0].m_Buffers, first->m_Meshes[0].m_Mesh));
                 ASSERT_GT(first->m_Meshes[0].m_Mesh->m_Positions.m_Count, 0u);
                 ASSERT_EQ(0u, second->m_Meshes[0].m_Mesh->m_Positions.m_Count);
             }
@@ -2182,7 +2185,9 @@ class ModelBufferInstancingTest : public ModelTest
         dmResource::Release(m_Factory, first);
         dmResource::Release(m_Factory, second);
         if (override_material)
+        {
             dmRender::DeleteMaterial(m_RenderContext, override_material);
+        }
         dmRender::DeleteMaterial(m_RenderContext, material);
         dmGraphics::DeleteProgram(m_GraphicsContext, program);
     }
@@ -2220,7 +2225,7 @@ TEST_F(ModelTest, ModelBuffersSkinData)
     ASSERT_GT(model->m_Meshes.Size(), 0u);
     dmGameSystem::MeshInfo& info = model->m_Meshes[0];
     ASSERT_EQ(dmGameSystem::RIG_MODEL_VERTEX_FORMAT_SKINNED, info.m_Buffers->m_RigModelVertexFormat);
-    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::EnsureModelMeshData(m_Factory, info.m_Buffers, info.m_Mesh));
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::LoadModelMeshData(m_Factory, info.m_Buffers, info.m_Mesh));
     ASSERT_EQ(info.m_Buffers->m_VertexCount * 4, info.m_Mesh->m_BoneIndices.m_Count);
     ASSERT_EQ(info.m_Buffers->m_VertexCount * 4, info.m_Mesh->m_Weights.m_Count);
     const uint8_t* vertex_data = (const uint8_t*)dmGraphics::MapVertexBuffer(m_GraphicsContext, info.m_Buffers->m_VertexBuffer, dmGraphics::BUFFER_ACCESS_READ_ONLY);

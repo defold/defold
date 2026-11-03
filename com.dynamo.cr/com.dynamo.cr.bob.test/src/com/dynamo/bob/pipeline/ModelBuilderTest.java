@@ -227,7 +227,6 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         Model model = getMessage(outputs, Model.class);
         List<Material> materials = model.getMaterialsList();
 
-        assertEquals("", model.getRigScene());
         assertEquals("test_animation", model.getDefaultAnimation());
         assertEquals(-1, model.getMeshIndex());
 

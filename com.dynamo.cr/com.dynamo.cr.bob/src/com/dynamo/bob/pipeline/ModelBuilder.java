@@ -218,7 +218,6 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
 
         IResource resource = task.firstInput();
         Model.Builder model = Model.newBuilder();
-        model.setRigScene("");
         model.setBuffers(bufferPath);
         model.setMeshSet(ModelBuffers.metadata(ModelBuffers.selectMeshes(sourceGeometry, selectedMeshIndex), bufferGeometry));
         if(!modelDescBuilder.getSkeleton().isEmpty()) {

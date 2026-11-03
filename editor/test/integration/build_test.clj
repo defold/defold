@@ -155,7 +155,6 @@
                  :pb-class ModelProto$Model
                  :resource-fields [:buffers]
                  :test-fn (fn [pb targets]
-                            (is (= "" (:rig-scene pb)))
                             (is (= "" (:animation-set pb)))
                             (is (= "" (:skeleton pb)))
                             (is (= (murmur/hash64 "Book") (get-in pb [:mesh-set :models 0 :id])))
@@ -169,8 +168,6 @@
                             (let [animation-set (target (:animation-set pb) targets)
                                   mesh-set (:mesh-set pb)
                                   skeleton (target (:skeleton pb) targets)]
-                              (is (= "" (:rig-scene pb)))
-
                               (let [animations (-> animation-set :animations)]
                                 (is (= 2 (count animations)))
                                 (is (= #{(murmur/hash64 "treasure_chest")
@@ -196,7 +193,6 @@
                  :pb-class ModelProto$Model
                  :resource-fields [:buffers]
                  :test-fn (fn [pb targets]
-                            (is (= "" (:rig-scene pb)))
                             (is (contains? targets (:material (first (:materials pb)))))
                             (is (coll/empty? (:textures (first (:materials pb)))))
                             (is (< 2 (first-mesh-index-count pb targets))))}]})
