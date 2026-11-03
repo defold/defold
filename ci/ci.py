@@ -423,8 +423,8 @@ def install_ext(platform = None):
 
 
 def build_bob(channel, branch, args):
-    # sync_archive downloads the engine binaries this sha1 archived to S3 and archive_bob
-    # uploads the resulting jar. With --skip-archive neither runs and build_bob falls back
+    # sync_archive downloads public engine binaries through CloudFront and archive_bob
+    # uploads the resulting jar to S3. With --skip-archive neither runs and build_bob falls back
     # to the artifacts already in $DYNAMO_HOME, which is how a build without S3 credentials
     # (an external contribution, or a local build) gets a bob.jar.
     build_cmds = [] if args.skip_install_ext else ['install_ext']

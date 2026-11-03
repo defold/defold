@@ -3425,7 +3425,7 @@ class Configuration(object):
 # ------------------------------------------------------------
 
     def sync_archive(self):
-        """Download Bob's engine inputs; the editor downloads its archives separately."""
+        """Download Bob's engine inputs, using CloudFront for public archives."""
         u = urlparse(self.get_archive_path())
         bucket_name = u.hostname
         bucket = s3.get_bucket(bucket_name)
@@ -3436,9 +3436,9 @@ class Configuration(object):
         if not self.thread_pool:
             self.thread_pool = ThreadPool(8)
 
-        def download(obj, path):
-            self._log('s3://%s/%s -> %s' % (bucket_name, obj.key, path))
-            obj.download_file(path)
+        def download(key, path):
+            s3.download_archive_file(bucket_name, key, path)
+            self._log('Downloaded %s/%s -> %s' % (bucket_name, key, path))
 
         futures = []
         sha1 = self._git_sha1()
@@ -3463,7 +3463,7 @@ class Configuration(object):
             if not rel.endswith('/') and (rel in bob_artifacts or private_artifact):
                 p = os.path.join(local_dir, sha1, rel)
                 self._mkdirs(os.path.dirname(p))
-                f = Future(self.thread_pool, download, bucket.Object(obj_summary.key), p)
+                f = Future(self.thread_pool, download, obj_summary.key, p)
                 futures.append(f)
 
         for f in futures:
@@ -3873,7 +3873,7 @@ build_ext        - Build and install source dependencies for the host and target
 build_external   - Build external packages, optionally filtered with --package
 install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk
-sync_archive     - Download engine artifacts needed by Bob from S3
+sync_archive     - Download engine artifacts needed by Bob (public archives use CloudFront)
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
 build_editor2    - Build editor
