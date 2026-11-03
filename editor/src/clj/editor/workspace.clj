@@ -243,19 +243,16 @@ ordinary paths."
 (def ^:private editable-resource-type-map-update-fn (make-editable-resource-type-map-update-fn true))
 (def ^:private non-editable-resource-type-map-update-fn (make-editable-resource-type-map-update-fn false))
 
-(declare make-read-opts)
+(declare cached-read-opts!)
 
 (defn- default-search-value-fn
   [node-id resource {:keys [basis-ref] :as evaluation-context}]
-  (if (in/shell-node? (g/node-by-id @basis-ref node-id))
-    (let [workspace (resource/workspace resource)
-          read-opts (g/tx-cached-value! evaluation-context [:read-opts]
-                      (make-read-opts @basis-ref workspace :include-editor-dependencies true))]
-      (resource-io/read-source-value! read-opts node-id resource evaluation-context))
-    (let [save-value (g/node-value node-id :save-value evaluation-context)]
-      (if (g/error-value? save-value)
-        (g/node-value node-id :source-value evaluation-context)
-        save-value))))
+  (let [read-opts (cached-read-opts! (resource/workspace resource) evaluation-context)
+        save-value (resource-io/evaluate-or-read-save-value! read-opts node-id resource evaluation-context)]
+    (if (and (g/error-value? save-value)
+             (not (in/shell-node? (g/node-by-id @basis-ref node-id))))
+      (g/node-value node-id :source-value evaluation-context)
+      save-value)))
 
 (defn register-resource-type
   "Register new resource type to be handled by the editor
@@ -636,6 +633,13 @@ ordinary paths."
       :proj-path->resource-type proj-path->resource-type
       :resolve-proj-path-fn resolve-proj-path-fn
       :template-resource-fn template-resource-fn)))
+
+(defn cached-read-opts!
+  "Returns the evaluation context's shared read options, including editor
+  dependencies."
+  [workspace {:keys [basis-ref] :as evaluation-context}]
+  (g/tx-cached-value! evaluation-context [:read-opts]
+    (make-read-opts @basis-ref workspace :include-editor-dependencies true)))
 
 (defn template-resource [basis workspace resource-type consider-user-resource]
   (let [proj-path->resource (g/raw-property-value basis workspace :resource-map)]

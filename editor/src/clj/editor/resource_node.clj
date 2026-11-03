@@ -86,11 +86,6 @@
         dirty (dirty-save-value? save-value source-value resource-type)]
     (make-save-data _node-id resource save-value dirty)))
 
-(g/defnk produce-source-value [_node-id resource ^:try source-value]
-  (if (resource/exists? resource)
-    source-value
-    (resource-io/file-not-found-error _node-id :source-value :fatal resource)))
-
 (defn merge-source-values [node-id+source-value-pairs]
   (g/non-undoable
     (coll/into-> node-id+source-value-pairs :eduction
@@ -140,9 +135,11 @@
   ;; Disk state is updated non-undoably when reading, loading or saving.
   (property disk-sha256 g/Str :unjammable
             (dynamic visible (g/constantly false)))
+
   (property source-value g/Any :unjammable
-            (value produce-source-value)
-            (dynamic visible (g/constantly false)))
+            (dynamic visible (g/constantly false))
+            (value (g/fnk [_node-id resource ^:try source-value]
+                     (resource-io/guarded-source-value _node-id resource source-value))))
 
   (output save-data g/Any :cached produce-save-data)
   (output save-value g/Any (g/constantly nil))
@@ -288,17 +285,15 @@
    (some->> (owner-resource-node-id basis node-id)
             (resource basis))))
 
-(defn- prerequisite-proj-paths [node-id resource read-opts {:keys [basis-ref] :as evaluation-context}]
+(defn- prerequisite-proj-paths [node-id resource read-opts evaluation-context]
   (let [{:keys [editable->type-ext->resource-type]} read-opts
         {:keys [read-fn prerequisites-fn]} (resource/lookup-resource-type resource editable->type-ext->resource-type)]
     (when (and read-fn prerequisites-fn)
       (let [prerequisite-proj-paths
             (resource-io/with-error-translation resource node-id nil
               (let [source-value
-                    (if-not (loaded? @basis-ref node-id)
-                      (resource-io/read-source-value! read-opts node-id resource evaluation-context)
-                      (or (g/node-value node-id :save-value evaluation-context)
-                          (g/node-value node-id :source-value evaluation-context)))]
+                    (or (resource-io/evaluate-or-read-save-value! read-opts node-id resource evaluation-context)
+                        (g/node-value node-id :source-value evaluation-context))]
                 (when (and (some? source-value)
                            (not (g/error? source-value)))
                   (vec (prerequisites-fn read-opts resource source-value)))))]
@@ -312,7 +307,7 @@
   (when-not (coll/empty? resources)
     (let [basis @basis-ref
           workspace (resource/workspace (first resources))
-          {:keys [proj-path->resource] :as read-opts} (workspace/make-read-opts basis workspace :include-editor-dependencies true)
+          {:keys [proj-path->resource] :as read-opts} (workspace/cached-read-opts! workspace evaluation-context)
           proj-path->resource-node-id (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context)
 
           proj-path->referencing-resource-node-ids

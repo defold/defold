@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.localization :as localization]
             [editor.resource :as resource]
+            [internal.node :as in]
             [util.path :as path])
   (:import [java.io FileNotFoundException]))
 
@@ -58,6 +59,11 @@
      (catch Exception e#
        (invalid-content-error ~node-id ~label :fatal ~resource e#))))
 
+(defn guarded-source-value [node-id resource source-value]
+  (if (resource/exists? resource)
+    source-value
+    (file-not-found-error node-id :source-value :fatal resource)))
+
 (defn read-source-value!
   "Returns an unmaterialized resource node's cached source-value, or reads it
   and initializes source-value and disk-sha256 on the ShellNode. Read failures
@@ -66,16 +72,26 @@
   {:pre [(g/node-id? node-id)
          (resource/resource? resource)]}
   (with-error-translation resource node-id :source-value
-    (or (g/node-value node-id :source-value evaluation-context)
-        (let [{:keys [editable->type-ext->resource-type]} read-opts
-              {:keys [read-fn]} (resource/lookup-resource-type resource editable->type-ext->resource-type)]
-          (when read-fn
-            (let [read-stream-fn #(read-fn read-opts resource %)
-                  [source-value disk-sha256] (resource/read-source-value+sha256-hex resource read-stream-fn)
-                  shell-node-properties {:source-value source-value
-                                         :disk-sha256 disk-sha256}]
-              (g/initialize-shell-properties! node-id shell-node-properties evaluation-context)
-              source-value))))))
+    (let [{:keys [basis-ref]} evaluation-context
+          source-value (g/raw-property-value @basis-ref node-id :source-value)]
+      (or (guarded-source-value node-id resource source-value)
+          (let [{:keys [editable->type-ext->resource-type]} read-opts
+                {:keys [read-fn]} (resource/lookup-resource-type resource editable->type-ext->resource-type)]
+            (when read-fn
+              (let [read-stream-fn #(read-fn read-opts resource %)
+                    [source-value disk-sha256] (resource/read-source-value+sha256-hex resource read-stream-fn)
+                    shell-node-properties {:source-value source-value
+                                           :disk-sha256 disk-sha256}]
+                (g/initialize-shell-properties! node-id shell-node-properties evaluation-context)
+                source-value)))))))
+
+(defn evaluate-or-read-save-value!
+  "Returns the node's current save-value if it is materialized, or reads its
+  source-value without materializing it."
+  [read-opts node-id resource {:keys [basis-ref] :as evaluation-context}]
+  (if (in/shell-node? (g/node-by-id @basis-ref node-id))
+    (read-source-value! read-opts node-id resource evaluation-context)
+    (g/node-value node-id :save-value evaluation-context)))
 
 (defn with-translated-error-thrown!
   "Takes a value returned from the with-error-translation macro and throws a

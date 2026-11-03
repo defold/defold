@@ -21,7 +21,6 @@
             [editor.resource-node :as resource-node]
             [editor.types :as types]
             [editor.workspace :as workspace]
-            [internal.node :as in]
             [schema.core :as s]
             [util.eduction :as e]
             [util.text-util :as text-util])
@@ -72,14 +71,9 @@
 ;; dirty detection.
 (def source-value-fn hash)
 
-(defn search-value-fn [node-id resource {:keys [basis-ref] :as evaluation-context}]
-  (let [loaded-lines
-        (if-not (in/shell-node? (g/node-by-id @basis-ref node-id))
-          (g/node-value node-id :save-value evaluation-context)
-          (let [workspace (resource/workspace resource)
-                read-opts (g/tx-cached-value! evaluation-context [:read-opts]
-                            (workspace/make-read-opts @basis-ref workspace :include-editor-dependencies true))]
-            (resource-io/read-source-value! read-opts node-id resource evaluation-context)))]
+(defn search-value-fn [node-id resource evaluation-context]
+  (let [read-opts (workspace/cached-read-opts! (resource/workspace resource) evaluation-context)
+        loaded-lines (resource-io/evaluate-or-read-save-value! read-opts node-id resource evaluation-context)]
     (if (g/error-value? loaded-lines)
       loaded-lines
       {:resource resource

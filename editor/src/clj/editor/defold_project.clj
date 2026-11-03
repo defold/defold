@@ -1232,8 +1232,7 @@
         workspace (resource/workspace resource)
         project (get-project @basis-ref)
         nodes-by-resource-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context)
-        read-opts (g/tx-cached-value! evaluation-context [:read-opts]
-                    (workspace/make-read-opts @basis-ref workspace :include-editor-dependencies true))
+        read-opts (workspace/cached-read-opts! workspace evaluation-context)
         load-opts (g/tx-cached-value! evaluation-context [:load-opts]
                     (make-load-opts-in-evaluation-context project evaluation-context))
 
@@ -1384,6 +1383,7 @@
                            (let [resource-type (resource/resource-type resource)]
                              (when (and (:write-fn resource-type)
                                         (not (code.resource/code-resource-type? resource-type)))
+                               ;; Upgrades must apply load-time migrations.
                                (let [save-value (g/node-value node-id :save-value evaluation-context)]
                                  (when-not (g/error-value? save-value)
                                    (resource-node/make-save-data node-id resource save-value true)))))))))
@@ -1642,7 +1642,7 @@
                     (let [resource (g/valid-node-value old-node-id :resource old-evaluation-context)]
                       (du/measuring resource-metrics (resource/proj-path resource) :find-old-reload-dependencies
                         (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
-                          (let [save-value (g/node-value old-node-id :save-value old-evaluation-context)]
+                          (let [save-value (resource-io/evaluate-or-read-save-value! read-opts old-node-id resource old-evaluation-context)]
                             (when-not (g/error? save-value)
                               (dependencies-fn read-opts resource save-value)))))))))
 

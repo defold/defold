@@ -315,7 +315,7 @@
                                       node-load-infos (project/read-nodes (g/now) [[node-id resource]] :force-read true)]
                                   (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {:undoable false}))))
 
-                          error-value (g/node-value node-id :build-targets)]
+                          error-value (log/without-logging (g/node-value node-id :build-targets))]
                       {:defective (g/defective? node-id)
                        :error-value (g/error-value? error-value)
                        :exception-type (type (-> error-value :user-data :exception))

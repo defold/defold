@@ -23,6 +23,7 @@
             [editor.defold-project-search :as project-search]
             [editor.progress :as progress]
             [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
@@ -252,6 +253,26 @@
           (workspace/resource-sync! workspace)
           (let [project (test-util/setup-project! workspace)]
             (test-fn project workspace load-fn-calls)))))))
+
+;; A shell read leaves the node unmaterialized. Once the same evaluation
+;; context materializes it, the nil save-value supersedes the retained source.
+(deftest evaluate-or-read-save-value-test
+  (call-with-prerequisite-project
+    {"/value.prereq" {:value 42}}
+    fn/constantly-nil
+    (fn check-save-value [project workspace _load-fn-calls]
+      (g/with-auto-evaluation-context evaluation-context
+        (let [{:keys [basis-ref]} evaluation-context
+              node-id (project/get-resource-node project "/value.prereq" evaluation-context)
+              resource (resource-node/resource @basis-ref node-id)
+              read-opts (workspace/make-read-opts @basis-ref workspace)]
+          (is (= {:value 42} (resource-io/evaluate-or-read-save-value! read-opts node-id resource evaluation-context)))
+          (is (= {:value 42}
+                 (resource-io/evaluate-or-read-save-value! read-opts node-id resource (g/dry-run-evaluation-context evaluation-context))))
+          (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))
+          (is (= 42 (g/node-value node-id :result evaluation-context)))
+          (is (= {:value 42} (g/node-value node-id :source-value evaluation-context)))
+          (is (nil? (resource-io/evaluate-or-read-save-value! read-opts node-id resource evaluation-context))))))))
 
 ;; Reverse materialization follows prerequisite chains while leaving ordinary
 ;; dependents and unrelated resources, including broken ones, unmaterialized.

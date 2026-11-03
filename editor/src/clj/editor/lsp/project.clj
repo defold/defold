@@ -20,6 +20,7 @@
             [editor.defold-project :as defold-project]
             [editor.lsp.server :as lsp.server]
             [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.util :as util]
             [editor.workspace :as workspace]
@@ -75,6 +76,8 @@
   (if (coll/empty? owner-root-ids)
     []
     (let [{:keys [basis-ref]} evaluation-context
+          workspace (defold-project/workspace project evaluation-context)
+          read-opts (workspace/cached-read-opts! workspace evaluation-context)
           replacement-start (- character (count url-content))]
       (->> (g/node-value project :nodes-by-resource-path evaluation-context)
            (e/mapcat (fn [[_ node-id]]
@@ -94,7 +97,9 @@
            (e/mapcat (fn [go-instance-id]
                        (let [source-id (g/node-value go-instance-id :source-id evaluation-context)
                              url (g/node-value go-instance-id :url evaluation-context)
-                             save-value (g/node-value source-id :save-value evaluation-context)]
+                             save-value (when source-id
+                                          (let [resource (resource-node/resource @basis-ref source-id)]
+                                            (resource-io/evaluate-or-read-save-value! read-opts source-id resource evaluation-context)))]
                          (e/cons
                            url
                            (e/map #(str url "#" (:id %))
