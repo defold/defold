@@ -256,7 +256,8 @@ def bobStrippableArtifacts = { ->
         (path ==~ /lib\/(arm64|x86_64)-linux\/lib(dlib|fontc|modelc|shaderc|texc)_shared\.so/ ||
                 path ==~ /libexec\/(arm64|x86_64)-linux\/(luajit-64|libogg\.so|liboggz\.so|oggz-validate)/ ||
                 path ==~ /libexec\/(arm64|x86_64)-(linux|macos)\/lipo/ ||
-                path == "libexec/x86_64-win32/lipo.exe") && artifact.source.isFile()
+                path == "libexec/x86_64-win32/lipo.exe" ||
+                path == "libexec/x86_64-linux/zipalign") && artifact.source.isFile()
     }.collectEntries { path, artifact -> [(path): artifact.source] }
 }
 def stripToolName = hostPlatform.endsWith('win32') ? 'strip_android.exe' : 'strip_android'
