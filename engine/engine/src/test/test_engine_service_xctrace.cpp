@@ -27,7 +27,9 @@ static char g_CompletionMessage[4096];
 static void CaptureCompletionMessage(LogSeverity, const char*, const char* message)
 {
     if (strstr(message, "Native trace complete:") || strstr(message, "Open in Instruments:"))
+    {
         dmStrlCat(g_CompletionMessage, message, sizeof(g_CompletionMessage));
+    }
 }
 
 class XcTraceTest : public jc_test_base_class
@@ -69,32 +71,38 @@ class XcTraceTest : public jc_test_base_class
                 free(m_Environment[i]);
             }
             else
+            {
                 unsetenv(Variable(i));
+            }
         }
     }
     void WaitForCompletion()
     {
         pthread_mutex_lock(&dmEngineService::g_TraceMutex);
         while (dmEngineService::IsBusy())
+        {
             pthread_cond_wait(&dmEngineService::g_TraceCondition, &dmEngineService::g_TraceMutex);
+        }
         pthread_mutex_unlock(&dmEngineService::g_TraceMutex);
     }
 };
 
 // Power is converted from milliwatts to watts; impact belongs only to the requested PID.
+// Missing per-process impact must preserve system power without inventing a zero impact.
 TEST_F(XcTraceTest, EnergySamples)
 {
     const char data[] =
-    "<?xml version=\"1.0\"?><plist version=\"1.0\"><dict>"
-    "<key>elapsed_ns</key><integer>500000000</integer>"
-    "<key>processor</key><dict>"
-    "<key>cpu_power</key><real>1250</real>"
-    "<key>gpu_power</key><real>750</real>"
-    "<key>ane_power</key><real>0</real></dict>"
-    "<key>tasks</key><array>"
-    "<dict><key>pid</key><integer>111</integer><key>energy_impact_per_s</key><real>99</real></dict>"
-    "<dict><key>pid</key><integer>222</integer><key>energy_impact_per_s</key><real>1.5</real></dict>"
-    "</array></dict></plist>";
+        "<?xml version=\"1.0\"?><plist version=\"1.0\"><dict>"
+        "<key>elapsed_ns</key><integer>500000000</integer>"
+        "<key>processor</key><dict>"
+        "<key>cpu_power</key><real>1250</real>"
+        "<key>gpu_power</key><real>750</real>"
+        "<key>ane_power</key><real>0</real></dict>"
+        "<key>tasks</key><array>"
+        "<dict><key>pid</key><integer>111</integer><key>energy_impact_per_s</key><real>99</real></dict>"
+        "<dict><key>pid</key><integer>222</integer><key>energy_impact_per_s</key><real>1.5</real></dict>"
+        "<dict><key>pid</key><integer>333</integer></dict>"
+        "</array></dict></plist>";
     dmEngineService::EnergySample sample;
     ASSERT_TRUE(dmEngineService::ParseEnergySample((const uint8_t*)data, sizeof(data) - 1, 222, &sample));
     ASSERT_EQ(500000000ULL, sample.m_Window);
@@ -102,8 +110,13 @@ TEST_F(XcTraceTest, EnergySamples)
     ASSERT_EQ(1.25, sample.m_Power[0]);
     ASSERT_EQ(0.75, sample.m_Power[1]);
     ASSERT_EQ(0.0, sample.m_Power[2]);
+    ASSERT_TRUE(sample.m_HasImpact);
     ASSERT_EQ(1.5, sample.m_Impact);
-    ASSERT_FALSE(dmEngineService::ParseEnergySample((const uint8_t*)data, sizeof(data) - 1, 333, &sample));
+    ASSERT_TRUE(dmEngineService::ParseEnergySample((const uint8_t*)data, sizeof(data) - 1, 333, &sample));
+    ASSERT_FALSE(sample.m_HasImpact);
+    ASSERT_EQ(7U, sample.m_Components);
+    ASSERT_TRUE(dmEngineService::ParseEnergySample((const uint8_t*)data, sizeof(data) - 1, 444, &sample));
+    ASSERT_FALSE(sample.m_HasImpact);
     ASSERT_FALSE(dmEngineService::ParseEnergySample((const uint8_t*)"invalid", 7, 222, &sample));
     dmEngineService::XcTraceParams params;
     ASSERT_TRUE(params.m_Energy);

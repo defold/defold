@@ -21,7 +21,6 @@
             [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.process :as process]
-            [editor.profiler-xctrace :as profiler-xctrace]
             [editor.protobuf :as protobuf]
             [editor.system :as system]
             [service.log :as log]
@@ -32,7 +31,7 @@
            [com.dynamo.resource.proto Resource$Reload]
            [com.dynamo.system.proto System$Exit]
            [java.io BufferedReader File IOException InputStream]
-           [java.net HttpURLConnection InetSocketAddress Socket URI URLEncoder]
+           [java.net HttpURLConnection InetSocketAddress Socket URI]
            [java.util UUID]
            [java.util.zip ZipEntry ZipFile]))
 
@@ -98,23 +97,6 @@
     (try
       (with-open [is (.getInputStream conn)]
         (json/read-str (slurp is) :key-fn keyword))  ;; Read and return the response
-      (finally
-        (.disconnect conn)))))
-
-(defn start-native-trace! [target delay-ms duration-ms include-energy output-directory]
-  (let [uri (URI. (str (:url target) "/profiler/trace"))
-        conn ^HttpURLConnection (get-connection uri)]
-    (try
-      (.setRequestProperty conn "Content-Type" "application/x-www-form-urlencoded")
-      (with-open [out (io/writer (.getOutputStream conn) :encoding "UTF-8")]
-        (.write out (cond-> (str "delay_ms=" delay-ms "&duration_ms=" duration-ms "&energy=" (if include-energy "1" "0"))
-                      (not (str/blank? output-directory))
-                      (str "&path=" (URLEncoder/encode (str output-directory "/") "UTF-8")))))
-      (let [status (.getResponseCode conn)]
-        (cond-> {:status status}
-          (= 202 status)
-          (assoc :trace (with-open [in (.getInputStream conn)]
-                          (json/read-str (slurp in :encoding "UTF-8") :key-fn keyword)))))
       (finally
         (.disconnect conn)))))
 
@@ -359,7 +341,7 @@
       (log/warn :message "Unable to create player window state directory" :exception error)
       nil)))
 
-(defn launch! [^File engine project-directory prefs debug instance-index focus]
+(defn launch! [^File engine project-directory prefs debug instance-index focus extra-env]
   (let [defold-log-dir (some-> (system/defold-log-dir)
                                (File.)
                                (.getAbsolutePath))
@@ -398,7 +380,7 @@
              "MESA_LOADER_DRIVER_OVERRIDE" nil}
         opts {:dir project-directory
               :err :stdout
-              :env (merge env (profiler-xctrace/launch-environment prefs))
+              :env (merge env extra-env)
               :windows-default-error-mode true}
         ;; Closing "is" seems to cause any dmengine output to stdout/err
         ;; to generate SIGPIPE and close/crash. Also, we need to read

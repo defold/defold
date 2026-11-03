@@ -57,10 +57,10 @@ namespace dmEngineService
         uint32_t    m_DurationMs; // Zero records until StopXcTrace or engine shutdown.
         bool        m_Energy;     // Collect powermetrics samples with administrator authorization.
         XcTraceParams()
-            : m_Path(0)
-            , m_DelayMs(0)
-            , m_DurationMs(5000)
-            , m_Energy(true)
+        : m_Path(0)
+        , m_DelayMs(0)
+        , m_DurationMs(5000)
+        , m_Energy(true)
         {
         }
     };
@@ -84,15 +84,21 @@ namespace dmEngineService
     static inline bool ParseTraceTime(const char* text, uint32_t* value)
     {
         if (!text[0])
+        {
             return false;
+        }
         uint64_t number = 0;
         for (const char* p = text; *p; ++p)
         {
             if (*p < '0' || *p > '9')
+            {
                 return false;
+            }
             number = number * 10 + (*p - '0');
             if (number > UINT32_MAX)
+            {
                 return false;
+            }
         }
         *value = (uint32_t)number;
         return true;

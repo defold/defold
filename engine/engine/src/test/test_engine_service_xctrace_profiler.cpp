@@ -52,7 +52,9 @@ static bool TestSignpostEnabled(os_log_t)
 static void TestSignpost(uint32_t type, os_signpost_id_t id, const char* name, const char* format, ...)
 {
     if (!g_Recording || id == OS_SIGNPOST_ID_NULL)
+    {
         return;
+    }
     DM_MUTEX_SCOPED_LOCK(g_EventMutex);
     assert(g_EventCount < sizeof(g_Events) / sizeof(g_Events[0]));
     NativeEvent* event = &g_Events[g_EventCount++];
@@ -67,9 +69,13 @@ static void TestSignpost(uint32_t type, os_signpost_id_t id, const char* name, c
     for (const char* cursor = format; *cursor; ++cursor)
     {
         if (strncmp(cursor, "{public}", 8) == 0)
+        {
             cursor += 7;
+        }
         else
+        {
             printf_format[length++] = *cursor;
+        }
     }
     printf_format[length] = 0;
     va_list args;
@@ -137,7 +143,9 @@ class NativeProfilerTest : public jc_test_base_class
         for (uint32_t i = 0; i < g_EventCount; ++i)
         {
             if (strcmp(g_Events[i].m_Name, name) == 0 && strcmp(g_Events[i].m_Text, text) == 0 && occurrence-- == 0)
+            {
                 return &g_Events[i];
+            }
         }
         return 0;
     }
@@ -258,16 +266,22 @@ TEST_F(NativeProfilerTest, StartupResourceText)
 TEST_F(NativeProfilerTest, RecursiveScopes)
 {
     for (uint32_t i = 0; i < 96; ++i)
+    {
         ProfileScopeBegin("/same/resource.texturec", 0);
+    }
     for (uint32_t i = 0; i < 96; ++i)
+    {
         ProfileScopeEnd("/same/resource.texturec", 0);
+    }
     ASSERT_EQ(192u, g_EventCount);
     for (uint32_t i = 0; i < 96; ++i)
     {
         ASSERT_EQ(g_Events[i].m_Id, g_Events[191 - i].m_Id);
         ASSERT_NE(OS_SIGNPOST_ID_NULL, g_Events[i].m_Id);
         for (uint32_t j = 0; j < i; ++j)
+        {
             ASSERT_NE(g_Events[i].m_Id, g_Events[j].m_Id);
+        }
     }
 }
 
@@ -332,7 +346,9 @@ TEST_F(NativeProfilerTest, WorkerThreads)
     for (uint32_t i = 0; i < g_EventCount; ++i)
     {
         if (g_Events[i].m_Type != 1)
+        {
             continue;
+        }
         ++begins;
         uint32_t ends = 0;
         for (uint32_t j = i + 1; j < g_EventCount; ++j)

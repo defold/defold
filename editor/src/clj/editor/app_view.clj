@@ -974,13 +974,14 @@
   (try
     (report-build-launch-progress! (localization/message "progress.launching-engine"))
     (let [engine (engine/install-engine! project-directory engine-descriptor)
+          env (profiler-xctrace/launch-environment prefs)
           count (prefs/get prefs [:run :instance-count])
           pause-ms 100
           instance-index-range (if (= count 1) (range (inc 0)) (range 1 (inc count)))
           launched-targets (for [instance-index instance-index-range]
                              (let [last-instance? (or (= count 1) (= instance-index count))
                                    instance-debug (and debug last-instance?)
-                                   launched-target (->> (engine/launch! engine project-directory prefs instance-debug instance-index focus)
+                                   launched-target (->> (engine/launch! engine project-directory prefs instance-debug instance-index focus env)
                                                         (decorate-target engine-descriptor)
                                                         (targets/add-launched-target! prefs instance-index))]
                                (when (not last-instance?)
@@ -994,7 +995,7 @@
       (report-build-launch-progress! (localization/message "progress.engine-launch-failed"))
       (throw e))))
 
-(defn- make-launched-log-sink [launched-target on-service-url-found prefs]
+(defn- make-launched-log-sink [launched-target on-service-url-found]
   (let [version-line (atom nil)
         updated-target (atom nil)]
     (fn [line]
@@ -1018,8 +1019,7 @@
                   (Thread/sleep step-ms)
                   (recur)))))))
       (when (console/current-stream? (:log-stream launched-target))
-        (console/append-console-line! line))
-      (profiler-xctrace/open-completed-trace! prefs line))))
+        (console/append-console-line! line)))))
 
 (defn- reboot-engine! [target web-server debug focus]
   (try
@@ -1063,7 +1063,9 @@
                                                      (on-launched-hook! project (:process launched-target) url)))
                                  (console/start-log-pump!
                                    (:log-stream launched-target)
-                                   (make-launched-log-sink launched-target (partial on-service-url-found prefs) prefs)))
+                                   (profiler-xctrace/wrap-log-sink
+                                     prefs
+                                     (make-launched-log-sink launched-target (partial on-service-url-found prefs)))))
                                last-launched-target))]
     (try
       {:target
@@ -1084,7 +1086,9 @@
          :else
          (do
            (assert (and (targets/controllable-target? selected-target) (targets/launched-target? selected-target)))
-           (if (= (:id engine-descriptor) (:engine-id selected-target))
+           (if (and (= (:id engine-descriptor) (:engine-id selected-target))
+                    (not (and (os/is-mac-os?)
+                              (prefs/get prefs [:profile :xctrace :enabled]))))
              (do
                ;; We're running "the same" engine and can reuse the
                ;; running process by rebooting

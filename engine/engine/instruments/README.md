@@ -54,7 +54,7 @@ picker. Startup and Debug-menu recordings save the trace, instrument package and
 recorder log there, with a unique name for each recording. Leave the field empty
 to use `~/Library/Logs/<bundle-id>/Profiling/` on the engine's Mac.
 
-When an executable is found, the panel shows **Enable**, **Delay (ms)** (default
+When an executable is found, the panel shows **Run on start**, **Delay (ms)** (default
 `0`) and **Duration (ms)** (default `5000`). Times are nonnegative integer
 milliseconds; duration `0` records until stopped. Enabled launches pass these
 settings through the engine environment:
@@ -83,14 +83,14 @@ After a successful recording, the Console prints an `open -a Instruments` comman
 with the saved trace path. The Python runner prints the same command after saving.
 Check **Open in Instruments when finished** to have the editor open completed
 local traces automatically. This defaults to off and applies to both startup and
-Debug-menu recordings, independently of the startup **Enable** checkbox.
+Debug-menu recordings, independently of the **Run on start** checkbox.
 Very short recordings may contain few or no events from Instruments; prefer the
 five-second default when inspecting startup work.
 
 To record during a run, select the running macOS engine under **Project → Target**
 and choose **Debug → Profiler → XcTrace**. This uses the current delay, duration and
 energy setting from **Preferences → Profile → macOS → XcTrace**, independently of the startup
-**Enable** checkbox. The editor shows the requested output path, or a busy message
+**Run on start** checkbox. The editor shows the requested output path, or a busy message
 if a capture is already pending, recording, or saving. Recording errors are also
 reported in the engine Console. With duration `0`, use the DELETE request below
 or close the engine to stop and save the recording.

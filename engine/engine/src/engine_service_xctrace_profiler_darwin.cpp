@@ -38,7 +38,7 @@ namespace dmEngineService
 
     struct NativeThread
     {
-        NativeThread*            m_Next;
+        NativeThread*             m_Next;
         dmArray<os_signpost_id_t> m_Scopes;
         os_signpost_id_t          m_Frame;
     };
@@ -49,9 +49,9 @@ namespace dmEngineService
         dmMutex::HMutex  m_Mutex;
         dmThread::TlsKey m_ThreadKey;
         // Thread states are owned by the session, including states of exited threads.
-        NativeThread*  m_Threads;
-        uint32_t       m_PropertyCount;
-        NativeProperty m_Properties[PROFILER_MAX_NUM_PROPERTIES];
+        NativeThread*    m_Threads;
+        uint32_t         m_PropertyCount;
+        NativeProperty   m_Properties[PROFILER_MAX_NUM_PROPERTIES];
     };
 
     static ProfileListener g_NativeListener;
@@ -78,12 +78,16 @@ namespace dmEngineService
         XcTraceProfiler* xctrace = (XcTraceProfiler*)context;
         NativeThread*    thread = GetThread(xctrace);
         if (thread->m_Scopes.Full())
+        {
             thread->m_Scopes.OffsetCapacity(64);
+        }
         os_signpost_id_t id = os_signpost_id_generate(xctrace->m_Log);
         // Keep disabled begins on the stack if recording starts inside a scope.
         thread->m_Scopes.Push(id);
         if (id != OS_SIGNPOST_ID_NULL)
+        {
             os_signpost_interval_begin(xctrace->m_Log, id, "Scope", "%{public}s", name);
+        }
         return PROFILE_RESULT_OK;
     }
 
@@ -97,7 +101,9 @@ namespace dmEngineService
             os_signpost_id_t id = thread->m_Scopes.Back();
             thread->m_Scopes.Pop();
             if (id != OS_SIGNPOST_ID_NULL)
+            {
                 os_signpost_interval_end(xctrace->m_Log, id, "Scope");
+            }
         }
         return PROFILE_RESULT_OK;
     }
@@ -126,7 +132,9 @@ namespace dmEngineService
         property->m_Parent = parent;
         property->m_Default = property->m_Value = value;
         if (xctrace->m_PropertyCount <= idx)
+        {
             xctrace->m_PropertyCount = idx + 1;
+        }
     }
 
     static void NativeCreateGroup(void* context, const char* name, const char* desc, ProfileIdx idx, ProfileIdx parent)
@@ -183,7 +191,9 @@ namespace dmEngineService
         for (uint32_t i = idx + 1; i < xctrace->m_PropertyCount; ++i)
         {
             if (xctrace->m_Properties[i].m_Parent == idx)
+            {
                 NativeResetProperty(xctrace, i);
+            }
         }
     }
 
@@ -199,28 +209,44 @@ namespace dmEngineService
         switch (property->m_Type)
         {
             case PROFILE_PROPERTY_TYPE_BOOL:
+            {
                 os_signpost_event_emit(log, OS_SIGNPOST_ID_EXCLUSIVE, "Counter", "%{public}s = %d", property->m_Name, property->m_Value.m_Bool);
                 break;
+            }
             case PROFILE_PROPERTY_TYPE_S32:
+            {
                 os_signpost_event_emit(log, OS_SIGNPOST_ID_EXCLUSIVE, "Counter", "%{public}s = %d", property->m_Name, property->m_Value.m_S32);
                 break;
+            }
             case PROFILE_PROPERTY_TYPE_U32:
+            {
                 os_signpost_event_emit(log, OS_SIGNPOST_ID_EXCLUSIVE, "Counter", "%{public}s = %u", property->m_Name, property->m_Value.m_U32);
                 break;
+            }
             case PROFILE_PROPERTY_TYPE_S64:
+            {
                 os_signpost_event_emit(log, OS_SIGNPOST_ID_EXCLUSIVE, "Counter", "%{public}s = %lld", property->m_Name, (long long)property->m_Value.m_S64);
                 break;
+            }
             case PROFILE_PROPERTY_TYPE_U64:
+            {
                 os_signpost_event_emit(log, OS_SIGNPOST_ID_EXCLUSIVE, "Counter", "%{public}s = %llu", property->m_Name, (unsigned long long)property->m_Value.m_U64);
                 break;
+            }
             case PROFILE_PROPERTY_TYPE_F32:
+            {
                 os_signpost_event_emit(log, OS_SIGNPOST_ID_EXCLUSIVE, "Counter", "%{public}s = %f", property->m_Name, property->m_Value.m_F32);
                 break;
+            }
             case PROFILE_PROPERTY_TYPE_F64:
+            {
                 os_signpost_event_emit(log, OS_SIGNPOST_ID_EXCLUSIVE, "Counter", "%{public}s = %f", property->m_Name, property->m_Value.m_F64);
                 break;
+            }
             default:
+            {
                 break;
+            }
         }
     }
 
@@ -230,7 +256,9 @@ namespace dmEngineService
         NativeThread*    thread = GetThread(xctrace);
         thread->m_Frame = os_signpost_id_generate(xctrace->m_Log);
         if (thread->m_Frame != OS_SIGNPOST_ID_NULL)
+        {
             os_signpost_interval_begin(xctrace->m_Log, thread->m_Frame, "Frame");
+        }
         return PROFILE_RESULT_OK;
     }
 
@@ -239,7 +267,9 @@ namespace dmEngineService
         XcTraceProfiler* xctrace = (XcTraceProfiler*)context;
         NativeThread*    thread = GetThread(xctrace);
         if (thread->m_Frame != OS_SIGNPOST_ID_NULL)
+        {
             os_signpost_interval_end(xctrace->m_Log, thread->m_Frame, "Frame");
+        }
         thread->m_Frame = OS_SIGNPOST_ID_NULL;
 
         DM_MUTEX_SCOPED_LOCK(xctrace->m_Mutex);
@@ -248,9 +278,13 @@ namespace dmEngineService
         {
             NativeProperty* property = &xctrace->m_Properties[i];
             if (enabled)
+            {
                 NativeCounter(xctrace->m_Log, property);
+            }
             if (property->m_Flags & PROFILE_PROPERTY_FRAME_RESET)
+            {
                 property->m_Value = property->m_Default;
+            }
         }
         return PROFILE_RESULT_OK;
     }
@@ -288,9 +322,13 @@ namespace dmEngineService
     bool EnableXcTraceProfiler()
     {
         if (!ProfileIsInitialized())
+        {
             return false;
+        }
         if (g_NativeRegistered)
+        {
             return true;
+        }
         memset(&g_NativeListener, 0, sizeof(g_NativeListener));
         g_NativeListener.m_Create = CreateXcTraceProfiler;
         g_NativeListener.m_Destroy = DestroyXcTraceProfiler;
@@ -333,8 +371,12 @@ namespace dmEngineService
 #endif
         const char* enable = dmSys::GetEnv("DM_PROFILE_NATIVE_ENABLE");
         if (enable)
+        {
             enabled = strcmp(enable, "1") == 0;
+        }
         if (enabled)
+        {
             EnableXcTraceProfiler();
+        }
     }
 } // namespace dmEngineService

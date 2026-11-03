@@ -76,7 +76,7 @@
         </column>
     </point-schema>
 
-    <!-- These samples are emitted by the macOS capture helper, not the engine.
+    <!-- Samples are emitted by the engine recorder or standalone capture helper.
          Power is a machine-wide estimate averaged over the preceding window. -->
     <os-signpost-point-schema>
         <id>defold-system-power</id>

@@ -1000,13 +1000,10 @@
                {:label stop-debugger-label
                 :command :debugger.stop}
                {:label :separator}
-               {:label (localization/message "menu.debug.profiler")
-                :children [{:label (localization/message "command.run.open-profiler")
-                            :command :run.open-profiler}
-                           {:label (localization/message "command.run.open-resource-profiler")
-                            :command :run.open-resource-profiler}
-                           {:label (localization/message "command.run.start-native-trace")
-                            :command :run.start-native-trace}]}
+               {:label (localization/message "command.run.open-profiler")
+                :command :run.open-profiler}
+               {:label (localization/message "command.run.open-resource-profiler")
+                :command :run.open-resource-profiler}
                {:label :separator}
                {:label (localization/message "command.run.reset-resolution")
                 :command :run.reset-resolution}

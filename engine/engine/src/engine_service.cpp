@@ -855,17 +855,23 @@ namespace dmEngineService
         {
             char* next = strchr(cursor, '&');
             if (next)
+            {
                 *next++ = 0;
+            }
             char* value = strchr(cursor, '=');
             if (!value)
+            {
                 return false;
+            }
             *value++ = 0;
             uint32_t field = strcmp(cursor, "path") == 0 ? 1 : strcmp(cursor, "delay_ms") == 0 ? 2 :
-            strcmp(cursor, "duration_ms") == 0                                                 ? 4 :
-            strcmp(cursor, "energy") == 0                                                      ? 8 :
-                                                                                                 0;
+                             strcmp(cursor, "duration_ms") == 0 ? 4 :
+                             strcmp(cursor, "energy") == 0 ? 8 :
+                             0;
             if (!field || (fields & field))
+            {
                 return false;
+            }
             fields |= field;
             if (field == 1)
             {
@@ -874,26 +880,36 @@ namespace dmEngineService
                     if (*p == '%')
                     {
                         if (!p[1] || !p[2] || !isxdigit((unsigned char)p[1]) || !isxdigit((unsigned char)p[2]) || (p[1] == '0' && p[2] == '0'))
+                        {
                             return false;
+                        }
                         p += 2;
                     }
                 }
                 dmURI::Decode(value, value);
                 if (strlen(value) >= capacity)
+                {
                     return false;
+                }
                 dmStrlCpy(path, value, capacity);
                 params->m_Path = path;
             }
             else if (field == 8)
             {
                 if (strcmp(value, "0") != 0 && strcmp(value, "1") != 0)
+                {
                     return false;
+                }
                 params->m_Energy = value[0] == '1';
             }
             else if (!ParseTraceTime(value, field == 2 ? &params->m_DelayMs : &params->m_DurationMs))
+            {
                 return false;
+            }
             if (!next)
+            {
                 break;
+            }
             cursor = next;
         }
         return true;
@@ -939,20 +955,28 @@ namespace dmEngineService
                 switch (result)
                 {
                     case XCTRACE_OK:
+                    {
                         code = 202;
                         break;
+                    }
                     case XCTRACE_BUSY:
+                    {
                         code = 409;
                         error = "busy";
                         break;
+                    }
                     case XCTRACE_INVALID:
+                    {
                         code = 400;
                         error = "invalid_path";
                         break;
+                    }
                     case XCTRACE_UNAVAILABLE:
+                    {
                         code = 501;
                         error = "unavailable";
                         break;
+                    }
                 }
             }
         }
@@ -972,11 +996,15 @@ namespace dmEngineService
             error = "unsupported";
         }
         if (!content_read)
+        {
             EngineService::SlurpHttpContent(request);
+        }
         GetXcTraceStatus(&status);
         dmWebServer::SetStatusCode(request, code);
         if (code == 405)
+        {
             dmWebServer::SendAttribute(request, "Allow", "GET, POST, DELETE");
+        }
         dmWebServer::SendAttribute(request, "Content-Type", "application/json");
         dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
         SendText(request, "{\"state\":");

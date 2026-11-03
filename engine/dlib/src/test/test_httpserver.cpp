@@ -97,12 +97,6 @@ public:
             dmHttpServer::SendAttribute(request, "Content-Type", "text/html");
             dmHttpServer::Send(request, html, strlen(html));
         }
-        else if (strstr(self->m_Resource.c_str(), "/status/"))
-        {
-            int status;
-            sscanf(self->m_Resource.c_str(), "/status/%d", &status);
-            dmHttpServer::SetStatusCode(request, status);
-        }
         else if (strstr(self->m_Resource.c_str(), "/quit"))
         {
             dmAtomicStore32(&self->m_Quit, 1);

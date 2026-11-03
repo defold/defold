@@ -26,7 +26,7 @@
            [com.sun.net.httpserver HttpExchange HttpHandler HttpServer]
            [java.io InputStream]
            [java.net InetSocketAddress]
-           [java.util.concurrent LinkedBlockingQueue TimeUnit]))
+           [java.util.concurrent LinkedBlockingQueue]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -74,7 +74,7 @@
                [false 0 true []]
                [true 0 false ["--config=debugger.enabled=1" "--config=debugger.port=0"
                               "--config=debugger.wait=1" "--config=display.focus_on_show=0"]]]]
-        (let [{:keys [process log-stream]} (engine/launch! binary directory settings debug instance-index focus)]
+        (let [{:keys [process log-stream]} (engine/launch! binary directory settings debug instance-index focus nil)]
           (try
             (.waitFor ^Process process)
             (is (zero? (.exitValue ^Process process)))
@@ -130,46 +130,6 @@
             (is (= expected arguments)))))
       (finally (.stop server 0)))))
 
-;; Native trace requests encode folders, send settings and preserve busy or
-;; unsupported responses, including older engines that return non-JSON errors.
-(deftest native-trace-request-test
-  (let [requests (LinkedBlockingQueue.)
-        response (atom nil)
-        server (HttpServer/create (InetSocketAddress. "127.0.0.1" 0) 0)]
-    (.createContext server "/profiler/trace"
-                    (reify HttpHandler
-                      (handle [_ exchange]
-                        (with-open [^HttpExchange exchange exchange]
-                          (.add requests {:method (.getRequestMethod exchange)
-                                          :query (.getRawQuery (.getRequestURI exchange))
-                                          :content-type (.getFirst (.getRequestHeaders exchange) "Content-Type")
-                                          :body (slurp (.getRequestBody exchange) :encoding "UTF-8")})
-                          (let [{:keys [status body]} @response
-                                bytes (.getBytes ^String body "UTF-8")]
-                            (.sendResponseHeaders exchange status (alength bytes))
-                            (with-open [out (.getResponseBody exchange)]
-                              (.write out bytes)))))))
-    (.start server)
-    (try
-      (doseq [[delay duration energy output-directory encoded-path status body expected]
-              [[0 5000 true "/tmp/Traces + å&.trace" "&path=%2Ftmp%2FTraces+%2B+%C3%A5%26.trace%2F" 202 "{\"state\":\"starting\",\"path\":\"/tmp/game trace.trace\"}"
-                {:status 202 :trace {:state "starting" :path "/tmp/game trace.trace"}}]
-               [123 0 false "" "" 202 "{\"state\":\"scheduled\",\"path\":\"/tmp/delayed.trace\"}"
-                {:status 202 :trace {:state "scheduled" :path "/tmp/delayed.trace"}}]
-               [0 5000 true "" "" 409 "{\"error\":\"busy\"}" {:status 409}]
-               [0 5000 true "" "" 501 "Unsupported" {:status 501}]
-               [0 5000 false "" "" 404 "Not Found" {:status 404}]]]
-        (reset! response {:status status :body body})
-        (is (= expected
-               (engine/start-native-trace! {:url (str "http://127.0.0.1:" (.getPort (.getAddress server)))}
-                                           delay duration energy output-directory)))
-        (is (= {:method "POST"
-                :query nil
-                :content-type "application/x-www-form-urlencoded"
-                :body (str "delay_ms=" delay "&duration_ms=" duration "&energy=" (if energy "1" "0") encoded-path)}
-               (.poll requests 5 TimeUnit/SECONDS))))
-      (finally (.stop server 0)))))
-
 ;; Real child processes receive relative ASCII state prefixes and write inside
 ;; Unicode project paths. The first player's slot is shared across launch modes.
 (deftest window-state-launch-test
@@ -186,7 +146,7 @@
       (let [prefixes
             (mapv (fn [index]
                     (let [{:keys [process log-stream]}
-                          (engine/launch! binary directory settings false index false)]
+                          (engine/launch! binary directory settings false index false nil)]
                       (try
                         (with-open [^InputStream stream log-stream]
                           (let [prefix (string/trim (process/capture! stream))]

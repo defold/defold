@@ -22,7 +22,9 @@
 int main(void)
 {
     os_log_t           log = os_log_create("com.defold.energy", OS_LOG_CATEGORY_POINTS_OF_INTEREST);
-    const char*        components[] = { "CPU", "GPU", "ANE" };
+    const char*        components[] = {
+        "CPU", "GPU", "ANE"
+    };
     char               kind;
     unsigned int       index;
     double             value;
@@ -35,11 +37,17 @@ int main(void)
     while ((fields = scanf(" %c %u %lf %llu", &kind, &index, &value, &elapsed_ns)) == 4)
     {
         if (kind == 'S' && index < sizeof(components) / sizeof(components[0]))
+        {
             os_signpost_event_emit(log, OS_SIGNPOST_ID_EXCLUSIVE, "System Power", "component: %{public}s, watts: %f, window: %llu ns", components[index], value, elapsed_ns);
+        }
         else if (kind == 'A')
+        {
             os_signpost_event_emit(log, OS_SIGNPOST_ID_EXCLUSIVE, "Application Energy", "pid: %u, impact per second: %f, window: %llu ns", index, value, elapsed_ns);
+        }
         else
+        {
             return 1;
+        }
     }
     os_release(log);
     return fields == EOF ? 0 : 1;
