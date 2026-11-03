@@ -323,9 +323,8 @@ Moving or copying a project rebases ownership of artifacts within the project;
 it does not transfer ownership of external output directories.
 
 During `bundle`, unchanged artifact copies are preserved. Missing or changed files
-are copied, and obsolete owned artifacts are removed. Package destinations are
-checked against application outputs before copying. Missing or
-modified source artifacts require another `build` before bundling. Platform bundlers
+are copied, and obsolete owned artifacts are removed. Missing or modified source
+artifacts require another `build` before bundling. Platform bundlers
 control recreation of their application output; package copies are restored when
 that output directory is recreated.
 Failed or cancelled package delivery restores the previous package copies and ownership receipt,

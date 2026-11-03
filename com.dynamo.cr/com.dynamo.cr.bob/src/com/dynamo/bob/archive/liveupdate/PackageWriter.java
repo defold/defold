@@ -379,28 +379,6 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
     }
 
     public static void copyOutputs(Project project, Path bundleDirectory) throws IOException {
-        copyOutputs(project, bundleDirectory, List.of());
-    }
-
-    /** Check before a bundler replaces application files; source packages must always survive. */
-    public static void validateBundleOutputs(Project project, Path bundleDirectory, Collection<Path> applicationOutputs) throws IOException {
-        bundleDirectory = bundleDirectory.toAbsolutePath().normalize();
-        for (Output output : PackageArtifacts.readBuildOutputs(project)) {
-            validateApplicationOutput(output.path(), applicationOutputs);
-        }
-        // HTML5 recreates the package-copy directory with the application. Its copies are restored afterwards.
-        for (Path applicationOutput : applicationOutputs) {
-            if (applicationOutput.toAbsolutePath().normalize().equals(bundleDirectory)) return;
-        }
-        for (Output output : readOutputs(project)) {
-            if (output.bundle()) validateApplicationOutput(bundleDirectory.resolve(output.name()), applicationOutputs);
-        }
-        for (Output output : PackageArtifacts.read(Path.of(project.getRootDirectory()), PackageArtifacts.bundleReceipt(project, bundleDirectory))) {
-            validateApplicationOutput(output.path(), applicationOutputs);
-        }
-    }
-
-    public static void copyOutputs(Project project, Path bundleDirectory, Collection<Path> applicationOutputs) throws IOException {
         bundleDirectory = bundleDirectory.toAbsolutePath().normalize();
         Path receipt = PackageArtifacts.bundleReceipt(project, bundleDirectory);
         Map<Path, Output> previous = new LinkedHashMap<>();
@@ -411,7 +389,6 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
             if (!output.bundle()) continue;
             String hash = output.contentHash();
             Path destination = bundleDirectory.resolve(output.name()).toAbsolutePath().normalize();
-            validateApplicationOutput(destination, applicationOutputs);
             outputs.add(new Output(destination, output.name(), output.directory(), true, output.inputSignature(), hash, output.legacy()));
             if (output.path().equals(destination)) continue;
             if (destination.startsWith(output.path()) || output.path().startsWith(destination)) {
@@ -426,7 +403,6 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         }
         Set<Path> obsolete = new LinkedHashSet<>(previous.keySet());
         removeCurrentOutputs(obsolete, previous, outputs);
-        for (Path path : obsolete) validateApplicationOutput(path, applicationOutputs);
         // Stage changed artifacts and the receipt together. A cancelled delivery
         // restores the previous package copies and their ownership, so it can be retried.
         Path buildDirectory = Path.of(project.getRootDirectory(), project.getBuildDirectory());
@@ -451,16 +427,6 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
             finalizeOutputs(project, stagedOutputs, obsolete);
         } finally {
             FileUtils.deleteDirectory(stage.toFile());
-        }
-    }
-
-    private static void validateApplicationOutput(Path destination, Collection<Path> applicationOutputs) throws IOException {
-        Path path = Path.of(destination.toString().toLowerCase(Locale.ROOT));
-        for (Path applicationOutput : applicationOutputs) {
-            Path application = Path.of(applicationOutput.toAbsolutePath().normalize().toString().toLowerCase(Locale.ROOT));
-            if (path.startsWith(application) || application.startsWith(path)) {
-                throw new IOException("Live Update artifact collides with an application output: " + destination);
-            }
         }
     }
 

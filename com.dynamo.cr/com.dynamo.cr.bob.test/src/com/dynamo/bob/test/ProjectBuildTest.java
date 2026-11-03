@@ -2368,7 +2368,7 @@ public class ProjectBuildTest {
         }
     }
 
-    // Web bundles copy the prepared packages without rebuilding them and reject collisions with application files.
+    // Web bundles restore package copies after recreating the application, without rebuilding the source packages.
     @Test
     public void testHtml5PackagePlacement() throws Exception {
         createPackageProject();
@@ -2406,31 +2406,6 @@ public class ProjectBuildTest {
             assertArrayEquals(Files.readAllBytes(sourceZip), Files.readAllBytes(zip));
             assertArrayEquals(Files.readAllBytes(sourceManifest), Files.readAllBytes(manifest));
             assertFalse(Files.exists(app.resolve("obsolete.txt")));
-            byte[] previousHtml = Files.readAllBytes(app.resolve("index.html"));
-            savePackages(livePackage("archive", "folder", addPath("Data", "/extra/.*")));
-            buildPackageProject(true, false);
-            try {
-                bundler.bundleApplication(project, Platform.WasmWeb, bundle, () -> false);
-                org.junit.Assert.fail("Package must not replace the application's archive directory");
-            } catch (IOException expected) {
-                assertTrue(expected.getMessage().contains("collides with an application output"));
-            }
-            assertArrayEquals(previousHtml, Files.readAllBytes(app.resolve("index.html")));
-            assertTrue(Files.isRegularFile(app.resolve("archive/archive_files.json")));
-
-            // Package exports placed inside the application directory must be rejected before it is deleted.
-            savePackages(livePackage("episode", "zip", addPath("Data", "/extra/.*")));
-            setPackageOutputDirectory("bundle/Packages/exported");
-            buildPackageProject(true, false);
-            Path exported = app.resolve("exported/episode.zip");
-            byte[] exportedZip = Files.readAllBytes(exported);
-            try {
-                bundler.bundleApplication(project, Platform.WasmWeb, bundle, () -> false);
-                org.junit.Assert.fail("Application must not delete the package exports");
-            } catch (IOException expected) {
-                assertTrue(expected.getMessage().contains("collides with an application output"));
-            }
-            assertArrayEquals(exportedZip, Files.readAllBytes(exported));
             assertNoPackageStaging();
         }
     }
@@ -2533,9 +2508,9 @@ public class ProjectBuildTest {
         assertNoPackageStaging();
     }
 
-    // A delivery must reject application collisions before copying anything, even if that path used to hold a package.
+    // Package delivery rejects unowned output paths before copying any artifacts.
     @Test
-    public void testPackageBundleProtectsApplicationOutputs() throws Exception {
+    public void testPackageBundleRejectsUnownedOutputs() throws Exception {
         createPackageProject();
         Files.writeString(Path.of(contentRoot, "liveupdate.settings"),
                 "save-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n", java.nio.file.StandardOpenOption.APPEND);
@@ -2554,21 +2529,6 @@ public class ProjectBuildTest {
             }
             assertEquals("executable", Files.readString(app.resolve("game.exe")));
             assertFalse(Files.exists(bundle.resolve("episode.zip")));
-            FileUtils.deleteDirectory(app.toFile());
-            BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-            // A later application bundle can reuse a name previously owned by a Live Update package.
-            Files.writeString(app.resolve("game.exe"), "new executable");
-            Files.delete(bundle.resolve("episode.zip"));
-            for (Path applicationOutput : List.of(app, app.resolve("game.exe"), bundle)) {
-                try {
-                    BundleHelper.moveBundleIfNeed(project, bundle.toFile(), applicationOutput.toFile());
-                    org.junit.Assert.fail("Application outputs must take precedence over previous package ownership");
-                } catch (IOException expected) {
-                    assertTrue(expected.getMessage(), expected.getMessage().contains("collides with an application output"));
-                }
-            }
-            assertEquals("new executable", Files.readString(app.resolve("game.exe")));
-            assertFalse(Files.exists(bundle.resolve("episode.zip")));
         }
     }
 
@@ -2583,37 +2543,6 @@ public class ProjectBuildTest {
         Files.createDirectories(engines);
         for (String name : Platform.X86_64Linux.formatBinaryName("dmengine")) Files.write(engines.resolve(name), new byte[]{1});
         return project;
-    }
-
-    // Native bundling must detect collisions before deleting exported packages or copies from a previous bundle.
-    @Test
-    public void testPackageNativeBundlePreservesCollidingOutputs() throws Exception {
-        createPackageProject();
-        Files.writeString(Path.of(contentRoot, "liveupdate.settings"),
-                "save-folder-in-bundle-folder=1\n", java.nio.file.StandardOpenOption.APPEND);
-        buildPackageProject(true, false);
-        Path bundle = Path.of(contentRoot, "bundle");
-        try (Project project = linuxPackageBundleProject()) {
-            BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-            project.getProjectProperties().putStringValue("project", "title", "copy");
-            // Disabling export clears the active receipt but retains ownership of existing artifacts.
-            for (boolean export : List.of(true, false)) {
-                if (!export) buildPackageProject(false, false);
-                for (Path destination : List.of(bundle, Path.of(contentRoot, "packages"))) {
-                    Path manifest = destination.resolve("copy/liveupdate.game.dmanifest");
-                    byte[] previous = Files.readAllBytes(manifest);
-                    try {
-                        new LinuxBundler().bundleApplication(project, Platform.X86_64Linux, destination.toFile(), () -> false);
-                        org.junit.Assert.fail("Application must not replace an existing Live Update package");
-                    } catch (IOException expected) {
-                        assertTrue(expected.getMessage(), expected.getMessage().contains("collides with an application output"));
-                    }
-                    assertArrayEquals(previous, Files.readAllBytes(manifest));
-                    assertFalse(Files.exists(destination.resolve("copy/copy.x86_64")));
-                }
-            }
-        }
-        assertNoPackageStaging();
     }
 
     // Engine-only native bundles must succeed without a receipt and ignore stale package outputs from a prior build.

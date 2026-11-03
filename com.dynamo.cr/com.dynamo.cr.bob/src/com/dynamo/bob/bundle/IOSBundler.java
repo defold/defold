@@ -395,8 +395,6 @@ public class IOSBundler implements IBundler {
 
         String projectRoot = project.getRootDirectory();
 
-        BundleHelper.validateBundleOutputs(project, bundleDir, appDir, new File(bundleDir, title + ".ipa"),
-                new File(bundleDir, title + ".ipa.tmp"), new File(bundleDir, title + ".dSYM"));
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
         frameworksDir.mkdirs();

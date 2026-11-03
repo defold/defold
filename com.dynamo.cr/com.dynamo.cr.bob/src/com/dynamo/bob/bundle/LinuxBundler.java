@@ -118,7 +118,6 @@ public class LinuxBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        BundleHelper.validateBundleOutputs(project, bundleDir, appDir);
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
 

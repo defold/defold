@@ -473,7 +473,6 @@ public class HTML5Bundler implements IBundler {
         File appDir = new File(bundleDirectory, enginePrefix);
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 
-        BundleHelper.validateBundleOutputs(project, appDir, appDir);
         FileUtils.deleteDirectory(appDir);
         File splitDir = new File(appDir, SplitFileDir);
         splitDir.mkdirs();
@@ -551,7 +550,7 @@ public class HTML5Bundler implements IBundler {
                 FileUtils.copyFile(splashImage, new File(appDir, splashImage.getName()));
             }
         }
-        BundleHelper.moveBundleIfNeed(project, appDir, appDir.listFiles());
+        BundleHelper.moveBundleIfNeed(project, appDir);
     }
 
     private void createGitAttributes(File appDir) throws IOException {

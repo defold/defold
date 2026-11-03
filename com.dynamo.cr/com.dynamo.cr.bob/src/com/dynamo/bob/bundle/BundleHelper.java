@@ -1059,23 +1059,13 @@ public class BundleHelper {
         return bundleIdentifier.matches("^[a-zA-Z][a-zA-Z0-9_-]*(\\.[a-zA-Z][a-zA-Z0-9_-]*)+$");
     }
 
-    public static void validateBundleOutputs(Project project, File bundleDir, File... applicationOutputs) throws IOException {
-        com.dynamo.bob.archive.liveupdate.PackageWriter.validateBundleOutputs(project, bundleDir.toPath(),
-                java.util.Arrays.stream(applicationOutputs).map(File::toPath).toList());
-    }
-
     // Copy prepared Live Update artifacts into the bundle when requested.
     public static void moveBundleIfNeed(Project project, File bundleDir) throws IOException {
-        moveBundleIfNeed(project, bundleDir, new File[0]);
-    }
-
-    public static void moveBundleIfNeed(Project project, File bundleDir, File... applicationOutputs) throws IOException {
         if (!isArchiveIncluded(project)) return;
         if (com.dynamo.bob.archive.liveupdate.PackageWriter.receipt(project).exists() ||
                 project.option("liveupdate", "false").equals("true") ||
                 !com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(project).isEmpty()) {
-            com.dynamo.bob.archive.liveupdate.PackageWriter.copyOutputs(project, bundleDir.toPath(),
-                    java.util.Arrays.stream(applicationOutputs).map(File::toPath).toList());
+            com.dynamo.bob.archive.liveupdate.PackageWriter.copyOutputs(project, bundleDir.toPath());
         }
     }
 
