@@ -14,14 +14,6 @@
 
 package com.dynamo.bob.archive.liveupdate;
 
-import com.dynamo.bob.Project;
-import com.dynamo.bob.archive.ArchiveBuilder;
-import com.dynamo.bob.archive.ArchiveEntry;
-import com.dynamo.bob.bundle.BundleHelper;
-import com.dynamo.bob.fs.IResource;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,16 +22,35 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.dynamo.bob.Project;
+import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.ArchiveEntry;
+import com.dynamo.bob.bundle.BundleHelper;
+import com.dynamo.bob.fs.IResource;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 /** Cached package contents for reports, independent of whether compiler tasks ran this time. */
 public final class PackageReport {
+
     private static final ObjectMapper JSON = new ObjectMapper();
 
+    /**
+     * Returns the .lureport.json build output used to retain package contents across incremental and bundle-only
+     * invocations.
+     */
     public static IResource resource(Project project) {
         return project.getGameProjectResource().disableMinifyPath().changeExt(".lureport.json");
     }
 
+    /**
+     * Serializes package membership, source attribution, compiled sizes, and declared outputs as cached JSON.
+     * Container sizes are measured later by {@link #read}; this method does not write the report resource.
+     */
     public static byte[] create(Project project, ArchiveBuilder archive, PackageResolver.Plan plan,
-                                Map<String, List<PackageArtifacts.Output>> outputs) throws IOException {
+            Map<String, List<PackageArtifacts.Output>> outputs) throws IOException {
         ObjectNode report = JSON.createObjectNode();
         Map<String, ObjectNode> resources = new LinkedHashMap<>();
         for (List<ArchiveEntry> entries : List.of(archive.getIncludedEntries(), archive.getExcludedEntries())) {
@@ -55,18 +66,23 @@ public final class PackageReport {
                 resources.put(path, row);
             }
         }
+
         ArrayNode packages = report.putArray("packages");
         ObjectNode base = addPackage(packages, resources, "base", "archive", plan.base());
         Path root = Path.of(project.getRootDirectory()).toAbsolutePath().normalize();
         for (String extension : List.of(".projectc", ".arci", ".arcd", ".dmanifest")) {
-            Path path = Path.of(project.getGameProjectResource().disableMinifyPath().changeExt(extension).getAbsPath());
+            IResource output = project.getGameProjectResource().disableMinifyPath().changeExt(extension);
+            Path path = Path.of(output.getAbsPath());
             addOutput(base.withArray("outputs"), root, path, path.getFileName().toString(), false);
         }
+
         String certificates = project.getProjectProperties().getStringValue("network", "ssl_certificates");
         if (certificates != null && !certificates.isEmpty()) {
-            addOutput(base.withArray("outputs"), root, root.resolve(project.getBuildDirectory()).resolve(BundleHelper.SSL_CERTIFICATES_NAME),
+            Path path = root.resolve(project.getBuildDirectory()).resolve(BundleHelper.SSL_CERTIFICATES_NAME);
+            addOutput(base.withArray("outputs"), root, path,
                     BundleHelper.SSL_CERTIFICATES_NAME, false);
         }
+
         for (PackageResolver.Package pkg : plan.packages().values()) {
             String name = pkg.description().getName();
             ObjectNode row = addPackage(packages, resources, name, pkg.description().getProvider(), pkg.resources());
@@ -74,13 +90,17 @@ public final class PackageReport {
                 addOutput(row.withArray("outputs"), root, output.path(), output.name(), output.directory());
             }
         }
+
         ArrayNode rows = report.putArray("package_resources");
-        resources.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> rows.add(entry.getValue()));
+        for (String path : resources.keySet().stream().sorted().toList()) {
+            rows.add(resources.get(path));
+        }
         return JSON.writeValueAsBytes(report);
     }
 
+    /** Adds a package row, records each resource membership, and sums uncompressed compiled bytes. */
     private static ObjectNode addPackage(ArrayNode packages, Map<String, ObjectNode> resources,
-                                         String name, String provider, Collection<String> contents) {
+            String name, String provider, Collection<String> contents) {
         ObjectNode pkg = packages.addObject();
         pkg.put("name", name);
         pkg.put("provider", provider);
@@ -97,43 +117,61 @@ public final class PackageReport {
         return pkg;
     }
 
+    /** Adds an artifact reference, storing a project-relative path when the destination is inside the project. */
     private static void addOutput(ArrayNode outputs, Path root, Path path, String name, boolean directory) {
         path = path.toAbsolutePath().normalize();
+        Path reportPath = path.startsWith(root) ? root.relativize(path) : path;
         ObjectNode output = outputs.addObject();
         output.put("name", name);
-        output.put("path", (path.startsWith(root) ? root.relativize(path) : path).toString().replace('\\', '/'));
+        output.put("path", reportPath.toString().replace('\\', '/'));
         output.put("directory", directory);
     }
 
-    /** Measure finalized artifacts when generating a report, including after an incremental or bundle-only invocation. */
+    /**
+     * Reads cached package contents and measures finalized artifacts for an incremental or bundle-only report.
+     * Missing artifacts have null sizes; missing cached report data requires a build and raises IOException.
+     */
     public static ObjectNode read(Project project) throws IOException {
         IResource cache = resource(project);
-        if (!cache.exists()) throw new IOException("Live Update report data is missing; run build before requesting a report");
+        if (!cache.exists()) {
+            throw new IOException("Live Update report data is missing; run build before requesting a report");
+        }
+
         ObjectNode report = (ObjectNode) JSON.readTree(cache.getContent());
         Path root = Path.of(project.getRootDirectory()).toAbsolutePath().normalize();
-        for (var pkg : report.withArray("packages")) {
+        for (JsonNode packageNode : report.withArray("packages")) {
+            ObjectNode pkg = (ObjectNode) packageNode;
             long total = 0;
             boolean available = pkg.withArray("outputs").size() != 0;
-            for (var output : pkg.withArray("outputs")) {
+            for (JsonNode outputNode : pkg.withArray("outputs")) {
+                ObjectNode output = (ObjectNode) outputNode;
                 Path path = root.resolve(output.get("path").asText());
-                ((ObjectNode) output).put("path", path.toString().replace('\\', '/'));
+                output.put("path", path.toString().replace('\\', '/'));
                 if (!Files.exists(path)) {
-                    ((ObjectNode) output).putNull("size");
+                    output.putNull("size");
                     available = false;
                 } else {
                     long size;
                     if (output.get("directory").asBoolean()) {
                         size = 0;
                         try (var files = Files.walk(path)) {
-                            for (Path file : files.filter(Files::isRegularFile).toList()) size += Files.size(file);
+                            for (Path file : files.filter(Files::isRegularFile).toList()) {
+                                size += Files.size(file);
+                            }
                         }
-                    } else size = Files.size(path);
-                    ((ObjectNode) output).put("size", size);
+                    } else {
+                        size = Files.size(path);
+                    }
+                    output.put("size", size);
                     total += size;
                 }
             }
-            if (available) ((ObjectNode) pkg).put("output_size", total);
-            else ((ObjectNode) pkg).putNull("output_size");
+
+            if (available) {
+                pkg.put("output_size", total);
+            } else {
+                pkg.putNull("output_size");
+            }
         }
         return report;
     }

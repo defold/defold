@@ -14,6 +14,22 @@
 
 package com.dynamo.bob.archive.liveupdate;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.CopyCustomResourcesBuilder;
@@ -28,44 +44,55 @@ import com.dynamo.liveupdate.proto.LiveUpdateManifest.ManifestDesc;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.PackageDesc;
 import com.google.protobuf.TextFormat;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 /** Adapts actual Bob tasks and compiled resource references to the pure resolver. */
 public final class PackageBuilder {
+
     // Project creates task builders reflectively, so this implementation must be public.
     public static final class CopyResource extends CopyBuilder {
+
+        /** Declares a passthrough build output for a selected custom file without a registered compiler. */
         @Override
         public Task create(IResource input) {
-            return Task.newBuilder(this).setName("Copy package resource").addInput(input).addOutput(input.output()).build();
+            return Task.newBuilder(this)
+                    .setName("Copy package resource")
+                    .addInput(input)
+                    .addOutput(input.output())
+                    .build();
         }
     }
 
-    private static final Pattern VARIABLE = Pattern.compile("\\$\\{([A-Za-z_][A-Za-z0-9_]*)\\}|\\$([A-Za-z_][A-Za-z0-9_]*)|%([A-Za-z_][A-Za-z0-9_]*)%");
+    private static final Pattern VARIABLE = Pattern.compile(
+            "\\$\\{([A-Za-z_][A-Za-z0-9_]*)\\}|\\$([A-Za-z_][A-Za-z0-9_]*)|%([A-Za-z_][A-Za-z0-9_]*)%");
 
+    /**
+     * Expands ${NAME}, $NAME, and %NAME% variables, resolving relative paths against the project root.
+     * Returns an absolute normalized path without creating it.
+     *
+     * @param environment variable lookup returning null for undefined names
+     * @throws IllegalArgumentException if a variable is undefined or the expanded path is blank
+     */
     public static Path resolveOutputDirectory(String directory, Path projectRoot, Function<String, String> environment) {
         Matcher matcher = VARIABLE.matcher(directory);
         StringBuilder expanded = new StringBuilder();
         while (matcher.find()) {
-            String name = matcher.group(1) != null ? matcher.group(1) : matcher.group(2) != null ? matcher.group(2) : matcher.group(3);
+            String name = matcher.group(1);
+            if (name == null) {
+                name = matcher.group(2);
+            }
+            if (name == null) {
+                name = matcher.group(3);
+            }
             String value = environment.apply(name);
-            if (value == null) throw new IllegalArgumentException("Undefined environment variable '" + name + "' in Live Update output directory");
+            if (value == null) {
+                throw new IllegalArgumentException(
+                        "Undefined environment variable '" + name + "' in Live Update output directory");
+            }
             matcher.appendReplacement(expanded, Matcher.quoteReplacement(value));
         }
         matcher.appendTail(expanded);
-        if (expanded.toString().isBlank()) throw new IllegalArgumentException("Live Update output directory must not be empty");
+        if (expanded.toString().isBlank()) {
+            throw new IllegalArgumentException("Live Update output directory must not be empty");
+        }
         return projectRoot.resolve(expanded.toString()).toAbsolutePath().normalize();
     }
 
@@ -75,21 +102,30 @@ public final class PackageBuilder {
     private final List<Task> resourceTasks;
     private final Map<String, Task> selectedTasks = new LinkedHashMap<>();
 
+    /**
+     * Returns the manifest setting, honoring the package-manifest override; an empty path selects the legacy workflow.
+     */
     public static String manifestPath(Project project) {
-        return project.option("package-manifest", project.getProjectProperties().getStringValue("liveupdate", "manifest", "")).trim();
+        String configuredPath = project.getProjectProperties().getStringValue("liveupdate", "manifest", "");
+        return project.option("package-manifest", configuredPath).trim();
     }
 
+    /** Parses UTF-8 protobuf text; malformed or incomplete manifests fail rather than being silently repaired. */
     public static ManifestDesc parse(byte[] content) throws IOException {
         ManifestDesc.Builder builder = ManifestDesc.newBuilder();
         TextFormat.merge(new String(content, StandardCharsets.UTF_8), builder);
         return builder.build();
     }
 
+    /** Resolves the manifest output root, or the parent of the legacy destination when no manifest is selected. */
     static Path outputDirectory(Project project, Path projectRoot) throws IOException, CompileExceptionError {
-        if (manifestPath(project).isEmpty()) return legacyOutput(project).getParent();
+        if (manifestPath(project).isEmpty()) {
+            return legacyOutput(project).getParent();
+        }
         IResource resource = project.getResource(manifestPath(project));
         try {
-            return resolveOutputDirectory(parse(resource.getContent()).getOutputDirectory(), projectRoot, project::getSystemEnv);
+            String directory = parse(resource.getContent()).getOutputDirectory();
+            return resolveOutputDirectory(directory, projectRoot, project::getSystemEnv);
         } catch (IllegalArgumentException e) {
             throw new CompileExceptionError(resource, 0, e.getMessage(), e);
         }
@@ -105,71 +141,110 @@ public final class PackageBuilder {
         String name = zip ? settings.getZipFilename() : settings.getOutputFolderName();
         if (name == null || name.isEmpty()) {
             for (PackageArtifacts.Output previous : PackageArtifacts.readBuildOutputs(project)) {
-                if (previous.directory() != zip && previous.path().getParent().equals(root)) return previous.path();
+                if (previous.directory() != zip && previous.path().getParent().equals(root)) {
+                    return previous.path();
+                }
             }
             String platform = project.option("platform", "generic");
-            name = zip ? "defold.resourcepack_" + platform + "_" + java.util.UUID.randomUUID() + ".zip"
-                       : "defold_resources_" + platform + System.currentTimeMillis() / 1000;
+            if (zip) {
+                name = "defold.resourcepack_" + platform + "_" + UUID.randomUUID() + ".zip";
+            } else {
+                name = "defold_resources_" + platform + System.currentTimeMillis() / 1000;
+            }
         } else if (zip && !name.endsWith(".zip")) {
             name += ".zip";
         }
         return root.resolve(name).normalize();
     }
 
+    /**
+     * Discovers manifest matches and declares their build tasks and archive dependencies without executing them.
+     * Adds inventory, options, provider, and destination inputs to task invalidation; retains task mappings for resolution.
+     * With no manifest, captures existing tasks for the legacy resource classification.
+     */
     public PackageBuilder(Project project, Task.TaskBuilder task) throws IOException, CompileExceptionError {
         if (manifestPath(project).isEmpty()) {
             manifestResource = project.getGameProjectResource();
             manifest = ManifestDesc.getDefaultInstance();
             resourceTasks = List.copyOf(project.getTasks());
-            inventory = resourceTasks.stream().flatMap(t -> t.getInputs().stream()).filter(input -> !input.isOutput())
-                    .map(input -> PackageResolver.normalize(input.getPath())).distinct().sorted().toList();
+            inventory = resourceTasks.stream()
+                    .flatMap(resourceTask -> resourceTask.getInputs().stream())
+                    .filter(input -> !input.isOutput())
+                    .map(input -> PackageResolver.normalize(input.getPath()))
+                    .distinct()
+                    .sorted()
+                    .toList();
             task.addExtraCacheKey("legacy-packages-v2");
             task.addExtraCacheKey(PackageCache.VERSION);
             task.addExtraCacheKey(PackageCache.optionsSignature(project.getOptions()));
             return;
         }
+
         manifestResource = project.getResource(manifestPath(project));
-        if (!manifestResource.exists()) throw new CompileExceptionError(manifestResource, 0, "Live Update manifest does not exist");
+        if (!manifestResource.exists()) {
+            throw new CompileExceptionError(manifestResource, 0, "Live Update manifest does not exist");
+        }
         try {
             manifest = parse(manifestResource.getContent());
         } catch (Exception e) {
             throw new CompileExceptionError(manifestResource, 0, "Invalid Live Update manifest: " + e.getMessage(), e);
         }
+
         Set<String> paths = new TreeSet<>();
         project.findResourcePaths("", paths);
+
         // Outputs from previous builds are not authoring resources, even when their destination is in the project.
-        java.nio.file.Path buildDirectory = java.nio.file.Path.of(project.getRootDirectory(), project.getBuildDirectory()).toAbsolutePath().normalize();
+        Path buildDirectory = Path.of(project.getRootDirectory(), project.getBuildDirectory()).toAbsolutePath().normalize();
         Set<Path> reportOutputs = ReportGenerator.outputPaths(project);
         paths.removeIf(path -> {
             Path absolute = Path.of(project.getResource(path).getAbsPath()).toAbsolutePath().normalize();
             return absolute.startsWith(buildDirectory) || reportOutputs.contains(absolute);
         });
-        Set<String> generatedPaths = PackageArtifacts.generatedPaths(java.nio.file.Path.of(project.getRootDirectory()));
+        Set<String> generatedPaths = PackageArtifacts.generatedPaths(Path.of(project.getRootDirectory()));
         paths.removeIf(path -> PackageArtifacts.isGeneratedPath(path, generatedPaths));
         for (PackageArtifacts.Output output : PackageArtifacts.readBuildOutputs(project)) {
-            paths.removeIf(path -> java.nio.file.Path.of(project.getResource(path).getAbsPath()).normalize().startsWith(output.path()));
+            paths.removeIf(path -> Path.of(project.getResource(path).getAbsPath()).normalize().startsWith(output.path()));
         }
+
         inventory = paths.stream().map(PackageResolver::normalize).toList();
         PackageResolver.Selection selection = PackageResolver.select(manifest, inventory);
         validate(selection.diagnostics());
+
         task.addInput(manifestResource);
+
         // Inventory is part of the signature: newly matching files invalidate even an otherwise unchanged build.
         task.addExtraCacheKey(String.join("\n", inventory));
         task.addExtraCacheKey(PackageCache.VERSION);
         task.addExtraCacheKey(PackageCache.optionsSignature(project.getOptions()));
+
         // Environment expansion can change placement without changing any project file.
         if (project.option("liveupdate", "false").equals("true")) {
             task.addExtraCacheKey(outputDirectory(project, Path.of(project.getRootDirectory())).toString());
         }
+
         Map<String, PackageProvider> providers = PackageProviders.discover(project.getProjectClassLoaderScanner());
-        for (String providerId : manifest.getPackagesList().stream().map(pkg -> pkg.getProvider()).distinct().sorted().toList()) {
+        List<String> providerIds = manifest.getPackagesList().stream()
+                .map(PackageDesc::getProvider)
+                .distinct()
+                .sorted()
+                .toList();
+        for (String providerId : providerIds) {
             PackageProvider provider = providers.get(providerId);
-            if (provider != null) task.addExtraCacheKey(providerId + ":" + PackageCache.providerSignature(provider));
+            if (provider != null) {
+                task.addExtraCacheKey(providerId + ":" + PackageCache.providerSignature(provider));
+            }
         }
+
         Set<String> selected = new TreeSet<>();
-        selection.matches().values().forEach(selected::addAll);
+        for (List<String> matches : selection.matches().values()) {
+            selected.addAll(matches);
+        }
+
         Set<String> custom = new LinkedHashSet<>();
-        CopyCustomResourcesBuilder.getCustomResourcePaths(project).forEach(p -> custom.add(PackageResolver.normalize(p)));
+        for (String path : CopyCustomResourcesBuilder.getCustomResourcePaths(project)) {
+            custom.add(PackageResolver.normalize(path));
+        }
+
         Set<Task> existingTasks = Set.copyOf(project.getTasks());
         for (String path : selected) {
             IResource source = project.getResource(path);
@@ -189,44 +264,70 @@ public final class PackageBuilder {
                 selectedTasks.put(path, selectedTask);
             }
         }
+
         reuseInputTasks(project, existingTasks);
-        for (Task selectedTask : new LinkedHashSet<>(selectedTasks.values())) task.addInputsFromOutputs(selectedTask);
+        for (Task selectedTask : new LinkedHashSet<>(selectedTasks.values())) {
+            task.addInputsFromOutputs(selectedTask);
+        }
+
         // Project clears its task-creation map before execution. Retain the declarations, including generated tasks.
         resourceTasks = List.copyOf(project.getTasks());
     }
 
+    /**
+     * Reuses an existing owner when a selected input would create duplicate outputs, while preserving independently
+     * needed tasks.
+     */
     private void reuseInputTasks(Project project, Set<Task> existingTasks) {
         Map<IResource, List<Task>> consumers = new LinkedHashMap<>();
         Set<IResource> compiledInputs = new LinkedHashSet<>();
         for (Task task : project.getTasks()) {
             for (IResource input : task.getInputs()) {
-                if (input.isOutput()) compiledInputs.add(input);
-                else if (!input.equals(task.firstInput())) consumers.computeIfAbsent(input, k -> new ArrayList<>()).add(task);
+                if (input.isOutput()) {
+                    compiledInputs.add(input);
+                } else if (!input.equals(task.firstInput())) {
+                    consumers.computeIfAbsent(input, k -> new ArrayList<>()).add(task);
+                }
             }
         }
-        selectedTasks.replaceAll((path, task) -> {
+
+        for (Map.Entry<String, Task> entry : selectedTasks.entrySet()) {
+            Task task = entry.getValue();
             // A folder rule may select both an atlas and its input image. Reuse the
             // atlas's declared outputs, but keep independently needed runtime tasks.
             if (!existingTasks.contains(task) && task.getOutputs().stream().noneMatch(compiledInputs::contains)) {
                 for (Task owner : consumers.getOrDefault(task.firstInput(), List.of())) {
                     if (owner.getOutputs().containsAll(task.getOutputs())) {
                         project.removeTask(task);
-                        return owner;
+                        entry.setValue(owner);
+                        break;
                     }
                 }
             }
-            return task;
-        });
+        }
     }
 
+    /**
+     * Converts a build output to its runtime archive path by removing the build-directory prefix and adding a leading
+     * slash.
+     */
     public static String outputPath(Project project, IResource resource) {
         String path = resource.getPath().replace('\\', '/');
         String build = project.getBuildDirectory().replace('\\', '/') + "/";
         return PackageResolver.normalize(path.startsWith(build) ? path.substring(build.length()) : path);
     }
 
+    /**
+     * Extends the compiled runtime graph with selected outputs and derives source mappings from retained task declarations.
+     * Resolves manifest membership or preserves the legacy Exclude classification, then updates each graph node's base flag.
+     *
+     * @param bootstrapRoots runtime paths required to start the application
+     * @param customResources opaque custom-resource outputs, included without traversing their contents
+     * @param export whether Live Update content is emitted externally; false keeps selected content in the base
+     * @return the plan, including diagnostics that the caller must validate before writing
+     */
     public PackageResolver.Plan resolve(Project project, ResourceGraph graph, Collection<String> bootstrapRoots,
-                                        Collection<IResource> customResources, boolean export) throws CompileExceptionError {
+            Collection<IResource> customResources, boolean export) throws CompileExceptionError {
         for (Task task : selectedTasks.values()) {
             // Primary output is declared by the task. Its runtime references discover secondary/generated
             // outputs; task-only intermediates (component counts, shader sources, etc.) never enter the graph.
@@ -234,12 +335,14 @@ public final class PackageBuilder {
                 graph.add(project.getResource(outputPath(project, task.output(0))));
             }
         }
+
         Set<String> customRoots = new TreeSet<>();
         for (IResource resource : customResources) {
             String path = outputPath(project, resource);
             customRoots.add(path);
             // Custom resources are opaque, even if their extension happens to name a compiled type.
         }
+
         Map<String, PackageResolver.Resource> resources = new LinkedHashMap<>();
         for (ResourceNode node : graph.getNodes()) {
             Map<String, PackageResolver.Loading> dependencies = new LinkedHashMap<>();
@@ -248,12 +351,19 @@ public final class PackageBuilder {
             }
             resources.put(node.getPath(), new PackageResolver.Resource(dependencies));
         }
-        for (String path : customRoots) resources.putIfAbsent(path, new PackageResolver.Resource(Map.of()));
+        for (String path : customRoots) {
+            resources.putIfAbsent(path, new PackageResolver.Resource(Map.of()));
+        }
+
         Map<String, List<String>> sourceOutputs = new LinkedHashMap<>();
         Map<String, String> primarySources = new LinkedHashMap<>();
-        inventory.forEach(path -> sourceOutputs.put(path, new ArrayList<>()));
+        for (String path : inventory) {
+            sourceOutputs.put(path, new ArrayList<>());
+        }
         for (Task task : resourceTasks) {
-            if (task.getBuilder().isGameProjectBuilder()) continue;
+            if (task.getBuilder().isGameProjectBuilder()) {
+                continue;
+            }
             if (task.getBuilder() instanceof CopyCustomResourcesBuilder) {
                 for (int i = 0; i < task.getInputs().size(); ++i) {
                     String source = PackageResolver.normalize(task.input(i).getPath());
@@ -264,20 +374,29 @@ public final class PackageBuilder {
                     }
                 }
             } else {
-                List<String> outputs = task.getOutputs().stream().map(output -> outputPath(project, output))
-                        .filter(resources::containsKey).toList();
+                List<String> outputs = task.getOutputs().stream()
+                        .map(output -> outputPath(project, output))
+                        .filter(resources::containsKey)
+                        .toList();
                 IResource primary = task.firstInput();
                 if (!primary.isOutput()) {
                     String source = PackageResolver.normalize(primary.getPath());
-                    outputs.forEach(output -> primarySources.put(output, source));
+                    for (String output : outputs) {
+                        primarySources.put(output, source);
+                    }
                 }
                 for (IResource input : task.getInputs()) {
-                    if (input.isOutput()) continue;
+                    if (input.isOutput()) {
+                        continue;
+                    }
                     List<String> mapped = sourceOutputs.get(PackageResolver.normalize(input.getPath()));
-                    if (mapped != null) mapped.addAll(outputs);
+                    if (mapped != null) {
+                        mapped.addAll(outputs);
+                    }
                 }
             }
         }
+
         PackageResolver.Plan plan;
         if (manifestPath(project).isEmpty()) {
             // Use the final legacy classification, not rules or the manifest resolver's startup locks.
@@ -285,18 +404,31 @@ public final class PackageBuilder {
             Set<String> excluded = export ? graph.createExcludedResourcesList() : Set.of();
             Set<String> base = new TreeSet<>(resources.keySet());
             base.removeAll(excluded);
-            String provider = !export || project.getPublisher().getPublisherSettings().getMode() == PublisherSettings.PublishMode.Zip ? "zip" : "folder";
-            PackageDesc description = PackageDesc.newBuilder().setName("liveupdate").setProvider(provider).build();
+            boolean zip = !export
+                    || project.getPublisher().getPublisherSettings().getMode() == PublisherSettings.PublishMode.Zip;
+            String provider = zip ? "zip" : "folder";
+            PackageDesc description = PackageDesc.newBuilder()
+                    .setName("liveupdate")
+                    .setProvider(provider)
+                    .build();
             PackageResolver.Package pkg = new PackageResolver.Package(description, excluded, Map.of());
             plan = new PackageResolver.Plan(Map.of("liveupdate", pkg), base, Map.of(), sourceOutputs, primarySources,
                     resources, List.of(), Map.of("liveupdate", Map.of()));
         } else {
-            plan = PackageResolver.resolve(manifest, sourceOutputs, primarySources, resources, bootstrapRoots, customRoots, export);
+            plan = PackageResolver.resolve(manifest, sourceOutputs, primarySources, resources,
+                    bootstrapRoots, customRoots, export);
         }
-        for (ResourceNode node : graph.getNodes()) node.setInMainBundle(plan.base().contains(node.getPath()));
+
+        for (ResourceNode node : graph.getNodes()) {
+            node.setInMainBundle(plan.base().contains(node.getPath()));
+        }
         return plan;
     }
 
+    /**
+     * Throws a compile error attributed to the manifest for the first error diagnostic; warnings do not fail the
+     * build.
+     */
     public void validate(List<PackageResolver.Diagnostic> diagnostics) throws CompileExceptionError {
         for (PackageResolver.Diagnostic diagnostic : diagnostics) {
             if (diagnostic.severity() == PackageResolver.Severity.ERROR) {

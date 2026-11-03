@@ -14,13 +14,10 @@
 
 package com.dynamo.bob.archive.liveupdate;
 
-import com.dynamo.bob.Project;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.util.MurmurHash;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
@@ -29,59 +26,98 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+
+import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.MurmurHash;
 
 /** Ownership outlives disposable build outputs, including clean and disabled export builds. */
 public final class PackageArtifacts {
-    public record Output(Path path, String name, boolean directory, boolean bundle, String inputSignature, String contentHash, boolean legacy) {}
 
+    /**
+     * A finalized artifact and its reuse information. path is the destination; name is relative to the package output root.
+     * bundle controls copying into the application bundle; legacy retains the old workflow's placement rules.
+     */
+    public record Output(Path path,
+            String name,
+            boolean directory,
+            boolean bundle,
+            String inputSignature,
+            String contentHash,
+            boolean legacy) {}
+
+    /** Returns the persistent ownership directory, outside the disposable build directory. */
     private static Path directory(Path projectRoot) {
         return projectRoot.toAbsolutePath().normalize().resolve(".internal/liveupdate");
     }
 
+    /** Locates the ownership receipt for this build directory and game.project resource. */
     static Path buildReceipt(Project project) {
         String identity = project.getBuildDirectory() + "/" + project.getGameProjectResource().getPath();
-        return directory(Path.of(project.getRootDirectory())).resolve("build-" + Long.toUnsignedString(MurmurHash.hash64(identity), 16) + ".outputs");
+        String filename = "build-" + Long.toUnsignedString(MurmurHash.hash64(identity), 16) + ".outputs";
+        return directory(Path.of(project.getRootDirectory())).resolve(filename);
     }
 
+    /** Locates the ownership receipt for copies delivered to a particular application bundle directory. */
     static Path bundleReceipt(Project project, Path bundleDirectory) {
         Path root = Path.of(project.getRootDirectory()).toAbsolutePath().normalize();
         Path destination = bundleDirectory.toAbsolutePath().normalize();
         String identity = destination.startsWith(root) ? root.relativize(destination).toString() : destination.toString();
-        return directory(Path.of(project.getRootDirectory())).resolve("bundle-" +
-                Long.toUnsignedString(MurmurHash.hash64(identity), 16) + ".outputs");
+        String filename = "bundle-" + Long.toUnsignedString(MurmurHash.hash64(identity), 16) + ".outputs";
+        return directory(Path.of(project.getRootDirectory())).resolve(filename);
     }
 
+    /** Reads a persistent receipt, or returns an empty list when it does not exist. */
     static List<Output> read(Path projectRoot, Path receipt) throws IOException {
-        return Files.exists(receipt) ? parse(projectRoot, Files.readString(receipt, StandardCharsets.UTF_8)) : List.of();
+        if (!Files.exists(receipt)) {
+            return List.of();
+        }
+        return parse(projectRoot, Files.readString(receipt, StandardCharsets.UTF_8));
     }
 
+    /** Returns the .lupackages build output recording the artifacts from the latest successful build. */
     public static IResource receipt(Project project) {
         return project.getGameProjectResource().disableMinifyPath().changeExt(".lupackages");
     }
 
+    /** Serializes artifact ownership and reuse signatures as UTF-8, including the originating project root. */
     public static byte[] serializeOutputs(Project project, List<Output> outputs) {
         StringBuilder text = new StringBuilder(header(project));
         for (Output output : outputs) {
-            text.append(output.directory()).append(' ').append(output.bundle()).append(' ')
-                    .append(Base64.getEncoder().encodeToString(output.path().toString().getBytes(StandardCharsets.UTF_8))).append(' ')
-                    .append(Base64.getEncoder().encodeToString(output.name().getBytes(StandardCharsets.UTF_8))).append(' ')
-                    .append(output.inputSignature()).append(' ').append(output.contentHash()).append(' ').append(output.legacy()).append('\n');
+            byte[] path = output.path().toString().getBytes(StandardCharsets.UTF_8);
+            byte[] name = output.name().getBytes(StandardCharsets.UTF_8);
+            text.append(output.directory()).append(' ')
+                    .append(output.bundle()).append(' ')
+                    .append(Base64.getEncoder().encodeToString(path)).append(' ')
+                    .append(Base64.getEncoder().encodeToString(name)).append(' ')
+                    .append(output.inputSignature()).append(' ')
+                    .append(output.contentHash()).append(' ')
+                    .append(output.legacy()).append('\n');
         }
         return text.toString().getBytes(StandardCharsets.UTF_8);
     }
 
+    /** Reads the latest build-output receipt; a missing receipt yields an empty list. */
     public static List<Output> readOutputs(Project project) throws IOException {
         IResource receipt = receipt(project);
-        if (!receipt.exists()) return List.of();
+        if (!receipt.exists()) {
+            return List.of();
+        }
         return parse(Path.of(project.getRootDirectory()), new String(receipt.getContent(), StandardCharsets.UTF_8));
     }
 
+    /** Records the absolute project root so ownership can be adjusted when a project is copied or moved. */
     private static String header(Project project) {
-        return "project-root " + Base64.getEncoder().encodeToString(Path.of(project.getRootDirectory())
-                .toAbsolutePath().normalize().toString().getBytes(StandardCharsets.UTF_8)) + "\n";
+        String root = Path.of(project.getRootDirectory()).toAbsolutePath().normalize().toString();
+        return "project-root " + Base64.getEncoder().encodeToString(root.getBytes(StandardCharsets.UTF_8)) + "\n";
     }
 
+    /**
+     * Reads current and older receipt formats, rebasing project-local artifacts to the supplied project root.
+     * External artifacts remain owned only by the originating project; unestablished external ownership is discarded.
+     */
     static List<Output> parse(Path projectRoot, String content) throws IOException {
         projectRoot = projectRoot.toAbsolutePath().normalize();
         Path origin = null;
@@ -93,7 +129,9 @@ public final class PackageArtifacts {
         List<Output> outputs = new ArrayList<>();
         for (String line : content.lines().toList()) {
             String[] fields = line.split(" ", -1);
-            if (fields.length != 4 && fields.length != 6 && fields.length != 7) throw new IOException("Invalid Live Update artifact receipt");
+            if (fields.length != 4 && fields.length != 6 && fields.length != 7) {
+                throw new IOException("Invalid Live Update artifact receipt");
+            }
             Path path = Path.of(new String(Base64.getDecoder().decode(fields[2]), StandardCharsets.UTF_8));
             if (origin != null && path.startsWith(origin)) {
                 // A copied or moved project owns its own copies, never the original project's artifacts.
@@ -103,13 +141,18 @@ public final class PackageArtifacts {
                 // Legacy receipts without an origin cannot establish external ownership.
                 continue;
             }
-            outputs.add(new Output(path, new String(Base64.getDecoder().decode(fields[3]), StandardCharsets.UTF_8),
-                    Boolean.parseBoolean(fields[0]), Boolean.parseBoolean(fields[1]), fields.length >= 6 ? fields[4] : "",
-                    fields.length >= 6 ? fields[5] : "", fields.length == 7 && Boolean.parseBoolean(fields[6])));
+            boolean directory = Boolean.parseBoolean(fields[0]);
+            boolean bundle = Boolean.parseBoolean(fields[1]);
+            String name = new String(Base64.getDecoder().decode(fields[3]), StandardCharsets.UTF_8);
+            String inputSignature = fields.length >= 6 ? fields[4] : "";
+            String contentHash = fields.length >= 6 ? fields[5] : "";
+            boolean legacy = fields.length == 7 && Boolean.parseBoolean(fields[6]);
+            outputs.add(new Output(path, name, directory, bundle, inputSignature, contentHash, legacy));
         }
         return List.copyOf(outputs);
     }
 
+    /** Reads persistent build ownership, falling back to the build-output receipt for older builds. */
     static List<Output> readBuildOutputs(Project project) throws IOException {
         Path receipt = buildReceipt(project);
         return Files.exists(receipt) ? read(Path.of(project.getRootDirectory()), receipt) : readOutputs(project);
@@ -119,8 +162,10 @@ public final class PackageArtifacts {
     public static void recordReportOutputs(Project project, Collection<Path> paths) throws IOException {
         Path buildReceipt = buildReceipt(project);
         Path receipt = buildReceipt.resolveSibling("reports-" + buildReceipt.getFileName());
-        var outputs = new LinkedHashMap<Path, Output>();
-        for (Output output : read(Path.of(project.getRootDirectory()), receipt)) outputs.put(output.path(), output);
+        Map<Path, Output> outputs = new LinkedHashMap<>();
+        for (Output output : read(Path.of(project.getRootDirectory()), receipt)) {
+            outputs.put(output.path(), output);
+        }
         for (Path path : paths) {
             path = path.toAbsolutePath().normalize();
             outputs.put(path, new Output(path, path.getFileName().toString(), false, false, "", "", false));
@@ -139,14 +184,23 @@ public final class PackageArtifacts {
         }
     }
 
-    /** Capture during resource synchronization, then use the captured paths as graph inputs. */
+    /**
+     * Collects project-relative artifact paths from persistent build, bundle, and report receipts, even if files are absent.
+     * Capture during resource synchronization, then use the captured paths as graph inputs.
+     */
     public static Set<String> generatedPaths(Path projectRoot) throws IOException {
         projectRoot = projectRoot.toAbsolutePath().normalize();
         Path directory = directory(projectRoot);
-        if (!Files.isDirectory(directory)) return Set.of();
+        if (!Files.isDirectory(directory)) {
+            return Set.of();
+        }
         Set<String> paths = new LinkedHashSet<>();
         try (var receipts = Files.list(directory)) {
-            for (Path receipt : receipts.filter(path -> path.getFileName().toString().endsWith(".outputs")).sorted().toList()) {
+            List<Path> outputReceipts = receipts
+                    .filter(path -> path.getFileName().toString().endsWith(".outputs"))
+                    .sorted()
+                    .toList();
+            for (Path receipt : outputReceipts) {
                 for (Output output : read(projectRoot, receipt)) {
                     if (output.path().startsWith(projectRoot)) {
                         paths.add(PackageResolver.normalize(projectRoot.relativize(output.path()).toString()));
@@ -157,11 +211,18 @@ public final class PackageArtifacts {
         return Set.copyOf(paths);
     }
 
+    /**
+     * Checks whether a normalized project path is an owned artifact, one of its descendants, or internal receipt data.
+     */
     public static boolean isGeneratedPath(String path, Set<String> generatedPaths) {
         String normalized = PackageResolver.normalize(path);
-        if (normalized.equals("/.internal/liveupdate") || normalized.startsWith("/.internal/liveupdate/")) return true;
+        if (normalized.equals("/.internal/liveupdate") || normalized.startsWith("/.internal/liveupdate/")) {
+            return true;
+        }
         for (String generated : generatedPaths) {
-            if (normalized.equals(generated) || normalized.startsWith(generated + "/")) return true;
+            if (normalized.equals(generated) || normalized.startsWith(generated + "/")) {
+                return true;
+            }
         }
         return false;
     }

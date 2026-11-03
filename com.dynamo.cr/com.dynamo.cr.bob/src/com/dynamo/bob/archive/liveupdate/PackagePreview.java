@@ -14,6 +14,12 @@
 
 package com.dynamo.bob.archive.liveupdate;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.IProgress;
@@ -23,23 +29,24 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.DefaultFileSystem;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 
 /** Builds a caller-owned snapshot with the same compilers and resolver as bundling, without provider writers. */
 public final class PackagePreview {
+
+    /** Resolved membership and declared export paths, with no external package artifacts written. */
     public record Result(PackageResolver.Plan plan, Map<String, List<String>> exportPaths) {
         public Result {
             Map<String, List<String>> paths = new LinkedHashMap<>();
-            exportPaths.forEach((name, outputs) -> paths.put(name, List.copyOf(outputs)));
+            for (Map.Entry<String, List<String>> entry : exportPaths.entrySet()) {
+                paths.put(entry.getKey(), List.copyOf(entry.getValue()));
+            }
             exportPaths = Map.copyOf(paths);
         }
     }
 
-    private static Map<String, List<String>> exportPaths(Project project, Path projectRoot, PackageResolver.Plan plan) throws IOException, CompileExceptionError {
+    /** Resolves provider declarations against the intended output root without invoking their writers. */
+    private static Map<String, List<String>> exportPaths(Project project, Path projectRoot,
+            PackageResolver.Plan plan) throws IOException, CompileExceptionError {
         Map<String, PackageProvider> providers = PackageProviders.discover(project.getProjectClassLoaderScanner());
         PackageProvider.Context context = PackageProviders.context(project, plan, providers);
         Path directory = PackageBuilder.outputDirectory(project, projectRoot);
@@ -47,15 +54,27 @@ public final class PackagePreview {
         for (PackageResolver.Package pkg : plan.packages().values()) {
             context.checkCanceled();
             PackageProvider provider = providers.get(pkg.description().getProvider());
-            paths.put(pkg.description().getName(), provider.describeOutputs(context, pkg).stream()
+            List<String> outputs = provider.describeOutputs(context, pkg).stream()
                     .map(artifact -> directory.resolve(artifact.name()).normalize().toString().replace('\\', '/'))
-                    .toList());
+                    .toList();
+            paths.put(pkg.description().getName(), outputs);
         }
         return paths;
     }
 
+    /**
+     * Builds an isolated source snapshot and returns Bob's exact package plan without writing provider artifacts.
+     * Platform and variant default to host/debug. Build intermediates stay in snapshot/build; the caller owns snapshot cleanup.
+     *
+     * @param snapshot project sources, including current library files and any unsaved editor content
+     * @param projectRoot original project root used to resolve displayed export paths
+     * @param manifestPath manifest override; an empty string selects the legacy Exclude workflow
+     * @param options additional Bob options, subject to the forced archive, Live Update, and preview settings
+     * @param classLoader loader for Bob and pipeline plugins
+     * @param progress build progress and cancellation callbacks
+     */
     public static Result build(Path snapshot, Path projectRoot, String manifestPath, Map<String, String> options,
-                               ClassLoader classLoader, IProgress progress) throws IOException, CompileExceptionError, MultipleCompileException {
+            ClassLoader classLoader, IProgress progress) throws IOException, CompileExceptionError, MultipleCompileException {
         try (Project project = new Project(classLoader, new DefaultFileSystem(), snapshot.toString(), "build")) {
             options.forEach(project::setOption);
             project.setOption("platform", options.getOrDefault("platform", Platform.getHostPlatform().getPair()));
@@ -67,11 +86,16 @@ public final class PackagePreview {
             // Library resources are already captured in the snapshot by the editor.
             project.mount(new ClassLoaderResourceScanner(), List.of());
             for (TaskResult task : project.build(progress, "build")) {
-                if (!task.isOk()) throw new CompileExceptionError(task.getTask().input(0), task.getLineNumber(), task.getMessage(), task.getException());
+                if (!task.isOk()) {
+                    throw new CompileExceptionError(task.getTask().input(0), task.getLineNumber(),
+                            task.getMessage(), task.getException());
+                }
             }
             BundleHelper.throwIfCanceled(progress);
             PackageResolver.Plan plan = project.getLiveUpdatePlan();
-            if (plan == null) throw new IOException("Preview did not produce a Live Update package plan");
+            if (plan == null) {
+                throw new IOException("Preview did not produce a Live Update package plan");
+            }
             return new Result(plan, exportPaths(project, projectRoot, plan));
         }
     }
