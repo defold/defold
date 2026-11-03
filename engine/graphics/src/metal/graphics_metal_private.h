@@ -32,7 +32,6 @@ namespace dmGraphics
     struct MetalContext;
     struct MetalPipeline;
     struct MetalResourceToDestroy;
-
     typedef dmHashTable64<MetalPipeline> PipelineCache;
     typedef dmArray<MetalResourceToDestroy>   MetalResourcesToDestroyList;
 
@@ -342,8 +341,7 @@ namespace dmGraphics
         // Async process resources
         HJobContext                        m_JobContext;
         SetTextureAsyncState               m_SetTextureAsyncState;
-        int32_atomic_t                     m_DeleteContextRequested;
-        int32_atomic_t                     m_PendingAsyncTextureJobs;
+        TextureUploadQueue                 m_TextureUploads;
         dispatch_semaphore_t               m_FrameBoundarySemaphore;
 
         // Per-frame render state

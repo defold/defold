@@ -328,6 +328,7 @@ namespace dmGameSystem
         }
         else
         {
+            dmGraphics::TextureParams mip_params[MAX_MIPMAP_COUNT];
             for (uint32_t i = 0; i < num_mips; ++i)
             {
                 if (image_desc->m_DecompressedData[i] == 0)
@@ -351,8 +352,9 @@ namespace dmGameSystem
                     return dmResource::RESULT_FORMAT_ERROR;
                 }
 
-                dmGraphics::SetTextureAsync(context, texture, params, 0, 0);
+                mip_params[i] = params;
             }
+            dmGraphics::SetTextureAsyncBatch(context, texture, mip_params, num_mips);
         }
 
         *texture_out = texture;

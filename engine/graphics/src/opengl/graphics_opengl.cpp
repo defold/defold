@@ -484,6 +484,8 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
+    static void                         OpenGLSetTextureInternal(HContext context, HTexture texture, const TextureParams& params);
+    static void                         OpenGLProcessTextureUpload(void* context, TextureUploadRequest* request);
     static bool                         OpenGLIsSupported();
     static HContext                     OpenGLGetContext();
 
@@ -645,6 +647,7 @@ static void LogFrameBufferError(GLenum status)
         m_BaseContext.m_Height                  = params.m_Height;
         m_BaseContext.m_Window                  = params.m_Window;
         m_JobContext                            = params.m_JobContext;
+        InitializeTextureUploadQueue(m_TextureUploads, &m_BaseContext, m_JobContext, OpenGLProcessTextureUpload, this);
 
         // We need to have some sort of valid default filtering
         if (m_BaseContext.m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
@@ -1155,7 +1158,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         if (context != 0x0)
         {
-            dmAtomicStore32(&context->m_DeleteContextRequested, 1);
+            DestroyTextureUploadQueue(context->m_TextureUploads);
             AcquireAuxContextOnThread(context, false);
             ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
 
@@ -2101,6 +2104,10 @@ static void LogFrameBufferError(GLenum status)
         }
 
         context->m_AsyncProcessingSupport = dmThread::PlatformHasThreadSupport() && dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_AUX_CONTEXT);
+        // One auxiliary GL context is bound to one worker. Other worker counts
+        // use the current context and consume the same mip batch synchronously.
+        if (context->m_AsyncProcessingSupport && context->m_JobContext && JobSystemGetWorkerCount(context->m_JobContext) != 1)
+            context->m_AsyncProcessingSupport = false;
         if (context->m_AsyncProcessingSupport)
         {
             AcquireAuxContextOnThread(context, true);
@@ -2156,6 +2163,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
+            StopTextureUploadQueue(context->m_TextureUploads);
             PostDeleteTextures(context, true);
 
             context->m_BaseContext.m_Width = 0;
@@ -5641,76 +5649,53 @@ static void LogFrameBufferError(GLenum status)
         SetSampler(context, &tex->m_SamplerDirty, minfilter, magfilter, uwrap, vwrap, wwrap, max_anisotropy);
     }
 
-    // Called on worker thread
-    static int AsyncProcessCallback(HJobContext, HJob job, void* _context, void* data)
+    static void OpenGLUploadTextureBatch(OpenGLContext* context, HTexture texture, const TextureParams* params, uint32_t count)
     {
-        OpenGLContext* context     = (OpenGLContext*) _context;
-        uint16_t param_array_index = (uint16_t) (size_t) data;
-        SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
-
-        if (dmAtomicGet32(&context->m_DeleteContextRequested))
-        {
-            return 0;
-        }
-
-        // TODO: If we use multiple workers, we either need more secondary contexts,
-        //       or we need to guard this call with a mutex.
-        //       The window handle (pointer) isn't protected by a mutex either,
-        //       but it is currently not used with our GLFW version (yet) so
-        //       we don't necessarily need to guard it right now.
-        SetTexture((HContext) _context, ap.m_Texture, ap.m_Params);
+        // GL consumes client pixels directly. It has no uploader-owned pixel
+        // staging allocation; the driver's copies are outside the CPU budget.
+        ReserveTextureUploadMemory(context->m_BaseContext.m_TextureUploadMemoryBudget, 0, count, 0);
+        for (uint32_t i = 0; i < count; ++i)
+            OpenGLSetTextureInternal((HContext)context, texture, params[i]);
         glFlush();
-
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, ap.m_Texture);
-        int32_t data_state = dmAtomicGet32(&tex->m_Base.m_DataState);
-        data_state &= ~(1<<ap.m_Params.m_MipMap);
-        dmAtomicStore32(&tex->m_Base.m_DataState, data_state);
-        return 0;
+        ReleaseTextureUploadMemory(context->m_BaseContext.m_TextureUploadMemoryBudget, 0);
     }
 
-    // Called on thread where we update (which should be the main thread)
-    static void AsyncCompleteCallback(HJobContext, HJob job, JobSystemStatus status, void* _context, void* data, int result)
+    static void OpenGLProcessTextureUpload(void* _context, TextureUploadRequest* request)
     {
-        OpenGLContext* context     = (OpenGLContext*) _context;
-        uint16_t param_array_index = (uint16_t) (size_t) data;
-        SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
-
-        if (ap.m_Callback)
-        {
-            ap.m_Callback(ap.m_Texture, ap.m_UserData);
-        }
-
-        ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
+        OpenGLContext* context = (OpenGLContext*)_context;
+        if (!dmAtomicGet32(&context->m_TextureUploads.m_Stopping))
+            OpenGLUploadTextureBatch(context, request->m_Texture, request->m_Params.Begin(), request->m_Params.Size());
+        CompleteTextureUploadRequest(context->m_TextureUploads, request);
     }
 
-    static void OpenGLSetTextureAsync(HContext _context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
+    static void OpenGLQueueTextureUpload(OpenGLContext* context, HTexture texture, const TextureParams* params, uint32_t count, SetTextureAsyncCallback callback, void* user_data)
     {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        if (context->m_AsyncProcessingSupport)
+        if (!count)
+            return;
+        if (!context->m_AsyncProcessingSupport)
         {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-            OpenGLTexture* tex         = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
-            tex->m_Base.m_DataState          |= 1<<params.m_MipMap;
-            uint16_t param_array_index = PushSetTextureAsyncState(context->m_SetTextureAsyncState, texture, params, callback, user_data);
-
-            Job job = {0};
-            job.m_Process = AsyncProcessCallback;
-            job.m_Callback = AsyncCompleteCallback;
-            job.m_Context = (void*) context;
-            job.m_Data = (void*) (uintptr_t) param_array_index;
-
-            HJob hjob = JobSystemCreateJob(context->m_JobContext, &job);
-            JobSystemPushJob(g_Context->m_JobContext, hjob);
-        }
-        else
-        {
-            SetTexture(_context, texture, params);
+            OpenGLUploadTextureBatch(context, texture, params, count);
             if (callback)
-            {
                 callback(texture, user_data);
-            }
+            return;
         }
+        bool queued;
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            queued = QueueTextureUpload(context->m_TextureUploads, texture, params, count, 0, callback, user_data);
+        }
+        if (!queued && callback)
+            callback(texture, user_data);
+    }
+
+    static void OpenGLSetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
+    {
+        OpenGLQueueTextureUpload((OpenGLContext*)context, texture, &params, 1, callback, user_data);
+    }
+
+    static void OpenGLSetTextureAsyncBatch(HContext context, HTexture texture, const TextureParams* params, uint32_t count)
+    {
+        OpenGLQueueTextureUpload((OpenGLContext*)context, texture, params, count, 0, 0);
     }
 
     // JG: We should deprecate / remove this function. It's not safe to return pointers like this.
@@ -5734,8 +5719,22 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLSetTexture(HContext _context, HTexture texture, const TextureParams& params)
     {
+        OpenGLContext* context = (OpenGLContext*)_context;
+        WaitForTextureUpload(context->m_TextureUploads, texture);
+        OpenGLSetTextureInternal(_context, texture, params);
+    }
+
+    static void OpenGLSetTextureInternal(HContext _context, HTexture texture, const TextureParams& input_params)
+    {
         OpenGLContext* context = (OpenGLContext*) _context;
         DM_PROFILE(__FUNCTION__);
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
+        TextureParams params = input_params;
+        TextureUploadExtent extent = GetTextureUploadExtent(tex->m_Base, params);
+        params.m_Width = extent.m_Width;
+        params.m_Height = extent.m_Height;
+        params.m_Depth = extent.m_Depth;
 
         // Stencil textures are not supported
         assert(params.m_Format != TEXTURE_FORMAT_STENCIL);
@@ -5766,9 +5765,6 @@ static void LogFrameBufferError(GLenum status)
             glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlignment);
             CHECK_GL_ERROR;
         }
-
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
 
         tex->m_Base.m_MipMapCount = dmMath::Max(tex->m_Base.m_MipMapCount, (uint8_t)(params.m_MipMap+1));
 
@@ -6343,6 +6339,7 @@ static void LogFrameBufferError(GLenum status)
     {
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, OpenGL);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, OpenGL, SetTextureAsyncBatch);
         return fn_table;
     }
 }
