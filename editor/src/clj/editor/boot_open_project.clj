@@ -39,6 +39,7 @@
             [editor.http-server.prefs :as http-server.prefs]
             [editor.icons :as icons]
             [editor.localization :as localization]
+            [editor.lsp.project :as lsp.project]
             [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
             [editor.notifications-view :as notifications-view]
@@ -292,6 +293,7 @@
       (.addEventFilter ^StackPane (.lookup root "#overlay") MouseEvent/ANY ui/ignore-event-filter)
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
       (ui/add-application-unfocused-callback! :main-stage-unfocused app-view/handle-application-unfocused! app-view changes-view project prefs)
+      (project/update-language-servers! project prefs {:project-language-server (lsp.project/language-server project)})
       (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs localization web-server)
 
       (when updater
@@ -399,10 +401,10 @@
       (g/transact
         {:undoable false}
         (concat
-          (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
+          (for [label [:outline-selection-by-resource-node :selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
             (g/connect project label app-view label))
           (g/connect project :_node-id app-view :project-id)
-          (g/connect app-view :selected-node-ids outline-view :selection)
+          (g/connect app-view :outline-selection outline-view :selection)
           (g/connect app-view :hidden-node-outline-key-paths outline-view :hidden-node-outline-key-paths)
           (g/connect app-view :active-resource asset-browser :active-resource)
           (g/connect app-view :active-resource-node+type scene-visibility :active-resource-node+type)

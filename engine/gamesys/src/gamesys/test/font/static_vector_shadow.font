@@ -1,0 +1,11 @@
+font: "/font/valid.ttf"
+material: "/builtins/fonts/font-vector.material"
+characters: "A"
+size: 32
+shadow_x: 2.0
+shadow_blur: 16
+shadow_alpha: 1.0
+runtime: false
+vector_font_mode: VECTOR_FONT_MODE_VECTOR
+outline_width: 4
+outline_alpha: 1

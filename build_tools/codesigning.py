@@ -136,25 +136,41 @@ def sign_windows_file(options, file):
             token_started - auth_started, token_finished - token_started,
             finished - sign_started, finished - started))
 
-def sign_macos_file(options, file):
+def _sign_macos(options, file, extra_args):
     codesigning_identity = options.codesigning_identity
     certificate = mac_certificate(codesigning_identity)
     if certificate is None:
         log("Codesigning certificate not found for signing identity %s" % codesigning_identity)
         sys.exit(1)
 
+    args = ['codesign', '--force', '--timestamp', '--sign', certificate] + extra_args + [file]
+    env = os.environ.copy()
+    max_attempts = 5
+    for attempt in range(max_attempts):
+        try:
+            # run.command exits on failure before the timestamp error can be retried.
+            run.env_command(env, args)
+            return
+        except run.ExecException as error:
+            if 'The timestamp service is not available.' not in error.output or attempt + 1 == max_attempts:
+                sys.exit(error.retcode)
+            delay = 5 * (2 ** attempt)
+            log("Timestamp service unavailable while signing %s. Retrying in %d seconds (attempt %d/%d)." % (
+                file, delay, attempt + 2, max_attempts))
+            time.sleep(delay)
+
+def sign_macos_file(options, file):
     if not options.codesigning_entitlements:
         log("No entitlements specified for signing %s" % file)
         sys.exit(1)
 
-    run.command([
-        'codesign',
+    _sign_macos(options, file, [
         '--deep',
-        '--force',
         '--options', 'runtime',
-        '--entitlements', options.codesigning_entitlements,
-        '--sign', certificate,
-        file])
+        '--entitlements', options.codesigning_entitlements])
+
+def sign_macos_dmg(options, file):
+    _sign_macos(options, file, [])
 
 def sign_file(platform, options, file):
     if _platform_is_windows(platform):

@@ -36,6 +36,8 @@ var LibraryDefoldPlatform = {
     params: null,
     wheelPos: 0,
     buttons: 0,
+    mouseLeftButtonFromTouch: false,
+    mousePositionFromTouch: false,
     keys: 0,
     initWindowWidth: 640,
     initWindowHeight: 480,
@@ -49,7 +51,6 @@ var LibraryDefoldPlatform = {
     prevNonFSHeight: 0,
     isFullscreen: false,
     isPointerLocked: false,
-    dpi: 1,
     mouseTouchId:null,
 
 /*******************************************************************************
@@ -269,6 +270,7 @@ var LibraryDefoldPlatform = {
       var lastX = Browser.mouseX;
       var lastY = Browser.mouseY;
       Browser.calculateMouseEvent(event);
+      DefoldPlatform.mousePositionFromTouch = false;
       var newX = Browser.mouseX;
       var newY = Browser.mouseY;
 
@@ -286,6 +288,7 @@ var LibraryDefoldPlatform = {
       }
 
       Browser.calculateMouseEvent(event);
+      DefoldPlatform.mousePositionFromTouch = false;
 
       if (event.target != Module["canvas"]) {
         return;
@@ -323,11 +326,13 @@ var LibraryDefoldPlatform = {
           if (touch.identifier == DefoldPlatform.mouseTouchId) {
               DefoldPlatform.mouseTouchId = null;
               DefoldPlatform.buttons &= ~(1 << 0);
+              DefoldPlatform.mouseLeftButtonFromTouch = false;
             }
         }
 
         if (event.touches.length == 0){
             DefoldPlatform.buttons &= ~(1 << 0);
+            DefoldPlatform.mouseLeftButtonFromTouch = false;
         }
 
         // Audio is blocked by default in browsers until a user performs an interaction,
@@ -380,6 +385,7 @@ var LibraryDefoldPlatform = {
           if (touch.identifier == DefoldPlatform.mouseTouchId) {
             Browser.mouseX = canvasX;
             Browser.mouseY = canvasY;
+            DefoldPlatform.mousePositionFromTouch = true;
           }
           DefoldPlatform.fillTouch(touch.identifier, canvasX, canvasY, DefoldPlatform.NATIVE_PHASE_MOVED);
         }
@@ -405,8 +411,10 @@ var LibraryDefoldPlatform = {
           if (i == 0 && DefoldPlatform.mouseTouchId == null) {
             DefoldPlatform.mouseTouchId = touch.identifier;
             DefoldPlatform.buttons |= (1 << 0);
+            DefoldPlatform.mouseLeftButtonFromTouch = true;
             Browser.mouseX = canvasX;
             Browser.mouseY = canvasY;
+            DefoldPlatform.mousePositionFromTouch = true;
           }
           DefoldPlatform.fillTouch(touch.identifier, canvasX, canvasY, DefoldPlatform.NATIVE_PHASE_BEGAN);
         }
@@ -425,6 +433,9 @@ var LibraryDefoldPlatform = {
       if (event.target != Module["canvas"]) { return; }
 
       DefoldPlatform.buttons |= (1 << event['button']);
+      if (event['button'] == 0) {
+        DefoldPlatform.mouseLeftButtonFromTouch = false;
+      }
       DefoldPlatform.onMouseButtonChanged(event, 1);// NATIVE_PRESS
 
       // Resume audio on user interaction (see explanation in touchWasFinished).
@@ -437,6 +448,9 @@ var LibraryDefoldPlatform = {
       if (!DefoldPlatform.isCanvasActive(event)) { return; }
 
       DefoldPlatform.buttons &= ~(1 << event['button']);
+      if (event['button'] == 0) {
+        DefoldPlatform.mouseLeftButtonFromTouch = false;
+      }
       DefoldPlatform.onMouseButtonChanged(event, 0);// NATIVE_RELEASE
 
       // Resume audio on user interaction (see explanation in touchWasFinished).
@@ -507,9 +521,6 @@ var LibraryDefoldPlatform = {
       if (!DefoldPlatform.isFullscreen) {
         DefoldPlatform.removeFullScreenEventListeners();
       }
-      //reset previous values for updating size in dmNativeSwapBuffers()
-      DefoldPlatform.prevWidth = 0;
-      DefoldPlatform.prevHeight = 0;
     },
 
     requestFullScreen: function(element) {
@@ -793,8 +804,6 @@ var LibraryDefoldPlatform = {
     DefoldPlatform.params[19] = 0; // WINDOW_STATE_FSAA_SAMPLES
     DefoldPlatform.params[21] = 0; // WINDOW_STATE_HIGH_DPI
 
-    DefoldPlatform.dpi = 1;
-
     DefoldPlatform.keys = new Array();
 
     DefoldPlatform.NATIVE_PHASE_BEGAN = 0;
@@ -878,7 +887,6 @@ var LibraryDefoldPlatform = {
 
     DefoldPlatform.params[19] = samples; // WINDOW_STATE_FSAA_SAMPLES
     DefoldPlatform.params[21] = highDPI; // WINDOW_STATE_HIGH_DPI
-    DefoldPlatform.dpi = highDPI ? (window.devicePixelRatio || 1) : 1;
     if(useWebGL) {
         var contextAttributes = {
             antialias: (DefoldPlatform.params[19] > 1), // WINDOW_STATE_FSAA_SAMPLES
@@ -942,11 +950,14 @@ var LibraryDefoldPlatform = {
     var width = Module['canvas'].width;
     var height = Module['canvas'].height;
 
-    if (DefoldPlatform.prevWidth != width || DefoldPlatform.prevHeight != height) {
-      if (DefoldPlatform.isFullscreen) {
-        width = Math.floor(window.innerWidth * DefoldPlatform.dpi);
-        height = Math.floor(window.innerHeight * DefoldPlatform.dpi);
-      }
+    if (DefoldPlatform.isFullscreen) {
+      var dpi = Module['getPixelRatio'](DefoldPlatform.params[21]); // WINDOW_STATE_HIGH_DPI
+      width = Math.max(1, Math.floor(window.innerWidth * dpi));
+      height = Math.max(1, Math.floor(window.innerHeight * dpi));
+    }
+
+    if (DefoldPlatform.prevWidth != width || DefoldPlatform.prevHeight != height ||
+        Module['canvas'].width != width || Module['canvas'].height != height) {
       DefoldPlatform.prevWidth = width;
       DefoldPlatform.prevHeight = height;
       _dmNativeSetWindowSize(width, height);
@@ -984,6 +995,14 @@ var LibraryDefoldPlatform = {
 
   dmNativeGetMouseButton: function(button) {
     return (DefoldPlatform.buttons & (1 << DefoldPlatform.DOMtoNativeButton(button))) > 0;
+  },
+
+  dmNativeIsMouseLeftButtonFromTouch: function() {
+    return DefoldPlatform.mouseLeftButtonFromTouch;
+  },
+
+  dmNativeIsMousePositionFromTouch: function() {
+    return DefoldPlatform.mousePositionFromTouch;
   },
 
   dmNativeGetMousePos: function(xpos, ypos) {
@@ -1210,7 +1229,13 @@ var LibraryDefoldPlatform = {
   },
 
   dmNativeGetDisplayScaleFactor: function() {
-    return DefoldPlatform.dpi;
+    // Match the canvas rendering ratio so pixel-ratio limits do not change camera zoom.
+    return Module['getPixelRatio'](DefoldPlatform.params[21]); // WINDOW_STATE_HIGH_DPI
+  },
+
+  dmNativeGetDisplayDensity: function() {
+    // A CSS pixel is 1/96 inch, so the device pixel ratio converts to dots per inch directly.
+    return (window.devicePixelRatio || 1) * 96;
   }
 };
 

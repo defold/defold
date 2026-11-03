@@ -1,5 +1,6 @@
 [
     "lib/**/*dlib_shared*",
+    "lib/**/*dxcompiler*",
     "lib/**/*fontc_shared*",
     "lib/**/*modelc_shared*",
     "lib/**/*shaderc_shared*",
@@ -7,6 +8,7 @@
     "lib/luajit-share.zip",
     "libexec/**/glslang*",
     "libexec/**/gltf_validator*",
+    "libexec/**/libogg*",
     "libexec/**/luajit*",
     "libexec/**/spirv-opt*",
     "libexec/**/tint*"

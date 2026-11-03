@@ -87,9 +87,9 @@ static int WriteFile(const char* path, const void* data, uint32_t data_size)
     }
 
     size_t nwritten = fwrite(data, 1, data_size, file);
-    fclose(file);
+    int    close_result = fclose(file);
 
-    if (nwritten != data_size)
+    if (nwritten != data_size || close_result != 0)
     {
         printf("Failed to write %u bytes to %s\n", data_size, path);
         return 0;
@@ -104,8 +104,14 @@ static int ExecuteStandAlone(const Params& p)
 
     uint32_t data_size;
     void* data = ReadFile(p.m_PathIn, &data_size);
+    if (!data)
+    {
+        return 1;
+    }
 
     dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(p.m_Stage, data, data_size);
+    free(data);
+    int result = 0;
 
     if (p.m_Reflect)
     {
@@ -121,22 +127,27 @@ static int ExecuteStandAlone(const Params& p)
         dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, p.m_Language);
         dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
 
-        if (p.m_PathOut)
+        if (dst->m_LastError[0] || dst->m_Data.Empty())
         {
-            WriteFile(p.m_PathOut, dst->m_Data.Begin(), dst->m_Data.Size());
+            dmLogError("Failed to compile %s: %s", p.m_PathIn, dst->m_LastError[0] ? dst->m_LastError : "Empty shader output");
+            result = 1;
+        }
+        else if (p.m_PathOut)
+        {
+            result = WriteFile(p.m_PathOut, dst->m_Data.Begin(), dst->m_Data.Size()) ? 0 : 1;
         }
         else
         {
-            dst->m_Data.Begin()[dst->m_Data.Size()-1] = 0;
-            printf("%s\n", (char*) dst->m_Data.Begin());
+            result = fwrite(dst->m_Data.Begin(), 1, dst->m_Data.Size(), stdout) == dst->m_Data.Size() ? 0 : 1;
         }
 
+        dmShaderc::FreeShaderCompileResult(dst);
         dmShaderc::DeleteShaderCompiler(compiler);
     }
 
     dmShaderc::DeleteShaderContext(shader_ctx);
 
-    return 0;
+    return result;
 }
 
 inline bool IsArg(const char* arg)
@@ -169,11 +180,12 @@ T GetArgTypeValue(const char* arg, ArgNameToTypeValue<T>* args, T default_value)
 }
 
 ArgNameToTypeValue<dmShaderc::ShaderLanguage> g_lang_lut[] = {
-    {"none", dmShaderc::SHADER_LANGUAGE_NONE},
-    {"glsl", dmShaderc::SHADER_LANGUAGE_GLSL},
-    {"hlsl", dmShaderc::SHADER_LANGUAGE_HLSL},
-    {"spirv", dmShaderc::SHADER_LANGUAGE_SPIRV},
-    {0}
+    { "none", dmShaderc::SHADER_LANGUAGE_NONE },
+    { "glsl", dmShaderc::SHADER_LANGUAGE_GLSL },
+    { "hlsl", dmShaderc::SHADER_LANGUAGE_HLSL },
+    { "msl", dmShaderc::SHADER_LANGUAGE_MSL },
+    { "spirv", dmShaderc::SHADER_LANGUAGE_SPIRV },
+    { 0 }
 };
 
 ArgNameToTypeValue<dmShaderc::ShaderStage> g_stage_lut[] = {

@@ -1,4 +1,5 @@
 defold_log("functions_libs.cmake:")
+include(functions_external)
 
 if(TARGET_PLATFORM STREQUAL "x86_64-xbone")
   include(functions_libs_xbox OPTIONAL RESULT_VARIABLE _DEFOLD_FUNCTIONS_LIBS_XBOX)
@@ -17,6 +18,7 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   decoder_wav
   ddf
   ddf_noasan
+  debugger
   dlib
   dlib_noasan
   engine
@@ -25,6 +27,8 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   engine_service_null
   extension
   font
+  font_gen
+  font_gen_null
   font_richtext
   font_richtext_null
   font_render
@@ -86,7 +90,8 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   profilerext
   profilerext_null
   record
-  record_null
+  record_script
+  record_service
   render
   resource
   rig
@@ -102,7 +107,6 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   sound_openal
   testmain
   texc
-  vpx
   zip
   zip_noasan)
 
@@ -120,6 +124,8 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
 #   is a linker flag (starts with "-"), or already ends with ".lib".
 # - Exceptions (these already follow Windows naming): hid, hid_null, input,
 #   platform, platform_null, platform_vulkan.
+# - Apple platforms omit mbedtls and mbedtls_noasan unless the mbedtls feature
+#   is enabled, matching dlib's crypto and TLS backend selection.
 # - Other platforms link the names as-is.
 
 function(defold_target_link_libraries target platform)
@@ -139,10 +145,19 @@ function(defold_target_link_libraries target platform)
   # mirrors Waf's LUA uselib and resolves to the platform runtime, not
   # necessarily the vanilla lua target.
   set(_SDK_LIBS ${DLIB_UNPARSED_ARGUMENTS})
+  if(platform MATCHES "(macos|ios)$")
+    defold_feature_enabled(mbedtls _use_mbedtls)
+    if(NOT _use_mbedtls)
+      list(REMOVE_ITEM _SDK_LIBS mbedtls mbedtls_noasan)
+    endif()
+  endif()
   set(_LIBS)
-  foreach(_lib IN LISTS DLIB_UNPARSED_ARGUMENTS)
+  foreach(_lib IN LISTS _SDK_LIBS)
     if(_lib MATCHES "^(basis_encoder|basis_transcoder)$")
       defold_import_basisu("${_lib}" "${platform}")
+    endif()
+    if(WITH_MSAN AND _lib MATCHES "^(harfbuzz|sheenbidi|unibreak|skribidi|opus|ogg|tremolo|openh264|box2d|box2d_nosimd|box2d_defold|astcenc|spirv-cross-.*)$")
+      defold_import_external("${_lib}" "${DEFOLD_SDK_ROOT}/ext/lib/${platform}/lib${_lib}.a")
     endif()
     set(_vendor_libs)
     set(_vendor_libs_found OFF)
@@ -157,7 +172,7 @@ function(defold_target_link_libraries target platform)
     elseif(_lib STREQUAL "graphics" AND platform MATCHES "android$" AND WITH_VULKAN AND NOT WITH_OPENGL)
       # Generic graphics consumers must not reintroduce the GLES platform backend.
       list(APPEND _LIBS graphics_vulkan)
-    elseif(_lib STREQUAL "lua" AND NOT "${platform}" MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
+    elseif(_lib STREQUAL "lua" AND NOT WITH_MSAN AND NOT "${platform}" MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
       list(APPEND _LIBS luajit-5.1)
     else()
       list(APPEND _LIBS "${_lib}")
@@ -360,6 +375,11 @@ endfunction()
 function(defold_get_box2d_library out_var)
   defold_feature_enabled(box2dv3 _with_box2dv3)
   defold_feature_enabled(simd _with_simd)
+  defold_feature_disabled(simd _without_simd)
+  # ARM64 guarantees NEON support; keep an explicit scalar opt-out.
+  if(TARGET_PLATFORM MATCHES "^arm64[-_]" AND NOT _without_simd)
+    set(_with_simd ON)
+  endif()
   if(_with_box2dv3 AND NOT _with_simd)
     set(_box2d_lib box2d_nosimd)
   else()
@@ -398,6 +418,16 @@ function(defold_get_font_libraries out_var)
     list(APPEND _font_libs font_richtext)
   endif()
   set(${out_var} ${_font_libs} PARENT_SCOPE)
+endfunction()
+
+function(defold_get_font_gen_library out_var)
+  defold_feature_disabled(font_gen _without_font_gen)
+  if(_without_font_gen)
+    set(_font_gen_lib font_gen_null)
+  else()
+    set(_font_gen_lib font_gen)
+  endif()
+  set(${out_var} ${_font_gen_lib} PARENT_SCOPE)
 endfunction()
 
 function(defold_get_gamesys_libraries out_var)

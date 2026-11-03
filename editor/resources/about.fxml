@@ -7,7 +7,7 @@
 <?import java.lang.*?>
 <?import javafx.scene.layout.*?>
 
-<BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="360.0" prefWidth="484.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+<BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="380.0" prefWidth="484.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
   <top>
     <ImageView BorderPane.alignment="CENTER" fitHeight="240.0" fitWidth="380.0" pickOnBounds="true" preserveRatio="true">
       <image>
@@ -30,6 +30,7 @@
             <RowConstraints maxHeight="20.0" minHeight="10.0" prefHeight="20.0" vgrow="SOMETIMES"/>
             <RowConstraints maxHeight="20.0" minHeight="10.0" prefHeight="20.0" vgrow="SOMETIMES"/>
             <RowConstraints maxHeight="20.0" minHeight="10.0" prefHeight="20.0" vgrow="SOMETIMES"/>
+            <RowConstraints maxHeight="20.0" minHeight="10.0" prefHeight="20.0" vgrow="SOMETIMES"/>
           </rowConstraints>
           <children>
             <Label id="version-label" text="Version:">
@@ -44,12 +45,18 @@
               </padding>
             </Label>
             <Label GridPane.columnIndex="1" GridPane.rowIndex="1" id="channel" styleClass="about-value" text="No Channel"/>
-            <Label GridPane.rowIndex="2" id="build-time-label" text="Build time:">
+            <Label GridPane.rowIndex="2" id="architecture-label" text="Architecture:">
               <padding>
                 <Insets right="4.0"/>
               </padding>
             </Label>
-            <Label GridPane.columnIndex="1" GridPane.rowIndex="2" id="time" styleClass="about-value" text="No build time"/>
+            <Label GridPane.columnIndex="1" GridPane.rowIndex="2" id="architecture" styleClass="about-value"/>
+            <Label GridPane.rowIndex="3" id="build-time-label" text="Build time:">
+              <padding>
+                <Insets right="4.0"/>
+              </padding>
+            </Label>
+            <Label GridPane.columnIndex="1" GridPane.rowIndex="3" id="time" styleClass="about-value" text="No build time"/>
           </children>
         </GridPane>
         <GridPane>
@@ -92,7 +99,7 @@
               <Insets top="20.0"/>
             </VBox.margin>
         </TextFlow>
-        <Label alignment="CENTER" id="copyright-label" maxWidth="1.7976931348623157E308" text="Copyright © 2009-2025">
+        <Label alignment="CENTER" id="copyright-label" maxWidth="1.7976931348623157E308">
           <VBox.margin>
             <Insets top="20.0"/>
           </VBox.margin>

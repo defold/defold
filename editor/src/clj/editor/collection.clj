@@ -191,22 +191,23 @@
      (child-go-go self-id child-id))))
 
 (g/defnk produce-go-outline [_node-id id source-outline source-resource child-outlines node-outline-extras]
-  (-> {:node-id _node-id
-       :node-outline-key id
-       :label id
-       :icon (or (not-empty (:icon source-outline)) game-object-common/game-object-icon)
-       :children (localization/annotate-as-sorted
-                   (fn [localization-state _]
-                     (into (localization/natural-sort-by-label localization-state child-outlines)
-                           (localization/sort-if-annotated localization-state (:children source-outline))))
-                   (into child-outlines (:children source-outline)))
-       :child-reqs [{:node-type ReferencedGOInstanceNode
-                     :tx-attach-fn tx-attach-go-referenced-go}
-                    {:node-type EmbeddedGOInstanceNode
-                     :tx-attach-fn tx-attach-go-embedded-go}]}
-      (merge node-outline-extras)
-      (cond->
-        (some-> source-resource resource/proj-path) (assoc :link source-resource :outline-reference? true))))
+  (let [source-outline (outline/claim-outline source-outline _node-id)]
+    (-> {:node-id _node-id
+         :node-outline-key id
+         :label id
+         :icon (or (coll/not-empty (:icon source-outline)) game-object-common/game-object-icon)
+         :children (localization/annotate-as-sorted
+                     (fn sort-go-outline-children [localization-state _]
+                       (into (localization/natural-sort-by-label localization-state child-outlines)
+                             (localization/sort-if-annotated localization-state (:children source-outline))))
+                     (into child-outlines (:children source-outline)))
+         :child-reqs [{:node-type ReferencedGOInstanceNode
+                       :tx-attach-fn tx-attach-go-referenced-go}
+                      {:node-type EmbeddedGOInstanceNode
+                       :tx-attach-fn tx-attach-go-embedded-go}]}
+        (merge node-outline-extras)
+        (cond->
+          (some-> source-resource resource/proj-path) (assoc :link source-resource :outline-reference? true)))))
 
 (defn- source-outline-subst [err]
   ;; TODO: embed error so can warn in outline
@@ -571,7 +572,7 @@
        :node-outline-key id
        :label id
        :icon (or (not-empty (:icon source-outline)) collection-common/collection-icon)
-       :children (:children source-outline)}
+       :children (:children (outline/claim-outline source-outline _node-id))}
       (cond->
         (resource/resource? source-resource)
         (assoc :link source-resource

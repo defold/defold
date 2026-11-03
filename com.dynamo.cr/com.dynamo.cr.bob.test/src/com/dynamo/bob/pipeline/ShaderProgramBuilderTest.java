@@ -18,6 +18,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -32,12 +36,70 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
+
+    // SM6 shader output must contain DXIL bytecode and a root signature.
+    @Test
+    public void testSM6ShaderLanguageAndBytecode() throws Exception {
+        ShaderDesc shader = compileShaderForPlatform(Platform.X86_64Win32, "dx12", "sm6-language");
+        checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_HLSL_60);
+        assertTrue(shader.getHlslRootSignature().size() > 0);
+        for (ShaderDesc.Shader stage : shader.getShadersList()) {
+            java.nio.ByteBuffer data = stage.getSource().asReadOnlyByteBuffer().order(java.nio.ByteOrder.LITTLE_ENDIAN);
+            boolean dxil = false;
+            for (int part = 0; part < data.getInt(28); ++part) {
+                int offset = data.getInt(32 + part * 4);
+                if (data.getInt(offset) == 0x4c495844) { // DXIL
+                    assertEquals(6, (data.getShort(offset + 8) >> 4) & 15);
+                    dxil = true;
+                }
+            }
+            assertTrue("Expected SM6 DXIL", dxil);
+        }
+    }
+
+    // Pixel output metadata survives DXC, JNI and protobuf serialization, including sparse MRT slots.
+    @Test
+    public void testSM6PixelOutputMetadata() throws Exception {
+        String source = "#version 450\n"
+            + "layout(location=0) out vec4 color;\n"
+            + "layout(location=2) out ivec2 signedValue;\n"
+            + "layout(location=5) out uvec3 unsignedValue;\n"
+            + "void main() { color=vec4(1); signedValue=ivec2(-1,2); unsignedValue=uvec3(3,4,5); gl_FragDepth=0.5; }\n";
+        ShaderDesc shader = compileShaderWithCompiler(getProject().getShaderCompiler(Platform.X86_64Win32),
+            "dx12", "sm6-output-metadata", source);
+        shader = ShaderDesc.parseFrom(shader.toByteArray());
+        ShaderDesc.Shader stage = shader.getShaders(0);
+        assertEquals(3, stage.getHlslShaderOutputsCount());
+        int[] locations = {0, 2, 5};
+        int[] components = {4, 2, 3};
+        ShaderDesc.HLSLShaderOutput.ComponentType[] types = {
+            ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_FLOAT32,
+            ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_SINT32,
+            ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_UINT32
+        };
+        for (int i = 0; i < locations.length; ++i) {
+            ShaderDesc.HLSLShaderOutput output = stage.getHlslShaderOutputs(i);
+            assertEquals(locations[i], output.getLocation());
+            assertEquals(components[i], output.getComponentCount());
+            assertEquals(types[i], output.getComponentType());
+        }
+    }
+
+    // Xbox's shared language selection uses SM6; the bolt-on supplies its final platform compiler.
+    @Test
+    public void testSM6XboxLanguageSelection() throws Exception {
+        ShaderDesc shader = compileShaderWithCompiler(
+            ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64XBone), "dx12", "sm6-xbox");
+        checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_HLSL_60);
+        assertFalse(shader.getHlslRootSignature().isEmpty());
+    }
 
     @Before
     public void setup() {
@@ -123,6 +185,47 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     private ShaderDesc compileShaderForPlatform(Platform platform, String shaderAdapters, String outputResource) throws Exception {
         return compileShaderWithCompiler(getProject().getShaderCompiler(platform), shaderAdapters, outputResource);
+    }
+
+    // Verifies all built-in font variants compile for WebGPU with per-vertex gradient branches
+    // and retain the metadata texture in both stages, including legacy vertex color evaluation.
+    @Test
+    public void testBuiltinFontEffectsWebGPU() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        String[][] shaderPairs = {
+            {"font.vp", "font.fp"},
+            {"font.vp", "font-singlelayer.fp"},
+            {"font-fnt.vp", "font-fnt.fp"},
+            {"font-df.vp", "font-df.fp"},
+            {"font-df.vp", "font-df-singlelayer.fp"},
+            {"font-df.vp", "font-df-ms.fp"},
+            {"font-df.vp", "font-df-ms-singlelayer.fp"}
+        };
+        IShaderCompiler.CompileOptions options = new IShaderCompiler.CompileOptions();
+        options.shaderAdapters = "webgpu";
+        IShaderCompiler compiler = getProject().getShaderCompiler(Platform.getHostPlatform());
+        for (String[] pair : shaderPairs) {
+            ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
+            for (int stage = 0; stage < pair.length; ++stage) {
+                String path = "/builtins/fonts/" + pair[stage];
+                String source = new String(getProject().getResource(path).getContent(), StandardCharsets.UTF_8);
+                ShaderCompilePipeline.ShaderModuleDesc module = new ShaderCompilePipeline.ShaderModuleDesc();
+                module.type = stage == 0 ? ShaderDesc.ShaderType.SHADER_TYPE_VERTEX : ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+                module.resourcePath = path;
+                module.source = new ShaderPreprocessor(getProject(), path, source, null).getCompiledSource();
+                modules.add(module);
+            }
+            ShaderDesc shader = ShaderProgramBuilder.buildResultsToShaderDescBuildResults(
+                compiler.compile(modules, "/font_effects_" + pair[1] + ".spc", options)).shaderDesc;
+            checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_WGSL);
+            assertEquals(pair[1], 2, shader.getShadersCount());
+            ShaderDesc.ResourceBinding effects = shader.getReflection().getTexturesList().stream()
+                .filter(binding -> binding.getName().equals("font_effects"))
+                .findFirst().orElse(null);
+            assertNotNull(pair[1], effects);
+            int bothStages = Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue() | Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue();
+            assertEquals(pair[1], bothStages, effects.getStageFlags());
+        }
     }
 
     private ShaderDesc compileShaderWithCompiler(IShaderCompiler shaderCompiler, String shaderAdapters, String outputResource) throws Exception {
@@ -589,6 +692,54 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // GLSL 140 vector shaders cross-compile together for the supported modern graphics backends.
+    @Test
+    public void testVectorFontShaderLanguages() throws Exception {
+        Path fontDirectory = Path.of("../../engine/font/content/builtins/fonts");
+        addFile("/builtins/fonts/font-vector-slug.glsl", Files.readAllBytes(fontDirectory.resolve("font-vector-slug.glsl")));
+        addFile("/builtins/fonts/font-vector-paint.glsl", Files.readAllBytes(fontDirectory.resolve("font-vector-paint.glsl")));
+        addFile("/builtins/fonts/font-effect.glsl", Files.readAllBytes(fontDirectory.resolve("font-effect.glsl")));
+
+        ShaderDesc.Language[] languages = {
+            ShaderDesc.Language.LANGUAGE_GLSL_SM330,
+            ShaderDesc.Language.LANGUAGE_GLES_SM300,
+            ShaderDesc.Language.LANGUAGE_SPIRV,
+            ShaderDesc.Language.LANGUAGE_HLSL_60,
+            ShaderDesc.Language.LANGUAGE_MSL_22,
+            ShaderDesc.Language.LANGUAGE_WGSL
+        };
+        IShaderCompiler.CompileOptions options = new IShaderCompiler.CompileOptions();
+        options.forceIncludeShaderLanguages.addAll(Arrays.asList(languages));
+        options.excludeGlesSm100 = true;
+        ShaderProgramBuilderBundle.ModuleBundle modules = createShaderModules(
+            new String[] {"/builtins/fonts/font-vector.vp", "/builtins/fonts/font-vector.fp"}, options);
+        ShaderDesc shader = addAndBuildShaderDescs(modules,
+            new String[] {Files.readString(fontDirectory.resolve("font-vector.vp")),
+                          Files.readString(fontDirectory.resolve("font-vector.fp"))},
+            "/vector-font.shbundle");
+
+        checkExpectedLanguages(shader, languages);
+    }
+
+    // WebGPU compilation accepts non-uniform derivatives, matching the shared shader pipeline policy.
+    @Test
+    public void testWGSLAllowsNonUniformDerivatives() throws Exception {
+        String source = """
+                #version 330
+                in vec2 uv;
+                out vec4 color;
+                void main() {
+                    color = vec4(0.0);
+                    if (uv.x > 0.5) {
+                        color = vec4(dFdx(uv.x));
+                    }
+                }
+                """;
+        ShaderDesc shader = compileShaderWithCompiler(getProject().getShaderCompiler(Platform.WasmWeb),
+            "webgpu", "non_uniform_derivatives", source);
+        checkExpectedLanguages(shader, new ShaderDesc.Language[] {ShaderDesc.Language.LANGUAGE_WGSL});
+    }
+
     @Test
     public void testSimulatorAlwaysUsesMetal() throws Exception {
         String adapters = Project.getShaderAdaptersOption(Platform.Arm64IosSim, List.of(
@@ -740,6 +891,17 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         getProject().getProjectProperties().putBooleanValue("shader", "exclude_gles_sm100", true);
         checkOnlyExpectedLanguages(
             buildShaderForPlatform(Platform.Armv7Android.getPair(), Platform.Armv7Android.getPair(), "exclude_gles100_android"),
+            ShaderDesc.Language.LANGUAGE_GLES_SM300,
+            ShaderDesc.Language.LANGUAGE_SPIRV);
+    }
+
+    // Debug GLSL output still honors the project setting that excludes GLES 2 shaders.
+    @Test
+    public void testExcludeGlesSm100WithDebugGlslOutput() throws Exception {
+        getProject().getProjectProperties().putBooleanValue("shader", "exclude_gles_sm100", true);
+        getProject().setOption("debug-output-glsl", "true");
+        checkOnlyExpectedLanguages(
+            buildShaderForPlatform(Platform.Armv7Android.getPair(), Platform.Armv7Android.getPair(), "exclude_gles100_debug_glsl_android"),
             ShaderDesc.Language.LANGUAGE_GLES_SM300,
             ShaderDesc.Language.LANGUAGE_SPIRV);
     }

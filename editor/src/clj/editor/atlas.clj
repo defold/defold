@@ -64,7 +64,7 @@
   (:import [com.dynamo.bob.pipeline AtlasUtil]
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult TextureSetLayout]
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback]
-           [com.jogamp.opengl GL GL2]
+           [com.jogamp.opengl GL GL3]
            [editor.types Animation Image]
            [java.lang.ref WeakReference]
            [java.nio ByteBuffer]
@@ -99,7 +99,7 @@
     (pose/translation-pose page-offset 0.0 0.0)))
 
 (defn- render-rect
-  [^GL2 gl render-args rect color offset-x]
+  [^GL3 gl render-args rect color offset-x]
   (let [x0 (+ offset-x (:x rect))
         y0 (:y rect)
         x1 (+ x0 (:width rect))
@@ -152,7 +152,7 @@
     (vtx/flip! vbuf)))
 
 (defn- render-image-outlines
-  [^GL2 gl render-args renderables _renderable-count]
+  [^GL3 gl render-args renderables _renderable-count]
   (condp = (:pass render-args)
     pass/outline
     (let [vertex-count (renderables->outline-vertex-component-count renderables)
@@ -162,7 +162,7 @@
         (gl/gl-draw-arrays gl GL/GL_LINES 0 vertex-count)))))
 
 (defn- render-image-selection
-  [^GL2 gl render-args renderables renderable-count]
+  [^GL3 gl render-args renderables renderable-count]
   (assert (= (:pass render-args) pass/selection))
   (assert (= renderable-count 1))
   (let [renderable (first renderables)
@@ -282,7 +282,7 @@
                              (validate-image-resource _node-id maybe-image-resource)))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
-                                  :ext image/exts})))
+                                  :ext image/sdr-exts})))
 
   (input id-counts NameCounts)
   (input maybe-image-resource resource/Resource)
@@ -394,7 +394,7 @@
     (g/connect atlas-node     :rename-patterns  animation-node :rename-patterns)))
 
 (defn render-animation
-  [^GL2 gl render-args renderables _renderable-count]
+  [^GL3 gl render-args renderables _renderable-count]
   (texture-set/render-animation-overlay gl render-args renderables))
 
 (g/defnk produce-animation-updatable
@@ -974,7 +974,7 @@
 
 (defn- add-images-handler [app-view workspace project parent accept-fn] ; parent = new parent of images
   (when-some [image-resources (seq (resource-dialog/make workspace project
-                                                         {:ext image/exts
+                                                         {:ext image/sdr-exts
                                                           :title (localization/message "dialog.add-atlas-images.title")
                                                           :selection :multiple
                                                           :accept-fn accept-fn}))]
@@ -1185,7 +1185,7 @@
           parent (or (handler/adapt-single selection AtlasAnimation evaluation-context)
                      (some #(core/scope-of-type basis % AtlasAnimation) selection)
                      root-id)
-          image-resources (e/filter image/image-resource? resources)]
+          image-resources (e/filter image/sdr-resource? resources)]
       (g/eager-tx-data
         (create-dropped-images parent image-resources evaluation-context)))))
 

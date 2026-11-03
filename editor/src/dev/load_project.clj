@@ -39,7 +39,6 @@
             [internal.transaction :as it]
             [util.coll :as coll]
             [util.debug-util :as du]
-            [util.eduction :as e]
             [util.fn :as fn])
   (:import [java.util ArrayList Collection Collections List Random]))
 
@@ -263,16 +262,17 @@
   (let [tx-data
         (run-and-measure-task!
           :generate-load-tx-data
-          (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs]}
+          (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs error-tx-data]}
                 (project/node-load-infos->stored-disk-state node-load-infos)]
             (resource-node/merge-source-values! node-id+source-value-pairs)
-            (coll/into->
-              (e/concat
-                (project/make-resource-nodes-tx-data project node-id+resource-pairs)
-                (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
-                (project/load-nodes-tx-data project node-load-infos progress/null-render-progress! progress/null-render-progress! resource-metrics))
-              (if separate-load-tx-data-generation [] :eduction)
-              coll/flatten-xf)))
+            (cond->> (eduction
+                       cat
+                       coll/flatten-xf
+                       [(project/make-resource-nodes-tx-data project node-id+resource-pairs)
+                        error-tx-data
+                        (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
+                        (project/load-nodes-tx-data project node-load-infos progress/null-render-progress! progress/null-render-progress! resource-metrics)])
+              separate-load-tx-data-generation vec)))
 
         transaction-context (g/make-transaction-context transact-opts)
         pre-tx-basis (:basis transaction-context)

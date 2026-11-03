@@ -27,6 +27,7 @@
 #include "../../../../gui/src/gui_private.h"
 
 #include <render/font/fontmap.h>
+#include <graphics/graphics_ddf.h>
 #include <platform/window.hpp>
 
 #include "gamesys/resources/res_compute.h"
@@ -82,6 +83,48 @@
 #include <dmsdk/gamesys/resources/res_model.h>
 
 #include <sound/sound.h>
+
+// Keep the shader setup for headless gamesys tests inside the gamesys test library.
+struct TestShaderDesc
+{
+    dmGraphics::ShaderDesc                           m_Desc;
+    dmGraphics::ShaderDesc::Shader                   m_Shaders[2];
+    dmArray<dmGraphics::ShaderDesc::ResourceBinding> m_Inputs;
+
+    TestShaderDesc(const char* source)
+    {
+        memset(&m_Desc, 0, sizeof(m_Desc));
+        memset(m_Shaders, 0, sizeof(m_Shaders));
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Shaders); ++i)
+        {
+            m_Shaders[i].m_Source.m_Data = (uint8_t*)source;
+            m_Shaders[i].m_Source.m_Count = (uint32_t)strlen(source);
+            m_Shaders[i].m_Language = dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330;
+            m_Shaders[i].m_ShaderType = i == 0 ? dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX : dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT;
+        }
+        m_Desc.m_Shaders.m_Data = m_Shaders;
+        m_Desc.m_Shaders.m_Count = DM_ARRAY_SIZE(m_Shaders);
+    }
+
+    void AddInput(const char* name, uint32_t binding, dmGraphics::ShaderDesc::ShaderDataType type)
+    {
+        dmGraphics::ShaderDesc::ResourceBinding input = {};
+        input.m_Name = name;
+        input.m_NameHash = dmHashString64(name);
+        input.m_Binding = binding;
+        input.m_Type.m_Type.m_ShaderType = type;
+        input.m_StageFlags = dmGraphics::SHADER_STAGE_FLAG_VERTEX;
+        m_Inputs.OffsetCapacity(1);
+        m_Inputs.Push(input);
+    }
+
+    dmGraphics::ShaderDesc* Get()
+    {
+        m_Desc.m_Reflection.m_Inputs.m_Data = m_Inputs.Begin();
+        m_Desc.m_Reflection.m_Inputs.m_Count = m_Inputs.Size();
+        return &m_Desc;
+    }
+};
 
 static inline float ReadUnalignedFloat(const void* ptr)
 {

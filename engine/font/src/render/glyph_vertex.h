@@ -25,9 +25,9 @@
 
 enum FontRenderLayerMask
 {
-    FONT_RENDER_LAYER_FACE = 0x1,
+    FONT_RENDER_LAYER_FACE    = 0x1,
     FONT_RENDER_LAYER_OUTLINE = 0x2,
-    FONT_RENDER_LAYER_SHADOW = 0x4,
+    FONT_RENDER_LAYER_SHADOW  = 0x4,
 };
 
 // Packs a normalized texture coordinate into the font vertex UV format.
@@ -53,6 +53,10 @@ struct FontGlyphVertex
     uint8_t  m_ShadowColor[4];
     float    m_SdfParams[4];
     float    m_LayerMasks[3];
+    // Selected UV, signed effect-texture row, and bounded animation phase.
+    // Negative rows evaluate legacy colors in the vertex shader before interpolation;
+    // positive rows evaluate spatial gradients per fragment. Zero means no effect.
+    float    m_Effect[4];
 };
 
 struct TextGlyphFaceColors;
@@ -68,8 +72,8 @@ struct FontDecorationPattern
 struct FontDecorationSegment
 {
     uint32_t m_GlyphIndex;
-    float m_X;
-    float m_Length;
+    float    m_X;
+    float    m_Length;
 };
 
 // Converts a final RGBA color to the normalized byte format used by font
@@ -168,5 +172,11 @@ void FontGetDecorationPattern(const TextDecoration& decoration, const FontDecora
 
 // Resolves decoration corner colors from its geometrically outermost glyphs.
 void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decoration, const float base_color[4], TextGlyphFaceColors* face_colors);
+
+// Resolves tint without CPU gradient evaluation for the effect-texture path.
+void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decoration, const float base_color[4], TextGlyphFaceColors* face_colors, bool apply_gradients);
+
+// Finds the visual end glyphs, including right-to-left decorations.
+void FontGetDecorationEndGlyphs(HTextLayout layout, const TextDecoration& decoration, uint32_t* left, uint32_t* right);
 
 #endif // DM_FONT_GLYPH_VERTEX_H

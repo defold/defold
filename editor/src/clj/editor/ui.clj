@@ -1149,7 +1149,8 @@
                                (fn path-fn [^TreeItem item]
                                  (vec (rseq (coll/into-> (iterate TreeItem/.getParent item) []
                                               (take-while some?)
-                                              (map tree-item-id-fn)))))))
+                                              (map tree-item-id-fn)))))
+                               identity))
         root-paths (reduce-kv
                      (fn [root-paths path _]
                        (if (coll/any? #(util/seq-starts-with? path %) root-paths)
@@ -1233,7 +1234,9 @@
       (let [speed (* max-speed (/ (- view-y (- height scroll-zone)) scroll-zone))]
         (scroll-tree-view-by-pixels! tree-view speed)))))
 
-(defn- custom-tree-view-key-pressed! [^KeyEvent event]
+(defn custom-tree-view-key-pressed!
+  "Redirect unmodified Space presses to the scene root for editor shortcuts."
+  [^KeyEvent event]
   ;; The TreeView control consumes Space key presses internally and does
   ;; something weird and undesirable to the selection. Instead, we consume and
   ;; redirect the keypress to the Scene root so that we can use the Space key
@@ -1250,7 +1253,9 @@
             (.consume event)
             (.fireEvent scene-root redirected-event)))))))
 
-(defn- custom-tree-view-mouse-pressed! [^MouseEvent event]
+(defn custom-tree-view-mouse-pressed!
+  "Toggle disclosure arrows, recursively toggling loaded descendants on Alt-click."
+  [^MouseEvent event]
   (when (= MouseButton/PRIMARY (.getButton event))
     (let [target (.getTarget event)]
       ;; Did the user click on a tree cell?
@@ -1266,7 +1271,9 @@
               (let [new-expanded-state (not (.isExpanded tree-item))]
                 (if-not (.isAltDown event)
                   (.setExpanded tree-item new-expanded-state)
-                  (doseq [^TreeItem tree-item (tree-item-seq tree-item)]
+                  (doseq [^TreeItem tree-item (tree-item-seq tree-item)
+                          :when (or (not new-expanded-state)
+                                    (not (.isLeaf tree-item)))]
                     (.setExpanded tree-item new-expanded-state)))))))))))
 
 (def ^:private custom-tree-view-key-pressed-event-filter

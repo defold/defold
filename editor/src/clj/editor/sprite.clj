@@ -35,6 +35,7 @@
             [editor.resource-node :as resource-node]
             [editor.scene-picking :as scene-picking]
             [editor.shaders :as shaders]
+            [editor.slice9 :as slice9]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.validation :as validation]
@@ -43,7 +44,7 @@
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
-           [com.jogamp.opengl GL GL2]
+           [com.jogamp.opengl GL GL3]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB]
@@ -122,12 +123,10 @@
 (def id-shader shaders/selection-uniform-paged-world-space)
 
 (defn- quad-count [size-mode slice9]
-  (let [[^double x0 ^double y0 ^double x1 ^double y1] slice9
-        columns (cond-> 1 (pos? x0) inc (pos? x1) inc)
-        rows (cond-> 1 (pos? y0) inc (pos? y1) inc)]
-    (if (= :size-mode-auto size-mode)
-      1
-      (* columns rows))))
+  (if (and (= :size-mode-manual size-mode)
+           (slice9/sliced? slice9))
+    9
+    1))
 
 (defn- count-quads [renderables]
   (transduce (map (comp :quad-count :user-data))
@@ -141,7 +140,7 @@
              0
              renderable-datas))
 
-(defn render-sprites [^GL2 gl render-args renderables _count]
+(defn render-sprites [^GL3 gl render-args renderables _count]
   (let [user-data (:user-data (first renderables))
         scene-infos (:scene-infos user-data)
         pass (:pass render-args)
@@ -180,7 +179,7 @@
           (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 num-vertices))))))
 
-(defn- render-sprite-outlines [^GL2 gl render-args renderables _count]
+(defn- render-sprite-outlines [^GL3 gl render-args renderables _count]
   (assert (= pass/outline (:pass render-args)))
   (let [num-quads (count-quads renderables)
         outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables num-quads) outline-shader)]
@@ -247,7 +246,7 @@
 
 (g/defnk produce-build-targets [_node-id resource textures texture-binding-infos default-animation material material-attribute-infos material-max-page-count exclude-gles-sm100 material-samplers material-shader blend-mode size-mode manual-size slice9 offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
   (g/precluding-errors
-    (let [sampler-name->texture-binding-info (coll/pair-map-by :sampler texture-binding-infos)
+    (let [sampler-name->texture-binding-info (coll/pair-map-by :sampler identity texture-binding-infos)
           is-paged-material (and (shader/shader-lifecycle? material-shader)
                                  (shader/is-using-array-samplers? material-shader))
           unassigned-default-animation-error (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation default-animation-message)]
@@ -298,7 +297,7 @@
   (reify resource/Resource
     (children [_])
     (ext [_] "")
-    (resource-type [_])
+    (lookup-resource-type [_ _editable->type-ext->resource-type])
     (source-type [_])
     (exists? [_] false)
     (read-only? [_] true)

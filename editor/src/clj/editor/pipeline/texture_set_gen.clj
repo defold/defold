@@ -296,9 +296,10 @@
         anim-iterator (reify TextureSetGenerator$AnimIterator
                         (nextAnim [_this]
                           (let [anim (first @anims-atom)]
-                            (reset! anim-indices-atom (if anim
-                                                        (vec (map int (range (dec (:start-tile anim)) (:end-tile anim))))
-                                                        []))
+                            (reset! anim-indices-atom
+                                    (if-not anim
+                                      []
+                                      (mapv (comp int dec) (:frames anim))))
                             (swap! anims-atom rest)
                             (tile-animation->AnimDesc anim)))
                         (nextFrameIndex [_this]

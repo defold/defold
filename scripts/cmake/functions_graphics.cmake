@@ -51,6 +51,7 @@ function(defold_get_graphics_symbols OUT_VAR PLATFORM)
     # Base selection per platform
     if("${PLATFORM}" STREQUAL "arm64_sim-ios")
         set(_use_metal ON)
+        set(_use_vulkan ${_WITH_VULKAN})
     elseif("${PLATFORM}" STREQUAL "arm64-ios")
         set(_use_opengles ON)
         set(_use_vulkan ${_WITH_VULKAN})
@@ -211,7 +212,7 @@ function(defold_target_link_graphics target platform)
     # DirectX 12
     unset(DX12)
     if(_PLAT_OS STREQUAL "win32")
-        set(DX12 D3D12.lib;DXGI.lib;d3dcompiler.lib)
+        set(DX12 d3d12.lib;dxgi.lib;d3dcompiler.lib)
     endif()
 
     # Metal
@@ -245,6 +246,7 @@ function(defold_target_link_graphics target platform)
 
     if("${platform}" STREQUAL "arm64_sim-ios")
         set(_use_metal ON)
+        set(_use_vulkan ${_WITH_VULKAN})
     elseif("${platform}" STREQUAL "arm64-ios")
         set(_use_opengles ON)
         set(_use_vulkan ${_WITH_VULKAN})

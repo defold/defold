@@ -163,6 +163,7 @@ namespace dmShaderc
         , m_No420PackExtension(true)
         , m_GlslEmitUboAsPlainUniforms(false)
         , m_GlslEs(false)
+        , m_HLSLMoveSVPositionToFront(false)
         , m_ExternalCompilerPath(0)
         , m_ExternalCompilerArgs(0)
         , m_RootSignatureOverride(0)
@@ -177,6 +178,7 @@ namespace dmShaderc
         uint8_t         m_No420PackExtension         : 1;
         uint8_t         m_GlslEmitUboAsPlainUniforms : 1;
         uint8_t         m_GlslEs                     : 1;
+        uint8_t         m_HLSLMoveSVPositionToFront  : 1;
 
         // Optional external compiler invocation driven from Java.
         // If both fields are set, shaderc will invoke this tool for final blob generation.
@@ -248,6 +250,8 @@ namespace dmShaderc
     {
         const char* m_Name;
         uint64_t    m_NameHash;
+        // Index in m_HLSLRootSignature; remapped when stage signatures are merged.
+        uint32_t    m_RootParameterIndex;
 
         // These point to a resource from one of the ShaderReflection list
         uint8_t     m_ShaderResourceSet;
@@ -264,6 +268,14 @@ namespace dmShaderc
         uint8_t     m_ShaderResourceBinding;
     };
 
+    // Pixel shader SV_Target outputs, reflected by DXC at compile time.
+    struct HLSLShaderOutput
+    {
+        uint32_t m_Location;
+        BaseType m_Type;
+        uint32_t m_ComponentCount;
+    };
+
     struct ShaderCompileResult
     {
         dmArray<uint8_t> m_Data;
@@ -278,6 +290,7 @@ namespace dmShaderc
         // that embeds a list of resources (called root signature) and their HLSL bind points (registers)
         // This must match resource bind points in the engine, so we need to output that information here.
         dmArray<HLSLResourceMapping> m_HLSLResourceMappings;
+        dmArray<HLSLShaderOutput>    m_HLSLShaderOutputs;
 
         // In case of compiling HLSL > version 50, we want to have the root signature available for merging
         dmArray<uint8_t> m_HLSLRootSignature;

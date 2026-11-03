@@ -19,6 +19,7 @@
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
             [editor.math :as math]
+            [editor.outline :as outline]
             [editor.pose :as pose]
             [editor.scene :as scene]
             [util.coll :refer [pair]])
@@ -39,6 +40,8 @@
       (scene/produce-scene-render-data)
       (:renderables)))
 
+;; Referenced scenes group all viewport picks under the instance while retaining
+;; ordinary descendant graph identities and their outline keys.
 (deftest claim-scene-test
   (let [scene {:node-id :scene-node-id
                :children [{:node-id :scene-node-id
@@ -54,10 +57,13 @@
                                        :children [{:node-id :door-handle-node-id
                                                    :node-outline-key "door-handle-node-outline-key"}]}]}]}]
     (is (= {:node-id :new-node-id
+            :picking-node-id :new-node-id
             :node-outline-key "new-node-outline-key"
             :children [{:node-id :new-node-id
+                        :picking-node-id :new-node-id
                         :node-outline-key "new-node-outline-key"
                         :children [{:node-id :new-node-id
+                                    :picking-node-id :new-node-id
                                     :node-outline-key "new-node-outline-key"}]}
                        {:node-id :tree-node-id
                         :node-outline-key "tree-node-outline-key"
@@ -75,6 +81,43 @@
                                                 :node-outline-key "door-handle-node-outline-key"
                                                 :picking-node-id :new-node-id}]}]}]}
            (scene/claim-scene scene :new-node-id "new-node-outline-key")))))
+
+;; Claiming a referenced scene preserves derived entry keys and rebases owners;
+;; viewport picking remains grouped under the instance after nested claims.
+(deftest claim-scene-with-derived-entries-test
+  (let [source-selection (outline/->OutlineEntrySelection 1 ["bone"])
+        foreign-selection (outline/->OutlineEntrySelection 3 ["slot"])
+        source-scene {:node-id 1
+                      :selection-id 1
+                      :children [{:node-id 1
+                                  :node-outline-key "bone"
+                                  :selection-id source-selection
+                                  :renderable {:passes [pass/transparent pass/outline pass/selection]}
+                                  :children [{:node-id 1
+                                              :renderable {:passes [pass/outline]}}]}
+                                 {:node-id 3
+                                  :node-outline-key "slot"
+                                  :selection-id foreign-selection
+                                  :renderable {:passes [pass/selection]}}]}]
+    (doseq [claimed-scene [(scene/claim-scene source-scene 2 "component")
+                           (scene/claim-scene (scene/claim-scene source-scene 4 "source") 2 "component")]]
+      (let [claimed-selection (outline/->OutlineEntrySelection 2 ["bone"])
+            render-data (scene/produce-scene-render-data
+                          {:scene {:node-id 0 :children [claimed-scene]}
+                           :selection [claimed-selection]
+                           :hidden-renderable-tags #{}
+                           :hidden-node-outline-key-paths #{}
+                           :local-camera (camera/make-camera)})
+            selected-renderable (first (:selected-renderables render-data))]
+        (is (= 2 (:selection-id claimed-scene)))
+        (is (= "component" (:node-outline-key claimed-scene)))
+        (is (= "bone" (get-in claimed-scene [:children 0 :node-outline-key])))
+        (is (= claimed-selection (:selection-id selected-renderable)))
+        (is (= [0 "component" "bone"] (:node-outline-key-path selected-renderable)))
+        (is (= [claimed-selection claimed-selection]
+               (mapv :selection-id (get-in render-data [:renderables pass/outline]))))
+        (is (= [2 2] (mapv :picking-node-id (get-in render-data [:renderables pass/selection]))))
+        (is (= foreign-selection (get-in claimed-scene [:children 1 :selection-id])))))))
 
 (deftest displayed-node-properties-test
   (let [selected-node-properties

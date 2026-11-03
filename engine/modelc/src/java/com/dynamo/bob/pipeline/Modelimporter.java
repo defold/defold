@@ -92,10 +92,14 @@ public class Modelimporter {
     };
     public static class Image {
         public String name;
+        public boolean nameIsGenerated = false;
         public String uri;
         public String mimeType;
         public Buffer buffer;
         public int index = 0;
+        public int bufferIndex = 0;
+        public int bufferOffset = 0;
+        public int bufferSize = 0;
     };
     public static class Sampler {
         public String name;
@@ -184,6 +188,7 @@ public class Modelimporter {
     };
     public static class Material {
         public String name;
+        public boolean nameIsGenerated = false;
         public int index = 0;
         public byte isSkinned = 0;
         public PbrMetallicRoughness pbrMetallicRoughness;
@@ -304,6 +309,8 @@ public class Modelimporter {
     };
     public static class Options {
         public int dummy = 0;
+        public boolean loadMaterialsOnly = false;
+        public boolean loadMeshMetadata = false;
+        public boolean skipImageData = false;
     };
 }
-

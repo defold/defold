@@ -20,12 +20,12 @@
 void FontDebugPrintBitmap(uint8_t* bitmap, int w, int h)
 {
     printf("--------------------------------------------\n");
-    for (int j=0; j < h; ++j)
+    for (int j = 0; j < h; ++j)
     {
         putchar('|');
-        for (int i=0; i < w; ++i)
+        for (int i = 0; i < w; ++i)
         {
-            putchar(" .:ioVM@"[bitmap[j*w+i]>>5]);
+            putchar(" .:ioVM@"[bitmap[j * w + i] >> 5]);
         }
         putchar('|');
         putchar('\n');
@@ -59,7 +59,9 @@ void* FontReadFile(const char* path, uint32_t* file_size)
     }
 
     if (file_size)
+    {
         *file_size = size;
+    }
 
     return mem;
 }

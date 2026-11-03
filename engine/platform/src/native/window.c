@@ -103,6 +103,8 @@ void dmNativeClearInput( void )
     // Set mouse position to (0,0)
     dmNativeInput.MousePosX = 0;
     dmNativeInput.MousePosY = 0;
+    dmNativeInput.MouseLeftButtonFromTouch = 0;
+    dmNativeInput.MousePositionFromTouch = 0;
 
     // Set mouse wheel position to 0
     dmNativeInput.WheelPos = 0;
@@ -222,6 +224,12 @@ void dmNativeInputMouseClick( int button, int action )
     {
         if (dmNativeInput.MouseButton[ button ] == NATIVE_CLICKED) {
             return;
+        }
+
+        // Capture the press source before later movement or a sticky release can change it.
+        if( button == NATIVE_MOUSE_BUTTON_LEFT && action == NATIVE_PRESS )
+        {
+            dmNativeInput.MouseLeftButtonFromTouch = dmNativeInput.MousePositionFromTouch;
         }
 
         if( action == NATIVE_RELEASE && dmNativeInput.MouseButton[ button ] == NATIVE_PRESS )
@@ -727,4 +735,18 @@ void dmNativeSetWindowBackgroundColor(unsigned int color)
 float dmNativeGetDisplayScaleFactor()
 {
     return dmNativeOSGetDisplayScaleFactor();
+}
+
+//========================================================================
+// Get display density
+//========================================================================
+float dmNativeGetDisplayDensity()
+{
+#if !defined(DM_PLATFORM_VENDOR)
+    return dmNativeOSGetDisplayDensity();
+#else
+    // The vendor platforms do not implement the OS query yet, so they report the same nominal value
+    // as a desktop driver without a physical monitor size.
+    return 96.0f;
+#endif
 }

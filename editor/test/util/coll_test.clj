@@ -14,6 +14,7 @@
 
 (ns util.coll-test
   (:require [clojure.core :as core]
+            [clojure.data.int-map :as int-map]
             [clojure.test :refer :all]
             [internal.util :as iutil]
             [util.coll :as coll]
@@ -21,7 +22,7 @@
             [util.fn :as fn])
   (:import [clojure.lang ExceptionInfo IPersistentVector PersistentArrayMap PersistentHashMap PersistentHashSet PersistentTreeMap PersistentTreeSet]
            [java.util Hashtable]
-           [java.util.concurrent CountDownLatch TimeUnit]))
+           [java.util.concurrent CountDownLatch Semaphore]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -32,15 +33,25 @@
 
 (def ^:dynamic *pmapv-binding-test-value* nil)
 
+;; Verifies map views preserve reduction semantics and support empty checks
+;; without creating sequences.
 (deftest keys-and-vals-test
   (testing "Match core keys and vals semantics."
     (doseq [make-map [(constantly nil)
+                      (constantly {})
                       #(array-map :a 1 :b 2)
                       #(hash-map :a 1 :b 2)
                       #(sorted-map :b 2 :a 1)
+                      #(int-map/int-map 1 :a 2 :b)
                       #(Hashtable. {1 :a 2 :b})]]
       (let [core-map (make-map)
             coll-map (make-map)]
+        (is (counted? (coll/keys coll-map)))
+        (is (counted? (coll/vals coll-map)))
+        (is (= (count coll-map) (count (coll/keys coll-map))))
+        (is (= (count coll-map) (count (coll/vals coll-map))))
+        (is (= (zero? (count coll-map)) (coll/empty? (coll/keys coll-map))))
+        (is (= (zero? (count coll-map)) (coll/empty? (coll/vals coll-map))))
         (is (= (into [] (core/keys core-map))
                (into [] (coll/keys coll-map))))
         (is (= (into [] (core/vals core-map))
@@ -52,6 +63,8 @@
     (is (= :a (reduce iutil/first-rf nil (coll/keys (array-map :a 1 :b 2)))))
     (is (= 1 (reduce iutil/first-rf nil (coll/vals (array-map :a 1 :b 2)))))))
 
+;; Verifies eager sorting preserves core semantics and exposes its stored size
+;; without traversal.
 (deftest sort-test
   (testing "Returns an eagerly-sorted reducible."
     (is (= [] (into [] (coll/sort nil))))
@@ -87,9 +100,13 @@
              ["double array" compare #(double-array [3.0 1.0 2.0])]]]
       (testing description
         (let [core-input (make-input)
-              coll-input (make-input)]
-          (is (= (into [] (core/sort comparator core-input))
-                 (into [] (coll/sort comparator coll-input))))
+              coll-input (make-input)
+              core-result (into [] (core/sort comparator core-input))
+              coll-result (coll/sort comparator coll-input)]
+          (is (counted? coll-result))
+          (is (= (count core-result) (count coll-result)))
+          (is (= (zero? (count core-result)) (coll/empty? coll-result)))
+          (is (= core-result (into [] coll-result)))
           (is (= (into [] core-input)
                  (into [] coll-input)))))))
 
@@ -101,6 +118,27 @@
               {:key 1 :value :last}
               {:key 2 :value :middle}]
              (into [] (coll/sort #(compare (:key %1) (:key %2)) items)))))))
+
+;; Verify projected ordering, stability, and reducible consumption. Guard
+;; against changing sort-by semantics when replacing sequence-based sorting.
+(deftest sort-by-test
+  (testing "Sorts by projected keys and preserves equal-key order."
+    (let [items [{:key 2 :value :middle}
+                 {:key 1 :value :first}
+                 {:key 1 :value :last}]]
+      (is (= [{:key 1 :value :first}
+              {:key 1 :value :last}
+              {:key 2 :value :middle}]
+             (into [] (coll/sort-by :key items))))))
+
+  (testing "Accepts numeric, boolean, and Java comparators over projected keys."
+    (doseq [comparator [coll/descending-order > (java.util.Comparator/reverseOrder)]]
+      (is (= ["bbb" "cc" "a"]
+             (into [] (coll/sort-by count comparator ["a" "bbb" "cc"]))))))
+
+  (testing "Accepts reducible inputs."
+    (is (= ["a" "cc" "bbb"]
+           (into [] (coll/sort-by count (eduction (map str) ["bbb" "a" "cc"])))))))
 
 (defn- java-map
   ^Hashtable [& key-vals]
@@ -520,7 +558,7 @@
       (is (= {'one :one 'two :two} result))))
 
   (testing "Applies key-fn on input sequence"
-    (let [result (coll/pair-map-by keyword ["one" "two"])]
+    (let [result (coll/pair-map-by keyword identity ["one" "two"])]
       (is (map? result))
       (is (= {:one "one" :two "two"} result))))
 
@@ -2258,11 +2296,14 @@
            (coll/pmapv + [1 2 3] [10 20]))))
 
   (testing "Preserves order."
-    (is (= (range 32)
-           (coll/pmapv (fn [^long value]
-                         (Thread/sleep ^long (- 31 value))
-                         value)
-                       (range 32)))))
+    (let [second-thread (promise)]
+      (is (= [0 1]
+             (coll/pmapv (fn [value]
+                           (if (zero? (long value))
+                             (.join ^Thread @second-thread)
+                             (deliver second-thread (Thread/currentThread)))
+                           value)
+                         [0 1])))))
 
   (testing "Propagates thread bindings."
     (binding [*pmapv-binding-test-value* :bound]
@@ -2284,8 +2325,7 @@
   (testing "Cancels remaining tasks on failure."
     (let [task-count 4
           all-started (CountDownLatch. task-count)
-          cancellation-count (atom 0)
-          completed-values (atom [])]
+          cancellation-count (atom 0)]
       (is (thrown-with-msg?
             ExceptionInfo
             #"boom"
@@ -2293,22 +2333,13 @@
                           (.countDown all-started)
                           (if (zero? value)
                             (do
-                              (when-not (.await all-started 1 TimeUnit/SECONDS)
-                                (throw (ex-info "timed out waiting for tasks to start" {})))
+                              (.await all-started)
                               (throw (ex-info "boom" {})))
                             (try
-                              (Thread/sleep 10000)
-                              (swap! completed-values conj value)
-                              :completed
+                              (.await (CountDownLatch. 1))
                               (catch InterruptedException _
-                                (swap! cancellation-count inc)
-                                :interrupted))))
+                                (swap! cancellation-count inc)))))
                         (range task-count))))
-      (is (= true (.await all-started 1 TimeUnit/SECONDS)))
-      (dotimes [_ 100]
-        (when (< ^long @cancellation-count (dec task-count))
-          (Thread/sleep 10)))
-      (is (coll/empty? @completed-values))
       (is (= (dec task-count) @cancellation-count)))))
 
 (deftest ptree-test
@@ -2325,15 +2356,18 @@
                          tree)))))
 
   (testing "Preserves child order."
-    (is (= (vec (range 32))
-           (coll/ptree :children
-                       (fn [node children]
-                         (if-let [value (:value node)]
-                           (do
-                             (Thread/sleep ^long (- 31 (long value)))
-                             value)
-                           children))
-                       {:children (mapv (fn [value] {:value value}) (range 32))}))))
+    (let [second-thread (promise)]
+      (is (= [0 1]
+             (coll/ptree :children
+                         (fn [node children]
+                           (if-let [value (:value node)]
+                             (do
+                               (if (zero? (long value))
+                                 (.join ^Thread @second-thread)
+                                 (deliver second-thread (Thread/currentThread)))
+                               value)
+                             children))
+                         {:children [{:value 0} {:value 1}]})))))
 
   (testing "Propagates thread bindings."
     (binding [*pmapv-binding-test-value* :bound]
@@ -2345,15 +2379,72 @@
                              children))
                          {:children (mapv (fn [value] {:value value}) (range 4))})))))
 
-  (testing "Rethrows task failure."
-    (is (thrown-with-msg?
-          ExceptionInfo
-          #"boom 2"
-          (coll/ptree :children
-                      (fn [node children]
-                        (if-let [value (:value node)]
-                          (if (= 2 value)
-                            (throw (ex-info (str "boom " value) {:value value}))
-                            value)
-                          children))
-                      {:children (mapv (fn [value] {:value value}) (range 4))})))))
+  (testing "Preserves original failures in inline and parallel visits."
+    (doseq [child-count [1 4]]
+      (let [exception (ex-info "build failed" {})
+            outcome (try
+                      (coll/ptree :children
+                                  (fn [_ _] (throw exception))
+                                  {:children (vec (repeat child-count {}))})
+                      (catch Throwable exception exception))]
+        (is (identical? exception outcome)))))
+
+  (testing "Preserves a builder failure after exhausting the parallelism budget."
+    (let [exception (ex-info "inline build failed" {})
+          outcome (try
+                    (coll/ptree
+                      (fn [{:keys [parent blocked]}]
+                        (when-not (or blocked (identical? parent (Thread/currentThread)))
+                          [{:parent (Thread/currentThread) :blocked true}
+                           {:parent (Thread/currentThread)}]))
+                      (fn [{:keys [parent blocked]} _]
+                        (if (identical? parent (Thread/currentThread))
+                          (throw exception)
+                          (when blocked
+                            (.await (CountDownLatch. 1)))))
+                      {})
+                    (catch Throwable exception exception))]
+      (is (identical? exception outcome))))
+
+  (testing "A builder failure waits for a cancelled sibling's cleanup."
+    (let [exception (ex-info "build failed" {})
+          started (CountDownLatch. 1)
+          cancelled (CountDownLatch. 1)
+          release (Semaphore. 0)
+          child (promise)
+          finished (atom false)
+          outcome
+          (future
+            (try
+              (coll/ptree
+                :children
+                (fn [node children]
+                  (case (:value node)
+                    :blocked
+                    (do
+                      (deliver child (Thread/currentThread))
+                      (.countDown started)
+                      (try
+                        (.await (CountDownLatch. 1))
+                        (finally
+                          (.countDown cancelled)
+                          (.acquireUninterruptibly release)
+                          (reset! finished true))))
+
+                    :fail
+                    (do
+                      (.await started)
+                      (throw exception))
+
+                    children))
+                {:children [{:value :blocked} {:value :fail}]})
+              (catch Throwable exception [exception @finished])))]
+      (try
+        (.await cancelled)
+        (finally
+          (.release release)
+          (.interrupt ^Thread @child)
+          (.join ^Thread @child)))
+      (let [[error cleanup-finished] @outcome]
+        (is (identical? exception error))
+        (is cleanup-finished)))))

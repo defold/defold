@@ -1,0 +1,42 @@
+layout_changed_test = { messages = {}, init_count = 0, final_count = 0 }
+
+function init(self)
+    self.initialized = false
+    local state = layout_changed_test
+    state.init_count = state.init_count + 1
+    state.layout_at_init = gui.get_layout()
+    local node = gui.get_node("box")
+    state.position_at_init = gui.get_position(node).x
+    if state.layout_in_init then
+        assert(gui.set_layout(state.layout_in_init))
+    end
+    -- Flushing a pending notification must preserve changes made during init.
+    gui.set_position(node, vmath.vector3(99, 0, 0))
+    if state.fail_init then
+        error("Intentional GUI initialization failure")
+    end
+    self.initialized = true
+end
+
+function final(self)
+    self.initialized = false
+    local state = layout_changed_test
+    state.final_count = state.final_count + 1
+    if state.layout_in_final then
+        assert(gui.set_layout(state.layout_in_final))
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("layout_changed") then
+        local messages = layout_changed_test.messages
+        messages[#messages + 1] = {
+            id = message.id,
+            previous_id = message.previous_id,
+            initialized = self.initialized == true,
+            position = gui.get_position(gui.get_node("box")).x,
+        }
+        assert(self.initialized)
+        assert(gui.get_layout() == message.id)
+    end
+end

@@ -81,6 +81,7 @@ namespace dmGraphics
         m_BaseContext.m_Window                  = params.m_Window;
         m_SwapInterval                          = params.m_SwapInterval;
         m_JobContext                            = params.m_JobContext;
+        m_ResourceRetirementQueue               = new ResourceRetirementQueue<MetalResourceToDestroy>();
 
         assert(dmPlatform::GetWindowStateParam(m_BaseContext.m_Window, WINDOW_STATE_OPENED));
 
@@ -278,7 +279,7 @@ namespace dmGraphics
             return;
         }
 
-        ResourceToDestroy resource_to_destroy;
+        MetalResourceToDestroy resource_to_destroy;
         resource_to_destroy.m_ResourceType = resource->GetType();
 
         switch(resource_to_destroy.m_ResourceType)
@@ -307,19 +308,16 @@ namespace dmGraphics
                 break;
         }
 
-        MetalFrameResource& frame = GetCurrentFrameResource(context);
-
-        if (frame.m_ResourcesToDestroy->Full())
-        {
-            frame.m_ResourcesToDestroy->OffsetCapacity(8);
-        }
-
-        frame.m_ResourcesToDestroy->Push(resource_to_destroy);
+        // Updates can happen before BeginFrame waits for a free slot. Keep these
+        // retirements separate from the snapshot being drained by its callback.
+        context->m_ResourceRetirementQueue->Push(resource_to_destroy);
         resource->m_Destroyed = 1;
     }
 
-    static void FlushResourcesToDestroy(MetalContext* context, ResourcesToDestroyList* resource_list)
+    static void FlushResourcesToDestroy(MetalContext* context, MetalResourcesToDestroyList* resource_list)
     {
+        // Synchronize the completion thread's snapshot access with TakePending().
+        DM_MUTEX_SCOPED_LOCK(context->m_ResourceRetirementQueue->m_Mutex);
         if (resource_list->Size() > 0)
         {
             for (uint32_t i = 0; i < resource_list->Size(); ++i)
@@ -432,14 +430,17 @@ namespace dmGraphics
             MetalContext* context = (MetalContext*) _context;
             MetalStopAsyncProcessing(context);
 
+            // Completion callbacks release and clear their command buffers. Wait on
+            // their final signal instead of reading those pointers concurrently.
+            // An active, unsubmitted frame already owns one semaphore permit.
+            for (uint32_t i = context->m_FrameBegun ? 1 : 0; i < context->m_NumFramesInFlight; ++i)
+            {
+                dispatch_semaphore_wait(context->m_FrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
+            }
+
             for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
             {
                 MetalFrameResource& frame = context->m_FrameResources[i];
-
-                if (frame.m_CommandBuffer && frame.m_InFlight)
-                {
-                    frame.m_CommandBuffer->waitUntilCompleted();
-                }
 
                 FlushResourcesToDestroy(context, frame.m_ResourcesToDestroy);
                 ReleaseMetalDeviceBuffer(&frame.m_ConstantScratchBuffer.m_DeviceBuffer);
@@ -485,6 +486,22 @@ namespace dmGraphics
             {
                 MetalPostDeleteTextures(context, true);
                 ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
+            }
+
+            // Deletes after the last Flip (including asynchronous texture cleanup)
+            // still need releasing even though no further frame will be submitted.
+            MetalResourcesToDestroyList pending_resources;
+            context->m_ResourceRetirementQueue->TakePending(pending_resources);
+            FlushResourcesToDestroy(context, &pending_resources);
+            delete context->m_ResourceRetirementQueue;
+            if (context->m_FrameBoundarySemaphore)
+            {
+                // Balance all acquired permits before disposing the semaphore.
+                for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
+                {
+                    dispatch_semaphore_signal(context->m_FrameBoundarySemaphore);
+                }
+                dispatch_release(context->m_FrameBoundarySemaphore);
             }
 
             context->m_PipelineCache.Iterate(static_cast<void (*)(MetalContext*, const unsigned long long*, MetalPipeline*)>([](MetalContext*, const unsigned long long*, MetalPipeline* value) {
@@ -1431,6 +1448,7 @@ namespace dmGraphics
         context->m_PolygonOffsetUnits  = 0.0f;
         context->m_PolygonOffsetChanged = true;
 
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BACKBUFFER_READBACK);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
@@ -1477,7 +1495,7 @@ namespace dmGraphics
         // Create main resources-to-destroy lists, one for each command buffer
         for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
         {
-            context->m_FrameResources[i].m_ResourcesToDestroy = new ResourcesToDestroyList;
+            context->m_FrameResources[i].m_ResourcesToDestroy = new MetalResourcesToDestroyList;
             context->m_FrameResources[i].m_ResourcesToDestroy->SetCapacity(8);
             context->m_FrameResources[i].m_CommandBuffer = 0;
             context->m_FrameResources[i].m_Drawable = 0;
@@ -2072,6 +2090,10 @@ namespace dmGraphics
 
         frame.m_CommandBuffer->presentDrawable(frame.m_Drawable);
 
+        // BeginFrame acquired this slot. Hand the callback a fixed snapshot before
+        // commit; subsequent updates belong to the next submission.
+        context->m_ResourceRetirementQueue->TakePending(*frame.m_ResourcesToDestroy);
+
         // Register completion callback
         frame.m_CommandBuffer->addCompletedHandler(^void(MTL::CommandBuffer* cb) {
             MetalCommandBufferCompleted(context, frame_index);
@@ -2222,7 +2244,9 @@ namespace dmGraphics
         enc->setCullMode(MTL::CullModeNone);
         enc->drawPrimitives(MTL::PrimitiveTypeTriangle, (uint32_t) 0, (uint32_t) 3);
 
-        // Refresh culling after this call
+        // Clear binds its own pipeline outside DrawSetup's cache. The next
+        // draw must restore its render and depth/stencil pipeline state.
+        context->m_CurrentPipeline = 0;
         context->m_CullFaceChanged = true;
     }
 
@@ -2273,11 +2297,9 @@ namespace dmGraphics
         {
             return;
         }
-        if (size != buffer->m_Base.m_Size)
-        {
-            DestroyResourceDeferred(context, buffer);
-        }
-
+        // Full replacements must preserve storage referenced by recorded or
+        // in-flight draws, including when the new data has the same size.
+        DestroyResourceDeferred(context, buffer);
         DeviceBufferUploadHelper(context, data, size, 0, buffer);
     }
 
@@ -2575,6 +2597,8 @@ namespace dmGraphics
             vd->m_Streams[i].m_Normalize = stream.m_Normalize;
             vd->m_Streams[i].m_Offset    = vd->m_Stride;
             vd->m_Streams[i].m_Location  = -1;
+            vd->m_Streams[i].m_Reserved0 = 0;
+            memset(vd->m_Streams[i].m_Reserved1, 0, sizeof(vd->m_Streams[i].m_Reserved1));
             vd->m_Stride                += stream.m_Size * GetTypeSize(stream.m_Type);
 
             dmHashUpdateBuffer64(hash, &stream.m_Size, sizeof(stream.m_Size));
@@ -2620,6 +2644,7 @@ namespace dmGraphics
         context->m_MainVertexDeclaration[binding_index].m_StepFunction = vertex_declaration->m_StepFunction;
         context->m_MainVertexDeclaration[binding_index].m_PipelineHash = vertex_declaration->m_PipelineHash;
 
+        context->m_EnabledVertexDeclarations[binding_index]            = vertex_declaration;
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
         context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
 
@@ -2664,8 +2689,9 @@ namespace dmGraphics
         MetalContext* context = (MetalContext*) _context;
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
-            if (context->m_CurrentVertexDeclaration[i] == vertex_declaration)
+            if (context->m_EnabledVertexDeclarations[i] == vertex_declaration)
             {
+                context->m_EnabledVertexDeclarations[i] = 0;
                 context->m_CurrentVertexDeclaration[i]  = 0;
                 context->m_CurrentVertexBufferOffset[i] = 0;
             }
@@ -3611,27 +3637,13 @@ namespace dmGraphics
         }
 
         MTL::CullMode cull_mode = MTL::CullModeNone;
-        PipelineState pipeline_state_cull = pipeline_state_draw;
-
-        if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
+        if (pipeline_state_draw.m_CullFaceEnabled)
         {
-            if (pipeline_state_cull.m_CullFaceType == FACE_TYPE_BACK)
-            {
-                pipeline_state_cull.m_CullFaceType = FACE_TYPE_FRONT;
-            }
-            else if (pipeline_state_cull.m_CullFaceType == FACE_TYPE_FRONT)
-            {
-                pipeline_state_cull.m_CullFaceType = FACE_TYPE_BACK;
-            }
-        }
-
-        if (pipeline_state_cull.m_CullFaceEnabled)
-        {
-            if (pipeline_state_cull.m_CullFaceType == FACE_TYPE_BACK)
+            if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
             {
                 cull_mode = MTL::CullModeBack;
             }
-            else if (pipeline_state_cull.m_CullFaceType == FACE_TYPE_FRONT)
+            else if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_FRONT)
             {
                 cull_mode = MTL::CullModeFront;
             }
@@ -3639,6 +3651,12 @@ namespace dmGraphics
 
         if (context->m_CullFaceChanged)
         {
+            // Match the offscreen viewport's winding for culling, two-sided
+            // stencil and the fragment shader's front_facing input.
+            if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
+            {
+                pipeline_state_draw.m_FaceWinding = pipeline_state_draw.m_FaceWinding == FACE_WINDING_CCW ? FACE_WINDING_CW : FACE_WINDING_CCW;
+            }
             const MTL::Winding winding = pipeline_state_draw.m_FaceWinding == FACE_WINDING_CW ?
                 MTL::WindingClockwise : MTL::WindingCounterClockwise;
             encoder->setCullMode(cull_mode);
@@ -5723,21 +5741,10 @@ namespace dmGraphics
 
         const uint32_t bytes_per_pixel = 4;
         const uint32_t dst_row_size = width * bytes_per_pixel;
-        if (!buffer || buffer_size < dst_row_size * height)
-        {
-            dmLogError("MetalReadPixels: destination buffer is too small.");
-            return;
-        }
-
         const HRenderTarget render_target = context->m_CurrentRenderTarget;
-        const bool was_rendering = context->m_RenderTargetBound != 0;
-        if (was_rendering)
-        {
-            SuspendRenderPass(context);
-        }
-
         MTL::Texture* source_texture = 0;
         uint32_t source_height = 0;
+        uint32_t source_slice = 0;
         bool source_is_backbuffer = false;
         {
             DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
@@ -5747,18 +5754,38 @@ namespace dmGraphics
                 return;
             }
 
-            MetalTexture* color = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[0]);
+            HTexture color_handle = rt->m_Base.m_TextureColorResolve[0] ? rt->m_Base.m_TextureColorResolve[0] : rt->m_TextureColor[0];
+            MetalTexture* color = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, color_handle);
             if (!color || !color->m_Texture)
             {
                 return;
             }
 
+            const MTL::PixelFormat format = color->m_Texture->pixelFormat();
+            if (format != MTL::PixelFormatRGBA8Unorm && format != MTL::PixelFormatRGBA8Unorm_sRGB &&
+                format != MTL::PixelFormatBGRA8Unorm && format != MTL::PixelFormatBGRA8Unorm_sRGB)
+            {
+                dmLogError("MetalReadPixels: expected an RGBA8/BGRA8 color attachment");
+                return;
+            }
+            if (uint64_t(x) + width > color->m_Texture->width() || uint64_t(y) + height > color->m_Texture->height())
+            {
+                dmLogError("MetalReadPixels: region is outside the color attachment");
+                return;
+            }
+            source_slice = rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? rt->m_Base.m_CubeMapFace : 0;
             source_texture = color->m_Texture;
             source_texture->retain();
             source_height = rt->m_Height;
             source_is_backbuffer = rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID;
         }
 
+        FlushPendingRenderTargetClear(context, render_target);
+        const bool was_rendering = context->m_RenderTargetBound != 0;
+        if (was_rendering)
+        {
+            SuspendRenderPass(context);
+        }
         const bool consumed_main_msaa = source_is_backbuffer && ResolveMainMSAAColor(context);
 
         const uint32_t src_row_size = AlignTo(dst_row_size, 256);
@@ -5787,9 +5814,8 @@ namespace dmGraphics
 
         if (command_buffer)
         {
-            const uint32_t source_x = (uint32_t) dmMath::Max(0, x);
-            const uint32_t requested_y = (uint32_t) dmMath::Max(0, y);
-            const uint32_t source_y = source_is_backbuffer && source_height > requested_y + height ? source_height - requested_y - height : requested_y;
+            const uint32_t source_x = (uint32_t) x;
+            const uint32_t source_y = source_height - y - height;
             MTL::BlitCommandEncoder* blit = command_buffer->blitCommandEncoder();
             if (!blit)
             {
@@ -5799,7 +5825,7 @@ namespace dmGraphics
             }
             blit->copyFromTexture(
                 source_texture,
-                0,
+                source_slice,
                 0,
                 MTL::Origin::Make((NSUInteger)source_x, (NSUInteger)source_y, 0),
                 MTL::Size::Make(width, height, 1),
@@ -5817,6 +5843,13 @@ namespace dmGraphics
             for (uint32_t row = 0; row < height; ++row)
             {
                 memcpy(dst + row * dst_row_size, src + row * src_row_size, dst_row_size);
+            }
+
+            // ReadPixels exposes BGRA even when an offscreen attachment is RGBA.
+            if (source_texture->pixelFormat() == MTL::PixelFormatRGBA8Unorm ||
+                source_texture->pixelFormat() == MTL::PixelFormatRGBA8Unorm_sRGB)
+            {
+                SwizzleRGBAToBGRA(buffer, width * height);
             }
 
             if (used_frame_command_buffer)

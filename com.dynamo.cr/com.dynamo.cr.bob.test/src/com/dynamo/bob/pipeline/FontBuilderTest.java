@@ -39,10 +39,12 @@ import com.dynamo.bob.font.FontRenderer;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.MurmurHash;
-import com.dynamo.font.proto.GlyphBankProto.FontTextureFormat;
 import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
-import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Font.FontDesc;
+import com.dynamo.render.proto.Font.FontRenderMode;
+import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.render.proto.Font.FontTextureFormat;
+import com.dynamo.render.proto.Font.VectorFontMode;
 
 import com.google.protobuf.Message;
 
@@ -58,9 +60,21 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         return null;
     }
 
+    static GlyphBank getGlyphBank(List<Message> buildResults) {
+        for (Message message : buildResults) {
+            if (message instanceof GlyphBank) {
+                return (GlyphBank) message;
+            }
+        }
+        return null;
+    }
+
     @Before
     public void setup() {
         addTestFiles();
+        ParseUtil.addParser("ttf", content -> null);
+        ParseUtil.addParser("otf", content -> null);
+        ParseUtil.addParser("labelc", content -> com.dynamo.gamesys.proto.Label.LabelDesc.parseFrom(content));
 
         StringBuilder src = new StringBuilder();
         src.append("name: \"test_material\"\n");
@@ -68,6 +82,12 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("vertex_program: \"/test.vp\"\n");
         src.append("fragment_program: \"/test.fp\"\n");
         addFile("/test.material", src.toString());
+        addFile("/builtins/fonts/font.material", src.toString());
+        addFile("/builtins/fonts/label.material", src.toString());
+
+        src.append("samplers { name: \"curve_texture\" wrap_u: WRAP_MODE_CLAMP_TO_EDGE wrap_v: WRAP_MODE_CLAMP_TO_EDGE filter_min: FILTER_MODE_MIN_DEFAULT filter_mag: FILTER_MODE_MAG_DEFAULT }\n");
+        src.append("samplers { name: \"band_texture\" wrap_u: WRAP_MODE_CLAMP_TO_EDGE wrap_v: WRAP_MODE_CLAMP_TO_EDGE filter_min: FILTER_MODE_MIN_NEAREST filter_mag: FILTER_MODE_MAG_NEAREST }\n");
+        addFile("/test-vector.material", src.toString());
 
         src = new StringBuilder();
         src.append("name: \"test_2_material\"\n");
@@ -75,6 +95,18 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("vertex_program: \"/test2.vp\"\n");
         src.append("fragment_program: \"/test2.fp\"\n");
         addFile("/test2.material", src.toString());
+
+        String runtimeMaterial = "name: \"runtime_font_material\"\n" +
+                                 "tags: \"text\"\n" +
+                                 "vertex_program: \"/test.vp\"\n" +
+                                 "fragment_program: \"/test.fp\"\n";
+        String vectorRuntimeMaterial = runtimeMaterial +
+            "samplers { name: \"curve_texture\" wrap_u: WRAP_MODE_CLAMP_TO_EDGE wrap_v: WRAP_MODE_CLAMP_TO_EDGE filter_min: FILTER_MODE_MIN_DEFAULT filter_mag: FILTER_MODE_MAG_DEFAULT }\n";
+        vectorRuntimeMaterial += "samplers { name: \"band_texture\" wrap_u: WRAP_MODE_CLAMP_TO_EDGE wrap_v: WRAP_MODE_CLAMP_TO_EDGE filter_min: FILTER_MODE_MIN_NEAREST filter_mag: FILTER_MODE_MAG_NEAREST }\n";
+        addFile("/builtins/fonts/font-df.material", runtimeMaterial);
+        addFile("/builtins/fonts/font-vector.material", vectorRuntimeMaterial);
+        addFile("/builtins/fonts/label-vector.material", vectorRuntimeMaterial);
+        addFile("/builtins/fonts/label-df.material", runtimeMaterial);
     }
 
     @Test
@@ -102,9 +134,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testSingleLayerDefaultStyle() throws Exception {
-        // An empty generated default suppressed the font's effects in both output formats.
-        // Omitted render_mode covers legacy resources; it must behave like explicit Single Layer.
+    public void testLegacyRenderModeDoesNotDisableDefaultStyleEffects() throws Exception {
         for (String outputFormat : new String[] { "TYPE_BITMAP", "TYPE_DISTANCE_FIELD" }) {
             for (String renderMode : new String[] { "", "render_mode: MODE_SINGLE_LAYER\n" }) {
                 String source = "font: \"/Tuffy.ttf\"\nmaterial: \"/test.material\"\nsize: 16\ncharacters: \"A\"\n"
@@ -112,7 +142,11 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
                         + "outline_width: 1.375\noutline_alpha: 0.3725\nshadow_alpha: 0.6235\n"
                         + "shadow_x: 2.125\nshadow_y: -1.625\nshadow_blur: 1\n";
                 FontMap compiled = getFontMap(build("/single-layer.font", source));
-                assertEquals(1, compiled.getLayerMask());
+                assertEquals(outputFormat.equals("TYPE_BITMAP") ? 1 : 7, compiled.getLayerMask());
+                assertTrue(compiled.getStyles(0).getFlags() != 0);
+                assertEquals(1.375f, compiled.getStyles(0).getOutlineWidth(), 0.0f);
+                assertEquals(0.3725f, compiled.getStyles(0).getOutlineAlpha(), 0.0f);
+                assertEquals(0.6235f, compiled.getStyles(0).getShadowAlpha(), 0.0f);
                 assertEquals(1.375f, compiled.getOutlineWidth(), 0.0f);
                 assertEquals(1, compiled.getShadowBlur());
                 com.dynamo.render.proto.Font.CompiledStyle defaults = compiled.getStyles(0);
@@ -152,10 +186,10 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
                     ByteBuffer vertices = ByteBuffer.allocateDirect(requirements.byteCount).order(ByteOrder.nativeOrder());
                     float[] transform = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
                     renderer.getVertices(transform, vertices, requirements);
-                    // FontGlyphVertex has a 56-byte stride: outline RGBA at 20, shadow RGBA at 24,
+                    // FontGlyphVertex has a 72-byte stride: outline RGBA at 20, shadow RGBA at 24,
                     // and face/outline/shadow masks at 44. Alpha comparisons allow one byte of quantization.
                     for (int i = 0; i < requirements.vertexCount; ++i) {
-                        int offset = i * 56;
+                        int offset = i * 72;
                         assertEquals(0, Byte.toUnsignedInt(vertices.get(offset + 20)));
                         assertEquals(0, Byte.toUnsignedInt(vertices.get(offset + 21)));
                         assertEquals(255, Byte.toUnsignedInt(vertices.get(offset + 22)));
@@ -182,6 +216,48 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
                     assertEquals(legacyVertices.flip(), vertices.flip());
                 }
             }
+        }
+    }
+
+    // Spatial stop metadata survives the compiled font protobuf and restoration to native styles.
+    @Test
+    public void testSpatialGradientStyleSerialization() throws Exception {
+        FontDesc.Builder font = FontDesc.newBuilder().setFont("/Tuffy.ttf").setMaterial("/test.material").setSize(16);
+        font.addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder().setName("default"));
+        font.addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder().setName("gradient").setMarkup(
+            "<gradient type=linear fit=block angle=45 color0=#FF0000 color1=#00FF00 color2=#0000FF color3=#FFFF00 stop1=0.2 stop2=0.8>"));
+        com.dynamo.render.proto.Font.CompiledStyle compiled = com.dynamo.bob.font.FontStyles.compileStyles(font.build()).get(1);
+        compiled = com.dynamo.render.proto.Font.CompiledStyle.parseFrom(compiled.toByteArray());
+        com.dynamo.bob.font.FontRenderer.StyleEffect effect = com.dynamo.bob.font.FontStyles.toNativeStyle(compiled).effects[0];
+        assertEquals(1, effect.colorType);
+        assertEquals(4, effect.stopCount);
+        assertEquals(45.0f, effect.parameters[0], 0.0f);
+        assertEquals(0.2f, effect.positions[1], 0.0f);
+        assertEquals(0.8f, effect.positions[2], 0.0f);
+        assertEquals(1.0f, effect.colors[0], 0.0f);
+        assertEquals(1.0f, effect.colors[5], 0.0f);
+        assertEquals(1.0f, effect.colors[10], 0.0f);
+        assertEquals(1.0f, effect.colors[12], 0.0f);
+        assertEquals(1.0f, effect.colors[13], 0.0f);
+    }
+
+    // Ellipse radii and rotation survive compilation and restoration of a named radial style.
+    @Test
+    public void testRadialEllipseStyleSerialization() throws Exception {
+        FontDesc.Builder font = FontDesc.newBuilder().setFont("/Tuffy.ttf").setMaterial("/test.material").setSize(16);
+        font.addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder().setName("default"));
+        font.addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder().setName("ellipse").setMarkup(
+            "<gradient type=radial fit=block pivot-x=0.3 pivot-y=0.7 radius=0.6 radius-y=0.25 angle=45 color0=#FF0000 color1=#0000FF>"));
+        com.dynamo.render.proto.Font.CompiledStyle compiled = com.dynamo.bob.font.FontStyles.compileStyles(font.build()).get(1);
+        compiled = com.dynamo.render.proto.Font.CompiledStyle.parseFrom(compiled.toByteArray());
+        FontRenderer.StyleEffect effect = com.dynamo.bob.font.FontStyles.toNativeStyle(compiled).effects[0];
+        assertEquals(2, effect.colorType);
+        assertEquals(2, effect.stopCount);
+        float[] parameters = {0.3f, 0.7f, 0.6f, 0.25f, 45.0f, 0.0f};
+        assertEquals(parameters.length, compiled.getEffects(0).getParametersCount());
+        assertEquals(parameters.length, effect.parameters.length);
+        for (int i = 0; i < parameters.length; ++i) {
+            assertEquals(parameters[i], effect.parameters[i], 0.0f);
         }
     }
 
@@ -219,6 +295,28 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
                 assertTrue(expected.getMessage().contains("invalid"));
             }
             font.removeStyles(1);
+        }
+    }
+
+    // Style build failures retain the native diagnostic and identify the authored style and invalid radius.
+    @Test
+    public void testGradientStyleDiagnostic() {
+        com.dynamo.render.proto.Font.FontDesc font = com.dynamo.render.proto.Font.FontDesc.newBuilder()
+                .setFont("/Tuffy.ttf").setMaterial("/test.material").setSize(16)
+                .addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder().setName("ellipse")
+                        .setMarkup("<gradient type=radial radius-x=0 color0=#FF0000>"))
+                .build();
+        try {
+            com.dynamo.bob.font.FontStyles.compileStyles(font);
+            fail("Accepted a style with a zero gradient radius");
+        } catch (IllegalArgumentException exception) {
+            assertTrue(exception.getMessage().contains("Font style 'ellipse'"));
+            assertTrue(exception.getMessage().contains("gradient radius must be greater than zero"));
+            com.dynamo.bob.font.FontRenderer.MarkupException cause =
+                    (com.dynamo.bob.font.FontRenderer.MarkupException)exception.getCause();
+            assertEquals(15, cause.error.errorType);
+            assertEquals(1, cause.error.line);
+            assertEquals(32, cause.error.column);
         }
     }
 
@@ -260,12 +358,537 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testTTF() throws Exception {
 
-        String src = "font: \"/Tuffy.ttf\"\n" +
-                "material: \"/test.material\"\n" +
-                "size: 16\n";
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Tuffy.ttf\"\n");
+        src.append("material: \"/test-vector.material\"\n");
+        src.append("size: 16\n");
+        src.append("runtime: true\n");
+        src.append("output_format: TYPE_BITMAP\n");
+        src.append("render_mode: MODE_SINGLE_LAYER\n");
+        src.append("characters: \"ABC\"\n");
+        src.append("all_chars: true\n");
+        src.append("shadow_blur: 3\n");
+        src.append("shadow_alpha: 1\n");
+        src.append("vector_font_mode: VECTOR_FONT_MODE_VECTOR\n");
 
-        FontMap fontMap = getFontMap(build("/test.font", src));
-        assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
+        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
+        assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test-vector.materialc"));
+        assertEquals(FontTextureFormat.TYPE_DISTANCE_FIELD, fontMap.getOutputFormat());
+        assertEquals(FontRenderMode.MODE_MULTI_LAYER, fontMap.getRenderMode());
+        assertEquals("ABC", fontMap.getCharacters());
+        assertTrue(!fontMap.getAllChars());
+        assertEquals("/Tuffy.ttf", fontMap.getFont());
+        assertTrue(fontMap.getGlyphBank().isEmpty());
+        assertEquals(16, fontMap.getSize());
+        assertTrue(!fontMap.hasAntialias());
+    }
+
+    // Static vector fonts bake curves and omit the source font from the runtime resources.
+    @Test
+    public void testStaticVectorFontBakesCurvesWithoutCopyingSourceFont() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Tuffy.ttf\"\n");
+        src.append("material: \"/test-vector.material\"\n");
+        src.append("vector_font_mode: VECTOR_FONT_MODE_VECTOR\n");
+        src.append("runtime: false\n");
+        src.append("characters: \"A\"\n");
+
+        addFile("/static-vector.font", src.toString());
+        getProject().setInputs(Collections.singletonList("/static-vector.font"));
+        List<TaskResult> results = getProject().build(Progress.discarding(), "build");
+        FontMap fontMap = null;
+        GlyphBank glyphBank = null;
+        for (TaskResult result : results) {
+            assertTrue(result.getMessage(), result.isOk());
+            for (IResource output : result.getTask().getOutputs()) {
+                assertTrue("Static vector font copied source font to build output: " + output.getPath(),
+                           !output.getPath().endsWith(".ttf"));
+                Message message = ParseUtil.parse(output);
+                if (message instanceof FontMap)
+                    fontMap = (FontMap)message;
+                else if (message instanceof GlyphBank)
+                    glyphBank = (GlyphBank)message;
+            }
+        }
+
+        assertTrue(fontMap != null);
+        assertTrue(fontMap.getFont().isEmpty());
+        assertTrue(fontMap.getGlyphBank().endsWith(".glyph_bankc"));
+        assertTrue(fontMap.getCharacters().isEmpty());
+        assertEquals(Fontc.VECTOR_REFERENCE_SIZE, fontMap.getSize());
+        assertTrue(glyphBank != null);
+        assertEquals(com.dynamo.font.proto.GlyphBankProto.FontTextureFormat.TYPE_VECTOR,
+                     glyphBank.getImageFormat());
+        assertEquals(1, glyphBank.getGlyphsCount());
+        assertTrue(glyphBank.getGlyphData().isEmpty());
+
+        GlyphBank.Glyph glyph = glyphBank.getGlyphs(0);
+        assertEquals(0, glyph.getGlyphDataSize());
+        assertEquals((int)'A', glyph.getCharacter());
+        assertEquals(11 * 8 * Float.BYTES, glyph.getVectorDataSize());
+        ByteBuffer curves = ByteBuffer.wrap(glyphBank.getVectorData().toByteArray())
+            .order(ByteOrder.nativeOrder());
+        curves.position((int)glyph.getVectorDataOffset());
+        float[] expectedFirstCurve = {
+            0.49957448f, 0.83379120f,
+            0.41276595f, 0.63015109f,
+            0.32595745f, 0.42651099f,
+            -3.13543630f, -0.98687697f
+        };
+        for (float expected : expectedFirstCurve)
+            assertEquals(expected, curves.getFloat(), 0.00001f);
+    }
+
+    // Implicit and explicit defaults share the same glyph bank instead of duplicating baked data.
+    @Test
+    public void testGlyphBankHashNormalizesDefaults() {
+        FontDesc implicit = FontDesc.newBuilder()
+            .setFont("/Tuffy.ttf")
+            .setMaterial("/test.material")
+            .setSize(16)
+            .build();
+        FontDesc explicit = implicit.toBuilder()
+            .setAntialias(1)
+            .setOutlineWidth(0.0f)
+            .setShadowBlur(0)
+            .setAllChars(false)
+            .setCacheWidth(0)
+            .setCacheHeight(0)
+            .setCharacters("")
+            .setExtraCharacters("")
+            .setVectorFontMode(VectorFontMode.VECTOR_FONT_MODE_BITMAP)
+            .build();
+
+        assertEquals(Fontc.FontDescToHash(implicit), Fontc.FontDescToHash(explicit));
+    }
+
+    // Render-only vector properties do not create duplicate glyph banks.
+    @Test
+    public void testGlyphBankHashSharesRenderPropertyVariants() throws Exception {
+        FontDesc desc = FontDesc.newBuilder()
+            .setFont("/Tuffy.ttf")
+            .setMaterial("/test-vector.material")
+            .setSize(36)
+            .setCharacters("AB")
+            .setVectorFontMode(VectorFontMode.VECTOR_FONT_MODE_VECTOR)
+            .setRenderMode(FontRenderMode.MODE_MULTI_LAYER)
+            .setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD)
+            .setOutlineWidth(2.0f)
+            .setOutlineAlpha(1.0f)
+            .setShadowBlur(2)
+            .setShadowAlpha(1.0f)
+            .setShadowX(2.0f)
+            .setShadowY(-2.0f)
+            .build();
+        FontDesc variant = desc.toBuilder()
+            .setMaterial("/other.material")
+            .setRuntime(true)
+            .setAlpha(0.25f)
+            .setOutlineAlpha(0.5f)
+            .setShadowAlpha(0.5f)
+            .setShadowX(-6.0f)
+            .setShadowY(6.0f)
+            .addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder()
+                .setName("notice").setMarkup("<color=red>"))
+            .build();
+
+        assertEquals(Fontc.FontDescToHash(desc), Fontc.FontDescToHash(variant));
+        byte[] fontBytes = getProject().getResource("/Tuffy.ttf").getContent();
+        GlyphBank bank = new Fontc().compileForEditorBuild(new ByteArrayInputStream(fontBytes), desc, null, null);
+        GlyphBank variantBank = new Fontc().compileForEditorBuild(new ByteArrayInputStream(fontBytes), variant, null, null);
+        assertEquals(bank, variantBank);
+    }
+
+    // Render-only bitmap and SDF effect variants reuse their baked glyph data.
+    @Test
+    public void testGlyphBankHashSharesNonVectorEffectVariants() {
+        for (String font : new String[] { "/Tuffy.ttf", "/bmfont.fnt" }) {
+            FontDesc desc = FontDesc.newBuilder()
+                .setFont(font)
+                .setMaterial("/test.material")
+                .setSize(16)
+                .setOutlineWidth(2.0f)
+                .setShadowBlur(2)
+                .build();
+            FontDesc variant = desc.toBuilder()
+                .setOutlineAlpha(0.5f)
+                .setShadowAlpha(0.5f)
+                .setShadowX(2.0f)
+                .setShadowY(-2.0f)
+                .build();
+
+            assertEquals(Fontc.FontDescToHash(desc), Fontc.FontDescToHash(variant));
+        }
+    }
+
+    // Single-layer and multi-layer fonts keep separate glyph banks because their baked data differs.
+    @Test
+    public void testGlyphBankHashRetainsRenderMode() {
+        FontDesc singleLayer = FontDesc.newBuilder()
+            .setFont("/Tuffy.ttf")
+            .setMaterial("/test.material")
+            .setSize(16)
+            .build();
+        FontDesc multiLayer = singleLayer.toBuilder().setRenderMode(FontRenderMode.MODE_MULTI_LAYER).build();
+
+        assertNotEquals(Fontc.FontDescToHash(singleLayer), Fontc.FontDescToHash(multiLayer));
+    }
+
+    // Extra characters affect the bank hash so fonts cannot reuse a bank missing their glyphs.
+    @Test
+    public void testExtraCharactersHaveSeparateGlyphBanks() throws Exception {
+        String source = "font: \"/Tuffy.ttf\"\nmaterial: \"/test.material\"\nsize: 16\n";
+        List<Message> ordinary = build("/ordinary.font", source);
+        List<Message> extended = build("/extended.font", source + "extra_characters: \"é\"\n");
+
+        assertNotEquals(getFontMap(ordinary).getGlyphBank(), getFontMap(extended).getGlyphBank());
+        assertTrue(getGlyphBank(ordinary).getGlyphsList().stream().noneMatch(glyph -> glyph.getCharacter() == 'é'));
+        assertTrue(getGlyphBank(extended).getGlyphsList().stream().anyMatch(glyph -> glyph.getCharacter() == 'é'));
+    }
+
+    // Vector curves and SDF bitmaps never share a glyph-bank resource path.
+    @Test
+    public void testVectorAndSdfFontsHaveDifferentGlyphBankHashes() {
+        FontDesc sdf = FontDesc.newBuilder()
+            .setFont("/Tuffy.ttf")
+            .setMaterial("/test.material")
+            .setSize(Fontc.VECTOR_REFERENCE_SIZE)
+            .setCharacters("A")
+            .setVectorFontMode(VectorFontMode.VECTOR_FONT_MODE_SDF)
+            .build();
+        FontDesc vector = sdf.toBuilder()
+            .setVectorFontMode(VectorFontMode.VECTOR_FONT_MODE_VECTOR)
+            .build();
+
+        assertNotEquals(Fontc.FontDescToHash(sdf), Fontc.FontDescToHash(vector));
+    }
+
+    // Vector effect settings that change baked images produce distinct glyph banks.
+    @Test
+    public void testStaticVectorEffectChangesGlyphBankHash() {
+        FontDesc withoutEffectImage = FontDesc.newBuilder()
+            .setFont("/Tuffy.ttf")
+            .setMaterial("/test-vector.material")
+            .setSize(Fontc.VECTOR_REFERENCE_SIZE)
+            .setCharacters("A")
+            .setOutlineWidth(2.0f)
+            .setOutlineAlpha(0.0f)
+            .setVectorFontMode(VectorFontMode.VECTOR_FONT_MODE_VECTOR)
+            .setRuntime(false)
+            .build();
+        FontDesc withEffectImage = withoutEffectImage.toBuilder()
+            .setOutlineAlpha(1.0f)
+            .build();
+
+        assertNotEquals(Fontc.FontDescToHash(withoutEffectImage),
+                        Fontc.FontDescToHash(withEffectImage));
+        assertEquals(Fontc.FontDescToHash(withEffectImage),
+                     Fontc.FontDescToHash(withEffectImage.toBuilder().setOutlineAlpha(0.5f).build()));
+
+        FontDesc withoutShadowImage = withoutEffectImage.toBuilder()
+            .setOutlineWidth(0.0f)
+            .setShadowAlpha(1.0f)
+            .setShadowX(0.0f)
+            .build();
+        FontDesc withShadowImage = withoutShadowImage.toBuilder()
+            .setShadowX(1.0f)
+            .build();
+        assertNotEquals(Fontc.FontDescToHash(withoutShadowImage),
+                        Fontc.FontDescToHash(withShadowImage));
+        assertEquals(Fontc.FontDescToHash(withShadowImage),
+                     Fontc.FontDescToHash(withShadowImage.toBuilder().setShadowAlpha(0.5f).build()));
+
+        FontDesc shadowWithOutline = withShadowImage.toBuilder().setOutlineWidth(4.0f).setOutlineAlpha(1.0f).build();
+        FontDesc shadowWithoutOutline = shadowWithOutline.toBuilder().setOutlineAlpha(0.0f).build();
+        assertNotEquals(Fontc.FontDescToHash(shadowWithOutline), Fontc.FontDescToHash(shadowWithoutOutline));
+
+        FontDesc invisibleShadow = withShadowImage.toBuilder().setShadowAlpha(0.0f).build();
+        assertEquals(Fontc.FontDescToHash(withoutShadowImage), Fontc.FontDescToHash(invisibleShadow));
+    }
+
+    // Static vector fonts bake outline bitmaps alongside their analytical face curves.
+    @Test
+    public void testStaticVectorFontBakesOutlineBitmap() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Tuffy.ttf\"\n");
+        src.append("material: \"/test-vector.material\"\n");
+        src.append("vector_font_mode: VECTOR_FONT_MODE_VECTOR\n");
+        src.append("runtime: false\n");
+        src.append("characters: \"A\"\n");
+        src.append("size: 32\n");
+        src.append("outline_width: 2\n");
+        src.append("outline_alpha: 1\n");
+
+        List<Message> buildResults = build("/static-vector-outline.font", src.toString());
+        FontMap fontMap = getFontMap(buildResults);
+        GlyphBank glyphBank = getGlyphBank(buildResults);
+
+        assertTrue(fontMap != null);
+        assertEquals(32, fontMap.getSize());
+        assertTrue(fontMap.getVectorBitmapEffects());
+        assertTrue(fontMap.getFont().isEmpty());
+        assertEquals(3, glyphBank.getGlyphChannels());
+        assertTrue(glyphBank.getVectorBitmapEffects());
+        assertTrue(glyphBank != null);
+        assertEquals(com.dynamo.font.proto.GlyphBankProto.FontTextureFormat.TYPE_VECTOR,
+                     glyphBank.getImageFormat());
+        assertTrue(!glyphBank.getVectorData().isEmpty());
+        assertTrue(!glyphBank.getGlyphData().isEmpty());
+        assertTrue(glyphBank.getGlyphs(0).getVectorDataSize() > 0);
+        assertTrue(glyphBank.getGlyphs(0).getGlyphDataSize() > 0);
+    }
+
+    // Static vector fonts bake shadow bitmaps alongside their analytical face curves.
+    @Test
+    public void testStaticVectorFontBakesShadowBitmap() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Tuffy.ttf\"\n");
+        src.append("material: \"/test-vector.material\"\n");
+        src.append("vector_font_mode: VECTOR_FONT_MODE_VECTOR\n");
+        src.append("runtime: false\n");
+        src.append("characters: \"A\"\n");
+        src.append("size: 32\n");
+        src.append("outline_width: 4\n");
+        src.append("outline_alpha: 1\n");
+
+        src.append("shadow_blur: 16\nshadow_alpha: 1\nshadow_x: 4\n");
+
+        List<Message> buildResults = build("/static-vector-shadow.font", src.toString());
+        FontMap fontMap = getFontMap(buildResults);
+        GlyphBank glyphBank = getGlyphBank(buildResults);
+
+        assertTrue(fontMap != null);
+        assertEquals(32, fontMap.getSize());
+        assertTrue(fontMap.getVectorBitmapEffects());
+        assertTrue(fontMap.getFont().isEmpty());
+        assertEquals(3, glyphBank.getGlyphChannels());
+        assertTrue(glyphBank.getVectorBitmapEffects());
+        assertTrue(glyphBank != null);
+        assertEquals(com.dynamo.font.proto.GlyphBankProto.FontTextureFormat.TYPE_VECTOR,
+                     glyphBank.getImageFormat());
+        assertTrue(!glyphBank.getVectorData().isEmpty());
+        assertTrue(!glyphBank.getGlyphData().isEmpty());
+        assertTrue(glyphBank.getGlyphs(0).getVectorDataSize() > 0);
+        assertTrue(glyphBank.getGlyphs(0).getGlyphDataSize() > 0);
+    }
+
+    // Dynamic SDF fonts retain their source font and prewarm configuration for runtime generation.
+    @Test
+    public void testTTFSdfRuntime() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("vector_font_mode: VECTOR_FONT_MODE_SDF\n");
+        src.append("font: \"/Tuffy.ttf\"\n");
+        src.append("material: \"/test.material\"\n");
+        src.append("size: 24\n");
+        src.append("runtime: true\n");
+        src.append("characters: \"Prewarm\"\n");
+        src.append("all_chars: true\n");
+
+        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
+        assertEquals(FontTextureFormat.TYPE_DISTANCE_FIELD, fontMap.getOutputFormat());
+        assertEquals(FontRenderMode.MODE_SINGLE_LAYER, fontMap.getRenderMode());
+        assertEquals(24, fontMap.getSize());
+        assertEquals("Prewarm", fontMap.getCharacters());
+        assertTrue(!fontMap.getAllChars());
+        assertEquals("/Tuffy.ttf", fontMap.getFont());
+        assertTrue(fontMap.getGlyphBank().isEmpty());
+    }
+
+    // Invisible vector effects do not allocate unnecessary baked bitmap data.
+    @Test
+    public void testInvisibleVectorEffectsDoNotBakeSdf() throws Exception {
+        String font = "font: \"/Tuffy.ttf\"\nmaterial: \"/test-vector.material\"\n" +
+            "vector_font_mode: VECTOR_FONT_MODE_VECTOR\nruntime: false\ncharacters: \"A\"\n" +
+            "outline_width: 2\noutline_alpha: 0\nshadow_blur: 3\nshadow_x: 2\nshadow_alpha: 0\n";
+        List<Message> results = build("/invisible-effects.font", font);
+        FontMap fontMap = getFontMap(results);
+        GlyphBank glyphBank = getGlyphBank(results);
+        assertEquals(16, fontMap.getSize());
+        assertTrue(glyphBank.getGlyphData().isEmpty());
+        assertTrue(!glyphBank.getVectorData().isEmpty());
+    }
+
+    // Static and dynamic vector effects require the font resource to supply their bitmap size.
+    @Test
+    public void testVectorEffectsUseAuthoredSizeForStaticAndDynamic() throws Exception {
+        for (boolean runtime : new boolean[] {false, true}) {
+            for (String effect : new String[] {"outline_width: 2\noutline_alpha: 1\n", "shadow_x: 2\nshadow_alpha: 1\n", "shadow_blur: 3\nshadow_alpha: 1\n"}) {
+                String source = "font: \"/Tuffy.ttf\"\nmaterial: \"/test-vector.material\"\n" +
+                    "vector_font_mode: VECTOR_FONT_MODE_VECTOR\ncharacters: \"A\"\nruntime: " + runtime + "\n" + effect;
+                try {
+                    build("/effect.font", source);
+                    fail("Vector effects must not infer a generation size from consumers");
+                } catch (CompileExceptionError e) {
+                    assertTrue(e.getMessage(), e.getMessage().contains("positive Size"));
+                }
+                FontMap fontMap = getFontMap(build("/effect.font", source + "size: 37\n"));
+                assertEquals(37, fontMap.getSize());
+                assertEquals(runtime, fontMap.getGlyphBank().isEmpty());
+            }
+        }
+    }
+
+    // An explicit static setting overrides the legacy project-wide runtime-generation option.
+    @Test
+    public void testExplicitStaticSdfOverridesLegacyRuntimeGeneration() throws Exception {
+        getProject().setOption("font-runtime-generation", "true");
+
+        StringBuilder src = new StringBuilder();
+        src.append("vector_font_mode: VECTOR_FONT_MODE_SDF\n");
+        src.append("font: \"/Tuffy.ttf\"\n");
+        src.append("material: \"/test.material\"\n");
+        src.append("size: 16\n");
+        src.append("runtime: false\n");
+        src.append("characters: \"A\"\n");
+
+        FontMap fontMap = getFontMap(build("/static-sdf.font", src.toString()));
+        assertTrue(fontMap.getFont().isEmpty());
+        assertTrue(!fontMap.getGlyphBank().isEmpty());
+        assertTrue(fontMap.getCharacters().isEmpty());
+    }
+
+    // Omitted properties must compile like explicit defaults, even with the legacy global flag enabled.
+    @Test
+    public void testOmittedFontPropertiesUseDefaults() throws Exception {
+        getProject().setOption("font-runtime-generation", "true");
+        for (String mode : new String[] {"", "vector_font_mode: VECTOR_FONT_MODE_VECTOR\n"}) {
+            String material = mode.isEmpty() ? "/test.material" : "/test-vector.material";
+            String source = "font: \"/Tuffy.ttf\"\nmaterial: \"" + material + "\"\ncharacters: \"A\"\n" + mode;
+            String size = mode.isEmpty() ? "size: 16\n" : "";
+            FontMap omitted = getFontMap(build("/default.font", source + size));
+            FontMap explicit = getFontMap(build("/default.font", source + size + "runtime: false\n" +
+                (mode.isEmpty() ? "vector_font_mode: VECTOR_FONT_MODE_BITMAP\n" : "size: 0\n")));
+            assertEquals(omitted, explicit);
+            assertTrue(omitted.getFont().isEmpty());
+            assertTrue(!omitted.getGlyphBank().isEmpty());
+        }
+    }
+
+    // Font type, rendering mode, and generation settings resolve consistently across their combinations.
+    @Test
+    public void testEffectiveFontSettingsMatrix() {
+        String[] extensions = {"ttf", "otf", "fnt"};
+        VectorFontMode[] modes = {VectorFontMode.VECTOR_FONT_MODE_SDF, VectorFontMode.VECTOR_FONT_MODE_VECTOR, VectorFontMode.VECTOR_FONT_MODE_BITMAP};
+        Boolean[] runtimeOptions = {null, false, true};
+        boolean[] booleans = {false, true};
+
+        for (String extension : extensions) {
+            for (VectorFontMode mode : modes) {
+                for (Boolean runtime : runtimeOptions) {
+                    for (boolean allChars : booleans) {
+                        FontDesc.Builder builder = FontDesc.newBuilder()
+                            .setFont("/source." + extension)
+                            .setMaterial("/test.material")
+                            .setSize(24)
+                            .setCharacters("A")
+                            .setAllChars(allChars)
+                            .setVectorFontMode(mode);
+                        if (runtime != null)
+                            builder.setRuntime(runtime);
+
+                        FontDesc effective = FontBuilder.getEffectiveFontDesc(builder.build());
+                        String context = extension + ", " + mode + ", runtime=" + runtime +
+                            ", allChars=" + allChars;
+                        boolean bitmap = extension.equals("fnt") || mode == VectorFontMode.VECTOR_FONT_MODE_BITMAP;
+                        boolean vector = !bitmap && mode == VectorFontMode.VECTOR_FONT_MODE_VECTOR;
+                        boolean dynamic = !bitmap && Boolean.TRUE.equals(runtime);
+
+                        assertEquals(context, dynamic, effective.getRuntime());
+                        assertEquals(context, !dynamic && allChars, effective.getAllChars());
+                        assertEquals(context, bitmap ? FontTextureFormat.TYPE_BITMAP : FontTextureFormat.TYPE_DISTANCE_FIELD,
+                                     effective.getOutputFormat());
+                        assertEquals(context, vector ? FontRenderMode.MODE_MULTI_LAYER : FontRenderMode.MODE_SINGLE_LAYER,
+                                     effective.getRenderMode());
+                        assertEquals(context, vector, effective.getVectorFontMode() == VectorFontMode.VECTOR_FONT_MODE_VECTOR);
+                        assertEquals(context, vector ? Fontc.VECTOR_REFERENCE_SIZE : 24, effective.getSize());
+                    }
+                }
+            }
+        }
+    }
+
+    // Legacy bitmap fonts retain their rendering settings when built from TTF or OTF resources.
+    @Test
+    public void testLegacyBitmapSettingsArePreserved() throws Exception {
+        addFile("/Test.otf", getFile("/Tuffy.ttf"));
+        for (String extension : new String[] { "ttf", "otf" }) {
+            String path = extension.equals("ttf") ? "/Tuffy.ttf" : "/Test.otf";
+            String source = "font: \"" + path + "\"\nmaterial: \"/builtins/fonts/font.material\"\n"
+                    + "size: 16\ncharacters: \"A\"\nantialias: 0\nruntime: true\n";
+            FontMap font = getFontMap(build("/legacy.font", source));
+            assertEquals(FontTextureFormat.TYPE_BITMAP, font.getOutputFormat());
+            assertEquals(ResourceUtil.minifyPath("/builtins/fonts/font.materialc"), font.getMaterial());
+            assertEquals(0, font.getAntialias());
+            assertTrue(font.getFont().isEmpty());
+            assertTrue(!font.getGlyphBank().isEmpty());
+            String label = "size { x: 100 y: 32 }\nfont: \"/legacy.font\"\n"
+                    + "material: \"/builtins/fonts/label.material\"\ntext: \"A\"\n";
+            boolean foundLabel = false;
+            for (Message message : build("/legacy.label", label)) {
+                if (message instanceof com.dynamo.gamesys.proto.Label.LabelDesc) {
+                    foundLabel = true;
+                    assertEquals(ResourceUtil.minifyPath("/builtins/fonts/label.materialc"),
+                        ((com.dynamo.gamesys.proto.Label.LabelDesc)message).getMaterial());
+                }
+            }
+            assertTrue("The build must produce the compiled Label", foundLabel);
+        }
+        FontDesc custom = FontDesc.newBuilder().setFont("/Tuffy.ttf").setMaterial("/custom.material").setSize(16).build();
+        assertEquals("/custom.material", FontBuilder.getEffectiveFontDesc(custom).getMaterial());
+        FontDesc bitmap = custom.toBuilder().setFont("/custom.fnt").setMaterial("/builtins/fonts/font.material").build();
+        assertEquals("/builtins/fonts/font.material", FontBuilder.getEffectiveFontDesc(bitmap).getMaterial());
+    }
+
+    // Dynamic vector fonts retain the shadow settings needed for runtime bitmap generation.
+    @Test
+    public void testDynamicVectorShadowBitmap() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Tuffy.ttf\"\n");
+        src.append("material: \"/test-vector.material\"\n");
+        src.append("size: 16\n");
+        src.append("shadow_blur: 1\n");
+        src.append("shadow_alpha: 1\n");
+        src.append("vector_font_mode: VECTOR_FONT_MODE_VECTOR\n");
+        src.append("runtime: true\n");
+
+        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
+
+        assertTrue(fontMap.getVectorBitmapEffects());
+    }
+
+    // Vector faces and outlines use the same material instead of selecting an SDF-only material.
+    @Test
+    public void testTTFOutlineUsesSharedVectorMaterial() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Tuffy.ttf\"\n");
+        src.append("material: \"/test-vector.material\"\n");
+        src.append("size: 16\n");
+        src.append("outline_width: 2\n");
+        src.append("outline_alpha: 1\n");
+        src.append("shadow_blur: 0\n");
+        src.append("vector_font_mode: VECTOR_FONT_MODE_VECTOR\n");
+        src.append("runtime: true\n");
+
+        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
+
+        assertTrue(fontMap.getVectorBitmapEffects());
+    }
+
+    // Label vector fonts retain their vector material when an outline is enabled.
+    @Test
+    public void testTTFLabelOutlineUsesSharedVectorMaterial() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Tuffy.ttf\"\n");
+        src.append("material: \"/builtins/fonts/label-vector.material\"\n");
+        src.append("size: 16\n");
+        src.append("outline_width: 2\n");
+        src.append("outline_alpha: 1\n");
+        src.append("vector_font_mode: VECTOR_FONT_MODE_VECTOR\n");
+        src.append("runtime: true\n");
+
+        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
+
+        assertTrue(fontMap.getVectorBitmapEffects());
     }
 
     @Test
@@ -274,8 +897,10 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         byte[] bitmapGlyphBank = new byte[] { 0x50, 0x00 };
         byte[] distanceFieldGlyphBank = new byte[] { 0x50, 0x01 };
 
-        assertEquals(FontTextureFormat.TYPE_BITMAP, GlyphBank.parseFrom(bitmapGlyphBank).getImageFormat());
-        assertEquals(FontTextureFormat.TYPE_DISTANCE_FIELD, GlyphBank.parseFrom(distanceFieldGlyphBank).getImageFormat());
+        assertEquals(com.dynamo.font.proto.GlyphBankProto.FontTextureFormat.TYPE_BITMAP,
+                     GlyphBank.parseFrom(bitmapGlyphBank).getImageFormat());
+        assertEquals(com.dynamo.font.proto.GlyphBankProto.FontTextureFormat.TYPE_DISTANCE_FIELD,
+                     GlyphBank.parseFrom(distanceFieldGlyphBank).getImageFormat());
         byte[] unsignedCacheAscent = new byte[] { (byte)0x90, 0x01, 0x66 };
         assertEquals(102, GlyphBank.parseFrom(unsignedCacheAscent).getCacheCellMaxAscent());
     }
@@ -301,6 +926,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertNotNull(fontMap);
         assertTrue(fontMap.getAllChars());
         assertTrue(fontMap.getGlyphBank().endsWith(".glyph_bankc"));
+        assertTrue(fontMap.getCharacters().isEmpty());
         assertNotNull(glyphBank);
         assertEquals(1499, glyphBank.getGlyphsCount());
     }
@@ -313,7 +939,8 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         String src = "font: \"/Test.otf\"\n" +
                 "material: \"/test.material\"\n" +
                 "size: 16\n" +
-                "output_format: TYPE_DISTANCE_FIELD\n";
+                "output_format: TYPE_DISTANCE_FIELD\n" +
+                "runtime: true\n";
 
         addFile("/test.font", src);
         getProject().setInputs(Collections.singletonList("/test.font"));
@@ -333,15 +960,80 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(fontMap.getGlyphBank().isEmpty());
     }
 
+    // OTF resources use the same vector-font build path as TTF resources.
+    @Test
+    public void testVectorOTF() throws Exception {
+        addFile("/Test.otf", getFile("/Tuffy.ttf"));
+
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Test.otf\"\n");
+        src.append("material: \"/test-vector.material\"\n");
+        src.append("size: 48\n");
+        src.append("vector_font_mode: VECTOR_FONT_MODE_VECTOR\n");
+        src.append("runtime: true\n");
+
+        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
+        assertEquals("/Test.otf", fontMap.getFont());
+        assertTrue(fontMap.getGlyphBank().isEmpty());
+        assertEquals(Fontc.VECTOR_REFERENCE_SIZE, fontMap.getSize());
+    }
+
     @Test
     public void testFNT() throws Exception {
 
-        String src = "font: \"/bmfont.fnt\"\n" +
-                "material: \"/test.material\"\n" +
-                "size: 16\n";
-        FontMap fontMap = getFontMap(build("/test.font", src));
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/bmfont.fnt\"\n");
+        src.append("material: \"/test.material\"\n");
+        src.append("size: 16\n");
+        src.append("output_format: TYPE_DISTANCE_FIELD\n");
+        src.append("render_mode: MODE_MULTI_LAYER\n");
+        src.append("characters: \"ABC\"\n");
+        src.append("shadow_blur: 3\n");
+        List<Message> buildResults = build("/test.font", src.toString());
+        FontMap fontMap = getFontMap(buildResults);
+        GlyphBank glyphBank = getGlyphBank(buildResults);
 
         assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
+        assertEquals(FontTextureFormat.TYPE_BITMAP, fontMap.getOutputFormat());
+        assertEquals(FontRenderMode.MODE_SINGLE_LAYER, fontMap.getRenderMode());
+        assertEquals(32, fontMap.getSize());
+        assertTrue(fontMap.getCharacters().isEmpty());
+        assertTrue(fontMap.getFont().isEmpty());
+        assertTrue(!fontMap.getGlyphBank().isEmpty());
+        assertEquals(3, glyphBank.getGlyphsCount());
+    }
+
+    // BMFont resources ignore stale vector and dynamic settings after switching font type.
+    @Test
+    public void testFNTIgnoresStaleVectorAndDynamicSettings() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/bmfont.fnt\"\n");
+        src.append("material: \"/test.material\"\n");
+        src.append("vector_font_mode: VECTOR_FONT_MODE_VECTOR\n");
+        src.append("runtime: true\n");
+
+        List<Message> buildResults = build("/stale-bmfont.font", src.toString());
+        FontMap fontMap = getFontMap(buildResults);
+        GlyphBank glyphBank = getGlyphBank(buildResults);
+
+        assertEquals(FontTextureFormat.TYPE_BITMAP, fontMap.getOutputFormat());
+        assertTrue(fontMap.getFont().isEmpty());
+        assertTrue(!fontMap.getGlyphBank().isEmpty());
+        assertEquals(com.dynamo.font.proto.GlyphBankProto.FontTextureFormat.TYPE_BITMAP,
+                     glyphBank.getImageFormat());
+    }
+
+    // BMFont all-chars builds include glyphs beyond the explicitly authored characters.
+    @Test
+    public void testFNTAllChars() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/bmfont.fnt\"\n");
+        src.append("material: \"/test.material\"\n");
+        src.append("characters: \"A\"\n");
+        src.append("all_chars: true\n");
+
+        GlyphBank glyphBank = getGlyphBank(build("/test.font", src.toString()));
+        assertTrue(glyphBank.getGlyphsCount() > 1);
     }
 
     @Test
@@ -427,13 +1119,13 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
                 "size: 16\n";
         addFile("/invalid.font", src);
 
-        Task task = getProject().createTask(getProject().getResource("/invalid.font"), GlyphBankBuilder.class);
         try {
+            Task task = getProject().createTask(getProject().getResource("/invalid.font"), GlyphBankBuilder.class);
             task.getBuilder().build(task);
             fail("Expected malformed BMFont data to produce a CompileExceptionError");
         } catch (CompileExceptionError e) {
-            assertEquals("invalid.font", e.getResource().getPath());
-            assertTrue(e.getCause() instanceof BMFontFormatException);
+            assertEquals("invalid.fnt", e.getResource().getPath());
+            assertTrue(!e.getMessage().isEmpty());
         }
     }
 

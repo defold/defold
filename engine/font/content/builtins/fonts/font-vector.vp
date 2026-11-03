@@ -1,0 +1,43 @@
+#version 140
+
+#include "/builtins/fonts/font-effect.glsl"
+
+in highp vec4 position;
+in highp vec4 texcoord;
+in highp vec4 effect_params;
+in lowp vec4 color;
+in highp vec2 texcoord0;
+in highp vec4 face_color;
+in highp vec4 effect;
+
+out highp vec2 var_font_position;
+out highp vec4 var_effect;
+out highp vec2 var_texcoord;
+out mediump vec4 var_color;
+flat out highp float var_paint;
+flat out highp float var_mode;
+flat out highp vec4 var_banding;
+flat out highp ivec4 var_glyph;
+flat out highp float var_curve_count;
+
+uniform vs_uniforms
+{
+    mat4 view_proj;
+};
+
+void main()
+{
+    int header = int(position.z + 0.5);
+    int band_max = 7; // Matches the runtime cache’s eight bands per axis.
+    var_font_position = texcoord0;
+    var_paint = face_color.z;
+    var_texcoord = texcoord.xy;
+    var_mode = texcoord.w;
+    var_effect = effect;
+    var_color = font_effect_vertex_color(var_effect, color);
+    var_banding = effect_params;
+    var_glyph = ivec4(header & 4095, header >> 12, band_max, band_max);
+    var_curve_count = texcoord.z;
+    // World Z is stored separately from the numeric glyph address.
+    gl_Position = view_proj * vec4(position.xy, position.w, 1.0);
+}

@@ -186,10 +186,10 @@ message NodeDesc
     optional SizeMode size_mode  = 38 [default = SIZE_MODE_MANUAL];
 
     // Spine specific options (deprecated)
-    optional string spine_scene             = 39;
-    optional string spine_default_animation = 40;
-    optional string spine_skin              = 41;
-    optional bool   spine_node_child        = 42 [default = false];
+    optional string spine_scene             = 39 [deprecated = true];
+    optional string spine_default_animation = 40 [deprecated = true];
+    optional string spine_skin              = 41 [deprecated = true];
+    optional bool   spine_node_child        = 42 [default = false, deprecated = true];
 
     // ParticleFX specific options
     optional string particlefx              = 43;
@@ -203,11 +203,12 @@ message NodeDesc
 
     // Spine GUI options
     // Controls whether GUI bone nodes are created for Spine nodes.
-    optional bool   spine_create_bones      = 48 [default = false];
+    optional bool   spine_create_bones      = 48 [default = false, deprecated = true];
 
     optional string    custom_type_name  = 49;
     repeated Property  custom_properties = 50;
     optional string    style             = 51 [default = "default"];
+    optional float     font_size          = 52 [default = 16.0];
 }
 
 message SceneDesc
@@ -276,7 +277,7 @@ message SceneDesc
     repeated LayoutDesc      layouts              = 9;
     optional AdjustReference adjust_reference     = 10 [default = ADJUST_REFERENCE_LEGACY];
     optional uint32          max_nodes            = 11 [default = 512];
-    repeated SpineSceneDesc  spine_scenes         = 12;
+    repeated SpineSceneDesc  spine_scenes         = 12 [deprecated = true];
     repeated ParticleFXDesc  particlefxs          = 13;
     repeated ResourceDesc    resources            = 14;
     repeated MaterialDesc    materials            = 15;
@@ -287,6 +288,10 @@ message SceneDesc
  *
  * This message is broadcast to every GUI component when a layout change has been initiated
  * on device.
+ *
+ * Layout changes before or during `init()` are applied immediately, but their notifications
+ * are coalesced and delivered after `init()` completes successfully. If the final layout
+ * matches the layout before these changes, no notification is sent.
  *
  * @message
  * @name layout_changed

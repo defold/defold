@@ -68,6 +68,9 @@ namespace dmHID
         int                  m_Id;
         Gamepad*             m_Gamepad;
         GamepadRemapStrategy m_RemapStrategy;
+#if defined(ANDROID)
+        AndroidGamepadMapping m_AndroidMapping;
+#endif
 #if defined(_WIN32)
         GamepadGuid          m_AutomaticGuid;
         char                 m_AutomaticName[MAX_GAMEPAD_NAME_LENGTH];
@@ -581,9 +584,13 @@ namespace dmHID
         uint8_t buttons[MAX_GAMEPAD_BUTTON_COUNT] = {};
         uint8_t buttons_remapped[MAX_GAMEPAD_BUTTON_COUNT] = {};
 
+#if defined(ANDROID)
+        UpdateAndroidGamepad(context->m_Window, platform_joystick, gamepad, &platform_device->m_AndroidMapping, buttons);
+#else
         gamepad->m_AxisCount   = dmPlatform::GetJoystickAxes(context->m_Window, platform_joystick, packet.m_Axis, MAX_GAMEPAD_AXIS_COUNT);
         gamepad->m_HatCount    = dmPlatform::GetJoystickHats(context->m_Window, platform_joystick, packet.m_Hat, MAX_GAMEPAD_HAT_COUNT);
         gamepad->m_ButtonCount = dmPlatform::GetJoystickButtons(context->m_Window, platform_joystick, buttons, MAX_GAMEPAD_BUTTON_COUNT);
+#endif
 
         uint8_t* buttons_ptr = RemapGamepadButtons(platform_device, buttons, buttons_remapped);
         RemapGamepadAxis(platform_device, packet.m_Axis, buttons);
@@ -689,8 +696,24 @@ namespace dmHID
         }
 #endif
 
+#if defined(ANDROID)
+        return GetAndroidGamepadMappingSupport(context->m_Window, PLATFORM_JOYSTICKS[platform_device->m_Id]);
+#endif
+
         return GAMEPAD_MAPPING_SUPPORT_NONE;
     }
+
+#if defined(ANDROID)
+    static void PlatformGamepadDriverSetGamepadMapping(HContext context, GamepadDriver* driver, HGamepad gamepad, const char* mapping)
+    {
+        PlatformGamepadDevice* platform_device = 0;
+        int id = PlatformUnpackGamepad((PlatformGamepadDriver*)driver, gamepad, &platform_device);
+        if (id == -1)
+            return;
+
+        SetAndroidGamepadMapping(context->m_Window, PLATFORM_JOYSTICKS[id], gamepad, &platform_device->m_AndroidMapping, mapping);
+    }
+#endif
 
     static bool PlatformGamepadDriverInitialize(HContext context, GamepadDriver* driver)
     {
@@ -722,7 +745,11 @@ namespace dmHID
         driver->m_GetGamepadDeviceName         = PlatformGamepadDriverGetGamepadDeviceName;
         driver->m_GetGamepadDeviceGuid         = PlatformGamepadDriverGetGamepadDeviceGuid;
         driver->m_GetGamepadMappingSupport     = PlatformGamepadDriverGetGamepadMappingSupport;
+#if defined(ANDROID)
+        driver->m_SetGamepadMapping            = PlatformGamepadDriverSetGamepadMapping;
+#else
         driver->m_SetGamepadMapping            = 0;
+#endif
 
         assert(g_PlatformGamepadDriver == 0);
         g_PlatformGamepadDriver               = driver;

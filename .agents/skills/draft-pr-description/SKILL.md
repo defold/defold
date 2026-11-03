@@ -23,12 +23,17 @@ python3 .agents/skills/draft-pr-description/scripts/branch_pr_context.py --base 
 
 By default, return one fenced Markdown code block with the PR title and body. Include relevant issue links in the body when supplied; use a closing keyword only for an issue the PR resolves.
 
-When the PR adds or changes a public API, include an `### API usage` section with a short example of the new or changed call, command, or configuration. Show enough context for a reviewer to understand the usage, and base the example on the verified API rather than an assumed signature. Omit this section when no public API changes. If the example needs a fenced code block, use a longer fence around the full PR draft so the inner fence renders correctly.
+When the PR adds or changes a public API, include a short usage explanation and example of the new or changed call, command, or configuration after the opening description and before `### Technical changes`, without a separate heading. Show enough context for a reviewer to understand the usage, and base the example on the verified API rather than an assumed signature. Omit the usage explanation and example when no public API changes. If the example needs a fenced code block, use a longer fence around the full PR draft so the inner fence renders correctly.
 
 ```markdown
 # Short title for PR
 
 A few sentences explaining the purpose and effect of the change. Describe visible behavior when there is any; for internal changes, describe the affected developer or build workflow.
+
+For public API changes, include a short usage explanation and example here, without a separate heading.
+
+Fix URL_TO_ISSUE if there are some issues this PR fixes
+Fix URL_TO_ISSUE if there are more than one issue this PR fixes, put them one by one like this
 
 ### Technical changes
 

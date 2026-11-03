@@ -275,6 +275,10 @@ list(REMOVE_DUPLICATES DEFOLD_PROTO_SOURCE_INCLUDE_DIRS)
 set(DEFOLD_LIB_DIR "${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}")
 set(DEFOLD_PUBLIC_EXT_LIB_DIR "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}")
 set(DEFOLD_EXT_LIB_DIR "${DEFOLD_PUBLIC_EXT_LIB_DIR}")
+if(WITH_MSAN)
+  # Package configs (notably Protobuf and Abseil) contain absolute archive paths.
+  set(DEFOLD_EXT_LIB_DIR "${DEFOLD_MSAN_PREFIX}/lib/${TARGET_PLATFORM}")
+endif()
 
 set(_DEFOLD_ENGINE_LIBS
   testmain
@@ -295,6 +299,7 @@ set(_DEFOLD_ENGINE_LIBS
   resource
   extension
   script
+  debugger
   render
   rig
   gameobject
@@ -319,7 +324,9 @@ unset(_DEFOLD_ENGINE_LIBS)
 set(_DEFOLD_PLATFORM_INCLUDE_DIRS)
 set(_DEFOLD_PLATFORM_LIB_DIRS)
 list(APPEND _DEFOLD_PLATFORM_INCLUDE_DIRS "${DEFOLD_EXT_PLATFORM_INCLUDE_DIR}")
-list(APPEND _DEFOLD_PLATFORM_LIB_DIRS "${DEFOLD_LIB_DIR}" "${DEFOLD_EXT_LIB_DIR}")
+# Keep system shared libraries and JNI dependencies available. MSan adds its
+# instrumented directory separately, gated on the consuming target.
+list(APPEND _DEFOLD_PLATFORM_LIB_DIRS "${DEFOLD_LIB_DIR}" "${DEFOLD_PUBLIC_EXT_LIB_DIR}")
 list(REMOVE_DUPLICATES _DEFOLD_PLATFORM_INCLUDE_DIRS)
 list(REMOVE_DUPLICATES _DEFOLD_PLATFORM_LIB_DIRS)
 
@@ -389,10 +396,12 @@ foreach(_DEFOLD_DMSDK_DIR IN LISTS _DEFOLD_DMSDK_DIRS)
     get_filename_component(_DEFOLD_DMSDK_HEADER_DIR "${_DEFOLD_DMSDK_HEADER}" DIRECTORY)
     if(_DEFOLD_DMSDK_HEADER_DIR)
       install(FILES "${_DEFOLD_DMSDK_DIR}/${_DEFOLD_DMSDK_HEADER}"
-              DESTINATION "sdk/include/dmsdk/${_DEFOLD_DMSDK_HEADER_DIR}")
+              DESTINATION "sdk/include/dmsdk/${_DEFOLD_DMSDK_HEADER_DIR}"
+              COMPONENT defold_sdk_headers)
     else()
       install(FILES "${_DEFOLD_DMSDK_DIR}/${_DEFOLD_DMSDK_HEADER}"
-              DESTINATION sdk/include/dmsdk)
+              DESTINATION sdk/include/dmsdk
+              COMPONENT defold_sdk_headers)
     endif()
   endforeach()
 endforeach()

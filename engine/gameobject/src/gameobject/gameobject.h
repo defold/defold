@@ -303,6 +303,8 @@ namespace dmGameObject
 
     /**
      * Retrieve a property from a component.
+     * Euler rotation properties have no writable value pointer. Use SetProperty
+     * to update them so the quaternion is committed immediately.
      * @param instance Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property

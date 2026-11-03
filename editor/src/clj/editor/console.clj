@@ -44,7 +44,8 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.coll :as coll]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [util.http-server.types :as http-server.types])
   (:import [editor.code.data Cursor CursorRange LayoutInfo Rect]
            [java.io BufferedReader IOException]
            [java.util.concurrent ArrayBlockingQueue]
@@ -854,7 +855,7 @@
     200
     {"content-type" "text/plain; charset=utf-8"}
     (reify
-      http-server/ConnectionWrite
+      http-server.types/ConnectionWrite
       (connection-write! [_ output-stream]
         (let [writer (io/writer output-stream :encoding "UTF-8")
               queue (ArrayBlockingQueue. 1024)

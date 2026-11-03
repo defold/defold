@@ -1,0 +1,36 @@
+local function assert_near(actual, expected)
+    assert(math.abs(actual - expected) < 0.0001,
+        ("Expected %s, got %s"):format(expected, actual))
+end
+
+local function assert_shapes(sphere_diameter, box_dimensions, capsule_diameter, capsule_height)
+    local sphere = physics.get_shape("#collisionobject", "sphere")
+    assert(sphere.type == physics.SHAPE_TYPE_SPHERE)
+    assert_near(sphere.diameter, sphere_diameter)
+
+    local box = physics.get_shape("#collisionobject", "box")
+    assert(box.type == physics.SHAPE_TYPE_BOX)
+    assert_near(box.dimensions.x, box_dimensions.x)
+    assert_near(box.dimensions.y, box_dimensions.y)
+    assert_near(box.dimensions.z, box_dimensions.z)
+
+    local capsule = physics.get_shape("#collisionobject", "capsule")
+    assert(capsule.type == physics.SHAPE_TYPE_CAPSULE)
+    assert_near(capsule.diameter, capsule_diameter)
+    assert_near(capsule.height, capsule_height)
+end
+
+-- Verify authored sizes and unchanged/modified round trips independently of physics.scale (#11636).
+function init(self)
+    assert_shapes(16, vmath.vector3(20, 40, 60), 8, 12)
+
+    for _, name in ipairs({"sphere", "box", "capsule"}) do
+        physics.set_shape("#collisionobject", name, physics.get_shape("#collisionobject", name))
+    end
+    assert_shapes(16, vmath.vector3(20, 40, 60), 8, 12)
+
+    physics.set_shape("#collisionobject", "sphere", {type = physics.SHAPE_TYPE_SPHERE, diameter = 10})
+    physics.set_shape("#collisionobject", "box", {type = physics.SHAPE_TYPE_BOX, dimensions = vmath.vector3(12, 18, 24)})
+    physics.set_shape("#collisionobject", "capsule", {type = physics.SHAPE_TYPE_CAPSULE, diameter = 6, height = 14})
+    assert_shapes(10, vmath.vector3(12, 18, 24), 6, 14)
+end

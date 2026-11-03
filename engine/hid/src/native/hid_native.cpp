@@ -285,6 +285,7 @@ namespace dmHID
                     else
                         packet.m_Buttons[i / 32] &= ~mask;
                 }
+                packet.m_LeftButtonFromTouch = dmPlatform::IsMouseLeftButtonFromTouch(context->m_Window);
                 int32_t wheel = dmPlatform::GetMouseWheel(context->m_Window);
 
                 if (context->m_FlipScrollDirection)
@@ -295,6 +296,7 @@ namespace dmHID
                 packet.m_Wheel = wheel;
 
                 dmPlatform::GetMousePosition(context->m_Window, &packet.m_PositionX, &packet.m_PositionY);
+                packet.m_PositionFromTouch = dmPlatform::IsMousePositionFromTouch(context->m_Window);
             }
         }
 

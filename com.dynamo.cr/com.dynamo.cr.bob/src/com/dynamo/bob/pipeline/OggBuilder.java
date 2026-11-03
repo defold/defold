@@ -20,18 +20,18 @@ import java.io.BufferedOutputStream;
 import java.io.FileOutputStream;
 
 import com.dynamo.bob.Bob;
+import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
-import com.dynamo.bob.Project;
+import com.dynamo.bob.util.OggUtil;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
-@BuilderParams(name = "Ogg", inExts = ".ogg", outExt = ".oggc", paramsForSignature = {"sound-stream-enabled"})
-public class OggBuilder extends CopyBuilder{
+@BuilderParams(name = "Ogg", inExts = ".ogg", outExt = ".oggc")
+public class OggBuilder extends Builder {
     private static Logger logger = Logger.getLogger(OggBuilder.class.getName());
     private static String oggzValidateExePath;
     private static boolean missingOggzValidateWarningShown;
@@ -39,12 +39,20 @@ public class OggBuilder extends CopyBuilder{
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
         oggzValidateExePath = Bob.getOptionalHostExeOnce("oggz-validate", oggzValidateExePath);
-        return super.create(input);
+        boolean soundStreaming = project.option("sound-stream-enabled", "false").equals("true");
+        // Streamed sounds must be readable directly from the archive.
+        Task.OutputFlags[] flags = soundStreaming ? new Task.OutputFlags[]{Task.OutputFlags.UNCOMPRESSED} : new Task.OutputFlags[0];
+        return Task.newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addOutput(input.changeExt(params.outExt()), flags)
+                // Invalidate outputs from the previous byte-for-byte copy builder.
+                .addExtraCacheKey("strip-vorbis-metadata-v1")
+                .build();
     }
 
     @Override
     public void build(Task task) throws IOException, CompileExceptionError {
-        super.build(task);
         if (oggzValidateExePath == null) {
             if (!missingOggzValidateWarningShown) {
                 logger.warning("oggz-validate not found for host platform, skipping Ogg validation.");
@@ -71,13 +79,10 @@ public class OggBuilder extends CopyBuilder{
                         String.format("\nSound file validation failed. Make sure your `ogg` files are correct using `oggz-validate` https://www.xiph.org/oggz/\n%s", new String(result.stdOutErr)));
             }
         }
-
-        boolean soundStreaming = this.project.option("sound-stream-enabled", "false").equals("true"); // if no value set use old hardcoded path (backward compatability)
-        boolean compressSounds = !soundStreaming; // We want to be able to read directly from the files as-is (without compression)
-        for(IResource res : task.getOutputs()) {
-            if (!compressSounds) {
-                project.addOutputFlags(res.getAbsPath(), Project.OutputFlags.UNCOMPRESSED);
-            }
+        try {
+            task.output(0).setContent(OggUtil.stripMetadata(task.firstInput().getContent()));
+        } catch (IOException e) {
+            throw new CompileExceptionError(task.firstInput(), 0, e.getMessage(), e);
         }
     }
 }

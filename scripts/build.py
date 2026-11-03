@@ -6,11 +6,15 @@ sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "
 
 import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
 import optparse, pprint, subprocess, urllib, urllib.parse, tempfile, time
+import contextlib, io
 import github
 import build_android
 import build_ios
 import codesigning
 import run
+import build_output
+import build_console
+from build_console import Style
 import s3
 import sdk
 from cross_build import DEFOLD_PLATFORMS_FILE, get_configured_platforms, get_platform_root, get_platforms_config_path, load_platforms_config, save_platforms_config, write_merged_platform_sdks
@@ -41,12 +45,18 @@ BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'armv7-android', 'arm64-android', 'x86_64-android',
                     'wasm-web', 'wasm_pthread-web']
 
+# Private platform hooks can still list dependencies now built from source.
+SOURCE_BUILT_PACKAGE_PREFIXES = (
+    'bullet-', 'protobuf-', 'box2d-', 'box2d_defold-', 'opus-',
+    'harfbuzz-', 'SheenBidi-', 'libunibreak-', 'SkriBidi-', 'luajit-', 'ogg-')
+
 _CMAKE_FEATURE_FLAG_MAP = {
+    '--with-threaded-rendering': 'WITH_THREADED_RENDERING',
     '--with-asan': 'WITH_ASAN',
     '--with-hwasan': 'WITH_HWASAN',
+    '--with-msan': 'WITH_MSAN',
     '--with-ubsan': 'WITH_UBSAN',
     '--with-tsan': 'WITH_TSAN',
-    '--with-valgrind': 'WITH_VALGRIND',
     '--with-openal': 'WITH_OPENAL',
     '--with-opengl': 'WITH_OPENGL',
     '--with-vulkan': 'WITH_VULKAN',
@@ -101,12 +111,12 @@ class build_private(object):
     @classmethod
     def get_install_host_packages(cls, platform): # Returns the packages that should be installed for the host
         return [package for package in cls._call(None, 'get_install_host_packages', [], platform)
-                if not package.startswith('bullet-')]
+                if not package.startswith(SOURCE_BUILT_PACKAGE_PREFIXES)]
 
     @classmethod
     def get_install_target_packages(cls, platform): # Returns the packages that should be installed for the target
         return [package for package in cls._call(platform, 'get_install_target_packages', [], platform)
-                if not package.startswith('bullet-')]
+                if not package.startswith(SOURCE_BUILT_PACKAGE_PREFIXES)]
 
     @classmethod
     def get_external_package_name(cls, platform, library, default_name):
@@ -150,61 +160,30 @@ def get_default_target_platforms():
 
 PACKAGES_ALL=[
     sdk.ANDROID_PACKAGE,
-    "protobuf-35.1",
     "junit-4.6",
     "jsign-4.2",
     "bundletool-all",
     "openal-1.1",
     "maven-3.0.1",
     "vecmath",
-    "vpx-1.7.0",
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "defold-robot-0.7.0",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
     "jctest-0.15",
-    "vulkan-v1.4.307",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "vulkan-v1.4.307"]
 
 PACKAGES_HOST=[
-    "protobuf-35.1",
-    "vpx-1.7.0",
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1"]
 
 PACKAGES_IOS_SIMULATOR=[
-    "luajit-2.1.0-3e223cb",
-    "tremolo-b0cb4d1",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "tremolo-b0cb4d1"]
 
 PACKAGES_IOS_64=[
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "moltenvk-1474891",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "moltenvk-1474891"]
 
 PACKAGES_MACOS_X86_64=[
-    "protobuf-35.1",
-    "luajit-2.1.0-3e223cb",
-    "vpx-1.7.0",
+    "dxc-1.9.2609",
     "tremolo-b0cb4d1",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
@@ -215,26 +194,16 @@ PACKAGES_MACOS_X86_64=[
     "glfw-3.4",
     "tint-22b958",
     "astcenc-30aabb3",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "codesign_allocate",
-    "ogg-1.1.1",
     "strip",
     "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_MACOS_ARM64=[
-    "dawn-6bab1bd",
-    "protobuf-35.1",
-    "luajit-2.1.0-3e223cb",
-    "vpx-1.7.0",
+    "dawn-67d4d6e",
+    "dxc-1.9.2609",
     "tremolo-b0cb4d1",
     "spirv-cross-97709575",
     "spirv-tools-b21dda0e",
@@ -244,24 +213,15 @@ PACKAGES_MACOS_ARM64=[
     "glfw-3.4",
     "tint-22b958",
     "astcenc-30aabb3",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "codesign_allocate",
-    "ogg-1.1.1",
     "strip",
     "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_WIN32_64=[
-    "protobuf-35.1",
-    "luajit-2.1.0-3e223cb",
+    "dxc-1.9.2609",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "glslang-42d9adf5",
@@ -273,26 +233,16 @@ PACKAGES_WIN32_64=[
     "tint-22b958",
     "astcenc-30aabb3",
     "directx-headers-1.611.0",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
-    "ogg-1.1.1",
     "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_LINUX_X86_64=[
-    "protobuf-35.1",
-    "luajit-2.1.0-3e223cb",
+    "dxc-1.9.2609",
     "glslang-ba5c010c",
     "spirv-cross-97709575",
     "spirv-tools-d24a39a7",
-    "vpx-1.7.0",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
@@ -300,88 +250,40 @@ PACKAGES_LINUX_X86_64=[
     "tint-7bd151a780",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "astcenc-30aabb3",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
     "apkc-0.1.0",
-    "ogg-1.1.1",
     "strip_android-14.0.6",
     "zipalign"]
 
 PACKAGES_LINUX_ARM64=[
-    "protobuf-35.1",
-    "luajit-2.1.0-3e223cb",
+    "dxc-1.9.2609",
     "glslang-2fed4fc0",
     "spirv-cross-97709575",
     "spirv-tools-4fab7435",
-    "vpx-1.7.0",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
     "glfw-3.4",
     "tint-7bd151a780",
     "astcenc-30aabb3",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5",
     "gltf-validator-2.0.0-dev.3.10"]
 
 # Android window backends build with the engine's platform library.
 PACKAGES_ANDROID=[
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "vkquality-1.1-2642a0d",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "vkquality-1.1-2642a0d"]
 
 PACKAGES_ANDROID_64=[
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "vkquality-1.1-2642a0d",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "vkquality-1.1-2642a0d"]
 
 PACKAGES_ANDROID_X86_64=[
-    "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "vkquality-1.1-2642a0d",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "vkquality-1.1-2642a0d"]
 
 PACKAGES_EMSCRIPTEN=[
-    "wagyu-69",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
+    "wagyu-69"]
 
 PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
@@ -400,14 +302,6 @@ PLATFORM_PACKAGES = {
     'wasm_pthread-web': PACKAGES_EMSCRIPTEN
 }
 
-BOB_TOOL_PLATFORMS = [
-    'x86_64-macos',
-    'arm64-macos',
-    'x86_64-linux',
-    'arm64-linux',
-    'x86_64-win32'
-]
-
 # SDKs that include host-side protoc/native-extension pipeline tools.
 SDK_PIPELINE_TOOL_PLATFORMS = (
     'x86_64-macos',
@@ -421,7 +315,6 @@ DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
-DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY") or os.environ.get("GITHUB_REPOSITORY") or release_to_github.get_current_repo()
 
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
 PACKAGES_ANDROID_NDK="android-ndk-r{0}".format(sdk.ANDROID_NDK_VERSION)
@@ -435,17 +328,18 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-EXTERNAL_LIBS = "opus box2d box2d_v2 vkquality harfbuzz sheenbidi libunibreak skribidi dawn".split()
+EXTERNAL_LIBS = "opus box2d box2d_v2 vkquality harfbuzz sheenbidi libunibreak skribidi dawn dxc".split()
 EXTERNAL_PACKAGE_VERSIONS = {
     "opus": "1.5.2",
-    "box2d": "3.1.0",
+    "box2d": "3.2.0",
     "box2d_v2": "2.2.1",
     "vkquality": "1.1-2642a0d",
     "harfbuzz": "13.2.1",
     "sheenbidi": "2.9.0",
     "libunibreak": "6.1",
     "skribidi": "a4a2f5",
-    "dawn": "6bab1bd",
+    "dawn": "67d4d6e",
+    "dxc": "1.9.2609",
 }
 EXTERNAL_PACKAGE_NAMES = {
     "box2d_v2": "box2d_defold",
@@ -614,7 +508,7 @@ class Configuration(object):
 
         self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
 
-        self.skip_tests = skip_tests
+        self.skip_tests = skip_tests or '--skip-tests' in build_options
         self.test_device = test_device
         self.ios_identity = ios_identity
         self.ios_mobileprovision = ios_mobileprovision
@@ -654,7 +548,7 @@ class Configuration(object):
         self.gcloud_certfile = gcloud_certfile
         self.gcloud_keyfile = gcloud_keyfile
         self.verbose = verbose
-        self.build_tracker = BuildTimeTracker(logger=self._log)
+        self.build_tracker = BuildTimeTracker(logger=self._log, colorize=self._colorize)
         self._cmake_configure_inputs_mtime_cache = {}
 
         if self.github_token is None:
@@ -777,10 +671,10 @@ class Configuration(object):
         self._mkdirs(build_dir)
 
         # Generate solution
-        self._log(f'CMake solution settings: platform={tp}, build_type={build_type}, build_tests={build_tests}')
+        self._log_step(f'CMake solution settings: platform={tp}, build_type={build_type}, build_tests={build_tests}')
         if solution_msvs.is_visual_studio_generator(generator):
             solution_msvs.log_selection(self._log, generator, msvs_instance, windows_sdk_version)
-        self._log('Generating solution with command: %s' % ' '.join(cmake_cmd))
+        self._log_step('Generating solution with command: %s' % ' '.join(cmake_cmd))
         run.env_command(self._form_env(), cmake_cmd)
         with open(cmake_configure_state_path, 'w') as f:
             json.dump(cmake_configure_state, f, indent=2, sort_keys=True)
@@ -840,7 +734,7 @@ class Configuration(object):
                 self.dynamo_home,
                 self._log)
 
-        self._log(f'Solution generated: {final_path}')
+        self._log_step(f'Solution generated: {final_path}', Style.SUCCESS)
 
     def __del__(self):
         if len(getattr(self, "futures", [])) > 0:
@@ -865,12 +759,17 @@ class Configuration(object):
         sys.stderr.flush()
 
     def _colorize(self, msg, color_code):
-        if self.no_colors or os.environ.get('NOCOLOR'):
-            return msg
-        return '\033[%sm%s\033[0m' % (color_code, msg)
+        return build_console.colorize(msg, color_code,
+                                      enabled=not getattr(self, 'no_colors', False) and build_console.use_colors())
+
+    def _log_step(self, msg, color_code=Style.HEADING):
+        self._log(build_console.format_step(msg, color_code, self._colorize))
+
+    def _log_command(self, args, environment=None):
+        self._log_step(build_console.format_shell_command(args, environment, self._colorize), None)
 
     def _warn(self, msg):
-        self._log(self._colorize(msg, '33'))
+        self._log_step(msg, Style.WARNING)
 
     def _remove_tree(self, path):
         if os.path.exists(path):
@@ -928,6 +827,20 @@ class Configuration(object):
         self._remove_tree(join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob/build'))
         self._remove_tree(join(self.defold_root, 'engine/engine/src/test/build'))
         self._log('clean done.')
+
+    def clean_ext(self):
+        """Remove external builds and installed dependencies for the selected platform."""
+        platform = self.target_platform
+        for builddir in glob(join(self.defold_root, 'external', '*', 'build', platform)):
+            self._remove_tree(builddir)
+        self._remove_tree(join(self.defold_root, 'external', 'build', platform))
+        self._remove_tree(join(self.defold_root, 'external', 'build', platform + '-msan'))
+        self._remove_tree(join(self.ext, 'msan', platform))
+
+        # Shared headers and tools must remain installed for other platforms.
+        for directory in ('lib', 'bin', 'include', 'share'):
+            self._remove_tree(join(self.ext, directory, platform))
+        self._log('clean_ext done for %s.' % platform)
 
     def _extract_tgz(self, file, path):
         self._log('Extracting %s to %s' % (file, path))
@@ -1023,6 +936,8 @@ class Configuration(object):
                 '--no-compile',
                 '-t', target,
             ] + packages)
+            if any(package.split('==', 1)[0].lower() == 'protobuf' for package in packages):
+                self._check_python_protobuf()
 
     def install_release_dependencies(self):
         print("Installing release python dependencies")
@@ -1034,6 +949,10 @@ class Configuration(object):
             ])
 
     def install_ext(self):
+        self.install_ext_packages()
+        self.build_ext()
+
+    def install_ext_packages(self):
         def make_package_path(root, platform, package):
             return join(root, 'packages', package) + '-%s.tar.gz' % platform
 
@@ -1075,10 +994,8 @@ class Configuration(object):
         installed_packages = set()
 
         for platform in other_platforms:
-            # Bob Light packages LuaJIT for every desktop host directly from ext.
             packages = [package for package in PLATFORM_PACKAGES.get(platform, [])
-                        if package not in PACKAGES_HOST or
-                        (platform in BOB_TOOL_PLATFORMS and package.startswith('luajit-'))]
+                        if package not in PACKAGES_HOST]
             package_paths = make_package_paths(self.defold_root, platform, packages)
             print("Installing %s packages " % platform)
             for path in package_paths:
@@ -1137,8 +1054,6 @@ class Configuration(object):
         proto_path = os.path.join(self.dynamo_home, 'share', 'proto')
         if not os.path.exists(proto_path):
             os.makedirs(proto_path)
-
-        self.build_ext()
 
     def get_local_or_remote_file(self, path):
         if os.path.isdir(self.package_path): # is is a local path?
@@ -1201,60 +1116,171 @@ class Configuration(object):
             message += "\nChecked runners:\n  " + "\n  ".join(errors)
         return message
 
-    def check_sdk(self):
-        self.check_python(print_check = True)
+    def _check_python_protobuf(self):
+        env = self._form_env()
+        env['PYTHONPATH'] = join(self.ext, 'lib', 'python')
+        probe = ('import json; import google.protobuf; '
+                 'from google.protobuf.compiler import plugin_pb2; '
+                 'print(json.dumps({"version": google.protobuf.__version__, "path": google.protobuf.__file__}))')
+        try:
+            output = run.env_command(env, self.get_python() + ['-S', '-c', probe], silent=True)
+        except run.ExecException as error:
+            raise sdk.SDKException(
+                'Could not load the bundled Python Protobuf runtime. Run ./scripts/build.py install_ext.\n' + error.output) from error
+        return json.loads(output)
+
+    def _log_sdk_check(self, name, status, passed=True, path=None, elapsed=None):
+        message = f"{name}: {status}"
+        if self.verbose and path:
+            message += f" ({path})"
+        if elapsed is not None:
+            if self.verbose:
+                message += f" [{elapsed:.2f} s]"
+            self.build_tracker.record_check_time(name, elapsed)
+        mark = '✓' if passed else '✗'
+        if sys.stdout.isatty() and 'NO_COLOR' not in os.environ:
+            mark = self._colorize(mark, Style.SUCCESS if passed else Style.ERROR)
+            message = self._colorize(message, Style.SUCCESS if passed else Style.FAILED_CHECK)
+        encoding = sys.stdout.encoding or 'utf-8'
+        try:
+            mark.encode(encoding)
+        except UnicodeEncodeError:
+            mark = '+' if passed else 'x'
+        self._log(f"  {mark} {message}")
+
+    def _run_sdk_check(self, name, check):
+        started = time.perf_counter()
+        output = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                result = check()
+                if result is False:
+                    raise sdk.SDKException("SDK validation failed")
+            return result, time.perf_counter() - started
+        except (Exception, SystemExit) as error:
+            self._log_sdk_check(name, 'Failed', passed=False, elapsed=time.perf_counter() - started)
+            diagnostic = output.getvalue().strip()
+            if diagnostic:
+                self._log(diagnostic)
+            if isinstance(error, SystemExit):
+                raise
+            self._log(getattr(error, 'output', '') or str(error))
+            sys.exit(getattr(error, 'retcode', 1))
+
+    def _check_sdk_cmake(self, args):
+        current_check = 'CMake environment'
+        diagnostics = []
+        started = time.perf_counter()
+
+        def on_output(line):
+            nonlocal current_check, started
+            if line.startswith('DEFOLD_SDK_CHECK\t'):
+                now = time.perf_counter()
+                diagnostics.clear()
+                fields = line.split('\t', 3)
+                current_check = fields[1]
+                if len(fields) >= 3:
+                    self._log_sdk_check(current_check, fields[2], path=fields[3] if len(fields) == 4 else None,
+                                        elapsed=now - started)
+                    current_check = 'CMake environment'
+                started = now
+            else:
+                diagnostics.append(line)
+
+        try:
+            # These records are parsed; build.py applies the report's terminal colors itself.
+            env = dict(os.environ, CLICOLOR_FORCE='0', CLICOLOR='0')
+            run.env_command(env, args, silent=True, on_output=on_output)
+        except run.ExecException as error:
+            self._log_sdk_check(current_check, self._format_sdk_cmake_error(diagnostics), passed=False,
+                                elapsed=time.perf_counter() - started)
+            if self.verbose:
+                self._log('\n'.join(diagnostics).strip())
+            sys.exit(error.retcode)
+
+    def _format_sdk_cmake_error(self, diagnostics):
+        for index, line in enumerate(diagnostics):
+            if line.startswith('CMake Error:'):
+                return line.partition(':')[2].strip()
+            if line.startswith('CMake Error'):
+                message = []
+                for line in diagnostics[index + 1:]:
+                    if not line.strip():
+                        if message:
+                            break
+                        continue
+                    if not line.startswith((' ', '\t')):
+                        break
+                    message.extend(line.split())
+                if message:
+                    return ' '.join(message)
+        return 'Failed (use --verbose for details)'
+
+    def check_sdk(self, require_protoc=True):
+        _, elapsed = self._run_sdk_check('Python', self.check_python)
+        self._log_sdk_check('Python', f"Python {self._get_python_version()}", path=sys.executable, elapsed=elapsed)
 
         sdkfolder = join(self.ext, 'SDKs')
 
-        self.sdk_info = sdk.get_sdk_info(sdkfolder, self.target_platform, True)
+        def find_sdk():
+            info = sdk.get_sdk_info(sdkfolder, self.target_platform, True)
+            if not info:
+                raise sdk.SDKException(
+                    f"No SDK found for {self.target_platform}. Check the local SDK setup or run install_sdk.\n"
+                    "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks")
+            return info
 
-        # TODO: Make sure this check works for all platforms
-        if not self.sdk_info:
-            if not self.verbose:
-                # Do it again, with verbose on, so that we can get more info straight away:
-                sdk.get_sdk_info(sdkfolder, self.target_platform, True)
+        self.sdk_info, elapsed = self._run_sdk_check('SDK', find_sdk)
+        target_info = self.sdk_info.get(self.target_platform, {})
+        sdk_version = target_info.get('version', self.sdk_info.get('version', ''))
+        sdk_path = target_info.get('path') or self.sdk_info.get('sdk') or self.sdk_info.get('emsdk', {}).get('path')
+        self._log_sdk_check('SDK', f"{self.target_platform} {sdk_version}".strip(), path=sdk_path, elapsed=elapsed)
 
-            url = "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks"
-            self._log(f"Failed to get sdk info for platform {self.target_platform}.")
-            self._log(f" * Is the local sdk setup correctly?")
-            self._log(f" * Or have you called `install_sdk`?")
-            self._log(f"We recommend you follow the setup guide found here: {url}")
-            sys.exit(1)
-
-        if self.verbose:
-            print("SDK info:")
-            pprint.pprint(self.sdk_info)
-
-
-        result = sdk.test_sdk(self.target_platform, self.sdk_info, verbose = self.verbose)
-        if not result:
-            self.fatal("Failed sdk check")
+        _, elapsed = self._run_sdk_check('Compiler', lambda: sdk.test_sdk(self.target_platform, self.sdk_info, verbose=self.verbose))
+        clang_version = self.sdk_info.get('clang-version')
+        compiler_path = self.sdk_info.get('clang')
+        if not compiler_path and self.sdk_info.get('clangname'):
+            compiler_path = join(self.sdk_info['bintools'], self.sdk_info['clangname'])
+        self._log_sdk_check('Compiler', f"Clang {clang_version}" if clang_version else 'OK', path=compiler_path, elapsed=elapsed)
 
         if wasm_runner.is_web_platform(self.target_platform):
-            runner, errors = self._find_wasm_test_runner()
+            (runner, errors), elapsed = self._run_sdk_check('Wasm test runner', self._find_wasm_test_runner)
             if runner:
-                self._log("Found wasm test runner: %s" % runner.description())
+                self._log_sdk_check('Wasm test runner', runner.name, path=runner.path, elapsed=elapsed)
             elif self.skip_tests:
-                self._log("Warning: %s" % self._format_wasm_runner_error(errors))
+                self._log_sdk_check('Wasm test runner', 'Not required (--skip-tests)', elapsed=elapsed)
             else:
-                self.fatal(self._format_wasm_runner_error(errors))
+                self._log_sdk_check('Wasm test runner', 'Not found', passed=False, elapsed=elapsed)
+                self._log(self._format_wasm_runner_error(errors))
+                sys.exit(1)
 
+        started = time.perf_counter()
         cmake = shutil.which('cmake')
         if not cmake:
-            self.fatal("CMake not found in PATH")
-        self._log(f"Found CMake: {cmake}")
+            self._log_sdk_check('CMake', 'Not found in PATH', passed=False, elapsed=time.perf_counter() - started)
+            sys.exit(1)
+        cmake_version, elapsed = self._run_sdk_check('CMake', lambda: run.env_command(os.environ, [cmake, '--version'], silent=True))
+        self._log_sdk_check('CMake', cmake_version.splitlines()[0].replace('cmake version', 'CMake'), path=cmake, elapsed=elapsed)
 
-        ninja = shutil.which('ninja')
-        if not ninja:
-            self.fatal("Ninja not found in PATH")
-        self._log(f"Found Ninja: {ninja}")
-
-        args = ["cmake", f"-DTARGET_PLATFORM={self.target_platform}", "-P", join(self.defold_root, "scripts/cmake/check_install.cmake")]
+        args = [cmake, '-DDEFOLD_SDK_CHECK=ON', f"-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}",
+                f"-DTARGET_PLATFORM={self.target_platform}", "-P", join(self.defold_root, "scripts/cmake/check_install.cmake")]
+        if not require_protoc:
+            args.insert(1, '-DDEFOLD_REQUIRE_PROTOC=OFF')
         if self.verbose:
             args.insert(1, '-DDEFOLD_VERBOSE=ON')
+        self._check_sdk_cmake(args)
 
-        output = run.command(args)
-        self._log(output)
+        if require_protoc:
+            info, elapsed = self._run_sdk_check('Python Protobuf', self._check_python_protobuf)
+            self._log_sdk_check('Python Protobuf', f"Protobuf {info['version']}", path=info['path'], elapsed=elapsed)
+
+        if self.target_platform == 'armv7-android' and self.host.endswith('-macos'):
+            args = [cmake, f"-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}", "-DLUAJIT_CHECK_SDK=ON",
+                    "-P", join(self.defold_root, "external/luajit/host/emscripten.cmake")]
+            _, elapsed = self._run_sdk_check('LuaJIT generator', lambda: run.env_command(os.environ, args, silent=True))
+            self._log_sdk_check('LuaJIT generator', 'OK', elapsed=elapsed)
+
+        self._log(self._colorize(f"All checks passed: {self.target_platform}", Style.SUCCESS))
 
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
@@ -1282,7 +1308,9 @@ class Configuration(object):
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
-        if target_platform in ('wasm-web', 'wasm_pthread-web'):
+        # ARMv7's 32-bit LuaJIT generators run through the Web SDK on macOS.
+        if target_platform in ('wasm-web', 'wasm_pthread-web') or \
+                (target_platform == 'armv7-android' and self.host.endswith('-macos')):
             emsdk_folder = sdk.get_defold_emsdk()
             download_sdk(self,'%s/%s-%s.tar.gz' % (self.package_path, sdk.PACKAGES_EMSCRIPTEN_SDK, self.host), emsdk_folder)
 
@@ -1313,7 +1341,8 @@ class Configuration(object):
         build_private.install_sdk(self, target_platform)
 
     def _activate_ems(self, emsdk, bin_dir, version):
-        run.env_command(self._form_env(), [join(emsdk, 'emsdk'), 'activate', version, '--embedded'])
+        suffix = '.bat' if self.host.endswith('-win32') else ''
+        run.env_command(self._form_env(), [join(emsdk, 'emsdk' + suffix), 'activate', version, '--embedded'])
 
         # prewarm the cache
         # Although this method might be more "correct", it also takes 10 minutes more than we'd like on CI
@@ -1326,7 +1355,7 @@ class Configuration(object):
             f.write('int main() { return 0; }')
         with tempfile.NamedTemporaryFile(suffix='.js', delete=False) as f:
             exe_file = f.name
-        run.env_command(self._form_env(), [f'{bin_dir}/emcc', c_file, '-o', '%s' % exe_file])
+        run.env_command(self._form_env(), [join(bin_dir, 'emcc' + suffix), c_file, '-o', '%s' % exe_file])
 
     def _git_sha1(self, ref = None):
         return self.build_utility.git_sha1(ref)
@@ -1685,6 +1714,17 @@ class Configuration(object):
         with open(manifest) as f:
             return json.load(f)
 
+    def _bob_external_artifacts(self, platform):
+        artifacts = [('bin', format_exes(name, platform)[0])
+                     for name in ('luajit-64', 'oggz-validate')]
+        for name in ('ogg', 'oggz'):
+            filename = format_lib(name, platform)
+            # Ogg uses the lib prefix on Windows too, matching Bob's tools.json.
+            if platform == 'x86_64-win32':
+                filename = 'lib' + filename
+            artifacts.append(('lib', filename))
+        return artifacts
+
     def archive_engine(self):
         sha1 = self._git_sha1()
         full_archive_path = join(sha1, 'engine', self.target_platform).replace('\\', '/')
@@ -1707,6 +1747,9 @@ class Configuration(object):
             gdc_bin = join(bin_dir, gdc_name)
             gdc_target_name = format_exes("gdc_" + self.target_platform.replace('-', '_'), self.target_platform)[0]
             self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_target_name))
+            for directory, name in self._bob_external_artifacts(self.target_platform):
+                source = join(dynamo_home, 'ext', directory, self.target_platform, name)
+                self.upload_to_archive(source, '%s/%s' % (full_archive_path, name))
 
         # upload mouse_capture lib on desktop platforms
         if self.target_platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
@@ -1757,6 +1800,8 @@ class Configuration(object):
 
         if self.target_platform in ['x86_64-linux']:
             # Archive the platform-independent JARs once, from the Linux build.
+            self.upload_to_archive(join(dynamo_home, 'share/java/dmengine.jar'),
+                                   join(sha1, 'engine/share/java/dmengine.jar').replace('\\', '/'))
             for path in self._bob_archive_artifacts():
                 if path.startswith('share/java/') and path.endswith('.jar'):
                     self.upload_to_archive(join(dynamo_home, path), join(sha1, 'engine', path).replace('\\', '/'))
@@ -1774,11 +1819,14 @@ class Configuration(object):
             self.upload_to_archive(resources, '%s/android-resources.zip' % (full_archive_path))
 
         if self.is_desktop_target():
-            libs = ['dlib', 'texc', 'particle', 'modelc', 'shaderc']
+            libs = ['dlib', 'texc', 'particle', 'modelc', 'shaderc', 'dmengine']
             for lib in libs:
                 lib_name = format_lib('%s_shared' % (lib), self.target_platform)
                 lib_path = join(dynamo_home, 'lib', self.target_platform, lib_name)
                 self.upload_to_archive(lib_path, '%s/%s' % (full_archive_path, lib_name))
+            dxc_name = format_lib('dxcompiler', self.target_platform)
+            self.upload_to_archive(join(dynamo_home, 'lib', self.target_platform, dxc_name),
+                                   '%s/%s' % (full_archive_path, dxc_name))
 
         sdkpath, sdk_sig_path = self._package_platform_sdk(self.target_platform)
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
@@ -1926,7 +1974,7 @@ class Configuration(object):
             if feature:
                 feature_flags[feature] = 'ON'
             else:
-                self._log(f"Warning: CMake build currently ignores '{option}'")
+                self._warn(f"Warning: CMake build currently ignores '{option}'")
             index += 1
         for feature, value in sorted(feature_flags.items()):
             defines.append(f"-D{feature}:BOOL={value}")
@@ -2099,7 +2147,7 @@ class Configuration(object):
                 actual = normpath(actual) if actual else actual
                 expected = normpath(expected) if expected else expected
             if actual != expected:
-                self._log(f'CMake cache mismatch for {key}: expected {expected}, got {actual}')
+                self._log_step(f'CMake cache mismatch for {key}: expected {expected}, got {actual}', Style.WARNING)
                 return False
 
         return True
@@ -2146,10 +2194,10 @@ class Configuration(object):
 
             stale_config_dir = next((path for path in stale_config_dirs if path in content), None)
             if stale_config_dir:
-                self._log('CMake generated install mismatch for %s: stale multi-config output path found' % install_script)
+                self._log_step('CMake generated install mismatch for %s: stale multi-config output path found' % install_script, Style.WARNING)
                 return False
             if build_tests == 'OFF' and '/src/test/cmake_install.cmake' in content:
-                self._log('CMake generated install mismatch for %s: stale test install rules found' % install_script)
+                self._log_step('CMake generated install mismatch for %s: stale test install rules found' % install_script, Style.WARNING)
                 return False
 
         return True
@@ -2196,7 +2244,7 @@ class Configuration(object):
                 except OSError:
                     continue
                 if 'set(CMAKE_SYSTEM_NAME "Generic")' not in system_content:
-                    self._log('CMake generated system mismatch for %s: expected Generic for %s' % (system_file, platform))
+                    self._log_step('CMake generated system mismatch for %s: expected Generic for %s' % (system_file, platform), Style.WARNING)
                     return False
 
         try:
@@ -2217,7 +2265,7 @@ class Configuration(object):
             path = match.group(0).replace('$:', ':')
             normalized_path = normpath(path).replace('\\', '/').lower()
             if not normalized_path.startswith(expected_engine_root + '/'):
-                self._log('CMake generated output mismatch: stale generated build path found: %s' % path)
+                self._log_step('CMake generated output mismatch: stale generated build path found: %s' % path, Style.WARNING)
                 return False
 
         return True
@@ -2232,13 +2280,21 @@ class Configuration(object):
 
         self._remove_tree(join(build_home, 'share', 'extender', 'build', platform))
 
-    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_tests = False, reuse_builddir = False, allow_compatible_configure = False, use_existing_bob_light = False):
+    def _run_cmake(self, args, builddir, name, phase, cwd=None):
+        verbose = self.verbose or '-v' in self.build_options or '--verbose' in self.build_options
+        log_path = join(builddir, 'logs', f'{name}-{phase}.log')
+        try:
+            build_output.command(self._form_env(), args, f'CMake {phase} {name}', log_path,
+                                 cwd=cwd or self.defold_root, verbose=verbose)
+        except run.ExecException as error:
+            sys.exit(error.retcode)
+
+    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_build_tests = False, reuse_builddir = False, allow_compatible_configure = False, use_existing_bob_light = False):
         build_home = self._platform_build_home(platform)
         builddir = self._cmake_top_build_dir(platform)
 
         build_type = self._find_cmake_build_type(self.build_options)
-        build_tests = (not skip_tests) and '--skip-build-tests' not in self.build_options and self._can_run_tests()
-        supports_tests = build_tests
+        build_tests = (not skip_build_tests) and '--skip-build-tests' not in self.build_options
 
         # Keep CMake build directories persistent so repeated builds can be
         # handled by Ninja's dependency graph instead of forcing a rebuild.
@@ -2247,10 +2303,10 @@ class Configuration(object):
             os.makedirs(builddir)
 
         is_verbose = self.verbose or ('-v' in self.build_options) or ('--verbose' in self.build_options)
-        test = '' if (self.skip_tests or not supports_tests) else 'run_tests'
+        test = 'run_tests' if build_tests and not self.skip_tests and self._can_run_tests() else ''
         build_test = 'build_tests' if build_tests else ''
         cmake_build_tests = 'ON' if build_tests else 'OFF'
-        self._log(f"CMake lib set for {name}: {lib_set}")
+        self._log_step(f"CMake lib set for {name}: {lib_set}")
 
         trace = '' #'--trace-expand'
 
@@ -2260,7 +2316,7 @@ class Configuration(object):
         self.build_tracker.start_command(log_cmd_config)
 
         run_tests = 'ON' if test else 'OFF'
-        self._log(f'CMake settings for {name}: platform={platform}, build_type={build_type}, build_tests={cmake_build_tests}, run_tests={run_tests}')
+        self._log_step(f'CMake settings for {name}: platform={platform}, build_type={build_type}, build_tests={cmake_build_tests}, run_tests={run_tests}')
         cmake_configure_args = ['cmake', '-S', self.defold_root, '-B', builddir, '-GNinja']
         if trace:
             cmake_configure_args.append(trace)
@@ -2299,7 +2355,7 @@ class Configuration(object):
         cmake_cache = join(builddir, 'CMakeCache.txt')
         generated_outputs_match = self._cmake_generated_outputs_match_configure_state(cmake_configure_state)
         if not generated_outputs_match:
-            self._log(f'Removing stale CMake build outputs for {platform}; generated files point outside {build_home}')
+            self._log_step(f'Removing stale CMake build outputs for {platform}; generated files point outside {build_home}', Style.WARNING)
             self._remove_cmake_build_dirs_for_platform(build_home, platform, builddir)
             os.makedirs(builddir, exist_ok=True)
             previous_cmake_configure_state = None
@@ -2319,9 +2375,9 @@ class Configuration(object):
             and self._cmake_generated_install_matches_configure_state(validation_configure_state)
             and generated_outputs_match)
         if skip_configure:
-            self._log(f'Skipping CMake configure {name}; configure state is unchanged')
+            self._log_step(f'Skipping CMake configure {name}; configure state is unchanged')
         else:
-            run.env_command(self._form_env(), cmake_configure_args, cwd = self.defold_root)
+            self._run_cmake(cmake_configure_args, builddir, name, 'configure')
             with open(cmake_configure_state_path, 'w') as f:
                 json.dump(cmake_configure_state, f, indent = 2, sort_keys = True)
 
@@ -2337,7 +2393,7 @@ class Configuration(object):
             cmake_build_args.append(build_test)
         if is_verbose:
             cmake_build_args.append('--verbose')
-        run.env_command(self._form_env(), cmake_build_args, cwd = self.defold_root)
+        self._run_cmake(cmake_build_args, builddir, name, 'build')
 
         self.build_tracker.end_command(log_cmd_build)
 
@@ -2348,7 +2404,7 @@ class Configuration(object):
             cmake_stage_args = ['cmake', '--build', builddir, '--target', 'stage_bob_light_dependencies']
             if is_verbose:
                 cmake_stage_args.append('--verbose')
-            run.env_command(self._form_env(), cmake_stage_args, cwd = self.defold_root)
+            self._run_cmake(cmake_stage_args, builddir, name, 'stage')
 
             self.build_tracker.end_command(log_cmd_stage)
 
@@ -2358,7 +2414,7 @@ class Configuration(object):
         # defer installation until the subsequent engine pass has built every
         # target referenced by the full graph's install rules.
         if compatible_configure:
-            self._log(f'Deferring CMake install {name}; reusing full engine configuration')
+            self._log_step(f'Deferring CMake install {name}; reusing full engine configuration')
         else:
             log_cmd_install = f'CMake install {name}'
             self.build_tracker.start_command(log_cmd_install)
@@ -2366,7 +2422,7 @@ class Configuration(object):
             cmake_install_args = ['cmake', '--install', builddir, '--config', build_type]
             if is_verbose:
                 cmake_install_args.append('--verbose')
-            run.env_command(self._form_env(), cmake_install_args, cwd = self.defold_root)
+            self._run_cmake(cmake_install_args, builddir, name, 'install')
 
             self.build_tracker.end_command(log_cmd_install)
 
@@ -2379,7 +2435,7 @@ class Configuration(object):
             cmake_test_args = ['cmake', '--build', builddir, '--target', 'run_tests']
             if is_verbose:
                 cmake_test_args.append('--verbose')
-            run.env_command(self._form_env(), cmake_test_args, cwd = self.defold_root)
+            self._run_cmake(cmake_test_args, builddir, name, 'tests')
 
             self.build_tracker.end_command(log_cmd_tests)
 
@@ -2393,11 +2449,35 @@ class Configuration(object):
         else:  # Linux, macOS, or other Unix-like OS
             return join('.', 'gradlew')
 
+    def _run_gradle(self, args, directory, name, env):
+        verbose = self.verbose or '-v' in self.build_options or '--verbose' in self.build_options
+        args = list(args) + ['--console=plain' if verbose else '--console=rich']
+        if verbose:
+            args.append('--info')
+        else:
+            init_script = join(self.defold_root, 'build_tools', 'gradle_test_output.gradle')
+            args += ['--init-script', init_script]
+        if os.name == 'nt':
+            shell = subprocess.list2cmdline([env.get('COMSPEC', 'cmd.exe')])
+            command_args = [subprocess.list2cmdline([arg]) for arg in args]
+            if not verbose:
+                # The path can contain CMD metacharacters even without whitespace.
+                command_args[-1] = f'"{init_script}"'
+            command_line = ' '.join(command_args)
+            args = f'{shell} /d /s /c "{command_line}"'
+        log_path = join(directory, 'logs', f'{name}-{self.target_platform}.log')
+        command_name = f'Gradle {name}'
+        self.build_tracker.start_command(command_name, quiet=True)
+        try:
+            build_output.command(env, args, command_name, log_path, cwd=directory,
+                                 verbose=verbose, gradle=True)
+        except run.ExecException as error:
+            sys.exit(error.retcode)
+        finally:
+            self.build_tracker.end_command(command_name, quiet=True)
+
     def build_bob_plugins(self):
         gradle = join('..', 'com.dynamo.cr.bob', os.name == 'nt' and 'gradlew.bat' or 'gradlew')
-        gradle_args = []
-        if self.verbose:
-            gradle_args += ['--info']
 
         env = self._form_env()
         env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}'
@@ -2409,15 +2489,12 @@ class Configuration(object):
 
             self.build_tracker.start_component('bob_plugin_%s' % plugin_name, self.host)
 
-            s = run.command(" ".join([gradle, 'clean', 'install'] + gradle_args), cwd=plugin_dir, shell=True, env=env)
-            if self.verbose:
-                print(s)
+            self._run_gradle([gradle, 'clean', 'install'], plugin_dir, f'bob-plugin-{plugin_name}', env)
 
             self.build_tracker.end_component('bob_plugin_%s' % plugin_name, self.host)
 
     def build_bob_light(self):
         self.build_tracker.start_component('bob_light', self.host)
-        log_cmd_build = 'Gradle build bob_light'
 
         try:
             bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
@@ -2428,18 +2505,10 @@ class Configuration(object):
             gradle_args = ['-Ptarget-platform=%s' % self.target_platform]
             if self.channel:
                 gradle_args.append('-Pchannel=%s' % self.channel)
-            if self.verbose:
-                gradle_args += ['--info']
-
             env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
 
-            self.build_tracker.start_command(log_cmd_build)
-            try:
-                s = run.command(" ".join([gradle, '-Pkeep-bob-uncompressed'] + gradle_args + ['installBobLight']), cwd = bob_dir, shell = True, env = env)
-            finally:
-                self.build_tracker.end_command(log_cmd_build)
-            if self.verbose:
-                print (s)
+            self._run_gradle([gradle, '-Pkeep-bob-uncompressed'] + gradle_args + ['installBobLight'],
+                             bob_dir, 'bob-light', env)
             self.build_bob_plugins()
         finally:
             self.build_tracker.end_component('bob_light', self.host)
@@ -2450,15 +2519,15 @@ class Configuration(object):
         # We want random folder to thoroughly test bob-light
         # We dont' want it to unpack for _every_ single invocation during the build
         os.environ['DM_BOB_ROOTFOLDER'] = tempfile.mkdtemp(prefix='bob-light-')
-        self._log("env DM_BOB_ROOTFOLDER=" + os.environ['DM_BOB_ROOTFOLDER'])
+        self._log_command([], environment={'DM_BOB_ROOTFOLDER': os.environ['DM_BOB_ROOTFOLDER']})
 
         host = self.host
         target_platform = self.target_platform
-        self._log('Building engine libs with top-level CMake (incremental by default)')
+        self._log_step('Building engine libs with top-level CMake (incremental by default)')
 
         # Make sure we build these for the host platform for the toolchain (bob light)
         self.build_tracker.start_component('cmake_host_libs', host)
-        self._build_engine_libs_cmake('host_libs', 'host', host, skip_tests = True, allow_compatible_configure = host == target_platform)
+        self._build_engine_libs_cmake('host_libs', 'host', host, skip_build_tests = True, allow_compatible_configure = host == target_platform)
         self.build_tracker.end_component('cmake_host_libs', host)
 
         if not self.skip_bob_light:
@@ -2472,7 +2541,6 @@ class Configuration(object):
             'engine_libs',
             target_lib_set,
             target_platform,
-            skip_tests = self.skip_tests,
             reuse_builddir = reuse_builddir,
             use_existing_bob_light = True)
         self.build_tracker.end_component('cmake_engine_libs', target_platform)
@@ -2484,24 +2552,34 @@ class Configuration(object):
         if self.generate_compile_commands:
             self.generate_global_compile_commands_json()
 
-        self._log("Write platform.sdks.json")
+        self._log_step("Write platform.sdks.json")
         write_merged_platform_sdks(self.defold_root, self.target_platform, join(self.dynamo_home, "platform.sdks.json"))
 
         if os.path.exists(os.environ['DM_BOB_ROOTFOLDER']):
-            print ("Removing", os.environ['DM_BOB_ROOTFOLDER'])
+            self._log_step("Removing " + os.environ['DM_BOB_ROOTFOLDER'], Style.INFO)
             shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
 
     def build_ext(self):
-        self.check_sdk()
+        with_msan = '--with-msan' in self.build_options
+        if with_msan and (self.host != self.target_platform or not self.host.endswith('-linux')):
+            self.fatal('MSan dependencies must be built natively on Linux')
+        self.check_sdk(require_protoc=False)
 
         # Cross-builds also need host dependencies for tools such as texc.
         self._build_ext_platform(self.host)
         if self.target_platform != self.host:
             self._build_ext_platform(self.target_platform)
+        if with_msan:
+            runtime_build = join(self.defold_root, 'external', 'build', self.target_platform + '-msan', 'libcxx')
+            runtime_install = join(self.dynamo_home, 'ext', 'msan', self.target_platform, 'libcxx')
+            run.env_command(self._form_env(), [
+                'bash', join(self.defold_root, 'external', 'msan', 'build-runtime.sh'),
+                runtime_build, runtime_install], cwd=self.defold_root)
+            self._build_ext_platform(self.target_platform, msan=True)
 
-    def _build_ext_platform(self, platform):
+    def _configure_ext_platform(self, platform, msan=False):
         source_dir = join(self.defold_root, 'external')
-        build_dir = join(source_dir, 'build', platform)
+        build_dir = join(source_dir, 'build', platform + ('-msan' if msan else ''))
         build_type = self._find_cmake_build_type(self.build_options)
         configure_args = [
             'cmake', '-S', source_dir, '-B', build_dir, '-GNinja',
@@ -2510,23 +2588,40 @@ class Configuration(object):
             '-DDEFOLD_SDK_ROOT:PATH=%s' % self.dynamo_home,
             '-DBUILD_TESTS=OFF',
             '-DCMAKE_INSTALL_MESSAGE=LAZY',
+            '-DWITH_MSAN:BOOL=%s' % ('ON' if msan else 'OFF'),
         ]
-        build_args = ['cmake', '--build', build_dir]
-        if self.verbose or ('-v' in self.build_options) or ('--verbose' in self.build_options):
-            build_args.append('--verbose')
-        install_args = ['cmake', '--install', build_dir, '--config', build_type]
+        command = 'CMake configure ext (%s)' % platform
+        self.build_tracker.start_command(command)
+        try:
+            self._run_cmake(configure_args, build_dir, 'ext', 'configure')
+        finally:
+            self.build_tracker.end_command(command)
+        return build_dir, build_type
 
-        # Keep the build tree and installed files so subsequent build_ext calls
-        # only rebuild changed sources. Engine builds consume the installed libs.
+    def _build_ext_platform(self, platform, configure=True, msan=False):
         self.build_tracker.start_component('ext', platform)
         try:
-            for name, args in [('configure', configure_args), ('build', build_args), ('install', install_args)]:
-                command = 'CMake %s ext' % name
+            if configure:
+                build_dir, build_type = self._configure_ext_platform(platform, msan=msan)
+            else:
+                build_dir = join(self.defold_root, 'external', 'build', platform + ('-msan' if msan else ''))
+                build_type = self._find_cmake_build_type(self.build_options)
+
+            build_args = ['cmake', '--build', build_dir]
+            if self.verbose or ('-v' in self.build_options) or ('--verbose' in self.build_options):
+                build_args.append('--verbose')
+            install_args = ['cmake', '--install', build_dir, '--config', build_type]
+            for name, args in [('build', build_args), ('install', install_args)]:
+                command = 'CMake %s ext (%s)' % (name, platform)
+                if name == 'build':
+                    previous_ninja_log = self.build_tracker.read_ninja_log(build_dir)
                 self.build_tracker.start_command(command)
                 try:
-                    run.env_command(self._form_env(), args, cwd=self.defold_root)
+                    self._run_cmake(args, build_dir, 'ext', name)
                 finally:
                     self.build_tracker.end_command(command)
+                    if name == 'build':
+                        self.build_tracker.record_ninja_library_times(command, build_dir, previous_ninja_log)
         finally:
             self.build_tracker.end_component('ext', platform)
 
@@ -2543,6 +2638,9 @@ class Configuration(object):
                 continue
             if lib == 'dawn' and self.target_platform not in ('arm64-macos', 'arm64-linux', 'x86_64-linux', 'x86_64-win32') and not self.external_package:
                 self._log("Skipping dawn for unsupported platform: %s" % self.target_platform)
+                continue
+            if lib == 'dxc' and self.target_platform not in ('arm64-macos', 'x86_64-macos', 'arm64-linux', 'x86_64-linux', 'x86_64-win32') and not self.external_package:
+                self._log("Skipping dxc for unsupported platform: %s" % self.target_platform)
                 continue
             self._build_external_lib_cmake(lib, self.target_platform)
 
@@ -2562,15 +2660,6 @@ class Configuration(object):
         if not os.path.exists(join(source_dir, 'CMakeLists.txt')):
             self.fatal("CMake external package '%s' is missing CMakeLists.txt" % lib)
 
-        # The shared CMake toolchain needs host protoc even when the package
-        # itself has no protobuf sources. Bootstrap it before install_ext.
-        protoc = 'protoc.exe' if self.host.endswith('-win32') else 'protoc'
-        if not os.path.exists(join(self.ext, 'bin', self.host, protoc)):
-            protobuf_package = next(package for package in PLATFORM_PACKAGES[self.host]
-                                    if package.startswith('protobuf-'))
-            protobuf_path = join(self.defold_root, 'packages', '%s-%s.tar.gz' % (protobuf_package, self.host))
-            self._extract_tgz(protobuf_path, self.ext)
-
         if os.path.exists(install_dir):
             shutil.rmtree(install_dir)
         os.makedirs(build_dir, exist_ok=True)
@@ -2587,6 +2676,7 @@ class Configuration(object):
             '-DDEFOLD_EXTERNAL_PLATFORM=%s' % platform,
             '-DDEFOLD_SDK_ROOT=%s' % self.dynamo_home,
             '-DDEFOLD_EXTERNAL_INSTALL_PREFIX=%s' % install_dir,
+            '-DDEFOLD_REQUIRE_PROTOC=OFF',
             '-DBUILD_TESTS=OFF',
         ]
         build_args = ['cmake', '--build', build_dir, '--target', 'install']
@@ -2597,17 +2687,17 @@ class Configuration(object):
         try:
             self.build_tracker.start_command('CMake configure external %s' % lib)
             try:
-                run.env_command(self._form_env(), configure_args, cwd=source_dir)
+                self._run_cmake(configure_args, build_dir, lib, 'configure', cwd=source_dir)
             finally:
                 self.build_tracker.end_command('CMake configure external %s' % lib)
 
             self.build_tracker.start_command('CMake build external %s' % lib)
             try:
-                run.env_command(self._form_env(), build_args, cwd=source_dir)
+                self._run_cmake(build_args, build_dir, lib, 'build', cwd=source_dir)
             finally:
                 self.build_tracker.end_command('CMake build external %s' % lib)
 
-            package_directories = ['include', 'lib', 'share']
+            package_directories = ['bin', 'include', 'lib', 'share']
             if lib in EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE:
                 package_directories = ['lib']
             package_directories = [name for name in package_directories
@@ -2642,7 +2732,7 @@ class Configuration(object):
             self.upload_to_archive(p, '%s/plugins/%s' % (full_archive_path, basename(p)))
 
     def build_bob(self):
-        """Build Bob using the cross-platform tools already installed by install_ext."""
+        """Build Bob using the installed cross-platform tools."""
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
@@ -2652,9 +2742,6 @@ class Configuration(object):
         gradle_args = ['-Ptarget-platform=%s' % self.target_platform]
         if self.channel:
             gradle_args.append('-Pchannel=%s' % self.channel)
-        if self.verbose:
-            gradle_args += ['--info']
-
         env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
         flags = []
         if self.keep_bob_uncompressed:
@@ -2662,10 +2749,11 @@ class Configuration(object):
 
         if self.skip_tests:
             # Clean and build the project
-            run.command(" ".join([gradle] + flags + gradle_args + ['clean', 'install']), cwd=bob_dir, shell = True, env = env)
+            self._run_gradle([gradle] + flags + gradle_args + ['clean', 'install'], bob_dir, 'bob', env)
         else:
             # Build, install and test Bob in one Gradle graph so shared dependencies such as distBob run only once.
-            run.command(" ".join([gradle] + flags + gradle_args + ['clean', 'install', 'testJar']), cwd = test_dir, shell = True, env = env, stdout = None)
+            self._run_gradle([gradle] + flags + gradle_args + ['clean', 'install', 'testJar'],
+                             test_dir, 'bob-build-tests', env)
 
         self.build_bob_plugins()
 
@@ -2680,14 +2768,11 @@ class Configuration(object):
 
         gradle = self.get_gradle_wrapper()
         gradle_args = ['-Ptarget-platform=%s' % self.target_platform]
-        if self.verbose:
-            gradle_args += ['--info']
-
         env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
 
         # compileTest only needs bob.jar on disk. Exclude distBob so this job tests the artifact
         # produced by build-bob instead of rebuilding it.
-        run.command(" ".join([gradle] + gradle_args + ['testJar', '-x', 'distBob']), cwd = test_dir, shell = True, env = env, stdout = None)
+        self._run_gradle([gradle] + gradle_args + ['testJar', '-x', 'distBob'], test_dir, 'bob-tests', env)
 
 
     def build_sdk_headers(self):
@@ -2779,7 +2864,7 @@ class Configuration(object):
         print ("Removed", tempdir)
 
     def build_docs(self, incremental = None):
-        self._log('Building API docs')
+        self._log_step('Building API docs')
         docs_dir = join(self.defold_root, 'engine/docs')
         builddir = join(docs_dir, 'build')
         platform = self.target_platform
@@ -2816,9 +2901,9 @@ class Configuration(object):
             cmake_cache = join(builddir, 'CMakeCache.txt')
             skip_configure = os.path.exists(cmake_cache) and self._cmake_configure_state_matches(cmake_configure_state, previous_cmake_configure_state, False)
             if skip_configure:
-                self._log('Skipping CMake configure build_docs; configure state is unchanged')
+                self._log_step('Skipping CMake configure build_docs; configure state is unchanged')
             else:
-                run.env_command(self._form_env(), cmake_configure_args, cwd = self.defold_root)
+                self._run_cmake(cmake_configure_args, builddir, 'build_docs', 'configure')
                 with open(cmake_configure_state_path, 'w') as f:
                     json.dump(cmake_configure_state, f, indent = 2, sort_keys = True)
 
@@ -2830,7 +2915,7 @@ class Configuration(object):
             cmake_build_args = ['cmake', '--build', builddir, '--target', 'build_docs']
             if is_verbose:
                 cmake_build_args.append('--verbose')
-            run.env_command(self._form_env(), cmake_build_args, cwd = self.defold_root)
+            self._run_cmake(cmake_build_args, builddir, 'build_docs', 'build')
 
             self.build_tracker.end_command(log_cmd_build)
         finally:
@@ -3073,8 +3158,8 @@ class Configuration(object):
             sys.exit(process.returncode)
 
     def fatal(self, msg):
-        self._log("****************************************************")
-        self._log(msg)
+        self._log(self._colorize("****************************************************", Style.ERROR_HEADING))
+        self._log_step(msg, Style.ERROR)
         sys.exit(1)
 
 # ------------------------------------------------------------
@@ -3254,7 +3339,9 @@ class Configuration(object):
             if response[0] != 'y':
                 return
 
-        if tag_name:
+        # Console publication uses archived public-build artifacts; it must not
+        # create or force-push tags from either source checkout.
+        if tag_name and not build_private.is_repo_private():
             self.push_tag(self.create_tag())
 
         # Only release the web pages for the public repo
@@ -3381,6 +3468,19 @@ class Configuration(object):
 
         for f in futures:
             f()
+
+        # Bob packages source-built tools from the installed ext directories.
+        for platform in SDK_PIPELINE_TOOL_PLATFORMS:
+            for directory, name in self._bob_external_artifacts(platform):
+                source = join(local_dir, sha1, 'engine', platform, name)
+                if os.path.isfile(source):
+                    destination = join(self.dynamo_home, 'ext', directory, platform, name)
+                    # Keep tools installed by build_ext for the host and selected target.
+                    if platform in (self.host, self.target_platform) and os.path.isfile(destination):
+                        continue
+                    self._mkdirs(os.path.dirname(destination))
+                    shutil.copy2(source, destination)
+                    os.chmod(destination, 0o755)
 
 # ------------------------------------------------------------
 # BEGIN: SMOKE TEST
@@ -3766,7 +3866,10 @@ if __name__ == '__main__':
 Commands:
 distclean        - Removes DYNAMO_HOME and engine/external build caches
 clean            - Remove generated engine build outputs without removing DYNAMO_HOME
+clean_ext        - Remove external builds and installed dependencies for the selected platform, retaining shared files and SDKs
 install_ext      - Install prepackaged dependencies, then build and install source dependencies
+install_ext_packages - Install prepackaged dependencies without building source dependencies
+build_ext        - Build and install source dependencies for the host and target platform
 build_external   - Build external packages, optionally filtered with --package
 install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk
@@ -3795,6 +3898,7 @@ Multiple commands can be specified
 
 CMake shorthand defaults from build.py shell: CMAKE_GENERATOR=Ninja, omitted --platform uses the host platform, CMAKE_BUILD_TYPE=RelWithDebInfo, and BUILD_TESTS=ON.
 Use -- --opt-level=0 for Debug, -- --skip-build-tests to skip building tests, or --skip-tests to skip running tests.
+Use -- --with-threaded-rendering to enable the internal threaded-rendering build capability (off by default).
 
 To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
 '''
@@ -3923,10 +4027,9 @@ To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
                       default = None,
                       help = 'GitHub authentication token when releasing to GitHub')
 
-    github_release_target_repo = DEFAULT_RELEASE_REPOSITORY
     parser.add_option('--github-target-repo', dest='github_target_repo',
-                      default = github_release_target_repo,
-                      help = 'GitHub target repo when releasing artefacts. Default is %s' % github_release_target_repo)
+                      default = None,
+                      help = 'GitHub target repo when releasing artefacts. Defaults to DM_RELEASE_REPOSITORY, GITHUB_REPOSITORY, or Git origin')
 
     parser.add_option('--github-sha1', dest='github_sha1',
                       default = None,
@@ -4069,18 +4172,21 @@ To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
                 msg = f"{env_var} was not found in environment.\nDid you use './scripts/build.py shell'?"
                 c.fatal(msg)
 
+    quiet_sdk_check = args == ['check_sdk'] and not c.verbose
     for cmd in args:
         f = getattr(c, cmd, None)
         if not f:
             parser.error('Unknown command %s' % cmd)
         else:
-            c.build_tracker.start_command(cmd)
+            if not quiet_sdk_check:
+                c.build_tracker.start_command(cmd)
             f()
             c.wait_uploads()
-            c.build_tracker.end_command(cmd)
+            if not quiet_sdk_check:
+                c.build_tracker.end_command(cmd)
 
     # Print and save build time summary
-    c.build_tracker.print_summary()
-    c.build_tracker.save_times()
-
-    print('Done')
+    if not quiet_sdk_check:
+        c.build_tracker.print_summary()
+        c.build_tracker.save_times()
+        c._log_step('Done', Style.SUCCESS_HEADING)

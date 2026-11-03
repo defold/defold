@@ -1,0 +1,23 @@
+# Import SDK archives without allowing SDK/lib to shadow SDK/ext/lib. For MSan,
+# defer the choice until the consuming target is known, including JNI's opt-out.
+function(defold_import_external library path)
+  if(TARGET ${library})
+    return()
+  endif()
+  if(NOT EXISTS "${path}")
+    message(FATAL_ERROR "Missing ${path}. Run build_ext for ${TARGET_PLATFORM} first.")
+  endif()
+  if(WITH_MSAN)
+    get_filename_component(_name "${path}" NAME)
+    set(_msan_path "${DEFOLD_MSAN_PREFIX}/lib/${TARGET_PLATFORM}/${_name}")
+    if(NOT EXISTS "${_msan_path}")
+      message(FATAL_ERROR "Missing ${_msan_path}. Run build_ext -- --with-msan first.")
+    endif()
+    add_library(${library} INTERFACE IMPORTED GLOBAL)
+    set_property(TARGET ${library} PROPERTY INTERFACE_LINK_LIBRARIES
+      "$<IF:$<BOOL:$<TARGET_PROPERTY:DEFOLD_SKIP_SANITIZER>>,${path},${_msan_path}>")
+  else()
+    add_library(${library} STATIC IMPORTED GLOBAL)
+    set_property(TARGET ${library} PROPERTY IMPORTED_LOCATION "${path}")
+  endif()
+endfunction()

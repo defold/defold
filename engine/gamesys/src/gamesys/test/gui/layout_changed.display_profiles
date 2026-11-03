@@ -1,0 +1,12 @@
+profiles {
+  name: "Landscape"
+  qualifiers { width: 640 height: 480 }
+}
+profiles {
+  name: "Portrait"
+  qualifiers { width: 480 height: 640 }
+}
+profiles {
+  name: "Square"
+  qualifiers { width: 480 height: 480 }
+}

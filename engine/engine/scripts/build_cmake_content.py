@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import argparse
 import os
 import shlex
@@ -47,6 +48,9 @@ RAW_ARCHIVE_FILES = {
 }
 
 PROJECT_OWNED_BUILD_INPUTS = {
+    # The modern vector program uses integer textures, unlike connect's ES100 shaders.
+    "builtins/fonts/font-vector.material",
+    "builtins/fonts/label-vector.material",
     "builtins/input/default.gamepads",
     "builtins/input/gamecontrollerdb.txt",
 }

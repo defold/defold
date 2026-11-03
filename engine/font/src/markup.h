@@ -26,7 +26,9 @@
  * validated and resolved by later processing stages.
  *
  * Opening and closing tags must be strictly nested and use matching names.
- * Input ending inside a tag, entity, UTF-8 sequence, or unclosed tag hierarchy
+ * The complete escapes `&amp;`, `&apos;`, `&gt;`, `&lt;`, and `&quot;` are decoded.
+ * Other ampersands are literal text, including unknown and unfinished escapes.
+ * Input ending inside a tag, UTF-8 sequence, or unclosed tag hierarchy
  * produces `MARKUP_RESULT_INCOMPLETE` and no markup object.
  *
  * All pointers returned by this API are borrowed from the markup object and
@@ -84,8 +86,7 @@ enum MarkupResult
 
 /*# Markup parsing error type
  *
- * Describes the first error encountered by `MarkupCreate()` or
- * `MarkupCreateStyleFragment()`.
+ * Describes syntax or style-value errors encountered while compiling markup.
  *
  * @enum
  * @name MarkupErrorType
@@ -103,7 +104,8 @@ enum MarkupResult
  * @member MARKUP_ERROR_UNSUPPORTED Markup support is not linked into this engine.
  * @member MARKUP_ERROR_UNKNOWN_TAG The tag name is syntactically valid but is not supported.
  * @member MARKUP_ERROR_UNKNOWN_ATTRIBUTE The attribute name is not supported by its tag.
- * @member MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE The attribute requires a known string constant.
+ * @member MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE The attribute value is not valid.
+ * @member MARKUP_ERROR_INVALID_GRADIENT_RADIUS A gradient radius must be greater than zero.
  */
 enum MarkupErrorType
 {
@@ -122,11 +124,12 @@ enum MarkupErrorType
     MARKUP_ERROR_UNKNOWN_TAG,
     MARKUP_ERROR_UNKNOWN_ATTRIBUTE,
     MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE,
+    MARKUP_ERROR_INVALID_GRADIENT_RADIUS,
 };
 
 /*# Markup parsing error
  *
- * Identifies the first parsing error and its location in the original source.
+ * Identifies the first syntax or style-value error and its location in the original source.
  *
  * @struct
  * @name MarkupError
@@ -199,6 +202,21 @@ enum MarkupAttributeType
     MARKUP_ATTRIBUTE_X,
     MARKUP_ATTRIBUTE_Y,
     MARKUP_ATTRIBUTE_ALPHA,
+    MARKUP_ATTRIBUTE_TYPE,
+    MARKUP_ATTRIBUTE_ANGLE,
+    MARKUP_ATTRIBUTE_COLOR0,
+    MARKUP_ATTRIBUTE_COLOR1,
+    MARKUP_ATTRIBUTE_COLOR2,
+    MARKUP_ATTRIBUTE_COLOR3,
+    MARKUP_ATTRIBUTE_STOP0,
+    MARKUP_ATTRIBUTE_STOP1,
+    MARKUP_ATTRIBUTE_STOP2,
+    MARKUP_ATTRIBUTE_STOP3,
+    MARKUP_ATTRIBUTE_PIVOT_X,
+    MARKUP_ATTRIBUTE_PIVOT_Y,
+    MARKUP_ATTRIBUTE_RADIUS,
+    MARKUP_ATTRIBUTE_RADIUS_X,
+    MARKUP_ATTRIBUTE_RADIUS_Y,
 };
 
 enum MarkupConstantType
@@ -210,6 +228,11 @@ enum MarkupConstantType
     MARKUP_CONSTANT_REVERSE,
     MARKUP_CONSTANT_SOLID,
     MARKUP_CONSTANT_SPAN,
+    MARKUP_CONSTANT_BLOCK,
+    MARKUP_CONSTANT_COLOR,
+    MARKUP_CONSTANT_LINEAR,
+    MARKUP_CONSTANT_RADIAL,
+    MARKUP_CONSTANT_FOUR_CORNER,
 };
 
 /*# Parsed markup attribute
@@ -422,8 +445,10 @@ uint32_t MarkupGetTextLength(HMarkup markup);
  * Parses rich-text markup and copies the original UTF-8 source to `output`,
  * omitting visible text codepoints that are not present in `allowed_codepoints`.
  * Tags, attributes, and the original entity spellings are preserved byte-for-byte.
- * Self-closing object tags are always preserved. The output buffer must be at
- * least `text_length` bytes because filtering never increases the source size.
+ * Literal ampersands are escaped as `&amp;` so filtering cannot introduce new
+ * entities. Self-closing object tags are always preserved. The output buffer
+ * must be at least `text_length` bytes, with additional space for escaped
+ * ampersands. A buffer of `5 * text_length` bytes is always sufficient.
  *
  * @name MarkupFilterText
  * @param text [type: const char*] UTF-8 rich-text markup.

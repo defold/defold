@@ -44,3 +44,5 @@ debug = 0
 [graphics]
 texture_profiles = /textures/game.texture_profiles
 
+[shader]
+exclude_gles_sm100 = 1

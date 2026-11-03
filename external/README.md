@@ -1,16 +1,70 @@
 # External
 
-`./scripts/build.py install_ext` installs prepackaged dependencies, then builds
-source dependencies with the regular Defold CMake toolchain and installs them into
-`tmp/dynamo_home/ext`. Run it with the platform SDK set up, before the first engine
+`./scripts/build.py install_ext` installs the remaining prepackaged dependencies,
+then calls `build_ext` to build source dependencies with the regular Defold CMake
+toolchain and install them into `tmp/dynamo_home/ext`. Run it with the platform SDK set up, before the first engine
 build, and whenever these sources or the toolchain change. Use `--platform`
 for cross-compilation; this builds dependencies for the host tools first,
 then for the target platform. Repeated calls reuse each platform's CMake
 build directory.
+`clean_ext --platform=<platform>` removes `external/build/<platform>`,
+`external/*/build/<platform>`, and that platform's installed directories under
+`ext/lib`, `ext/bin`, `ext/include`, and `ext/share`. It defaults to the host
+platform when `--platform` is omitted. Other platforms, shared dependency files,
+toolchains under `ext/SDKs`, engine outputs, source archives, and package archives
+outside the build directories are retained.
 `distclean` removes these build caches as well as the installed SDK.
 
-The other external libraries are distributed as packages. Rebuild those with
-`build_external`, which writes archives under `defold/packages`.
+Use `./scripts/build.py build_ext --platform=<platform>` to rebuild and install
+the source dependencies directly. This builds Basis Universal, both Box2D
+versions, Bullet, HarfBuzz, libunibreak, LZ4, Opus, SheenBidi, and Skribidi on all
+platforms. LuaJIT is built for non-web platforms. [Draco](draco/README.md),
+[meshoptimizer](meshoptimizer/README.md), [Ogg](ogg/README.md), and Protobuf are
+built for desktop platforms; mobile and web builds use the host's tools.
+[DXC](dxc/README.md) is installed from
+`packages/dxc-1.9.2609-<platform>.tar.gz` for all five desktop host platforms:
+`x86_64-win32`, `arm64-macos`, `x86_64-macos`, `arm64-linux`, and `x86_64-linux`.
+Normal external builds do not compile DXC.
+Protobuf and Abseil use the same CMake toolchain and build graph as the other
+source dependencies and install directly into `ext`.
+Linux additionally builds [OpenH264](openh264/README.md) for video recording.
+The recording MP4 writer is the pinned header in [minimp4](minimp4/README.md).
+`external/build` itself is generated build output.
+
+For native Linux MemorySanitizer builds, run
+`./scripts/build.py build_ext -- --with-msan`. The normal dependency installation
+is kept for host tools and JNI. A second build under `external/build/<platform>-msan`
+installs instrumented libraries under `ext/msan/<platform>`, including a pinned
+LLVM 20 libc++/libc++abi runtime. ASTC, SPIRV-Cross, patched GLFW, and Tremolo are rebuilt
+from pinned downloads. LuaJIT and Protobuf's code generator remain host tools;
+the instrumented engine uses vanilla Lua. OpenH264 uses its instrumentable C++
+kernels. `clean_ext` also removes this platform's MSan build and installation.
+
+CI caches built external dependencies for engine, Bob, and editor jobs using the
+[`build-external`](../.github/actions/build-external/action.yml) action.
+
+Whenever a source dependency is added, removed, or moved in
+[`external/CMakeLists.txt`](CMakeLists.txt), update `SOURCE_PATHS` in
+[`ci/ext_cache.py`](../ci/ext_cache.py) as part of the same change. This ensures
+changes to every source-built library invalidate the CI cache.
+
+To force a fresh build, run
+`./scripts/build.py clean_ext install_ext --platform=<platform>`.
+
+The command-time summary lists wall-clock times under `Libraries` for each
+platform's CMake build command, also saved in `build_times.json`. Each time spans
+the library's first task start to its last task finish, including scheduling
+waits. Libraries run in parallel, so these times do not add up to the command's
+elapsed time. Protobuf includes its Abseil dependencies. Only tasks
+executed in the current build are counted.
+
+External libraries can also be distributed as packages. Rebuild the packages
+listed below with `build_external`, which writes archives under `defold/packages`.
+The DXC packages can be rebuilt with
+`./scripts/build.py build_external --package=dxc --platform=<platform>`.
+Each package includes `bin`, `lib`, `include`, and license files under `share`.
+Use the [DXC Linux rebuild instructions](dxc/README.md#linux-packages) with the
+repository's Ubuntu 22.04 Docker image for both Linux architectures.
 
 From the repository root, with the platform SDK set up:
 
@@ -57,8 +111,8 @@ standalone Dawn package through `DEFOLD_WIN32_WINNT`.
 Windows packaging also requires LLVM's `llvm-strip`, available on `PATH` or in
 `%ProgramFiles%/LLVM/bin`; `DAWN_STRIP_EXECUTABLE` can override its location.
 
-`build_external` installs the packaged host `protoc` tool if it is missing, so
-the commands below also work before the first `install_ext`.
+External builds do not require an installed `protoc`, so the commands below
+also work before the first `install_ext`.
 
 The **Build Dawn** GitHub Actions workflow builds all four
 platforms and uploads the package archives as artifacts, retained for seven days.

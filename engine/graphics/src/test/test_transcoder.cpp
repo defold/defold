@@ -23,6 +23,7 @@
 #include "graphics.h"
 
 #include "test_transcoder_assets.h"
+#include "test_transcoder_ktx2_assets.h"
 
 // Same limit res_texture.cpp uses for the output arrays it hands to Transcode()
 static const uint32_t MAX_MIPMAP_COUNT = 15;
@@ -272,6 +273,44 @@ TEST(Transcode, RuntimeDisabledCodecs)
     ASSERT_FALSE(basist::basis_is_format_supported(basist::transcoder_texture_format::cTFBC6H, basist::basis_tex_format::cUASTC_HDR_4x4));
     ASSERT_FALSE(basist::basis_is_format_supported(basist::transcoder_texture_format::cTFBC6H, basist::basis_tex_format::cASTC_HDR_6x6));
     ASSERT_FALSE(basist::basis_is_format_supported(basist::transcoder_texture_format::cTFBC6H, basist::basis_tex_format::cUASTC_HDR_6x6_INTERMEDIATE));
+}
+
+TEST(Transcode, ImportedKtx2DesktopAndMobileTargets)
+{
+    const dmGraphics::TextureFormat formats[] = {
+        dmGraphics::TEXTURE_FORMAT_RGBA,
+        dmGraphics::TEXTURE_FORMAT_RGBA_BC7,
+        dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4X4,
+        dmGraphics::TEXTURE_FORMAT_RGBA_ETC2
+    };
+    const uint8_t* sources[] = {KTX2_UASTC, KTX2_BC7};
+    const uint32_t* source_sizes[] = {KTX2_UASTC_SIZES, KTX2_BC7_SIZES};
+    for (uint32_t source = 0; source < 2; ++source)
+    {
+        dmGraphics::TextureImage::Image image;
+        memset(&image, 0, sizeof(image));
+        image.m_MipMapSize.m_Count = 4;
+        image.m_MipMapSizeCompressed.m_Data = (uint32_t*)source_sizes[source];
+        image.m_MipMapSizeCompressed.m_Count = 4;
+        for (uint32_t format = 0; format < sizeof(formats) / sizeof(formats[0]); ++format)
+        {
+            uint8_t* images[MAX_MIPMAP_COUNT] = {};
+            uint32_t sizes[MAX_MIPMAP_COUNT] = {};
+            uint32_t count = 4;
+            ASSERT_TRUE(dmGraphics::Transcode("imported.ktx2", &image, 1, (uint8_t*)sources[source], formats[format], images, sizes, &count));
+            ASSERT_EQ(4U, count);
+            for (uint32_t mip = 0; mip < count; ++mip)
+            {
+                uint32_t width = dmMath::Max(1U, 8U >> mip);
+                uint32_t height = dmMath::Max(1U, 4U >> mip);
+                uint32_t expected = formats[format] == dmGraphics::TEXTURE_FORMAT_RGBA
+                    ? width * height * 4 : ((width + 3) / 4) * ((height + 3) / 4) * 16;
+                ASSERT_NE((uint8_t*)0, images[mip]);
+                ASSERT_EQ(expected, sizes[mip]);
+                delete[] images[mip];
+            }
+        }
+    }
 }
 
 int main(int argc, char **argv)

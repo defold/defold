@@ -38,6 +38,9 @@ int dmNativeReadTouches(NativeTouch* states, NativeTouch* output, int capacity, 
         }
 
         output[count] = *touch;
+        // Consume movement once so frames without a new touch event report zero delta.
+        touch->DX = 0;
+        touch->DY = 0;
         if (cancelled)
             touch->Phase = NATIVE_PHASE_ENDED;
         else if (touch->Phase == NATIVE_PHASE_ENDED || touch->Phase == NATIVE_PHASE_CANCELLED)

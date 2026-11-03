@@ -245,6 +245,7 @@
    g/Bool {:to identity :from (coercing-converter coerce/boolean)}
    g/Num {:to identity :from (coercing-converter coerce/number)}
    g/Int {:to identity :from (coercing-converter coerce/integer)}
+   [g/Int] {:to identity :from (coercing-converter (coerce/vector-of coerce/integer))}
    types/Vec2 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number))}
    types/Vec3 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number coerce/number))}
    types/Vec4 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number coerce/number coerce/number))}
@@ -394,9 +395,8 @@
 (defn- textual-resource-node? [node-id evaluation-context]
   (let [resource (g/node-value node-id :resource evaluation-context)]
     (and (some? resource)
-         (-> evaluation-context
-             :basis
-             (resource/lookup-resource-type (resource/workspace resource) resource)
+         (-> resource
+             (resource/resource-type (:basis evaluation-context))
              :textual?))))
 
 (register-property-getter!
@@ -533,8 +533,7 @@
                    (e/mapcat #(e/cat ((ext-property-lister (node-id->type-keyword % evaluation-context)) % evaluation-context))))
               (e/map prop-kw->property (attachment/list-kws workspace node-id evaluation-context))
               (when explicit-type-name ["type"])))
-          vec
-          sort
+          coll/sort
           vec))))
 
 ;; endregion
@@ -588,6 +587,7 @@
                     collision-id->node-id
                     (coll/pair-map-by
                       #(g/node-value % :id evaluation-context)
+                      identity
                       (attachment/get workspace node-id :collision-groups evaluation-context))
                     new-tile->collision-group-node
                     (coll/pair-map-by
@@ -804,14 +804,10 @@
         "id" default-new-animation-name-lua-value)
       (attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
-(def ^:private default-start-tile-lua-value (rt/->lua 1))
-(def ^:private default-end-tile-lua-value (rt/->lua 1))
 (defmethod init-attachment :editor.tile-source/TileAnimationNode [evaluation-context rt project _ _ child-node-id attachment]
   (-> attachment
       (util/provide-defaults
-        "id" default-new-animation-name-lua-value
-        "start_tile" default-start-tile-lua-value
-        "end_tile" default-end-tile-lua-value)
+        "id" default-new-animation-name-lua-value)
       (attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
 (defmethod init-attachment :editor.tile-source/CollisionGroupNode [evaluation-context rt project parent-node-id _ child-node-id attachment]

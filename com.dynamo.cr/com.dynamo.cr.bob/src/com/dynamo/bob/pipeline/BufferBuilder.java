@@ -15,9 +15,11 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.security.MessageDigest;
 import java.util.Iterator;
 import java.util.Arrays;
 
@@ -40,7 +42,18 @@ import com.dynamo.gamesys.proto.BufferProto.ValueType;
 @BuilderParams(name="Buffer", inExts=".buffer", outExt=".bufferc")
 public class BufferBuilder extends Builder {
 
+    public static final int FORMAT_VERSION = 1;
+    private static final int HEADER_SIZE = 16;
+    private static final int STREAM_SIZE = 16;
+
     static String allowedTypeStrings = "uint8, uint16, uint32, uint64, int8, int16, int32, int64, float32";
+
+    @Override
+    public void signature(MessageDigest digest) {
+        super.signature(digest);
+        digest.update((byte) FORMAT_VERSION);
+        digest.update((byte) (FORMAT_VERSION >>> 8));
+    }
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
@@ -139,6 +152,100 @@ public class BufferBuilder extends Builder {
         }
     }
 
+    private static int valueSize(ValueType type) {
+        switch (type) {
+            case VALUE_TYPE_UINT8: case VALUE_TYPE_INT8: return 1;
+            case VALUE_TYPE_UINT16: case VALUE_TYPE_INT16: return 2;
+            case VALUE_TYPE_UINT32: case VALUE_TYPE_INT32: case VALUE_TYPE_FLOAT32: return 4;
+            case VALUE_TYPE_UINT64: case VALUE_TYPE_INT64: return 8;
+            default: throw new IllegalArgumentException("Unknown buffer value type: " + type);
+        }
+    }
+
+    private static int dataCount(StreamDesc stream) {
+        switch (stream.getValueType()) {
+            case VALUE_TYPE_UINT8: case VALUE_TYPE_UINT16: case VALUE_TYPE_UINT32: return stream.getUiCount();
+            case VALUE_TYPE_INT8: case VALUE_TYPE_INT16: case VALUE_TYPE_INT32: return stream.getICount();
+            case VALUE_TYPE_UINT64: return stream.getUi64Count();
+            case VALUE_TYPE_INT64: return stream.getI64Count();
+            case VALUE_TYPE_FLOAT32: return stream.getFCount();
+            default: throw new IllegalArgumentException("Unknown buffer value type: " + stream.getValueType());
+        }
+    }
+
+    private static void putValue(ByteBuffer out, int offset, StreamDesc stream, int index) {
+        switch (stream.getValueType()) {
+            case VALUE_TYPE_UINT8: out.put(offset, (byte) stream.getUi(index)); break;
+            case VALUE_TYPE_INT8: out.put(offset, (byte) stream.getI(index)); break;
+            case VALUE_TYPE_UINT16: out.putShort(offset, (short) stream.getUi(index)); break;
+            case VALUE_TYPE_INT16: out.putShort(offset, (short) stream.getI(index)); break;
+            case VALUE_TYPE_UINT32: out.putInt(offset, stream.getUi(index)); break;
+            case VALUE_TYPE_INT32: out.putInt(offset, stream.getI(index)); break;
+            case VALUE_TYPE_UINT64: out.putLong(offset, stream.getUi64(index)); break;
+            case VALUE_TYPE_INT64: out.putLong(offset, stream.getI64(index)); break;
+            case VALUE_TYPE_FLOAT32: out.putFloat(offset, stream.getF(index)); break;
+        }
+    }
+
+    /**
+     * Packs build-time streams into the little-endian BUFC format consumed by the engine.
+     * Shared with the editor. Throws IllegalArgumentException for unsupported layouts or sizes.
+     */
+    public static byte[] buildBuffer(BufferDesc buffer) {
+        int streamCount = buffer.getStreamsCount();
+        if (streamCount < 1 || streamCount > 255) {
+            throw new IllegalArgumentException("Buffers must have between 1 and 255 streams.");
+        }
+
+        int[] offsets = new int[streamCount];
+        int stride = 0;
+        int alignment = 1;
+        int elementCount = 0;
+        for (int i = 0; i < streamCount; ++i) {
+            StreamDesc stream = buffer.getStreams(i);
+            int components = stream.getValueCount();
+            if (components < 1 || components > 255) {
+                throw new IllegalArgumentException("Stream '" + stream.getName() + "' must have between 1 and 255 components.");
+            }
+            int size = valueSize(stream.getValueType());
+            stride = (stride + size - 1) & -size;
+            offsets[i] = stride;
+            stride += components * size;
+            alignment = Math.max(alignment, size);
+            elementCount = Math.max(elementCount, dataCount(stream) / components);
+        }
+        stride = (stride + alignment - 1) & -alignment;
+
+        int dataOffset = HEADER_SIZE + streamCount * STREAM_SIZE;
+        long fileSize = dataOffset + (long) elementCount * stride;
+        if (fileSize > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Packed buffer exceeds the maximum supported size.");
+        }
+        ByteBuffer out = ByteBuffer.allocate((int) fileSize).order(ByteOrder.LITTLE_ENDIAN);
+        out.put(new byte[] {'B', 'U', 'F', 'C'});
+        out.putShort((short) FORMAT_VERSION);
+        out.putShort((short) streamCount);
+        out.putInt(elementCount);
+        out.putInt(stride);
+        for (int i = 0; i < streamCount; ++i) {
+            StreamDesc stream = buffer.getStreams(i);
+            out.putLong(stream.getNameHash());
+            out.putInt(offsets[i]);
+            out.put((byte) stream.getValueType().getNumber());
+            out.put((byte) stream.getValueCount());
+            out.putShort((short) 0);
+
+            int size = valueSize(stream.getValueType());
+            int components = stream.getValueCount();
+            int values = (int) Math.min(dataCount(stream), (long) elementCount * components);
+            for (int j = 0; j < values; ++j) {
+                int offset = dataOffset + (j / components) * stride + offsets[i] + (j % components) * size;
+                putValue(out, offset, stream, j);
+            }
+        }
+        return out.array();
+    }
+
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         ByteArrayInputStream bufferJsonIs = new ByteArrayInputStream(task.input(0).getContent());
@@ -195,9 +302,10 @@ public class BufferBuilder extends Builder {
             throw new CompileExceptionError(task.input(0), 0, "JSON error while parsing buffer resource: " + e.getMessage());
         }
 
-        ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
-        bufferDescBuilder.build().writeTo(out);
-        out.close();
-        task.output(0).setContent(out.toByteArray());
+        try {
+            task.output(0).setContent(buildBuffer(bufferDescBuilder.build()));
+        } catch (IllegalArgumentException e) {
+            throw new CompileExceptionError(task.input(0), 0, e.getMessage());
+        }
     }
 }

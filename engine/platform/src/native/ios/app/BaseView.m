@@ -26,6 +26,7 @@
 static int                  g_AccelerometerEnabled = 0;
 static double               g_AccelerometerFrequency = 1.0 / 60.0;
 static CMMotionManager*     g_MotionManager = nil;
+static int                  g_PreferredFrameRate = 0;
 
 // AppDelegate.m
 extern UIWindow*            g_ApplicationWindow;
@@ -276,10 +277,14 @@ NSString *const FAKE_STRING = @"Abcd";
     return freeTouch;
 }
 
-- (void) updateGlfwMousePos: (int32_t) x y: (int32_t) y
+- (void) updateGlfwMousePos: (int32_t) x y: (int32_t) y touch: (UITouch*) touch
 {
     dmNativeInput.MousePosX = x;
     dmNativeInput.MousePosY = y;
+    dmNativeInput.MousePositionFromTouch = 1;
+    if (@available(iOS 13.4, *)) {
+        dmNativeInput.MousePositionFromTouch = touch.type != UITouchTypeIndirectPointer;
+    }
 }
 
 - (void) touchStart: (NativeTouch*) dmNativet withTouch: (UITouch*) t
@@ -378,7 +383,7 @@ NSString *const FAKE_STRING = @"Abcd";
             [self touchStart: dmNativet withTouch: t];
 
             if (dmNativet == dmNativeInput.MouseEmulationTouch) {
-                [self updateGlfwMousePos: dmNativet->X y: dmNativet->Y];
+                [self updateGlfwMousePos: dmNativet->X y: dmNativet->Y touch: t];
                 dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_PRESS );
             }
         }
@@ -409,7 +414,7 @@ NSString *const FAKE_STRING = @"Abcd";
             [self touchUpdate: dmNativet withTouch: t];
 
             if (dmNativet == dmNativeInput.MouseEmulationTouch || !dmNativeInput.MouseEmulationTouch) {
-                [self updateGlfwMousePos: dmNativet->X y: dmNativet->Y];
+                [self updateGlfwMousePos: dmNativet->X y: dmNativet->Y touch: t];
                 if ((phase == NATIVE_PHASE_ENDED || phase == NATIVE_PHASE_CANCELLED)) {
                     dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_RELEASE );
                 } else {
@@ -553,8 +558,24 @@ NSString *const FAKE_STRING = @"Abcd";
     if (!displayLink && screen)
     {
         displayLink = [[screen displayLinkWithTarget:self selector:@selector(newFrame)] retain];
+        [self applyPreferredFrameRate];
         [displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
     }
+}
+
+- (void)applyPreferredFrameRate
+{
+    if (!displayLink)
+        return;
+
+    if (g_PreferredFrameRate == 0)
+    {
+        displayLink.preferredFrameRateRange = CAFrameRateRangeDefault;
+        return;
+    }
+
+    float rate = (float)g_PreferredFrameRate;
+    displayLink.preferredFrameRateRange = CAFrameRateRangeMake(rate, rate, rate);
 }
 
 - (void)invalidateDisplayLink
@@ -698,7 +719,7 @@ void dmNativeOSPollEvents( void )
         int height = [view getWindowHeight];
         if (width > 0 && height > 0)
         {
-            // Insets can change after layout, including rotations that preserve the window size.
+            // Insets or reserved regions can change while the window size stays the same.
             view.safeAreaChanged = NO;
             dmNativeWin.windowSizeCallback(width, height);
         }
@@ -714,12 +735,24 @@ void dmNativeOSPollEvents( void )
 
 int dmNativeOSGetWindowRefreshRate( void )
 {
-    BaseView* view = (BaseView*) dmNativeWin.view;
-    CADisplayLink* displayLink = view->displayLink;
-
-    @try { // displayLink.preferredFramesPerSecond only supported on iOS 10.0 and higher, default to 0 for older versions.
-        return displayLink.preferredFramesPerSecond;
-    } @catch (NSException* exception) {
+    UIWindow* window = (UIWindow*) dmNativeWin.window;
+    UIScreen* screen = window ? window.screen : g_ApplicationWindow.screen;
+    if (!screen)
         return 0;
+
+    int rate = (int)screen.maximumFramesPerSecond;
+    // iPhone limits display links to 60 Hz unless the app opts out in its Info.plist
+    if (rate > 60 && [UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPhone)
+    {
+        NSNumber* disable_limit = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CADisableMinimumFrameDurationOnPhone"];
+        if (![disable_limit boolValue])
+            rate = 60;
     }
+    return rate;
+}
+
+void dmNativeSetiOSPreferredFrameRate(int frame_rate)
+{
+    g_PreferredFrameRate = frame_rate > 0 ? frame_rate : 0;
+    [(BaseView*) dmNativeWin.view applyPreferredFrameRate];
 }

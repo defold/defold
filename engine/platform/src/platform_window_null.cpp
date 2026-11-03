@@ -12,10 +12,12 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <dlib/array.h>
 #include <dlib/log.h>
 
 #include "window.hpp"
 #include "platform_window_constants.h"
+#include "platform_app.h"
 
 #if defined(ANDROID)
 #include "platform_window_android.h"
@@ -96,6 +98,17 @@ namespace dmPlatform
         return true;
     }
 
+    void GetReservedAreas(HWindow window, dmArray<WindowReservedArea>& areas)
+    {
+        areas.SetSize(0);
+    }
+
+    uint32_t GetReservedAreas(HWindow window, const WindowReservedArea** areas)
+    {
+        *areas = 0;
+        return 0;
+    }
+
     uint32_t GetWindowStateParam(HWindow window, WindowState state)
     {
         switch(state)
@@ -111,6 +124,15 @@ namespace dmPlatform
     float GetDisplayScaleFactor(HWindow window)
     {
         return 1.0f;
+    }
+
+    float GetDisplayDensity(HWindow window)
+    {
+        // There is no display to query in the headless backend, so report the CSS reference density.
+        // Reporting a nominal value instead of 0 keeps the density a total function: callers can
+        // scale with it without special casing, and the value is the one a desktop driver that
+        // reports no physical size also produces.
+        return 96.0f;
     }
 
     uintptr_t GetProcAddress(HWindow window, const char* proc_name)
@@ -131,6 +153,16 @@ namespace dmPlatform
     int32_t GetMouseWheel(HWindow window)
     {
         return 0;
+    }
+
+    bool IsMouseLeftButtonFromTouch(HWindow window)
+    {
+        return false;
+    }
+
+    bool IsMousePositionFromTouch(HWindow window)
+    {
+        return false;
     }
 
     void GetMousePosition(HWindow window, int32_t* x, int32_t* y)
@@ -378,6 +410,52 @@ namespace dmPlatform
     {
         (void) immersive_mode;
         (void) display_cutout;
+    }
+
+    void SetAndroidJoystickLayoutLegacy(uint32_t joystick_index, bool legacy)
+    {
+        (void) joystick_index;
+        (void) legacy;
+    }
+
+    void InitializeAndroidJoystickAxes(uint32_t joystick_index, const float* axes, uint32_t num_axes)
+    {
+        (void) joystick_index;
+        (void) axes;
+        (void) num_axes;
+    }
+#endif
+
+#if defined(DM_PLATFORM_IOS)
+    void SetiOSHomeIndicatorMode(const char* mode)
+    {
+        (void) mode;
+    }
+
+    void SetiOSFrameRate(bool use_high_refresh_rate, uint32_t frequency)
+    {
+        (void) use_high_refresh_rate;
+        (void) frequency;
+    }
+
+    void RegisteriOSApplicationDelegate(void* delegate)
+    {
+        (void) delegate;
+    }
+
+    void UnregisteriOSApplicationDelegate(void* delegate)
+    {
+        (void) delegate;
+    }
+
+    void RegisteriOSSceneDelegate(void* delegate)
+    {
+        (void) delegate;
+    }
+
+    void UnregisteriOSSceneDelegate(void* delegate)
+    {
+        (void) delegate;
     }
 #endif
 

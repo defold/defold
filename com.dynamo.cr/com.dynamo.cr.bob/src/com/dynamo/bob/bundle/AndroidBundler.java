@@ -347,11 +347,11 @@ public class AndroidBundler implements IBundler {
         return hasVulkanAdapter && hasOpenGlesAdapter;
     }
 
-    private void copyVkQualityDataFile(File assetsDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        File dataFile = getRequiredBobFile("lib/vkquality/" + VKQUALITY_DATA_FILE);
+    static void copyVkQualityDataFile(Project project, File assetsDir, ICanceled canceled) throws IOException, CompileExceptionError {
+        IResource dataFile = project.getResource("android", "vkquality_database");
         File dest = new File(assetsDir, VKQUALITY_DATA_FILE);
-        logger.info("Copying VkQuality data " + dataFile + " to " + dest);
-        FileUtils.copyFile(dataFile, dest);
+        logger.info("Copying VkQuality data " + dataFile.getPath() + " to " + dest);
+        ExtenderUtil.writeResourceToFile(dataFile, dest);
         BundleHelper.throwIfCanceled(canceled);
     }
 
@@ -552,7 +552,7 @@ public class AndroidBundler implements IBundler {
 
             boolean vkQualityEnabled = usesVkQuality(project);
             if (vkQualityEnabled) {
-                copyVkQualityDataFile(assetsDir, canceled);
+                copyVkQualityDataFile(project, assetsDir, canceled);
             } else {
                 logger.info("Skipping VkQuality data because Vulkan does not need runtime backend selection");
             }
@@ -776,7 +776,7 @@ public class AndroidBundler implements IBundler {
 
         // Native extension builds provide compiledresources.apk and skip the local aapt2 path that
         // normally initializes AndroidTools. Initialize explicitly so packed Android resources such
-        // as VkQuality data and native libraries are extracted before Bob.getPath() lookups below.
+        // as VkQuality native libraries are extracted before Bob.getPath() lookups below.
         AndroidTools.init();
 
         final Platform platform = getFirstPlatform(project);

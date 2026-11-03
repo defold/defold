@@ -50,3 +50,22 @@ add_dependencies(test_shaderc shaderc_test_spv)
 defold_register_test_target(test_shaderc ON "${SHADERC_ROOT}"
   STAGE_FILES
     "build/src/test/data" "build/src/test/data")
+
+if(NOT CMAKE_CROSSCOMPILING)
+  set(_shaderc_cli_tests "${DEFOLD_PYTHON}" "${SHADERC_TEST_DIR}/test_shaderc_standalone.py"
+    --shaderc "$<TARGET_FILE:shaderc_standalone>" --glslang "${SHADERC_GLSLANG}")
+  add_custom_target(run_test_shaderc_standalone
+    COMMAND ${_shaderc_cli_tests}
+    DEPENDS shaderc_standalone
+    VERBATIM)
+  defold_add_to_run_tests(run_test_shaderc_standalone
+    COMMAND ${_shaderc_cli_tests} DEPENDS shaderc_standalone)
+  defold_register_sequential_test_command(shaderc_standalone
+    COMMAND ${_shaderc_cli_tests} DEPENDS shaderc_standalone)
+endif()
+
+shaderc_stage_dxc(test_shaderc)
+
+if(WIN32)
+  target_link_libraries(test_shaderc PRIVATE d3d12.lib)
+endif()

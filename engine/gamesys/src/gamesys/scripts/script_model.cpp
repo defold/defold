@@ -508,12 +508,12 @@ namespace dmGameSystem
         return 0;
     }
 
-    static void LuaModelComp_GetSetMeshEnabled_Internal(lua_State* L, ModelComponent** out_component, dmhash_t* out_mesh_id)
+    static void LuaModelComp_GetSetMeshEnabled_Internal(lua_State* L, ModelComponent** out_component, dmhash_t* out_mesh_id, ModelWorld** out_world)
     {
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)out_component, 0, 0);
+        dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)out_component, 0, (dmGameObject::HComponentWorld*)out_world);
         *out_mesh_id = dmScript::CheckHashOrString(L, 2);
     }
 
@@ -539,14 +539,15 @@ namespace dmGameSystem
 
         ModelComponent* component = 0;
         dmhash_t mesh_id = 0;
-        LuaModelComp_GetSetMeshEnabled_Internal(L, &component, &mesh_id);
+        ModelWorld*     world = 0;
+        LuaModelComp_GetSetMeshEnabled_Internal(L, &component, &mesh_id, &world);
         if (!component)
         {
             return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
         }
 
         bool enable = dmScript::CheckBoolean(L, 3);
-        bool result = CompModelSetMeshEnabled(component, mesh_id, enable);
+        bool result = CompModelSetMeshEnabled(world, component, mesh_id, enable);
         if (!result)
             return luaL_error(L, "Component %s had no mesh with id %s", lua_tostring(L, 1), lua_tostring(L, 2));
 
@@ -578,7 +579,7 @@ namespace dmGameSystem
 
         ModelComponent* component = 0;
         dmhash_t mesh_id = 0;
-        LuaModelComp_GetSetMeshEnabled_Internal(L, &component, &mesh_id);
+        LuaModelComp_GetSetMeshEnabled_Internal(L, &component, &mesh_id, 0);
         if (!component)
         {
             return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
