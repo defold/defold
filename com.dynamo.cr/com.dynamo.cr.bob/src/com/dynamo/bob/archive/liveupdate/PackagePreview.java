@@ -21,7 +21,6 @@ import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
-import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import java.io.IOException;
@@ -44,15 +43,8 @@ public final class PackagePreview {
     }
 
     private static Map<String, List<String>> exportPaths(Project project, Path projectRoot, PackageResolver.Plan plan) throws IOException, CompileExceptionError {
-        Map<String, PackageProvider.ResourceInfo> resources = new LinkedHashMap<>();
-        for (List<ArchiveEntry> entries : List.of(project.getArchiveBuilder().getIncludedEntries(), project.getArchiveBuilder().getExcludedEntries())) {
-            for (ArchiveEntry entry : entries) {
-                PackageProvider.ResourceInfo info = new PackageProvider.ResourceInfo(entry);
-                resources.put(info.path(), info);
-            }
-        }
         Map<String, PackageProvider> providers = PackageProviders.discover(project.getProjectClassLoaderScanner());
-        PackageProvider.Context context = PackageProviders.context(project, plan, resources, providers);
+        PackageProvider.Context context = PackageProviders.context(project, plan, providers);
         Path directory = PackageBuilder.outputDirectory(project, projectRoot);
         Map<String, List<String>> paths = new LinkedHashMap<>();
         for (PackageResolver.Package pkg : plan.packages().values()) {

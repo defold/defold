@@ -44,6 +44,7 @@ import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.archive.liveupdate.PackageBuilder;
 import com.dynamo.bob.archive.liveupdate.PackageResolver;
 import com.dynamo.bob.archive.liveupdate.PackageReport;
+import com.dynamo.bob.archive.liveupdate.PackageArtifacts;
 import com.dynamo.bob.archive.liveupdate.PackageWriter;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.DefaultResource;
@@ -212,12 +213,12 @@ public class GameProjectBuilder extends Builder {
             builder.addExtraCacheKey("package-preview=" + project.option("package-preview", "false"));
             builder.addExtraCacheKey("package-manifest=" + project.option("package-manifest", ""));
             if (project.option("archive", "false").equals("true")) {
-                builder.addOutput(PackageWriter.receipt(project).disableCache());
+                builder.addOutput(PackageArtifacts.receipt(project).disableCache());
                 builder.addOutput(PackageReport.resource(project).disableCache());
                 // A preview needs a fresh in-memory plan even when every compiler task is cached.
                 if (project.option("package-preview", "false").equals("true") ||
                         (project.option("liveupdate", "false").equals("true") && !PackageWriter.outputsAreCurrent(project))) {
-                    project.getState().removeSignature(PackageWriter.receipt(project).getAbsPath());
+                    project.getState().removeSignature(PackageArtifacts.receipt(project).getAbsPath());
                 }
             }
         }
@@ -401,7 +402,7 @@ public class GameProjectBuilder extends Builder {
             graph.setHexDigests(archive.getCachedHexDigests());
             task.output(4).setContent(graph.toJSON().getBytes(StandardCharsets.UTF_8));
             PackageWriter.WriteResult outputs = writer == null ? new PackageWriter.WriteResult(java.util.List.of(), java.util.Map.of()) : writer.write(manifest, task.getOutputs());
-            task.output(5).setContent(PackageWriter.serializeOutputs(project, outputs.outputs()));
+            task.output(5).setContent(PackageArtifacts.serializeOutputs(project, outputs.outputs()));
             task.output(6).setContent(PackageReport.create(project, archive, plan, outputs.packages()));
         } finally {
             Files.deleteIfExists(indexFile.toPath());

@@ -15,6 +15,7 @@
 package com.dynamo.bob.archive.liveupdate;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.CopyCustomResourcesBuilder;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
@@ -38,9 +39,36 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Adapts actual Bob tasks and compiled resource references to the pure resolver. */
 public final class PackageBuilder {
+    // Project creates task builders reflectively, so this implementation must be public.
+    public static final class CopyResource extends CopyBuilder {
+        @Override
+        public Task create(IResource input) {
+            return Task.newBuilder(this).setName("Copy package resource").addInput(input).addOutput(input.output()).build();
+        }
+    }
+
+    private static final Pattern VARIABLE = Pattern.compile("\\$\\{([A-Za-z_][A-Za-z0-9_]*)\\}|\\$([A-Za-z_][A-Za-z0-9_]*)|%([A-Za-z_][A-Za-z0-9_]*)%");
+
+    public static Path resolveOutputDirectory(String directory, Path projectRoot, Function<String, String> environment) {
+        Matcher matcher = VARIABLE.matcher(directory);
+        StringBuilder expanded = new StringBuilder();
+        while (matcher.find()) {
+            String name = matcher.group(1) != null ? matcher.group(1) : matcher.group(2) != null ? matcher.group(2) : matcher.group(3);
+            String value = environment.apply(name);
+            if (value == null) throw new IllegalArgumentException("Undefined environment variable '" + name + "' in Live Update output directory");
+            matcher.appendReplacement(expanded, Matcher.quoteReplacement(value));
+        }
+        matcher.appendTail(expanded);
+        if (expanded.toString().isBlank()) throw new IllegalArgumentException("Live Update output directory must not be empty");
+        return projectRoot.resolve(expanded.toString()).toAbsolutePath().normalize();
+    }
+
     private final IResource manifestResource;
     private final ManifestDesc manifest;
     private final List<String> inventory;
@@ -61,7 +89,7 @@ public final class PackageBuilder {
         if (manifestPath(project).isEmpty()) return legacyOutput(project).getParent();
         IResource resource = project.getResource(manifestPath(project));
         try {
-            return PackageOutputPath.resolve(parse(resource.getContent()).getOutputDirectory(), projectRoot, project::getSystemEnv);
+            return resolveOutputDirectory(parse(resource.getContent()).getOutputDirectory(), projectRoot, project::getSystemEnv);
         } catch (IllegalArgumentException e) {
             throw new CompileExceptionError(resource, 0, e.getMessage(), e);
         }
@@ -76,7 +104,7 @@ public final class PackageBuilder {
         Path root = projectRoot.resolve(directory == null ? "" : directory).normalize();
         String name = zip ? settings.getZipFilename() : settings.getOutputFolderName();
         if (name == null || name.isEmpty()) {
-            for (PackageWriter.Output previous : PackageArtifacts.readBuildOutputs(project)) {
+            for (PackageArtifacts.Output previous : PackageArtifacts.readBuildOutputs(project)) {
                 if (previous.directory() != zip && previous.path().getParent().equals(root)) return previous.path();
             }
             String platform = project.option("platform", "generic");
@@ -118,7 +146,7 @@ public final class PackageBuilder {
         });
         Set<String> generatedPaths = PackageArtifacts.generatedPaths(java.nio.file.Path.of(project.getRootDirectory()));
         paths.removeIf(path -> PackageArtifacts.isGeneratedPath(path, generatedPaths));
-        for (PackageWriter.Output output : PackageArtifacts.readBuildOutputs(project)) {
+        for (PackageArtifacts.Output output : PackageArtifacts.readBuildOutputs(project)) {
             paths.removeIf(path -> java.nio.file.Path.of(project.getResource(path).getAbsPath()).normalize().startsWith(output.path()));
         }
         inventory = paths.stream().map(PackageResolver::normalize).toList();
@@ -153,7 +181,7 @@ public final class PackageBuilder {
                 // The existing custom-resource task owns the passthrough output.
                 continue;
             } else if (project.getBuilderFromExtension(source) == null) {
-                selectedTask = project.createTask(source, CopyPackageResource.class);
+                selectedTask = project.createTask(source, CopyResource.class);
             } else {
                 selectedTask = project.createTask(source);
             }

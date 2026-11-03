@@ -15,6 +15,7 @@
 package com.dynamo.bob.archive.liveupdate;
 
 import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MurmurHash;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -32,6 +33,8 @@ import java.util.Set;
 
 /** Ownership outlives disposable build outputs, including clean and disabled export builds. */
 public final class PackageArtifacts {
+    public record Output(Path path, String name, boolean directory, boolean bundle, String inputSignature, String contentHash, boolean legacy) {}
+
     private static Path directory(Path projectRoot) {
         return projectRoot.toAbsolutePath().normalize().resolve(".internal/liveupdate");
     }
@@ -49,16 +52,37 @@ public final class PackageArtifacts {
                 Long.toUnsignedString(MurmurHash.hash64(identity), 16) + ".outputs");
     }
 
-    static List<PackageWriter.Output> read(Path projectRoot, Path receipt) throws IOException {
+    static List<Output> read(Path projectRoot, Path receipt) throws IOException {
         return Files.exists(receipt) ? parse(projectRoot, Files.readString(receipt, StandardCharsets.UTF_8)) : List.of();
     }
 
-    static String header(Project project) {
+    public static IResource receipt(Project project) {
+        return project.getGameProjectResource().disableMinifyPath().changeExt(".lupackages");
+    }
+
+    public static byte[] serializeOutputs(Project project, List<Output> outputs) {
+        StringBuilder text = new StringBuilder(header(project));
+        for (Output output : outputs) {
+            text.append(output.directory()).append(' ').append(output.bundle()).append(' ')
+                    .append(Base64.getEncoder().encodeToString(output.path().toString().getBytes(StandardCharsets.UTF_8))).append(' ')
+                    .append(Base64.getEncoder().encodeToString(output.name().getBytes(StandardCharsets.UTF_8))).append(' ')
+                    .append(output.inputSignature()).append(' ').append(output.contentHash()).append(' ').append(output.legacy()).append('\n');
+        }
+        return text.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static List<Output> readOutputs(Project project) throws IOException {
+        IResource receipt = receipt(project);
+        if (!receipt.exists()) return List.of();
+        return parse(Path.of(project.getRootDirectory()), new String(receipt.getContent(), StandardCharsets.UTF_8));
+    }
+
+    private static String header(Project project) {
         return "project-root " + Base64.getEncoder().encodeToString(Path.of(project.getRootDirectory())
                 .toAbsolutePath().normalize().toString().getBytes(StandardCharsets.UTF_8)) + "\n";
     }
 
-    static List<PackageWriter.Output> parse(Path projectRoot, String content) throws IOException {
+    static List<Output> parse(Path projectRoot, String content) throws IOException {
         projectRoot = projectRoot.toAbsolutePath().normalize();
         Path origin = null;
         if (content.startsWith("project-root ")) {
@@ -66,9 +90,11 @@ public final class PackageArtifacts {
             origin = Path.of(new String(Base64.getDecoder().decode(content.substring(13, end)), StandardCharsets.UTF_8));
             content = content.substring(end + 1);
         }
-        List<PackageWriter.Output> outputs = new ArrayList<>();
-        for (PackageWriter.Output output : PackageWriter.parseOutputs(content)) {
-            Path path = output.path();
+        List<Output> outputs = new ArrayList<>();
+        for (String line : content.lines().toList()) {
+            String[] fields = line.split(" ", -1);
+            if (fields.length != 4 && fields.length != 6 && fields.length != 7) throw new IOException("Invalid Live Update artifact receipt");
+            Path path = Path.of(new String(Base64.getDecoder().decode(fields[2]), StandardCharsets.UTF_8));
             if (origin != null && path.startsWith(origin)) {
                 // A copied or moved project owns its own copies, never the original project's artifacts.
                 path = projectRoot.resolve(origin.relativize(path));
@@ -77,30 +103,32 @@ public final class PackageArtifacts {
                 // Legacy receipts without an origin cannot establish external ownership.
                 continue;
             }
-            outputs.add(new PackageWriter.Output(path, output.name(), output.directory(), output.bundle(), output.inputSignature(), output.contentHash(), output.legacy()));
+            outputs.add(new Output(path, new String(Base64.getDecoder().decode(fields[3]), StandardCharsets.UTF_8),
+                    Boolean.parseBoolean(fields[0]), Boolean.parseBoolean(fields[1]), fields.length >= 6 ? fields[4] : "",
+                    fields.length >= 6 ? fields[5] : "", fields.length == 7 && Boolean.parseBoolean(fields[6])));
         }
         return List.copyOf(outputs);
     }
 
-    static List<PackageWriter.Output> readBuildOutputs(Project project) throws IOException {
+    static List<Output> readBuildOutputs(Project project) throws IOException {
         Path receipt = buildReceipt(project);
-        return Files.exists(receipt) ? read(Path.of(project.getRootDirectory()), receipt) : PackageWriter.readOutputs(project);
+        return Files.exists(receipt) ? read(Path.of(project.getRootDirectory()), receipt) : readOutputs(project);
     }
 
     /** Retain generated report paths when later builds omit the report options. */
     public static void recordReportOutputs(Project project, Collection<Path> paths) throws IOException {
         Path buildReceipt = buildReceipt(project);
         Path receipt = buildReceipt.resolveSibling("reports-" + buildReceipt.getFileName());
-        var outputs = new LinkedHashMap<Path, PackageWriter.Output>();
-        for (PackageWriter.Output output : read(Path.of(project.getRootDirectory()), receipt)) outputs.put(output.path(), output);
+        var outputs = new LinkedHashMap<Path, Output>();
+        for (Output output : read(Path.of(project.getRootDirectory()), receipt)) outputs.put(output.path(), output);
         for (Path path : paths) {
             path = path.toAbsolutePath().normalize();
-            outputs.put(path, new PackageWriter.Output(path, path.getFileName().toString(), false, false, "", "", false));
+            outputs.put(path, new Output(path, path.getFileName().toString(), false, false, "", "", false));
         }
         Files.createDirectories(receipt.getParent());
         Path staged = Files.createTempFile(receipt.getParent(), ".reports-", ".tmp");
         try {
-            Files.write(staged, PackageWriter.serializeOutputs(project, List.copyOf(outputs.values())));
+            Files.write(staged, serializeOutputs(project, List.copyOf(outputs.values())));
             try {
                 Files.move(staged, receipt, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException e) {
@@ -119,7 +147,7 @@ public final class PackageArtifacts {
         Set<String> paths = new LinkedHashSet<>();
         try (var receipts = Files.list(directory)) {
             for (Path receipt : receipts.filter(path -> path.getFileName().toString().endsWith(".outputs")).sorted().toList()) {
-                for (PackageWriter.Output output : read(projectRoot, receipt)) {
+                for (Output output : read(projectRoot, receipt)) {
                     if (output.path().startsWith(projectRoot)) {
                         paths.add(PackageResolver.normalize(projectRoot.relativize(output.path()).toString()));
                     }

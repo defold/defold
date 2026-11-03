@@ -1303,6 +1303,8 @@ public class ProjectBuildTest {
         assertEquals(changedExcluded, manifestPaths(readManifestData(Path.of(contentRoot, "legacy/nested/episode assets/liveupdate.game.dmanifest").toFile())));
         Set<String> all = new HashSet<>(base);
         all.addAll(excluded);
+        // Removed publisher modes must not prevent ordinary builds with Live Update disabled.
+        createFile(contentRoot, "liveupdate.settings", "[liveupdate]\nmode=Amazon\n");
         PackageResolver.Plan disabled = buildPackageProject(false, false);
         assertEquals(all, disabled.base());
         assertEquals(all, manifestPaths(readManifestData(getBundledManifestFile())));
@@ -1748,7 +1750,7 @@ public class ProjectBuildTest {
                 assertTrue(Files.isRegularFile(output.resolve("episode.zip")));
                 assertTrue(Files.isRegularFile(output.resolve("copy/liveupdate.game.dmanifest")));
                 assertEquals(Set.of(output.resolve("episode.zip"), output.resolve("copy")),
-                        PackageWriter.validatedOutputs(project).stream().map(PackageWriter.Output::path).collect(Collectors.toSet()));
+                        PackageWriter.validatedOutputs(project).stream().map(PackageArtifacts.Output::path).collect(Collectors.toSet()));
                 if (previous != null) {
                     assertFalse(Files.exists(previous.resolve("episode.zip")));
                     assertFalse(Files.exists(previous.resolve("copy")));
@@ -2064,7 +2066,7 @@ public class ProjectBuildTest {
             } catch (IOException expected) {
                 assertTrue(expected.getMessage().contains("run build before bundling"));
             }
-            Files.delete(Path.of(PackageWriter.receipt(project).getAbsPath()));
+            Files.delete(Path.of(PackageArtifacts.receipt(project).getAbsPath()));
             byte[] bundledZip = Files.readAllBytes(zip);
             try {
                 BundleHelper.moveBundleIfNeed(project, bundle.toFile());
@@ -2560,7 +2562,7 @@ public class ProjectBuildTest {
                     buildPackageProject(true, false);
                     Files.delete(Path.of(contentRoot, "packages/episode.zip"));
                 } else {
-                    assertFalse(PackageWriter.receipt(project).exists());
+                    assertFalse(PackageArtifacts.receipt(project).exists());
                 }
                 new LinuxBundler().bundleApplication(project, Platform.X86_64Linux, bundle.toFile(), () -> false);
                 assertArrayEquals(new byte[]{1}, Files.readAllBytes(bundle.resolve("Application/Application.x86_64")));

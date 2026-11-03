@@ -14,7 +14,7 @@
 
 package com.dynamo.bob.archive.test;
 
-import com.dynamo.bob.archive.liveupdate.PackageOutputPath;
+import com.dynamo.bob.archive.liveupdate.PackageBuilder;
 import java.nio.file.Path;
 import java.util.Map;
 import org.junit.Test;
@@ -26,11 +26,11 @@ public class PackageOutputPathTest {
     public void resolvesOutputDirectories() {
         Path root = Path.of("project").toAbsolutePath();
         Map<String, String> environment = Map.of("ROOT", root.resolve("external files").toString(), "NAME", "release$1", "NESTED", "$NAME");
-        assertEquals(root.resolve("packages"), PackageOutputPath.resolve("build/../packages", root, environment::get));
-        assertEquals(root.resolve("external files/release$1"), PackageOutputPath.resolve("${ROOT}/$NAME", root, environment::get));
-        assertEquals(root.resolve("external files/release$1"), PackageOutputPath.resolve("%ROOT%/%NAME%", root, environment::get));
-        assertEquals(root.resolve("$NAME"), PackageOutputPath.resolve("$NESTED", root, environment::get));
-        assertEquals(root, PackageOutputPath.resolve(root.toString(), root.resolve("nested"), environment::get));
+        assertEquals(root.resolve("packages"), PackageBuilder.resolveOutputDirectory("build/../packages", root, environment::get));
+        assertEquals(root.resolve("external files/release$1"), PackageBuilder.resolveOutputDirectory("${ROOT}/$NAME", root, environment::get));
+        assertEquals(root.resolve("external files/release$1"), PackageBuilder.resolveOutputDirectory("%ROOT%/%NAME%", root, environment::get));
+        assertEquals(root.resolve("$NAME"), PackageBuilder.resolveOutputDirectory("$NESTED", root, environment::get));
+        assertEquals(root, PackageBuilder.resolveOutputDirectory(root.toString(), root.resolve("nested"), environment::get));
     }
 
     // Missing variables and empty directories report authoring errors instead of creating literal placeholder directories.
@@ -38,7 +38,7 @@ public class PackageOutputPathTest {
     public void rejectsUnresolvedOutputDirectories() {
         for (String path : new String[]{"$MISSING", "${MISSING}", "%MISSING%", "", " "}) {
             try {
-                PackageOutputPath.resolve(path, Path.of("project"), name -> null);
+                PackageBuilder.resolveOutputDirectory(path, Path.of("project"), name -> null);
                 fail("Invalid output directory accepted: " + path);
             } catch (IllegalArgumentException expected) {
                 assertTrue(expected.getMessage(), expected.getMessage().contains("output directory"));

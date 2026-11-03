@@ -39,7 +39,7 @@ public final class PackageReport {
     }
 
     public static byte[] create(Project project, ArchiveBuilder archive, PackageResolver.Plan plan,
-                                Map<String, List<PackageWriter.Output>> outputs) throws IOException {
+                                Map<String, List<PackageArtifacts.Output>> outputs) throws IOException {
         ObjectNode report = JSON.createObjectNode();
         Map<String, ObjectNode> resources = new LinkedHashMap<>();
         for (List<ArchiveEntry> entries : List.of(archive.getIncludedEntries(), archive.getExcludedEntries())) {
@@ -70,7 +70,7 @@ public final class PackageReport {
         for (PackageResolver.Package pkg : plan.packages().values()) {
             String name = pkg.description().getName();
             ObjectNode row = addPackage(packages, resources, name, pkg.description().getProvider(), pkg.resources());
-            for (PackageWriter.Output output : outputs.getOrDefault(name, List.of())) {
+            for (PackageArtifacts.Output output : outputs.getOrDefault(name, List.of())) {
                 addOutput(row.withArray("outputs"), root, output.path(), output.name(), output.directory());
             }
         }

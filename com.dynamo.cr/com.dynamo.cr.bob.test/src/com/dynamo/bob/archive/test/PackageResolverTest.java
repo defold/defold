@@ -43,6 +43,33 @@ public class PackageResolverTest {
     }
     private static Resource leaf() { return new Resource(Map.of()); }
 
+    // Shared compiled roots and converging cyclic dependencies retain separate source/rule provenance.
+    @Test
+    public void sharedCompiledRootsRetainProvenance() {
+        var plan = PackageResolver.resolve(manifest(
+                pkg("first", path("both", RuleOperation.ADD, "/.*")),
+                pkg("second", path("alias", RuleOperation.ADD, "/alias"))),
+                Map.of("/source", List.of("/root", "/shared"), "/alias", List.of("/shared", "/root")),
+                Map.of("/root", new Resource(Map.of("/a", Loading.EAGER, "/b", Loading.EAGER)),
+                       "/a", new Resource(Map.of("/shared", Loading.EAGER)),
+                       "/b", new Resource(Map.of("/shared", Loading.EAGER)),
+                       "/shared", new Resource(Map.of("/root", Loading.EAGER))),
+                List.of(), List.of(), true);
+        assertFalse(plan.hasErrors());
+        assertEquals(Set.of("/root", "/a", "/b", "/shared"), plan.packages().get("first").resources());
+        assertEquals(plan.packages().get("first").resources(), plan.packages().get("second").resources());
+        var first = plan.packages().get("first").provenance().get("/shared");
+        assertEquals(List.of("/alias", "/source"), first.stream().map(PackageResolver.Contribution::source).toList());
+        assertEquals(List.of(new PackageResolver.RuleId("first", 0)), first.get(0).rules());
+        assertEquals(List.of("/shared"), first.get(0).dependencyPath());
+        assertEquals(List.of("/shared"), first.get(1).dependencyPath());
+        var second = plan.packages().get("second").provenance().get("/shared");
+        assertEquals(1, second.size());
+        assertEquals("/alias", second.get(0).source());
+        assertEquals(List.of(new PackageResolver.RuleId("second", 0)), second.get(0).rules());
+        assertEquals(List.of("/shared"), second.get(0).dependencyPath());
+    }
+
     // Ordered removal discards previous provenance and a subsequent add restores membership with its own rule.
     @Test
     public void orderedRulesAndProvenance() {

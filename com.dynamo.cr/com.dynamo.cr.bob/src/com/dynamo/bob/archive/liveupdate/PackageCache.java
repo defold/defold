@@ -98,9 +98,9 @@ final class PackageCache {
         MessageDigest digest = digest();
         add(digest, providerSignature(provider));
         add(digest, manifest);
-        if (provider == BuiltinPackageProvider.ZIP) {
+        if (provider == PackageProviders.Builtin.ZIP) {
             add(digest, JSON.writeValueAsBytes(context.providerSettings().get("zip")));
-        } else if (provider != BuiltinPackageProvider.FOLDER) {
+        } else if (provider != PackageProviders.Builtin.FOLDER) {
             // Plans keep resource sets sorted; the mapper orders map keys. Omit the cancellation callback.
             add(digest, JSON.writeValueAsBytes(List.of(context.plan(), context.resources(), context.platform(),
                     context.architectures(), context.variant(), context.options(), context.projectSettings(), context.providerSettings())));

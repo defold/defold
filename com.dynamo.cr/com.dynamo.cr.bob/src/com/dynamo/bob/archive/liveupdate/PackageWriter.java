@@ -19,6 +19,7 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ManifestBuilder;
+import com.dynamo.bob.archive.liveupdate.PackageArtifacts.Output;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MurmurHash;
@@ -29,15 +30,11 @@ import org.apache.commons.io.FileUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -50,7 +47,6 @@ import java.util.TreeSet;
 
 /** Owns temporary payloads and the transaction that publishes a complete set of artifacts. */
 public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsumer, AutoCloseable {
-    public record Output(Path path, String name, boolean directory, boolean bundle, String inputSignature, String contentHash, boolean legacy) {}
     public record WriteResult(List<Output> outputs, Map<String, List<Output>> packages) {}
     private record Delivery(PackageResolver.Package pkg, PackageProvider provider,
                             List<PackageProvider.Artifact> artifacts, boolean bundle) {}
@@ -58,8 +54,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
     private final Project project;
     private final PackageResolver.Plan plan;
     private final Path stage;
-    private final Map<String, PackageProvider.PreparedResource> prepared = new LinkedHashMap<>();
-    private final Map<String, PackageProvider.ResourceInfo> resourceInfo = new LinkedHashMap<>();
+    private final Map<String, Path> prepared = new LinkedHashMap<>();
     private final Set<String> packaged = new TreeSet<>();
 
     public PackageWriter(Project project, PackageResolver.Plan plan) throws IOException {
@@ -75,26 +70,22 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
     @Override
     public synchronized void accept(ArchiveEntry entry, byte[] payload) throws IOException {
         PackageCache.checkCanceled(project::isBuildCanceled);
-        PackageProvider.ResourceInfo info = new PackageProvider.ResourceInfo(entry);
-        resourceInfo.put(info.path(), info);
-        if (!packaged.contains(info.path())) return;
-        Path file = stage.resolve("payloads").resolve(info.hash());
+        String path = PackageResolver.normalize(entry.getRelativeFilename());
+        if (!packaged.contains(path)) return;
+        Path file = stage.resolve("payloads").resolve(entry.getHexDigest());
         if (!Files.exists(file)) {
-            byte[] padding = new byte[11];
-            Arrays.fill(padding, (byte) 0xED);
-            byte[] header = ByteBuffer.allocate(16).putInt(entry.getSize()).put((byte) info.flags()).put(padding).array();
             try (OutputStream output = Files.newOutputStream(file)) {
-                output.write(header);
+                output.write(entry.getHeader());
                 output.write(payload);
             }
         }
-        prepared.put(info.path(), new PackageProvider.PreparedResource(info, file));
+        prepared.put(path, file);
     }
 
     public WriteResult write(ManifestBuilder manifests, Collection<IResource> buildOutputs) throws IOException, CompileExceptionError {
         PublisherSettings settings = project.getPublisher().getPublisherSettings();
         Map<String, PackageProvider> providers = PackageProviders.discover(project.getProjectClassLoaderScanner());
-        PackageProvider.Context context = PackageProviders.context(project, plan, resourceInfo, providers);
+        PackageProvider.Context context = PackageProviders.context(project, plan, providers);
         Path legacyOutput = PackageBuilder.manifestPath(project).isEmpty() ? PackageBuilder.legacyOutput(project) : null;
         boolean legacyPlacement = legacyOutput != null;
         Path root = legacyOutput == null ? PackageBuilder.outputDirectory(project, Path.of(project.getRootDirectory())) : legacyOutput.getParent();
@@ -166,8 +157,9 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
             PackageMetadata.Builder metadata = PackageMetadata.newBuilder().setName(pkg.description().getName()).addAllOutputs(references);
             plan.requirements().get(pkg.description().getName()).forEach((path, alternatives) ->
                     metadata.addRequirements(PackageRequirement.newBuilder().setUrlHash(MurmurHash.hash64(path)).addAllPackages(alternatives)));
-            List<PackageProvider.PreparedResource> resources = pkg.resources().stream().sorted().map(prepared::get).toList();
-            if (resources.contains(null)) throw new IOException("Missing prepared resource in " + pkg.description().getName());
+            if (!prepared.keySet().containsAll(pkg.resources())) throw new IOException("Missing prepared resource in " + pkg.description().getName());
+            List<PackageProvider.PreparedResource> resources = pkg.resources().stream().sorted()
+                    .map(path -> new PackageProvider.PreparedResource(context.resources().get(path), prepared.get(path))).toList();
             byte[] manifest = manifests.buildPackageManifest(pkg.resources(), metadata.build());
             String signature = PackageCache.inputSignature(delivery.provider(), context, manifest);
             boolean reuse = !signature.isEmpty() && !delivery.artifacts().isEmpty();
@@ -217,7 +209,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
             if (previous.legacy() && obsolete.remove(previous.path())) ownedOutputs.add(previous);
         }
         Path ownership = stage.resolve("ownership.outputs");
-        Files.write(ownership, serializeOutputs(project, ownedOutputs));
+        Files.write(ownership, PackageArtifacts.serializeOutputs(project, ownedOutputs));
         stagedOutputs.put(PackageArtifacts.buildReceipt(project), ownership);
         finalizeOutputs(project, stagedOutputs, obsolete);
         return new WriteResult(List.copyOf(outputs), Map.copyOf(packageOutputs));
@@ -318,51 +310,18 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         }
     }
 
-    public static IResource receipt(Project project) {
-        return project.getGameProjectResource().disableMinifyPath().changeExt(".lupackages");
-    }
-
-    public static byte[] serializeOutputs(Project project, List<Output> outputs) {
-        StringBuilder text = new StringBuilder(PackageArtifacts.header(project));
-        for (Output output : outputs) {
-            text.append(output.directory()).append(' ').append(output.bundle()).append(' ')
-                    .append(Base64.getEncoder().encodeToString(output.path().toString().getBytes(StandardCharsets.UTF_8))).append(' ')
-                    .append(Base64.getEncoder().encodeToString(output.name().getBytes(StandardCharsets.UTF_8))).append(' ')
-                    .append(output.inputSignature()).append(' ').append(output.contentHash()).append(' ').append(output.legacy()).append('\n');
-        }
-        return text.toString().getBytes(StandardCharsets.UTF_8);
-    }
-
-    public static List<Output> readOutputs(Project project) throws IOException {
-        IResource receipt = receipt(project);
-        if (!receipt.exists()) return List.of();
-        return PackageArtifacts.parse(Path.of(project.getRootDirectory()), new String(receipt.getContent(), StandardCharsets.UTF_8));
-    }
-
     /** Validate the entire artifact set before copying into the bundle. */
     public static List<Output> validatedOutputs(Project project) throws IOException {
-        if (!receipt(project).exists()) {
+        if (!PackageArtifacts.receipt(project).exists()) {
             throw new IOException("Live Update artifact receipt is missing; run build before bundling");
         }
-        List<Output> outputs = readOutputs(project);
+        List<Output> outputs = PackageArtifacts.readOutputs(project);
         for (Output output : outputs) {
             if (!isCurrent(output, project)) {
                 throw new IOException("Live Update artifact is missing or modified; run build before bundling: " + output.path());
             }
         }
         return outputs;
-    }
-
-    static List<Output> parseOutputs(String content) throws IOException {
-        List<Output> outputs = new ArrayList<>();
-        for (String line : content.lines().toList()) {
-            String[] fields = line.split(" ", -1);
-            if (fields.length != 4 && fields.length != 6 && fields.length != 7) throw new IOException("Invalid Live Update artifact receipt");
-            outputs.add(new Output(Path.of(new String(Base64.getDecoder().decode(fields[2]), StandardCharsets.UTF_8)),
-                    new String(Base64.getDecoder().decode(fields[3]), StandardCharsets.UTF_8), Boolean.parseBoolean(fields[0]), Boolean.parseBoolean(fields[1]),
-                    fields.length >= 6 ? fields[4] : "", fields.length >= 6 ? fields[5] : "", fields.length == 7 && Boolean.parseBoolean(fields[6])));
-        }
-        return List.copyOf(outputs);
     }
 
     private static boolean isCurrent(Output output, Project project) throws IOException {
@@ -372,7 +331,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
 
     /** The task signature alone cannot detect deleted or modified external artifacts. */
     public static boolean outputsAreCurrent(Project project) throws IOException {
-        for (Output output : readOutputs(project)) {
+        for (Output output : PackageArtifacts.readOutputs(project)) {
             if (!isCurrent(output, project)) return false;
         }
         return true;
@@ -422,7 +381,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                 stagedOutputs.put(destination, staged);
             }
             Path ownership = stage.resolve("ownership.outputs");
-            Files.write(ownership, serializeOutputs(project, outputs));
+            Files.write(ownership, PackageArtifacts.serializeOutputs(project, outputs));
             stagedOutputs.put(receipt, ownership);
             finalizeOutputs(project, stagedOutputs, obsolete);
         } finally {

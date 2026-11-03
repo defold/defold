@@ -1062,7 +1062,7 @@ public class BundleHelper {
     // Copy prepared Live Update artifacts into the bundle when requested.
     public static void moveBundleIfNeed(Project project, File bundleDir) throws IOException {
         if (!isArchiveIncluded(project)) return;
-        if (com.dynamo.bob.archive.liveupdate.PackageWriter.receipt(project).exists() ||
+        if (com.dynamo.bob.archive.liveupdate.PackageArtifacts.receipt(project).exists() ||
                 project.option("liveupdate", "false").equals("true") ||
                 !com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(project).isEmpty()) {
             com.dynamo.bob.archive.liveupdate.PackageWriter.copyOutputs(project, bundleDir.toPath());

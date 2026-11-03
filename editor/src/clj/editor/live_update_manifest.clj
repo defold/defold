@@ -27,7 +27,7 @@
             [editor.resource-node :as resource-node]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageOutputPath PackageProvider$Property PackageProvider$PropertyType PackageProviders PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Selection PackageResolver$Severity]
+  (:import [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Selection PackageResolver$Severity]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc]
            [java.nio.file Path]
            [java.util.function Function]))
@@ -345,7 +345,7 @@
             ;; Unloaded resources have no workspace connections.
             (when project-root
               (try
-                (PackageOutputPath/resolve output-directory (Path/of project-root (make-array String 0))
+                (PackageBuilder/resolveOutputDirectory output-directory (Path/of project-root (make-array String 0))
                                            (reify Function (apply [_ name] (System/getenv name))))
                 (catch IllegalArgumentException error
                   (g/->error _node-id :output-directory :fatal output-directory (ex-message error)))))))

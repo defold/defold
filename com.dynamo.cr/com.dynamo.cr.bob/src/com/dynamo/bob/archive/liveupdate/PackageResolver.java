@@ -208,6 +208,7 @@ public final class PackageResolver {
     private final Map<String, Package> resolved = new LinkedHashMap<>();
     private final Map<String, List<String>> sourceOutputs;
     private final Map<String, Resource> resources;
+    private final Map<List<String>, Map<String, List<String>>> sourceClosures = new LinkedHashMap<>();
     private final Selection selection;
     private final List<Diagnostic> diagnostics;
     private final Set<String> resolving = new LinkedHashSet<>();
@@ -223,25 +224,28 @@ public final class PackageResolver {
 
     private Map<String, List<String>> closure(Collection<String> roots, boolean startup) {
         Map<String, List<String>> paths = new LinkedHashMap<>();
-        Set<String> expanded = new LinkedHashSet<>();
+        Set<String> queued = new LinkedHashSet<>();
         ArrayDeque<List<String>> pending = new ArrayDeque<>();
-        for (String root : roots) pending.add(List.of(root));
+        for (String root : roots) {
+            if (queued.add(root)) pending.add(List.of(root));
+        }
         while (!pending.isEmpty()) {
             List<String> path = pending.remove();
             String resource = path.getLast();
             paths.putIfAbsent(resource, path);
-            // A descriptor-only visit must not prevent a later eager route from expanding it.
-            if (!expanded.add(resource)) continue;
             Resource node = resources.get(resource);
             if (node != null) {
                 for (var edge : node.dependencies().entrySet()) {
                     Loading loading = startup ? edge.getValue() : Loading.EAGER;
                     if (loading == Loading.DEFERRED) continue;
+                    // A descriptor-only visit must not prevent a later eager route from expanding it.
+                    boolean expand = loading == Loading.EAGER && queued.add(edge.getKey());
+                    if (!expand && (!startup || paths.containsKey(edge.getKey()))) continue;
                     List<String> childPath = new ArrayList<>(path);
                     childPath.add(edge.getKey());
                     List<String> child = List.copyOf(childPath);
                     if (startup) paths.putIfAbsent(edge.getKey(), child);
-                    if (loading == Loading.EAGER) pending.add(child);
+                    if (expand) pending.add(child);
                 }
             }
         }
@@ -264,7 +268,9 @@ public final class PackageResolver {
             boolean remove = rule.getOperation() == RuleOperation.REMOVE;
             if (rule.hasPath()) {
                 for (String source : selection.matches().getOrDefault(id, List.of())) {
-                    closure(sourceOutputs.get(source), false).forEach((output, path) -> {
+                    // Build inputs can share the same compiled outputs (e.g. atlas images).
+                    // Reuse their traversal, while retaining each source and rule in provenance.
+                    sourceClosures.computeIfAbsent(sourceOutputs.get(source), roots -> closure(roots, false)).forEach((output, path) -> {
                         if (remove) members.remove(output);
                         else members.computeIfAbsent(output, k -> new ArrayList<>()).add(new Contribution(List.of(id), source, path));
                     });
