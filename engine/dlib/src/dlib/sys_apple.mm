@@ -29,6 +29,8 @@
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIKit.h>
 #import <SystemConfiguration/SystemConfiguration.h>
+#include <netinet/in.h>
+#include <string.h>
 #else
 #import <AppKit/NSWorkspace.h>
 #import <Foundation/NSLocale.h>
@@ -227,24 +229,62 @@ namespace dmSys
 
 #if defined(DM_PLATFORM_IOS)
 
-    static NetworkConnectivity g_NetworkConnectivity = NETWORK_DISCONNECTED;
+    static NetworkConnectivity g_HostConnectivity = NETWORK_DISCONNECTED;
+    static bool g_HostConnectivityValid = false;
     static SCNetworkReachabilityRef reachability_ref = 0;
+    static SCNetworkReachabilityRef g_DefaultRouteReachability = 0;
+
+    static NetworkConnectivity FlagsToConnectivity(SCNetworkReachabilityFlags flags)
+    {
+        if ((flags & kSCNetworkReachabilityFlagsReachable) == 0)
+        {
+            return NETWORK_DISCONNECTED;
+        }
+
+        bool connected = (flags & kSCNetworkReachabilityFlagsConnectionRequired) == 0;
+        if (!connected
+            && (flags & (kSCNetworkReachabilityFlagsConnectionOnDemand | kSCNetworkReachabilityFlagsConnectionOnTraffic)) != 0
+            && (flags & kSCNetworkReachabilityFlagsInterventionRequired) == 0)
+        {
+            connected = true;
+        }
+
+        if (!connected)
+        {
+            return NETWORK_DISCONNECTED;
+        }
+
+        return (flags & kSCNetworkReachabilityFlagsIsWWAN) != 0 ? NETWORK_CONNECTED_CELLULAR : NETWORK_CONNECTED;
+    }
 
     static void ReachabilityCallback(SCNetworkReachabilityRef target, SCNetworkReachabilityFlags flags, void* info)
     {
-        if ((flags & kSCNetworkFlagsReachable) != 0 && (flags & kSCNetworkFlagsConnectionRequired) == 0)
-        {
-            g_NetworkConnectivity = NETWORK_CONNECTED;
+        g_HostConnectivity = FlagsToConnectivity(flags);
+        g_HostConnectivityValid = true;
+    }
 
-            if ((flags & kSCNetworkReachabilityFlagsIsWWAN) != 0)
+    static NetworkConnectivity GetDefaultRouteConnectivity()
+    {
+        if (!g_DefaultRouteReachability)
+        {
+            struct sockaddr_in zero_address;
+            memset(&zero_address, 0, sizeof(zero_address));
+            zero_address.sin_len = sizeof(zero_address);
+            zero_address.sin_family = AF_INET;
+            g_DefaultRouteReachability = SCNetworkReachabilityCreateWithAddress(NULL, (const struct sockaddr*)&zero_address);
+            if (!g_DefaultRouteReachability)
             {
-                g_NetworkConnectivity = NETWORK_CONNECTED_CELLULAR;
+                dmLogError("Could not create default route reachability reference (NULL).");
+                return NETWORK_DISCONNECTED;
             }
         }
-        else
+
+        SCNetworkReachabilityFlags flags;
+        if (!SCNetworkReachabilityGetFlags(g_DefaultRouteReachability, &flags))
         {
-            g_NetworkConnectivity = NETWORK_DISCONNECTED;
+            return NETWORK_DISCONNECTED;
         }
+        return FlagsToConnectivity(flags);
     }
 
     void SetNetworkConnectivityHost(const char* host)
@@ -256,6 +296,7 @@ namespace dmSys
             SCNetworkReachabilityUnscheduleFromRunLoop(reachability_ref, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
             CFRelease(reachability_ref);
         }
+        g_HostConnectivityValid = false;
         reachability_ref = SCNetworkReachabilityCreateWithName(NULL, host);
 
         if (reachability_ref == NULL)
@@ -357,12 +398,12 @@ namespace dmSys
 
     NetworkConnectivity GetNetworkConnectivity()
     {
-        if (!reachability_ref)
+        // Until the host callback has reported, fall back to the default route status
+        if (reachability_ref && g_HostConnectivityValid)
         {
-            dmLogError("No connectivity host set, required on iOS.");
-            return dmSys::NETWORK_DISCONNECTED;
+            return g_HostConnectivity;
         }
-        return g_NetworkConnectivity;
+        return GetDefaultRouteConnectivity();
     }
 
 #else // macos

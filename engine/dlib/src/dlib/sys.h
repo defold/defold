@@ -349,6 +349,7 @@ namespace dmSys
 
     /**
      * Set host to check for connectivity against.
+     * Optional on iOS, where the default internet route is checked when no host is set.
      * @param host host to check against
      */
     void SetNetworkConnectivityHost(const char* host);

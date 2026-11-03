@@ -1148,6 +1148,10 @@ union SaveLoadBuffer
      *
      * Sets the host that is used to check for network connectivity against.
      *
+     * [icon:ios] Setting a host is optional. Without one, `sys.get_connectivity()`
+     * reports the status of the default internet route. With a host set, the status
+     * reflects whether that host is reachable, once it has been resolved.
+     *
      * @name sys.set_connectivity_host
      * @param host [type:string] hostname to check against
      * @examples
