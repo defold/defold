@@ -2550,9 +2550,6 @@ public class ProjectBuildTest {
         project.setOption("platform", Platform.X86_64Linux.getPair());
         project.setOption("architectures", "x86_64-linux");
         project.setOption("variant", "release");
-        Path engines = Path.of(project.getBinaryOutputDirectory(), Platform.X86_64Linux.getExtenderPair());
-        Files.createDirectories(engines);
-        for (String name : Platform.X86_64Linux.formatBinaryName("dmengine")) Files.write(engines.resolve(name), new byte[]{1});
         return project;
     }
 
@@ -2573,6 +2570,10 @@ public class ProjectBuildTest {
                 } else {
                     assertFalse(PackageArtifacts.receipt(project).exists());
                 }
+                // Content builds clear host-platform engines, so create the dummy after building.
+                Path engines = Path.of(project.getBinaryOutputDirectory(), Platform.X86_64Linux.getExtenderPair());
+                Files.createDirectories(engines);
+                for (String name : Platform.X86_64Linux.formatBinaryName("dmengine")) Files.write(engines.resolve(name), new byte[]{1});
                 new LinuxBundler().bundleApplication(project, Platform.X86_64Linux, bundle.toFile(), () -> false);
                 assertArrayEquals(new byte[]{1}, Files.readAllBytes(bundle.resolve("Application/Application.x86_64")));
                 assertFalse(Files.exists(bundle.resolve("Application/game.arci")));
