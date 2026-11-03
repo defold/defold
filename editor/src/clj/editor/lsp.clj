@@ -789,8 +789,11 @@
   [lsp]
   ;; bound-fn only needed for tests to pick up the test system
   (lsp (bound-fn check-if-polled-resources-are-modified [{:keys [polled-resources] :as state}]
-         (ea/with-auto-evaluation-context evaluation-context
-           (reduce #(sync-resource-state! %1 %2 evaluation-context) state polled-resources)))))
+         (if (coll/empty? polled-resources)
+           state
+           (ea/with-auto-evaluation-context evaluation-context
+             (coll/reduce=> state polled-resources
+               #(sync-resource-state! %1 %2 evaluation-context)))))))
 
 (let [method (-> Globs
                  (.getDeclaredMethod "toUnixRegexPattern" (into-array Class [String]))
@@ -836,26 +839,37 @@
   ;; bound-fn only needed for tests to pick up the test system
   (lsp (bound-fn apply-resource-changes [{:keys [project get-resource-node] :as state}]
          (notify-files-changed! state {:deleted removed :changed changed :created added})
-         (let [interesting-added (into []
-                                       (keep (fn [[from to]]
-                                               (when (interesting-resource? state from)
-                                                 to)))
-                                       moved)
-               interesting-removed (filterv #(interesting-resource? state %) removed)
-               interesting-changed (filterv #(interesting-resource? state %) changed)
-               viewed-moved (filterv #(resource-viewed? state (first %)) moved)]
-           (ea/with-auto-evaluation-context evaluation-context
-             (as-> state $
-               (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-added)
-               (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-removed)
-               (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-changed)
-               (reduce (fn [acc [from to]]
-                         (let [view-node (get-in acc [:resource->view-node from])
-                               resource-node (get-resource-node project to evaluation-context)]
-                           (-> acc
-                               (do-close-view view-node)
-                               (do-open-view view-node to (g/node-value resource-node :lines evaluation-context)))))
-                       $ viewed-moved)))))))
+         (let [moved-resources-to-sync
+               (coll/into-> moved []
+                 (keep (fn [[from to]]
+                         (when (interesting-resource? state from)
+                           to))))
+
+               resources-to-sync
+               (coll/into-> [removed changed] moved-resources-to-sync
+                 cat
+                 (filter #(interesting-resource? state %)))
+
+               viewed-moves
+               (filterv #(resource-viewed? state (first %))
+                        moved)]
+
+           (if (and (coll/empty? resources-to-sync)
+                    (coll/empty? viewed-moves))
+             state
+             (ea/with-auto-evaluation-context evaluation-context
+               (-> state
+                   (coll/reduce=> resources-to-sync
+                     #(sync-resource-state! %1 %2 evaluation-context))
+                   (coll/reduce=> viewed-moves
+                     (fn [state [from to]]
+                       (let [resource->view-node (:resource->view-node state)
+                             view-node (resource->view-node from)
+                             resource-node (get-resource-node project to evaluation-context)
+                             lines (g/node-value resource-node :lines evaluation-context)]
+                         (-> state
+                             (do-close-view view-node)
+                             (do-open-view view-node to lines))))))))))))
 
 (defn get-lsp
   "Returns the LSP manager from the current or supplied basis."
