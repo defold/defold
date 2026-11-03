@@ -251,10 +251,12 @@ dependencies {
 }
 
 def strippedBobNativeToolsDir = file("${bobDir}/tmp/stripped-bob-native-tools")
-def linuxBobStrippableArtifacts = { ->
+def bobStrippableArtifacts = { ->
     bobArtifacts.entries.findAll { path, artifact ->
         (path ==~ /lib\/(arm64|x86_64)-linux\/lib(dlib|fontc|modelc|shaderc|texc)_shared\.so/ ||
-                path ==~ /libexec\/(arm64|x86_64)-linux\/(luajit-64|libogg\.so|liboggz\.so|oggz-validate)/) && artifact.source.isFile()
+                path ==~ /libexec\/(arm64|x86_64)-linux\/(luajit-64|libogg\.so|liboggz\.so|oggz-validate)/ ||
+                path ==~ /libexec\/(arm64|x86_64)-(linux|macos)\/lipo/ ||
+                path == "libexec/x86_64-win32/lipo.exe") && artifact.source.isFile()
     }.collectEntries { path, artifact -> [(path): artifact.source] }
 }
 def stripToolName = hostPlatform.endsWith('win32') ? 'strip_android.exe' : 'strip_android'
@@ -263,8 +265,8 @@ def stripTool = packagedStripTool.isFile() ? packagedStripTool.absolutePath : 'l
 
 tasks.register('stripBobNativeTools') {
     dependsOn 'prepareBobBuildContext'
-    inputs.files { linuxBobStrippableArtifacts().values() }
-    inputs.property('libraryPaths', { linuxBobStrippableArtifacts().keySet().sort() })
+    inputs.files { bobStrippableArtifacts().values() }
+    inputs.property('libraryPaths', { bobStrippableArtifacts().keySet().sort() })
     inputs.property('stripTool', stripTool)
     if (packagedStripTool.isFile()) {
         inputs.file(packagedStripTool)
@@ -273,12 +275,17 @@ tasks.register('stripBobNativeTools') {
 
     doLast {
         delete strippedBobNativeToolsDir
-        linuxBobStrippableArtifacts().each { path, source ->
+        bobStrippableArtifacts().each { path, source ->
             def destination = new File(strippedBobNativeToolsDir, path)
             destination.parentFile.mkdirs()
             Files.copy(source.toPath(), destination.toPath(), StandardCopyOption.REPLACE_EXISTING)
             services.get(ExecOperations).exec {
-                commandLine stripTool, '--strip-debug', destination.absolutePath
+                def options = ['--strip-debug']
+                if (path.endsWith('/lipo.exe')) {
+                    // LLVM strip does not treat compressed COFF DWARF as debug sections.
+                    options.add('--remove-section=.zdebug_*')
+                }
+                commandLine([stripTool] + options + [destination.absolutePath])
             }
         }
     }
@@ -286,7 +293,7 @@ tasks.register('stripBobNativeTools') {
 
 def artifactFiles = { boolean light ->
     Map<String, File> result = [:]
-    def strippedLibraries = linuxBobStrippableArtifacts()
+    def strippedLibraries = bobStrippableArtifacts()
     bobArtifacts.entries.each { path, artifact ->
         if ((!light || artifact.light) && artifact.source.isFile()) {
             result[path] = strippedLibraries.containsKey(path) ? new File(strippedBobNativeToolsDir, path) : artifact.source
