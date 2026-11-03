@@ -1338,7 +1338,7 @@ property.camera.orthographic-mode.tooltip = **Orthographic only.** **Fixed** use
 property.collection-proxy.collection = Collection
 property.collection-proxy.collection.tooltip = Collection loaded as a separate game world. After loading, `enable` initializes it first when needed. When unloading, `unload` finalizes it first when needed; explicit lifecycle messages remain available for manual control.
 property.collection-proxy.exclude = Exclude
-property.collection-proxy.exclude.tooltip = Excludes this proxy's content from the main bundle when publishing Live Update content, including resources not unique to one excluded proxy. Mount the required content before loading. **Build and Run** does not exclude it.
+property.collection-proxy.exclude.tooltip = Excludes this proxy's content from the main bundle when publishing Live Update content, including resources not unique to one excluded proxy. Mount the required content before loading. **Build and Run** does not exclude it. A Live Update manifest selected in **game.project** controls packaging instead of this setting.
 
 # Properties: collision object
 
@@ -2530,7 +2530,7 @@ form.label.collectionproxy = Collection Proxy
 form.label.collectionproxy.collection = Collection
 form.help.collectionproxy.collection = The collection this proxy loads into a **separate game world**, with its own object namespace and physics world. After loading, `enable` initializes the world first when needed. When unloading, `unload` finalizes it first when needed; explicit `init`, `disable`, and `final` messages remain available for manual lifecycle control.
 form.label.collectionproxy.exclude = Exclude
-form.help.collectionproxy.exclude = Excludes this proxy's content from the main bundle when publishing Live Update content, including resources that are not unique to one excluded proxy. Publish and deliver the content, then make it available before loading the proxy. **Build and Run** from the editor does not exclude it.
+form.help.collectionproxy.exclude = Excludes this proxy's content from the main bundle when publishing Live Update content, including resources that are not unique to one excluded proxy. Publish and deliver the content, then make it available before loading the proxy. **Build and Run** from the editor does not exclude it. A Live Update manifest selected in **game.project** controls packaging instead of this setting.
 
 form.label.render = Render
 form.label.render.script = Script
@@ -2934,8 +2934,5 @@ liveupdate.no-match.warn = Warn
 liveupdate.no-match.error = Error
 liveupdate.no-match.ignore = Ignore
 property.liveupdate-rule.package = Package
-liveupdate.proxy-exclude = Package membership is controlled by the Live Update manifest. Exclude is retained for compatibility.
 form.label.project.liveupdate.manifest = Package Manifest
 form.help.project.liveupdate.manifest = Select a Live Update package manifest to control resource membership and output providers. Leave empty to use proxy Exclude and the legacy publisher.
-form.label.collectionproxy.exclude-manifest = Exclude (legacy)
-form.help.collectionproxy.exclude-manifest = Package membership is controlled by the Live Update manifest. This serialized value is retained for compatibility.
