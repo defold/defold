@@ -254,7 +254,7 @@ def strippedBobNativeToolsDir = file("${bobDir}/tmp/stripped-bob-native-tools")
 def linuxBobStrippableArtifacts = { ->
     bobArtifacts.entries.findAll { path, artifact ->
         (path ==~ /lib\/(arm64|x86_64)-linux\/lib(dlib|fontc|modelc|shaderc|texc)_shared\.so/ ||
-                path ==~ /libexec\/(arm64|x86_64)-linux\/luajit-64/) && artifact.source.isFile()
+                path ==~ /libexec\/(arm64|x86_64)-linux\/(luajit-64|libogg\.so|liboggz\.so|oggz-validate)/) && artifact.source.isFile()
     }.collectEntries { path, artifact -> [(path): artifact.source] }
 }
 def stripToolName = hostPlatform.endsWith('win32') ? 'strip_android.exe' : 'strip_android'

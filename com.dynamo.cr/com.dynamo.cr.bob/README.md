@@ -22,7 +22,7 @@ artifacts from their build or archive locations without staging them in the Bob
 source tree's `lib` and `libexec` directories. Console shader compiler plugins,
 where needed, are built separately from Bob.
 
-Before packaging, Bob copies its Linux compiler libraries and LuaJIT executables to `tmp` and removes
+Before packaging, Bob copies its Linux compiler libraries, LuaJIT executables and Ogg tools to `tmp` and removes
 their debug information; the original binaries remain available for debugging.
 The build uses the installed `strip_android` tool, or `llvm-strip` on `PATH` if
 that tool is not packaged for the build host (such as ARM64 Linux).
