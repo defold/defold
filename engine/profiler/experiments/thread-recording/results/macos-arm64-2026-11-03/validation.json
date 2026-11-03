@@ -1,0 +1,362 @@
+[
+  {
+    "name": "native-sanity-base",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 5,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "native-sanity-local",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 5,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "native-empty-name",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 5,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "asan-sanity-base",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 5,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "asan-sanity-local",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 5,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "asan-empty-name",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 5,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "tsan-sanity-base",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 5,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "tsan-sanity-local",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 5,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "tsan-empty-name",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 5,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "baseline-restart",
+    "exit": -6,
+    "result": "expected assertion",
+    "expected_diagnostic": "Assertion failed: (mutex), function Lock",
+    "stdout_lines": 0,
+    "stderr_bytes": 73
+  },
+  {
+    "name": "prototype-frozen-finalize",
+    "exit": -6,
+    "result": "expected assertion",
+    "expected_diagnostic": "!ExperimentProfilerFrozen()",
+    "stdout_lines": 0,
+    "stderr_bytes": 103
+  },
+  {
+    "name": "workload-base-0-2-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-base-4-0-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-base-4-1-8",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-base-4-2-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-base-4-2-8",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-local-0-2-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-local-4-0-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-local-4-1-8",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-local-4-2-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-local-4-2-8",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-asan-0-2-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-asan-4-0-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-asan-4-1-8",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-asan-4-2-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-asan-4-2-8",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-local_asan-0-2-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-local_asan-4-0-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-local_asan-4-1-8",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-local_asan-4-2-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-local_asan-4-2-8",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-tsan-0-2-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-tsan-4-0-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-tsan-4-1-8",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-tsan-4-2-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-tsan-4-2-8",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-local_tsan-0-2-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-local_tsan-4-0-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-local_tsan-4-1-8",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-local_tsan-4-2-1",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "workload-local_tsan-4-2-8",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 10,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "paired-base",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 17,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "paired-local",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 17,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "paired-local_asan",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 17,
+    "stderr_bytes": 0
+  },
+  {
+    "name": "paired-local_tsan",
+    "exit": 0,
+    "result": "passed",
+    "expected_diagnostic": null,
+    "stdout_lines": 17,
+    "stderr_bytes": 0
+  }
+]
