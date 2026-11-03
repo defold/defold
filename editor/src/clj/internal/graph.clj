@@ -513,8 +513,8 @@
   (-> (Caffeine/newBuilder) .weakKeys (.maximumSize 10000) .build))
 
 (def ^:private ^LoadingCache override-comparison-cache
-  (-> (Caffeine/newBuilder) 
-      .weakKeys 
+  (-> (Caffeine/newBuilder)
+      .weakKeys
       (.maximumSize 1000)
       (.build (fn make-comparison-cache [_]
                 (-> (Caffeine/newBuilder) .weakKeys (.maximumSize 32) .build)))))
