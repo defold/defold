@@ -348,14 +348,24 @@
               (log-error :message "build-failure" :cause error-line)))
           build-results)))))
 
+(defn- reloadable-file-resources [workspace]
+  ;; Bundled debugger scripts are FileResources on a separate mount. Sample
+  ;; only the project mount for comparisons across engine and library revisions.
+  (let [project-root (g/node-value workspace :root)]
+    (filterv
+      (fn [resource]
+        (and (resource/file-resource? resource)
+             (= :file (resource/source-type resource))
+             (= project-root (:root resource))))
+      (g/node-value workspace :resource-list))))
+
 (defn- select-simulated-reload-resources [resources ^double reload-ratio]
   (if (<= 1.0 reload-ratio)
-    ;; Include all non-directory resources.
-    (filterv #(= :file (resource/source-type %))
-             resources)
+    ;; Include all resources.
+    resources
 
-    ;; Include a seeded random subset of all non-directory resources. The subset
-    ;; will include at least one resource of each type in the project.
+    ;; Include a seeded random subset of all resources. The subset will include
+    ;; at least one resource of each type.
     (let [random (Random. (long simulated-reload-seed))]
       (into []
             (mapcat
@@ -365,7 +375,6 @@
                   (Collections/shuffle shuffled-resources random)
                   (.subList shuffled-resources 0 selection-count))))
             (->> resources
-                 (filter #(= :file (resource/source-type %)))
                  (group-by (comp :ext resource/resource-type))
                  (sort-by key))))))
 
@@ -375,7 +384,7 @@
      :removed []
      :moved []
      :changed (select-simulated-reload-resources
-                (g/node-value workspace :resource-list)
+                (reloadable-file-resources workspace)
                 simulated-reload-ratio)}))
 
 (defonce ^:private -simulate-reload-plugins-
