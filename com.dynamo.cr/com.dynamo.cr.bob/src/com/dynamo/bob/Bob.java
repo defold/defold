@@ -492,7 +492,7 @@ public class Bob {
                 opt("p", "platform", ONE, "Platform (when building and bundling)"),
                 opt("bo", "bundle-output", ONE, ABS_OR_CWD_REL_PATH,"Bundle output directory"),
                 opt("bf", "bundle-format", ONE, "Which formats to create the application bundle in. Comma separated list. (Android: 'apk' and 'aab')"),
-                opt(null, "bundle-report-html", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a standalone Live Update package report after bundling (requires liveupdate.manifest)"),
+                opt(null, "bundle-report-html", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a standalone Live Update package report after bundling (requires an archive build)"),
 
                 opt("mp", "mobileprovisioning", ONE, ABS_OR_CWD_REL_PATH, "mobileprovisioning profile (iOS)"),
                 opt(null, "identity", ONE, "Sign identity (iOS)"),

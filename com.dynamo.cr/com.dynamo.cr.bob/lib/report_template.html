@@ -536,6 +536,7 @@ if(a&&a.length>0)for(c in a[0])a[0].hasOwnProperty(c)&&-1===i.indexOf(c)&&i.push
     }
 
     function packageOverview() {
+      $('.report-controls').show();
       $('#package-overview').show();
       $('#package-filter-container').show();
       $('#legacy-overview, #structure-section').hide();
@@ -608,8 +609,8 @@ if(a&&a.length>0)for(c in a[0])a[0].hasOwnProperty(c)&&-1===i.indexOf(c)&&i.push
 
         // Setup resource table
         var resourceTable = $('#resources-list').DataTable( {
-            dom: 'lrtip',
-            deferRender: true,
+            dom: packageReport ? 'lrtip' : 'lfrtip',
+            deferRender: packageReport,
             data: report_data.resources,
             "footerCallback": function ( row, data, start, end, display ) {
                 var api = this.api(), data;
@@ -744,7 +745,7 @@ if(a&&a.length>0)for(c in a[0])a[0].hasOwnProperty(c)&&-1===i.indexOf(c)&&i.push
       <p class="lead">Generated on <span id="meta-date"></span>.</p>
     </div>
 
-    <div class="row report-controls">
+    <div class="row report-controls" style="display:none">
       <div class="col-sm-8">
         <label for="resource-search">Search resources</label>
         <div class="input-group">

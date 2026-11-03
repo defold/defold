@@ -302,8 +302,7 @@ from cached data without rebuilding packages.
 
 `--build-report-html` and `--build-report-json` remain options for the `build`
 command. They run after compiling, independently of bundling; `bundle` alone
-does not generate or overwrite build reports. The JSON build report also includes
-the package overview and resource membership in `packages` and `package_resources`.
+does not generate or overwrite build reports.
 
 ### Incremental packages
 

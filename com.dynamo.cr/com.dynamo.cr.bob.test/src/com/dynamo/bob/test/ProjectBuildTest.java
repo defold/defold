@@ -1538,6 +1538,38 @@ public class ProjectBuildTest {
         assertTrue(Files.isRegularFile(Path.of(contentRoot, "packages/episode.zip")));
     }
 
+    // Package reports must not change build-report accounting for deduplicated and padded archive payloads.
+    @Test
+    public void testBuildReportKeepsArchiveSizes() throws Exception {
+        createPackageProject();
+        createFile(contentRoot, "extra/first.json", "12345");
+        createFile(contentRoot, "extra/second.json", "12345");
+        Path reportPath = Path.of(contentRoot, "build-report.json");
+        try (Project project = packageReportProject(false)) {
+            project.setOption("archive-resource-padding", "64");
+            project.setOption("build-report-json", reportPath.toString());
+            for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+        }
+        var report = new com.fasterxml.jackson.databind.ObjectMapper().readTree(Files.readAllBytes(reportPath));
+        int count = 0;
+        long size = 0;
+        long compressedSize = 0;
+        for (var resource : report.get("resources")) {
+            String path = resource.get("file").asText();
+            if (path.equals("/extra/first.json") || path.equals("/extra/second.json")) {
+                ++count;
+                size += resource.get("size").asLong();
+                compressedSize += resource.get("compressed_size").asLong();
+            }
+        }
+        assertEquals(2, count);
+        assertEquals(5, size);
+        assertEquals(64, compressedSize);
+        assertFalse(report.has("packages"));
+    }
+
     // Build reports belong to build even if bundling fails; bundle reports are written only after a successful bundle.
     @Test
     public void testBuildAndBundleReportCommands() throws Exception {

@@ -32,9 +32,7 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.archive.ArchiveEntry;
-import com.dynamo.bob.archive.liveupdate.PackageBuilder;
 import com.dynamo.bob.archive.liveupdate.PackageReport;
-import com.dynamo.bob.archive.liveupdate.PackageArtifacts;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import com.dynamo.bob.archive.publisher.Publisher;
@@ -120,11 +118,7 @@ public class ReportGenerator {
         this.resources = new HashMap<String, ResourceEntry>();
         this.excludedResources = new HashMap<String, ResourceEntry>();
 
-        boolean hasPackages = PackageArtifacts.receipt(project).exists() || !PackageBuilder.manifestPath(project).isEmpty();
-        if (bundleReport && !hasPackages) {
-            throw new IOException("Bundle package reports require an archive build");
-        }
-        if (hasPackages && (bundleReport || project.option("archive", "false").equals("true"))) {
+        if (bundleReport) {
             packageReport = PackageReport.read(project);
             for (var row : packageReport.withArray("package_resources")) {
                 boolean base = false;
