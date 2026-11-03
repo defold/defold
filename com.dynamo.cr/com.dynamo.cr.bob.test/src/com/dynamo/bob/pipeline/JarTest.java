@@ -24,9 +24,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 
 import org.junit.Test;
@@ -43,22 +40,6 @@ import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.util.BobProjectProperties;
 
 public class JarTest {
-
-    // Build using only bob-light.jar so dependencies supplied by full Bob cannot hide packaging regressions.
-    @Test
-    public void testBobLightBuild() throws Exception {
-        Process process = new ProcessBuilder("java", "-jar", "../com.dynamo.cr.bob/dist/bob-light.jar",
-                "--root", "test/proj", "--output", "build/bob-light", "--archive", "distclean", "build")
-                .redirectErrorStream(true)
-                .start();
-        String output;
-        try (var input = process.getInputStream()) {
-            output = new String(input.readAllBytes(), StandardCharsets.UTF_8);
-        }
-        assertEquals(output, 0, process.waitFor());
-        assertTrue(Files.size(Path.of("test/proj/build/bob-light/game.arci")) > 0);
-        assertTrue(Files.size(Path.of("test/proj/build/bob-light/game.arcd")) > 0);
-    }
 
     private int bob(String command) throws IOException, InterruptedException, CompileExceptionError, URISyntaxException {
         String jarPath = "../com.dynamo.cr.bob/dist/bob.jar";

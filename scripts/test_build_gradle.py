@@ -844,7 +844,6 @@ class GradleConfigurationTests(unittest.TestCase):
         bob = self.root / 'com.dynamo.cr/com.dynamo.cr.bob'
         (bob / 'dist').mkdir(parents=True)
         (bob / 'dist/bob.jar').touch()
-        (bob / 'dist/bob-light.jar').touch()
         for plugin in ('xbox', 'switch', 'playstation'):
             (self.root / f'com.dynamo.cr/com.dynamo.cr.{plugin}').mkdir()
         with mock.patch.object(configuration, '_run_gradle') as run_gradle:
@@ -865,7 +864,7 @@ class GradleConfigurationTests(unittest.TestCase):
                 self.assertEqual(not skip_tests, 'testJar' in args)
             run_gradle.reset_mock()
             configuration.test_bob()
-            self.assertEqual(['testJar', '-x', 'distBob', '-x', 'distBobLight'], run_gradle.call_args.args[0][-5:])
+            self.assertEqual(['testJar', '-x', 'distBob'], run_gradle.call_args.args[0][-3:])
 
     # Compact and verbose commands preserve argument quoting, useful logs, and the original failure exit status.
     def test_runner_flags_logs_and_exit_status(self):

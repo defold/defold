@@ -2749,7 +2749,7 @@ class Configuration(object):
 
         if self.skip_tests:
             # Clean and build the project
-            self._run_gradle([gradle] + flags + gradle_args + ['clean', 'install', 'distBobLight'], bob_dir, 'bob', env)
+            self._run_gradle([gradle] + flags + gradle_args + ['clean', 'install'], bob_dir, 'bob', env)
         else:
             # Build, install and test Bob in one Gradle graph so shared dependencies such as distBob run only once.
             self._run_gradle([gradle] + flags + gradle_args + ['clean', 'install', 'testJar'],
@@ -2758,11 +2758,11 @@ class Configuration(object):
         self.build_bob_plugins()
 
     def test_bob(self):
+        bob_jar = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar')
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
-        for name in ('bob.jar', 'bob-light.jar'):
-            if not os.path.exists(join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob/dist', name)):
-                self.fatal(f"{name} is missing. Build bob or download the bob-jar artifact first.")
+        if not os.path.exists(bob_jar):
+            self.fatal("bob.jar is missing. Build bob or download the bob-jar artifact first.")
 
         env = self._form_env()
 
@@ -2770,8 +2770,9 @@ class Configuration(object):
         gradle_args = ['-Ptarget-platform=%s' % self.target_platform]
         env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}' #-Dorg.gradle.daemon=true
 
-        # Test the Bob and Bob Light artifacts produced by build-bob instead of rebuilding them.
-        self._run_gradle([gradle] + gradle_args + ['testJar', '-x', 'distBob', '-x', 'distBobLight'], test_dir, 'bob-tests', env)
+        # compileTest only needs bob.jar on disk. Exclude distBob so this job tests the artifact
+        # produced by build-bob instead of rebuilding it.
+        self._run_gradle([gradle] + gradle_args + ['testJar', '-x', 'distBob'], test_dir, 'bob-tests', env)
 
 
     def build_sdk_headers(self):

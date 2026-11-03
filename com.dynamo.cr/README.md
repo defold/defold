@@ -14,7 +14,7 @@ From the repository root, start the Defold shell, install external dependencies,
 ./scripts/build.py build_bob
 ```
 
-`build_bob` builds `bob.jar` and `bob-light.jar` in `com.dynamo.cr/com.dynamo.cr.bob/dist`, installs `bob.jar` in `$DYNAMO_HOME/share/java/bob.jar`, and runs Bob tests by default. Run `install_ext` before the first Bob build; the [packaging guide](com.dynamo.cr.bob/README.md#packaging) explains which tools it supplies.
+`build_bob` builds `com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar`, installs it in `$DYNAMO_HOME/share/java/bob.jar`, and runs Bob tests by default. Run `install_ext` before the first Bob build; the [packaging guide](com.dynamo.cr.bob/README.md#packaging) explains which tools it supplies.
 
 Gradle commands run through `scripts/build.py` show a compact progress bar with
 Gradle's percentage for each build phase. Terminals update one line; CI and
@@ -39,7 +39,7 @@ If you use the local JAR in the editor, follow the [editor build guide](../edito
 
 ## Run tests locally
 
-`build_bob` runs the Bob test suite unless `--skip-tests` is set. To test already-built `bob.jar` and `bob-light.jar` files without rebuilding them, run from the repository root:
+`build_bob` runs the Bob test suite unless `--skip-tests` is set. To test an already-built `com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar` without rebuilding it, run from the repository root:
 
 ```sh
 ./scripts/build.py test_bob
@@ -49,7 +49,7 @@ To run one JUnit test class against the existing JAR, run from the test module:
 
 ```sh
 cd com.dynamo.cr/com.dynamo.cr.bob.test
-../com.dynamo.cr.bob/gradlew -PtestClass=com.dynamo.bob.pipeline.ShaderProgramBuilderTest runSingleTest -x distBob -x distBobLight
+../com.dynamo.cr.bob/gradlew -PtestClass=com.dynamo.bob.pipeline.ShaderProgramBuilderTest runSingleTest -x distBob
 ```
 
 See the [IntelliJ IDEA guide](README_IDEA.md#testing) for running individual tests in the IDE.

@@ -43,7 +43,7 @@ tasks.register('compileTest', JavaCompile) {
 }
 
 tasks.register('createTestJar', Jar) {
-    dependsOn 'compileTest', 'distBobLight'
+    dependsOn 'compileTest'
     archiveFileName = 'bob-tests.jar'
     destinationDirectory = testTmpDir
     includeEmptyDirs = false
