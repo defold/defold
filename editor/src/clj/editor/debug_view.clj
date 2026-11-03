@@ -601,6 +601,7 @@
 
 (def ^:private debugger-init-script "/_defold/debugger/start.lua")
 (def ^:private debugger-remote-init-script "/_defold/debugger/start_remote.lua")
+(def debugger-script-proj-paths [debugger-init-script debugger-remote-init-script])
 
 (defn build-targets
   [project evaluation-context]
@@ -608,7 +609,7 @@
         (mapcat (fn [path]
                   (let [start-script (project/get-resource-node project path evaluation-context)]
                     (g/node-value start-script :build-targets evaluation-context))))
-        [debugger-init-script debugger-remote-init-script]))
+        debugger-script-proj-paths))
 
 (defn- built-lua-module
   [build-artifacts path]

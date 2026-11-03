@@ -19,7 +19,9 @@
             [dynamo.graph :as g]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
-            [integration.test-util :as test-util]))
+            [editor.workspace :as workspace]
+            [integration.test-util :as test-util]
+            [support.test-support :refer [with-clean-system]]))
 
 ;; The retired project-wide font setting must explain the per-font replacement
 ;; without blocking builds.
@@ -86,3 +88,25 @@
                                                     ["section" "key"])))
     (is (identical? default-resource
                     (settings-core/get-setting-or-default meta-settings [] ["section" "key"])))))
+
+;; Default resources are dependencies in every read mode unless the setting
+;; has an explicit value, including an explicitly empty resource.
+(deftest settings-dependencies-use-unoverridden-defaults
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! "test/resources/empty_project")
+          read-opts (workspace/make-read-opts (g/now) workspace)
+          game-project (workspace/find-resource workspace "/game.project")
+          path ["bootstrap" "render"]
+          default-render "/builtins/render/default.render"
+          dependencies-fn (settings-core/make-settings-dependencies-fn
+                            [{:path path :type :resource :default default-render}])]
+      (doseq [read-opts [read-opts
+                         (assoc read-opts :include-editor-dependencies false)
+                         (assoc read-opts :include-editor-dependencies true)]]
+        (testing (str (select-keys read-opts [:include-editor-dependencies]))
+          (are [raw-settings expected] (= expected (dependencies-fn read-opts game-project raw-settings))
+            [] [default-render]
+            [{:path path}] [default-render]
+            [{:path path :value "custom.renderc"}] ["/custom.render"]
+            [{:path path :value ""}] []
+            [{:path path :value nil}] []))))))

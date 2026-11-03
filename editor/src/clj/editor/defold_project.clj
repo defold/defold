@@ -199,19 +199,16 @@
    :resource-type resource-type
    :read-error (make-file-not-found-error node-id resource)})
 
-(defn- make-node-load-info [read-opts node-id resource resource-type read-result]
+(defn resource-load-dependencies
+  "Given a source-value or a save-value, returns a map that may contain a vector
+  of :dependency-proj-paths alongside a vector of :prerequisite-proj-paths, or a
+  :read-error ErrorValue."
+  [read-opts node-id resource resource-type source-value]
   (let [resource-metrics (:resource-metrics read-opts)
-        read-fn (:read-fn resource-type)
-
-        [source-value disk-sha256 read-error]
-        (if (g/error-value? read-result)
-          [nil nil read-result]
-          read-result)
 
         dependency-proj-paths
-        (when (and (nil? read-error)
-                   (or (some? source-value)
-                       (nil? read-fn)))
+        (when (or (some? source-value)
+                  (nil? (:read-fn resource-type)))
           (when-let [dependencies-fn (:dependencies-fn resource-type)]
             (try
               (du/measuring resource-metrics (resource/proj-path resource) :find-new-reload-dependencies
@@ -234,29 +231,31 @@
               (du/measuring resource-metrics (resource/proj-path resource) :find-new-reload-dependencies
                 (coll/not-empty (vec (prerequisites-fn read-opts resource source-value))))
               (catch Exception exception
-                (resource-load-error node-id resource exception)))))
+                (resource-load-error node-id resource exception)))))]
+    (cond
+      (g/error-value? dependency-proj-paths)
+      {:read-error dependency-proj-paths}
 
-        read-error
-        (or read-error
-            (when (g/error-value? dependency-proj-paths)
-              dependency-proj-paths)
-            (when (g/error-value? prerequisite-result)
-              prerequisite-result))
+      (g/error-value? prerequisite-result)
+      {:read-error prerequisite-result}
 
-        node-load-info
-        (cond-> {:node-id node-id
-                 :owner-resource resource
-                 :resource resource
-                 :resource-type resource-type}
-          (and read-result (not (g/error-value? read-result)))
-          (assoc :source-value source-value
-                 :disk-sha256 disk-sha256))]
-
-    (if read-error
-      (assoc node-load-info :read-error read-error)
-      (cond-> node-load-info
+      :else
+      (cond-> {}
         dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths)
         prerequisite-result (assoc :prerequisite-proj-paths prerequisite-result)))))
+
+(defn- make-node-load-info [read-opts node-id resource resource-type read-result]
+  (let [node-load-info {:node-id node-id
+                        :owner-resource resource
+                        :resource resource
+                        :resource-type resource-type}]
+    (if (g/error-value? read-result)
+      (assoc node-load-info :read-error read-result)
+      (let [[source-value disk-sha256] read-result
+            resource-load-dependencies (resource-load-dependencies read-opts node-id resource resource-type source-value)]
+        (cond-> (coll/merge node-load-info resource-load-dependencies)
+          read-result (assoc :source-value source-value
+                             :disk-sha256 disk-sha256))))))
 
 (defn read-node-load-info
   "Reads from disk and returns a node-load-info map. The map contains the
@@ -355,28 +354,30 @@
             read-result (pair source-value (:disk-sha256 node))]
         (make-node-load-info read-opts node-id resource resource-type read-result)))))
 
-(defn- sort-node-ids-for-loading-impl
-  ([node-ids in-progress queue queued batch node-id->dependency-node-ids]
-   (let [node-id (first node-ids)]
-     (if (nil? node-id)
-       [queue queued]
-       ;; TODO: Handle recursive dependencies properly. Here we treat
-       ;; a recurring node-id as "already loaded", which might not be
-       ;; correct. Maybe log? Keep information about circular
-       ;; dependency to be used in get-resource-node etc?
-       (if (or (contains? queued node-id) (contains? in-progress node-id))
-         (recur (rest node-ids) in-progress queue queued batch node-id->dependency-node-ids)
-         (let [deps (node-id->dependency-node-ids node-id)
-               [dep-queue dep-queued] (sort-node-ids-for-loading-impl deps (conj in-progress node-id) queue queued batch node-id->dependency-node-ids)]
-           (recur (rest node-ids)
-                  in-progress
-                  (if (contains? batch node-id) (conj dep-queue node-id) dep-queue)
-                  (conj dep-queued node-id)
-                  batch
-                  node-id->dependency-node-ids)))))))
-
-(defn- sort-node-ids-for-loading [node-ids node-id->dependency-node-ids]
-  (first (sort-node-ids-for-loading-impl node-ids #{} [] #{} (set node-ids) node-id->dependency-node-ids)))
+(defn resource-node-load-order
+  "Visits each reachable node once, placing dependencies before their dependents
+  where possible. Edges back to nodes already being visited are skipped."
+  [node-ids node-id->dependency-node-ids]
+  (loop [pending (vec node-ids)
+         stack []
+         seen #{}
+         order []]
+    (if-let [node-id (first pending)]
+      (if (contains? seen node-id)
+        (recur (next pending)
+               stack
+               seen
+               order)
+        (recur (vec (node-id->dependency-node-ids node-id))
+               (conj stack (pair node-id (next pending)))
+               (conj seen node-id)
+               order))
+      (if-let [[node-id siblings] (peek stack)]
+        (recur siblings
+               (pop stack)
+               seen
+               (conj order node-id))
+        order))))
 
 (defn ^{:dynamic (system/defold-dev?)} node-load-info-tx-data [{:keys [node-id read-error resource-type] :as node-load-info} load-opts]
   ;; At this point, the node-id refers to a created node in the graph.
@@ -450,7 +451,7 @@
                       (old-node-id->dependency-proj-paths node-id)))))
 
         node-id-load-order
-        (sort-node-ids-for-loading (keys node-load-infos-by-node-id) node-id->dependency-node-ids)]
+        (resource-node-load-order (coll/keys node-load-infos-by-node-id) node-id->dependency-node-ids)]
 
     (into []
           (keep node-load-infos-by-node-id)

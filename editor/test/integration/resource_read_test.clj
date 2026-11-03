@@ -21,6 +21,7 @@
             [editor.data :as data]
             [editor.defold-project :as project]
             [editor.defold-project-search :as project-search]
+            [editor.localization :as localization]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
@@ -32,7 +33,8 @@
             [support.test-support :as test-support :refer [with-clean-system]]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn])
-  (:import [internal.node NodeImpl ShellNode]
+  (:import [clojure.lang ExceptionInfo]
+           [internal.node NodeImpl ShellNode]
            [java.io InputStream]
            [java.util.concurrent CountDownLatch TimeUnit]))
 
@@ -253,6 +255,44 @@
           (workspace/resource-sync! workspace)
           (let [project (test-util/setup-project! workspace)]
             (test-fn project workspace load-fn-calls)))))))
+
+;; Cancelling a build load keeps completed dependencies in the system. Retrying
+;; loads the remaining shells once across shared, cyclic and missing references.
+(deftest cancel-and-resume-build-load-test
+  (call-with-prerequisite-project
+    {"/root.prereq" {:dependencies ["/left.prereq" "/right.prereq" "/missing.prereq"]
+                     :prerequisites ["/prerequisite.prereq"]}
+     "/left.prereq" {:dependencies ["/shared.prereq"]}
+     "/right.prereq" {:dependencies ["/shared.prereq"]}
+     "/shared.prereq" {:dependencies ["/root.prereq"]}
+     "/prerequisite.prereq" {}
+     "/unrelated.prereq" {}}
+    (fn build-prerequisites [_read-opts _owner-resource value]
+      (:prerequisites value))
+    (fn check-build-load [project _workspace load-fn-calls]
+      (let [nodes-by-path (g/node-value project :nodes-by-resource-path)
+            reports (atom [])
+            render-load-progress! #(swap! reports conj %)]
+        (is (thrown-with-msg?
+              ExceptionInfo #"Build cancelled"
+              (build/load-build-resources! project ["/root.prereq"] render-load-progress!
+                                           #(pos? (count @load-fn-calls)))))
+        (is (= ["/shared.prereq"] @load-fn-calls))
+        (is (resource-node/loaded? (nodes-by-path "/shared.prereq")))
+        (is (not (resource-node/loaded? (nodes-by-path "/left.prereq"))))
+        (is (= progress/done (peek @reports)))
+
+        (reset! reports [])
+        (build/load-build-resources! project ["/root.prereq"] render-load-progress! fn/constantly-false)
+        (let [load-progress (filterv #(pos? (:size %)) (pop @reports))
+              expected-paths ["/left.prereq" "/right.prereq" "/prerequisite.prereq" "/root.prereq"]]
+          (is (= (mapv #(localization/message "progress.loading-resource" {"resource" %})
+                       expected-paths)
+                 (mapv progress/message
+                       (subvec load-progress 0 (count expected-paths)))))
+          (is (= (into ["/shared.prereq"] expected-paths) @load-fn-calls)))
+        (is (not (resource-node/loaded? (nodes-by-path "/unrelated.prereq"))))
+        (is (= progress/done (peek @reports)))))))
 
 ;; A shell read leaves the node unmaterialized. Once the same evaluation
 ;; context materializes it, the nil save-value supersedes the retained source.

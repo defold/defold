@@ -20,14 +20,18 @@
             [editor.asset-browser :as asset-browser]
             [editor.build :as build]
             [editor.defold-project :as project]
+            [editor.game-project :as game-project]
             [editor.git :as git]
+            [editor.localization :as localization]
+            [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.graph.types :as gt]
             [internal.node :as in]
-            [support.test-support :refer [spit-until-new-mtime with-clean-system]]))
+            [support.test-support :refer [spit-until-new-mtime with-clean-system]]
+            [util.coll :as coll]))
 
 (deftest open-editor
   (testing "Opening editor only alters undo by selection"
@@ -184,6 +188,38 @@
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
         (workspace/artifact-map! workspace (:artifact-map build-results))))))
+
+;; Builds discover dependencies from current editor values, including defaults,
+;; and report a fixed number of loads before returning to compilation.
+(deftest build-reports-resource-load-progress
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/small_project")]
+      (test-util/write-file-resource! workspace "/edited.input_binding" {})
+      (workspace/resource-sync! workspace)
+      (let [project (test-util/setup-project! workspace)
+            nodes-by-path (g/node-value project :nodes-by-resource-path)
+            reports (atom [])]
+        (game-project/set-setting! (nodes-by-path "/game.project") ["input" "game_binding"]
+                                   (workspace/find-resource workspace "/edited.input_binding"))
+        (let [result @(app-view/async-build! project
+                                             :build-engine false
+                                             :run-build-hooks false
+                                             :lint false
+                                             :prefs (test-util/make-test-prefs)
+                                             :render-load-progress! #(swap! reports conj %))
+              reading (filterv #(zero? (:size %)) @reports)
+              loading (filterv #(and (pos? (:size %)) (not (progress/done? %))) @reports)
+              loading-messages (coll/into-> loading #{} (map progress/message))]
+          (is (nil? (:error result)))
+          (is (pos? (count (:artifacts result))))
+          (is (pos? (count reading)))
+          (is (= @reports (conj (into reading loading) progress/done)))
+          (is (= (vec (range (count loading))) (mapv :pos loading)))
+          (is (= #{(count loading)} (coll/into-> loading #{} (map :size))))
+          (doseq [path ["/main/images/logo.png" "/builtins/render/default.render"
+                        "/builtins/graphics/particle_blob.tilesource" "/edited.input_binding"]]
+            (is (contains? loading-messages (localization/message "progress.loading-resource" {"resource" path}))))
+          (is (not (resource-node/loaded? (nodes-by-path "/input/game.input_binding")))))))))
 
 (deftest build-targets-remain-in-cache-after-build
   (let [project-path "test/resources/build_project/SideScroller"

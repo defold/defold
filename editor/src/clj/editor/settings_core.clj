@@ -459,22 +459,30 @@
                              (repeat "\n\n")))))
 
 (defn make-settings-dependencies-fn [meta-settings]
-  (let [meta-settings-map (make-meta-settings-map meta-settings)]
-    (fn settings-dependencies-fn [read-opts owner-resource raw-settings]
-      (let [resolve-proj-path-fn (:resolve-proj-path-fn read-opts)]
-        (coll/into-> raw-settings []
-          (mapcat
-            (fn [{:keys [path value]}]
-              (let [meta-setting (meta-settings-map path)]
-                (when (and (= :resource (:type meta-setting))
-                           (not (coll/empty? value)))
-                  (cond->>
-                    (->> value
-                         (parse-setting-value meta-setting)
-                         (sanitize-value meta-setting))
+  (let [resource-meta-settings (filterv #(= :resource (:type %)) meta-settings)
+        resource-meta-settings-by-path (make-meta-settings-map resource-meta-settings)]
+    (fn settings-dependencies-fn [{:keys [resolve-proj-path-fn]} owner-resource raw-settings]
+      (let [explicit-values
+            (coll/into-> raw-settings []
+              (keep (fn [{:keys [path value]}]
+                      (when-let [meta-setting (resource-meta-settings-by-path path)]
+                        (when (coll/not-empty value)
+                          (->> value
+                               (parse-setting-value meta-setting)
+                               (sanitize-value meta-setting)))))))
 
-                    (string? value)
-                    (vector))))))
+            overridden-paths
+            (coll/into-> raw-settings #{}
+              (filter #(contains? % :value))
+              (map :path))
+
+            values
+            (coll/into-> resource-meta-settings explicit-values
+              (remove (comp overridden-paths :path))
+              (keep :default))]
+
+        (coll/into-> values []
+          (remove coll/empty?)
           (keep #(resolve-proj-path-fn owner-resource %))
           (distinct))))))
 

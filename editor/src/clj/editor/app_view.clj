@@ -783,6 +783,7 @@
 
 (def ^:private initial-app-task-progress
   {:main progress/done
+   :load progress/done
    :build progress/done
    :build-engine progress/done
    :resource-sync progress/done
@@ -796,7 +797,7 @@
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
-  [:save-all :resource-sync :fetch-libraries :build :build-engine :download-update :main])
+  [:save-all :resource-sync :fetch-libraries :load :build :build-engine :download-update :main])
 
 (def status-bar-controls-delay
   (delay
@@ -891,7 +892,15 @@
             (reset! prev-progress-atom (-> new-state :progress (get key))))))
 
       (fn task-cancelled? []
-        (-> @app-task-state :progress (get key) progress/cancelled?)))))
+        (and (some? @prev-progress-atom)
+             (-> @app-task-state :progress (get key) progress/cancelled?))))))
+
+(defn- begin-build-progress! []
+  (let [[render-progress! build-task-cancelled?] (begin-task-progress! :build)
+        [render-load-progress! load-task-cancelled?] (begin-task-progress! :load)]
+    [render-progress! render-load-progress!
+     (fn task-cancelled? []
+       (or (build-task-cancelled?) (load-task-cancelled?)))]))
 
 (defn render-main-task-progress! [progress]
   (render-task-progress! :main progress))
@@ -1141,13 +1150,23 @@
     exception))
 
 (defn- build-project!
-  [project old-artifact-map opts evaluation-context]
-  (let [game-project (project/get-resource-node project "/game.project" evaluation-context)
-        render-progress! (or (:render-progress! opts)
-                             progress/null-render-progress!)]
+  [project old-artifact-map {:keys [debug render-progress! render-load-progress! task-cancelled?] :as opts}]
+  (let [game-project-proj-path "/game.project"
+        root-proj-paths (cond-> [game-project-proj-path]
+                          debug (into debug-view/debugger-script-proj-paths))]
     (try
-      (ui/with-progress [render-progress! render-progress!]
-        (build/build-project! project game-project old-artifact-map opts evaluation-context))
+      (ui/with-progress [_ render-progress!]
+        (build/load-build-resources! project root-proj-paths render-load-progress! task-cancelled?)
+        (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+          (try
+            (let [game-project (project/get-resource-node project game-project-proj-path evaluation-context)
+                  opts (cond-> opts
+                         debug (assoc :extra-build-targets (debug-view/build-targets project evaluation-context)))]
+              (build/build-project! project game-project old-artifact-map opts evaluation-context))
+            (finally
+              ;; Retain compiled targets without evicting them with intermediate
+              ;; build outputs.
+              (ui/run-now (project/update-system-cache-build-targets! evaluation-context))))))
       (catch Throwable error
         (let [error (if (instance? ExecutionException error)
                       (ex-cause error)
@@ -1155,8 +1174,10 @@
               cause (ex-root-cause error)
               cause-ex-data (ex-data cause)
               ex-type (:ex-type cause-ex-data)
-              {:keys [basis-ref]} evaluation-context
-              localization (workspace/localization (project/workspace project evaluation-context) evaluation-context)]
+              [basis localization]
+              (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+                (pair @(:basis-ref evaluation-context)
+                      (workspace/localization (project/workspace project evaluation-context) evaluation-context)))]
           (case ex-type
             :task-cancelled
             nil ; We'll just produce an error signaling that the build was cancelled below.
@@ -1169,7 +1190,7 @@
                  :icon :icon/triangle-error
                  :header (localization/message "dialog.build-error.cycle.header")
                  :content {:wrap-text true
-                           :text (get-cycle-detected-help-message @basis-ref (-> cause-ex-data :endpoint gt/endpoint-node-id))}}))
+                           :text (get-cycle-detected-help-message basis (-> cause-ex-data :endpoint gt/endpoint-node-id))}}))
 
             ;; Default case.
             (error-reporting/report-exception! error))
@@ -1184,7 +1205,7 @@
                                 (localization/message
                                   "dialog.build-error.cycle.message"
                                   {"header" (localization/message "dialog.build-error.cycle.header")
-                                   "detail" (get-cycle-detected-help-message @basis-ref (-> cause-ex-data :endpoint gt/endpoint-node-id))}))}
+                                   "detail" (get-cycle-detected-help-message basis (-> cause-ex-data :endpoint gt/endpoint-node-id))}))}
 
                     (pipeline/decorated-build-exception? error)
                     (let [{:keys [node-id owner-resource-node-id]} (ex-data error)]
@@ -1230,6 +1251,8 @@
     :run-build-hooks     optional flag that indicates whether to run pre- and
                          post-build hooks
     :render-progress!    optional project build progress reporter fn
+    :render-load-progress!
+                         optional build resource loading progress reporter fn
     :render-engine-progress!
                          optional engine build progress reporter fn
     :task-cancelled?     optional fn that will be called periodically to check
@@ -1239,11 +1262,12 @@
   [project & {:keys [;; required
                      prefs
                      ;; optional
-                     debug build-engine run-build-hooks render-progress! render-engine-progress! task-cancelled? old-artifact-map lint]
+                     debug build-engine run-build-hooks render-progress! render-load-progress! render-engine-progress! task-cancelled? old-artifact-map lint]
               :or {debug false
                    build-engine true
                    run-build-hooks true
                    render-progress! progress/null-render-progress!
+                   render-load-progress! progress/null-render-progress!
                    render-engine-progress! progress/null-render-progress!
                    task-cancelled? fn/constantly-false
                    old-artifact-map {}}}]
@@ -1416,38 +1440,21 @@
 
         phase-4-build-project!
         (fn phase-4-build-project! []
-          ;; We're about to create an evaluation-context. Make sure it is
-          ;; created from the main thread, so it makes sense to update the cache
-          ;; from it after the project build concludes. Note that we selectively
-          ;; transfer only the cached build-targets back to the system cache.
-          ;; We do this because the project build process involves most of the
-          ;; cached outputs in the project graph, and the intermediate steps
-          ;; risk evicting the previous build targets as the cache fills up.
           (assert (ui/on-ui-thread?))
-          (let [evaluation-context (g/make-evaluation-context)]
-            (render-progress! (progress/make (localization/message "progress.building-project") 1))
-            (run-on-background-thread!
-              (fn run-project-build-on-background-thread! []
-                (try
-                  (let [extra-build-targets
-                        (when debug
-                          (debug-view/build-targets project evaluation-context))
-
-                        opts
-                        {:extra-build-targets extra-build-targets
-                         :render-progress! render-progress!
-                         :task-cancelled? task-cancelled?}]
-                    (build-project! project old-artifact-map opts evaluation-context))
-                  (catch Throwable error
-                    (g/close-evaluation-context! evaluation-context)
-                    (throw error))))
-              (fn process-project-build-results-on-ui-thread! [project-build-results]
-                (project/update-system-cache-build-targets! evaluation-context)
-                (project/log-cache-info! (g/cache) "Cached compiled build targets in system cache.")
-                (cond
-                  run-build-hooks (phase-5-run-post-build-hook! project-build-results)
-                  (nil? (:error project-build-results)) (phase-6-await-engine-build! project-build-results)
-                  :else (finish-with-result! project-build-results))))))
+          (render-progress! (progress/make (localization/message "progress.building-project") 1))
+          (run-on-background-thread!
+            (fn run-project-build-on-background-thread! []
+              (build-project! project old-artifact-map
+                              {:debug debug
+                               :render-progress! render-progress!
+                               :render-load-progress! render-load-progress!
+                               :task-cancelled? task-cancelled?}))
+            (fn process-project-build-results-on-ui-thread! [project-build-results]
+              (project/log-cache-info! (g/cache) "Cached compiled build targets in system cache.")
+              (cond
+                run-build-hooks (phase-5-run-post-build-hook! project-build-results)
+                (nil? (:error project-build-results)) (phase-6-await-engine-build! project-build-results)
+                :else (finish-with-result! project-build-results)))))
 
         phase-3-start-all-build-processes!
         (fn phase-3-start-all-build-processes! []
@@ -1521,7 +1528,7 @@
         main-scene (.getScene ^Stage main-stage)
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))
-        [render-progress! task-cancelled?] (begin-task-progress! :build)]
+        [render-progress! render-load-progress! task-cancelled?] (begin-build-progress!)]
     (build-errors-view/clear-build-errors build-errors-view)
     (future/then
       (async-build! project
@@ -1529,6 +1536,7 @@
                     :build-engine (not skip-engine)
                     :prefs prefs
                     :render-progress! render-progress!
+                    :render-load-progress! render-load-progress!
                     :render-engine-progress! (make-render-task-progress :build-engine)
                     :task-cancelled? task-cancelled?
                     :old-artifact-map (workspace/artifact-map workspace))
@@ -1574,13 +1582,14 @@
 (defn- run-with-debugger! [workspace project prefs debug-view render-build-error! web-server]
   (let [project-directory (workspace/project-directory workspace)
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))
-        [render-progress! task-cancelled?] (begin-task-progress! :build)]
+        [render-progress! render-load-progress! task-cancelled?] (begin-build-progress!)]
     (future/then
       (async-build! project
                     :debug true
                     :build-engine (not skip-engine)
                     :prefs prefs
                     :render-progress! render-progress!
+                    :render-load-progress! render-load-progress!
                     :render-engine-progress! (make-render-task-progress :build-engine)
                     :task-cancelled? task-cancelled?
                     :old-artifact-map (workspace/artifact-map workspace))
@@ -1596,7 +1605,7 @@
           build-results)))))
 
 (defn- attach-debugger! [workspace project prefs debug-view render-build-error!]
-  (let [[render-progress! task-cancelled?] (begin-task-progress! :build)]
+  (let [[render-progress! render-load-progress! task-cancelled?] (begin-build-progress!)]
     (future/then
       (async-build! project
                     :debug true
@@ -1604,6 +1613,7 @@
                     :run-build-hooks false
                     :lint false
                     :render-progress! render-progress!
+                    :render-load-progress! render-load-progress!
                     :task-cancelled? task-cancelled?
                     :old-artifact-map (workspace/artifact-map workspace)
                     :prefs prefs)
@@ -1735,7 +1745,7 @@
         workspace (project/workspace project)
         old-etags (workspace/etags workspace)
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-        [render-progress! task-cancelled?] (begin-task-progress! :build)]
+        [render-progress! render-load-progress! task-cancelled?] (begin-build-progress!)]
     ;; NOTE: We must build the entire project even if we only want to reload a
     ;; subset of resources in order to maintain a functioning build cache.
     ;; If we decide to support hot reload of a subset of resources, we must
@@ -1749,6 +1759,7 @@
                     :run-build-hooks false
                     :lint false
                     :render-progress! render-progress!
+                    :render-load-progress! render-load-progress!
                     :task-cancelled? task-cancelled?
                     :old-artifact-map (workspace/artifact-map workspace)
                     :prefs prefs)
