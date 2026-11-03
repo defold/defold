@@ -1771,6 +1771,59 @@ TEST_F(DX12Test, InstancedThenPerVertexDeclaration)
     DeleteRenderTarget(GetContext(), target);
 }
 
+// Verifies instance color overrides mesh color without duplicate DX12 input semantics.
+TEST_F(DX12Test, InstanceAttributeOverridesMeshAttribute)
+{
+    HRenderTarget target = CreateTestRenderTarget(4, 4);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+    SetViewport(GetContext(), 0, 0, 4, 4);
+    DisableState(GetContext(), STATE_CULL_FACE);
+    DisableState(GetContext(), STATE_DEPTH_TEST);
+    TestProgram shader;
+    shader.AddShaderStage(
+        "struct Output {float4 position:SV_Position; float4 value:TEXCOORD0;};"
+        "Output main(float4 position:TEXCOORD1, float4 value:TEXCOORD0) {"
+
+        "Output o; o.position=position; o.value=value; return o;}", ShaderDesc::SHADER_TYPE_VERTEX);
+    shader.AddShaderStage("float4 main(float4 position:SV_Position, float4 value:TEXCOORD0):SV_Target {return value;}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    shader.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    AddShaderResource(&shader.m_Desc, "bar_value", ShaderDesc::SHADER_TYPE_VEC4, 0, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
+    AddShaderResource(&shader.m_Desc, "position", ShaderDesc::SHADER_TYPE_VEC4, 1, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
+    HProgram program = shader.CreateProgram(GetContext());
+    EnableProgram(GetContext(), program);
+    float data[] = {1,0,0,1, -1,-1,0.5f,1, 1,0,0,1, -1,3,0.5f,1, 1,0,0,1, 3,-1,0.5f,1};
+    float instance_data[] = {0,1,0,1};
+    HVertexBuffer instance_buffer = NewVertexBuffer(GetContext(), sizeof(instance_data), instance_data, BUFFER_USAGE_STATIC_DRAW);
+    HVertexBuffer buffer = NewVertexBuffer(GetContext(), sizeof(data), data, BUFFER_USAGE_STATIC_DRAW);
+    HVertexStreamDeclaration streams = NewVertexStreamDeclaration(GetContext());
+    AddVertexStream(streams, "bar_value", 4, TYPE_FLOAT, false);
+    HVertexDeclaration instance = NewVertexDeclaration(GetContext(), streams);
+    AddVertexStream(streams, "position", 4, TYPE_FLOAT, false);
+    HVertexDeclaration vertex = NewVertexDeclaration(GetContext(), streams);
+    instance->m_StepFunction = VERTEX_STEP_FUNCTION_INSTANCE;
+    EnableVertexBuffer(GetContext(), buffer, 0);
+    EnableVertexBuffer(GetContext(), instance_buffer, 1);
+    EnableVertexDeclaration(GetContext(), vertex, 0, 0, program);
+    EnableVertexDeclaration(GetContext(), instance, 1, 0, program);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    uint8_t instance_pixel[4] = {};
+    ReadPixels(GetContext(), 1, 1, 1, 1, instance_pixel, sizeof(instance_pixel));
+    ASSERT_EQ(0, instance_pixel[0]);
+    ASSERT_EQ(255, instance_pixel[1]);
+    DisableVertexBuffer(GetContext(), instance_buffer);
+    DisableVertexBuffer(GetContext(), buffer);
+    DisableVertexDeclaration(GetContext(), vertex);
+    DisableVertexDeclaration(GetContext(), instance);
+    SubmitAndWait();
+    DeleteVertexBuffer(instance_buffer);
+    DeleteVertexBuffer(buffer);
+    DeleteVertexDeclaration(instance);
+    DeleteVertexDeclaration(vertex);
+    DeleteVertexStreamDeclaration(streams);
+    DeleteProgram(GetContext(), program);
+    DeleteRenderTarget(GetContext(), target);
+}
+
 int main(int argc, char** argv)
 {
     GraphicsAdapterDX12();
