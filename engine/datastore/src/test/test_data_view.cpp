@@ -194,6 +194,31 @@ TEST(DataView, WholeRowAliasReservations)
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 
+// Missing storage for selected rows fails before any table or IDs are published.
+// A valid empty view can still be registered under the same type afterward.
+TEST(DataView, NullBackingPublishesNoView)
+{
+    HDSContext store = DSStoreCreate(0);
+    ViewRow    values[1] = {};
+    DSId       id = 123;
+    uint32_t   index = 0;
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, RegisterView(store, 100, 0, 1, 1, 0, &id));
+    ASSERT_EQ((DSId)123, id);
+    ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, RegisterView(store, 100, 0, 1, 1, &index, &id));
+    ASSERT_EQ((DSId)123, id);
+    ASSERT_EQ(DS_RESULT_OK, RegisterView(store, 100, values, 1, 0, 0, 0));
+    HDSQuery  query;
+    DSFieldId field;
+    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 100, 1, 0, &query, &field));
+    ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
+    ASSERT_EQ(0u, DSQueryGetRowCount(query));
+    DSIterator it = DSQueryIter(query);
+    ASSERT_FALSE(DSIterNext(&it));
+    DSQueryEnd(query);
+    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
+    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
+}
+
 // Empty views are valid, out-of-range mappings publish no table, and live queries
 // must rematch a view after its owner changes population and re-registers it.
 TEST(DataView, EmptyAndReboundViews)

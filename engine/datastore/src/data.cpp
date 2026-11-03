@@ -517,13 +517,16 @@ DSResult DSTableAddView(HDSContext store, const DSTableDesc* desc, void* values,
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
         return DS_RESULT_LOCKED;
-    if (!desc->m_RowStride ||
+    if ((row_count && !values) ||
+        !desc->m_RowStride ||
         (desc->m_FieldCount && !desc->m_Fields) ||
         (uint64_t)value_count * desc->m_RowStride > UINT32_MAX ||
         row_count > UINT32_MAX / sizeof(DSRow) ||
         row_count > UINT32_MAX / sizeof(DSSlot) - store->m_Slots.Size() ||
         (!indices && row_count > value_count))
+    {
         return DS_RESULT_INVALID_ARGUMENT;
+    }
     for (uint32_t i = 0; i < desc->m_FieldCount; ++i)
         if (desc->m_Fields[i].m_Type == DS_TYPE_STRING || desc->m_Fields[i].m_Type == DS_TYPE_STRUCT || desc->m_Fields[i].m_Type == DS_TYPE_LIST)
             return DS_RESULT_INVALID_ARGUMENT;
