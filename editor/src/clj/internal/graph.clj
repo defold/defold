@@ -778,10 +778,9 @@
                         ;; The source index prevents following target
                         ;; overrides along the wrong "branches" (for which there may be another
                         ;; better -earlier- matching source node).
-                        source-index-chain (mapv (fn [node _next-override]
-                                                   (override-index basis node))
-                                                 (conj override-node-chain source)
-                                                 override-chain)]
+                        source-index-chain (coll/into-> (conj override-node-chain source) []
+                                             (take (count override-chain))
+                                             (map #(override-index basis %)))]
                     (coll/not-empty
                       (coll/into-> explicit-arcs []
                         (mapcat #(lift-source-arc basis override-chain override-node-chain source-index-chain %)))))))
