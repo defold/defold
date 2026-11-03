@@ -27,6 +27,7 @@
 #include <dlib/vmath.h>
 #include <dlib/mutex.h>
 #include <ddf/ddf.h>
+#include <input/input.h>
 #include "gameobject.h"
 #include "gameobject_script.h"
 #include "gameobject_private.h"
@@ -3472,62 +3473,76 @@ namespace dmGameObject
         return result;
     }
 
+    static UpdateResult DispatchInputAction(Collection* collection, InputAction& input_action)
+    {
+        if (input_action.m_ActionId != 0 || input_action.m_PositionSet || input_action.m_AccelerationSet)
+        {
+            // iterate stacks from top to bottom
+            uint32_t stack_size = collection->m_InputFocusStack.Size();
+            for (uint32_t k = 0; k < stack_size; ++k)
+            {
+                HGameObject hinstance = collection->m_InputFocusStack[stack_size - 1 - k];
+                Instance* instance = GetInstanceFromHandle(collection, hinstance);
+                if (!instance)
+                {
+                    continue;
+                }
+                Prototype* prototype = GetPrototype(collection, instance);
+                uint32_t components_size = prototype->m_ComponentCount;
+
+                InputResult res = INPUT_RESULT_IGNORED;
+                uint32_t next_component_instance_data = 0;
+                for (uint32_t l = 0; l < components_size; ++l)
+                {
+                    ComponentType* component_type = prototype->m_Components[l].m_Type;
+                    assert(component_type);
+                    if (component_type->m_OnInputFunction)
+                    {
+                        uintptr_t* component_instance_data = 0;
+                        if (component_type->m_InstanceHasUserData)
+                        {
+                            component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
+                        }
+                        ComponentOnInputParams params;
+                        params.m_Instance = GetInstanceHandle(collection, instance);
+                        params.m_InputAction = &input_action;
+                        params.m_Context = component_type->m_Context;
+                        params.m_UserData = component_instance_data;
+                        InputResult comp_res = component_type->m_OnInputFunction(params);
+                        if (comp_res == INPUT_RESULT_CONSUMED)
+                        {
+                            res = comp_res;
+                        }
+                        else if (comp_res == INPUT_RESULT_UNKNOWN_ERROR)
+                        {
+                            return UPDATE_RESULT_UNKNOWN_ERROR;
+                        }
+                    }
+                    if (component_type->m_InstanceHasUserData)
+                    {
+                        next_component_instance_data++;
+                    }
+                }
+                if (res == INPUT_RESULT_CONSUMED)
+                {
+                    memset(&input_action, 0, sizeof(InputAction));
+                    input_action.m_Consumed = 1;
+                    break;
+                }
+            }
+        }
+        return UPDATE_RESULT_OK;
+    }
+
     UpdateResult DispatchInput(Collection* collection, InputAction* input_actions, uint32_t input_action_count)
     {
         DM_PROFILE("DispatchInput");
-
-        // iterate stacks from top to bottom
         for (uint32_t i = 0; i < input_action_count; ++i)
         {
-            InputAction& input_action = input_actions[i];
-            if (input_action.m_ActionId != 0 || input_action.m_PositionSet || input_action.m_AccelerationSet)
+            UpdateResult result = DispatchInputAction(collection, input_actions[i]);
+            if (result != UPDATE_RESULT_OK)
             {
-                uint32_t stack_size = collection->m_InputFocusStack.Size();
-                for (uint32_t k = 0; k < stack_size; ++k)
-                {
-                    HGameObject hinstance = collection->m_InputFocusStack[stack_size - 1 - k];
-                    Instance* instance = GetInstanceFromHandle(collection, hinstance);
-                    if (!instance)
-                        continue;
-                    Prototype* prototype = GetPrototype(collection, instance);
-                    uint32_t components_size = prototype->m_ComponentCount;
-
-                    InputResult res = INPUT_RESULT_IGNORED;
-                    uint32_t next_component_instance_data = 0;
-                    for (uint32_t l = 0; l < components_size; ++l)
-                    {
-                        ComponentType* component_type = prototype->m_Components[l].m_Type;
-                        assert(component_type);
-                        if (component_type->m_OnInputFunction)
-                        {
-                            uintptr_t* component_instance_data = 0;
-                            if (component_type->m_InstanceHasUserData)
-                            {
-                                component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
-                            }
-                            ComponentOnInputParams params;
-                            params.m_Instance = GetInstanceHandle(collection, instance);
-                            params.m_InputAction = &input_action;
-                            params.m_Context = component_type->m_Context;
-                            params.m_UserData = component_instance_data;
-                            InputResult comp_res = component_type->m_OnInputFunction(params);
-                            if (comp_res == INPUT_RESULT_CONSUMED)
-                                res = comp_res;
-                            else if (comp_res == INPUT_RESULT_UNKNOWN_ERROR)
-                                return UPDATE_RESULT_UNKNOWN_ERROR;
-                        }
-                        if (component_type->m_InstanceHasUserData)
-                        {
-                            next_component_instance_data++;
-                        }
-                    }
-                    if (res == INPUT_RESULT_CONSUMED)
-                    {
-                        memset(&input_action, 0, sizeof(InputAction));
-                        input_action.m_Consumed = 1;
-                        break;
-                    }
-                }
+                return result;
             }
         }
         return UPDATE_RESULT_OK;
@@ -3537,6 +3552,85 @@ namespace dmGameObject
     {
         Collection* collection = GetCollectionFromHandle(hcollection);
         return collection ? DispatchInput(collection, input_actions, input_action_count) : UPDATE_RESULT_UNKNOWN_ERROR;
+    }
+
+    static void CopyInputAction(const dmInput::InputAction& source, InputAction* action)
+    {
+        action->m_ActionId = source.m_ActionId;
+        action->m_Value = source.m_Value;
+        action->m_X = source.m_Position.m_X;
+        action->m_Y = source.m_Position.m_Y;
+        action->m_DX = source.m_Position.m_DX;
+        action->m_DY = source.m_Position.m_DY;
+        action->m_ScreenX = source.m_Position.m_ScreenX;
+        action->m_ScreenY = source.m_Position.m_ScreenY;
+        action->m_ScreenDX = source.m_Position.m_ScreenDX;
+        action->m_ScreenDY = source.m_Position.m_ScreenDY;
+        action->m_AccX = source.m_AccX;
+        action->m_AccY = source.m_AccY;
+        action->m_AccZ = source.m_AccZ;
+        action->m_Count = source.m_Count;
+        action->m_GamepadIndex = source.m_GamepadIndex;
+        action->m_UserID = source.m_UserID;
+        action->m_IsGamepad = source.m_IsGamepad;
+        action->m_GamepadUnknown = source.m_GamepadUnknown;
+        action->m_GamepadDisconnected = source.m_GamepadDisconnected;
+        action->m_GamepadConnected = source.m_GamepadConnected;
+        action->m_HasGamepadPacket = source.m_HasGamepadPacket;
+        action->m_HasText = source.m_HasText;
+        action->m_Pressed = source.m_Pressed;
+        action->m_Released = source.m_Released;
+        action->m_Repeated = source.m_Repeated;
+        action->m_PositionSet = source.m_PositionSet;
+        action->m_AccelerationSet = source.m_AccelerationSet;
+        action->m_Source = source.m_Source;
+        if (source.m_HasGamepadPacket)
+        {
+            action->m_GamepadPacket = source.m_GamepadPacket;
+        }
+        else if (source.m_HasText)
+        {
+            memcpy(action->m_Text, source.m_Text, source.m_Count);
+        }
+        else if (source.m_Count > 0)
+        {
+            memcpy(action->m_Touch, source.m_Touch, source.m_Count * sizeof(dmHID::Touch));
+        }
+        if (source.m_GamepadConnected)
+        {
+            action->m_GamepadGuid = source.m_GamepadGuid;
+        }
+    }
+
+    UpdateResult DispatchInput(HCollection hcollection, dmInput::Context* input)
+    {
+        DM_PROFILE("DispatchInput");
+        Collection* collection = GetCollectionFromHandle(hcollection);
+        if (!collection)
+        {
+            return UPDATE_RESULT_UNKNOWN_ERROR;
+        }
+        dmInput::ActionIterator iterator = dmInput::IterateActions(input);
+        while (dmInput::ActionIterateNext(&iterator))
+        {
+            const dmInput::InputAction* source = dmInput::GetInputAction(&iterator);
+            if (source->m_Consumed)
+            {
+                continue;
+            }
+            InputAction action;
+            CopyInputAction(*source, &action);
+            UpdateResult result = DispatchInputAction(collection, action);
+            if (result != UPDATE_RESULT_OK)
+            {
+                return result;
+            }
+            if (action.m_Consumed)
+            {
+                dmInput::ConsumeAction(&iterator);
+            }
+        }
+        return UPDATE_RESULT_OK;
     }
 
     void AcquireInputFocus(Collection* collection, Instance* instance)

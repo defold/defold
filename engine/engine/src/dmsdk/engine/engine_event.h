@@ -18,6 +18,7 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/engine/engine.h>
 #include <dmsdk/platform/window.h>
+#include <dmsdk/input/input.h>
 
 /*# Engine event definitions
  * Built-in event hashes and payloads published through the generic extension
@@ -33,6 +34,7 @@
  * | -------- | ---- | -------------------- |
  * | `ENGINE_STATE_EVENT` | `_dm_event_engine_state` | EngineStateEvent. Successful initialization and engine deletion. |
  * | `ENGINE_WINDOW_EVENT` | `_dm_event_engine_window` | EngineWindowEvent. Resize, minimize/restore and focus notifications from the window callbacks. May precede engine Initialize. |
+ * | `ENGINE_EVENT_INPUT_ACTIONS` | `_dm_event_input_actions` | EngineInputActionsEvent. One action batch per completed input update, after binding resolution and text-last ordering, before focused collection dispatch. Includes empty updates. |
  *
  * Payloads and their handles are borrowed for the synchronous callback. Obtain
  * the source engine from the callback registry using ENGINE_CONTEXT_NAME.
@@ -95,6 +97,36 @@ typedef enum EngineWindowEventType
     ENGINE_WINDOW_EVENT_FOCUS_GAINED = 3,
     ENGINE_WINDOW_EVENT_FOCUS_LOST   = 4,
 } EngineWindowEventType;
+
+/*# input actions have been resolved
+ * Hash of `_dm_event_input_actions` for ExtensionBroadcastEvent and FExtensionEventCallback.
+ * Precomputed dmHashString64 value; no runtime hashing.
+ * @constant
+ * @name ENGINE_EVENT_INPUT_ACTIONS
+ */
+#define ENGINE_EVENT_INPUT_ACTIONS ((dmhash_t)0x9075043efcdbe0e2ULL)
+
+/*# resolved input actions
+ * Published once per completed input update after application bindings are
+ * resolved, coordinates converted and text/marked-text ordered last, before
+ * focused game-object dispatch. Empty updates are published; skipped input
+ * updates are not. This is independent of extension Update and rendered-frame
+ * count. Input events use the generic handler's application lifetime.
+ *
+ * Iterate the current resolved batch through InputIterateActions and the iterator
+ * getters. The batch belongs to input and remains valid until the next binding
+ * update starts or the context is destroyed. Iteration cannot consume input or
+ * change focused dispatch. Obtain the source engine from the extension context
+ * registry using ENGINE_CONTEXT_NAME. Focused gameplay should use native
+ * component input/update callbacks.
+ * @struct
+ * @name EngineInputActionsEvent
+ * @member m_Input [type:HInputContext] valid borrowed input context, including empty updates
+ */
+typedef struct EngineInputActionsEvent
+{
+    HInputContext m_Input;
+} EngineInputActionsEvent;
 
 /*# engine state event payload
  * Payload for ENGINE_STATE_EVENT with data_size equal to sizeof(EngineStateEvent).

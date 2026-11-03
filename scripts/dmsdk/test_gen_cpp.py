@@ -63,6 +63,36 @@ class CppDocumentationTests(unittest.TestCase):
         self.assertIn('dmExtension::AppInitialize', doc)
         self.assertIn('@return code [type:AppExitCode]', doc)
 
+    # The iterator facade preserves the context, cursor identity and const getter parameters.
+    def test_input_iterator_facade(self):
+        config = json.loads((self.root / 'engine/input/sdk_gen.json').read_text())['files'][0]['languages']['cpp']
+        docs = gen_doc.parse_docs(str(self.root / 'engine/input/src/dmsdk/input/input.h'))
+        functions = []
+        for name, ret, typ in [('InputIterateActions', 'InputActionIterator', 'HInputContext'),
+                               ('InputActionIterateNext', 'bool', 'InputActionIterator *'),
+                               ('InputActionGetId', 'dmhash_t', 'const InputActionIterator *'),
+                               ('InputActionGetGamepadNameHash', 'dmhash_t', 'const InputActionIterator *'),
+                               ('InputActionIsGamepadConnected', 'bool', 'const InputActionIterator *'),
+                               ('InputActionIsGamepadDisconnected', 'bool', 'const InputActionIterator *')]:
+            functions.append(({'name': name, 'type': {'qualType': ret + ' (' + typ + ')'},
+                'inner': [{'kind': 'ParmVarDecl', 'name': 'value', 'type': {'qualType': typ}}]}, None))
+        state = SimpleNamespace(enum_types=[], struct_typedefs=[({'name': 'HInputContext'}, None), ({'name': 'InputActionIterator'}, None)],
+            function_typedefs=[], functions=functions)
+        header = gen_cpp.gen_cpp_header(str(self.root), 'dmsdk/input/input.h',
+            str(self.root / 'engine/input/src/dmsdk/input/input_gen.hpp'), config, None, state, [], docs)
+        self.assertIn('typedef HInputContext HContext;', header)
+        self.assertIn('typedef InputActionIterator ActionIterator;', header)
+        self.assertIn('ActionIterator IterateActions(HContext value);', header)
+        self.assertIn('bool ActionIterateNext(ActionIterator * value);', header)
+        self.assertIn('dmhash_t ActionGetId(const ActionIterator * value);', header)
+        self.assertIn('dmhash_t ActionGetGamepadNameHash(const ActionIterator * value);', header)
+        self.assertIn('bool ActionIsGamepadConnected(const ActionIterator * value);', header)
+        self.assertIn('bool ActionIsGamepadDisconnected(const ActionIterator * value);', header)
+        self.assertIn('reverse lookup of the name is not guaranteed.', header)
+        self.assertIn('Requires a GAMEPAD_CONNECTED input binding.', header)
+        self.assertIn('@param iterator [type:const ActionIterator*]', header)
+        self.assertNotIn('HActionBatch', header)
+
     # Precomputed hash constants need typed C++ aliases and matching documentation after regeneration.
     def test_hash_constant_aliases(self):
         engine = self.root / 'engine/engine'
@@ -75,7 +105,7 @@ class CppDocumentationTests(unittest.TestCase):
             info, None, state, [], docs)
         cpp_docs, c_docs = header.split('} // namespace dmEngine', 1)
         aliases = info['constant_aliases']
-        self.assertEqual(2, len(aliases))
+        self.assertEqual(3, len(aliases))
         self.assertIn('| `EVENT_WINDOW` |', cpp_docs)
         for name in aliases:
             renamed = gen_cpp.rename_symbols(info['rename'], name)

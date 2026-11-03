@@ -20,6 +20,7 @@
 #include <hid/hid.h>
 
 #include <input/input_ddf.h>
+#include <dmsdk/input/input.h>
 
 namespace dmInput
 {
@@ -64,7 +65,6 @@ namespace dmInput
         uint16_t : 1;
     };
 
-    typedef struct Context* HContext;
     /**
      * Invalid context handle
      */
@@ -76,6 +76,70 @@ namespace dmInput
      * Invalid binding handle
      */
     const HBinding INVALID_BINDING = 0;
+
+    struct Position
+    {
+        float m_X;
+        float m_Y;
+        float m_DX;
+        float m_DY;
+        float m_ScreenX;
+        float m_ScreenY;
+        float m_ScreenDX;
+        float m_ScreenDY;
+    };
+
+    // Input-owned delivery data, separate from the bindings' repeat/previous state.
+    // This layout is internal; public clients use the opaque action iterator.
+    struct InputAction
+    {
+        union
+        {
+            dmHID::Touch         m_Touch[dmHID::MAX_TOUCH_COUNT];
+            char                 m_Text[dmHID::MAX_CHAR_COUNT];
+            dmHID::GamepadPacket m_GamepadPacket;
+        };
+        dmHID::GamepadGuid m_GamepadGuid;
+        dmhash_t           m_ActionId;
+        dmhash_t           m_GamepadNameHash;
+        float              m_Value;
+        Position           m_Position;
+        float              m_AccX;
+        float              m_AccY;
+        float              m_AccZ;
+        int16_t            m_Count;
+        uint16_t           m_GamepadIndex;
+        uint16_t           m_UserID;
+        uint16_t           m_IsGamepad : 1;
+        uint16_t           m_GamepadUnknown : 1;
+        uint16_t           m_GamepadDisconnected : 1;
+        uint16_t           m_GamepadConnected : 1;
+        uint16_t           m_HasGamepadPacket : 1;
+        uint16_t           m_HasText : 1;
+        uint16_t           m_Pressed : 1;
+        uint16_t           m_Released : 1;
+        uint16_t           m_Repeated : 1;
+        uint16_t           m_PositionSet : 1;
+        uint16_t           m_AccelerationSet : 1;
+        uint16_t           m_Consumed : 1;
+        uint16_t           m_Source : 3;
+        uint16_t : 1;
+    };
+
+    // Logical game dimensions and current physical window dimensions in pixels.
+    // Physical dimensions must be nonzero.
+    struct WindowMetrics
+    {
+        uint32_t m_LogicalWidth;
+        uint32_t m_LogicalHeight;
+        uint32_t m_PhysicalWidth;
+        uint32_t m_PhysicalHeight;
+    };
+
+    // Borrowed until the next binding update or context destruction.
+    const InputAction* GetInputAction(const ActionIterator* iterator);
+    // Focused dispatch marks consumption without changing the observed input values.
+    void ConsumeAction(const ActionIterator* iterator);
 
     struct NewContextParams
     {
@@ -97,6 +161,9 @@ namespace dmInput
     void RegisterGamepads(HContext context, const dmInputDDF::GamepadMapsRuntime* ddf);
 
     void UpdateBinding(HBinding binding, float dt);
+    // Resolve and store the delivery batch, converting positions using the borrowed
+    // window metrics. Null preserves raw HID coordinates, as in the two-argument overload.
+    void UpdateBinding(HBinding binding, float dt, const WindowMetrics* window_metrics);
 
     // Action id 0 refers to pointer movement. Accelerometer samples are delivered by ForEachActive.
     const Action* GetAction(HBinding binding, dmhash_t action_id);
@@ -111,8 +178,13 @@ namespace dmInput
 
     typedef void (*ActionCallback)(dmhash_t action_id, Action* action, void* user_data);
 
-    // Pointer movement and accelerometer samples are separate callbacks, both with action id 0.
+    // Text actions are delivered last. Pointer movement and accelerometer samples
+    // are separate callbacks, both with action id 0.
     void ForEachActive(HBinding binding, ActionCallback callback, void* user_data);
+
+    // Last known hash of the mapping-aware device name, or zero when unavailable.
+    dmhash_t GetGamepadNameHash(HBinding binding, uint32_t gamepad_index);
+
     bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* context);
 }
 

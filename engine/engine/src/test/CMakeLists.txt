@@ -75,6 +75,7 @@ set(ENGINE_TEST_CONTENT_SETTINGS
   "issue-12703.ini"
   "render_script.ini"
   "camera_acquire_input_focus.ini"
+  "input_observer.ini"
   "text_input.ini")
 
 set(ENGINE_TEST_CLASSPATH "${ENGINE_BOB_ENGINE_JAR}")

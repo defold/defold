@@ -62,6 +62,7 @@ namespace dmInput
         dmHID::GamepadPacket m_Packet;
         dmArray<GamepadTrigger> m_Triggers;
         dmHashTable64< Action > m_Actions;
+        dmhash_t                m_DeviceNameHash;
         uint32_t m_DeviceId;
         uint8_t m_Index;
         uint8_t m_Connected : 1;
@@ -146,6 +147,7 @@ namespace dmInput
         dmHashTable32<bool>             m_UnmappedGamepads;
         dmHID::HContext                 m_HidContext;
         Binding*                        m_Binding;
+        dmArray<InputAction>            m_InputActions;
         float                           m_RepeatDelay;
         float                           m_RepeatInterval;
         float                           m_PressedThreshold;

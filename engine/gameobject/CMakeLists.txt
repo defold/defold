@@ -18,6 +18,7 @@ set(GAMEOBJECT_DEPENDENCIES
   ddf
   dlib
   hid
+  input
   resource
   script
   extension

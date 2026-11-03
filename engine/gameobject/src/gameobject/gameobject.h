@@ -31,6 +31,11 @@
 
 #include <resource/resource.h>
 
+namespace dmInput
+{
+    struct Context;
+}
+
 namespace dmGameObject
 {
     using namespace dmVMath;
@@ -245,6 +250,10 @@ namespace dmGameObject
      * @param input_action_count Number of input actions
      */
     UpdateResult DispatchInput(HCollection collection, InputAction* input_actions, uint32_t input_action_count);
+
+    // Dispatch the input-owned batch through its iterator. Consumed actions are
+    // skipped; component callbacks borrow one compatibility action at a time.
+    UpdateResult DispatchInput(HCollection collection, dmInput::Context* input);
 
     void AcquireInputFocus(HCollection collection, HInstance instance);
     void ReleaseInputFocus(HCollection collection, HInstance instance);
