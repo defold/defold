@@ -1,14 +1,17 @@
 import contextlib
+import hashlib
 import io
 import json
 import os
 import runpy
 import shlex
+import shutil
 import sys
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'ci'))
@@ -265,6 +268,7 @@ class BuildSdkTests(unittest.TestCase):
                     configuration = build.Configuration.__new__(build.Configuration)
                     configuration.defold_root = str(self.root)
                     configuration.sdk_platforms = selected
+                    configuration.sdk_artifacts_dir = None
                     configuration.target_platform = target
                     configuration._git_sha1 = lambda: 'test-sha1'
                     configuration.get_archive_path = lambda: 's3://test-bucket/archive'
@@ -290,11 +294,142 @@ class BuildSdkTests(unittest.TestCase):
 
                     merge = merge_zip if zipmerge_path else merge_tree
                     self.assertEqual(expected_platforms, merge.call_args.kwargs['platforms'])
+                    self.assertIsNone(merge.call_args.kwargs['sdk_artifacts_dir'])
                     expected_sdks = self.public_sdks | {
                         platform: self.private_sdks[platform]
                         for platform in expected_platforms if platform in self.private_sdks
                     }
                     self.assertEqual({'test-sha1/engine/platform.sdks.json': expected_sdks}, uploads)
+
+
+class SdkArtifactTests(unittest.TestCase):
+    def setUp(self):
+        temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_directory.cleanup)
+        self.root = Path(temporary_directory.name)
+        self.artifacts = self.root / 'SDK artifacts'
+        self.platforms = ['x86_64-win32', 'x86_64-linux']
+
+    def package(self, platform):
+        source = self.root / 'packaged' / platform
+        source.mkdir(parents=True, exist_ok=True)
+        archive_path = source / 'defoldsdk.zip'
+        with zipfile.ZipFile(archive_path, 'w') as archive:
+            archive.writestr(f'defoldsdk/lib/{platform}/engine.a', platform)
+            archive.writestr('defoldsdk/include/shared.h', platform)
+            archive.writestr('defoldsdk/extender/build.yml', json.dumps({
+                'context': {'source': platform}, 'platforms': {platform: {'libs': ['engine']}},
+            }))
+        signature_path = source / 'defoldsdk.sha256'
+        signature_path.write_text(hashlib.sha256(archive_path.read_bytes()).hexdigest())
+        return str(archive_path), str(signature_path)
+
+    def stage(self, platform):
+        configuration = build.Configuration.__new__(build.Configuration)
+        configuration.target_platform = platform
+        configuration.sdk_artifacts_dir = str(self.artifacts)
+        configuration._package_platform_sdk = self.package
+        configuration.upload_to_archive = mock.Mock(side_effect=AssertionError('Unexpected S3 upload'))
+        with contextlib.redirect_stdout(io.StringIO()):
+            configuration._archive_platform_sdk(f'test-sha1/engine/{platform}')
+
+    # CI must stage each platform's archive and checksum without publishing either to S3.
+    def test_platform_sdks_are_staged_in_separate_directories(self):
+        for platform in self.platforms:
+            self.stage(platform)
+            for name in ('defoldsdk.zip', 'defoldsdk.sha256'):
+                self.assertEqual((self.root / 'packaged' / platform / name).read_bytes(),
+                                 (self.artifacts / platform / name).read_bytes())
+
+    # Standalone and private builds must retain their existing S3 archive behavior.
+    def test_platform_sdks_without_artifact_directory_are_archived(self):
+        for platform in ('x86_64-linux', 'arm64-private'):
+            with self.subTest(platform=platform):
+                configuration = build.Configuration.__new__(build.Configuration)
+                configuration.target_platform = platform
+                configuration.sdk_artifacts_dir = None
+                configuration._package_platform_sdk = self.package
+                configuration.upload_to_archive = mock.Mock()
+                configuration._archive_platform_sdk(f'test-sha1/engine/{platform}')
+                source = self.root / 'packaged' / platform
+                self.assertEqual([
+                    mock.call(str(source / name), f'test-sha1/engine/{platform}/{name}')
+                    for name in ('defoldsdk.zip', 'defoldsdk.sha256')
+                ], configuration.upload_to_archive.call_args_list)
+
+    def check_combined_sdk(self, zipmerge_path):
+        import yaml
+
+        for platform in self.platforms:
+            self.stage(platform)
+        mappings = {platform: ['sdk', 'version'] for platform in self.platforms}
+        (self.root / 'share').mkdir()
+        (self.root / 'share/platform.sdks.json').write_text(json.dumps(mappings))
+        configuration = build.Configuration.__new__(build.Configuration)
+        configuration.defold_root = str(self.root)
+        configuration.sdk_platforms = self.platforms
+        configuration.sdk_artifacts_dir = str(self.artifacts)
+        configuration._git_sha1 = lambda: 'test-sha1'
+        configuration.get_archive_path = lambda: 's3://d.defold.com/archive/dev'
+        # Keep the Python fallback's output inside the SDK job's temporary directory.
+        def zip_tree(path, directory):
+            with open(path + '.zip', 'wb') as output:
+                return build.Configuration._ziptree(configuration, path, outfile=output, directory=directory)
+        configuration._ziptree = zip_tree
+        uploads = {}
+        configuration.upload_to_archive = lambda path, key: uploads.update({key: Path(path).read_bytes()})
+        configuration.wait_uploads = mock.Mock()
+
+        with mock.patch.object(build.shutil, 'which', return_value=zipmerge_path), \
+                mock.patch.object(build.s3, 'download_archive_file', side_effect=AssertionError('Unexpected download')), \
+                contextlib.redirect_stdout(io.StringIO()):
+            configuration.build_sdk()
+
+        prefix = 'test-sha1/engine/'
+        self.assertEqual({prefix + name for name in ('defoldsdk.zip', 'defoldsdk.sha256', 'platform.sdks.json')}, set(uploads))
+        self.assertEqual(hashlib.sha256(uploads[prefix + 'defoldsdk.zip']).hexdigest(),
+                         uploads[prefix + 'defoldsdk.sha256'].decode())
+        self.assertEqual(mappings, json.loads(uploads[prefix + 'platform.sdks.json']))
+        configuration.wait_uploads.assert_called_once_with()
+        with zipfile.ZipFile(io.BytesIO(uploads[prefix + 'defoldsdk.zip'])) as archive:
+            self.assertEqual(b'x86_64-linux', archive.read('defoldsdk/include/shared.h'))
+            for platform in self.platforms:
+                self.assertEqual(platform.encode(), archive.read(f'defoldsdk/lib/{platform}/engine.a'))
+            config = yaml.safe_load(archive.read('defoldsdk/extender/build.yml'))
+            self.assertEqual({'source': 'x86_64-linux'}, config['context'])
+            self.assertEqual(set(self.platforms), set(config['platforms']))
+        self.assertEqual(4, len(list(self.artifacts.glob('*/*'))))
+
+    # The Python merge must publish a complete SDK from local artifacts without downloading inputs.
+    def test_python_merge_publishes_combined_sdk_from_artifacts(self):
+        self.check_combined_sdk(None)
+
+    # The CI zipmerge path must preserve canonical headers, platform configs, and output checksums.
+    @unittest.skipUnless(shutil.which('zipmerge'), 'zipmerge is not installed')
+    def test_zipmerge_publishes_combined_sdk_from_artifacts(self):
+        self.check_combined_sdk(shutil.which('zipmerge'))
+
+    # Missing or corrupt inputs must fail before merging, with no archive fallback or input deletion.
+    def test_invalid_artifacts_fail_without_downloads(self):
+        for defect in ('missing zip', 'missing checksum', 'bad checksum'):
+            with self.subTest(defect=defect):
+                for platform in self.platforms:
+                    self.stage(platform)
+                platform_dir = self.artifacts / self.platforms[-1]
+                if defect == 'missing zip':
+                    (platform_dir / 'defoldsdk.zip').unlink()
+                elif defect == 'missing checksum':
+                    (platform_dir / 'defoldsdk.sha256').unlink()
+                else:
+                    (platform_dir / 'defoldsdk.sha256').write_text('invalid checksum')
+                with mock.patch.object(build.s3, 'download_archive_file', side_effect=AssertionError('Unexpected download')), \
+                        mock.patch.object(build.sdk_merge, 'merge_platform_sdk_zips_into_tree') as merge:
+                    with self.assertRaisesRegex((FileNotFoundError, ValueError), 'x86_64-linux'):
+                        build.sdk_merge.build_combined_sdk_tree(
+                            'd.defold.com', 'archive/dev/test-sha1', self.platforms,
+                            str(self.root / 'merged'), sdk_artifacts_dir=str(self.artifacts))
+                    merge.assert_not_called()
+                self.assertTrue((self.artifacts / self.platforms[0] / 'defoldsdk.zip').is_file())
 
 
 class SdkInstallationTests(unittest.TestCase):
@@ -872,6 +1007,19 @@ class PlatformSdkPackagingTests(unittest.TestCase):
 
 
 class CiSdkTests(unittest.TestCase):
+    # Both CI entry points must pass the artifact directory as one argument, including paths with spaces.
+    def test_artifact_directory_is_forwarded_to_engine_and_sdk(self):
+        directory = 'tmp/SDK artifacts'
+        args = SimpleNamespace(**{name: False for name in (
+            'verbose', 'codesign', 'skip_docs', 'skip_builtins', 'skip_tests', 'skip_build_tests',
+            'with_asan', 'with_msan', 'with_ubsan', 'with_tsan', 'with_vanilla_lua',
+        )}, archive=True, skip_install_ext=True, sdk_artifacts_dir=directory)
+        with mock.patch.object(ci, 'call') as call:
+            ci.build_engine('dev', 'x86_64-linux', args)
+            ci.build_sdk('dev', sdk_artifacts_dir=directory)
+        for invocation in call.call_args_list:
+            self.assertIn('--sdk-artifacts-dir=' + directory, shlex.split(invocation.args[0]))
+
     def test_platform_list_is_forwarded_as_one_shell_argument(self):
         for platforms in ('x86_64-linux,arm64-linux', 'x86_64-linux, arm64-linux', ' x86_64-linux ,\tarm64-linux\n'):
             with self.subTest(platforms=platforms), mock.patch.object(ci, 'call') as call:

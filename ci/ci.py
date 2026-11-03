@@ -5,6 +5,7 @@ import platform
 import os
 import base64
 import re
+import shlex
 from argparse import ArgumentParser
 from ci_helper import is_platform_supported, is_platform_private, is_repo_private, should_build_private_platform
 
@@ -293,6 +294,9 @@ def build_engine(channel, platform, args):
 
     if args.archive:
         cmd_args.append('archive_engine')
+    if args.sdk_artifacts_dir:
+        option = '--sdk-artifacts-dir=%s' % args.sdk_artifacts_dir
+        cmd_opts.append(subprocess.list2cmdline([option]) if sys.platform == 'win32' else shlex.quote(option))
 
     if args.codesign:
         cmd_opts.append('--codesign')
@@ -513,13 +517,16 @@ def gen_release_notes(channel):
     elif not notes_json_exists:
         print("::warning::No release notes generated for %s on '%s' - shipping without them" % (version, channel))
 
-def build_sdk(channel, platforms=None):
+def build_sdk(channel, platforms=None, sdk_artifacts_dir=None):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
     cmd_opts = []
     cmd_opts.append("--channel=%s" % channel)
     if platforms:
         platforms = ','.join(platform.strip() for platform in platforms.split(','))
         cmd_opts.append("--platforms=%s" % platforms)
+    if sdk_artifacts_dir:
+        option = '--sdk-artifacts-dir=%s' % sdk_artifacts_dir
+        cmd_opts.append(subprocess.list2cmdline([option]) if sys.platform == 'win32' else shlex.quote(option))
 
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
@@ -577,6 +584,7 @@ def main(argv):
     parser.add_argument('commands', nargs="+", help="The command to execute (prepare-ext, build-ext, clean-engine, engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform, should-build-private-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--platforms", dest="platforms", help="Comma-separated platforms to include in the combined SDK")
+    parser.add_argument("--sdk-artifacts-dir", dest="sdk_artifacts_dir", help="Stage platform SDKs here with engine; read them here with sdk")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-msan", dest="with_msan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
@@ -684,7 +692,7 @@ def main(argv):
         elif command == "test-bob":
             test_bob(channel, args)
         elif command == "sdk":
-            build_sdk(channel, args.platforms or platform)
+            build_sdk(channel, args.platforms or platform, args.sdk_artifacts_dir)
         elif command == "smoke":
             smoke_test(args)
         elif command == "install":

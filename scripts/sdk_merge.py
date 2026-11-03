@@ -1,3 +1,4 @@
+import hashlib
 import os
 import shutil
 import tempfile
@@ -49,6 +50,33 @@ def download_platform_sdk_zips(netloc, base_prefix, platforms):
                 os.unlink(zip_path)
             except Exception:
                 pass
+
+
+@contextmanager
+def platform_sdk_zips(netloc, base_prefix, platforms, sdk_artifacts_dir=None):
+    """Use verified local CI artifacts when provided, otherwise download archives."""
+    if sdk_artifacts_dir is None:
+        with download_platform_sdk_zips(netloc, base_prefix, platforms) as platform_zips:
+            yield platform_zips
+        return
+
+    platform_zips = []
+    for platform in platforms:
+        zip_path = os.path.join(sdk_artifacts_dir, platform, 'defoldsdk.zip')
+        signature_path = os.path.join(sdk_artifacts_dir, platform, 'defoldsdk.sha256')
+        for path in (zip_path, signature_path):
+            if not os.path.isfile(path):
+                raise FileNotFoundError(f'Missing SDK artifact for {platform}: {path}')
+        with open(signature_path) as signature:
+            expected_digest = signature.read().strip()
+        with open(zip_path, 'rb') as archive:
+            actual_digest = hashlib.file_digest(archive, 'sha256').hexdigest()
+        if actual_digest != expected_digest:
+            raise ValueError(f'SDK artifact checksum mismatch for {platform}: {zip_path}')
+        platform_zips.append((platform, zip_path))
+
+    # These inputs belong to the caller, so retain them for retries and inspection.
+    yield platform_zips
 
 
 def _ordered_platform_sdk_zips(platform_zips, canonical_platform):
@@ -177,21 +205,21 @@ def merge_platform_sdk_zips_with_zipmerge(zipmerge_path, platform_zips, output_z
     print("Merged platform SDKs into", output_zip_path)
 
 
-def build_combined_sdk_tree(netloc, base_prefix, platforms, extract_dir, canonical_platform='x86_64-linux'):
+def build_combined_sdk_tree(netloc, base_prefix, platforms, extract_dir, canonical_platform='x86_64-linux', sdk_artifacts_dir=None):
     """
-    High-level helper used by scripts/build.py: downloads per-platform zips, merges them into a single tree,
-    and cleans up the downloaded zip files.
+    Merge local CI artifacts or downloaded platform archives into a single tree.
+    Only downloaded archives are removed afterwards.
     """
-    with download_platform_sdk_zips(netloc, base_prefix, platforms) as platform_zips:
+    with platform_sdk_zips(netloc, base_prefix, platforms, sdk_artifacts_dir) as platform_zips:
         merge_platform_sdk_zips_into_tree(platform_zips, extract_dir, canonical_platform=canonical_platform)
 
 
-def build_combined_sdk_zip(netloc, base_prefix, platforms, output_zip_path, zipmerge_path, canonical_platform='x86_64-linux'):
+def build_combined_sdk_zip(netloc, base_prefix, platforms, output_zip_path, zipmerge_path, canonical_platform='x86_64-linux', sdk_artifacts_dir=None):
     """
-    High-level helper used by scripts/build.py: downloads per-platform zips, merges them into one zip archive,
-    and cleans up the downloaded zip files.
+    Merge local CI artifacts or downloaded platform archives into one zip archive.
+    Only downloaded archives are removed afterwards.
     """
-    with download_platform_sdk_zips(netloc, base_prefix, platforms) as platform_zips:
+    with platform_sdk_zips(netloc, base_prefix, platforms, sdk_artifacts_dir) as platform_zips:
         merge_platform_sdk_zips_with_zipmerge(
             zipmerge_path,
             platform_zips,
