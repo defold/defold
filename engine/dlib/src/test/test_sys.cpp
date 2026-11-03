@@ -525,6 +525,28 @@ TEST(dmSys, GetSystemInfo)
 
 }
 
+#if defined(DM_PLATFORM_IOS)
+// Verifies that connectivity is reported without a connectivity host on a networked device.
+// Guards against #8431, where iOS always returned NETWORK_DISCONNECTED unless a host was set.
+TEST(dmSys, NetworkConnectivityWithoutHost)
+{
+    dmSys::NetworkConnectivity connectivity = dmSys::GetNetworkConnectivity();
+    dmLogInfo("Network connectivity: %d", (int)connectivity);
+    ASSERT_NE(dmSys::NETWORK_DISCONNECTED, connectivity);
+}
+
+// Verifies that setting a host reports the default route status until the host has been resolved.
+// Guards against #8431, where the status stayed NETWORK_DISCONNECTED until the first host callback.
+TEST(dmSys, NetworkConnectivityBeforeHostCallback)
+{
+    dmSys::NetworkConnectivity default_route = dmSys::GetNetworkConnectivity();
+    dmSys::SetNetworkConnectivityHost("www.defold.com");
+    dmSys::NetworkConnectivity before_callback = dmSys::GetNetworkConnectivity();
+    ASSERT_NE(dmSys::NETWORK_DISCONNECTED, before_callback);
+    ASSERT_EQ(default_route, before_callback);
+}
+#endif
+
 TEST(dmSys, EngineInfo)
 {
     dmSys::EngineInfoParam engine_info;
