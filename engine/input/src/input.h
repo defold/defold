@@ -20,35 +20,9 @@
 #include <hid/hid.h>
 
 #include <input/input_ddf.h>
-#include <dmsdk/input/input.h>
 
 namespace dmInput
 {
-    // Private resolved views; independent of the public iterator and focused input buffer.
-    struct ResolvedAction
-    {
-        dmhash_t     m_Id;
-        float        m_Value;
-        ActionSource m_Source;
-        uint32_t     m_GamepadIndex;
-        bool         m_Pressed;
-        bool         m_Released;
-        bool         m_Repeated;
-        bool         m_IsGamepad;
-        bool         m_GamepadConnected;
-        bool         m_GamepadDisconnected;
-        const char*  m_GamepadName;
-    };
-
-    struct ResolvedActions
-    {
-        const ResolvedAction* m_Actions;
-        uint32_t              m_Count;
-    };
-
-    // Publish a callback-scoped view; return the previous view for nested delivery.
-    const ResolvedActions* SetResolvedActions(HContext context, const ResolvedActions* actions);
-
     // TODO: Make proper subtypes, to keep the combinations apart, and struct small
     struct Action
     {
@@ -90,6 +64,7 @@ namespace dmInput
         uint16_t : 1;
     };
 
+    typedef struct Context* HContext;
     /**
      * Invalid context handle
      */
@@ -138,11 +113,6 @@ namespace dmInput
 
     // Pointer movement and accelerometer samples are separate callbacks, both with action id 0.
     void ForEachActive(HBinding binding, ActionCallback callback, void* user_data);
-
-    // Last known mapping-aware name, or null when unavailable. The binding owns
-    // the string and may replace it on reconnect or reload.
-    const char* GetGamepadName(HBinding binding, uint32_t gamepad_index);
-
     bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* context);
 }
 

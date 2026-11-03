@@ -22,7 +22,6 @@
 #include <dlib/hashtable.h>
 #include <dlib/dstrings.h>
 #include <dlib/testutil.h>
-#include <dlib/static_assert.h>
 
 #include <ddf/ddf.h>
 #include <hid_private.h>
@@ -686,45 +685,6 @@ TEST_F(InputTest, GamepadConnectedContainsGamepadName)
     ASSERT_TRUE(binding->m_GamepadBindings[0]->m_Actions.Get(action_id)->m_GamepadConnected);
     ASSERT_STREQ(binding->m_GamepadBindings[0]->m_Actions.Get(action_id)->m_Text, "null_device");
 
-    dmInput::DeleteBinding(binding);
-}
-
-// A saved name survives device removal and refreshes when the same slot reconnects.
-TEST_F(InputTest, GamepadNameSurvivesDisconnect)
-{
-    dmInputDDF::GamepadTrigger triggers[] = {
-        { dmInputDDF::GAMEPAD_CONNECTED, "connected" },
-        { dmInputDDF::GAMEPAD_DISCONNECTED, "disconnected" },
-    };
-    dmInputDDF::InputBinding ddf = {};
-    ddf.m_GamepadTrigger.m_Data = triggers;
-    ddf.m_GamepadTrigger.m_Count = DM_ARRAY_SIZE(triggers);
-    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
-    dmInput::SetBinding(binding, &ddf);
-    ASSERT_EQ((const char*)0, dmInput::GetGamepadName(binding, 0));
-    ASSERT_EQ((const char*)0, dmInput::GetGamepadName(binding, dmHID::MAX_GAMEPAD_COUNT));
-
-    dmHID::SetGamepadConnectivity(m_HidContext, 0, true);
-    dmHID::Update(m_HidContext);
-    dmInput::UpdateBinding(binding, m_DT);
-    ASSERT_STREQ("null_device", dmInput::GetGamepadName(binding, 0));
-
-    dmInput::GamepadBinding* gamepad = binding->m_GamepadBindings[0];
-    // The null backend's live name is fixed; model a different departed device's saved label.
-    dmStrlCpy(gamepad->m_DeviceName, "Departed controller", sizeof(gamepad->m_DeviceName));
-    gamepad->m_Gamepad->m_Connected = false;
-    dmHID::SetGamepadConnectivity(m_HidContext, 0, false);
-    dmInput::UpdateBinding(binding, m_DT);
-    ASSERT_STREQ("Departed controller", dmInput::GetGamepadName(binding, 0));
-    ASSERT_TRUE(gamepad->m_Actions.Get(dmHashString64("disconnected"))->m_GamepadDisconnected);
-    dmInput::UpdateBinding(binding, m_DT);
-    ASSERT_STREQ("Departed controller", dmInput::GetGamepadName(binding, 0));
-
-    dmHID::Update(m_HidContext);
-    dmInput::GamepadConnectivityCallback(0, true, m_Context);
-    dmHID::SetGamepadConnectivity(m_HidContext, 0, true);
-    dmInput::UpdateBinding(binding, m_DT);
-    ASSERT_STREQ("null_device", dmInput::GetGamepadName(binding, 0));
     dmInput::DeleteBinding(binding);
 }
 
@@ -1743,140 +1703,6 @@ TEST_F(InputTest, GamepadSources)
     ASSERT_TRUE(disconnected->m_GamepadDisconnected);
     ASSERT_EQ(dmHID::INPUT_SOURCE_GAMEPAD, disconnected->m_Source);
     dmInput::DeleteBinding(binding);
-}
-
-extern "C" int TestInputActionIteratorC(HInputContext context);
-extern "C" int TestInputGamepadMetadataC(HInputContext context);
-
-// C/C++ getters distinguish transition actions, ordinary gamepad actions and missing names.
-TEST(InputAPI, GamepadMetadataAccessors)
-{
-    dmInput::NewContextParams params = {};
-    dmInput::HContext context = dmInput::NewContext(params);
-    const dmInput::ResolvedAction actions[] = {
-        { dmHashString64("connected"), 0.0f, dmInput::ACTION_SOURCE_GAMEPAD, 2, false, false, false, true, true, false, "Controller A" },
-        { dmHashString64("axis"), 0.5f, dmInput::ACTION_SOURCE_GAMEPAD, 2, false, false, false, true, false, false, "Controller A" },
-        { dmHashString64("disconnected"), 0.0f, dmInput::ACTION_SOURCE_GAMEPAD, 2, false, false, false, true, false, true, "Controller A" },
-        { dmHashString64("key"), 1.0f, dmInput::ACTION_SOURCE_KEYBOARD, 0, true, false, false, false, false, false, 0 },
-        { dmHashString64("unknown"), 0.0f, dmInput::ACTION_SOURCE_GAMEPAD, 1, false, false, false, true, true, false, 0 },
-    };
-    dmInput::ResolvedActions view = { actions, DM_ARRAY_SIZE(actions) };
-    dmInput::SetResolvedActions(context, &view);
-    ASSERT_EQ(1, TestInputGamepadMetadataC(context));
-    dmInput::ActionIterator iterator = dmInput::IterateActions(context);
-    for (uint32_t i = 0; i < DM_ARRAY_SIZE(actions); ++i)
-    {
-        ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
-        ASSERT_EQ(i == 0 || i == 4, dmInput::ActionIsGamepadConnected(&iterator));
-        ASSERT_EQ(i == 2, dmInput::ActionIsGamepadDisconnected(&iterator));
-        if (i < 3)
-        {
-            ASSERT_STREQ("Controller A", dmInput::ActionGetGamepadName(&iterator));
-        }
-        else
-        {
-            ASSERT_EQ((const char*)0, dmInput::ActionGetGamepadName(&iterator));
-        }
-    }
-    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
-    dmInput::SetResolvedActions(context, 0);
-    dmInput::DeleteContext(context);
-}
-
-// C/C++ iterators expose identical resolved values while keeping action storage private.
-TEST(InputAPI, OpaqueActionIterator)
-{
-    DM_STATIC_ASSERT(sizeof(dmInput::ActionIterator) == 2 * sizeof(uintptr_t), Invalid_Input_Iterator_Size);
-    dmInput::NewContextParams params = {};
-    dmInput::HContext context = dmInput::NewContext(params);
-    const dmInput::ResolvedAction actions[] = {
-        { dmHashString64("up"), 1.0f, dmInput::ACTION_SOURCE_KEYBOARD, 0, true, false, false, false, false, false, 0 },
-        { dmHashString64("axis"), 0.5f, dmInput::ACTION_SOURCE_GAMEPAD, 2, false, false, true, true, false, false, 0 },
-        { dmHashString64("up"), 0.0f, dmInput::ACTION_SOURCE_KEYBOARD, 0, false, true, false, false, false, false, 0 },
-    };
-    dmInput::ResolvedActions view = { actions, DM_ARRAY_SIZE(actions) };
-    ASSERT_EQ((const dmInput::ResolvedActions*)0, dmInput::SetResolvedActions(context, &view));
-    ASSERT_EQ(1, TestInputActionIteratorC(context));
-    dmInput::ActionIterator iterator = dmInput::IterateActions(context);
-    ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
-    ASSERT_EQ(dmHashString64("up"), dmInput::ActionGetId(&iterator));
-    ASSERT_EQ(1.0f, dmInput::ActionGetValue(&iterator));
-    ASSERT_TRUE(dmInput::ActionIsPressed(&iterator));
-    ASSERT_FALSE(dmInput::ActionIsReleased(&iterator));
-    ASSERT_FALSE(dmInput::ActionIsRepeated(&iterator));
-    ASSERT_EQ(dmInput::ACTION_SOURCE_KEYBOARD, dmInput::ActionGetSource(&iterator));
-    uint32_t index = 77;
-    ASSERT_FALSE(dmInput::ActionGetGamepadIndex(&iterator, &index));
-    ASSERT_EQ(77u, index);
-    ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
-    ASSERT_EQ(dmInput::ACTION_SOURCE_GAMEPAD, dmInput::ActionGetSource(&iterator));
-    ASSERT_TRUE(dmInput::ActionGetGamepadIndex(&iterator, &index));
-    ASSERT_EQ(2u, index);
-    ASSERT_TRUE(dmInput::ActionIsRepeated(&iterator));
-    ASSERT_EQ(0.5f, dmInput::ActionGetValue(&iterator));
-    ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
-    ASSERT_TRUE(dmInput::ActionIsReleased(&iterator));
-    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
-    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
-    dmInput::SetResolvedActions(context, 0);
-    dmInput::DeleteContext(context);
-}
-
-// Unpublished/empty views and exhausted iterators never yield a current action.
-TEST(InputAPI, EmptyActionIterator)
-{
-    dmInput::NewContextParams params = {};
-    dmInput::HContext context = dmInput::NewContext(params);
-    dmInput::ActionIterator iterator = dmInput::IterateActions(context);
-    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
-    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
-    ASSERT_EQ(1, TestInputActionIteratorC(context));
-    dmInput::ResolvedActions view = { 0, 0 };
-    dmInput::SetResolvedActions(context, &view);
-    iterator = dmInput::IterateActions(context);
-    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
-    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
-    ASSERT_EQ(1, TestInputActionIteratorC(context));
-    dmInput::SetResolvedActions(context, 0);
-    dmInput::DeleteContext(context);
-}
-
-// Interleaved iterators and nested view publication preserve each cursor and restore the outer event.
-TEST(InputAPI, IndependentActionIterators)
-{
-    dmInput::NewContextParams params = {};
-    dmInput::HContext context = dmInput::NewContext(params);
-    const dmInput::ResolvedAction actions[] = {
-        { dmHashString64("up"), 1.0f, dmInput::ACTION_SOURCE_KEYBOARD, 0, true, false, false, false, false, false, 0 },
-        { dmHashString64("down"), 0.0f, dmInput::ACTION_SOURCE_KEYBOARD, 0, false, true, false, false, false, false, 0 },
-    };
-    dmInput::ResolvedActions outer = { actions, 2 };
-    dmInput::ResolvedActions inner = { actions + 1, 1 };
-    dmInput::SetResolvedActions(context, &outer);
-    dmInput::ActionIterator first = dmInput::IterateActions(context);
-    dmInput::ActionIterator second = dmInput::IterateActions(context);
-    ASSERT_TRUE(dmInput::ActionIterateNext(&first));
-    ASSERT_TRUE(dmInput::ActionIterateNext(&second));
-    ASSERT_TRUE(dmInput::ActionIterateNext(&first));
-    ASSERT_EQ(dmHashString64("down"), dmInput::ActionGetId(&first));
-    ASSERT_EQ(dmHashString64("up"), dmInput::ActionGetId(&second));
-    const dmInput::ResolvedActions* previous = dmInput::SetResolvedActions(context, &inner);
-    ASSERT_EQ(&outer, previous);
-    dmInput::ActionIterator nested = dmInput::IterateActions(context);
-    ASSERT_TRUE(dmInput::ActionIterateNext(&nested));
-    ASSERT_EQ(dmHashString64("down"), dmInput::ActionGetId(&nested));
-    ASSERT_EQ(dmHashString64("up"), dmInput::ActionGetId(&second));
-    ASSERT_FALSE(dmInput::ActionIterateNext(&nested));
-    dmInput::SetResolvedActions(context, previous);
-    dmInput::ActionIterator restored = dmInput::IterateActions(context);
-    ASSERT_TRUE(dmInput::ActionIterateNext(&restored));
-    ASSERT_EQ(dmHashString64("up"), dmInput::ActionGetId(&restored));
-    ASSERT_TRUE(dmInput::ActionIterateNext(&second));
-    ASSERT_EQ(dmHashString64("down"), dmInput::ActionGetId(&second));
-    dmInput::SetResolvedActions(context, 0);
-    dmInput::ActionIterator cleared = dmInput::IterateActions(context);
-    ASSERT_FALSE(dmInput::ActionIterateNext(&cleared));
-    dmInput::DeleteContext(context);
 }
 
 int main(int argc, char **argv)

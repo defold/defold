@@ -1866,41 +1866,6 @@ bail:
         g_EngineRenderEnabled = enabled;
     }
 
-    static InputActionSource GetInputActionSource(dmHID::InputSource source)
-    {
-        switch (source)
-        {
-            case dmHID::INPUT_SOURCE_KEYBOARD:
-            {
-                return INPUT_ACTION_SOURCE_KEYBOARD;
-            }
-            case dmHID::INPUT_SOURCE_TEXT:
-            {
-                return INPUT_ACTION_SOURCE_TEXT;
-            }
-            case dmHID::INPUT_SOURCE_MOUSE:
-            {
-                return INPUT_ACTION_SOURCE_MOUSE;
-            }
-            case dmHID::INPUT_SOURCE_TOUCH:
-            {
-                return INPUT_ACTION_SOURCE_TOUCH;
-            }
-            case dmHID::INPUT_SOURCE_GAMEPAD:
-            {
-                return INPUT_ACTION_SOURCE_GAMEPAD;
-            }
-            case dmHID::INPUT_SOURCE_ACCELEROMETER:
-            {
-                return INPUT_ACTION_SOURCE_ACCELEROMETER;
-            }
-            default:
-            {
-                return INPUT_ACTION_SOURCE_UNKNOWN;
-            }
-        }
-    }
-
     static void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
     {
         Engine* engine = (Engine*)user_data;
@@ -2169,47 +2134,6 @@ bail:
 
                 dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
                 uint32_t input_buffer_size = input_buffer.Size();
-                dmArray<dmInput::ResolvedAction>& resolved = engine->m_ResolvedInputActions;
-                if (resolved.Capacity() < input_buffer_size)
-                {
-                    resolved.SetCapacity(dmMath::Max(input_buffer_size, resolved.Capacity() + 64));
-                }
-                resolved.SetSize(input_buffer_size);
-                // Snapshot names independently of bindings, which callbacks may reload.
-                char gamepad_name_storage[dmHID::MAX_GAMEPAD_COUNT][dmHID::MAX_GAMEPAD_NAME_LENGTH];
-                const char* gamepad_names[dmHID::MAX_GAMEPAD_COUNT] = {};
-                for (uint32_t i = 0; i < input_buffer_size; ++i)
-                {
-                    const dmGameObject::InputAction& source = input_buffer[i];
-                    dmInput::ResolvedAction& action = resolved[i];
-                    action.m_Id = source.m_ActionId;
-                    action.m_Value = source.m_Value;
-                    action.m_Source = GetInputActionSource((dmHID::InputSource)source.m_Source);
-                    action.m_GamepadIndex = source.m_GamepadIndex;
-                    action.m_IsGamepad = source.m_IsGamepad;
-                    action.m_Pressed = source.m_Pressed;
-                    action.m_Released = source.m_Released;
-                    action.m_Repeated = source.m_Repeated;
-                    action.m_GamepadConnected = source.m_GamepadConnected;
-                    action.m_GamepadDisconnected = source.m_GamepadDisconnected;
-                    action.m_GamepadName = 0;
-                    if (source.m_IsGamepad)
-                    {
-                        uint32_t index = source.m_GamepadIndex;
-                        if (!gamepad_names[index])
-                        {
-                            const char* name = dmInput::GetGamepadName(engine->m_GameInputBinding, index);
-                            dmStrlCpy(gamepad_name_storage[index], name ? name : "", sizeof(gamepad_name_storage[index]));
-                            gamepad_names[index] = gamepad_name_storage[index];
-                        }
-                        action.m_GamepadName = gamepad_names[index][0] ? gamepad_names[index] : 0;
-                    }
-                }
-                dmInput::ResolvedActions actions = { resolved.Begin(), input_buffer_size };
-                const dmInput::ResolvedActions* previous = dmInput::SetResolvedActions(engine->m_InputContext, &actions);
-                dmEngine::InputActionsEvent event = { engine->m_InputContext };
-                dmExtension::BroadcastEvent(extension_params, dmEngine::EVENT_INPUT_ACTIONS, &event, sizeof(event));
-                dmInput::SetResolvedActions(engine->m_InputContext, previous);
                 if (input_buffer_size > 0)
                 {
                     dmGameObject::DispatchInput(GetMainCollection(engine), &input_buffer[0], input_buffer.Size());
