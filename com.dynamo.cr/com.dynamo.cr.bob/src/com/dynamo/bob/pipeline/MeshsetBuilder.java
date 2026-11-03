@@ -53,7 +53,7 @@ public class MeshsetBuilder extends Builder  {
         return meshSet;
     }
 
-    // A source/selection pair shares one canonical input for the cacheable buffer task.
+    // Reuse one geometry input for each source-mesh selection in this builder.
     ModelGeometry getModelGeometry(int meshIndex) throws IOException {
         ModelGeometry geometry = modelGeometry.get(meshIndex);
         if (geometry == null) {
@@ -64,6 +64,9 @@ public class MeshsetBuilder extends Builder  {
             byte[] data = Rig.Model.newBuilder().setId(0).setLocal(Transform.getDefaultInstance())
                     .addAllMeshes(meshes).build().toByteArray();
 
+            // Feed the canonical meshes to ModelBuffersBuilder through a generated
+            // resource so Bob can cache the packed output. A content-derived input
+            // path lets models from different scene files share that output.
             long hash = MurmurHash.hash64(data, data.length);
             IResource source = project.getGeneratedResource(hash, "modelbuffers");
             if (source == null) {
