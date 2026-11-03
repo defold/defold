@@ -19,6 +19,7 @@
             [editor.core :as core]
             [editor.handler :as handler]
             [editor.id :as id]
+            [editor.live-update-preview :as preview]
             [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.properties :as properties]
@@ -27,7 +28,7 @@
             [editor.resource-node :as resource-node]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Selection PackageResolver$Severity]
+  (:import [com.dynamo.bob.archive.liveupdate PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Selection PackageResolver$Severity]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc]
            [java.nio.file Path]
            [java.util.function Function]))
@@ -226,13 +227,6 @@
                                 (g/node-value parent :package-data evaluation-context)))))
    (attach-package parent child)])
 
-(defn source-resources [resource-map generated-paths]
-  (coll/into-> resource-map {}
-    (filter (fn [[path source]]
-              (and (= :file (resource/source-type source))
-                   (not (PackageArtifacts/isGeneratedPath path generated-paths))
-                   (or (resource/file-resource? source) (resource/zip-resource? source)))))))
-
 (defn- set-provider-value [settings provider property value]
   (let [provider-index (coll/first-index-where #(= provider (:provider %)) settings)
         provider-index (or provider-index (count settings))
@@ -346,7 +340,7 @@
             (when project-root
               (try
                 (PackageBuilder/resolveOutputDirectory output-directory (Path/of project-root (make-array String 0))
-                                           (reify Function (apply [_ name] (System/getenv name))))
+                                                       (reify Function (apply [_ name] (System/getenv name))))
                 (catch IllegalArgumentException error
                   (g/->error _node-id :output-directory :fatal output-directory (ex-message error)))))))
   (input resource-map g/Any)
@@ -371,7 +365,7 @@
           (g/fnk [save-value resource-map generated-paths]
             (PackageResolver/select
               (protobuf/map->pb LiveUpdateManifest$ManifestDesc save-value)
-              (vec (coll/keys (source-resources resource-map generated-paths))))))
+              (vec (coll/keys (preview/source-resources resource-map generated-paths))))))
   (output diagnostics g/Any (g/fnk [selection] (.diagnostics ^PackageResolver$Selection selection)))
   (output selected-paths g/Any :cached
           (g/fnk [_node-id selection diagnostics]
@@ -417,11 +411,11 @@
 (defn- load-manifest [{:keys [workspace project]} {:keys [source-value] self :node-id}]
   [(g/set-property self :output-directory (:output-directory source-value (protobuf/default LiveUpdateManifest$ManifestDesc :output-directory)))
    (g/set-property self :provider-settings (:providers source-value []))
-   (g/connect workspace :live-update-provider-schemas self :provider-schemas)
+   (g/connect project :live-update-provider-schemas self :provider-schemas)
    (g/connect project :live-update-zip-compression self :legacy-zip-compression)
    (g/connect workspace :root self :project-root)
    (g/connect workspace :resource-map self :resource-map)
-   (g/connect workspace :live-update-output-paths self :generated-paths)
+   (g/connect project :live-update-output-paths self :generated-paths)
    (g/make-nodes [base BasePackageNode]
      (g/connect base :_node-id self :nodes)
      (g/connect base :node-outline self :base-outline))

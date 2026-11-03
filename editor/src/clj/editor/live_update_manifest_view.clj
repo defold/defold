@@ -18,15 +18,13 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.fxui :as fxui]
-            [editor.live-update-manifest :as manifest]
             [editor.live-update-preview :as preview]
             [editor.localization :as localization]
-            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
@@ -34,6 +32,7 @@
   (:import [clojure.lang PersistentQueue]
            [com.dynamo.bob.archive.liveupdate PackagePreview$Result PackageResolver$Contribution PackageResolver$Diagnostic PackageResolver$Package PackageResolver$Plan PackageResolver$Resource PackageResolver$RuleId]
            [java.io File]
+           [java.util.concurrent CancellationException]
            [javafx.event Event]
            [javafx.scene Parent]
            [javafx.scene.control Tab TreeItem TreeTableView]
@@ -44,11 +43,9 @@
 
 (g/defnode ManifestView
   (inherits view/WorkbenchView)
-  (input manifest-resource resource/Resource)
   (input project-root g/Str)
   (input packages g/Any)
   (input diagnostics g/Any)
-  (input resource-map g/Any)
   (input generated-paths g/Any)
   (input resource-snapshot g/Any)
   (input save-data g/Any)
@@ -56,16 +53,11 @@
   (output fingerprint g/Any :cached
           (g/fnk [resource-snapshot save-data generated-paths] [resource-snapshot save-data generated-paths]))
   (output model g/Any :cached
-          (g/fnk [resource-node manifest-resource project-root packages diagnostics resource-map resource-snapshot generated-paths save-data selected-nodes fingerprint]
+          (g/fnk [resource-node project-root packages diagnostics selected-nodes fingerprint]
             {:resource-node resource-node
-             :resource manifest-resource
              :project-directory (File. ^String project-root)
              :packages packages
              :diagnostics diagnostics
-             :resource-map resource-map
-             :resource-statuses (:status-map resource-snapshot)
-             :generated-paths generated-paths
-             :save-data save-data
              :selection (get selected-nodes resource-node)
              :fingerprint fingerprint})))
 
@@ -77,7 +69,11 @@
                  packages)
       "base"))
 
-(defn- base-dependency-paths [^PackageResolver$Plan plan]
+(defn- check-cancelled! [cancelled?]
+  (when (cancelled?)
+    (throw (CancellationException.))))
+
+(defn- base-dependency-paths [^PackageResolver$Plan plan cancelled?]
   ;; Startup paths supply the roots and eager dependencies. Continue through
   ;; deferred edges for content that is also included in the base archive.
   (let [dependencies (coll/pair-map-by identity
@@ -92,7 +88,8 @@
            pending (into PersistentQueue/EMPTY (coll/sorted-key-set startup-paths))
            remaining (into (sorted-set) (.base plan))]
       (if-let [path (peek pending)]
-        (let [children (filterv #(not (contains? paths %)) (dependencies path))]
+        (let [_ (check-cancelled! cancelled?)
+              children (filterv #(not (contains? paths %)) (dependencies path))]
           (recur (reduce #(assoc %1 %2 (conj (paths path) %2)) paths children)
                  (into (pop pending) (sort children))
                  (disj remaining path)))
@@ -101,26 +98,34 @@
           (recur (assoc paths root [root]) (conj pending root) remaining)
           paths)))))
 
-(defn- resource-rows [^PackagePreview$Result result package-name packages]
-  (if-not result
-    []
-    (let [plan (.plan result)
-          ^PackageResolver$Package package (get (.packages plan) package-name)
+(defn- index-preview [{:keys [^PackagePreview$Result compiled packages]} cancelled?]
+  (when compiled
+    (let [plan (.plan compiled)
           memberships (reduce (fn [memberships [name paths]]
+                                (check-cancelled! cancelled?)
                                 (reduce #(update %1 %2 (fnil conj []) name) memberships paths))
                               {}
                               (coll/into-> (sort-by key (.packages plan)) [["base" (.base plan)]]
                                 (map (fn [[name ^PackageResolver$Package package]] [name (.resources package)]))))
-          paths (case package-name
-                  nil (coll/sorted-key-set memberships)
-                  "base" (.base plan)
-                  (when package (.resources package)))
-          base-paths (when (or (nil? package-name) (= "base" package-name)) (base-dependency-paths plan))
           rule-map (coll/into-> packages {}
                      (mapcat (fn [{:keys [rules value]}]
                                (mapv (fn [index rule] [(PackageResolver$RuleId. (:name value) index) rule])
                                      (range (count rules)) rules))))]
+      {:plan plan
+       :memberships memberships
+       :base-paths (base-dependency-paths plan cancelled?)
+       :rule-map rule-map})))
+
+(defn- resource-rows [{:keys [^PackageResolver$Plan plan memberships base-paths rule-map] :as index} package-name cancelled?]
+  (if-not index
+    []
+    (let [^PackageResolver$Package package (get (.packages plan) package-name)
+          paths (case package-name
+                  nil (coll/sorted-key-set memberships)
+                  "base" (.base plan)
+                  (when package (.resources package)))]
       (mapv (fn [path]
+              (check-cancelled! cancelled?)
               (let [contributions (if package-name
                                     (when package (get (.provenance package) path))
                                     (coll/into-> (get memberships path) []
@@ -143,29 +148,73 @@
                           (coll/join-to-string " → " (get base-paths path)))}))
             (sort paths)))))
 
-(defn- resource-tree [rows]
+(defn- resource-tree [rows cancelled?]
   (let [path->row (coll/pair-map-by :path identity rows)
         tree (reduce (fn [tree path]
+                       (check-cancelled! cancelled?)
                        (update-in tree (filterv #(contains? path->row %) path) #(or % {})))
                      {}
                      (eduction (mapcat :dependency-paths) rows))]
     (letfn [(children [tree]
               (mapv (fn [[path descendants]]
+                      (check-cancelled! cancelled?)
                       (assoc (path->row path) :children (children descendants)))
                     (sort-by key tree)))]
       (children tree))))
 
-(defn- resource-tree-item [row]
+(defn- resource-tree-item [row cancelled?]
+  (check-cancelled! cancelled?)
   {:fx/type :tree-item
    :fx/key (:path row)
    :expanded true
    :value row
-   :children (mapv resource-tree-item (:children row))})
+   :children (mapv #(resource-tree-item % cancelled?) (:children row))})
 
 (defn- selected-package [model ui-state]
   (if (= (set (:selection model)) (:highlighted ui-state))
     (:package ui-state "base")
     (selection-package (:packages model) (set (:selection model)))))
+
+(defn- make-update-rows! [controller]
+  ;; Only the worker uses this cache. Superseded work finishes before the next
+  ;; request starts, and a new compiled preview releases the previous index.
+  (let [cache (volatile! nil)
+        result-key (volatile! [nil nil])]
+    (fn update-rows! [model preview-state ui-state]
+      (let [result (:result preview-state)
+            package-name (selected-package model ui-state)
+            query (string/lower-case (string/trim (:filter ui-state "")))
+            searching (not (string/blank? query))
+            rows-package (when-not searching package-name)]
+        ;; Comparing entire compiled plans on every UI frame would itself walk
+        ;; the dependency graph. Each completion gets an identity token instead.
+        (when (not (identical? result (first @result-key)))
+          (vreset! result-key [result (Object.)]))
+        (preview/update! controller [(second @result-key) package-name query]
+                         (fn prepare-rows! [cancelled?]
+                           (assert (not (ui/on-ui-thread?)))
+                           (check-cancelled! cancelled?)
+                           (when (not (identical? result (:preview @cache)))
+                             (vreset! cache {:preview result :index (index-preview (:value result) cancelled?)}))
+                           (let [all-rows (or (get-in @cache [:rows rows-package])
+                                              (let [rows (resource-rows (:index @cache) rows-package cancelled?)]
+                                                (vswap! cache assoc-in [:rows rows-package] rows)
+                                                rows))
+                                 rows (if-not searching
+                                        all-rows
+                                        (filterv (fn [{:keys [path source]}]
+                                                   (check-cancelled! cancelled?)
+                                                   (or (string/includes? (string/lower-case path) query)
+                                                       (and source (string/includes? (string/lower-case source) query))))
+                                                 all-rows))
+                                 root (or (when-not searching (get-in @cache [:trees rows-package]))
+                                          (let [displayed-rows (if searching rows (resource-tree rows cancelled?))
+                                                root {:fx/type :tree-item :expanded true
+                                                      :children (mapv #(resource-tree-item % cancelled?) displayed-rows)}]
+                                            (when-not searching (vswap! cache assoc-in [:trees rows-package] root))
+                                            root))]
+                             {:preview result :package-name package-name :searching searching
+                              :rows rows :rows-by-path (coll/pair-map-by :path identity rows) :root root})))))))
 
 (def ^:private preview-progress-owner (atom nil))
 
@@ -194,33 +243,30 @@
           (when (task-cancelled?)
             (reset! (:cancelled job) true)))))))
 
-(defn- update-preview! [controller model options]
-  (let [fingerprint [(:fingerprint model) options]]
+(defn- update-preview! [project controller model]
+  (let [fingerprint (:fingerprint model)]
     (when (not= fingerprint (:fingerprint @controller))
-      ;; Capture resource types before starting background serialization. No
-      ;; evaluation context or mutable graph state escapes into the builder.
-      (let [save-data (mapv (fn [{:keys [resource save-value]}]
-                              [(resource/proj-path resource) save-value (resource/resource-type resource)])
-                            (:save-data model))
-            resources (manifest/source-resources (:resource-map model) (:generated-paths model))]
+      ;; Follow the normal editor build: capture the graph on the UI thread,
+      ;; evaluate on the worker, and keep build targets in the shared cache.
+      (let [evaluation-context (g/make-evaluation-context)]
         (preview/update! controller fingerprint
                          (fn build-preview! [cancelled?]
-                           (let [contents (coll/into-> save-data {}
-                                            (keep (fn [[path save-value resource-type]]
-                                                    (when-let [content (resource-node/save-content save-value resource-type)]
-                                                      [path content]))))]
-                             {:compiled (preview/build! controller resources (:resource-statuses model) contents (resource/proj-path (:resource model)) options cancelled?)
-                              :packages (:packages model)})))))))
+                           (try
+                             {:compiled (preview/resolve-graph project (:resource-node model) evaluation-context cancelled?)
+                              :packages (:packages model)}
+                             (finally
+                               (ui/run-later
+                                 (project/update-system-cache-build-targets! evaluation-context))))))))))
 
-(defn- make-update-preview! [controller]
+(defn- make-update-preview! [project controller]
   (let [pending (volatile! nil)]
-    (fn [model options elapsed-time]
-      (let [fingerprint [(:fingerprint model) options]]
+    (fn [model elapsed-time]
+      (let [fingerprint (:fingerprint model)]
         (when (not= fingerprint (:fingerprint @pending))
           (preview/invalidate! controller)
           (vreset! pending {:fingerprint fingerprint :since elapsed-time}))
         (when (<= 0.2 (- (double elapsed-time) (double (:since @pending))))
-          (update-preview! controller model options))))))
+          (update-preview! project controller model))))))
 
 (defn- handle-event! [{:keys [view-node app-view ui-state parent]} {:keys [event/type fx/event package path]}]
   (let [model (g/node-value view-node :model)
@@ -247,29 +293,24 @@
             (when (coll/not-empty nodes)
               (g/transact {:undoable false} (app-view/select app-view root nodes)))))))))
 
-(defn- view-with-rows-desc [{:keys [parent model preview-state ui-state localization-state rows searching]}]
-  (let [package-name (selected-package model ui-state)
-        result (:result preview-state)
+(defn- view-desc [{:keys [parent model preview-error rows-state ui-state localization-state]}]
+  (let [data (get-in rows-state [:result :value])
+        package-name (or (:package-name data) (selected-package model ui-state))
+        searching (:searching data)
+        rows (:rows data [])
+        result (:preview data)
         ^PackagePreview$Result compiled (get-in result [:value :compiled])
         export-paths (when (and compiled (not searching)) (get (.exportPaths compiled) package-name))
         diagnostics (if compiled (.diagnostics (.plan compiled)) (:diagnostics model))
         messages (coll/into-> [diagnostics (:diagnostics model)] []
                    cat
                    (map #(.message ^PackageResolver$Diagnostic %)))
-        error (:error preview-state)
+        error (or preview-error (:error rows-state))
         diagnostic-text (coll/join-to-string "\n"
                                              (coll/into-> (cond-> messages error (conj (or (ex-message error) (str error)))) []
                                                (distinct)))
-        query (string/lower-case (string/trim (:filter ui-state "")))
-        rows (if-not searching
-               rows
-               (filterv (fn [{:keys [path source]}]
-                          (or (string/includes? (string/lower-case path) query)
-                              (and source (string/includes? (string/lower-case source) query))))
-                        rows))
-        displayed-rows (if searching rows (resource-tree rows))
         row (when (= package-name (:package ui-state))
-              (coll/first-where #(= (:selected-path ui-state) (:path %)) rows))
+              (get (:rows-by-path data) (:selected-path ui-state)))
         message #(localization-state (localization/message %))]
     {:fx/type fxui/ext-with-anchor-pane-props
      :desc {:fx/type ui/ext-value :value parent}
@@ -329,8 +370,8 @@
                                  :show-root false
                                  :root {:fx/type fx/ext-recreate-on-key-changed
                                         :key (if searching :search package-name)
-                                        :desc {:fx/type :tree-item :expanded true
-                                               :children (mapv resource-tree-item displayed-rows)}}
+                                        :desc {:fx/type fxui/ext-dedupe-identical-desc
+                                               :desc (or (:root data) {:fx/type :tree-item :expanded true})}}
                                  :column-resize-policy TreeTableView/CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS
                                  :placeholder {:fx/type fxui/label :text (message "liveupdate.empty")}
                                  :columns [{:fx/type :tree-table-column :text (message "liveupdate.resource")
@@ -356,32 +397,21 @@
                            {:fx/type :scroll-pane :fx/key :diagnostics :fit-to-width true :max-height 80
                             :content {:fx/type fxui/label :wrap-text true :min-width 0 :text diagnostic-text}})])}]}}))
 
-(defn- view-desc [{:keys [model preview-state ui-state] :as props}]
-  (let [result (:result preview-state)
-        searching (not (string/blank? (:filter ui-state)))]
-    {:fx/type ui/ext-memo
-     :fn resource-rows
-     :args [(get-in result [:value :compiled])
-            (when-not searching (selected-package model ui-state))
-            (get-in result [:value :packages])]
-     :key :rows
-     :desc (assoc props :fx/type view-with-rows-desc :searching searching)}))
-
-(defn- make-view [^Parent parent manifest-node {:keys [app-view project workspace prefs localization ^Tab tab]}]
+(defn- make-view [^Parent parent manifest-node {:keys [app-view project workspace localization ^Tab tab]}]
   (let [view-node (first (g/tx-nodes-added
                            (g/transact {:undoable false}
                              (g/make-nodes [view ManifestView]
-                               (g/connect manifest-node :resource view :manifest-resource)
                                (g/connect workspace :root view :project-root)
                                (g/connect manifest-node :packages view :packages)
                                (g/connect manifest-node :diagnostics view :diagnostics)
-                               (g/connect workspace :resource-map view :resource-map)
-                               (g/connect workspace :live-update-output-paths view :generated-paths)
+                               (g/connect project :live-update-output-paths view :generated-paths)
                                (g/connect workspace :resource-snapshot view :resource-snapshot)
                                (g/connect project :dirty-save-data view :save-data)
                                (g/connect project :selected-node-ids-by-resource-node view :selected-nodes)))))
         controller (preview/controller)
-        update-preview! (make-update-preview! controller)
+        rows-controller (preview/controller)
+        update-preview! (make-update-preview! project controller)
+        update-rows! (make-update-rows! rows-controller)
         update-progress! (make-update-progress!)
         ui-state (atom {})
         environment {:view-node view-node :ui-state ui-state :app-view app-view :parent parent}
@@ -396,13 +426,18 @@
                                     (fn [_ elapsed-time _]
                                       (when (.isSelected tab)
                                         (let [model (g/node-value view-node :model)]
-                                          (update-preview! model (prefs/get prefs [:bundle :last-bob-options]) elapsed-time)
-                                          (renderer {:model model :preview-state @controller :ui-state @ui-state})))
-                                      (update-progress! (:job @controller) elapsed-time)))
+                                          (update-preview! model elapsed-time)
+                                          (let [preview-state @controller
+                                                ui-state @ui-state]
+                                            (update-rows! model preview-state ui-state)
+                                            (renderer {:model model :preview-error (:error preview-state) :rows-state @rows-controller :ui-state ui-state}))))
+                                      (update-progress! (or (:job @controller) (:job @rows-controller)) elapsed-time)))
                     ui/timer-start!)]
     (g/user-data! view-node :preview-controller controller)
+    (g/user-data! view-node :rows-controller rows-controller)
     (ui/on-closed! tab (fn [_]
                          (preview/close! controller)
+                         (preview/close! rows-controller)
                          (update-progress! nil 0.0)
                          (ui/timer-stop! repainter)
                          (renderer nil)))

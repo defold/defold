@@ -2215,8 +2215,8 @@ public class ProjectBuildTest {
         assertEquals(first.plan().packages(), second.plan().packages());
         assertEquals(unchanged, Files.getLastModifiedTime(compiled));
         createFile(contentRoot, "extra/data.json", "{\"changed\":true}");
-        var third = PackagePreview.build(Path.of(contentRoot), Path.of(contentRoot), "/content.lumanifest", Map.of(), getClass().getClassLoader(), Progress.discarding());
-        assertEquals(Long.valueOf(16), third.compiledSizes().get("/extra/data.json"));
+        PackagePreview.build(Path.of(contentRoot), Path.of(contentRoot), "/content.lumanifest", Map.of(), getClass().getClassLoader(), Progress.discarding());
+        assertEquals("{\"changed\":true}", Files.readString(Path.of(contentRoot, "build/extra/data.json")));
         assertEquals(unchanged, Files.getLastModifiedTime(compiled));
         assertFalse(Files.exists(Path.of(contentRoot, "packages/episode.zip")));
     }

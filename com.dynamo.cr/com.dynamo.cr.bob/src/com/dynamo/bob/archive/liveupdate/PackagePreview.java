@@ -24,7 +24,6 @@ import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,10 +31,8 @@ import java.util.Map;
 
 /** Builds a caller-owned snapshot with the same compilers and resolver as bundling, without provider writers. */
 public final class PackagePreview {
-    public record Result(PackageResolver.Plan plan, Map<String, Long> compiledSizes,
-                         Map<String, List<String>> exportPaths) {
+    public record Result(PackageResolver.Plan plan, Map<String, List<String>> exportPaths) {
         public Result {
-            compiledSizes = Map.copyOf(compiledSizes);
             Map<String, List<String>> paths = new LinkedHashMap<>();
             exportPaths.forEach((name, outputs) -> paths.put(name, List.copyOf(outputs)));
             exportPaths = Map.copyOf(paths);
@@ -75,9 +72,7 @@ public final class PackagePreview {
             BundleHelper.throwIfCanceled(progress);
             PackageResolver.Plan plan = project.getLiveUpdatePlan();
             if (plan == null) throw new IOException("Preview did not produce a Live Update package plan");
-            Map<String, Long> sizes = new LinkedHashMap<>();
-            for (String path : plan.resources().keySet()) sizes.put(path, Files.size(snapshot.resolve("build").resolve(path.substring(1))));
-            return new Result(plan, sizes, exportPaths(project, projectRoot, plan));
+            return new Result(plan, exportPaths(project, projectRoot, plan));
         }
     }
 }
