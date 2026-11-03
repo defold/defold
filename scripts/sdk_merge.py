@@ -13,12 +13,9 @@ DOWNLOAD_WORKERS = 8
 
 
 def _download_platform_sdk_zip(netloc, key, out_path):
-    # Create a fresh bucket per thread to avoid shared boto3 state across threads.
-    bucket = s3.get_bucket(netloc)
-    entry = bucket.Object(key)
-    print("Downloading", entry.key)
-    entry.download_file(out_path)
-    print("Downloaded", entry.key, "to", out_path)
+    print("Downloading", key)
+    s3.download_archive_file(netloc, key, out_path)
+    print("Downloaded", key, "to", out_path)
     print("")
     return out_path
 

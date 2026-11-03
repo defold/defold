@@ -138,6 +138,69 @@ class BuildTimeTrackerTests(unittest.TestCase):
         self.assertRegex(output, r'(?m)^\s+CMake build engine_libs\s+0\.25 s$')
 
 
+class SdkArchiveDownloadTests(unittest.TestCase):
+    # Public SDK merges must use HTTPS without S3 credentials and clean up both platform archives.
+    def test_public_platform_sdks_download_through_cloudfront(self):
+        platforms = ['x86_64-linux', 'x86_64-win32']
+        base_url = 'https://d.defold.com/archive/dev/test%20%23revision/engine/'
+        contents = {base_url + platform + '/defoldsdk.zip': platform.encode() for platform in platforms}
+
+        def response(request, timeout):
+            content = contents[request.full_url]
+            result = io.BytesIO(content)
+            result.code = 200
+            result.headers = {'Content-Length': str(len(content))}
+            return result
+
+        with mock.patch.object(build.s3, 'get_bucket', side_effect=AssertionError('Unexpected S3 download')), \
+                mock.patch.object(build.http_cache.urllib.request, 'urlopen', side_effect=response) as download, \
+                contextlib.redirect_stdout(io.StringIO()):
+            with build.sdk_merge.download_platform_sdk_zips('d.defold.com', r'archive\dev\test #revision', platforms) as archives:
+                self.assertEqual(platforms, [platform for platform, _ in archives])
+                for platform, path in archives:
+                    self.assertEqual(platform.encode(), Path(path).read_bytes())
+
+        self.assertCountEqual(contents, [call.args[0].full_url for call in download.call_args_list])
+        self.assertTrue(all(not Path(path).exists() for _, path in archives))
+
+    # Truncated CDN responses must be retried without replacing an existing file or falling back to S3.
+    def test_failed_public_download_preserves_existing_archive(self):
+        def incomplete_response(request, timeout):
+            result = io.BytesIO(b'partial SDK')
+            result.code = 200
+            result.headers = {'Content-Length': '100'}
+            return result
+
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(build.s3, 'get_bucket', side_effect=AssertionError('Unexpected S3 download')), \
+                mock.patch.object(build.http_cache.urllib.request, 'urlopen', side_effect=incomplete_response) as download, \
+                mock.patch.object(build.http_cache.time, 'sleep'), \
+                contextlib.redirect_stdout(io.StringIO()):
+            archive = Path(directory) / 'defoldsdk.zip'
+            archive.write_bytes(b'previous SDK')
+            with self.assertRaisesRegex(RuntimeError, 'Incomplete download'):
+                build.sdk_merge._download_platform_sdk_zip(
+                    'd.defold.com', 'archive/dev/revision/engine/x86_64-linux/defoldsdk.zip', str(archive))
+            self.assertEqual(b'previous SDK', archive.read_bytes())
+            self.assertEqual([archive], list(Path(directory).iterdir()))
+            self.assertGreater(download.call_count, 1)
+
+    # Private platform SDKs must retain authenticated S3 access instead of becoming public HTTP downloads.
+    def test_private_platform_sdk_uses_authenticated_s3(self):
+        key = 'archive/alpha/revision/engine/arm64-private/defoldsdk.zip'
+        bucket = mock.Mock()
+        bucket.Object.return_value.download_file.side_effect = lambda path: Path(path).write_bytes(b'private SDK')
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(build.s3, 'get_bucket', return_value=bucket) as get_bucket, \
+                mock.patch.object(build.http_cache, 'download', side_effect=AssertionError('Unexpected public download')), \
+                contextlib.redirect_stdout(io.StringIO()):
+            archive = Path(directory) / 'defoldsdk.zip'
+            build.sdk_merge._download_platform_sdk_zip('d-private.defold.com', key, str(archive))
+            self.assertEqual(b'private SDK', archive.read_bytes())
+            get_bucket.assert_called_once_with('d-private.defold.com')
+            bucket.Object.assert_called_once_with(key)
+
+
 class BuildSdkTests(unittest.TestCase):
     def setUp(self):
         temporary_directory = tempfile.TemporaryDirectory()

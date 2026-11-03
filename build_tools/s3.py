@@ -4,9 +4,12 @@ import json
 import os
 import re
 import sys
-from urllib.parse import urlparse
+import tempfile
+from urllib.parse import quote, urlparse
 from datetime import datetime
 from configparser import ConfigParser
+
+import http_cache
 
 s3buckets = {}
 
@@ -80,6 +83,22 @@ def get_bucket(bucket_name):
     bucket = s3_client.Bucket(bucket_name)
     s3buckets[bucket_name] = bucket
     return bucket
+
+
+def download_archive_file(bucket_name, key, path):
+    """Read public archives through CloudFront; keep private buckets authenticated."""
+    key = key.replace('\\', '/')
+    if bucket_name != 'd.defold.com':
+        get_bucket(bucket_name).Object(key).download_file(path)
+        return
+
+    url = 'https://d.defold.com/' + quote(key, safe='/')
+    log('Downloading %s -> %s' % (url, path))
+    # Isolate concurrent downloads from cache eviction and replace the destination
+    # only after validation. Keep the temporary file on the destination filesystem.
+    with tempfile.TemporaryDirectory(prefix='defold-archive-', dir=os.path.dirname(os.path.abspath(path))) as cache_root:
+        downloaded = http_cache.download(url, cache_root=cache_root)
+        os.replace(downloaded, path)
 
 
 def find_files_in_bucket(archive_path, bucket, sha1, path, pattern):
