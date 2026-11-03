@@ -36,8 +36,15 @@ local function convert(selection)
         name = settings["output-folder-name"]
     end
     if not directory or directory == "" then directory = "." end
-    if not name or name == "" then name = "liveupdate" end
+    name = (name or ""):gsub("[^a-zA-Z0-9._-]+", "_")
     if mode == "Zip" then name = name:gsub("%.zip$", "") end
+    if name == "" then name = "liveupdate" end
+    local stem = name:match("^[^.]*"):lower()
+    if not name:match("^[a-zA-Z0-9]") or name:lower() == "base"
+        or ({con = true, prn = true, aux = true, nul = true})[stem]
+        or stem:match("^com[1-9]$") or stem:match("^lpt[1-9]$") then
+        name = "liveupdate_" .. name
+    end
 
     local content = {
         "# Publisher settings and excluded content converted from " .. source,

@@ -497,6 +497,36 @@
             (is (= original-manifest (slurp unseen-collision)))
             (is (= original-project (g/node-value (test-util/resource-node project "/game.project") :save-value)))))))))
 
+;; Legacy output names may contain characters or reserved names that package
+;; names reject. Conversion must produce a manifest accepted by Bob.
+(deftest live-update-settings-package-name-test
+  (test-util/with-scratch-project "test/resources/live_update_packages_project"
+    (let [settings-node (test-util/resource-node project "/liveupdate.settings")
+          form-ops (:form-ops (g/node-value settings-node :form-data))
+          opened (atom nil)]
+      (reload-editor-scripts! project :open-resource! (fn open-resource! [resource _opts]
+                                                        (reset! opened (resource/proj-path resource))
+                                                        (future/completed nil)))
+      (doseq [[mode name expected]
+              [["Zip" "DLC Pack.zip" "DLC_Pack"]
+               ["Folder" "season/common" "season_common"]
+               ["Zip" ".zip" "liveupdate"]
+               ["Folder" ".hidden" "liveupdate_.hidden"]
+               ["Zip" "BaSe.zip" "liveupdate_BaSe"]
+               ["Zip" "NUL.zip" "liveupdate_NUL"]
+               ["Folder" "CoM1.data" "liveupdate_CoM1.data"]
+               ["Zip" "base.content.zip" "base.content"]]]
+        (testing (str mode " " name)
+          (g/transact
+            [(form/set-value form-ops ["liveupdate" "mode"] mode)
+             (form/set-value form-ops ["liveupdate" (if (= "Zip" mode) "zip-filename" "output-folder-name")] name)])
+          (let [context (handler/active :defold.liveupdate.convert-settings (eval-handler-contexts :asset-browser [settings-node]) {})]
+            (is (some? context))
+            @(handler/run context))
+          (let [manifest-node (test-util/resource-node project @opened)]
+            (is (= expected (get-in (g/node-value manifest-node :save-value) [:packages 0 :name])))
+            (is (coll/empty? (g/node-value manifest-node :diagnostics)))))))))
+
 ;; Unsupported publisher modes must not silently convert to folder packages.
 (deftest live-update-settings-unsupported-publisher-test
   (test-util/with-scratch-project "test/resources/live_update_packages_project"
