@@ -281,7 +281,7 @@
         (resolve-validation property localization-state)
         (resolve-script-property-style-class property))))
 
-(defmethod make-control-view :directory [property context localization-state]
+(defmethod make-control-view :directory [property {:keys [workspace] :as context} localization-state]
   {:fx/type fxui/horizontal
    :style-class "ext-resource-picker"
    :children
@@ -301,8 +301,11 @@
                     (when-let [selected (dialogs/make-directory-dialog
                                           (localization-state (localization/message "dialog.directory.title.select"))
                                           directory
-                                          (.getWindow (.getScene ^Node (.getSource event))))]
-                      (set-values! property (mapv (constantly (.getAbsolutePath selected)) (:node-ids property))))))}]})
+                                          (fxui/event->window event))]
+                      (let [path (if-let [proj-path (workspace/as-proj-path workspace selected)]
+                                   (if (= "/" proj-path) "." (subs proj-path 1))
+                                   (.getAbsolutePath selected))]
+                        (set-values! property (mapv (constantly path) (:node-ids property)))))))}]})
 
 (defn- resolve-scrubber
   "Adds a scrubber to a text field
