@@ -81,7 +81,7 @@ public class PluginScanner {
 		return getOrCreatePlugins(Project.getClassLoaderScanner(), packageName, pluginBaseClass);
 	}
 
-	/** Keep discovery tied to the build's scanner, including lookups after a preview build completes. */
+	/** Keep discovery tied to each build or editor plugin reload's scanner. */
 	public static synchronized <T> List<T> getOrCreatePlugins(IClassScanner scanner, String packageName, Class<T> pluginBaseClass) throws CompileExceptionError {
 		if (scanner == null) {
 			logger.warning("PluginScanner has no class loader scanner");

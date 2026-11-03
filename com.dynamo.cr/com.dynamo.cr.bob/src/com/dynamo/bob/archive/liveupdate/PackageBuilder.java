@@ -30,12 +30,19 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.CopyCustomResourcesBuilder;
+import com.dynamo.bob.IProgress;
+import com.dynamo.bob.MultipleCompileException;
+import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
+import com.dynamo.bob.bundle.BundleHelper;
+import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
 import com.dynamo.bob.pipeline.graph.ResourceNode;
@@ -117,15 +124,49 @@ public final class PackageBuilder {
         return builder.build();
     }
 
-    /** Resolves the manifest output root, or the parent of the legacy destination when no manifest is selected. */
-    static Path outputDirectory(Project project, Path projectRoot) throws IOException, CompileExceptionError {
-        if (manifestPath(project).isEmpty()) {
-            return legacyOutput(project).getParent();
+    /**
+     * Builds an isolated source snapshot and returns Bob's exact package plan without writing provider artifacts.
+     * Platform and variant default to host/debug. Build intermediates stay in snapshot/build; the caller owns snapshot cleanup.
+     *
+     * @param snapshot project sources, including current library files and any unsaved editor content
+     * @param manifestPath manifest override; an empty string selects the legacy Exclude workflow
+     * @param options additional Bob options, subject to the forced archive, Live Update, and preview settings
+     * @param classLoader loader for Bob and pipeline plugins
+     * @param progress build progress and cancellation callbacks
+     */
+    public static PackageResolver.Plan buildPlan(Path snapshot, String manifestPath, Map<String, String> options,
+            ClassLoader classLoader, IProgress progress) throws IOException, CompileExceptionError, MultipleCompileException {
+        try (Project project = new Project(classLoader, new DefaultFileSystem(), snapshot.toString(), "build")) {
+            options.forEach(project::setOption);
+            project.setOption("platform", options.getOrDefault("platform", Platform.getHostPlatform().getPair()));
+            project.setOption("variant", options.getOrDefault("variant", "debug"));
+            project.setOption("archive", "true");
+            project.setOption("liveupdate", "true");
+            project.setOption("package-preview", "true");
+            project.setOption("package-manifest", manifestPath);
+            // Library resources are already captured in the snapshot by the editor.
+            project.mount(new ClassLoaderResourceScanner(), List.of());
+            for (TaskResult task : project.build(progress, "build")) {
+                if (!task.isOk()) {
+                    throw new CompileExceptionError(task.getTask().input(0), task.getLineNumber(),
+                            task.getMessage(), task.getException());
+                }
+            }
+            BundleHelper.throwIfCanceled(progress);
+            PackageResolver.Plan plan = project.getLiveUpdatePlan();
+            if (plan == null) {
+                throw new IOException("Build did not produce a Live Update package plan");
+            }
+            return plan;
         }
+    }
+
+    /** Resolves the manifest output root against the project directory. */
+    static Path outputDirectory(Project project) throws IOException, CompileExceptionError {
         IResource resource = project.getResource(manifestPath(project));
         try {
             String directory = parse(resource.getContent()).getOutputDirectory();
-            return resolveOutputDirectory(directory, projectRoot, project::getSystemEnv);
+            return resolveOutputDirectory(directory, Path.of(project.getRootDirectory()), project::getSystemEnv);
         } catch (IllegalArgumentException e) {
             throw new CompileExceptionError(resource, 0, e.getMessage(), e);
         }
@@ -219,10 +260,10 @@ public final class PackageBuilder {
 
         // Environment expansion can change placement without changing any project file.
         if (project.option("liveupdate", "false").equals("true")) {
-            task.addExtraCacheKey(outputDirectory(project, Path.of(project.getRootDirectory())).toString());
+            task.addExtraCacheKey(outputDirectory(project).toString());
         }
 
-        Map<String, PackageProvider> providers = PackageProviders.discover(project.getProjectClassLoaderScanner());
+        Map<String, PackageProvider> providers = PackageProviders.discover(Project.getClassLoaderScanner());
         List<String> providerIds = manifest.getPackagesList().stream()
                 .map(PackageDesc::getProvider)
                 .distinct()

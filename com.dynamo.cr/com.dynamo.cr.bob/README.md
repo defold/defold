@@ -389,17 +389,14 @@ Use the outline context menu to add, rename, delete, or reorder packages and rul
 Package targets use a dropdown that excludes the current package and any package
 that would create a reference cycle. Bob supplies these choices and validates
 references for both Add and Remove rules, including manifests edited as text.
-The preview automatically captures unsaved content and compiles an isolated
-snapshot through Bob without calling provider writers. It uses the most recently bundled
-platform, architectures, variant, and texture-compression option; before the first
-bundle it uses host/debug. Selecting a compiled resource highlights its contributing
-rules and exposes its source and dependency path. The byte counts are compiled
-resource sizes, not final container download sizes.
+The preview resolves the editor's dependency graph on a background thread,
+including unsaved edits. Selecting a resource highlights its contributing rules
+and exposes its source and dependency path. Exact compiled contents and sizes
+for the bundle target are available in the bundle report.
 
-Changes update the preview automatically after a short debounce. Each open view
-reuses an isolated snapshot and Bob's compiled-resource cache. Close the view to
-stop active preview work and remove its cache; obsolete completions cannot
-replace a newer result. Ordinary editor builds
+Changes update the preview automatically after a short debounce. Closing the
+view stops active preview work; obsolete completions cannot replace a newer
+result. Ordinary editor builds
 also include manifest-selected resources. Bundling always resolves and validates
 the manifest again. Proxy `Exclude` values remain serialized, but the manifest
 controls packaging when selected. Without `liveupdate.manifest` in `game.project`,

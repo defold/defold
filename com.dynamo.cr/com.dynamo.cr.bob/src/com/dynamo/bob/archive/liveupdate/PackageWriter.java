@@ -105,7 +105,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
      * Validates all output declarations, reuses unchanged artifacts, and invokes providers with package-local manifests.
      * Stages changed artifacts and ownership together before installation, removing obsolete owned manifest outputs.
      *
-     * @param manifests configured manifest builder, including signing keys and engine-version settings
+     * @param manifests configured manifest builder, including hashing and engine-version settings
      * @param buildOutputs reserved build outputs that package destinations must not overlap
      * @return the finalized artifacts and their package associations
      * @throws IOException on I/O failure or cancellation; installation attempts to restore previous outputs
@@ -113,7 +113,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
      */
     public WriteResult write(ManifestBuilder manifests, Collection<IResource> buildOutputs) throws IOException, CompileExceptionError {
         PublisherSettings settings = project.getPublisher().getPublisherSettings();
-        Map<String, PackageProvider> providers = PackageProviders.discover(project.getProjectClassLoaderScanner());
+        Map<String, PackageProvider> providers = PackageProviders.discover(Project.getClassLoaderScanner());
         PackageProvider.Context context = PackageProviders.context(project, plan, providers);
         Path legacyOutput = PackageBuilder.manifestPath(project).isEmpty() ? PackageBuilder.legacyOutput(project) : null;
         boolean legacyPlacement = legacyOutput != null;
@@ -121,7 +121,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         if (legacyPlacement) {
             root = legacyOutput.getParent();
         } else {
-            root = PackageBuilder.outputDirectory(project, Path.of(project.getRootDirectory()));
+            root = PackageBuilder.outputDirectory(project);
         }
 
         Map<Path, Output> previousOutputs = new LinkedHashMap<>();

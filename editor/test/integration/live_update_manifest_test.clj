@@ -38,7 +38,7 @@
             [support.test-support :as test-support]
             [util.coll :as coll])
   (:import [com.dynamo.bob ClassLoaderResourceScanner Platform Progress Project TaskResult]
-           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackagePreview PackagePreview$Result PackageResolver$Package PackageResolver$Plan PackageResolver$Severity]
+           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageResolver$Package PackageResolver$Plan PackageResolver$Severity]
            [com.dynamo.bob.fs DefaultFileSystem]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc]
            [java.net URI]
@@ -168,9 +168,9 @@
           preferences (prefs/make :scopes {:global prefs-file :project prefs-file} :schemas [:default])
           view (open-manifest-view! project app-view path preferences)]
       (try
-        (let [^PackagePreview$Result compiled (await-preview! (:state view) nil)]
+        (let [compiled (await-preview! (:state view) nil)]
           (await-ui! #(when-let [table (resource-table (:parent view))]
-                        (= (.base (.plan compiled))
+                        (= (.base ^PackageResolver$Plan (:plan compiled))
                            (coll/into-> (table-rows table) #{} (map :path))))))
         (f view)
         (finally
@@ -191,8 +191,7 @@
             (with-open [input (io/input-stream source)]
               (io/copy input destination)))))
       (is (not (cancelled?)))
-      (PackagePreview/build (.toPath snapshot) (.toPath (workspace/project-directory workspace))
-                            manifest-path options java/class-loader (Progress/discarding)))))
+      {:plan (PackageBuilder/buildPlan (.toPath snapshot) manifest-path options java/class-loader (Progress/discarding))})))
 
 ;; Package/rule edits must use graph history and preserve the authoring format
 ;; on reload.
@@ -250,15 +249,10 @@
           (change! "${DEFOLD_TEST_UNDEFINED_PACKAGE_OUTPUT}")
           (is (= :fatal (:severity (properties/validation-message (property)))))
           (change! "exported packages")))
-      (let [contents {"/packages.lumanifest" (resource-node/save-data-content (g/node-value node :save-data))}
-            ^PackagePreview$Result result (build-preview! project contents "/packages.lumanifest" {} (constantly false))]
-        (is (= {"levels" [(io/file root "exported packages/levels.zip")]
-                "copy" [(io/file root "exported packages/copy")]}
-               (coll/into-> (.exportPaths result) {} (map (fn [[name paths]] [name (mapv io/file paths)])))))
-        (is (not (.exists (io/file root "exported packages"))))
-        (test-util/make-resource! workspace "/reloaded.lumanifest" (g/node-value node :save-value))
-        (workspace/resource-sync! workspace)
-        (is (= "exported packages" (g/node-value (project/get-resource-node project "/reloaded.lumanifest") :output-directory)))))))
+      (is (not (.exists (io/file root "exported packages"))))
+      (test-util/make-resource! workspace "/reloaded.lumanifest" (g/node-value node :save-value))
+      (workspace/resource-sync! workspace)
+      (is (= "exported packages" (g/node-value (project/get-resource-node project "/reloaded.lumanifest") :output-directory))))))
 
 ;; Root settings use the Java provider schema, retain legacy defaults, and save
 ;; explicit overrides through normal property editing, history and reload.
@@ -360,12 +354,11 @@
         (is (= [1.0] (properties/values (property "scale"))))
         (doseq [[id value] [["extension" "alternate"] ["quality" 7] ["scale" 0.5]]]
           (properties/set-values! (property id) [value]))
-        (let [^PackagePreview$Result result (build-preview! project
-                                                            {"/provider.lumanifest" (resource-node/save-data-content (g/node-value node :save-data))}
-                                                            "/provider.lumanifest" {} (constantly false))]
-          (is (= [(io/file root "build/packages/custom.alternate-7-0.5")]
-                 (mapv io/file (get (.exportPaths result) "custom"))))
-          (is (not (.exists (io/file root "build/packages")))))))))
+        (is (= [{:provider "manifest-test"
+                 :properties [{:name "extension" :value "alternate"}
+                              {:name "quality" :value "7"}
+                              {:name "scale" :value "0.5"}]}]
+               (:providers (g/node-value node :save-value))))))))
 
 ;; Radio choices, including keyboard-style group selection, edit the graph
 ;; through normal property transactions, preserve undo/redo, and leave mixed
@@ -653,9 +646,9 @@
                        (keep (fn [save-data]
                                (when-let [content (resource-node/save-data-content save-data)]
                                  [(resource/proj-path (:resource save-data)) content]))))
-            ^PackagePreview$Result result (build-preview! project contents "/packages.lumanifest" {} (constantly false))]
-        (is (contains? (.resources ^PackageResolver$Package (get (.packages (.plan result)) "levels")) "/opaque/data.script"))
-        (is (not (contains? (.resources (.plan result)) "/opaque/data.scriptc")))))))
+            result (build-preview! project contents "/packages.lumanifest" {} (constantly false))]
+        (is (contains? (.resources ^PackageResolver$Package (get (.packages ^PackageResolver$Plan (:plan result)) "levels")) "/opaque/data.script"))
+        (is (not (contains? (.resources ^PackageResolver$Plan (:plan result)) "/opaque/data.scriptc")))))))
 
 ;; Exported artifacts must not become regex inputs to editor builds or previews.
 ;; Resource synchronization captures ownership so graph evaluation stays pure.
@@ -682,11 +675,11 @@
       (is (= #{"/episode.zip"} (g/node-value project :live-update-output-paths)))
       (is (= #{"/extra.json"} (g/node-value node :selected-paths)))
       (let [sources (set (g/node-value node :source-paths))
-            ^PackagePreview$Result refreshed (build-preview! project {} "/packages.lumanifest" {} (constantly false))]
+            refreshed (build-preview! project {} "/packages.lumanifest" {} (constantly false))]
         (is (not (contains? sources "/episode.zip")))
-        (is (= (.base packaged) (.base (.plan refreshed))))
+        (is (= (.base packaged) (.base ^PackageResolver$Plan (:plan refreshed))))
         (is (= (.resources ^PackageResolver$Package (get (.packages packaged) "episode"))
-               (.resources ^PackageResolver$Package (get (.packages (.plan refreshed)) "episode")))))
+               (.resources ^PackageResolver$Package (get (.packages ^PackageResolver$Plan (:plan refreshed)) "episode")))))
       (let [game-project (project/get-resource-node project "/game.project")
             targets (build/resolve-node-dependencies game-project project)]
         (is (not (g/error-value? targets)) (pr-str targets))
@@ -713,11 +706,11 @@
                        (keep (fn [data]
                                (when-let [content (resource-node/save-data-content data)]
                                  [(resource/proj-path (:resource data)) content]))))
-            ^PackagePreview$Result result (build-preview! project contents "/liveupdate.lumanifest" {} (constantly false))
-            plan (.plan result)]
+            result (build-preview! project contents "/liveupdate.lumanifest" {} (constantly false))
+            plan ^PackageResolver$Plan (:plan result)]
         (with-manifest-view! project app-view "/liveupdate.lumanifest"
           (fn [{:keys [state]}]
-            (let [graph-plan (.plan ^PackagePreview$Result (get-in @state [:result :compiled]))]
+            (let [graph-plan ^PackageResolver$Plan (:plan (get-in @state [:result :compiled]))]
               (is (= (set (coll/keys expected)) (set (.keySet (.packages plan)))))
               (doseq [[name paths] expected]
                 (is (= paths (set (.resources ^PackageResolver$Package (get (.packages plan) name)))) name)
@@ -783,7 +776,7 @@
     (workspace/resource-sync! workspace)
     (with-manifest-view! project app-view "/packages.lumanifest"
       (fn [{:keys [state]}]
-        (let [initial (.plan ^PackagePreview$Result (get-in @state [:result :compiled]))]
+        (let [initial ^PackageResolver$Plan (:plan (get-in @state [:result :compiled]))]
           (is (contains? (.locks initial) "/regular.goc"))
           (is (contains? (.locks initial) "/payload.collectionc"))
           (is (contains? (.locks initial) "/shared.scriptc"))
@@ -791,10 +784,10 @@
           (is (not (contains? (.locks initial) "/dynamic.goc"))))
         (let [previous (:result @state)]
           (test-util/prop! (project/get-resource-node project "/dynamic.factory") :load-dynamically false)
-          (is (contains? (.locks (.plan ^PackagePreview$Result (await-preview! state previous))) "/dynamic.goc")))
+          (is (contains? (.locks ^PackageResolver$Plan (:plan (await-preview! state previous))) "/dynamic.goc")))
         (let [previous (:result @state)]
           (test-util/set-code-editor-source! (project/get-resource-node project "/shared.script") "local extra = require 'extra'\n")
-          (let [changed (.plan ^PackagePreview$Result (await-preview! state previous))]
+          (let [changed ^PackageResolver$Plan (:plan (await-preview! state previous))]
             (is (contains? (.base changed) "/extra.luac"))
             (is (contains? (.resources ^PackageResolver$Package (get (.packages changed) "content")) "/extra.luac"))))))))
 
@@ -809,17 +802,17 @@
           episode (get-in packages [0 :rules 0 :node-id])
           old-state (atom nil)]
       (with-manifest-view! project app-view "/packages.lumanifest"
-        (fn [{:keys [state parent preferences]}]
+        (fn [{:keys [state parent]}]
           (reset! old-state state)
           (let [initial (:result @state)
-                ^PackagePreview$Result compiled (:compiled initial)
+                compiled (:compiled initial)
                 table (resource-table parent)
                 form (first (.getChildren ^Pane parent))
                 children (vec (.getChildren ^Pane form))
                 episode-node (project/get-resource-node project "/episode.collection")
                 episode-targets (g/node-value episode-node :build-targets)]
             (is (= #{"/episode.collectionc" "/extra.json"}
-                   (set (.resources ^PackageResolver$Package (get (.packages (.plan compiled)) "levels")))))
+                   (set (.resources ^PackageResolver$Package (get (.packages ^PackageResolver$Plan (:plan compiled)) "levels")))))
             (g/transact {:undoable false} (app-view/select app-view node [episode]))
             (await-ui! #(= "Package: levels" (.getText ^Label (.lookup ^Pane parent "#liveupdate-package-heading"))))
             (is (identical? compiled (get-in @state [:result :compiled])))
@@ -827,8 +820,8 @@
             (let [previous (:result @state)
                   _ (test-util/handler-run :edit.reorder-down
                                            [{:name :workbench :env {:selection [episode]}}] nil)
-                  ^PackagePreview$Result result (await-preview! state previous)]
-              (is (= "Data" (.getName (.getRules (.description ^PackageResolver$Package (get (.packages (.plan result)) "levels")) 0))))
+                  result (await-preview! state previous)]
+              (is (= "Data" (.getName (.getRules (.description ^PackageResolver$Package (get (.packages ^PackageResolver$Plan (:plan result)) "levels")) 0))))
               (is (identical? episode-targets (g/node-value episode-node :build-targets))))
             (is (= children (vec (.getChildren ^Pane form))))
             (is (identical? table (resource-table parent))))
@@ -859,17 +852,14 @@
           (let [previous (:result @state)]
             (test-util/make-resource! workspace "/nothing.collection" {:name "new"})
             (workspace/resource-sync! workspace)
-            (let [^PackagePreview$Result result (await-preview! state previous)]
+            (let [result (await-preview! state previous)]
               (is (= #{"/nothing.collectionc" "/extra.json"}
-                     (set (.resources ^PackageResolver$Package (get (.packages (.plan result)) "levels")))))))
-          (let [previous (:result @state)]
-            (prefs/set! preferences [:bundle :last-bob-options] {"variant" "release"})
-            (is (identical? previous (:result @state))))))
+                     (set (.resources ^PackageResolver$Package (get (.packages ^PackageResolver$Plan (:plan result)) "levels")))))))))
       (is (= {} @@old-state))
       (with-manifest-view! project app-view "/packages.lumanifest"
         (fn [{:keys [state]}]
           (is (not (identical? @old-state state)))
-          (is (instance? PackagePreview$Result (get-in @state [:result :compiled]))))))))
+          (is (instance? PackageResolver$Plan (get-in @state [:result :compiled :plan]))))))))
 
 (g/defnode PausedBuildTargets
   (inherits resource-node/ResourceNode)
@@ -930,7 +920,7 @@
               (is (future-cancelled? job)))
             (let [result (await-preview! state previous)]
               (is (= #{"/bonus.collectionc" "/extra.json"}
-                     (set (.resources ^PackageResolver$Package (get (.packages (.plan ^PackagePreview$Result result)) "levels")))))
+                     (set (.resources ^PackageResolver$Package (get (.packages ^PackageResolver$Plan (:plan result)) "levels")))))
               (await-ui! #(= [["/extra.json" []]] (table-tree table)))
               (.setText filter-control "bonus")
               (await-ui! #(= [["/bonus.collectionc" []]] (table-tree table)))
@@ -964,7 +954,7 @@
         (g/set-property! (:node @active) :gate nil)
         (with-manifest-view! project app-view "/packages.lumanifest"
           (fn [{:keys [state]}]
-            (is (instance? PackagePreview$Result (get-in @state [:result :compiled])))))
+            (is (instance? PackageResolver$Plan (get-in @state [:result :compiled :plan])))))
         (finally
           (when-let [work @active]
             (deliver (:release work) true)

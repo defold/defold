@@ -43,7 +43,6 @@ import java.util.zip.ZipFile;
 import java.util.stream.Collectors;
 import com.dynamo.bob.archive.liveupdate.PackageBuilder;
 import com.dynamo.bob.archive.liveupdate.PackageArtifacts;
-import com.dynamo.bob.archive.liveupdate.PackagePreview;
 import com.dynamo.bob.archive.liveupdate.PackageReport;
 import com.dynamo.bob.archive.liveupdate.PackageResolver;
 import com.dynamo.bob.bundle.BundleHelper;
@@ -1716,36 +1715,6 @@ public class ProjectBuildTest {
         assertNoPackageStaging();
     }
 
-    // Preview reports provider-declared export paths using prepared resource metadata without writing any packages.
-    @Test
-    public void testPackagePreviewExportPaths() throws Exception {
-        createPackageProject();
-        // Preview snapshots mount Bob's builtins instead of copying them.
-        FileUtils.deleteDirectory(new File(contentRoot, "builtins"));
-        savePackages(livePackage("episode", "zip", addPath("Data", "/extra/.*")),
-                livePackage("copy", "folder", addPath("Data", "/extra/.*")),
-                livePackage("custom", "test-package", addPath("Data", "/extra/.*")));
-        Path projectRoot = Path.of(contentRoot, "original-project");
-        Path outputDirectory = projectRoot.resolve("packages");
-        PackageProviderFixture.writes = 0;
-        PackagePreview.Result result = PackagePreview.build(Path.of(contentRoot), projectRoot, "/content.lumanifest",
-                Map.of("variant", "debug"), getClass().getClassLoader(), Progress.discarding());
-        assertEquals(Map.of("episode", List.of(outputDirectory.resolve("episode.zip").toString().replace('\\', '/')),
-                "copy", List.of(outputDirectory.resolve("copy").toString().replace('\\', '/')),
-                "custom", List.of(outputDirectory.resolve("custom.custom").toString().replace('\\', '/'),
-                                  outputDirectory.resolve("metadata/custom.json").toString().replace('\\', '/'))), result.exportPaths());
-        var context = PackageProviderFixture.lastDescriptionContext;
-        assertEquals("debug", context.variant());
-        assertEquals(result.plan(), context.plan());
-        assertTrue(context.resources().keySet().containsAll(result.plan().emittedResources()));
-        assertEquals(11, context.resources().get("/extra/data.json").size());
-        assertFalse(context.resources().get("/extra/data.json").hash().isEmpty());
-        assertEquals(0, PackageProviderFixture.writes);
-        assertFalse(new File(contentRoot, "packages").exists());
-        assertFalse(Files.exists(outputDirectory));
-        assertNoPackageStaging();
-    }
-
     // Environment-only changes relocate all providers on an incremental build and retire the previous artifacts.
     @Test
     public void testPackageOutputDirectoryEnvironmentChange() throws Exception {
@@ -2010,12 +1979,9 @@ public class ProjectBuildTest {
         buildPackageProject(true, false);
         assertEquals(2, PackageProviderFixture.writes);
         FileUtils.deleteDirectory(new File(contentRoot, "builtins"));
-        var preview = PackagePreview.build(root, root, "/content.lumanifest", Map.of(), getClass().getClassLoader(), Progress.discarding());
+        var preview = PackageBuilder.buildPlan(root, "/content.lumanifest", Map.of(), getClass().getClassLoader(), Progress.discarding());
         assertEquals(2, PackageProviderFixture.writes);
-        assertEquals(List.of(root.resolve("packages/custom.alternate").toString().replace('\\', '/'),
-                            root.resolve("packages/metadata/custom.json").toString().replace('\\', '/')), preview.exportPaths().get("custom"));
-        assertEquals(plan.packages(), preview.plan().packages());
-        assertEquals(values, PackageProviderFixture.lastDescriptionContext.providerSettings());
+        assertEquals(plan.packages(), preview.packages());
     }
 
     // Invalid or unknown provider properties fail before writing any artifacts and retain existing outputs.
@@ -2227,15 +2193,15 @@ public class ProjectBuildTest {
     public void testPackagePreviewReusesCompiledResources() throws Exception {
         createPackageProject();
         FileUtils.deleteDirectory(new File(contentRoot, "builtins"));
-        var first = PackagePreview.build(Path.of(contentRoot), Path.of(contentRoot), "/content.lumanifest", Map.of(), getClass().getClassLoader(), Progress.discarding());
+        var first = PackageBuilder.buildPlan(Path.of(contentRoot), "/content.lumanifest", Map.of(), getClass().getClassLoader(), Progress.discarding());
         Path compiled = Path.of(contentRoot, "build/logic/level.collectionc");
         FileTime unchanged = FileTime.fromMillis(946684800000L);
         Files.setLastModifiedTime(compiled, unchanged);
-        var second = PackagePreview.build(Path.of(contentRoot), Path.of(contentRoot), "/content.lumanifest", Map.of(), getClass().getClassLoader(), Progress.discarding());
-        assertEquals(first.plan().packages(), second.plan().packages());
+        var second = PackageBuilder.buildPlan(Path.of(contentRoot), "/content.lumanifest", Map.of(), getClass().getClassLoader(), Progress.discarding());
+        assertEquals(first.packages(), second.packages());
         assertEquals(unchanged, Files.getLastModifiedTime(compiled));
         createFile(contentRoot, "extra/data.json", "{\"changed\":true}");
-        PackagePreview.build(Path.of(contentRoot), Path.of(contentRoot), "/content.lumanifest", Map.of(), getClass().getClassLoader(), Progress.discarding());
+        PackageBuilder.buildPlan(Path.of(contentRoot), "/content.lumanifest", Map.of(), getClass().getClassLoader(), Progress.discarding());
         assertEquals("{\"changed\":true}", Files.readString(Path.of(contentRoot, "build/extra/data.json")));
         assertEquals(unchanged, Files.getLastModifiedTime(compiled));
         assertFalse(Files.exists(Path.of(contentRoot, "packages/episode.zip")));
@@ -2315,12 +2281,12 @@ public class ProjectBuildTest {
             var webBuild = executor.submit(() -> {
                 ready.countDown();
                 assertTrue(start.await(30, TimeUnit.SECONDS));
-                return PackagePreview.build(web, web, "/content.lumanifest", Map.of("platform", "wasm-web"), getClass().getClassLoader(), Progress.discarding());
+                return PackageBuilder.buildPlan(web, "/content.lumanifest", Map.of("platform", "wasm-web"), getClass().getClassLoader(), Progress.discarding());
             });
             var nativeBuild = executor.submit(() -> {
                 ready.countDown();
                 assertTrue(start.await(30, TimeUnit.SECONDS));
-                return PackagePreview.build(nativeProject, nativeProject, "/content.lumanifest", Map.of("platform", "arm64-macos"), getClass().getClassLoader(), Progress.discarding());
+                return PackageBuilder.buildPlan(nativeProject, "/content.lumanifest", Map.of("platform", "arm64-macos"), getClass().getClassLoader(), Progress.discarding());
             });
             assertTrue(ready.await(30, TimeUnit.SECONDS));
             start.countDown();
@@ -2330,9 +2296,9 @@ public class ProjectBuildTest {
             byte[] webScript = Files.readAllBytes(web.resolve(script));
             byte[] nativeScript = Files.readAllBytes(nativeProject.resolve(script));
             assertFalse(Arrays.equals(webScript, nativeScript));
-            PackagePreview.build(web, web, "/content.lumanifest", Map.of("platform", "arm64-macos"), getClass().getClassLoader(), Progress.discarding());
+            PackageBuilder.buildPlan(web, "/content.lumanifest", Map.of("platform", "arm64-macos"), getClass().getClassLoader(), Progress.discarding());
             assertArrayEquals(nativeScript, Files.readAllBytes(web.resolve(script)));
-            PackagePreview.build(nativeProject, nativeProject, "/content.lumanifest", Map.of("platform", "wasm-web"), getClass().getClassLoader(), Progress.discarding());
+            PackageBuilder.buildPlan(nativeProject, "/content.lumanifest", Map.of("platform", "wasm-web"), getClass().getClassLoader(), Progress.discarding());
             assertArrayEquals(webScript, Files.readAllBytes(nativeProject.resolve(script)));
         } finally {
             start.countDown();
@@ -2340,13 +2306,12 @@ public class ProjectBuildTest {
         }
     }
 
-    // Adding a pipeline-provider JAR after a first preview refreshes discovery without restarting the JVM.
+    // Adding a pipeline-provider JAR after a first build refreshes discovery without restarting the JVM.
     @Test
-    public void testPackagePreviewDiscoversNewProvider() throws Exception {
+    public void testPackageBuildDiscoversNewProvider() throws Exception {
         createPackageProject();
-        FileUtils.deleteDirectory(new File(contentRoot, "builtins"));
         Path root = Path.of(contentRoot);
-        PackagePreview.build(root, root, "/content.lumanifest", Map.of(), getClass().getClassLoader(), Progress.discarding());
+        buildPackageProject(true, false);
         Path classes = Files.createTempDirectory("liveupdate-provider-classes-");
         try {
             Path source = classes.resolve("AddedPackageProvider.java");
@@ -2382,9 +2347,8 @@ public class ProjectBuildTest {
                 jar.closeEntry();
             }
             savePackages(livePackage("episode", "added-provider", addPath("Data", "/extra/.*")));
-            var result = PackagePreview.build(root, root, "/content.lumanifest", Map.of(), getClass().getClassLoader(), Progress.discarding());
-            assertEquals(List.of(root.resolve("packages/episode.added").toString().replace('\\', '/')), result.exportPaths().get("episode"));
-            assertFalse(Files.exists(root.resolve("packages/episode.added")));
+            buildPackageProject(true, false);
+            assertTrue(Files.isRegularFile(root.resolve("packages/episode.added")));
         } finally {
             FileUtils.deleteDirectory(classes.toFile());
         }

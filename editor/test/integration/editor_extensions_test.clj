@@ -60,7 +60,7 @@
             [util.http-server :as http-server]
             [util.path :as path])
   (:import [com.dynamo.bob Progress]
-           [com.dynamo.bob.archive.liveupdate PackagePreview PackagePreview$Result PackageResolver$Package]
+           [com.dynamo.bob.archive.liveupdate PackageBuilder PackageResolver$Plan PackageResolver$Package]
            [java.io StringWriter]
            [java.nio.file.attribute PosixFilePermission]
            [java.util.zip ZipEntry]
@@ -541,15 +541,14 @@
         (fs/copy-directory! (workspace/project-directory workspace) snapshot)
         (spit (io/file snapshot "episode.collectionproxy") "collection: \"/episodes/00/episode.collection\"\nexclude: true\n")
         (let [build! (fn build! [manifest-path]
-                       (PackagePreview/build (.toPath snapshot) (.toPath (workspace/project-directory workspace))
-                                             manifest-path {} (.getContextClassLoader (Thread/currentThread)) (Progress/discarding)))
-              ^PackagePreview$Result legacy (build! "")
-              ^PackagePreview$Result converted (build! "/liveupdate1.lumanifest")
+                       (PackageBuilder/buildPlan (.toPath snapshot) manifest-path {} (.getContextClassLoader (Thread/currentThread)) (Progress/discarding)))
+              ^PackageResolver$Plan legacy (build! "")
+              ^PackageResolver$Plan converted (build! "/liveupdate1.lumanifest")
               excluded #{"/episodes/00/episode.collectionc" "/episodes/00/episode.goc" "/episodes/00/episode.scriptc"}]
-          (is (= excluded (.resources ^PackageResolver$Package (get (.packages (.plan legacy)) "liveupdate"))))
-          (is (= excluded (.resources ^PackageResolver$Package (get (.packages (.plan converted)) "liveupdate"))))
-          (is (= (.base (.plan legacy)) (.base (.plan converted))))
-          (is (coll/every? #(.contains (.base (.plan converted)) %)
+          (is (= excluded (.resources ^PackageResolver$Package (get (.packages legacy) "liveupdate"))))
+          (is (= excluded (.resources ^PackageResolver$Package (get (.packages converted) "liveupdate"))))
+          (is (= (.base legacy) (.base converted)))
+          (is (coll/every? #(.contains (.base converted) %)
                            ["/episodes/09/episode.collectionc" "/episodes/09/episode.goc" "/episodes/common/actor.goc" "/common/shared.scriptc"]))))
       (is (= original-proxy (slurp (workspace/find-resource workspace "/episode.collectionproxy"))))
       (is (= original-project (slurp (workspace/find-resource workspace "/game.project")))))))

@@ -65,7 +65,7 @@
             [util.path :as path])
   (:import [clojure.lang IDeref Murmur3]
            [com.dynamo.bob Platform Progress]
-           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackagePreview PackageResolver]
+           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageResolver]
            [com.dynamo.bob.bundle BundleHelper]
            [com.dynamo.bob.util Library$Result]
            [java.io InputStream PrintStream PushbackReader]
@@ -432,16 +432,14 @@
                                  [options commands]))]
       (invoke-bob! options commands))))
 
-(defn- make-ext-live-update-rules-fn [project prefs]
+(defn- make-ext-live-update-rules-fn [project]
   (rt/suspendable-lua-fn live-update-rules [{:keys [evaluation-context]}]
     (let [workspace (project/workspace project evaluation-context)
-          project-directory (workspace/project-directory (:basis evaluation-context) workspace)
           resource-map (g/node-value workspace :resource-map evaluation-context)
           generated-paths (g/node-value project :live-update-output-paths evaluation-context)
           save-data (mapv (fn [{:keys [resource save-value]}]
                             [(resource/proj-path resource) save-value (resource/resource-type resource (:basis evaluation-context))])
-                          (project/dirty-save-data project evaluation-context))
-          options (prefs/get prefs [:bundle :last-bob-options])]
+                          (project/dirty-save-data project evaluation-context))]
       (future/io
         ;; Conversion is a one-off operation. Bob uses a temporary snapshot so
         ;; it sees unsaved content without writing into the user's project.
@@ -462,9 +460,8 @@
                     (spit destination content :encoding "UTF-8")
                     (with-open [input (io/input-stream source)]
                       (io/copy input destination)))))
-              (let [result (PackagePreview/build (.toPath snapshot) (.toPath project-directory)
-                                                 "" options java/class-loader (Progress/discarding))]
-                (coll/join-to-string "\n" (mapv #(str "rules {\n" % "}\n") (PackageResolver/migrateLegacy (.plan result))))))
+              (let [plan (PackageBuilder/buildPlan (.toPath snapshot) "" {} java/class-loader (Progress/discarding))]
+                (coll/join-to-string "\n" (mapv #(str "rules {\n" % "}\n") (PackageResolver/migrateLegacy plan)))))
             (finally
               (fs/delete-directory! snapshot))))))))
 
@@ -1149,7 +1146,7 @@
                   :out (line-writer #(display-output! :out %))
                   :err (line-writer #(display-output! :err %))
                   :env {"editor" {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!
-                                  "liveupdate" {"legacy_rules" (make-ext-live-update-rules-fn project prefs)} ;; built-in conversion script only
+                                  "liveupdate" {"legacy_rules" (make-ext-live-update-rules-fn project)} ;; built-in conversion script only
                                   "get" (make-ext-get-fn project localization)
                                   "can_add" (graph/make-ext-can-add-fn project)
                                   "can_get" (make-ext-can-get-fn project)

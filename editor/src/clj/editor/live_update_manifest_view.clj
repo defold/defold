@@ -32,7 +32,7 @@
             [editor.workspace :as workspace]
             [util.coll :as coll])
   (:import [clojure.lang PersistentQueue]
-           [com.dynamo.bob.archive.liveupdate PackagePreview$Result PackageResolver PackageResolver$Loading PackageResolver$Contribution PackageResolver$Diagnostic PackageResolver$Package PackageResolver$Plan PackageResolver$Resource PackageResolver$RuleId]
+           [com.dynamo.bob.archive.liveupdate PackageResolver PackageResolver$Loading PackageResolver$Contribution PackageResolver$Diagnostic PackageResolver$Package PackageResolver$Plan PackageResolver$Resource PackageResolver$RuleId]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc LiveUpdateManifest$PackageDesc]
            [java.io File]
            [java.nio.file Path]
@@ -144,7 +144,7 @@
                                     ;; Custom names need final payloads.
                                     directory))]])))]
         (check-cancelled!)
-        (PackagePreview$Result. plan paths)))))
+        {:plan plan :export-paths paths}))))
 
 (defn- base-dependency-paths [^PackageResolver$Plan plan]
   ;; Startup paths supply the roots and eager dependencies. Continue through
@@ -171,9 +171,9 @@
           (recur (assoc paths root [root]) (conj pending root) remaining)
           paths)))))
 
-(defn- index-preview [{:keys [^PackagePreview$Result compiled packages]}]
+(defn- index-preview [{:keys [compiled packages]}]
   (when compiled
-    (let [plan (.plan compiled)
+    (let [^PackageResolver$Plan plan (:plan compiled)
           memberships (reduce (fn [memberships [name paths]]
                                 (check-cancelled!)
                                 (reduce #(update %1 %2 (fnil conj []) name) memberships paths))
@@ -360,9 +360,9 @@
         package-name (or (:package-name data) (selected-package model ui-state))
         searching (:searching data)
         rows (:rows data [])
-        ^PackagePreview$Result compiled (:compiled data)
-        export-paths (when (and compiled (not searching)) (get (.exportPaths compiled) package-name))
-        diagnostics (if compiled (.diagnostics (.plan compiled)) (:diagnostics model))
+        compiled (:compiled data)
+        export-paths (when (and compiled (not searching)) (get (:export-paths compiled) package-name))
+        diagnostics (if compiled (.diagnostics ^PackageResolver$Plan (:plan compiled)) (:diagnostics model))
         messages (coll/into-> [diagnostics (:diagnostics model)] []
                    cat
                    (map #(.message ^PackageResolver$Diagnostic %)))

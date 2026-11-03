@@ -188,7 +188,7 @@ public interface PackageProvider {
      * Bob finalizes the outputs only after all providers succeed; throw on failure and check cancellation during long work.
      *
      * @param resources repeatable streams of prepared engine payloads for this package; close streams after reading
-     * @param manifest signed liveupdate.game.dmanifest bytes containing exactly this package's resource entries
+     * @param manifest liveupdate.game.dmanifest bytes containing exactly this package's resource entries
      * @param stagingDirectory empty directory owned and cleaned up by Bob; do not retain streams or write outside it
      */
     void write(Context context, PackageResolver.Package pkg, List<PreparedResource> resources,

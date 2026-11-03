@@ -25,7 +25,6 @@ import java.util.List;
 /** Test extension exercises the same discovery mechanism as installed pipeline plugins. */
 public final class PackageProviderFixture implements PackageProvider {
     public static Context lastContext;
-    public static Context lastDescriptionContext;
     public static Manifest.ManifestData lastManifest;
     public static boolean fail;
     public static boolean collide;
@@ -51,7 +50,6 @@ public final class PackageProviderFixture implements PackageProvider {
 
     @Override
     public List<Artifact> describeOutputs(Context context, PackageResolver.Package pkg) {
-        lastDescriptionContext = context;
         return List.of(new Artifact(collide ? "collision.custom" : pkg.description().getName() + "." + context.providerSettings().get(getId()).get("extension"), false),
                 new Artifact("metadata/" + pkg.description().getName() + ".json", false));
     }

@@ -1665,11 +1665,6 @@
   (if-not (compare-and-set! bob-task-in-progress-atom false true)
     {:error (g/error-fatal (localization/message "error.bob.project-operation-in-progress"))}
     (try
-      (when (coll/any? #{"bundle"} commands)
-        (prefs/set! prefs [:bundle :last-bob-options]
-                    (coll/into-> (select-keys (assoc options "variant" (get options "variant" "release"))
-                                              ["platform" "architectures" "variant" "texture-compression"]) {}
-                      (map (fn [[key value]] [key (str value)])))))
       (let [evaluation-context (g/make-evaluation-context)
             options (cond-> options
                       (not (contains? options "build-server"))

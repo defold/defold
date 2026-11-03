@@ -122,9 +122,8 @@ public class Project implements AutoCloseable {
     public final static String PLUGINS_DIR = "./build/plugins";
     private static ClassLoaderScanner scanner = null;
     // Compiler registries and parameter digests are shared within the JVM.
-    // Editor previews must use the same gate as ordinary Bob builds.
+    // Editor conversion must use the same gate as ordinary Bob builds.
     private static final java.util.concurrent.locks.ReentrantLock buildLock = new java.util.concurrent.locks.ReentrantLock(true);
-    private ClassLoaderScanner projectScanner;
 
     private ExecutorService executor = Executors.newCachedThreadPool();
     private ResourceCache resourceCache = new ResourceCache();
@@ -340,13 +339,8 @@ public class Project implements AutoCloseable {
     }
 
     private ClassLoaderScanner createClassLoaderScanner() throws IOException {
-        projectScanner = new ClassLoaderScanner(getClassLoader());
-        scanner = projectScanner;
+        scanner = new ClassLoaderScanner(getClassLoader());
         return scanner;
-    }
-
-    public IClassScanner getProjectClassLoaderScanner() {
-        return projectScanner;
     }
 
     public ClassLoader getClassLoader() {
