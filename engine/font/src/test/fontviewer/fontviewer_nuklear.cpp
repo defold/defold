@@ -120,12 +120,16 @@ bool FontViewerNuklearInitialize(HWindow window, uint32_t width, uint32_t height
     int         atlas_height = 0;
     const void* atlas_pixels = nk_font_atlas_bake(&g_FontAtlas, &atlas_width, &atlas_height, NK_FONT_ATLAS_RGBA32);
     if (!g_Font || !atlas_pixels || atlas_width <= 0 || atlas_height <= 0)
+    {
         return false;
+    }
 
     const size_t atlas_size = (size_t)atlas_width * atlas_height * 4;
     g_AtlasPixels = (uint8_t*)malloc(atlas_size);
     if (!g_AtlasPixels)
+    {
         return false;
+    }
     memcpy(g_AtlasPixels, atlas_pixels, atlas_size);
     g_AtlasWidth = (uint32_t)atlas_width;
     g_AtlasHeight = (uint32_t)atlas_height;
@@ -133,7 +137,9 @@ bool FontViewerNuklearInitialize(HWindow window, uint32_t width, uint32_t height
 
     g_Initialized = nk_init_default(&g_Context, &g_Font->handle) != 0;
     if (!g_Initialized)
+    {
         return false;
+    }
     g_Context.clip.userdata.ptr = window;
     g_Context.clip.copy = CopyToClipboard;
     nk_buffer_init_fixed(&g_DrawCommands, g_DrawCommandMemory, sizeof(g_DrawCommandMemory));
@@ -163,7 +169,9 @@ void FontViewerNuklearFinalize(void)
 bool FontViewerNuklearGetAtlas(const void** pixels, uint32_t* width, uint32_t* height)
 {
     if (!g_AtlasPixels)
+    {
         return false;
+    }
     *pixels = g_AtlasPixels;
     *width = g_AtlasWidth;
     *height = g_AtlasHeight;
@@ -193,7 +201,9 @@ static float EstimateTextContentHeight(const char* text, float width)
         }
         const char* word_end = cursor;
         while (*word_end && *word_end != ' ' && *word_end != '\n')
+        {
             ++word_end;
+        }
         const float word_width = (float)(word_end - cursor) * glyph_width;
         if (line_width > 0.0f && line_width + word_width > width)
         {
@@ -273,7 +283,9 @@ static void ConvertCommands(FontViewerNuklearLayout* layout)
     nk_buffer_clear(&g_Indices);
     const nk_flags result = nk_convert(&g_Context, &g_DrawCommands, &g_Vertices, &g_Indices, &config);
     if (result != NK_CONVERT_SUCCESS)
+    {
         return;
+    }
 
     layout->m_Vertices = (const FontViewerNuklearVertex*)nk_buffer_memory_const(&g_Vertices);
     layout->m_Indices = (const uint16_t*)nk_buffer_memory_const(&g_Indices);
@@ -284,7 +296,9 @@ static void ConvertCommands(FontViewerNuklearLayout* layout)
     nk_draw_foreach(command, &g_Context, &g_DrawCommands)
     {
         if (!command->elem_count || layout->m_DrawCommandCount == FONT_VIEWER_NUKLEAR_MAX_DRAW_COMMANDS)
+        {
             continue;
+        }
         FontViewerNuklearDrawCommand* output = &g_RenderCommands[layout->m_DrawCommandCount++];
         output->m_Clip = ToBox(command->clip_rect);
         output->m_ElementCount = command->elem_count;
@@ -306,7 +320,9 @@ void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, f
         nk_input_key(&g_Context, NK_KEY_COPY, input->m_CopyDown);
         nk_input_key(&g_Context, NK_KEY_TEXT_SELECT_ALL, input->m_SelectAllDown);
         if (input->m_ScrollY != 0.0f)
+        {
             nk_input_scroll(&g_Context, nk_vec2(0.0f, input->m_ScrollY));
+        }
     }
     nk_input_end(&g_Context);
 
@@ -380,7 +396,9 @@ void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, f
             nk_label(&g_Context, zoom_text, NK_TEXT_RIGHT);
             nk_layout_row_push(&g_Context, 58.0f);
             if (nk_button_label(&g_Context, "Reset"))
+            {
                 *zoom = 1.0f;
+            }
             nk_layout_row_end(&g_Context);
 
             nk_bool legacy = *legacy_layout;

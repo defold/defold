@@ -63,12 +63,9 @@ set(RESOURCE_SOURCES ${RESOURCE_TOP_SOURCES} ${RESOURCE_PROVIDER_SOURCES})
 
 if(TARGET_PLATFORM MATCHES "web$")
   list(FILTER RESOURCE_SOURCES EXCLUDE REGEX "/provider_http\\.cpp$")
-  list(APPEND RESOURCE_SOURCES "${RESOURCE_SRC_DIR}/async/load_queue_sync.cpp")
 else()
   list(FILTER RESOURCE_SOURCES EXCLUDE REGEX "/provider_http_null\\.cpp$")
-  list(APPEND RESOURCE_SOURCES "${RESOURCE_SRC_DIR}/async/load_queue_threaded.cpp")
 endif()
-list(APPEND RESOURCE_SOURCES "${RESOURCE_SRC_DIR}/async/load_queue.cpp")
 
 if(TARGET_PLATFORM MATCHES "^(armv7-android|arm64-android|x86_64-android)$")
   list(APPEND RESOURCE_SOURCES "${RESOURCE_SRC_DIR}/mount/mount_android.cpp")

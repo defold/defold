@@ -350,7 +350,7 @@ namespace dmEngineService
   "/post/{socket}/{message_type}": {
     "post": {
       "summary": "Post an engine message",
-      "description": "Encode the payload as protobuf using the registered DDF descriptor. The receiving socket determines which message types it handles.",
+      "description": "Encode the payload as protobuf using the registered DDF descriptor. The receiving socket determines which message types it handles. The 1024-byte limit applies except for /post/@resource/reload, which accepts up to 64 MiB.",
       "requestBody": {
         "required": true,
         "content": {
@@ -365,7 +365,7 @@ namespace dmEngineService
       },
       "responses": {
         "200": {
-          "description": "Delivery is asynchronous. This response does not confirm command execution and may also be returned if protobuf decoding or message posting fails.",
+          "description": "The message was decoded and queued. Delivery is asynchronous; this response does not confirm command execution.",
           "content": {
             "text/plain": {
               "schema": {
@@ -376,7 +376,7 @@ namespace dmEngineService
           }
         },
         "400": {
-          "description": "Socket lookup, DDF descriptor lookup, body size validation, or body reading failed.",
+          "description": "Socket lookup, DDF descriptor lookup, body size validation, body reading, protobuf decoding, or message posting failed.",
           "content": {
             "text/plain": {
               "schema": {
@@ -426,7 +426,7 @@ namespace dmEngineService
       },
       "responses": {
         "200": {
-          "description": "Delivery is asynchronous. This response does not confirm command execution and may also be returned if protobuf decoding or message posting fails.",
+          "description": "The message was decoded and queued. Delivery is asynchronous; this response does not confirm command execution.",
           "content": {
             "text/plain": {
               "schema": {
@@ -437,7 +437,7 @@ namespace dmEngineService
           }
         },
         "400": {
-          "description": "Socket lookup, DDF descriptor lookup, body size validation, or body reading failed.",
+          "description": "Socket lookup, DDF descriptor lookup, body size validation, body reading, protobuf decoding, or message posting failed.",
           "content": {
             "text/plain": {
               "schema": {
@@ -471,7 +471,7 @@ namespace dmEngineService
       },
       "responses": {
         "200": {
-          "description": "Delivery is asynchronous. This response does not confirm command execution and may also be returned if protobuf decoding or message posting fails.",
+          "description": "The message was decoded and queued. Delivery is asynchronous; this response does not confirm command execution.",
           "content": {
             "text/plain": {
               "schema": {
@@ -482,7 +482,7 @@ namespace dmEngineService
           }
         },
         "400": {
-          "description": "Socket lookup, DDF descriptor lookup, body size validation, or body reading failed.",
+          "description": "Socket lookup, DDF descriptor lookup, body size validation, body reading, protobuf decoding, or message posting failed.",
           "content": {
             "text/plain": {
               "schema": {
@@ -516,7 +516,7 @@ namespace dmEngineService
       },
       "responses": {
         "200": {
-          "description": "Delivery is asynchronous. This response does not confirm command execution and may also be returned if protobuf decoding or message posting fails.",
+          "description": "The message was decoded and queued. Delivery is asynchronous; this response does not confirm command execution.",
           "content": {
             "text/plain": {
               "schema": {
@@ -527,7 +527,7 @@ namespace dmEngineService
           }
         },
         "400": {
-          "description": "Socket lookup, DDF descriptor lookup, body size validation, or body reading failed.",
+          "description": "Socket lookup, DDF descriptor lookup, body size validation, body reading, protobuf decoding, or message posting failed.",
           "content": {
             "text/plain": {
               "schema": {
@@ -561,7 +561,7 @@ namespace dmEngineService
       },
       "responses": {
         "200": {
-          "description": "Delivery is asynchronous. This response does not confirm command execution and may also be returned if protobuf decoding or message posting fails.",
+          "description": "The message was decoded and queued. Delivery is asynchronous; this response does not confirm command execution.",
           "content": {
             "text/plain": {
               "schema": {
@@ -572,7 +572,7 @@ namespace dmEngineService
           }
         },
         "400": {
-          "description": "Socket lookup, DDF descriptor lookup, body size validation, or body reading failed.",
+          "description": "Socket lookup, DDF descriptor lookup, body size validation, body reading, protobuf decoding, or message posting failed.",
           "content": {
             "text/plain": {
               "schema": {
@@ -591,7 +591,7 @@ namespace dmEngineService
   "/post/@resource/reload": {
     "post": {
       "summary": "Reload engine resources",
-      "description": "Repeated string field resources supplies project resource paths, for example /main/main.scriptc.",
+      "description": "Repeated string field resources supplies project resource paths, for example /main/main.scriptc. The complete batch is queued together, and all paths lose their cache trust before any reload callbacks run.",
       "requestBody": {
         "required": true,
         "content": {
@@ -599,14 +599,14 @@ namespace dmEngineService
             "schema": {
               "type": "string",
               "format": "binary",
-              "maxLength": 1024
+              "maxLength": 67108864
             }
           }
         }
       },
       "responses": {
         "200": {
-          "description": "Delivery is asynchronous. This response does not confirm command execution and may also be returned if protobuf decoding or message posting fails.",
+          "description": "The message was decoded and queued. Delivery is asynchronous; this response does not confirm command execution.",
           "content": {
             "text/plain": {
               "schema": {
@@ -617,7 +617,7 @@ namespace dmEngineService
           }
         },
         "400": {
-          "description": "Socket lookup, DDF descriptor lookup, body size validation, or body reading failed.",
+          "description": "Socket lookup, DDF descriptor lookup, body size validation, body reading, protobuf decoding, or message posting failed.",
           "content": {
             "text/plain": {
               "schema": {

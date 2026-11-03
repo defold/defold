@@ -551,6 +551,46 @@ TEST_F(ScriptTest, TestReloadModule)
     dmSys::Unlink(script_file_name);
 }
 
+static void ModuleWithDependency(dmArray<uint8_t>& data, const char* path, const char* dependency)
+{
+    const char* source = "return {}";
+    dmLuaDDF::LuaModule module = {};
+    module.m_Source.m_Script.m_Data = (uint8_t*)source;
+    module.m_Source.m_Script.m_Count = strlen(source);
+    module.m_Source.m_Filename = path;
+    module.m_Resources.m_Data = &dependency;
+    module.m_Resources.m_Count = dependency ? 1 : 0;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&module, dmLuaDDF::LuaModule::m_DDFDescriptor, data));
+}
+
+// Lua recreation replaces hint-only dependency edges even when no script context holds the module.
+TEST_F(ScriptTest, RecreateModuleDependencies)
+{
+    const char* paths[] = { "/reload_parent.luac", "/reload_previous.luac", "/reload_next.luac" };
+    dmArray<uint8_t> data[3];
+    void* resources[3];
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ModuleWithDependency(data[i], paths[i], i == 0 ? paths[1] : 0);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, paths[i], data[i].Size(), data[i].Begin()));
+    }
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, paths[1], &resources[1]));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, paths[2], &resources[2]));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, paths[0], &resources[0]));
+    dmArray<uint8_t> replacement;
+    ModuleWithDependency(replacement, paths[0], paths[2]);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(paths[0]), replacement.Begin(), replacement.Size()));
+    ModuleWithDependency(replacement, paths[1], paths[0]);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(paths[1]), replacement.Begin(), replacement.Size()));
+    ModuleWithDependency(replacement, paths[2], paths[0]);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_LOOP_ERROR, dmResource::SetResource(m_Factory, dmHashString64(paths[2]), replacement.Begin(), replacement.Size()));
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        dmResource::Release(m_Factory, resources[i]);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, paths[i]));
+    }
+}
+
 TEST_F(ScriptTest, TestURL)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/url.goc");

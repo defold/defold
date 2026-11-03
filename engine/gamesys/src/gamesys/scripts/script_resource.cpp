@@ -3082,6 +3082,9 @@ static int CreateBuffer(lua_State* L)
     dmBuffer::GetCount(buffer, &resource->m_ElementCount);
     dmBuffer::GetContentVersion(buffer, &resource->m_Version);
 
+    HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, canonical_path_hash);
+    dmResource::SetResourceSize(rd, sizeof(BufferResource) + (size_t)resource->m_ElementCount * resource->m_Stride);
+
     if (transfer_ownership)
     {
         // IncRef if this is a lua buffer or a buffer from another resource,
@@ -3225,7 +3228,8 @@ static int SetBuffer(lua_State* L)
     }
 
     dmBuffer::HBuffer src_buffer                  = dmGameSystem::UnpackLuaBuffer(luabuf);
-    void* resource                                = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
+    HResourceDescriptor rd                        = CheckResourceDescriptor(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
+    void* resource                                = dmResource::GetResource(rd);
     dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)resource;
     dmBuffer::HBuffer dst_buffer                  = buffer_resource->m_Buffer;
 
@@ -3294,6 +3298,7 @@ static int SetBuffer(lua_State* L)
             dmBuffer::Destroy(buffer_resource->m_Buffer);
             buffer_resource->m_Buffer       = dst_buffer;
             buffer_resource->m_ElementCount = src_count;
+            buffer_resource->m_Stride       = dmBuffer::GetStructSize(dst_buffer);
         }
         else
         {
@@ -3309,6 +3314,12 @@ static int SetBuffer(lua_State* L)
     dmBuffer::UpdateContentVersion(dst_buffer);
     dmBuffer::GetContentVersion(buffer_resource->m_Buffer, &buffer_resource->m_Version);
     buffer_resource->m_NameHash = path_hash;
+
+    // Copies into the existing buffer keep its resident size.
+    if (buffer_resource->m_Buffer != dst_buffer)
+    {
+        dmResource::SetResourceSize(rd, sizeof(BufferResource) + (size_t)buffer_resource->m_ElementCount * buffer_resource->m_Stride);
+    }
 
     assert(top == lua_gettop(L));
     return 0;

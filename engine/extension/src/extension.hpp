@@ -66,9 +66,10 @@ namespace dmExtension
      * Update all extensions
      * Each extension must have been initialized ok
      * @param params parameters
+     * @param dt engine update delta in seconds
      * @return RESULT_OK on success
      */
-    Result Update(Params* params);
+    Result Update(Params* params, float dt);
 
     /**
      * Call pre render functions for extensions

@@ -68,7 +68,7 @@ public class ShaderProgramBuilderEditor {
     static private boolean isCompatibleLanguage(Graphics.ShaderDesc.ShaderType shaderType, Graphics.ShaderDesc.Language shaderLanguage) {
         if (shaderType == Graphics.ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
             return switch (shaderLanguage) {
-                case LANGUAGE_SPIRV, LANGUAGE_GLSL_SM430, LANGUAGE_PSSL, LANGUAGE_WGSL, LANGUAGE_HLSL_51, LANGUAGE_HLSL_50, LANGUAGE_MSL_22 -> true;
+                case LANGUAGE_SPIRV, LANGUAGE_GLSL_SM430, LANGUAGE_PSSL, LANGUAGE_WGSL, LANGUAGE_HLSL_60, LANGUAGE_MSL_22 -> true;
                 default -> false;
             };
         } else {
@@ -82,7 +82,7 @@ public class ShaderProgramBuilderEditor {
             String resourceOutputPath, ShaderCompilePipeline.ShaderModuleDesc[] shaderDescs,
             Graphics.ShaderDesc.Language[] shaderLanguages, int maxPageCount, Shaderc.ShaderPrecision floatPrecision, Shaderc.ShaderPrecision intPrecision) throws IOException, CompileExceptionError {
 
-        if (Arrays.asList(shaderLanguages).contains(Graphics.ShaderDesc.Language.LANGUAGE_HLSL_51)) {
+        if (Arrays.asList(shaderLanguages).contains(Graphics.ShaderDesc.Language.LANGUAGE_HLSL_60)) {
             // DX12 needs stage IO remapping and a merged root signature, including
             // recompilation with that signature. Share Bob's runtime compiler path.
             IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();

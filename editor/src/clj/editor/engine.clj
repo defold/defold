@@ -23,7 +23,6 @@
             [editor.process :as process]
             [editor.profiler-xctrace :as profiler-xctrace]
             [editor.protobuf :as protobuf]
-            [editor.resource :as resource]
             [editor.system :as system]
             [service.log :as log]
             [util.coll :as coll]
@@ -62,10 +61,9 @@
         ;; For instance socket closed because engine was killed
         nil))))
 
-(defn reload-build-resources! [target build-resources]
+(defn reload-build-resource-paths! [target proj-paths]
   (let [uri (URI. (str (:url target) "/post/@resource/reload"))
-        conn ^HttpURLConnection (get-connection uri)
-        proj-paths (mapv resource/proj-path build-resources)]
+        conn ^HttpURLConnection (get-connection uri)]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
@@ -270,10 +268,10 @@
    :dmengine <File to bundled/dev dmengine>
    :engine-archive <File to custom engine archive downloaded from extension server>
    :extender-platform <String platform the engine was compiled for>}"
-  [project evaluation-context prefs platform]
+  [project evaluation-context prefs platform progress]
   (or (dev-custom-engine prefs platform)
       (if (native-extensions/has-engine-extensions? project evaluation-context)
-        (native-extensions/get-engine-archive project platform prefs evaluation-context)
+        (native-extensions/get-engine-archive project platform prefs evaluation-context progress)
         (bundled-engine platform))))
 
 (defn- zip-entries! [^ZipFile zipfile]
