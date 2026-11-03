@@ -25,7 +25,6 @@
             [editor.fs :as fs]
             [editor.live-update-manifest :as manifest]
             [editor.live-update-manifest-view :as manifest-view]
-            [editor.prefs :as prefs]
             [editor.properties :as properties]
             [editor.properties-view :as properties-view]
             [editor.protobuf :as protobuf]
@@ -164,8 +163,7 @@
 
 (defn- with-manifest-view! [project app-view path f]
   (ui/run-now
-    (let [prefs-file (fs/create-temp-file! "liveupdate-preview" ".editor_settings")
-          preferences (prefs/make :scopes {:global prefs-file :project prefs-file} :schemas [:default])
+    (let [preferences (test-util/make-test-prefs)
           view (open-manifest-view! project app-view path preferences)]
       (try
         (let [compiled (await-preview! (:state view) nil)]
@@ -176,7 +174,8 @@
         (finally
           (close-manifest-view! view))))))
 
-(defn- build-preview! [project contents manifest-path options cancelled?]
+(defn- build-bob-plan!
+  ^PackageResolver$Plan [project contents manifest-path]
   (let [workspace (project/workspace project)
         generated-paths (g/node-value project :live-update-output-paths)]
     (test-util/with-temp-dir! snapshot
@@ -190,8 +189,7 @@
             (spit destination content :encoding "UTF-8")
             (with-open [input (io/input-stream source)]
               (io/copy input destination)))))
-      (is (not (cancelled?)))
-      {:plan (PackageBuilder/buildPlan (.toPath snapshot) manifest-path options java/class-loader (Progress/discarding))})))
+      (PackageBuilder/buildPlan (.toPath snapshot) manifest-path {} java/class-loader (Progress/discarding)))))
 
 ;; Package/rule edits must use graph history and preserve the authoring format
 ;; on reload.
@@ -320,7 +318,7 @@
       (is (= (g/node-value node :save-value) (g/node-value (project/get-resource-node project "/provider-reloaded.lumanifest") :save-value))))))
 
 ;; Adding a pipeline JAR refreshes an existing manifest's cached properties.
-;; Unsaved edits reach Bob's preview without invoking provider writers.
+;; Unsaved provider settings are captured by the manifest's save value.
 (deftest custom-provider-properties
   (test-util/with-scratch-project "test/resources/live_update_project"
     (test-util/make-resource! workspace "/provider.lumanifest"
@@ -646,9 +644,9 @@
                        (keep (fn [save-data]
                                (when-let [content (resource-node/save-data-content save-data)]
                                  [(resource/proj-path (:resource save-data)) content]))))
-            result (build-preview! project contents "/packages.lumanifest" {} (constantly false))]
-        (is (contains? (.resources ^PackageResolver$Package (get (.packages ^PackageResolver$Plan (:plan result)) "levels")) "/opaque/data.script"))
-        (is (not (contains? (.resources ^PackageResolver$Plan (:plan result)) "/opaque/data.scriptc")))))))
+            plan (build-bob-plan! project contents "/packages.lumanifest")]
+        (is (contains? (.resources ^PackageResolver$Package (get (.packages plan) "levels")) "/opaque/data.script"))
+        (is (not (contains? (.resources plan) "/opaque/data.scriptc")))))))
 
 ;; Exported artifacts must not become regex inputs to editor builds or previews.
 ;; Resource synchronization captures ownership so graph evaluation stays pure.
@@ -675,11 +673,11 @@
       (is (= #{"/episode.zip"} (g/node-value project :live-update-output-paths)))
       (is (= #{"/extra.json"} (g/node-value node :selected-paths)))
       (let [sources (set (g/node-value node :source-paths))
-            refreshed (build-preview! project {} "/packages.lumanifest" {} (constantly false))]
+            refreshed (build-bob-plan! project {} "/packages.lumanifest")]
         (is (not (contains? sources "/episode.zip")))
-        (is (= (.base packaged) (.base ^PackageResolver$Plan (:plan refreshed))))
+        (is (= (.base packaged) (.base refreshed)))
         (is (= (.resources ^PackageResolver$Package (get (.packages packaged) "episode"))
-               (.resources ^PackageResolver$Package (get (.packages ^PackageResolver$Plan (:plan refreshed)) "episode")))))
+               (.resources ^PackageResolver$Package (get (.packages refreshed) "episode")))))
       (let [game-project (project/get-resource-node project "/game.project")
             targets (build/resolve-node-dependencies game-project project)]
         (is (not (g/error-value? targets)) (pr-str targets))
@@ -689,7 +687,7 @@
             (is (not (contains? paths "/episode.zip")))))))))
 
 ;; The example separates both episode ranges from shared content, keeps custom
-;; text paths, and uses unsaved text in both Bob previews and local builds.
+;; text paths, and uses unsaved text in both Bob plans and local builds.
 (deftest episode-packages-example
   (test-util/with-scratch-project "test/resources/live_update_packages_project"
     (let [raw (project/get-resource-node project "/episodes/00/description.txt")
@@ -706,8 +704,7 @@
                        (keep (fn [data]
                                (when-let [content (resource-node/save-data-content data)]
                                  [(resource/proj-path (:resource data)) content]))))
-            result (build-preview! project contents "/liveupdate.lumanifest" {} (constantly false))
-            plan ^PackageResolver$Plan (:plan result)]
+            plan (build-bob-plan! project contents "/liveupdate.lumanifest")]
         (with-manifest-view! project app-view "/liveupdate.lumanifest"
           (fn [{:keys [state]}]
             (let [graph-plan ^PackageResolver$Plan (:plan (get-in @state [:result :compiled]))]
