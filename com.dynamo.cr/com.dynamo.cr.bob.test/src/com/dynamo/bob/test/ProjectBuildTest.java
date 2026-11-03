@@ -1887,13 +1887,6 @@ public class ProjectBuildTest {
         buildPackageProject(true, false);
         assertEquals(unchanged, Files.getLastModifiedTime(zip));
 
-        Path receipt = Path.of(contentRoot, "build/game.lupackages");
-        StringBuilder legacy = new StringBuilder();
-        for (String line : Files.readAllLines(receipt)) {
-            if (!line.startsWith("project-root ")) legacy.append(String.join(" ", Arrays.copyOf(line.split(" ", -1), 4))).append('\n');
-        }
-        Files.writeString(receipt, legacy);
-        buildPackageProject(true, false);
         try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
             var outputs = PackageWriter.validatedOutputs(project);
             assertEquals(2, outputs.size());

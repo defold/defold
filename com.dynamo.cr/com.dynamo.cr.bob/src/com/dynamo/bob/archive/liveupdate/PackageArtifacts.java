@@ -115,44 +115,43 @@ public final class PackageArtifacts {
     }
 
     /**
-     * Reads current and older receipt formats, rebasing project-local artifacts to the supplied project root.
-     * External artifacts remain owned only by the originating project; unestablished external ownership is discarded.
+     * Reads artifact ownership, rebasing project-local artifacts to the supplied project root.
+     * External artifacts remain owned only by the originating project.
      */
     static List<Output> parse(Path projectRoot, String content) throws IOException {
         projectRoot = projectRoot.toAbsolutePath().normalize();
-        Path origin = null;
-        if (content.startsWith("project-root ")) {
-            int end = content.indexOf('\n');
-            origin = Path.of(new String(Base64.getDecoder().decode(content.substring(13, end)), StandardCharsets.UTF_8));
-            content = content.substring(end + 1);
+        int end = content.indexOf('\n');
+        if (!content.startsWith("project-root ") || end < 13) {
+            throw new IOException("Invalid Live Update artifact receipt");
         }
+        Path origin = Path.of(new String(Base64.getDecoder().decode(content.substring(13, end)), StandardCharsets.UTF_8));
+        content = content.substring(end + 1);
         List<Output> outputs = new ArrayList<>();
         for (String line : content.lines().toList()) {
             String[] fields = line.split(" ", -1);
-            if (fields.length != 4 && fields.length != 6 && fields.length != 7) {
+            if (fields.length != 7) {
                 throw new IOException("Invalid Live Update artifact receipt");
             }
             Path path = Path.of(new String(Base64.getDecoder().decode(fields[2]), StandardCharsets.UTF_8));
-            if (origin != null && path.startsWith(origin)) {
+            if (path.startsWith(origin)) {
                 // A copied or moved project owns its own copies, never the original project's artifacts.
                 path = projectRoot.resolve(origin.relativize(path));
-            } else if (origin == null ? !path.startsWith(projectRoot) : !projectRoot.equals(origin)) {
+            } else if (!projectRoot.equals(origin)) {
                 // External paths are owned only by the project that wrote the receipt.
-                // Legacy receipts without an origin cannot establish external ownership.
                 continue;
             }
             boolean directory = Boolean.parseBoolean(fields[0]);
             boolean bundle = Boolean.parseBoolean(fields[1]);
             String name = new String(Base64.getDecoder().decode(fields[3]), StandardCharsets.UTF_8);
-            String inputSignature = fields.length >= 6 ? fields[4] : "";
-            String contentHash = fields.length >= 6 ? fields[5] : "";
-            boolean legacy = fields.length == 7 && Boolean.parseBoolean(fields[6]);
+            String inputSignature = fields[4];
+            String contentHash = fields[5];
+            boolean legacy = Boolean.parseBoolean(fields[6]);
             outputs.add(new Output(path, name, directory, bundle, inputSignature, contentHash, legacy));
         }
         return List.copyOf(outputs);
     }
 
-    /** Reads persistent build ownership, falling back to the build-output receipt for older builds. */
+    /** Reads persistent build ownership, falling back to the latest build-output receipt when absent. */
     static List<Output> readBuildOutputs(Project project) throws IOException {
         Path receipt = buildReceipt(project);
         return Files.exists(receipt) ? read(Path.of(project.getRootDirectory()), receipt) : readOutputs(project);
