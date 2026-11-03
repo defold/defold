@@ -2,7 +2,7 @@ output_directory: "build/liveupdate"
 packages {
   name: "assets"
   provider: "folder"
-  rules { name: "Sources" operation: REMOVE path: "/unused/.*" }
+  rules { name: "Sources" operation: REMOVE path: "/unused/.*" no_match: IGNORE }
 }
 packages {
   name: "extra"

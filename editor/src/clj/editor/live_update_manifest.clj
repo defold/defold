@@ -335,18 +335,20 @@
             (dynamic label (properties/label-dynamic :liveupdate-manifest :output-directory))
             (dynamic edit-type (g/fnk [project-root ^:try resolved-output-directory]
                                  {:type :directory
-                                  :directory (if (g/error? resolved-output-directory) project-root (str resolved-output-directory))}))
+                                  :directory (if (g/error? resolved-output-directory) project-root (some-> resolved-output-directory str))}))
             (dynamic error (g/fnk [^:try resolved-output-directory]
                              (when (g/error? resolved-output-directory) resolved-output-directory))))
   (output read-only g/Bool (g/fnk [resource] (resource/read-only? resource)))
   (input project-root g/Str)
   (output resolved-output-directory g/Any :cached
           (g/fnk [_node-id output-directory project-root]
-            (try
-              (PackageOutputPath/resolve output-directory (Path/of project-root (make-array String 0))
-                                         (reify Function (apply [_ name] (System/getenv name))))
-              (catch IllegalArgumentException error
-                (g/->error _node-id :output-directory :fatal output-directory (ex-message error))))))
+            ;; Unloaded resources have no workspace connections.
+            (when project-root
+              (try
+                (PackageOutputPath/resolve output-directory (Path/of project-root (make-array String 0))
+                                           (reify Function (apply [_ name] (System/getenv name))))
+                (catch IllegalArgumentException error
+                  (g/->error _node-id :output-directory :fatal output-directory (ex-message error)))))))
   (input resource-map g/Any)
   (input generated-paths g/Any)
   (input package-nodes g/NodeID :array)

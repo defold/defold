@@ -247,9 +247,9 @@
           (change! "exported packages")))
       (let [contents {"/packages.lumanifest" (resource-node/save-data-content (g/node-value node :save-data))}
             ^PackagePreview$Result result (build-preview! workspace contents "/packages.lumanifest" {} (constantly false))]
-        (is (= {"levels" [(str (io/file root "exported packages/levels.zip"))]
-                "copy" [(str (io/file root "exported packages/copy"))]}
-               (coll/into-> (.exportPaths result) {} (map (fn [[name paths]] [name (vec paths)])))))
+        (is (= {"levels" [(io/file root "exported packages/levels.zip")]
+                "copy" [(io/file root "exported packages/copy")]}
+               (coll/into-> (.exportPaths result) {} (map (fn [[name paths]] [name (mapv io/file paths)])))))
         (is (not (.exists (io/file root "exported packages"))))
         (test-util/make-resource! workspace "/reloaded.lumanifest" (g/node-value node :save-value))
         (workspace/resource-sync! workspace)
@@ -356,8 +356,8 @@
         (let [^PackagePreview$Result result (build-preview! workspace
                                                             {"/provider.lumanifest" (resource-node/save-data-content (g/node-value node :save-data))}
                                                             "/provider.lumanifest" {} (constantly false))]
-          (is (= [(str (io/file root "build/packages/custom.alternate-7-0.5"))]
-                 (vec (get (.exportPaths result) "custom"))))
+          (is (= [(io/file root "build/packages/custom.alternate-7-0.5")]
+                 (mapv io/file (get (.exportPaths result) "custom"))))
           (is (not (.exists (io/file root "build/packages")))))))))
 
 ;; Radio choices, including keyboard-style group selection, edit the graph
@@ -795,8 +795,8 @@
                    (mapv #(.getText ^MenuItem %) (.getItems (.getContextMenu path-label)))))
             (try
               (.fire ^MenuItem (first (.getItems (.getContextMenu path-label))))
-              (is (= (str (io/file (workspace/project-directory workspace) "exports/packages/levels.zip"))
-                     (.getString clipboard)))
+              (is (= (io/file (workspace/project-directory workspace) "exports/packages/levels.zip")
+                     (io/file (.getString clipboard))))
               (finally
                 (.setContent clipboard previous))))
           (let [previous (:result @controller)]
