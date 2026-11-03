@@ -499,6 +499,27 @@ namespace dmGraphics
     uint32_t    GetTextureFormatDataSize(TextureFormat format, uint32_t width, uint32_t height);
     uint8_t     GetTexturePageCount(HTexture texture);
 
+    /** Texture metadata copied from the graphics asset container. Dimensions are in pixels. */
+    struct TextureInfo
+    {
+        TextureType m_Type;
+        uint32_t    m_UsageHintFlags;
+        uint16_t    m_Width;
+        uint16_t    m_Height;
+        uint16_t    m_Depth;
+        uint8_t     m_MipMapCount;
+        uint8_t     m_PageCount;
+    };
+
+    /**
+     * Copy texture metadata with one handle lookup under the asset container lock, when enabled.
+     * The returned value does not retain the texture or change the caller's lifetime responsibilities.
+     * @param context Graphics context owning the texture
+     * @param texture Texture handle
+     * @return Metadata, or zero dimensions/counts/flags and TEXTURE_TYPE_2D when the handle is absent
+     */
+    TextureInfo GetTextureInfo(HContext context, HTexture texture);
+
     // Calculating mipmap info helpers
     uint16_t    GetMipmapSize(uint16_t size_0, uint8_t mipmap);
     uint8_t     GetMipmapCount(uint16_t size);

@@ -449,8 +449,9 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                 {
                     // Cache growth is applied before vertex generation, so these dimensions
                     // stay fixed for this text. Face-only text never needs the effect atlas.
-                    sdf_atlas_width = (float)dmGraphics::GetTextureWidth(font_map->m_GraphicsContext, font_map->m_VectorSdfTexture);
-                    sdf_atlas_height = (float)dmGraphics::GetTextureHeight(font_map->m_GraphicsContext, font_map->m_VectorSdfTexture);
+                    dmGraphics::TextureInfo texture_info = dmGraphics::GetTextureInfo(font_map->m_GraphicsContext, font_map->m_VectorSdfTexture);
+                    sdf_atlas_width = (float)texture_info.m_Width;
+                    sdf_atlas_height = (float)texture_info.m_Height;
                 }
                 // Use texel edges: pixel centers then map to texel centers
                 // without stretching the generated field by a texel.
