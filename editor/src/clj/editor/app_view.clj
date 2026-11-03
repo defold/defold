@@ -787,7 +787,8 @@
    :resource-sync progress/done
    :save-all progress/done
    :fetch-libraries progress/done
-   :download-update progress/done})
+   :download-update progress/done
+   :language-server progress/done})
 
 (def ^:private app-task-state
   (atom {:progress initial-app-task-progress
@@ -795,7 +796,7 @@
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
-  [:save-all :resource-sync :fetch-libraries :build :build-engine :download-update :main])
+  [:save-all :resource-sync :fetch-libraries :build :build-engine :download-update :language-server :main])
 
 (def status-bar-controls-delay
   (delay

@@ -21,7 +21,9 @@
             [editor.code.data :as data]
             [editor.error-reporting :as error-reporting]
             [editor.lsp.async :as lsp.async]
+            [editor.localization :as localization]
             [editor.lsp.server :as lsp.server]
+            [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
@@ -379,8 +381,21 @@
           :opt-un [:editor.lsp.server-state/capabilities
                    :editor.lsp.server-state/diagnostics]))
 
+(defn- render-server-progress! [state]
+  (when-let [render-progress! (:render-progress! state)]
+    (render-progress!
+      (if-let [{:keys [title message percentage]} (->> state :server->server-state vals (keep :progress) (mapcat vals) first)]
+        (let [message-pattern (if message
+                                (localization/message "progress.language-server-with-message" {"title" title "message" message})
+                                (localization/message "progress.language-server" {"title" title}))]
+          (if percentage
+            (progress/make message-pattern 100 (min 100 (long percentage)))
+            (progress/make-indeterminate message-pattern)))
+        progress/done))))
+
 (defn- dispose-server-state! [state server {:keys [in out diagnostics] :as server-state}]
   {:pre [(s/assert ::server-state server-state)]}
+  (render-server-progress! state)
   (ui/run-later
     (g/transact
       {:undoable false}
@@ -427,6 +442,7 @@
         state (-> state
                   (update :channels (partial filterv #(not= out %)))
                   (assoc-in [:server->server-state server :status] :down)
+                  (update-in [:server->server-state server] dissoc :progress)
                   (update :server-out->server dissoc out)
                   (cleanup-requests-of-removed-server server-state))]
     (dispose-server-state! state server server-state)
@@ -449,6 +465,16 @@
                                                 (cond-> state
                                                   (get-in state [:server->server-state server :capabilities :document-symbol])
                                                   (request-viewed-document-symbols server))))
+                     :on-progress (fn [token {:keys [kind] :as value}]
+                                    (fn [state]
+                                      (if (contains? (:server->server-state state) server)
+                                        (let [state (if (= "end" kind)
+                                                      (update-in state [:server->server-state server :progress] dissoc token)
+                                                      (update-in state [:server->server-state server :progress token]
+                                                                 merge (select-keys value [:title :message :percentage])))]
+                                          (render-server-progress! state)
+                                          state)
+                                        state)))
                      :on-response (partial on-server-response server))
     (-> state
         (update :channels conj output)
@@ -750,6 +776,11 @@
             (set-view-node-diagnostics-tx state resource view-node)
             (set-view-node-completion-trigger-characters-tx state resource view-node))))
       state)))
+
+(defn set-render-progress!
+  "Set the function that shows language server progress in the editor"
+  [lsp render-progress!]
+  (lsp #(assoc % :render-progress! render-progress!)))
 
 (defn open-view!
   "Notify the LSP manager that a view for a resource is open"
