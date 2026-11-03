@@ -46,7 +46,9 @@ Compiler libraries resolve from local engine builds or archive paths listed in
 into their usual `$DYNAMO_HOME/ext/bin/<platform>` and `ext/lib/<platform>` paths,
 preserving locally built tools for the current host and selected target.
 Full Bob requires them for all desktop hosts; Bob Light requires the current
-host's LuaJIT executable and Ogg libraries.
+host's LuaJIT executable, Ogg libraries, and DXC compiler library. CMake stages
+DXC alongside the shader compiler before building Bob Light, without requiring
+an engine install first.
 The LuaJIT modules installed in `$DYNAMO_HOME/ext` are assembled into
 `tmp/luajit-share.zip` and packaged inside each JAR as `lib/luajit-share.zip`.
 Both JAR tasks track the manifests as inputs, so changing a list updates the
@@ -85,6 +87,9 @@ Resource keep XML is separate from the Java `.keep` configuration. Projects with
 Bob builds content for the editor and engine tests. `build_engine` builds host
 tools and `bob-light.jar` before CMake uses Bob Light to compile engine test
 content and built-in resources.
+
+DX12 is still a work in progress. When switching to the SM6/DXC shader compiler,
+clear the project's build caches and rebuild its content.
 
 ### GUI custom node callbacks
 
@@ -258,30 +263,12 @@ invalidates incremental package placement.
 
 ZIP compression can be set in the manifest (see provider properties below).
 Until overridden there, Bob uses `zip-compression-level` from `liveupdate.settings`,
-or `1` if absent. Bundle-copy and Amazon settings remain in `liveupdate.settings`.
+or `1` if absent. Bundle-copy settings remain in `liveupdate.settings`.
 Its `zip-filepath`, `output-directory`, and single archive/folder name settings
 are ignored in manifest mode.
 
-With `mode = Amazon` in `liveupdate.settings`, package providers still generate
-local artifacts. Bob uploads the complete artifact set only after every requested
-bundle finishes successfully. ZIP and custom files use their declared names
-under `amazon-prefix`; folder artifacts retain their relative directory layout.
-The existing Amazon credential profile, bucket, and prefix settings apply.
-Build-only and preview commands do not upload packages. Native engine-only bundles
-(`--exclude-archive`) skip package copying and automatic uploading and require no
-package build receipt. A failed or cancelled
-build or bundle never starts publication.
-
-To publish without bundling, or retry a failed upload without rebuilding, run
-`bob --liveupdate yes publish` with the same project and build output directory.
-The `publish` command runs after all other requested commands succeed. Bob checks
-the complete set against `game.lupackages` before contacting Amazon; missing or
-modified artifacts require a build first. Publishing uploads the full set again
-and does not delete remote objects. An interrupted upload can leave a partial
-remote set; retry publishing to complete it. Projects without a manifest also
-publish after bundling (or with `publish`), retaining the legacy hash-based object
-keys and manifest object key. Their resources are prepared in `build/liveupdate`
-before uploading. Build-only commands do not contact Amazon in either mode.
+Native engine-only bundles (`--exclude-archive`) skip package copying and require
+no package build receipt.
 
 Each package contains a `liveupdate.game.dmanifest` with only that package's
 resource entries. Optional metadata identifies outputs and external requirements,

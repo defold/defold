@@ -23,7 +23,6 @@ import com.defold.extension.pipeline.texture.TextureCompression;
 import com.defold.extension.pipeline.texture.TextureCompressorPreset;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.EngineVersion;
-import com.dynamo.bob.archive.publisher.AWSPublisher;
 import com.dynamo.bob.archive.publisher.FolderPublisher;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.Publisher;
@@ -421,7 +420,6 @@ public class Project implements AutoCloseable {
                         // namespaces we don't need to scan
                         !className.startsWith("com.dynamo.bob.pipeline.antlr") &&
                         // classes we don't need to bob light
-                        !(is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) &&
                         !(is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) &&
                         !(is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper")))
                 .toList();
@@ -687,9 +685,7 @@ public class Project implements AutoCloseable {
             } else {
                 PublisherSettings settings = PublisherSettings.load(publisherSettings);
                 if (shouldPublish) {
-                    if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
-                        this.publisher = new AWSPublisher(settings);
-                    } else if (manifestMode) {
+                    if (manifestMode) {
                         this.publisher = new NullPublisher(settings);
                     } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
                         this.publisher = new ZipPublisher(this, getRootDirectory(), settings);
@@ -2014,11 +2010,9 @@ public class Project implements AutoCloseable {
             BundleHelper.throwIfCanceled(progress);
 
             progress.message(IProgress.Message.Working.INSTANCE);
-            boolean publishPackages = Arrays.asList(commands).contains("publish") ||
-                    (BundleHelper.isArchiveIncluded(this) && Arrays.asList(commands).contains("bundle"));
             boolean generateBundleReport = hasOption("bundle-report-html") &&
                     BundleHelper.isArchiveIncluded(this) && Arrays.asList(commands).contains("bundle");
-            var split = progress.split(commands.length + 1L + (publishPackages ? 1L : 0L) + (generateBundleReport ? 1L : 0L));
+            var split = progress.split(commands.length + 1L + (generateBundleReport ? 1L : 0L));
             // it should be done before scanJavaClasses to have updated options
             configurePreBuildProjectOptions();
             {
@@ -2154,10 +2148,6 @@ public class Project implements AutoCloseable {
                             bundle(commandProgress);
                             break;
                         }
-                        case "publish": {
-                            // Publishing is deferred until every requested command has succeeded.
-                            break;
-                        }
                         default:
                             break;
                     }
@@ -2188,19 +2178,6 @@ public class Project implements AutoCloseable {
             state.save(stateResource);
             fileSystem.saveCache();
             TimeProfiler.stop();
-            // Save the successful build state before uploading so publication can be retried independently.
-            if (publishPackages && !anyFailing(result)) {
-                try (var publishProgress = split.subtask()) {
-                    BundleHelper.throwIfCanceled(publishProgress);
-                    if (option("liveupdate", "false").equals("true") &&
-                            !option("package-preview", "false").equals("true")) {
-                        createPublisher();
-                        if (publisher instanceof AWSPublisher awsPublisher) {
-                            awsPublisher.publishPackages(this, publishProgress);
-                        }
-                    }
-                }
-            }
             return result;
         }
     }

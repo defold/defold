@@ -246,47 +246,52 @@ namespace dmGraphics
         }
     }
 
-#if !defined(DM_PLATFORM_VENDOR)
-    static DXGI_FORMAT GetDXGIFormatFromShaderOutput(const D3D12_SIGNATURE_PARAMETER_DESC& output)
+    static DXGI_FORMAT GetDXGIFormatFromShaderOutput(const ShaderDesc::HLSLShaderOutput& output)
     {
-        const uint32_t component_count =
-            ((output.Mask & 0x1) ? 1 : 0) +
-            ((output.Mask & 0x2) ? 1 : 0) +
-            ((output.Mask & 0x4) ? 1 : 0) +
-            ((output.Mask & 0x8) ? 1 : 0);
-
-        switch (output.ComponentType)
+        switch (output.m_ComponentType)
         {
-            case D3D_REGISTER_COMPONENT_FLOAT32:
-                switch (component_count)
+            case ShaderDesc::HLSLShaderOutput::COMPONENT_TYPE_FLOAT32:
+                switch (output.m_ComponentCount)
                 {
-                    case 1: return DXGI_FORMAT_R32_FLOAT;
-                    case 2: return DXGI_FORMAT_R32G32_FLOAT;
+                    case 1:
+                        return DXGI_FORMAT_R32_FLOAT;
+                    case 2:
+                        return DXGI_FORMAT_R32G32_FLOAT;
                     case 3:
-                    case 4: return DXGI_FORMAT_R32G32B32A32_FLOAT;
-                    default: break;
+                    case 4:
+                        return DXGI_FORMAT_R32G32B32A32_FLOAT;
+                    default:
+                        break;
                 }
                 break;
 
-            case D3D_REGISTER_COMPONENT_UINT32:
-                switch (component_count)
+            case ShaderDesc::HLSLShaderOutput::COMPONENT_TYPE_UINT32:
+                switch (output.m_ComponentCount)
                 {
-                    case 1: return DXGI_FORMAT_R32_UINT;
-                    case 2: return DXGI_FORMAT_R32G32_UINT;
+                    case 1:
+                        return DXGI_FORMAT_R32_UINT;
+                    case 2:
+                        return DXGI_FORMAT_R32G32_UINT;
                     case 3:
-                    case 4: return DXGI_FORMAT_R32G32B32A32_UINT;
-                    default: break;
+                    case 4:
+                        return DXGI_FORMAT_R32G32B32A32_UINT;
+                    default:
+                        break;
                 }
                 break;
 
-            case D3D_REGISTER_COMPONENT_SINT32:
-                switch (component_count)
+            case ShaderDesc::HLSLShaderOutput::COMPONENT_TYPE_SINT32:
+                switch (output.m_ComponentCount)
                 {
-                    case 1: return DXGI_FORMAT_R32_SINT;
-                    case 2: return DXGI_FORMAT_R32G32_SINT;
+                    case 1:
+                        return DXGI_FORMAT_R32_SINT;
+                    case 2:
+                        return DXGI_FORMAT_R32G32_SINT;
                     case 3:
-                    case 4: return DXGI_FORMAT_R32G32B32A32_SINT;
-                    default: break;
+                    case 4:
+                        return DXGI_FORMAT_R32G32B32A32_SINT;
+                    default:
+                        break;
                 }
                 break;
 
@@ -296,50 +301,22 @@ namespace dmGraphics
 
         return DXGI_FORMAT_R8G8B8A8_UNORM;
     }
-#endif
 
-    static uint32_t GetPixelShaderOutputFormats(DX12ShaderProgram* program, DXGI_FORMAT* output_formats, uint32_t output_formats_count)
+    // Cache the compiler's output signature when loading the program. No shader
+    // compiler or bytecode reflection is needed while creating pipelines.
+    static void SetPixelShaderOutputFormats(DX12ShaderProgram* program, const ShaderDesc::Shader* shader)
     {
-#if defined(DM_PLATFORM_VENDOR)
-        (void)program;
-        (void)output_formats;
-        (void)output_formats_count;
-        return 0;
-#else
-        if (!program || !program->m_FragmentModule || !program->m_FragmentModule->m_Data || program->m_FragmentModule->m_DataSize == 0)
-            return 0;
-
-        ID3D12ShaderReflection* reflection = 0;
-        HRESULT hr = D3DReflect(program->m_FragmentModule->m_Data, program->m_FragmentModule->m_DataSize, DM_IID_PPV_ARGS(&reflection));
-        if (FAILED(hr) || !reflection)
-            return 0;
-
-        D3D12_SHADER_DESC shader_desc = {};
-        hr = reflection->GetDesc(&shader_desc);
-        if (FAILED(hr))
+        for (uint32_t i = 0; i < shader->m_HlslShaderOutputs.m_Count; ++i)
         {
-            reflection->Release();
-            return 0;
-        }
-
-        uint32_t required_count = 0;
-        for (uint32_t i = 0; i < shader_desc.OutputParameters; ++i)
-        {
-            D3D12_SIGNATURE_PARAMETER_DESC output = {};
-            if (FAILED(reflection->GetOutputParameterDesc(i, &output)) || output.SystemValueType != D3D_NAME_TARGET)
+            const ShaderDesc::HLSLShaderOutput& output = shader->m_HlslShaderOutputs[i];
+            const uint32_t slot = output.m_Location;
+            if (slot >= DM_ARRAY_SIZE(program->m_PixelShaderOutputFormats))
+            {
                 continue;
-
-            const uint32_t slot = output.Register;
-            if (slot >= output_formats_count)
-                continue;
-
-            output_formats[slot] = GetDXGIFormatFromShaderOutput(output);
-            required_count = dmMath::Max(required_count, slot + 1);
+            }
+            program->m_PixelShaderOutputFormats[slot] = GetDXGIFormatFromShaderOutput(output);
+            program->m_PixelShaderOutputCount = dmMath::Max(program->m_PixelShaderOutputCount, slot + 1);
         }
-
-        reflection->Release();
-        return required_count;
-#endif
     }
 
     static bool MultiSamplingCountSupported(ID3D12Device* device, DXGI_FORMAT format, uint32_t requested_count)
@@ -2816,6 +2793,7 @@ namespace dmGraphics
         context->m_MainVertexDeclaration[binding_index].m_StepFunction = vertex_declaration->m_StepFunction;
         context->m_MainVertexDeclaration[binding_index].m_PipelineHash = vertex_declaration->m_PipelineHash;
 
+        context->m_EnabledVertexDeclarations[binding_index]            = vertex_declaration;
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
         context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
 
@@ -2860,8 +2838,9 @@ namespace dmGraphics
         DX12Context* context = (DX12Context*) _context;
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
-            if (context->m_CurrentVertexDeclaration[i] == vertex_declaration)
+            if (context->m_EnabledVertexDeclarations[i] == vertex_declaration)
             {
+                context->m_EnabledVertexDeclarations[i] = 0;
                 context->m_CurrentVertexDeclaration[i]  = 0;
                 context->m_CurrentVertexBufferOffset[i] = 0;
             }
@@ -3155,7 +3134,7 @@ namespace dmGraphics
         return cached_pipeline;
     }
 
-    static void CreatePipeline(DX12Context* context, DX12RenderTarget* rt, const PipelineState& pipeline_state, DX12Pipeline* pipeline)
+    static void CreatePipeline(DX12Context* context, DX12RenderTarget* rt, const PipelineState& pipeline_state, uint32_t num_vx_decls, DX12Pipeline* pipeline)
     {
         D3D12_SHADER_BYTECODE vs_byte_code = {};
         vs_byte_code.BytecodeLength        = context->m_CurrentProgram->m_VertexModule->m_DataSize;
@@ -3170,7 +3149,7 @@ namespace dmGraphics
         char matrix_semantic_names[64][32];
         uint32_t matrix_semantic_name_count = 0;
 
-        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+        for (uint32_t i = 0; i < num_vx_decls; ++i)
         {
             if (context->m_CurrentVertexDeclaration[i])
             {
@@ -3332,8 +3311,8 @@ namespace dmGraphics
         }
 
         const uint32_t bound_render_target_count = pipeline_desc.NumRenderTargets;
-        DXGI_FORMAT shader_output_formats[D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT] = {};
-        const uint32_t shader_output_count = GetPixelShaderOutputFormats(context->m_CurrentProgram, shader_output_formats, DM_ARRAY_SIZE(shader_output_formats));
+        const DXGI_FORMAT* shader_output_formats = context->m_CurrentProgram->m_PixelShaderOutputFormats;
+        const uint32_t shader_output_count = context->m_CurrentProgram->m_PixelShaderOutputCount;
         if (bound_render_target_count > 0 && shader_output_count > pipeline_desc.NumRenderTargets)
         {
             const uint32_t output_count = dmMath::Min(shader_output_count, (uint32_t) D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT);
@@ -3451,7 +3430,7 @@ namespace dmGraphics
 
             context->m_PipelineCache.Put(pipeline_hash, {});
             cached_pipeline = context->m_PipelineCache.Get(pipeline_hash);
-            CreatePipeline(context, current_rt, pipeline_state, cached_pipeline);
+            CreatePipeline(context, current_rt, pipeline_state, num_vx_decls, cached_pipeline);
 
             dmLogDebug("Created new DX12 Pipeline with hash %llu", (unsigned long long) pipeline_hash);
         }
@@ -4011,7 +3990,7 @@ namespace dmGraphics
             program->m_ComputeModule = new DX12ShaderModule();
             memset(program->m_ComputeModule, 0, sizeof(DX12ShaderModule));
 
-            HRESULT hr = CreateShaderModule(context, "cs_5_1", ddf_cp->m_Source.m_Data, ddf_cp->m_Source.m_Count, program->m_ComputeModule);
+            HRESULT hr = CreateShaderModule(context, "cs_6_0", ddf_cp->m_Source.m_Data, ddf_cp->m_Source.m_Count, program->m_ComputeModule);
             if (FAILED(hr))
             {
                 if (error_buffer && error_buffer_size)
@@ -4057,7 +4036,7 @@ namespace dmGraphics
             memset(program->m_VertexModule, 0, sizeof(DX12ShaderModule));
             memset(program->m_FragmentModule, 0, sizeof(DX12ShaderModule));
 
-            HRESULT hr = CreateShaderModule(context, "vs_5_1", ddf_vp->m_Source.m_Data, ddf_vp->m_Source.m_Count, program->m_VertexModule);
+            HRESULT hr = CreateShaderModule(context, "vs_6_0", ddf_vp->m_Source.m_Data, ddf_vp->m_Source.m_Count, program->m_VertexModule);
             if (FAILED(hr))
             {
                 if (error_buffer && error_buffer_size)
@@ -4067,7 +4046,7 @@ namespace dmGraphics
                 return 0;
             }
 
-            hr = CreateShaderModule(context, "ps_5_1", ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count, program->m_FragmentModule);
+            hr = CreateShaderModule(context, "ps_6_0", ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count, program->m_FragmentModule);
             if (FAILED(hr))
             {
                 if (error_buffer && error_buffer_size)
@@ -4077,6 +4056,7 @@ namespace dmGraphics
                 return 0;
             }
 
+            SetPixelShaderOutputFormats(program, ddf_fp);
             CreateProgramResourceBindings(program, program->m_VertexModule, program->m_FragmentModule, NULL);
 
             ShaderDesc::Shader* shaders[] = { ddf_vp, ddf_fp };
@@ -4143,12 +4123,12 @@ namespace dmGraphics
 
     static bool DX12IsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
     {
-        return language == ShaderDesc::LANGUAGE_HLSL_51 || language == ShaderDesc::LANGUAGE_HLSL_50;
+        return language == ShaderDesc::LANGUAGE_HLSL_60;
     }
 
     static ShaderDesc::Language DX12GetProgramLanguage(HProgram program)
     {
-        return ShaderDesc::LANGUAGE_HLSL_51;
+        return ShaderDesc::LANGUAGE_HLSL_60;
     }
 
     static void DX12EnableProgram(HContext context, HProgram program)

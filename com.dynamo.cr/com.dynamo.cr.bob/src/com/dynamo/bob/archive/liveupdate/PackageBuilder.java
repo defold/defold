@@ -68,12 +68,9 @@ public final class PackageBuilder {
     }
 
     /** Preserve legacy destinations, including generated names across incremental builds. */
-    static Path legacyOutput(Project project) throws IOException {
+    static Path legacyOutput(Project project) throws IOException, CompileExceptionError {
         PublisherSettings settings = project.getPublisher().getPublisherSettings();
         Path projectRoot = Path.of(project.getRootDirectory()).toAbsolutePath().normalize();
-        if (settings.getMode() == PublisherSettings.PublishMode.Amazon) {
-            return projectRoot.resolve(project.getBuildDirectory()).resolve("liveupdate");
-        }
         boolean zip = settings.getMode() != PublisherSettings.PublishMode.Folder;
         String directory = zip ? settings.getZipFilepath() : settings.getOutputDirectory();
         Path root = projectRoot.resolve(directory == null ? "" : directory).normalize();
@@ -260,7 +257,7 @@ public final class PackageBuilder {
             Set<String> excluded = export ? graph.createExcludedResourcesList() : Set.of();
             Set<String> base = new TreeSet<>(resources.keySet());
             base.removeAll(excluded);
-            String provider = project.getPublisher().getPublisherSettings().getMode() == PublisherSettings.PublishMode.Zip ? "zip" : "folder";
+            String provider = !export || project.getPublisher().getPublisherSettings().getMode() == PublisherSettings.PublishMode.Zip ? "zip" : "folder";
             PackageDesc description = PackageDesc.newBuilder().setName("liveupdate").setProvider(provider).build();
             PackageResolver.Package pkg = new PackageResolver.Package(description, excluded, Map.of());
             plan = new PackageResolver.Plan(Map.of("liveupdate", pkg), base, Map.of(), sourceOutputs, primarySources,

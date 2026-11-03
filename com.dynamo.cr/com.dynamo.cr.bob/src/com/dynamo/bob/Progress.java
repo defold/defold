@@ -79,7 +79,6 @@ public final class Progress implements IProgress {
             if (!Objects.equals(lastRenderedState.getAndSet(renderedState), renderedState)) {
                 var label = switch (message) {
                     case Message.Bundling _ -> "Bundling";
-                    case Message.PublishingLiveUpdate _ -> "Publishing Live Update packages";
                     case Message.BuildingEngine _ -> "Building engine";
                     case Message.BuildingEngineStage stage -> "Building engine [" + stage.platform() + "] " + stage.label();
                     case Message.CleaningEngine _ -> "Cleaning engine";

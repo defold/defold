@@ -84,10 +84,6 @@
                      [org.commonmark/commonmark-ext-heading-anchor "0.25.1"]
                      [org.jsoup/jsoup "1.11.3"]
 
-                     [com.cognitect.aws/api "0.8.673"]
-                     [com.cognitect.aws/endpoints "1.1.12.478"]
-                     [com.cognitect.aws/s3 "847.2.1387.0"]
-
                      [org.luaj/luaj-jse "3.0.1"]
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]

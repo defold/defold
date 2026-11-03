@@ -96,7 +96,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         Map<String, PackageProvider> providers = PackageProviders.discover(project.getProjectClassLoaderScanner());
         PackageProvider.Context context = PackageProviders.context(project, plan, resourceInfo, providers);
         Path legacyOutput = PackageBuilder.manifestPath(project).isEmpty() ? PackageBuilder.legacyOutput(project) : null;
-        boolean legacyPlacement = legacyOutput != null && settings.getMode() != PublisherSettings.PublishMode.Amazon;
+        boolean legacyPlacement = legacyOutput != null;
         Path root = legacyOutput == null ? PackageBuilder.outputDirectory(project, Path.of(project.getRootDirectory())) : legacyOutput.getParent();
         Map<Path, Output> previousOutputs = new LinkedHashMap<>();
         for (Output output : PackageArtifacts.readBuildOutputs(project)) previousOutputs.put(output.path(), output);
@@ -122,7 +122,6 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
             boolean bundle = providerId.equals("zip") ? settings.getSaveZipInBundleFolder() : settings.getSaveFolderInBundleFolder();
             if (legacyOutput != null) {
                 artifacts = List.of(new PackageProvider.Artifact(legacyOutput.getFileName().toString(), !providerId.equals("zip")));
-                if (settings.getMode() == PublisherSettings.PublishMode.Amazon) bundle = false;
             }
             PackageOutput.Builder reference = PackageOutput.newBuilder().setPackage(name).setProvider(providerId);
             for (PackageProvider.Artifact artifact : artifacts) {
@@ -340,15 +339,15 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         return PackageArtifacts.parse(Path.of(project.getRootDirectory()), new String(receipt.getContent(), StandardCharsets.UTF_8));
     }
 
-    /** Validate the entire artifact set before copying or starting any remote publication. */
+    /** Validate the entire artifact set before copying into the bundle. */
     public static List<Output> validatedOutputs(Project project) throws IOException {
         if (!receipt(project).exists()) {
-            throw new IOException("Live Update artifact receipt is missing; run build before bundling or publishing");
+            throw new IOException("Live Update artifact receipt is missing; run build before bundling");
         }
         List<Output> outputs = readOutputs(project);
         for (Output output : outputs) {
             if (!isCurrent(output, project)) {
-                throw new IOException("Live Update artifact is missing or modified; run build before bundling or publishing: " + output.path());
+                throw new IOException("Live Update artifact is missing or modified; run build before bundling: " + output.path());
             }
         }
         return outputs;
