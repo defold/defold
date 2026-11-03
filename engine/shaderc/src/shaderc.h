@@ -268,6 +268,14 @@ namespace dmShaderc
         uint8_t     m_ShaderResourceBinding;
     };
 
+    // Pixel shader SV_Target outputs, reflected by DXC at compile time.
+    struct HLSLShaderOutput
+    {
+        uint32_t m_Location;
+        BaseType m_Type;
+        uint32_t m_ComponentCount;
+    };
+
     struct ShaderCompileResult
     {
         dmArray<uint8_t> m_Data;
@@ -282,6 +290,7 @@ namespace dmShaderc
         // that embeds a list of resources (called root signature) and their HLSL bind points (registers)
         // This must match resource bind points in the engine, so we need to output that information here.
         dmArray<HLSLResourceMapping> m_HLSLResourceMappings;
+        dmArray<HLSLShaderOutput>    m_HLSLShaderOutputs;
 
         // In case of compiling HLSL > version 50, we want to have the root signature available for merging
         dmArray<uint8_t> m_HLSLRootSignature;

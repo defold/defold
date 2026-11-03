@@ -126,6 +126,15 @@ namespace dmPlatform
         return 1.0f;
     }
 
+    float GetDisplayDensity(HWindow window)
+    {
+        // There is no display to query in the headless backend, so report the CSS reference density.
+        // Reporting a nominal value instead of 0 keeps the density a total function: callers can
+        // scale with it without special casing, and the value is the one a desktop driver that
+        // reports no physical size also produces.
+        return 96.0f;
+    }
+
     uintptr_t GetProcAddress(HWindow window, const char* proc_name)
     {
         return 0;

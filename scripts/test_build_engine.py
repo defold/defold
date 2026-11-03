@@ -25,13 +25,12 @@ class SanitizerFeatureTests(unittest.TestCase):
         configuration.dynamo_home = '/defold/tmp/dynamo_home'
         configuration.build_options = ['--with-msan']
         configuration.build_tracker = mock.Mock()
-        configuration._form_env = mock.Mock(return_value={})
-        with mock.patch.object(build.run, 'env_command') as run:
+        with mock.patch.object(configuration, '_run_cmake') as run:
             normal, _ = configuration._configure_ext_platform('arm64-linux')
             instrumented, _ = configuration._configure_ext_platform('arm64-linux', msan=True)
         self.assertNotEqual(normal, instrumented)
-        self.assertIn('-DWITH_MSAN:BOOL=OFF', run.call_args_list[0].args[1])
-        self.assertIn('-DWITH_MSAN:BOOL=ON', run.call_args_list[1].args[1])
+        self.assertIn('-DWITH_MSAN:BOOL=OFF', run.call_args_list[0].args[0])
+        self.assertIn('-DWITH_MSAN:BOOL=ON', run.call_args_list[1].args[0])
 
     # Instrumented dependency builds must follow both the normal dependencies and libc++.
     def test_build_ext_prepares_msan_runtime_and_dependencies(self):
