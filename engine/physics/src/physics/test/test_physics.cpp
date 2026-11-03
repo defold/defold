@@ -1068,6 +1068,37 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
 }
 
 #if defined(PHYSICS_TEST_BOX2D) || defined(PHYSICS_TEST_BOX2D_DEFOLD)
+// Kinematic synchronization must query the collision body, not a stack copy of its backend ID (UBSan).
+TYPED_TEST(PhysicsTest, KinematicTransformUpdatesFromNonzeroPosition)
+{
+    TestFixture::m_StepWorldContext.m_DT = 0.0f;
+
+    VisualObject vo;
+    vo.m_Position = Point3(2.0f, 4.0f, 0.0f);
+    vo.m_Rotation = Quat::identity();
+
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo;
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.5f));
+    typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+    ASSERT_NE((void*)0, (void*)co);
+
+    const Point3 positions[] = { Point3(2.0f, 4.0f, 0.0f), Point3(5.0f, -3.0f, 0.0f) };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(positions); ++i)
+    {
+        vo.m_Position = positions[i];
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+        Point3 position = (*TestFixture::m_Test.m_GetWorldPositionFunc)(TestFixture::m_Context, co);
+        ASSERT_NEAR(positions[i].getX(), position.getX(), 0.000001f);
+        ASSERT_NEAR(positions[i].getY(), position.getY(), 0.000001f);
+    }
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
+}
+
 TYPED_TEST(PhysicsTest, DynamicTransformUpdatesBodyPositionAndPreservesVelocity)
 {
     /*
@@ -2829,6 +2860,13 @@ TYPED_TEST(PhysicsTest, ScaledImpulses)
     steps = 10;
     float y = 0.0f;
     float applied_impulse = ud.m_AppliedImpulse;
+#if defined(PHYSICS_TEST_BOX2D)
+    // Box2D v3 reports the last substep's impulse, not the total impact impulse.
+    // Previously duplicate callbacks doubled this value before the test halved it.
+    const float impulse_velocity_factor = 1.0f;
+#else
+    const float impulse_velocity_factor = 0.5f;
+#endif
 #if defined(PHYSICS_TEST_BULLET_3D)
     const float position_tolerance = 0.015f;
 #else
@@ -2836,7 +2874,7 @@ TYPED_TEST(PhysicsTest, ScaledImpulses)
 #endif
 
     for (int i = 0; i < steps; ++i) {
-        (*TestFixture::m_Test.m_ApplyForceFunc)(TestFixture::m_Context, box_co_a, Vector3(0, -applied_impulse * 0.5f / TestFixture::m_StepWorldContext.m_DT + 10, 0), vo_a.m_Position);
+        (*TestFixture::m_Test.m_ApplyForceFunc)(TestFixture::m_Context, box_co_a, Vector3(0, -applied_impulse * impulse_velocity_factor / TestFixture::m_StepWorldContext.m_DT + 10, 0), vo_a.m_Position);
         applied_impulse = 0.0f;
         (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 

@@ -26,7 +26,7 @@ endif()
 include(FetchContent)
 
 # Keep the WebGPU API in sync with the revision used by the graphics backend.
-set(DAWN_REVISION 6bab1bd9fd23c03ab2b0f26e9b489e0b6b1844f2)
+set(DAWN_REVISION 67d4d6e64b0755d638f76549794692badfdbc8ab)
 set(_dawn_source_dir "${CMAKE_CURRENT_BINARY_DIR}/sources/${DAWN_REVISION}")
 # Reuse sources restored by CI without restoring a compiler-specific build tree.
 # The revision in the directory name prevents reuse after a Dawn revision change.
@@ -35,7 +35,7 @@ if(NOT FETCHCONTENT_SOURCE_DIR_DAWN AND EXISTS "${_dawn_source_dir}/CMakeLists.t
 endif()
 FetchContent_Declare(dawn
   URL "https://codeload.github.com/google/dawn/tar.gz/${DAWN_REVISION}"
-  URL_HASH SHA256=189bb28e49a3e59423a66d3418899032f7d5ab2fec721ebf3dfbcbc219af750b
+  URL_HASH SHA256=5e5112b5f43e1d0fd5bb26259a3cfc5d5672c09973fad45c39d67c77ccb8cecf
   SOURCE_DIR "${_dawn_source_dir}"
   EXCLUDE_FROM_ALL)
 
@@ -86,6 +86,8 @@ elseif(TARGET_PLATFORM STREQUAL "x86_64-win32")
   set(TINT_BUILD_HLSL_WRITER ON)
 endif()
 
+# Defold omits NDEBUG, but Dawn requires an explicit release or assertion mode.
+add_compile_definitions("$<$<NOT:$<CONFIG:Debug>>:NDEBUG>")
 FetchContent_MakeAvailable(dawn)
 if(TARGET_PLATFORM STREQUAL "x86_64-win32")
   set_target_properties(webgpu_dawn PROPERTIES PREFIX "lib")

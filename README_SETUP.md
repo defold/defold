@@ -379,7 +379,6 @@ defold$ ./scripts/build.py check_sdk --verbose
           libtinfo5 \
           libncurses5 \
           openssl \
-          valgrind \
           uuid-dev \
           xvfb
   ```

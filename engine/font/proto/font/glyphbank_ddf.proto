@@ -62,6 +62,11 @@ message GlyphBank
         optional float  outline_descent      = 16 [default = 0.0];
         optional uint64 vector_data_offset   = 17;
         optional uint64 vector_data_size     = 18;
+
+        // Unpadded outline bounds for gradient fitting; left bearing matches layout_left_bearing.
+        optional float  unpadded_width = 19;
+        optional float  unpadded_ascent = 20;
+        optional float  unpadded_descent = 21;
     }
 
     repeated Glyph             glyphs                = 1;
@@ -94,4 +99,5 @@ message GlyphBank
     optional bool              has_layout_metrics    = 21 [default = false]; // false preserves legacy bitmap-based layout
     optional bool              vector_bitmap_effects = 22 [default = false];
     optional bytes             vector_data           = 23; // normalized quadratic curves, eight float32 values per curve
+    optional bool              has_unpadded_metrics  = 24 [default = false];
 }

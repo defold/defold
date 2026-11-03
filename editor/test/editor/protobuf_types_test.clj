@@ -217,7 +217,8 @@
    "/test.cubemap" []
    "/test.display_profiles" []
    "/test.factory" []
-   "/test.font" ["/builtins/fonts/font-vector.fp"]
+   "/test.font" ["/builtins/fonts/font-vector.fp"
+                 "/builtins/fonts/font-vector.vp"]
    "/test.fp" []
    "/test.gamepads" []
    "/test.gltf" ["/test.gltf/materials/default_0.material"]

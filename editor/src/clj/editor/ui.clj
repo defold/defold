@@ -1271,7 +1271,9 @@
               (let [new-expanded-state (not (.isExpanded tree-item))]
                 (if-not (.isAltDown event)
                   (.setExpanded tree-item new-expanded-state)
-                  (doseq [^TreeItem tree-item (tree-item-seq tree-item)]
+                  (doseq [^TreeItem tree-item (tree-item-seq tree-item)
+                          :when (or (not new-expanded-state)
+                                    (not (.isLeaf tree-item)))]
                     (.setExpanded tree-item new-expanded-state)))))))))))
 
 (def ^:private custom-tree-view-key-pressed-event-filter

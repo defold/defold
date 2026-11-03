@@ -1,6 +1,9 @@
 #version 140
 
+#include "/builtins/fonts/font-effect.glsl"
+
 in mediump vec2 var_texcoord0;
+in highp vec4 var_effect;
 in mediump vec4 var_face_color;
 in highp vec2 var_decoration;
 
@@ -15,5 +18,6 @@ float decoration_mask()
 
 void main()
 {
-    out_fragColor = texture(texture_sampler, var_texcoord0.xy) * var_face_color * var_face_color.a * decoration_mask();
+    vec4 effect_face_color = font_effect_face_color(var_effect, var_face_color, false);
+    out_fragColor = texture(texture_sampler, var_texcoord0.xy) * effect_face_color * effect_face_color.a * decoration_mask();
 }

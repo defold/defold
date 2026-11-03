@@ -16,12 +16,18 @@
 #define DM_FONTMAP_PRIVATE_H
 
 #include "font_renderer.h"
+#include <font_render.h>
 #include <font/font_vector_slug.h>
 #include <font/render/glyph_vertex.h>
+#include <font/font_vector_paint.hpp>
 #include "../render_private.h"
 
 namespace dmRender
 {
+    // max_glyph_count includes ordinary vector glyphs as well as color glyphs.
+    void PrepareVectorPaintGlyphs(HFontMap font_map, HTextLayout layout, uint32_t frame, uint32_t max_glyph_count);
+    const FontVectorPaintGlyph* GetVectorPaintGlyph(HFontMap font_map, HFont font, uint32_t glyph);
+
     struct FontMap
     {
         FontMap()
@@ -40,6 +46,10 @@ namespace dmRender
             free(m_CellTempData);
             m_CellTempData = 0;
 
+            delete m_VectorPaint;
+            if (m_VectorPaintTexture)
+                dmGraphics::DeleteTexture(m_GraphicsContext, m_VectorPaintTexture);
+            FontDeleteEffectCache(m_EffectCache);
             delete m_SlugData;
             if (m_VectorBandTexture)
                 dmGraphics::DeleteTexture(m_GraphicsContext, m_VectorBandTexture);
@@ -70,9 +80,12 @@ namespace dmRender
         dmGraphics::HTexture    m_VectorBandTexture;
         FontVectorSlugData*     m_SlugData;
         dmArray<FontGlyphVertex> m_DecorationVertices;
+        FontVectorPaintCache*   m_VectorPaint;
+        dmGraphics::HTexture   m_VectorPaintTexture;
         bool                    m_VectorBitmapEffects;
         bool                    m_SlugResetPending;
         uint32_t                m_SlugOverflowFrame;
+        FontEffectCache*        m_EffectCache;
         HMaterial               m_Material;
         dmhash_t                m_NameHash;
 

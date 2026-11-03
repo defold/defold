@@ -72,6 +72,7 @@
                      [net.java.dev.jna/jna-platform               "4.1.0"]
 
                      [com.defold.lib/bob                          "1.0"]
+                     [com.defold.lib/dmengine                     "1.0"]
                      [com.defold.lib/icu4j                        "1.0"]
 
                      [metosin/reitit-core "0.8.0-alpha1"]
@@ -82,10 +83,6 @@
                      [org.commonmark/commonmark-ext-yaml-front-matter "0.25.1"]
                      [org.commonmark/commonmark-ext-heading-anchor "0.25.1"]
                      [org.jsoup/jsoup "1.11.3"]
-
-                     [com.cognitect.aws/api "0.8.673"]
-                     [com.cognitect.aws/endpoints "1.1.12.478"]
-                     [com.cognitect.aws/s3 "847.2.1387.0"]
 
                      [org.luaj/luaj-jse "3.0.1"]
 
@@ -363,7 +360,7 @@
                                                     "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/13.2.2.zip"
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.3.0.zip"
                                                     "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.9.2.zip"
-                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.5.zip"
+                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.6.zip"
                                                     "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.9.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"

@@ -14,6 +14,9 @@
 
 #import <UIKit/UIKit.h>
 
+// Returns the last valid legacy orientation override, or zero.
+FOUNDATION_EXPORT UIInterfaceOrientationMask dmNativeGetiOSLegacyInterfaceOrientations(UIWindow* window);
+
 @interface AppDelegateProxy: NSObject <UIApplicationDelegate>
 
 // due to bootstrap issues, we need to invoke the delegates via this class method for now

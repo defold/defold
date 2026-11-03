@@ -690,7 +690,8 @@
     "/usr/bin/~/adb" "/usr/bin/~/adb"
     ;; $ENV vars are expanded
     "$USER" (System/getenv "USER")
-    "/home/$USER/adb" (str "/home/" (System/getenv "USER") "/adb")
+    "/home/$USER/adb" (when-let [user (System/getenv "USER")]
+                        (str "/home/" user "/adb"))
     ;; absent env vars make the whole output collapse into nil
     "/home/$UHHH" nil
     "/home/$/foo" nil

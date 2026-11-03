@@ -26,6 +26,7 @@ dmGraphics::HVertexDeclaration FontCreateGlyphVertexDeclaration(dmGraphics::HCon
     dmGraphics::AddVertexStream(streams, "shadow_color", 4, dmGraphics::TYPE_UNSIGNED_BYTE, true);
     dmGraphics::AddVertexStream(streams, "sdf_params", 4, dmGraphics::TYPE_FLOAT, false);
     dmGraphics::AddVertexStream(streams, "layer_mask", 3, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::AddVertexStream(streams, "effect", 4, dmGraphics::TYPE_FLOAT, false);
 
     dmGraphics::HVertexDeclaration declaration = dmGraphics::NewVertexDeclaration(context, streams, sizeof(FontGlyphVertex));
     dmGraphics::DeleteVertexStreamDeclaration(streams);

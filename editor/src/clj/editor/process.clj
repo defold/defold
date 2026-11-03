@@ -14,10 +14,13 @@
 
 (ns editor.process
   (:require [clojure.java.io :as io]
-            [clojure.string :as string])
-  (:import [java.lang Process ProcessBuilder ProcessBuilder$Redirect]
-           [java.util List]
-           [java.io InputStream StringWriter OutputStream]))
+            [clojure.string :as string]
+            [editor.os :as os]
+            [util.coll :as coll])
+  (:import [com.defold.util WindowsProcess]
+           [java.io InputStream OutputStream StringWriter]
+           [java.lang Process ProcessBuilder ProcessBuilder$Redirect]
+           [java.util List]))
 
 (set! *warn-on-reflection* true)
 
@@ -47,12 +50,14 @@
               :stdout - redirects to spawned process's out
     :dir    the process working directory
     :env    process env map, keys are env var names, vars are either strings
-            (values) or nil (removes the var from the process env)"
+            (values) or nil (removes the var from the process env)
+    :windows-default-error-mode    enable Windows system error dialogs for this
+                                   child; defaults to false, ignored elsewhere"
   ^Process [& opts+args]
   (let [has-opts (map? (first opts+args))
         opts (if has-opts (first opts+args) {})
         command (if has-opts (rest opts+args) opts+args)
-        {:keys [in out err dir env]} opts
+        {:keys [in out err dir env windows-default-error-mode]} opts
         pb (ProcessBuilder. ^List command)]
     (when dir (.directory pb (io/file dir)))
     (when in (.redirectInput pb (->redirect in)))
@@ -67,7 +72,9 @@
           (if v
             (.put m k v)
             (.remove m k)))))
-    (.start pb)))
+    (if (and windows-default-error-mode (os/is-win32?))
+      (WindowsProcess/start pb)
+      (.start pb))))
 
 (defn out
   "Get the process out, an InputStream that can be read from"
@@ -109,9 +116,9 @@
     (loop []
       (let [size (.read in buf)]
         (when-not (neg? size)
-          (do (.write out buf 0 size)
-              (.flush out)
-              (recur)))))))
+          (.write out buf 0 size)
+          (.flush out)
+          (recur))))))
 
 (defn await-exit-code
   "Blocks until process exits and returns the exit code
@@ -151,7 +158,7 @@
     (if (zero? exit-code)
       @output
       (throw (ex-info (format "Non-zero exit code for command '%s': %s"
-                              (string/join " " command)
+                              (coll/join-to-string " " command)
                               exit-code)
                       {:command command
                        :exit-code exit-code

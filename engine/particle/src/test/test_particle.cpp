@@ -2439,8 +2439,10 @@ TEST_F(ParticleTest, PackedVertexWriterMatchesGeneric)
                 {
                     const uint8_t* a = actual + v * infos.m_VertexStride;
                     const uint8_t* e = expected + v * infos.m_VertexStride;
-                    // Point3's fourth lane is padding, not a position component.
-                    ASSERT_EQ(0, memcmp(a, e, 3 * sizeof(float)));
+                    float position_w;
+                    memcpy(&position_w, a + 3 * sizeof(float), sizeof(position_w));
+                    ASSERT_EQ(1.0f, position_w);
+                    ASSERT_EQ(0, memcmp(a, e, 4 * sizeof(float)));
                     ASSERT_EQ(0, memcmp(a + 16, e + 20, 2 * sizeof(float)));
                     ASSERT_EQ(0, memcmp(a + 24, e + 16, 4));
                     if (paged)
@@ -2457,7 +2459,7 @@ TEST_F(ParticleTest, PackedVertexWriterMatchesGeneric)
                 for (uint32_t v = 0; v < 12; ++v)
                 {
                     uint32_t offset = v * infos.m_VertexStride;
-                    ASSERT_EQ(0, memcmp(actual + offset, truncated + offset, 3 * sizeof(float)));
+                    ASSERT_EQ(0, memcmp(actual + offset, truncated + offset, 4 * sizeof(float)));
                     ASSERT_EQ(0, memcmp(actual + offset + 16, truncated + offset + 16, infos.m_VertexStride - 16));
                 }
                 ASSERT_EQ(0xcd, truncated[truncated_size]);
@@ -2523,8 +2525,8 @@ TEST_F(ParticleTest, GenericNormalizedColorVertexData)
             {
                 const float* expected = reference + v * (10 + paged);
                 const uint8_t* actual = packed + batch * particle_size + v * infos.m_VertexStride;
-                // Point3 padding is not a position component; builtin shaders use xyz.
-                ASSERT_EQ(0, memcmp(expected, actual, 3 * sizeof(float)));
+                ASSERT_EQ(1.0f, expected[3]);
+                ASSERT_EQ(0, memcmp(expected, actual, 4 * sizeof(float)));
                 ASSERT_EQ(0, memcmp(expected + 8, actual + 20, (2 + paged) * sizeof(float)));
                 for (uint32_t c = 0; c < 4; ++c)
                     ASSERT_NEAR(expected[4 + c], actual[16 + c] / 255.0f, 0.5f / 255.0f);
@@ -2534,6 +2536,59 @@ TEST_F(ParticleTest, GenericNormalizedColorVertexData)
     }
     dmParticle::DestroyInstance(m_Context, instance);
 }
+
+// Verifies both vertex writers default to page zero without animation frames,
+// including after rendering an animation on a different page.
+TEST_F(ParticleTest, MissingAnimationPageDefaultsToZero)
+{
+    ASSERT_TRUE(LoadPrototype("emitter_space.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::StartInstance(m_Context, instance);
+    dmParticle::Update(m_Context, 1.0f, EmptyFetchAnimationCallback);
+    dmParticle::UpdateRenderData(m_Context, instance, 0, 1.0f);
+    ASSERT_EQ(1u, dmParticle::GetParticleCount(m_Context, instance, 0));
+    dmParticle::Emitter* emitter = GetEmitter(m_Context, instance, 0);
+    uint32_t frames[] = { 0 };
+    uint32_t pages[] = { 3 };
+
+    for (uint32_t packed = 0; packed < 2; ++packed)
+    {
+        dmGraphics::VertexAttributeInfo attributes[4];
+        memcpy(attributes, m_AttributeInfos.m_Infos, sizeof(attributes));
+        dmGraphics::VertexAttributeInfos infos = m_AttributeInfos;
+        infos.m_Infos = attributes;
+        if (packed)
+        {
+            attributes[0].m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+            attributes[0].m_ElementCount = 4;
+            attributes[1] = m_AttributeInfos.m_Infos[2];
+            attributes[2] = m_AttributeInfos.m_Infos[1];
+            attributes[2].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE;
+            attributes[2].m_Normalize = true;
+            infos.m_VertexStride = 32;
+        }
+        for (uint32_t pass = 0; pass < 3; ++pass)
+        {
+            emitter->m_AnimationData.m_FrameIndices = pass == 1 ? frames : 0x0;
+            emitter->m_AnimationData.m_PageIndices = pass == 1 ? pages : 0x0;
+            uint8_t vertices[6 * sizeof(TestVertex)];
+            memset(vertices, 0xff, sizeof(vertices));
+            uint32_t size = 0;
+            ASSERT_EQ(dmParticle::GENERATE_VERTEX_DATA_OK,
+                dmParticle::GenerateVertexData(m_Context, instance, 0, infos, Vector4(1, 1, 1, 1),
+                    vertices, sizeof(vertices), &size));
+            ASSERT_EQ(6u * infos.m_VertexStride, size);
+            for (uint32_t v = 0; v < 6; ++v)
+            {
+                float page;
+                memcpy(&page, vertices + (v + 1) * infos.m_VertexStride - sizeof(page), sizeof(page));
+                ASSERT_EQ(pass == 1 ? 3.0f : 0.0f, page);
+            }
+        }
+    }
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
 
 TEST_F(ParticleTest, UpdateRenderDataRefreshesTransformChangesInFrame)
 {
@@ -2586,6 +2641,7 @@ TEST_F(ParticleTest, UpdateRenderDataRefreshesTransformChangesInFrame)
 /**
  * Verify that local position vertex attributes are unaffected by the instance transform.
  * World positions should change when we move the instance; local positions must stay the same.
+ * Both vec4 position attributes must have w = 1, never uninitialized Point3 padding.
  */
 TEST_F(ParticleTest, LocalPositionUnaffectedByTransform)
 {
@@ -2619,6 +2675,8 @@ TEST_F(ParticleTest, LocalPositionUnaffectedByTransform)
     float local_pos_first[6 * 4];
     for (uint32_t i = 0; i < 6; ++i)
     {
+        ASSERT_EQ(1.0f, vertex_buffer[i].m_WorldW);
+        ASSERT_EQ(1.0f, vertex_buffer[i].m_LocalW);
         local_pos_first[i*4 + 0] = vertex_buffer[i].m_LocalX;
         local_pos_first[i*4 + 1] = vertex_buffer[i].m_LocalY;
         local_pos_first[i*4 + 2] = vertex_buffer[i].m_LocalZ;
@@ -2632,6 +2690,8 @@ TEST_F(ParticleTest, LocalPositionUnaffectedByTransform)
 
     for (uint32_t v = 0; v < 6; ++v)
     {
+        ASSERT_EQ(1.0f, vertex_buffer[v].m_WorldW);
+        ASSERT_EQ(1.0f, vertex_buffer[v].m_LocalW);
         ASSERT_NEAR(local_pos_first[v*4+0], vertex_buffer[v].m_LocalX, EPSILON);
         ASSERT_NEAR(local_pos_first[v*4+1], vertex_buffer[v].m_LocalY, EPSILON);
         ASSERT_NEAR(local_pos_first[v*4+2], vertex_buffer[v].m_LocalZ, EPSILON);

@@ -911,7 +911,8 @@ namespace dmRig
 
         instance->m_IKTargets.SetCapacity(skeleton->m_Iks.m_Count);
         instance->m_IKTargets.SetSize(skeleton->m_Iks.m_Count);
-        memset(instance->m_IKTargets.Begin(), 0x0, instance->m_IKTargets.Size()*sizeof(IKTarget));
+        if (!instance->m_IKTargets.Empty())
+            memset(instance->m_IKTargets.Begin(), 0x0, instance->m_IKTargets.Size()*sizeof(IKTarget));
 
         instance->m_IKAnimation.SetCapacity(skeleton->m_Iks.m_Count);
         instance->m_IKAnimation.SetSize(skeleton->m_Iks.m_Count);

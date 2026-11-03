@@ -159,6 +159,28 @@ static const dmhash_t ATTRIBUTE_WIDTH      = dmHashString64("width");
 static const dmhash_t ATTRIBUTE_X          = dmHashString64("x");
 static const dmhash_t ATTRIBUTE_Y          = dmHashString64("y");
 
+static const dmhash_t ATTRIBUTE_TYPE = dmHashString64("type");
+static const dmhash_t ATTRIBUTE_ANGLE = dmHashString64("angle");
+static const dmhash_t ATTRIBUTE_COLOR0 = dmHashString64("color0");
+static const dmhash_t ATTRIBUTE_COLOR1 = dmHashString64("color1");
+static const dmhash_t ATTRIBUTE_COLOR2 = dmHashString64("color2");
+static const dmhash_t ATTRIBUTE_COLOR3 = dmHashString64("color3");
+static const dmhash_t ATTRIBUTE_STOP0 = dmHashString64("stop0");
+static const dmhash_t ATTRIBUTE_STOP1 = dmHashString64("stop1");
+static const dmhash_t ATTRIBUTE_STOP2 = dmHashString64("stop2");
+static const dmhash_t ATTRIBUTE_STOP3 = dmHashString64("stop3");
+static const dmhash_t ATTRIBUTE_PIVOT_X = dmHashString64("pivot-x");
+static const dmhash_t ATTRIBUTE_PIVOT_Y = dmHashString64("pivot-y");
+static const dmhash_t ATTRIBUTE_RADIUS = dmHashString64("radius");
+static const dmhash_t ATTRIBUTE_RADIUS_X = dmHashString64("radius-x");
+static const dmhash_t ATTRIBUTE_RADIUS_Y = dmHashString64("radius-y");
+
+static const dmhash_t VALUE_BLOCK = dmHashString64("block");
+static const dmhash_t VALUE_COLOR = dmHashString64("color");
+static const dmhash_t VALUE_LINEAR = dmHashString64("linear");
+static const dmhash_t VALUE_RADIAL = dmHashString64("radial");
+static const dmhash_t VALUE_FOUR_CORNER = dmHashString64("four-corner");
+
 static const dmhash_t VALUE_DASHED  = dmHashString64("dashed");
 static const dmhash_t VALUE_FORWARD = dmHashString64("forward");
 static const dmhash_t VALUE_GLYPH   = dmHashString64("glyph");
@@ -353,6 +375,67 @@ static MarkupAttributeType GetAttributeType(dmhash_t name)
         return MARKUP_ATTRIBUTE_Y;
     }
 
+    if (name == ATTRIBUTE_TYPE)
+    {
+        return MARKUP_ATTRIBUTE_TYPE;
+    }
+    if (name == ATTRIBUTE_ANGLE)
+    {
+        return MARKUP_ATTRIBUTE_ANGLE;
+    }
+    if (name == ATTRIBUTE_COLOR0)
+    {
+        return MARKUP_ATTRIBUTE_COLOR0;
+    }
+    if (name == ATTRIBUTE_COLOR1)
+    {
+        return MARKUP_ATTRIBUTE_COLOR1;
+    }
+    if (name == ATTRIBUTE_COLOR2)
+    {
+        return MARKUP_ATTRIBUTE_COLOR2;
+    }
+    if (name == ATTRIBUTE_COLOR3)
+    {
+        return MARKUP_ATTRIBUTE_COLOR3;
+    }
+    if (name == ATTRIBUTE_STOP0)
+    {
+        return MARKUP_ATTRIBUTE_STOP0;
+    }
+    if (name == ATTRIBUTE_STOP1)
+    {
+        return MARKUP_ATTRIBUTE_STOP1;
+    }
+    if (name == ATTRIBUTE_STOP2)
+    {
+        return MARKUP_ATTRIBUTE_STOP2;
+    }
+    if (name == ATTRIBUTE_STOP3)
+    {
+        return MARKUP_ATTRIBUTE_STOP3;
+    }
+    if (name == ATTRIBUTE_PIVOT_X)
+    {
+        return MARKUP_ATTRIBUTE_PIVOT_X;
+    }
+    if (name == ATTRIBUTE_PIVOT_Y)
+    {
+        return MARKUP_ATTRIBUTE_PIVOT_Y;
+    }
+    if (name == ATTRIBUTE_RADIUS)
+    {
+        return MARKUP_ATTRIBUTE_RADIUS;
+    }
+    if (name == ATTRIBUTE_RADIUS_X)
+    {
+        return MARKUP_ATTRIBUTE_RADIUS_X;
+    }
+    if (name == ATTRIBUTE_RADIUS_Y)
+    {
+        return MARKUP_ATTRIBUTE_RADIUS_Y;
+    }
+
     return MARKUP_ATTRIBUTE_CUSTOM;
 }
 
@@ -391,7 +474,8 @@ static bool IsSupportedAttribute(MarkupTagType tag, MarkupAttributeType name)
         return name == MARKUP_ATTRIBUTE_BL || name == MARKUP_ATTRIBUTE_BOTTOM || name == MARKUP_ATTRIBUTE_BR ||
                name == MARKUP_ATTRIBUTE_DIRECTION || name == MARKUP_ATTRIBUTE_FIT || name == MARKUP_ATTRIBUTE_HZ ||
                name == MARKUP_ATTRIBUTE_LEFT || name == MARKUP_ATTRIBUTE_RIGHT || name == MARKUP_ATTRIBUTE_TL ||
-               name == MARKUP_ATTRIBUTE_TOP || name == MARKUP_ATTRIBUTE_TR;
+               name == MARKUP_ATTRIBUTE_TOP || name == MARKUP_ATTRIBUTE_TR ||
+               (name >= MARKUP_ATTRIBUTE_TYPE && name <= MARKUP_ATTRIBUTE_RADIUS_Y);
     }
 
     if (tag == MARKUP_TAG_WAVE)
@@ -419,24 +503,68 @@ static bool GetConstantType(MarkupTagType tag, MarkupAttributeType name, dmhash_
 
     if (name == MARKUP_ATTRIBUTE_FIT)
     {
-        if (value == VALUE_GLYPH) *type = MARKUP_CONSTANT_GLYPH;
-        if (value == VALUE_SPAN)  *type = MARKUP_CONSTANT_SPAN;
+        if (value == VALUE_GLYPH)
+        {
+            *type = MARKUP_CONSTANT_GLYPH;
+        }
+        if (value == VALUE_SPAN)
+        {
+            *type = MARKUP_CONSTANT_SPAN;
+        }
+        if (tag == MARKUP_TAG_GRADIENT && value == VALUE_BLOCK)
+        {
+            *type = MARKUP_CONSTANT_BLOCK;
+        }
+
+        return *type != MARKUP_CONSTANT_NONE;
+    }
+
+    if (tag == MARKUP_TAG_GRADIENT && name == MARKUP_ATTRIBUTE_TYPE)
+    {
+        if (value == VALUE_COLOR)
+        {
+            *type = MARKUP_CONSTANT_COLOR;
+        }
+        if (value == VALUE_LINEAR)
+        {
+            *type = MARKUP_CONSTANT_LINEAR;
+        }
+        if (value == VALUE_RADIAL)
+        {
+            *type = MARKUP_CONSTANT_RADIAL;
+        }
+        if (value == VALUE_FOUR_CORNER)
+        {
+            *type = MARKUP_CONSTANT_FOUR_CORNER;
+        }
 
         return *type != MARKUP_CONSTANT_NONE;
     }
 
     if (name == MARKUP_ATTRIBUTE_DIRECTION)
     {
-        if (value == VALUE_FORWARD) *type = MARKUP_CONSTANT_FORWARD;
-        if (value == VALUE_REVERSE) *type = MARKUP_CONSTANT_REVERSE;
+        if (value == VALUE_FORWARD)
+        {
+            *type = MARKUP_CONSTANT_FORWARD;
+        }
+        if (value == VALUE_REVERSE)
+        {
+            *type = MARKUP_CONSTANT_REVERSE;
+        }
 
         return *type != MARKUP_CONSTANT_NONE;
     }
 
     if ((tag == MARKUP_TAG_UNDERLINE || tag == MARKUP_TAG_STRIKE) && name == MARKUP_ATTRIBUTE_PATTERN)
     {
-        if (value == VALUE_SOLID)  *type = MARKUP_CONSTANT_SOLID;
-        if (value == VALUE_DASHED) *type = MARKUP_CONSTANT_DASHED;
+        if (value == VALUE_SOLID)
+        {
+            *type = MARKUP_CONSTANT_SOLID;
+        }
+        if (value == VALUE_DASHED)
+        {
+            *type = MARKUP_CONSTANT_DASHED;
+        }
 
         return *type != MARKUP_CONSTANT_NONE;
     }
@@ -674,7 +802,7 @@ static MarkupResult ParseOpeningTag(ParseContext* context, MarkupString tag, Mar
         }
 
         MarkupConstantType constant_type = MARKUP_CONSTANT_NONE;
-        const bool         has_constant = attribute_type == MARKUP_ATTRIBUTE_FIT ||
+        const bool         has_constant = attribute_type == MARKUP_ATTRIBUTE_FIT || attribute_type == MARKUP_ATTRIBUTE_TYPE ||
                                           attribute_type == MARKUP_ATTRIBUTE_DIRECTION ||
                                           ((tag_type == MARKUP_TAG_UNDERLINE || tag_type == MARKUP_TAG_STRIKE) &&
                                            attribute_type == MARKUP_ATTRIBUTE_PATTERN);
@@ -815,7 +943,7 @@ static MarkupResult ParseTag(ParseContext* context, MarkupError* error, bool* se
     }
 
     context->m_Markup->m_StyleNodes[context->m_StyleNodeIndex].m_TextLength =
-    context->m_Markup->m_Text.Size() - current.m_TextOffset;
+        context->m_Markup->m_Text.Size() - current.m_TextOffset;
     context->m_StyleNodeIndex = current.m_Parent;
 
     return MARKUP_RESULT_OK;

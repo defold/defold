@@ -99,7 +99,8 @@
   "Extends an outline selection path within a node; a different node starts a
   new path."
   [parent-path {:keys [node-id node-outline-key]}]
-  (if (= node-id (first parent-path))
+  (if (and (coll/not-empty parent-path)
+           (= node-id (first parent-path)))
     (cond-> parent-path node-outline-key (conj node-outline-key))
     [node-id]))
 

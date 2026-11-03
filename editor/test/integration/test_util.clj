@@ -101,7 +101,6 @@
 (namespaces/import-vars [support.test-support cached-endpoints])
 
 (.setLevel ^Logger (LoggerFactory/getLogger "org.eclipse.jetty") Level/ERROR)
-(.setLevel ^Logger (LoggerFactory/getLogger "cognitect.aws.credentials") Level/ERROR)
 
 ;; Disable defspec logs:
 ;; {:result true, :num-tests 100, :seed 1761047757693, :time-elapsed-ms 41, :test-var "some-spec"}
@@ -1049,19 +1048,19 @@
     {"/lib/{*lib}"
      {"GET" (fn [request]
               (let [lib (-> request :path-params :lib)
-                    path-offset (count (format "test/resources/%s/" lib))
+                    root-directory (io/file "test/resources" lib)
                     ignored #{".internal" "build"}
                     file-filter (reify FilenameFilter
                                   (accept [this file name] (not (contains? ignored name))))
                     files (->> (tree-seq (fn [^File f] (.isDirectory f))
                                          (fn [^File f] (.listFiles f ^FilenameFilter file-filter))
-                                         (io/file (format "test/resources/%s" lib)))
+                                         root-directory)
                                (filter (fn [^File f] (not (.isDirectory f)))))
                     baos (ByteArrayOutputStream.)]
                 (with-open [out (ZipOutputStream. baos)]
                   (doseq [^File f files]
                     (with-open [in (FileInputStream. f)]
-                      (let [entry (doto (ZipEntry. (subs (.getPath f) path-offset))
+                      (let [entry (doto (ZipEntry. (resource/relative-path root-directory f))
                                     (.setSize (.length f)))]
                         (.putNextEntry out entry)
                         (IOUtils/copy in out)

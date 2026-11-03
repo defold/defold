@@ -5,7 +5,7 @@ inputs:
     description: Engine target platform
     required: true
   build-variant:
-    description: Optional build variant, such as asan, ubsan, tsan, or valgrind
+    description: Optional build variant, such as asan, ubsan, or tsan
     default: ''
   reports:
     description: Newline-separated repository-relative report file paths; defaults to font and platform-specific graphics reports

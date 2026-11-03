@@ -18,11 +18,15 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.buffers :as buffers]
             [editor.build :as build]
             [editor.defold-project :as project]
             [editor.editor-extensions.graph :as ext-graph]
             [editor.editor-extensions.runtime :as rt]
+            [editor.gl :as gl]
             [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture]
             [editor.graph-util :as gu]
             [editor.gui :as gui]
             [editor.handler :as handler]
@@ -37,12 +41,51 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.node :as in]
+            [support.gl-support :as gl-support]
             [support.test-support :as test-support]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn]
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc]
+           [com.jogamp.opengl GL3]
            [java.io StringReader]))
+
+(when (gl/supported?)
+
+  ;; Verifies non-text GUI rendering samples the actual texture even when the
+  ;; sampler is named font_effects. A nonzero texture unit exposes binding
+  ;; errors that the default sampler value of zero would otherwise hide.
+  (deftest render-tris-preserves-custom-texture-sampler-test
+    (gl-support/with-offscreen-gl
+      (let [test-shader (shader/classpath-shader
+                          {:coordinate-space :coordinate-space-world
+                           :uniforms {"font_effects" nil}}
+                          "shaders/font-effects/position.vp"
+                          "shaders/font-effects/font-effects.fp")
+            pixel (buffers/wrap-byte-array (byte-array [(unchecked-byte 255) 64 0 (unchecked-byte 255)]) :byte-order/native)
+            gpu-texture (texture/make-gpu-texture
+                          ::custom-texture
+                          [(texture/make-texture-request-data pixel 0 :rgba 1 1 false)]
+                          (vector-of :int 3)
+                          {:min-filter gl/nearest :mag-filter gl/nearest})
+            rendered-pixel (buffers/new-byte-buffer 4 :byte-order/native)]
+        (.glViewport gl 0 0 16 16)
+        (.glDisable gl GL3/GL_DITHER)
+        (gl/gl-clear gl 0.0 0.0 0.0 1.0)
+        (gui/render-tris gl {:pass pass/transparent}
+                         [{:world-transform math/identity-mat4
+                           :user-data {:geom-data [[-1.0 -1.0 0.0] [3.0 -1.0 0.0] [-1.0 3.0 0.0]]
+                                       :uv-data [[0.0 0.0] [1.0 0.0] [0.0 1.0]]
+                                       :color [1.0 1.0 1.0 1.0]
+                                       :page-index 0
+                                       :blend-mode :blend-mode-alpha
+                                       :material-shader test-shader
+                                       :gpu-texture gpu-texture}}]
+                         1)
+        (.glReadPixels gl 8 8 1 1 GL3/GL_RGBA GL3/GL_UNSIGNED_BYTE rendered-pixel)
+        (is (= [255 64 0 255]
+               (mapv #(Byte/toUnsignedInt (.get rendered-pixel ^int %)) (range 4))))
+        (is (= GL3/GL_NO_ERROR (.glGetError gl)))))))
 
 (defn- gui-scene-dependencies [workspace read-opts scene-desc]
   (let [resource (workspace/make-memory-resource workspace :editable "gui" scene-desc)]
@@ -734,6 +777,25 @@
         (is (not (g/error-fatal? (test-util/prop-error pie :perimeter-vertices)))))
       (test-util/with-prop [pie :perimeter-vertices 1001]
         (is (g/error-fatal? (test-util/prop-error pie :perimeter-vertices)))))))
+
+;; Verifies legacy PNG frames flow through the GUI graph with engine UV
+;; orientation, matching pie rendering even when the displayed size changes.
+(deftest standalone-image-box-and-pie-uv-test
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/logic/main.gui")
+          box (gui-node scene "png_node")
+          pie (gui-node scene "hexagon")]
+      (doseq [node [box pie]]
+        (g/transact [(g/set-property node :texture "png_texture")
+                     (g/set-property node :pivot :pivot-sw)
+                     (g/set-property node :size-mode :size-mode-manual)
+                     (g/set-property node :manual-size [128.0 96.0 0.0])])
+        (let [{:keys [geom-data uv-data]} (g/node-value node :scene-renderable-user-data)
+              [width height] (g/node-value node :size)]
+          (is (pos? (count uv-data)))
+          (doseq [[[x y] [u v]] (mapv vector geom-data uv-data)]
+            (is (< (Math/abs (- (double u) (/ (double x) (double width)))) 1.0e-6))
+            (is (< (Math/abs (- (double v) (/ (double y) (double height)))) 1.0e-6))))))))
 
 (deftest gui-textures-test
   (test-util/with-loaded-project

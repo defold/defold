@@ -428,8 +428,6 @@ namespace dmGameSystem
 
     dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams* params)
     {
-        DM_PROFILE(__FUNCTION__);
-
         uint8_t* message_bytes = (uint8_t*) params->m_Buffer;
         int32_t header_size    = ((int32_t*) message_bytes)[0];
         void* buffer           = (void*) (message_bytes + sizeof(int32_t));

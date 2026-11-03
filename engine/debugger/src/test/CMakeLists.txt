@@ -14,13 +14,19 @@
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
+# Standalone debuggees do not link script, which normally supplies these wrappers.
+set(DEBUGGER_TEST_ASAN_SOURCE)
+if(WITH_ASAN)
+  set(DEBUGGER_TEST_ASAN_SOURCE "${DEFOLD_HOME}/engine/lua/src/lua_asan.cpp")
+endif()
+
 defold_add_executable(test_dap_json test_dap_json.cpp)
 target_include_directories(test_dap_json PRIVATE ..)
 target_link_libraries(test_dap_json PRIVATE debugger)
 defold_target_link_libraries(test_dap_json "${TARGET_PLATFORM}" profile_null)
 defold_register_test_target(test_dap_json ON)
 
-defold_add_executable(dap_debuggee test_debugger.cpp)
+defold_add_executable(dap_debuggee test_debugger.cpp ${DEBUGGER_TEST_ASAN_SOURCE})
 target_include_directories(dap_debuggee PRIVATE ..)
 target_link_libraries(dap_debuggee PRIVATE debugger)
 defold_target_link_libraries(dap_debuggee "${TARGET_PLATFORM}" profile_null)
@@ -37,7 +43,7 @@ defold_register_sequential_test_command(test_debugger_dap
 # Exercise the same wire tests against the bundled Lua 5.1 implementation too.
 # The regular debugger target links LuaJIT on desktop platforms.
 if(TARGET lua)
-  defold_add_executable(dap_debuggee_lua test_debugger.cpp ../dap.cpp ../debugger.cpp ../debugger_values.cpp ../debugger_inspect.cpp)
+  defold_add_executable(dap_debuggee_lua test_debugger.cpp ../dap.cpp ../debugger.cpp ../debugger_values.cpp ../debugger_inspect.cpp ${DEBUGGER_TEST_ASAN_SOURCE})
   target_include_directories(dap_debuggee_lua PRIVATE ..)
   target_link_libraries(dap_debuggee_lua PRIVATE lua)
   defold_target_link_libraries(dap_debuggee_lua "${TARGET_PLATFORM}" dlib profile_null)

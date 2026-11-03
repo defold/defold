@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <dlib/array.h>
+#include <dlib/atomic.h>
 #include <dlib/dstrings.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
@@ -233,6 +234,10 @@ namespace dmHttpService
     void HttpHeader(dmHttpClient::HResponse response, void* user_data, int status_code, const char* key, const char* value)
     {
         Worker* worker = (Worker*)user_data;
+        if (dmAtomicGet32(&worker->m_Canceled))
+        {
+            return;
+        }
         worker->m_Status = status_code;
 
         if (worker->m_Request && worker->m_Request->m_HttpRequest)
@@ -258,6 +263,10 @@ namespace dmHttpService
     void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, uint32_t range_start, uint32_t range_end, uint32_t document_size, const char* method)
     {
         Worker* worker = (Worker*)user_data;
+        if (dmAtomicGet32(&worker->m_Canceled))
+        {
+            return;
+        }
         worker->m_Status = status_code;
         worker->m_RangeStart = range_start;
         worker->m_RangeEnd = range_end;
@@ -278,7 +287,7 @@ namespace dmHttpService
                 worker->m_BytesReceived += content_data_size;
             }
 
-            if (worker->m_ReportProgress && !worker->m_Canceled && (method_is_head || content_data_size > 0))
+            if (worker->m_ReportProgress && !dmAtomicGet32(&worker->m_Canceled) && (method_is_head || content_data_size > 0))
             {
                 DirectRequestProgress(worker->m_Request->m_HttpRequest, 0, worker->m_BytesReceived, content_length);
             }
@@ -297,13 +306,12 @@ namespace dmHttpService
         if (!method_is_head)
         {
             dmArray<char>& r = worker->m_Response;
-            // do we have enough room to fit the content? if not, grow the array
-            uint32_t left = r.Capacity() - r.Size();
-            if (content_data_size > left)
+            if (!AppendResponseBuffer(r, content_data, content_data_size, content_length))
             {
-                r.OffsetCapacity(content_data_size - left);
+                dmLogError("HTTP response body exceeds the maximum buffer size. Canceling request.");
+                dmAtomicStore32(&worker->m_Canceled, 1);
+                return;
             }
-            r.PushArray((char*)content_data, content_data_size);
             bytes_received = r.Size();
             worker->m_BytesReceived = bytes_received;
         }
@@ -559,8 +567,12 @@ namespace dmHttpService
             memset(&proxy_url, 0, sizeof(proxy_url));
         }
 
+        // Publish the request and its cancellation state together. Cancellation
+        // can arrive before the worker starts or while the request is active.
+        dmMutex::Lock(worker->m_Service->m_RequestMutex);
         worker->m_Request = request;
-        worker->m_Canceled = request->m_HttpRequest ? request->m_HttpRequest->m_CancelFlag : 0;
+        dmAtomicStore32(&worker->m_Canceled, request->m_HttpRequest ? dmAtomicGet32(&request->m_HttpRequest->m_CancelFlag) : 0);
+        dmMutex::Unlock(worker->m_Service->m_RequestMutex);
 
         if (worker->m_Client == 0 ||
             !dmURI::Compare(&url, &worker->m_CurrentURL) ||
@@ -636,6 +648,11 @@ namespace dmHttpService
             dmHttpClient::SetCacheKey(worker->m_Client, cache_key);
 
             dmHttpClient::Result r = dmHttpClient::Request(worker->m_Client, request->m_Method, url.m_Path);
+            if (dmAtomicGet32(&worker->m_Canceled))
+            {
+                // Cancellation can occur in the final callback even if the transfer succeeded.
+                r = dmHttpClient::RESULT_INVAL;
+            }
 
             if (r == dmHttpClient::RESULT_OK || r == dmHttpClient::RESULT_NOT_200_OK)
             {
@@ -644,7 +661,7 @@ namespace dmHttpService
             else
             {
                 // TODO: Error codes to lua?
-                if (!worker->m_Canceled)
+                if (!dmAtomicGet32(&worker->m_Canceled))
                 {
                     dmLogError("HTTP request to '%s' failed (http result: %d  socket result: %d)", request->m_Url, r, GetLastSocketResult(worker->m_Client));
                 }
@@ -654,14 +671,16 @@ namespace dmHttpService
         else
         {
             // TODO: Error codes to lua?
-            if (!worker->m_Canceled)
+            if (!dmAtomicGet32(&worker->m_Canceled))
             {
                 dmLogError("Unable to create HTTP connection to '%s'. No route to host?", request->m_Url);
             }
             SendResponse(request, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), request->m_Url, worker->m_Filepath, worker->m_RangeStart, worker->m_RangeEnd, worker->m_DocumentSize, dmHttpClient::RESULT_SOCKET_ERROR);
         }
 
+        dmMutex::Lock(worker->m_Service->m_RequestMutex);
         worker->m_Request = 0;
+        dmMutex::Unlock(worker->m_Service->m_RequestMutex);
     }
 
     static void InitRequestContext(RequestContext* context, Request* request)
@@ -843,7 +862,7 @@ namespace dmHttpService
             worker->m_Service = service;
             worker->m_CacheFlusher = i == 0 && worker->m_Service->m_HttpCache != 0;
             worker->m_Run = true;
-            worker->m_Canceled = 0;
+            dmAtomicStore32(&worker->m_Canceled, 0);
             worker->m_ReportProgress = false;
             worker->m_BytesReceived = 0;
             service->m_Workers.Push(worker);
@@ -1018,13 +1037,13 @@ namespace dmHttpService
             return HTTP_RESULT_INVAL;
         }
 
-        request->m_CancelFlag = 1;
+        dmAtomicStore32(&request->m_CancelFlag, 1);
         for (uint32_t i = 0; i < http_service->m_Workers.Size(); ++i)
         {
             dmHttpService::Worker* worker = http_service->m_Workers[i];
             if (worker->m_Request && worker->m_Request->m_HttpRequest == request)
             {
-                worker->m_Canceled = 1;
+                dmAtomicStore32(&worker->m_Canceled, 1);
             }
         }
 
@@ -1124,7 +1143,7 @@ namespace dmHttpService
             url.m_Socket = worker->m_Socket;
             dmMessage::Post(0, &url, 0, 0, 0, GetStopMessageDescriptor(), 0, 0, 0);
 
-            worker->m_Canceled = 1;
+            dmAtomicStore32(&worker->m_Canceled, 1);
         }
 
         for (uint32_t i = 0; i < http_service->m_Workers.Size(); ++i)

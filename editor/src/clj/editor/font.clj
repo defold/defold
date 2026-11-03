@@ -18,6 +18,7 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.attachment :as attachment]
+            [editor.buffers :as buffers]
             [editor.build-target :as bt]
             [editor.camera :as camera]
             [editor.code.data :as code.data]
@@ -52,7 +53,7 @@
             [schema.core :as schema]
             [util.coll :as coll]
             [util.defonce :as defonce])
-  (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$GlyphBank FontRenderer$GlyphBankGlyph FontRenderer$Layout FontRenderer$MarkupAttribute FontRenderer$MarkupDocument FontRenderer$MarkupError FontRenderer$MarkupNode FontRenderer$MarkupParseResult FontRenderer$MarkupSpan FontRenderer$Params FontRenderer$Properties FontRenderer$Style FontRenderer$Texture FontRenderer$VertexBufferRequirements FontStyles]
+  (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$GlyphBank FontRenderer$GlyphBankGlyph FontRenderer$Layout FontRenderer$MarkupAttribute FontRenderer$MarkupDocument FontRenderer$MarkupError FontRenderer$MarkupException FontRenderer$MarkupNode FontRenderer$MarkupParseResult FontRenderer$MarkupSpan FontRenderer$Params FontRenderer$Properties FontRenderer$Style FontRenderer$Texture FontRenderer$VertexBufferRequirements FontStyles]
            [com.dynamo.bob.util MurmurHash]
            [com.dynamo.font.proto GlyphBankProto$GlyphBank]
            [com.dynamo.render.proto Font$CompiledStyle Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$StyleDesc Font$VectorFontMode]
@@ -135,13 +136,15 @@
   (vec4.ubyte outline_color true)
   (vec4.ubyte shadow_color true)
   (vec4 sdf_params)
-  (vec3 layer_mask))
+  (vec3 layer_mask)
+  (vec4 effect))
 
 (vtx/defvertex ^:private ^:no-put VectorFontVertex
   (vec4 position)
   (vec4 texcoord)
   (vec4 effect_params)
-  (vec4.ubyte color true))
+  (vec4.ubyte color true)
+  (vec4 effect))
 
 (def ^:private ^:const sdf-min-w 1.0e-6)
 (def ^:private ^:const sdf-min-scale 1.0e-6)
@@ -616,10 +619,13 @@
                  (localization/message "error.font.no-reserved-distance-field-data-for-rich-text-shadow-blur")))))
 
 (defn- markup-parser-error
-  [node-id property text ^FontRenderer$MarkupError error]
+  [node-id property severity text ^FontRenderer$MarkupError error]
   (let [line (.-line error)
-        column (.-column error)]
-    (g/->error node-id property :warning text (.-message error)
+        column (.-column error)
+        message (if (= 15 (.-errorType error))
+                  (localization/message "error.font.invalid-gradient-radius" {"line" line "column" column})
+                  (.-message error))]
+    (g/->error node-id property severity text message
                {:byte-offset (.-byteOffset error)
                 :column column
                 :cursor-range (code.data/line-number->CursorRange line column)
@@ -640,7 +646,7 @@
               (let [^FontRenderer$MarkupParseResult result (FontRenderer/parseMarkup text)]
                 [(.-document result) (.-error result)]))]
         (if error
-          (markup-parser-error node-id property text error)
+          (markup-parser-error node-id property :warning text error)
           (layer-capability-error node-id property font-map text
                                   (markup-layer-info document (double (:size font-map 1.0)))))))))
 
@@ -739,7 +745,7 @@
     result))
 
 (defn- make-native-entry-state
-  [font-map entry]
+  [font-map entry use-gpu-effects]
   (let [text-layout (:text-layout entry)
         use-rich-text (:use-rich-text text-layout)
         alpha (double (:alpha font-map 1.0))
@@ -784,6 +790,7 @@
     (set! (.-baseStyle properties) (let [style (:style text-layout "default")]
                                      (if (= "" style) 0 (MurmurHash/hash64 ^String style))))
     (set! (.-useBaseStyle properties) true)
+    (set! (.-useGpuEffects properties) (boolean use-gpu-effects))
     (set! (.-baseShadowAlpha properties) (float shadow-alpha))
     (set! (.-sdfScale properties) sdf-scale)
     (set! (.-fontSize properties) font-size)
@@ -793,7 +800,7 @@
      :use-rich-text use-rich-text
      :transform transform
      :atlas-key [(:style text-layout) font-size use-rich-text line-break width tracking text markup]
-     :state-key [(:style text-layout) font-size use-rich-text line-break width height leading tracking align vertical-align
+     :state-key [use-gpu-effects (:style text-layout) font-size use-rich-text line-break width height leading tracking align vertical-align
                  face-color outline-color shadow-color shadow-alpha sdf-scale text markup]}))
 
 (defn- apply-native-entry-state!
@@ -820,6 +827,8 @@
   ;; too, since restoring the text will not upload an unchanged native atlas.
   (texture/->texture (:texture font-data) gl 0)
   (run! #(texture/->texture % gl 0) (:vector-textures font-data))
+  ;; Reset effect records even when the atlas can be reused.
+  (.beginBatch native-renderer)
   (let [atlas-key (mapv :atlas-key native-entry-states)
         previous-state @atlas-state
         known-atlas-version (:atlas-version previous-state)
@@ -829,16 +838,14 @@
         [atlas-version entry-requirements]
         (if atlas-unchanged
           [known-atlas-version (:entry-requirements previous-state)]
-          (do
-            (.beginBatch ^FontRenderer native-renderer)
-            (reduce (fn [[atlas-version entry-requirements] native-entry-state]
-                      (apply-native-entry-state! native-renderer native-entry-state)
-                      (let [atlas-version (generate-native-texture! gl native-renderer (:texture font-data) atlas-version)
-                            requirement (.getVertexBufferRequirements ^FontRenderer native-renderer)]
-                        [atlas-version (conj entry-requirements requirement)]))
-                    [known-atlas-version []]
-                    native-entry-states)))
-        vertex-key (mapv (fn [native-entry-state]
+          (reduce (fn [[atlas-version entry-requirements] native-entry-state]
+                    (apply-native-entry-state! native-renderer native-entry-state)
+                    (let [atlas-version (generate-native-texture! gl native-renderer (:texture font-data) atlas-version)
+                          requirement (.getVertexBufferRequirements ^FontRenderer native-renderer)]
+                      [atlas-version (conj entry-requirements requirement)]))
+                  [known-atlas-version []]
+                  native-entry-states))
+        render-key (mapv (fn [native-entry-state]
                            [(:state-key native-entry-state)
                             (vec (:transform native-entry-state))])
                          native-entry-states)]
@@ -853,7 +860,7 @@
     (vreset! atlas-state {:atlas-version atlas-version
                           :atlas-key atlas-key
                           :entry-requirements entry-requirements})
-    [[native-renderer atlas-version vertex-key] entry-requirements]))
+    [[native-renderer atlas-version render-key] entry-requirements]))
 
 (defn- gen-native-vertex-buffer
   [^FontRenderer native-renderer native-entry-states entry-requirements ^VertexBuffer vertex-buffer]
@@ -884,56 +891,78 @@
         (.flip byte-buffer)
         (vtx/wrap-vertex-buffer (if (.isVector native-renderer) VectorFontVertex NativeFontVertex) :static byte-buffer)))))
 
-(defonce/type NativeVertexBufferRequest [native-renderer native-entry-states entry-requirements vertex-key]
+(defonce/type NativeRenderDataRequest [request-id native-renderer native-entry-states entry-requirements render-key use-gpu-effects]
   Object
   (equals [this other]
     (or (identical? this other)
-        (let [^NativeVertexBufferRequest other other]
-          (and (instance? NativeVertexBufferRequest other)
-               (= vertex-key (.-vertex-key other))))))
+        (let [^NativeRenderDataRequest other other]
+          (and (instance? NativeRenderDataRequest other)
+               (= render-key (.-render-key other))))))
   (hashCode [_]
-    (hash vertex-key)))
+    (hash render-key)))
 
-(defn- make-native-vb
-  [_gl ^NativeVertexBufferRequest request]
-  (gen-native-vertex-buffer (.-native-renderer request)
-                            (.-native-entry-states request)
-                            (.-entry-requirements request)
-                            nil))
+(defn- gen-native-render-data
+  [^NativeRenderDataRequest request vertex-buffer]
+  (let [native-renderer (.-native-renderer request)
+        vertex-buffer (gen-native-vertex-buffer native-renderer
+                                                (.-native-entry-states request)
+                                                (.-entry-requirements request)
+                                                vertex-buffer)]
+    {:vertex-buffer vertex-buffer
+     ;; A batch owns its metadata snapshot so another batch using the same font
+     ;; cannot overwrite the lookup rows referenced by these cached vertices.
+     :effect-texture
+     (when (.-use-gpu-effects request)
+       (let [^FontRenderer$Texture effect-texture (.getEffectTexture ^FontRenderer native-renderer)
+             pixels (.-pixels effect-texture)
+             texture-unit (if (.isVector ^FontRenderer native-renderer) 3 1)]
+         (if-not pixels
+           (texture/set-base-unit @texture/white-pixel texture-unit)
+           (texture/make-gpu-texture
+             [::effects (.-request-id request)]
+             [(texture/make-texture-request-data pixels (buffers/data-hash pixels) :rgba
+                                                 (.-width effect-texture) (.-height effect-texture) false)]
+             (vector-of :int texture-unit)
+             {:min-filter gl/nearest :mag-filter gl/nearest
+              :wrap-s gl/clamp-to-edge :wrap-t gl/clamp-to-edge}))))}))
 
-(defn- update-native-vb
-  [_gl vertex-buffer ^NativeVertexBufferRequest request]
-  (gen-native-vertex-buffer (.-native-renderer request)
-                            (.-native-entry-states request)
-                            (.-entry-requirements request)
-                            vertex-buffer))
+(defn- make-native-render-data
+  [_gl request]
+  (gen-native-render-data request nil))
 
-(defn- destroy-native-vbs
-  [_gl _vertex-buffers _]
+(defn- update-native-render-data
+  [_gl render-data request]
+  (gen-native-render-data request (:vertex-buffer render-data)))
+
+(defn- destroy-native-render-data
+  [_gl _render-data _]
   nil)
 
-(scene-cache/register-object-cache! ::native-vb make-native-vb update-native-vb destroy-native-vbs)
+(scene-cache/register-object-cache! ::native-render-data make-native-render-data update-native-render-data destroy-native-render-data)
 
-(defn request-vertex-buffer
-  ([^GL3 gl request-id font-data text-entries]
-   (request-vertex-buffer gl request-id font-data text-entries nil))
-  ([^GL3 gl request-id font-data text-entries render-args]
-   (let [text-entries (add-sdf-screen-scale render-args font-data text-entries)
-         native-renderer-spec (get-in font-data [:font-map :native-renderer-spec])
-         native-renderer (scene-cache/request-object! ::native-renderers (:texture font-data) gl native-renderer-spec)
-         native-entry-states (mapv #(make-native-entry-state (:font-map font-data) %) text-entries)
-         atlas-state (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)
-         [vertex-key entry-requirements] (prepare-native-render-batch! gl native-renderer font-data native-entry-states atlas-state)]
-     (scene-cache/request-object! ::native-vb [request-id (:type font-data) (.isVector ^FontRenderer native-renderer)] gl
-                                  (NativeVertexBufferRequest. native-renderer native-entry-states entry-requirements vertex-key)))))
+(defn request-render-data
+  [^GL3 gl request-id font-data text-entries render-args material-shader]
+  (let [text-entries (add-sdf-screen-scale render-args font-data text-entries)
+        native-renderer-spec (get-in font-data [:font-map :native-renderer-spec])
+        ;; A custom fragment shader can share the built-in vertex shader without
+        ;; handling spatial effects. Match the runtime's material sampler
+        ;; opt-in.
+        use-gpu-effects (shader/has-configured-sampler? material-shader gl "font_effects")
+        native-renderer (scene-cache/request-object! ::native-renderers (:texture font-data) gl native-renderer-spec)
+        native-entry-states (mapv #(make-native-entry-state (:font-map font-data) % use-gpu-effects) text-entries)
+        atlas-state (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)
+        [render-key entry-requirements] (prepare-native-render-batch! gl native-renderer font-data native-entry-states atlas-state)]
+    (scene-cache/request-object! ::native-render-data [request-id (:type font-data) (.isVector ^FontRenderer native-renderer)] gl
+                                 (NativeRenderDataRequest. request-id native-renderer native-entry-states entry-requirements render-key use-gpu-effects))))
 
 (defn with-vector-samplers [material-shader]
   (update material-shader :uniforms assoc
           "effect_bitmap" 0
           "curve_texture" 1
-          "band_texture" 2))
+          "band_texture" 2
+          "font_effects" 3))
 
-(defn- make-selection-shader [node-id shader-source-info]
+(defn- make-selection-shader [node-id vertex-shader-source-info shader-source-info]
   (let [fragment-source (s/replace-first (:shader-source shader-source-info)
                                          #"(?m)^([ \t]*#version[^\r\n]*)"
                                          "$1\n#define FONT_VECTOR_PICKING")
@@ -946,7 +975,7 @@
                                           (fn [path]
                                             (if (= "font_vector.fp" path)
                                               fragment-source
-                                              (slurp (io/resource path)))))
+                                              (:shader-source vertex-shader-source-info))))
 
         request-data
         (shader/make-shader-request-data
@@ -974,23 +1003,26 @@
         gpu-texture (:texture user-data)
         font-map (:font-map user-data)
         text-layout (:text-layout user-data)
-        vertex-buffer (request-vertex-buffer gl
-                                             (:node-id user-data)
-                                             user-data
-                                             [{:text-layout text-layout
-                                               :align :left
-                                               :offset [0.0 0.0]
-                                               :world-transform (doto (Matrix4d.) (.setIdentity))
-                                               :color (colors/alpha colors/defold-white-light 1.0)
-                                               :outline (colors/alpha colors/mid-grey 1.0)
-                                               :shadow [0.0 0.0 0.0 1.0]}]
-                                             render-args)
         material-shader (:shader user-data)
+        {:keys [vertex-buffer effect-texture]} (request-render-data
+                                                 gl
+                                                 (:node-id user-data)
+                                                 user-data
+                                                 [{:text-layout text-layout
+                                                   :align :left
+                                                   :offset [0.0 0.0]
+                                                   :world-transform (doto (Matrix4d.) (.setIdentity))
+                                                   :color (colors/alpha colors/defold-white-light 1.0)
+                                                   :outline (colors/alpha colors/mid-grey 1.0)
+                                                   :shadow [0.0 0.0 0.0 1.0]}]
+                                                 render-args material-shader)
         vcount (count vertex-buffer)]
     (when (> vcount 0)
       (let [vertex-binding (vtx/use-with ::vb vertex-buffer material-shader)
             texture-recip-uniform (get-texture-recip-uniform font-map)]
-        (gl/with-gl-bindings gl render-args (into [material-shader vertex-binding gpu-texture] (:vector-textures user-data))
+        (gl/with-gl-bindings gl render-args (into [material-shader vertex-binding gpu-texture effect-texture] (:vector-textures user-data))
+          (when effect-texture
+            (shader/set-samplers-by-name material-shader gl "font_effects" (:texture-units effect-texture)))
           (shader/set-uniform material-shader gl "texture_size_recip" texture-recip-uniform)
           ;; Need to set the blend mode to alpha since alpha blending the source with GL_SRC_ALPHA and dest with GL_ONE_MINUS_SRC_ALPHA
           ;; gives us a small black border around the outline that looks different than other views..
@@ -1475,8 +1507,8 @@
                            (localization/message "error.font.authored-default-style")))
               (try
                 (FontRenderer/compileStyle authored-markup)
-                (catch IllegalArgumentException error
-                  (g/->error _node-id :markup :fatal authored-markup (.getMessage error)))))))
+                (catch FontRenderer$MarkupException exception
+                  (markup-parser-error _node-id :markup :fatal authored-markup (.-error exception)))))))
   (output markup-error g/Any
           (g/fnk [^:try compiled-style]
             (when (g/error-value? compiled-style)
@@ -1640,6 +1672,12 @@
              :children child-outlines
              :child-reqs [{:node-type FontStyle
                            :tx-attach-fn (fn [_parent child] (attach-style styles-node child))}]}))
+
+  (property vector-vertex-shader-source resource/Resource
+            (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:shader-source-info :vector-vertex-shader-source-info]))))
 
   (property vector-shader-source resource/Resource
             (dynamic visible (g/constantly false))
@@ -1820,6 +1858,7 @@
   (input material-samplers [g/KeywordMap])
   (input material-shader ShaderLifecycle)
   (input vector-shader-source-info g/Any)
+  (input vector-vertex-shader-source-info g/Any)
   (input font-resource-map g/Any)
   (input use-font-layout g/Bool)
   (input use-rich-text g/Bool)
@@ -1861,9 +1900,9 @@
               material-shader
               (with-vector-samplers material-shader))))
   (output selection-shader g/Any :cached
-          (g/fnk [_node-id font vector-font-mode vector-shader-source-info]
+          (g/fnk [_node-id font vector-font-mode vector-vertex-shader-source-info vector-shader-source-info]
             (when (vector-font? font vector-font-mode)
-              (make-selection-shader _node-id vector-shader-source-info))))
+              (make-selection-shader _node-id vector-vertex-shader-source-info vector-shader-source-info))))
   (output type g/Keyword produce-font-type)
   (output font-data FontData :cached (g/fnk [font vector-font-mode type gpu-texture vector-textures font-map selection-shader]
                                        {:type type
@@ -1882,7 +1921,8 @@
   {:pre [(map? font-desc)]} ; Font$FontDesc in map format.
   (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (into
-      [(g/set-property self :vector-shader-source (resolve-resource "/builtins/fonts/font-vector.fp"))
+      [(g/set-property self :vector-vertex-shader-source (resolve-resource "/builtins/fonts/font-vector.vp"))
+       (g/set-property self :vector-shader-source (resolve-resource "/builtins/fonts/font-vector.fp"))
        (g/connect project :use-font-layout self :use-font-layout)
        (g/connect project :use-rich-text self :use-rich-text)
        (g/make-nodes [styles-node FontStylesNode]
@@ -2013,7 +2053,7 @@
        :label font-label
        :node-type FontNode
        :ddf-type Font$FontDesc
-       :editor-dependencies ["/builtins/fonts/font-vector.fp"]
+       :editor-dependencies ["/builtins/fonts/font-vector.vp" "/builtins/fonts/font-vector.fp"]
        :load-fn load-font
        :sanitize-fn sanitize-font
        :icon font-icon

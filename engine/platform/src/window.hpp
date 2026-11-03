@@ -15,6 +15,8 @@
 #ifndef DM_PLATFORM_WINDOW_CPP_H
 #define DM_PLATFORM_WINDOW_CPP_H
 
+#include <dlib/array.h>
+
 #include "window.h"
 
 namespace dmPlatform
@@ -32,6 +34,12 @@ namespace dmPlatform
     uint32_t       GetWindowHeight(HWindow window);
     uint32_t       GetWindowStateParam(HWindow window, WindowState state);
     float          GetDisplayScaleFactor(HWindow window);
+    // Logical density in dots per inch, as reported by the backend. 96 when the platform cannot
+    // report one.
+    float          GetDisplayDensity(HWindow window);
+    // Density of a display with the given physical width and framebuffer width. Shared by the
+    // backends and by the tests, which cannot create a display.
+    float          CalculateDisplayDensity(int32_t physical_width_mm, float pixel_width);
     uintptr_t      GetProcAddress(HWindow window, const char* proc_name);
 
     int32_t        GetKey(HWindow window, int32_t code);
@@ -43,6 +51,14 @@ namespace dmPlatform
     uint32_t       GetTouchData(HWindow window, WindowTouchData* touch_data, uint32_t touch_data_count);
     bool           GetAcceleration(HWindow window, float* x, float* y, float* z);
     bool           GetSafeArea(HWindow window, WindowSafeArea* out);
+    uint32_t       GetReservedAreas(HWindow window, const WindowReservedArea** areas);
+    void           GetReservedAreas(HWindow window, dmArray<WindowReservedArea>& areas);
+
+    // Native rectangles use a top-left origin. Clip before rounding so a region
+    // outside the view cannot become a one-pixel occlusion along its edge.
+    bool           ConvertReservedArea(double left, double top, double right, double bottom,
+                                       double view_width, double view_height,
+                                       uint32_t window_width, uint32_t window_height, WindowReservedArea* out);
 
     const char*    GetJoystickDeviceName(HWindow window, uint32_t joystick_index);
     const char*    GetJoystickDeviceGuid(HWindow window, uint32_t joystick_index);

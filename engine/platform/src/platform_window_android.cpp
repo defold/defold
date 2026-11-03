@@ -18,6 +18,7 @@
 
 #include <dmsdk/dlib/android.h>
 
+#include <dlib/array.h>
 #include <dlib/math.h>
 
 #include "platform_window_android.h"
@@ -25,10 +26,22 @@
 extern "C" {
     extern void dmNativeAndroidSetInputMethod(int);
     extern void dmNativeAndroidSetFullscreenParameters(int, int);
+    extern void dmNativeAndroidSetJoystickLayoutLegacy(int, int);
+    extern void dmNativeAndroidInitializeJoystickAxes(int, const float*, int);
 }
 
 namespace dmPlatform
 {
+    void SetAndroidJoystickLayoutLegacy(uint32_t joystick_index, bool legacy)
+    {
+        dmNativeAndroidSetJoystickLayoutLegacy(joystick_index, legacy);
+    }
+
+    void InitializeAndroidJoystickAxes(uint32_t joystick_index, const float* axes, uint32_t num_axes)
+    {
+        dmNativeAndroidInitializeJoystickAxes(joystick_index, axes, num_axes);
+    }
+
     extern "C" int dmNativeAndroidGetSafeAreaInsets(int* left, int* top, int* right, int* bottom);
 
     int32_t AndroidVerifySurface(HWindow window)
@@ -148,5 +161,49 @@ namespace dmPlatform
         out->m_InsetBottom = inset_bottom;
 
         return true;
+    }
+
+    void GetReservedAreas(HWindow window, dmArray<WindowReservedArea>& areas)
+    {
+        areas.SetSize(0);
+        dmAndroid::ThreadAttacher thread;
+        JNIEnv* env = thread.GetEnv();
+        if (!env)
+            return;
+
+        jobject activity = thread.GetActivity()->clazz;
+        jclass activity_class = env->GetObjectClass(activity);
+        jmethodID method = env->GetMethodID(activity_class, "getReservedAreas", "()[I");
+        env->DeleteLocalRef(activity_class);
+        if (!method)
+            return;
+
+        // One Java call retains one immutable snapshot, including its coordinate
+        // space, even if the UI thread publishes new insets while we copy it.
+        jintArray snapshot = (jintArray)env->CallObjectMethod(activity, method);
+        if (!snapshot)
+            return;
+
+        const jsize length = env->GetArrayLength(snapshot);
+        if (length >= 2)
+        {
+            jint* values = env->GetIntArrayElements(snapshot, 0);
+            if (values)
+            {
+                const uint32_t count = (length - 2) / 4;
+                if (areas.Capacity() < count)
+                    areas.SetCapacity(count);
+                for (uint32_t i = 0; i < count; ++i)
+                {
+                    const jint* rect = values + 2 + i * 4;
+                    WindowReservedArea area;
+                    if (ConvertReservedArea(rect[0], rect[1], rect[2], rect[3], values[0], values[1],
+                                            GetWindowWidth(window), GetWindowHeight(window), &area))
+                        areas.Push(area);
+                }
+                env->ReleaseIntArrayElements(snapshot, values, JNI_ABORT);
+            }
+        }
+        env->DeleteLocalRef(snapshot);
     }
 }

@@ -22,11 +22,12 @@
 #include "font_ttf.h"
 #include "font_outline.h"
 #include "font_sdf.h"
+#include "truetype/font_colr.h"
 
 #if defined(FONT_USE_HARFBUZZ)
     #include "harfbuzz/font_harfbuzz.h"
 
-    typedef FontHarfbuzz FontImpl;
+typedef FontHarfbuzz FontImpl;
     #define FontImplCreate               FontHarfbuzzCreate
     #define FontImplDestroy              FontHarfbuzzDestroy
     #define FontImplGetScaleFromSize     FontHarfbuzzGetScaleFromSize
@@ -36,11 +37,12 @@
     #define FontImplGetGlyphBox          FontHarfbuzzGetGlyphBox
     #define FontImplGetOutlineType       FontHarfbuzzGetOutlineType
     #define FontImplGetVerticalMetrics   FontHarfbuzzGetVerticalMetrics
+    #define FontImplGetColr              FontHarfbuzzGetColr
 
 #else
     #include "truetype/font_truetype.h"
 
-    typedef FontTrueType FontImpl;
+typedef FontTrueType FontImpl;
     #define FontImplCreate               FontTrueTypeCreate
     #define FontImplDestroy              FontTrueTypeDestroy
     #define FontImplGetScaleFromSize     FontTrueTypeGetScaleFromSize
@@ -50,6 +52,7 @@
     #define FontImplGetGlyphBox          FontTrueTypeGetGlyphBox
     #define FontImplGetOutlineType       FontTrueTypeGetOutlineType
     #define FontImplGetVerticalMetrics   FontTrueTypeGetVerticalMetrics
+    #define FontImplGetColr              FontTrueTypeGetColr
 #endif
 
 struct TTFFont
@@ -65,8 +68,8 @@ struct TTFFont
     int             m_Ascent;
     int             m_Descent;
     int             m_LineGap;
-    uint32_t        m_Allocated:1;
-    uint32_t        m_HasGlyfOutlines:1;
+    uint32_t        m_Allocated : 1;
+    uint32_t        m_HasGlyfOutlines : 1;
 };
 
 static inline TTFFont* ToFont(HFont hfont)
@@ -140,11 +143,15 @@ static FontResult GetGlyphOutlineTTF(HFont hfont, uint32_t glyph_index, FontOutl
 {
     FontResult result = FontImplGetGlyphOutline(ToFont(hfont)->m_Font, glyph_index, outline);
     if (result != FONT_RESULT_OK)
+    {
         return result;
+    }
 
     result = FontOutlineMakeYMonotonic(outline);
     if (result != FONT_RESULT_OK)
+    {
         FontFreeGlyphOutline(outline);
+    }
 
     return result;
 }
@@ -239,7 +246,9 @@ static bool OutlineCubicTo(OutlineBuildContext* ctx, float scale, float toleranc
         return true;
     }
     if (depth == 16)
+    {
         return false;
+    }
 
     const FontOutlinePoint p01 = OutlineMidpoint(p0, p1);
     const FontOutlinePoint p12 = OutlineMidpoint(p1, p2);
@@ -257,7 +266,9 @@ static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, f
     FontOutline outline = {};
     FontResult result = FontImplGetGlyphOutline(font->m_Font, glyph_index, &outline);
     if (result != FONT_RESULT_OK)
+    {
         return result;
+    }
 
     result = FontOutlineMakeYMonotonic(&outline);
     if (result != FONT_RESULT_OK)
@@ -302,7 +313,9 @@ static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, f
             {
                 if (!OutlineCubicTo(&ctx, scale, tolerance * tolerance, current,
                                     command.m_Points[0], command.m_Points[1], command.m_Points[2], 0))
+                {
                     ctx.m_Unsupported = true;
+                }
                 current = command.m_Points[2];
                 break;
             }
@@ -345,6 +358,11 @@ static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, f
     return FONT_RESULT_OK;
 }
 
+static bool GetOutlineBox(void* data, uint32_t glyph, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
+{
+    return FontImplGetGlyphBox((FontImpl*)data, glyph, x0, y0, x1, y1);
+}
+
 FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOptions* options, const FontSDFParams* image_params, FontGlyph* glyph)
 {
     TTFFont* font = ToFont(hfont);
@@ -363,11 +381,17 @@ FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOpt
     // generation already needs instead of interpreting its CharString twice.
     bool bounds_from_outline = options->m_GenerateImage && !font->m_HasGlyfOutlines;
     FontImplGetGlyphHMetrics(font->m_Font, glyph_index, &advx, &lsb);
-    if (!bounds_from_outline)
+    // Metrics-only requests also serve legacy layout. Drawing a PaintGlyph or
+    // rasterizing an outline must ignore the glyph's independent COLR bounds.
+    bool color_bounds = !options->m_GenerateOutline && !options->m_GenerateImage &&
+                        FontColrGetGlyphBox(FontImplGetColr(font->m_Font), glyph_index, GetOutlineBox, font->m_Font, &x0, &y0, &x1, &y1);
+    if (!bounds_from_outline && !color_bounds)
+    {
         FontImplGetGlyphBox(font->m_Font, glyph_index, &x0, &y0, &x1, &y1);
+    }
 
     float scale = options->m_Scale;
-    float padding = options->m_StbttSDFPadding;
+    float padding = options->m_UseUnpaddedBounds && !options->m_GenerateImage ? 0.0f : options->m_StbttSDFPadding;
     int on_edge_value = options->m_StbttSDFOnEdgeValue;
 
     float ascent = y1 * scale;
@@ -381,7 +405,9 @@ FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOpt
         FontOutline outline = {};
         FontResult outline_result = GetGlyphOutlineTTF(hfont, glyph_index, &outline);
         if (outline_result != FONT_RESULT_OK)
+        {
             return outline_result;
+        }
 
         if (bounds_from_outline)
         {
@@ -400,7 +426,9 @@ FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOpt
         sdf_params.m_Spread = padding;
         sdf_params.m_OnEdgeValue = on_edge_value;
         if (image_params)
+        {
             sdf_params = *image_params;
+        }
         FontResult result = FontSDFGenerate(&outline, &sdf_params, &glyph->m_Bitmap, &offsetx, &offsety);
         if (result != FONT_RESULT_OK)
         {
@@ -439,7 +467,7 @@ FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOpt
         y1 += padding;
     }
 
-    glyph->m_Advance = advx*scale;
+    glyph->m_Advance = advx * scale;
     glyph->m_Ascent = ascent;
     glyph->m_Descent = descent;
 
@@ -511,7 +539,7 @@ static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buff
     else
     {
         font->m_Data    = buffer;
-        font->m_DataSize= buffer_size;
+        font->m_DataSize = buffer_size;
     }
 
     font->m_Font = FontImplCreate(font->m_Data, font->m_DataSize, 0);
@@ -549,7 +577,9 @@ hb_font_t* FontGetHarfbuzzFontFromTTF(HFont hfont)
 FontResult FontGetGlyphSDFMetricsTTF(HFont hfont, uint32_t glyph_index, float scale, float padding, FontGlyph* glyph)
 {
     if (!hfont || !glyph || glyph_index == 0 || scale <= 0.0f || padding <= 0.0f)
+    {
         return FONT_RESULT_ERROR;
+    }
 
     TTFFont* font = ToFont(hfont);
     memset(glyph, 0, sizeof(*glyph));
@@ -593,4 +623,9 @@ FontResult FontGetGlyphSDFMetricsTTF(HFont hfont, uint32_t glyph_index, float sc
     glyph->m_Ascent = -y0;
     glyph->m_Descent = y1;
     return FONT_RESULT_OK;
+}
+
+const FontColr* FontGetColrTTF(HFont font)
+{
+    return FontImplGetColr(ToFont(font)->m_Font);
 }
