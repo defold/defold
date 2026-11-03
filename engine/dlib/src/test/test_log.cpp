@@ -271,6 +271,32 @@ TEST(dmLog, TestCapture)
     ASSERT_STREQ(ExpectedOutput, g_LogListenerOutput.Begin());
 }
 
+// Release-mode logging delivers to registered listeners and drops messages without a listener.
+TEST(dmLog, ReleaseCaptureWithListener)
+{
+    bool debug_mode = dLib::IsDebugMode();
+    LogSeverity log_level = dmLogGetLevel();
+    dLib::SetDebugMode(false);
+    dmLogSetLevel(LOG_SEVERITY_INFO);
+    g_LogListenerOutput.SetSize(0);
+
+    dmLog::LogParams params = {};
+    dmLog::LogInitialize(&params);
+    dmLogInfo("Dropped before registration");
+    dmLogRegisterListener(TestLogCaptureCallback);
+    dmLogInfo("Captured release message");
+    // Joining the logger drains accepted messages before inspecting the output.
+    dmLog::LogFinalize();
+    dmLogUnregisterListener(TestLogCaptureCallback);
+    dmLogInfo("Dropped after unregistration");
+
+    dLib::SetDebugMode(debug_mode);
+    dmLogSetLevel(log_level);
+    g_LogListenerOutput.SetCapacity(g_LogListenerOutput.Size() + 1);
+    g_LogListenerOutput.Push(0);
+    ASSERT_STREQ("INFO:DLIB: Captured release message\n", g_LogListenerOutput.Begin());
+}
+
 static bool WaitForPendingLogCount()
 {
     uint64_t stop_time = dmTime::GetMonotonicTime() + 5000000;
