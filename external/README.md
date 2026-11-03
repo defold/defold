@@ -21,11 +21,24 @@ versions, Bullet, HarfBuzz, libunibreak, LZ4, Opus, SheenBidi, and Skribidi on a
 platforms. LuaJIT is built for non-web platforms. [Draco](draco/README.md),
 [meshoptimizer](meshoptimizer/README.md), [Ogg](ogg/README.md), and Protobuf are
 built for desktop platforms; mobile and web builds use the host's tools.
+[DXC](dxc/README.md) is installed from
+`packages/dxc-1.9.2609-<platform>.tar.gz` for all five desktop host platforms:
+`x86_64-win32`, `arm64-macos`, `x86_64-macos`, `arm64-linux`, and `x86_64-linux`.
+Normal external builds do not compile DXC.
 Protobuf and Abseil use the same CMake toolchain and build graph as the other
 source dependencies and install directly into `ext`.
 Linux additionally builds [OpenH264](openh264/README.md) for video recording.
 The recording MP4 writer is the pinned header in [minimp4](minimp4/README.md).
 `external/build` itself is generated build output.
+
+For native Linux MemorySanitizer builds, run
+`./scripts/build.py build_ext -- --with-msan`. The normal dependency installation
+is kept for host tools and JNI. A second build under `external/build/<platform>-msan`
+installs instrumented libraries under `ext/msan/<platform>`, including a pinned
+LLVM 20 libc++/libc++abi runtime. ASTC, SPIRV-Cross, patched GLFW, and Tremolo are rebuilt
+from pinned downloads. LuaJIT and Protobuf's code generator remain host tools;
+the instrumented engine uses vanilla Lua. OpenH264 uses its instrumentable C++
+kernels. `clean_ext` also removes this platform's MSan build and installation.
 
 CI caches built external dependencies for engine, Bob, and editor jobs using the
 [`build-external`](../.github/actions/build-external/action.yml) action.
@@ -47,6 +60,11 @@ executed in the current build are counted.
 
 External libraries can also be distributed as packages. Rebuild the packages
 listed below with `build_external`, which writes archives under `defold/packages`.
+The DXC packages can be rebuilt with
+`./scripts/build.py build_external --package=dxc --platform=<platform>`.
+Each package includes `bin`, `lib`, `include`, and license files under `share`.
+Use the [DXC Linux rebuild instructions](dxc/README.md#linux-packages) with the
+repository's Ubuntu 22.04 Docker image for both Linux architectures.
 
 From the repository root, with the platform SDK set up:
 

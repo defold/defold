@@ -503,8 +503,14 @@ static bool GetConstantType(MarkupTagType tag, MarkupAttributeType name, dmhash_
 
     if (name == MARKUP_ATTRIBUTE_FIT)
     {
-        if (value == VALUE_GLYPH) *type = MARKUP_CONSTANT_GLYPH;
-        if (value == VALUE_SPAN)  *type = MARKUP_CONSTANT_SPAN;
+        if (value == VALUE_GLYPH)
+        {
+            *type = MARKUP_CONSTANT_GLYPH;
+        }
+        if (value == VALUE_SPAN)
+        {
+            *type = MARKUP_CONSTANT_SPAN;
+        }
         if (tag == MARKUP_TAG_GRADIENT && value == VALUE_BLOCK)
         {
             *type = MARKUP_CONSTANT_BLOCK;
@@ -537,16 +543,28 @@ static bool GetConstantType(MarkupTagType tag, MarkupAttributeType name, dmhash_
 
     if (name == MARKUP_ATTRIBUTE_DIRECTION)
     {
-        if (value == VALUE_FORWARD) *type = MARKUP_CONSTANT_FORWARD;
-        if (value == VALUE_REVERSE) *type = MARKUP_CONSTANT_REVERSE;
+        if (value == VALUE_FORWARD)
+        {
+            *type = MARKUP_CONSTANT_FORWARD;
+        }
+        if (value == VALUE_REVERSE)
+        {
+            *type = MARKUP_CONSTANT_REVERSE;
+        }
 
         return *type != MARKUP_CONSTANT_NONE;
     }
 
     if ((tag == MARKUP_TAG_UNDERLINE || tag == MARKUP_TAG_STRIKE) && name == MARKUP_ATTRIBUTE_PATTERN)
     {
-        if (value == VALUE_SOLID)  *type = MARKUP_CONSTANT_SOLID;
-        if (value == VALUE_DASHED) *type = MARKUP_CONSTANT_DASHED;
+        if (value == VALUE_SOLID)
+        {
+            *type = MARKUP_CONSTANT_SOLID;
+        }
+        if (value == VALUE_DASHED)
+        {
+            *type = MARKUP_CONSTANT_DASHED;
+        }
 
         return *type != MARKUP_CONSTANT_NONE;
     }
@@ -785,9 +803,9 @@ static MarkupResult ParseOpeningTag(ParseContext* context, MarkupString tag, Mar
 
         MarkupConstantType constant_type = MARKUP_CONSTANT_NONE;
         const bool         has_constant = attribute_type == MARKUP_ATTRIBUTE_FIT || attribute_type == MARKUP_ATTRIBUTE_TYPE ||
-                                  attribute_type == MARKUP_ATTRIBUTE_DIRECTION ||
-                                  ((tag_type == MARKUP_TAG_UNDERLINE || tag_type == MARKUP_TAG_STRIKE) &&
-                                   attribute_type == MARKUP_ATTRIBUTE_PATTERN);
+                                          attribute_type == MARKUP_ATTRIBUTE_DIRECTION ||
+                                          ((tag_type == MARKUP_TAG_UNDERLINE || tag_type == MARKUP_TAG_STRIKE) &&
+                                           attribute_type == MARKUP_ATTRIBUTE_PATTERN);
         if (has_constant && !GetConstantType(tag_type, attribute_type, HashString(context->m_Source, value), &constant_type))
         {
             SetError(error, MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE, value.m_Offset);
@@ -925,7 +943,7 @@ static MarkupResult ParseTag(ParseContext* context, MarkupError* error, bool* se
     }
 
     context->m_Markup->m_StyleNodes[context->m_StyleNodeIndex].m_TextLength =
-    context->m_Markup->m_Text.Size() - current.m_TextOffset;
+        context->m_Markup->m_Text.Size() - current.m_TextOffset;
     context->m_StyleNodeIndex = current.m_Parent;
 
     return MARKUP_RESULT_OK;

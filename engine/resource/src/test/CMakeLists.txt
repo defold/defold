@@ -338,6 +338,29 @@ resource_configure_test(test_block_allocator ON)
 defold_add_executable(test_provider_file "${RESOURCE_TEST_ROOT}/test_provider_file.cpp")
 resource_configure_test(test_provider_file ON ResourceProviderFile)
 
+if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND NOT TARGET_PLATFORM MATCHES "web$")
+  defold_add_executable(test_provider_http "${RESOURCE_TEST_ROOT}/test_provider_http.cpp")
+  target_compile_definitions(test_provider_http PRIVATE DM_TEST_HTTP_SUPPORTED)
+  resource_configure_test(test_provider_http OFF ResourceProviderHttp)
+  set(_resource_http_test_command
+    "${RESOURCE_PYTHON}" "${RESOURCE_TEST_ROOT}/test_provider_http.py"
+    "$<TARGET_FILE:test_provider_http>" "${RESOURCE_TEST_BUILD_DIR}")
+  defold_test_run_settings(_resource_http_test_runner _resource_http_test_options shared)
+  add_custom_target(run_test_provider_http
+    COMMAND ${_resource_http_test_runner} ${_resource_http_test_command}
+    DEPENDS test_provider_http
+    ${_resource_http_test_options}
+    VERBATIM)
+  defold_register_sequential_test_command(run_test_provider_http
+    COMMAND ${_resource_http_test_command}
+    DEPENDS test_provider_http)
+  if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+    defold_add_to_run_tests(run_test_provider_http
+      COMMAND ${_resource_http_test_command}
+      DEPENDS test_provider_http)
+  endif()
+endif()
+
 defold_add_executable(test_provider_zip "${RESOURCE_TEST_ROOT}/test_provider_zip.cpp")
 resource_configure_test(test_provider_zip ON ResourceProviderZip)
 

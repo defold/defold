@@ -37,6 +37,7 @@
 - (void)setCurrentContext;
 - (void)startDisplayLink;
 - (void)invalidateDisplayLink;
+- (void)applyPreferredFrameRate;
 - (void)setupView;
 - (void)teardownView;
 

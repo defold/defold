@@ -167,16 +167,15 @@ protected:
         font_map_params.m_CacheCellHeight = 8;
         font_map_params.m_FontCollection = font_collection;
 
-        m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
-
         dmRender::RenderContextParams params;
         params.m_ScriptContext = m_ScriptContext;
-        params.m_SystemFontMap = m_SystemFontMap;
         params.m_MaxRenderTargets = 1;
         params.m_MaxInstances = 64;
         params.m_MaxCharacters = 32;
         params.m_MaxBatches = 128;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
+        m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
+        dmRender::SetSystemFontMap(m_Context, m_SystemFontMap);
 
         dmGraphics::ShaderDescBuilder shader_desc_builder;
         shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);

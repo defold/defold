@@ -213,7 +213,9 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
   endforeach()
   gamesys_collect_prebuilt_outputs(_prebuilt_copy_commands _prebuilt_sources "${GS_TEST_ROOT}" "${GS_TEST_RUNTIME_DIR}/${_folder}" ${_folder_sources})
 
-  set(_bob_root "${_GS_BOB_ROOT_BASE}/${_folder}")
+  # Each lane is sequential, so reuse its extracted native tools. A directory
+  # per folder retains dozens of identical copies of the compiler libraries.
+  set(_bob_root "${_GS_BOB_ROOT_BASE}/lane-${_GS_CONTENT_LANE}")
   set(_stamp "${CMAKE_CURRENT_BINARY_DIR}/.bob/${_folder}.stamp")
   add_custom_command(
     OUTPUT "${_stamp}"

@@ -31,8 +31,8 @@
 struct FontAlignmentPivot
 {
     const char* m_Name;
-    uint32_t m_Align;
-    uint32_t m_VAlign;
+    uint32_t    m_Align;
+    uint32_t    m_VAlign;
 };
 
 static const FontAlignmentPivot FONT_ALIGNMENT_PIVOTS[] = {
@@ -76,29 +76,41 @@ static bool AlignmentGlyph(void* context, uint32_t index, FontGlyphBankGlyph* ou
 // numeric test and the image fixture use the actual Bob-produced glyph bank.
 struct FontAlignmentFixture
 {
-    dmFontDDF::GlyphBank* m_Bank;
-    FontGlyphBankProvider m_Provider;
-    HFont m_Font;
-    HFontCollection m_Collection;
-    HTextLayout m_Layout;
-    FontGlyph m_Glyphs[7];
-    uint32_t m_GlyphCount;
+    dmFontDDF::GlyphBank*  m_Bank;
+    FontGlyphBankProvider  m_Provider;
+    HFont                  m_Font;
+    HFontCollection        m_Collection;
+    HTextLayout            m_Layout;
+    FontGlyph              m_Glyphs[7];
+    uint32_t               m_GlyphCount;
     FontLayoutVertexConfig m_Config;
-    FontGlyphVertex m_Vertices[42];
+    FontGlyphVertex        m_Vertices[42];
 
-    FontAlignmentFixture() : m_Bank(0), m_Font(0), m_Collection(0), m_Layout(0), m_GlyphCount(0) {}
+    FontAlignmentFixture() : m_Bank(0), m_Font(0), m_Collection(0), m_Layout(0), m_GlyphCount(0)
+    {
+    }
     ~FontAlignmentFixture()
     {
         for (uint32_t i = 0; i < m_GlyphCount; ++i)
+        {
             FontFreeGlyph(m_Font, &m_Glyphs[i]);
+        }
         if (m_Layout)
+        {
             TextLayoutRelease(m_Layout);
+        }
         if (m_Collection)
+        {
             FontCollectionDestroy(m_Collection);
+        }
         if (m_Font)
+        {
             FontDestroy(m_Font);
+        }
         if (m_Bank)
+        {
             dmDDF::FreeMessage(m_Bank);
+        }
     }
 };
 
@@ -108,7 +120,9 @@ static bool ResolveAlignmentGlyph(void* context, const TextGlyph& text, FontLayo
     for (uint32_t i = 0; i < fixture->m_GlyphCount; ++i)
     {
         if (fixture->m_Glyphs[i].m_GlyphIndex != text.m_GlyphIndex)
+        {
             continue;
+        }
         output->m_Glyph = &fixture->m_Glyphs[i];
         output->m_CellX = i * 32;
         output->m_CellY = 0;
@@ -128,7 +142,7 @@ static void CreateAlignmentFixture(FontAlignmentFixture& fixture, bool compiled)
     {
         const char* host_path = dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/test/data/font_render/alignment.glyph_bankc");
         ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile(host_path,
-            dmFontDDF::GlyphBank::m_DDFDescriptor, (void**)&fixture.m_Bank));
+                                                               dmFontDDF::GlyphBank::m_DDFDescriptor, (void**)&fixture.m_Bank));
         dmFontDDF::GlyphBank* bank = fixture.m_Bank;
         memset(&fixture.m_Provider, 0, sizeof(fixture.m_Provider));
         fixture.m_Provider.m_Context = bank;
@@ -208,7 +222,7 @@ static void CreateAlignmentVertices(FontAlignmentFixture& fixture, const FontAli
     const float x = pivot.m_Align * 0.5f;
     const float y = 1 - pivot.m_VAlign * 0.5f;
     config.m_Transform = dmVMath::Matrix4::translation(dmVMath::Vector3(20 + x * (200 - 65 * 3), 20 + y * (100 - 30 * 3), 0)) *
-                          dmVMath::Matrix4::scale(dmVMath::Vector3(3));
+                         dmVMath::Matrix4::scale(dmVMath::Vector3(3));
     FontLayoutVertexMetrics metrics;
     ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
     ASSERT_EQ(42u, FontCreateLayoutVertices(config, metrics, fixture.m_Vertices, 42));

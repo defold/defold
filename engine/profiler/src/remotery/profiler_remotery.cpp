@@ -28,6 +28,7 @@ namespace dmProfilerRemotery
 {
     static Remotery*                g_Remotery = 0;
     static int32_atomic_t           g_ProfilerInitialized = 0;
+    static bool                    g_ProfilerRegistered = false;
     static dmSpinlock::Spinlock     g_ProfilerLock;
     // config options:
     static int                      g_ProfilerOptions_Port = 0;
@@ -376,7 +377,8 @@ static void ProfilePropertyReset(void*, ProfileIdx idx)
     _rmt_PropertySetValue(prop);
 }
 
-static const char* g_ProfilerName = "ProfilerRemotery";
+// The name must fit in ProfileListener::m_Name, including its terminator.
+static const char* g_ProfilerName = "Remotery";
 static ProfileListener g_Listener = {};
 
 struct ProfileListenerInitializer
@@ -430,9 +432,11 @@ static dmExtension::Result ProfilerRemotery_AppInitialize(dmExtension::AppParams
     g_ProfilerOptions_Port                      = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.remotery_port", 0);
     g_ProfilerOptions_SleepBetweenServerUpdates = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.remotery_sleep_between_server_updates", server_sleep);
 
-    if (!IsInitialized())
+    // Registration survives reboot even if Remotery could not start.
+    if (!g_ProfilerRegistered)
     {
         ProfileRegisterProfiler(g_ProfilerName, &g_Listener);
+        g_ProfilerRegistered = true;
     }
     return dmExtension::RESULT_OK;
 }
@@ -442,6 +446,7 @@ static dmExtension::Result ProfilerRemotery_AppFinalize(dmExtension::AppParams* 
     if (dmExtension::AppParamsGetAppExitCode(params) == dmExtension::APP_EXIT_CODE_EXIT)
     {
         ProfileUnregisterProfiler(g_ProfilerName);
+        dmProfilerRemotery::g_ProfilerRegistered = false;
     }
     return dmExtension::RESULT_OK;
 }

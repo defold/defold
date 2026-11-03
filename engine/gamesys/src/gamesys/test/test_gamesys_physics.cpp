@@ -786,6 +786,51 @@ TEST_F(ComponentTest, PhysicsListenerTest)
 
 }
 
+// Verifies that with use_fixed_timestep the physics.set_event_listener() callback runs once per fixed step,
+// inside the fixed update. Guards against batched events being delivered only after update() (#10917).
+TEST_F(ComponentTest, PhysicsListenerFixedTimestepTest)
+{
+    m_PhysicsContextBox2D.m_BaseContext.m_UseFixedTimestep = true;
+    m_UpdateContext.m_FixedUpdateFrequency = 60;
+    m_UpdateContext.m_DT = 3.5f / 60.0f;
+
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, "/collision_object/callback_fixed_object.goc", dmHashString64("/test_object"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go_b);
+
+    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, "/collision_object/callback_trigger.goc", dmHashString64("/test_trigger"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go_a);
+
+    bool tests_done = false;
+    for (int i = 0; i < 100 && !tests_done; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+    ASSERT_TRUE(tests_done);
+
+    lua_getglobal(L, "fixed_steps");
+    int fixed_steps = (int)lua_tointeger(L, -1);
+    lua_getglobal(L, "callbacks");
+    int callbacks = (int)lua_tointeger(L, -1);
+    lua_getglobal(L, "callbacks_outside_fixed_update");
+    int callbacks_outside_fixed_update = (int)lua_tointeger(L, -1);
+    lua_getglobal(L, "steps_with_multiple_callbacks");
+    int steps_with_multiple_callbacks = (int)lua_tointeger(L, -1);
+    lua_pop(L, 4);
+
+    ASSERT_EQ(0, callbacks_outside_fixed_update);
+    ASSERT_EQ(0, steps_with_multiple_callbacks);
+    ASSERT_EQ(fixed_steps, callbacks);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(ComponentTest, PhysicsDDFDecoderTest)
 {
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
@@ -989,6 +1034,57 @@ TEST_F(ComponentTest, PhysicsBatchedEventDecoderTest)
 
     lua_pushnil(L); lua_setglobal(L, "decoded_physics_events");
     lua_pushnil(L); lua_setglobal(L, "capture_physics_events");
+    DestroyPhysicsTestCallback(L, &callback);
+}
+
+// Retained event tables remain independent across batches, including repeated hashes and more groups than the batch cache holds.
+TEST_F(ComponentTest, PhysicsBatchedEventRetentionTest)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    AssertLua(L,
+        "physics_batches = {}\n"
+        "function retain_physics_events(self, events)\n"
+        "    physics_batches[#physics_batches + 1] = events\n"
+        "end\n");
+    PhysicsTestCallback callback = CreatePhysicsTestCallback(L, "retain_physics_events");
+    dmPhysicsDDF::CollisionEvent events[24] = {};
+    dmGameSystem::PhysicsMessage messages[DM_ARRAY_SIZE(events)];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(events); ++i)
+    {
+        char group[32];
+        dmSnPrintf(group, sizeof(group), "group_%u", i);
+        events[i].m_A.m_Group = dmHashString64(group);
+        events[i].m_B.m_Group = dmHashString64("group_0");
+        events[i].m_A.m_Id = dmHashString64("object_a");
+        events[i].m_B.m_Id = dmHashString64("object_b");
+        messages[i].m_Offset = i * sizeof(events[0]);
+        messages[i].m_Type = dmGameSystem::PHYSICS_MESSAGE_TYPE_COLLISION;
+    }
+    int top = lua_gettop(L);
+    for (uint32_t batch = 1; batch <= 2; ++batch)
+    {
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(events); ++i)
+            events[i].m_A.m_Position = Point3((float)batch, (float)i, 0.0f);
+        dmGameSystem::RunBatchedEventCallback(callback.m_Callback, DM_ARRAY_SIZE(messages), messages, (const uint8_t*)events);
+        ASSERT_EQ(top, lua_gettop(L));
+        lua_gc(L, LUA_GCCOLLECT, 0);
+    }
+    AssertLua(L,
+        "for batch, events in ipairs(physics_batches) do\n"
+        "    assert(#events == 24)\n"
+        "    for i, event in ipairs(events) do\n"
+        "        assert(event.type == hash('collision_event'))\n"
+        "        assert(event.a.id == hash('object_a') and event.b.id == hash('object_b'))\n"
+        "        assert(event.a.group == hash('group_' .. (i - 1)))\n"
+        "        assert(event.b.group == hash('group_0'))\n"
+        "        assert(event.a.position == vmath.vector3(batch, i - 1, 0))\n"
+        "    end\n"
+        "end\n"
+        "physics_batches[1][1].a.position.x = 99\n"
+        "assert(physics_batches[1][2].a.position.x == 1)\n"
+        "assert(physics_batches[2][1].a.position.x == 2)\n"
+        "physics_batches = nil\n"
+        "retain_physics_events = nil\n");
     DestroyPhysicsTestCallback(L, &callback);
 }
 

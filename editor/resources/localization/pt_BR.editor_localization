@@ -2216,10 +2216,6 @@ form.label.light.outer-cone-angle = Ângulo do Cone Externo
 
 form.label.liveupdate.liveupdate = Atualização Ao Vivo
 form.label.liveupdate.liveupdate.mode = Modo
-form.label.liveupdate.amazon = Amazon
-form.label.liveupdate.liveupdate.amazon-credential-profile = Perfil Credencial
-form.label.liveupdate.liveupdate.amazon-bucket = Bucket
-form.label.liveupdate.liveupdate.amazon-prefix = Prefixo
 form.label.liveupdate.zip = Zip
 form.label.liveupdate.liveupdate.save-zip-in-bundle-folder = Salvar na Pasta do Pacote
 form.label.liveupdate.liveupdate.zip-filepath = Diretório de Saída
