@@ -338,10 +338,9 @@ static int32_t GetThreadId()
     return (int32_t)thread_id;
 }
 
-static const char* GetThreadName(int32_t thread_id)
+// The caller holds g_Lock.
+static const char* GetThreadNameNoLock(int32_t thread_id)
 {
-    CHECK_INITIALIZED_RETVAL("null");
-    DM_MUTEX_SCOPED_LOCK(g_Lock);
     const char** pname = g_ProfileContext->m_ThreadNames.Get(thread_id);
     return pname != 0 ? *pname : "null";
 }
@@ -730,7 +729,7 @@ static ProfileResult ScopeEnd(void* ctx, const char* name, uint64_t name_hash)
             Sample* sibling = td->m_Root.m_FirstChild;
             while (sibling)
             {
-                g_SampleTreeCallback(g_SampleTreeCallbackCtx, GetThreadName(thread_id), sibling);
+                g_SampleTreeCallback(g_SampleTreeCallbackCtx, GetThreadNameNoLock(thread_id), sibling);
                 sibling = sibling->m_Sibling;
             }
         }
