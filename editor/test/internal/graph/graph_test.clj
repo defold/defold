@@ -162,6 +162,70 @@
   (input str-in g/Str :cascade-delete)
   (output str-out g/Str :cached (g/fnk [str-in] str-in)))
 
+;; Verifies large matching override families keep the right implicit arcs when
+;; membership and shadowing change, including undo/redo of those changes.
+(deftest matching-override-families-test
+  (with-clean-system
+    (let [[source target shadow-source]
+          (tx-nodes (g/make-nodes [source [TestNode :val "original"]
+                                   target PassthroughNode
+                                   _shadow-source [TestNode :val "shadow"]]
+                      (g/connect source :val-val target :str-in)))
+          override-pairs
+          (mapv (fn [_]
+                  (let [node-ids (tx-nodes (g/override target))
+                        basis (g/now)]
+                    [(coll/first-where #(= source (g/override-original basis %)) node-ids)
+                     (coll/first-where #(= target (g/override-original basis %)) node-ids)]))
+                (range 64))
+          ensure-matching-arcs!
+          (fn ensure-matching-arcs! []
+            (let [basis (g/now)]
+              (doseq [[override-source override-target] override-pairs]
+                (is (= [(gt/->Arc override-source :val-val override-target :str-in)]
+                       (g/outputs basis override-source :val-val)
+                       (g/inputs basis override-target :str-in)))
+                (is (= "originaloriginal"
+                       (g/node-value override-target :str-out))))))]
+      (ensure-matching-arcs!)
+      (let [[target-only]
+            (g/tx-nodes-added
+              (g/transact {:undo-key ::target-only}
+                (g/override target {:traverse-fn g/never-override-traverse-fn})))]
+        (ensure-matching-arcs!)
+        (is (= [(gt/->Arc source :val-val target-only :str-in)]
+               (g/inputs (g/now) target-only :str-in)))
+        (is (= [(gt/->Arc source :val-val target :str-in)
+                (gt/->Arc source :val-val target-only :str-in)]
+               (g/outputs (g/now) source :val-val)))
+        (g/undo! ::target-only)
+        (ensure-matching-arcs!)
+        (is (= [(gt/->Arc source :val-val target :str-in)]
+               (g/outputs (g/now) source :val-val)))
+        (g/redo! ::target-only)
+        (ensure-matching-arcs!)
+        (is (= [(gt/->Arc source :val-val target :str-in)
+                (gt/->Arc source :val-val target-only :str-in)]
+               (g/outputs (g/now) source :val-val)))
+        ;; Restore matching families before checking explicit shadowing.
+        (g/undo! ::target-only))
+      (let [[source-only]
+            (g/tx-nodes-added
+              (g/transact {:undo-key ::source-only}
+                (g/override source {:traverse-fn g/never-override-traverse-fn})))]
+        ;; Every target branch still has a source, even with an extra sibling.
+        (ensure-matching-arcs!)
+        (is (= [] (g/outputs (g/now) source-only :val-val)))
+        (g/undo! ::source-only)
+        (ensure-matching-arcs!))
+      (let [[override-source override-target] (first override-pairs)]
+        (g/transact {:undo-key ::shadow}
+          (g/connect shadow-source :val-val override-target :str-in))
+        (is (= [] (g/outputs (g/now) override-source :val-val)))
+        (is (= "shadowshadow" (g/node-value override-target :str-out)))
+        (g/undo! ::shadow)
+        (ensure-matching-arcs!)))))
+
 (deftest graph-override-cleanup
   (with-clean-system
     (let [[original override] (tx-nodes (g/make-nodes [n (TestNode :val "original")]

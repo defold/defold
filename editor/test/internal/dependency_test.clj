@@ -33,6 +33,43 @@
   (input string-input g/Str)
   (output out-from-input g/Str (g/fnk [string-input] string-input)))
 
+(g/defnode DependencyCacheSource
+  (property value g/Str (default "before"))
+  (output value-out g/Str (g/fnk [value] value)))
+
+;; Verifies equal roots reuse a trace across value changes, while connection
+;; changes and their undo/redo produce the correct dependencies for each basis.
+(deftest dependency-cache-lifetime-test
+  (ts/with-clean-system
+    (let [[source target extra-target]
+          (ts/tx-nodes
+            (g/make-nodes [source DependencyCacheSource
+                           target InputUsedByOutput
+                           _extra-target InputUsedByOutput]
+              (g/connect source :value-out target :string-input)))
+          initial-basis (g/now)
+          roots #{(gt/endpoint source :value-out)}
+          initial-result (g/dependencies initial-basis roots)
+          initial-endpoints #{(gt/endpoint source :value-out)
+                              (gt/endpoint target :out-from-input)}
+          connected-endpoints (conj initial-endpoints
+                                    (gt/endpoint extra-target :out-from-input))]
+      (is (= initial-endpoints (set initial-result)))
+      (is (identical? initial-result
+                      (g/dependencies initial-basis
+                                      (hash-set (gt/endpoint source :value-out)))))
+      (g/transact (g/set-property source :value "after"))
+      (is (= "after" (g/node-value target :out-from-input)))
+      (is (identical? initial-result (g/dependencies (g/now) roots)))
+      (g/transact {:undo-key ::connection}
+        (g/connect source :value-out extra-target :string-input))
+      (is (= connected-endpoints (set (g/dependencies (g/now) roots))))
+      (is (= initial-endpoints (set (g/dependencies initial-basis roots))))
+      (g/undo! ::connection)
+      (is (= initial-endpoints (set (g/dependencies (g/now) roots))))
+      (g/redo! ::connection)
+      (is (= connected-endpoints (set (g/dependencies (g/now) roots)))))))
+
 (deftest single-connection
   (testing "results include inputs"
     (ts/with-clean-system
