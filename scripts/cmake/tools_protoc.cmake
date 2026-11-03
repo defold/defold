@@ -6,63 +6,44 @@ defold_log("tools_protoc.cmake:")
 #   ${DEFOLD_SDK_ROOT}/bin/ddfc_cxx (protoc plugin)
 
 if(NOT DEFINED DEFOLD_SDK_ROOT OR NOT EXISTS "${DEFOLD_SDK_ROOT}")
-  message(FATAL_ERROR "tools_protoc: DEFOLD_SDK_ROOT is not set or does not exist. Cannot locate protoc.")
+  message(FATAL_ERROR "Could not find protoc. Run ./scripts/build.py install_ext to build and install it.\n\nDEFOLD_SDK_ROOT is not set or does not exist: ${DEFOLD_SDK_ROOT}")
 endif()
 
-# Prefer packaged protoc from DEFOLD_SDK_ROOT/ext/bin/<host-platform>/protoc
-set(_DEFOLD_PROTOC_EXECUTABLE "")
+# Search afresh so a cached PATH compiler cannot override an installed SDK compiler.
+set(_DEFOLD_PROTOC_EXECUTABLE "_DEFOLD_PROTOC_EXECUTABLE-NOTFOUND")
 
 # Ensure HOST_PLATFORM is known
 if(NOT DEFINED HOST_PLATFORM)
   include(platform_host)
 endif()
 
-set(_exe "${CMAKE_EXECUTABLE_SUFFIX}")
 set(_host_bin "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}")
-if(EXISTS "${_host_bin}/protoc${_exe}")
-  set(_DEFOLD_PROTOC_EXECUTABLE "${_host_bin}/protoc${_exe}")
-else()
-  # Fallback: search any protoc under ext/bin but filter for correct parent folder name
-  if(WIN32)
-    file(GLOB_RECURSE _protoc_pkgs "${DEFOLD_SDK_ROOT}/ext/bin/*/protoc.exe")
-  else()
-    file(GLOB_RECURSE _protoc_pkgs "${DEFOLD_SDK_ROOT}/ext/bin/*/protoc")
-  endif()
-  if(_protoc_pkgs)
-    set(_filtered)
-    foreach(_p IN LISTS _protoc_pkgs)
-      if(_p MATCHES "/ext/bin/${HOST_PLATFORM}/protoc(\\.exe)?$")
-        list(APPEND _filtered "${_p}")
-      endif()
-    endforeach()
-    if(_filtered)
-      list(SORT _filtered COMPARE NATURAL)
-      list(GET _filtered -1 _DEFOLD_PROTOC_EXECUTABLE)
-    else()
-      list(SORT _protoc_pkgs COMPARE NATURAL)
-      list(GET _protoc_pkgs -1 _DEFOLD_PROTOC_EXECUTABLE)
-    endif()
-  endif()
-  if(NOT _DEFOLD_PROTOC_EXECUTABLE)
-    # Fallback to PATH
-    find_program(_DEFOLD_PROTOC_EXECUTABLE NAMES protoc)
-  endif()
+# Protoc runs on the host, including when cross-compiling. Search its SDK folder
+# before allowing CMake's normal program search (including PATH).
+find_program(_DEFOLD_PROTOC_EXECUTABLE NAMES protoc
+  PATHS "${_host_bin}" NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH NO_CACHE)
+if(NOT _DEFOLD_PROTOC_EXECUTABLE)
+  find_program(_DEFOLD_PROTOC_EXECUTABLE NAMES protoc NO_CMAKE_FIND_ROOT_PATH NO_CACHE)
 endif()
 
 if(NOT _DEFOLD_PROTOC_EXECUTABLE)
-  message(FATAL_ERROR "tools_protoc: Could not find protoc. Expected in ${DEFOLD_SDK_ROOT}/ext/bin/<host-platform>/ or on PATH.")
+  message(FATAL_ERROR "Could not find protoc. Run ./scripts/build.py install_ext to build and install it.\n\nExpected in ${_host_bin}/ or on PATH.")
 endif()
 
 file(REAL_PATH "${_DEFOLD_PROTOC_EXECUTABLE}" _DEFOLD_PROTOC_REAL)
-set(DEFOLD_PROTOC_EXECUTABLE "${_DEFOLD_PROTOC_REAL}" CACHE FILEPATH "Path to protoc executable used by Defold")
 
-# Optional: Print protoc version
 execute_process(
   COMMAND "${_DEFOLD_PROTOC_EXECUTABLE}" --version
+  RESULT_VARIABLE _protoc_result
   OUTPUT_VARIABLE _protoc_ver
   ERROR_VARIABLE _protoc_err
   OUTPUT_STRIP_TRAILING_WHITESPACE
   ERROR_STRIP_TRAILING_WHITESPACE)
+if(NOT _protoc_result EQUAL 0)
+  message(FATAL_ERROR "Could not run protoc. Run ./scripts/build.py install_ext to build and install it.\n\n${_DEFOLD_PROTOC_REAL}: ${_protoc_err}")
+endif()
+# Reconfiguration must replace a previously cached PATH compiler with the installed SDK compiler.
+set(DEFOLD_PROTOC_EXECUTABLE "${_DEFOLD_PROTOC_REAL}" CACHE FILEPATH "Path to protoc executable used by Defold" FORCE)
 if(_protoc_ver)
   defold_log("tools_protoc: protoc ${_protoc_ver} at ${_DEFOLD_PROTOC_REAL}")
 else()

@@ -1,7 +1,9 @@
 import sys
 
-def _uprint(*objects, sep=' ', end='\n', file=sys.stdout):
-    enc = file.encoding
+def _uprint(*objects, sep=' ', end='\n', file=None):
+    if file is None:
+        file = sys.stdout
+    enc = file.encoding or 'utf-8'
     if enc == 'UTF-8':
         print(*objects, sep=sep, end=end, file=file)
     else:

@@ -158,6 +158,8 @@ namespace dmGraphics
         DX12ShaderModule*            m_VertexModule;
         DX12ShaderModule*            m_FragmentModule;
         DX12ShaderModule*            m_ComputeModule;
+        DXGI_FORMAT                  m_PixelShaderOutputFormats[D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT];
+        uint32_t                     m_PixelShaderOutputCount;
         uint64_t                     m_Hash;
         uint32_t                     m_UniformDataSizeAligned;
         uint16_t                     m_UniformBufferCount;
@@ -357,6 +359,8 @@ namespace dmGraphics
         DX12ShaderProgram*                 m_CurrentProgram;
         DX12Pipeline*                      m_CurrentPipeline;
         DX12VertexBuffer*                  m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
+        // Original handles identify bindings; current declarations are shader-filtered copies.
+        HVertexDeclaration                 m_EnabledVertexDeclarations[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         uint32_t                           m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
         HTexture                           m_CurrentTextures[DM_MAX_TEXTURE_UNITS];

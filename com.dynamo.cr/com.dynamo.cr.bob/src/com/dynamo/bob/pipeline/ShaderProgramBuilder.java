@@ -167,7 +167,7 @@ public class ShaderProgramBuilder extends Builder {
         compileOptions.glslEsDefaultIntPrecision = shaderPrecisionFromString(this.project.getProjectProperties().getStringValue("shader", "glsl_es_default_precision_int", "highp"));
 
         if (getOutputHlslFlag()) {
-            addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_HLSL_51);
+            addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_HLSL_60);
         }
         if (getOutputSpirvFlag()) {
             addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_SPIRV);
@@ -598,6 +598,21 @@ public class ShaderProgramBuilder extends Builder {
             }
         }
 
+        if (result.hLSLShaderOutputs != null) {
+            for (Shaderc.HLSLShaderOutput output : result.hLSLShaderOutputs) {
+                ShaderDesc.HLSLShaderOutput.ComponentType componentType = switch (output.type) {
+                    case BASE_TYPE_UINT32 -> ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_UINT32;
+                    case BASE_TYPE_INT32 -> ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_SINT32;
+                    case BASE_TYPE_FP32 -> ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_FLOAT32;
+                    default -> throw new IllegalArgumentException("Unsupported HLSL output type: " + output.type);
+                };
+                builder.addHlslShaderOutputs(ShaderDesc.HLSLShaderOutput.newBuilder()
+                    .setLocation(output.location)
+                    .setComponentType(componentType)
+                    .setComponentCount(output.componentCount));
+            }
+        }
+
         if (result.mSLResourceMappings != null) {
             for (Shaderc.MSLResourceMapping mapping : result.mSLResourceMappings) {
                 ShaderDesc.MSLResourceMapping.Builder mslResourceMappingBuilder = ShaderDesc.MSLResourceMapping.newBuilder();
@@ -693,7 +708,7 @@ public class ShaderProgramBuilder extends Builder {
                     compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
                 }
                 if (Platform.getHostPlatform().isWindows()) {
-                    compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_51);
+                    compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_60);
                 }
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_MSL_22);
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
