@@ -40,6 +40,7 @@
 
 (g/defnode LuaIndentViewNode
   (property diagnostics g/Any (default []))
+  (property language-server-busy g/Any (default false))
   (property document-symbols g/Any (default []))
   (property completion-trigger-characters g/Any (default #{})))
 

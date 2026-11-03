@@ -1097,6 +1097,7 @@ code.find.prev = Previous
 code.find.next = Next
 code.replace.next = Replace
 code.replace.all = Replace All
+code.language-server.loading = Language server is loading…
 
 # About dialog
 

@@ -124,6 +124,22 @@
     :completion-trigger-characters
     (combined-completion-trigger-characters state resource)))
 
+(defn- set-view-node-language-server-busy-tx [state resource view-node]
+  {:pre [(= view-node (get-in state [:resource->view-node resource]))]}
+  (g/set-property
+    view-node
+    :language-server-busy
+    (coll/any?
+      (fn [[server {:keys [progress]}]]
+        (and (coll/not-empty progress)
+             (server-handles-resource? server resource)))
+      (:server->server-state state))))
+
+(defn- refresh-language-server-busy-for-server-tx [state server]
+  (for [[resource view-node] (:resource->view-node state)
+        :when (server-handles-resource? server resource)]
+    (set-view-node-language-server-busy-tx state resource view-node)))
+
 (s/def ::extension string?)
 (s/def ::extensions (s/coll-of ::extension :kind set? :min-count 1))
 (s/def ::configuration map?)
@@ -404,7 +420,8 @@
               :let [view-node (get-in state [:resource->view-node resource])]
               :when view-node]
           (set-view-node-diagnostics-tx state resource view-node))
-        (refresh-completion-trigger-characters-for-server-tx state server))))
+        (refresh-completion-trigger-characters-for-server-tx state server)
+        (refresh-language-server-busy-for-server-tx state server))))
   (a/close! in)
   (a/close! out))
 
@@ -468,11 +485,18 @@
                      :on-progress (fn [token {:keys [kind] :as value}]
                                     (fn [state]
                                       (if (contains? (:server->server-state state) server)
-                                        (let [state (if (= "end" kind)
+                                        (let [was-busy (coll/not-empty (get-in state [:server->server-state server :progress]))
+                                              state (if (= "end" kind)
                                                       (update-in state [:server->server-state server :progress] dissoc token)
                                                       (update-in state [:server->server-state server :progress token]
                                                                  merge (select-keys value [:title :message :percentage])))]
                                           (render-server-progress! state)
+                                          (when-not (= (boolean was-busy)
+                                                       (boolean (coll/not-empty (get-in state [:server->server-state server :progress]))))
+                                            (ui/run-later
+                                              (g/transact
+                                                {:undoable false}
+                                                (refresh-language-server-busy-for-server-tx state server))))
                                           state)
                                         state)))
                      :on-response (partial on-server-response server))
@@ -515,9 +539,18 @@
     state))
 
 (defn- request-document-symbols [state resource]
-  (let [{:keys [in]} state
-        responses-ch (a/chan 1 cat)]
-    (a/go (>! in (set-view-document-symbols resource (<! (a/into [] responses-ch)))))
+  (let [{:keys [in server->server-state]} state
+        responses-ch (a/chan 1)
+        has-server (coll/any?
+                     (fn [[server {:keys [status capabilities]}]]
+                       (and (= :running status)
+                            (:document-symbol capabilities)
+                            (server-handles-resource? server resource)))
+                     server->server-state)]
+    (a/go
+      (let [responses (<! (a/into [] responses-ch))]
+        (when (or (coll/not-empty responses) (not has-server))
+          (>! in (set-view-document-symbols resource (into [] cat responses))))))
     (send-requests!
       state responses-ch
       :capabilities-pred :document-symbol
@@ -774,7 +807,8 @@
           {:undoable false}
           (concat
             (set-view-node-diagnostics-tx state resource view-node)
-            (set-view-node-completion-trigger-characters-tx state resource view-node))))
+            (set-view-node-completion-trigger-characters-tx state resource view-node)
+            (set-view-node-language-server-busy-tx state resource view-node))))
       state)))
 
 (defn set-render-progress!
