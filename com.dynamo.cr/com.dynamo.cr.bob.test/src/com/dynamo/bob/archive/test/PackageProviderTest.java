@@ -79,8 +79,7 @@ public class PackageProviderTest {
         assertEquals("Fixture Settings", schemas.get("fixture").label());
         assertEquals(List.of(property), schemas.get("fixture").properties());
         var zip = schemas.get("zip").properties().get(0);
-        assertEquals("1", PackageProviders.defaultValue("zip", zip, null));
-        assertEquals("9", PackageProviders.defaultValue("zip", zip, "9"));
+        assertEquals("1", zip.defaultValue());
         for (var invalid : List.of(List.of(property, property),
                 List.of(new PackageProvider.Property("quality", "Quality", PackageProvider.PropertyType.INTEGER, "x", List.of())),
                 List.of(new PackageProvider.Property("quality", "Quality", PackageProvider.PropertyType.INTEGER, "1", List.of("1", "x"))))) {

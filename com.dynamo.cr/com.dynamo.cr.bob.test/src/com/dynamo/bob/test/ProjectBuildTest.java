@@ -1937,7 +1937,7 @@ public class ProjectBuildTest {
         assertNoPackageStaging();
     }
 
-    // ZIP compression settings invalidate ZIP output while an equivalent folder can be reused.
+    // Manifest ZIP compression settings invalidate ZIP output while an equivalent folder can be reused.
     @Test
     public void testPackageIncrementalCompressionSettings() throws Exception {
         createPackageProject();
@@ -1947,13 +1947,13 @@ public class ProjectBuildTest {
         FileTime unchanged = FileTime.fromMillis(946684800000L);
         Files.setLastModifiedTime(zip, unchanged);
         Files.setLastModifiedTime(folderManifest, unchanged);
-        Files.writeString(Path.of(contentRoot, "liveupdate.settings"), "zip-compression-level=0\n", java.nio.file.StandardOpenOption.APPEND);
+        setProviderProperties("zip", Map.of("compression-level", "0"));
         buildPackageProject(true, false);
         assertFalse(unchanged.equals(Files.getLastModifiedTime(zip)));
         assertEquals(unchanged, Files.getLastModifiedTime(folderManifest));
     }
 
-    // Manifest ZIP settings override legacy defaults and invalidate ZIPs without rewriting unchanged folders.
+    // Manifest ZIPs use provider defaults and explicit settings independently of legacy compression settings.
     @Test
     public void testManifestZipProviderProperties() throws Exception {
         createPackageProject();
@@ -1962,18 +1962,38 @@ public class ProjectBuildTest {
         buildPackageProject(true, false);
         Path zip = Path.of(contentRoot, "packages/episode.zip");
         Path folderManifest = Path.of(contentRoot, "packages/copy/liveupdate.game.dmanifest");
-        long uncompressedSize = Files.size(zip);
+        long defaultSize = Files.size(zip);
         FileTime unchanged = FileTime.fromMillis(946684800000L);
-        Files.setLastModifiedTime(folderManifest, unchanged);
-        setProviderProperties("zip", Map.of("compression-level", "9"));
-        buildPackageProject(true, false);
-        assertTrue(Files.size(zip) < uncompressedSize);
-        assertEquals(unchanged, Files.getLastModifiedTime(folderManifest));
         Files.setLastModifiedTime(zip, unchanged);
+        Files.setLastModifiedTime(folderManifest, unchanged);
         Files.writeString(legacy, Files.readString(legacy).replace("zip-compression-level=0", "zip-compression-level=3"));
         buildPackageProject(true, false);
         assertEquals(unchanged, Files.getLastModifiedTime(zip));
         assertEquals(unchanged, Files.getLastModifiedTime(folderManifest));
+
+        setProviderProperties("zip", Map.of("compression-level", "0"));
+        buildPackageProject(true, false);
+        long uncompressedSize = Files.size(zip);
+        assertTrue(defaultSize < uncompressedSize);
+        setProviderProperties("zip", Map.of("compression-level", "9"));
+        buildPackageProject(true, false);
+        assertTrue(Files.size(zip) < uncompressedSize);
+        assertEquals(unchanged, Files.getLastModifiedTime(folderManifest));
+    }
+
+    // The legacy adapter copies compression settings explicitly before using the package writer.
+    @Test
+    public void testLegacyZipCompressionSettings() throws Exception {
+        createLegacyPackageProject();
+        createFile(contentRoot, "liveupdate.settings", "[liveupdate]\nmode=Zip\nzip-filepath=legacy\n"
+                + "zip-filename=episode.zip\nzip-compression-level=0\n");
+        buildPackageProject(true, false);
+        Path zip = Path.of(contentRoot, "legacy/episode.zip");
+        long uncompressedSize = Files.size(zip);
+        Path settings = Path.of(contentRoot, "liveupdate.settings");
+        Files.writeString(settings, Files.readString(settings).replace("zip-compression-level=0", "zip-compression-level=9"));
+        buildPackageProject(true, false);
+        assertTrue(Files.size(zip) < uncompressedSize);
     }
 
     // Custom settings reach discovery, previews and writers as immutable typed values, and invalidate artifact reuse.

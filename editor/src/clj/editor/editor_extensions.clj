@@ -44,19 +44,18 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.library :as library]
+            [editor.live-update-manifest :as live-update-manifest]
             [editor.localization :as localization]
             [editor.lsp.async :as lsp.async]
             [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.process :as process]
             [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
             [editor.system :as system]
             [editor.ui :as ui]
             [editor.util :as util]
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
-            [internal.java :as java]
             [util.coll :as coll]
             [util.eduction :as e]
             [util.fn :as fn]
@@ -64,8 +63,7 @@
             [util.http-server :as http-server]
             [util.path :as path])
   (:import [clojure.lang IDeref Murmur3]
-           [com.dynamo.bob Platform Progress]
-           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageResolver]
+           [com.dynamo.bob Platform]
            [com.dynamo.bob.bundle BundleHelper]
            [com.dynamo.bob.util Library$Result]
            [java.io InputStream PrintStream PushbackReader]
@@ -431,39 +429,6 @@
                                                     (rest lua-args))]
                                  [options commands]))]
       (invoke-bob! options commands))))
-
-(defn- make-ext-live-update-rules-fn [project]
-  (rt/suspendable-lua-fn live-update-rules [{:keys [evaluation-context]}]
-    (let [workspace (project/workspace project evaluation-context)
-          resource-map (g/node-value workspace :resource-map evaluation-context)
-          generated-paths (g/node-value project :live-update-output-paths evaluation-context)
-          save-data (mapv (fn [{:keys [resource save-value]}]
-                            [(resource/proj-path resource) save-value (resource/resource-type resource (:basis evaluation-context))])
-                          (project/dirty-save-data project evaluation-context))]
-      (future/io
-        ;; Conversion is a one-off operation. Bob uses a temporary snapshot so
-        ;; it sees unsaved content without writing into the user's project.
-        (let [snapshot (fs/create-temp-directory! "defold-liveupdate-conversion-")]
-          (try
-            (let [contents (coll/into-> save-data {}
-                             (keep (fn [[path save-value resource-type]]
-                                     (when-let [content (resource-node/save-content save-value resource-type)]
-                                       [path content]))))]
-              (doseq [[path source] resource-map
-                      :when (and (= :file (resource/source-type source))
-                                 (or (resource/file-resource? source) (resource/zip-resource? source))
-                                 (not (string/starts-with? path "/builtins/"))
-                                 (not (PackageArtifacts/isGeneratedPath path generated-paths)))]
-                (let [destination (io/file snapshot (subs path 1))]
-                  (fs/create-parent-directories! destination)
-                  (if-let [content (get contents path)]
-                    (spit destination content :encoding "UTF-8")
-                    (with-open [input (io/input-stream source)]
-                      (io/copy input destination)))))
-              (let [plan (PackageBuilder/buildPlan (.toPath snapshot) "" {} java/class-loader (Progress/discarding))]
-                (coll/join-to-string "\n" (mapv #(str "rules {\n" % "}\n") (PackageResolver/migrateLegacy plan)))))
-            (finally
-              (fs/delete-directory! snapshot))))))))
 
 (defn- ensure-file-path-in-project-directory
   ^Path [^Path project-path ^String file-name]
@@ -1145,43 +1110,44 @@
                                    (future/then (reload-resources!) rt/and-refresh-context))
                   :out (line-writer #(display-output! :out %))
                   :err (line-writer #(display-output! :err %))
-                  :env {"editor" {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!
-                                  "liveupdate" {"legacy_rules" (make-ext-live-update-rules-fn project)} ;; built-in conversion script only
-                                  "get" (make-ext-get-fn project localization)
-                                  "can_add" (graph/make-ext-can-add-fn project)
-                                  "can_get" (make-ext-can-get-fn project)
-                                  "can_reorder" (graph/make-ext-can-reorder-fn project)
-                                  "can_reset" (graph/make-ext-can-reset-fn project)
-                                  "can_set" (make-ext-can-set-fn project)
-                                  "properties" (make-ext-properties-fn project)
-                                  "command" commands/ext-command-fn
-                                  "create_directory" (make-ext-create-directory-fn project reload-resources!)
-                                  "create_resources" (make-ext-create-resources-fn project reload-resources!)
-                                  "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
-                                  "resource_attributes" (make-ext-resource-attributes-fn project)
-                                  "resource_children" (make-ext-resource-children-fn project)
-                                  "external_file_attributes" (make-ext-external-file-attributes-fn project-path)
-                                  "execute" (make-ext-execute-fn project-path reload-resources!)
-                                  "bob" (make-ext-bob-fn invoke-bob!)
-                                  "browse" ext-browse-fn
-                                  "open_external_file" ext-open-external-file-fn
-                                  "platform" (.getPair (Platform/getHostPlatform))
-                                  "prefs" (prefs-functions/env prefs)
-                                  "save" (make-ext-save-fn save!)
-                                  "fetch_libraries" (make-ext-fetch-libraries-fn fetch-libraries! localization)
-                                  "transact" ext-transact
-                                  "tx" {"set" (make-ext-tx-set-fn project)
-                                        "add" (graph/make-ext-add-fn project)
-                                        "clear" (graph/make-ext-clear-fn project)
-                                        "remove" (graph/make-ext-remove-fn project)
-                                        "reorder" (graph/make-ext-reorder-fn project)
-                                        "reset" (graph/make-ext-reset-fn project)}
-                                  "ui" (assoc
-                                         (ui-components/env workspace project project-path localization)
-                                         "open_resource" (make-open-resource-fn workspace open-resource!))
-                                  "version" (system/defold-version)
-                                  "engine_sha1" (system/defold-engine-sha1)
-                                  "editor_sha1" (system/defold-editor-sha1)}
+                  :env {"editor" (merge
+                                   (live-update-manifest/editor-script-env project)
+                                   {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!
+                                    "get" (make-ext-get-fn project localization)
+                                    "can_add" (graph/make-ext-can-add-fn project)
+                                    "can_get" (make-ext-can-get-fn project)
+                                    "can_reorder" (graph/make-ext-can-reorder-fn project)
+                                    "can_reset" (graph/make-ext-can-reset-fn project)
+                                    "can_set" (make-ext-can-set-fn project)
+                                    "properties" (make-ext-properties-fn project)
+                                    "command" commands/ext-command-fn
+                                    "create_directory" (make-ext-create-directory-fn project reload-resources!)
+                                    "create_resources" (make-ext-create-resources-fn project reload-resources!)
+                                    "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
+                                    "resource_attributes" (make-ext-resource-attributes-fn project)
+                                    "resource_children" (make-ext-resource-children-fn project)
+                                    "external_file_attributes" (make-ext-external-file-attributes-fn project-path)
+                                    "execute" (make-ext-execute-fn project-path reload-resources!)
+                                    "bob" (make-ext-bob-fn invoke-bob!)
+                                    "browse" ext-browse-fn
+                                    "open_external_file" ext-open-external-file-fn
+                                    "platform" (.getPair (Platform/getHostPlatform))
+                                    "prefs" (prefs-functions/env prefs)
+                                    "save" (make-ext-save-fn save!)
+                                    "fetch_libraries" (make-ext-fetch-libraries-fn fetch-libraries! localization)
+                                    "transact" ext-transact
+                                    "tx" {"set" (make-ext-tx-set-fn project)
+                                          "add" (graph/make-ext-add-fn project)
+                                          "clear" (graph/make-ext-clear-fn project)
+                                          "remove" (graph/make-ext-remove-fn project)
+                                          "reorder" (graph/make-ext-reorder-fn project)
+                                          "reset" (graph/make-ext-reset-fn project)}
+                                    "ui" (assoc
+                                           (ui-components/env workspace project project-path localization)
+                                           "open_resource" (make-open-resource-fn workspace open-resource!))
+                                    "version" (system/defold-version)
+                                    "engine_sha1" (system/defold-engine-sha1)
+                                    "editor_sha1" (system/defold-editor-sha1)})
                         "http" {"request" (make-ext-http-request-fn project-path reload-resources!)
                                 "server" (ext.http-server/env workspace project-path web-server)}
                         "image" (ext.image/env project-path)

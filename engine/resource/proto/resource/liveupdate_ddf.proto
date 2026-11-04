@@ -117,18 +117,20 @@ message ResourceEntry {
     repeated uint64             dependants = 7;
 }
 
-// Informational delivery metadata. The engine does not download or mount packages.
+// Runtime message.
 message PackageOutput {
     required string package = 1;
     required string provider = 2;
     repeated string artifacts = 3;
 }
 
+// Runtime message.
 message PackageRequirement {
     required uint64 url_hash = 1;
     repeated string packages = 2; // Alternative suppliers of this resource.
 }
 
+// Runtime message.
 message PackageMetadata {
     required string name = 1;
     repeated PackageOutput outputs = 2;

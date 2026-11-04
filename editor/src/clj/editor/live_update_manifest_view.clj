@@ -94,15 +94,21 @@
     (when-let [error (g/flatten-errors [selected roots directory])]
       (throw (ex-info (@(workspace/localization workspace evaluation-context) (g/error-message error)) {:error error})))
     (let [game-target (first roots)
-          ;; This view may edit a manifest other than the active game.project
-          ;; setting. Replace its selections; keep startup and custom resources.
-          game-target (assoc game-target
-                        :dynamic-resource-deps (filterv (complement custom-paths) selected)
-                        :dynamic-custom-resource-deps (vec custom-paths))
-          targets (build/resolve-dependencies [game-target] project evaluation-context)]
+          selected-targets (coll/into-> selected {}
+                             (remove custom-paths)
+                             (map (fn [path]
+                                    (let [node (project/get-resource-node project path evaluation-context)
+                                          source (g/node-value node :resource evaluation-context)]
+                                      [path (when-not (resource/placeholder-resource-type? (resource/resource-type source))
+                                              (g/node-value node :build-targets evaluation-context))]))))
+          targets (build/resolve-dependencies (into [game-target] (coll/vals selected-targets)) project evaluation-context)]
       (when (g/error? targets)
         (throw (ex-info (@(workspace/localization workspace evaluation-context) (g/error-message targets)) {:error targets})))
       (let [targets (filterv #(not (contains? #{"project" "texture_profiles"} (resource/ext (:resource (:resource %))))) targets)
+            ;; Custom files retain their source path and have no dependencies.
+            ;; Their contents are not needed for the preview.
+            custom-files (coll/into-> selected-targets custom-paths
+                           (keep (fn [[path targets]] (when (coll/empty? targets) path))))
             source-path (fn source-path [target]
                           (or (resource/proj-path (:resource (:resource target)))
                               (some-> (resource-node/owner-resource (:basis evaluation-context) (:node-id target)) resource/proj-path)))
@@ -113,11 +119,12 @@
                                        mapping))
                                    (coll/pair-map-by identity (constantly []) source-paths)
                                    targets)
-            primary-sources (coll/into-> targets {}
+            source-outputs (coll/into-> custom-files source-outputs (map (fn [path] [path [path]])))
+            primary-sources (coll/into-> targets (zipmap custom-files custom-files)
                               (keep (fn [target]
                                       (when-let [source (source-path target)]
                                         [(resource/proj-path (:resource target)) source]))))
-            graph (coll/into-> targets {}
+            graph (coll/into-> targets (coll/pair-map-by identity (constantly (PackageResolver$Resource. {})) custom-files)
                     (map (fn [target]
                            (check-cancelled!)
                            (let [output (:resource target)

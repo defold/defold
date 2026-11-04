@@ -13,10 +13,14 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.live-update-manifest
-  (:require [clojure.string :as string]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.app-view :as app-view]
             [editor.core :as core]
+            [editor.defold-project :as project]
+            [editor.editor-extensions.runtime :as rt]
+            [editor.fs :as fs]
+            [editor.future :as future]
             [editor.handler :as handler]
             [editor.id :as id]
             [editor.localization :as localization]
@@ -25,9 +29,11 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [internal.java :as java]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Selection PackageResolver$Severity]
+  (:import [com.dynamo.bob Progress]
+           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Selection PackageResolver$Severity]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc]
            [java.nio.file Path]
            [java.util.function Function]))
@@ -249,7 +255,7 @@
 (defn- clear-provider-property [provider property node-id _prop-kw]
   (g/update-property node-id :provider-settings clear-provider-value provider property))
 
-(defn- provider-property [node-id read-only provider ^PackageProvider$Property description authored legacy-zip-compression]
+(defn- provider-property [node-id read-only provider ^PackageProvider$Property description authored]
   (let [id (.id description)
         type (condp = (.type description)
                PackageProvider$PropertyType/BOOLEAN g/Bool
@@ -262,7 +268,7 @@
                   (catch IllegalArgumentException error
                     {:value value
                      :error (g/->error node-id :provider-settings :fatal value (ex-message error))})))
-        default (parse (PackageProviders/defaultValue provider description legacy-zip-compression))
+        default (parse (.defaultValue description))
         value (when (contains? authored id) (parse (get authored id)))
         error (:error (or value default))
         choices (.choices description)]
@@ -282,7 +288,7 @@
                   (assoc :type :choicebox
                          :options (mapv (fn [choice] [(.parse description choice) choice]) choices)))}))
 
-(defn- produce-properties [node-id declared-properties provider-settings packages read-only schemas legacy-zip-compression]
+(defn- produce-properties [node-id declared-properties provider-settings packages read-only schemas]
   (if (g/error? schemas)
     (-> declared-properties
         (assoc-in [:properties :provider-error] {:node-id node-id
@@ -310,7 +316,7 @@
                   (-> properties
                       (update :properties into
                               (mapv (fn [key description]
-                                      [key (provider-property node-id read-only provider description authored legacy-zip-compression)])
+                                      [key (provider-property node-id read-only provider description authored)])
                                     property-keys descriptions))
                       (update :display-order conj
                               (into [(localization/message (str "liveupdate.provider." provider ".label") {} (if schema (.label schema) provider))]
@@ -322,7 +328,6 @@
   (inherits resource-node/ResourceNode)
   (property provider-settings g/Any (default []) (dynamic visible (g/constantly false)))
   (input provider-schemas g/Any)
-  (input legacy-zip-compression g/Any)
   (property output-directory g/Str (default (protobuf/default LiveUpdateManifest$ManifestDesc :output-directory))
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-manifest :output-directory))
@@ -349,8 +354,8 @@
   (input base-outline outline/OutlineData)
   (output packages g/Any :cached (g/fnk [package-data] (vec (sort-by :order package-data))))
   (output _properties g/Properties :cached
-          (g/fnk [_node-id _declared-properties provider-settings packages read-only ^:try provider-schemas legacy-zip-compression]
-            (produce-properties _node-id _declared-properties provider-settings packages read-only provider-schemas legacy-zip-compression)))
+          (g/fnk [_node-id _declared-properties provider-settings packages read-only ^:try provider-schemas]
+            (produce-properties _node-id _declared-properties provider-settings packages read-only provider-schemas)))
   (output save-value g/Any :cached
           (g/fnk [packages output-directory provider-settings]
             (protobuf/make-map-without-defaults LiveUpdateManifest$ManifestDesc
@@ -419,7 +424,6 @@
   [(g/set-property self :output-directory (:output-directory source-value (protobuf/default LiveUpdateManifest$ManifestDesc :output-directory)))
    (g/set-property self :provider-settings (:providers source-value []))
    (g/connect project :live-update-provider-schemas self :provider-schemas)
-   (g/connect project :live-update-zip-compression self :legacy-zip-compression)
    (g/connect workspace :root self :project-root)
    (g/connect workspace :resource-map self :resource-map)
    (g/connect project :live-update-output-paths self :generated-paths)
@@ -461,10 +465,13 @@
                         (g/operation-sequence op-seq)
                         (g/operation-label (localization/message (if add-package "liveupdate.add-package" "liveupdate.add-rule")))
                         tx-data)))]
-        (g/transact
-          (concat
-            (g/operation-sequence op-seq)
-            (app-view/select app-view root nodes)))))))
+        (g/let-ec [project (g/node-value app-view :project-id evaluation-context)
+                   open-resource-nodes (g/node-value app-view :open-resource-nodes evaluation-context)
+                   selection-tx-data (project/select project root nodes open-resource-nodes evaluation-context)]
+          (g/transact
+            (concat
+              (g/operation-sequence op-seq)
+              selection-tx-data)))))))
 
 (defn- reorder [node-id offset evaluation-context]
   (let [parent (core/scope (:basis evaluation-context) node-id)
@@ -503,6 +510,43 @@
   (run [selection]
     (g/let-ec [tx-data (reorder (reorderable-selection selection evaluation-context) 1 evaluation-context)]
       (g/transact tx-data))))
+
+(defn editor-script-env
+  "Returns the private Lua API for the built-in Live Update conversion script."
+  [project]
+  {"liveupdate"
+   {"legacy_rules"
+    (rt/suspendable-lua-fn legacy-rules [{:keys [evaluation-context]}]
+      (let [workspace (project/workspace project evaluation-context)
+            resource-map (g/node-value workspace :resource-map evaluation-context)
+            generated-paths (g/node-value project :live-update-output-paths evaluation-context)
+            save-data (mapv (fn [{:keys [resource save-value]}]
+                              [(resource/proj-path resource) save-value (resource/resource-type resource (:basis evaluation-context))])
+                            (project/dirty-save-data project evaluation-context))]
+        (future/io
+          ;; Conversion is a one-off operation. Bob uses a temporary snapshot so
+          ;; it sees unsaved content without writing into the user's project.
+          (let [snapshot (fs/create-temp-directory! "defold-liveupdate-conversion-")]
+            (try
+              (let [contents (coll/into-> save-data {}
+                               (keep (fn [[path save-value resource-type]]
+                                       (when-let [content (resource-node/save-content save-value resource-type)]
+                                         [path content]))))]
+                (doseq [[path source] resource-map
+                        :when (and (= :file (resource/source-type source))
+                                   (or (resource/file-resource? source) (resource/zip-resource? source))
+                                   (not (string/starts-with? path "/builtins/"))
+                                   (not (PackageArtifacts/isGeneratedPath path generated-paths)))]
+                  (let [destination (io/file snapshot (subs path 1))]
+                    (fs/create-parent-directories! destination)
+                    (if-let [content (get contents path)]
+                      (spit destination content :encoding "UTF-8")
+                      (with-open [input (io/input-stream source)]
+                        (io/copy input destination)))))
+                (let [plan (PackageBuilder/buildPlan (.toPath snapshot) "" {} java/class-loader (Progress/discarding))]
+                  (coll/join-to-string "\n" (mapv #(str "rules {\n" % "}\n") (PackageResolver/migrateLegacy plan)))))
+              (finally
+                (fs/delete-directory! snapshot)))))))}})
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

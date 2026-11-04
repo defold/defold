@@ -1703,7 +1703,6 @@
   (input save-data g/Any :array :substitute gu/array-subst-remove-errors)
   (input node-id+resources g/Any :array :cascade-delete)
   (input settings g/Any :substitute nil)
-  (input live-update-zip-compression g/Any)
   (input display-profiles g/Any)
   (input texture-profiles g/Any)
   (input use-font-layout g/Bool)
@@ -1766,7 +1765,6 @@
                                                                  (not (resource/read-only? resource))))))
                                                    save-data)))
   (output settings g/Any (g/fnk [settings] (or settings gpc/default-settings)))
-  (output live-update-zip-compression g/Any (gu/passthrough live-update-zip-compression))
   (output use-font-layout g/Bool (g/fnk [use-font-layout] (true? use-font-layout)))
   (output use-rich-text g/Bool (g/fnk [use-rich-text] (not (false? use-rich-text))))
   (output display-width g/Num (g/fnk [settings]

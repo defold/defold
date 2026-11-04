@@ -39,6 +39,8 @@ import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.ManifestDesc;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.PackageDesc;
+import com.dynamo.liveupdate.proto.LiveUpdateManifest.ProviderProperty;
+import com.dynamo.liveupdate.proto.LiveUpdateManifest.ProviderSettings;
 
 /** Shared provider discovery, property descriptions and settings resolution. */
 public final class PackageProviders {
@@ -156,6 +158,11 @@ public final class PackageProviders {
             for (PackageResolver.Package pkg : plan.packages().values()) {
                 builder.addPackages(pkg.description());
             }
+            String compression = project.getPublisher().getPublisherSettings().getCompressionLevelValue();
+            if (compression != null) {
+                builder.addProviders(ProviderSettings.newBuilder().setProvider("zip")
+                        .addProperties(ProviderProperty.newBuilder().setName("compression-level").setValue(compression)));
+            }
             manifest = builder.build();
         } else {
             manifest = PackageBuilder.parse(project.getResource(manifestPath).getContent());
@@ -172,8 +179,7 @@ public final class PackageProviders {
                     .toList();
         }
 
-        String legacyCompression = project.getPublisher().getPublisherSettings().getCompressionLevelValue();
-        Map<String, Map<String, Object>> providerSettings = settings(manifest, schemas(providers), legacyCompression);
+        Map<String, Map<String, Object>> providerSettings = settings(manifest, schemas(providers));
         return new PackageProvider.Context(plan, resources, project.getPlatform().getPair(), architectures,
                 project.option("variant", "release"), project.getOptions(), project.getProjectProperties().serialize(),
                 providerSettings, project::isBuildCanceled);
@@ -232,20 +238,11 @@ public final class PackageProviders {
         return Collections.unmodifiableMap(schemas);
     }
 
-    /** Retain legacy ZIP compression until the manifest explicitly overrides it. */
-    public static String defaultValue(String provider, PackageProvider.Property property, String legacyZipCompression) {
-        if (legacyZipCompression != null && provider.equals("zip") && property.id().equals("compression-level")) {
-            return legacyZipCompression;
-        }
-        return property.defaultValue();
-    }
-
     /**
-     * Resolves settings only for providers used by a package, applying defaults and the legacy ZIP compression fallback.
+     * Resolves settings only for providers used by a package, applying provider defaults.
      * Rejects duplicate or unknown properties and invalid values; unused provider settings remain unevaluated.
      */
-    static Map<String, Map<String, Object>> settings(ManifestDesc manifest, Map<String, Schema> schemas,
-            String legacyZipCompression) throws CompileExceptionError {
+    static Map<String, Map<String, Object>> settings(ManifestDesc manifest, Map<String, Schema> schemas) throws CompileExceptionError {
         Set<String> used = new LinkedHashSet<>();
         for (PackageDesc pkg : manifest.getPackagesList()) {
             used.add(pkg.getProvider());
@@ -279,7 +276,7 @@ public final class PackageProviders {
             for (PackageProvider.Property property : schema.properties()) {
                 String value = values.remove(property.id());
                 if (value == null) {
-                    value = defaultValue(id, property, legacyZipCompression);
+                    value = property.defaultValue();
                 }
                 try {
                     parsed.put(property.id(), property.parse(value));

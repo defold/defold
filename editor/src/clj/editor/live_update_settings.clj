@@ -28,9 +28,6 @@
 (g/defnode LiveUpdateSettingsNode
   (inherits resource-node/ResourceNode)
 
-  (input settings-map g/Any)
-  (output settings-map g/Any (gu/passthrough settings-map))
-
   (input form-data g/Any)
   (output form-data g/Any :cached
           (g/fnk [form-data]
@@ -49,7 +46,6 @@
     (g/connect settings-node :_node-id self :nodes)
     (g/connect settings-node :save-value self :save-value)
     (g/connect settings-node :form-data self :form-data)
-    (g/connect settings-node :settings-map self :settings-map)
     (settings/load-settings-node load-opts self settings-node owner-resource source-value basic-meta-info nil)))
 
 (defn register-resource-types [workspace]

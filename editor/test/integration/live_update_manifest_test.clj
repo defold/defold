@@ -18,7 +18,6 @@
             [clojure.test :refer [deftest is use-fixtures]]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
-            [editor.build :as build]
             [editor.code.view :as code-view]
             [editor.defold-project :as project]
             [editor.editor-tab :as editor-tab]
@@ -252,8 +251,8 @@
       (workspace/resource-sync! workspace)
       (is (= "exported packages" (g/node-value (project/get-resource-node project "/reloaded.lumanifest") :output-directory))))))
 
-;; Root settings use the Java provider schema, retain legacy defaults, and save
-;; explicit overrides through normal property editing, history and reload.
+;; Provider defaults ignore legacy settings. Explicit overrides use normal
+;; property editing, history and reload.
 (deftest provider-properties
   (test-util/with-scratch-project "test/resources/live_update_project"
     (let [node (project/get-resource-node project "/packages.lumanifest")
@@ -266,9 +265,9 @@
       (workspace/resource-sync! workspace)
       (test-util/set-setting! (project/get-resource-node project "/game.project") ["liveupdate" "settings"]
                               (workspace/file-resource workspace "/liveupdate.settings"))
-      (is (= [6] (properties/values (property))))
+      (is (= [1] (properties/values (property))))
       (test-util/set-setting! (project/get-resource-node project "/liveupdate.settings") ["liveupdate" "zip-compression-level"] 7)
-      (is (= [7] (properties/values (property))))
+      (is (= [1] (properties/values (property))))
       (ui/run-now
         (let [control (:desc (properties-view/make-control-view (property) {} @test-util/localization))]
           ((:on-value-changed control) 9)))
@@ -277,13 +276,13 @@
       (is (= [9] (properties/values (property))))
       (is (properties/overridden? (property)))
       (g/undo! :undo/global)
-      (is (= [7] (properties/values (property))))
+      (is (= [1] (properties/values (property))))
       (g/redo! :undo/global)
       (test-util/make-resource! workspace "/provider-reloaded.lumanifest" (g/node-value node :save-value))
       (workspace/resource-sync! workspace)
       (is (= (g/node-value node :save-value) (g/node-value (project/get-resource-node project "/provider-reloaded.lumanifest") :save-value)))
       (properties/clear-override! (property))
-      (is (= [7] (properties/values (property))))
+      (is (= [1] (properties/values (property))))
       (is (not (contains? (g/node-value node :save-value) :providers)))
       (g/undo! :undo/global)
       (is (= [9] (properties/values (property))))
@@ -554,15 +553,13 @@
             (test-util/handler-run :edit.reorder-up (contexts [second-rule]) nil)
             (is (= [second-rule rule] (mapv :node-id (get-in (g/node-value node :packages) [2 :rules]))))))))))
 
-;; Resolver diagnostics and local build roots must follow unsaved manifest and
-;; raw-file edits. No-match policies update property and outline diagnostics
+;; Resolver diagnostics must follow unsaved manifest edits.
+;; No-match policies update property and outline diagnostics
 ;; when files appear or disappear; regex errors expose one-based columns.
-(deftest validation-and-local-build
+(deftest validation-and-inventory
   (test-util/with-scratch-project "test/resources/live_update_project"
     (let [node (project/get-resource-node project "/packages.lumanifest")
-          rule (get-in (g/node-value node :packages) [0 :rules 0 :node-id])
-          raw (project/get-resource-node project "/extra.json")
-          game-project (project/get-resource-node project "/game.project")]
+          rule (get-in (g/node-value node :packages) [0 :rules 0 :node-id])]
       (doseq [[path column reason] [["[" 1 "Unclosed character class"]
                                     ["/episodes/[" 11 "Unclosed character class"]
                                     ["/episodes/(" 12 "Unclosed group"]]]
@@ -601,19 +598,11 @@
         (is (g/error-fatal? (test-util/prop-error rule :path))))
       (g/transact (g/set-property rule :no-match :warn))
       (g/transact (g/set-property rule :path "/episode[.]collection"))
-      (test-util/set-code-editor-source! raw "{\"unsaved\":true}")
-      (let [targets (build/resolve-node-dependencies game-project project)]
-        (is (not (g/error-value? targets)) (pr-str targets))
-        (when-not (g/error-value? targets)
-          (let [by-path (coll/pair-map-by #(resource/proj-path (:resource %)) identity targets)
-                raw-target (get by-path "/extra.json")]
-            (is (contains? by-path "/episode.collectionc"))
-            (is raw-target)
-            (is (= "{\"unsaved\":true}" (String. ^bytes (:user-data raw-target) java.nio.charset.StandardCharsets/UTF_8)))))))))
+      (is (= #{"/episode.collection" "/extra.json"} (g/node-value node :selected-paths))))))
 
-;; Custom-resource selection and manifest selection must share a single captured
-;; target, including known extensions and repeated unsaved edits.
-(deftest custom-resources-and-manifest-share-targets
+;; Preview lists custom files by their source paths, including known extensions,
+;; and agrees with Bob without producing compiled files.
+(deftest custom-resources-preview
   (test-util/with-scratch-project "test/resources/live_update_project"
     (let [game-project (project/get-resource-node project "/game.project")
           raw (project/get-resource-node project "/extra.json")
@@ -626,20 +615,18 @@
       (workspace/resource-sync! workspace)
       (test-util/set-setting! game-project ["project" "custom_resources"] "/extra.json,/opaque")
       (g/transact (g/set-property rule :path "/(extra[.]json|opaque/.*)"))
-      (loop [index 0 artifact-map {}]
-        (when (< index 2)
-          (let [expected (str "{\"review\":" index "}")]
-            (test-util/set-code-editor-source! raw expected)
-            (let [targets (build/resolve-node-dependencies game-project project)
-                  result (g/with-auto-evaluation-context evaluation-context
-                           (build/build-project! project game-project artifact-map nil evaluation-context))]
-              (is (not (g/error-value? targets)))
-              (is (nil? (:error result)) (pr-str (:error result)))
-              (when-not (g/error-value? targets)
-                (is (= 1 (count (filterv #(= "/extra.json" (resource/proj-path (:resource %))) targets)))))
-              (is (= expected (slurp (workspace/build-path workspace "/extra.json"))))
-              (is (= opaque (slurp (workspace/build-path workspace "/opaque/data.script"))))
-              (recur (inc index) (:artifact-map result))))))
+      (with-manifest-view! project app-view "/packages.lumanifest"
+        (fn [{:keys [state]}]
+          (doseq [index (range 2)]
+            (let [previous (:result @state)]
+              (test-util/set-code-editor-source! raw (str "{\"review\":" index "}"))
+              (let [plan ^PackageResolver$Plan (:plan (await-preview! state previous))
+                    paths (.resources ^PackageResolver$Package (get (.packages plan) "levels"))]
+                (is (contains? paths "/extra.json"))
+                (is (contains? paths "/opaque/data.script"))
+                (is (not (contains? paths "/opaque/data.scriptc"))))))))
+      (is (not (.exists (io/file (workspace/build-path workspace "/extra.json")))))
+      (is (not (.exists (io/file (workspace/build-path workspace "/opaque/data.script")))))
       (let [contents (coll/into-> (g/node-value project :dirty-save-data) {}
                        (keep (fn [save-data]
                                (when-let [content (resource-node/save-data-content save-data)]
@@ -648,7 +635,7 @@
         (is (contains? (.resources ^PackageResolver$Package (get (.packages plan) "levels")) "/opaque/data.script"))
         (is (not (contains? (.resources plan) "/opaque/data.scriptc")))))))
 
-;; Exported artifacts must not become regex inputs to editor builds or previews.
+;; Exported artifacts must not become regex inputs to previews or Bob builds.
 ;; Resource synchronization captures ownership so graph evaluation stays pure.
 (deftest exported-artifacts-are-not-sources
   (test-util/with-scratch-project "test/resources/live_update_project"
@@ -678,16 +665,14 @@
         (is (= (.base packaged) (.base refreshed)))
         (is (= (.resources ^PackageResolver$Package (get (.packages packaged) "episode"))
                (.resources ^PackageResolver$Package (get (.packages refreshed) "episode")))))
-      (let [game-project (project/get-resource-node project "/game.project")
-            targets (build/resolve-node-dependencies game-project project)]
-        (is (not (g/error-value? targets)) (pr-str targets))
-        (when-not (g/error-value? targets)
-          (let [paths (coll/into-> targets #{} (map #(resource/proj-path (:resource %))))]
-            (is (contains? paths "/extra.json"))
-            (is (not (contains? paths "/episode.zip")))))))))
+      (with-manifest-view! project app-view "/packages.lumanifest"
+        (fn [{:keys [state]}]
+          (let [plan ^PackageResolver$Plan (get-in @state [:result :compiled :plan])
+                paths (.resources ^PackageResolver$Package (get (.packages plan) "episode"))]
+            (is (= #{"/extra.json"} (set paths)))))))))
 
 ;; The example separates both episode ranges from shared content, keeps custom
-;; text paths, and uses unsaved text in both Bob plans and local builds.
+;; text paths, and agrees between the editor graph and Bob with unsaved text.
 (deftest episode-packages-example
   (test-util/with-scratch-project "test/resources/live_update_packages_project"
     (let [raw (project/get-resource-node project "/episodes/00/description.txt")
@@ -722,11 +707,7 @@
                      (coll/into-> (.packages plan) #{}
                        (keep (fn [[name package]]
                                (when (contains? (.resources ^PackageResolver$Package package) "/common/shared.scriptc")
-                                 name))))))))))
-      (with-open [_ (test-util/build! (project/get-resource-node project "/game.project"))]
-        (is (= unsaved (slurp (workspace/build-path workspace "/episodes/00/description.txt") :encoding "UTF-8")))
-        (is (= "Welcome to the Live Update example.\n"
-               (slurp (workspace/build-path workspace "/common/messages.txt") :encoding "UTF-8")))))))
+                                 name)))))))))))))
 
 ;; Malformed rules remain editable without dropping either authored target.
 (deftest preserve-invalid-rule-target
