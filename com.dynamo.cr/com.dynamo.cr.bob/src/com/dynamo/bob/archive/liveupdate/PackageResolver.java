@@ -159,10 +159,20 @@ public final class PackageResolver {
         return normalized.startsWith("/") ? normalized : "/" + normalized;
     }
 
-    /** Validates Add/Remove references and supplies cycle-free choices for each package in authoring order. */
+    /** Validates package names and Add/Remove references, and supplies cycle-free choices in authoring order. */
     public static PackageReferences packageReferences(ManifestDesc manifest) {
         Map<String, Set<String>> referrers = new LinkedHashMap<>();
+        List<Diagnostic> diagnostics = new ArrayList<>();
         for (PackageDesc pkg : manifest.getPackagesList()) {
+            String name = pkg.getName();
+            if (!name.matches("[a-zA-Z0-9][a-zA-Z0-9._-]*")
+                    || name.equalsIgnoreCase("base")
+                    || name.matches("(?i)(con|prn|aux|nul|com[1-9]|lpt[1-9])([.].*)?")) {
+                diagnostics.add(new Diagnostic(Severity.ERROR, name, -1, "", "Invalid or reserved package name: " + name));
+            }
+            if (referrers.containsKey(name)) {
+                diagnostics.add(new Diagnostic(Severity.ERROR, name, -1, "", "Duplicate package: " + name));
+            }
             referrers.computeIfAbsent(pkg.getName(), k -> new LinkedHashSet<>());
         }
         for (PackageDesc pkg : manifest.getPackagesList()) {
@@ -174,7 +184,6 @@ public final class PackageResolver {
         }
 
         Map<String, List<String>> targets = new LinkedHashMap<>();
-        List<Diagnostic> diagnostics = new ArrayList<>();
         for (PackageDesc pkg : manifest.getPackagesList()) {
             String owner = pkg.getName();
 
@@ -228,9 +237,18 @@ public final class PackageResolver {
      * Validates names, rule targets, references, and per-rule no-match policies without expanding dependencies.
      */
     public static Selection select(ManifestDesc manifest, Collection<String> sourcePaths) {
+        return select(manifest, sourcePaths, true);
+    }
+
+    /** Validates authoring syntax and package references without matching a file inventory. */
+    public static List<Diagnostic> validate(ManifestDesc manifest) {
+        return select(manifest, List.of(), false).diagnostics();
+    }
+
+    /** Shares authoring checks between immediate editor validation and full resource selection. */
+    private static Selection select(ManifestDesc manifest, Collection<String> sourcePaths, boolean matchSources) {
         List<Diagnostic> diagnostics = new ArrayList<>();
         Map<RuleId, List<String>> matches = new LinkedHashMap<>();
-        Set<String> names = new LinkedHashSet<>();
         Set<String> inventory = new TreeSet<>();
         for (String source : sourcePaths) {
             inventory.add(normalize(source));
@@ -238,14 +256,6 @@ public final class PackageResolver {
 
         for (PackageDesc pkg : manifest.getPackagesList()) {
             String name = pkg.getName();
-            if (!name.matches("[a-zA-Z0-9][a-zA-Z0-9._-]*")
-                    || name.equalsIgnoreCase("base")
-                    || name.matches("(?i)(con|prn|aux|nul|com[1-9]|lpt[1-9])([.].*)?")) {
-                diagnostics.add(new Diagnostic(Severity.ERROR, name, -1, "", "Invalid or reserved package name: " + name));
-            }
-            if (!names.add(name)) {
-                diagnostics.add(new Diagnostic(Severity.ERROR, name, -1, "", "Duplicate package: " + name));
-            }
             if (pkg.getProvider().isBlank()) {
                 diagnostics.add(new Diagnostic(Severity.ERROR, name, -1, "", "A provider is required"));
             }
@@ -259,6 +269,9 @@ public final class PackageResolver {
                 } else if (rule.hasPath()) {
                     try {
                         Pattern pattern = Pattern.compile(rule.getPath());
+                        if (!matchSources) {
+                            continue;
+                        }
                         List<String> selected = inventory.stream()
                                 .filter(path -> pattern.matcher(path).matches())
                                 .toList();

@@ -126,12 +126,13 @@ public class PackageResolverTest {
     // Regexes match the complete normalized path; diagnostics identify the rule, pattern, and one-based error column.
     @Test
     public void regexDiagnostics() {
-        var selection = PackageResolver.select(manifest(pkg("pack",
+        var manifest = manifest(pkg("pack",
                 path("valid", RuleOperation.ADD, "/episodes/0[0-9]/.*[.]collection"),
                 path("partial", RuleOperation.ADD, "episodes"),
                 path("bad", RuleOperation.ADD, "["),
                 path("bad later", RuleOperation.ADD, "/episodes/["),
-                path("unfinished", RuleOperation.ADD, "/episodes/("))), List.of("episodes/01/main.collection", "/episodes/10/main.collection"));
+                path("unfinished", RuleOperation.ADD, "/episodes/(")));
+        var selection = PackageResolver.select(manifest, List.of("episodes/01/main.collection", "/episodes/10/main.collection"));
         assertEquals(List.of("/episodes/01/main.collection"), selection.matches().get(new PackageResolver.RuleId("pack", 0)));
         assertEquals(4, selection.diagnostics().size());
         assertEquals(PackageResolver.Severity.WARNING, selection.diagnostics().get(0).severity());
@@ -145,6 +146,22 @@ public class PackageResolverTest {
                 "Invalid regex in rule 'bad later' of package 'pack' at column 11: Unclosed character class. Path: /episodes/[",
                 "Invalid regex in rule 'unfinished' of package 'pack' at column 12: Unclosed group. Path: /episodes/("),
                 errors.stream().map(PackageResolver.Diagnostic::message).toList());
+        assertEquals(errors, PackageResolver.validate(manifest));
+    }
+
+    // Immediate editor validation shares Bob's reserved/duplicate names without reporting unmatched file patterns.
+    @Test
+    public void authoringValidation() {
+        var manifest = manifest(pkg("CON"), pkg("levels"), pkg("levels"),
+                pkg("data", path("missing", RuleOperation.ADD, "/missing[.]txt").toBuilder().setNoMatch(NoMatchPolicy.ERROR).build()));
+        var errors = List.of(
+                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "CON", -1, "", "Invalid or reserved package name: CON"),
+                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "levels", -1, "", "Duplicate package: levels"));
+        assertEquals(errors, PackageResolver.packageReferences(manifest).diagnostics());
+        assertEquals(errors, PackageResolver.validate(manifest));
+        var selection = PackageResolver.select(manifest, List.of());
+        assertEquals(3, selection.diagnostics().size());
+        assertTrue(selection.diagnostics().containsAll(errors));
     }
 
     // No-match policies apply to both Add and Remove rules and do not affect a successful match.
