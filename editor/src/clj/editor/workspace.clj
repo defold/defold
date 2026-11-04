@@ -243,11 +243,11 @@ ordinary paths."
 (def ^:private editable-resource-type-map-update-fn (make-editable-resource-type-map-update-fn true))
 (def ^:private non-editable-resource-type-map-update-fn (make-editable-resource-type-map-update-fn false))
 
-(declare cached-read-opts!)
+(declare evaluation-context-read-opts!)
 
 (defn- default-search-value-fn
   [node-id resource {:keys [basis-ref] :as evaluation-context}]
-  (let [read-opts (cached-read-opts! (resource/workspace resource) evaluation-context)
+  (let [read-opts (evaluation-context-read-opts! (resource/workspace resource) evaluation-context)
         save-value (resource-io/evaluate-or-read-save-value! read-opts node-id resource evaluation-context)]
     (if (and (g/error-value? save-value)
              (not (in/shell-node? (g/node-by-id @basis-ref node-id))))
@@ -634,7 +634,7 @@ ordinary paths."
       :resolve-proj-path-fn resolve-proj-path-fn
       :template-resource-fn template-resource-fn)))
 
-(defn cached-read-opts!
+(defn evaluation-context-read-opts!
   "Returns the evaluation context's shared read options, including editor
   dependencies."
   [workspace {:keys [basis-ref] :as evaluation-context}]

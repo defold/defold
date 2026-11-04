@@ -119,7 +119,7 @@
       :script-intelligence script-intelligence
       :workspace workspace})))
 
-(defn evaluation-context-load-opts [project evaluation-context]
+(defn evaluation-context-load-opts! [project evaluation-context]
   (g/tx-cached-value! evaluation-context [:load-opts]
     (make-load-opts project evaluation-context)))
 
@@ -1150,7 +1150,7 @@
             (when (coll/not-empty node-load-infos)
               (g/expand-ec
                 (fn [evaluation-context]
-                  (let [load-opts (evaluation-context-load-opts project evaluation-context)]
+                  (let [load-opts (evaluation-context-load-opts! project evaluation-context)]
                     (load-nodes-tx-data load-opts node-load-infos progress/null-render-progress! render-progress! resource-metrics)))))
             (g/callback render-progress! (progress/make-indeterminate (localization/message "progress.finalizing")))))
 
@@ -1241,10 +1241,10 @@
         resource (resource-node/resource @basis-ref node-id)
         workspace (resource/workspace resource)
         project (get-project @basis-ref)
-        read-opts (workspace/cached-read-opts! workspace evaluation-context)
+        read-opts (workspace/evaluation-context-read-opts! workspace evaluation-context)
 
         {:keys [proj-path->resource-node-id] :as load-opts}
-        (evaluation-context-load-opts project evaluation-context)
+        (evaluation-context-load-opts! project evaluation-context)
 
         node-load-info
         (g/tx-cached-value! evaluation-context [::node-load-infos node-id]
@@ -2115,7 +2115,7 @@
             ;; during resource-sync. Mark it as loaded and defective.
             creation-tx-data
             (let [node-load-info (make-file-not-found-node-load-info node-id resource resource-type)
-                  load-opts (evaluation-context-load-opts project evaluation-context)]
+                  load-opts (evaluation-context-load-opts! project evaluation-context)]
               (node-load-info-tx-data node-load-info load-opts))
 
             ;; If we're about to connect a defunloaded resource that does not
@@ -2125,7 +2125,7 @@
                  (not (resource/loaded? resource))
                  (not (:allow-unloaded-use resource-type))
                  (not (resource-node/loaded? @basis-ref existing-resource-node-id)))
-            (let [load-opts (evaluation-context-load-opts project evaluation-context)
+            (let [load-opts (evaluation-context-load-opts! project evaluation-context)
                   [load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded @basis-ref node-id resource load-opts)]
               load-tx-data))]
 

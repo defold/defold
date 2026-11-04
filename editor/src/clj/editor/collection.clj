@@ -946,7 +946,7 @@
         pb-map (game-object-common/template-pb-map basis workspace resource-type)
         resource (resource/make-memory-resource workspace resource-type pb-map)
         node-type (:node-type resource-type)
-        load-opts (project/evaluation-context-load-opts project evaluation-context)]
+        load-opts (project/evaluation-context-load-opts! project evaluation-context)]
     (g/make-nodes [resource-node [node-type :resource resource]]
       (project/load-embedded-resource-node load-opts owner-resource resource-node resource pb-map)
       (connect-embedded-go node-type resource-node node-id))))

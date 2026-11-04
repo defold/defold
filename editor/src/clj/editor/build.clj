@@ -180,7 +180,7 @@
         nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)
 
         {:keys [editable->type-ext->resource-type] :as read-opts}
-        (workspace/cached-read-opts! workspace evaluation-context)
+        (workspace/evaluation-context-read-opts! workspace evaluation-context)
 
         dependency-node-ids
         (fn dependency-node-ids [node-id]
