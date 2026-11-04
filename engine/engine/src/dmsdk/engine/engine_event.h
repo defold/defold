@@ -54,7 +54,7 @@
  * @constant
  * @name ENGINE_STATE_EVENT
  */
-#define ENGINE_STATE_EVENT ((dmhash_t)0xd92614b3c5b3e228ULL)
+#define ENGINE_STATE_EVENT ((dmhash_t)0xd92614b3c5b3e228ULL) // DM_HASH: dmHashString64("_dm_event_engine_state")
 
 /*# engine state notification kind
  * Identifies the initialization or deletion notification in EngineStateEvent.
@@ -75,7 +75,7 @@ typedef enum EngineState
  * @constant
  * @name ENGINE_WINDOW_EVENT
  */
-#define ENGINE_WINDOW_EVENT ((dmhash_t)0xb21cd20030d03b2fULL)
+#define ENGINE_WINDOW_EVENT ((dmhash_t)0xb21cd20030d03b2fULL) // DM_HASH: dmHashString64("_dm_event_engine_window")
 
 /*# window notification kind
  * Identifies the active payload in EngineWindowEvent.
