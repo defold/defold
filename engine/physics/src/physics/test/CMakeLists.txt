@@ -43,6 +43,12 @@ target_compile_definitions(test_physics_2d_box2d PRIVATE PHYSICS_TEST_BOX2D)
 physics_configure_test(test_physics_2d_box2d physics_2d ON)
 defold_target_link_bullet3d(test_physics_2d_box2d "${TARGET_PLATFORM}")
 
+defold_add_executable(test_physics_threading "${PHYSICS_TEST_ROOT}/test_physics_threading.cpp")
+physics_configure_test(test_physics_threading physics_2d ON)
+
+defold_add_executable(test_physics_threading_startup "${PHYSICS_TEST_ROOT}/test_physics_threading_startup.cpp")
+physics_configure_test(test_physics_threading_startup physics_2d ON)
+
 defold_add_executable(test_physics_2d_box2d_defold "${PHYSICS_TEST_ROOT}/test_physics_2d.cpp")
 target_compile_definitions(test_physics_2d_box2d_defold PRIVATE PHYSICS_TEST_BOX2D_DEFOLD)
 target_include_directories(test_physics_2d_box2d_defold PRIVATE "${DEFOLD_EXT_INCLUDE_DIR}/box2d_defold")

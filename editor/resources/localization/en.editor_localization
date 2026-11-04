@@ -2293,6 +2293,8 @@ form.label.project.box2d.position_iterations = Position Iterations
 form.help.project.box2d.position_iterations = Number of position-solver iterations per physics step in **Box2D 2.2**. Higher values reduce overlap and joint-position error, but use more CPU; lower values improve performance at the cost of positional accuracy.
 form.label.project.box2d.sub_step_count = Sub Step Count
 form.help.project.box2d.sub_step_count = Number of sub-steps used for each physics step in **Box2D 3.x**. Higher values improve collision and joint stability, especially for fast-moving bodies, but use more CPU; lower values improve performance at the cost of accuracy.
+form.label.project.box2d.worker_count = Worker Count
+form.help.project.box2d.worker_count = Number of background worker threads per **Box2D 3.x** world. **0** disables threading; **3** uses three workers plus the main thread. The main thread waits for each physics step to finish. Range: **0–31**. Read at startup. Ignored by Box2D 2.2 and on unsupported platforms.
 
 form.label.project.display = Display
 form.help.project.display = Resolution and other display related settings
