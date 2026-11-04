@@ -852,8 +852,13 @@ static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, d
     out.m_Count = dmProfiler::SampleGetCallCount(sample);
     out.m_Color = dmProfiler::SampleGetColor(sample);
     out.m_Indent = (uint8_t)indent;
-    const char* name = dmProfiler::SampleGetName(sample);
-    out.m_NameHash = dmHashString32(name?name:"<empty_sample_name>");
+    out.m_NameHash = dmProfiler::SampleGetNameHash(sample);
+    // The profiler renderer resolves labels through the reverse hash table.
+    if (dmHashReverse32(out.m_NameHash, 0) == 0)
+    {
+        const char* name = dmProfiler::SampleGetName(sample);
+        out.m_NameHash = dmHashString32(name ? name : "<empty_sample_name>");
+    }
     if (!out.m_Color)
         out.m_Color = MakeColorFromHash(out.m_NameHash);
 
@@ -911,8 +916,12 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfiler::
 
 static void ProcessProperty(dmProfileRender::ProfilerFrame* frame, int indent, dmProfiler::HProperty property)
 {
-    const char* name = dmProfiler::PropertyGetName(property);
-    uint32_t name_hash = dmHashString32(name?name:"<empty_property_name>");
+    uint32_t name_hash = dmProfiler::PropertyGetNameHash(property);
+    if (dmHashReverse32(name_hash, 0) == 0)
+    {
+        const char* name = dmProfiler::PropertyGetName(property);
+        name_hash = dmHashString32(name ? name : "<empty_property_name>");
+    }
 
     ProfilePropertyType type = dmProfiler::PropertyGetType(property);
     ProfilePropertyValue value = dmProfiler::PropertyGetValue(property);

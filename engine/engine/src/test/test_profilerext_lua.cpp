@@ -14,12 +14,15 @@
 
 #include <dlib/array.h>
 #include <dlib/configfile.h>
+#include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
 #include <dlib/thread.h>
 #include <extension/extension.hpp>
 #include <script/script.h>
 #include <testmain/testmain.h>
+
+#include "profiler_private.h"
 
 #include <string.h>
 
@@ -28,6 +31,8 @@
 
 namespace
 {
+    DM_PROPERTY_U32(rmtp_CachedProfilerLabel, 0, PROFILE_PROPERTY_FRAME_RESET, "#", 0);
+
     class ProfilerExtLuaTest : public jc_test_base_class
     {
     public:
@@ -169,7 +174,37 @@ namespace
         }
     };
 
+    class ProfilerExtCachedNameTest : public ProfilerExtLuaTest
+    {
+    public:
+        void SetUp() override
+        {
+            ProfilerExtLuaTest::SetUp();
+            dmHashEnableReverseHash(true);
+        }
+
+        void TearDown() override
+        {
+            ProfilerExtLuaTest::TearDown();
+            dmHashEnableReverseHash(false);
+        }
+    };
+
     ProfilerExtLuaTest* ProfilerExtLuaTest::s_LogCaptureContext = 0;
+
+    static void CheckSampleNameHashes(void* ctx, const char* thread_name, dmProfiler::HSample sample)
+    {
+        const char* name = dmProfiler::SampleGetName(sample);
+        ASSERT_EQ(dmHashBufferNoReverse32(name, strlen(name)), dmProfiler::SampleGetNameHash(sample));
+        ++*(uint32_t*)ctx;
+
+        dmProfiler::SampleIterator iter;
+        dmProfiler::SampleIterateChildren(sample, &iter);
+        while (dmProfiler::SampleIterateNext(&iter))
+        {
+            CheckSampleNameHashes(ctx, thread_name, iter.m_Sample);
+        }
+    }
 
     static void ProfileOnWorkerThread(void* arg)
     {
@@ -248,6 +283,54 @@ TEST_F(ProfilerExtLuaInvalidSampleLimitTest, AppReinitializeWhileProfiling)
 
     ReinitializeWhileProfiling();
     ASSERT_NE((char*) 0, strstr(GetLog(), "Unable to convert 'invalid' to int"));
+}
+
+// Verifies cached 64-bit and uncached scope IDs resolve to the 32-bit name
+// hashes used for profiler labels.
+TEST_F(ProfilerExtLuaTest, SampleNameHashesMatchLabels)
+{
+    ASSERT_TRUE(RunString("profiler.enable(true)"));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileSetThreadName("Main"));
+
+    uint32_t samples_checked = 0;
+    uint64_t cached_scope_hash = 0;
+    HProfile frame = ProfileFrameBegin();
+    dmProfiler::SetSampleTreeCallback(&samples_checked, CheckSampleNameHashes);
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("cached_scope", &cached_scope_hash));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("uncached_scope", 0));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("uncached_scope", 0));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("cached_scope", cached_scope_hash));
+    dmProfiler::SetSampleTreeCallback(0, 0);
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileFrameEnd(frame));
+    ASSERT_EQ(2u, samples_checked);
+}
+
+// Verifies cached sample and property hashes retain the reverse names used by
+// profiler labels, including when those reverse entries must be restored.
+TEST_F(ProfilerExtCachedNameTest, CachedHashesPreserveProfilerLabels)
+{
+    ASSERT_TRUE(RunString("profiler.enable(true)"));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileSetThreadName("Main"));
+
+    const char* sample_name = "cached_profiler_scope";
+    const char* property_name = "rmtp_CachedProfilerLabel";
+    uint32_t sample_hash = dmHashBufferNoReverse32(sample_name, strlen(sample_name));
+    uint32_t property_hash = dmHashBufferNoReverse32(property_name, strlen(property_name));
+    uint64_t cached_scope_hash = 0;
+
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        HProfile frame = ProfileFrameBegin();
+        ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin(sample_name, &cached_scope_hash));
+        DM_PROPERTY_SET_U32(rmtp_CachedProfilerLabel, i);
+        ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd(sample_name, cached_scope_hash));
+        ASSERT_EQ(PROFILE_RESULT_OK, ProfileFrameEnd(frame));
+
+        ASSERT_STREQ(sample_name, dmHashReverseSafe32(sample_hash));
+        ASSERT_STREQ(property_name, dmHashReverseSafe32(property_hash));
+        dmHashReverseErase32(sample_hash);
+        dmHashReverseErase32(property_hash);
+    }
 }
 
 TEST_F(ProfilerExtLuaTest, ScopeEndWithoutBeginRaisesLuaError)
