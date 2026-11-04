@@ -7,6 +7,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -72,22 +73,31 @@ def run(args, cwd):
                    "DM_BOB_ROOTFOLDER", "DM_JAVA_RUNTIME_FLAGS", "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE",
                    "PROCESSOR_IDENTIFIER", "PROCESSOR_LEVEL", "PROCESSOR_REVISION", "OS", "COMPUTERNAME"}
         environment = {key: value for key, value in os.environ.items() if key.upper() in allowed}
-        plain = subprocess.run(args, cwd=str(cwd))
-        print("WINDOWS_STACK_PROBE default without debugger:", plain.returncode, flush=True)
-        failures = plain.returncode != 0
-        flags = subprocess.run([args[0], "-XX:+PrintFlagsFinal", "-version"], capture_output=True, text=True)
-        print("\n".join(line for line in flags.stdout.splitlines() if "ThreadStackSize" in line), flush=True)
-        for stack in ("512k", "256k"):
-            stack_args = [args[0], "-Xss" + stack] + args[1:]
-            stack_log = log_file.with_name("windows-builtins-" + stack + "-cdb.log")
-            result = subprocess.run([debugger, "-lines", "-y", str(Path(cwd).parents[4]), "-logo", str(stack_log), "-c", commands] + stack_args,
-                                    cwd=str(cwd), env=environment)
-            log = stack_log.read_text(errors="replace") if stack_log.exists() else ""
-            exception = any(line.strip() == "WINDOWS_DIAG_EXCEPTION" for line in log.splitlines())
-            exits = re.findall(r"Exit process [^\r\n]*?code (?:0x)?([0-9a-fA-F]+)", log)
-            exit_code = int(exits[-1], 16) if exits else -1
-            print("WINDOWS_STACK_PROBE", stack, "debugger:", result.returncode, "exception:", exception, "exit:", exit_code, flush=True)
-            failures = failures or bool(result.returncode) or exception or exit_code != 0
+        image = Path(args[0]).read_bytes()
+        pe = int.from_bytes(image[60:64], "little")
+        optional = pe + 24
+        reserve = int.from_bytes(image[optional + 72:optional + 80], "little")
+        print("WINDOWS_JAVA_IMAGE_STACK_RESERVE", reserve, flush=True)
+        print("WINDOWS_ENVIRONMENT_SIZE", sum(len(k) + len(v) + 2 for k, v in os.environ.items()), flush=True)
+        shared_root = tempfile.mkdtemp(prefix="windows-stack-shared-")
+        cases = [("default-full-fresh", None, False, shared_root),
+                 ("default-full-warm", None, False, shared_root),
+                 ("default-full-fresh-again", None, False, None),
+                 ("default-clean-fresh", None, True, None),
+                 ("256k-full-fresh", "256k", False, None),
+                 ("512k-full-fresh", "512k", False, None),
+                 ("1m-full-fresh", "1m", False, None),
+                 ("2m-full-fresh", "2m", False, None)]
+        failures = False
+        for name, stack, clean, tool_root in cases:
+            if tool_root is None:
+                tool_root = tempfile.mkdtemp(prefix="windows-stack-")
+            trial_environment = environment.copy() if clean else os.environ.copy()
+            trial_environment["DM_BOB_ROOTFOLDER"] = tool_root
+            trial_args = [args[0]] + (["-Xss" + stack] if stack else []) + args[1:]
+            result = subprocess.run(trial_args, cwd=str(cwd), env=trial_environment)
+            print("WINDOWS_CONTROL_PROBE", name, "exit", result.returncode, flush=True)
+            failures = failures or result.returncode != 0
         if failures:
             raise subprocess.CalledProcessError(1, args)
         return
