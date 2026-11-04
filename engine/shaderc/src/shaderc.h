@@ -164,7 +164,6 @@ namespace dmShaderc
         , m_GlslEmitUboAsPlainUniforms(false)
         , m_GlslEs(false)
         , m_HLSLMoveSVPositionToFront(false)
-        , m_HLSLGenerateSource(false)
         , m_ExternalCompilerPath(0)
         , m_ExternalCompilerArgs(0)
         , m_RootSignatureOverride(0)
@@ -180,8 +179,6 @@ namespace dmShaderc
         uint8_t         m_GlslEmitUboAsPlainUniforms : 1;
         uint8_t         m_GlslEs                     : 1;
         uint8_t         m_HLSLMoveSVPositionToFront  : 1;
-        // Return HLSL source for an external toolchain instead of compiling DXIL.
-        uint8_t         m_HLSLGenerateSource         : 1;
 
         // Optional external compiler invocation driven from Java.
         // If both fields are set, shaderc will invoke this tool for final blob generation.

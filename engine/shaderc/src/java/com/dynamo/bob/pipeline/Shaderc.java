@@ -275,7 +275,6 @@ public class Shaderc {
         public byte glslEmitUboAsPlainUniforms = 0;
         public byte glslEs = 0;
         public byte hLSLMoveSVPositionToFront = 0;
-        public byte hLSLGenerateSource = 0;
         public String externalCompilerPath;
         public String externalCompilerArgs;
         public String rootSignatureOverride;
