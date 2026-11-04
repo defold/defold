@@ -8,4 +8,4 @@ main_collection = /main.collectionc
 game_binding = /game.input_bindingc
 
 [liveupdate]
-manifest = /liveupdate.lumanifest
+settings = /liveupdate.lumanifest

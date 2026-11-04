@@ -5,7 +5,7 @@ title = Live Update packages
 main_collection = /main.collectionc
 
 [liveupdate]
-manifest = /packages.lumanifest
+settings = /packages.lumanifest
 
 [input]
 game_binding = /game.input_bindingc

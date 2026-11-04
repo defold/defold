@@ -188,13 +188,13 @@ run `inline_libraries.py` from `share/report_libs/` and insert its generated
 
 ## Live Update package manifests
 
-Set `liveupdate.manifest = /content.lumanifest` in `game.project` to use named
-packages. Leaving this setting empty preserves legacy resource selection:
+Set `liveupdate.settings = /content.lumanifest` in `game.project` to use named
+packages. Selecting a legacy `.settings` file preserves legacy resource selection:
 a resource reachable through any non-excluded route remains bundled. Bob adapts
 the final legacy base/Live Update sets to one internal package and uses the same
 preparation and writers as manifest projects. It does not generate rules or change
-project files. ZIP/folder destinations and compression still come from
-`liveupdate.settings`; package manifests contain only their packaged resources.
+project files. In legacy mode, ZIP/folder destinations and compression still come
+from the selected `.settings` file; package manifests contain only their packaged resources.
 Legacy folder outputs retain previous resources and unrelated files, as before.
 Existing legacy ZIP/folder outputs in a bundle can be replaced without an output index.
 The [example project](../../editor/test/resources/live_update_packages_project)
@@ -261,11 +261,9 @@ Environment variables use `${NAME}`, `$NAME`, or `%NAME%`, for example
 and reports an error for undefined variables. The current values determine
 the output paths on every export.
 
-ZIP compression can be set in the manifest (see provider properties below).
-Until overridden there, Bob uses `zip-compression-level` from `liveupdate.settings`,
-or `1` if absent. Bundle-copy settings remain in `liveupdate.settings`.
-Its `zip-filepath`, `output-directory`, and single archive/folder name settings
-are ignored in manifest mode.
+ZIP compression defaults to `1` and can be set in the manifest (see provider
+properties below). Manifest mode uses its own output directory and provider
+settings; it does not read a separate legacy `.settings` file.
 
 Native engine-only bundles (`--exclude-archive`) skip package copying and require
 no package output index.
@@ -319,12 +317,13 @@ Renamed or removed artifacts are retired after all providers complete successful
 Moving or copying a project rebases ownership of artifacts within the project;
 it does not transfer ownership of external output directories.
 
-During `bundle`, Bob copies all selected artifacts through fresh staging and
+Manifest packages are written only to the manifest's output directory. Legacy
+`save-zip-in-bundle-folder` and `save-folder-in-bundle-folder` settings request an
+additional copy during `bundle`. Bob copies these artifacts through fresh staging and
 removes obsolete owned outputs. Missing source artifacts or invalid file types
 require another `build` before bundling. Failed or cancelled delivery restores
 the previous package copies and output records, so the bundle step can be retried.
-Legacy `save-zip-in-bundle-folder` and `save-folder-in-bundle-folder` settings also
-use this copy path; source artifacts remain at their configured destinations.
+Source artifacts remain at their configured destinations.
 
 ### Java providers
 
@@ -381,9 +380,9 @@ for the bundle target are available in the bundle report.
 
 Changes update the preview automatically after a short debounce. Closing the
 view stops active preview work; obsolete completions cannot replace a newer
-result. Ordinary editor builds
-also include manifest-selected resources. Bundling always resolves and validates
-the manifest again. Proxy `Exclude` values remain serialized, but the manifest
-controls packaging when selected. Without `liveupdate.manifest` in `game.project`,
-both the editor and Bob use proxy `Exclude` values and `liveupdate.settings`.
+result. The editor previews package membership; Bob builds and packages the
+selected resources. Bundling always resolves and validates the manifest again.
+Proxy `Exclude` values remain serialized, but the manifest
+controls packaging when selected. Selecting a legacy `.settings` file in
+`game.project` restores proxy `Exclude` resource selection and legacy publisher settings.
 Opening a bundle dialog does not migrate or change these settings.

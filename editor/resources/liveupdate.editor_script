@@ -48,8 +48,7 @@ local function convert(selection)
 
     local content = {
         "# Publisher settings and excluded content converted from " .. source,
-        "# Select this manifest in game.project to activate it.",
-        "# Keep the original settings file for bundle-copy settings.",
+        "# Select this manifest in game.project > Live Update > Settings to activate it.",
         "output_directory: " .. quoted(directory),
         "packages {",
         "  name: " .. quoted(name),

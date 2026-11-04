@@ -102,8 +102,7 @@ public class ArchiveBuilder {
         this.manifestBuilder = manifestBuilder;
         this.resourcePadding = resourcePadding;
         this.project = project;
-        this.publisher = com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(project).isEmpty()
-                ? project.getPublisher() : null;
+        this.publisher = project.getPublisher();
         Arrays.fill(archiveEntryPadding, (byte)0xED);
     }
 

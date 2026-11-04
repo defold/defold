@@ -110,10 +110,14 @@ public final class PackageBuilder {
     private final Map<String, Task> selectedTasks = new LinkedHashMap<>();
 
     /**
-     * Returns the manifest setting, honoring the package-manifest override; an empty path selects the legacy workflow.
+     * Returns the selected .lumanifest path, or an empty path for legacy publisher settings.
+     * The package-manifest override lets conversion compare legacy and manifest plans without editing game.project.
      */
     public static String manifestPath(Project project) {
-        String configuredPath = project.getProjectProperties().getStringValue("liveupdate", "manifest", "");
+        String configuredPath = project.getProjectProperties().getStringValue("liveupdate", "settings", "").trim();
+        if (!configuredPath.endsWith(".lumanifest")) {
+            configuredPath = "";
+        }
         return project.option("package-manifest", configuredPath).trim();
     }
 

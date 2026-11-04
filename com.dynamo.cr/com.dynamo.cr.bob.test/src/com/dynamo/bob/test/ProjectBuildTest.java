@@ -1315,14 +1315,25 @@ public class ProjectBuildTest {
     @Test
     public void testLegacyManifestConversion() throws Exception {
         createLegacyPackageProject();
+        Files.writeString(Path.of(contentRoot, "liveupdate.settings"), "save-folder-in-bundle-folder=1\n",
+                java.nio.file.StandardOpenOption.APPEND);
         PackageResolver.Plan legacy = buildPackageProject(true, false);
+        File bundle = new File(contentRoot, "bundle");
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            BundleHelper.moveBundleIfNeed(project, bundle);
+        }
+        assertTrue(new File(bundle, "published/liveupdate.game.dmanifest").isFile());
         var manifest = LiveUpdateManifest.ManifestDesc.newBuilder().setOutputDirectory("packages")
                 .addPackages(LiveUpdateManifest.PackageDesc.newBuilder().setName("liveupdate")
                         .addAllRules(PackageResolver.migrateLegacy(legacy))).build();
         createFile(contentRoot, "converted.lumanifest", TextFormat.printer().printToString(manifest));
-        Files.writeString(Path.of(contentRoot, "game.project"), "\n[liveupdate]\nmanifest = /converted.lumanifest\n",
+        Files.writeString(Path.of(contentRoot, "game.project"), "\n[liveupdate]\nsettings = /converted.lumanifest\n",
                 java.nio.file.StandardOpenOption.APPEND);
         PackageResolver.Plan converted = buildPackageProject(true, false);
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            BundleHelper.moveBundleIfNeed(project, bundle);
+        }
+        assertFalse(new File(bundle, "published").exists());
         assertEquals(legacy.base(), converted.base());
         assertEquals(legacy.packages().get("liveupdate").resources(), converted.packages().get("liveupdate").resources());
         assertEquals(legacy.base(), manifestPaths(readManifestData(getBundledManifestFile())));
@@ -1332,7 +1343,7 @@ public class ProjectBuildTest {
     }
 
     private void createPackageProject() throws IOException {
-        createExcludedLiveUpdateProject("manifest = /content.lumanifest\n");
+        createExcludedLiveUpdateProject("settings = /content.lumanifest\n");
         createFile(contentRoot, "liveupdate.settings", "[liveupdate]\nmode=Folder\nzip-filepath=packages\noutput-directory=packages\nzip-filename=ignored.zip\noutput-folder-name=ignored\n");
         createFile(contentRoot, "extra/data.json", "{\"ok\":true}");
         savePackages(
@@ -1702,28 +1713,33 @@ public class ProjectBuildTest {
         assertNoPackageStaging();
     }
 
-    // Bundling copies every declared artifact, including custom sidecars, without deleting outputs already at the destination.
+    // Manifest selection ignores the unselected legacy publisher and writes all providers to its output directory.
     @Test
-    public void testPackageBundlePlacement() throws Exception {
+    public void testManifestSettingsDoNotUseLegacyPublisher() throws Exception {
         createPackageProject();
-        Files.writeString(new File(contentRoot, "liveupdate.settings").toPath(),
+        Files.writeString(Path.of(contentRoot, "liveupdate.settings"),
                 "save-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n", java.nio.file.StandardOpenOption.APPEND);
         savePackages(livePackage("episode", "zip", addPath("Data", "/extra/.*")),
                 livePackage("copy", "folder", addPath("Data", "/extra/.*")),
                 livePackage("custom", "test-package", addPath("Data", "/extra/.*")));
         buildPackageProject(true, false);
         try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
-            project.setOption("package-manifest", "/content.lumanifest");
+            project.loadProjectFile();
             File bundle = new File(contentRoot, "bundle");
             BundleHelper.moveBundleIfNeed(project, bundle);
-            assertTrue(new File(bundle, "episode.zip").isFile());
-            assertTrue(new File(bundle, "copy/liveupdate.game.dmanifest").isFile());
-            assertArrayEquals(Files.readAllBytes(new File(contentRoot, "packages/custom.custom").toPath()),
-                    Files.readAllBytes(new File(bundle, "custom.custom").toPath()));
-            assertEquals("{\"package\":\"custom\"}", Files.readString(new File(bundle, "metadata/custom.json").toPath()));
-            BundleHelper.moveBundleIfNeed(project, new File(contentRoot, "packages"));
+            assertFalse(new File(bundle, "episode.zip").exists());
+            assertFalse(new File(bundle, "copy").exists());
+            assertFalse(new File(bundle, "custom.custom").exists());
+            assertTrue(new File(contentRoot, "packages/episode.zip").isFile());
             assertTrue(new File(contentRoot, "packages/copy/liveupdate.game.dmanifest").isFile());
+            assertTrue(new File(contentRoot, "packages/custom.custom").isFile());
+            assertEquals("{\"package\":\"custom\"}", Files.readString(Path.of(contentRoot, "packages/metadata/custom.json")));
+            try (var records = Files.list(Path.of(contentRoot, ".internal/liveupdate"))) {
+                assertFalse(records.anyMatch(path -> path.getFileName().toString().startsWith("bundle-")));
+            }
         }
+        createFile(contentRoot, "liveupdate.settings", "Not an INI file");
+        buildPackageProject(true, false);
     }
 
     // Package archives must retain the SSL certificate copy performed by the legacy archive path.
@@ -1999,66 +2015,60 @@ public class ProjectBuildTest {
         }
     }
 
-    // Bundle placement replaces selected copies and removes obsolete entries; missing or wrong-type sources fail safely.
+    // Legacy bundle copies are rebuilt each time; missing or wrong-type sources fail before replacing the previous copy.
     @Test
-    public void testPackageAlwaysCopiesBundleOutputs() throws Exception {
-        createPackageProject();
-        Files.writeString(Path.of(contentRoot, "liveupdate.settings"),
-                "save-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n", java.nio.file.StandardOpenOption.APPEND);
-        buildPackageProject(true, false);
-        Path bundle = Path.of(contentRoot, "bundle");
-        FileTime unchanged = FileTime.fromMillis(946684800000L);
-        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
-            project.setOption("package-manifest", "/content.lumanifest");
-            BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-            Path zip = bundle.resolve("episode.zip");
-            Path manifest = bundle.resolve("copy/liveupdate.game.dmanifest");
-            Path payload;
-            try (var files = Files.list(manifest.getParent())) {
-                payload = files.filter(path -> !path.equals(manifest)).findFirst().orElseThrow();
-            }
-            Files.setLastModifiedTime(zip, unchanged);
-            Files.setLastModifiedTime(manifest, unchanged);
-            Files.setLastModifiedTime(payload, unchanged);
-            BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-            assertFalse(unchanged.equals(Files.getLastModifiedTime(zip)));
-            assertFalse(unchanged.equals(Files.getLastModifiedTime(manifest)));
-
-            Path extra = bundle.resolve("copy/obsolete");
-            Files.writeString(extra, "obsolete");
-            Files.writeString(manifest, "damaged");
-            BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-            assertFalse(Files.exists(extra));
-            assertArrayEquals(Files.readAllBytes(Path.of(contentRoot, "packages/copy/liveupdate.game.dmanifest")), Files.readAllBytes(manifest));
-            assertFalse(unchanged.equals(Files.getLastModifiedTime(zip)));
-            assertFalse(unchanged.equals(Files.getLastModifiedTime(payload)));
-
-            Files.delete(zip);
-            BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-            assertArrayEquals(Files.readAllBytes(Path.of(contentRoot, "packages/episode.zip")), Files.readAllBytes(zip));
-            Files.delete(Path.of(contentRoot, "packages/episode.zip"));
-            try {
+    public void testLegacyAlwaysCopiesBundleOutputs() throws Exception {
+        createLegacyPackageProject();
+        for (String mode : List.of("Zip", "Folder")) {
+            createFile(contentRoot, "liveupdate.settings", "[liveupdate]\nmode=" + mode + "\nzip-filepath=legacy\nzip-filename=episode.zip\n"
+                    + "output-directory=legacy\noutput-folder-name=episode\nsave-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n");
+            buildPackageProject(true, false);
+            String name = mode.equals("Zip") ? "episode.zip" : "episode";
+            Path source = Path.of(contentRoot, "legacy", name);
+            Path bundle = Path.of(contentRoot, "bundle-" + mode);
+            Path destination = bundle.resolve(name);
+            Path payload = mode.equals("Zip") ? destination : destination.resolve("liveupdate.game.dmanifest");
+            try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+                project.setOption("liveupdate", "true");
                 BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-                org.junit.Assert.fail("Missing source artifacts must not silently produce an incomplete bundle");
-            } catch (IOException expected) {
-                assertTrue(expected.getMessage().contains("run build before bundling"));
-            }
-            Files.createDirectory(Path.of(contentRoot, "packages/episode.zip"));
-            try {
+                byte[] expected = Files.readAllBytes(payload);
+                FileTime old = FileTime.fromMillis(946684800000L);
+                Files.setLastModifiedTime(payload, old);
                 BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-                org.junit.Assert.fail("A declared ZIP must be a file");
-            } catch (IOException expected) {
-                assertTrue(expected.getMessage().contains("invalid file type"));
+                assertFalse(old.equals(Files.getLastModifiedTime(payload)));
+                assertArrayEquals(expected, Files.readAllBytes(payload));
+                if (mode.equals("Zip")) {
+                    Files.delete(source);
+                } else {
+                    FileUtils.deleteDirectory(source.toFile());
+                }
+                try {
+                    BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+                    org.junit.Assert.fail("Missing artifacts must fail bundling");
+                } catch (IOException e) {
+                    assertTrue(e.getMessage().contains("run build before bundling"));
+                }
+                if (mode.equals("Zip")) {
+                    Files.createDirectory(source);
+                } else {
+                    Files.writeString(source, "Wrong file type");
+                }
+                try {
+                    BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+                    org.junit.Assert.fail("Artifact types must match their declarations");
+                } catch (IOException e) {
+                    assertTrue(e.getMessage().contains("invalid file type"));
+                }
+                Files.delete(source);
+                Files.delete(Path.of(PackageArtifacts.resource(project).getAbsPath()));
+                try {
+                    BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+                    org.junit.Assert.fail("Missing indexes must not retire completed copies");
+                } catch (IOException e) {
+                    assertTrue(e.getMessage().contains("index is missing"));
+                }
+                assertArrayEquals(expected, Files.readAllBytes(payload));
             }
-            Files.delete(Path.of(PackageArtifacts.resource(project).getAbsPath()));
-            byte[] bundledZip = Files.readAllBytes(zip);
-            try {
-                BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-                org.junit.Assert.fail("Missing indexes must not retire completed package copies");
-            } catch (IOException expected) {
-                assertTrue(expected.getMessage().contains("index is missing"));
-            }
-            assertArrayEquals(bundledZip, Files.readAllBytes(zip));
         }
     }
 
@@ -2090,15 +2100,10 @@ public class ProjectBuildTest {
     @Test
     public void testPackageOwnershipFollowsProjectCopy() throws Exception {
         createPackageProject();
-        Files.writeString(Path.of(contentRoot, "liveupdate.settings"),
-                "save-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n", java.nio.file.StandardOpenOption.APPEND);
         buildPackageProject(true, false);
         String original = contentRoot;
         Path copy = Files.createTempDirectory("copied-liveupdate-project");
         try {
-            try (Project project = new Project(new DefaultFileSystem(), original, "build")) {
-                PackageWriter.copyOutputs(project, Path.of(original, "bundle"));
-            }
             FileUtils.copyDirectory(new File(original), copy.toFile());
             contentRoot = copy.toString();
             FileUtils.deleteDirectory(copy.resolve("build").toFile());
@@ -2108,12 +2113,6 @@ public class ProjectBuildTest {
             assertEquals(Set.of("/extra/data.json"), plan.packages().get("renamed").resources());
             assertFalse(Files.exists(copy.resolve("packages/episode.zip")));
             assertTrue(Files.exists(Path.of(original, "packages/episode.zip")));
-            try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
-                PackageWriter.copyOutputs(project, copy.resolve("bundle"));
-            }
-            assertFalse(Files.exists(copy.resolve("bundle/episode.zip")));
-            assertTrue(Files.exists(copy.resolve("bundle/renamed.zip")));
-            assertTrue(Files.exists(Path.of(original, "bundle/episode.zip")));
             // Missing copied artifacts must also rebuild without touching the origin.
             FileUtils.deleteDirectory(copy.resolve("packages").toFile());
             buildPackageProject(true, false);
@@ -2149,39 +2148,46 @@ public class ProjectBuildTest {
         }
     }
 
-    // Cancelling during finalization rolls back both new and replaced artifacts, leaving delivery retryable.
+    // Cancelling after installing a legacy ZIP restores the previous copy and leaves delivery retryable.
     @Test
-    public void testPackageBundleCancellationRollsBack() throws Exception {
-        createPackageProject();
-        Files.writeString(Path.of(contentRoot, "liveupdate.settings"),
-                "save-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n", java.nio.file.StandardOpenOption.APPEND);
+    public void testLegacyBundleCancellationRollsBack() throws Exception {
+        createLegacyPackageProject();
+        createFile(contentRoot, "liveupdate.settings", "[liveupdate]\nmode=Zip\nzip-filepath=legacy\nzip-filename=episode.zip\nsave-zip-in-bundle-folder=1\n");
         buildPackageProject(true, false);
         Path bundle = Path.of(contentRoot, "bundle");
         Path zip = bundle.resolve("episode.zip");
         for (boolean replacing : List.of(false, true)) {
+            byte[] previous = replacing ? Files.readAllBytes(zip) : null;
             if (replacing) {
-                Files.delete(zip);
-                createFile(contentRoot, "extra/data.json", "{\"changed\":true}");
+                createFile(contentRoot, "logic/level.script", "function init(self) self.changed = true end");
                 buildPackageProject(true, false);
             }
-            byte[] previousManifest = replacing ? Files.readAllBytes(bundle.resolve("copy/liveupdate.game.dmanifest")) : null;
+            byte[] expected = Files.readAllBytes(Path.of(contentRoot, "legacy/episode.zip"));
             try (Project cancelled = new Project(new DefaultFileSystem(), contentRoot, "build") {
                 @Override
-                public boolean isBuildCanceled() { return Files.exists(zip); }
+                public boolean isBuildCanceled() {
+                    try {
+                        return Files.exists(zip) && Arrays.equals(expected, Files.readAllBytes(zip));
+                    } catch (IOException e) {
+                        throw new java.io.UncheckedIOException(e);
+                    }
+                }
             }) {
                 try {
                     PackageWriter.copyOutputs(cancelled, bundle);
-                    org.junit.Assert.fail("Delivery must be cancelled after installing its first artifact");
-                } catch (java.io.InterruptedIOException expected) {
-                    assertFalse(Files.exists(zip));
-                    if (replacing) assertArrayEquals(previousManifest, Files.readAllBytes(bundle.resolve("copy/liveupdate.game.dmanifest")));
-                    else assertFalse(Files.exists(bundle.resolve("copy")));
+                    org.junit.Assert.fail("Delivery must be cancelled after installing the ZIP");
+                } catch (java.io.InterruptedIOException e) {
+                    if (replacing) {
+                        assertArrayEquals(previous, Files.readAllBytes(zip));
+                    } else {
+                        assertFalse(Files.exists(zip));
+                    }
                 }
             }
             try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
                 PackageWriter.copyOutputs(project, bundle);
             }
-            assertArrayEquals(Files.readAllBytes(Path.of(contentRoot, "packages/episode.zip")), Files.readAllBytes(zip));
+            assertArrayEquals(expected, Files.readAllBytes(zip));
             assertNoPackageStaging();
         }
     }
@@ -2352,12 +2358,11 @@ public class ProjectBuildTest {
         }
     }
 
-    // Web bundles restore package copies after recreating the application, without rebuilding the source packages.
+    // Web bundles restore legacy package copies after recreating the application, without rebuilding the source packages.
     @Test
     public void testHtml5PackagePlacement() throws Exception {
-        createPackageProject();
-        Files.writeString(Path.of(contentRoot, "liveupdate.settings"),
-                "save-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n", java.nio.file.StandardOpenOption.APPEND);
+        createLegacyPackageProject();
+        createFile(contentRoot, "liveupdate.settings", "[liveupdate]\nmode=Zip\nzip-filepath=packages\nzip-filename=episode.zip\nsave-zip-in-bundle-folder=1\n");
         buildPackageProject(true, false);
         try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
             project.loadProjectFile();
@@ -2378,17 +2383,12 @@ public class ProjectBuildTest {
             bundler.bundleApplication(project, Platform.WasmWeb, bundle, () -> false);
             FileTime unchanged = FileTime.fromMillis(946684800000L);
             Path zip = app.resolve("episode.zip");
-            Path manifest = app.resolve("copy/liveupdate.game.dmanifest");
             Path sourceZip = Path.of(contentRoot, "packages/episode.zip");
-            Path sourceManifest = Path.of(contentRoot, "packages/copy/liveupdate.game.dmanifest");
             Files.setLastModifiedTime(sourceZip, unchanged);
-            Files.setLastModifiedTime(sourceManifest, unchanged);
             Files.writeString(app.resolve("obsolete.txt"), "stale application file");
             bundler.bundleApplication(project, Platform.WasmWeb, bundle, () -> false);
             assertEquals(unchanged, Files.getLastModifiedTime(sourceZip));
-            assertEquals(unchanged, Files.getLastModifiedTime(sourceManifest));
             assertArrayEquals(Files.readAllBytes(sourceZip), Files.readAllBytes(zip));
-            assertArrayEquals(Files.readAllBytes(sourceManifest), Files.readAllBytes(manifest));
             assertFalse(Files.exists(app.resolve("obsolete.txt")));
             assertNoPackageStaging();
         }
@@ -2423,97 +2423,52 @@ public class ProjectBuildTest {
     @Test
     public void testPackageRetiresObsoleteArtifacts() throws Exception {
         createPackageProject();
-        Files.writeString(Path.of(contentRoot, "liveupdate.settings"),
-                "save-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n", java.nio.file.StandardOpenOption.APPEND);
         savePackages(livePackage("old", "zip", addPath("Data", "/.*[.](json|zip)")),
                 livePackage("copy", "folder", addPath("Data", "/extra/.*")));
         buildPackageProject(true, false);
-        Path bundle = Path.of(contentRoot, "bundle");
-        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
-            project.setOption("package-manifest", "/content.lumanifest");
-            BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-            byte[] previous = Files.readAllBytes(Path.of(contentRoot, "packages/old.zip"));
-            savePackages(livePackage("new", "test-package", addPath("Data", "/.*[.](json|zip)")));
-            PackageProviderFixture.fail = true;
-            try {
-                buildPackageProject(true, false);
-                org.junit.Assert.fail("Provider should fail");
-            } catch (AssertionError expected) {
-                assertTrue(expected.getMessage(), expected.getMessage().contains("Deliberate provider failure"));
-            } finally {
-                PackageProviderFixture.fail = false;
-            }
-            assertArrayEquals(previous, Files.readAllBytes(Path.of(contentRoot, "packages/old.zip")));
-            assertTrue(Files.exists(Path.of(contentRoot, "packages/copy/liveupdate.game.dmanifest")));
-            savePackages(livePackage("new", "zip", addPath("Data", "/.*[.](json|zip)")));
-            var plan = buildPackageProject(true, false);
-            assertEquals(Set.of("/extra/data.json"), plan.packages().get("new").resources());
-            assertFalse(Files.exists(Path.of(contentRoot, "packages/old.zip")));
-            assertFalse(Files.exists(Path.of(contentRoot, "packages/copy")));
-            BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-            assertFalse(Files.exists(bundle.resolve("old.zip")));
-            assertFalse(Files.exists(bundle.resolve("copy")));
-            assertTrue(Files.exists(bundle.resolve("new.zip")));
-            buildPackageProject(true, false, "clean", "build");
-            assertEquals(Set.of("/extra/data.json"), manifestPaths(zipManifest("new")));
+        byte[] previous = Files.readAllBytes(Path.of(contentRoot, "packages/old.zip"));
+        savePackages(livePackage("new", "test-package", addPath("Data", "/.*[.](json|zip)")));
+        PackageProviderFixture.fail = true;
+        try {
+            buildPackageProject(true, false);
+            org.junit.Assert.fail("Provider should fail");
+        } catch (AssertionError expected) {
+            assertTrue(expected.getMessage(), expected.getMessage().contains("Deliberate provider failure"));
+        } finally {
+            PackageProviderFixture.fail = false;
         }
+        assertArrayEquals(previous, Files.readAllBytes(Path.of(contentRoot, "packages/old.zip")));
+        assertTrue(Files.exists(Path.of(contentRoot, "packages/copy/liveupdate.game.dmanifest")));
+        savePackages(livePackage("new", "zip", addPath("Data", "/.*[.](json|zip)")));
+        var plan = buildPackageProject(true, false);
+        assertEquals(Set.of("/extra/data.json"), plan.packages().get("new").resources());
+        assertFalse(Files.exists(Path.of(contentRoot, "packages/old.zip")));
+        assertFalse(Files.exists(Path.of(contentRoot, "packages/copy")));
+        buildPackageProject(true, false, "clean", "build");
+        assertEquals(Set.of("/extra/data.json"), manifestPaths(zipManifest("new")));
         assertNoPackageStaging();
     }
 
-    // Case-only renames replace owned ZIP/folder outputs and their bundle copies on every filesystem.
+    // Case-only renames replace owned ZIP/folder outputs on every filesystem.
     @Test
     public void testPackageCaseOnlyRename() throws Exception {
         createPackageProject();
-        Files.writeString(Path.of(contentRoot, "liveupdate.settings"),
-                "save-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n", java.nio.file.StandardOpenOption.APPEND);
-        Path bundle = Path.of(contentRoot, "bundle");
-        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
-            project.setOption("package-manifest", "/content.lumanifest");
-            for (String name : List.of("episode", "Episode", "episode")) {
-                savePackages(livePackage(name, "zip", addPath("Data", "/extra/.*")),
-                        livePackage(name + "-folder", "folder", addPath("Data", "/extra/.*")));
-                buildPackageProject(true, false);
-                BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-                assertEquals(Set.of("/extra/data.json"), manifestPaths(zipManifest(name)));
-                for (Path directory : List.of(Path.of(contentRoot, "packages"), bundle)) {
-                    try (var files = Files.list(directory)) {
-                        assertEquals(Set.of(name + ".zip", name + "-folder"),
-                                files.map(path -> path.getFileName().toString()).collect(Collectors.toSet()));
-                    }
-                }
-                FileTime unchanged = FileTime.fromMillis(946684800000L);
-                Path zip = bundle.resolve(name + ".zip");
-                Files.setLastModifiedTime(zip, unchanged);
-                buildPackageProject(true, false);
-                BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-                assertFalse(unchanged.equals(Files.getLastModifiedTime(zip)));
+        for (String name : List.of("episode", "Episode", "episode")) {
+            savePackages(livePackage(name, "zip", addPath("Data", "/extra/.*")),
+                    livePackage(name + "-folder", "folder", addPath("Data", "/extra/.*")));
+            buildPackageProject(true, false);
+            assertEquals(Set.of("/extra/data.json"), manifestPaths(zipManifest(name)));
+            try (var files = Files.list(Path.of(contentRoot, "packages"))) {
+                assertEquals(Set.of(name + ".zip", name + "-folder"),
+                        files.map(path -> path.getFileName().toString()).collect(Collectors.toSet()));
             }
+            FileTime unchanged = FileTime.fromMillis(946684800000L);
+            Path zip = Path.of(contentRoot, "packages", name + ".zip");
+            Files.setLastModifiedTime(zip, unchanged);
+            buildPackageProject(true, false);
+            assertFalse(unchanged.equals(Files.getLastModifiedTime(zip)));
         }
         assertNoPackageStaging();
-    }
-
-    // Package delivery rejects unowned output paths before copying any artifacts.
-    @Test
-    public void testPackageBundleRejectsUnownedOutputs() throws Exception {
-        createPackageProject();
-        Files.writeString(Path.of(contentRoot, "liveupdate.settings"),
-                "save-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n", java.nio.file.StandardOpenOption.APPEND);
-        buildPackageProject(true, false);
-        Path bundle = Path.of(contentRoot, "bundle");
-        Path app = bundle.resolve("copy");
-        Files.createDirectories(app);
-        Files.writeString(app.resolve("game.exe"), "executable");
-        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
-            project.setOption("package-manifest", "/content.lumanifest");
-            try {
-                BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-                org.junit.Assert.fail("Existing application directory must not become a package");
-            } catch (IOException expected) {
-                assertTrue(expected.getMessage(), expected.getMessage().contains("overwrite an existing bundle output"));
-            }
-            assertEquals("executable", Files.readString(app.resolve("game.exe")));
-            assertFalse(Files.exists(bundle.resolve("episode.zip")));
-        }
     }
 
     private Project linuxPackageBundleProject() throws Exception {
@@ -2530,8 +2485,6 @@ public class ProjectBuildTest {
     @Test
     public void testPackageNativeBundleWithoutArchive() throws Exception {
         createPackageProject();
-        Files.writeString(Path.of(contentRoot, "liveupdate.settings"),
-                "save-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n", java.nio.file.StandardOpenOption.APPEND);
         Path bundle = Path.of(contentRoot, "bundle");
         try (Project project = linuxPackageBundleProject()) {
             project.setOption("exclude-archive", "true");
@@ -2602,9 +2555,9 @@ public class ProjectBuildTest {
         assertFalse(plan.base().contains("/logic/level.collectionc"));
         assertEquals(plan.base(), manifestPaths(readManifestData(getBundledManifestFile())));
         assertTrue(plan.packages().get("episode").resources().contains("/logic/shared.scriptc"));
-        // Removing the manifest restores legacy inclusion for every factory prototype and unchecked proxy.
+        // Selecting legacy settings restores inclusion for every factory prototype and unchecked proxy.
         Path gameProject = Path.of(contentRoot, "game.project");
-        Files.writeString(gameProject, Files.readString(gameProject).replace("manifest = /content.lumanifest\n", ""));
+        Files.writeString(gameProject, Files.readString(gameProject).replace("settings = /content.lumanifest\n", "settings = /liveupdate.settings\n"));
         PackageResolver.Plan legacy = buildPackageProject(true, false);
         assertTrue(legacy.packages().get("liveupdate").resources().isEmpty());
         assertEquals(legacy.resources().keySet(), legacy.base());

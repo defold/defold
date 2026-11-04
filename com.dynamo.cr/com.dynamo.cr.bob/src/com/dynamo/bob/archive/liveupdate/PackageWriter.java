@@ -54,8 +54,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
 
     private record Delivery(PackageResolver.Package pkg,
             PackageProvider provider,
-            List<PackageProvider.Artifact> artifacts,
-            boolean bundle) {}
+            List<PackageProvider.Artifact> artifacts) {}
 
     private final Project project;
     private final PackageResolver.Plan plan;
@@ -112,14 +111,18 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
      * @throws CompileExceptionError on invalid providers, settings, or output collisions
      */
     public WriteResult write(ManifestBuilder manifests, Collection<IResource> buildOutputs) throws IOException, CompileExceptionError {
-        PublisherSettings settings = project.getPublisher().getPublisherSettings();
         Map<String, PackageProvider> providers = PackageProviders.discover(Project.getClassLoaderScanner());
         PackageProvider.Context context = PackageProviders.context(project, plan, providers);
         Path legacyOutput = PackageBuilder.manifestPath(project).isEmpty() ? PackageBuilder.legacyOutput(project) : null;
         boolean legacyPlacement = legacyOutput != null;
+        boolean bundle = false;
         Path root;
         if (legacyPlacement) {
             root = legacyOutput.getParent();
+            PublisherSettings settings = project.getPublisher().getPublisherSettings();
+            bundle = settings.getMode() == PublisherSettings.PublishMode.Zip
+                    ? settings.getSaveZipInBundleFolder()
+                    : settings.getSaveFolderInBundleFolder();
         } else {
             root = PackageBuilder.outputDirectory(project);
         }
@@ -151,9 +154,6 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
             String providerId = pkg.description().getProvider();
             PackageProvider provider = providers.get(providerId);
             List<PackageProvider.Artifact> artifacts = List.copyOf(provider.describeOutputs(context, pkg));
-            boolean bundle = providerId.equals("zip")
-                    ? settings.getSaveZipInBundleFolder()
-                    : settings.getSaveFolderInBundleFolder();
             if (legacyOutput != null) {
                 String filename = legacyOutput.getFileName().toString();
                 artifacts = List.of(new PackageProvider.Artifact(filename, !providerId.equals("zip")));
@@ -204,7 +204,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                 reference.addArtifacts(artifact.name());
             }
             references.add(reference.build());
-            deliveries.add(new Delivery(pkg, provider, artifacts, bundle));
+            deliveries.add(new Delivery(pkg, provider, artifacts));
         }
 
         for (Delivery delivery : deliveries) {
@@ -252,7 +252,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                     throw new IOException("Provider did not produce a regular, non-symlink output: " + artifact.name());
                 }
                 stagedOutputs.put(destination, output);
-                outputs.add(new Output(destination, artifact.name(), artifact.directory(), delivery.bundle(), legacyPlacement));
+                outputs.add(new Output(destination, artifact.name(), artifact.directory(), bundle, legacyPlacement));
             }
             packageOutputs.put(pkg.description().getName(), List.copyOf(outputs.subList(firstOutput, outputs.size())));
         }
@@ -471,6 +471,10 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                 }
             }
             copies.put(destination, output.path());
+        }
+
+        if (outputs.isEmpty() && previous.isEmpty()) {
+            return;
         }
 
         Set<Path> obsolete = new LinkedHashSet<>(previous.keySet());

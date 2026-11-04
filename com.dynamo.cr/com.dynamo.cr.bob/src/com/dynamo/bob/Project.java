@@ -668,9 +668,13 @@ public class Project implements AutoCloseable {
         boolean manifestMode = !com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(this).isEmpty();
         try {
             String settingsPath = this.getProjectProperties().getStringValue("liveupdate", "settings", "/liveupdate.settings"); // if no value set use old hardcoded path (backward compatability)
+            if (manifestMode || settingsPath.endsWith(".lumanifest")) {
+                this.publisher = new NullPublisher(new PublisherSettings());
+                return;
+            }
             IResource publisherSettings = this.fileSystem.get(settingsPath);
             if (!publisherSettings.exists()) {
-                if (shouldPublish && !manifestMode) {
+                if (shouldPublish) {
                     IResource gameProject = getGameProjectResource();
                     throw new CompileExceptionError(gameProject, 0, "There is no liveupdate.settings file specified in game.project or the file is missing from disk.");
                 } else {
@@ -679,9 +683,7 @@ public class Project implements AutoCloseable {
             } else {
                 PublisherSettings settings = PublisherSettings.load(publisherSettings);
                 if (shouldPublish) {
-                    if (manifestMode) {
-                        this.publisher = new NullPublisher(settings);
-                    } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
+                    if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
                         this.publisher = new ZipPublisher(this, getRootDirectory(), settings);
                     } else if (PublisherSettings.PublishMode.Folder.equals(settings.getMode())) {
                         this.publisher = new FolderPublisher(getRootDirectory(), settings);

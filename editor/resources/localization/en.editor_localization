@@ -2497,7 +2497,7 @@ form.help.project.liveupdate.enabled = Initializes the runtime Live Update syste
 form.label.project.liveupdate.exclude_entries_from_main_manifest = Exclude Entries from Main Manifest
 form.help.project.liveupdate.exclude_entries_from_main_manifest = **Deprecated and ignored.** When publishing Live Update content, Defold always removes excluded entries from the bundled `game.dmanifest`, while `liveupdate.game.dmanifest` retains the complete resource list. Any existing value has no effect.
 form.label.project.liveupdate.settings = Settings
-form.help.project.liveupdate.settings = Live Update settings resource used when publishing excluded content during bundling. It selects Zip or folder output and configures its destination. The selected file must exist when publishing.
+form.help.project.liveupdate.settings = Select a `.lumanifest` file to configure Live Update packages and their output directory, or a legacy `.settings` file to bundle content selected by proxy Exclude. The selected file must exist when bundling Live Update content.
 
 form.label.project.native_extension = Native Extension
 form.help.project.native_extension = Settings for native extensions
@@ -2933,5 +2933,3 @@ liveupdate.no-match.warn = Warn
 liveupdate.no-match.error = Error
 liveupdate.no-match.ignore = Ignore
 property.liveupdate-rule.package = Package
-form.label.project.liveupdate.manifest = Package Manifest
-form.help.project.liveupdate.manifest = Select a Live Update package manifest to control resource membership and output providers. Leave empty to use proxy Exclude and the legacy publisher.

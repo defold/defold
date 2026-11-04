@@ -24,6 +24,7 @@
             [editor.fs :as fs]
             [editor.live-update-manifest :as manifest]
             [editor.live-update-manifest-view :as manifest-view]
+            [editor.live-update-settings :as live-update-settings]
             [editor.properties :as properties]
             [editor.properties-view :as properties-view]
             [editor.protobuf :as protobuf]
@@ -193,6 +194,22 @@
             (with-open [input (io/input-stream source)]
               (io/copy input destination)))))
       (PackageBuilder/buildPlan (.toPath snapshot) manifest-path {} java/class-loader (Progress/discarding)))))
+
+;; The existing Settings picker accepts both workflows and saves the selected
+;; manifest without requiring a second Package Manifest setting.
+(deftest live-update-settings-selection
+  (test-util/with-scratch-project "test/resources/live_update_packages_project"
+    (let [node (project/get-resource-node project "/game.project")
+          fields (coll/into-> (:sections (g/node-value node :form-data)) {}
+                   (mapcat :fields)
+                   (map (juxt :path identity)))
+          setting-path ["liveupdate" "settings"]]
+      (is (= ["settings" "lumanifest"] (:filter (get fields setting-path))))
+      (is (not (contains? fields ["liveupdate" "manifest"])))
+      (doseq [path ["/liveupdate.settings" "/liveupdate.lumanifest"]]
+        (test-util/set-setting! node setting-path (workspace/find-resource workspace path))
+        (is (= path (live-update-settings/get-live-update-settings-path project)))
+        (is (= path (:value (coll/first-where #(= setting-path (:path %)) (g/node-value node :save-value)))))))))
 
 ;; Package/rule edits must use graph history and preserve the authoring format
 ;; on reload.

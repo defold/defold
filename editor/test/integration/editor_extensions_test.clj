@@ -555,7 +555,7 @@
           "components { id: \"episode\" component: \"/episode.collectionproxy\" }\ncomponents { id: \"included\" component: \"/included.collectionproxy\" }\ncomponents { id: \"mixed\" component: \"/mixed.collectionproxy\" }\n")
     (spit (workspace/find-resource workspace "/game.project")
           (string/replace (slurp (workspace/find-resource workspace "/game.project"))
-                          "manifest = /liveupdate.lumanifest" "settings = /liveupdate.settings"))
+                          "settings = /liveupdate.lumanifest" "settings = /liveupdate.settings"))
     (workspace/resource-sync! workspace)
     (let [proxy-node (test-util/resource-node project "/episode.collectionproxy")
           settings-node (test-util/resource-node project "/liveupdate.settings")
