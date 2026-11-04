@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import hashlib
 import os
 import re
 import shlex
@@ -79,25 +80,34 @@ def run(args, cwd):
         reserve = int.from_bytes(image[optional + 72:optional + 80], "little")
         print("WINDOWS_JAVA_IMAGE_STACK_RESERVE", reserve, flush=True)
         print("WINDOWS_ENVIRONMENT_SIZE", sum(len(k) + len(v) + 2 for k, v in os.environ.items()), flush=True)
-        shared_root = tempfile.mkdtemp(prefix="windows-stack-shared-")
-        cases = [("default-full-fresh", None, False, shared_root),
-                 ("default-full-warm", None, False, shared_root),
-                 ("default-full-fresh-again", None, False, None),
-                 ("default-clean-fresh", None, True, None),
-                 ("256k-full-fresh", "256k", False, None),
-                 ("512k-full-fresh", "512k", False, None),
-                 ("1m-full-fresh", "1m", False, None),
-                 ("2m-full-fresh", "2m", False, None)]
+        original_root = os.environ.get("DM_BOB_ROOTFOLDER")
+        print("WINDOWS_ORIGINAL_TOOL_ROOT", original_root, flush=True)
+        original_files = sorted(Path(original_root).rglob("*"))
+        print("WINDOWS_ORIGINAL_FILE_COUNT", sum(path.is_file() for path in original_files), flush=True)
+        copied_root = tempfile.mkdtemp(prefix="windows-original-copy-")
+        shutil.copytree(original_root, copied_root, dirs_exist_ok=True)
+        cases = [("original-first", original_root),
+                 ("fresh-first", tempfile.mkdtemp(prefix="windows-fresh-")),
+                 ("original-again", original_root),
+                 ("copied-original", copied_root),
+                 ("fresh-again", tempfile.mkdtemp(prefix="windows-fresh-"))]
         failures = False
-        for name, stack, clean, tool_root in cases:
-            if tool_root is None:
-                tool_root = tempfile.mkdtemp(prefix="windows-stack-")
-            trial_environment = environment.copy() if clean else os.environ.copy()
+        for name, tool_root in cases:
+            trial_environment = os.environ.copy()
             trial_environment["DM_BOB_ROOTFOLDER"] = tool_root
-            trial_args = [args[0]] + (["-Xss" + stack] if stack else []) + args[1:]
-            result = subprocess.run(trial_args, cwd=str(cwd), env=trial_environment)
-            print("WINDOWS_CONTROL_PROBE", name, "exit", result.returncode, flush=True)
+            result = subprocess.run(args, cwd=str(cwd), env=trial_environment)
+            print("WINDOWS_ROOT_PROBE", name, "exit", result.returncode, flush=True)
             failures = failures or result.returncode != 0
+        with zipfile.ZipFile(args[args.index("-cp") + 1]) as archive:
+            for name, root in (("original", original_root), ("fresh", cases[1][1])):
+                for path in sorted(Path(root).rglob("*")):
+                    if not path.is_file() or path.suffix not in (".dll", ".exe"):
+                        continue
+                    relative = path.relative_to(root).as_posix()
+                    packed_name = "libexec/" + relative
+                    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                    packed_digest = hashlib.sha256(archive.read(packed_name)).hexdigest() if packed_name in archive.namelist() else "absent"
+                    print("WINDOWS_TOOL_COMPARE", name, relative, "jar-match", digest == packed_digest, "sha256", digest, flush=True)
         if failures:
             raise subprocess.CalledProcessError(1, args)
         return
