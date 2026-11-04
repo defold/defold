@@ -171,11 +171,26 @@ the installed binaries' ELF dependencies and symbol versions before publishing
 packages. A compiler may require a newer C++ language version without requiring
 a newer runtime; the source build and runtime checks establish that separately.
 
+## Windows ASAN package update (2026-11-04)
+
+- Rebuilt `dxc-1.9.2609-x86_64-win32.tar.gz` with MSVC 19.51.36246,
+  Release configuration, and the static CRT, applying the same three
+  variable-sized allocation fixes as the Linux update below.
+- The archive is 9,210,989 bytes and contains the same 38 files. Clean extraction
+  matched the staged installation byte-for-byte. Only `dxc.exe`, `dxcompiler.dll`,
+  and `dxil.dll` changed; headers, licenses, and the import library are unchanged.
+  All three binaries are x64 and import only Windows system libraries.
+- Standalone SM6 vertex, pixel (including sparse output slots and mixed numeric
+  types), and compute compilation passed using the extracted package.
+- All 33 shaderc tests passed with the rebuilt compiler DLL, including pixel
+  output metadata and Windows root-signature validation, along with all four
+  standalone CLI tests. These were ordinary Windows tests, not an ASAN run.
+
 ## Linux ASAN package update (2026-11-04)
 
 - Rebuilt both Linux archives with Clang 20.1.8 in the documented Ubuntu 22.04
   images, applying the three variable-sized allocation fixes in `patch.cmake`.
-  The macOS and Windows archives were not rebuilt for this update.
+  The macOS archives were not rebuilt; the Windows rebuild is recorded above.
 - Before the fix, an ASAN-enabled DXC API harness using the shader and arguments
   from `Shaderc.HLSLPixelOutputMetadata` reproduced the 64/32-byte mismatch on
   both Linux architectures. Fixing `CGFunctionInfo` exposed a second mismatch
