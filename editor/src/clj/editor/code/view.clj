@@ -2394,9 +2394,12 @@
             ^double cell-height (data/line-height glyph-metrics)
             max-visible-completions-count 10
             text (doto (Text.) (.setFont font))
-            hint-height (if completions-shortcut-text 15 0)
-            footer-height (+ hint-height (if language-server-loading-text cell-height 0))
+            hint-height (if completions-shortcut-text 15.0 0.0)
             loading-indicator-size 12.0
+            loading-padding 6.0
+            loading-spacing 8.0
+            loading-height (max cell-height (+ loading-indicator-size (* 2.0 loading-padding)))
+            footer-height (+ hint-height (if language-server-loading-text loading-height 0.0))
             min-completions-height (* (min 3 item-count) cell-height)
             min-completions-width 150.0
             [^Point2D anchor ^Rectangle2D screen-bounds]
@@ -2438,7 +2441,8 @@
                                              max-display-string-width)
                                           (if language-server-loading-text
                                             (+ loading-indicator-size
-                                               completion-icon-text-spacing
+                                               loading-spacing
+                                               (* 2.0 loading-padding)
                                                (-> text
                                                    (doto (.setText language-server-loading-text))
                                                    .getLayoutBounds
@@ -2498,12 +2502,13 @@
 
                language-server-loading-text
                (conj {:fx/type fx.h-box/lifecycle
-                      :style-class "completion-popup-hint"
+                      :style-class "completion-popup-loading"
                       :alignment :center-left
-                      :spacing completion-icon-text-spacing
-                      :pref-height cell-height
-                      :min-height cell-height
-                      :max-height cell-height
+                      :spacing loading-spacing
+                      :padding loading-padding
+                      :pref-height loading-height
+                      :min-height loading-height
+                      :max-height loading-height
                       :pref-width completions-width
                       :max-width completions-width
                       :min-width completions-width
@@ -3459,9 +3464,18 @@
             localization (get-property view-node :localization evaluation-context)]
         (if-not (lsp/has-language-servers-running-for-resource? lsp resource)
           (show-no-language-server-for-resource-language-notification! resource)
-          (let [document-symbols (get-property view-node :document-symbols evaluation-context)
-                items (mapv #(select-keys % [:name :kind :selection-range :detail :tags])
-                            (flatten-document-symbols document-symbols))
+          (let [document-symbols->items (fn document-symbols->items [document-symbols]
+                                          (mapv #(select-keys % [:name :kind :selection-range :detail :tags])
+                                                (flatten-document-symbols document-symbols)))
+                items (document-symbols->items (get-property view-node :document-symbols evaluation-context))
+                items-ref (when (lsp/document-symbols-pending? lsp resource)
+                            (let [items-ref (atom nil)]
+                              (lsp/on-document-symbols-ready!
+                                lsp resource
+                                (fn on-document-symbols-ready []
+                                  (ui/run-later
+                                    (reset! items-ref (document-symbols->items (g/node-value view-node :document-symbols))))))
+                              items-ref))
                 ;; Previewing moves the cursor as the selection changes, so remember
                 ;; where we started to put it back if the dialog is cancelled.
                 original-view {:cursor-ranges (get-property view-node :cursor-ranges evaluation-context)
@@ -3472,6 +3486,8 @@
                   items
                   localization
                   {:title (localization/message "dialog.jump-to-symbol.title")
+                   :items-ref items-ref
+                   :loading-message language-server-loading-message
                    :ok-label (localization/message "dialog.jump-to-symbol.button.ok")
                    :prompt (localization/message "dialog.jump-to-symbol.prompt")
                    :filter-fn (partial fuzzy-choices/filter-options :name :name)

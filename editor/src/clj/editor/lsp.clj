@@ -535,7 +535,10 @@
             (g/transact
               {:undoable false}
               (g/set-property view-node :document-symbols document-symbols))))
-        (update state :active-requests dissoc (document-symbols-id resource)))
+        (run! #(%) (get-in state [:active-request-listeners (document-symbols-id resource)]))
+        (-> state
+            (update :active-requests dissoc (document-symbols-id resource))
+            (update :active-request-listeners dissoc (document-symbols-id resource))))
       state)))
 
 (defn- cancel-document-symbols-request [state resource]
@@ -766,6 +769,7 @@
                        ;; map from debounce id to cancel-ch (close to cancel)
                        :debounce {}
                        :active-requests {}
+                       :active-request-listeners {}
                        ;; map {resource {:lines ["code..."] :version int}},
                        ;; indicates that the resource is open
                        ;; invariant: every viewed resource must be open
@@ -823,6 +827,24 @@
             (set-view-node-completion-trigger-characters-tx state resource view-node)
             (set-view-node-language-server-busy-tx state resource view-node))))
       state)))
+
+(defn document-symbols-pending?
+  "Whether the document symbols request for a viewed resource awaits an answer"
+  [lsp resource]
+  (contains? (:active-requests (lsp)) (document-symbols-id resource)))
+
+(defn on-document-symbols-ready!
+  "Call ready-fn once the pending document symbols request for a viewed
+  resource is answered, or right away if no request is pending
+
+  ready-fn receives no args and runs on the LSP manager thread after the view
+  update is scheduled, so a ui/run-later from ready-fn sees the new symbols"
+  [lsp resource ready-fn]
+  (lsp (bound-fn add-document-symbols-listener [state]
+         (let [id (document-symbols-id resource)]
+           (if (contains? (:active-requests state) id)
+             (update-in state [:active-request-listeners id] (fnil conj []) ready-fn)
+             (do (ready-fn) state))))))
 
 (defn set-render-progress!
   "Set the function that shows language server progress in the editor"
@@ -1247,4 +1269,16 @@
          :launcher {:command ["build/plugins/lsp-lua-language-server/plugins/bin/arm64-macos/bin/lua-language-server" "--configpath=build/plugins/lsp-lua-language-server/plugins/share/config.json"]}}
       #_{:languages #{"lua"}
          :watched-files [{:pattern "**/.luacheckrc"}]
-         :launcher {:command ["/Users/vlaaad/Projects/vscode-luacheck/lua_language_server" "--"]}}}))
+         :launcher {:command ["/Users/vlaaad/Projects/vscode-luacheck/lua_language_server" "--"]}}})
+  ;; Simulate editor startup: clear open views' symbols, then restart all servers
+  (let [lsp (g/graph-value :lsp)]
+    (g/transact
+      {:undoable false}
+      (for [view-node (keys (:view-node->resource (lsp)))]
+        (g/set-property view-node :document-symbols [])))
+    (lsp (fn [state]
+           (let [servers (set (keys (:server->server-state state)))]
+             (-> state
+                 ((set-servers #{}))
+                 ((set-servers servers)))))))
+  :-)
