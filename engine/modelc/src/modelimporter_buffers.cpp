@@ -296,8 +296,8 @@ namespace dmModelImporter
         {
             const ModelBufferDescriptor& range = ranges[indices[i]];
             const ModelBufferDescriptor& target = descriptors[i];
-            memcpy(output.Begin() + header->m_VertexOffset + target.m_VertexOffset, (const uint8_t*)data + source->m_VertexOffset + range.m_VertexOffset, range.m_VertexCount * range.m_Stride);
-            memcpy(output.Begin() + header->m_IndexOffset + target.m_IndexOffset, (const uint8_t*)data + source->m_IndexOffset + range.m_IndexOffset, range.m_IndexCount * range.m_IndexElementSize);
+            memcpy(output.Begin() + header->m_VertexOffset + target.m_VertexOffset, (const uint8_t*)data + source->m_VertexOffset + range.m_VertexOffset, (size_t)range.m_VertexCount * range.m_Stride);
+            memcpy(output.Begin() + header->m_IndexOffset + target.m_IndexOffset, (const uint8_t*)data + source->m_IndexOffset + range.m_IndexOffset, (size_t)range.m_IndexCount * range.m_IndexElementSize);
         }
         return true;
     }
