@@ -135,7 +135,7 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
             int geometryTasks = 0;
             for (TaskResult result : getProject().build(Progress.discarding(), "build")) {
                 assertTrue(result.toString(), result.isOk());
-                if (result.getTask().getBuilder() instanceof ModelBuffersBuilder) {
+                if (result.getTask().getBuilder() instanceof CopyBuilders.ModelBuffersBuilder) {
                     ++geometryTasks;
                     assertEquals(expected, result.getResult());
                 }
@@ -164,7 +164,7 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         int rebuilt = 0;
         for (TaskResult result : getProject().build(Progress.discarding(), "build")) {
             assertTrue(result.toString(), result.isOk());
-            if (result.getTask().getBuilder() instanceof ModelBuffersBuilder) {
+            if (result.getTask().getBuilder() instanceof CopyBuilders.ModelBuffersBuilder) {
                 ++rebuilt;
                 assertEquals(TaskResult.Result.SUCCESS, result.getResult());
             }

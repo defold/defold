@@ -354,6 +354,7 @@
                 (rig/make-mesh-set-build-target workspace
                                                 _node-id
                                                 selected-mesh-set
+                                                (:model-buffers mesh-content)
                                                 (:morph-target-textures mesh-content))))
             animation-set-build-target (if (nil? animation-set-build-target-single) animation-set-build-target animation-set-build-target-single)
             rt-pb-msg (cond-> {:buffers (get-in mesh-set-build-target [:user-data :model-buffers])

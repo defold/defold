@@ -41,10 +41,59 @@ public class ModelBuffersTest {
         return MeshSet.newBuilder().addModels(Model.newBuilder().setId(1).setLocal(Transform.getDefaultInstance()).addMeshes(mesh)).build();
     }
 
+    private float[] floats(List<Float> values) {
+        float[] result = new float[values.size()];
+        for (int i = 0; i < result.length; ++i) result[i] = values.get(i);
+        return result;
+    }
+
+    private Modelimporter.Mesh nativeMesh(Mesh mesh) {
+        Modelimporter.Mesh result = new Modelimporter.Mesh();
+        result.positions = floats(mesh.getPositionsList());
+        result.normals = floats(mesh.getNormalsList());
+        result.tangents = floats(mesh.getTangentsList());
+        result.colors = floats(mesh.getColorsList());
+        result.texCoords0 = floats(mesh.getTexcoord0List());
+        result.texCoords1 = floats(mesh.getTexcoord1List());
+        result.weights = floats(mesh.getWeightsList());
+        result.bones = mesh.getBoneIndicesList().stream().mapToInt(Integer::intValue).toArray();
+        result.vertexCount = mesh.getPositionsCount() / 3;
+        ByteBuffer indices = mesh.getIndices().asReadOnlyByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+        boolean wide = mesh.getIndicesFormat() == com.dynamo.rig.proto.Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_32;
+        result.indices = new int[indices.remaining() / (wide ? 4 : 2)];
+        for (int i = 0; i < result.indices.length; ++i) result.indices[i] = wide ? indices.getInt() : Short.toUnsignedInt(indices.getShort());
+        return result;
+    }
+
+    private byte[] compile(List<Mesh> meshes) {
+        return ModelImporterJni.CompileModelBuffers(meshes.stream().map(this::nativeMesh).toArray(Modelimporter.Mesh[]::new));
+    }
+
+    private ModelBuffers.Compiled compile(MeshSet source) {
+        List<Modelimporter.Mesh> meshes = new ArrayList<>();
+        for (List<Model> models : List.of(source.getModelsList(), source.getRawModelsList())) {
+            for (Model model : models) {
+                for (Mesh mesh : model.getMeshesList()) meshes.add(nativeMesh(mesh));
+            }
+        }
+        byte[] buffers = ModelImporterJni.CompileModelBuffers(meshes.toArray(Modelimporter.Mesh[]::new));
+        MeshSet.Builder indexed = source.toBuilder();
+        int index = 0;
+        for (List<Model.Builder> models : List.of(indexed.getModelsBuilderList(), indexed.getRawModelsBuilderList())) {
+            for (Model.Builder model : models) {
+                for (Mesh.Builder mesh : model.getMeshesBuilderList()) {
+                    Modelimporter.Mesh nativeMesh = meshes.get(index++);
+                    mesh.setBufferIndex(nativeMesh.bufferIndex).setVertexCount(nativeMesh.vertexCount);
+                }
+            }
+        }
+        return ModelBuffers.compile(indexed.build(), buffers);
+    }
+
     // The file prefix and GPU bytes must match the engine format, including absent-attribute defaults.
     @Test
     public void staticLayout() {
-        ByteBuffer data = ByteBuffer.wrap(ModelBuffers.compile(List.of(mesh().build()))).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer data = ByteBuffer.wrap(compile(List.of(mesh().build()))).order(ByteOrder.LITTLE_ENDIAN);
         assertArrayEquals(new byte[]{'D', 'M', 'M', 'B'}, Arrays.copyOf(data.array(), 4));
         assertEquals(2, data.getInt(4));
         assertEquals(1, data.getInt(16));
@@ -66,12 +115,16 @@ public class ModelBuffersTest {
     public void mixedLayouts() {
         Mesh skin = mesh().addAllWeights(List.of(0.75f, 0.25f, 0.0f, 0.0f))
                 .addAllBoneIndices(List.of(2, 7, 0, 0)).build();
-        ByteBuffer data = ByteBuffer.wrap(ModelBuffers.compile(List.of(mesh().build(), skin))).order(ByteOrder.LITTLE_ENDIAN);
+        Modelimporter.Mesh rigid = nativeMesh(mesh().build());
+        Modelimporter.Mesh skinned = nativeMesh(skin);
+        ByteBuffer data = ByteBuffer.wrap(ModelImporterJni.CompileModelBuffers(new Modelimporter.Mesh[]{rigid, skinned})).order(ByteOrder.LITTLE_ENDIAN);
         assertEquals(2, data.getInt(16));
-        int range = 36 + 28;
-        assertEquals(80, data.getInt(range));
+        assertNotEquals(rigid.bufferIndex, skinned.bufferIndex);
+        int range = 36 + skinned.bufferIndex * 28;
+        assertEquals(0, data.getInt(range) % 16);
         assertEquals(104, data.getInt(range + 8));
-        assertEquals(4, data.getInt(range + 12));
+        assertEquals(0, data.getInt(range + 12) % 4);
+        assertNotEquals(data.getInt(36 + rigid.bufferIndex * 28), data.getInt(range));
         int vertex = data.getInt(20) + data.getInt(range);
         assertEquals(0.75f, data.getFloat(vertex + 72), 0);
         assertEquals(0.25f, data.getFloat(vertex + 76), 0);
@@ -85,10 +138,10 @@ public class ModelBuffersTest {
         Mesh first = mesh().build();
         Mesh second = first.toBuilder().setMaterialIndex(4).setMorphTargetTexture("/different.texturec")
                 .setMorphTargetCount(1).addMorphBaseWeights(0.5f).build();
-        var geometries = ModelBuffers.geometries(meshSet(first));
-        assertArrayEquals(ModelBuffers.compile(geometries), ModelBuffers.compile(ModelBuffers.geometries(meshSet(second))));
-        assertFalse(Arrays.equals(ModelBuffers.compile(geometries), ModelBuffers.compile(List.of(first.toBuilder().setPositions(0, 2.0f).build()))));
-        Mesh metadata = ModelBuffers.metadata(meshSet(second), geometries).getModels(0).getMeshes(0);
+        var compiled = compile(meshSet(first));
+        assertArrayEquals(compiled.data(), compile(meshSet(second)).data());
+        assertFalse(Arrays.equals(compiled.data(), compile(List.of(first.toBuilder().setPositions(0, 2.0f).build()))));
+        Mesh metadata = ModelBuffers.metadata(meshSet(second), compiled.metadata()).getModels(0).getMeshes(0);
         assertEquals(4, metadata.getMaterialIndex());
         assertEquals("/different.texturec", metadata.getMorphTargetTexture());
         assertEquals(List.of(0.5f), metadata.getMorphBaseWeightsList());
@@ -103,7 +156,7 @@ public class ModelBuffersTest {
         Material renamed = first.toBuilder().setName("Second").setIndex(2).setIsSkinned(true).build();
         Material different = first.toBuilder().setAlphaCutoff(0.75f).build();
         MeshSet source = MeshSet.newBuilder().addMaterials(first).addMaterials(renamed).addMaterials(different).build();
-        MeshSet metadata = ModelBuffers.metadata(source, List.of());
+        MeshSet metadata = compile(source).metadata();
         assertNotEquals(0L, metadata.getMaterials(0).getMaterialHash());
         assertEquals(metadata.getMaterials(0).getMaterialHash(), metadata.getMaterials(1).getMaterialHash());
         assertNotEquals(metadata.getMaterials(0).getMaterialHash(), metadata.getMaterials(2).getMaterialHash());
@@ -117,10 +170,10 @@ public class ModelBuffersTest {
         Model second = first.toBuilder().setId(2).setMeshes(0, mesh().setPositions(0, 9).build()).build();
         MeshSet source = MeshSet.newBuilder().addModels(first).addModels(second).addModels(first.toBuilder().setId(3)).build();
         MeshSet reordered = source.toBuilder().clearModels().addModels(second).addModels(first).build();
-        var geometries = ModelBuffers.geometries(source);
-        assertEquals(2, geometries.size());
-        assertArrayEquals(ModelBuffers.compile(geometries), ModelBuffers.compile(ModelBuffers.geometries(reordered)));
-        MeshSet metadata = ModelBuffers.metadata(source, geometries);
+        var compiled = compile(source);
+        assertEquals(2, ByteBuffer.wrap(compiled.data()).order(ByteOrder.LITTLE_ENDIAN).getInt(16));
+        assertArrayEquals(compiled.data(), compile(reordered).data());
+        MeshSet metadata = compiled.metadata();
         assertEquals(metadata.getModels(0).getMeshes(0).getBufferIndex(), metadata.getModels(2).getMeshes(0).getBufferIndex());
         assertNotEquals(metadata.getModels(0).getMeshes(0).getBufferIndex(), metadata.getModels(1).getMeshes(0).getBufferIndex());
     }
@@ -134,11 +187,11 @@ public class ModelBuffersTest {
         MeshSet selected = ModelBuffers.selectMeshes(source, 1);
         assertEquals(1, selected.getModelsCount());
         assertEquals(1, selected.getRawModelsCount());
-        assertEquals(1, ModelBuffers.geometries(selected).size());
+        assertEquals(1, ByteBuffer.wrap(compile(selected).data()).order(ByteOrder.LITTLE_ENDIAN).getInt(16));
         MeshSet whole = ModelBuffers.selectMeshes(source, -1);
         assertEquals(2, whole.getModelsCount());
         assertEquals(0, whole.getRawModelsCount());
-        assertEquals(2, ModelBuffers.geometries(whole).size());
+        assertEquals(2, ByteBuffer.wrap(compile(whole).data()).order(ByteOrder.LITTLE_ENDIAN).getInt(16));
     }
 
     // Many primitives must remain draw ranges in one resource, not separate resource dependencies.
@@ -146,7 +199,7 @@ public class ModelBuffersTest {
     public void manyRanges() {
         List<Mesh> meshes = new ArrayList<>();
         for (int i = 0; i < 1100; ++i) meshes.add(mesh().setPositions(0, i).build());
-        ByteBuffer data = ByteBuffer.wrap(ModelBuffers.compile(meshes)).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer data = ByteBuffer.wrap(compile(meshes)).order(ByteOrder.LITTLE_ENDIAN);
         assertEquals(1100, data.getInt(16));
         assertTrue(data.getInt(20) > 36 + 1100 * 28);
         assertEquals(data.capacity(), data.getInt(28) + data.getInt(32));

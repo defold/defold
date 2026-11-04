@@ -13,6 +13,9 @@
 // specific language governing permissions and limitations under the License.
 
 #include "res_model_buffers.h"
+#include "../modelbuffers.h"
+
+#include <assert.h>
 
 #include <dlib/log.h>
 #include <rig/rig.h>
@@ -21,58 +24,8 @@
 
 namespace dmGameSystem
 {
-    // DMMB v2 is little-endian. See ModelBuffers.java for the build-time writer.
-    enum
-    {
-        HEADER_SIZE = 36,
-        RANGE_SIZE  = 28
-    };
-    // Attribute indices are also the DMMB mask bit positions.
-    enum
-    {
-        ATTRIBUTE_POSITION     = 0,
-        ATTRIBUTE_NORMAL       = 1,
-        ATTRIBUTE_TANGENT      = 2,
-        ATTRIBUTE_COLOR        = 3,
-        ATTRIBUTE_TEXCOORD0    = 4,
-        ATTRIBUTE_TEXCOORD1    = 5,
-        ATTRIBUTE_WEIGHTS      = 6,
-        ATTRIBUTE_BONE_INDICES = 7,
-        ATTRIBUTE_COUNT
-    };
-    enum
-    {
-        ATTRIBUTE_MASK_SKINNING = (1 << ATTRIBUTE_WEIGHTS) | (1 << ATTRIBUTE_BONE_INDICES),
-        ATTRIBUTE_MASK_ALL      = (1 << ATTRIBUTE_COUNT) - 1
-    };
-    // Indexed by attribute-mask bit position: position, normal, tangent, color,
-    // texcoord0, texcoord1, skin weights, bone indices. Counts are scalar values
-    // per vertex; offsets are bytes from the start of an interleaved vertex.
-    // The first six attributes use 72 bytes; skinning adds 32 bytes. See
-    // ModelBuffers.compile() for the file layout and missing-attribute defaults.
-    static const uint32_t ATTRIBUTE_COMPONENT_COUNTS[ATTRIBUTE_COUNT] = { 3, 3, 4, 4, 2, 2, 4, 4 };
-    static const uint32_t ATTRIBUTE_BYTE_OFFSETS[ATTRIBUTE_COUNT] = { 0, 12, 24, 40, 56, 64, 72, 88 };
-
-    // Decoded fields retained after prefix validation; this is not an on-disk struct.
-    struct ModelBuffersHeader
-    {
-        uint32_t m_RangeCount;
-        uint32_t m_VertexOffset;
-        uint32_t m_VertexSize;
-        uint32_t m_IndexOffset;
-        uint32_t m_IndexSize;
-    };
-
-    struct ModelBufferDescriptor
-    {
-        uint32_t m_VertexOffset;
-        uint32_t m_VertexCount;
-        uint32_t m_Stride;
-        uint32_t m_IndexOffset;
-        uint32_t m_IndexCount;
-        uint32_t m_IndexElementSize;
-        uint32_t m_AttributeMask;
-    };
+    DM_STATIC_ASSERT(sizeof(dmRig::RigModelVertex) == STATIC_VERTEX_STRIDE, Invalid_static_model_buffer_vertex_size);
+    DM_STATIC_ASSERT(sizeof(dmRig::RigModelSkinnedVertex) == SKINNED_VERTEX_STRIDE, Invalid_skinned_model_buffer_vertex_size);
 
     struct ModelBufferRange
     {
@@ -94,56 +47,45 @@ namespace dmGameSystem
         uint32_t                  m_CPUDataSize;
     };
 
-    static uint32_t ReadInteger(const uint8_t* data)
-    {
-        return (uint32_t)data[0] | (uint32_t)data[1] << 8 | (uint32_t)data[2] << 16 | (uint32_t)data[3] << 24;
-    }
-
     // DM_ALIGN casts to uintptr_t; file validation must retain 64 bits on 32-bit targets.
     static uint64_t AlignFileOffset(uint64_t value, uint32_t alignment)
     {
         return (value + alignment - 1) & ~(uint64_t)(alignment - 1);
     }
 
-    static bool HasHeader(const uint8_t* bytes, uint32_t size)
+    static bool HasHeader(const ModelBuffersHeader* header, uint32_t size)
     {
-        return size >= HEADER_SIZE && memcmp(bytes, "DMMB", 4) == 0;
+        return size >= sizeof(ModelBuffersHeader) && memcmp(header->m_Magic, MODEL_BUFFERS_MAGIC, sizeof(header->m_Magic)) == 0;
     }
 
-    static dmResource::Result ParseBuffers(const void* data, uint32_t size, ModelBuffersResource* output, const ModelBuffersResource* expected)
+    static dmResource::Result ValidateBuffers(const void* data, uint32_t size, ModelBuffersResource* output, const ModelBuffersResource* expected)
     {
-        const uint8_t* bytes = (const uint8_t*)data;
-        if (!HasHeader(bytes, size))
+        const ModelBuffersHeader* file_header = (const ModelBuffersHeader*)data;
+        if (!HasHeader(file_header, size))
         {
             return dmResource::RESULT_INVALID_DATA;
         }
 
-        uint32_t version = ReadInteger(bytes + 4);
-        uint32_t compression = ReadInteger(bytes + 8);
-        if (version != 2 || compression != 0)
+        assert(((uintptr_t)data & (sizeof(uint32_t) - 1)) == 0);
+        const ModelBuffersHeader& header = *file_header;
+        const ModelBufferDescriptor* ranges = (const ModelBufferDescriptor*)(&header + 1);
+        if (header.m_Version != MODEL_BUFFERS_VERSION || header.m_Compression != 0)
         {
             return dmResource::RESULT_INVALID_DATA;
         }
 
-        ModelBuffersHeader header;
-        header.m_RangeCount = ReadInteger(bytes + 16);
-        header.m_VertexOffset = ReadInteger(bytes + 20);
-        header.m_VertexSize = ReadInteger(bytes + 24);
-        header.m_IndexOffset = ReadInteger(bytes + 28);
-        header.m_IndexSize = ReadInteger(bytes + 32);
-
-        uint64_t descriptor_end = HEADER_SIZE + (uint64_t)header.m_RangeCount * RANGE_SIZE;
+        uint64_t descriptor_end = sizeof(ModelBuffersHeader) + (uint64_t)header.m_RangeCount * sizeof(ModelBufferDescriptor);
         uint64_t vertex_payload_end = (uint64_t)header.m_VertexOffset + header.m_VertexSize;
         uint64_t index_payload_end = (uint64_t)header.m_IndexOffset + header.m_IndexSize;
         uint64_t decoded_size = (uint64_t)header.m_VertexSize + header.m_IndexSize;
-        if (header.m_RangeCount > (size - HEADER_SIZE) / RANGE_SIZE ||
-            header.m_VertexOffset != AlignFileOffset(descriptor_end, 16))
+        if (header.m_RangeCount > (size - sizeof(ModelBuffersHeader)) / sizeof(ModelBufferDescriptor) ||
+            header.m_VertexOffset != AlignFileOffset(descriptor_end, MODEL_BUFFERS_ALIGNMENT))
         {
             return dmResource::RESULT_INVALID_DATA;
         }
 
         if (header.m_IndexOffset != vertex_payload_end || index_payload_end != size ||
-            ReadInteger(bytes + 12) != decoded_size)
+            header.m_DecodedSize != decoded_size)
         {
             return dmResource::RESULT_INVALID_DATA;
         }
@@ -164,15 +106,7 @@ namespace dmGameSystem
         uint64_t index_end = 0;
         for (uint32_t i = 0; i < header.m_RangeCount; ++i)
         {
-            const uint8_t* range = bytes + HEADER_SIZE + i * RANGE_SIZE;
-            ModelBufferDescriptor descriptor;
-            descriptor.m_VertexOffset = ReadInteger(range);
-            descriptor.m_VertexCount = ReadInteger(range + 4);
-            descriptor.m_Stride = ReadInteger(range + 8);
-            descriptor.m_IndexOffset = ReadInteger(range + 12);
-            descriptor.m_IndexCount = ReadInteger(range + 16);
-            descriptor.m_IndexElementSize = ReadInteger(range + 20);
-            descriptor.m_AttributeMask = ReadInteger(range + 24);
+            const ModelBufferDescriptor& descriptor = ranges[i];
 
             uint32_t skinning_mask = descriptor.m_AttributeMask & ATTRIBUTE_MASK_SKINNING;
             bool skinned = skinning_mask == ATTRIBUTE_MASK_SKINNING;
@@ -185,7 +119,7 @@ namespace dmGameSystem
 
             uint32_t stride = skinned ? sizeof(dmRig::RigModelSkinnedVertex) : sizeof(dmRig::RigModelVertex);
             if (descriptor.m_Stride != stride ||
-                descriptor.m_VertexOffset != AlignFileOffset(vertex_end, 16) ||
+                descriptor.m_VertexOffset != AlignFileOffset(vertex_end, MODEL_BUFFERS_ALIGNMENT) ||
                 descriptor.m_IndexOffset != AlignFileOffset(index_end, 4) ||
                 (descriptor.m_IndexElementSize != 2 && descriptor.m_IndexElementSize != 4))
             {
@@ -220,7 +154,7 @@ namespace dmGameSystem
             }
         }
 
-        if (AlignFileOffset(vertex_end, 16) != header.m_VertexSize || index_end != header.m_IndexSize)
+        if (AlignFileOffset(vertex_end, MODEL_BUFFERS_ALIGNMENT) != header.m_VertexSize || index_end != header.m_IndexSize)
         {
             return dmResource::RESULT_INVALID_DATA;
         }
@@ -236,7 +170,7 @@ namespace dmGameSystem
     dmResource::Result ResModelBuffersPreload(const dmResource::ResourcePreloadParams* params)
     {
         ModelBuffersResource* resource = new ModelBuffersResource();
-        dmResource::Result result = ParseBuffers(params->m_Buffer, params->m_BufferSize, resource, 0);
+        dmResource::Result result = ValidateBuffers(params->m_Buffer, params->m_BufferSize, resource, 0);
         if (result != dmResource::RESULT_OK)
         {
             delete resource;
@@ -368,9 +302,7 @@ namespace dmGameSystem
                 const uint8_t* vertex = vertices + v * descriptor.m_Stride + ATTRIBUTE_BYTE_OFFSETS[a];
                 for (uint32_t c = 0; c < ATTRIBUTE_COMPONENT_COUNTS[a]; ++c)
                 {
-                    uint32_t bits = ReadInteger(vertex + c * sizeof(float));
-                    float value;
-                    memcpy(&value, &bits, sizeof(value));
+                    float value = ((const float*)vertex)[c];
                     if (a == ATTRIBUTE_BONE_INDICES)
                     {
                         ((uint32_t*)write)[c] = (uint32_t)value;
@@ -402,7 +334,7 @@ namespace dmGameSystem
         }
 
         // CPU recovery must use the same layout as the buffers already uploaded to the GPU.
-        result = ParseBuffers(data, size, 0, resource);
+        result = ValidateBuffers(data, size, 0, resource);
         if (result != dmResource::RESULT_OK)
         {
             free(data);

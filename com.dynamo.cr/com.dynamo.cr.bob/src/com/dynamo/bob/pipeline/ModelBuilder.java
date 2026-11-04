@@ -42,7 +42,7 @@ import com.dynamo.rig.proto.Rig.MeshSet;
 @ProtoParams(srcClass = ModelDesc.class, messageClass = Model.class)
 @BuilderParams(name="Model", inExts=".model", outExt=".modelc")
 public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
-    private List<Rig.Mesh> bufferGeometry;
+    private MeshSet bufferMetadata;
     private String bufferPath;
 
 
@@ -158,16 +158,15 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
 
         Task meshTask = createSubTaskOutput(modelDescBuilder.getMesh(), "mesh", taskBuilder, 0);
         MeshsetBuilder meshsetBuilder = (MeshsetBuilder)meshTask.getBuilder();
-        MeshSet sourceGeometry = meshsetBuilder.getMeshSet();
-        if (sourceGeometry != null) {
-            int meshIndex = resolveMeshIndex(modelDescBuilder, input, sourceGeometry);
+        MeshSet sourceMetadata = meshsetBuilder.getMeshSet();
+        if (sourceMetadata != null) {
+            int meshIndex = resolveMeshIndex(modelDescBuilder, input, sourceMetadata);
             MeshsetBuilder.ModelGeometry geometry = meshsetBuilder.getModelGeometry(meshIndex);
-            bufferGeometry = geometry.meshes();
+            bufferMetadata = geometry.metadata();
             Task bufferTask = project.createTask(geometry.source());
             taskBuilder.addInput(bufferTask.output(0));
             bufferPath = BuilderUtil.getRelativePath(project, bufferTask.output(0));
         }
-        taskBuilder.addExtraCacheKey(ModelBuffers.FORMAT_ID + "-canonical-input-material-bindings");
 
         if(!modelDescBuilder.getSkeleton().isEmpty()) {
             String suffix = BuilderUtil.getSuffix(modelDescBuilder.getSkeleton()).toLowerCase();
@@ -219,7 +218,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         IResource resource = task.firstInput();
         Model.Builder model = Model.newBuilder();
         model.setBuffers(bufferPath);
-        model.setMeshSet(ModelBuffers.metadata(ModelBuffers.selectMeshes(sourceGeometry, selectedMeshIndex), bufferGeometry));
+        model.setMeshSet(ModelBuffers.metadata(ModelBuffers.selectMeshes(sourceGeometry, selectedMeshIndex), bufferMetadata));
         if(!modelDescBuilder.getSkeleton().isEmpty()) {
             model.setSkeleton(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getSkeleton(), ".skeletonc"));
         }
@@ -329,7 +328,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
     @Override
     public void clearState() {
         super.clearState();
-        bufferGeometry = null;
+        bufferMetadata = null;
         bufferPath = null;
     }
 }

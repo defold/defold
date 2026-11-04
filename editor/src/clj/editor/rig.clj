@@ -21,7 +21,7 @@
             [editor.workspace :as workspace]
             [util.coll :as coll])
   (:import [com.dynamo.bob.pipeline ModelBuffers ModelUtil$PackedMorphTargetTexture]
-           [com.dynamo.rig.proto Rig$AnimationSet Rig$Mesh Rig$MeshSet Rig$Skeleton]))
+           [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$Skeleton]))
 
 (defn- build-skeleton
   [resource _dep-resources {:keys [skeleton] :as _user-data}]
@@ -84,20 +84,16 @@
      :user-data {:texture-generator-result (.toGenerateResult texture)}}))
 
 (defn- build-model-buffers
-  [resource _dep-resources {:keys [geometries] :as _user-data}]
+  [resource _dep-resources {:keys [data] :as _user-data}]
   {:resource resource
-   :content (ModelBuffers/compile (coll/mapv-> geometries #(protobuf/map->pb Rig$Mesh %)))})
+   :content data})
 
 (defn compile-mesh-set
   "Builds metadata referencing shared geometry ranges and morph textures."
-  [dep-resources {:keys [mesh-set geometries morph-target-textures] :as _user-data}]
-  (let [mesh-set (cond-> mesh-set
-                   (coll/not-empty morph-target-textures)
-                   (replace-morph-target-texture-tokens morph-target-textures dep-resources))]
-    (protobuf/pb->map-without-defaults
-      (ModelBuffers/metadata
-        (protobuf/map->pb Rig$MeshSet mesh-set)
-        (coll/mapv-> geometries #(protobuf/map->pb Rig$Mesh %))))))
+  [dep-resources {:keys [mesh-set morph-target-textures] :as _user-data}]
+  (cond-> mesh-set
+    (coll/not-empty morph-target-textures)
+    (replace-morph-target-texture-tokens morph-target-textures dep-resources)))
 
 (defn- build-mesh-set
   [resource dep-resources user-data]
@@ -113,15 +109,14 @@
      :user-data {:packed-texture packed-texture}}))
 
 (defn make-mesh-set-build-target
-  [workspace node-id mesh-set morph-target-textures]
-  (let [geometries (coll/into-> (ModelBuffers/geometries (protobuf/map->pb Rig$MeshSet mesh-set)) []
-                     (map protobuf/pb->map-without-defaults))
+  [workspace node-id mesh-set model-buffers morph-target-textures]
+  (let [compiled (ModelBuffers/compile (protobuf/map->pb Rig$MeshSet mesh-set) model-buffers)
+        mesh-set (protobuf/pb->map-without-defaults (.metadata compiled))
         model-buffers-target (bt/with-content-hash
                                {:node-id node-id
                                 :resource (workspace/make-placeholder-build-resource workspace "modelbuffers")
                                 :build-fn build-model-buffers
-                                :user-data {:format-id ModelBuffers/FORMAT_ID
-                                            :geometries geometries}})
+                                :user-data {:data (.data compiled)}})
         referenced-texture-tokens (referenced-morph-target-texture-tokens mesh-set)
         morph-target-textures (into []
                                     (filter #(contains? referenced-texture-tokens (:token %)))
@@ -138,9 +133,7 @@
       {:node-id node-id
        :resource (workspace/make-placeholder-build-resource workspace "meshset")
        :build-fn build-mesh-set
-       :user-data {:metadata-version 1
-                   :mesh-set mesh-set
-                   :geometries geometries
+       :user-data {:mesh-set mesh-set
                    :model-buffers (:resource model-buffers-target)
                    :morph-target-textures morph-target-textures}
        :deps (into [model-buffers-target] morph-target-texture-build-targets)})))

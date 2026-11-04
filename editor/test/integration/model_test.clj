@@ -121,13 +121,15 @@
 (deftest model-buffer-build-targets
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/mesh/two_meshes.gltf")
-          source-mesh-set (:mesh-set (g/node-value node-id :content))
+          content (g/node-value node-id :content)
+          source-mesh-set (:mesh-set content)
+          model-buffers (:model-buffers content)
           source-model (get-in source-mesh-set [:models 0])
           other-model (assoc source-model
                         :id 1234
                         :local (get-in source-mesh-set [:models 1 :local]))
           mesh-set (assoc source-mesh-set :models [source-model other-model] :raw-models [])
-          target (rig/make-mesh-set-build-target workspace node-id mesh-set nil)
+          target (rig/make-mesh-set-build-target workspace node-id mesh-set model-buffers nil)
           [buffer-target] (:deps target)
           buffer-output ((:build-fn buffer-target) (:resource buffer-target) {} (:user-data buffer-target))
           mesh-set-output ((:build-fn target) (:resource target) {} (:user-data target))
@@ -135,7 +137,7 @@
       (is (= 1 (count (:deps target))))
       (is (= "DMMB" (String. ^bytes (:content buffer-output) 0 4 StandardCharsets/US_ASCII)))
       (is (java.util.Arrays/equals ^bytes (:content buffer-output)
-                                   ^bytes (ModelBuffers/compile (ModelBuffers/geometries (protobuf/map->pb Rig$MeshSet mesh-set)))))
+                                   ^bytes (.data (ModelBuffers/compile (protobuf/map->pb Rig$MeshSet mesh-set) model-buffers))))
       (is (= (:id source-model) (.getId (.getModels compiled 0))))
       (is (= 1234 (.getId (.getModels compiled 1))))
       (is (= (protobuf/pb->map-with-defaults (.getLocal ^Rig$Model (protobuf/map->pb Rig$Model other-model)))
@@ -144,9 +146,13 @@
              (.getBufferIndex (.getMeshes (.getModels compiled 1) 0))))
       (is (zero? (.getPositionsCount (.getMeshes (.getModels compiled 0) 0))))
       (is (pos? (.getVertexCount (.getMeshes (.getModels compiled 0) 0))))
-      (let [renamed-target (rig/make-mesh-set-build-target workspace node-id (assoc mesh-set :models [other-model]) nil)
-            changed-mesh-set (update-in mesh-set [:models 0 :meshes 0 :positions 0] + 1.0)
-            changed-target (rig/make-mesh-set-build-target workspace node-id changed-mesh-set nil)]
+      (let [renamed-target (rig/make-mesh-set-build-target workspace node-id (assoc mesh-set :models [other-model]) model-buffers nil)
+            changed-buffers (doto (java.nio.ByteBuffer/wrap (aclone ^bytes model-buffers))
+                              (.order java.nio.ByteOrder/LITTLE_ENDIAN))
+            range-index (get-in source-model [:meshes 0 :buffer-index])
+            vertex-offset (+ (.getInt changed-buffers 20) (.getInt changed-buffers (+ 36 (* range-index 28))))
+            _ (.putFloat changed-buffers vertex-offset (+ 1.0 (.getFloat changed-buffers vertex-offset)))
+            changed-target (rig/make-mesh-set-build-target workspace node-id mesh-set (.array changed-buffers) nil)]
         (is (= (:content-hash buffer-target) (get-in renamed-target [:deps 0 :content-hash])))
         (is (not= (:content-hash buffer-target) (get-in changed-target [:deps 0 :content-hash])))))))
 

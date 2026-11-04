@@ -287,6 +287,30 @@ public class ModelUtilTest {
         }
     }
 
+    // Native packing must survive JNI metadata projection without copying GPU streams to Java.
+    @Test
+    public void testNativeModelBufferMetadata() throws Exception {
+        Modelimporter.Options options = new Modelimporter.Options();
+        options.packModelBuffers = true;
+        options.onlyModelMetadata = true;
+        options.skipImageData = true;
+        Modelimporter.Scene scene = ModelUtil.loadScene(getClass().getResourceAsStream("draco_shared.gltf"),
+                "draco_shared.gltf", options, null);
+        Modelimporter.Mesh mesh = scene.models[0].meshes[0];
+        assertNull(mesh.positions);
+        assertNull(mesh.indices);
+        assertTrue(mesh.vertexCount > 0);
+
+        Modelimporter.Scene raw = loadScene("draco_shared.gltf");
+        org.junit.Assert.assertArrayEquals(ModelBuffers.compileScene(raw), scene.modelBuffers);
+        Rig.MeshSet.Builder metadata = Rig.MeshSet.newBuilder();
+        ModelUtil.loadModelMetadata(scene, metadata, 1024, 1024);
+        Rig.Mesh compiled = metadata.getModels(0).getMeshes(0);
+        assertEquals(mesh.vertexCount, compiled.getVertexCount());
+        assertEquals(mesh.bufferIndex, compiled.getBufferIndex());
+        assertEquals(0, compiled.getPositionsCount());
+    }
+
     @Test
     public void testLoadDracoSharedAccessors() throws Exception {
         Modelimporter.Scene scene = loadScene("draco_shared.gltf");
