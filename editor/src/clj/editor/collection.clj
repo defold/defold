@@ -771,11 +771,12 @@
         ext "go"
         resource-type (workspace/get-resource-type workspace ext)
         prototype-desc (game-object-common/template-pb-map workspace resource-type)
-        id (gen-instance-id coll-node ext)]
+        id (gen-instance-id coll-node ext)
+        load-opts (project/make-load-opts project)]
     (g/transact
       (concat
         (g/operation-label (localization/message "operation.collection.add-game-object"))
-        (make-embedded-go coll-node (project/make-load-opts project) owner-resource prototype-desc id nil parent select-fn)))))
+        (make-embedded-go coll-node load-opts owner-resource prototype-desc id nil parent select-fn)))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
   :label (localization/message "command.edit.add-embedded-component.variant.collection")
@@ -945,7 +946,7 @@
         pb-map (game-object-common/template-pb-map basis workspace resource-type)
         resource (resource/make-memory-resource workspace resource-type pb-map)
         node-type (:node-type resource-type)
-        load-opts (project/make-load-opts-in-evaluation-context project evaluation-context)]
+        load-opts (project/evaluation-context-load-opts project evaluation-context)]
     (g/make-nodes [resource-node [node-type :resource resource]]
       (project/load-embedded-resource-node load-opts owner-resource resource-node resource pb-map)
       (connect-embedded-go node-type resource-node node-id))))

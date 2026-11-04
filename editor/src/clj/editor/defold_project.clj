@@ -87,35 +87,41 @@
 
 (def resource-node-type (comp resource-type->node-type resource/resource-type))
 
-(defn make-load-opts-in-evaluation-context [project evaluation-context]
-  (let [{:keys [basis-ref]} evaluation-context
-        workspace (g/raw-property-value @basis-ref project :workspace)
-        code-preprocessor (workspace/code-preprocessors workspace evaluation-context)
-        script-intelligence (g/node-value project :script-intelligence evaluation-context)
-        project-directory (workspace/project-directory @basis-ref workspace)
-        proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)
+(defn make-load-opts
+  ([project]
+   (g/with-auto-evaluation-context evaluation-context
+     (make-load-opts project evaluation-context)))
+  ([project evaluation-context]
+   (let [{:keys [basis-ref]} evaluation-context
+         workspace (g/raw-property-value @basis-ref project :workspace)
+         code-preprocessor (workspace/code-preprocessors workspace evaluation-context)
+         script-intelligence (g/node-value project :script-intelligence evaluation-context)
+         project-directory (workspace/project-directory @basis-ref workspace)
+         proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)
+         proj-path->resource-node-id (g/node-value project :nodes-by-resource-path evaluation-context)
 
-        resolve-resource-fn
-        (fn resolve-resource-fn [owner-resource path]
-          (when-not (coll/empty? path)
-            (let [owner-proj-path (some-> owner-resource resource/proj-path)
-                  proj-path (workspace/resolve-proj-path project-directory owner-proj-path path)]
-              (proj-path->resource proj-path))))
+         resolve-resource-fn
+         (fn resolve-resource-fn [owner-resource path]
+           (when-not (coll/empty? path)
+             (let [owner-proj-path (some-> owner-resource resource/proj-path)
+                   proj-path (workspace/resolve-proj-path project-directory owner-proj-path path)]
+               (proj-path->resource proj-path))))
 
-        editable->type-ext->resource-type
-        {true (resource/resource-types-by-type-ext @basis-ref workspace true)
-         false (resource/resource-types-by-type-ext @basis-ref workspace false)}]
+         editable->type-ext->resource-type
+         {true (resource/resource-types-by-type-ext @basis-ref workspace true)
+          false (resource/resource-types-by-type-ext @basis-ref workspace false)}]
 
-    {:code-preprocessor code-preprocessor
-     :editable->type-ext->resource-type editable->type-ext->resource-type
-     :project project
-     :resolve-resource-fn resolve-resource-fn
-     :script-intelligence script-intelligence
-     :workspace workspace}))
+     {:code-preprocessor code-preprocessor
+      :editable->type-ext->resource-type editable->type-ext->resource-type
+      :proj-path->resource-node-id proj-path->resource-node-id
+      :project project
+      :resolve-resource-fn resolve-resource-fn
+      :script-intelligence script-intelligence
+      :workspace workspace})))
 
-(defn make-load-opts [project]
-  (g/with-auto-evaluation-context evaluation-context
-    (make-load-opts-in-evaluation-context project evaluation-context)))
+(defn evaluation-context-load-opts [project evaluation-context]
+  (g/tx-cached-value! evaluation-context [:load-opts]
+    (make-load-opts project evaluation-context)))
 
 (defn- resource-load-error [node-id resource exception]
   (if-not (instance? ArityException exception)
@@ -1141,11 +1147,11 @@
           (e/concat
             prelude-tx-data
             (e/mapcat node-load-info->disk-state-tx-data node-load-infos)
-            (g/expand-ec
-              (fn [evaluation-context]
-                (load-nodes-tx-data
-                  (make-load-opts-in-evaluation-context project evaluation-context)
-                  node-load-infos progress/null-render-progress! render-progress! resource-metrics)))
+            (when (coll/not-empty node-load-infos)
+              (g/expand-ec
+                (fn [evaluation-context]
+                  (let [load-opts (evaluation-context-load-opts project evaluation-context)]
+                    (load-nodes-tx-data load-opts node-load-infos progress/null-render-progress! render-progress! resource-metrics)))))
             (g/callback render-progress! (progress/make-indeterminate (localization/message "progress.finalizing")))))
 
         migrated-resource-node-ids
@@ -1167,20 +1173,23 @@
     migrated-resource-node-ids))
 
 (defn get-resource-node
+  "Returns the node id for a resource, or nil. A string path must be present
+  in the workspace. A Resource can also identify a node for a missing file."
   ([project path-or-resource]
    (g/with-auto-evaluation-context evaluation-context
      (get-resource-node project path-or-resource evaluation-context)))
-  ([project path-or-resource evaluation-context]
+  ([project path-or-resource {:keys [basis-ref tx-data-context-atom] :as evaluation-context}]
    (when-let [resource (cond
-                         (string? path-or-resource) (workspace/find-resource @(:basis-ref evaluation-context) (g/node-value project :workspace evaluation-context) path-or-resource)
+                         (string? path-or-resource) (workspace/find-resource @basis-ref (workspace project evaluation-context) path-or-resource)
                          (resource/resource? path-or-resource) path-or-resource
                          :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))]
-     ;; This is frequently called from property setters, where we don't have a
-     ;; cache. In that case, manually cache the evaluated value in the
-     ;; :tx-data-context-atom of the evaluation-context, since this persists
-     ;; throughout the transaction.
-     (let [nodes-by-resource-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context)]
-       (get nodes-by-resource-path (resource/proj-path resource))))))
+     (let [{:keys [load-opts]} @tx-data-context-atom
+           {:keys [proj-path->resource-node-id]} load-opts
+           proj-path (resource/proj-path resource)]
+       (or (get proj-path->resource-node-id proj-path)
+           ;; We may not have load-opts in the tx-data-context. Also, loading
+           ;; may add nodes for missing resources that are not in our map.
+           (get (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context) proj-path))))))
 
 (defn get-project
   ([]
@@ -1232,10 +1241,10 @@
         resource (resource-node/resource @basis-ref node-id)
         workspace (resource/workspace resource)
         project (get-project @basis-ref)
-        nodes-by-resource-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context)
         read-opts (workspace/cached-read-opts! workspace evaluation-context)
-        load-opts (g/tx-cached-value! evaluation-context [:load-opts]
-                    (make-load-opts-in-evaluation-context project evaluation-context))
+
+        {:keys [proj-path->resource-node-id] :as load-opts}
+        (evaluation-context-load-opts project evaluation-context)
 
         node-load-info
         (g/tx-cached-value! evaluation-context [::node-load-infos node-id]
@@ -1243,7 +1252,7 @@
             (read-node-load-info-with-cached-read @basis-ref read-opts node-id resource)
             @basis-ref
             (fn [proj-path]
-              (some->> (nodes-by-resource-path proj-path)
+              (some->> (proj-path->resource-node-id proj-path)
                        (resource-node/resource @basis-ref)))))
 
         node-load-info
@@ -1252,7 +1261,7 @@
           (try
             (let [prerequisite-node-ids
                   (coll/into-> (:prerequisite-proj-paths node-load-info) #{}
-                    (keep nodes-by-resource-path))]
+                    (keep proj-path->resource-node-id))]
               (g/materialize-prerequisites! node-id prerequisite-node-ids evaluation-context)
               node-load-info)
             (catch ExceptionInfo exception
@@ -2105,8 +2114,9 @@
             ;; resource does not exist, or it would have already been created
             ;; during resource-sync. Mark it as loaded and defective.
             creation-tx-data
-            (let [node-load-info (make-file-not-found-node-load-info node-id resource resource-type)]
-              (node-load-info-tx-data node-load-info (make-load-opts-in-evaluation-context project evaluation-context)))
+            (let [node-load-info (make-file-not-found-node-load-info node-id resource resource-type)
+                  load-opts (evaluation-context-load-opts project evaluation-context)]
+              (node-load-info-tx-data node-load-info load-opts))
 
             ;; If we're about to connect a defunloaded resource that does not
             ;; :allow-unloaded-use, ensure it is loaded as part of this
@@ -2115,8 +2125,7 @@
                  (not (resource/loaded? resource))
                  (not (:allow-unloaded-use resource-type))
                  (not (resource-node/loaded? @basis-ref existing-resource-node-id)))
-            (let [load-opts (g/tx-cached-value! evaluation-context [:load-opts]
-                              (make-load-opts-in-evaluation-context project evaluation-context))
+            (let [load-opts (evaluation-context-load-opts project evaluation-context)
                   [load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded @basis-ref node-id resource load-opts)]
               load-tx-data))]
 

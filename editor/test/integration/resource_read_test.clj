@@ -40,6 +40,38 @@
 
 (set! *warn-on-reflection* true)
 
+(g/defnode ResourcePathIndexProbe
+  (property resource resource/Resource)
+  (property reads g/Any)
+  (output node-id+resource g/Any
+          (g/fnk [_node-id resource reads]
+            (swap! reads inc)
+            (pair _node-id resource))))
+
+;; The second atlas should reuse the indexed nodes for both images, even though
+;; each atlas resolves the missing image path to a separate resource object.
+(deftest build-load-reuses-resource-path-index-test
+  (let [image-paths ["/builtins/graphics/particle_blob.png" "/missing.png"]
+        atlas {:images (mapv (fn [path] {:image path}) image-paths)}]
+    (test-util/with-temp-project-content {"/first.atlas" atlas "/second.atlas" atlas}
+      (build/load-build-resources! project ["/first.atlas"] progress/null-render-progress! fn/constantly-false)
+      (let [reads (atom 0)
+            probe (g/make-node! ResourcePathIndexProbe
+                    :resource (workspace/file-resource workspace "/probe")
+                    :reads reads)]
+        (g/transact
+          (g/connect probe :node-id+resource project :node-id+resources))
+        (let [proj-path->node-id (g/node-value project :nodes-by-resource-path)
+              atlas-node (proj-path->node-id "/second.atlas")
+              initial-reads @reads]
+          (is (= probe (proj-path->node-id "/probe")))
+          (is (g/node-id? (proj-path->node-id "/missing.png")))
+          (is (pos? initial-reads))
+          (build/load-build-resources! project ["/second.atlas"] progress/null-render-progress! fn/constantly-false)
+          (is (resource-node/loaded? atlas-node))
+          (is (= image-paths (mapv :image (:images (g/node-value atlas-node :save-value)))))
+          (is (= initial-reads @reads)))))))
+
 ;; Build dependency tracing can create nodes for missing resources. Its caller
 ;; must see and commit the updated resource lookup map, not the pre-trace cache.
 (deftest build-tracing-updates-resource-lookup-cache-test
@@ -60,6 +92,9 @@
                      (pair (resource/proj-path (resource-node/resource basis source-id)) source-id))))]
         (is (< (count initial-resource-nodes) (count expected-resource-nodes)))
         (is (= expected-resource-nodes (g/node-value project :nodes-by-resource-path evaluation-context)))
+        (doseq [[proj-path node-id] expected-resource-nodes
+                :when (not (contains? initial-resource-nodes proj-path))]
+          (is (= node-id (project/get-resource-node project (resource-node/resource basis node-id) evaluation-context))))
         (g/update-system-from-evaluation-context! evaluation-context)
         (is (= expected-resource-nodes (g/node-value project :nodes-by-resource-path)))))))
 

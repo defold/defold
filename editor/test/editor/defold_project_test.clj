@@ -222,6 +222,7 @@
 
                 {:keys [code-preprocessor
                         editable->type-ext->resource-type
+                        proj-path->resource-node-id
                         resolve-resource-fn
                         script-intelligence
                         workspace]}
@@ -231,6 +232,7 @@
                 target-resource (workspace/find-resource workspace "/a2.type_a")]
 
             (is (= expected-workspace workspace))
+            (is (= (g/node-value project :nodes-by-resource-path) proj-path->resource-node-id))
             (is (= (project/code-preprocessors project) code-preprocessor))
             (is (= (project/script-intelligence project) script-intelligence))
             (doseq [editable [true false]]

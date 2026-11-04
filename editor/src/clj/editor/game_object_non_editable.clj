@@ -102,8 +102,8 @@
 (defn data->index-setter [evaluation-context self new-value old-sources-input-label add-resource-node-fn]
   (let [{:keys [basis-ref]} evaluation-context
         owner-resource (resource-node/owner-resource @basis-ref self)
-        load-opts (g/tx-cached-value! evaluation-context [:load-opts]
-                    (project/make-load-opts-in-evaluation-context (project/get-project @basis-ref) evaluation-context))]
+        project (project/get-project @basis-ref)
+        load-opts (project/evaluation-context-load-opts project evaluation-context)]
     (into (delete-connected-nodes-tx-data @basis-ref self old-sources-input-label)
           (mapcat (fn [[data]]
                     (add-resource-node-fn self data load-opts owner-resource)))
