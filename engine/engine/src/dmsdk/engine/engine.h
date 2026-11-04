@@ -46,10 +46,6 @@ typedef struct Engine* HEngine;
  */
 #define ENGINE_CONTEXT_NAME "engine"
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 /*# get the engine window
  * The engine owns the returned window. Do not destroy it or retain it across
  * engine deletion or reboot. Call only on the engine thread with a live engine.
@@ -58,9 +54,5 @@ extern "C" {
  * @return window [type:HWindow] borrowed window, or null if the engine has no window
  */
 HWindow EngineGetWindow(HEngine engine);
-
-#if defined(__cplusplus)
-}
-#endif
 
 #endif // DMSDK_ENGINE_H

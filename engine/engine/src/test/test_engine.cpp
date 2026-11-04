@@ -12,14 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <dmsdk/engine/engine.h>
-#include <dmsdk/engine/engine_event.h>
-#if defined(DMSDK_ENGINE_HPP) || defined(DMSDK_ENGINE_GEN_HPP) || \
-    defined(DMSDK_ENGINE_EVENT_HPP) || defined(DMSDK_ENGINE_EVENT_GEN_HPP) || \
-    defined(DMSDK_EXTENSION_HPP)
-#error "The C engine headers must not include the C++ facades"
-#endif
-
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <string.h>

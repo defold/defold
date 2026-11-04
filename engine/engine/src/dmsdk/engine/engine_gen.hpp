@@ -34,9 +34,11 @@
  * @path engine/engine/src/dmsdk/engine/engine_gen.hpp
  */
 
+extern "C" {
 #include <dmsdk/platform/window.h>
 
 #include <dmsdk/engine/engine.h>
+}
 
 namespace dmEngine
 {

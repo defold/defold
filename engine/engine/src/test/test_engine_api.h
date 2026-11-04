@@ -17,10 +17,12 @@
 
 #include <stdbool.h>
 #include <dmsdk/dlib/context_registry.h>
-#include <dmsdk/engine/engine.h>
 
 #if defined(__cplusplus)
+#include <dmsdk/engine/engine.hpp>
 extern "C" {
+#else
+#include <dmsdk/engine/engine.h>
 #endif
 
 // Test-only bridge for native engine setup. Registry and window handles are borrowed.

@@ -15,10 +15,6 @@
 #ifndef DMSDK_ENGINE_HPP
 #define DMSDK_ENGINE_HPP
 
-#if !defined(__cplusplus)
-#error "This file is supported in C++ only!"
-#endif
-
 #include <dmsdk/engine/engine_gen.hpp>
 
 #endif // DMSDK_ENGINE_HPP
