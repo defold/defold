@@ -1137,6 +1137,7 @@
   using reduce, into, or an eduction. Use set to convert it to a set when set
   operations are needed."
   [basis endpoints]
+  (assert (coll/eager? endpoints))
   (if (coll/empty? endpoints)
     array/empty-reducible
     (let [^Cache dependencies-cache

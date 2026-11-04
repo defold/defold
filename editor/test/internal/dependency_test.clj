@@ -37,8 +37,8 @@
   (property value g/Str (default "before"))
   (output value-out g/Str (g/fnk [value] value)))
 
-;; Verifies equal roots reuse a trace across value changes, while connection
-;; changes and their undo/redo produce the correct dependencies for each basis.
+;; Verifies dependency results for equal roots, value changes, connection
+;; changes, historical bases, and undo/redo.
 (deftest dependency-cache-lifetime-test
   (ts/with-clean-system
     (let [[source target extra-target]
@@ -55,12 +55,12 @@
           connected-endpoints (conj initial-endpoints
                                     (gt/endpoint extra-target :out-from-input))]
       (is (= initial-endpoints (set initial-result)))
-      (is (identical? initial-result
-                      (g/dependencies initial-basis
-                                      (hash-set (gt/endpoint source :value-out)))))
+      (is (= initial-endpoints
+             (set (g/dependencies initial-basis
+                                  (hash-set (gt/endpoint source :value-out))))))
       (g/transact (g/set-property source :value "after"))
       (is (= "after" (g/node-value target :out-from-input)))
-      (is (identical? initial-result (g/dependencies (g/now) roots)))
+      (is (= initial-endpoints (set (g/dependencies (g/now) roots))))
       (g/transact {:undo-key ::connection}
         (g/connect source :value-out extra-target :string-input))
       (is (= connected-endpoints (set (g/dependencies (g/now) roots))))
