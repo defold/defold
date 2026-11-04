@@ -142,7 +142,7 @@
           (handle-changes [_this changes _render-progress!]
             (g/with-auto-evaluation-context evaluation-context
               (let [{:keys [basis-ref]} evaluation-context
-                    old-nodes-by-path (g/valid-node-value project :nodes-by-resource-path evaluation-context)
+                    old-nodes-by-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context :tx-cache/reuse)
                     resource-change-plan (resource-update/resource-change-plan
                                            old-nodes-by-path
                                            #(g/raw-property-value @basis-ref % :disk-sha256)

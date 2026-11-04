@@ -77,9 +77,9 @@
     []
     (let [{:keys [basis-ref]} evaluation-context
           workspace (defold-project/workspace project evaluation-context)
-          read-opts (workspace/evaluation-context-read-opts! workspace evaluation-context)
+          read-opts (workspace/evaluation-context-read-opts! workspace evaluation-context :tx-cache/reuse)
           replacement-start (- character (count url-content))]
-      (->> (g/node-value project :nodes-by-resource-path evaluation-context)
+      (->> (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context :tx-cache/reuse)
            (e/mapcat (fn [[_ node-id]]
                        (when (and (g/node-kw-instance? @basis-ref :editor.collection/CollectionNode node-id)
                                   (resource-node/loaded? @basis-ref node-id))

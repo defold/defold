@@ -50,6 +50,71 @@
   (property value g/Str)
   (output save-value g/Str (g/fnk [value] value)))
 
+;; Reload must refresh the tx-cached :load-opts and :nodes-by-resource-path
+;; if a connect-fn populated them before all resource shells were connected.
+(deftest reload-replaces-tx-cached-load-opts-test
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_ (test-util/make-directory-deleter project-path)]
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! project-path)
+              project (test-util/setup-project! workspace)]
+          (g/transact
+            (workspace/register-resource-type workspace
+              :ext "reference"
+              :node-type ANode
+              :read-fn (fn read-reference [_read-opts _owner-resource readable] (slurp readable))
+              :write-fn identity
+              :connect-fn (fn connect-reference [project _self _resource]
+                            (g/callback-ec
+                              (fn cache-load-opts [evaluation-context]
+                                (project/evaluation-context-load-opts! project evaluation-context :tx-cache/reuse))))
+              :load-fn (fn load-reference [{:keys [resolve-resource-fn]} {:keys [node-id owner-resource source-value]}]
+                         (if (resource/proj-path? source-value)
+                           (g/set-property node-id :source-resource (resolve-resource-fn owner-resource source-value))
+                           (g/set-property node-id :value source-value)))))
+          (test-util/write-file-resource! workspace "/consumer.reference" "/source.reference")
+          (test-util/write-file-resource! workspace "/source.reference" "source value")
+          (workspace/resource-sync! workspace)
+          (let [consumer (project/get-resource-node project "/consumer.reference")]
+            (is (= "source value" (g/node-value consumer :value-input)))))))))
+
+;; Replacing read options picks up resource types registered since the first
+;; lookup in the transaction and makes them available to subsequent readers.
+(deftest read-opts-tx-cache-policy-test
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! "test/resources/empty_project")
+          resource-node-type (fn resource-node-type [evaluation-context tx-cache-policy]
+                               (get-in (workspace/evaluation-context-read-opts! workspace evaluation-context tx-cache-policy)
+                                       [:editable->type-ext->resource-type true "registered" :node-type]))]
+      (g/transact
+        [(g/callback-ec
+           (fn before-registration [evaluation-context]
+             (is (nil? (resource-node-type evaluation-context :tx-cache/reuse)))))
+         (workspace/register-resource-type workspace :ext "registered" :node-type BNode)
+         (g/callback-ec
+           (fn after-registration [evaluation-context]
+             (is (nil? (resource-node-type evaluation-context :tx-cache/reuse)))
+             (is (= BNode (resource-node-type evaluation-context :tx-cache/replace)))
+             (is (= BNode (resource-node-type evaluation-context :tx-cache/reuse)))))]))))
+
+;; get-resource-node must find a node added after a lookup for the same
+;; resource missed earlier in the transaction.
+(deftest get-resource-node-retries-cached-miss-test
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! "test/resources/empty_project")
+          project (test-util/setup-project! workspace)
+          missing-resource (workspace/resolve-workspace-resource workspace "/missing.png")
+          [resource-node-id] (g/take-node-ids 1)]
+      (g/transact
+        [(g/callback-ec
+           (fn before-creation [evaluation-context]
+             (project/evaluation-context-load-opts! project evaluation-context :tx-cache/reuse)
+             (is (nil? (project/get-resource-node project missing-resource evaluation-context)))))
+         (project/make-resource-nodes-tx-data project [[resource-node-id missing-resource]])
+         (g/callback-ec
+           (fn after-creation [evaluation-context]
+             (is (= resource-node-id (project/get-resource-node project missing-resource evaluation-context)))))]))))
+
 ;; Pending creation and loading recorded during tracing must remain isolated,
 ;; so a later real connection still generates the required transaction steps.
 (deftest connect-resource-node-isolates-dependency-tracing-test
@@ -82,7 +147,7 @@
                   ;; ensures the test exercises both pending-node creation
                   ;; for /missing.trace and pending-load bookkeeping for the
                   ;; existing /unloaded.trace node.
-                  (g/node-value project :nodes-by-resource-path evaluation-context)
+                  (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context :tx-cache/reuse)
                   (let [dry-evaluation-context (g/dry-run-evaluation-context evaluation-context)
                         {:keys [node-id]} (project/connect-resource-node
                                             dry-evaluation-context project resource consumer [[:value :value-input]])]
@@ -112,7 +177,8 @@
         (g/materialize-node! (project/get-resource-node project "/game.project" evaluation-context) evaluation-context)
         (let [save-data-fn (fn save-data [project evaluation-context]
                              (g/tx-cached-value! evaluation-context [::save-data]
-                               (project/all-save-data project evaluation-context)))
+                               (project/all-save-data project evaluation-context)
+                               :tx-cache/reuse))
               save-data (project/save-data-with-progress project evaluation-context save-data-fn progress/null-render-progress!)]
           (is (coll/any? #(= "/game.project" (resource/proj-path (:resource %))) save-data))
           (is (identical? save-data (::save-data @(:tx-data-context-atom evaluation-context)))))))))

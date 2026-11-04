@@ -306,7 +306,7 @@
 (defn find-ext-manifest-relative-to-resource
   "Find the ext.manifest file for the native extension that proj-path belongs to."
   [project ^String proj-path evaluation-context]
-  (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)
+  (let [nodes-by-resource-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context :tx-cache/reuse)
         find-resource (fn [path] (g/node-value (nodes-by-resource-path path) :resource evaluation-context))]
     (->> proj-path
          (iterate resource/parent-proj-path)
@@ -331,7 +331,7 @@
   [text project ext-manifest-file]
   (ea/with-auto-evaluation-context evaluation-context
     (let [original-ext-manifest-file ext-manifest-file
-          nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)]
+          nodes-by-resource-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context :tx-cache/reuse)]
       (loop [{:keys [lines current acc included-from? ext-manifest-file] :as state}
              {:lines (string/split-lines text)
               :current {}

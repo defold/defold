@@ -210,7 +210,8 @@
                       (g/tx-cached-value!
                         (do (swap! context-evaluations inc) context)
                         (do (swap! path-evaluations inc) [::cached-value])
-                        (do (swap! value-evaluations inc) value)))]
+                        (do (swap! value-evaluations inc) value)
+                        :tx-cache/reuse))]
           (dotimes [_ 2]
             (is (= value (query dry-evaluation-context))))
           (is (= {} @(:tx-data-context-atom evaluation-context)))
@@ -223,6 +224,38 @@
           (is (= value (query (g/dry-run-evaluation-context evaluation-context))))
           (is (= 2 @value-evaluations))
           (is (= 6 @context-evaluations @path-evaluations)))))))
+
+;; Replacing a transaction entry must publish the new value to later reuse
+;; calls, even when the old or new value is falsey.
+(deftest tx-cache-replace-test
+  (ts/with-clean-system
+    (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+      (let [source (atom nil)
+            query (fn query [tx-cache-policy]
+                    (g/tx-cached-value! evaluation-context [::value] @source tx-cache-policy))]
+        (doseq [expected [nil false 7]]
+          (reset! source expected)
+          (is (= expected (query :tx-cache/replace)))
+          (reset! source ::changed)
+          (is (= expected (query :tx-cache/reuse))))
+        (is (thrown? IllegalArgumentException (query :unknown-policy)))))))
+
+;; A replacement must read the current transaction step's basis and publish
+;; the result to later steps that reuse the same node output.
+(deftest tx-cached-node-value-replace-test
+  (ts/with-clean-system
+    (let [node (g/make-node! CacheTestNode :scalar "first")
+          expect-value (fn expect-value [expected tx-cache-policy]
+                         (g/callback-ec
+                           (fn check-value [evaluation-context]
+                             (is (= expected (g/tx-cached-node-value! node :scalar evaluation-context tx-cache-policy))))))]
+      (g/transact
+        [(expect-value "first" :tx-cache/reuse)
+         (g/set-property node :scalar "second")
+         (expect-value "first" :tx-cache/reuse)
+         (expect-value "second" :tx-cache/replace)
+         (g/set-property node :scalar "third")
+         (expect-value "second" :tx-cache/reuse)]))))
 
 ;; A transaction cache miss surrounding node-value must not leak its tracing
 ;; placeholder, including the node helper's fallback without a system cache.
@@ -237,9 +270,10 @@
                                       (in/custom-evaluation-context {:basis (g/now)}))]
           (let [query (fn query [context]
                         (if node-helper
-                          (g/tx-cached-node-value! node :uncached-value context)
+                          (g/tx-cached-node-value! node :uncached-value context :tx-cache/reuse)
                           (g/tx-cached-value! context [::node-value]
-                            (g/node-value node :uncached-value context))))]
+                            (g/node-value node :uncached-value context)
+                            :tx-cache/reuse)))]
             (is (nil? (query (g/dry-run-evaluation-context evaluation-context))))
             (is (= {} @(:tx-data-context-atom evaluation-context)))
             (is (= "real value" (query evaluation-context)))

@@ -307,8 +307,8 @@
   (when-not (coll/empty? resources)
     (let [basis @basis-ref
           workspace (resource/workspace (first resources))
-          {:keys [proj-path->resource] :as read-opts} (workspace/evaluation-context-read-opts! workspace evaluation-context)
-          proj-path->resource-node-id (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context)
+          {:keys [proj-path->resource] :as read-opts} (workspace/evaluation-context-read-opts! workspace evaluation-context :tx-cache/reuse)
+          proj-path->resource-node-id (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context :tx-cache/reuse)
 
           proj-path->referencing-resource-node-ids
           (coll/reduce-kv-> proj-path->resource-node-id {}

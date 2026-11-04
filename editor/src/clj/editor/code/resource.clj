@@ -72,7 +72,7 @@
 (def source-value-fn hash)
 
 (defn search-value-fn [node-id resource evaluation-context]
-  (let [read-opts (workspace/evaluation-context-read-opts! (resource/workspace resource) evaluation-context)
+  (let [read-opts (workspace/evaluation-context-read-opts! (resource/workspace resource) evaluation-context :tx-cache/reuse)
         loaded-lines (resource-io/evaluate-or-read-save-value! read-opts node-id resource evaluation-context)]
     (if (g/error-value? loaded-lines)
       loaded-lines

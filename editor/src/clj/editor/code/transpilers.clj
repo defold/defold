@@ -259,7 +259,7 @@
           localization)))))
 
 (defn make-resource-load-tx-data-fn [code-transpilers evaluation-context]
-  (if-let [build-file-proj-path->transpiler-node-id (g/tx-cached-node-value! code-transpilers :build-file-proj-path->transpiler-node-id evaluation-context)]
+  (if-let [build-file-proj-path->transpiler-node-id (g/tx-cached-node-value! code-transpilers :build-file-proj-path->transpiler-node-id evaluation-context :tx-cache/reuse)]
     (fn resource-load-tx-data-fn [resource-node-id resource]
       (when-let [proj-path (resource/proj-path resource)]
         (when-let [transpiler-node-id (build-file-proj-path->transpiler-node-id proj-path)]

@@ -173,14 +173,15 @@
       (render-progress! progress))))
 
 (defn make-node-id->resource-path [project evaluation-context]
-  (set/map-invert (g/node-value project :nodes-by-resource-path evaluation-context)))
+  (set/map-invert
+    (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context :tx-cache/reuse)))
 
 (defn- read-build-resource-nodes! [project root-proj-paths render-load-progress! {:keys [basis-ref] :as evaluation-context}]
   (let [workspace (project/workspace project evaluation-context)
-        nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)
+        nodes-by-resource-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context :tx-cache/reuse)
 
         {:keys [editable->type-ext->resource-type] :as read-opts}
-        (workspace/evaluation-context-read-opts! workspace evaluation-context)
+        (workspace/evaluation-context-read-opts! workspace evaluation-context :tx-cache/reuse)
 
         dependency-node-ids
         (fn dependency-node-ids [node-id]

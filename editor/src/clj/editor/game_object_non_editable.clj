@@ -103,7 +103,7 @@
   (let [{:keys [basis-ref]} evaluation-context
         owner-resource (resource-node/owner-resource @basis-ref self)
         project (project/get-project @basis-ref)
-        load-opts (project/evaluation-context-load-opts! project evaluation-context)]
+        load-opts (project/evaluation-context-load-opts! project evaluation-context :tx-cache/reuse)]
     (into (delete-connected-nodes-tx-data @basis-ref self old-sources-input-label)
           (mapcat (fn [[data]]
                     (add-resource-node-fn self data load-opts owner-resource)))

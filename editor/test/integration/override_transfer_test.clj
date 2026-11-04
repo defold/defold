@@ -48,7 +48,7 @@
   ([project proj-path-predicate evaluation-context]
    (let [workspace (g/valid-node-value project :workspace evaluation-context)
          resources-by-proj-path (g/valid-node-value workspace :resource-map evaluation-context)
-         resource-nodes-by-proj-path (g/valid-node-value project :nodes-by-resource-path evaluation-context)]
+         resource-nodes-by-proj-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context :tx-cache/reuse)]
      (coll/into-> resource-nodes-by-proj-path (sorted-map)
        (keep (fn [[proj-path resource-node-id]]
                (when (proj-path-predicate proj-path)

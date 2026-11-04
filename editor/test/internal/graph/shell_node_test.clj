@@ -971,7 +971,8 @@
                       (is (not (contains? @(:tx-data-context-atom evaluation-context) ::tracing-value)))
                       [(g/set-property self :value
                          (g/tx-cached-value! evaluation-context [::shared-value]
-                           (do (swap! value-evaluations inc) 7)))
+                           (do (swap! value-evaluations inc) 7)
+                           :tx-cache/reuse))
                        (g/callback-ec
                          (fn record-migration [context]
                            (g/flag-nodes-as-migrated! context [self])))]))))
@@ -980,7 +981,8 @@
             dry-evaluation-context (g/dry-run-evaluation-context evaluation-context)]
         (swap! (:tx-data-context-atom dry-evaluation-context) assoc ::tracing-value nil)
         (is (nil? (g/tx-cached-value! dry-evaluation-context [::shared-value]
-                    (g/node-value (first shells) :result dry-evaluation-context))))
+                    (g/node-value (first shells) :result dry-evaluation-context)
+                    :tx-cache/reuse)))
         (g/node-value (second shells) :result dry-evaluation-context)
         (is (= 1 @value-evaluations))
         (is (= {::shared-value 7 :migrated-node-ids (set shells)}
@@ -1762,13 +1764,13 @@
               second-evaluation-context (g/make-evaluation-context)
               derived-evaluation-context (g/pruned-evaluation-context first-evaluation-context (constantly true))]
           (g/materialize-node! a derived-evaluation-context)
-          (is (= 7 (g/tx-cached-node-value! collector :total first-evaluation-context)))
+          (is (= 7 (g/tx-cached-node-value! collector :total first-evaluation-context :tx-cache/reuse)))
           (is (= 0 (g/node-value collector :total second-evaluation-context)))
           (is (= 0 (g/node-value collector :total)))
           (g/materialize-node! b second-evaluation-context)
           (is (= 11 (g/node-value collector :total second-evaluation-context)))
           (g/materialize-node! b first-evaluation-context)
-          (is (= 18 (g/tx-cached-node-value! collector :total first-evaluation-context)))
+          (is (= 18 (g/tx-cached-node-value! collector :total first-evaluation-context :tx-cache/reuse)))
           (g/materialize-node! a second-evaluation-context)
           (is (= 18 (g/node-value collector :total second-evaluation-context)))
           (g/update-system-from-evaluation-context! first-evaluation-context)

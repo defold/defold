@@ -1555,23 +1555,21 @@
                value))))))))
 
 (defmacro tx-cached-value!
-  "Finds and returns a cached value at the specified key path of the
-  :tx-data-context-atom in the supplied evaluation-context. If no existing value
-  was found in the :tx-data-context-atom, evaluate the value-expr and store the
-  value at the specified key path in the :tx-data-context-atom, then return the
-  value. Use dry-run-evaluation-context to isolate writes during tracing."
-  [evaluation-context-expr tx-data-context-key-path-expr value-expr]
+  "With :tx-cache/reuse, returns the value at the key path in the evaluation
+  context's transaction data if present. On a miss, or with :tx-cache/replace,
+  evaluates value-expr, stores the result at the key path, and returns it.
+  Use dry-run-evaluation-context to isolate writes during tracing."
+  [evaluation-context-expr tx-data-context-key-path-expr value-expr tx-cache-policy-expr]
   `(let [tx-data-context-atom# (:tx-data-context-atom ~evaluation-context-expr)
          tx-data-context-key-path# ~tx-data-context-key-path-expr
-         cached-value# (-> tx-data-context-atom#
-                           (deref)
-                           (get-in tx-data-context-key-path# :dynamo.graph/not-found))]
-     (case cached-value#
-       :dynamo.graph/not-found
+         cached-value# (case ~tx-cache-policy-expr
+                         :tx-cache/reuse (get-in @tx-data-context-atom# tx-data-context-key-path# :dynamo.graph/not-found)
+                         :tx-cache/replace :dynamo.graph/not-found)]
+     (if (not= :dynamo.graph/not-found cached-value#)
+       cached-value#
        (let [evaluated-value# ~value-expr]
          (swap! tx-data-context-atom# assoc-in tx-data-context-key-path# evaluated-value#)
-         evaluated-value#)
-       cached-value#)))
+         evaluated-value#))))
 
 (defn tx-cached-node-value!
   "Like the node-value function, but caches the result in the
@@ -1579,22 +1577,17 @@
   cache. This is mostly a workaround for the fact that the evaluation-context
   supplied to property setters inside transactions does not contain a cache.
   Some operations, like resource lookups, can benefit hugely from caching the
-  lookup maps. However, beware that this function bypasses the regular cache
-  invalidation mechanism. Don't use it on outputs that might otherwise have
-  been invalidated between two calls in the same transaction. The lack of a
-  cache inside transactions has previously been reported as DEFEDIT-1411."
-  [node-id label evaluation-context]
-  (cond
-    (nil? node-id)
-    nil
-
-    (:cache-atom evaluation-context)
-    (node-value node-id label evaluation-context)
-
-    :else
-    (let [tx-data-context-key-path (pair :tx-node-value-cache (gt/endpoint node-id label))]
-      (tx-cached-value! evaluation-context tx-data-context-key-path
-        (node-value node-id label evaluation-context)))))
+  lookup maps. This cache bypasses regular graph invalidation. Use
+  :tx-cache/reuse while the output is stable and :tx-cache/replace to refresh
+  it from node-value after it may have changed. With a regular graph cache,
+  both policies use node-value. See DEFEDIT-1411."
+  [node-id label evaluation-context tx-cache-policy]
+  (if (or (nil? node-id) (:cache-atom evaluation-context))
+    (case tx-cache-policy
+      (:tx-cache/reuse :tx-cache/replace) (node-value node-id label evaluation-context))
+    (tx-cached-value! evaluation-context (pair :tx-node-value-cache (gt/endpoint node-id label))
+      (node-value node-id label evaluation-context)
+      tx-cache-policy)))
 
 (definline raw-property-value*
   "Fast raw property access to the given node. Will bypass the property value

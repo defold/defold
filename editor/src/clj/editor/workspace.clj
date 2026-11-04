@@ -247,7 +247,7 @@ ordinary paths."
 
 (defn- default-search-value-fn
   [node-id resource {:keys [basis-ref] :as evaluation-context}]
-  (let [read-opts (evaluation-context-read-opts! (resource/workspace resource) evaluation-context)
+  (let [read-opts (evaluation-context-read-opts! (resource/workspace resource) evaluation-context :tx-cache/reuse)
         save-value (resource-io/evaluate-or-read-save-value! read-opts node-id resource evaluation-context)]
     (if (and (g/error-value? save-value)
              (not (in/shell-node? (g/node-by-id @basis-ref node-id))))
@@ -636,10 +636,11 @@ ordinary paths."
 
 (defn evaluation-context-read-opts!
   "Returns the evaluation context's shared read options, including editor
-  dependencies."
-  [workspace {:keys [basis-ref] :as evaluation-context}]
+  dependencies. :tx-cache/replace captures a fresh workspace snapshot."
+  [workspace {:keys [basis-ref] :as evaluation-context} tx-cache-policy]
   (g/tx-cached-value! evaluation-context [:read-opts]
-    (make-read-opts @basis-ref workspace :include-editor-dependencies true)))
+    (make-read-opts @basis-ref workspace :include-editor-dependencies true)
+    tx-cache-policy))
 
 (defn template-resource [basis workspace resource-type consider-user-resource]
   (let [proj-path->resource (g/raw-property-value basis workspace :resource-map)]

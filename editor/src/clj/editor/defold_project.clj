@@ -90,15 +90,14 @@
 (defn make-load-opts
   ([project]
    (g/with-auto-evaluation-context evaluation-context
-     (make-load-opts project evaluation-context)))
-  ([project evaluation-context]
-   (let [{:keys [basis-ref]} evaluation-context
-         workspace (g/raw-property-value @basis-ref project :workspace)
+     (make-load-opts project evaluation-context :tx-cache/replace)))
+  ([project {:keys [basis-ref] :as evaluation-context} tx-cache-policy]
+   (let [workspace (g/raw-property-value @basis-ref project :workspace)
          code-preprocessor (workspace/code-preprocessors workspace evaluation-context)
          script-intelligence (g/node-value project :script-intelligence evaluation-context)
          project-directory (workspace/project-directory @basis-ref workspace)
          proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)
-         proj-path->resource-node-id (g/node-value project :nodes-by-resource-path evaluation-context)
+         proj-path->resource-node-id (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context tx-cache-policy)
 
          resolve-resource-fn
          (fn resolve-resource-fn [owner-resource path]
@@ -119,9 +118,13 @@
       :script-intelligence script-intelligence
       :workspace workspace})))
 
-(defn evaluation-context-load-opts! [project evaluation-context]
+(defn evaluation-context-load-opts!
+  "Returns the tx-cached :load-opts. With :tx-cache/replace, refreshes
+  :nodes-by-resource-path before storing the new :load-opts."
+  [project evaluation-context tx-cache-policy]
   (g/tx-cached-value! evaluation-context [:load-opts]
-    (make-load-opts project evaluation-context)))
+    (make-load-opts project evaluation-context tx-cache-policy)
+    tx-cache-policy))
 
 (defn- resource-load-error [node-id resource exception]
   (if-not (instance? ArityException exception)
@@ -467,7 +470,8 @@
   (g/tx-cached-value! evaluation-context [:transpiler-tx-data-fn]
     (let [{:keys [basis-ref]} evaluation-context
           code-transpilers (code-transpilers @basis-ref)]
-      (code.transpilers/make-resource-load-tx-data-fn code-transpilers evaluation-context))))
+      (code.transpilers/make-resource-load-tx-data-fn code-transpilers evaluation-context))
+    :tx-cache/reuse))
 
 (defn load-nodes-tx-data
   [load-opts node-load-infos render-generate-tx-data-progress! render-apply-tx-data-progress! resource-metrics]
@@ -1150,7 +1154,9 @@
             (when (coll/not-empty node-load-infos)
               (g/expand-ec
                 (fn [evaluation-context]
-                  (let [load-opts (evaluation-context-load-opts! project evaluation-context)]
+                  ;; A connect-fn can populate the tx-cached :load-opts or
+                  ;; :nodes-by-resource-path before all shells are connected.
+                  (let [load-opts (evaluation-context-load-opts! project evaluation-context :tx-cache/replace)]
                     (load-nodes-tx-data load-opts node-load-infos progress/null-render-progress! render-progress! resource-metrics)))))
             (g/callback render-progress! (progress/make-indeterminate (localization/message "progress.finalizing")))))
 
@@ -1187,9 +1193,10 @@
            {:keys [proj-path->resource-node-id]} load-opts
            proj-path (resource/proj-path resource)]
        (or (get proj-path->resource-node-id proj-path)
-           ;; We may not have load-opts in the tx-data-context. Also, loading
-           ;; may add nodes for missing resources that are not in our map.
-           (get (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context) proj-path))))))
+           (get (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context :tx-cache/reuse) proj-path)
+           ;; The tx-cached :nodes-by-resource-path may lack a node created
+           ;; by an earlier setter in this transaction.
+           (get (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context :tx-cache/replace) proj-path))))))
 
 (defn get-project
   ([]
@@ -1241,10 +1248,10 @@
         resource (resource-node/resource @basis-ref node-id)
         workspace (resource/workspace resource)
         project (get-project @basis-ref)
-        read-opts (workspace/evaluation-context-read-opts! workspace evaluation-context)
+        read-opts (workspace/evaluation-context-read-opts! workspace evaluation-context :tx-cache/reuse)
 
         {:keys [proj-path->resource-node-id] :as load-opts}
-        (evaluation-context-load-opts! project evaluation-context)
+        (evaluation-context-load-opts! project evaluation-context :tx-cache/reuse)
 
         node-load-info
         (g/tx-cached-value! evaluation-context [::node-load-infos node-id]
@@ -1253,7 +1260,8 @@
             @basis-ref
             (fn [proj-path]
               (some->> (proj-path->resource-node-id proj-path)
-                       (resource-node/resource @basis-ref)))))
+                       (resource-node/resource @basis-ref))))
+          :tx-cache/reuse)
 
         node-load-info
         (if (:read-error node-load-info)
@@ -1383,7 +1391,7 @@
        (let [live-run-evaluation-context (g/live-run-evaluation-context evaluation-context)
              workspace (g/valid-node-value project :workspace live-run-evaluation-context)
              resources-by-proj-path (g/valid-node-value workspace :resource-map live-run-evaluation-context)
-             resource-nodes-by-proj-path (g/valid-node-value project :nodes-by-resource-path live-run-evaluation-context)]
+             resource-nodes-by-proj-path (g/tx-cached-node-value! project :nodes-by-resource-path live-run-evaluation-context :tx-cache/reuse)]
          (into upgraded-editable-save-data
                (keep (fn [[proj-path node-id]]
                        (when-let [resource (resources-by-proj-path proj-path)]
@@ -1565,7 +1573,7 @@
                   (:transfer-overrides plan))))]
     (g/with-evaluation-context [old-evaluation-context (g/make-evaluation-context)]
       (let [old-basis @(:basis-ref old-evaluation-context)
-            old-node-ids-by-proj-path (g/valid-node-value project :nodes-by-resource-path old-evaluation-context)
+            old-node-ids-by-proj-path (g/tx-cached-node-value! project :nodes-by-resource-path old-evaluation-context :tx-cache/reuse)
             new-node-id+resource-pairs (make-node-id+resource-pairs (:new plan))
             workspace (workspace project old-evaluation-context)
 
@@ -1839,7 +1847,7 @@
 (defn- handle-resource-changes [project changes render-progress!]
   (reload-plugins! project (set/union (set (:added changes)) (set (:changed changes))))
   (g/let-ec [{:keys [basis-ref]} evaluation-context
-             old-nodes-by-path (g/node-value project :nodes-by-resource-path evaluation-context)
+             old-nodes-by-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context :tx-cache/reuse)
              old-node->old-disk-sha256 #(g/raw-property-value @basis-ref % :disk-sha256)
 
              resource-change-plan
@@ -2115,7 +2123,7 @@
             ;; during resource-sync. Mark it as loaded and defective.
             creation-tx-data
             (let [node-load-info (make-file-not-found-node-load-info node-id resource resource-type)
-                  load-opts (evaluation-context-load-opts! project evaluation-context)]
+                  load-opts (evaluation-context-load-opts! project evaluation-context :tx-cache/reuse)]
               (node-load-info-tx-data node-load-info load-opts))
 
             ;; If we're about to connect a defunloaded resource that does not
@@ -2125,7 +2133,7 @@
                  (not (resource/loaded? resource))
                  (not (:allow-unloaded-use resource-type))
                  (not (resource-node/loaded? @basis-ref existing-resource-node-id)))
-            (let [load-opts (evaluation-context-load-opts! project evaluation-context)
+            (let [load-opts (evaluation-context-load-opts! project evaluation-context :tx-cache/reuse)
                   [load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded @basis-ref node-id resource load-opts)]
               load-tx-data))]
 

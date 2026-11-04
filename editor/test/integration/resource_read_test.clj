@@ -40,23 +40,23 @@
 
 (set! *warn-on-reflection* true)
 
-(g/defnode ResourcePathIndexProbe
-  (property resource resource/Resource)
-  (property reads g/Any)
-  (output node-id+resource g/Any
+(g/defnode NodesByResourcePathProbe
+  (inherits resource/ResourceNode)
+  (property reads g/Any :unjammable)
+  (output node-id+resource g/Any :unjammable
           (g/fnk [_node-id resource reads]
             (swap! reads inc)
             (pair _node-id resource))))
 
-;; The second atlas should reuse the indexed nodes for both images, even though
+;; Loading the second atlas should reuse :nodes-by-resource-path even though
 ;; each atlas resolves the missing image path to a separate resource object.
-(deftest build-load-reuses-resource-path-index-test
+(deftest build-load-reuses-nodes-by-resource-path-test
   (let [image-paths ["/builtins/graphics/particle_blob.png" "/missing.png"]
         atlas {:images (mapv (fn [path] {:image path}) image-paths)}]
     (test-util/with-temp-project-content {"/first.atlas" atlas "/second.atlas" atlas}
       (build/load-build-resources! project ["/first.atlas"] progress/null-render-progress! fn/constantly-false)
       (let [reads (atom 0)
-            probe (g/make-node! ResourcePathIndexProbe
+            probe (g/make-node! NodesByResourcePathProbe
                     :resource (workspace/file-resource workspace "/probe")
                     :reads reads)]
         (g/transact
