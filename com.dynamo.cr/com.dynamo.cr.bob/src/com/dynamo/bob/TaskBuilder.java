@@ -131,9 +131,6 @@ public class TaskBuilder {
     private TaskResult buildTask(Task task, IProgress progress, AtomicBoolean remoteBuildFailed) {
         BundleHelper.throwIfCanceled(progress, remoteBuildFailed);
 
-        System.err.printf("WINDOWS_DIAG_BEGIN [%s] %s %s%n", Thread.currentThread().getName(), task.getName(), task.input(0).getPath());
-        System.err.flush();
-
         TimeProfiler.start(task.getName());
 
         TaskResult taskResult = new TaskResult(task);
@@ -228,8 +225,6 @@ public class TaskBuilder {
             taskResult.setException(e);
             e.printStackTrace(new java.io.PrintStream(System.out));
         } finally {
-            System.err.printf("WINDOWS_DIAG_END [%s] %s %s%n", Thread.currentThread().getName(), task.getName(), task.input(0).getPath());
-            System.err.flush();
             if (taskResult.getResult() != Result.RETRY) {
                 task.getBuilder().clearState();
                 progress.close();

@@ -92,7 +92,7 @@ jobs:
             platform: x86_64-win32
             runner: windows-2025-vs2026
             timeout: 30
-            engine_args: "--skip-tests --skip-builtins --skip-docs"
+            engine_args: "--skip-builtins --skip-docs"
             dotnet: true
             gcloud: true
             codesign: false
