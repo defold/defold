@@ -155,14 +155,18 @@
   (input package-references g/Any)
   (input diagnostics g/Any)
   (output read-only g/Bool (g/fnk [read-only] (boolean read-only)))
+  (output name-error g/Any :cached
+          (g/fnk [_node-id id package-references]
+            (when-let [^PackageResolver$Diagnostic diagnostic
+                       (coll/first-where #(and (= id (.packageName ^PackageResolver$Diagnostic %))
+                                               (= -1 (.rule ^PackageResolver$Diagnostic %)))
+                                         (.diagnostics ^PackageResolver$PackageReferences package-references))]
+              (g/->error _node-id :id :fatal id (.message diagnostic)))))
   (property id g/Str (default "package")
             (dynamic read-only? (g/fnk [read-only] read-only))
             (set rename-package)
             (dynamic label (properties/label-dynamic :liveupdate-package :id))
-            (dynamic error (g/fnk [_node-id id]
-                             (when (or (not (re-matches #"[A-Za-z0-9][A-Za-z0-9._-]*" id))
-                                       (= "base" (string/lower-case id)))
-                               (g/->error _node-id :id :fatal id (localization/message "liveupdate.invalid-name"))))))
+            (dynamic error (g/fnk [name-error] name-error)))
   (property order g/Int (default 0) (dynamic visible (g/constantly false)))
   (property provider g/Keyword (default :zip)
             (dynamic read-only? (g/fnk [read-only] read-only))
@@ -197,13 +201,14 @@
                         (coll/not-empty rules) (assoc :rules (mapv :value rules))
                         (not= :zip provider) (assoc :provider (if (= :custom provider) custom-provider (name provider))))})))
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id id order child-outlines read-only]
+          (g/fnk [_node-id id order child-outlines read-only ^:try name-error]
             {:node-id _node-id
              :node-outline-key id
              :label id
              :order order
              :icon package-icon
              :read-only (boolean read-only)
+             :outline-error? (g/error-fatal? name-error)
              :children (vec (sort-by :order child-outlines))
              :child-reqs [{:node-type RuleNode :tx-attach-fn attach-rule}]})))
 
@@ -351,6 +356,7 @@
                   (g/->error _node-id :output-directory :fatal output-directory (ex-message error)))))))
   (input resource-map g/Any)
   (property generated-paths g/Any (default #{}) (dynamic visible (g/constantly false)))
+  (property matched-diagnostics g/Any (dynamic visible (g/constantly false)))
   (input package-nodes g/NodeID :array)
   (input package-data g/Any :array)
   (input base-outline outline/OutlineData)
@@ -380,11 +386,18 @@
             (PackageResolver/select
               (protobuf/map->pb LiveUpdateManifest$ManifestDesc save-value)
               source-paths)))
-  (output diagnostics g/Any (g/fnk [selection] (.diagnostics ^PackageResolver$Selection selection)))
+  (output selection-inputs g/Any :cached
+          (g/fnk [save-value resource-map generated-paths]
+            [save-value resource-map generated-paths]))
+  (output diagnostics g/Any :cached
+          (g/fnk [save-value selection-inputs matched-diagnostics]
+            (if (= selection-inputs (:inputs matched-diagnostics))
+              (:diagnostics matched-diagnostics)
+              (PackageResolver/validate (protobuf/map->pb LiveUpdateManifest$ManifestDesc save-value)))))
   (output selected-paths g/Any :cached
-          (g/fnk [_node-id selection diagnostics]
+          (g/fnk [_node-id selection]
             (or (g/flatten-errors
-                  (coll/into-> diagnostics []
+                  (coll/into-> (.diagnostics ^PackageResolver$Selection selection) []
                     (keep (fn [^PackageResolver$Diagnostic diagnostic]
                             (when (= PackageResolver$Severity/ERROR (.severity diagnostic))
                               (g/->error _node-id :selected-paths :fatal nil (.message diagnostic)))))))

@@ -32,7 +32,7 @@
             [editor.workspace :as workspace]
             [util.coll :as coll])
   (:import [clojure.lang PersistentQueue]
-           [com.dynamo.bob.archive.liveupdate PackageResolver PackageResolver$Loading PackageResolver$Contribution PackageResolver$Diagnostic PackageResolver$Package PackageResolver$Plan PackageResolver$Resource PackageResolver$RuleId]
+           [com.dynamo.bob.archive.liveupdate PackageResolver PackageResolver$Loading PackageResolver$Contribution PackageResolver$Diagnostic PackageResolver$Package PackageResolver$Plan PackageResolver$Resource PackageResolver$RuleId PackageResolver$Selection]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc LiveUpdateManifest$PackageDesc]
            [java.io File]
            [java.nio.file Path]
@@ -326,6 +326,17 @@
                 evaluation-context (g/make-evaluation-context)
                 job (future
                       (let [completion (try
+                                         (let [manifest (:resource-node model)
+                                               inputs (g/node-value manifest :selection-inputs evaluation-context)]
+                                           (when (not= inputs (:inputs (g/node-value manifest :matched-diagnostics evaluation-context)))
+                                             (let [selection (g/node-value manifest :selection evaluation-context)]
+                                               (ui/run-later
+                                                 (when (and (identical? generation (:generation @state))
+                                                            (g/node-by-id manifest))
+                                                   (g/transact {:undoable false}
+                                                     (g/set-property manifest :matched-diagnostics
+                                                       {:inputs inputs
+                                                        :diagnostics (.diagnostics ^PackageResolver$Selection selection)})))))))
                                          {:result (prepare-preview project model result package-name query evaluation-context)}
                                          (catch InterruptedException _ {})
                                          (catch CancellationException _ {})

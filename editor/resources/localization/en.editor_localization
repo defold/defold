@@ -2907,7 +2907,6 @@ liveupdate.package = Package
 liveupdate.package-heading = Package: {name}
 liveupdate.package-rule = {operation} Package: {name}
 liveupdate.base = Base
-liveupdate.invalid-name = Use letters, digits, dots, underscores or hyphens. Base is reserved.
 liveupdate.folder = Folder
 liveupdate.custom = Custom provider
 liveupdate.preview-progress = Preparing Live Update preview

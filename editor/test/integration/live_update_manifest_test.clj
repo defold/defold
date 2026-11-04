@@ -145,6 +145,10 @@
         (when (and (nil? job) result (not (identical? result previous)))
           (:compiled result))))))
 
+(defn- await-diagnostics! [node]
+  (await-ui! #(= (g/node-value node :selection-inputs)
+                 (:inputs (g/node-value node :matched-diagnostics)))))
+
 (defn- resource-table
   ^TreeTableView [^Pane parent]
   (.lookup parent "#liveupdate-resources"))
@@ -584,47 +588,74 @@
 ;; when files appear or disappear; regex errors expose one-based columns.
 (deftest validation-and-inventory
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (let [node (project/get-resource-node project "/packages.lumanifest")
-          rule (get-in (g/node-value node :packages) [0 :rules 0 :node-id])]
-      (doseq [[path column reason] [["[" 1 "Unclosed character class"]
-                                    ["/episodes/[" 11 "Unclosed character class"]
-                                    ["/episodes/(" 12 "Unclosed group"]]]
-        (g/transact (g/set-property rule :path path))
-        (let [error (test-util/prop-error rule :path)]
-          (is (g/error-fatal? error))
-          (is (= (str "Invalid regex in rule 'Episode' of package 'levels' at column " column ": " reason ". Path: " path)
-                 (:message error))))
-        (is (g/error-value? (g/node-value node :selected-paths)))
-        (is (= (str "Invalid regex in rule 'Episode' of package 'levels' at column " column ": " reason ". Path: " path)
-               (.message ^com.dynamo.bob.archive.liveupdate.PackageResolver$Diagnostic (first (g/node-value node :diagnostics))))))
-      (g/transact (g/set-property rule :path "/absent/.*"))
-      (is (coll/any? #(= PackageResolver$Severity/WARNING (.severity ^com.dynamo.bob.archive.liveupdate.PackageResolver$Diagnostic %))
-                     (g/node-value node :diagnostics)))
-      (is (g/error-warning? (test-util/prop-error rule :path)))
-      (is (= "icons/32/Icons_04-Project-file.png" (:icon (g/node-value rule :node-outline))))
-      (is (= "Rule 'Episode' in package 'levels' matches no source files for Path '/absent/.*'. Patterns match the entire source path, including its leading '/'."
-             (.message ^com.dynamo.bob.archive.liveupdate.PackageResolver$Diagnostic (first (g/node-value node :diagnostics)))))
-      (doseq [[policy fatal warning] [[:error true false] [:ignore false false] [:warn false true]]]
-        (g/transact (g/set-property rule :no-match policy))
-        (let [error (test-util/prop-error rule :path)]
-          (is (= fatal (g/error-fatal? error)))
-          (is (= warning (g/error-warning? error))))
-        (is (= fatal (:outline-error? (g/node-value rule :node-outline))))
-        (is (= fatal (g/error-value? (g/node-value node :selected-paths)))))
-      (g/transact (g/set-property rule :no-match :error))
-      (let [file (io/file (workspace/project-directory workspace) "absent/config.txt")]
-        (io/make-parents file)
-        (spit file "Custom configuration")
-        (workspace/resource-sync! workspace)
-        (is (nil? (test-util/prop-error rule :path)))
-        (is (false? (:outline-error? (g/node-value rule :node-outline))))
-        (is (contains? (g/node-value node :selected-paths) "/absent/config.txt"))
-        (is (.delete file))
-        (workspace/resource-sync! workspace)
-        (is (g/error-fatal? (test-util/prop-error rule :path))))
-      (g/transact (g/set-property rule :no-match :warn))
-      (g/transact (g/set-property rule :path "/episode[.]collection"))
-      (is (= #{"/episode.collection" "/extra.json"} (g/node-value node :selected-paths))))))
+    (with-manifest-view! project app-view "/packages.lumanifest"
+      (fn [_]
+        (let [node (project/get-resource-node project "/packages.lumanifest")
+              rule (get-in (g/node-value node :packages) [0 :rules 0 :node-id])]
+          (doseq [[path column reason] [["[" 1 "Unclosed character class"]
+                                        ["/episodes/[" 11 "Unclosed character class"]
+                                        ["/episodes/(" 12 "Unclosed group"]]]
+            (g/transact (g/set-property rule :path path))
+            (let [error (test-util/prop-error rule :path)]
+              (is (g/error-fatal? error))
+              (is (= (str "Invalid regex in rule 'Episode' of package 'levels' at column " column ": " reason ". Path: " path)
+                     (:message error))))
+            (is (g/error-value? (g/node-value node :selected-paths)))
+            (is (= (str "Invalid regex in rule 'Episode' of package 'levels' at column " column ": " reason ". Path: " path)
+                   (.message ^com.dynamo.bob.archive.liveupdate.PackageResolver$Diagnostic (first (g/node-value node :diagnostics))))))
+          (g/transact (g/set-property rule :path "/absent/.*"))
+          (await-diagnostics! node)
+          (is (coll/any? #(= PackageResolver$Severity/WARNING (.severity ^com.dynamo.bob.archive.liveupdate.PackageResolver$Diagnostic %))
+                         (g/node-value node :diagnostics)))
+          (is (g/error-warning? (test-util/prop-error rule :path)))
+          (is (= "icons/32/Icons_04-Project-file.png" (:icon (g/node-value rule :node-outline))))
+          (is (= "Rule 'Episode' in package 'levels' matches no source files for Path '/absent/.*'. Patterns match the entire source path, including its leading '/'."
+                 (.message ^com.dynamo.bob.archive.liveupdate.PackageResolver$Diagnostic (first (g/node-value node :diagnostics)))))
+          (doseq [[policy fatal warning] [[:error true false] [:ignore false false] [:warn false true]]]
+            (g/transact (g/set-property rule :no-match policy))
+            (await-diagnostics! node)
+            (let [error (test-util/prop-error rule :path)]
+              (is (= fatal (g/error-fatal? error)))
+              (is (= warning (g/error-warning? error))))
+            (is (= fatal (:outline-error? (g/node-value rule :node-outline))))
+            (is (= fatal (g/error-value? (g/node-value node :selected-paths)))))
+          (g/transact (g/set-property rule :no-match :error))
+          (let [file (io/file (workspace/project-directory workspace) "absent/config.txt")]
+            (io/make-parents file)
+            (spit file "Custom configuration")
+            (workspace/resource-sync! workspace)
+            (await-diagnostics! node)
+            (is (nil? (test-util/prop-error rule :path)))
+            (is (false? (:outline-error? (g/node-value rule :node-outline))))
+            (is (contains? (g/node-value node :selected-paths) "/absent/config.txt"))
+            (is (.delete file))
+            (workspace/resource-sync! workspace)
+            (await-diagnostics! node)
+            (is (g/error-fatal? (test-util/prop-error rule :path))))
+          (g/transact (g/set-property rule :no-match :warn))
+          (g/transact (g/set-property rule :path "/episode[.]collection"))
+          (is (nil? (test-util/prop-error rule :path)))
+          (await-diagnostics! node)
+          (is (= #{"/episode.collection" "/extra.json"} (g/node-value node :selected-paths))))))))
+
+;; Package names use Bob's validation in Properties and Outline, including
+;; reserved filenames and duplicates. Repairing the name clears both errors.
+(deftest package-name-validation
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (let [manifest (project/get-resource-node project "/packages.lumanifest")
+          [levels copy] (g/node-value manifest :packages)
+          node (:node-id copy)]
+      (doseq [[name message] [["CON" "Invalid or reserved package name: CON"]
+                              ["levels" "Duplicate package: levels"]]]
+        (test-util/prop! node :id name)
+        (is (= message (test-util/localization (g/error-message (test-util/prop-error node :id)))))
+        (is (g/error-fatal? (test-util/prop-error node :id)))
+        (is (:outline-error? (g/node-value node :node-outline))))
+      (is (:outline-error? (g/node-value (:node-id levels) :node-outline)))
+      (test-util/prop! node :id "copy")
+      (doseq [node [node (:node-id levels)]]
+        (is (nil? (test-util/prop-error node :id)))
+        (is (false? (:outline-error? (g/node-value node :node-outline))))))))
 
 ;; Preview lists custom files by their source paths, including known extensions,
 ;; and agrees with Bob without producing compiled files.
@@ -794,6 +825,27 @@
           (let [changed ^PackageResolver$Plan (:plan (await-preview! state previous))]
             (is (contains? (.base changed) "/extra.luac"))
             (is (contains? (.resources ^PackageResolver$Package (get (.packages changed) "content")) "/extra.luac"))))))))
+
+;; UI reads must not scan the file inventory, even after invalidating a rule.
+;; Syntax errors remain available immediately, before the preview worker runs.
+(deftest validation-does-not-scan-inventory
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (with-manifest-view! project app-view "/packages.lumanifest"
+      (fn [{:keys [view]}]
+        (let [manifest (project/get-resource-node project "/packages.lumanifest")
+              rule (get-in (g/node-value manifest :packages) [0 :rules 0 :node-id])
+              evaluated (atom #{})
+              _ (test-util/prop! rule :path "[")
+              evaluation-context (g/make-evaluation-context
+                                   {:tracer (fn [event node _type label]
+                                              (when (and (= :begin event) (= node manifest))
+                                                (swap! evaluated conj label)))})]
+          (is (map? (g/node-value manifest :node-outline evaluation-context)))
+          (is (map? (g/node-value view :model evaluation-context)))
+          (is (map? (g/node-value rule :_properties evaluation-context)))
+          (is (g/error-fatal? (test-util/prop-error rule :path)))
+          (is (not (contains? @evaluated :selection)))
+          (is (not (contains? @evaluated :source-paths))))))))
 
 ;; Registered views refresh from unsaved edits and inventory without compiling.
 ;; Reordering retains the controls and cached editor targets; closing and
