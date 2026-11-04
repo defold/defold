@@ -863,6 +863,19 @@ namespace dmGameSystem
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
     }
 
+    static const dmGraphics::VertexAttributeInfo* FindAttribute(const dmGraphics::VertexAttributeInfos* attribute_infos, dmGraphics::VertexStepFunction step_function, dmGraphics::VertexAttribute::SemanticType semantic_type)
+    {
+        for (uint32_t i = 0; i < attribute_infos->m_NumInfos; ++i)
+        {
+            const dmGraphics::VertexAttributeInfo& attr = attribute_infos->m_Infos[i];
+            if (attr.m_StepFunction == step_function && attr.m_SemanticType == semantic_type)
+            {
+                return &attr;
+            }
+        }
+        return 0;
+    }
+
     static void FillMorphWeightsFloatSlots(const float* weights, uint32_t weight_count, float* out, uint32_t slot_count)
     {
         for (uint32_t i = 0; i < slot_count; ++i)
@@ -874,8 +887,6 @@ namespace dmGameSystem
     static uint8_t* WriteMeshAttributes(ModelWorld* world, dmRender::HRenderContext render_context, MeshRenderItem* render_item, dmGraphics::VertexStepFunction step_function, dmGraphics::VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_count)
     {
         bool needs_mesh_data = false;
-        bool needs_normal_matrix = false;
-        const dmGraphics::VertexAttributeInfo* morph_attribute = 0;
 
         for (uint32_t i = 0; i < attribute_infos->m_NumInfos; ++i)
         {
@@ -896,19 +907,6 @@ namespace dmGameSystem
                     needs_mesh_data = true;
                     break;
                 }
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
-                {
-                    needs_normal_matrix = true;
-                    break;
-                }
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS:
-                {
-                    if (!morph_attribute)
-                    {
-                        morph_attribute = &attribute;
-                    }
-                    break;
-                }
                 default:
                 {
                     break;
@@ -926,7 +924,7 @@ namespace dmGameSystem
         }
 
         dmVMath::Matrix4 normal_matrix;
-        if (needs_normal_matrix)
+        if (FindAttribute(attribute_infos, step_function, dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX))
         {
             normal_matrix = dmRender::GetNormalMatrix(render_context, render_item->m_World);
         }
@@ -948,6 +946,7 @@ namespace dmGameSystem
 
         uint32_t uv_channels_count = (uv_channels[0] ? 1 : 0) + (uv_channels[1] ? 1 : 0);
 
+        const dmGraphics::VertexAttributeInfo* morph_attribute = FindAttribute(attribute_infos, step_function, dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS);
         if (morph_attribute)
         {
             morph_target_weights_vector_type = morph_attribute->m_VectorType;
