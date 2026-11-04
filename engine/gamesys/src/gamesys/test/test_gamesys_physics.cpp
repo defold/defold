@@ -1037,6 +1037,57 @@ TEST_F(ComponentTest, PhysicsBatchedEventDecoderTest)
     DestroyPhysicsTestCallback(L, &callback);
 }
 
+// Retained event tables remain independent across batches, including repeated hashes and more groups than the batch cache holds.
+TEST_F(ComponentTest, PhysicsBatchedEventRetentionTest)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    AssertLua(L,
+        "physics_batches = {}\n"
+        "function retain_physics_events(self, events)\n"
+        "    physics_batches[#physics_batches + 1] = events\n"
+        "end\n");
+    PhysicsTestCallback callback = CreatePhysicsTestCallback(L, "retain_physics_events");
+    dmPhysicsDDF::CollisionEvent events[24] = {};
+    dmGameSystem::PhysicsMessage messages[DM_ARRAY_SIZE(events)];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(events); ++i)
+    {
+        char group[32];
+        dmSnPrintf(group, sizeof(group), "group_%u", i);
+        events[i].m_A.m_Group = dmHashString64(group);
+        events[i].m_B.m_Group = dmHashString64("group_0");
+        events[i].m_A.m_Id = dmHashString64("object_a");
+        events[i].m_B.m_Id = dmHashString64("object_b");
+        messages[i].m_Offset = i * sizeof(events[0]);
+        messages[i].m_Type = dmGameSystem::PHYSICS_MESSAGE_TYPE_COLLISION;
+    }
+    int top = lua_gettop(L);
+    for (uint32_t batch = 1; batch <= 2; ++batch)
+    {
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(events); ++i)
+            events[i].m_A.m_Position = Point3((float)batch, (float)i, 0.0f);
+        dmGameSystem::RunBatchedEventCallback(callback.m_Callback, DM_ARRAY_SIZE(messages), messages, (const uint8_t*)events);
+        ASSERT_EQ(top, lua_gettop(L));
+        lua_gc(L, LUA_GCCOLLECT, 0);
+    }
+    AssertLua(L,
+        "for batch, events in ipairs(physics_batches) do\n"
+        "    assert(#events == 24)\n"
+        "    for i, event in ipairs(events) do\n"
+        "        assert(event.type == hash('collision_event'))\n"
+        "        assert(event.a.id == hash('object_a') and event.b.id == hash('object_b'))\n"
+        "        assert(event.a.group == hash('group_' .. (i - 1)))\n"
+        "        assert(event.b.group == hash('group_0'))\n"
+        "        assert(event.a.position == vmath.vector3(batch, i - 1, 0))\n"
+        "    end\n"
+        "end\n"
+        "physics_batches[1][1].a.position.x = 99\n"
+        "assert(physics_batches[1][2].a.position.x == 1)\n"
+        "assert(physics_batches[2][1].a.position.x == 2)\n"
+        "physics_batches = nil\n"
+        "retain_physics_events = nil\n");
+    DestroyPhysicsTestCallback(L, &callback);
+}
+
 /* Update mass for physics collision object */
 TEST_F(ComponentTest, PhysicsUpdateMassTest)
 {

@@ -348,6 +348,8 @@ namespace dmGraphics
 
         // Per-frame render state
         MetalDeviceBuffer*                 m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
+        // Original handles identify bindings; current declarations are shader-filtered copies.
+        HVertexDeclaration                 m_EnabledVertexDeclarations[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         uint32_t                           m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
         MetalStorageBufferBinding          m_CurrentStorageBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];

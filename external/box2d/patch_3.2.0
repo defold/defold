@@ -227,6 +227,19 @@
  	void* ptr = NULL;
  	if ( posix_memalign( &ptr, B2_ALIGNMENT, alignedSize ) != 0 )
  	{
+--- a/src/core.h
++++ b/src/core.h
+@@ -50,6 +50,10 @@
+ // Define SIMD
+ #if defined( BOX2D_DISABLE_SIMD )
+ 	#define B2_SIMD_NONE
++// DEFOLD EDIT BEGIN: Allow locking x86 builds to SSE2.
++#elif defined( BOX2D_SIMD_USE_SSE2 ) && defined( B2_CPU_X86_X64 )
++	#define B2_SIMD_SSE2
++// DEFOLD EDIT END
+ #else
+ 	#if defined( B2_CPU_X86_X64 )
+ 		#define B2_SIMD_SSE2
 --- a/src/physics_world.c
 +++ b/src/physics_world.c
 @@ -880,6 +880,13 @@

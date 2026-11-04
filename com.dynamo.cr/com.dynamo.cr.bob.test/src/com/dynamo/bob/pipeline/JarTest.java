@@ -27,9 +27,12 @@ import java.net.URISyntaxException;
 import java.util.List;
 
 import org.junit.Test;
+import org.junit.Assume;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ClassLoaderScanner;
+import com.dynamo.bob.Platform;
 import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
@@ -40,6 +43,17 @@ import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.util.BobProjectProperties;
 
 public class JarTest {
+
+    // Verify the packaged Windows lipo starts; stripping its PE debug sections broke the Windows loader.
+    @Test
+    public void testWindowsLipoStarts() throws Exception {
+        Assume.assumeTrue(Platform.getHostPlatform() == Platform.X86_64Win32);
+        Process process = new ProcessBuilder(Bob.getExe(Platform.X86_64Win32, "lipo"), "-version")
+                .redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals(output, 0, process.waitFor());
+        assertFalse(output.trim().isEmpty());
+    }
 
     private int bob(String command) throws IOException, InterruptedException, CompileExceptionError, URISyntaxException {
         String jarPath = "../com.dynamo.cr.bob/dist/bob.jar";
