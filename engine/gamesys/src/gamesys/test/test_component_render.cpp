@@ -97,15 +97,15 @@ namespace
 
     struct ArtificialType
     {
-        Probe*   m_Probe;
+        Probe*                                m_Probe;
         dmGameSystem::HComponentRenderContext m_CaptureOwner;
-        uint32_t m_Index;
-        uint8_t  m_FailCapture : 1;
-        uint8_t  m_ObserveRetirement : 1;
-        uint8_t  m_DeleteCollectionOnPostUpdate : 1;
-        uint8_t  m_FailPostUpdate : 1;
-        uint8_t  m_NestedCaptureRejected : 1;
-        uint8_t  m_NestedRenderRejected : 1;
+        uint32_t                              m_Index;
+        uint8_t                               m_FailCapture : 1;
+        uint8_t                               m_ObserveRetirement : 1;
+        uint8_t                               m_DeleteCollectionOnPostUpdate : 1;
+        uint8_t                               m_FailPostUpdate : 1;
+        uint8_t                               m_NestedCaptureRejected : 1;
+        uint8_t                               m_NestedRenderRejected : 1;
     };
 
     struct ArtificialWorld
@@ -980,10 +980,19 @@ TEST(ComponentRender, RecordingFailureCancelsCapturedComponents)
         ASSERT_TRUE(dmGameSystem::Render(fixture.m_Context, collection));
         ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_CAPTURE));
 
-        // Model a command/payload allocation failure after successful component capture.
-        dmRender::FailRenderFrame(GetWorld(collection)->m_LastCapturedFrame, dmRender::RENDER_FRAME_CAPACITY_EXCEEDED);
+        // A constant-like snapshot may already own dynamic storage when a later fixed
+        // payload fails. Neither the snapshot nor the component inputs may be published.
+        dmRender::HRenderFrame frame = GetWorld(collection)->m_LastCapturedFrame;
+        uint32_t table_index;
+        void* payload;
+        ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::AllocateRenderFrameDynamicTable(frame, 0, 1, 128 * 1024, 16, &table_index, &payload));
+        memset(payload, 0x5a, 128 * 1024);
+        const uint64_t dynamic_capacity = dmRender::GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity;
+        ASSERT_EQ(dmRender::RENDER_FRAME_CAPACITY_EXCEEDED, dmRender::AllocateRenderFrameTable(frame, 0, 1, 4096, 16, &table_index, &payload));
         ASSERT_FALSE(dmGameSystem::SubmitRender(fixture.m_Context, 0, 0.0f, 0));
         ASSERT_TRUE(dmGameSystem::PostUpdate(fixture.m_Context, collection));
+        ASSERT_EQ((uint64_t)0, dmRender::GetRenderFrameStatistics(frame).m_DynamicPayloadBytes);
+        ASSERT_EQ(dynamic_capacity, dmRender::GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity);
         ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_FRAME_RELEASE));
         ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CREATE));
         ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));
@@ -1108,7 +1117,7 @@ TEST(ComponentRender, LegacyCallbacksRequireInlineExecution)
     }
 }
 
-// Verify inline and threaded consumers populate render items before the same packet's pass commands draw them.
+// Verify BeginFrame supplies recording timing and both consumers populate render items before pass commands draw them.
 TEST(ComponentRender, ComponentInputsAreConsumedBeforePassCommands)
 {
     const dmRender::ExecutionMode modes[] = { dmRender::EXECUTION_MODE_INLINE, dmRender::EXECUTION_MODE_THREADED };
@@ -1128,8 +1137,7 @@ TEST(ComponentRender, ComponentInputsAreConsumedBeforePassCommands)
         // Exercise the real pass consumer with null graphics. Legacy list preparation
         // remains serialized here; moving that preparation to its owner is D2.2 work.
         ASSERT_TRUE(dmGameSystem::BeginFrame(fixture.m_Context));
-        dmRender::BeginFrame(fixture.m_RenderContext, 0.0f, 0.0f);
-        dmRender::BeginRenderFrameRecording(fixture.m_RenderContext, 1.0f, 0.125f);
+        dmRender::BeginFrame(fixture.m_RenderContext, 1.0f, 0.125f);
         dmRender::RenderListBegin(fixture.m_RenderContext);
         ASSERT_TRUE(dmGameSystem::Render(fixture.m_Context, collection));
         ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));
@@ -1168,7 +1176,7 @@ TEST(ComponentRender, ComponentInputsAreConsumedBeforePassCommands)
     }
 }
 
-// Verify default passes need no component opt-in and consumption preserves light submissions prepared inline.
+// Verify BeginFrame supplies default-pass timing without a separate recording call and consumption preserves inline light submissions.
 TEST(ComponentRender, DefaultPassWithoutComponents)
 {
     dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
@@ -1217,15 +1225,17 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     ASSERT_NE((dmRender::HRenderFrameQueue)0, queue);
 
     ASSERT_TRUE(dmGameSystem::BeginFrame(context));
-    dmRender::BeginFrame(render, 0.0f, 0.0f);
-    dmRender::BeginRenderFrameRecording(render, 3.25f, 0.125f);
+    dmRender::BeginFrame(render, 3.25f, 0.125f);
     dmRender::RenderListBegin(render);
     // Legacy light components submit before pass execution. Applying the packet's
     // timing must not call BeginFrame again and clear those submissions.
     dmRender::SubmitLightInstance(render, light);
     ASSERT_EQ(1u, render->m_LightBufferSubmitted[0]);
-    ASSERT_EQ(0.0f, render->m_Time);
-    ASSERT_EQ(0.0f, render->m_Dt);
+    ASSERT_EQ(3.25f, render->m_Time);
+    ASSERT_EQ(0.125f, render->m_Dt);
+    // Leave execution timing stale to verify consumption applies the recorded values.
+    render->m_Time = 0.0f;
+    render->m_Dt = 0.0f;
     ASSERT_TRUE(dmGameSystem::SubmitRender(context, 0, 0.125f, 0x44332211));
 
     ASSERT_EQ(3.25f, render->m_Time);

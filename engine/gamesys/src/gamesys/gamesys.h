@@ -382,6 +382,7 @@ namespace dmGameSystem
      * Recording failures cancel the whole unpublished packet, not just its last command.
      * Successful submission means accepted work, not successful rendering; consumer
      * errors are observed at BeginFrame/PostUpdate in both execution modes.
+     *
      * @param context Game-system instance with successful BeginFrame and Render
      * @param script Render script instance, or null to record the default clear/draw pass
      * @param dt Render-script update delta time

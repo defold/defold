@@ -56,9 +56,7 @@ namespace dmRender
         COMMAND_TYPE_MAX
     };
 
-    struct RenderCommandCamera;
-
-    // Compact pass command. Recorded draw commands may additionally own a camera snapshot.
+    // Compact pass command. Each command type defines how its operands are interpreted.
     struct Command
     {
         Command(CommandType type);
@@ -66,17 +64,22 @@ namespace dmRender
         Command(CommandType type, uint64_t op0, uint64_t op1);
         Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2);
         Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2, uint64_t op3);
+        Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2, uint64_t op3, uint64_t op4);
 
-        uint64_t             m_Operands[4];
-        RenderCommandCamera* m_CameraSnapshot;
-        CommandType          m_Type;
-        uint8_t              m_HasCameraSnapshot : 1;
+        uint64_t    m_Operands[5];
+        CommandType m_Type;
     };
 
     // Private frame table tags reserved for pass command data.
     const uint32_t RENDER_COMMAND_TABLE_TYPE = UINT32_MAX - 1;
     const uint32_t RENDER_COMMAND_PAYLOAD_TABLE_TYPE = UINT32_MAX - 2;
     const uint32_t RENDER_COMMAND_DEPENDENCY_TABLE_TYPE = UINT32_MAX - 3;
+
+    // Draw/debug-draw operand 4 holds a camera snapshot's frame-table index + 1.
+    // Zero inherits the preceding camera selection; NONE explicitly disables it.
+    // SET_RENDER_CAMERA_SNAPSHOT uses operand 0 with an index + 1 or NONE.
+    const uint64_t RENDER_COMMAND_CAMERA_INHERIT = 0;
+    const uint64_t RENDER_COMMAND_CAMERA_NONE = UINT64_MAX;
 
     // The selected camera's immutable values. Reapplied before each draw, like a live camera.
     struct RenderCommandCamera
@@ -117,7 +120,7 @@ namespace dmRender
      * @return Recording status; failures poison the whole frame
      */
     RenderFrameResult RecordRenderCommand(HRenderContext context, HRenderFrame frame, const Command& source, Command* destination,
-                                          HRenderCamera selected_camera = 0, bool use_frustum = false, bool capture_camera = false);
+                                          HRenderCamera selected_camera, bool use_frustum, bool capture_camera);
     /** Copy an ordered command array into its operands' frame; the source array can be reused. */
     RenderFrameResult AppendRenderCommands(HRenderFrame frame, const Command* commands, uint32_t count);
     /** Replay published command tables in order on the render owner, without releasing frame bytes. */
@@ -125,7 +128,7 @@ namespace dmRender
     /** Free temporary producer matrices/frusta, never published frame operands or borrowed resources. */
     void ReleaseRenderCommandOperands(Command* commands, uint32_t count);
 
-    // Constant-buffer storage copied directly into the frame arena, without heap clones.
+    // Constant-buffer snapshots use frame-owned reusable dynamic storage, without heap clones.
     RenderFrameResult CopyRenderCommandConstants(HRenderFrame frame, HNamedConstantBuffer source, HNamedConstantBuffer* destination);
 
     void ParseCommands(dmRender::HRenderContext render_context, Command* commands, uint32_t command_count);

@@ -51,9 +51,9 @@ namespace dmRender
     }
 
     static RenderFrameResult CopyCameraSnapshot(HRenderContext context, HRenderFrame frame, HRenderCamera handle,
-                                                bool use_frustum, RenderCommandCamera** destination)
+                                                bool use_frustum, uint64_t* destination)
     {
-        *destination = 0;
+        *destination = RENDER_COMMAND_CAMERA_NONE;
         RenderCamera* camera = handle ? context->m_Recording.m_RenderCameras.Get(handle) : 0;
         if (!camera)
         {
@@ -68,9 +68,13 @@ namespace dmRender
         snapshot.m_Projection = camera->m_Projection;
         snapshot.m_ViewProjection = camera->m_ViewProjection;
         snapshot.m_UseFrustum = use_frustum;
-        uint64_t copy;
-        RenderFrameResult result = CopyOperand(frame, (uint64_t)&snapshot, sizeof(snapshot), 16, &copy);
-        *destination = (RenderCommandCamera*)copy;
+        uint32_t table_index;
+        RenderFrameResult result = CopyRenderFrameTable(frame, RENDER_COMMAND_PAYLOAD_TABLE_TYPE, 1, sizeof(snapshot), 16, &snapshot, &table_index, 0);
+        if (result == RENDER_FRAME_OK)
+        {
+            // Reserve zero for inherited selection, keeping table index zero usable.
+            *destination = (uint64_t)table_index + 1;
+        }
         return result;
     }
 
@@ -81,8 +85,7 @@ namespace dmRender
         *destination = source;
         if (capture_camera && (source.m_Type == COMMAND_TYPE_DRAW || source.m_Type == COMMAND_TYPE_DRAW_DEBUG3D))
         {
-            destination->m_HasCameraSnapshot = 1;
-            RenderFrameResult result = CopyCameraSnapshot(context, frame, selected_camera, use_frustum, &destination->m_CameraSnapshot);
+            RenderFrameResult result = CopyCameraSnapshot(context, frame, selected_camera, use_frustum, &destination->m_Operands[4]);
             if (result != RENDER_FRAME_OK)
             {
                 return result;
@@ -126,10 +129,7 @@ namespace dmRender
             case COMMAND_TYPE_SET_RENDER_CAMERA:
             {
                 destination->m_Type = COMMAND_TYPE_SET_RENDER_CAMERA_SNAPSHOT;
-                RenderCommandCamera* camera;
-                RenderFrameResult result = CopyCameraSnapshot(context, frame, (HRenderCamera)source.m_Operands[0], source.m_Operands[1] != 0, &camera);
-                destination->m_Operands[0] = (uint64_t)camera;
-                return result;
+                return CopyCameraSnapshot(context, frame, (HRenderCamera)source.m_Operands[0], source.m_Operands[1] != 0, &destination->m_Operands[0]);
             }
             case COMMAND_TYPE_ENABLE_TEXTURE:
             {

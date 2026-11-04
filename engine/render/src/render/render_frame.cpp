@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <dlib/log.h>
 #include <dlib/memory.h>
 
 #include "render_frame.h"
@@ -41,18 +42,29 @@ namespace dmRender
         void*               m_Context;
     };
 
-    // Fixed storage reused across captures without clearing payload bytes or allocating.
+    // Append-only backing storage preserves existing table pointers when a later table needs growth.
+    struct RenderFrameDynamicBlock
+    {
+        uint8_t*                 m_Payload;
+        RenderFrameDynamicBlock* m_Next;
+        uint32_t                 m_Capacity;
+        uint32_t                 m_Used;
+    };
+
+    // Fixed storage and retained dynamic blocks are reused without clearing payload bytes.
     // Only the producer mutates storage; publication makes the sealed view immutable
     // until the queue returns retirement to that producer.
     struct RenderFrameStorage
     {
-        RenderFrameView         m_View;
-        RenderFrameLimits       m_Limits;
-        uint8_t*                m_Payload;
-        RenderFrameTable*       m_Tables;
-        RenderFrameReference*   m_References;
-        RenderFrameStorageState m_State;
-        RenderFrameResult       m_Error;
+        RenderFrameView          m_View;
+        RenderFrameLimits        m_Limits;
+        uint8_t*                 m_Payload;
+        RenderFrameTable*        m_Tables;
+        RenderFrameReference*    m_References;
+        RenderFrameDynamicBlock* m_DynamicBlocks;
+        RenderFrameDynamicBlock* m_CurrentDynamicBlock;
+        RenderFrameStorageState  m_State;
+        RenderFrameResult        m_Error;
     };
 
     uint64_t GetRenderFrameStorageSize(const RenderFrameLimits& limits)
@@ -123,6 +135,12 @@ namespace dmRender
         return error;
     }
 
+    static RenderFrameResult FailCapacity(HRenderFrame frame, const char* budget, uint64_t required, uint32_t limit)
+    {
+        dmLogError("Render frame %s budget exceeded (required %llu, limit %u).", budget, (unsigned long long)required, limit);
+        return FailCapture(frame, RENDER_FRAME_CAPACITY_EXCEEDED);
+    }
+
     static RenderFrameResult CheckCapture(HRenderFrame frame)
     {
         if (frame->m_Error != RENDER_FRAME_OK)
@@ -139,32 +157,144 @@ namespace dmRender
         return result != RENDER_FRAME_OK ? result : FailCapture(frame, error);
     }
 
-    RenderFrameResult AllocateRenderFrameTable(HRenderFrame frame, uint32_t type, uint32_t count,
-        uint32_t stride, uint32_t alignment, uint32_t* table_index, void** data)
+    static RenderFrameResult CheckTableAllocation(HRenderFrame frame, uint32_t count, uint32_t stride,
+                                                  uint32_t alignment, uint32_t* table_index, void** data)
     {
         RenderFrameResult result = CheckCapture(frame);
         if (result != RENDER_FRAME_OK)
+        {
             return result;
+        }
         if (!count || !stride || !alignment || alignment > 16 || (alignment & (alignment - 1)) || !table_index || !data)
+        {
             return FailCapture(frame, RENDER_FRAME_INVALID_ARGUMENT);
+        }
+        if (frame->m_View.m_Statistics.m_TableCount == frame->m_Limits.m_MaxTables)
+        {
+            return FailCapacity(frame, "table count", (uint64_t)frame->m_View.m_Statistics.m_TableCount + 1, frame->m_Limits.m_MaxTables);
+        }
+        return RENDER_FRAME_OK;
+    }
+
+    static void AppendTable(HRenderFrame frame, uint32_t type, uint32_t count, uint32_t stride,
+                            void* payload, uint32_t* table_index, void** data)
+    {
+        RenderFrameStatistics& statistics = frame->m_View.m_Statistics;
+        RenderFrameTable& table = frame->m_Tables[statistics.m_TableCount];
+        table.m_Data = payload;
+        table.m_Type = type;
+        table.m_Count = count;
+        table.m_Stride = stride;
+        *table_index = statistics.m_TableCount++;
+        *data = payload;
+        ++statistics.m_AllocationCount;
+    }
+
+    RenderFrameResult AllocateRenderFrameTable(HRenderFrame frame, uint32_t type, uint32_t count,
+                                               uint32_t stride, uint32_t alignment, uint32_t* table_index, void** data)
+    {
+        RenderFrameResult result = CheckTableAllocation(frame, count, stride, alignment, table_index, data);
+        if (result != RENDER_FRAME_OK)
+        {
+            return result;
+        }
 
         RenderFrameStatistics& statistics = frame->m_View.m_Statistics;
         const uint64_t bytes = (uint64_t)count * stride;
         const uint64_t offset = ((uint64_t)statistics.m_PayloadBytes + alignment - 1) & ~((uint64_t)alignment - 1);
+        if (offset + bytes > frame->m_Limits.m_PayloadBytes)
+        {
+            return FailCapacity(frame, "fixed payload bytes", offset + bytes, frame->m_Limits.m_PayloadBytes);
+        }
 
-        if (statistics.m_TableCount == frame->m_Limits.m_MaxTables || offset + bytes > frame->m_Limits.m_PayloadBytes)
-            return FailCapture(frame, RENDER_FRAME_CAPACITY_EXCEEDED);
-
-        RenderFrameTable& table = frame->m_Tables[statistics.m_TableCount];
-        table.m_Type = type;
-        table.m_Offset = (uint32_t)offset;
-        table.m_Count = count;
-        table.m_Stride = stride;
-        *table_index = statistics.m_TableCount++;
-        *data = frame->m_Payload + offset;
+        AppendTable(frame, type, count, stride, frame->m_Payload + offset, table_index, data);
         statistics.m_PayloadBytes = (uint32_t)(offset + bytes);
-        ++statistics.m_AllocationCount;
+        return RENDER_FRAME_OK;
+    }
 
+    RenderFrameResult AllocateRenderFrameDynamicTable(HRenderFrame frame, uint32_t type, uint32_t count,
+                                                      uint32_t stride, uint32_t alignment, uint32_t* table_index, void** data)
+    {
+        RenderFrameResult result = CheckTableAllocation(frame, count, stride, alignment, table_index, data);
+        if (result != RENDER_FRAME_OK)
+        {
+            return result;
+        }
+
+        const uint64_t bytes = (uint64_t)count * stride;
+        if (bytes > UINT32_MAX)
+        {
+            return FailCapacity(frame, "dynamic table bytes", bytes, UINT32_MAX);
+        }
+
+        RenderFrameDynamicBlock* block = frame->m_CurrentDynamicBlock;
+        RenderFrameDynamicBlock* previous = 0;
+        uint64_t offset = 0;
+        while (block)
+        {
+            offset = ((uint64_t)block->m_Used + alignment - 1) & ~((uint64_t)alignment - 1);
+            if (offset + bytes <= block->m_Capacity)
+            {
+                break;
+            }
+            previous = block;
+            block = block->m_Next;
+        }
+
+        RenderFrameStatistics& statistics = frame->m_View.m_Statistics;
+        if (!block)
+        {
+            // Size classes avoid retaining a new near-identical block whenever a
+            // snapshot grows slightly between frames. Old table pointers stay valid.
+            uint32_t capacity = 64 * 1024;
+            while (capacity < bytes)
+            {
+                capacity = capacity > UINT32_MAX / 2 ? UINT32_MAX : capacity * 2;
+            }
+            if (statistics.m_DynamicPayloadCapacity > UINT64_MAX - capacity)
+            {
+                dmLogError("Render frame dynamic payload capacity overflow (retained %llu bytes, requested %u bytes).",
+                           (unsigned long long)statistics.m_DynamicPayloadCapacity, capacity);
+                return FailCapture(frame, RENDER_FRAME_CAPACITY_EXCEEDED);
+            }
+
+            block = (RenderFrameDynamicBlock*)malloc(sizeof(RenderFrameDynamicBlock));
+            if (!block)
+            {
+                dmLogError("Unable to allocate render frame dynamic block metadata (%u bytes).", (uint32_t)sizeof(RenderFrameDynamicBlock));
+                return FailCapture(frame, RENDER_FRAME_OUT_OF_MEMORY);
+            }
+            block->m_Payload = 0;
+            if (dmMemory::RESULT_OK != dmMemory::AlignedMalloc((void**)&block->m_Payload, 16, capacity) || !block->m_Payload)
+            {
+                dmMemory::AlignedFree(block->m_Payload);
+                free(block);
+                dmLogError("Unable to allocate render frame dynamic payload block (%u bytes).", capacity);
+                return FailCapture(frame, RENDER_FRAME_OUT_OF_MEMORY);
+            }
+            block->m_Next = 0;
+            block->m_Capacity = capacity;
+            block->m_Used = 0;
+            if (previous)
+            {
+                previous->m_Next = block;
+            }
+            else
+            {
+                frame->m_DynamicBlocks = block;
+            }
+            statistics.m_DynamicPayloadCapacity += capacity;
+            ++statistics.m_DynamicAllocationCount;
+            offset = 0;
+        }
+
+        // Advance through existing blocks monotonically; reset restores every cursor.
+        // Identical captures reuse the same allocations and addresses without growth.
+        frame->m_CurrentDynamicBlock = block;
+        const uint32_t used = (uint32_t)(offset + bytes);
+        statistics.m_DynamicPayloadBytes += used - block->m_Used;
+        block->m_Used = used;
+        AppendTable(frame, type, count, stride, block->m_Payload + offset, table_index, data);
         return RENDER_FRAME_OK;
     }
 
@@ -220,7 +350,7 @@ namespace dmRender
         RenderFrameStatistics& statistics = frame->m_View.m_Statistics;
         if (statistics.m_ReferenceCount == frame->m_Limits.m_MaxReferences)
         {
-            return FailCapture(frame, RENDER_FRAME_CAPACITY_EXCEEDED);
+            return FailCapacity(frame, "reference count", (uint64_t)statistics.m_ReferenceCount + 1, frame->m_Limits.m_MaxReferences);
         }
 
         RenderFrameReference& reference = frame->m_References[statistics.m_ReferenceCount++];
@@ -247,7 +377,7 @@ namespace dmRender
     const void* GetRenderFrameTableData(const RenderFrameView& frame, uint32_t table_index)
     {
         assert(table_index < frame.m_Statistics.m_TableCount);
-        return frame.m_Payload + frame.m_Tables[table_index].m_Offset;
+        return frame.m_Tables[table_index].m_Data;
     }
 
     RenderFrameStatistics GetRenderFrameStatistics(HRenderFrame frame)
@@ -264,7 +394,14 @@ namespace dmRender
             const RenderFrameReference& reference = frame->m_References[--frame->m_View.m_Statistics.m_ReferenceCount];
             reference.m_Release(reference.m_Context, reference.m_Resource);
         }
+        for (RenderFrameDynamicBlock* block = frame->m_DynamicBlocks; block; block = block->m_Next)
+        {
+            block->m_Used = 0;
+        }
+        frame->m_CurrentDynamicBlock = frame->m_DynamicBlocks;
+        const uint64_t dynamic_capacity = frame->m_View.m_Statistics.m_DynamicPayloadCapacity;
         memset(&frame->m_View.m_Statistics, 0, sizeof(frame->m_View.m_Statistics));
+        frame->m_View.m_Statistics.m_DynamicPayloadCapacity = dynamic_capacity;
         frame->m_View.m_FrameId = 0;
         frame->m_Error = RENDER_FRAME_OK;
         frame->m_State = RENDER_FRAME_STORAGE_FREE;
@@ -275,6 +412,13 @@ namespace dmRender
         if (!frame)
             return;
         ResetRenderFrame(frame);
+        while (frame->m_DynamicBlocks)
+        {
+            RenderFrameDynamicBlock* block = frame->m_DynamicBlocks;
+            frame->m_DynamicBlocks = block->m_Next;
+            dmMemory::AlignedFree(block->m_Payload);
+            free(block);
+        }
         dmMemory::AlignedFree(frame->m_Payload);
         free(frame->m_Tables);
         free(frame->m_References);

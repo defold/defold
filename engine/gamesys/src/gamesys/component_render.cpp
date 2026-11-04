@@ -68,16 +68,10 @@ namespace dmGameSystem
     static void ConsumeFrame(void* user_context, const dmRender::RenderFrameView& frame)
     {
         ComponentRenderContext* context = (ComponentRenderContext*)user_context;
-        if (context->m_RenderContext)
-        {
-            dmRender::BeginRenderFrameConsumption(context->m_RenderContext, frame);
-        }
+        dmRender::BeginRenderFrameConsumption(context->m_RenderContext, frame);
         ConsumeComponentRenderFrame(context->m_StateContext, frame);
-        if (context->m_RenderContext)
-        {
-            dmRender::RenderListEnd(context->m_RenderContext);
-            dmRender::ConsumeRenderCommands(context->m_RenderContext, frame);
-        }
+        dmRender::RenderListEnd(context->m_RenderContext);
+        dmRender::ConsumeRenderCommands(context->m_RenderContext, frame);
     }
 
     static bool CreateFrameQueue(HComponentRenderContext context)
@@ -85,8 +79,9 @@ namespace dmGameSystem
         dmRender::RenderFrameQueueParams params = {};
         params.m_Execution = context->m_Execution;
         params.m_Limits = context->m_Limits;
-        params.m_Consume = ConsumeFrame;
-        params.m_ConsumeContext = context;
+        // Graphics-free contexts consume component inputs only.
+        params.m_Consume = context->m_RenderContext ? ConsumeFrame : ConsumeComponentRenderFrame;
+        params.m_ConsumeContext = context->m_RenderContext ? (void*)context : context->m_StateContext;
         params.m_Service = ServiceComponentRenderState;
         params.m_ServiceContext = context->m_StateContext;
         context->m_Queue = dmRender::NewRenderFrameQueue(params);
@@ -152,8 +147,6 @@ namespace dmGameSystem
     static void OnWorldDeleted(void* context, dmGameObject::HCollection handle, uint32_t component_index)
     {
         ComponentRenderContext* owner = (ComponentRenderContext*)context;
-        if (!GetRenderType(owner, component_index))
-            return;
         ComponentRenderCollection** entry = owner->m_Collections.Get(handle);
         // Failed creation still receives deletion notifications for attempted worlds.
         if (!entry || component_index >= (*entry)->m_Worlds.Size() || !(*entry)->m_Worlds[component_index])
@@ -211,29 +204,15 @@ namespace dmGameSystem
         return result == dmRender::RENDER_FRAME_OK ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
     }
 
-    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist,
-                                                      dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context)
+    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context)
     {
-        assert(dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_GAME));
         ComponentRenderContext* context = new ComponentRenderContext();
-
-        if (!context)
-        {
-            return 0;
-        }
-
         context->m_Register = regist;
         context->m_Execution = execution;
         context->m_RenderContext = render_context;
         context->m_Limits = limits;
         context->m_NextWorldId = 1;
         context->m_StateContext = NewComponentRenderStateContext(execution);
-
-        if (!context->m_StateContext)
-        {
-            delete context;
-            return 0;
-        }
 
         // A clear-only frame needs storage even when no component opts into capture.
         // Graphics-free lifecycle tests retain lazy allocation on first registration.
@@ -501,7 +480,6 @@ namespace dmGameSystem
 
     void DeleteComponentRenderContext(HComponentRenderContext context)
     {
-        assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
         DeleteComponentRenderStateContext(context->m_StateContext);
         if (context->m_Queue)
         {

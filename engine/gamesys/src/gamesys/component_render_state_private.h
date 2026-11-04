@@ -48,7 +48,7 @@ namespace dmGameSystem
      * @param render_context Borrowed renderer, or null for component-only lifecycle tests
      * @return New bridge, or null on allocation failure or unavailable world-owner hooks
      */
-    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context = 0);
+    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context);
 
     /**
      * Register a game type and optional render bridge in one operation on the game owner.
@@ -108,11 +108,12 @@ namespace dmGameSystem
     dmRender::HRenderFrame GetComponentRenderFrame(HComponentRenderContext context);
 
     /**
-     * Submit the complete packet after component and pass recording. Inline executes
-     * through the same consumer; threaded waits for credit without recapturing inputs.
-     * Failure cancels unpublished storage and releases all partial captures.
-     * @param context Component rendering bridge with an admitted frame
-     * @return Frame submission result; consumer errors surface at BeginFrame/PostUpdate
+     * Submit the frame after its component data and render commands are recorded.
+     * Inline mode renders now. Threaded mode waits for room in the queue, then hands
+     * the same frame to the render thread. If submission fails, discard the unsubmitted
+     * frame and release its references. Rendering errors are reported by BeginFrame/PostUpdate.
+     * @param context Component rendering bridge with a frame ready to submit
+     * @return RENDER_FRAME_OK when the frame is accepted, or a submission error
      */
     dmRender::RenderFrameResult SubmitComponentRenderFrame(HComponentRenderContext context);
 

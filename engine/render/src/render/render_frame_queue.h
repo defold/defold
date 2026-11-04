@@ -105,9 +105,11 @@ namespace dmRender
     };
 
     /**
-     * Create two preallocated CPU slots on the game owner. Inline creates no queue mutex,
-     * condition variable or thread. Platform executors own thread binding and scheduling.
-     * @param params Capacities, execution and callbacks; copied at creation
+     * Create two CPU slots with preallocated fixed storage on the game owner. Variable
+     * payload blocks grow on demand during capture and remain allocated for slot reuse.
+     * Inline creates no queue mutex, condition variable or thread. Platform executors
+     * own thread binding and scheduling.
+     * @param params Fixed capacities, execution and callbacks; copied at creation
      * @return Queue, or null for a missing consumer, invalid capacity or allocation failure
      */
     HRenderFrameQueue NewRenderFrameQueue(const RenderFrameQueueParams& params);
@@ -121,10 +123,11 @@ namespace dmRender
     void DeleteRenderFrameQueue(HRenderFrameQueue queue);
 
     /**
-     * Calculate queue metadata and two slots' storage without allocating. Excludes the
-     * execution context, synchronization object allocations and allocator overhead.
-     * @param limits Requested per-slot capacities
-     * @return Fixed storage budget in bytes
+     * Calculate queue metadata and two slots' initial fixed storage without allocating.
+     * Excludes dynamic payload blocks allocated during capture, the execution context,
+     * synchronization object allocations and allocator overhead.
+     * @param limits Requested fixed per-slot capacities
+     * @return Initial fixed storage size in bytes; not a runtime memory upper bound
      */
     uint64_t GetRenderFrameQueueStorageSize(const RenderFrameLimits& limits);
 
@@ -214,7 +217,8 @@ namespace dmRender
 
     /**
      * Cancel unpublished Building work and release partial capture on the game owner.
-     * Published work cannot be cancelled, including during shutdown.
+     * Published work cannot be cancelled, including during shutdown. Dynamic payload
+     * blocks remain allocated for reuse after cancellation.
      * @param queue Queue containing the capture
      * @param ticket Current unpublished capture
      * @return OK, or INVALID_STATE for a stale/non-building ticket
@@ -223,8 +227,9 @@ namespace dmRender
 
     /**
      * Release retained references on the game owner, outside the handoff lock, then reuse
-     * storage. Release callbacks must not reenter capture, publication or retirement.
-     * CPU retirement does not establish GPU completion.
+     * storage, retaining dynamic payload blocks for later capture. Release callbacks
+     * must not reenter capture, publication or retirement. CPU retirement does not
+     * establish GPU completion.
      * @param queue Queue with completed or cancelled slots
      * @return Number of slots reset to Free
      */

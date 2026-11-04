@@ -20,25 +20,25 @@
 
 namespace dmRender
 {
-    Command::Command(CommandType type) : m_Operands(), m_CameraSnapshot(0), m_HasCameraSnapshot(0)
+    Command::Command(CommandType type) : m_Operands()
     {
         m_Type = type;
     }
 
-    Command::Command(CommandType type, uint64_t op0) : m_Operands(), m_CameraSnapshot(0), m_HasCameraSnapshot(0)
+    Command::Command(CommandType type, uint64_t op0) : m_Operands()
     {
         m_Type = type;
         m_Operands[0] = op0;
     }
 
-    Command::Command(CommandType type, uint64_t op0, uint64_t op1) : m_Operands(), m_CameraSnapshot(0), m_HasCameraSnapshot(0)
+    Command::Command(CommandType type, uint64_t op0, uint64_t op1) : m_Operands()
     {
         m_Type = type;
         m_Operands[0] = op0;
         m_Operands[1] = op1;
     }
 
-    Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2) : m_Operands(), m_CameraSnapshot(0), m_HasCameraSnapshot(0)
+    Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2) : m_Operands()
     {
         m_Type = type;
         m_Operands[0] = op0;
@@ -46,13 +46,32 @@ namespace dmRender
         m_Operands[2] = op2;
     }
 
-    Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2, uint64_t op3) : m_Operands(), m_CameraSnapshot(0), m_HasCameraSnapshot(0)
+    Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2, uint64_t op3) : m_Operands()
     {
         m_Type = type;
         m_Operands[0] = op0;
         m_Operands[1] = op1;
         m_Operands[2] = op2;
         m_Operands[3] = op3;
+    }
+
+    Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2, uint64_t op3, uint64_t op4) : m_Operands()
+    {
+        m_Type = type;
+        m_Operands[0] = op0;
+        m_Operands[1] = op1;
+        m_Operands[2] = op2;
+        m_Operands[3] = op3;
+        m_Operands[4] = op4;
+    }
+
+    static const RenderCommandCamera* ResolveCameraSnapshot(const RenderFrameView* frame, uint64_t operand)
+    {
+        if (operand == RENDER_COMMAND_CAMERA_NONE)
+        {
+            return 0;
+        }
+        return (const RenderCommandCamera*)GetRenderFrameTableData(*frame, (uint32_t)(operand - 1));
     }
 
     static const FrustumOptions* ApplyCameraSnapshot(HRenderContext context, const RenderCommandCamera* camera,
@@ -73,7 +92,8 @@ namespace dmRender
         return frustum;
     }
 
-    static void ExecuteCommands(HRenderContext render_context, const Command* commands, uint32_t command_count, const RenderCommandCamera** camera_snapshot)
+    static void ExecuteCommands(HRenderContext render_context, const Command* commands, uint32_t command_count,
+                                const RenderFrameView* frame, const RenderCommandCamera** camera_snapshot)
     {
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
 
@@ -213,7 +233,7 @@ namespace dmRender
                 {
                     const FrustumOptions* frustum_options = (const FrustumOptions*)c->m_Operands[2];
                     FrustumOptions camera_frustum;
-                    const RenderCommandCamera* camera = c->m_HasCameraSnapshot ? c->m_CameraSnapshot : *camera_snapshot;
+                    const RenderCommandCamera* camera = c->m_Operands[4] == RENDER_COMMAND_CAMERA_INHERIT ? *camera_snapshot : ResolveCameraSnapshot(frame, c->m_Operands[4]);
                     frustum_options = ApplyCameraSnapshot(render_context, camera, frustum_options, &camera_frustum);
                     dmRender::SortOrder sort_order = (dmRender::SortOrder)c->m_Operands[3];
                     dmRender::DrawRenderList(render_context, (dmRender::Predicate*)c->m_Operands[0],
@@ -226,7 +246,7 @@ namespace dmRender
                 {
                     const FrustumOptions* frustum_options = (const FrustumOptions*)c->m_Operands[0];
                     FrustumOptions camera_frustum;
-                    const RenderCommandCamera* camera = c->m_HasCameraSnapshot ? c->m_CameraSnapshot : *camera_snapshot;
+                    const RenderCommandCamera* camera = c->m_Operands[4] == RENDER_COMMAND_CAMERA_INHERIT ? *camera_snapshot : ResolveCameraSnapshot(frame, c->m_Operands[4]);
                     frustum_options = ApplyCameraSnapshot(render_context, camera, frustum_options, &camera_frustum);
                     dmRender::DrawDebug3d(render_context, frustum_options);
                     break;
@@ -264,7 +284,7 @@ namespace dmRender
                 {
                     // No camera handle reaches DrawRenderList on the owned-frame path.
                     render_context->m_CurrentRenderCamera = 0;
-                    *camera_snapshot = (const RenderCommandCamera*)c->m_Operands[0];
+                    *camera_snapshot = ResolveCameraSnapshot(frame, c->m_Operands[0]);
                     break;
                 }
                 default:
@@ -312,7 +332,7 @@ namespace dmRender
     void ParseCommands(HRenderContext render_context, Command* commands, uint32_t command_count)
     {
         const RenderCommandCamera* camera = 0;
-        ExecuteCommands(render_context, commands, command_count, &camera);
+        ExecuteCommands(render_context, commands, command_count, 0, &camera);
         ReleaseRenderCommandOperands(commands, command_count);
     }
 
@@ -326,7 +346,7 @@ namespace dmRender
             if (table.m_Type == RENDER_COMMAND_TABLE_TYPE)
             {
                 const Command* commands = (const Command*)GetRenderFrameTableData(frame, i);
-                ExecuteCommands(context, commands, table.m_Count, &camera);
+                ExecuteCommands(context, commands, table.m_Count, &frame, &camera);
             }
         }
     }

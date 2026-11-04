@@ -22,9 +22,14 @@ namespace dmGameSystem
 {
     HContext NewContext(const ContextParams& params)
     {
-        // Bounded complete-frame budget. Component migration will size these limits
-        // for real captured workloads; exhaustion cancels rather than truncates a frame.
-        const dmRender::RenderFrameLimits limits = { 256 * 1024, 1024, 1024 };
+        // Component migration will size this reserve for captured workloads. Fixed pass
+        // storage is added from command capacity; constant snapshots grow separately.
+        const dmRender::RenderFrameLimits component_limits = { 256 * 1024, 1024, 1024 };
+        dmRender::RenderFrameLimits limits;
+        if (dmRender::CalculateRenderFrameLimits(params.m_RenderContext, component_limits, &limits) != dmRender::RENDER_FRAME_OK)
+        {
+            return 0;
+        }
         return NewContext(params, dmRender::GetRenderExecution(params.m_RenderContext), limits);
     }
 

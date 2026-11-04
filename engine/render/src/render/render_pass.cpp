@@ -14,12 +14,48 @@
 
 #include <string.h>
 
+#include <dlib/log.h>
+
 #include "render_command.h"
 #include "render_pass.h"
 #include "render_private.h"
 
 namespace dmRender
 {
+    RenderFrameResult CalculateRenderFrameLimits(HRenderContext context, const RenderFrameLimits& component_limits, RenderFrameLimits* limits)
+    {
+        // The default clear/draw path emits four commands, even when a caller configures
+        // a smaller script buffer. Size for whichever path needs more storage.
+        uint64_t command_count = context->m_Recording.m_RenderScriptContext.m_CommandBufferSize;
+        if (command_count < 4)
+        {
+            command_count = 4;
+        }
+
+        // A draw is the largest fixed operand set. Allow each allocation's worst-case
+        // alignment padding, including when component inputs end at an unaligned offset.
+        // Constant snapshots use separate growable storage, including their headers.
+        const uint64_t operand_bytes = sizeof(RenderCommandCamera) + 15
+                                       + sizeof(Predicate) + 7
+                                       + sizeof(FrustumOptions) + 15;
+        const uint64_t fixed_bytes = sizeof(RenderFrameInfo) + 7
+                                     + command_count * sizeof(Command) + 7
+                                     + command_count * operand_bytes;
+        const uint64_t payload_bytes = component_limits.m_PayloadBytes + fixed_bytes;
+        // Camera, predicate, frustum and constants per draw, plus metadata/command array.
+        const uint64_t table_count = component_limits.m_MaxTables + 4 * command_count + 2;
+        if (payload_bytes > UINT32_MAX || table_count * sizeof(RenderFrameTable) > UINT32_MAX)
+        {
+            dmLogError("Render frame storage exceeds the supported capacity. Reduce command capacity or component storage.");
+            return RENDER_FRAME_CAPACITY_EXCEEDED;
+        }
+
+        *limits = component_limits;
+        limits->m_PayloadBytes = (uint32_t)payload_bytes;
+        limits->m_MaxTables = (uint32_t)table_count;
+        return RENDER_FRAME_OK;
+    }
+
     void BeginRenderFrameRecording(HRenderContext context, float time, float dt)
     {
         context->m_Recording.m_Time = time;
@@ -77,7 +113,7 @@ namespace dmRender
         for (uint32_t i = 0; i < sizeof(commands) / sizeof(commands[0]); ++i)
         {
             Command source = commands[i];
-            RenderFrameResult result = RecordRenderCommand(context, frame, source, &commands[i]);
+            RenderFrameResult result = RecordRenderCommand(context, frame, source, &commands[i], 0, false, false);
             if (result != RENDER_FRAME_OK)
             {
                 return result;

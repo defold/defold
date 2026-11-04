@@ -28,6 +28,7 @@
 
 #include "render_private.h"
 #include "render_script.h"
+#include "render_pass.h"
 #include "debug_renderer.h"
 #include "font/font_renderer.h"
 
@@ -425,6 +426,7 @@ namespace dmRender
 
     void BeginFrame(HRenderContext render_context, float time, float dt)
     {
+        BeginRenderFrameRecording(render_context, time, dt);
         render_context->m_Time = time;
         render_context->m_Dt = dt;
 

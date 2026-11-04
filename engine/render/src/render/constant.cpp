@@ -152,7 +152,7 @@ RenderFrameResult CopyRenderCommandConstants(HRenderFrame frame, HNamedConstantB
 
     uint32_t table_index;
     void* storage;
-    RenderFrameResult result = AllocateRenderFrameTable(frame, RENDER_COMMAND_PAYLOAD_TABLE_TYPE, 1, (uint32_t)storage_size, 16, &table_index, &storage);
+    RenderFrameResult result = AllocateRenderFrameDynamicTable(frame, RENDER_COMMAND_PAYLOAD_TABLE_TYPE, 1, (uint32_t)storage_size, 16, &table_index, &storage);
     if (result != RENDER_FRAME_OK)
     {
         return result;
@@ -164,8 +164,8 @@ RenderFrameResult CopyRenderCommandConstants(HRenderFrame frame, HNamedConstantB
     CopyRenderFrameData(frame, constants, source->m_Constants.Begin(), constant_count * sizeof(NamedConstantBuffer::Constant));
     CopyRenderFrameData(frame, values, source->m_Values.Begin(), value_count * sizeof(dmVMath::Vector4));
 
-    // Both arrays borrow frame bytes. No heap allocation or retirement callback is needed;
-    // consumers may only read this buffer, and all storage expires together with the frame.
+    // Both arrays borrow frame bytes. No per-buffer allocation or retirement callback is needed;
+    // consumers may only read this buffer, and all storage is reused together with the frame.
     copy->m_Constants.Set(constants, constant_count, constant_count, true);
     copy->m_Values.Set(values, value_count, value_count, true);
     *destination = copy;

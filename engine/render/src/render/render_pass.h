@@ -39,6 +39,18 @@ namespace dmRender
     };
 
     /**
+     * Size fixed frame storage from the renderer's command capacity.
+     * Reserves worst-case fixed operands/alignment per command, frame metadata and pass tables.
+     * Component capacities are added separately; the resulting arena is shared, not partitioned.
+     * Constant snapshots use separate growable storage and do not consume the fixed payload.
+     * @param context Game-owned renderer with the configured command capacity
+     * @param component_limits Additional component payload, table and reference capacities
+     * @param limits Output combined capacities, written only on success
+     * @return RENDER_FRAME_OK, or RENDER_FRAME_CAPACITY_EXCEEDED if derived payload/table capacity overflows
+     */
+    RenderFrameResult CalculateRenderFrameLimits(HRenderContext context, const RenderFrameLimits& component_limits, RenderFrameLimits* limits);
+
+    /**
      * Set game-owned frame timing before component capture and render-script messages.
      * Does not modify execution state or begin a graphics frame.
      * @param context Render context owned by the game owner

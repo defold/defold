@@ -609,6 +609,82 @@ TEST(RenderFrameQueue, SlowReaderBoundsProducerLead)
     DeleteFixture(&fixture);
 }
 
+// Verify dynamic payloads belong to separate slots while a reader is held, and retired
+// blocks are reused without growth or overwriting a published frame's snapshots.
+TEST(RenderFrameQueue, DynamicPayloadSlotsRemainIndependentAndReuseStorage)
+{
+    if (!HasThreadedExecution())
+    {
+        return;
+    }
+    QueueFixture fixture;
+    CreateFixture(&fixture, EXECUTION_MODE_THREADED);
+    fixture.m_Probe.m_HoldFirstReader = true;
+    TestExecutor executor;
+    StartExecutor(&executor, &fixture, true);
+    RenderFrameTicket first, second, third;
+    const void* addresses[2];
+    uint64_t capacities[2];
+    uint32_t table_index;
+    void* data;
+
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &first));
+    ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(first.m_Frame, SAMPLE_TABLE_TYPE, 1, sizeof(SampleInput), 4, &table_index, &data));
+    *(SampleInput*)data = MakeSample(17);
+    addresses[0] = data;
+    capacities[0] = GetRenderFrameStatistics(first.m_Frame).m_DynamicPayloadCapacity;
+    ASSERT_GE(capacities[0], (uint64_t)sizeof(SampleInput));
+    ASSERT_EQ(RENDER_FRAME_OK, PublishRenderFrame(fixture.m_Queue, first));
+    WaitForFirstReader(&fixture.m_Probe);
+
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &second));
+    ASSERT_NE(first.m_Frame, second.m_Frame);
+    ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(second.m_Frame, SAMPLE_TABLE_TYPE, 1, sizeof(SampleInput), 4, &table_index, &data));
+    *(SampleInput*)data = MakeSample(18);
+    addresses[1] = data;
+    capacities[1] = GetRenderFrameStatistics(second.m_Frame).m_DynamicPayloadCapacity;
+    ASSERT_NE(addresses[0], addresses[1]);
+    ASSERT_GE(capacities[1], (uint64_t)sizeof(SampleInput));
+    ASSERT_EQ(0u, RetireRenderFrames(fixture.m_Queue));
+    ASSERT_EQ(RENDER_FRAME_WOULD_BLOCK, PublishRenderFrame(fixture.m_Queue, second));
+    ASSERT_EQ((uint64_t)0, GetRenderFrameQueueStatus(fixture.m_Queue).m_Consumed);
+
+    ReleaseFirstReader(&fixture.m_Probe);
+    ASSERT_EQ(RENDER_FRAME_OK, PublishWhenAvailable(&fixture, second));
+    WaitForConsumed(&fixture, 2);
+
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &third));
+    ASSERT_TRUE(third.m_Frame == first.m_Frame || third.m_Frame == second.m_Frame);
+    uint32_t reused_slot = third.m_Frame == first.m_Frame ? 0 : 1;
+    RenderFrameStatistics reused = GetRenderFrameStatistics(third.m_Frame);
+    ASSERT_EQ(capacities[reused_slot], reused.m_DynamicPayloadCapacity);
+    ASSERT_EQ((uint64_t)0, reused.m_DynamicPayloadBytes);
+    ASSERT_EQ(0u, reused.m_DynamicAllocationCount);
+    ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(third.m_Frame, SAMPLE_TABLE_TYPE, 1, sizeof(SampleInput), 4, &table_index, &data));
+    ASSERT_EQ(addresses[reused_slot], (const void*)data);
+    *(SampleInput*)data = MakeSample(19);
+    reused = GetRenderFrameStatistics(third.m_Frame);
+    ASSERT_EQ(capacities[reused_slot], reused.m_DynamicPayloadCapacity);
+    ASSERT_EQ((uint64_t)sizeof(SampleInput), reused.m_DynamicPayloadBytes);
+    ASSERT_EQ(0u, reused.m_DynamicAllocationCount);
+    ASSERT_EQ(RENDER_FRAME_OK, SubmitRenderFrame(fixture.m_Queue, third));
+    ASSERT_EQ(RENDER_FRAME_OK, DrainRenderFrameQueue(fixture.m_Queue));
+    JoinExecutor(&executor);
+
+    ASSERT_EQ(3u, fixture.m_Probe.m_Consumed);
+    ASSERT_EQ(first.m_FrameId, fixture.m_Probe.m_FrameIds[0]);
+    ASSERT_EQ(second.m_FrameId, fixture.m_Probe.m_FrameIds[1]);
+    ASSERT_EQ(third.m_FrameId, fixture.m_Probe.m_FrameIds[2]);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        SampleInput expected = MakeSample(17 + i);
+        ASSERT_EQ(0, memcmp(&expected, &fixture.m_Probe.m_Inputs[i], sizeof(expected)));
+    }
+    ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
+    ASSERT_FALSE(fixture.m_Probe.m_InvalidInput);
+    DeleteFixture(&fixture);
+}
+
 // Verify cancelling a next-frame capture does not grant another simulation/update
 // reservation while the same older reader is still active.
 TEST(RenderFrameQueue, CancelDoesNotResetActiveReaderLead)

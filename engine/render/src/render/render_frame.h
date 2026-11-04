@@ -37,8 +37,9 @@ namespace dmRender
     };
 
     /**
-     * Hard per-slot capacities, allocated once. No arena growth or per-frame heap allocation.
-     * Payload alignment is at most 16 bytes; metadata/reference storage is budgeted separately.
+     * Hard per-slot capacities for the fixed arena, tables and references, allocated once.
+     * Dynamic tables use separately allocated, reusable blocks while sharing the table limit.
+     * All payload alignment is at most 16 bytes.
      */
     struct RenderFrameLimits
     {
@@ -47,26 +48,31 @@ namespace dmRender
         uint32_t m_MaxReferences;
     };
 
-    /** Typed, contiguous input range addressed by offset rather than a borrowed game pointer. */
+    /** Typed, contiguous input range owned by fixed or dynamic frame storage. */
     struct RenderFrameTable
     {
-        uint32_t m_Type;
-        uint32_t m_Offset;
-        uint32_t m_Count;
-        uint32_t m_Stride;
+        const void* m_Data;
+        uint32_t    m_Type;
+        uint32_t    m_Count;
+        uint32_t    m_Stride;
     };
 
     /**
-     * Capture counters without per-operation clocks. AllocationCount counts arena reservations,
-     * not heap allocations; storage is preallocated. PayloadBytes includes alignment padding.
+     * Capture counters without per-operation clocks. AllocationCount counts all table reservations.
+     * PayloadBytes and DynamicPayloadBytes include alignment padding within their storage.
+     * DynamicPayloadCapacity counts retained block payload bytes and survives reset;
+     * DynamicAllocationCount counts new blocks allocated during this capture, not table reservations.
      */
     struct RenderFrameStatistics
     {
+        uint64_t m_DynamicPayloadBytes;
+        uint64_t m_DynamicPayloadCapacity;
+        uint64_t m_CopiedBytes;
         uint32_t m_PayloadBytes;
-        uint32_t m_CopiedBytes;
         uint32_t m_AllocationCount;
         uint32_t m_TableCount;
         uint32_t m_ReferenceCount;
+        uint32_t m_DynamicAllocationCount;
     };
 
     /**
@@ -91,7 +97,8 @@ namespace dmRender
 
     // Storage lifecycle used by the frame queue (or isolated storage tests), never by readers.
     /**
-     * Allocate fixed-capacity storage once; capture and reset never grow it.
+     * Allocate the fixed arena and metadata once. Dynamic blocks are allocated on demand
+     * during capture and retained for reuse until deletion.
      * @param limits Hard payload, table and retained-reference capacities
      * @return Empty frame storage, or null for unsupported capacities/allocation failure
      */
@@ -119,7 +126,8 @@ namespace dmRender
 
     /**
      * Cancel or retire capture on the game owner after all CPU readers finish. Releases references
-     * and clears counters/errors, keeping the allocation and leaving payload bytes uncleared.
+     * and clears capture counters/errors, retaining all storage and its dynamic capacity.
+     * Payload bytes are left uncleared.
      * @param frame Exclusively owned storage; must not be inside a release callback
      */
     void ResetRenderFrame(HRenderFrame frame);
@@ -133,7 +141,7 @@ namespace dmRender
     RenderFrameResult FailRenderFrame(HRenderFrame frame, RenderFrameResult error);
 
     /**
-     * Reserve an owned table without copying. Initialize every element before sealing; do not
+     * Reserve an owned table in the fixed arena. Initialize every element before sealing; do not
      * retain mutable access after publication. Errors are sticky until ResetRenderFrame.
      * @param frame Building storage
      * @param type Caller-defined table type
@@ -145,6 +153,21 @@ namespace dmRender
      * @return RENDER_FRAME_OK, or a sticky argument/state/capacity error
      */
     RenderFrameResult AllocateRenderFrameTable(HRenderFrame frame, uint32_t type, uint32_t count, uint32_t stride, uint32_t alignment, uint32_t* table_index, void** data);
+
+    /**
+     * Reserve a contiguous table in reusable dynamic storage. Growth never moves existing
+     * payloads and is allowed only while building; cancellation and retirement retain blocks.
+     * Initialize every element before sealing. Errors are sticky until ResetRenderFrame.
+     * @param frame Building storage
+     * @param type Caller-defined table type
+     * @param count Nonzero element count
+     * @param stride Nonzero bytes per element; count * stride must fit uint32_t
+     * @param alignment Power-of-two alignment, from 1 through 16 bytes
+     * @param table_index Output index, assigned only on success
+     * @param data Output payload pointer, assigned only on success
+     * @return RENDER_FRAME_OK, or a sticky argument/state/capacity/allocation error
+     */
+    RenderFrameResult AllocateRenderFrameDynamicTable(HRenderFrame frame, uint32_t type, uint32_t count, uint32_t stride, uint32_t alignment, uint32_t* table_index, void** data);
 
     /**
      * Reserve a table and copy its input bytes. The source remains caller-owned and may be
@@ -206,9 +229,10 @@ namespace dmRender
     RenderFrameStatistics GetRenderFrameStatistics(HRenderFrame frame);
 
     /**
-     * Calculate the fixed storage budget using wide arithmetic, without allocating.
+     * Calculate initial fixed storage using wide arithmetic, without allocating.
      * @param limits Requested per-slot capacities
-     * @return Payload, table/reference capacity and private metadata bytes, excluding allocator overhead
+     * @return Fixed payload, table/reference capacity and private metadata bytes, excluding
+     *         allocator overhead and any dynamic blocks allocated during later captures
      */
     uint64_t GetRenderFrameStorageSize(const RenderFrameLimits& limits);
 }

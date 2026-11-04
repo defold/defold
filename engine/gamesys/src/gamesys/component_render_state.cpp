@@ -99,21 +99,14 @@ namespace dmGameSystem
     HComponentRenderStateContext NewComponentRenderStateContext(dmRender::HRenderExecution execution)
     {
         assert(dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_GAME));
-        HComponentRenderStateContext context = (HComponentRenderStateContext)calloc(1, sizeof(ComponentRenderStateContext));
-        if (!context)
-            return 0;
-
+        HComponentRenderStateContext context = (HComponentRenderStateContext) calloc(1, sizeof(ComponentRenderStateContext));
         context->m_Execution = execution;
+
         // This lock protects gamesys-owned lifetime metadata, not scheduling policy.
         // Both modes use the same lifecycle API; inline avoids synchronization entirely.
         if (dmRender::GetRenderExecutionMode(execution) == dmRender::EXECUTION_MODE_THREADED)
         {
             context->m_WorldsPendingDestroyMutex = dmMutex::New();
-            if (!context->m_WorldsPendingDestroyMutex)
-            {
-                free(context);
-                return 0;
-            }
         }
         return context;
     }

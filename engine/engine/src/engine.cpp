@@ -63,7 +63,6 @@
 #include <hid/hid.h>
 #include <sound/sound.h>
 #include <render/render.h>
-#include <render/render_pass.h>
 #include <render/render_ddf.h>
 #include <profiler/profiler.h>
 #include <platform/window.hpp>
@@ -2158,11 +2157,8 @@ bail:
                     if (engine->m_EngineService)
                         dmEngineService::BeginFrame(engine->m_EngineService);
 
-                    // Record simulation timing; graphics execution starts only after
-                    // component inputs and render-script passes form one complete packet.
-                    dmRender::BeginRenderFrameRecording(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
-                    // Legacy list/light preparation must precede their inline component
-                    // callbacks until D2.2/D3 move those inputs to the consumer.
+                    // Begin recording and prepare legacy list/light state before inline
+                    // component callbacks. Graphics execution begins after submission.
                     dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
 
                     // Call pre render functions for extensions, if available.
