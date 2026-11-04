@@ -139,8 +139,4 @@ typedef struct EngineWindowEvent
     } m_Data;
 } EngineWindowEvent;
 
-#if defined(__cplusplus)
-#include "engine_event.hpp"
-#endif
-
 #endif // DMSDK_ENGINE_EVENT_H

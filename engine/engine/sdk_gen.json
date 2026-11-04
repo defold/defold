@@ -40,9 +40,6 @@
             "languages": {
                 "cpp": {
                     "namespace": "dmEngine",
-                    "ignore": [
-                        "HEngine"
-                    ],
                     "rename": {
                         "EngineGetWindow": "GetWindow",
                         "ExtensionParamsGetContextRegistry": "dmExtension::ParamsGetContextRegistry",

@@ -16,7 +16,6 @@
 #define DMSDK_ENGINE_H
 
 #include <dmsdk/platform/window.h>
-#include <dmsdk/extension/extension.h>
 
 /*# Engine API documentation
  * Engine instance handles and access to the engine-owned window.
@@ -33,17 +32,7 @@
  * @typedef
  * @name HEngine
  */
-#if defined(__cplusplus)
-// Preserve the existing C++ engine type without exposing its definition.
-namespace dmEngine
-{
-    struct Engine;
-    typedef Engine* HEngine;
-}
-typedef dmEngine::HEngine HEngine;
-#else
 typedef struct Engine* HEngine;
-#endif
 
 /*# engine context name
  * Engine-owned entry in the extension context registry, containing a borrowed
@@ -72,7 +61,6 @@ HWindow EngineGetWindow(HEngine engine);
 
 #if defined(__cplusplus)
 }
-#include "engine.hpp"
 #endif
 
 #endif // DMSDK_ENGINE_H

@@ -17,7 +17,7 @@
 #include <jc_test/jc_test.h>
 #include "../extension.h"
 #include "../extension.hpp"
-#include <dmsdk/engine/engine_event.h>
+#include <dmsdk/engine/engine_event.hpp>
 #include "test_extension.h"
 #include <dlib/array.h>
 #include <dlib/context_registry.h>

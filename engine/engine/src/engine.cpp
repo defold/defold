@@ -17,7 +17,7 @@
 #include "engine_private.h"
 
 #include <dmsdk/dlib/configfile.h>
-#include <dmsdk/engine/engine_event.h>
+#include <dmsdk/engine/engine_event.hpp>
 #include <dmsdk/dlib/jobsystem.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/webserver.h>
@@ -447,71 +447,75 @@ namespace dmEngine
 
     }
 
-    Engine::Engine(dmEngineService::HEngineService engine_service)
-    : m_Config(0)
-    , m_Window(0)
-    , m_Alive(true)
-    , m_MainCollectionResource(0)
-    , m_LastReloadMTime(0)
-    , m_MouseSensitivity(1.0f)
-    , m_JobThreadContext(0)
-    , m_GraphicsContext(0)
-    , m_RenderContext(0)
-    , m_GameSystem(0)
-    , m_ScriptContext(0x0)
-    , m_Factory(0x0)
-    , m_SystemSocket(0x0)
-    , m_SystemFont(0x0)
-    , m_HidContext(0x0)
-    , m_InputContext(0x0)
-    , m_GameInputBinding(0x0)
-    , m_DisplayProfiles(0x0)
-    , m_RenderScriptPrototype(0x0)
-    , m_Stats()
-    , m_WasIconified(true)
-    , m_QuitOnEsc(false)
-    , m_ConnectionAppMode(false)
-    , m_RunWhileIconified(false)
-    , m_UseHighRefreshRate(false)
-    , m_SwapInterval(0)
-    , m_EffectiveSwapInterval(~0U)
-    , m_PreviousFrameTime(dmTime::GetMonotonicTime())
-    , m_NextFrameTime(0)
-    , m_FramePacingFrequency(0)
-    , m_FrameTimeRemainder(0)
-    , m_PacedFrameTimeDebt(0.0f)
-    , m_AccumFrameTime(0.0f)
-    , m_UpdateFrequency(0)
-    , m_FixedUpdateFrequency(0)
-    , m_Width(960)
-    , m_Height(640)
-    , m_InvPhysicalWidth(1.0f/960)
-    , m_InvPhysicalHeight(1.0f/640)
-    , m_PendingWindowResizeWidth(0)
-    , m_PendingWindowResizeHeight(0)
-    , m_HasPendingWindowResize(false)
-    , m_ThrottleCooldownMax(0.0f)
-    , m_ThrottleCooldown(0.0f)
-    , m_ThrottleEnabled(false)
-    {
-        m_EngineService = engine_service;
-        m_Register = dmGameObject::NewRegister();
-        m_InputBuffer.SetCapacity(64);
-        m_ResourceTypeContexts.SetCapacity(31, 64);
-        m_PhysicsContextBox2D.m_Context = 0x0;
-        m_PhysicsContextBox2D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BOX2D;
-        m_PhysicsContextBox2D.m_BaseContext.m_Debug = false;
-        m_PhysicsContextBullet3D.m_Context = 0x0;
-        m_PhysicsContextBullet3D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BULLET3D;
-        m_PhysicsContextBullet3D.m_BaseContext.m_Debug = false;
-        m_GuiContext = 0x0;
-        m_HttpCache = 0;
-        m_DependenciesJsonResource = 0;
-        m_DependenciesJsonSize = 0;
-        m_ContextRegistry = ContextRegistryCreate();
-        ContextRegistrySet(m_ContextRegistry, ENGINE_CONTEXT_NAME, this);
-        dmGameObject::SetContextRegistry(m_Register, m_ContextRegistry);
-    }
+}
+
+Engine::Engine(dmEngineService::HEngineService engine_service)
+: m_Config(0)
+, m_Window(0)
+, m_Alive(true)
+, m_MainCollectionResource(0)
+, m_LastReloadMTime(0)
+, m_MouseSensitivity(1.0f)
+, m_JobThreadContext(0)
+, m_GraphicsContext(0)
+, m_RenderContext(0)
+, m_GameSystem(0)
+, m_ScriptContext(0x0)
+, m_Factory(0x0)
+, m_SystemSocket(0x0)
+, m_SystemFont(0x0)
+, m_HidContext(0x0)
+, m_InputContext(0x0)
+, m_GameInputBinding(0x0)
+, m_DisplayProfiles(0x0)
+, m_RenderScriptPrototype(0x0)
+, m_Stats()
+, m_WasIconified(true)
+, m_QuitOnEsc(false)
+, m_ConnectionAppMode(false)
+, m_RunWhileIconified(false)
+, m_UseHighRefreshRate(false)
+, m_SwapInterval(0)
+, m_EffectiveSwapInterval(~0U)
+, m_PreviousFrameTime(dmTime::GetMonotonicTime())
+, m_NextFrameTime(0)
+, m_FramePacingFrequency(0)
+, m_FrameTimeRemainder(0)
+, m_PacedFrameTimeDebt(0.0f)
+, m_AccumFrameTime(0.0f)
+, m_UpdateFrequency(0)
+, m_FixedUpdateFrequency(0)
+, m_Width(960)
+, m_Height(640)
+, m_InvPhysicalWidth(1.0f / 960)
+, m_InvPhysicalHeight(1.0f / 640)
+, m_PendingWindowResizeWidth(0)
+, m_PendingWindowResizeHeight(0)
+, m_HasPendingWindowResize(false)
+, m_ThrottleCooldownMax(0.0f)
+, m_ThrottleCooldown(0.0f)
+, m_ThrottleEnabled(false)
+{
+    m_EngineService = engine_service;
+    m_Register = dmGameObject::NewRegister();
+    m_InputBuffer.SetCapacity(64);
+    m_ResourceTypeContexts.SetCapacity(31, 64);
+    m_PhysicsContextBox2D.m_Context = 0x0;
+    m_PhysicsContextBox2D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BOX2D;
+    m_PhysicsContextBox2D.m_BaseContext.m_Debug = false;
+    m_PhysicsContextBullet3D.m_Context = 0x0;
+    m_PhysicsContextBullet3D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BULLET3D;
+    m_PhysicsContextBullet3D.m_BaseContext.m_Debug = false;
+    m_GuiContext = 0x0;
+    m_HttpCache = 0;
+    m_DependenciesJsonResource = 0;
+    m_DependenciesJsonSize = 0;
+    m_ContextRegistry = ContextRegistryCreate();
+    ContextRegistrySet(m_ContextRegistry, ENGINE_CONTEXT_NAME, this);
+    dmGameObject::SetContextRegistry(m_Register, m_ContextRegistry);
+}
+namespace dmEngine
+{
 
     HEngine New(dmEngineService::HEngineService engine_service)
     {
@@ -2812,7 +2816,7 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
     if (!initialized)
     {
         // Leave cleaning up of engine service to the finalize call
-        Delete(engine);
+        dmEngine::Delete(engine);
         return 0;
     }
 
@@ -2822,7 +2826,7 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
 void dmEngineDestroy(dmEngine::HEngine engine)
 {
     engine->m_RunResult.Free();
-    Delete(engine);
+    dmEngine::Delete(engine);
 }
 
 static dmEngine::UpdateResult GetAppResultFromAction(int action)

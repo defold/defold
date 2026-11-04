@@ -19,6 +19,7 @@
 #error "This file is supported in C++ only!"
 #endif
 
+#include <dmsdk/engine/engine.hpp>
 #include <dmsdk/engine/engine_event_gen.hpp>
 
 #endif // DMSDK_ENGINE_EVENT_HPP

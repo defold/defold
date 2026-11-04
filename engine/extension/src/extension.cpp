@@ -20,7 +20,7 @@
 
 #include <dmsdk/dlib/profile.h>
 #include <dmsdk/extension/extension.h>
-#include <dmsdk/engine/engine_event.h>
+#include <dmsdk/engine/engine_event.hpp>
 #include "extension.hpp"
 
 struct ExtensionParamsImpl

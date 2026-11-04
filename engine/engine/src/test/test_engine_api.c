@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dmsdk/engine/engine.h>
+#include <dmsdk/extension/extension.h>
 
 // Exercise the C ABI using only public SDK declarations and a live engine.
 int TestEngineWindowC(HEngine engine, HWindow expected)

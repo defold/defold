@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "record_service.h"
-#include <dmsdk/engine/engine_event.h>
+#include <dmsdk/engine/engine_event.hpp>
 #include "record_window.h"
 #include <dmsdk/extension/extension.hpp>
 #include <dmsdk/dlib/webserver.h>
