@@ -141,6 +141,13 @@ TEST_F(dmPlatformTest, TestWindowSize)
     ASSERT_EQ(height, m_ResizeData.m_Height);
 }
 
+// Verifies both window APIs report the reference density when the backend has no density query.
+TEST_F(dmPlatformTest, DisplayDensityFallback)
+{
+    ASSERT_EQ(96.0f, dmPlatform::GetDisplayDensity(m_Window));
+    ASSERT_EQ(96.0f, WindowGetDisplayDensity(m_Window));
+}
+
 // Verifies unsupported backends clear both cached and native areas rather than inferring safe-area strips.
 TEST_F(dmPlatformTest, ReservedAreasUnsupported)
 {

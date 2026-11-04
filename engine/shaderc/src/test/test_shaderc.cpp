@@ -747,6 +747,33 @@ TEST(Shaderc, TestHLSLSimple)
     free(data);
 }
 
+// Verifies external toolchains can request HLSL source without invoking DXC, including Shader Model 5.
+TEST(Shaderc, HLSLGeneratesSourceWhenRequested)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/samplerless_uint.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    const uint32_t versions[] = { 50, 60 };
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        dmShaderc::ShaderCompilerOptions options;
+        options.m_Version = versions[i];
+        options.m_HLSLGenerateSource = true;
+        dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
+        ASSERT_NE((void*) 0, result);
+        ASSERT_STREQ("", result->m_LastError);
+        ASSERT_NE((const char*) 0, FindFirstOccurrence(result->m_Data, "Texture2D<uint4> band_texture"));
+        ASSERT_FALSE(dmShaderc::HasDXBCHeader(result->m_Data.Begin(), result->m_Data.Size()));
+        ASSERT_EQ(0u, result->m_HLSLRootSignature.Size());
+        dmShaderc::FreeShaderCompileResult(result);
+    }
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(context);
+    free(data);
+}
+
 // Verifies SPIRV-Cross errors survive the HLSL path instead of being replaced by binary compiler errors.
 TEST(Shaderc, HLSLPreservesCrossCompilationError)
 {

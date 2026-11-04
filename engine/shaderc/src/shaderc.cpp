@@ -131,7 +131,7 @@ namespace dmShaderc
         }
 
 #ifdef DM_BINARY_HLSL_SUPPORTED
-        if (compiler->m_Language == SHADER_LANGUAGE_HLSL)
+        if (compiler->m_Language == SHADER_LANGUAGE_HLSL && !options.m_HLSLGenerateSource)
         {
             ShaderCompileResult* result_xcompiled = CompileSPVC(context, (ShaderCompilerSPVC*) compiler, options);
             if (result_xcompiled->m_LastError[0])
