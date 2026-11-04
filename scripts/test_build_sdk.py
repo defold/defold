@@ -932,7 +932,129 @@ message("DEFOLD_SDK_CHECK\\tProtoc\\t${_protoc_ver}\\t${_DEFOLD_PROTOC_REAL}")
 
 
 class PlatformSdkPackagingTests(unittest.TestCase):
-    # Both SDK archive formats must include the header used by Extender's Android entry point.
+    # Packaging drops build-time libraries from both roots without losing runtime or DDF dependencies.
+    def test_sdk_excludes_build_time_libraries_and_preserves_runtime_tools(self):
+        cases = (
+            ('x86_64-linux',
+             ('libprotoc.a', 'libprotobuf.a', 'libbasis_encoder.a', 'libtexc.a',
+              'libspirv-cross-msl.a', 'libabsl_cord.a', 'libabsl_cordz_info.a', 'libdxcompiler.so',
+              'libdlib_noasan.a', 'libgraphics_null_noasan.a', 'libdlib_shared.so', 'libogg.so', 'liboggz.so',
+              'libspirv-cross-c.a', 'libspirv-cross-reflect.a', 'libjni.a', 'liblauncherutil.a',
+              'libtestmain.a', 'libtest_script.a', 'libutf8_range.a', 'libutf8_validity.a'),
+             ('libengine.a', 'libbasis_transcoder.a', 'libmodel_ddf.a', 'libdlib.a', 'libgraphics_null.a',
+              'libdecoder_ogg.a', 'libtremolo.a', 'libopus.a')),
+            ('arm64-macos',
+             ('libprotoc.a', 'libprotobuf.a', 'libbasis_encoder.a', 'libtexc.a',
+              'libspirv-cross-msl.a', 'libabsl_cord.a', 'libabsl_cordz_info.a', 'libdxcompiler.dylib',
+              'libdlib_noasan.a', 'libgraphics_null_noasan.a', 'libdlib_shared.dylib', 'libogg.dylib', 'liboggz.dylib',
+              'libspirv-cross-c.a', 'libspirv-cross-reflect.a', 'libjni.a', 'liblauncherutil.a',
+              'libtestmain.a', 'libtest_script.a', 'libutf8_range.a', 'libutf8_validity.a'),
+             ('libengine.a', 'libbasis_transcoder.a', 'libmodel_ddf.a', 'libdlib.a', 'libgraphics_null.a',
+              'libdecoder_ogg.a', 'libtremolo.a', 'libopus.a')),
+            ('x86_64-win32',
+             ('libprotoc.lib', 'libprotobuf.lib', 'basis_encoder.lib', 'texc.lib',
+              'libspirv-cross-msl.lib', 'absl_cord.lib', 'absl_cordz_info.lib', 'dxcompiler.lib', 'dxcompiler.dll',
+              'dlib_noasan.lib', 'graphics_null_noasan.lib', 'dlib_shared.dll', 'dlib_shared.lib',
+              'libogg.dll', 'liboggz.dll', 'ogg.lib', 'oggz.lib', 'libspirv-cross-c.lib', 'libspirv-cross-reflect.lib',
+              'jni.lib', 'launcherutil.lib', 'testmain.lib', 'test_script.lib', 'utf8_range.lib', 'utf8_validity.lib'),
+             ('engine.lib', 'basis_transcoder.lib', 'model_ddf.lib', 'dlib.lib', 'graphics_null.lib',
+              'decoder_ogg.lib', 'libtremolo.lib', 'libopus.lib')),
+        )
+        for platform, excluded_libraries, required_libraries in cases:
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                sdk_root = Path(directory)
+                required = {
+                    'extender/build.yml',
+                    f'ext/bin/{platform}/protoc',
+                    'bin/ddfc.py',
+                    'ext/lib/python/google/protobuf/__init__.py',
+                }
+                if platform == 'x86_64-linux':
+                    required.add('share/java/bob-light.jar')
+                excluded = set()
+                for libdir in ('lib', 'ext/lib'):
+                    required.update(f'{libdir}/{platform}/{name}' for name in required_libraries)
+                    excluded.update(f'{libdir}/{platform}/{name}' for name in excluded_libraries)
+                for relative_path in required | excluded:
+                    path = sdk_root / relative_path
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    if relative_path == 'share/java/bob-light.jar':
+                        with zipfile.ZipFile(path, 'w') as jar:
+                            jar.writestr('com/dynamo/bob/Builder.class', 'Java API')
+                    else:
+                        path.write_text(relative_path)
+
+                configuration = build.Configuration.__new__(build.Configuration)
+                configuration.dynamo_home = str(sdk_root)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    archive_path, _ = configuration._package_platform_sdk(platform)
+                with zipfile.ZipFile(archive_path) as archive:
+                    self.assertEqual({f'defoldsdk/{path}' for path in required}, set(archive.namelist()))
+                    for path in required:
+                        if path == 'share/java/bob-light.jar':
+                            with zipfile.ZipFile(io.BytesIO(archive.read(f'defoldsdk/{path}'))) as jar:
+                                self.assertEqual(b'Java API', jar.read('com/dynamo/bob/Builder.class'))
+                        else:
+                            self.assertEqual(path.encode(), archive.read(f'defoldsdk/{path}'))
+
+    # Only the Linux SDK ships the filtered JAR; all API/resources survive and the installed Bob stays intact.
+    def test_sdk_bob_jar_preserves_pipeline_api_and_excludes_native_tools(self):
+        retained = {
+            'META-INF/MANIFEST.MF': b'Manifest-Version: 1.0\r\n\r\n',
+            'META-INF/services/com.example.Plugin': b'com.example.Builder\n',
+            'com/dynamo/bob/Builder.class': b'Java API',
+            'com/sun/jna/Native.class': b'JNA Java API',
+            'com/sun/jna/LICENSE': b'JNA license',
+            'com/dynamo/bob/pipeline/project.properties': b'pipeline resource',
+            'licenses/dependency.txt': b'dependency license',
+        }
+        native = {
+            'lib/': b'',
+            'libexec/': b'',
+            'lib/x86_64-linux/libtexc_shared.so': b'texture compiler',
+            'libexec/arm64-macos/tint': b'shader translator',
+            'libexec/x86_64-win32/glslang.exe': b'shader compiler',
+            'lib/luajit-share.zip': b'LuaJIT support files',
+            'com/sun/jna/linux-x86-64/libjnidispatch.so': b'JNA Linux native library',
+            'com/sun/jna/win32-x86-64/jnidispatch.dll': b'JNA Windows native library',
+            'com/sun/jna/darwin-aarch64/libjnidispatch.jnilib': b'JNA macOS native library',
+            'com/sun/jna/aix-ppc64/libjnidispatch.a': b'JNA AIX native library',
+        }
+        for platform in build.SDK_PIPELINE_TOOL_PLATFORMS:
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                sdk_root = Path(directory)
+                for relative_path in (f'lib/{platform}/libengine.a', f'ext/lib/{platform}/libdependency.a',
+                                      'ext/lib/python/google/protobuf/__init__.py', f'ext/bin/{platform}/protoc'):
+                    path = sdk_root / relative_path
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.touch()
+                bob_path = sdk_root / 'share/java/bob-light.jar'
+                bob_path.parent.mkdir(parents=True)
+                with zipfile.ZipFile(bob_path, 'w', zipfile.ZIP_DEFLATED) as jar:
+                    jar.comment = b'Bob archive comment'
+                    for name, contents in (retained | native).items():
+                        jar.writestr(name, contents)
+                original_bob = bob_path.read_bytes()
+
+                configuration = build.Configuration.__new__(build.Configuration)
+                configuration.dynamo_home = str(sdk_root)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    archive_path, _ = configuration._package_platform_sdk(platform)
+                self.assertEqual(original_bob, bob_path.read_bytes())
+                with zipfile.ZipFile(archive_path) as archive:
+                    self.assertIn(f'defoldsdk/ext/bin/{platform}/protoc', archive.namelist())
+                    self.assertNotIn('defoldsdk/ext/bin/x86_64-darwin/protoc', archive.namelist())
+                    jar_name = 'defoldsdk/share/java/bob-light.jar'
+                    self.assertEqual(platform == 'x86_64-linux', jar_name in archive.namelist())
+                    if platform == 'x86_64-linux':
+                        with zipfile.ZipFile(io.BytesIO(archive.read(jar_name))) as jar:
+                            self.assertEqual(set(retained), set(jar.namelist()))
+                            self.assertEqual(b'Bob archive comment', jar.comment)
+                            for name, contents in retained.items():
+                                self.assertEqual(contents, jar.read(name))
+                                self.assertEqual(zipfile.ZIP_DEFLATED, jar.getinfo(name).compress_type)
+
+    # Android SDKs retain the entry-point header and runtime JARs without picking up similarly named tool JARs.
     def test_android_sdk_includes_platform_application_header(self):
         for platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
             with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
@@ -942,6 +1064,13 @@ class PlatformSdkPackagingTests(unittest.TestCase):
                     f'lib/{platform}/libplatform.a': 'platform archive',
                     f'ext/lib/{platform}/libdependency.a': 'external archive',
                     'share/java/platform_android.jar': 'platform Java classes',
+                    'share/java/gamesys_android.jar': 'gamesys Java classes',
+                    'share/java/sound_android.jar': 'sound Java classes',
+                    'share/java/other_android.jar': 'unrelated Android classes',
+                    'share/java/dlib.jar': 'tool Java classes',
+                    'share/java/fontrenderer.jar': 'font compiler',
+                    'share/java/modelimporter.jar': 'model compiler',
+                    'share/java/texturecompiler.jar': 'texture compiler',
                     'include/platform/platform_app.h': 'platform application header',
                     'sdk/include/dmsdk/dlib/android.h': 'Android SDK header',
                 }
@@ -961,6 +1090,10 @@ class PlatformSdkPackagingTests(unittest.TestCase):
                     with self.subTest(archive=Path(sdk_path).name), zipfile.ZipFile(sdk_path) as archive:
                         self.assertEqual(b'platform application header', archive.read('defoldsdk/include/platform/platform_app.h'))
                         self.assertEqual(b'Android SDK header', archive.read('defoldsdk/sdk/include/dmsdk/dlib/android.h'))
+                        if sdk_path == archive_path:
+                            self.assertEqual({f'defoldsdk/share/java/{name}_android.jar' for name in
+                                              ('platform', 'gamesys', 'sound')},
+                                             {name for name in archive.namelist() if name.startswith('defoldsdk/share/java/')})
 
     def package_web_sdk(self, platform, external_javascript):
         with tempfile.TemporaryDirectory() as directory:
