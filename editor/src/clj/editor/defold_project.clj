@@ -60,8 +60,6 @@
             [util.fn :as fn]
             [util.thread-util :as thread-util])
   (:import [clojure.lang ArityException]
-           [com.dynamo.bob ClassLoaderScanner]
-           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageProviders]
            [java.io File FileNotFoundException]
            [java.util.concurrent.atomic AtomicLong]
            [org.apache.commons.io FilenameUtils]))
@@ -1559,14 +1557,6 @@
              code-preprocessors (workspace/code-preprocessors workspace evaluation-context)
              code-transpilers (code-transpilers basis)]
     (workspace/unpack-editor-plugins! basis workspace touched-resources)
-    (let [schemas (try
-                    (into {} (PackageProviders/describe (ClassLoaderScanner. java/class-loader)))
-                    (catch Exception error
-                      (g/error-fatal (ex-message error))))]
-      (g/transact {:undoable false}
-        (g/set-properties project
-          :live-update-provider-schemas schemas
-          :live-update-output-paths (set (PackageArtifacts/generatedPaths (.toPath (workspace/project-directory basis workspace)))))))
     (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader localization)
     (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader localization)
     (texture.engine/reload-texture-compressors! java/class-loader localization)
@@ -1685,8 +1675,6 @@
 
 (g/defnode Project
   (property workspace g/Any)
-  (property live-update-provider-schemas g/Any (default {}))
-  (property live-update-output-paths g/Any (default #{}))
 
   (property all-selections g/Any)
   (property all-sub-selections g/Any)

@@ -50,8 +50,7 @@
 (defn- ignored-setting?
   [{:keys [path]}]
   (or (= ["project" "dependencies"] path)
-      (= ["input" "gamepad_database"] path)
-      (= ["liveupdate" "manifest"] path)))
+      (= ["input" "gamepad_database"] path)))
 
 ;; Transform a settings map with build-time settings conversions.
 (defn- transform-settings! [settings]

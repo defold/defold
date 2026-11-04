@@ -29,11 +29,13 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.java :as java]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [com.dynamo.bob Progress]
-           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Selection PackageResolver$Severity]
+  (:import [com.dynamo.bob ClassLoaderScanner Progress]
+           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Selection PackageResolver$Severity]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc]
            [java.nio.file Path]
            [java.util.function Function]))
@@ -327,7 +329,7 @@
 (g/defnode LiveUpdateManifestNode
   (inherits resource-node/ResourceNode)
   (property provider-settings g/Any (default []) (dynamic visible (g/constantly false)))
-  (input provider-schemas g/Any)
+  (property provider-schemas g/Any (default {}) (dynamic visible (g/constantly false)))
   (property output-directory g/Str (default (protobuf/default LiveUpdateManifest$ManifestDesc :output-directory))
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-manifest :output-directory))
@@ -348,7 +350,7 @@
                 (catch IllegalArgumentException error
                   (g/->error _node-id :output-directory :fatal output-directory (ex-message error)))))))
   (input resource-map g/Any)
-  (input generated-paths g/Any)
+  (property generated-paths g/Any (default #{}) (dynamic visible (g/constantly false)))
   (input package-nodes g/NodeID :array)
   (input package-data g/Any :array)
   (input base-outline outline/OutlineData)
@@ -420,13 +422,40 @@
       (coll/into-> (:rules package) []
         (map-indexed (fn [index rule] (make-rule child index rule)))))))
 
-(defn- load-manifest [{:keys [workspace project]} {:keys [source-value] self :node-id}]
+(defn- load-environment [workspace nodes]
+  (let [schemas (try
+                  (into {} (PackageProviders/describe (ClassLoaderScanner. java/class-loader)))
+                  (catch Exception error
+                    (g/error-fatal (ex-message error))))
+        generated-paths (set (PackageArtifacts/generatedPaths (.toPath (workspace/project-directory workspace))))]
+    (mapv (fn [node-id]
+            (g/set-properties node-id :provider-schemas schemas :generated-paths generated-paths))
+          nodes)))
+
+(defn- listen-for-resource-changes! [workspace]
+  ;; Loading happens after the project's plugin listener is installed. Keep one
+  ;; listener per workspace, finding current nodes after reloads.
+  (let [listener (reify resource/ResourceListener
+                   (handle-changes [_ _changes _render-progress!]
+                     (let [basis (g/now)
+                           nodes (coll/into-> (g/outputs basis workspace :resource-map) []
+                                   (map gt/target-id)
+                                   (filter #(g/node-instance? basis LiveUpdateManifestNode %)))]
+                       (when (coll/not-empty nodes)
+                         (g/transact {:undoable false} (load-environment workspace nodes))))))]
+    (force
+      (g/user-data-swap! workspace ::resource-listener
+                         (fn resource-listener [existing]
+                           (or existing
+                               (delay (workspace/add-resource-listener! workspace 0 listener))))))))
+
+(defn- load-manifest [{:keys [workspace]} {:keys [source-value] self :node-id}]
+  (listen-for-resource-changes! workspace)
   [(g/set-property self :output-directory (:output-directory source-value (protobuf/default LiveUpdateManifest$ManifestDesc :output-directory)))
    (g/set-property self :provider-settings (:providers source-value []))
-   (g/connect project :live-update-provider-schemas self :provider-schemas)
+   (load-environment workspace [self])
    (g/connect workspace :root self :project-root)
    (g/connect workspace :resource-map self :resource-map)
-   (g/connect project :live-update-output-paths self :generated-paths)
    (g/make-nodes [base BasePackageNode]
      (g/connect base :_node-id self :nodes)
      (g/connect base :node-outline self :base-outline))
@@ -519,14 +548,15 @@
     (rt/suspendable-lua-fn legacy-rules [{:keys [evaluation-context]}]
       (let [workspace (project/workspace project evaluation-context)
             resource-map (g/node-value workspace :resource-map evaluation-context)
-            generated-paths (g/node-value project :live-update-output-paths evaluation-context)
+            project-directory (workspace/project-directory (:basis evaluation-context) workspace)
             save-data (mapv (fn [{:keys [resource save-value]}]
                               [(resource/proj-path resource) save-value (resource/resource-type resource (:basis evaluation-context))])
                             (project/dirty-save-data project evaluation-context))]
         (future/io
           ;; Conversion is a one-off operation. Bob uses a temporary snapshot so
           ;; it sees unsaved content without writing into the user's project.
-          (let [snapshot (fs/create-temp-directory! "defold-liveupdate-conversion-")]
+          (let [generated-paths (PackageArtifacts/generatedPaths (.toPath project-directory))
+                snapshot (fs/create-temp-directory! "defold-liveupdate-conversion-")]
             (try
               (let [contents (coll/into-> save-data {}
                                (keep (fn [[path save-value resource-type]]

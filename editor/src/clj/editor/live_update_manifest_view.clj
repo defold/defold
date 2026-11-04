@@ -472,7 +472,7 @@
                                (g/connect workspace :root view :project-root)
                                (g/connect manifest-node :packages view :packages)
                                (g/connect manifest-node :diagnostics view :diagnostics)
-                               (g/connect project :live-update-output-paths view :generated-paths)
+                               (g/connect manifest-node :generated-paths view :generated-paths)
                                (g/connect workspace :resource-snapshot view :resource-snapshot)
                                (g/connect project :dirty-save-data view :save-data)
                                (g/connect project :selected-node-ids-by-resource-node view :selected-nodes)))))

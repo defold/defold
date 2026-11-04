@@ -176,7 +176,7 @@
 (defn- build-bob-plan!
   ^PackageResolver$Plan [project contents manifest-path]
   (let [workspace (project/workspace project)
-        generated-paths (g/node-value project :live-update-output-paths)]
+        generated-paths (PackageArtifacts/generatedPaths (.toPath (workspace/project-directory workspace)))]
     (test-util/with-temp-dir! snapshot
       (doseq [[path source] (g/node-value workspace :resource-map)
               :when (and (= :file (resource/source-type source))
@@ -356,6 +356,32 @@
                               {:name "quality" :value "7"}
                               {:name "scale" :value "0.5"}]}]
                (:providers (g/node-value node :save-value))))))))
+
+;; Manifest loading installs one workspace listener, reused after reloads and
+;; removal. Projects without manifests need no Live Update listener.
+(deftest manifest-resource-listener-lifecycle
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (let [listeners (g/node-value workspace :resource-listeners)
+          path "/packages.lumanifest"]
+      (is (= 1 (count @listeners)))
+      (doseq [output-directory ["first" "second"]]
+        (test-util/make-resource! workspace path
+                                  {:output-directory output-directory
+                                   :packages [{:name "episode"}]})
+        (workspace/resource-sync! workspace)
+        (let [node (project/get-resource-node project path)]
+          (is (= output-directory (g/node-value node :output-directory)))
+          (is (= [1] (properties/values
+                       (get-in (properties/coalesce [(g/node-value node :_properties)])
+                               [:properties :live-update-provider.zip/compression-level])))))
+        (is (= 2 (count @listeners))))
+      (fs/delete-file! (io/as-file (workspace/file-resource workspace path)))
+      (workspace/resource-sync! workspace)
+      (is (nil? (project/get-resource-node project path)))
+      (test-util/make-resource! workspace path {:packages [{:name "episode"}]})
+      (workspace/resource-sync! workspace)
+      (is (= #{} (g/node-value (project/get-resource-node project path) :generated-paths)))
+      (is (= 2 (count @listeners))))))
 
 ;; Radio choices, including keyboard-style group selection, edit the graph
 ;; through normal property transactions, preserve undo/redo, and leave mixed
@@ -657,7 +683,7 @@
             (.getLiveUpdatePlan bob))]
       (workspace/resource-sync! workspace)
       (is (contains? (g/node-value workspace :resource-map) "/episode.zip"))
-      (is (= #{"/episode.zip"} (g/node-value project :live-update-output-paths)))
+      (is (= #{"/episode.zip"} (g/node-value node :generated-paths)))
       (is (= #{"/extra.json"} (g/node-value node :selected-paths)))
       (let [sources (set (g/node-value node :source-paths))
             refreshed (build-bob-plan! project {} "/packages.lumanifest")]
