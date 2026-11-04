@@ -35,7 +35,6 @@
 (g/defnode ScriptIntelligenceNode
   (input lua-completions ScriptCompletions :array :substitute gu/array-subst-remove-errors)
   (input required-module-infos RequiredModuleInfo :array :substitute gu/array-subst-remove-errors)
-  (input build-errors g/Any :array :substitute gu/array-subst-remove-errors)
   (output lua-completions ScriptCompletions :cached produce-lua-completions)
   (output requiring-resource-infos-by-module-proj-path RequiringResourceInfosByModuleProjPath :cached
           (g/fnk [required-module-infos]
@@ -43,5 +42,4 @@
                  (e/mapcat (fn [[node-id proj-path required-module-proj-paths]]
                              (e/map #(coll/pair % [proj-path node-id])
                                     required-module-proj-paths)))
-                 (util/group-into {} [] key val))))
-  (output build-errors g/Any (gu/passthrough build-errors)))
+                 (util/group-into {} [] key val)))))

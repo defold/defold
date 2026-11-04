@@ -202,14 +202,10 @@
                       (keep nodes-by-resource-path))))))))
 
         root-node-ids (coll/into-> root-proj-paths [] (keep nodes-by-resource-path))
-        node-ids (project/resource-node-load-order root-node-ids dependency-node-ids)
-        basis @basis-ref
-        ;; The project's :build-errors also checks collision groups in resources
-        ;; outside the build roots. Only their group outputs are needed.
-        collision-group-node-ids (mapv :source-id (g/inputs basis project :collision-groups))]
-    (coll/into-> [node-ids collision-group-node-ids] []
-      cat
-      (distinct)
+        build-error-node-ids (g/required-shell-node-ids @basis-ref [(g/endpoint project :build-errors)])
+        node-ids (project/resource-node-load-order (into root-node-ids build-error-node-ids) dependency-node-ids)
+        basis @basis-ref]
+    (coll/into-> node-ids []
       (keep (fn [node-id]
               (when (in/shell-node? (g/node-by-id basis node-id))
                 (let [resource (resource-node/resource basis node-id)
@@ -217,8 +213,8 @@
                   (pair node-id proj-path))))))))
 
 (defn load-build-resources!
-  "Reads the dependencies of the build roots, then materializes the remaining
-  shells in dependency order. Each commit is visible to the next evaluation."
+  "Reads the dependencies of the build roots and project validation resources,
+  then materializes their shells in dependency order."
   [project root-proj-paths render-load-progress! task-cancelled?]
   (let [report-progress! (cancellable-render-progress render-load-progress! task-cancelled?)]
     (try
@@ -300,7 +296,7 @@
   [project node-id old-artifact-map opts evaluation-context]
   (let [[project-errors project-warnings]
         (->> (g/node-value project :build-errors evaluation-context)
-             (g/flatten-errors)
+             (g/unpack-errors)
              (:causes)
              (coll/separate-by g/error-fatal?))
 
@@ -311,8 +307,10 @@
         cancellable-render-progress! (cancellable-render-progress render-progress! task-cancelled?)
         node-id->resource-path (make-node-id->resource-path project evaluation-context)
         node-build-targets (node-build-targets node-id node-id->resource-path cancellable-render-progress! task-cancelled? evaluation-context)
-        build-targets (resolve-dependencies-with-progress [node-build-targets extra-build-targets] project node-id->resource-path cancellable-render-progress! evaluation-context)]
+        build-targets (resolve-dependencies-with-progress [node-build-targets extra-build-targets] project node-id->resource-path cancellable-render-progress! evaluation-context)
+        result (if (coll/not-empty project-errors)
+                 {:error (g/flatten-errors project-errors build-targets)}
+                 (build-build-targets! build-targets workspace old-artifact-map cancellable-render-progress! evaluation-context))]
 
-    (cond-> (build-build-targets! build-targets workspace old-artifact-map cancellable-render-progress! evaluation-context)
-      (coll/not-empty project-errors) (update :error g/flatten-errors project-errors)
+    (cond-> result
       (coll/not-empty project-warnings) (update :warning g/flatten-errors project-warnings))))

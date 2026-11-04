@@ -1676,6 +1676,76 @@
    (some-> (first (inputs basis node-id label))
            gt/source-id)))
 
+(defn- input-source-endpoints [basis node-id input-label]
+  (mapv gt/source-endpoint (inputs basis node-id input-label)))
+
+(defn- predecessor-endpoints [basis node-id label dependency-labels-fn]
+  (let [node-type (node-type* basis node-id)]
+    (if-let [output (get (declared-outputs node-type) label)]
+      (coll/into-> (dependency-labels-fn node-type label output) []
+        (mapcat
+          (fn [dependency-label]
+            (if (not= label dependency-label)
+              [(endpoint node-id dependency-label)]
+              ;; A passthrough output reads the input of the same name.
+              (when (has-input? node-type label)
+                (input-source-endpoints basis node-id label))))))
+      (when (has-input? node-type label)
+        (input-source-endpoints basis node-id label)))))
+
+(defn immediate-predecessor-endpoints
+  "Returns the declared dependencies of a label in the supplied basis. Inputs
+  lead to the outputs connected to them."
+  [basis node-id label]
+  (predecessor-endpoints
+    basis node-id label
+    (fn [_node-type _label output]
+      (:dependencies output))))
+
+(defn- value-dependency-labels [node-type label {:keys [arguments]}]
+  (cond
+    ;; Inspecting all properties evaluates their dynamic attributes too.
+    (= :_declared-properties label)
+    (let [outputs (declared-outputs node-type)]
+      (coll/into-> (declared-property-labels node-type) arguments
+        (mapcat #(get-in outputs [% :dependencies]))))
+
+    ;; A same-named argument reads the property's value function, if any.
+    (contains? arguments label)
+    (into arguments (get-in (in/all-properties node-type) [label :value :arguments]))
+
+    :else
+    arguments))
+
+(defn required-shell-node-ids
+  "Finds shells with outputs that require materialization upstream of the
+  supplied output endpoints. Follows value dependencies in the basis without
+  evaluating nodes or consulting cached output values."
+  [basis endpoints]
+  (let [predecessors
+        (pre-traverse
+          basis
+          (vec endpoints)
+          (fn value-predecessors [basis endpoint]
+            (let [node-id (endpoint-node-id endpoint)
+                  label (endpoint-label endpoint)]
+              (predecessor-endpoints basis node-id label value-dependency-labels))))]
+    (coll/into-> predecessors []
+      (keep (fn [endpoint]
+              (let [node-id (endpoint-node-id endpoint)
+                    node (node-by-id basis node-id)]
+                (when (in/shell-node? node)
+                  (let [node-type (gt/node-type node)
+                        label (endpoint-label endpoint)]
+                    ;; To supply an input argument, the evaluator calls
+                    ;; produce-value on the connected source nodes. A
+                    ;; shell-safe output can forward that value while its
+                    ;; own node remains a shell.
+                    (when (and (has-output? node-type label)
+                               (not (in/shell-node-safe-output? node-type label)))
+                      node-id))))))
+      (distinct))))
+
 (defn invalidate-outputs!
   "Invalidate the given outputs and _everything_ that could be
   affected by them. Outputs are specified as a seq of Endpoints

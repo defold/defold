@@ -1909,6 +1909,7 @@
   (input use-font-layout g/Bool)
   (input use-rich-text g/Bool)
   (input collision-groups g/Any :array :substitute gu/array-subst-remove-errors)
+  (input build-errors g/Any :array :substitute gu/array-subst-remove-errors)
   (input build-settings g/Any)
   (input dependencies g/Any)
   (input breakpoints Breakpoints :array :substitute gu/array-subst-remove-errors)
@@ -1989,9 +1990,10 @@
   (output default-sampler-filter-modes g/Any :cached produce-default-sampler-filter-modes)
   (output collision-groups g/Any :cached (g/fnk [collision-groups] (into #{} coll/flatten-xf collision-groups)))
   (output build-errors g/Any :cached
-          (g/fnk [_node-id collision-groups]
+          (g/fnk [_node-id build-errors collision-groups]
             (g/package-errors
               _node-id
+              build-errors
               (collision-groups/validate collision-groups))))
   (output build-settings g/Any (gu/passthrough build-settings))
   (output breakpoints Breakpoints :cached (g/fnk [breakpoints] (into [] cat breakpoints)))

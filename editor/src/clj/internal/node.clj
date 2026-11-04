@@ -418,10 +418,10 @@
   (override-id [this]
     nil))
 
-(defn- shell-node-safe-output?
-  [node-type label]
+(defn shell-node-safe-output?
   "Return true if the specified output label can be safely evaluated on an
   unmaterialized node."
+  [node-type label]
   (if-let [output (some-> node-type deref :output (get label))]
     (unjammable? output)
     false))

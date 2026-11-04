@@ -17,12 +17,16 @@
             [dynamo.graph :as g]
             [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
+            [editor.collision-groups :as collision-groups]
             [editor.defold-project :as project]
             [editor.localization :as localization]
+            [editor.progress :as progress]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.util :as util]
+            [util.coll :as coll]
             [util.fn :as fn]))
 
 (def ^:private project-path "test/resources/errors_project")
@@ -48,6 +52,36 @@
         (recur (next labels) child-outline)))))
 
 (def ^:private error-item-open-info-without-opts (comp pop :args build-errors-view/error-item-open-info))
+
+;; A standalone build reports a file-backed Script API error alongside the
+;; collision warning. Fixing the API lets the build produce artifacts again.
+(deftest project-validation-on-standalone-build-test
+  (test-util/with-temp-project-content
+    {"/standalone.lua" ["return {}"]
+     "/api.script_api" ["- name: ["]
+     "/groups.tilesource" {:image "/builtins/graphics/particle_blob.png"
+                           :tile-width 16
+                           :tile-height 16
+                           :collision-groups (mapv #(str "group" %) (range (inc collision-groups/MAX-GROUPS)))}}
+    (let [api (test-util/resource-node project "/api.script_api")
+          script (test-util/resource-node project "/standalone.lua")
+          build-script! (fn build-script! []
+                          (g/with-auto-evaluation-context evaluation-context
+                            (build/build-project! project script {} nil evaluation-context)))]
+      (build/load-build-resources! project ["/standalone.lua"] progress/null-render-progress! fn/constantly-false)
+      (is (resource-node/loaded? api))
+      (let [{:keys [artifacts error warning]} (build-script!)]
+        (is (g/error-fatal? error))
+        (is (= ["/api.script_api"]
+               (mapv #(resource/proj-path (get-in % [:value :resource]))
+                     (:children (build-errors-view/build-resource-tree error)))))
+        (is (g/error-warning? warning))
+        (is (coll/empty? artifacts)))
+      (test-util/prop! api :modified-lines ["- name: api" "  type: table"])
+      (let [{:keys [artifacts error warning]} (build-script!)]
+        (is (nil? error))
+        (is (g/error-warning? warning))
+        (is (coll/not-empty artifacts))))))
 
 (deftest build-errors-test
   (test-util/with-loaded-project project-path

@@ -41,7 +41,50 @@
   (property setter-value g/Str :unjammable
             (set (fn set-value [_evaluation-context self _old-value _new-value]
                    (g/set-property self :value 5))))
-  (output cached-identity g/Str :cached :unjammable (g/fnk [identity] identity)))
+  (output cached-identity g/Str :cached :unjammable (g/fnk [identity] identity))
+  (output forwarded-value g/Int :unjammable (g/fnk [dependency] dependency)))
+
+(g/defnode ShellDependencyGroup
+  (property caption g/Str (default "group")
+            (dynamic tooltip (g/fnk [unused] (str unused))))
+  (input values g/Int :array)
+  (input unused g/Int)
+  (input source-identity g/Str)
+  (output values g/Int (g/fnk [values] (reduce + 0 values)))
+  (output summary g/Any :cached (g/fnk [caption source-identity values] [caption source-identity values])))
+
+;; Discovery follows a shell-safe output through its input to the source shell,
+;; even when the requested output is cached.
+(deftest required-shell-node-ids-test
+  (with-clean-system
+    (let [[leaf other relay root] (g/take-node-ids 4)
+          load-value (fn load-value [self _evaluation-context]
+                       (g/set-property self :value 7))
+          endpoint (g/endpoint root :summary)]
+      (g/transact
+        [(g/add-node (g/construct-shell ShellTestNode {:_node-id leaf} load-value))
+         (g/add-node (g/construct-shell ShellReadCacheNode {:_node-id other :identity "other"} load-value))
+         (g/add-node (g/construct ShellDependencyGroup {:_node-id relay}))
+         (g/add-node (g/construct ShellDependencyGroup {:_node-id root}))
+         (g/connect leaf :value other :dependency)
+         (g/connect other :forwarded-value relay :values)
+         (g/connect leaf :result relay :values)
+         (g/connect relay :values root :values)
+         (g/connect other :value root :unused)
+         (g/connect other :cached-identity root :source-identity)])
+      (g/cache-output-values! [[endpoint ["cached" 0]]])
+      (g/with-auto-evaluation-context evaluation-context
+        (is (= [leaf] (g/required-shell-node-ids @(:basis-ref evaluation-context) [endpoint])))
+        (is (= ["cached" 0] (g/node-value root :summary evaluation-context))))
+      (g/invalidate-outputs! [endpoint])
+      (g/with-auto-evaluation-context evaluation-context
+        (let [basis @(:basis-ref evaluation-context)]
+          (is (= [leaf] (g/required-shell-node-ids basis [endpoint])))
+          (is (= [other] (g/required-shell-node-ids basis [(g/endpoint root :_declared-properties)])))
+          (is (identical? basis @(:basis-ref evaluation-context)))
+          (is (= ["group" "other" 14] (g/node-value root :summary evaluation-context)))
+          (is (in/shell-node? (g/node-by-id @(:basis-ref evaluation-context) other)))
+          (is (= [] (g/required-shell-node-ids @(:basis-ref evaluation-context) [endpoint]))))))))
 
 ;; Overlapping snapshots must share materializations until the last evaluation
 ;; closes, after which the system must release both copies of the replay data.

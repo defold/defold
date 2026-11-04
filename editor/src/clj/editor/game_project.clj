@@ -378,14 +378,12 @@
   ;; load-fns, since establishing these connections will invalidate any
   ;; dependent outputs in the cache.
   (when (= "/game.project" (resource/proj-path resource)) ; There might be other `.project` files. We only want `/game.project` here.
-    (let [script-intelligence (g/node-value project :script-intelligence)]
-      (e/concat
-        (g/connect script-intelligence :build-errors self :build-errors)
-        (g/connect self :display-profiles-data project :display-profiles)
-        (g/connect self :texture-profiles-data project :texture-profiles)
-        (g/connect self :use-font-layout project :use-font-layout)
-        (g/connect self :use-rich-text project :use-rich-text)
-        (g/connect self :settings-map project :settings)))))
+    (e/concat
+      (g/connect self :display-profiles-data project :display-profiles)
+      (g/connect self :texture-profiles-data project :texture-profiles)
+      (g/connect self :use-font-layout project :use-font-layout)
+      (g/connect self :use-rich-text project :use-rich-text)
+      (g/connect self :settings-map project :settings))))
 
 (defn- load-game-project [{:keys [workspace] :as load-opts} {:keys [owner-resource source-value] self :node-id}]
   (let [resource-setting-connections (reduce-kv (fn [m k v] (assoc m k [self v])) {} resource-setting-connections-template)]

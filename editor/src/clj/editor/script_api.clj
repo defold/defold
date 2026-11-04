@@ -165,7 +165,7 @@
           (when (resource/file-resource? resource)
             ;; File resources are actively worked on and should stop the build
             ;; on errors. External dependencies should not.
-            (g/connect self :build-errors si :build-errors)))))))
+            (g/connect self :build-errors project :build-errors)))))))
 
 (defn register-resource-types
   [workspace]

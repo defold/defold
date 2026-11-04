@@ -64,10 +64,7 @@
   (settings ["project" "title"]))
 
 (defn- ensure-game-project-connections! [project game-project]
-  (let [basis (g/now)
-        script-intelligence (g/valid-node-value project :script-intelligence)]
-    (is (contains? (set (g/outputs basis script-intelligence :build-errors))
-                   (gt/->Arc script-intelligence :build-errors game-project :build-errors)))
+  (let [basis (g/now)]
     (is (contains? (set (g/inputs basis project :display-profiles))
                    (gt/->Arc game-project :display-profiles-data project :display-profiles)))
     (is (contains? (set (g/inputs basis project :texture-profiles))
