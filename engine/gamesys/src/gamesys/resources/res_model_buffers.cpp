@@ -15,8 +15,6 @@
 #include "res_model_buffers.h"
 #include "../modelbuffers.h"
 
-#include <assert.h>
-
 #include <dlib/log.h>
 #include <rig/rig.h>
 #include <stdlib.h>
@@ -47,121 +45,6 @@ namespace dmGameSystem
         uint32_t                  m_CPUDataSize;
     };
 
-    // DM_ALIGN casts to uintptr_t; file validation must retain 64 bits on 32-bit targets.
-    static uint64_t AlignFileOffset(uint64_t value, uint32_t alignment)
-    {
-        return (value + alignment - 1) & ~(uint64_t)(alignment - 1);
-    }
-
-    static bool HasHeader(const ModelBuffersHeader* header, uint32_t size)
-    {
-        return size >= sizeof(ModelBuffersHeader) && memcmp(header->m_Magic, MODEL_BUFFERS_MAGIC, sizeof(header->m_Magic)) == 0;
-    }
-
-    static dmResource::Result ValidateBuffers(const void* data, uint32_t size, ModelBuffersResource* output, const ModelBuffersResource* expected)
-    {
-        const ModelBuffersHeader* file_header = (const ModelBuffersHeader*)data;
-        if (!HasHeader(file_header, size))
-        {
-            return dmResource::RESULT_INVALID_DATA;
-        }
-
-        assert(((uintptr_t)data & (sizeof(uint32_t) - 1)) == 0);
-        const ModelBuffersHeader& header = *file_header;
-        const ModelBufferDescriptor* ranges = (const ModelBufferDescriptor*)(&header + 1);
-        if (header.m_Version != MODEL_BUFFERS_VERSION || header.m_Compression != 0)
-        {
-            return dmResource::RESULT_INVALID_DATA;
-        }
-
-        uint64_t descriptor_end = sizeof(ModelBuffersHeader) + (uint64_t)header.m_RangeCount * sizeof(ModelBufferDescriptor);
-        uint64_t vertex_payload_end = (uint64_t)header.m_VertexOffset + header.m_VertexSize;
-        uint64_t index_payload_end = (uint64_t)header.m_IndexOffset + header.m_IndexSize;
-        uint64_t decoded_size = (uint64_t)header.m_VertexSize + header.m_IndexSize;
-        if (header.m_RangeCount > (size - sizeof(ModelBuffersHeader)) / sizeof(ModelBufferDescriptor) ||
-            header.m_VertexOffset != AlignFileOffset(descriptor_end, MODEL_BUFFERS_ALIGNMENT))
-        {
-            return dmResource::RESULT_INVALID_DATA;
-        }
-
-        if (header.m_IndexOffset != vertex_payload_end || index_payload_end != size ||
-            header.m_DecodedSize != decoded_size)
-        {
-            return dmResource::RESULT_INVALID_DATA;
-        }
-
-        if (expected && memcmp(&header, &expected->m_Header, sizeof(header)) != 0)
-        {
-            return dmResource::RESULT_INVALID_DATA;
-        }
-
-        if (output)
-        {
-            output->m_Header = header;
-            output->m_Ranges.SetCapacity(header.m_RangeCount);
-            output->m_Ranges.SetSize(header.m_RangeCount);
-        }
-
-        uint64_t vertex_end = 0;
-        uint64_t index_end = 0;
-        for (uint32_t i = 0; i < header.m_RangeCount; ++i)
-        {
-            const ModelBufferDescriptor& descriptor = ranges[i];
-
-            uint32_t skinning_mask = descriptor.m_AttributeMask & ATTRIBUTE_MASK_SKINNING;
-            bool skinned = skinning_mask == ATTRIBUTE_MASK_SKINNING;
-            if (descriptor.m_AttributeMask > ATTRIBUTE_MASK_ALL ||
-                !(descriptor.m_AttributeMask & (1u << ATTRIBUTE_POSITION)) ||
-                (skinning_mask != 0 && !skinned))
-            {
-                return dmResource::RESULT_INVALID_DATA;
-            }
-
-            uint32_t stride = skinned ? sizeof(dmRig::RigModelSkinnedVertex) : sizeof(dmRig::RigModelVertex);
-            if (descriptor.m_Stride != stride ||
-                descriptor.m_VertexOffset != AlignFileOffset(vertex_end, MODEL_BUFFERS_ALIGNMENT) ||
-                descriptor.m_IndexOffset != AlignFileOffset(index_end, 4) ||
-                (descriptor.m_IndexElementSize != 2 && descriptor.m_IndexElementSize != 4))
-            {
-                return dmResource::RESULT_INVALID_DATA;
-            }
-
-            vertex_end = (uint64_t)descriptor.m_VertexOffset + (uint64_t)descriptor.m_VertexCount * descriptor.m_Stride;
-            index_end = (uint64_t)descriptor.m_IndexOffset + (uint64_t)descriptor.m_IndexCount * descriptor.m_IndexElementSize;
-            if (vertex_end > header.m_VertexSize || index_end > header.m_IndexSize)
-            {
-                return dmResource::RESULT_INVALID_DATA;
-            }
-
-            if (expected && memcmp(&descriptor, &expected->m_Ranges[i].m_Descriptor, sizeof(descriptor)) != 0)
-            {
-                return dmResource::RESULT_INVALID_DATA;
-            }
-
-            if (output)
-            {
-                ModelBufferRange& item = output->m_Ranges[i];
-                memset(&item, 0, sizeof(item));
-                item.m_Descriptor = descriptor;
-                item.m_Owner = output;
-
-                item.m_Buffers.m_VertexCount = descriptor.m_VertexCount;
-                item.m_Buffers.m_IndexCount = descriptor.m_IndexCount;
-                item.m_Buffers.m_VertexBufferOffset = descriptor.m_VertexOffset;
-                item.m_Buffers.m_IndexBufferOffset = descriptor.m_IndexOffset;
-                item.m_Buffers.m_IndexBufferElementType = descriptor.m_IndexElementSize == 2 ? dmGraphics::TYPE_UNSIGNED_SHORT : dmGraphics::TYPE_UNSIGNED_INT;
-                item.m_Buffers.m_RigModelVertexFormat = skinned ? RIG_MODEL_VERTEX_FORMAT_SKINNED : RIG_MODEL_VERTEX_FORMAT_STATIC;
-            }
-        }
-
-        if (AlignFileOffset(vertex_end, MODEL_BUFFERS_ALIGNMENT) != header.m_VertexSize || index_end != header.m_IndexSize)
-        {
-            return dmResource::RESULT_INVALID_DATA;
-        }
-
-        return dmResource::RESULT_OK;
-    }
-
     ModelResourceBuffers* GetModelBuffers(ModelBuffersResource* resource, uint32_t index)
     {
         return index < resource->m_Ranges.Size() ? &resource->m_Ranges[index].m_Buffers : 0;
@@ -169,12 +52,32 @@ namespace dmGameSystem
 
     dmResource::Result ResModelBuffersPreload(const dmResource::ResourcePreloadParams* params)
     {
-        ModelBuffersResource* resource = new ModelBuffersResource();
-        dmResource::Result result = ValidateBuffers(params->m_Buffer, params->m_BufferSize, resource, 0);
-        if (result != dmResource::RESULT_OK)
+        const ModelBuffersHeader* header = (const ModelBuffersHeader*)params->m_Buffer;
+        if (!ValidateModelBuffers(header, params->m_BufferSize))
         {
-            delete resource;
-            return result;
+            return dmResource::RESULT_INVALID_DATA;
+        }
+
+        ModelBuffersResource* resource = new ModelBuffersResource();
+        resource->m_Header = *header;
+        resource->m_Ranges.SetCapacity(header->m_RangeCount);
+        resource->m_Ranges.SetSize(header->m_RangeCount);
+        const ModelBufferDescriptor* ranges = (const ModelBufferDescriptor*)(header + 1);
+        for (uint32_t i = 0; i < header->m_RangeCount; ++i)
+        {
+            const ModelBufferDescriptor& descriptor = ranges[i];
+            bool skinned = (descriptor.m_AttributeMask & ATTRIBUTE_MASK_SKINNING) == ATTRIBUTE_MASK_SKINNING;
+            ModelBufferRange& item = resource->m_Ranges[i];
+            memset(&item, 0, sizeof(item));
+            item.m_Descriptor = descriptor;
+            item.m_Owner = resource;
+
+            item.m_Buffers.m_VertexCount = descriptor.m_VertexCount;
+            item.m_Buffers.m_IndexCount = descriptor.m_IndexCount;
+            item.m_Buffers.m_VertexBufferOffset = descriptor.m_VertexOffset;
+            item.m_Buffers.m_IndexBufferOffset = descriptor.m_IndexOffset;
+            item.m_Buffers.m_IndexBufferElementType = descriptor.m_IndexElementSize == 2 ? dmGraphics::TYPE_UNSIGNED_SHORT : dmGraphics::TYPE_UNSIGNED_INT;
+            item.m_Buffers.m_RigModelVertexFormat = skinned ? RIG_MODEL_VERTEX_FORMAT_SKINNED : RIG_MODEL_VERTEX_FORMAT_STATIC;
         }
 
         *params->m_PreloadData = resource;
@@ -249,7 +152,7 @@ namespace dmGameSystem
                 }
             }
 
-            size = AlignFileOffset(size, 4);
+            size = AlignModelBufferOffset(size, 4);
             size += (uint64_t)descriptor.m_VertexCount * components * sizeof(float);
             size += (uint64_t)descriptor.m_IndexCount * descriptor.m_IndexElementSize;
         }
@@ -334,11 +237,20 @@ namespace dmGameSystem
         }
 
         // CPU recovery must use the same layout as the buffers already uploaded to the GPU.
-        result = ValidateBuffers(data, size, 0, resource);
-        if (result != dmResource::RESULT_OK)
+        const ModelBuffersHeader* header = (const ModelBuffersHeader*)data;
+        if (!ValidateModelBuffers(header, size) || memcmp(header, &resource->m_Header, sizeof(*header)) != 0)
         {
             free(data);
-            return result;
+            return dmResource::RESULT_INVALID_DATA;
+        }
+        const ModelBufferDescriptor* ranges = (const ModelBufferDescriptor*)(header + 1);
+        for (uint32_t i = 0; i < header->m_RangeCount; ++i)
+        {
+            if (memcmp(&ranges[i], &resource->m_Ranges[i].m_Descriptor, sizeof(ranges[i])) != 0)
+            {
+                free(data);
+                return dmResource::RESULT_INVALID_DATA;
+            }
         }
 
         uint64_t data_size = GetCPUDataSize(resource);
@@ -364,7 +276,7 @@ namespace dmGameSystem
             const ModelBufferDescriptor& descriptor = range.m_Descriptor;
             const uint8_t* vertices = (const uint8_t*)data + resource->m_Header.m_VertexOffset + descriptor.m_VertexOffset;
             const uint8_t* indices = (const uint8_t*)data + resource->m_Header.m_IndexOffset + descriptor.m_IndexOffset;
-            write = base + AlignFileOffset(write - base, 4);
+            write = base + AlignModelBufferOffset(write - base, 4);
             write = UnpackMeshData(descriptor, vertices, indices, &range.m_CPUMesh, write);
         }
         free(data);
