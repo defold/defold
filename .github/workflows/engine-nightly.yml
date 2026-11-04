@@ -288,7 +288,7 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v7.0.1
       { name: 'Install Python', uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0, with: { python-version: 3.12} }, # v7.1.0
       { name: 'Install Java', uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6, with: { java-version: '25.0.4+101.0.LTS', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v6.0.1
-      { name: 'Setup Node', uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020, with: { node-version: '22', package-manager-cache: false } }, # v7.0.0
+      { name: 'Setup Node', uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1, with: { node-version: '22', package-manager-cache: false } }, # v7.1.0
       { name: 'Install CMake', uses: lukka/get-cmake@f86dd60acae0d132056913e248bdabf0e0580b7a }, # v4.4.5
       {
         name: 'Setup dotnet',
