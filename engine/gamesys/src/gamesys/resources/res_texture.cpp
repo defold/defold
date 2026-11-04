@@ -224,7 +224,9 @@ namespace dmGameSystem
         params.m_SubUpdate  = upload_params.m_SubUpdate;
         params.m_MipMap     = specific_mip_requested ? upload_params.m_MipMap : 0;
 
-        if (!texture)
+        bool new_texture = !texture;
+        dmGraphics::TextureInfo texture_info;
+        if (new_texture)
         {
             dmGraphics::TextureCreationParams creation_params;
 
@@ -245,7 +247,7 @@ namespace dmGameSystem
         }
         else
         {
-            dmGraphics::TextureInfo texture_info = dmGraphics::GetTextureInfo(context, texture);
+            texture_info = dmGraphics::GetTextureInfo(context, texture);
             uint16_t tex_width_full    = texture_info.m_Width;
             uint16_t tex_height_full   = texture_info.m_Height;
             uint16_t tex_width_mipmap  = dmGraphics::GetMipmapSize(tex_width_full, params.m_MipMap);
@@ -300,7 +302,10 @@ namespace dmGameSystem
         // If we are uploading data for a mipmap, we need to pass the actual texture size for the validation
         if (params.m_MipMap > 0)
         {
-            dmGraphics::TextureInfo texture_info = dmGraphics::GetTextureInfo(context, texture);
+            if (new_texture)
+            {
+                texture_info = dmGraphics::GetTextureInfo(context, texture);
+            }
             tex_width_full  = texture_info.m_Width;
             tex_height_full = texture_info.m_Height;
         }
