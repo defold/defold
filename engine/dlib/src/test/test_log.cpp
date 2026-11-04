@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <testmain/testmain.h>
@@ -271,7 +272,7 @@ TEST(dmLog, TestCapture)
     ASSERT_STREQ(ExpectedOutput, g_LogListenerOutput.Begin());
 }
 
-// Release-mode logging delivers to registered listeners and drops messages without a listener.
+// Release-mode logging delivers to registered listeners.
 TEST(dmLog, ReleaseCaptureWithListener)
 {
     bool debug_mode = dLib::IsDebugMode();
@@ -282,19 +283,52 @@ TEST(dmLog, ReleaseCaptureWithListener)
 
     dmLog::LogParams params = {};
     dmLog::LogInitialize(&params);
-    dmLogInfo("Dropped before registration");
     dmLogRegisterListener(TestLogCaptureCallback);
     dmLogInfo("Captured release message");
     // Joining the logger drains accepted messages before inspecting the output.
     dmLog::LogFinalize();
     dmLogUnregisterListener(TestLogCaptureCallback);
-    dmLogInfo("Dropped after unregistration");
 
     dLib::SetDebugMode(debug_mode);
     dmLogSetLevel(log_level);
     g_LogListenerOutput.SetCapacity(g_LogListenerOutput.Size() + 1);
     g_LogListenerOutput.Push(0);
     ASSERT_STREQ("INFO:DLIB: Captured release message\n", g_LogListenerOutput.Begin());
+}
+
+// The release-mode gate skips formatting before registration and after the last listener is removed.
+TEST(dmLog, ReleaseLoggingSkipsFormattingWithoutListeners)
+{
+    bool debug_mode = dLib::IsDebugMode();
+    LogSeverity log_level = dmLogGetLevel();
+    dLib::SetDebugMode(false);
+    dmLogSetLevel(LOG_SEVERITY_INFO);
+    g_LogListenerOutput.SetSize(0);
+#if defined(_MSC_VER)
+    int printf_count_output = _set_printf_count_output(1);
+#endif
+
+    dmLog::LogParams params = {};
+    dmLog::LogInitialize(&params);
+    int before_registration = -1;
+    int with_listener = -1;
+    int after_unregistration = -1;
+    // %n changes its argument synchronously only if LogInternal formats the message.
+    dmLogInfo("%n", &before_registration);
+    dmLogRegisterListener(TestLogCaptureCallback);
+    dmLogInfo("%n", &with_listener);
+    dmLogUnregisterListener(TestLogCaptureCallback);
+    dmLogInfo("%n", &after_unregistration);
+    dmLog::LogFinalize();
+
+#if defined(_MSC_VER)
+    _set_printf_count_output(printf_count_output);
+#endif
+    dLib::SetDebugMode(debug_mode);
+    dmLogSetLevel(log_level);
+    ASSERT_EQ(-1, before_registration);
+    ASSERT_EQ(0, with_listener);
+    ASSERT_EQ(-1, after_unregistration);
 }
 
 static bool WaitForPendingLogCount()
