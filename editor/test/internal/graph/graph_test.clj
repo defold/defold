@@ -163,7 +163,8 @@
   (output str-out g/Str :cached (g/fnk [str-in] str-in)))
 
 ;; Verifies large matching override families keep the right implicit arcs when
-;; membership and shadowing change, including undo/redo of those changes.
+;; membership and shadowing change, including undo/redo of those changes and
+;; matching descendants inside target-only branches.
 (deftest matching-override-families-test
   (with-clean-system
     (let [[source target shadow-source]
@@ -198,6 +199,17 @@
         (is (= [(gt/->Arc source :val-val target :str-in)
                 (gt/->Arc source :val-val target-only :str-in)]
                (g/outputs (g/now) source :val-val)))
+        (let [nested-node-ids
+              (g/tx-nodes-added
+                (g/transact {:undo-key ::nested-target}
+                  (g/override target-only)))
+              basis (g/now)
+              nested-source (coll/first-where #(= source (g/override-original basis %)) nested-node-ids)
+              nested-target (coll/first-where #(= target-only (g/override-original basis %)) nested-node-ids)
+              expected-arcs [(gt/->Arc nested-source :val-val nested-target :str-in)]]
+          (is (= expected-arcs (g/outputs basis nested-source :val-val)))
+          (is (= expected-arcs (g/inputs basis nested-target :str-in)))
+          (g/undo! ::nested-target))
         (g/undo! ::target-only)
         (ensure-matching-arcs!)
         (is (= [(gt/->Arc source :val-val target :str-in)]
