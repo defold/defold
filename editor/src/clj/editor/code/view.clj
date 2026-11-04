@@ -2465,40 +2465,40 @@
              (cond-> []
                (pos? item-count)
                (conj {:fx/type ext-with-list-view-props
-                 :props {:selected-index [refresh-key completions-selected-index]}
-                 :desc
-                 {:fx/type ext-with-list-view-props
-                  :props {:items [refresh-key completions-combined]}
-                  :desc
-                  {:fx/type fx.ext.list-view/with-selection-props
-                   :props {:on-selected-index-changed (fn [index]
-                                                        (set-properties! view-node nil {:completions-selected-index index})
-                                                        (resolve-selected-completion! view-node))}
-                   :desc
-                   {:fx/type fx.list-view/lifecycle
-                    :style {:-fx-font-family (str \" font-name \") :-fx-font-size font-size}
-                    :id "fuzzy-choices-list-view"
-                    :style-class ["flat-list-view" "completion-popup-list-view"]
-                    :fixed-cell-size cell-height
-                    :event-filter (fn [e]
-                                    (when (instance? KeyEvent e)
-                                      (let [^KeyEvent e e
-                                            code (.getCode e)]
-                                        ;; redirect everything except arrows to canvas
-                                        (when-not (or (= KeyCode/UP code)
-                                                      (= KeyCode/DOWN code)
-                                                      (= KeyCode/PAGE_UP code)
-                                                      (= KeyCode/PAGE_DOWN code))
-                                          (ui/send-event! (get-property view-node :canvas) e)
-                                          (.consume e)))))
-                    :min-width completions-width
-                    :pref-width completions-width
-                    :max-width completions-width
-                    :min-height min-completions-height
-                    :pref-height (* cell-height item-count)
-                    :max-height (min (* cell-height max-visible-completions-count) max-completions-height)
-                    :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                   :describe (fn/partial completion-list-cell-view view-node)}}}}})
+                      :props {:selected-index [refresh-key completions-selected-index]}
+                      :desc
+                      {:fx/type ext-with-list-view-props
+                       :props {:items [refresh-key completions-combined]}
+                       :desc
+                       {:fx/type fx.ext.list-view/with-selection-props
+                        :props {:on-selected-index-changed (fn [index]
+                                                             (set-properties! view-node nil {:completions-selected-index index})
+                                                             (resolve-selected-completion! view-node))}
+                        :desc
+                        {:fx/type fx.list-view/lifecycle
+                         :style {:-fx-font-family (str \" font-name \") :-fx-font-size font-size}
+                         :id "fuzzy-choices-list-view"
+                         :style-class ["flat-list-view" "completion-popup-list-view"]
+                         :fixed-cell-size cell-height
+                         :event-filter (fn [e]
+                                         (when (instance? KeyEvent e)
+                                           (let [^KeyEvent e e
+                                                 code (.getCode e)]
+                                             ;; redirect everything except arrows to canvas
+                                             (when-not (or (= KeyCode/UP code)
+                                                           (= KeyCode/DOWN code)
+                                                           (= KeyCode/PAGE_UP code)
+                                                           (= KeyCode/PAGE_DOWN code))
+                                               (ui/send-event! (get-property view-node :canvas) e)
+                                               (.consume e)))))
+                         :min-width completions-width
+                         :pref-width completions-width
+                         :max-width completions-width
+                         :min-height min-completions-height
+                         :pref-height (* cell-height item-count)
+                         :max-height (min (* cell-height max-visible-completions-count) max-completions-height)
+                         :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                        :describe (fn/partial completion-list-cell-view view-node)}}}}})
 
                language-server-loading-text
                (conj {:fx/type fx.h-box/lifecycle

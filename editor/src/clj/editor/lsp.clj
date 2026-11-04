@@ -20,8 +20,8 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.error-reporting :as error-reporting]
-            [editor.lsp.async :as lsp.async]
             [editor.localization :as localization]
+            [editor.lsp.async :as lsp.async]
             [editor.lsp.server :as lsp.server]
             [editor.progress :as progress]
             [editor.resource :as resource]
@@ -377,7 +377,7 @@
         (when timeout-ms
           (a/go
             (<! (a/timeout timeout-ms))
-            (>! (:in state) (cancel-requests responses-ch (keys server->requests)))))
+            (>! (:in state) (cancel-requests responses-ch (coll/keys server->requests)))))
         (reduce-kv (fn [state server requests]
                      (assoc-in state [:server->server-state server :requests responses-ch] (count requests)))
                    (assoc-in state [:requests responses-ch] (transduce (map count) + 0 (vals server->requests)))
@@ -401,7 +401,11 @@
 (defn- render-server-progress! [state]
   (when-let [render-progress! (:render-progress! state)]
     (render-progress!
-      (if-let [{:keys [title message percentage]} (->> state :server->server-state vals (keep :progress) (mapcat vals) first)]
+      (if-let [{:keys [title message percentage]} (coll/first-where
+                                                    any?
+                                                    (eduction
+                                                      (mapcat #(coll/vals (:progress %)))
+                                                      (coll/vals (:server->server-state state))))]
         (let [message-pattern (if message
                                 (localization/message "progress.language-server-with-message" {"title" title "message" message})
                                 (localization/message "progress.language-server" {"title" title}))]
@@ -478,9 +482,10 @@
     (lsp.server/make project server input output
                      :on-initialized (partial on-server-initialized server)
                      :on-publish-diagnostics (partial on-diagnostics-published server)
-                     :on-progress (fn [token {:keys [kind] :as value}]
-                                    (fn [state]
-                                      (if (contains? (:server->server-state state) server)
+                     :on-progress (fn on-progress [token {:keys [kind] :as value}]
+                                    (fn update-progress [state]
+                                      (if-not (contains? (:server->server-state state) server)
+                                        state
                                         (let [was-busy (coll/not-empty (get-in state [:server->server-state server :progress]))
                                               state (if (= "end" kind)
                                                       (update-in state [:server->server-state server :progress] dissoc token)
@@ -493,8 +498,7 @@
                                               (g/transact
                                                 {:undoable false}
                                                 (refresh-language-server-busy-for-server-tx state server))))
-                                          state)
-                                        state)))
+                                          state))))
                      :on-response (partial on-server-response server))
     (-> state
         (update :channels conj output)
@@ -526,8 +530,9 @@
   (pair ::lsp.server/document-symbol resource))
 
 (defn- set-view-document-symbols [resource responses-ch document-symbols]
-  (bound-fn [state]
-    (if (identical? responses-ch (get-in state [:active-requests (document-symbols-id resource)]))
+  (bound-fn write-document-symbols [state]
+    (if-not (identical? responses-ch (get-in state [:active-requests (document-symbols-id resource)]))
+      state
       (do
         (when-let [view-node (and (some? document-symbols)
                                   (-> state :resource->view-node (get resource)))]
@@ -538,8 +543,7 @@
         (run! #(%) (get-in state [:active-request-listeners (document-symbols-id resource)]))
         (-> state
             (update :active-requests dissoc (document-symbols-id resource))
-            (update :active-request-listeners dissoc (document-symbols-id resource))))
-      state)))
+            (update :active-request-listeners dissoc (document-symbols-id resource)))))))
 
 (defn- cancel-document-symbols-request [state resource]
   (if-let [responses-ch (get-in state [:active-requests (document-symbols-id resource)])]
@@ -1274,10 +1278,10 @@
   (let [lsp (g/graph-value :lsp)]
     (g/transact
       {:undoable false}
-      (for [view-node (keys (:view-node->resource (lsp)))]
+      (for [view-node (coll/keys (:view-node->resource (lsp)))]
         (g/set-property view-node :document-symbols [])))
     (lsp (fn [state]
-           (let [servers (set (keys (:server->server-state state)))]
+           (let [servers (set (coll/keys (:server->server-state state)))]
              (-> state
                  ((set-servers #{}))
                  ((set-servers servers)))))))

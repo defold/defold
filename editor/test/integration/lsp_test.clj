@@ -1022,7 +1022,7 @@
                                      {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental
                                                                                :documentSymbolProvider true}})
                                       "initialized" (constantly nil)
-                                      "textDocument/documentSymbol" (fn [_ _]
+                                      "textDocument/documentSymbol" (fn document-symbol [_ _]
                                                                       (let [n (swap! symbol-requests inc)]
                                                                         (deref release 10000 nil)
                                                                         [{:name (str "symbol-" n)

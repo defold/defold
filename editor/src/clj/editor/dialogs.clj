@@ -846,7 +846,7 @@
 
          set-items
          (fn set-items [state items]
-           (if (nil? items)
+           (if-not items
              (assoc state :loading true)
              (-> state
                  (assoc :loading false
