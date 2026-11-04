@@ -153,12 +153,16 @@ jobs:
         with:
           ref: ${{ github.sha }}
           path: .windows-diagnostic
-          sparse-checkout: engine/engine/scripts/build_cmake_content.py
+          sparse-checkout: |
+            engine/engine/scripts/build_cmake_content.py
+            scripts/build.py
           sparse-checkout-cone-mode: false
           persist-credentials: false
       - name: Install isolated debugger wrapper
         shell: pwsh
-        run: Copy-Item .windows-diagnostic/engine/engine/scripts/build_cmake_content.py engine/engine/scripts/build_cmake_content.py
+        run: |
+          Copy-Item .windows-diagnostic/engine/engine/scripts/build_cmake_content.py engine/engine/scripts/build_cmake_content.py
+          Copy-Item .windows-diagnostic/scripts/build.py scripts/build.py
 
       - name: Locate Windows debugger
         shell: pwsh
@@ -348,6 +352,7 @@ jobs:
         if: "!matrix.emulator"
         env:
           DM_WINDOWS_DEBUG_CDB: ${{ env.DIAG_CDB_EXE }}
+          DM_WINDOWS_DEBUG_BUILTINS_ONLY: "1"
           LIBGL_ALWAYS_SOFTWARE: ${{ runner.os == 'Linux' && '1' || '' }}
           GALLIUM_DRIVER: ${{ runner.os == 'Linux' && 'llvmpipe' || '' }}
         run: 'ci/ci.sh engine --skip-install-ext --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} ${{ matrix.engine_args }}${{ matrix.codesign && format('' {0}'', env.OPTION_CODESIGN) || '''' }}${{ matrix.gcloud && format('' --gcloud-service-key="{0}"'', env.GCLOUD_EDITOR_SERVICE_KEY) || '''' }}'
