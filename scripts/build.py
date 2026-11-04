@@ -311,6 +311,29 @@ SDK_PIPELINE_TOOL_PLATFORMS = (
     'x86_64-win32'
 )
 
+# Build-time libraries that Extender does not need in either SDK library directory.
+# The protoc executable is packaged separately and must remain available for DDF generation.
+SDK_EXCLUDED_LIBS = {
+    'astcenc',
+    'basis_encoder',
+    'draco_decoder',
+    'dxcompiler',
+    'jni',
+    'launcherutil',
+    'meshoptimizer',
+    'model',
+    'ogg',
+    'oggz',
+    'protobuf',
+    'protoc',
+    'shaderc',
+    'test_script',
+    'testmain',
+    'texc',
+    'utf8_range',
+    'utf8_validity',
+}
+
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
@@ -1403,6 +1426,19 @@ class Configuration(object):
             self._log("Path is not a file: '%s'" % src)
         zip.write(src, dst)
 
+    def _create_sdk_bob_jar(self, source_path, output_path):
+        # Extender needs Bob's Java API for plugin compilation; native asset tools
+        # are only needed by the Bob distribution used to build game content.
+        with zipfile.ZipFile(source_path) as source, zipfile.ZipFile(output_path, 'w') as output:
+            output.comment = source.comment
+            for entry in source.infolist():
+                if entry.filename.startswith(('lib/', 'libexec/')):
+                    continue
+                if (entry.filename.startswith('com/sun/jna/')
+                        and entry.filename.endswith(('.so', '.dll', '.dylib', '.jnilib', '.a'))):
+                    continue
+                output.writestr(entry, source.read(entry))
+
     def is_cross_platform(self):
         return self.host != self.target_platform
 
@@ -1516,11 +1552,6 @@ class Configuration(object):
                     raise FileNotFoundError("No library directory found: %s" % ", ".join(tried))
                 return paths
 
-            def _findjars(jardir, ends_with):
-                paths = os.listdir(jardir)
-                paths = [os.path.join(jardir, x) for x in paths if x.endswith(ends_with)]
-                return paths
-
             def _findjslibs(libdir):
                 paths = os.listdir(libdir)
                 paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.js',)]
@@ -1537,8 +1568,11 @@ class Configuration(object):
             def _sdk_lib_path_filter(path):
                 basename = os.path.basename(path)
                 root, _ = os.path.splitext(basename)
-                shared_name = root[3:] if root.startswith('lib') else root
-                if shared_name.endswith('_shared') and not (shared_name == 'dlib_shared' and platform in SDK_PIPELINE_TOOL_PLATFORMS):
+                lib_name = root[3:] if root.startswith('lib') else root
+                if lib_name.endswith(('_noasan', '_shared')):
+                    return False
+                # These dependency families belong to the protobuf and shader compilers.
+                if lib_name.startswith(('absl_', 'spirv-cross-')) or lib_name in SDK_EXCLUDED_LIBS:
                     return False
                 return True
 
@@ -1554,7 +1588,8 @@ class Configuration(object):
             if platform in ['armv7-android', 'arm64-android', 'x86_64-android']:
                 # Android Jars (Dynamo)
                 jardir = os.path.join(self.dynamo_home, 'share/java')
-                paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.jar'))
+                paths = [os.path.join(jardir, name) for name in
+                         ('platform_android.jar', 'gamesys_android.jar', 'sound_android.jar')]
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # Win32 resource files
@@ -1629,7 +1664,7 @@ class Configuration(object):
                 ddfc_cxx_bat = os.path.join(self.dynamo_home, 'bin/ddfc_cxx.bat')
                 ddfc_java = os.path.join(self.dynamo_home, 'bin/ddfc_java')
 
-                # protoc plugin (ddfc.py) needs our dlib_shared too
+                # DDF generation uses the bundled Python modules, including the hashing fallback.
                 plugin_pb2 = os.path.join(self.dynamo_home, 'lib/python/plugin_pb2.py')
                 ddf_init = os.path.join(self.dynamo_home, 'lib/python/ddf/__init__.py')
                 ddf_extensions_pb2 = os.path.join(self.dynamo_home, 'lib/python/ddf/ddf_extensions_pb2.py')
@@ -1637,12 +1672,6 @@ class Configuration(object):
                 dlib_init = os.path.join(self.dynamo_home, 'lib/python/dlib/__init__.py')
 
                 self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat, plugin_pb2, ddf_init, ddf_extensions_pb2, ddf_math_pb2, dlib_init], self.dynamo_home, topfolder)
-
-                # workaround for extender running on x86_64-darwin still:
-                if platform == 'x86_64-macos':
-                    protoc_src = os.path.join(self.dynamo_home, 'ext/bin/%s/protoc' % platform)
-                    protoc_dst = '%s/ext/bin/%s/protoc' % (topfolder, "x86_64-darwin")
-                    self._add_file_to_zip(zip, protoc_src, protoc_dst)
 
                 # we don't want to run "pip install" on individual sdk files, so we copy the python files as-is
                 protobuf_files = []
@@ -1661,9 +1690,12 @@ class Configuration(object):
                 self._add_files_to_zip(zip, protobuf_files, self.dynamo_home, topfolder)
 
                 # bob pipeline classes include only in one sdk
-                if platform in ('x86_64-linux'):
+                if platform == 'x86_64-linux':
                     bob_light = os.path.join(self.dynamo_home, 'share/java/bob-light.jar')
-                    self._add_files_to_zip(zip, [bob_light], self.dynamo_home, topfolder)
+                    with tempfile.TemporaryDirectory(prefix='defold-sdk-bob-') as directory:
+                        sdk_bob = os.path.join(directory, 'bob-light.jar')
+                        self._create_sdk_bob_jar(bob_light, sdk_bob)
+                        self._add_file_to_zip(zip, sdk_bob, '%s/share/java/bob-light.jar' % topfolder)
 
 
             # For logging, print all paths in zip:
