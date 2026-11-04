@@ -20,6 +20,7 @@ namespace dmRender
     static RenderFrameResult CopyOperand(HRenderFrame frame, uint64_t source, uint32_t size, uint32_t alignment, uint64_t* destination)
     {
         *destination = 0;
+        // A null operand means optional data, such as a frustum, is absent and needs no copy.
         if (!source)
         {
             return RENDER_FRAME_OK;
@@ -45,8 +46,8 @@ namespace dmRender
         dependency.m_Handle = handle;
         dependency.m_Type = type;
         uint32_t table_index;
-        // D2.4 supplies resource retention/versioning. Keeping explicit descriptors here
-        // prevents command ownership from being mistaken for ownership of a GPU handle.
+        // Record which GPU resources the command uses. These descriptors do not keep resources
+        // alive or protect against handle reuse; that requires separate lifetime management.
         return CopyRenderFrameTable(frame, RENDER_COMMAND_DEPENDENCY_TABLE_TYPE, 1, sizeof(dependency), 8, &dependency, &table_index);
     }
 

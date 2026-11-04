@@ -22,6 +22,9 @@
 
 namespace dmRender
 {
+    /**
+     * Operations recorded by render scripts and replayed by the renderer.
+     */
     enum CommandType
     {
         COMMAND_TYPE_ENABLE_STATE,
@@ -56,7 +59,9 @@ namespace dmRender
         COMMAND_TYPE_MAX
     };
 
-    // Compact pass command. Each command type defines how its operands are interpreted.
+    /**
+     * Compact pass command. Each command type defines how its operands are interpreted.
+     */
     struct Command
     {
         Command(CommandType type);
@@ -70,18 +75,24 @@ namespace dmRender
         CommandType m_Type;
     };
 
-    // Private frame table tags reserved for pass command data.
+    /**
+     * Private frame table tags reserved for pass command data.
+     */
     const uint32_t RENDER_COMMAND_TABLE_TYPE = UINT32_MAX - 1;
     const uint32_t RENDER_COMMAND_PAYLOAD_TABLE_TYPE = UINT32_MAX - 2;
     const uint32_t RENDER_COMMAND_DEPENDENCY_TABLE_TYPE = UINT32_MAX - 3;
 
-    // Draw/debug-draw operand 4 holds a camera snapshot's frame-table index + 1.
-    // Zero inherits the preceding camera selection; NONE explicitly disables it.
-    // SET_RENDER_CAMERA_SNAPSHOT uses operand 0 with an index + 1 or NONE.
+    /**
+     * Draw/debug-draw operand 4 holds a camera snapshot's frame-table index + 1.
+     * Zero inherits the preceding camera selection; NONE explicitly disables it.
+     * SET_RENDER_CAMERA_SNAPSHOT uses operand 0 with an index + 1 or NONE.
+     */
     const uint64_t RENDER_COMMAND_CAMERA_INHERIT = 0;
     const uint64_t RENDER_COMMAND_CAMERA_NONE = UINT64_MAX;
 
-    // The selected camera's immutable values. Reapplied before each draw, like a live camera.
+    /**
+     * The selected camera's immutable values. Reapplied before each draw, like a live camera.
+     */
     struct RenderCommandCamera
     {
         dmVMath::Matrix4 m_View;
@@ -90,7 +101,9 @@ namespace dmRender
         uint8_t         m_UseFrustum : 1;
     };
 
-    // Resource kinds referenced by pass commands. Lifetime retention/versioning is D2.4.
+    /**
+     * Resource kinds referenced by pass commands. Lifetime retention/versioning is D2.4.
+     */
     enum RenderCommandDependencyType
     {
         RENDER_COMMAND_DEPENDENCY_TEXTURE,
@@ -99,7 +112,9 @@ namespace dmRender
         RENDER_COMMAND_DEPENDENCY_COMPUTE,
     };
 
-    // Captures explicit handle operands, not inherited consumer bindings or resource lifetime.
+    /**
+     * Captures explicit handle operands, not inherited consumer bindings or resource lifetime.
+     */
     struct RenderCommandDependency
     {
         uint64_t                    m_Handle;
@@ -117,20 +132,54 @@ namespace dmRender
      * @param selected_camera Camera selected by the producer script
      * @param use_frustum Whether the selected camera supplies draw culling bounds
      * @param capture_camera Snapshot camera selection for this draw, including disabled selection
-     * @return Recording status; failures poison the whole frame
+     * @return Recording status; failures invalidate the whole frame
      */
     RenderFrameResult RecordRenderCommand(HRenderContext context, HRenderFrame frame, const Command& source, Command* destination,
                                           HRenderCamera selected_camera, bool use_frustum, bool capture_camera);
-    /** Copy an ordered command array into its operands' frame; the source array can be reused. */
+
+    /**
+     * Copy commands in order into the frame that owns their operands.
+     * The source command array can be reused after copying.
+     * @param frame Building frame containing the recorded operands
+     * @param commands Commands referencing operands in this frame
+     * @param count Number of commands to copy
+     * @return Recording status; failures invalidate the whole frame
+     */
     RenderFrameResult AppendRenderCommands(HRenderFrame frame, const Command* commands, uint32_t count);
-    /** Replay published command tables in order on the render owner, without releasing frame bytes. */
+
+    /**
+     * Replay published command tables in order on the render owner.
+     * Frame data remains owned by the frame and is not released here.
+     * @param context Render-owner execution context
+     * @param frame Published frame containing commands and their operands
+     */
     void ConsumeRenderCommands(HRenderContext context, const RenderFrameView& frame);
-    /** Free temporary producer matrices/frusta, never published frame operands or borrowed resources. */
+
+    /**
+     * Free temporary producer matrices and frusta. Does not release borrowed resources.
+     * Do not pass recorded commands whose operands belong to a frame.
+     * @param commands Producer commands whose temporary operands are no longer needed
+     * @param count Number of commands
+     */
     void ReleaseRenderCommandOperands(Command* commands, uint32_t count);
 
-    // Constant-buffer snapshots use frame-owned reusable dynamic storage, without heap clones.
+    /**
+     * Copy a constant buffer into frame-owned reusable dynamic storage.
+     * The source remains owned by the caller; the frame manages the copy's lifetime.
+     * @param frame Building frame receiving the snapshot
+     * @param source Constant buffer to copy, or null
+     * @param destination Receives the snapshot; set to null when the source is null
+     * @return Recording status; failures invalidate the whole frame
+     */
     RenderFrameResult CopyRenderCommandConstants(HRenderFrame frame, HNamedConstantBuffer source, HNamedConstantBuffer* destination);
 
+    /**
+     * Execute producer commands immediately and release their temporary matrices and frusta.
+     * Use ConsumeRenderCommands for commands recorded into a frame.
+     * @param render_context Render context used to execute the commands
+     * @param commands Producer commands with live operands
+     * @param command_count Number of commands to execute
+     */
     void ParseCommands(dmRender::HRenderContext render_context, Command* commands, uint32_t command_count);
 }
 
