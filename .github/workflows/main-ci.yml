@@ -39,7 +39,7 @@ env:
   # Reuse the event commit in every checkout. A repository dispatch must supply its
   # own SHA because github.sha identifies the default branch for that event.
   # Keep a missing dispatch SHA empty so validation fails before any checkout.
-  BUILD_SHA: &build_sha "${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.sha) || (github.event_name != 'repository_dispatch' && (github.event.pull_request.head.sha || github.sha)) || '' }}"
+  BUILD_SHA: &build_sha "6a7bcbf3f18dcc20f4afb40b7ce6f95585c08d14"
   SERVICES_GITHUB_TOKEN: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.SERVICES_GITHUB_TOKEN || '' }}
   DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
   SLACK_WEBHOOK: ""
@@ -49,7 +49,7 @@ env:
   # Shared by the Android SDK setup and the emulator the x86_64-android tests run on
   ANDROID_API_LEVEL: "36"
   DM_BOB_JAR: ${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
-  OPTION_CODESIGN: ""
+  OPTION_CODESIGN: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event.client_payload.skip_sign != true && github.event.client_payload.skip_sign != 'true' && '--codesign' || '' }}
   # A contrib build has no S3 credentials: it hands its output to the jobs downstream as
   # GitHub Actions artifacts instead of archiving it, and builds the editor and bob from
   # $DYNAMO_HOME rather than from the archive.
@@ -95,7 +95,7 @@ jobs:
             engine_args: "--skip-builtins --skip-docs"
             dotnet: true
             gcloud: true
-            codesign: false
+            codesign: true
     runs-on: ${{ matrix.runner }}
     if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
     timeout-minutes: ${{ matrix.timeout }}
@@ -148,6 +148,25 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: 3.13
+      - name: Read isolated debugger wrapper
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: .windows-diagnostic
+          sparse-checkout: engine/engine/scripts/build_cmake_content.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Install isolated debugger wrapper
+        shell: pwsh
+        run: Copy-Item .windows-diagnostic/engine/engine/scripts/build_cmake_content.py engine/engine/scripts/build_cmake_content.py
+
+      - name: Locate Windows debugger
+        shell: pwsh
+        run: |
+          $cdb = "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe"
+          if (-not (Test-Path $cdb)) { throw "Windows debugger missing: $cdb" }
+          "DIAG_CDB_EXE=$cdb" >> $env:GITHUB_ENV
+
       - &step_dcache_key
         name: "Read dependency cache key"
         id: dcache-key
@@ -328,6 +347,7 @@ jobs:
       - name: "Build engine"
         if: "!matrix.emulator"
         env:
+          DM_WINDOWS_DEBUG_CDB: ${{ env.DIAG_CDB_EXE }}
           LIBGL_ALWAYS_SOFTWARE: ${{ runner.os == 'Linux' && '1' || '' }}
           GALLIUM_DRIVER: ${{ runner.os == 'Linux' && 'llvmpipe' || '' }}
         run: 'ci/ci.sh engine --skip-install-ext --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} ${{ matrix.engine_args }}${{ matrix.codesign && format('' {0}'', env.OPTION_CODESIGN) || '''' }}${{ matrix.gcloud && format('' --gcloud-service-key="{0}"'', env.GCLOUD_EDITOR_SERVICE_KEY) || '''' }}'

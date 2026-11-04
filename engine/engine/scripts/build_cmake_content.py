@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -57,6 +58,31 @@ PROJECT_OWNED_BUILD_INPUTS = {
 
 
 def run(args, cwd):
+    debugger = os.environ.get("DM_WINDOWS_DEBUG_CDB")
+    if debugger and "com.dynamo.bob.Bob" in args:
+        log_file = Path(cwd).parent / "logs" / "windows-builtins-cdb.log"
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        fatal = ".echo WINDOWS_DIAG_EXCEPTION; .ecxr; kb 128; ~* kb 24; !address -summary; .kill; q"
+        commands = ('sxe -c "' + fatal + '" sov; '
+                    'sxe -c "' + fatal + '" 0xc0000409; '
+                    'sxd -c2 "' + fatal + '" av; '
+                    'sxe -c ".echo WINDOWS_DIAG_EXIT; .lastevent; q" epr; g')
+        allowed = {"PATH", "SYSTEMROOT", "WINDIR", "SYSTEMDRIVE", "USERPROFILE", "LOCALAPPDATA", "APPDATA",
+                   "TEMP", "TMP", "PATHEXT", "COMSPEC", "JAVA_HOME", "HOME", "DYNAMO_HOME", "DEFOLD_HOME",
+                   "DM_BOB_ROOTFOLDER", "DM_JAVA_RUNTIME_FLAGS", "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE",
+                   "PROCESSOR_IDENTIFIER", "PROCESSOR_LEVEL", "PROCESSOR_REVISION", "OS", "COMPUTERNAME"}
+        environment = {key: value for key, value in os.environ.items() if key.upper() in allowed}
+        subprocess.run([debugger, "-lines", "-logo", str(log_file), "-c", commands] + args,
+                       cwd=str(cwd), env=environment, check=True)
+        log = log_file.read_text(errors="replace")
+        if any(line.strip() == "WINDOWS_DIAG_EXCEPTION" for line in log.splitlines()):
+            raise subprocess.CalledProcessError(1, args)
+        exits = re.findall(r"Exit process [^\r\n]*?code (?:0x)?([0-9a-fA-F]+)", log)
+        if not exits:
+            raise RuntimeError("Debugger produced no process exit event: " + str(log_file))
+        if int(exits[-1], 16):
+            raise subprocess.CalledProcessError(1, args)
+        return
     subprocess.check_call(args, cwd=str(cwd))
 
 
