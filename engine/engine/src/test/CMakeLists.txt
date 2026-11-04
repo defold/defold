@@ -187,7 +187,6 @@ defold_create_exported_symbols_file("${ENGINE_TEST_EXPORTS_CPP}" "${ENGINE_TEST_
 
 defold_add_executable(test_engine
   "${ENGINE_TEST_ROOT}/test_engine.cpp"
-  "${ENGINE_TEST_ROOT}/test_engine_api.c"
   "${ENGINE_TEST_ROOT}/test_engine_service.cpp"
   "${ENGINE_TEST_EXPORTS_CPP}")
 if(NOT DEFOLD_MSVC_IDE_SOLUTION)
@@ -213,4 +212,28 @@ defold_register_test_target(test_engine ON "${ENGINE_TEST_ENGINE_ROOT}"
 if(DEFOLD_MSVC_IDE_SOLUTION)
   add_dependencies(build_tests engine_test_content)
   add_dependencies(run_test_engine engine_test_content)
+endif()
+
+# Keep the C framework separate from the C++ jc_test runner.
+defold_add_executable(test_engine_api
+  "${ENGINE_TEST_ROOT}/test_engine_api.c"
+  "${ENGINE_TEST_ROOT}/test_engine_api.cpp"
+  "${ENGINE_TEST_EXPORTS_CPP}")
+target_compile_features(test_engine_api PRIVATE c_std_11)
+target_compile_definitions(test_engine_api PRIVATE CONTENT_ROOT="${ENGINE_TEST_CONTENT_ROOT}")
+if(NOT DEFOLD_MSVC_IDE_SOLUTION)
+  add_dependencies(test_engine_api engine_test_content)
+endif()
+add_dependencies(test_engine_api
+  ddf_proto_py
+  engine_proto_py
+  gameobject_proto_py
+  script_proto_py)
+defold_target_link_libraries(test_engine_api "${TARGET_PLATFORM}" testmain)
+engine_configure_executable(test_engine_api test engine engine_service null "profile_null;profilerext_null" "ProfilerExt")
+defold_register_test_target(test_engine_api ON "${ENGINE_TEST_ENGINE_ROOT}"
+  STAGE_FILES
+    "build/src/test" "build/src/test")
+if(DEFOLD_MSVC_IDE_SOLUTION)
+  add_dependencies(run_test_engine_api engine_test_content)
 endif()

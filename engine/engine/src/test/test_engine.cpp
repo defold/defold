@@ -77,10 +77,6 @@ static float    g_ExtensionTotalDT              = 0.0f;
 static uint32_t g_ExtensionUpdateCount          = 0;
 static bool     g_ExtensionFloatLookupSucceeded = true;
 
-extern "C" int TestEngineWindowC(HEngine engine, HWindow expected);
-extern "C" int TestEngineParamsC(ExtensionParams* params, HEngine expected);
-extern "C" int TestEngineAppParamsC(ExtensionAppParams* params, HEngine expected);
-
 struct EngineEventObservations
 {
     dmEngine::HEngine m_Engine;
@@ -120,10 +116,9 @@ static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const vo
         const dmEngine::StateEvent* event = (const dmEngine::StateEvent*)data;
         HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
         dmEngine::HEngine engine = (dmEngine::HEngine)ContextRegistryGet(registry, ENGINE_CONTEXT_NAME);
-        g_EngineEvents.m_PayloadValid &= engine == g_EngineEvents.m_Engine && TestEngineParamsC(params, engine);
+        g_EngineEvents.m_PayloadValid &= engine == g_EngineEvents.m_Engine;
         HWindow window = dmEngine::GetWindow(engine);
-        g_EngineEvents.m_WindowAccessorValid &= window == g_EngineEvents.m_Engine->m_Window &&
-                                                TestEngineWindowC(engine, window);
+        g_EngineEvents.m_WindowAccessorValid &= window == g_EngineEvents.m_Engine->m_Window;
         if (event->m_State == dmEngine::STATE_INITIALIZED)
         {
             ++g_EngineEvents.m_Initialized;
@@ -155,7 +150,7 @@ static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const vo
         }
         HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
         dmEngine::HEngine engine = (dmEngine::HEngine)ContextRegistryGet(registry, ENGINE_CONTEXT_NAME);
-        g_EngineEvents.m_PayloadValid &= engine == g_EngineEvents.m_Engine && TestEngineParamsC(params, engine) &&
+        g_EngineEvents.m_PayloadValid &= engine == g_EngineEvents.m_Engine &&
                                          resized->m_Window == g_EngineEvents.m_Engine->m_Window;
         ++g_EngineEvents.m_Resized;
         g_EngineEvents.m_Width = resized->m_Data.m_Size.m_Width;
@@ -202,10 +197,8 @@ static dmExtension::Result EngineEventAppFinalize(dmExtension::AppParams* params
     if (g_ObserveEngineEvents)
     {
         HContextRegistry registry = dmExtension::AppParamsGetContextRegistry(params);
-        g_EngineEvents.m_PayloadValid &= ContextRegistryGet(registry, ENGINE_CONTEXT_NAME) == g_EngineEvents.m_Engine &&
-                                         TestEngineAppParamsC(params, g_EngineEvents.m_Engine);
-        g_EngineEvents.m_WindowClearedAtAppFinalize = dmEngine::GetWindow(g_EngineEvents.m_Engine) == 0 &&
-                                                      TestEngineWindowC(g_EngineEvents.m_Engine, 0);
+        g_EngineEvents.m_PayloadValid &= ContextRegistryGet(registry, ENGINE_CONTEXT_NAME) == g_EngineEvents.m_Engine;
+        g_EngineEvents.m_WindowClearedAtAppFinalize = dmEngine::GetWindow(g_EngineEvents.m_Engine) == 0;
     }
     return dmExtension::RESULT_OK;
 }
@@ -807,22 +800,20 @@ TEST_F(EngineTest, ExtensionEngineContext)
     dmExtension::ParamsInitialize(&params);
     dmExtension::AppParams app_params;
     dmExtension::AppParamsInitialize(&app_params);
-    bool standalone = dmExtension::ParamsGetContextRegistry(&params) == 0 && TestEngineParamsC(&params, 0) &&
-                      dmExtension::AppParamsGetContextRegistry(&app_params) == 0 && TestEngineAppParamsC(&app_params, 0);
+    bool standalone = dmExtension::ParamsGetContextRegistry(&params) == 0 &&
+                      dmExtension::AppParamsGetContextRegistry(&app_params) == 0;
     HContextRegistry empty = ContextRegistryCreate();
     ExtensionParamsSetContextRegistry(&params, empty);
     ExtensionAppParamsSetContextRegistry(&app_params, empty);
     bool missing = dmExtension::ParamsGetContextRegistry(&params) == empty &&
                    dmExtension::AppParamsGetContextRegistry(&app_params) == empty &&
-                   ContextRegistryGet(empty, ENGINE_CONTEXT_NAME) == 0 &&
-                   TestEngineParamsC(&params, 0) && TestEngineAppParamsC(&app_params, 0);
+                   ContextRegistryGet(empty, ENGINE_CONTEXT_NAME) == 0;
     ExtensionParamsSetContextRegistry(&params, engine->m_ContextRegistry);
     ExtensionAppParamsSetContextRegistry(&app_params, engine->m_ContextRegistry);
     HContextRegistry registry = dmExtension::ParamsGetContextRegistry(&params);
     bool source = registry == engine->m_ContextRegistry && dmExtension::AppParamsGetContextRegistry(&app_params) == registry &&
                   ContextRegistryGet(registry, ENGINE_CONTEXT_NAME) == engine &&
-                  ContextRegistryGetByHash(registry, dmHashString64(ENGINE_CONTEXT_NAME)) == engine &&
-                  TestEngineParamsC(&params, engine) && TestEngineAppParamsC(&app_params, engine);
+                  ContextRegistryGetByHash(registry, dmHashString64(ENGINE_CONTEXT_NAME)) == engine;
     dmExtension::AppParamsFinalize(&app_params);
     dmExtension::ParamsFinalize(&params);
     ContextRegistryDestroy(empty);
@@ -840,8 +831,7 @@ static EngineEventObservations RunEngineEventCycle(bool fail_initialization)
     g_EngineEvents.m_PayloadValid = true;
     g_EngineEvents.m_WindowStateApplied = true;
     g_EngineEvents.m_Engine = dmEngine::New(0);
-    g_EngineEvents.m_WindowAccessorValid = dmEngine::GetWindow(g_EngineEvents.m_Engine) == 0 &&
-                                           TestEngineWindowC(g_EngineEvents.m_Engine, 0);
+    g_EngineEvents.m_WindowAccessorValid = dmEngine::GetWindow(g_EngineEvents.m_Engine) == 0;
     g_ObserveEngineEvents = true;
 
     char project_path[512];
@@ -862,7 +852,7 @@ static EngineEventObservations RunEngineEventCycle(bool fail_initialization)
     return g_EngineEvents;
 }
 
-// Lifecycle handles expose the engine-owned window through C/C++ accessors across startup, events and restarts.
+// Lifecycle handles expose the engine-owned window across startup, events and restarts.
 TEST_F(EngineTest, GenericLifecycleEventsBeforeTeardown)
 {
     for (uint32_t run = 0; run < 2; ++run)
