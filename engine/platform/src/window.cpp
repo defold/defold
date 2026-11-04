@@ -46,6 +46,14 @@ namespace dmPlatform
         return true;
     }
 
+#if defined(DM_PLATFORM_VENDOR)
+    // Vendor backends can omit the query and use the reference display density.
+    float GetDisplayDensity(HWindow window)
+    {
+        return 96.0f;
+    }
+#endif
+
     float CalculateDisplayDensity(int32_t physical_width_mm, float pixel_width)
     {
         // A driver that reports no physical size leaves nothing to divide by, and the CSS reference
