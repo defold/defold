@@ -194,15 +194,6 @@
 
 (declare request-document-symbols)
 
-(defn- request-viewed-document-symbols [state server]
-  (reduce
-    (fn [state resource]
-      (if (server-handles-resource? server resource)
-        (request-document-symbols state resource)
-        state))
-    state
-    (keys (:resource->view-node state))))
-
 (defn- on-server-initialized [server capabilities]
   {:pre [(s/assert ::server server)
          (s/assert ::lsp.server/capabilities capabilities)]}
@@ -220,9 +211,15 @@
           (g/transact
             {:undoable false}
             (refresh-completion-trigger-characters-for-server-tx state server))))
-      (cond-> state
-        (:document-symbol capabilities)
-        (request-viewed-document-symbols server)))))
+      (if (:document-symbol capabilities)
+        (reduce
+          (fn [state resource]
+            (if (server-handles-resource? server resource)
+              (request-document-symbols state resource)
+              state))
+          state
+          (keys (:resource->view-node state)))
+        state))))
 
 (defonce/protocol ServerResponse
   (server-response-value [response])
@@ -477,11 +474,6 @@
     (lsp.server/make project server input output
                      :on-initialized (partial on-server-initialized server)
                      :on-publish-diagnostics (partial on-diagnostics-published server)
-                     :on-diagnostic-refresh (fn []
-                                              (fn [state]
-                                                (cond-> state
-                                                  (get-in state [:server->server-state server :capabilities :document-symbol])
-                                                  (request-viewed-document-symbols server))))
                      :on-progress (fn [token {:keys [kind] :as value}]
                                     (fn [state]
                                       (if (contains? (:server->server-state state) server)

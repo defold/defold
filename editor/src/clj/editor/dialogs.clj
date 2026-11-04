@@ -638,7 +638,7 @@
     fx.lifecycle/scalar))
 
 (defn- select-list-dialog
-  [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner localization preview-item-fn loading-message]
+  [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner localization preview-item-fn]
     :as props}]
   {:fx/type dialog-stage
    :title (localization title)
@@ -670,11 +670,7 @@
                         :h-box/hgrow :never
                         :pref-width 32.0
                         :pref-height 32.0
-                        :visible (or filter-in-progress (some? loading-message))}
-                       {:fx/type fxui/legacy-label
-                        :h-box/hgrow :never
-                        :visible (some? loading-message)
-                        :text (if loading-message (localization loading-message) "")}
+                        :visible filter-in-progress}
                        {:fx/type dialog-buttons
                         :h-box/hgrow :always
                         :children [{:fx/type fxui/legacy-button
@@ -777,9 +773,6 @@
       :prompt         filter text field's prompt, string or MessagePattern,
                       defaults to \"dialog.select-item.prompt\" message
       :owner          the owner window, defaults to main stage
-      :loading-message
-                      optional MessagePattern shown with a spinner in the
-                      footer, e.g. when items are still being prepared
       :preview-item-fn
                       optional side-effecting fn of two args, an item to preview
                       and a source keyword describing what triggered it:
@@ -858,7 +851,6 @@
                                 :prompt (or (:prompt options)
                                             (localization/message "dialog.select-item.prompt"))
                                 :cell-fn cell-fn
-                                :loading-message (:loading-message options)
                                 :owner (or (:owner options) (ui/main-stage))
                                 :selection (:selection options :single)})]
      (swap! filter-future-atom thread-util/cancel-future!)

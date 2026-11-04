@@ -3472,8 +3472,6 @@
                   items
                   localization
                   {:title (localization/message "dialog.jump-to-symbol.title")
-                   :loading-message (when (get-property view-node :language-server-busy evaluation-context)
-                                      language-server-loading-message)
                    :ok-label (localization/message "dialog.jump-to-symbol.button.ok")
                    :prompt (localization/message "dialog.jump-to-symbol.prompt")
                    :filter-fn (partial fuzzy-choices/filter-options :name :name)
