@@ -200,7 +200,7 @@ public final class PackageBuilder {
 
     /**
      * Discovers manifest matches and declares their build tasks and archive dependencies without executing them.
-     * Adds inventory, options, provider, and destination inputs to task invalidation; retains task mappings for resolution.
+     * Adds inventory inputs to task invalidation and retains task mappings for resolution.
      * With no manifest, captures existing tasks for the legacy resource classification.
      */
     public PackageBuilder(Project project, Task.TaskBuilder task) throws IOException, CompileExceptionError {
@@ -216,8 +216,6 @@ public final class PackageBuilder {
                     .sorted()
                     .toList();
             task.addExtraCacheKey("legacy-packages-v2");
-            task.addExtraCacheKey(PackageCache.VERSION);
-            task.addExtraCacheKey(PackageCache.optionsSignature(project.getOptions()));
             return;
         }
 
@@ -255,25 +253,10 @@ public final class PackageBuilder {
 
         // Inventory is part of the signature: newly matching files invalidate even an otherwise unchanged build.
         task.addExtraCacheKey(String.join("\n", inventory));
-        task.addExtraCacheKey(PackageCache.VERSION);
-        task.addExtraCacheKey(PackageCache.optionsSignature(project.getOptions()));
 
-        // Environment expansion can change placement without changing any project file.
+        // Validate the export path before compiling resources.
         if (project.option("liveupdate", "false").equals("true")) {
-            task.addExtraCacheKey(outputDirectory(project).toString());
-        }
-
-        Map<String, PackageProvider> providers = PackageProviders.discover(Project.getClassLoaderScanner());
-        List<String> providerIds = manifest.getPackagesList().stream()
-                .map(PackageDesc::getProvider)
-                .distinct()
-                .sorted()
-                .toList();
-        for (String providerId : providerIds) {
-            PackageProvider provider = providers.get(providerId);
-            if (provider != null) {
-                task.addExtraCacheKey(providerId + ":" + PackageCache.providerSignature(provider));
-            }
+            outputDirectory(project);
         }
 
         Set<String> selected = new TreeSet<>();

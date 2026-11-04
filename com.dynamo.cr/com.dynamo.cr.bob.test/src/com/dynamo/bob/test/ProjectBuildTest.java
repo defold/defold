@@ -1174,7 +1174,7 @@ public class ProjectBuildTest {
         assertNoPackageStaging();
     }
 
-    // Existing ZIP/folder bundle outputs created by the old publishers can be replaced without ownership receipts.
+    // Existing ZIP/folder bundle outputs created by the old publishers can be replaced without ownership indexes.
     @Test
     public void testLegacyBundleAdoptsExistingOutputs() throws Exception {
         createLegacyPackageProject();
@@ -1214,7 +1214,7 @@ public class ProjectBuildTest {
                 FileTime unchanged = FileTime.fromMillis(946684800000L);
                 Files.setLastModifiedTime(bundled, unchanged);
                 BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-                assertEquals(unchanged, Files.getLastModifiedTime(bundled));
+                assertFalse(unchanged.equals(Files.getLastModifiedTime(bundled)));
             }
             assertNoPackageStaging();
         }
@@ -1223,7 +1223,7 @@ public class ProjectBuildTest {
     // Legacy mixed routes, inherited exclusion and custom files keep their exact archive membership.
     // ZIP/folder providers use the same payloads and tight manifests while retaining configured names.
     @Test
-    public void testLegacyPackageContentsAndIncrementalOutput() throws Exception {
+    public void testLegacyPackageContentsAndRebuild() throws Exception {
         createLegacyPackageProject();
         Set<String> excluded = Set.of("/logic/level.collectionc", "/logic/level.goc", "/logic/level.scriptc",
                 "/logic/nested.collectionproxyc", "/logic/nested.collectionc");
@@ -1238,7 +1238,7 @@ public class ProjectBuildTest {
                     + "zip-filename=nested/episode assets.zip\noutput-directory=legacy/nested\noutput-folder-name=episode assets\n"
                     + "save-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n");
             Path output = Path.of(contentRoot, "legacy/nested/episode assets" + (mode.equals("Zip") ? ".zip" : ""));
-            // Existing legacy outputs predate ownership receipts and must remain valid destinations.
+            // Existing legacy outputs predate ownership indexes and must remain valid destinations.
             if (mode.equals("Zip")) {
                 Files.createDirectories(output.getParent());
                 Files.writeString(output, "Previous legacy archive");
@@ -1282,7 +1282,7 @@ public class ProjectBuildTest {
             FileTime unchanged = FileTime.fromMillis(946684800000L);
             Files.setLastModifiedTime(output, unchanged);
             buildPackageProject(true, false);
-            assertEquals(unchanged, Files.getLastModifiedTime(output));
+            assertFalse(unchanged.equals(Files.getLastModifiedTime(output)));
             try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
                 Path bundle = Files.createDirectories(Path.of(contentRoot, "bundle-" + mode));
                 BundleHelper.moveBundleIfNeed(project, bundle.toFile());
@@ -1484,7 +1484,7 @@ public class ProjectBuildTest {
         assertFalse(java.util.regex.Pattern.compile("(?i)<script[^>]+src\\s*=|<link[^>]+href\\s*=").matcher(html).find());
     }
 
-    // Incremental builds and bundle-only invocations report cached package data without compiling or rewriting packages.
+    // Builds regenerate package/report data; bundle-only invocations read that data without compiling packages.
     @Test
     public void testPackageReportsUseCachedBuildData() throws Exception {
         createPackageProject();
@@ -1495,21 +1495,26 @@ public class ProjectBuildTest {
         Path cache = Path.of(contentRoot, "build/game.lureport.json");
         Path zip = Path.of(contentRoot, "packages/episode.zip");
         FileTime unchanged = FileTime.fromMillis(946684800000L);
-        Files.setLastModifiedTime(cache, unchanged);
-        Files.setLastModifiedTime(zip, unchanged);
         for (String[] commands : List.of(new String[]{"build", "bundle"}, new String[]{"bundle"})) {
+            Files.setLastModifiedTime(cache, unchanged);
+            Files.setLastModifiedTime(zip, unchanged);
             Files.delete(Path.of(contentRoot, "report.html"));
             try (Project project = packageReportProject(true)) {
                 // The bundle command uses existing archives and does not require the build's --archive flag.
                 if (commands.length == 1) project.setOption("archive", "false");
                 for (TaskResult result : project.build(Progress.discarding(), commands)) assertTrue(result.toString(), result.isOk());
-                assertNull(project.getLiveUpdatePlan());
-                assertNull(project.getArchiveBuilder());
+                if (commands.length == 1) {
+                    assertNull(project.getLiveUpdatePlan());
+                    assertNull(project.getArchiveBuilder());
+                } else {
+                    assertNotNull(project.getLiveUpdatePlan());
+                    assertNotNull(project.getArchiveBuilder());
+                }
             }
             assertEquals(expected.get("packages"), packageReport().get("packages"));
             assertEquals(expected.get("package_resources"), packageReport().get("package_resources"));
-            assertEquals(unchanged, Files.getLastModifiedTime(cache));
-            assertEquals(unchanged, Files.getLastModifiedTime(zip));
+            assertEquals(commands.length == 1, unchanged.equals(Files.getLastModifiedTime(cache)));
+            assertEquals(commands.length == 1, unchanged.equals(Files.getLastModifiedTime(zip)));
             assertTrue(Files.size(Path.of(contentRoot, "report.html")) > 0);
         }
         // Previously generated reports remain excluded when reports are no longer requested.
@@ -1747,7 +1752,7 @@ public class ProjectBuildTest {
         assertNoPackageStaging();
     }
 
-    // Environment-only changes relocate all providers on an incremental build and retire the previous artifacts.
+    // Environment-only changes relocate all providers on the next build and retire the previous artifacts.
     @Test
     public void testPackageOutputDirectoryEnvironmentChange() throws Exception {
         createPackageProject();
@@ -1771,7 +1776,7 @@ public class ProjectBuildTest {
                 assertTrue(Files.isRegularFile(output.resolve("episode.zip")));
                 assertTrue(Files.isRegularFile(output.resolve("copy/liveupdate.game.dmanifest")));
                 assertEquals(Set.of(output.resolve("episode.zip"), output.resolve("copy")),
-                        PackageWriter.validatedOutputs(project).stream().map(PackageArtifacts.Output::path).collect(Collectors.toSet()));
+                        PackageArtifacts.readOutputs(project).stream().map(PackageArtifacts.Output::path).collect(Collectors.toSet()));
                 if (previous != null) {
                     assertFalse(Files.exists(previous.resolve("episode.zip")));
                     assertFalse(Files.exists(previous.resolve("copy")));
@@ -1799,9 +1804,9 @@ public class ProjectBuildTest {
         assertNoPackageStaging();
     }
 
-    // Inventory, rule, and dependency edits all invalidate packages without a clean build.
+    // Package rebuilds include inventory, rule, and dependency edits without a clean build.
     @Test
-    public void testPackageIncrementalRebuild() throws Exception {
+    public void testPackageRebuildIncludesEdits() throws Exception {
         createPackageProject();
         buildPackageProject(true, false);
         createFile(contentRoot, "extra/new.json", "{\"new\":true}");
@@ -1818,50 +1823,35 @@ public class ProjectBuildTest {
         assertTrue(hasResource(readManifestData(getBundledManifestFile()), "/logic/level.collectionc"));
     }
 
-    // Editing one package, its rules, or the base must preserve unrelated package artifacts without relying on sleeps.
+    // Every export rewrites ZIP/folder packages from scratch while leaving unchanged compiler outputs cached.
     @Test
-    public void testPackageIncrementalArtifactReuse() throws Exception {
+    public void testPackageAlwaysRebuildsArtifacts() throws Exception {
         createPackageProject();
-        createFile(contentRoot, "extra/second.json", "second");
-        savePackages(livePackage("episode", "zip", addPath("Data", "/extra/(data|new)[.]json")),
-                livePackage("second", "folder", addPath("Second", "/extra/second[.]json")));
         buildPackageProject(true, false);
         Path zip = Path.of(contentRoot, "packages/episode.zip");
-        Path folderManifest = Path.of(contentRoot, "packages/second/liveupdate.game.dmanifest");
-        FileTime unchanged = FileTime.fromMillis(946684800000L);
-        Files.setLastModifiedTime(zip, unchanged);
-        Files.setLastModifiedTime(folderManifest, unchanged);
+        Path folder = Path.of(contentRoot, "packages/copy");
+        Path folderManifest = folder.resolve("liveupdate.game.dmanifest");
+        Path compiled = Path.of(contentRoot, "build/logic/level.scriptc");
+        byte[] expectedZip = Files.readAllBytes(zip);
+        byte[] expectedManifest = Files.readAllBytes(folderManifest);
+        FileTime previous = FileTime.fromMillis(946684800000L);
+        Files.setLastModifiedTime(zip, previous);
+        Files.setLastModifiedTime(folderManifest, previous);
+        Files.setLastModifiedTime(compiled, previous);
+        Files.writeString(folder.resolve("obsolete"), "old package entry");
         buildPackageProject(true, false);
-        assertEquals(unchanged, Files.getLastModifiedTime(zip));
-        assertEquals(unchanged, Files.getLastModifiedTime(folderManifest));
-
-        createFile(contentRoot, "extra/data.json", "changed");
-        buildPackageProject(true, false);
-        assertFalse(unchanged.equals(Files.getLastModifiedTime(zip)));
-        assertEquals(unchanged, Files.getLastModifiedTime(folderManifest));
-        Files.setLastModifiedTime(zip, unchanged);
-
-        createFile(contentRoot, "logic/level.script", "function init(self) self.changed = true end");
-        buildPackageProject(true, false);
-        assertEquals(unchanged, Files.getLastModifiedTime(zip));
-        assertEquals(unchanged, Files.getLastModifiedTime(folderManifest));
-
-        createFile(contentRoot, "extra/new.json", "new");
-        buildPackageProject(true, false);
-        assertEquals(Set.of("/extra/data.json", "/extra/new.json"), manifestPaths(zipManifest("episode")));
-        assertFalse(unchanged.equals(Files.getLastModifiedTime(zip)));
-        assertEquals(unchanged, Files.getLastModifiedTime(folderManifest));
-        savePackages(livePackage("episode", "zip", addPath("Only new", "/extra/new[.]json")),
-                livePackage("second", "folder", addPath("Second", "/extra/second[.]json")));
-        buildPackageProject(true, false);
-        assertEquals(Set.of("/extra/new.json"), manifestPaths(zipManifest("episode")));
-        assertEquals(unchanged, Files.getLastModifiedTime(folderManifest));
+        assertFalse(previous.equals(Files.getLastModifiedTime(zip)));
+        assertFalse(previous.equals(Files.getLastModifiedTime(folderManifest)));
+        assertEquals(previous, Files.getLastModifiedTime(compiled));
+        assertArrayEquals(expectedZip, Files.readAllBytes(zip));
+        assertArrayEquals(expectedManifest, Files.readAllBytes(folderManifest));
+        assertFalse(Files.exists(folder.resolve("obsolete")));
         assertNoPackageStaging();
     }
 
-    // Output hashes invalidate Bob's build state when a ZIP or an individual folder payload is damaged or deleted.
+    // Rebuilding restores damaged ZIPs and missing folder payloads without relying on cached artifact state.
     @Test
-    public void testPackageIncrementalArtifactRepair() throws Exception {
+    public void testPackageRebuildRepairsArtifacts() throws Exception {
         createPackageProject();
         buildPackageProject(true, false);
         Path zip = Path.of(contentRoot, "packages/episode.zip");
@@ -1876,7 +1866,7 @@ public class ProjectBuildTest {
         Files.delete(payload);
         buildPackageProject(true, false);
         assertArrayEquals(originalPayload, Files.readAllBytes(payload));
-        assertEquals(unchanged, Files.getLastModifiedTime(zip));
+        assertFalse(unchanged.equals(Files.getLastModifiedTime(zip)));
 
         Files.writeString(zip, "corrupt");
         Files.setLastModifiedTime(zip, unchanged);
@@ -1885,72 +1875,29 @@ public class ProjectBuildTest {
         assertFalse(unchanged.equals(Files.getLastModifiedTime(zip)));
         Files.setLastModifiedTime(zip, unchanged);
         buildPackageProject(true, false);
-        assertEquals(unchanged, Files.getLastModifiedTime(zip));
+        assertFalse(unchanged.equals(Files.getLastModifiedTime(zip)));
 
         try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
-            var outputs = PackageWriter.validatedOutputs(project);
+            var outputs = PackageArtifacts.readOutputs(project);
             assertEquals(2, outputs.size());
             for (var output : outputs) {
-                assertFalse(output.inputSignature().isEmpty());
                 assertFalse(output.legacy());
             }
         }
         assertNoPackageStaging();
     }
 
-    // Custom providers opt in to reuse; the full context and the provider's cache key both invalidate it.
+    // Custom providers run on every export, even when the manifest and resource contents have not changed.
     @Test
-    public void testCustomPackageIncrementalContext() throws Exception {
+    public void testCustomPackageAlwaysRebuilds() throws Exception {
         createPackageProject();
         savePackages(livePackage("custom", "test-package", addPath("Data", "/extra/.*")));
         PackageProviderFixture.writes = 0;
-        PackageProviderFixture.cacheKey = "fixture-v1";
-        try {
+        for (int build = 1; build <= 3; ++build) {
             buildPackageProject(true, false);
-            assertEquals(1, PackageProviderFixture.writes);
-            Path settings = Path.of(contentRoot, "game.project");
-            Files.writeString(settings, Files.readString(settings) + "\n\n");
-            buildPackageProject(true, false);
-            assertEquals(1, PackageProviderFixture.writes);
-
-            Files.writeString(settings, Files.readString(settings) + "\n[display]\nwidth=641\n");
-            buildPackageProject(true, false);
-            assertEquals(2, PackageProviderFixture.writes);
-
-            // Rule provenance is part of the custom provider context, even when packaged bytes are unchanged.
-            savePackages(livePackage("custom", "test-package", addPath("Renamed", "/extra/.*")));
-            buildPackageProject(true, false);
-            assertEquals(3, PackageProviderFixture.writes);
-            PackageProviderFixture.cacheKey = "fixture-v2";
-            buildPackageProject(true, false);
-            assertEquals(4, PackageProviderFixture.writes);
-
-            PackageProviderFixture.cacheKey = null;
-            buildPackageProject(true, false);
-            assertEquals(5, PackageProviderFixture.writes);
-            Files.writeString(settings, Files.readString(settings) + "\n\n");
-            buildPackageProject(true, false);
-            assertEquals(6, PackageProviderFixture.writes);
-        } finally {
-            PackageProviderFixture.cacheKey = "fixture-v1";
+            assertEquals(build, PackageProviderFixture.writes);
         }
         assertNoPackageStaging();
-    }
-
-    // Manifest ZIP compression settings invalidate ZIP output while an equivalent folder can be reused.
-    @Test
-    public void testPackageIncrementalCompressionSettings() throws Exception {
-        createPackageProject();
-        buildPackageProject(true, false);
-        Path zip = Path.of(contentRoot, "packages/episode.zip");
-        Path folderManifest = Path.of(contentRoot, "packages/copy/liveupdate.game.dmanifest");
-        FileTime unchanged = FileTime.fromMillis(946684800000L);
-        Files.setLastModifiedTime(zip, unchanged);
-        Files.setLastModifiedTime(folderManifest, unchanged);
-        setProviderProperties("zip", Map.of("compression-level", "0"));
-        buildPackageProject(true, false);
-        assertFalse(unchanged.equals(Files.getLastModifiedTime(zip)));
-        assertEquals(unchanged, Files.getLastModifiedTime(folderManifest));
     }
 
     // Manifest ZIPs use provider defaults and explicit settings independently of legacy compression settings.
@@ -1963,13 +1910,12 @@ public class ProjectBuildTest {
         Path zip = Path.of(contentRoot, "packages/episode.zip");
         Path folderManifest = Path.of(contentRoot, "packages/copy/liveupdate.game.dmanifest");
         long defaultSize = Files.size(zip);
-        FileTime unchanged = FileTime.fromMillis(946684800000L);
-        Files.setLastModifiedTime(zip, unchanged);
-        Files.setLastModifiedTime(folderManifest, unchanged);
+        byte[] defaultZip = Files.readAllBytes(zip);
+        byte[] defaultFolderManifest = Files.readAllBytes(folderManifest);
         Files.writeString(legacy, Files.readString(legacy).replace("zip-compression-level=0", "zip-compression-level=3"));
         buildPackageProject(true, false);
-        assertEquals(unchanged, Files.getLastModifiedTime(zip));
-        assertEquals(unchanged, Files.getLastModifiedTime(folderManifest));
+        assertArrayEquals(defaultZip, Files.readAllBytes(zip));
+        assertArrayEquals(defaultFolderManifest, Files.readAllBytes(folderManifest));
 
         setProviderProperties("zip", Map.of("compression-level", "0"));
         buildPackageProject(true, false);
@@ -1978,7 +1924,7 @@ public class ProjectBuildTest {
         setProviderProperties("zip", Map.of("compression-level", "9"));
         buildPackageProject(true, false);
         assertTrue(Files.size(zip) < uncompressedSize);
-        assertEquals(unchanged, Files.getLastModifiedTime(folderManifest));
+        assertArrayEquals(defaultFolderManifest, Files.readAllBytes(folderManifest));
     }
 
     // The legacy adapter copies compression settings explicitly before using the package writer.
@@ -1996,7 +1942,7 @@ public class ProjectBuildTest {
         assertTrue(Files.size(zip) < uncompressedSize);
     }
 
-    // Custom settings reach discovery, previews and writers as immutable typed values, and invalidate artifact reuse.
+    // Custom settings reach discovery, previews and writers as immutable typed values on each build.
     @Test
     public void testCustomProviderProperties() throws Exception {
         createPackageProject();
@@ -2022,10 +1968,10 @@ public class ProjectBuildTest {
             org.junit.Assert.fail("Provider values should be immutable");
         } catch (UnsupportedOperationException expected) { }
         buildPackageProject(true, false);
-        assertEquals(2, PackageProviderFixture.writes);
+        assertEquals(3, PackageProviderFixture.writes);
         FileUtils.deleteDirectory(new File(contentRoot, "builtins"));
         var preview = PackageBuilder.buildPlan(root, "/content.lumanifest", Map.of(), getClass().getClassLoader(), Progress.discarding());
-        assertEquals(2, PackageProviderFixture.writes);
+        assertEquals(3, PackageProviderFixture.writes);
         assertEquals(plan.packages(), preview.packages());
     }
 
@@ -2053,9 +1999,9 @@ public class ProjectBuildTest {
         }
     }
 
-    // Bundle placement preserves unchanged files, repairs damaged copies, and removes obsolete folder entries.
+    // Bundle placement replaces selected copies and removes obsolete entries; missing or wrong-type sources fail safely.
     @Test
-    public void testPackageIncrementalBundleCopy() throws Exception {
+    public void testPackageAlwaysCopiesBundleOutputs() throws Exception {
         createPackageProject();
         Files.writeString(Path.of(contentRoot, "liveupdate.settings"),
                 "save-zip-in-bundle-folder=1\nsave-folder-in-bundle-folder=1\n", java.nio.file.StandardOpenOption.APPEND);
@@ -2075,8 +2021,8 @@ public class ProjectBuildTest {
             Files.setLastModifiedTime(manifest, unchanged);
             Files.setLastModifiedTime(payload, unchanged);
             BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-            assertEquals(unchanged, Files.getLastModifiedTime(zip));
-            assertEquals(unchanged, Files.getLastModifiedTime(manifest));
+            assertFalse(unchanged.equals(Files.getLastModifiedTime(zip)));
+            assertFalse(unchanged.equals(Files.getLastModifiedTime(manifest)));
 
             Path extra = bundle.resolve("copy/obsolete");
             Files.writeString(extra, "obsolete");
@@ -2084,8 +2030,8 @@ public class ProjectBuildTest {
             BundleHelper.moveBundleIfNeed(project, bundle.toFile());
             assertFalse(Files.exists(extra));
             assertArrayEquals(Files.readAllBytes(Path.of(contentRoot, "packages/copy/liveupdate.game.dmanifest")), Files.readAllBytes(manifest));
-            assertEquals(unchanged, Files.getLastModifiedTime(zip));
-            assertEquals(unchanged, Files.getLastModifiedTime(payload));
+            assertFalse(unchanged.equals(Files.getLastModifiedTime(zip)));
+            assertFalse(unchanged.equals(Files.getLastModifiedTime(payload)));
 
             Files.delete(zip);
             BundleHelper.moveBundleIfNeed(project, bundle.toFile());
@@ -2097,13 +2043,20 @@ public class ProjectBuildTest {
             } catch (IOException expected) {
                 assertTrue(expected.getMessage().contains("run build before bundling"));
             }
-            Files.delete(Path.of(PackageArtifacts.receipt(project).getAbsPath()));
+            Files.createDirectory(Path.of(contentRoot, "packages/episode.zip"));
+            try {
+                BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+                org.junit.Assert.fail("A declared ZIP must be a file");
+            } catch (IOException expected) {
+                assertTrue(expected.getMessage().contains("invalid file type"));
+            }
+            Files.delete(Path.of(PackageArtifacts.resource(project).getAbsPath()));
             byte[] bundledZip = Files.readAllBytes(zip);
             try {
                 BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-                org.junit.Assert.fail("Missing receipts must not retire completed package copies");
+                org.junit.Assert.fail("Missing indexes must not retire completed package copies");
             } catch (IOException expected) {
-                assertTrue(expected.getMessage().contains("receipt is missing"));
+                assertTrue(expected.getMessage().contains("index is missing"));
             }
             assertArrayEquals(bundledZip, Files.readAllBytes(zip));
         }
@@ -2172,7 +2125,7 @@ public class ProjectBuildTest {
         }
     }
 
-    // Copying a receipt never transfers ownership of outputs outside the original project.
+    // Copying an index never transfers ownership of outputs outside the original project.
     @Test
     public void testCopiedProjectDoesNotOwnExternalArtifacts() throws Exception {
         createPackageProject();
@@ -2456,13 +2409,13 @@ public class ProjectBuildTest {
             assertEquals(Set.of("/extra/data.json"), plan.packages().get("episode").resources());
             assertFalse(plan.sourceOutputs().containsKey("/packages/episode.zip"));
             assertArrayEquals(expected, Files.readAllBytes(zip));
-            assertEquals(unchanged, Files.getLastModifiedTime(zip));
+            assertFalse(unchanged.equals(Files.getLastModifiedTime(zip)));
         }
         buildPackageProject(false, false);
         assertTrue(PackageArtifacts.generatedPaths(Path.of(contentRoot)).contains("/packages/episode.zip"));
         buildPackageProject(true, false);
         assertArrayEquals(expected, Files.readAllBytes(zip));
-        assertEquals(unchanged, Files.getLastModifiedTime(zip));
+        assertFalse(unchanged.equals(Files.getLastModifiedTime(zip)));
         assertNoPackageStaging();
     }
 
@@ -2533,7 +2486,7 @@ public class ProjectBuildTest {
                 Files.setLastModifiedTime(zip, unchanged);
                 buildPackageProject(true, false);
                 BundleHelper.moveBundleIfNeed(project, bundle.toFile());
-                assertEquals(unchanged, Files.getLastModifiedTime(zip));
+                assertFalse(unchanged.equals(Files.getLastModifiedTime(zip)));
             }
         }
         assertNoPackageStaging();
@@ -2573,7 +2526,7 @@ public class ProjectBuildTest {
         return project;
     }
 
-    // Engine-only native bundles must succeed without a receipt and ignore stale package outputs from a prior build.
+    // Engine-only native bundles must succeed without an index and ignore stale package outputs from a prior build.
     @Test
     public void testPackageNativeBundleWithoutArchive() throws Exception {
         createPackageProject();
@@ -2588,7 +2541,7 @@ public class ProjectBuildTest {
                     buildPackageProject(true, false);
                     Files.delete(Path.of(contentRoot, "packages/episode.zip"));
                 } else {
-                    assertFalse(PackageArtifacts.receipt(project).exists());
+                    assertFalse(PackageArtifacts.resource(project).exists());
                 }
                 // Content builds clear host-platform engines, so create the dummy after building.
                 Path engines = Path.of(project.getBinaryOutputDirectory(), Platform.X86_64Linux.getExtenderPair());
@@ -2755,7 +2708,7 @@ public class ProjectBuildTest {
         setPackageOutputDirectory("build");
         try {
             buildPackageProject(true, false);
-            org.junit.Assert.fail("Package output should collide with the build receipt");
+            org.junit.Assert.fail("Package output should collide with the build index");
         } catch (AssertionError expected) {
             assertTrue(expected.getMessage(), expected.getMessage().contains("Colliding Live Update outputs"));
         }

@@ -70,11 +70,6 @@ public final class PackageProviders {
         }
 
         @Override
-        public String getCacheKey() {
-            return getId() + "-v1";
-        }
-
-        @Override
         public List<Artifact> describeOutputs(Context context, PackageResolver.Package pkg) {
             String name = pkg.description().getName() + (this == ZIP ? ".zip" : "");
             return List.of(new Artifact(name, this == FOLDER));

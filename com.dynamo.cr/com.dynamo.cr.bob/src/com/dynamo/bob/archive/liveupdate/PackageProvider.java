@@ -150,7 +150,7 @@ public interface PackageProvider {
 
         /** Throws InterruptedIOException when the build is cancelled or the current thread is interrupted. */
         public void checkCanceled() throws IOException {
-            PackageCache.checkCanceled(canceled);
+            PackageArtifacts.checkCanceled(canceled);
         }
     }
 
@@ -165,15 +165,6 @@ public interface PackageProvider {
     /** Ordered properties shared by all packages using this provider. Defaults must parse successfully. */
     default List<Property> getProperties() {
         return List.of();
-    }
-
-    /**
-     * Opt in to reusing unchanged artifacts. Change this key when the provider implementation or
-     * external inputs change. Bob also fingerprints the supplied context, manifest, and payloads.
-     * A null key disables artifact reuse when package resolution runs.
-     */
-    default String getCacheKey() {
-        return null;
     }
 
     /**

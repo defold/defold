@@ -30,7 +30,6 @@ public final class PackageProviderFixture implements PackageProvider {
     public static boolean collide;
     public static int writes;
     public static Runnable beforeWrite;
-    public static String cacheKey = "fixture-v1";
 
     @Override
     public String getId() { return "test-package"; }
@@ -44,9 +43,6 @@ public final class PackageProviderFixture implements PackageProvider {
                 new Property("quality", "Quality", PropertyType.INTEGER, "2", List.of()),
                 new Property("scale", "Scale", PropertyType.NUMBER, "1.0", List.of()));
     }
-
-    @Override
-    public String getCacheKey() { return cacheKey; }
 
     @Override
     public List<Artifact> describeOutputs(Context context, PackageResolver.Package pkg) {

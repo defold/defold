@@ -196,7 +196,7 @@ preparation and writers as manifest projects. It does not generate rules or chan
 project files. ZIP/folder destinations and compression still come from
 `liveupdate.settings`; package manifests contain only their packaged resources.
 Legacy folder outputs retain previous resources and unrelated files, as before.
-Existing legacy ZIP/folder outputs in a bundle can be replaced without an ownership receipt.
+Existing legacy ZIP/folder outputs in a bundle can be replaced without an output index.
 The [example project](../../editor/test/resources/live_update_packages_project)
 separates common content, two episode ranges, and seasonal content:
 
@@ -258,8 +258,8 @@ sets the parent directory for every provider and defaults to `build/packages`.
 Relative paths resolve from the project root; absolute paths are also accepted.
 Environment variables use `${NAME}`, `$NAME`, or `%NAME%`, for example
 `output_directory: "${PACKAGE_OUTPUT}/releases"`. Bob resolves these when exporting
-and reports an error for undefined variables. Changing their values also
-invalidates incremental package placement.
+and reports an error for undefined variables. The current values determine
+the output paths on every export.
 
 ZIP compression can be set in the manifest (see provider properties below).
 Until overridden there, Bob uses `zip-compression-level` from `liveupdate.settings`,
@@ -268,7 +268,7 @@ Its `zip-filepath`, `output-directory`, and single archive/folder name settings
 are ignored in manifest mode.
 
 Native engine-only bundles (`--exclude-archive`) skip package copying and require
-no package build receipt.
+no package output index.
 
 Each package contains a `liveupdate.game.dmanifest` with only that package's
 resource entries. Optional metadata identifies outputs and external requirements,
@@ -304,33 +304,27 @@ from cached data without rebuilding packages.
 command. They run after compiling, independently of bundling; `bundle` alone
 does not generate or overwrite build reports.
 
-### Incremental packages
+### Package builds and bundle placement
 
-Package generation and bundle placement are incremental. Bob uses its existing
-task signatures in `_BobBuildState_` together with artifact ownership receipts in
-`.internal/liveupdate`. The resource graph supplies dependencies; the receipts
-additionally record provider inputs and artifact content hashes. The build's
-`game.lupackages` file lists the artifacts to place in the current bundle.
+Every build with Live Update export enabled recreates all packages from scratch.
+Bob still uses its normal build cache for resource compilation. Each provider
+writes to an empty staging directory, and Bob installs the completed outputs
+only after every provider succeeds. Package generation does not use cache keys
+or skip unchanged packages.
 
-When a build changes one package, unchanged ZIP and folder packages are reused.
-Changes to membership, payloads, manifests, or relevant provider settings rebuild
-the affected packages. Missing or modified output artifacts are regenerated even
-when source files have not changed. Ownership survives clean builds and disabling
-export, so existing outputs never become authoring inputs. Renamed or removed
-artifacts are retired after all providers complete successfully.
+The build's `game.lupackages` file lists the artifacts to place in a later bundle.
+Output records in `.internal/liveupdate` retain generated paths across clean
+builds and disabled export, keeping generated packages out of resource matching.
+Renamed or removed artifacts are retired after all providers complete successfully.
 Moving or copying a project rebases ownership of artifacts within the project;
 it does not transfer ownership of external output directories.
 
-During `bundle`, unchanged artifact copies are preserved. Missing or changed files
-are copied, and obsolete owned artifacts are removed. Missing or modified source
-artifacts require another `build` before bundling. Platform bundlers
-control recreation of their application output; package copies are restored when
-that output directory is recreated.
-Failed or cancelled package delivery restores the previous package copies and ownership receipt,
-so the bundle step can be retried.
+During `bundle`, Bob copies all selected artifacts through fresh staging and
+removes obsolete owned outputs. Missing source artifacts or invalid file types
+require another `build` before bundling. Failed or cancelled delivery restores
+the previous package copies and output records, so the bundle step can be retried.
 Legacy `save-zip-in-bundle-folder` and `save-folder-in-bundle-folder` settings also
-use this copy path; the prepared artifacts remain at their configured destinations
-for reuse.
+use this copy path; source artifacts remain at their configured destinations.
 
 ### Java providers
 
@@ -355,8 +349,7 @@ providers {
 
 Both output description and writing receive typed, immutable values through
 `context.providerSettings().get(getId())`. Settings for unused providers remain
-in the authored manifest but are not applied. Provider settings participate in
-incremental output invalidation. ZIP exposes compression level (`0`–`9`, plus
+in the authored manifest but are not applied. ZIP exposes compression level (`0`–`9`, plus
 `-1` for the ZIP library default); Folder has no additional settings.
 
 `write()` receives an immutable context and package plan, prepared resource
@@ -369,13 +362,6 @@ Argumentless CLI options may have null values. Providers cannot alter membership
 Poll `context.checkCanceled()` during long operations and close opened streams.
 Write only inside the assigned staging directory. Bob publishes declared outputs
 only after all providers succeed, and cleans staging on failure or cancellation.
-
-Override `getCacheKey()` to opt in to artifact reuse. Return a stable, non-null key
-for equivalent provider behavior and inputs. Bob fingerprints the provider class,
-the complete context, and the package manifest and prepared payload identities.
-Change the key when helper libraries or external inputs change. The default null
-key calls `write()` whenever Bob reruns package resolution. `describeOutputs()` is
-always called during resolution so output collisions are validated before reuse.
 
 ### Editor preview
 

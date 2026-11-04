@@ -85,7 +85,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
      */
     @Override
     public synchronized void accept(ArchiveEntry entry, byte[] payload) throws IOException {
-        PackageCache.checkCanceled(project::isBuildCanceled);
+        PackageArtifacts.checkCanceled(project::isBuildCanceled);
         String path = PackageResolver.normalize(entry.getRelativeFilename());
         if (!packaged.contains(path)) {
             return;
@@ -102,8 +102,8 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
     }
 
     /**
-     * Validates all output declarations, reuses unchanged artifacts, and invokes providers with package-local manifests.
-     * Stages changed artifacts and ownership together before installation, removing obsolete owned manifest outputs.
+     * Validates all output declarations and invokes every provider with a package-local manifest.
+     * Stages fresh artifacts and ownership together before installation, removing obsolete owned manifest outputs.
      *
      * @param manifests configured manifest builder, including hashing and engine-version settings
      * @param buildOutputs reserved build outputs that package destinations must not overlap
@@ -133,8 +133,8 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         List<Output> outputs = new ArrayList<>();
         Map<String, List<Output>> packageOutputs = new LinkedHashMap<>();
 
-        // Reserve build outputs before they exist, including this writer's ownership receipt.
-        List<Path> reservedOutputs = new ArrayList<>(List.of(PackageArtifacts.buildReceipt(project)));
+        // Reserve build outputs before they exist, including this writer's ownership index.
+        List<Path> reservedOutputs = new ArrayList<>(List.of(PackageArtifacts.buildIndex(project)));
         for (IResource output : buildOutputs) {
             reservedOutputs.add(Path.of(output.getAbsPath()));
         }
@@ -230,55 +230,29 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
             }
             resources = List.copyOf(resources);
             byte[] manifest = manifests.buildPackageManifest(pkg.resources(), metadata.build());
-            String signature = PackageCache.inputSignature(delivery.provider(), context, manifest);
-
-            boolean reuse = !signature.isEmpty() && !delivery.artifacts().isEmpty();
-            for (PackageProvider.Artifact artifact : delivery.artifacts()) {
-                Path destination = root.resolve(artifact.name());
-                Output previous = findPreviousOutput(previousOutputs, destination);
-                if (previous == null
-                        || previous.directory() != artifact.directory()
-                        || previous.legacy() != legacyPlacement
-                        || !previous.path().toString().equals(destination.toString())
-                        || !signature.equals(previous.inputSignature())
-                        || !isCurrent(previous, project)) {
-                    reuse = false;
-                    break;
-                }
-            }
-
             Path packageStage = stage.resolve("package-" + packageOutputs.size());
-            if (!reuse) {
-                Files.createDirectory(packageStage);
-                delivery.provider().write(context, pkg, resources, manifest, packageStage);
-                if (legacyOutput != null) {
-                    String producedName = delivery.provider().describeOutputs(context, pkg).getFirst().name();
-                    Path produced = packageStage.resolve(producedName);
-                    Path named = packageStage.resolve(delivery.artifacts().getFirst().name());
-                    if (!produced.equals(named)) {
-                        Files.move(produced, named);
-                    }
+            Files.createDirectory(packageStage);
+            delivery.provider().write(context, pkg, resources, manifest, packageStage);
+            if (legacyOutput != null) {
+                String producedName = delivery.provider().describeOutputs(context, pkg).getFirst().name();
+                Path produced = packageStage.resolve(producedName);
+                Path named = packageStage.resolve(delivery.artifacts().getFirst().name());
+                if (!produced.equals(named)) {
+                    Files.move(produced, named);
                 }
             }
 
             for (PackageProvider.Artifact artifact : delivery.artifacts()) {
                 Path destination = root.resolve(artifact.name());
-                String hash;
-                if (reuse) {
-                    hash = previousOutputs.get(destination).contentHash();
-                } else {
-                    Path output = packageStage.resolve(artifact.name());
-                    if (legacyPlacement && artifact.directory() && Files.isDirectory(destination)) {
-                        preserveLegacyFolder(destination, output);
-                    }
-                    hash = PackageCache.contentHash(output, artifact.directory(), project::isBuildCanceled);
-                    if (hash == null) {
-                        throw new IOException("Provider did not produce a regular, non-symlink output: " + artifact.name());
-                    }
-                    stagedOutputs.put(destination, output);
+                Path output = packageStage.resolve(artifact.name());
+                if (legacyPlacement && artifact.directory() && Files.isDirectory(destination)) {
+                    preserveLegacyFolder(destination, output);
                 }
-                outputs.add(new Output(destination, artifact.name(), artifact.directory(), delivery.bundle(),
-                        signature, hash, legacyPlacement));
+                if (!isValidOutput(project, output, artifact.directory())) {
+                    throw new IOException("Provider did not produce a regular, non-symlink output: " + artifact.name());
+                }
+                stagedOutputs.put(destination, output);
+                outputs.add(new Output(destination, artifact.name(), artifact.directory(), delivery.bundle(), legacyPlacement));
             }
             packageOutputs.put(pkg.description().getName(), List.copyOf(outputs.subList(firstOutput, outputs.size())));
         }
@@ -297,7 +271,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
 
         Path ownership = stage.resolve("ownership.outputs");
         Files.write(ownership, PackageArtifacts.serializeOutputs(project, ownedOutputs));
-        stagedOutputs.put(PackageArtifacts.buildReceipt(project), ownership);
+        stagedOutputs.put(PackageArtifacts.buildIndex(project), ownership);
         finalizeOutputs(project, stagedOutputs, obsolete);
         return new WriteResult(List.copyOf(outputs), Map.copyOf(packageOutputs));
     }
@@ -306,7 +280,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
     private void preserveLegacyFolder(Path source, Path destination) throws IOException {
         try (var files = Files.walk(source)) {
             for (Path file : files.toList()) {
-                PackageCache.checkCanceled(project::isBuildCanceled);
+                PackageArtifacts.checkCanceled(project::isBuildCanceled);
                 Path target = destination.resolve(source.relativize(file));
                 if (Files.isDirectory(file, LinkOption.NOFOLLOW_LINKS)) {
                     Files.createDirectories(target);
@@ -376,7 +350,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         boolean committed = false;
         try {
             for (Path destination : roots) {
-                PackageCache.checkCanceled(project::isBuildCanceled);
+                PackageArtifacts.checkCanceled(project::isBuildCanceled);
                 if (Files.exists(destination)) {
                     Path backupDirectory = Files.createTempDirectory(destination.getParent(), ".liveupdate-backup-");
                     Path backup = backupDirectory.resolve("previous");
@@ -387,7 +361,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
 
             installing = true;
             for (Map.Entry<Path, Path> output : outputs.entrySet()) {
-                PackageCache.checkCanceled(project::isBuildCanceled);
+                PackageArtifacts.checkCanceled(project::isBuildCanceled);
                 Path destination = output.getKey();
                 Files.createDirectories(destination.getParent());
                 if (Files.isDirectory(output.getValue())) {
@@ -396,13 +370,13 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                     Files.move(output.getValue(), destination, StandardCopyOption.REPLACE_EXISTING);
                 }
             }
-            PackageCache.checkCanceled(project::isBuildCanceled);
+            PackageArtifacts.checkCanceled(project::isBuildCanceled);
             committed = true;
         } catch (IOException e) {
             if (installing) {
                 for (Path path : roots) {
                     try {
-                        PackageCache.delete(path);
+                        delete(path);
                     } catch (IOException cleanupError) {
                         e.addSuppressed(cleanupError);
                     }
@@ -428,60 +402,60 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
     }
 
     /** Validate the entire artifact set before copying into the bundle. */
-    public static List<Output> validatedOutputs(Project project) throws IOException {
-        if (!PackageArtifacts.receipt(project).exists()) {
-            throw new IOException("Live Update artifact receipt is missing; run build before bundling");
+    private static List<Output> validatedOutputs(Project project) throws IOException {
+        if (!PackageArtifacts.resource(project).exists()) {
+            throw new IOException("Live Update artifact index is missing; run build before bundling");
         }
         List<Output> outputs = PackageArtifacts.readOutputs(project);
         for (Output output : outputs) {
-            if (!isCurrent(output, project)) {
-                throw new IOException("Live Update artifact is missing or modified; run build before bundling: " + output.path());
+            if (!isValidOutput(project, output.path(), output.directory())) {
+                throw new IOException("Live Update artifact is missing or has an invalid file type; run build before bundling: " + output.path());
             }
         }
         return outputs;
     }
 
-    /** Checks that the artifact still has its recorded type and content hash, independently of modification times. */
-    private static boolean isCurrent(Output output, Project project) throws IOException {
-        if (output.contentHash().isEmpty()) {
+    /** Checks provider declarations and rejects symbolic links or unsupported entries without reading payloads. */
+    private static boolean isValidOutput(Project project, Path path, boolean directory) throws IOException {
+        PackageArtifacts.checkCanceled(project::isBuildCanceled);
+        if (!directory) {
+            return Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS);
+        }
+        if (!Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
             return false;
         }
-        String hash = PackageCache.contentHash(output.path(), output.directory(), project::isBuildCanceled);
-        return output.contentHash().equals(hash);
-    }
-
-    /** The task signature alone cannot detect deleted or modified external artifacts. */
-    public static boolean outputsAreCurrent(Project project) throws IOException {
-        for (Output output : PackageArtifacts.readOutputs(project)) {
-            if (!isCurrent(output, project)) {
-                return false;
+        try (var files = Files.walk(path)) {
+            for (Path file : files.toList()) {
+                PackageArtifacts.checkCanceled(project::isBuildCanceled);
+                if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)
+                        && !Files.isDirectory(file, LinkOption.NOFOLLOW_LINKS)) {
+                    return false;
+                }
             }
         }
         return true;
     }
 
     /**
-     * Validates built artifacts and copies those marked for bundling, reusing unchanged destination contents.
-     * Stages changed copies and the bundle ownership receipt together, removing obsolete copies only during finalization.
+     * Validates built artifacts and copies those marked for bundling into fresh staging paths.
+     * Stages all copies and the bundle ownership index together, removing obsolete copies only during finalization.
      */
     public static void copyOutputs(Project project, Path bundleDirectory) throws IOException {
         bundleDirectory = bundleDirectory.toAbsolutePath().normalize();
-        Path receipt = PackageArtifacts.bundleReceipt(project, bundleDirectory);
+        Path index = PackageArtifacts.bundleIndex(project, bundleDirectory);
         Map<Path, Output> previous = new LinkedHashMap<>();
-        for (Output output : PackageArtifacts.read(Path.of(project.getRootDirectory()), receipt)) {
+        for (Output output : PackageArtifacts.read(Path.of(project.getRootDirectory()), index)) {
             previous.put(output.path(), output);
         }
 
-        Map<Path, Output> copies = new LinkedHashMap<>();
+        Map<Path, Path> copies = new LinkedHashMap<>();
         List<Output> outputs = new ArrayList<>();
         for (Output output : validatedOutputs(project)) {
             if (!output.bundle()) {
                 continue;
             }
-            String hash = output.contentHash();
             Path destination = bundleDirectory.resolve(output.name()).toAbsolutePath().normalize();
-            outputs.add(new Output(destination, output.name(), output.directory(), true,
-                    output.inputSignature(), hash, output.legacy()));
+            outputs.add(new Output(destination, output.name(), output.directory(), true, output.legacy()));
             if (output.path().equals(destination)) {
                 continue;
             }
@@ -496,40 +470,56 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                     throw new IOException("Live Update artifact would overwrite an existing bundle output: " + destination);
                 }
             }
-            copies.put(destination, output);
+            copies.put(destination, output.path());
         }
 
         Set<Path> obsolete = new LinkedHashSet<>(previous.keySet());
         removeCurrentOutputs(obsolete, previous, outputs);
 
-        // Stage changed artifacts and the receipt together. A cancelled delivery
+        // Stage all artifacts and the index together. A cancelled delivery
         // restores the previous package copies and their ownership, so it can be retried.
         Path buildDirectory = Path.of(project.getRootDirectory(), project.getBuildDirectory());
         Files.createDirectories(buildDirectory);
         Path stage = Files.createTempDirectory(buildDirectory, ".liveupdate-bundle-");
         try {
             Map<Path, Path> stagedOutputs = new LinkedHashMap<>();
-            for (Map.Entry<Path, Output> copy : copies.entrySet()) {
-                Path destination = copy.getKey();
-                Output output = copy.getValue();
-                String destinationHash = PackageCache.contentHash(destination, output.directory(), project::isBuildCanceled);
-                Output replaced = findPreviousOutput(previous, destination);
-                boolean renamed = replaced != null && !replaced.path().toString().equals(destination.toString());
-                if (!renamed && output.contentHash().equals(destinationHash)) {
-                    continue;
-                }
+            for (Map.Entry<Path, Path> copy : copies.entrySet()) {
                 Path staged = stage.resolve("artifact-" + stagedOutputs.size());
-                Path previousPath = destinationHash == null ? null : destination;
-                PackageCache.copy(output.path(), staged, previousPath, project::isBuildCanceled);
-                stagedOutputs.put(destination, staged);
+                copy(project, copy.getValue(), staged);
+                stagedOutputs.put(copy.getKey(), staged);
             }
 
             Path ownership = stage.resolve("ownership.outputs");
             Files.write(ownership, PackageArtifacts.serializeOutputs(project, outputs));
-            stagedOutputs.put(receipt, ownership);
+            stagedOutputs.put(index, ownership);
             finalizeOutputs(project, stagedOutputs, obsolete);
         } finally {
             FileUtils.deleteDirectory(stage.toFile());
+        }
+    }
+
+    /** Deletes an artifact tree or file if present, without following a root symlink as a directory. */
+    private static void delete(Path path) throws IOException {
+        if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+            FileUtils.deleteDirectory(path.toFile());
+        } else {
+            Files.deleteIfExists(path);
+        }
+    }
+
+    /** Copies every file into fresh staging, checking cancellation between files. */
+    private static void copy(Project project, Path source, Path destination) throws IOException {
+        PackageArtifacts.checkCanceled(project::isBuildCanceled);
+        if (Files.isDirectory(source)) {
+            Files.createDirectories(destination);
+            try (var entries = Files.list(source)) {
+                for (Path entry : entries.toList()) {
+                    copy(project, entry, destination.resolve(entry.getFileName()));
+                }
+            }
+        } else {
+            Files.createDirectories(destination.getParent());
+            Files.copy(source, destination, StandardCopyOption.COPY_ATTRIBUTES);
         }
     }
 

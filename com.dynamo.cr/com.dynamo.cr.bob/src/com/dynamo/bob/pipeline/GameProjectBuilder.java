@@ -213,12 +213,12 @@ public class GameProjectBuilder extends Builder {
             builder.addExtraCacheKey("package-preview=" + project.option("package-preview", "false"));
             builder.addExtraCacheKey("package-manifest=" + project.option("package-manifest", ""));
             if (project.option("archive", "false").equals("true")) {
-                builder.addOutput(PackageArtifacts.receipt(project).disableCache());
+                builder.addOutput(PackageArtifacts.resource(project).disableCache());
                 builder.addOutput(PackageReport.resource(project).disableCache());
-                // A preview needs a fresh in-memory plan even when every compiler task is cached.
+                // Rebuild Live Update packages on every export, while compiler tasks remain incremental.
                 if (project.option("package-preview", "false").equals("true") ||
-                        (project.option("liveupdate", "false").equals("true") && !PackageWriter.outputsAreCurrent(project))) {
-                    project.getState().removeSignature(PackageArtifacts.receipt(project).getAbsPath());
+                        project.option("liveupdate", "false").equals("true")) {
+                    project.getState().removeSignature(PackageArtifacts.resource(project).getAbsPath());
                 }
             }
         }
