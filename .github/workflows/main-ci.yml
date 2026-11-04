@@ -92,7 +92,7 @@ jobs:
             platform: x86_64-win32
             runner: windows-2025-vs2026
             timeout: 30
-            engine_args: "--skip-builtins --skip-docs"
+            engine_args: "--skip-docs"
             dotnet: true
             gcloud: true
             codesign: true
@@ -170,6 +170,14 @@ jobs:
           $cdb = "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe"
           if (-not (Test-Path $cdb)) { throw "Windows debugger missing: $cdb" }
           "DIAG_CDB_EXE=$cdb" >> $env:GITHUB_ENV
+          $dumpRoot = Join-Path $env:RUNNER_TEMP "defold-native-dumps"
+          New-Item -ItemType Directory -Force -Path $dumpRoot | Out-Null
+          $key = "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\java.exe"
+          New-Item -Path $key -Force | Out-Null
+          New-ItemProperty -Path $key -Name DumpFolder -PropertyType ExpandString -Value $dumpRoot -Force | Out-Null
+          New-ItemProperty -Path $key -Name DumpType -PropertyType DWord -Value 1 -Force | Out-Null
+          New-ItemProperty -Path $key -Name DumpCount -PropertyType DWord -Value 3 -Force | Out-Null
+          "DIAG_DUMP_ROOT=$dumpRoot" >> $env:GITHUB_ENV
 
       - &step_dcache_key
         name: "Read dependency cache key"
@@ -352,7 +360,7 @@ jobs:
         if: "!matrix.emulator"
         env:
           DM_WINDOWS_DEBUG_CDB: ${{ env.DIAG_CDB_EXE }}
-          DM_WINDOWS_DEBUG_BUILTINS_ONLY: "1"
+          DM_WINDOWS_DUMP_ROOT: ${{ env.DIAG_DUMP_ROOT }}
           LIBGL_ALWAYS_SOFTWARE: ${{ runner.os == 'Linux' && '1' || '' }}
           GALLIUM_DRIVER: ${{ runner.os == 'Linux' && 'llvmpipe' || '' }}
         run: 'ci/ci.sh engine --skip-install-ext --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} ${{ matrix.engine_args }}${{ matrix.codesign && format('' {0}'', env.OPTION_CODESIGN) || '''' }}${{ matrix.gcloud && format('' --gcloud-service-key="{0}"'', env.GCLOUD_EDITOR_SERVICE_KEY) || '''' }}'

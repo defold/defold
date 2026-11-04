@@ -2388,18 +2388,14 @@ class Configuration(object):
         log_cmd_build = f'CMake build {name} {build_test}'
         self.build_tracker.start_command(log_cmd_build)
 
-        builtins_probe = name == 'engine_libs' and os.environ.get('DM_WINDOWS_DEBUG_BUILTINS_ONLY') == '1'
-        cmake_build_args = ['cmake', '--build', builddir, '--target', 'engine_builtins' if builtins_probe else 'all']
-        if build_test and not builtins_probe:
+        cmake_build_args = ['cmake', '--build', builddir, '--target', 'all']
+        if build_test:
             cmake_build_args.append(build_test)
         if is_verbose:
             cmake_build_args.append('--verbose')
         self._run_cmake(cmake_build_args, builddir, name, 'build')
 
         self.build_tracker.end_command(log_cmd_build)
-
-        if builtins_probe:
-            sys.exit(0)
 
         if compatible_configure:
             log_cmd_stage = f'CMake stage Bob Light dependencies {name}'

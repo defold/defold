@@ -2,12 +2,10 @@
 
 import argparse
 import os
-import re
 import shlex
 import shutil
 import subprocess
 import sys
-import tempfile
 import zipfile
 from pathlib import Path
 
@@ -68,41 +66,19 @@ def run(args, cwd):
                     'sxe -c "' + fatal + '" 0xc0000409; '
                     'sxd -c2 "' + fatal + '" av; '
                     'sxe -c ".echo WINDOWS_DIAG_EXIT; .lastevent; q" epr; g')
-        allowed = {"PATH", "SYSTEMROOT", "WINDIR", "SYSTEMDRIVE", "USERPROFILE", "LOCALAPPDATA", "APPDATA",
-                   "TEMP", "TMP", "PATHEXT", "COMSPEC", "JAVA_HOME", "HOME", "DYNAMO_HOME", "DEFOLD_HOME",
-                   "DM_BOB_ROOTFOLDER", "DM_JAVA_RUNTIME_FLAGS", "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE",
-                   "PROCESSOR_IDENTIFIER", "PROCESSOR_LEVEL", "PROCESSOR_REVISION", "OS", "COMPUTERNAME"}
-        environment = {key: value for key, value in os.environ.items() if key.upper() in allowed}
-        image = Path(args[0]).read_bytes()
-        pe = int.from_bytes(image[60:64], "little")
-        optional = pe + 24
-        reserve = int.from_bytes(image[optional + 72:optional + 80], "little")
-        print("WINDOWS_JAVA_IMAGE_STACK_RESERVE", reserve, flush=True)
-        print("WINDOWS_ENVIRONMENT_SIZE", sum(len(k) + len(v) + 2 for k, v in os.environ.items()), flush=True)
-        failures = False
-        native_failure = False
-        for index in range(3):
-            result = subprocess.run(args, cwd=str(cwd))
-            print("WINDOWS_INHERITED_PROBE", index, "exit", result.returncode, flush=True)
-            failures = failures or result.returncode != 0
-            native_failure = native_failure or result.returncode == 3221225725
-            if native_failure:
-                break
-        explicit = subprocess.run(args, cwd=str(cwd), env=os.environ.copy())
-        print("WINDOWS_EXPLICIT_ENV_PROBE exit", explicit.returncode, flush=True)
-        failures = failures or explicit.returncode != 0
-        for index in range(2):
-            result = subprocess.run(args, cwd=str(cwd))
-            print("WINDOWS_INHERITED_AFTER_PROBE", index, "exit", result.returncode, flush=True)
-            failures = failures or result.returncode != 0
-            native_failure = native_failure or result.returncode == 3221225725
-        if native_failure:
-            query = "Get-WinEvent -FilterHashtable @{LogName='Application';Id=1000;StartTime=(Get-Date).AddMinutes(-5)} -ErrorAction SilentlyContinue | Where-Object {$_.Message -like '*java.exe*'} | Select-Object -First 3 TimeCreated,Message | Format-List"
-            subprocess.run(["powershell", "-NoProfile", "-Command", query], cwd=str(cwd))
-            result = subprocess.run([debugger, "-logo", str(log_file), "-lines", "-y", str(Path(__file__).resolve().parents[3]), "-c", commands] + args, cwd=str(cwd))
-            print("WINDOWS_INHERITED_CDB exit", result.returncode, flush=True)
-        if failures:
-            raise subprocess.CalledProcessError(1, args)
+        result = subprocess.run(args, cwd=str(cwd))
+        print("WINDOWS_PARALLEL_BUILD_PROBE exit", result.returncode, flush=True)
+        if result.returncode != 0:
+            dump_root = Path(os.environ["DM_WINDOWS_DUMP_ROOT"])
+            dumps = sorted(dump_root.glob("java*.dmp"))
+            print("WINDOWS_NATIVE_DUMP_COUNT", len(dumps), flush=True)
+            for index, path in enumerate(dumps):
+                dump_log = log_file.with_name("windows-builtins-dump-%s.log" % index)
+                subprocess.run([debugger, "-logo", str(dump_log), "-lines", "-y", str(Path(__file__).resolve().parents[3]), "-z", str(path), "-c", ".ecxr; !teb; kb 128; ~* kb 6; lm; q"], cwd=str(cwd))
+                path.unlink()
+            if not dumps:
+                subprocess.run([debugger, "-logo", str(log_file), "-lines", "-y", str(Path(__file__).resolve().parents[3]), "-c", commands] + args, cwd=str(cwd))
+            raise subprocess.CalledProcessError(result.returncode, args)
         return
     subprocess.check_call(args, cwd=str(cwd))
 
