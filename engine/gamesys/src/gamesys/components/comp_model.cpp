@@ -886,40 +886,43 @@ namespace dmGameSystem
 
     static uint8_t* WriteMeshAttributes(ModelWorld* world, dmRender::HRenderContext render_context, MeshRenderItem* render_item, dmGraphics::VertexStepFunction step_function, dmGraphics::VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_count)
     {
-        bool needs_mesh_data = false;
-
-        for (uint32_t i = 0; i < attribute_infos->m_NumInfos; ++i)
+        if (!render_item->m_Mesh->m_Positions.m_Count)
         {
-            const dmGraphics::VertexAttributeInfo& attribute = attribute_infos->m_Infos[i];
-            if (attribute.m_StepFunction != step_function)
+            bool needs_mesh_data = false;
+
+            for (uint32_t i = 0; i < attribute_infos->m_NumInfos && !needs_mesh_data; ++i)
             {
-                continue;
+                const dmGraphics::VertexAttributeInfo& attribute = attribute_infos->m_Infos[i];
+                if (attribute.m_StepFunction != step_function)
+                {
+                    continue;
+                }
+
+                switch (attribute.m_SemanticType)
+                {
+                    case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
+                    case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL:
+                    case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT:
+                    case dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR:
+                    case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
+                    {
+                        needs_mesh_data = true;
+                        break;
+                    }
+                    default:
+                    {
+                        break;
+                    }
+                }
             }
 
-            switch (attribute.m_SemanticType)
+            if (needs_mesh_data)
             {
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL:
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT:
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR:
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
+                dmResource::Result result = LoadModelMeshData(dmGameObject::GetFactory(render_item->m_Component->m_Instance), render_item->m_Buffers, render_item->m_Mesh);
+                if (result != dmResource::RESULT_OK)
                 {
-                    needs_mesh_data = true;
-                    break;
+                    dmLogError("Unable to load model CPU geometry (%s)", dmResource::ResultToString(result));
                 }
-                default:
-                {
-                    break;
-                }
-            }
-        }
-
-        if (!render_item->m_Mesh->m_Positions.m_Count && needs_mesh_data)
-        {
-            dmResource::Result result = LoadModelMeshData(dmGameObject::GetFactory(render_item->m_Component->m_Instance), render_item->m_Buffers, render_item->m_Mesh);
-            if (result != dmResource::RESULT_OK)
-            {
-                dmLogError("Unable to load model CPU geometry (%s)", dmResource::ResultToString(result));
             }
         }
 
