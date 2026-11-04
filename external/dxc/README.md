@@ -14,7 +14,11 @@ build directory. LLVM is configured in a separate Release build with its own C++
 exception, and RTTI settings. These settings do not propagate into the engine.
 Only `dxc`, `dxcompiler`, and the Windows validator are built; SPIR-V generation
 and upstream tests are disabled. `patch.cmake` makes upstream honor its SPIR-V
-option on Unix. Version stamping uses the source archive's fixed version.
+option on Unix and fixes deallocation of variable-sized `CGFunctionInfo`,
+`AttributeSetImpl`, and `AttributeSetNode` objects. The latter pairs the raw
+allocation with explicit destruction and unsized deletion, avoiding ASAN's
+`new-delete-type-mismatch` error when DXC finishes compiling a shader. Version
+stamping uses the source archive's fixed version.
 Windows uses the static CRT, matching the other Defold tools.
 
 Installed files under the SDK's `ext` directory:
@@ -166,6 +170,27 @@ release baseline. Run the shaderc tests on the baseline environment and inspect
 the installed binaries' ELF dependencies and symbol versions before publishing
 packages. A compiler may require a newer C++ language version without requiring
 a newer runtime; the source build and runtime checks establish that separately.
+
+## Linux ASAN package update (2026-11-04)
+
+- Rebuilt both Linux archives with Clang 20.1.8 in the documented Ubuntu 22.04
+  images, applying the three variable-sized allocation fixes in `patch.cmake`.
+  The macOS and Windows archives were not rebuilt for this update.
+- Before the fix, an ASAN-enabled DXC API harness using the shader and arguments
+  from `Shaderc.HLSLPixelOutputMetadata` reproduced the 64/32-byte mismatch on
+  both Linux architectures. Fixing `CGFunctionInfo` exposed a second mismatch
+  in LLVM's attribute sets, which the patch also addresses.
+- After extracting the rebuilt archives, the harness passed with
+  `ASAN_OPTIONS=new_delete_type_mismatch=1` on both architectures. Additional
+  ASAN checks verified sparse pixel output slots, component masks and numeric
+  types through reflection, plus vertex and compute shader compilation.
+  ARM ran in the native Linux VM; x86_64 ran through Docker emulation on macOS.
+  These were focused DXC checks, not a full engine test run.
+- Standalone vertex and compute compilation passed without `LD_LIBRARY_PATH`.
+  Archive paths, headers and licenses match the previous packages; only `dxc`
+  and `libdxcompiler.so` changed. ELF architecture, relative runtime paths and
+  SONAME were verified. Both executables and libraries retain the previous
+  maximum symbol versions: `GLIBC_2.34`, `GLIBCXX_3.4.29`, and `CXXABI_1.3.9`.
 
 ## Linux package validation (2026-10-29)
 
