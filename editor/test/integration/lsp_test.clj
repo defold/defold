@@ -1006,6 +1006,55 @@
       (is (await= 2 @hover-requests))
       (set-servers! lsp #{}))))
 
+;; Verifies that document symbols are written whenever the server answers a held
+;; request, and that a late answer for a closed view is dropped. Guards against
+;; the Structure pane staying empty while the language server loads its
+;; workspace.
+(deftest held-document-symbols-test
+  (with-scratch-project "test/resources/lsp_project"
+    (let [lsp (lsp/get-lsp)
+          foo-resource (test-util/resource workspace "/foo.json")
+          foo-resource-node (test-util/resource-node project "/foo.json")
+          lsp-range {:start {:line 0 :character 0} :end {:line 0 :character 1}}
+          make-server (fn [symbol-requests release]
+                        {:languages #{"json"}
+                         :launcher (make-test-server-launcher
+                                     {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental
+                                                                               :documentSymbolProvider true}})
+                                      "initialized" (constantly nil)
+                                      "textDocument/documentSymbol" (fn [_ _]
+                                                                      (let [n (swap! symbol-requests inc)]
+                                                                        (deref release 10000 nil)
+                                                                        [{:name (str "symbol-" n)
+                                                                          :kind 13
+                                                                          :range lsp-range
+                                                                          :selectionRange lsp-range}]))
+                                      "shutdown" (constantly nil)
+                                      "exit" (constantly nil)})})
+          symbol-names #(mapv :name (g/node-value % :document-symbols))]
+      (testing "Edit while held -> latest symbols are written once the server answers"
+        (let [symbol-requests (atom 0)
+              release (promise)
+              view-node (make-lsp-view-node! app-view)]
+          (set-servers! lsp #{(make-server symbol-requests release)})
+          (open-view! lsp view-node foo-resource foo-json-lines)
+          (is (await= 1 @symbol-requests))
+          (edit-file! lsp foo-resource-node "{}")
+          (is (= [] (symbol-names view-node)))
+          (deliver release true)
+          (is (await= ["symbol-2"] (symbol-names view-node)))
+          (close-view! lsp view-node)))
+      (testing "Close view while held -> late answer is dropped"
+        (let [symbol-requests (atom 0)
+              release (promise)
+              view-node (make-lsp-view-node! app-view)]
+          (set-servers! lsp #{(make-server symbol-requests release)})
+          (open-view! lsp view-node foo-resource foo-json-lines)
+          (is (await= 1 @symbol-requests))
+          (close-view! lsp view-node)
+          (await-lsp lsp (deliver release true))
+          (is (= [] (symbol-names view-node))))))))
+
 (deftest rename-test
   (with-scratch-project "test/resources/lsp_project"
     (let [lsp (lsp/get-lsp)
