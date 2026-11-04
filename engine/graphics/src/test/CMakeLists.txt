@@ -96,7 +96,7 @@ endif()
 # Real Windows windows and swap chains, with independent targets for each adapter.
 if(TARGET_PLATFORM STREQUAL "x86_64-win32")
   option(DEFOLD_RUN_WINDOW_RESIZE_TESTS "Run window-backed DX12/Vulkan resize tests in run_tests" OFF)
-  foreach(_resize_backend dx12)
+  foreach(_resize_backend dx12 vulkan)
     if(TARGET graphics_${_resize_backend})
       set(_resize_target test_graphics_window_resize_${_resize_backend})
       defold_add_executable(${_resize_target} "${GRAPHICS_TEST_SRC_DIR}/test_graphics_window_resize.cpp")
