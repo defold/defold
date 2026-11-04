@@ -321,8 +321,9 @@
 
   Either :requests, or :requests-fn must be provided (but not both). Requests
   are sent to running servers that match :capabilities-pred and :resource. If
-  no server matches, responses-ch is closed immediately; otherwise timeout-based
-  cancellation is scheduled for outstanding requests.
+  no server matches, responses-ch is closed immediately; otherwise, if
+  :timeout-ms is provided, timeout-based cancellation is scheduled for
+  outstanding requests.
 
   Args:
     state             LSP state
@@ -334,26 +335,28 @@
     :requests-fn          required if :requests is not provided; function of
                           server and server-state that returns the requests to
                           send to that server
-    :timeout-ms           required; timeout in milliseconds for outstanding
-                          requests
+    :timeout-ms           optional timeout in milliseconds for outstanding
+                          requests; without it, requests stay outstanding
+                          until answered or cancelled
     :capabilities-pred    predicate of capabilities used to filter servers
                           (defaults to any?)
     :resource             resource used to filter servers by language and extension
     :retries              request retry count (defaults to 3); retries run
-                          within the same :timeout-ms budget"
+                          within the same :timeout-ms budget, if provided"
   [state responses-ch & {:keys [requests requests-fn capabilities-pred resource timeout-ms retries]
                          :or {capabilities-pred any?
                               retries 3}}]
   {:pre [(not= (some? requests) (some? requests-fn))
          (nat-int? retries)
-         (pos-int? timeout-ms)
+         (or (nil? timeout-ms) (pos-int? timeout-ms))
          (not (contains? (:requests state) responses-ch))]}
   (let [requests-fn (or requests-fn (constantly requests))
-        retry-delay-ms (if (pos? retries)
+        retry-delay-ms (cond
+                         (not (pos? retries)) 0
                          ;; additionally divide the retry delay by 2 since the
                          ;; server needs time to compute the results
-                         (max 1 (quot timeout-ms (* 2 retries)))
-                         0)
+                         timeout-ms (max 1 (quot timeout-ms (* 2 retries)))
+                         :else 800)
         server->requests (->> state
                               :server->server-state
                               (e/mapcat
@@ -371,9 +374,10 @@
         (doseq [[server requests] server->requests
                 request requests]
           (a/put! (get-in state [:server->server-state server :in]) (lsp.server/finalize-request request responses-ch retries retry-delay-ms)))
-        (a/go
-          (<! (a/timeout timeout-ms))
-          (>! (:in state) (cancel-requests responses-ch (keys server->requests))))
+        (when timeout-ms
+          (a/go
+            (<! (a/timeout timeout-ms))
+            (>! (:in state) (cancel-requests responses-ch (keys server->requests)))))
         (reduce-kv (fn [state server requests]
                      (assoc-in state [:server->server-state server :requests responses-ch] (count requests)))
                    (assoc-in state [:requests responses-ch] (transduce (map count) + 0 (vals server->requests)))
@@ -518,16 +522,27 @@
   (and (capability-open-close? capabilities)
        (not= :none (text-sync-kind capabilities))))
 
-(defn- document-symbol-refresh-debounce-id [resource]
+(defn- document-symbols-id [resource]
   (pair ::lsp.server/document-symbol resource))
 
-(defn- set-view-document-symbols [resource document-symbols]
+(defn- set-view-document-symbols [resource responses-ch document-symbols]
   (bound-fn [state]
-    (when-let [view-node (-> state :resource->view-node (get resource))]
-      (ui/run-later
-        (g/transact
-          {:undoable false}
-          (g/set-property view-node :document-symbols document-symbols))))
+    (if (identical? responses-ch (get-in state [:active-requests (document-symbols-id resource)]))
+      (do
+        (when-let [view-node (and (some? document-symbols)
+                                  (-> state :resource->view-node (get resource)))]
+          (ui/run-later
+            (g/transact
+              {:undoable false}
+              (g/set-property view-node :document-symbols document-symbols))))
+        (update state :active-requests dissoc (document-symbols-id resource)))
+      state)))
+
+(defn- cancel-document-symbols-request [state resource]
+  (if-let [responses-ch (get-in state [:active-requests (document-symbols-id resource)])]
+    (-> state
+        ((cancel-requests responses-ch (coll/keys (:server->server-state state))))
+        (update :active-requests dissoc (document-symbols-id resource)))
     state))
 
 (defn- request-document-symbols [state resource]
@@ -541,14 +556,19 @@
                      server->server-state)]
     (a/go
       (let [responses (<! (a/into [] responses-ch))]
-        (when (or (coll/not-empty responses) (not has-server))
-          (>! in (set-view-document-symbols resource (into [] cat responses))))))
-    (send-requests!
-      state responses-ch
-      :capabilities-pred :document-symbol
-      :resource resource
-      :requests [(lsp.server/document-symbols resource)]
-      :timeout-ms 5000)))
+        (>! in (set-view-document-symbols
+                 resource
+                 responses-ch
+                 (when (or (coll/not-empty responses) (not has-server))
+                   (coll/into-> responses [] cat))))))
+    (-> state
+        (cancel-document-symbols-request resource)
+        (assoc-in [:active-requests (document-symbols-id resource)] responses-ch)
+        (send-requests!
+          responses-ch
+          :capabilities-pred :document-symbol
+          :resource resource
+          :requests [(lsp.server/document-symbols resource)]))))
 
 (defn- schedule-debounce [state id timeout-ms state-fn]
   {:pre [(some? id) (pos-int? timeout-ms) (ifn? state-fn)]}
@@ -604,7 +624,7 @@
         (cond-> (assoc-in state [:resource->open-state resource] {:lines new-lines :version new-version})
           (resource-viewed? state resource)
           (schedule-debounce
-            (document-symbol-refresh-debounce-id resource)
+            (document-symbols-id resource)
             300
             #(request-document-symbols % resource)))))))
 
@@ -745,6 +765,7 @@
                        :view-node->resource {}
                        ;; map from debounce id to cancel-ch (close to cancel)
                        :debounce {}
+                       :active-requests {}
                        ;; map {resource {:lines ["code..."] :version int}},
                        ;; indicates that the resource is open
                        ;; invariant: every viewed resource must be open
@@ -815,7 +836,7 @@
 
 (defn- cancel-document-symbols-refresh [state resource]
   (let [{:keys [debounce]} state
-        debounce-id (document-symbol-refresh-debounce-id resource)]
+        debounce-id (document-symbols-id resource)]
     (if-let [cancel-ch (debounce debounce-id)]
       (do (a/close! cancel-ch)
           (assoc state :debounce (dissoc debounce debounce-id)))
@@ -828,6 +849,7 @@
           (update :resource->view-node dissoc resource)
           (update :view-node->resource dissoc view-node)
           (cancel-document-symbols-refresh resource)
+          (cancel-document-symbols-request resource)
           ;; will close if clean or removed, keep open if dirty
           (sync-resource-state! resource))
       state)))
