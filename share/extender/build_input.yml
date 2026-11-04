@@ -287,6 +287,9 @@ platforms:
     shlibRe: 'lib(.+)\.dylib'
     stlibRe: 'lib(.+)\.a'
     sourceRe: '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+|.mm|.m)'
+    swiftSourceRe: '(?i).*\.swift'
+    allowedSwiftFlags: ["-enable-upcoming-feature [A-Za-z0-9_]+","-strict-concurrency=(minimal|targeted|complete)","-enforce-exclusivity=(checked|unchecked)","-O","-Osize","-Onone","-suppress-warnings"]
+    compileSwiftModuleCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc -wmo -parse-as-library -c -O -g {{#swiftFlags}}{{{.}}} {{/swiftFlags}}-module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}}{{#swiftBridgingHeaders}}-import-objc-header {{{.}}} {{/swiftBridgingHeaders}}{{#ext.includes}}-I{{{.}}} {{/ext.includes}}{{#includes}}-I{{{.}}} {{/includes}}{{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}}{{#swiftDefines}}-D{{{.}}} {{/swiftDefines}}-emit-module -emit-module-path {{swiftModulePath}} -emit-objc-header -emit-objc-header-path {{swiftHeaderPath}} -o {{tgt}}'
     writeLibPattern: 'lib%s.a'
     writeShLibPattern: 'lib%s.dylib'
     writeExePattern: 'dmengine'
@@ -359,6 +362,9 @@ platforms:
     shlibRe: 'lib(.+)\.dylib'
     stlibRe: 'lib(.+)\.a'
     sourceRe: '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+|\.mm|\.m)'
+    swiftSourceRe: '(?i).*\.swift'
+    allowedSwiftFlags: ["-enable-upcoming-feature [A-Za-z0-9_]+","-strict-concurrency=(minimal|targeted|complete)","-enforce-exclusivity=(checked|unchecked)","-O","-Osize","-Onone","-suppress-warnings"]
+    compileSwiftModuleCmd: '{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/bin/swiftc -wmo -parse-as-library -c -O -g {{#swiftFlags}}{{{.}}} {{/swiftFlags}}-module-name {{moduleName}} {{#swiftSourceFiles}}{{{.}}} {{/swiftSourceFiles}}{{#swiftBridgingHeaders}}-import-objc-header {{{.}}} {{/swiftBridgingHeaders}}{{#ext.includes}}-I{{{.}}} {{/ext.includes}}{{#includes}}-I{{{.}}} {{/includes}}{{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}}{{#swiftDefines}}-D{{{.}}} {{/swiftDefines}}-emit-module -emit-module-path {{swiftModulePath}} -emit-objc-header -emit-objc-header-path {{swiftHeaderPath}} -o {{tgt}}'
     writeLibPattern: 'lib%s.a'
     writeExePattern: 'dmengine'
     zipContentPattern: 'dmengine'
