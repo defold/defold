@@ -619,7 +619,7 @@ namespace dmRender
     }
 
     // Compute new sort values for everything that matches tag_mask
-    static void MakeSortBuffer(HRenderContext context, uint32_t tag_count, dmhash_t* tags, SortOrder sort_order)
+    static void MakeSortBuffer(HRenderContext context, uint32_t tag_count, dmhash_t* tags, SortOrder sort_order, bool* dispatch_used)
     {
         DM_PROFILE("MakeSortBuffer");
 
@@ -746,6 +746,7 @@ namespace dmRender
                     sort_values[idx].m_BatchKey = entry->m_BatchKey & 0x00ffffff;
                     sort_values[idx].m_Dispatch = entry->m_Dispatch;
                     context->m_RenderListSortBuffer.Push(idx);
+                    dispatch_used[entry->m_Dispatch] = true;
                 }
             }
         }
@@ -1381,7 +1382,8 @@ namespace dmRender
         PrepareRenderList(context);
         SortOrder effective_sort_order = (sort_order == SORT_UNSPECIFIED) ? SORT_BACK_TO_FRONT : sort_order;
 
-        MakeSortBuffer(context, predicate?predicate->m_TagCount:0, predicate?predicate->m_Tags:0, effective_sort_order);
+        bool dispatch_used[RENDERLIST_INVALID_DISPATCH] = {};
+        MakeSortBuffer(context, predicate ? predicate->m_TagCount : 0, predicate ? predicate->m_Tags : 0, effective_sort_order, dispatch_used);
 
         if (context->m_RenderListSortBuffer.Empty())
             return RESULT_OK;
@@ -1407,9 +1409,13 @@ namespace dmRender
         {
             DM_PROFILE("Dispatch_Begin");
 
-            // All get begin operation first
+            // Begin all dispatches with selected entries before processing any batches.
             for (uint32_t i=0;i!=context->m_RenderListDispatch.Size();i++)
             {
+                if (!dispatch_used[i])
+                {
+                    continue;
+                }
                 const RenderListDispatch& d = context->m_RenderListDispatch[i];
                 params.m_UserData = d.m_UserData;
                 d.m_DispatchFn(params);
@@ -1464,6 +1470,10 @@ namespace dmRender
 
             for (uint32_t i=0;i!=context->m_RenderListDispatch.Size();i++)
             {
+                if (!dispatch_used[i])
+                {
+                    continue;
+                }
                 const RenderListDispatch& d = context->m_RenderListDispatch[i];
                 params.m_UserData = d.m_UserData;
                 d.m_DispatchFn(params);

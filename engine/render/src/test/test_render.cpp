@@ -2473,6 +2473,169 @@ static void TestDrawVisibility(dmRender::RenderListVisibilityParams const &param
     }
 }
 
+struct TestDispatchOperationsCtx
+{
+    uint32_t                       m_Operations[3];
+    uint32_t                       m_EntriesRendered;
+    dmRender::RenderListOperation* m_LastOperation;
+};
+
+static void TestDispatchOperations(const dmRender::RenderListDispatchParams& params)
+{
+    TestDispatchOperationsCtx* ctx = (TestDispatchOperationsCtx*)params.m_UserData;
+    ASSERT_LE(*ctx->m_LastOperation, params.m_Operation);
+    *ctx->m_LastOperation = params.m_Operation;
+    ++ctx->m_Operations[params.m_Operation];
+
+    if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+    {
+        ASSERT_EQ(1u, ctx->m_Operations[dmRender::RENDER_LIST_OPERATION_BEGIN]);
+        ASSERT_NE((dmRender::RenderListEntry*)0, params.m_Buf);
+        ASSERT_LT(params.m_Begin, params.m_End);
+        ctx->m_EntriesRendered += params.m_End - params.m_Begin;
+    }
+    else
+    {
+        ASSERT_EQ((dmRender::RenderListEntry*)0, params.m_Buf);
+        ASSERT_EQ((uint32_t*)0, params.m_Begin);
+        ASSERT_EQ((uint32_t*)0, params.m_End);
+    }
+}
+
+// Verifies only dispatches with selected entries receive begin/end, including
+// predicate and frustum changes between draws for legacy and retained entries.
+// All begins must still precede interleaved batches, and all ends follow them.
+TEST_F(dmRenderTest, RenderListSkipsEmptyDispatches)
+{
+    dmGraphics::ShaderDescBuilder shader;
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+    dmhash_t tags[] = { dmHashString64("dispatch_a"), dmHashString64("dispatch_b"), dmHashString64("unmatched") };
+    dmRender::HMaterial materials[2];
+    dmRender::Predicate predicates[3] = {};
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(tags); ++i)
+    {
+        predicates[i].m_Tags[0] = tags[i];
+        predicates[i].m_TagCount = 1;
+        if (i < DM_ARRAY_SIZE(materials))
+        {
+            materials[i] = dmRender::NewMaterial(m_Context, program);
+            dmRender::SetMaterialTags(materials[i], 1, &tags[i]);
+        }
+    }
+
+    dmRender::FrustumOptions frustum;
+    frustum.m_Matrix = Matrix4::identity();
+    frustum.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    dmRender::FrustumOptions empty_frustum = frustum;
+    empty_frustum.m_Matrix = Matrix4::orthographic(200, 210, 200, 210, -1, 1);
+
+    struct DrawCase
+    {
+        dmRender::HPredicate            m_Predicate;
+        const dmRender::FrustumOptions* m_Frustum;
+        uint32_t                        m_Entries[4];
+        uint32_t                        m_Batches[4];
+    };
+    const DrawCase draws[] = {
+        { 0,              0,              { 2, 1, 1, 0 }, { 2, 1, 1, 0 } },
+        { &predicates[0], 0,              { 2, 0, 1, 0 }, { 1, 0, 1, 0 } },
+        { &predicates[1], 0,              { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+        { &predicates[0], &frustum,       { 2, 0, 0, 0 }, { 1, 0, 0, 0 } },
+        { 0,              &frustum,       { 2, 1, 0, 0 }, { 2, 1, 0, 0 } },
+        { 0,              0,              { 2, 1, 1, 0 }, { 2, 1, 1, 0 } },
+        { &predicates[2], 0,              { 0, 0, 0, 0 }, { 0, 0, 0, 0 } },
+        { 0,              &empty_frustum, { 0, 0, 0, 0 }, { 0, 0, 0, 0 } },
+    };
+
+    for (uint32_t retained = 0; retained < 2; ++retained)
+    {
+        TestDispatchOperationsCtx contexts[4];
+        dmRender::HRenderItemDispatch dispatches[4];
+        dmRender::HRenderItem items[4];
+        dmRender::RenderListBegin(m_Context);
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(dispatches); ++i)
+        {
+            if (retained)
+            {
+                dispatches[i] = dmRender::RegisterRenderListDispatch(m_Context, TestDispatchOperations, TestDrawVisibility, &contexts[i]);
+                dmRender::SubmitRenderListDispatch(m_Context, dispatches[i]);
+            }
+            else
+            {
+                dispatches[i] = dmRender::RenderListMakeDispatch(m_Context, TestDispatchOperations, TestDrawVisibility, &contexts[i]);
+            }
+        }
+
+        dmRender::RenderListEntry* entries = retained ? 0 : dmRender::RenderListAlloc(m_Context, DM_ARRAY_SIZE(items));
+        const uint32_t entry_dispatches[] = { 0, 1, 0, 2 };
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+        {
+            uint32_t dispatch = entry_dispatches[i];
+            dmRender::HMaterial material = materials[i == 1 ? 1 : 0];
+            Point3 position(i == 3 ? 100.0f : 0.0f, 0, 0);
+            if (retained)
+            {
+                items[i] = dmRender::NewRenderItem(m_Context, dispatches[dispatch], i);
+                ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[i], material));
+                ASSERT_TRUE(dmRender::SetOrder(m_Context, items[i], dmRender::RENDER_ORDER_BEFORE_WORLD, i));
+                ASSERT_TRUE(dmRender::SetBoundingSphere(m_Context, items[i], position, 0.1f));
+                ASSERT_TRUE(dmRender::Enable(m_Context, items[i], true));
+            }
+            else
+            {
+                entries[i].m_Dispatch = dispatches[dispatch];
+                entries[i].m_TagListKey = dmRender::GetMaterialTagListKey(material);
+                entries[i].m_MajorOrder = dmRender::RENDER_ORDER_BEFORE_WORLD;
+                entries[i].m_Order = i;
+                entries[i].m_WorldPosition = position;
+            }
+        }
+        if (!retained)
+        {
+            dmRender::RenderListSubmit(m_Context, entries, entries + DM_ARRAY_SIZE(items));
+        }
+        dmRender::RenderListEnd(m_Context);
+
+        for (uint32_t pass = 0; pass < DM_ARRAY_SIZE(draws); ++pass)
+        {
+            const DrawCase& draw = draws[pass];
+            dmRender::RenderListOperation last_operation = dmRender::RENDER_LIST_OPERATION_BEGIN;
+            memset(contexts, 0, sizeof(contexts));
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(contexts); ++i)
+            {
+                contexts[i].m_LastOperation = &last_operation;
+            }
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, draw.m_Predicate, 0, draw.m_Frustum, dmRender::SORT_BACK_TO_FRONT));
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(contexts); ++i)
+            {
+                uint32_t expected_calls = draw.m_Entries[i] ? 1 : 0;
+                ASSERT_EQ(expected_calls, contexts[i].m_Operations[dmRender::RENDER_LIST_OPERATION_BEGIN]);
+                ASSERT_EQ(draw.m_Batches[i], contexts[i].m_Operations[dmRender::RENDER_LIST_OPERATION_BATCH]);
+                ASSERT_EQ(expected_calls, contexts[i].m_Operations[dmRender::RENDER_LIST_OPERATION_END]);
+                ASSERT_EQ(draw.m_Entries[i], contexts[i].m_EntriesRendered);
+            }
+        }
+        if (retained)
+        {
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+            {
+                ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
+            }
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(dispatches); ++i)
+            {
+                dmRender::UnregisterRenderListDispatch(m_Context, dispatches[i]);
+            }
+        }
+    }
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+    {
+        dmRender::DeleteMaterial(m_Context, materials[i]);
+    }
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
 TEST_F(dmRenderTest, TestRenderListCulling)
 {
     dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
