@@ -14,13 +14,13 @@
 
 package com.dynamo.bob.test.util;
 
+import com.dynamo.bob.fs.AbstractResource;
+import com.dynamo.bob.util.MiscUtil;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-
-import com.dynamo.bob.fs.AbstractResource;
-import com.dynamo.bob.util.MiscUtil;
 
 public class MockResource extends AbstractResource<MockFileSystem> {
 

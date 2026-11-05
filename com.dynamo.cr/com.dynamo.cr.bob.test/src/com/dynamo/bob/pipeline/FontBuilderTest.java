@@ -14,12 +14,22 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Progress;
+import com.dynamo.bob.Task;
+import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.font.FontRenderer;
+import com.dynamo.bob.font.Fontc;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
+import com.dynamo.render.proto.Font.FontDesc;
+import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.render.proto.Font.FontRenderMode;
+import com.dynamo.render.proto.Font.FontTextureFormat;
+import com.dynamo.render.proto.Font.VectorFontMode;
+import com.google.protobuf.Message;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -29,24 +39,11 @@ import java.nio.ByteOrder;
 import java.util.Collections;
 import java.util.List;
 
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Progress;
-import com.dynamo.bob.Task;
-import com.dynamo.bob.TaskResult;
-import com.dynamo.bob.font.BMFont.BMFontFormatException;
-import com.dynamo.bob.font.Fontc;
-import com.dynamo.bob.font.FontRenderer;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.fs.ResourceUtil;
-import com.dynamo.bob.util.MurmurHash;
-import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
-import com.dynamo.render.proto.Font.FontDesc;
-import com.dynamo.render.proto.Font.FontRenderMode;
-import com.dynamo.render.proto.Font.FontMap;
-import com.dynamo.render.proto.Font.FontTextureFormat;
-import com.dynamo.render.proto.Font.VectorFontMode;
-
-import com.google.protobuf.Message;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class FontBuilderTest extends AbstractProtoBuilderTest {
 

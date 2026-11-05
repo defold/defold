@@ -14,6 +14,16 @@
 
 package com.dynamo.bob.util;
 
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.proto.DdfMath.Matrix4;
+import com.dynamo.proto.DdfMath.Point3;
+import com.dynamo.proto.DdfMath.Quat;
+import com.dynamo.proto.DdfMath.Transform;
+import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.proto.DdfMath.Vector3One;
+import com.dynamo.proto.DdfMath.Vector4;
+import com.dynamo.proto.DdfMath.Vector4One;
+
 import javax.vecmath.Matrix3d;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Matrix4f;
@@ -23,16 +33,6 @@ import javax.vecmath.Quat4f;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector3f;
 import javax.vecmath.Vector4d;
-
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.proto.DdfMath.Point3;
-import com.dynamo.proto.DdfMath.Quat;
-import com.dynamo.proto.DdfMath.Vector3;
-import com.dynamo.proto.DdfMath.Vector3One;
-import com.dynamo.proto.DdfMath.Vector4;
-import com.dynamo.proto.DdfMath.Vector4One;
-import com.dynamo.proto.DdfMath.Matrix4;
-import com.dynamo.proto.DdfMath.Transform;
 
 public class MathUtil {
     public static Point3d ddfToVecmath(Point3 p) {

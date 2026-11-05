@@ -14,14 +14,13 @@
 
 package com.dynamo.bob.pipeline;
 
-import org.junit.Test;
-
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.test.util.PropertiesTestUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
+import org.junit.Test;
 
 public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
 
