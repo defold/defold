@@ -87,6 +87,21 @@ for both fontviewer and the production renderer. Tests pin the supported glyph
 set in the emoji fixture, cover all static transforms and clipping, and compare
 all 1,464 CFF2 paths against a saved HarfBuzz reference checksum.
 
+## Text curves
+
+`FontTextCurveCreate` copies and samples a cubic Bezier chain at 64 uniform
+parameter steps per segment. Distance and frame lookups interpolate those samples;
+they have no fixed geometric error guarantee. `FontTextCurve.SamplingAccuracy`
+compares a tight bend and a long segment against an 8192-step reference.
+
+Each `label.set_curve` or `gui.set_curve` call parses the knots and allocates a new
+baked curve and distance index. Set the curve again when its control points change.
+Animating the component/node transform reuses the existing curve. The
+`benchmark_text_layout` executable reports `curve_update` for changing and rebuilding
+4- and 32-knot paths, separately from cached `vertices_curve` generation.
+These update timings include native baking, allocation and release; Lua argument
+parsing and text vertex generation are excluded.
+
 ## Font image matrix
 
 Start `./scripts/build.py shell` at the repository root, then run from `engine/font`:

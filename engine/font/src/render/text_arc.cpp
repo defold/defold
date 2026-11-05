@@ -19,6 +19,8 @@
 #include <string.h>
 #include <dlib/math.h>
 
+using namespace dmVMath;
+
 float FontGetTextClusterPivot(const TextGlyph* glyphs, const TextLine* line, uint32_t index, float line_x, float first_x, uint32_t* end)
 {
     uint32_t start = index;
@@ -61,10 +63,10 @@ bool FontPrepareTextArc(HTextLayout layout, float width, float height, uint32_t 
         {
             line_align = 2 - align;
         }
-        const float factor = line_align * 0.5f;
-        const float x = factor * (width - lines[i].m_Width) - padding * 0.5f;
-        min_x = dmMath::Min(min_x, x);
-        max_x = dmMath::Max(max_x, x + lines[i].m_Width);
+        const float align_factor = line_align * 0.5f;
+        const float line_x = align_factor * (width - lines[i].m_Width) - padding * 0.5f;
+        min_x = dmMath::Min(min_x, line_x);
+        max_x = dmMath::Max(max_x, line_x + lines[i].m_Width);
     }
     if (max_x <= min_x)
     {
@@ -75,36 +77,45 @@ bool FontPrepareTextArc(HTextLayout layout, float width, float height, uint32_t 
     float layout_height;
     TextLayoutGetBounds(layout, &layout_width, &layout_height);
     (void)layout_width;
-    const float y = valign == 1 ? (height - layout_height) * 0.5f : valign == 2 ? 0.0f :
-                    height - layout_height;
+    float layout_y = height - layout_height;
+    if (valign == 1)
+    {
+        layout_y = (height - layout_height) * 0.5f;
+    }
+    else if (valign == 2)
+    {
+        layout_y = 0.0f;
+    }
+
     arc->m_Radius = radius;
     arc->m_MinX = min_x;
     arc->m_Width = max_x - min_x;
-    arc->m_FirstBaseline = y + lines[0].m_Baseline;
+    arc->m_FirstBaseline = layout_y + lines[0].m_Baseline;
     arc->m_Span = dmMath::DegToRad(degrees);
     return true;
 }
 
+static Matrix4 GetTextArcFrame(float angle, float radius)
+{
+    Matrix4 frame = Matrix4::rotationZ(-angle);
+    frame.setTranslation(frame.getCol1().getXYZ() * radius);
+    return frame;
+}
+
 void FontGetTextArcFrame(float angle, float radius, float transform[16])
 {
-    const float cosine = cosf(angle);
-    const float sine = sinf(angle);
-    const float matrix[4][4] = {
-        { cosine, -sine, 0.0f, 0.0f },
-        { sine, cosine, 0.0f, 0.0f },
-        { 0.0f, 0.0f, 1.0f, 0.0f },
-        { sine* radius, cosine* radius, 0.0f, 1.0f }
-    };
-    memcpy(transform, matrix, sizeof(matrix));
+    const Matrix4 frame = GetTextArcFrame(angle, radius);
+    memcpy(transform, &frame, sizeof(frame));
 }
 
 void FontGetTextArcTransform(const FontTextArc* arc, float x, float baseline, float transform[16])
 {
     const float angle = ((x - arc->m_MinX) / arc->m_Width - 0.5f) * arc->m_Span;
     const float radius = arc->m_Radius + (baseline - arc->m_FirstBaseline);
-    FontGetTextArcFrame(angle, radius, transform);
-    // Include the inverse pivot directly instead of multiplying three matrices.
-    transform[12] = transform[12] - transform[0] * x - transform[4] * baseline;
-    transform[13] = transform[13] - transform[1] * x - transform[5] * baseline;
-    transform[14] = transform[14] - transform[2] * x - transform[6] * baseline;
+    Matrix4 frame = GetTextArcFrame(angle, radius);
+    // Apply the inverse cluster pivot in this local frame.
+    frame.setTranslation(frame.getTranslation()
+                         - frame.getCol0().getXYZ() * x
+                         - frame.getCol1().getXYZ() * baseline);
+    memcpy(transform, &frame, sizeof(frame));
 }

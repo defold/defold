@@ -415,6 +415,7 @@ static int GetText(lua_State* L)
  * be vector3 values or {x, y, z} tables. Handles default to zero offsets.
  * A curve overrides arc and size. Line Break wraps at the curve's length.
  * Open endpoints extrapolate their tangents. Passing nil restores arc/textbox mapping.
+ * Each call copies and bakes the knots; call again when the path changes.
  * @name label.set_curve
  * @param url [type:string|hash|url] label component
  * @param knots [type:{ position:vector3|number[], in_handle?:vector3|number[], out_handle?:vector3|number[], up?:vector3|number[], roll_degrees?:number, scale?:number }[]|nil] ordered array of at least two knots, or nil to clear

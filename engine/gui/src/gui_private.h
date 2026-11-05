@@ -316,7 +316,7 @@ namespace dmGui
         UpdateCustomNodeCallback              m_UpdateCustomNodeCallback;
         void*                                 m_CreateCustomNodeCallbackContext;
         PrepareNodeTextLayoutCallback         m_PrepareNodeTextLayoutCallback;
-        PickNodeTextCallback                  m_PickNodeTextCallback;
+        FPickNodeTextCallback                 m_PickNodeTextCallback;
         GetResourceCallback                   m_GetResourceCallback;
         void*                                 m_GetResourceCallbackContext;
         FetchTextureSetAnimCallback           m_FetchTextureSetAnimCallback;

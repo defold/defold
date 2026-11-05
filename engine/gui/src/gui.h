@@ -155,9 +155,16 @@ namespace dmGui
      */
     typedef void (*PrepareNodeTextLayoutCallback)(dmGui::HScene scene, dmGui::HNode node);
 
-    // Tests curved text in project-space input coordinates. Font resources are
-    // owned by the component layer that supplies this optional callback.
-    typedef bool (*PickNodeTextCallback)(dmGui::HScene scene, dmGui::HNode node, float x, float y);
+    /**
+     * Test curved text in project-space input coordinates. The component layer
+     * that supplies this optional callback owns the font resources.
+     * @param scene GUI scene
+     * @param node Text node
+     * @param x Input x coordinate
+     * @param y Input y coordinate
+     * @return True when the text is hit
+     */
+    typedef bool (*FPickNodeTextCallback)(dmGui::HScene scene, dmGui::HNode node, float x, float y);
 
     /**
      * Callback to get custom resource data
@@ -231,7 +238,7 @@ namespace dmGui
         UpdateCustomNodeCallback       m_UpdateCustomNodeCallback;
         void*                          m_CreateCustomNodeCallbackContext;
         PrepareNodeTextLayoutCallback  m_PrepareNodeTextLayoutCallback;
-        PickNodeTextCallback           m_PickNodeTextCallback;
+        FPickNodeTextCallback          m_PickNodeTextCallback;
         GetResourceCallback            m_GetResourceCallback;
         void*                          m_GetResourceCallbackContext;
         GetMaterialPropertyCallback    m_GetMaterialPropertyCallback;

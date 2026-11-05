@@ -2254,6 +2254,79 @@ TEST(FontTextCurve, FramesAndEndpoints)
     ASSERT_EQ((HFontTextCurve)0, FontTextCurveCreate(knots, 2, false, up));
 }
 
+static dmVMath::Vector3 ReferenceBezierPoint(const dmVMath::Vector3 control[4], double t)
+{
+    double points[4][3];
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        for (uint32_t axis = 0; axis < 3; ++axis)
+        {
+            points[i][axis] = control[i].getElem(axis);
+        }
+    }
+    // De Casteljau evaluation is independent of the baker's cubic polynomial.
+    for (uint32_t remaining = 3; remaining > 0; --remaining)
+    {
+        for (uint32_t i = 0; i < remaining; ++i)
+        {
+            for (uint32_t axis = 0; axis < 3; ++axis)
+            {
+                points[i][axis] = points[i][axis] * (1.0 - t) + points[i + 1][axis] * t;
+            }
+        }
+    }
+    return dmVMath::Vector3((float)points[0][0], (float)points[0][1], (float)points[0][2]);
+}
+
+// Compare tight bends and long segments with a dense reference to guard sampling accuracy during refactors.
+TEST(FontTextCurve, SamplingAccuracy)
+{
+    using namespace dmVMath;
+    const Vector3 controls[][4] = {
+        { Vector3(0, 0, 0), Vector3(0, 240, 0), Vector3(20, -240, 30), Vector3(20, 0, 30) },
+        { Vector3(0, 0, 0), Vector3(25000, 10000, 2000), Vector3(75000, -10000, -2000), Vector3(100000, 0, 0) }
+    };
+    const uint32_t reference_steps = 8192;
+    dmArray<Vector3> points;
+    dmArray<double> distances;
+    points.SetCapacity(reference_steps + 1);
+    points.SetSize(reference_steps + 1);
+    distances.SetCapacity(reference_steps + 1);
+    distances.SetSize(reference_steps + 1);
+    for (uint32_t c = 0; c < DM_ARRAY_SIZE(controls); ++c)
+    {
+        for (uint32_t i = 0; i <= reference_steps; ++i)
+        {
+            points[i] = ReferenceBezierPoint(controls[c], (double)i / reference_steps);
+            distances[i] = i ? distances[i - 1] + Length(points[i] - points[i - 1]) : 0.0;
+        }
+        FontTextCurveKnot knots[2] = {};
+        knots[0].m_Position = controls[c][0];
+        knots[0].m_OutHandle = controls[c][1] - controls[c][0];
+        knots[1].m_Position = controls[c][3];
+        knots[1].m_InHandle = controls[c][2] - controls[c][3];
+        knots[0].m_Scale = knots[1].m_Scale = 1.0f;
+        HFontTextCurve curve = FontTextCurveCreate(knots, 2, false, Vector3(0, 1, 0));
+        ASSERT_NE((HFontTextCurve)0, curve);
+        const float tolerance = (float)distances.Back() * 0.001f;
+        ASSERT_NEAR(distances.Back(), FontTextCurveGetLength(curve), tolerance);
+        uint32_t reference = 1;
+        for (uint32_t sample = 0; sample <= 32; ++sample)
+        {
+            const float distance = (float)(distances.Back() * sample / 32);
+            while (reference < reference_steps && distances[reference] < distance)
+            {
+                ++reference;
+            }
+            const float t = (float)((distance - distances[reference - 1]) / (distances[reference] - distances[reference - 1]));
+            const Vector3 expected = points[reference - 1] + (points[reference] - points[reference - 1]) * t;
+            const Vector4 actual = FontTextCurveGetTransform(curve, distance, 0) * Point3(distance, 0, 0);
+            ASSERT_LT(Length(actual.getXYZ() - expected), tolerance);
+        }
+        FontTextCurveRelease(curve);
+    }
+}
+
 // Distance buckets preserve straight-path positions and unit frames across
 // zero-length and very uneven segments, including repeated endpoint samples.
 TEST(FontTextCurve, UnevenSegments)

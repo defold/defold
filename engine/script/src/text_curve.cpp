@@ -85,7 +85,7 @@ namespace dmScript
         }
         luaL_checktype(L, knots_index, LUA_TTABLE);
         const size_t count = lua_objlen(L, knots_index);
-        if (count < 2 || count > UINT32_MAX / 64 - 1)
+        if (count < 2 || count > FONT_TEXT_CURVE_MAX_KNOT_COUNT)
         {
             luaL_error(L, "A text curve requires at least two knots");
         }

@@ -2308,11 +2308,64 @@ static Vector3 GetArcGuidePoint(float angle, float radius)
     return frame.getTranslation();
 }
 
+static void WriteArcGuideOutline(float** output_vertices, float start, float span, const float* box, uint32_t segments, bool end_edges, float* bounds)
+{
+    float* vertices = *output_vertices;
+    if (end_edges)
+    {
+        for (uint32_t end = 0; end < 2; ++end)
+        {
+            for (uint32_t edge = 0; edge < 2; ++edge)
+            {
+                WriteArcGuideVertex(&vertices, GetArcGuidePoint(start + span * end, box[edge]), bounds);
+            }
+        }
+    }
+    Vector3 inner = GetArcGuidePoint(start, box[0]);
+    Vector3 outer = GetArcGuidePoint(start, box[1]);
+    for (uint32_t i = 1; i <= segments; ++i)
+    {
+        const float   angle = start + span * ((float)i / segments);
+        const Vector3 next_inner = GetArcGuidePoint(angle, box[0]);
+        const Vector3 next_outer = GetArcGuidePoint(angle, box[1]);
+        WriteArcGuideVertex(&vertices, inner, bounds);
+        WriteArcGuideVertex(&vertices, next_inner, bounds);
+        WriteArcGuideVertex(&vertices, outer, bounds);
+        WriteArcGuideVertex(&vertices, next_outer, bounds);
+        inner = next_inner;
+        outer = next_outer;
+    }
+    *output_vertices = vertices;
+}
+
+static void WriteArcGuideBaselines(float** output_vertices, const FontTextArc& arc, HTextLayout layout, uint32_t segments, float* bounds)
+{
+    float*          vertices = *output_vertices;
+    const TextLine* lines = TextLayoutGetLines(layout);
+    const uint32_t  line_count = TextLayoutGetLineCount(layout);
+    for (uint32_t line = 0; line < line_count; ++line)
+    {
+        const float radius = arc.m_Radius + (lines[line].m_Baseline - lines[0].m_Baseline);
+        Vector3     previous = GetArcGuidePoint(-0.5f * arc.m_Span, radius);
+        for (uint32_t i = 1; i <= segments; ++i)
+        {
+            const float   angle = -0.5f * arc.m_Span + arc.m_Span * ((float)i / segments);
+            const Vector3 point = GetArcGuidePoint(angle, radius);
+            WriteArcGuideVertex(&vertices, previous, bounds);
+            WriteArcGuideVertex(&vertices, point, bounds);
+            previous = point;
+        }
+    }
+    *output_vertices = vertices;
+}
+
 static bool CreateArcGuide(const FontTextArc& arc, HTextLayout layout, const float* box, FontcArc* output)
 {
     const float    start = box[2];
     const float    span = box[3] - start;
-    const uint32_t segments = dmMath::Max(2u, (uint32_t)(2.0f * ceilf(span / dmMath::DegToRad(4.0f))));
+    // Keep an even segment count; each pair spans at most four degrees.
+    const float    segment_pair_span = dmMath::DegToRad(4.0f);
+    const uint32_t segments = dmMath::Max(2u, (uint32_t)(2.0f * ceilf(span / segment_pair_span)));
     const bool     end_edges = span < dmMath::DegToRad(360.0f) - 0.00001f;
     const uint32_t outline_count = segments * 4 + (end_edges ? 4 : 0);
     const uint32_t line_count = TextLayoutGetLineCount(layout);
@@ -2334,44 +2387,8 @@ static bool CreateArcGuide(const FontTextArc& arc, HTextLayout layout, const flo
     output->m_Vertices = vertices;
     output->m_VertexCount = vertex_count;
     output->m_OutlineVertexCount = outline_count;
-    if (end_edges)
-    {
-        for (uint32_t end = 0; end < 2; ++end)
-        {
-            for (uint32_t edge = 0; edge < 2; ++edge)
-            {
-                WriteArcGuideVertex(&vertices, GetArcGuidePoint(start + span * end, box[edge]), output->m_Bounds);
-            }
-        }
-    }
-    Vector3 inner = GetArcGuidePoint(start, box[0]);
-    Vector3 outer = GetArcGuidePoint(start, box[1]);
-    for (uint32_t i = 1; i <= segments; ++i)
-    {
-        const float   angle = start + span * ((float)i / segments);
-        const Vector3 next_inner = GetArcGuidePoint(angle, box[0]);
-        const Vector3 next_outer = GetArcGuidePoint(angle, box[1]);
-        WriteArcGuideVertex(&vertices, inner, output->m_Bounds);
-        WriteArcGuideVertex(&vertices, next_inner, output->m_Bounds);
-        WriteArcGuideVertex(&vertices, outer, output->m_Bounds);
-        WriteArcGuideVertex(&vertices, next_outer, output->m_Bounds);
-        inner = next_inner;
-        outer = next_outer;
-    }
-    const TextLine* lines = TextLayoutGetLines(layout);
-    for (uint32_t line = 0; line < line_count; ++line)
-    {
-        const float radius = arc.m_Radius + (lines[line].m_Baseline - lines[0].m_Baseline);
-        Vector3     previous = GetArcGuidePoint(-0.5f * arc.m_Span, radius);
-        for (uint32_t i = 1; i <= segments; ++i)
-        {
-            const float   angle = -0.5f * arc.m_Span + arc.m_Span * ((float)i / segments);
-            const Vector3 point = GetArcGuidePoint(angle, radius);
-            WriteArcGuideVertex(&vertices, previous, output->m_Bounds);
-            WriteArcGuideVertex(&vertices, point, output->m_Bounds);
-            previous = point;
-        }
-    }
+    WriteArcGuideOutline(&vertices, start, span, box, segments, end_edges, output->m_Bounds);
+    WriteArcGuideBaselines(&vertices, arc, layout, segments, output->m_Bounds);
     // The center marker is rendered on selection, but must not widen framing.
     const float marker[] = { -5.0f, -5.0f, 0.0f, 5.0f, 5.0f, 0.0f, -5.0f, 5.0f, 0.0f, 5.0f, -5.0f, 0.0f };
     memcpy(vertices, marker, sizeof(marker));

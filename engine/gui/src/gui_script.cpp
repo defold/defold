@@ -3527,6 +3527,7 @@ namespace dmGui
      * scale. Vectors accept vector3 or {x, y, z} tables. Handles default to zero.
      * A curve overrides arc and size; Line Break wraps at its length.
      * Open endpoints extrapolate their tangents. Pass nil to clear the curve.
+     * Each call copies and bakes the knots; call again when the path changes.
      * @name gui.set_curve
      * @param node [type:node] text node
      * @param knots [type:{ position:vector3|number[], in_handle?:vector3|number[], out_handle?:vector3|number[], up?:vector3|number[], roll_degrees?:number, scale?:number }[]|nil] ordered array of at least two knots, or nil to clear

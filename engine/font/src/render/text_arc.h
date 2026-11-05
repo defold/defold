@@ -27,30 +27,59 @@ extern "C"
 {
 #endif
 
-// Prepared circular mapping shared by font vertices, culling and label picking.
-// The layout is borrowed only while preparing the mapping; no pointers are kept.
+/** Prepared circular mapping. Contains values only; no layout pointers are kept. */
 typedef struct FontTextArc
 {
     float m_Radius;
     float m_MinX;
     float m_Width;
     float m_FirstBaseline;
-    float m_Span;
+    float m_Span; // Radians.
 } FontTextArc;
 
-// Horizontal center of the cluster's layout bounds at the baseline. Marks
-// share the same rigid frame. The optional end receives the next cluster index.
+/**
+ * Return the aligned horizontal center of a glyph cluster's layout bounds.
+ * Combining marks share the cluster's pivot and rigid transform.
+ * @param glyphs Layout glyph array, borrowed for this call
+ * @param line Line containing the glyph
+ * @param index Index into glyphs
+ * @param line_x Aligned line start in local units
+ * @param first_x Shaped line origin to subtract from glyph coordinates
+ * @param end Optional output index immediately after the cluster
+ * @return Cluster pivot x coordinate in local units
+ */
 float FontGetTextClusterPivot(const struct TextGlyph* glyphs, const struct TextLine* line, uint32_t index, float line_x, float first_x, uint32_t* end);
 
-// Prepare the aligned layout's circular baseline, or return false for straight or empty text.
+/**
+ * Prepare an origin-centered arc from the aligned text block.
+ * @param layout Borrowed text layout
+ * @param width Layout box width in local units
+ * @param height Layout box height in local units
+ * @param align Horizontal alignment: 0 left, 1 center, 2 right
+ * @param valign Vertical alignment: 0 top, 1 center, 2 bottom
+ * @param padding Monospace padding in local units
+ * @param radius Signed first-baseline radius in local units
+ * @param degrees Arc span in degrees; zero disables the arc
+ * @param arc Output mapping, valid when true is returned
+ * @return True for nonempty curved text, false otherwise
+ */
 bool FontPrepareTextArc(struct TextLayout* layout, float width, float height, uint32_t align, uint32_t valign, float padding, float radius, float degrees, FontTextArc* arc);
 
-// Shared origin-centered arc evaluation for glyph transforms and guide vertices.
-// Writes 16 column-major floats to transform. Angle is in radians.
+/**
+ * Evaluate the shared circular frame used by glyphs and editor guides.
+ * @param angle Angle in radians from the positive y axis
+ * @param radius Signed baseline radius in local units
+ * @param transform Output 16 column-major floats; no alignment requirement
+ */
 void FontGetTextArcFrame(float angle, float radius, float transform[16]);
 
-// One rigid transform per glyph cluster keeps marks and shadow/outline layers attached.
-// Writes 16 column-major floats to transform.
+/**
+ * Map a glyph cluster's baseline pivot onto the prepared arc.
+ * @param arc Prepared mapping, borrowed for this call
+ * @param x Aligned cluster pivot x coordinate
+ * @param baseline Layout baseline y coordinate
+ * @param transform Output 16 column-major floats; no alignment requirement
+ */
 void FontGetTextArcTransform(const FontTextArc* arc, float x, float baseline, float transform[16]);
 
 #ifdef __cplusplus

@@ -32,11 +32,11 @@ struct CurveSample
 
 struct FontTextCurve
 {
+    Vector3              m_Minimum;
+    Vector3              m_Maximum;
     dmArray<CurveSample> m_Samples;
     dmArray<uint32_t>    m_DistanceIndex;
     double               m_DistanceToIndex;
-    Vector3              m_Minimum;
-    Vector3              m_Maximum;
     float                m_MaxScale;
     uint32_t             m_References;
     bool                 m_Closed;
@@ -47,62 +47,55 @@ static bool IsFinite(const Vector3& v)
     return isfinite(v.getX()) && isfinite(v.getY()) && isfinite(v.getZ());
 }
 
-static Vector3 Unit(const Vector3& v, const Vector3& fallback)
+static Vector3 NormalizeDirection(const Vector3& direction, const Vector3& fallback)
 {
-    const float length = LengthSqr(v);
-    return length > 1.0e-12f ? v / sqrtf(length) : fallback;
+    const float length_sq = LengthSqr(direction);
+    if (length_sq > 1.0e-12f)
+    {
+        return direction / sqrtf(length_sq);
+    }
+    return fallback;
 }
 
 static Vector3 PerpendicularUp(const Vector3& up, const Vector3& tangent)
 {
     const Vector3 fallback = fabsf(tangent.getY()) < 0.9f ? Vector3(0, 1, 0) : Vector3(0, 0, 1);
-    return Unit(up - tangent * Dot(up, tangent), Unit(fallback - tangent * Dot(fallback, tangent), Vector3(1, 0, 0)));
+    const Vector3 projected_up = up - tangent * Dot(up, tangent);
+    const Vector3 projected_fallback = fallback - tangent * Dot(fallback, tangent);
+    const Vector3 fallback_up = NormalizeDirection(projected_fallback, Vector3(1, 0, 0));
+    return NormalizeDirection(projected_up, fallback_up);
 }
 
-static Vector3 Rotate(const Vector3& vector, const Vector3& axis, float angle)
+// Rodrigues' rotation formula for a unit axis.
+static Vector3 RotateAroundAxis(const Vector3& vector, const Vector3& axis, float angle)
 {
-    return vector * cosf(angle) + Cross(axis, vector) * sinf(angle) + axis * Dot(axis, vector) * (1.0f - cosf(angle));
+    const float cosine = cosf(angle);
+    const float sine = sinf(angle);
+    return vector * cosine + Cross(axis, vector) * sine + axis * Dot(axis, vector) * (1.0f - cosine);
 }
 
-static Vector3 Transport(const Vector3& up, const Vector3& from, const Vector3& to)
+static Vector3 TransportUp(const Vector3& up, const Vector3& from, const Vector3& to)
 {
     const Vector3 axis = Cross(from, to);
     const float   sine = sqrtf(LengthSqr(axis));
     const float   cosine = dmMath::Clamp(Dot(from, to), -1.0f, 1.0f);
-    return PerpendicularUp(sine > 1.0e-6f ? Rotate(up, axis / sine, atan2f(sine, cosine)) : up, to);
+
+    Vector3 transported_up = up;
+    if (sine > 1.0e-6f)
+    {
+        transported_up = RotateAroundAxis(up, axis / sine, atan2f(sine, cosine));
+    }
+    return PerpendicularUp(transported_up, to);
 }
 
-HFontTextCurve FontTextCurveCreate(const FontTextCurveKnot* knots, uint32_t count, bool closed, const Vector3& initial_up)
+// Sample positions and tangents at uniform parameter intervals on each segment.
+static void SampleCurveSegments(FontTextCurve* curve, const FontTextCurveKnot* knots, uint32_t count)
 {
-    if (!knots || count < 2 || count > UINT32_MAX / 64 - 1 || !IsFinite(initial_up))
-    {
-        return 0;
-    }
-    const float up_component = Vectormath::Aos::maxElem(AbsPerElem(initial_up));
-    if (up_component == 0.0f)
-    {
-        return 0;
-    }
-    const Vector3 up = initial_up / up_component;
-    for (uint32_t i = 0; i < count; ++i)
-    {
-        if (!IsFinite(knots[i].m_Position) || !IsFinite(knots[i].m_InHandle) || !IsFinite(knots[i].m_OutHandle) ||
-            !isfinite(knots[i].m_RollDegrees) || !isfinite(knots[i].m_Scale) || knots[i].m_Scale <= 0.0f)
-        {
-            return 0;
-        }
-    }
-
-    const uint32_t steps = 64;
-    const uint32_t segments = closed ? count : count - 1;
-    FontTextCurve* curve = new FontTextCurve;
-    curve->m_References = 1;
-    curve->m_Closed = closed;
-    curve->m_MaxScale = 1.0f;
-    curve->m_Minimum = Vector3(FLT_MAX);
-    curve->m_Maximum = Vector3(-FLT_MAX);
+    const uint32_t steps = FONT_TEXT_CURVE_SEGMENT_STEPS;
+    const uint32_t segments = curve->m_Closed ? count : count - 1;
     curve->m_Samples.SetCapacity(segments * steps + 1);
     curve->m_Samples.SetSize(segments * steps + 1);
+
     for (uint32_t segment = 0; segment < segments; ++segment)
     {
         const FontTextCurveKnot& a = knots[segment];
@@ -125,52 +118,86 @@ HFontTextCurve FontTextCurveCreate(const FontTextCurveKnot* knots, uint32_t coun
             }
         }
     }
-    for (uint32_t i = 0; i < curve->m_Samples.Size(); ++i)
+}
+
+// Accumulate chord distances and transport up along the sampled tangents.
+static void BuildCurveFrames(FontTextCurve* curve, const Vector3& initial_up)
+{
+    const uint32_t sample_count = curve->m_Samples.Size();
+    for (uint32_t i = 0; i < sample_count; ++i)
     {
-        CurveSample&  sample = curve->m_Samples[i];
-        const Vector3 chord = curve->m_Samples[dmMath::Min(i + 1, curve->m_Samples.Size() - 1)].m_Position - curve->m_Samples[i ? i - 1 : 0].m_Position;
-        sample.m_Tangent = Unit(sample.m_Tangent, Unit(chord, i ? curve->m_Samples[i - 1].m_Tangent : Vector3(1, 0, 0)));
-        sample.m_Distance = i ? curve->m_Samples[i - 1].m_Distance + Length(sample.m_Position - curve->m_Samples[i - 1].m_Position) : 0.0f;
-        sample.m_Up = i ? Transport(curve->m_Samples[i - 1].m_Up, curve->m_Samples[i - 1].m_Tangent, sample.m_Tangent) : PerpendicularUp(up, sample.m_Tangent);
-    }
-    if (!isfinite(curve->m_Samples.Back().m_Distance) || curve->m_Samples.Back().m_Distance < 1.0e-6f)
-    {
-        delete curve;
-        return 0;
-    }
-    if (closed)
-    {
-        const CurveSample& first = curve->m_Samples[0];
-        const CurveSample& last = curve->m_Samples.Back();
-        const Vector3      up = Transport(last.m_Up, last.m_Tangent, first.m_Tangent);
-        const float        correction = atan2f(Dot(Cross(up, first.m_Up), first.m_Tangent), Dot(up, first.m_Up));
-        const float        length = last.m_Distance;
-        for (uint32_t i = 1; i < curve->m_Samples.Size(); ++i)
+        const uint32_t     previous_index = i == 0 ? 0 : i - 1;
+        const uint32_t     next_index = dmMath::Min(i + 1, sample_count - 1);
+        const CurveSample& previous = curve->m_Samples[previous_index];
+        CurveSample&       sample = curve->m_Samples[i];
+
+        const Vector3 chord = curve->m_Samples[next_index].m_Position - previous.m_Position;
+        const Vector3 fallback = i == 0 ? Vector3(1, 0, 0) : previous.m_Tangent;
+        const Vector3 tangent = NormalizeDirection(chord, fallback);
+        sample.m_Tangent = NormalizeDirection(sample.m_Tangent, tangent);
+
+        if (i == 0)
         {
-            curve->m_Samples[i].m_Up = Rotate(curve->m_Samples[i].m_Up, curve->m_Samples[i].m_Tangent, correction * curve->m_Samples[i].m_Distance / length);
+            sample.m_Distance = 0.0f;
+            sample.m_Up = PerpendicularUp(initial_up, sample.m_Tangent);
+        }
+        else
+        {
+            sample.m_Distance = previous.m_Distance + Length(sample.m_Position - previous.m_Position);
+            sample.m_Up = TransportUp(previous.m_Up, previous.m_Tangent, sample.m_Tangent);
         }
     }
+}
+
+// Spread the closing-frame correction over the loop to avoid a twist at its seam.
+static void CloseCurveFrame(FontTextCurve* curve)
+{
+    const CurveSample& first = curve->m_Samples[0];
+    const CurveSample& last = curve->m_Samples.Back();
+    const Vector3      up = TransportUp(last.m_Up, last.m_Tangent, first.m_Tangent);
+    const float        correction = atan2f(Dot(Cross(up, first.m_Up), first.m_Tangent), Dot(up, first.m_Up));
+    const float        length = last.m_Distance;
+
+    for (uint32_t i = 1; i < curve->m_Samples.Size(); ++i)
+    {
+        CurveSample& sample = curve->m_Samples[i];
+        const float  angle = correction * sample.m_Distance / length;
+        sample.m_Up = RotateAroundAxis(sample.m_Up, sample.m_Tangent, angle);
+    }
+}
+
+static void InterpolateKnotProperties(FontTextCurve* curve, const FontTextCurveKnot* knots, uint32_t count)
+{
+    const uint32_t steps = FONT_TEXT_CURVE_SEGMENT_STEPS;
+    const uint32_t segments = curve->m_Closed ? count : count - 1;
+    // Roll and scale progress with distance within each segment.
     for (uint32_t segment = 0; segment < segments; ++segment)
     {
         const FontTextCurveKnot& a = knots[segment];
         const FontTextCurveKnot& b = knots[(segment + 1) % count];
         const CurveSample&       first = curve->m_Samples[segment * steps];
         const CurveSample&       last = curve->m_Samples[(segment + 1) * steps];
+        const float              segment_length = last.m_Distance - first.m_Distance;
         curve->m_MaxScale = dmMath::Max(curve->m_MaxScale, dmMath::Max(a.m_Scale, b.m_Scale));
+
         for (uint32_t j = 0; j <= steps; ++j)
         {
             CurveSample& sample = curve->m_Samples[segment * steps + j];
-            const float  distance = last.m_Distance - first.m_Distance;
-            const float  t = distance > 0 ? (sample.m_Distance - first.m_Distance) / distance : (float)j / steps;
+            const float  t = segment_length > 0 ? (sample.m_Distance - first.m_Distance) / segment_length : (float)j / steps;
             sample.m_Roll = dmMath::DegToRad(a.m_RollDegrees + (b.m_RollDegrees - a.m_RollDegrees) * t);
             sample.m_Scale = a.m_Scale + (b.m_Scale - a.m_Scale) * t;
         }
     }
+}
+
+static void BuildDistanceIndex(FontTextCurve* curve)
+{
     // Uniform distance buckets bracket the original samples without resampling.
     const uint32_t sample_count = curve->m_Samples.Size();
     curve->m_DistanceToIndex = (sample_count - 1) / (double)curve->m_Samples.Back().m_Distance;
     curve->m_DistanceIndex.SetCapacity(sample_count + 1);
     curve->m_DistanceIndex.SetSize(sample_count + 1);
+
     uint32_t bucket = 0;
     for (uint32_t i = 0; i < sample_count; ++i)
     {
@@ -184,6 +211,50 @@ HFontTextCurve FontTextCurveCreate(const FontTextCurveKnot* knots, uint32_t coun
     {
         curve->m_DistanceIndex[bucket] = sample_count - 1;
     }
+}
+
+HFontTextCurve FontTextCurveCreate(const FontTextCurveKnot* knots, uint32_t count, bool closed, const Vector3& initial_up)
+{
+    if (!knots || count < 2 || count > FONT_TEXT_CURVE_MAX_KNOT_COUNT || !IsFinite(initial_up))
+    {
+        return 0;
+    }
+    const float up_component = Vectormath::Aos::maxElem(AbsPerElem(initial_up));
+    if (up_component == 0.0f)
+    {
+        return 0;
+    }
+    const Vector3 up = initial_up / up_component;
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        if (!IsFinite(knots[i].m_Position) || !IsFinite(knots[i].m_InHandle) || !IsFinite(knots[i].m_OutHandle) ||
+            !isfinite(knots[i].m_RollDegrees) || !isfinite(knots[i].m_Scale) || knots[i].m_Scale <= 0.0f)
+        {
+            return 0;
+        }
+    }
+
+    FontTextCurve* curve = new FontTextCurve;
+    curve->m_References = 1;
+    curve->m_Closed = closed;
+    curve->m_MaxScale = 1.0f;
+    curve->m_Minimum = Vector3(FLT_MAX);
+    curve->m_Maximum = Vector3(-FLT_MAX);
+
+    SampleCurveSegments(curve, knots, count);
+    BuildCurveFrames(curve, up);
+    if (!isfinite(curve->m_Samples.Back().m_Distance) || curve->m_Samples.Back().m_Distance < 1.0e-6f)
+    {
+        delete curve;
+        return 0;
+    }
+    if (closed)
+    {
+        CloseCurveFrame(curve);
+    }
+
+    InterpolateKnotProperties(curve, knots, count);
+    BuildDistanceIndex(curve);
     return curve;
 }
 
@@ -226,13 +297,16 @@ static CurveSample SampleCurve(HFontTextCurve curve, float distance)
             distance += length;
         }
     }
+    // Endpoints and nonfinite distances must not enter the distance-index lookup.
     if (!(distance > 0 && distance < length))
     {
-        CurveSample sample = curve->m_Samples[distance <= 0 ? 0 : curve->m_Samples.Size() - 1];
+        const uint32_t sample_index = distance <= 0 ? 0 : curve->m_Samples.Size() - 1;
+        CurveSample    sample = curve->m_Samples[sample_index];
         sample.m_Position += sample.m_Tangent * (distance - sample.m_Distance);
-        sample.m_Up = Rotate(sample.m_Up, sample.m_Tangent, sample.m_Roll);
+        sample.m_Up = RotateAroundAxis(sample.m_Up, sample.m_Tangent, sample.m_Roll);
         return sample;
     }
+
     const uint32_t bucket = (uint32_t)(distance * curve->m_DistanceToIndex);
     uint32_t       low = curve->m_DistanceIndex[bucket];
     uint32_t       high = curve->m_DistanceIndex[bucket + 1];
@@ -252,14 +326,15 @@ static CurveSample SampleCurve(HFontTextCurve curve, float distance)
             high = mid;
         }
     }
+
     const CurveSample& a = curve->m_Samples[low];
     const CurveSample& b = curve->m_Samples[high];
     const float        t = (distance - a.m_Distance) / (b.m_Distance - a.m_Distance);
     CurveSample        sample;
-    sample.m_Position = a.m_Position + (b.m_Position - a.m_Position) * t;
-    sample.m_Tangent = Unit(a.m_Tangent + (b.m_Tangent - a.m_Tangent) * t, a.m_Tangent);
-    sample.m_Up = PerpendicularUp(a.m_Up + (b.m_Up - a.m_Up) * t, sample.m_Tangent);
-    sample.m_Up = Rotate(sample.m_Up, sample.m_Tangent, a.m_Roll + (b.m_Roll - a.m_Roll) * t);
+    sample.m_Position = Lerp(t, a.m_Position, b.m_Position);
+    sample.m_Tangent = NormalizeDirection(Lerp(t, a.m_Tangent, b.m_Tangent), a.m_Tangent);
+    sample.m_Up = PerpendicularUp(Lerp(t, a.m_Up, b.m_Up), sample.m_Tangent);
+    sample.m_Up = RotateAroundAxis(sample.m_Up, sample.m_Tangent, a.m_Roll + (b.m_Roll - a.m_Roll) * t);
     sample.m_Scale = a.m_Scale + (b.m_Scale - a.m_Scale) * t;
     return sample;
 }
@@ -269,5 +344,9 @@ Matrix4 FontTextCurveGetTransform(HFontTextCurve curve, float distance, float fi
     const CurveSample sample = SampleCurve(curve, distance);
     const Vector3     tangent = sample.m_Tangent * sample.m_Scale;
     const Vector3     up = sample.m_Up * sample.m_Scale;
-    return Matrix4(Vector4(tangent, 0), Vector4(up, 0), Vector4(Cross(sample.m_Tangent, sample.m_Up) * sample.m_Scale, 0), Vector4(sample.m_Position - tangent * distance - up * first_baseline, 1));
+    return Matrix4(
+        Vector4(tangent, 0),
+        Vector4(up, 0),
+        Vector4(Cross(sample.m_Tangent, sample.m_Up) * sample.m_Scale, 0),
+        Vector4(sample.m_Position - tangent * distance - up * first_baseline, 1));
 }

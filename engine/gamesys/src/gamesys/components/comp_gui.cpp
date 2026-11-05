@@ -1885,7 +1885,10 @@ namespace dmGameSystem
             params->m_X = local.getX();
             params->m_Y = local.getY();
         }
-        return GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, dmGui::GetNodeText(scene, node), params->m_Width, dmGui::GetNodeLineBreak(scene, node), dmGui::GetNodeTextLeading(scene, node), dmGui::GetNodeTextTracking(scene, node), params->m_FontSize, codepoints);
+        return GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, dmGui::GetNodeText(scene, node),
+                                         params->m_Width, dmGui::GetNodeLineBreak(scene, node),
+                                         dmGui::GetNodeTextLeading(scene, node), dmGui::GetNodeTextTracking(scene, node),
+                                         params->m_FontSize, codepoints);
     }
 
     static bool PickGuiTextNode(dmGui::HScene scene, dmGui::HNode node, float x, float y)

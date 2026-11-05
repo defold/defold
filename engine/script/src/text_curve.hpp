@@ -20,9 +20,14 @@
 
 namespace dmScript
 {
-    // Shared label/GUI argument reader. Indices must be positive. Returns one
-    // owned reference, or null for nil. Raises a Lua error on invalid input
-    // without retaining Lua data or leaking the temporary knot buffer.
+    /**
+     * Read the shared label/GUI curve arguments without retaining Lua data.
+     * Invalid input raises a Lua error; Lua owns the temporary knot buffer.
+     * @param L Lua state
+     * @param knots_index Positive stack index of the knot array or nil
+     * @param options_index Positive stack index of the optional settings table
+     * @return One owned curve reference, or null for nil
+     */
     HFontTextCurve CheckTextCurve(lua_State* L, int knots_index, int options_index);
 } // namespace dmScript
 

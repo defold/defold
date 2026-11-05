@@ -65,47 +65,48 @@ namespace dmGameSystem
 
     struct LabelComponent
     {
-        dmGameObject::HInstance     m_Instance;
-        Point3                      m_Position;
-        Quat                        m_Rotation;
-        Vector3                     m_Size;         // The text area size
-        Vector3                     m_Scale;
-        Vector4                     m_Color;
-        Vector4                     m_Outline;
-        Vector4                     m_Shadow;
-        Matrix4                     m_World;
-        uint32_t                    m_Pivot;
+        Matrix4                   m_World;
+
+        Point3                    m_Position;
+        Quat                      m_Rotation;
+        Vector3                   m_Size;         // The text area size
+        Vector3                   m_Scale;
+        Vector4                   m_Color;
+        Vector4                   m_Outline;
+        Vector4                   m_Shadow;
+
+        dmGameObject::HInstance   m_Instance;
+        dmGameObject::HInstance   m_ListenerInstance;
+        dmhash_t                  m_ListenerComponent;
+        LabelResource*            m_Resource;
+        HComponentRenderConstants m_RenderConstants;
+        MaterialResource*         m_Material;
+        FontResource*             m_Font;
+        HFontTextCurve            m_Curve;
+        const char*               m_Text;
+        HTextLayout               m_TextLayout;
+
+        float                     m_Leading;
+        float                     m_Tracking;
+        float                     m_FontSize;
+        float                     m_ArcRadius;
+        float                     m_ArcAngle;
+        uint32_t                  m_Pivot;
         // Hash of the components properties. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
         // See GenerateKeys
-        uint32_t                    m_MixedHash;
-        dmGameObject::HInstance     m_ListenerInstance;
-        dmhash_t                    m_ListenerComponent;
-        LabelResource*              m_Resource;
-        HComponentRenderConstants   m_RenderConstants;
-        MaterialResource*           m_Material;
-        FontResource*               m_Font;
+        uint32_t                  m_MixedHash;
+        uint32_t                  m_TextLayoutFontVersion;
+        uint32_t                  m_HoveredLayoutObject;
+        uint32_t                  m_PressedLayoutObject;
 
-        float                       m_Leading;
-        float                       m_Tracking;
-        float                       m_FontSize;
-        float                       m_ArcRadius;
-        float                       m_ArcAngle;
-        HFontTextCurve              m_Curve;
-
-        const char*                 m_Text;
-        HTextLayout                 m_TextLayout;
-        uint32_t                    m_TextLayoutFontVersion;
-        uint32_t                    m_HoveredLayoutObject;
-        uint32_t                    m_PressedLayoutObject;
-
-        uint16_t                    m_ComponentIndex;
-        uint16_t                    m_Enabled : 1;
-        uint16_t                    m_AddedToUpdate : 1;
-        uint16_t                    m_UserAllocatedText : 1;
-        uint16_t                    m_ReHash : 1;
-        uint16_t                    m_LineBreak : 1;
-        uint16_t                    m_TextLayoutDirty : 1;
-        uint16_t                    m_Padding : 10;
+        uint16_t                  m_ComponentIndex;
+        uint16_t                  m_Enabled : 1;
+        uint16_t                  m_AddedToUpdate : 1;
+        uint16_t                  m_UserAllocatedText : 1;
+        uint16_t                  m_ReHash : 1;
+        uint16_t                  m_LineBreak : 1;
+        uint16_t                  m_TextLayoutDirty : 1;
+        uint16_t                  m_Padding : 10;
     };
 
     struct LabelWorld
@@ -1135,18 +1136,15 @@ namespace dmGameSystem
             {
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             }
-            float value = (float)params.m_Value.m_Number;
-            if (!isfinite(value))
+            float      value = (float)params.m_Value.m_Number;
+            const bool is_animation = params.m_Options && params.m_Options->m_IsAnimation;
+            if (!isfinite(value) || (!is_animation && (value < 0.0f || value > 360.0f)))
             {
                 return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
             }
-            if (params.m_Options && params.m_Options->m_IsAnimation)
+            if (is_animation)
             {
                 value = dmMath::Clamp(value, 0.0f, 360.0f);
-            }
-            else if (value < 0.0f || value > 360.0f)
-            {
-                return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
             }
             if (!component->m_Curve && component->m_LineBreak && value != component->m_ArcAngle)
             {

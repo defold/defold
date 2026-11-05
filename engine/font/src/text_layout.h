@@ -189,21 +189,21 @@ struct TextDecorationSource
 
 struct TextLayoutHitTestParams
 {
-    dmhash_t m_Tag; // Zero matches all layout object types.
-    float    m_X;
-    float    m_Y;
+    dmhash_t                m_Tag; // Zero matches all layout object types.
     // Optional local-to-input-space transform for projected curved glyph picking.
     // Borrowed only for this query; null uses local XY coordinates.
     const dmVMath::Matrix4* m_Transform;
-    HFontTextCurve m_Curve;
-    float    m_Width;
-    float    m_Height;
-    float    m_FontSize;
-    float    m_MonospacePadding;
-    float    m_ArcRadius;
-    float    m_ArcAngle;
-    uint32_t m_Align;
-    uint32_t m_VAlign;
+    HFontTextCurve          m_Curve;
+    float                   m_X;
+    float                   m_Y;
+    float                   m_Width;
+    float                   m_Height;
+    float                   m_FontSize;
+    float                   m_MonospacePadding;
+    float                   m_ArcRadius;
+    float                   m_ArcAngle;
+    uint32_t                m_Align;
+    uint32_t                m_VAlign;
 };
 
 struct TextLayoutObjectBounds
