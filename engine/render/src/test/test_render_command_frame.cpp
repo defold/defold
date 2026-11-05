@@ -100,7 +100,7 @@ TEST(RenderCommandFrame, GenericOperandsDefaultToCameraInheritance)
 TEST(RenderCommandFrame, OwnsOperandData)
 {
     RenderFrameLimits limits = { 4096, 16, 0 };
-    HRenderFrame frame = NewRenderFrame(limits);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
     BeginRenderFrame(frame, 31);
 
     dmVMath::Matrix4 matrix = dmVMath::Matrix4::translation(dmVMath::Vector3(1, 2, 3));
@@ -148,7 +148,7 @@ TEST(RenderCommandFrame, OwnsOperandData)
 TEST(RenderCommandFrame, ConstantsArePerCommand)
 {
     RenderFrameLimits limits = { 4096, 16, 0 };
-    HRenderFrame frame = NewRenderFrame(limits);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
     BeginRenderFrame(frame, 32);
     HNamedConstantBuffer constants = NewNamedConstantBuffer();
     dmhash_t name = dmHashString64("tint");
@@ -176,7 +176,7 @@ TEST(RenderCommandFrame, ConstantsArePerCommand)
 TEST(RenderCommandFrame, ConstantGrowthPreservesSnapshotsAndReusesStorage)
 {
     const RenderFrameLimits limits = { 1, 2, 0 };
-    HRenderFrame frame = NewRenderFrame(limits);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
     const dmhash_t name = dmHashString64("tint");
     dmVMath::Vector4 values[8192];
     uint64_t retained_capacity = 0;
@@ -229,7 +229,7 @@ TEST(RenderCommandFrame, ConstantGrowthPreservesSnapshotsAndReusesStorage)
 TEST(RenderCommandFrame, PartialCaptureFailure)
 {
     RenderFrameLimits limits = { sizeof(Predicate), 4, 0 };
-    HRenderFrame frame = NewRenderFrame(limits);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
     BeginRenderFrame(frame, 33);
     Predicate predicate = {};
     FrustumOptions frustum;
@@ -254,7 +254,7 @@ TEST(RenderCommandFrame, PartialCaptureFailure)
 TEST(RenderCommandFrame, ResourceDependencyDescriptors)
 {
     RenderFrameLimits limits = { 1024, 8, 0 };
-    HRenderFrame frame = NewRenderFrame(limits);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
     BeginRenderFrame(frame, 35);
     Command sources[] = {
         Command(COMMAND_TYPE_ENABLE_TEXTURE, 0, 0, 11),
@@ -288,7 +288,7 @@ class RenderCommandReplay : public jc_test_base_class
     dmGraphics::HContext m_Graphics;
     dmScript::HContext   m_Script;
     HRenderContext       m_Context;
-    HRenderFrame         m_Frame;
+    HRenderFrameStorage  m_Frame;
     HWindow              m_Window;
 
     virtual void SetUp()
@@ -355,8 +355,8 @@ TEST_F(RenderCommandReplay, DerivedLimitsCoverDefaultCommands)
         m_Context->m_Recording.m_RenderScriptContext.m_CommandBufferSize = command_capacity;
         RenderFrameLimits limits;
         ASSERT_EQ(RENDER_FRAME_OK, CalculateRenderFrameLimits(m_Context, component_limits, &limits));
-        HRenderFrame frame = NewRenderFrame(limits);
-        ASSERT_NE((HRenderFrame)0, frame);
+        HRenderFrameStorage frame = NewRenderFrame(limits);
+        ASSERT_NE((HRenderFrameStorage)0, frame);
         BeginRenderFrame(frame, command_capacity + 1);
         RenderFrameInfo info = GetRenderFrameInfo(m_Context);
         ASSERT_EQ(RENDER_FRAME_OK, RecordRenderFrameInfo(frame, info));

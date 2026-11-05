@@ -20,25 +20,29 @@
 
 namespace dmRender
 {
-    Command::Command(CommandType type) : m_Operands()
+    Command::Command(CommandType type)
+    : m_Operands()
     {
         m_Type = type;
     }
 
-    Command::Command(CommandType type, uint64_t op0) : m_Operands()
+    Command::Command(CommandType type, uint64_t op0)
+    : m_Operands()
     {
         m_Type = type;
         m_Operands[0] = op0;
     }
 
-    Command::Command(CommandType type, uint64_t op0, uint64_t op1) : m_Operands()
+    Command::Command(CommandType type, uint64_t op0, uint64_t op1)
+    : m_Operands()
     {
         m_Type = type;
         m_Operands[0] = op0;
         m_Operands[1] = op1;
     }
 
-    Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2) : m_Operands()
+    Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2)
+    : m_Operands()
     {
         m_Type = type;
         m_Operands[0] = op0;
@@ -46,7 +50,8 @@ namespace dmRender
         m_Operands[2] = op2;
     }
 
-    Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2, uint64_t op3) : m_Operands()
+    Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2, uint64_t op3)
+    : m_Operands()
     {
         m_Type = type;
         m_Operands[0] = op0;
@@ -55,7 +60,8 @@ namespace dmRender
         m_Operands[3] = op3;
     }
 
-    Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2, uint64_t op3, uint64_t op4) : m_Operands()
+    Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2, uint64_t op3, uint64_t op4)
+    : m_Operands()
     {
         m_Type = type;
         m_Operands[0] = op0;

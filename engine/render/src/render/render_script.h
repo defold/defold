@@ -64,7 +64,7 @@ namespace dmRender
         HRenderScript                 m_RenderScript;
         dmScript::ScriptWorld*        m_ScriptWorld;
         // Set only while Lua records immutable operands into the current frame.
-        HRenderFrame                  m_RecordingFrame;
+        HRenderFrameStorage           m_RecordingFrame;
         HRenderCamera                 m_SelectedRenderCamera;
         RenderFrameResult             m_RecordingResult;
         uint32_t                      m_PredicateCount;

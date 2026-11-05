@@ -51,8 +51,8 @@ static void AssertStatistics(const RenderFrameStatistics& expected, const Render
 TEST(RenderFrame, EmptyFrame)
 {
     RenderFrameLimits limits = {};
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     ASSERT_EQ((const RenderFrameView*)0, GetRenderFrameView(frame));
     BeginRenderFrame(frame, 123);
     ASSERT_EQ((const RenderFrameView*)0, GetRenderFrameView(frame));
@@ -82,8 +82,8 @@ TEST(RenderFrame, EmptyFrame)
 TEST(RenderFrame, CopiedAndDirectTables)
 {
     RenderFrameLimits limits = { 32, 2, 0 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     BeginRenderFrame(frame, 17);
     uint32_t input[] = { 10, 20, 30 };
     uint32_t copied_index = UINT32_MAX;
@@ -127,7 +127,7 @@ TEST(RenderFrame, CopiedAndDirectTables)
 TEST(RenderFrame, CompoundTableCopies)
 {
     RenderFrameLimits limits = { 16, 1, 0 };
-    HRenderFrame frame = NewRenderFrame(limits);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
     BeginRenderFrame(frame, 1);
     uint32_t input[] = { 10, 20 };
     uint32_t table_index;
@@ -152,8 +152,8 @@ TEST(RenderFrame, CompoundTableCopies)
 TEST(RenderFrame, Alignment)
 {
     RenderFrameLimits limits = { 17, 5, 0 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     BeginRenderFrame(frame, 1);
     const uint32_t expected_offsets[] = { 0, 2, 4, 8, 16 };
     for (uint32_t i = 0; i < 5; ++i)
@@ -182,8 +182,8 @@ TEST(RenderFrame, Alignment)
 TEST(RenderFrame, PayloadOverflowIsSticky)
 {
     RenderFrameLimits limits = { 4, 3, 1 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     BeginRenderFrame(frame, 1);
     uint32_t value = 7;
     uint32_t index;
@@ -215,8 +215,8 @@ TEST(RenderFrame, PayloadOverflowIsSticky)
 TEST(RenderFrame, DynamicGrowthPreservesPointersAndReusesStorage)
 {
     RenderFrameLimits limits = { 0, 3, 0 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     void* previous[3] = {};
     const uint32_t sizes[] = { 1, 16, 128 * 1024 };
     const uint32_t alignments[] = { 1, 16, 16 };
@@ -275,8 +275,8 @@ TEST(RenderFrame, DynamicGrowthPreservesPointersAndReusesStorage)
 TEST(RenderFrame, DynamicSizeClassesReuseSmallGrowth)
 {
     RenderFrameLimits limits = { 0, 1, 0 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     void* previous = 0;
     uint64_t retained_capacity = 0;
     for (uint32_t capture = 0; capture < 2; ++capture)
@@ -310,8 +310,8 @@ TEST(RenderFrame, DynamicSizeClassesReuseSmallGrowth)
 TEST(RenderFrame, FixedAndDynamicPayloadAreIndependent)
 {
     RenderFrameLimits limits = { 4, 3, 0 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     BeginRenderFrame(frame, 1);
     uint32_t index;
     void* data;
@@ -337,8 +337,8 @@ TEST(RenderFrame, DynamicTableLimitIsAtomic)
     for (uint32_t dynamic_first = 0; dynamic_first < 2; ++dynamic_first)
     {
         RenderFrameLimits limits = { 1, 1, 0 };
-        HRenderFrame frame = NewRenderFrame(limits);
-        ASSERT_NE((HRenderFrame)0, frame);
+        HRenderFrameStorage frame = NewRenderFrame(limits);
+        ASSERT_NE((HRenderFrameStorage)0, frame);
         BeginRenderFrame(frame, 1);
         uint32_t first_index;
         void* first_data;
@@ -379,8 +379,8 @@ TEST(RenderFrame, DynamicTableLimitIsAtomic)
 TEST(RenderFrame, DynamicCaptureState)
 {
     RenderFrameLimits limits = { 0, 2, 0 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     uint32_t index = 123;
     void* data = &index;
     ASSERT_EQ(RENDER_FRAME_INVALID_STATE, AllocateRenderFrameDynamicTable(frame, 0, 1, 1, 1, &index, &data));
@@ -409,8 +409,8 @@ TEST(RenderFrame, DynamicCaptureState)
 TEST(RenderFrame, DynamicFailureCleanup)
 {
     RenderFrameLimits limits = { 0, 2, 1 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     ReleaseLog releases = {};
     uint32_t resource = 42;
     BeginRenderFrame(frame, 1);
@@ -445,8 +445,8 @@ TEST(RenderFrame, DynamicFailureCleanup)
 TEST(RenderFrame, PaddingOverflow)
 {
     RenderFrameLimits limits = { 17, 2, 0 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     BeginRenderFrame(frame, 1);
     uint32_t index;
     void* data;
@@ -462,8 +462,8 @@ TEST(RenderFrame, PaddingOverflow)
 TEST(RenderFrame, CountStrideOverflow)
 {
     RenderFrameLimits limits = { 32, 1, 0 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     const uint32_t counts[] = { UINT32_MAX, UINT32_MAX, 0x80000001u };
     const uint32_t strides[] = { UINT32_MAX, 2, 2 };
     for (uint32_t i = 0; i < 3; ++i)
@@ -513,8 +513,8 @@ TEST(RenderFrame, InvalidTableArguments)
         { 1, 1, 1, false, true },
     };
     RenderFrameLimits limits = { 32, 1, 0 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     for (uint32_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i)
     {
         BeginRenderFrame(frame, i);
@@ -553,8 +553,8 @@ TEST(RenderFrame, InvalidTableArguments)
 TEST(RenderFrame, TableOverflow)
 {
     RenderFrameLimits limits = { 32, 1, 0 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     BeginRenderFrame(frame, 1);
     uint32_t index;
     void* data;
@@ -570,8 +570,8 @@ TEST(RenderFrame, TableOverflow)
 TEST(RenderFrame, ReferenceOverflowAndCleanup)
 {
     RenderFrameLimits limits = { 0, 0, 2 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     BeginRenderFrame(frame, 1);
     uint32_t resources[] = { 10, 20, 30 };
     ReleaseLog releases = {};
@@ -599,8 +599,8 @@ TEST(RenderFrame, ReferenceOverflowAndCleanup)
 TEST(RenderFrame, SealedReferenceLifetime)
 {
     RenderFrameLimits limits = { 0, 0, 1 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     uint32_t resource = 42;
     ReleaseLog releases = {};
     BeginRenderFrame(frame, 1);
@@ -622,8 +622,8 @@ TEST(RenderFrame, SealedReferenceLifetime)
 TEST(RenderFrame, DeletePartialCapture)
 {
     RenderFrameLimits limits = { 1, 1, 2 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     BeginRenderFrame(frame, 1);
     uint32_t resources[] = { 10, 20 };
     ReleaseLog releases = {};
@@ -642,8 +642,8 @@ TEST(RenderFrame, DeletePartialCapture)
 TEST(RenderFrame, InvalidReferenceArguments)
 {
     RenderFrameLimits limits = { 0, 0, 1 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     uint32_t resource = 42;
     ReleaseLog releases = {};
     BeginRenderFrame(frame, 1);
@@ -663,8 +663,8 @@ TEST(RenderFrame, InvalidReferenceArguments)
 TEST(RenderFrame, CaptureState)
 {
     RenderFrameLimits limits = { 4, 1, 1 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     uint32_t index = 123;
     uint32_t value = 42;
     ASSERT_EQ(RENDER_FRAME_INVALID_STATE, CopyRenderFrameTable(frame, 0, 1, sizeof(value), 4, &value, &index));
@@ -708,16 +708,16 @@ TEST(RenderFrame, StorageBudget)
     RenderFrameLimits oversized_references = { 0, 0, UINT32_MAX };
     ASSERT_GT(GetRenderFrameStorageSize(oversized_tables), (uint64_t)UINT32_MAX);
     ASSERT_GT(GetRenderFrameStorageSize(oversized_references), (uint64_t)UINT32_MAX);
-    ASSERT_EQ((HRenderFrame)0, NewRenderFrame(oversized_tables));
-    ASSERT_EQ((HRenderFrame)0, NewRenderFrame(oversized_references));
+    ASSERT_EQ((HRenderFrameStorage)0, NewRenderFrame(oversized_tables));
+    ASSERT_EQ((HRenderFrameStorage)0, NewRenderFrame(oversized_references));
 }
 
 // Verify reset reuses the original payload/table allocations and clears per-capture counters rather than growing storage.
 TEST(RenderFrame, RepeatedReuse)
 {
     RenderFrameLimits limits = { 16, 1, 1 };
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     const uint8_t* payload = 0;
     const RenderFrameTable* tables = 0;
     const uint64_t budget = GetRenderFrameStorageSize(limits);
@@ -761,8 +761,8 @@ TEST(RenderFrame, RepeatedReuse)
 TEST(RenderFrame, BeginRequiresReset)
 {
     RenderFrameLimits limits = {};
-    HRenderFrame frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrame)0, frame);
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, frame);
     BeginRenderFrame(frame, 1);
     ASSERT_DEATH(BeginRenderFrame(frame, 2), "");
     ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(frame));

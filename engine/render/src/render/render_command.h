@@ -134,7 +134,7 @@ namespace dmRender
      * @param capture_camera Snapshot camera selection for this draw, including disabled selection
      * @return Recording status; failures invalidate the whole frame
      */
-    RenderFrameResult RecordRenderCommand(HRenderContext context, HRenderFrame frame, const Command& source, Command* destination,
+    RenderFrameResult RecordRenderCommand(HRenderContext context, HRenderFrameStorage frame, const Command& source, Command* destination,
                                           HRenderCamera selected_camera, bool use_frustum, bool capture_camera);
 
     /**
@@ -145,7 +145,7 @@ namespace dmRender
      * @param count Number of commands to copy
      * @return Recording status; failures invalidate the whole frame
      */
-    RenderFrameResult AppendRenderCommands(HRenderFrame frame, const Command* commands, uint32_t count);
+    RenderFrameResult AppendRenderCommands(HRenderFrameStorage frame, const Command* commands, uint32_t count);
 
     /**
      * Replay published command tables in order on the render owner.
@@ -171,7 +171,7 @@ namespace dmRender
      * @param destination Receives the snapshot; set to null when the source is null
      * @return Recording status; failures invalidate the whole frame
      */
-    RenderFrameResult CopyRenderCommandConstants(HRenderFrame frame, HNamedConstantBuffer source, HNamedConstantBuffer* destination);
+    RenderFrameResult CopyRenderCommandConstants(HRenderFrameStorage frame, HNamedConstantBuffer source, HNamedConstantBuffer* destination);
 
     /**
      * Execute producer commands immediately and release their temporary matrices and frusta.

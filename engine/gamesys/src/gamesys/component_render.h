@@ -82,10 +82,10 @@ namespace dmGameSystem
      */
     struct ComponentRenderCaptureParams
     {
-        dmRender::HRenderFrame    m_Frame;
-        void*                    m_World;
-        void*                    m_Context;
-        dmGameObject::HCollection m_Collection;
+        dmRender::HRenderFrameStorage m_Frame;
+        void*                         m_World;
+        void*                         m_Context;
+        dmGameObject::HCollection     m_Collection;
     };
 
     /**

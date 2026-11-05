@@ -25,9 +25,9 @@ namespace dmRender
     /** Fixed slot metadata protected by the queue mutex in threaded mode. */
     struct RenderFrameSlot
     {
-        RenderFrameId    m_FrameId;
-        HRenderFrame     m_Frame;
-        RenderFrameState m_State;
+        RenderFrameId       m_FrameId;
+        HRenderFrameStorage m_Frame;
+        RenderFrameState    m_State;
     };
 
     /**

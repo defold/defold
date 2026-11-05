@@ -88,7 +88,7 @@ namespace dmGameSystem
      * @param frame Non-null building frame, valid throughout this synchronous call
      * @return True on success; false on invalid frame, nested capture or traversal/capture failure
      */
-    bool CaptureComponentRenderData(HComponentRenderContext context, dmGameObject::HCollection collection, dmRender::HRenderFrame frame);
+    bool CaptureComponentRenderData(HComponentRenderContext context, dmGameObject::HCollection collection, dmRender::HRenderFrameStorage frame);
 
     /**
      * Capture components into the admitted frame without submitting it. Pass commands
@@ -105,7 +105,7 @@ namespace dmGameSystem
      * @param context Component rendering bridge
      * @return Building frame, or null if no frame is admitted
      */
-    dmRender::HRenderFrame GetComponentRenderFrame(HComponentRenderContext context);
+    dmRender::HRenderFrameStorage GetComponentRenderFrame(HComponentRenderContext context);
 
     /**
      * Submit the frame after its component data and render commands are recorded.
@@ -181,7 +181,7 @@ namespace dmGameSystem
      * @param producer_context Borrowed producer data, never stored in the frame
      * @return dmRender::RENDER_FRAME_OK on success; any error rejects the complete capture
      */
-    typedef dmRender::RenderFrameResult (*FComponentRenderWriteInputs)(dmRender::HRenderFrame frame, void* producer_context);
+    typedef dmRender::RenderFrameResult (*FComponentRenderWriteInputs)(dmRender::HRenderFrameStorage frame, void* producer_context);
 
     /**
      * Create a component lifetime manager on the game owner. Creates no thread.
@@ -236,7 +236,7 @@ namespace dmGameSystem
      * @param producer_context Borrowed capture context, used only during this call
      * @return dmRender::RENDER_FRAME_OK on success; any error poisons the frame, which must be cancelled
      */
-    dmRender::RenderFrameResult CaptureComponentRenderWorld(HComponentRenderWorld world, dmRender::HRenderFrame frame, FComponentRenderWriteInputs write_inputs, void* producer_context);
+    dmRender::RenderFrameResult CaptureComponentRenderWorld(HComponentRenderWorld world, dmRender::HRenderFrameStorage frame, FComponentRenderWriteInputs write_inputs, void* producer_context);
 
     /**
      * Queue-compatible render-owner callback dispatching immutable component inputs.

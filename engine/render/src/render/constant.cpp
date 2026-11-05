@@ -132,7 +132,7 @@ struct NamedConstantBuffer
     dmArray<dmVMath::Vector4>   m_Values;
 };
 
-RenderFrameResult CopyRenderCommandConstants(HRenderFrame frame, HNamedConstantBuffer source, HNamedConstantBuffer* destination)
+RenderFrameResult CopyRenderCommandConstants(HRenderFrameStorage frame, HNamedConstantBuffer source, HNamedConstantBuffer* destination)
 {
     *destination = 0;
     if (!source)
@@ -143,6 +143,8 @@ RenderFrameResult CopyRenderCommandConstants(HRenderFrame frame, HNamedConstantB
     const uint32_t constant_count = source->m_Constants.Size();
     const uint32_t value_count = source->m_Values.Size();
     const uint32_t constants_offset = (sizeof(NamedConstantBuffer) + 7) & ~7;
+    // This CPU-side collection has no uniform-buffer size limit. Calculate in 64 bits
+    // before narrowing to the frame allocator's 32-bit table size.
     const uint64_t values_offset = ((uint64_t)constants_offset + (uint64_t)constant_count * sizeof(NamedConstantBuffer::Constant) + 15) & ~(uint64_t)15;
     const uint64_t storage_size = values_offset + (uint64_t)value_count * sizeof(dmVMath::Vector4);
     if (storage_size > UINT32_MAX)

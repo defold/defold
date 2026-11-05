@@ -22,7 +22,7 @@ namespace dmRender
     struct RenderFrameStorage;
 
     typedef uint64_t            RenderFrameId;
-    typedef RenderFrameStorage* HRenderFrame;
+    typedef RenderFrameStorage* HRenderFrameStorage;
 
     /** Explicit backpressure and capture errors; failed capture cannot be published. */
     enum RenderFrameResult
@@ -95,34 +95,33 @@ namespace dmRender
      */
     typedef void (*FRenderFrameRelease)(void* context, void* resource);
 
-    // Storage lifecycle used by the frame queue (or isolated storage tests), never by readers.
     /**
      * Allocate the fixed arena and metadata once. Dynamic blocks are allocated on demand
      * during capture and retained for reuse until deletion.
      * @param limits Hard payload, table and retained-reference capacities
      * @return Empty frame storage, or null for unsupported capacities/allocation failure
      */
-    HRenderFrame NewRenderFrame(const RenderFrameLimits& limits);
+    HRenderFrameStorage NewRenderFrame(const RenderFrameLimits& limits);
 
     /**
      * Release remaining references and delete storage on the game owner, after all CPU readers finish.
      * @param frame Frame storage, or null
      */
-    void DeleteRenderFrame(HRenderFrame frame);
+    void DeleteRenderFrame(HRenderFrameStorage frame);
 
     /**
      * Begin capture using empty, error-free storage. Call ResetRenderFrame before reuse.
      * @param frame Storage exclusively owned by the producer
      * @param frame_id Identifier assigned to this capture
      */
-    void BeginRenderFrame(HRenderFrame frame, RenderFrameId frame_id);
+    void BeginRenderFrame(HRenderFrameStorage frame, RenderFrameId frame_id);
 
     /**
      * Seal a Building frame for immutable reading. Publication/synchronization belongs to the queue.
      * @param frame Building storage; no reader may access it before publication
      * @return RENDER_FRAME_OK on success, otherwise the first sticky capture error
      */
-    RenderFrameResult SealRenderFrame(HRenderFrame frame);
+    RenderFrameResult SealRenderFrame(HRenderFrameStorage frame);
 
     /**
      * Cancel or retire capture on the game owner after all CPU readers finish. Releases references
@@ -130,7 +129,7 @@ namespace dmRender
      * Payload bytes are left uncleared.
      * @param frame Exclusively owned storage; must not be inside a release callback
      */
-    void ResetRenderFrame(HRenderFrame frame);
+    void ResetRenderFrame(HRenderFrameStorage frame);
 
     /**
      * Record a higher-level extraction failure so a partial capture cannot be published.
@@ -138,7 +137,7 @@ namespace dmRender
      * @param error Non-OK failure; never replaces an earlier capture error
      * @return The first sticky capture error
      */
-    RenderFrameResult FailRenderFrame(HRenderFrame frame, RenderFrameResult error);
+    RenderFrameResult FailRenderFrame(HRenderFrameStorage frame, RenderFrameResult error);
 
     /**
      * Reserve an owned table in the fixed arena. Initialize every element before sealing; do not
@@ -152,7 +151,7 @@ namespace dmRender
      * @param data Output payload pointer, assigned only on success
      * @return RENDER_FRAME_OK, or a sticky argument/state/capacity error
      */
-    RenderFrameResult AllocateRenderFrameTable(HRenderFrame frame, uint32_t type, uint32_t count, uint32_t stride, uint32_t alignment, uint32_t* table_index, void** data);
+    RenderFrameResult AllocateRenderFrameTable(HRenderFrameStorage frame, uint32_t type, uint32_t count, uint32_t stride, uint32_t alignment, uint32_t* table_index, void** data);
 
     /**
      * Reserve a contiguous table in reusable dynamic storage. Growth never moves existing
@@ -167,7 +166,7 @@ namespace dmRender
      * @param data Output payload pointer, assigned only on success
      * @return RENDER_FRAME_OK, or a sticky argument/state/capacity/allocation error
      */
-    RenderFrameResult AllocateRenderFrameDynamicTable(HRenderFrame frame, uint32_t type, uint32_t count, uint32_t stride, uint32_t alignment, uint32_t* table_index, void** data);
+    RenderFrameResult AllocateRenderFrameDynamicTable(HRenderFrameStorage frame, uint32_t type, uint32_t count, uint32_t stride, uint32_t alignment, uint32_t* table_index, void** data);
 
     /**
      * Reserve a table and copy its input bytes. The source remains caller-owned and may be
@@ -182,7 +181,7 @@ namespace dmRender
      * @param copied_data Optional output pointer to the copied table while the frame is building
      * @return RENDER_FRAME_OK, or a sticky argument/state/capacity error
      */
-    RenderFrameResult CopyRenderFrameTable(HRenderFrame frame, uint32_t type, uint32_t count, uint32_t stride, uint32_t alignment, const void* data, uint32_t* table_index, void** copied_data = 0);
+    RenderFrameResult CopyRenderFrameTable(HRenderFrameStorage frame, uint32_t type, uint32_t count, uint32_t stride, uint32_t alignment, const void* data, uint32_t* table_index, void** copied_data = 0);
 
     /**
      * Copy into an already reserved table and include those bytes in capture statistics.
@@ -192,7 +191,7 @@ namespace dmRender
      * @param bytes Number of bytes to copy, within the reserved destination range
      * @return RENDER_FRAME_OK, or a sticky state error
      */
-    RenderFrameResult CopyRenderFrameData(HRenderFrame frame, void* destination, const void* source, uint32_t bytes);
+    RenderFrameResult CopyRenderFrameData(HRenderFrameStorage frame, void* destination, const void* source, uint32_t bytes);
 
     /**
      * Adopt an already-retained reference, released on game-owner cancellation/retirement.
@@ -203,7 +202,7 @@ namespace dmRender
      * @param context Release callback context, valid until the reference is released
      * @return RENDER_FRAME_OK, or a sticky argument/state/capacity error
      */
-    RenderFrameResult AddRenderFrameReference(HRenderFrame frame, void* resource, FRenderFrameRelease release, void* context);
+    RenderFrameResult AddRenderFrameReference(HRenderFrameStorage frame, void* resource, FRenderFrameRelease release, void* context);
 
     /**
      * Access immutable published inputs. Readers must not retain the view or its pointers after
@@ -211,7 +210,7 @@ namespace dmRender
      * @param frame Storage to inspect; protect its CPU lifetime before using a returned view
      * @return Borrowed view of sealed storage, or null if not sealed
      */
-    const RenderFrameView* GetRenderFrameView(HRenderFrame frame);
+    const RenderFrameView* GetRenderFrameView(HRenderFrameStorage frame);
 
     /**
      * Look up table payload in an immutable view.
@@ -226,7 +225,7 @@ namespace dmRender
      * @param frame Storage owned by the caller, or whose capture/retirement cannot run concurrently
      * @return Current counters; allocation count measures arena reservations, not heap allocations
      */
-    RenderFrameStatistics GetRenderFrameStatistics(HRenderFrame frame);
+    RenderFrameStatistics GetRenderFrameStatistics(HRenderFrameStorage frame);
 
     /**
      * Calculate initial fixed storage using wide arithmetic, without allocating.

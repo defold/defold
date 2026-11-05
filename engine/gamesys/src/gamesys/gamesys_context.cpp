@@ -76,7 +76,8 @@ namespace dmGameSystem
     {
         HComponentRenderContext components = context->m_ComponentRenderContext;
         dmRender::HRenderContext render_context = context->m_Params.m_RenderContext;
-        dmRender::HRenderFrame frame = GetComponentRenderFrame(components);
+        dmRender::HRenderFrameStorage frame = GetComponentRenderFrame(components);
+        // Graphics-free lifecycle tests submit component inputs without render passes.
         if (render_context)
         {
             if (!frame)

@@ -73,7 +73,7 @@ namespace dmRender
         return info;
     }
 
-    RenderFrameResult RecordRenderFrameInfo(HRenderFrame frame, const RenderFrameInfo& info)
+    RenderFrameResult RecordRenderFrameInfo(HRenderFrameStorage frame, const RenderFrameInfo& info)
     {
         uint32_t table;
         return CopyRenderFrameTable(frame, RENDER_FRAME_INFO_TABLE_TYPE, 1, sizeof(info), 8, &info, &table);
@@ -98,7 +98,7 @@ namespace dmRender
         }
     }
 
-    RenderFrameResult RecordDefaultRenderCommands(HRenderContext context, HRenderFrame frame, const RenderFrameInfo& info, uint32_t clear_color)
+    RenderFrameResult RecordDefaultRenderCommands(HRenderContext context, HRenderFrameStorage frame, const RenderFrameInfo& info, uint32_t clear_color)
     {
         float depth = 1.0f;
         uint32_t depth_bits;

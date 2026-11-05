@@ -202,7 +202,7 @@ namespace dmGameSystem
         ReleaseWorldReference(context, world);
     }
 
-    dmRender::RenderFrameResult CaptureComponentRenderWorld(HComponentRenderWorld world, dmRender::HRenderFrame frame,
+    dmRender::RenderFrameResult CaptureComponentRenderWorld(HComponentRenderWorld world, dmRender::HRenderFrameStorage frame,
         FComponentRenderWriteInputs write_inputs, void* producer_context)
     {
         HComponentRenderStateContext context = world->m_Context;

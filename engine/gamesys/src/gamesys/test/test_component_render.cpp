@@ -110,13 +110,13 @@ namespace
 
     struct ArtificialWorld
     {
-        dmGameObject::HInstance   m_Instance;
-        ArtificialType*           m_Type;
-        dmRender::HRenderFrame    m_LastCapturedFrame;
-        dmGameObject::HCollection m_ChildCollection;
-        uint32_t                  m_Id;
-        uint32_t                  m_Value;
-        uint8_t                   m_ChildEnabled : 1;
+        dmGameObject::HInstance       m_Instance;
+        ArtificialType*               m_Type;
+        dmRender::HRenderFrameStorage m_LastCapturedFrame;
+        dmGameObject::HCollection     m_ChildCollection;
+        uint32_t                      m_Id;
+        uint32_t                      m_Value;
+        uint8_t                       m_ChildEnabled : 1;
     };
 
     struct ArtificialInput
@@ -982,7 +982,7 @@ TEST(ComponentRender, RecordingFailureCancelsCapturedComponents)
 
         // A constant-like snapshot may already own dynamic storage when a later fixed
         // payload fails. Neither the snapshot nor the component inputs may be published.
-        dmRender::HRenderFrame frame = GetWorld(collection)->m_LastCapturedFrame;
+        dmRender::HRenderFrameStorage frame = GetWorld(collection)->m_LastCapturedFrame;
         uint32_t table_index;
         void* payload;
         ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::AllocateRenderFrameDynamicTable(frame, 0, 1, 128 * 1024, 16, &table_index, &payload));
@@ -1626,10 +1626,10 @@ TEST(ComponentRender, RecursiveRenderInheritsCaptureFrame)
     ASSERT_EQ(GetWorld(child)->m_Id, GetEvent(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME, 0).m_World);
     ASSERT_EQ(GetWorld(root)->m_Id, GetEvent(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME, 1).m_World);
     ASSERT_EQ(9.0f, GetEvent(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME, 0).m_X);
-    ASSERT_NE((dmRender::HRenderFrame)0, GetWorld(root)->m_LastCapturedFrame);
+    ASSERT_NE((dmRender::HRenderFrameStorage)0, GetWorld(root)->m_LastCapturedFrame);
     ASSERT_EQ(GetWorld(root)->m_LastCapturedFrame, GetWorld(child)->m_LastCapturedFrame);
-    ASSERT_EQ((dmRender::HRenderFrame)0, GetWorld(disabled)->m_LastCapturedFrame);
-    ASSERT_EQ((dmRender::HRenderFrame)0, GetWorld(unrelated)->m_LastCapturedFrame);
+    ASSERT_EQ((dmRender::HRenderFrameStorage)0, GetWorld(disabled)->m_LastCapturedFrame);
+    ASSERT_EQ((dmRender::HRenderFrameStorage)0, GetWorld(unrelated)->m_LastCapturedFrame);
 
     dmGameSystem::EndComponentRenderFrame(fixture.m_Render);
     dmGameObject::DeleteCollections(fixture.m_Register);

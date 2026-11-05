@@ -46,7 +46,7 @@ namespace dmGameSystem
         HComponentRenderStateContext              m_StateContext;
         dmRender::HRenderFrameQueue               m_Queue;
         // Active only during traversal, not while producer credit is merely reserved.
-        dmRender::HRenderFrame                    m_ActiveFrame;
+        dmRender::HRenderFrameStorage             m_ActiveFrame;
     };
 
     // Game-owner association for one generational collection handle. Lifetime slots
@@ -165,7 +165,7 @@ namespace dmGameSystem
         }
     }
 
-    static dmRender::RenderFrameResult WriteInputs(dmRender::HRenderFrame frame, void* context)
+    static dmRender::RenderFrameResult WriteInputs(dmRender::HRenderFrameStorage frame, void* context)
     {
         ComponentRenderCaptureContext* capture = (ComponentRenderCaptureContext*)context;
         capture->m_Params.m_Frame = frame;
@@ -338,7 +338,7 @@ namespace dmGameSystem
         return FinishComponentRenderRegistration(context, component_index, *render_type, created_queue, result);
     }
 
-    bool CaptureComponentRenderData(HComponentRenderContext context, dmGameObject::HCollection collection, dmRender::HRenderFrame frame)
+    bool CaptureComponentRenderData(HComponentRenderContext context, dmGameObject::HCollection collection, dmRender::HRenderFrameStorage frame)
     {
         if (!frame || context->m_ActiveFrame)
             return false;
@@ -399,7 +399,7 @@ namespace dmGameSystem
         return true;
     }
 
-    dmRender::HRenderFrame GetComponentRenderFrame(HComponentRenderContext context)
+    dmRender::HRenderFrameStorage GetComponentRenderFrame(HComponentRenderContext context)
     {
         return context->m_Capture.m_Frame;
     }

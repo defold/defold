@@ -56,9 +56,6 @@ namespace dmRender
             return 0;
 
         RenderFrameQueueContext* queue = (RenderFrameQueueContext*)calloc(1, sizeof(RenderFrameQueueContext));
-        if (!queue)
-            return 0;
-
         queue->m_Params = params;
         queue->m_NextFrameId = 1;
         queue->m_Revision = 1;

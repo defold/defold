@@ -3702,7 +3702,7 @@ bail:
         return result;
     }
 
-    RenderFrameResult RecordRenderScriptInstance(HRenderScriptInstance instance, float dt, HRenderFrame frame)
+    RenderFrameResult RecordRenderScriptInstance(HRenderScriptInstance instance, float dt, HRenderFrameStorage frame)
     {
         DM_PROFILE("RecordRSI");
         const HRenderCamera previous_camera = instance->m_SelectedRenderCamera;

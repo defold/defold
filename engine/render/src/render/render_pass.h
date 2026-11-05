@@ -73,7 +73,7 @@ namespace dmRender
      * @param info Values to copy, with no borrowed game state
      * @return Frame allocation result
      */
-    RenderFrameResult RecordRenderFrameInfo(HRenderFrame frame, const RenderFrameInfo& info);
+    RenderFrameResult RecordRenderFrameInfo(HRenderFrameStorage frame, const RenderFrameInfo& info);
 
     /**
      * Record game-owned Lua updates and copy their pass inputs into a building frame.
@@ -83,7 +83,7 @@ namespace dmRender
      * @param frame Building frame receiving owned commands
      * @return Recording status
      */
-    RenderFrameResult RecordRenderScriptInstance(HRenderScriptInstance instance, float dt, HRenderFrame frame);
+    RenderFrameResult RecordRenderScriptInstance(HRenderScriptInstance instance, float dt, HRenderFrameStorage frame);
 
     /**
      * Start execution from the published frame metadata. Called before component
@@ -102,7 +102,7 @@ namespace dmRender
      * @param clear_color Packed RGBA clear color used by the engine fallback
      * @return Frame recording result
      */
-    RenderFrameResult RecordDefaultRenderCommands(HRenderContext context, HRenderFrame frame, const RenderFrameInfo& info, uint32_t clear_color);
+    RenderFrameResult RecordDefaultRenderCommands(HRenderContext context, HRenderFrameStorage frame, const RenderFrameInfo& info, uint32_t clear_color);
 }
 
 #endif // DM_RENDER_PASS_H

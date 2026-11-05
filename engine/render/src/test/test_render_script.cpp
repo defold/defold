@@ -1758,8 +1758,8 @@ TEST_F(dmRenderScriptTest, DerivedLimitsRecordFullCommandCapacity)
         const dmRender::RenderFrameLimits component_limits = { sizeof(component_data), 1, 0 };
         dmRender::RenderFrameLimits limits;
         ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::CalculateRenderFrameLimits(m_Context, component_limits, &limits));
-        dmRender::HRenderFrame frame = dmRender::NewRenderFrame(limits);
-        ASSERT_NE((dmRender::HRenderFrame)0, frame);
+        dmRender::HRenderFrameStorage frame = dmRender::NewRenderFrame(limits);
+        ASSERT_NE((dmRender::HRenderFrameStorage)0, frame);
         dmRender::BeginRenderFrame(frame, capacity_index + 1);
         uint32_t component_table;
         ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::CopyRenderFrameTable(frame, 1, sizeof(component_data), 1, 1, component_data, &component_table));
@@ -1821,8 +1821,8 @@ TEST_F(dmRenderScriptTest, DerivedLimitsRecordFullOperandCapacity)
     const dmRender::RenderFrameLimits component_limits = {};
     dmRender::RenderFrameLimits limits;
     ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::CalculateRenderFrameLimits(m_Context, component_limits, &limits));
-    dmRender::HRenderFrame frame = dmRender::NewRenderFrame(limits);
-    ASSERT_NE((dmRender::HRenderFrame)0, frame);
+    dmRender::HRenderFrameStorage frame = dmRender::NewRenderFrame(limits);
+    ASSERT_NE((dmRender::HRenderFrameStorage)0, frame);
     dmRender::BeginRenderFrame(frame, 1);
     ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::RecordRenderFrameInfo(frame, dmRender::GetRenderFrameInfo(m_Context)));
     ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::RecordRenderScriptInstance(instance, 0.0f, frame));
@@ -1886,7 +1886,7 @@ TEST_F(dmRenderScriptTest, CaughtTableOverflowCancelsAndReusesFrame)
     dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
     // Metadata, view, predicate, constants and commands fit; a second draw exceeds the table limit.
     const dmRender::RenderFrameLimits limits = { 4096, 5, 1 };
-    dmRender::HRenderFrame frame = dmRender::NewRenderFrame(limits);
+    dmRender::HRenderFrameStorage frame = dmRender::NewRenderFrame(limits);
     dmRender::BeginRenderFrame(frame, 1);
     uint32_t released = 0;
     ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::AddRenderFrameReference(frame, &released, ReleaseRecordedScriptReference, 0));
@@ -1899,7 +1899,7 @@ TEST_F(dmRenderScriptTest, CaughtTableOverflowCancelsAndReusesFrame)
     ASSERT_LT(dmRender::GetRenderFrameStatistics(frame).m_PayloadBytes, limits.m_PayloadBytes);
     ASSERT_EQ(0.0f, dmRender::GetViewMatrix(m_Context).getTranslation().getX());
     ASSERT_EQ(0u, instance->m_CommandBuffer.Size());
-    ASSERT_EQ((dmRender::HRenderFrame)0, instance->m_RecordingFrame);
+    ASSERT_EQ((dmRender::HRenderFrameStorage)0, instance->m_RecordingFrame);
     ASSERT_EQ(0u, released);
 
     const uint64_t retained_capacity = dmRender::GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity;
@@ -1945,7 +1945,7 @@ TEST_F(dmRenderScriptTest, RecordedInputsSurviveMutationAndGC)
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
     const dmRender::RenderFrameLimits limits = { 8192, 64, 8 };
-    dmRender::HRenderFrame frame = dmRender::NewRenderFrame(limits);
+    dmRender::HRenderFrameStorage frame = dmRender::NewRenderFrame(limits);
     dmRender::BeginRenderFrame(frame, 1);
 
     ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::RecordRenderScriptInstance(instance, 0.0f, frame));
@@ -2001,7 +2001,7 @@ TEST_F(dmRenderScriptTest, RecordedFramesSurviveSubsequentUpdates)
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
     const dmRender::RenderFrameLimits limits = { 8192, 64, 8 };
-    dmRender::HRenderFrame frames[2];
+    dmRender::HRenderFrameStorage frames[2];
     for (uint32_t i = 0; i < 2; ++i)
     {
         frames[i] = dmRender::NewRenderFrame(limits);
@@ -2059,7 +2059,7 @@ TEST_F(dmRenderScriptTest, RecordedCameraSelectionPersistsWithOwnedValues)
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
     const dmRender::RenderFrameLimits limits = { 8192, 64, 8 };
-    dmRender::HRenderFrame frames[2];
+    dmRender::HRenderFrameStorage frames[2];
     for (uint32_t i = 0; i < 2; ++i)
     {
         Point3 position((float)i + 1.0f, 0.0f, 0.0f);
@@ -2112,7 +2112,7 @@ TEST_F(dmRenderScriptTest, RecordedDrawSnapshotsCameraAfterLuaEdits)
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
     const dmRender::RenderFrameLimits limits = { 8192, 64, 8 };
-    dmRender::HRenderFrame frames[2];
+    dmRender::HRenderFrameStorage frames[2];
     for (uint32_t i = 0; i < 2; ++i)
     {
         frames[i] = dmRender::NewRenderFrame(limits);
@@ -2178,7 +2178,7 @@ TEST_F(dmRenderScriptTest, CameraSelectionCommitsOnlySuccessfulRecording)
     ASSERT_EQ((dmRender::HRenderCamera)0, instance->m_SelectedRenderCamera);
 
     const dmRender::RenderFrameLimits limits = { 8192, 64, 8 };
-    dmRender::HRenderFrame frame = dmRender::NewRenderFrame(limits);
+    dmRender::HRenderFrameStorage frame = dmRender::NewRenderFrame(limits);
     for (uint32_t attempt = 1; attempt <= 5; ++attempt)
     {
         dmRender::BeginRenderFrame(frame, attempt);
@@ -2227,7 +2227,7 @@ TEST_F(dmRenderScriptTest, RecordingFailureCancelsPartialFrame)
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
     const dmRender::RenderFrameLimits limits = { 4096, 16, 1 };
-    dmRender::HRenderFrame frame = dmRender::NewRenderFrame(limits);
+    dmRender::HRenderFrameStorage frame = dmRender::NewRenderFrame(limits);
     dmRender::BeginRenderFrame(frame, 1);
     uint32_t released = 0;
     ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::AddRenderFrameReference(frame, &released, ReleaseRecordedScriptReference, 0));
@@ -2237,7 +2237,7 @@ TEST_F(dmRenderScriptTest, RecordingFailureCancelsPartialFrame)
     ASSERT_EQ((const dmRender::RenderFrameView*)0, dmRender::GetRenderFrameView(frame));
     ASSERT_EQ(0.0f, dmRender::GetViewMatrix(m_Context).getTranslation().getX());
     ASSERT_EQ(0u, instance->m_CommandBuffer.Size());
-    ASSERT_EQ((dmRender::HRenderFrame)0, instance->m_RecordingFrame);
+    ASSERT_EQ((dmRender::HRenderFrameStorage)0, instance->m_RecordingFrame);
     ASSERT_EQ(0u, released);
 
     dmRender::ResetRenderFrame(frame);
@@ -2261,7 +2261,7 @@ TEST_F(dmRenderScriptTest, CaughtRecordingOverflowStillRejectsFrame)
     dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
     instance->m_CommandBuffer.SetCapacity(1);
     const dmRender::RenderFrameLimits limits = { 4096, 16, 0 };
-    dmRender::HRenderFrame frame = dmRender::NewRenderFrame(limits);
+    dmRender::HRenderFrameStorage frame = dmRender::NewRenderFrame(limits);
     dmRender::BeginRenderFrame(frame, 1);
 
     ASSERT_EQ(dmRender::RENDER_FRAME_CAPACITY_EXCEEDED, dmRender::RecordRenderScriptInstance(instance, 0.0f, frame));

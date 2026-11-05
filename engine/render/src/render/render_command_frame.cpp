@@ -17,7 +17,7 @@
 
 namespace dmRender
 {
-    static RenderFrameResult CopyOperand(HRenderFrame frame, uint64_t source, uint32_t size, uint32_t alignment, uint64_t* destination)
+    static RenderFrameResult CopyOperand(HRenderFrameStorage frame, uint64_t source, uint32_t size, uint32_t alignment, uint64_t* destination)
     {
         *destination = 0;
         // A null operand means optional data, such as a frustum, is absent and needs no copy.
@@ -36,7 +36,7 @@ namespace dmRender
         return result;
     }
 
-    static RenderFrameResult RecordDependency(HRenderFrame frame, RenderCommandDependencyType type, uint64_t handle)
+    static RenderFrameResult RecordDependency(HRenderFrameStorage frame, RenderCommandDependencyType type, uint64_t handle)
     {
         if (!handle)
         {
@@ -51,7 +51,7 @@ namespace dmRender
         return CopyRenderFrameTable(frame, RENDER_COMMAND_DEPENDENCY_TABLE_TYPE, 1, sizeof(dependency), 8, &dependency, &table_index);
     }
 
-    static RenderFrameResult CopyCameraSnapshot(HRenderContext context, HRenderFrame frame, HRenderCamera handle,
+    static RenderFrameResult CopyCameraSnapshot(HRenderContext context, HRenderFrameStorage frame, HRenderCamera handle,
                                                 bool use_frustum, uint64_t* destination)
     {
         *destination = RENDER_COMMAND_CAMERA_NONE;
@@ -79,7 +79,7 @@ namespace dmRender
         return result;
     }
 
-    RenderFrameResult RecordRenderCommand(HRenderContext context, HRenderFrame frame, const Command& source_command, Command* destination,
+    RenderFrameResult RecordRenderCommand(HRenderContext context, HRenderFrameStorage frame, const Command& source_command, Command* destination,
                                           HRenderCamera selected_camera, bool use_frustum, bool capture_camera)
     {
         const Command source = source_command;
@@ -155,7 +155,7 @@ namespace dmRender
         }
     }
 
-    RenderFrameResult AppendRenderCommands(HRenderFrame frame, const Command* commands, uint32_t count)
+    RenderFrameResult AppendRenderCommands(HRenderFrameStorage frame, const Command* commands, uint32_t count)
     {
         if (!count)
         {

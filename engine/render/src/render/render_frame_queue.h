@@ -39,8 +39,8 @@ namespace dmRender
      */
     struct RenderFrameTicket
     {
-        RenderFrameId m_FrameId;
-        HRenderFrame  m_Frame;
+        RenderFrameId       m_FrameId;
+        HRenderFrameStorage m_Frame;
     };
 
     /**
