@@ -4653,6 +4653,8 @@ namespace dmGui
         n->m_Node.m_IsVisible = visible;
     }
 
+    // Returns true if ancestor is a parent, grandparent, or higher ancestor of node.
+    // A node is not considered its own ancestor.
     static bool IsNodeAncestor(HScene scene, const InternalNode* ancestor, const InternalNode* node)
     {
         // Siblings cannot be ancestors of each other.
