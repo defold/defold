@@ -92,10 +92,15 @@
                                    org.openjfx/javafx-media
                                    org.openjfx/javafx-web]]
 
-                     [org.jogamp.gluegen/gluegen-rt "2.6.0"]
-                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-linux-amd64"]
-                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-macosx-universal"]
-                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-windows-amd64"]
+                     ;; The GlueGen runtime does not use ANTLR 2.
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0"
+                      :exclusions [antlr/antlr]]
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-linux-amd64"
+                      :exclusions [antlr/antlr]]
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-macosx-universal"
+                      :exclusions [antlr/antlr]]
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-windows-amd64"
+                      :exclusions [antlr/antlr]]
                      [org.jogamp.jogl/jogl-all      "2.6.0"]
                      [org.jogamp.jogl/jogl-all      "2.6.0" :classifier "natives-linux-amd64"]
                      [org.jogamp.jogl/jogl-all      "2.6.0" :classifier "natives-macosx-universal"]
