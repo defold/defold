@@ -64,8 +64,9 @@
                      [org.eclipse.jgit/org.eclipse.jgit           "7.6.0.202603022253-r"]
                      [org.apache.commons/commons-compress         "1.18"]
 
-                     [net.java.dev.jna/jna                        "4.1.0"]
-                     [net.java.dev.jna/jna-platform               "4.1.0"]
+                     ;; Bob supplies JNA core.
+                     [net.java.dev.jna/jna-platform               "5.13.0"
+                      :exclusions [net.java.dev.jna/jna]]
 
                      [com.defold.lib/bob                          "1.0"]
                      [com.defold.lib/dmengine                     "1.0"]
