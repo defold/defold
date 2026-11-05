@@ -4462,11 +4462,38 @@ namespace dmGui
      */
     int LuaSetSize(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
+
         HNode hnode;
         InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         if(n->m_Node.m_SizeMode != SIZE_MODE_MANUAL)
         {
-            dmLogWarning("Can not set size on auto-sized nodes.");
+            DM_HASH_REVERSE_MEM(hash_ctx, DMHASH_MAX_REVERSE_LENGTH + 1);
+            char unnamed_id[32];
+            const char* node_id;
+            if (n->m_NameHash != 0)
+            {
+                node_id = dmHashReverseSafe64Alloc(&hash_ctx, n->m_NameHash);
+            }
+            else
+            {
+                dmSnPrintf(unnamed_id, sizeof(unnamed_id), "<unnamed:%u>", hnode);
+                node_id = unnamed_id;
+            }
+
+            Scene* scene = GetScene(L);
+            char url_buffer[1024];
+            const char* gui_url = "<unknown>";
+            if (scene->m_Context->m_GetURLCallback)
+            {
+                dmMessage::URL url;
+                scene->m_Context->m_GetURLCallback(scene, &url);
+                gui_url = dmScript::UrlToString(&url, url_buffer, sizeof(url_buffer));
+            }
+
+            luaL_where(L, 1);
+            dmLogWarning("%sCan not set size on auto-sized node '%s' in GUI '%s'.", lua_tostring(L, -1), node_id, gui_url);
+            lua_pop(L, 1);
             return 0;
         }
         if(n->m_Node.m_IsBone)
