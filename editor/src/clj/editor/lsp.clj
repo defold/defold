@@ -384,14 +384,16 @@
 (defn- render-server-progress! [state]
   (when-let [render-progress! (:render-progress! state)]
     (render-progress!
-      (if-let [{:keys [title message percentage]} (coll/first-where
-                                                    any?
-                                                    (eduction
-                                                      (mapcat #(coll/vals (:progress %)))
-                                                      (coll/vals (:server->server-state state))))]
-        (let [message-pattern (if message
-                                (localization/message "progress.language-server-with-message" {"title" title "message" message})
-                                (localization/message "progress.language-server" {"title" title}))]
+      (if-let [{:keys [title message percentage]}
+               (coll/first-where
+                 any?
+                 (eduction
+                   (mapcat #(coll/vals (:progress %)))
+                   (coll/vals (:server->server-state state))))]
+        (let [message-pattern
+              (if message
+                (localization/message "progress.language-server-with-message" {"title" title "message" message})
+                (localization/message "progress.language-server" {"title" title}))]
           (if percentage
             (progress/make message-pattern 100 (min 100 (long percentage)))
             (progress/make-indeterminate message-pattern)))

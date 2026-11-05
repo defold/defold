@@ -667,13 +667,15 @@
    :footer {:fx/type fx.h-box/lifecycle
             :alignment :center-left
             :spacing 8
-            :children [{:fx/type fx.progress-indicator/lifecycle
-                        :h-box/hgrow :never
-                        :pref-width (if loading 16.0 32.0)
-                        :pref-height (if loading 16.0 32.0)
-                        :max-width (if loading 16.0 32.0)
-                        :max-height (if loading 16.0 32.0)
-                        :visible (or filter-in-progress loading)}
+            ;; Shrink the spinner a bit, it's huge at 32.0
+            :children [(let [size (if loading 16.0 32.0)]
+                         {:fx/type fx.progress-indicator/lifecycle
+                          :h-box/hgrow :never
+                          :pref-width size
+                          :pref-height size
+                          :max-width size
+                          :max-height size
+                          :visible (or filter-in-progress loading)})
                        {:fx/type fxui/legacy-label
                         :h-box/hgrow :never
                         :visible (boolean (and loading loading-message))
