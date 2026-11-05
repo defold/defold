@@ -336,6 +336,45 @@ TEST_F(MaterialTest, CustomInstanceAttributes)
     ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attributes[3].m_StepFunction);
     ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attributes[4].m_StepFunction);
 
+    dmGraphics::VertexAttributeInfos infos;
+    dmGameSystem::FillMaterialAttributeInfos(material, dmRender::GetVertexDeclaration(material), &infos);
+    ASSERT_EQ((uint32_t)dmGraphics::SEMANTIC_FLAG_NONE, infos.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX]);
+    ASSERT_EQ((uint32_t)(dmGraphics::SEMANTIC_FLAG_POSITION | dmGraphics::SEMANTIC_FLAG_TEXCOORD | dmGraphics::SEMANTIC_FLAG_NORMAL_MATRIX | dmGraphics::SEMANTIC_FLAG_WORLD_MATRIX), infos.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE]);
+
+    dmGraphics::VertexAttributeInfos* copied_infos = dmGameSystem::GetScratchVertexAttributeInfos(infos.m_NumInfos);
+    dmGameSystem::CopyAttributeInfos(copied_infos, &infos, dmGraphics::COORDINATE_SPACE_LOCAL);
+    ASSERT_EQ(infos.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX], copied_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX]);
+    ASSERT_EQ(infos.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE], copied_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE]);
+
+    copied_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX] = 0;
+    copied_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE] = 0;
+    dmGameSystem::FillAttributeInfos(0, dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX, 0, 0, &infos, copied_infos, dmGraphics::COORDINATE_SPACE_LOCAL);
+    ASSERT_EQ(infos.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX], copied_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX]);
+    ASSERT_EQ(infos.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE], copied_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE]);
+
+    dmResource::Release(m_Factory, material_res);
+}
+
+// Reacquiring shared scratch infos preserves source semantic masks when attributes are filled in place.
+TEST_F(MaterialTest, ScratchAttributeSemanticFlags)
+{
+    dmGameSystem::MaterialResource* material_res;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/attributes_instancing_valid.materialc", (void**)&material_res));
+
+    dmGraphics::HVertexDeclaration declaration = dmRender::GetVertexDeclaration(material_res->m_Material);
+    dmGraphics::VertexAttributeInfos* source = dmGameSystem::GetScratchVertexAttributeInfos(dmGraphics::GetVertexDeclarationStreamCount(declaration));
+    dmGameSystem::FillMaterialAttributeInfos(material_res->m_Material, declaration, source);
+    const uint32_t vertex_flags = source->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX];
+    const uint32_t instance_flags = source->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE];
+    ASSERT_NE(0u, vertex_flags);
+    ASSERT_NE(0u, instance_flags);
+
+    dmGraphics::VertexAttributeInfos* destination = dmGameSystem::GetScratchVertexAttributeInfos(source->m_NumInfos);
+    ASSERT_EQ(source, destination);
+    dmGameSystem::FillAttributeInfos(0, dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX, 0, 0, source, destination, dmGraphics::COORDINATE_SPACE_WORLD);
+    ASSERT_EQ(vertex_flags, destination->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX]);
+    ASSERT_EQ(instance_flags, destination->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE]);
+
     dmResource::Release(m_Factory, material_res);
 }
 
