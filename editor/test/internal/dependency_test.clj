@@ -16,8 +16,11 @@
   (:require [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [support.test-support :as ts]))
+            [support.test-support :as ts]
+            [util.coll :as coll])
+  (:import [java.util.concurrent CountDownLatch TimeUnit]))
 
 (defn- dependencies
   [& pairs]
@@ -177,6 +180,90 @@
 
   (output input-counter g/Int (g/fnk [input-1 input-2 input-3 input-4 input-5]
                                 (count (keep identity [input-1 input-2 input-3 input-4 input-5])))))
+
+;; A dependency frontier must keep every endpoint when successor rows span
+;; several batches, cross row boundaries, or are empty.
+(deftest wide-successor-frontier-test
+  (ts/with-clean-system
+    (let [[source other-source empty-source]
+          (ts/tx-nodes (g/make-nodes [_source SingleOutput
+                                      _other-source SingleOutput
+                                      _empty-source SingleOutput]))
+          targets (vec (ts/tx-nodes (mapv (fn [_] (g/make-node InputUsedByOutput)) (range 1025))))
+          _ (g/transact
+              (mapv (fn [i target]
+                      (g/connect (if (< i 513) source other-source) :out-from-inline target :string-input))
+                    (range 1025) targets))
+          roots (mapv #(gt/endpoint % :out-from-inline) [source other-source empty-source])
+          basis (ig/invalidate-all-successors (g/now))
+          expected (coll/into-> targets (set roots) (map #(gt/endpoint % :out-from-input)))
+          actual (g/dependencies basis roots)]
+      (is (= expected (set actual)))
+      (is (= (count expected) (count actual)))
+      (is (= expected (set (g/dependencies basis roots)))))))
+
+;; Dependency walks must finish short and long converging branches across task
+;; batches, including after disconnection and undo.
+(deftest uneven-branch-dependencies-test
+  (ts/with-clean-system
+    (let [[source sink] (ts/tx-nodes (g/make-node SingleOutput)
+                                     (g/make-node MultipleInputsIntoOneOutput))
+          branches (vec (g/tx-nodes-added
+                          (g/transact (mapv (fn [_] (g/make-node InputUsedByOutput)) (range 600)))))
+          chain (vec (g/tx-nodes-added
+                       (g/transact (mapv (fn [_] (g/make-node InputUsedByOutput)) (range 40)))))
+          path (into [(branches 0)] chain)
+          roots #{(gt/endpoint source :out-from-inline)}
+          expected (coll/into-> (into branches chain)
+                     #{(gt/endpoint source :out-from-inline)
+                       (gt/endpoint sink :input-counter)}
+                     (map #(gt/endpoint % :out-from-input)))]
+      (g/transact
+        [(mapv #(g/connect source :out-from-inline % :string-input) branches)
+         (mapv (fn [from to] (g/connect from :out-from-input to :string-input)) path chain)
+         (g/connect (branches 1) :out-from-input sink :input-1)
+         (g/connect (peek chain) :out-from-input sink :input-2)])
+      (let [basis (g/now)
+            result (g/dependencies basis roots)]
+        (is (= expected (set result)))
+        (is (= (count expected) (count result)))
+        (g/transact (g/disconnect source :out-from-inline (branches 0) :string-input))
+        (is (= (reduce disj expected (mapv #(gt/endpoint % :out-from-input) path))
+               (set (g/dependencies (g/now) roots))))
+        (is (= expected (set (g/dependencies basis roots))))
+        (g/undo! :undo/global)
+        (is (= expected (set (g/dependencies (g/now) roots))))))))
+
+;; Concurrent dependency walks must keep their own graph generation when a
+;; connection has changed, including several labels on the same source node.
+(deftest concurrent-successor-generations-test
+  (ts/with-clean-system
+    (let [[source old-target new-target]
+          (ts/tx-nodes
+            (g/make-nodes [source MultipleOutputs
+                           old-target InputUsedByOutput
+                           _new-target InputUsedByOutput]
+              (g/connect source :output-1 old-target :string-input)))
+          roots (mapv #(gt/endpoint source %) [:output-1 :output-2 :output-3 :output-4 :output-5])
+          old-basis (g/now)
+          _ (g/transact [(g/disconnect source :output-1 old-target :string-input)
+                         (g/connect source :output-1 new-target :string-input)])
+          new-basis (g/now)
+          ready (CountDownLatch. 2)
+          start (CountDownLatch. 1)
+          results (mapv (fn [basis]
+                          (future
+                            (.countDown ready)
+                            (.await start)
+                            (set (g/dependencies basis roots))))
+                        [old-basis new-basis])]
+      (try
+        (is (.await ready 10 TimeUnit/SECONDS))
+        (finally (.countDown start)))
+      (is (= (conj (set roots) (gt/endpoint old-target :out-from-input))
+             (deref (results 0) 10000 ::timed-out)))
+      (is (= (conj (set roots) (gt/endpoint new-target :out-from-input))
+             (deref (results 1) 10000 ::timed-out))))))
 
 (deftest one-step-multipath
   (testing "one output to several inputs"
