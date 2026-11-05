@@ -24,9 +24,10 @@
     ids
     (set ids)))
 
-(defn- gen-impl [basename lookup ^long initial-postfix]
+(defn- gen-impl [basename lookup ^long initial-postfix ^long postfix-width]
   (loop [postfix initial-postfix]
-    (let [name (str basename postfix)]
+    (let [postfix-str (str postfix)
+          name (str basename (.repeat "0" (max 0 (- postfix-width (count postfix-str)))) postfix-str)]
       (if-not (contains? lookup name)
         name
         (recur (inc postfix))))))
@@ -44,7 +45,7 @@
   (let [lookup (ids->lookup taken-ids)]
     (if-not (contains? lookup basename)
       basename
-      (gen-impl basename lookup 1))))
+      (gen-impl basename lookup 1 0))))
 
 (defn- trim-digits
   ^String [^String id]
@@ -62,7 +63,7 @@
           next-postfix (if (= basename wanted-id)
                          1
                          (inc (Long/parseLong (subs wanted-id (count basename)))))]
-      (gen-impl basename lookup next-postfix))))
+      (gen-impl basename lookup next-postfix (- (count wanted-id) (count basename))))))
 
 (defn resolve
   "Resolve a wanted id to an id that does not intersect with taken ids

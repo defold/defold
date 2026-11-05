@@ -46,6 +46,7 @@
 
 ;; Conflicting numbered ids advance from the copied suffix instead of reusing
 ;; the base name or lower numbers, including when resolving several ids at once.
+;; Preserve zero padding while allowing the suffix to grow beyond its width.
 (deftest resolve-numbered-id-test
   (doseq [[wanted-id taken-ids expected-id]
           [["node_1" ["node_1"] "node_2"]
@@ -53,9 +54,14 @@
            ["node_3" ["node_3" "node_5"] "node_4"]
            ["node_3" ["node_4"] "node_3"]
            ["node_0" ["node_0"] "node_1"]
-           ["node_009" ["node_009"] "node_10"]
+           ["node_000" ["node_000"] "node_001"]
+           ["node_009" ["node_009"] "node_010"]
+           ["node_009" ["node_009" "node_010"] "node_011"]
            ["node_009" ["node_10"] "node_009"]
+           ["node_099" ["node_099"] "node_100"]
+           ["node_999" ["node_999"] "node_1000"]
            ["2d_node_9" ["2d_node_9"] "2d_node_10"]
+           ["009" ["009" "010"] "011"]
            ["9" ["9" "10"] "11"]]
           lookup [taken-ids
                   (set taken-ids)
@@ -65,7 +71,10 @@
     (is (= [expected-id] (id/resolve-all [wanted-id] lookup))))
 
   (is (= ["node_4" "node_5" "node_6"]
-         (id/resolve-all ["node_3" "node_3" "node_4"] #{"node_3"}))))
+         (id/resolve-all ["node_3" "node_3" "node_4"] #{"node_3"})))
+
+  (is (= ["node_010" "node_011" "node_012"]
+         (id/resolve-all ["node_009" "node_009" "node_010"] #{"node_009"}))))
 
 (deftest id-test
   (doseq [[basename taken-ids expected]
