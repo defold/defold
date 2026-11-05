@@ -44,6 +44,63 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
+    // SM6 shader output must contain DXIL bytecode and a root signature.
+    @Test
+    public void testSM6ShaderLanguageAndBytecode() throws Exception {
+        ShaderDesc shader = compileShaderForPlatform(Platform.X86_64Win32, "dx12", "sm6-language");
+        checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_HLSL_60);
+        assertTrue(shader.getHlslRootSignature().size() > 0);
+        for (ShaderDesc.Shader stage : shader.getShadersList()) {
+            java.nio.ByteBuffer data = stage.getSource().asReadOnlyByteBuffer().order(java.nio.ByteOrder.LITTLE_ENDIAN);
+            boolean dxil = false;
+            for (int part = 0; part < data.getInt(28); ++part) {
+                int offset = data.getInt(32 + part * 4);
+                if (data.getInt(offset) == 0x4c495844) { // DXIL
+                    assertEquals(6, (data.getShort(offset + 8) >> 4) & 15);
+                    dxil = true;
+                }
+            }
+            assertTrue("Expected SM6 DXIL", dxil);
+        }
+    }
+
+    // Pixel output metadata survives DXC, JNI and protobuf serialization, including sparse MRT slots.
+    @Test
+    public void testSM6PixelOutputMetadata() throws Exception {
+        String source = "#version 450\n"
+            + "layout(location=0) out vec4 color;\n"
+            + "layout(location=2) out ivec2 signedValue;\n"
+            + "layout(location=5) out uvec3 unsignedValue;\n"
+            + "void main() { color=vec4(1); signedValue=ivec2(-1,2); unsignedValue=uvec3(3,4,5); gl_FragDepth=0.5; }\n";
+        ShaderDesc shader = compileShaderWithCompiler(getProject().getShaderCompiler(Platform.X86_64Win32),
+            "dx12", "sm6-output-metadata", source);
+        shader = ShaderDesc.parseFrom(shader.toByteArray());
+        ShaderDesc.Shader stage = shader.getShaders(0);
+        assertEquals(3, stage.getHlslShaderOutputsCount());
+        int[] locations = {0, 2, 5};
+        int[] components = {4, 2, 3};
+        ShaderDesc.HLSLShaderOutput.ComponentType[] types = {
+            ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_FLOAT32,
+            ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_SINT32,
+            ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_UINT32
+        };
+        for (int i = 0; i < locations.length; ++i) {
+            ShaderDesc.HLSLShaderOutput output = stage.getHlslShaderOutputs(i);
+            assertEquals(locations[i], output.getLocation());
+            assertEquals(components[i], output.getComponentCount());
+            assertEquals(types[i], output.getComponentType());
+        }
+    }
+
+    // Xbox's shared language selection uses SM6; the bolt-on supplies its final platform compiler.
+    @Test
+    public void testSM6XboxLanguageSelection() throws Exception {
+        ShaderDesc shader = compileShaderWithCompiler(
+            ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64XBone), "dx12", "sm6-xbox");
+        checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_HLSL_60);
+        assertFalse(shader.getHlslRootSignature().isEmpty());
+    }
+
     @Before
     public void setup() {
         addTestFiles();
@@ -647,7 +704,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             ShaderDesc.Language.LANGUAGE_GLSL_SM330,
             ShaderDesc.Language.LANGUAGE_GLES_SM300,
             ShaderDesc.Language.LANGUAGE_SPIRV,
-            ShaderDesc.Language.LANGUAGE_HLSL_50,
+            ShaderDesc.Language.LANGUAGE_HLSL_60,
             ShaderDesc.Language.LANGUAGE_MSL_22,
             ShaderDesc.Language.LANGUAGE_WGSL
         };

@@ -17,7 +17,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <extension/extension.hpp>
-#include <dmsdk/engine/engine_event.h>
+#include <dmsdk/engine/engine_event.hpp>
 
 
 // Extension in a separate library. See comment in test_sdk_lib.cpp

@@ -39,19 +39,7 @@
  * @typedef
  * @name HInputContext
  */
-#if defined(__cplusplus)
-namespace dmInput
-{
-    struct Context;
-}
-typedef dmInput::Context* HInputContext;
-#else
 typedef struct dmInputContext* HInputContext;
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
-#endif
 
 /*# resolved action source
  * @enum
@@ -184,10 +172,5 @@ bool InputActionIsGamepadConnected(const InputActionIterator* iterator);
  * @return disconnected [type:bool] true for a disconnection notification; false for other actions
  */
 bool InputActionIsGamepadDisconnected(const InputActionIterator* iterator);
-
-#if defined(__cplusplus)
-}
-#include "input.hpp"
-#endif
 
 #endif // DMSDK_INPUT_H

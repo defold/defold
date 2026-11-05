@@ -190,6 +190,11 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
     doc_header = gen_doc_header(api_name, brief, description, language, namespace, source_path)
     l(doc_header)
 
+    # C-only source headers leave linkage handling to their generated C++ facade.
+    c_includes = info.get('c_includes', False)
+    if c_includes:
+        l('extern "C" {')
+
     for include in includes:
         if os.path.normpath(out_path).endswith(os.path.normpath(include)):
             continue # skip self includes
@@ -197,6 +202,8 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
     l('')
     l('#include <%s>' % c_header_path)
+    if c_includes:
+        l('}')
     l('')
 
     if not namespace:

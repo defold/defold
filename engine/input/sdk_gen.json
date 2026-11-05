@@ -10,6 +10,7 @@
             "languages": {
                 "cpp": {
                     "namespace": "dmInput",
+                    "c_includes": true,
                     "enum_aliases": [
                         "InputActionSource"
                     ],

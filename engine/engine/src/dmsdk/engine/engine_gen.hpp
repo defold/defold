@@ -34,13 +34,25 @@
  * @path engine/engine/src/dmsdk/engine/engine_gen.hpp
  */
 
+extern "C" {
 #include <dmsdk/platform/window.h>
-#include <dmsdk/extension/extension.h>
 
 #include <dmsdk/engine/engine.h>
+}
 
 namespace dmEngine
 {
+    /*# engine instance handle
+     * Identifies an engine instance. Extension callbacks borrow the handle for the
+     * callback; do not destroy the engine or retain the handle after engine deletion.
+     * Engine initialization may be incomplete when handling events during startup
+     * or cleanup after an initialization failure. Reboot creates a new instance.
+     * @typedef
+     * @name HEngine
+     * @language C++
+     */
+    typedef HEngine HEngine;
+
     /*# get the engine window
      * The engine owns the returned window. Do not destroy it or retain it across
      * engine deletion or reboot. Call only on the engine thread with a live engine.

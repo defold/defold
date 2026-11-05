@@ -53,6 +53,38 @@ class CppDocumentationTests(unittest.TestCase):
         self.assertIn('@param params [type:const ExtensionParams*]', c_docs)
         self.assertIn('@param param [type:ExtensionParam]', c_docs)
 
+    # Pure C headers need C linkage on imports while generated namespace functions keep C++ linkage.
+    def test_c_header_linkage_is_owned_by_cpp_facade(self):
+        engine = self.root / 'engine/engine'
+        config = json.loads((engine / 'sdk_gen.json').read_text())
+        info = next(entry['languages']['cpp'] for entry in config['files']
+                    if entry['file'].endswith('/engine.h'))
+        docs = gen_doc.parse_docs(str(engine / 'src/dmsdk/engine/engine.h'))
+        function = {
+            'name': 'EngineGetWindow',
+            'type': {'qualType': 'HWindow (HEngine)'},
+            'inner': [{'kind': 'ParmVarDecl', 'name': 'engine', 'type': {'qualType': 'HEngine'}}],
+        }
+        state = SimpleNamespace(enum_types=[], struct_typedefs=[({'name': 'HEngine'}, None)],
+                                function_typedefs=[], functions=[(function, None)])
+        for enabled in (False, True):
+            with self.subTest(c_includes=enabled):
+                options = dict(info)
+                options.pop('c_includes', None)
+                if enabled:
+                    options['c_includes'] = True
+                header = gen_cpp.gen_cpp_header(
+                    str(self.root), 'dmsdk/engine/engine.h',
+                    str(engine / 'src/dmsdk/engine/engine_gen.hpp'),
+                    options, None, state, ['dmsdk/platform/window.h'], docs)
+                imports, declarations = header.split('\nnamespace dmEngine\n', 1)
+                self.assertIn('HWindow GetWindow(HEngine engine);', declarations)
+                if enabled:
+                    self.assertRegex(imports, r'extern "C" \{\s*#include <dmsdk/platform/window.h>\s*'
+                                             r'#include <dmsdk/engine/engine.h>\s*\}\s*$')
+                else:
+                    self.assertNotIn('extern "C"', imports)
+
     # Declaration-only namespace removal must not break already-qualified C++ types and references.
     def test_doc_renames_preserve_cpp_namespace(self):
         name = 'ExtensionAppParamsGetAppExitCode'

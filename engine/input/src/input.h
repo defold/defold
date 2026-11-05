@@ -20,10 +20,12 @@
 #include <hid/hid.h>
 
 #include <input/input_ddf.h>
-#include <dmsdk/input/input.h>
+#include <dmsdk/input/input.hpp>
 
 namespace dmInput
 {
+    typedef ::dmInputContext Context;
+
     // TODO: Make proper subtypes, to keep the combinations apart, and struct small
     struct Action
     {

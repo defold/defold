@@ -27,7 +27,7 @@
 #include <dlib/webserver.h>
 #include <extension/extension.h>
 #include <extension/extension.hpp>
-#include <dmsdk/engine/engine_event.h>
+#include <dmsdk/engine/engine_event.hpp>
 #if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_WINDOWS)
 #include <dmsdk/graphics/graphics_native.h>
 #elif defined(DM_PLATFORM_LINUX)

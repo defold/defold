@@ -10,6 +10,7 @@
             "languages": {
                 "cpp": {
                     "namespace": "dmEngine",
+                    "c_includes": true,
                     "constant_aliases": {
                         "ENGINE_STATE_EVENT": "dmhash_t",
                         "ENGINE_WINDOW_EVENT": "dmhash_t",
@@ -45,9 +46,7 @@
             "languages": {
                 "cpp": {
                     "namespace": "dmEngine",
-                    "ignore": [
-                        "HEngine"
-                    ],
+                    "c_includes": true,
                     "rename": {
                         "EngineGetWindow": "GetWindow",
                         "ExtensionParamsGetContextRegistry": "dmExtension::ParamsGetContextRegistry",

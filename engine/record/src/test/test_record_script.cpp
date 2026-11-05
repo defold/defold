@@ -19,7 +19,7 @@
 #include <dlib/mutex.h>
 #include <dlib/time.h>
 #include <extension/extension.hpp>
-#include <dmsdk/engine/engine_event.h>
+#include <dmsdk/engine/engine_event.hpp>
 #include <script/script.h>
 #include <record/record_private.h>
 #include <string.h>

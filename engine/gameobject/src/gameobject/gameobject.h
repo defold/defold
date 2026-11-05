@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <dmsdk/gameobject/gameobject.h>
+#include <dmsdk/input/input.hpp>
 
 #include <dlib/easing.h>
 #include <dlib/context_registry.h>
@@ -30,11 +31,6 @@
 #include <script/script.h>
 
 #include <resource/resource.h>
-
-namespace dmInput
-{
-    struct Context;
-}
 
 namespace dmGameObject
 {
@@ -253,7 +249,7 @@ namespace dmGameObject
 
     // Dispatch the input-owned batch through its iterator. Consumed actions are
     // skipped; component callbacks borrow one compatibility action at a time.
-    UpdateResult DispatchInput(HCollection collection, dmInput::Context* input);
+    UpdateResult DispatchInput(HCollection collection, dmInput::HContext input);
 
     void AcquireInputFocus(HCollection collection, HInstance instance);
     void ReleaseInputFocus(HCollection collection, HInstance instance);

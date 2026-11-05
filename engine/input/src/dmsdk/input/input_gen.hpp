@@ -41,10 +41,12 @@
  * @path engine/input/src/dmsdk/input/input_gen.hpp
  */
 
+extern "C" {
 #include <stdint.h>
 #include <dmsdk/dlib/hash.h>
 
 #include <dmsdk/input/input.h>
+}
 
 namespace dmInput
 {

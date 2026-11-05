@@ -56,12 +56,14 @@
  * @path engine/engine/src/dmsdk/engine/engine_event_gen.hpp
  */
 
+extern "C" {
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/engine/engine.h>
 #include <dmsdk/platform/window.h>
 #include <dmsdk/input/input.h>
 
 #include <dmsdk/engine/engine_event.h>
+}
 
 namespace dmEngine
 {

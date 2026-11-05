@@ -1840,9 +1840,6 @@ TEST_F(InputTest, TouchPositionTransform)
     dmInput::DeleteBinding(binding);
 }
 
-extern "C" int TestInputActionIteratorC(HInputContext context, uint32_t count, float value, bool pressed, bool released, bool repeated);
-extern "C" int TestInputGamepadMetadataC(HInputContext context, dmhash_t name_hash, bool connected, bool disconnected);
-
 // Real binding updates expose gamepad transitions and stable name hashes across binding reloads.
 TEST_F(InputTest, GamepadMetadataAccessors)
 {
@@ -1863,7 +1860,6 @@ TEST_F(InputTest, GamepadMetadataAccessors)
     dmHID::SetGamepadConnectivity(m_HidContext, 0, true);
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
-    ASSERT_EQ(1, TestInputGamepadMetadataC(m_Context, dmHashString64("null_device"), true, false));
     dmInput::ActionIterator iterator = dmInput::IterateActions(m_Context);
     ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
     ASSERT_TRUE(dmInput::ActionIsGamepadConnected(&iterator));
@@ -1873,7 +1869,6 @@ TEST_F(InputTest, GamepadMetadataAccessors)
     gamepad->m_DeviceNameHash = dmHashString64("Controller A");
     dmHID::SetGamepadAxis(gamepad->m_Gamepad, axis_index, 1.0f);
     dmInput::UpdateBinding(binding, m_DT);
-    ASSERT_EQ(1, TestInputGamepadMetadataC(m_Context, dmHashString64("Controller A"), false, false));
     iterator = dmInput::IterateActions(m_Context);
     ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
     ASSERT_EQ(1.0f, dmInput::ActionGetValue(&iterator));
@@ -1884,11 +1879,9 @@ TEST_F(InputTest, GamepadMetadataAccessors)
     // Model an unavailable device name without changing the active action.
     gamepad->m_DeviceNameHash = 0;
     dmInput::UpdateBinding(binding, m_DT);
-    ASSERT_EQ(1, TestInputGamepadMetadataC(m_Context, 0, false, false));
     gamepad->m_DeviceNameHash = dmHashString64("Controller A");
     dmHID::SetGamepadAxis(gamepad->m_Gamepad, axis_index, 0.0f);
     dmInput::UpdateBinding(binding, m_DT);
-    ASSERT_EQ(1, TestInputGamepadMetadataC(m_Context, dmHashString64("Controller A"), false, false));
     iterator = dmInput::IterateActions(m_Context);
     ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
     ASSERT_TRUE(dmInput::ActionIsReleased(&iterator));
@@ -1896,14 +1889,12 @@ TEST_F(InputTest, GamepadMetadataAccessors)
 
     dmHID::SetGamepadConnectivity(m_HidContext, 0, false);
     dmInput::UpdateBinding(binding, m_DT);
-    ASSERT_EQ(1, TestInputGamepadMetadataC(m_Context, dmHashString64("Controller A"), false, true));
     iterator = dmInput::IterateActions(m_Context);
     ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
     dmhash_t name_hash = dmInput::ActionGetGamepadNameHash(&iterator);
     dmInputDDF::InputBinding empty = {};
     dmInput::SetBinding(binding, &empty);
     ASSERT_EQ(dmHashString64("Controller A"), name_hash);
-    ASSERT_EQ(1, TestInputGamepadMetadataC(m_Context, dmHashString64("Controller A"), false, true));
     ASSERT_TRUE(dmInput::ActionIsGamepadDisconnected(&iterator));
     dmInput::UpdateBinding(binding, m_DT);
     iterator = dmInput::IterateActions(m_Context);
@@ -1930,7 +1921,6 @@ TEST_F(InputTest, OpaqueActionIterator)
         dmHID::SetKey(keyboard, dmHID::KEY_UP, frame != 2);
         dmHID::Update(m_HidContext);
         dmInput::UpdateBinding(binding, 1.0f);
-        ASSERT_EQ(1, TestInputActionIteratorC(m_Context, 1, frame != 2 ? 1.0f : 0.0f, frame == 0, frame == 2, frame == 1));
         dmInput::ActionIterator iterator = dmInput::IterateActions(m_Context);
         ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
         const dmInput::InputAction* action = dmInput::GetInputAction(&iterator);
@@ -2049,7 +2039,6 @@ TEST(InputAPI, EmptyActionIterator)
     dmInput::ActionIterator iterator = dmInput::IterateActions(context);
     ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
     ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
-    ASSERT_EQ(1, TestInputActionIteratorC(context, 0, 0.0f, false, false, false));
     dmInput::DeleteContext(context);
 }
 

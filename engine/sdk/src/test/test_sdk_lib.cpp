@@ -20,7 +20,7 @@
 
 // Include generated sdk.h files including all sdk include files.
 #include <dmsdk/sdk.h>
-#include <dmsdk/engine/engine_event.h>
+#include <dmsdk/engine/engine_event.hpp>
 
 int g_TestAppInitCount = 0;
 int g_TestAppEventCount = 0;

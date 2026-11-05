@@ -544,12 +544,12 @@ bool CrackContactPointCallback(const dmPhysics::ContactPoint& contact_point, voi
     CrackUserData* data = (CrackUserData*)user_data;
     data->m_Normal = contact_point.m_Normal;
     data->m_Distance = contact_point.m_Distance;
-    data->m_AccumNormal += contact_point.m_Normal;
     ++data->m_Count;
     if (data->m_Target == contact_point.m_UserDataA)
     {
         data->m_Normal = -data->m_Normal;
     }
+    data->m_AccumNormal += data->m_Normal;
     return true;
 }
 
@@ -610,22 +610,22 @@ TYPED_TEST(PhysicsTest, GridShapeCrack)
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     float eps = 0.025f;
-    uint32_t exp_crack_data_count = 8u;
-    uint32_t exp_vo_collision_count = 4u;
+    uint32_t exp_crack_data_count = 4u;
+    uint32_t exp_vo_collision_count = 2u;
 
     #ifdef PHYSICS_TEST_BOX2D_DEFOLD
         eps = 0.000001f;
         exp_crack_data_count = 2u;
         exp_vo_collision_count = 2u;
 
-        // We get two conflicting normals (left + right x axis)
-        ASSERT_EQ(0.0f, crack_data.m_AccumNormal.getX());
-        ASSERT_EQ(0.0f, crack_data.m_AccumNormal.getY());
-        ASSERT_EQ(0.0f, crack_data.m_AccumNormal.getZ());
     #endif
 
+    // Both sides contribute opposite normals; enumeration order does not select a preferred side.
+    ASSERT_EQ(0.0f, crack_data.m_AccumNormal.getX());
+    ASSERT_EQ(0.0f, crack_data.m_AccumNormal.getY());
+    ASSERT_EQ(0.0f, crack_data.m_AccumNormal.getZ());
     ASSERT_EQ(exp_crack_data_count, crack_data.m_Count);
-    ASSERT_EQ(1.0f, crack_data.m_Normal.getX());
+    ASSERT_EQ(1.0f, dmMath::Abs(crack_data.m_Normal.getX()));
     ASSERT_EQ(0.0f, crack_data.m_Normal.getY());
     ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
 
@@ -635,12 +635,12 @@ TYPED_TEST(PhysicsTest, GridShapeCrack)
 
     vo_b.m_Position = dmVMath::Point3(0.0f, 8.1f, 0.0f);
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
-    ASSERT_EQ(1.0f, crack_data.m_Normal.getX());
+    ASSERT_EQ(1.0f, dmMath::Abs(crack_data.m_Normal.getX()));
     ASSERT_EQ(0.0f, crack_data.m_Normal.getY());
     ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
     vo_b.m_Position = dmVMath::Point3(0.0f, 7.9f, 0.0f);
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
-    ASSERT_EQ(1.0f, crack_data.m_Normal.getX());
+    ASSERT_EQ(1.0f, dmMath::Abs(crack_data.m_Normal.getX()));
     ASSERT_EQ(0.0f, crack_data.m_Normal.getY());
     ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
 
@@ -703,8 +703,8 @@ TYPED_TEST(PhysicsTest, PolygonShape)
     TestFixture::m_StepWorldContext.m_ContactPointUserData = &crack_data;
 
     float eps = 0.025f;
-    uint32_t exp_crack_data_count = 4u;
-    uint32_t exp_vo_collision_count = 2u;
+    uint32_t exp_crack_data_count = 2u;
+    uint32_t exp_vo_collision_count = 1u;
 
     #ifdef PHYSICS_TEST_BOX2D_DEFOLD
         eps = 0.000001f;
@@ -813,8 +813,8 @@ TYPED_TEST(PhysicsTest, GridShapeCorner)
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     float eps = 0.025f;
-    uint32_t exp_crack_data_count = 4;
-    uint32_t exp_vo_collision_count = 2;
+    uint32_t exp_crack_data_count = 2;
+    uint32_t exp_vo_collision_count = 1;
 
     #ifdef PHYSICS_TEST_BOX2D_DEFOLD
         eps = 0.000001f;
@@ -892,8 +892,8 @@ TYPED_TEST(PhysicsTest, GridShapeSphereDistance)
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     float eps = 0.025f;
-    uint32_t exp_crack_data_count = 2;
-    uint32_t exp_vo_collision_count = 2;
+    uint32_t exp_crack_data_count = 1;
+    uint32_t exp_vo_collision_count = 1;
 
     #ifdef PHYSICS_TEST_BOX2D_DEFOLD
         eps = 0.000001f;
@@ -1713,12 +1713,8 @@ TYPED_TEST(PhysicsTest, ClearGridShapeHull)
     // TODO Asserting for 2 here is actually a bug, it should be 1 for one body in collision with 1 other
     // Reported here: https://defold.fogbugz.com/default.asp?2091
 
-    // Box2D V3: We get twice the collisions, so it's 4 now.
-    uint32_t exp_collision_count = 4;
-
-    #ifdef PHYSICS_TEST_BOX2D_DEFOLD
-        exp_collision_count = 2;
-    #endif
+    // Each of the two grid-cell contacts is reported once.
+    uint32_t exp_collision_count = 2;
 
     ASSERT_EQ(exp_collision_count, TestFixture::m_CollisionCount);
     ASSERT_EQ(exp_collision_count, TestFixture::m_ContactPointCount);
@@ -1732,10 +1728,7 @@ TYPED_TEST(PhysicsTest, ClearGridShapeHull)
 
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
-    exp_collision_count = 2;
-    #ifdef PHYSICS_TEST_BOX2D_DEFOLD
-        exp_collision_count = 1;
-    #endif
+    exp_collision_count = 1;
 
     ASSERT_EQ(exp_collision_count, TestFixture::m_CollisionCount);
     ASSERT_EQ(exp_collision_count, TestFixture::m_ContactPointCount);
@@ -1854,11 +1847,7 @@ TYPED_TEST(PhysicsTest, GridShapeFlipped)
 
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
-    uint32_t exp_collision_count = 2;
-
-    #ifdef PHYSICS_TEST_BOX2D_DEFOLD
-        exp_collision_count = 1;
-    #endif
+    uint32_t exp_collision_count = 1;
 
     ASSERT_EQ(exp_collision_count, TestFixture::m_CollisionCount);
 
@@ -2038,6 +2027,149 @@ TYPED_TEST(PhysicsTest, ScriptApiBox2D)
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
 }
+
+#if defined(PHYSICS_TEST_BOX2D)
+struct ContactCallbackCounts
+{
+    uint32_t m_Collisions;
+    uint32_t m_Contacts;
+    bool     m_ContinueCollisions;
+    bool     m_ContinueContacts;
+};
+
+static bool CountCollision(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
+{
+    ContactCallbackCounts* counts = (ContactCallbackCounts*)user_data;
+    ++counts->m_Collisions;
+    return counts->m_ContinueCollisions;
+}
+
+static bool CountContact(const dmPhysics::ContactPoint& contact, void* user_data)
+{
+    ContactCallbackCounts* counts = (ContactCallbackCounts*)user_data;
+    ++counts->m_Contacts;
+    return counts->m_ContinueContacts;
+}
+
+static void CountTriggerEnter(const dmPhysics::TriggerEnter& trigger, void* user_data)
+{
+    ++*(uint32_t*)user_data;
+}
+
+// Stopping sensor collision notifications must not suppress trigger enters, and must reset on the next step.
+TYPED_TEST(PhysicsTest, SensorCollisionCallbackLimit)
+{
+    dmPhysics::HCollisionShape2D shape = dmPhysics::NewBoxShape2D(TestFixture::m_Context, dmVMath::Vector3(1.0f, 1.0f, 0.0f));
+    VisualObject objects[3];
+    dmPhysics::HCollisionObject2D bodies[3];
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        dmPhysics::CollisionObjectData data;
+        data.m_Type = i == 0 ? dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER : dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+        data.m_Mass = 0.0f;
+        data.m_UserData = &objects[i];
+        data.m_Group = i == 0 ? 1 : 2;
+        data.m_Mask = i == 0 ? 2 : 1;
+        bodies[i] = dmPhysics::NewCollisionObject2D(TestFixture::m_World, data, &shape, 1);
+    }
+    ContactCallbackCounts counts = { 0, 0, false, true };
+    uint32_t enters = 0;
+    TestFixture::m_StepWorldContext.m_CollisionCallback = CountCollision;
+    TestFixture::m_StepWorldContext.m_CollisionUserData = &counts;
+    TestFixture::m_StepWorldContext.m_TriggerEnteredCallback = CountTriggerEnter;
+    TestFixture::m_StepWorldContext.m_TriggerEnteredUserData = &enters;
+    dmPhysics::StepWorld2D(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(1u, counts.m_Collisions);
+    ASSERT_EQ(2u, enters);
+
+    counts.m_ContinueCollisions = true;
+    counts.m_Collisions = 0;
+    dmPhysics::StepWorld2D(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(2u, counts.m_Collisions);
+    ASSERT_EQ(2u, enters);
+    for (uint32_t i = 0; i < 3; ++i)
+        dmPhysics::DeleteCollisionObject2D(TestFixture::m_World, bodies[i]);
+    dmPhysics::DeleteCollisionShape2D(shape);
+}
+
+// Each shape contact is reported once, with both manifold points, regardless of body type or creation order.
+TYPED_TEST(PhysicsTest, ContactsReportedOnce)
+{
+    dmPhysics::SetGravity2D(TestFixture::m_World, dmVMath::Vector3(0.0f));
+    dmPhysics::HCollisionShape2D shape = dmPhysics::NewBoxShape2D(TestFixture::m_Context, dmVMath::Vector3(0.5f, 0.5f, 0.0f));
+    for (uint32_t variant = 0; variant < 4; ++variant)
+    {
+        VisualObject objects[2];
+        objects[1].m_Position.setY(0.9f);
+        dmPhysics::HCollisionObject2D bodies[2];
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            uint32_t index = (variant & 1) ? 1 - i : i;
+            dmPhysics::CollisionObjectData data;
+            bool dynamic = index == 1 || (variant & 2);
+            data.m_Type = dynamic ? dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC : dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+            data.m_Mass = dynamic ? 1.0f : 0.0f;
+            data.m_UserData = &objects[index];
+            data.m_Group = data.m_Mask = 1;
+            bodies[index] = dmPhysics::NewCollisionObject2D(TestFixture::m_World, data, &shape, 1);
+            if (dynamic)
+                dmPhysics::SetLinearVelocity2D(TestFixture::m_Context, bodies[index], dmVMath::Vector3(0.0f, index == 0 ? 1.0f : -1.0f, 0.0f));
+        }
+
+        ContactCallbackCounts counts = { 0, 0, true, true };
+        TestFixture::m_StepWorldContext.m_CollisionCallback = CountCollision;
+        TestFixture::m_StepWorldContext.m_CollisionUserData = &counts;
+        TestFixture::m_StepWorldContext.m_ContactPointCallback = CountContact;
+        TestFixture::m_StepWorldContext.m_ContactPointUserData = &counts;
+        dmPhysics::StepWorld2D(TestFixture::m_World, TestFixture::m_StepWorldContext);
+        ASSERT_EQ(1u, counts.m_Collisions);
+        ASSERT_EQ(2u, counts.m_Contacts);
+        dmPhysics::DeleteCollisionObject2D(TestFixture::m_World, bodies[0]);
+        dmPhysics::DeleteCollisionObject2D(TestFixture::m_World, bodies[1]);
+    }
+    dmPhysics::DeleteCollisionShape2D(shape);
+}
+
+// Distinct shapes on the same body retain their contacts; stopping either callback does not stop the other or later steps.
+TYPED_TEST(PhysicsTest, CompoundContactCallbackLimits)
+{
+    VisualObject objects[2];
+    objects[1].m_Position.setY(0.9f);
+    dmPhysics::HCollisionShape2D shapes[2] = {
+        dmPhysics::NewBoxShape2D(TestFixture::m_Context, dmVMath::Vector3(0.5f, 0.5f, 0.0f)),
+        dmPhysics::NewBoxShape2D(TestFixture::m_Context, dmVMath::Vector3(3.0f, 0.5f, 0.0f))
+    };
+    dmPhysics::HCollisionShape2D feet[] = { shapes[0], shapes[0] };
+    dmVMath::Vector3 translations[] = { dmVMath::Vector3(-2.0f, 0.0f, 0.0f), dmVMath::Vector3(2.0f, 0.0f, 0.0f) };
+    dmVMath::Quat rotations[] = { dmVMath::Quat::identity(), dmVMath::Quat::identity() };
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &objects[0];
+    data.m_Group = data.m_Mask = 1;
+    dmPhysics::HCollisionObject2D ground = dmPhysics::NewCollisionObject2D(TestFixture::m_World, data, &shapes[1], 1);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+    data.m_UserData = &objects[1];
+    dmPhysics::HCollisionObject2D body = dmPhysics::NewCollisionObject2D(TestFixture::m_World, data, feet, translations, rotations, 2);
+
+    TestFixture::m_StepWorldContext.m_CollisionCallback = CountCollision;
+    TestFixture::m_StepWorldContext.m_ContactPointCallback = CountContact;
+    for (uint32_t step = 0; step < 5; ++step)
+    {
+        ContactCallbackCounts counts = { 0, 0, (step & 1) == 0, (step & 2) == 0 };
+        TestFixture::m_StepWorldContext.m_CollisionUserData = &counts;
+        TestFixture::m_StepWorldContext.m_ContactPointUserData = &counts;
+        dmPhysics::StepWorld2D(TestFixture::m_World, TestFixture::m_StepWorldContext);
+        ASSERT_EQ(counts.m_ContinueCollisions ? 2u : 1u, counts.m_Collisions);
+        ASSERT_EQ(counts.m_ContinueContacts ? 4u : 1u, counts.m_Contacts);
+    }
+    dmPhysics::DeleteCollisionObject2D(TestFixture::m_World, body);
+    dmPhysics::DeleteCollisionObject2D(TestFixture::m_World, ground);
+    dmPhysics::DeleteCollisionShape2D(shapes[0]);
+    dmPhysics::DeleteCollisionShape2D(shapes[1]);
+}
+#endif
 
 int main(int argc, char **argv)
 {
