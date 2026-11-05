@@ -1,0 +1,30 @@
+{
+    "basepath": "src",
+    "includes": [
+        "src",
+        "${DYNAMO_HOME}/sdk/include"
+    ],
+    "files": [
+        {
+            "file": "src/dmsdk/physics/physics_event.h",
+            "languages": {
+                "cpp": {
+                    "namespace": "dmPhysics",
+                    "c_includes": true,
+                    "constant_aliases": {
+                        "PHYSICS_EVENT_POST_STEP": "dmhash_t"
+                    },
+                    "rename": {
+                        "PHYSICS_EVENT_TYPE_": "EVENT_TYPE_",
+                        "PHYSICS_EVENT_": "EVENT_",
+                        "PhysicsEventType": "EventType",
+                        "PhysicsEvent": "Event"
+                    },
+                    "enum_aliases": [
+                        "PhysicsEventType"
+                    ]
+                }
+            }
+        }
+    ]
+}

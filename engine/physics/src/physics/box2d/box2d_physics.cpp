@@ -314,6 +314,12 @@ namespace dmPhysics
         return (void*)&world->m_WorldId;
     }
 
+    void* GetWorldContext2D(HWorld2D world, EventType* type)
+    {
+        *type = EVENT_TYPE_BOX2D_V3;
+        return GetWorldContext2D(world);
+    }
+
     void* GetCollisionObjectContext2D(HCollisionObject2D collision_object)
     {
         ((Body*)collision_object)->m_World->m_ExternalBox2DAccess = 1;
