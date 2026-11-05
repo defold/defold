@@ -47,7 +47,6 @@ import com.dynamo.bob.archive.publisher.FolderPublisher;
 import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.util.TimeProfiler;
-import com.sun.istack.Nullable;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -126,7 +125,7 @@ public class BundleHelper {
         return this.platformBundler;
     }
 
-    public BundleHelper(Project project, Platform platform, File bundleDir, String variant, @Nullable IBundler bundler) throws CompileExceptionError {
+    public BundleHelper(Project project, Platform platform, File bundleDir, String variant, IBundler bundler) throws CompileExceptionError {
         this.projectProperties = project.getProjectProperties();
         this.propertiesMap = this.projectProperties.createTypedMap(new BobProjectProperties.PropertyType[]{BobProjectProperties.PropertyType.BOOL});
         this.platformBundler = bundler;
