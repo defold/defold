@@ -78,6 +78,19 @@ public class ArchiveBuilder {
     private int resourcePadding = 4;
     private boolean forceCompression = false; // for building unit tests to create test content
 
+    @FunctionalInterface
+    public interface PreparedResourceConsumer {
+        void accept(ArchiveEntry entry, byte[] payload) throws IOException;
+    }
+
+    private PreparedResourceConsumer preparedResourceConsumer;
+
+    public void setPreparedResourceConsumer(PreparedResourceConsumer consumer) {
+        preparedResourceConsumer = consumer;
+        // Package placement owns publication, including when export is disabled.
+        publisher = null;
+    }
+
     private Project project;
     private Publisher publisher;
     private int nThreads;
@@ -189,15 +202,19 @@ public class ArchiveBuilder {
         entry.setHexDigest(hexDigest);
         hexDigestCache.put(entry.getRelativeFilename(), hexDigest);
 
+        if (preparedResourceConsumer != null || (excludedResources.contains(normalisedPath) && this.publisher != null)) {
+            byte[] header = ByteBuffer.allocate(16)
+                .putInt(entry.getSize()) // 4 bytes
+                .put((byte)(entry.getFlags() | ArchiveEntry.FLAG_LIVEUPDATE)) // 1 byte
+                .put(archiveEntryPadding) // 11 bytes
+                .array();
+            entry.setHeader(header);
+        }
+        if (preparedResourceConsumer != null) preparedResourceConsumer.accept(entry, buffer);
+
         // Write resource to resource pack or data archive
         if (excludedResources.contains(normalisedPath)) {
             if (this.publisher != null) {
-                byte[] header = ByteBuffer.allocate(16)
-                    .putInt(entry.getSize()) // 4 bytes
-                    .put((byte)entry.getFlags()) // 1 byte
-                    .put(archiveEntryPadding) // 11 bytes
-                    .array();
-                entry.setHeader(header);
                 this.publisher.publish(entry, buffer);
             }
             resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();

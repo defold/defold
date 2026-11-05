@@ -288,7 +288,7 @@ defold_min_version = 1.10.0
 
 [liveupdate]
 enabled = 1
-settings = /liveupdate.settings
+settings = /packages.lumanifest
 
 [native_extension]
 app_manifest = /checked.appmanifest

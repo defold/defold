@@ -195,3 +195,204 @@ The [build report template](lib/report_template.html) includes its JavaScript
 and CSS inline so Bob can serve one HTML file. When updating those libraries,
 run `inline_libraries.py` from `share/report_libs/` and insert its generated
 `<style>` and `<script>` tags. See the [report library guide](../../share/report_libs/README.md).
+
+## Live Update package manifests
+
+Set `liveupdate.settings = /content.lumanifest` in `game.project` to use named
+packages. Selecting a legacy `.settings` file preserves legacy resource selection:
+a resource reachable through any non-excluded route remains bundled. Bob adapts
+the final legacy base/Live Update sets to one internal package and uses the same
+preparation and writers as manifest projects. It does not generate rules or change
+project files. In legacy mode, ZIP/folder destinations and compression still come
+from the selected `.settings` file; package manifests contain only their packaged resources.
+Legacy folder outputs retain previous resources and unrelated files, as before.
+Existing legacy ZIP/folder outputs in a bundle can be replaced without an output index.
+The [example project](../../editor/test/resources/live_update_packages_project)
+separates common content, two episode ranges, and seasonal content:
+
+```protobuf
+output_directory: "build/packages"
+packages {
+  name: "common"
+  rules { name: "Common content" path: "/common/.*" }
+}
+packages {
+  name: "episodes_common"
+  rules { name: "Shared episode content" path: "/episodes/common/.*" }
+}
+packages {
+  name: "episodes_00_09"
+  rules { name: "Episodes 00–09" path: "/episodes/0[0-9]/.*[.](collection|txt)" }
+  rules { name: "Separate shared content" operation: REMOVE package: "episodes_common" }
+}
+packages {
+  name: "episodes_10_19"
+  rules { name: "Episodes 10–19" path: "/episodes/1[0-9]/.*[.](collection|txt)" }
+  rules { name: "Separate shared content" operation: REMOVE package: "episodes_common" }
+}
+packages {
+  name: "halloween"
+  rules { name: "Halloween content" path: "/halloween/.*[.](collection|txt)" }
+}
+```
+
+Rules run in order. Java regular expressions match the entire source path,
+including its leading slash. Selected sources contribute their actual compiled
+outputs and runtime dependencies; unrecognized source files are copied unchanged.
+A package reference uses the referenced package's final contents, including
+forward references. Reference cycles, missing packages, invalid regexes, and
+missing dependencies are errors. Each Path rule has a **No matches** policy:
+**Warn** (the default), **Error** (fail the build), or **Ignore**. In protobuf text,
+set `no_match: WARN`, `no_match: ERROR`, or `no_match: IGNORE` on the rule.
+This applies to Add and Remove rules and only controls a valid pattern matching
+no source files. It does not suppress invalid regexes or missing dependencies.
+Regex errors identify the package, rule, and 1-based column in the Path expression.
+Resources may belong to several packages. Startup-required resources remain in
+the base even when selected by a package. Proxies are deferred boundaries;
+factory loading modes determine which prototypes must remain available at startup.
+
+The episode rules select collections and their dependencies, plus custom `.txt`
+files. Each Remove rule subtracts the complete `episodes_common` package after
+the Add rule. Dependencies shared with `common` can still occur in several
+packages; the editor's resource search lists all of them.
+
+Custom files, such as `.txt` and `.json`, keep their original paths and contents.
+Select them with a Path rule; adding them to `project.custom_resources` is not
+required. Once their package is mounted, read them with `sys.load_resource()`,
+for example `sys.load_resource("/episodes/00/description.txt")`.
+
+Use `--archive --liveupdate yes` to export. With Live Update disabled, the selected
+content is included in the base instead. The `zip` provider is the default and
+writes `<name>.zip`; `folder` writes `<name>/`. The manifest's `output_directory`
+sets the parent directory for every provider and defaults to `build/packages`.
+Relative paths resolve from the project root; absolute paths are also accepted.
+Environment variables use `${NAME}`, `$NAME`, or `%NAME%`, for example
+`output_directory: "${PACKAGE_OUTPUT}/releases"`. Bob resolves these when exporting
+and reports an error for undefined variables. The current values determine
+the output paths on every export.
+
+ZIP compression defaults to `1` and can be set in the manifest (see provider
+properties below). Manifest mode uses its own output directory and provider
+settings; it does not read a separate legacy `.settings` file.
+
+Native engine-only bundles (`--exclude-archive`) skip package copying and require
+no package output index.
+
+Each package contains a `liveupdate.game.dmanifest` with only that package's
+resource entries. Optional metadata identifies outputs and external requirements,
+including alternative packages supplying the same dependency. It is informational:
+the game is responsible for downloading, choosing mount order, and mounting its
+packages with the existing Live Update API.
+
+### Package reports
+
+Use `--bundle-report-html` with `bundle` to inspect the base and all Live Update
+packages in one standalone file. This report requires an archive build and also
+supports legacy projects:
+
+```sh
+java -jar bob.jar --archive --liveupdate yes --bundle-report-html build/bundle-report.html build bundle
+```
+
+The report lists package providers, resource counts, compiled sizes, and the
+actual sizes and paths of generated ZIPs, folders, and custom outputs. Folder
+sizes include all files, including the package manifest. Select a package to
+inspect its contents, or search across all packages. Search is case-insensitive
+and matches nonconsecutive characters in resource and source paths; for example,
+`ep00desc` matches `/episodes/00/description.txt`. Shared resources list every
+package containing them. JavaScript, styles, and report data are embedded, so
+the HTML works offline without a server or companion files.
+
+Bob saves package contents in `game.lureport.json` alongside the build outputs.
+The report is written after every requested bundle succeeds. A later invocation
+can use `--bundle-report-html build/bundle-report.html bundle` to regenerate it
+from cached data without rebuilding packages.
+
+`--build-report-html` and `--build-report-json` remain options for the `build`
+command. They run after compiling, independently of bundling; `bundle` alone
+does not generate or overwrite build reports.
+
+### Package builds and bundle placement
+
+Every build with Live Update export enabled recreates all packages from scratch.
+Bob still uses its normal build cache for resource compilation. Each provider
+writes to an empty staging directory, and Bob installs the completed outputs
+only after every provider succeeds. Package generation does not use cache keys
+or skip unchanged packages.
+
+The build's `game.lupackages` file lists the artifacts to place in a later bundle.
+Output records in `.internal/liveupdate` retain generated paths across clean
+builds and disabled export, keeping generated packages out of resource matching.
+Renamed or removed artifacts are retired after all providers complete successfully.
+Moving or copying a project rebases ownership of artifacts within the project;
+it does not transfer ownership of external output directories.
+
+Manifest packages are written only to the manifest's output directory. Legacy
+`save-zip-in-bundle-folder` and `save-folder-in-bundle-folder` settings request an
+additional copy during `bundle`. Bob copies these artifacts through fresh staging and
+removes obsolete owned outputs. Missing source artifacts or invalid file types
+require another `build` before bundling. Failed or cancelled delivery restores
+the previous package copies and output records, so the bundle step can be retried.
+Source artifacts remain at their configured destinations.
+
+### Java providers
+
+Implement `com.dynamo.bob.archive.liveupdate.PackageProvider` in the existing
+`com.defold.extension.pipeline` plugin namespace. `getId()` identifies the
+provider in `.lumanifest`. `describeOutputs()` declares relative artifact names
+and whether each is a directory. Bob checks collisions before calling `write()`.
+
+Override `getDisplayName()` and `getProperties()` to expose settings on the
+manifest's top node. Each ordered `Property` declares an ID, label, type
+(`STRING`, `BOOLEAN`, `INTEGER`, or `NUMBER`), a text default, and optional text
+choices. Bob validates descriptions and parses values; the editor uses the same
+schema for controls and validation. Settings apply to every package using that
+provider, and are saved independently of package membership:
+
+```protobuf
+providers {
+  provider: "zip"
+  properties { name: "compression-level" value: "9" }
+}
+```
+
+Both output description and writing receive typed, immutable values through
+`context.providerSettings().get(getId())`. Settings for unused providers remain
+in the authored manifest but are not applied. ZIP exposes compression level (`0`–`9`, plus
+`-1` for the ZIP library default); Folder has no additional settings.
+
+`write()` receives an immutable context and package plan, prepared resource
+streams, a package-local manifest, and a staging directory. Resource streams
+already contain the engine's 16-byte Live Update header and the prepared
+compressed/encrypted payload. Use each resource's hash as its content identifier.
+The context includes base membership, source/output mappings, runtime dependencies,
+provenance, sizes/hashes, platform, architectures, variant, and effective settings.
+Argumentless CLI options may have null values. Providers cannot alter membership.
+Poll `context.checkCanceled()` during long operations and close opened streams.
+Write only inside the assigned staging directory. Bob publishes declared outputs
+only after all providers succeed, and cleans staging on failure or cancellation.
+
+### Editor preview
+
+Open `.lumanifest` to edit packages and ordered rules in the outline/properties.
+Select the manifest in the outline to edit **Output Directory** and settings
+for each provider used by its packages. The output directory has a folder picker. Each package shows its resolved artifact paths; right-click
+a path to copy it or open its folder. Before export, **Open Folder** opens the
+nearest existing parent directory.
+Use the outline context menu to add, rename, delete, or reorder packages and rules.
+Package targets use a dropdown that excludes the current package and any package
+that would create a reference cycle. Bob supplies these choices and validates
+references for both Add and Remove rules, including manifests edited as text.
+The preview resolves the editor's dependency graph on a background thread,
+including unsaved edits. Selecting a resource highlights its contributing rules
+and exposes its source and dependency path. Exact compiled contents and sizes
+for the bundle target are available in the bundle report.
+
+Changes update the preview automatically after a short debounce. Closing the
+view stops active preview work; obsolete completions cannot replace a newer
+result. The editor previews package membership; Bob builds and packages the
+selected resources. Bundling always resolves and validates the manifest again.
+Proxy `Exclude` values remain serialized, but the manifest
+controls packaging when selected. Selecting a legacy `.settings` file in
+`game.project` restores proxy `Exclude` resource selection and legacy publisher settings.
+Opening a bundle dialog does not migrate or change these settings.

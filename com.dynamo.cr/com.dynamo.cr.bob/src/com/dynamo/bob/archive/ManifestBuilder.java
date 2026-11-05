@@ -37,6 +37,7 @@ import com.dynamo.liveupdate.proto.Manifest.HashDigest;
 import com.dynamo.liveupdate.proto.Manifest.ManifestData;
 import com.dynamo.liveupdate.proto.Manifest.ManifestFile;
 import com.dynamo.liveupdate.proto.Manifest.ManifestHeader;
+import com.dynamo.liveupdate.proto.Manifest.PackageMetadata;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntry;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
@@ -373,6 +374,27 @@ public class ManifestBuilder {
             TimeProfiler.stop();
         }
         return builder.build();
+    }
+
+    /** A package manifest contains only its own entries, with local engine dependants. */
+    public byte[] buildPackageManifest(Set<String> members, PackageMetadata metadata) throws IOException {
+        ManifestData full = buildManifestData(false);
+        ManifestData.Builder data = full.toBuilder().clearResources().setPackageMetadata(metadata).setHasExcludedResources(!members.isEmpty());
+        Set<Long> memberHashes = new HashSet<>();
+        for (String member : members) memberHashes.add(MurmurHash.hash64(member));
+        for (ResourceEntry entry : full.getResourcesList()) {
+            if (!memberHashes.contains(entry.getUrlHash())) continue;
+            ResourceEntry.Builder resource = entry.toBuilder().clearDependants();
+            resource.setFlags((entry.getFlags() & ~ResourceEntryFlag.BUNDLED_VALUE) | ResourceEntryFlag.EXCLUDED_VALUE);
+            for (long dependency : entry.getDependantsList()) {
+                if (memberHashes.contains(dependency)) resource.addDependants(dependency);
+            }
+            data.addResources(resource);
+        }
+        // Packages have no archive index. The deprecated base index identifier would also make
+        // identical packages differ when parallel base-archive writes choose different offsets.
+        return ManifestFile.newBuilder().setVersion(CONST_VERSION).setSignature(ByteString.EMPTY)
+                .setData(data.build().toByteString()).build().toByteArray();
     }
 
     public byte[] buildManifest() throws IOException {

@@ -17,17 +17,23 @@ package com.dynamo.bob.util;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 
 import java.io.File;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.BufferedWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.archive.ArchiveEntry;
+import com.dynamo.bob.archive.liveupdate.PackageReport;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import com.dynamo.bob.archive.publisher.Publisher;
 
@@ -46,6 +52,25 @@ import com.samskivert.mustache.Template;
 public class ReportGenerator {
 
     public static final String REPORT_VERSION_NUMBER = "1.0.0";
+
+    /** Report outputs must not become source inputs on the next package build. */
+    public static Set<Path> outputPaths(Project project) {
+        Set<Path> paths = new HashSet<>();
+        for (String format : List.of("json", "html")) {
+            String option = "build-report-" + format;
+            if (!project.hasOption(option)) continue;
+            Path path = Path.of(project.option(option, "report." + format)).toAbsolutePath().normalize();
+            String name = path.getFileName().toString();
+            String extension = "." + FilenameUtils.getExtension(name);
+            paths.add(path);
+            paths.add(path.resolveSibling("excluded_" + name));
+            paths.add(path.resolveSibling(name.replace(extension, "_time" + extension)));
+        }
+        if (project.hasOption("bundle-report-html")) {
+            paths.add(Path.of(project.option("bundle-report-html", "bundle-report.html")).toAbsolutePath().normalize());
+        }
+        return paths;
+    }
 
     /**
      * Helper class to keep track resources sizes/flags used by a project.
@@ -75,6 +100,7 @@ public class ReportGenerator {
     private Project project = null;
     private HashMap<String, ResourceEntry> resources;
     private HashMap<String, ResourceEntry> excludedResources;
+    private ObjectNode packageReport;
 
     /**
      * Creates a ReportGenerator that looks into the supplied project instance
@@ -84,11 +110,24 @@ public class ReportGenerator {
      * @param project A Project instance
      */
     public ReportGenerator(Project project) throws IOException {
+        this(project, false);
+    }
+
+    public ReportGenerator(Project project, boolean bundleReport) throws IOException {
         this.project = project;
         this.resources = new HashMap<String, ResourceEntry>();
         this.excludedResources = new HashMap<String, ResourceEntry>();
 
-        if (project.option("archive", "false").equals("true")) {
+        if (bundleReport) {
+            packageReport = PackageReport.read(project);
+            for (var row : packageReport.withArray("package_resources")) {
+                boolean base = false;
+                for (var name : row.withArray("packages")) base |= name.asText().equals("base");
+                ResourceEntry entry = new ResourceEntry(row.get("file").asText(), row.get("size").asLong(),
+                        row.get("compressed_size").asLong(), row.get("encrypted").asBoolean(), !base);
+                (base ? resources : excludedResources).put(entry.path, entry);
+            }
+        } else if (project.option("archive", "false").equals("true")) {
             ArchiveBuilder archiveBuilder = project.getArchiveBuilder();
             if (archiveBuilder != null) {
                 parseArchiveBuilder(archiveBuilder);
@@ -97,7 +136,7 @@ public class ReportGenerator {
             parseFromDisk();
         }
 
-        parseFromPublisher(project.getPublisher());
+        if (project.getPublisher() != null) parseFromPublisher(project.getPublisher());
     }
 
     /**
@@ -244,6 +283,13 @@ public class ReportGenerator {
             }
             generator.writeEndArray();
 
+            if (packageReport != null && resources == this.resources) {
+                generator.writeFieldName("packages");
+                generator.writeRawValue(packageReport.get("packages").toString());
+                generator.writeFieldName("package_resources");
+                generator.writeRawValue(packageReport.get("package_resources").toString());
+            }
+
             generator.writeEndObject();
         }
         finally {
@@ -281,11 +327,13 @@ public class ReportGenerator {
         InputStream templateStream = Bob.class.getResourceAsStream("/lib/report_template.html");
         try {
             StringWriter writer = new StringWriter();
-            IOUtils.copy(templateStream, writer);
+            IOUtils.copy(templateStream, writer, StandardCharsets.UTF_8);
             String templateString = writer.toString();
 
             HashMap<String, Object> ctx = new HashMap<String, Object>();
-            ctx.put("json-data", jsonReportData);
+            // JSON is embedded in a script element, where a literal closing tag would end the data prematurely.
+            ctx.put("json-data", jsonReportData.replace("<", "\\u003c").replace(">", "\\u003e")
+                    .replace("&", "\\u0026").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"));
 
             Template template = Mustache.compiler().compile(templateString);
             StringWriter sw = new StringWriter();

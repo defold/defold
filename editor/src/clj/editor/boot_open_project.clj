@@ -38,6 +38,7 @@
             [editor.html-view :as html-view]
             [editor.http-server.prefs :as http-server.prefs]
             [editor.icons :as icons]
+            [editor.live-update-manifest-view :as live-update-manifest-view]
             [editor.localization :as localization]
             [editor.lsp.project :as lsp.project]
             [editor.mouse-binding :as mouse-binding]
@@ -91,7 +92,8 @@
         (code-view/register-view-types workspace)
         (scene/register-view-types workspace)
         (cljfx-form-view/register-view-types workspace)
-        (html-view/register-view-types workspace)))
+        (html-view/register-view-types workspace)
+        (live-update-manifest-view/register-view-types workspace)))
 
     (workspace/clean-editor-plugins! workspace)
     (resource-types/register-resource-types! workspace)

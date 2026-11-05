@@ -1,0 +1,10 @@
+packages {
+  name: "levels"
+  rules { name: "Episode" path: "/episode[.]collection" }
+  rules { name: "Data" path: "/extra[.]json" }
+}
+packages {
+  name: "copy"
+  provider: "folder"
+  rules { name: "Levels" package: "levels" }
+}

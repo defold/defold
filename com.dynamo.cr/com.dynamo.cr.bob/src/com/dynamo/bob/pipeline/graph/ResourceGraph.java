@@ -39,6 +39,8 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.graph.ResourceWalker;
 import com.dynamo.bob.pipeline.graph.ResourceWalker.IResourceVisitor;
 import com.dynamo.gamesys.proto.CollectionProxy.CollectionProxyDesc;
+import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
+import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
 
 import com.google.protobuf.Message;
 
@@ -103,13 +105,22 @@ public class ResourceGraph implements IResourceVisitor {
         if (message instanceof CollectionProxyDesc) {
             CollectionProxyDesc desc = (CollectionProxyDesc)message;
             ResourceNode collectionProxyNode = resourceToNodeLookup.get(resource);
+            collectionProxyNode.setLoading(ResourceNode.Loading.DEFERRED);
             if (desc.getExclude()) {
                 collectionProxyNode.setType(ResourceNode.Type.ExcludedCollectionProxy);
             }
             else {
                 collectionProxyNode.setType(ResourceNode.Type.CollectionProxy);
             }
+        } else if (message instanceof FactoryDesc desc && desc.getLoadDynamically()) {
+            resourceToNodeLookup.get(resource).setLoading(ResourceNode.Loading.DEFERRED);
+        } else if (message instanceof CollectionFactoryDesc desc && desc.getLoadDynamically()) {
+            resourceToNodeLookup.get(resource).setLoading(ResourceNode.Loading.DESCRIPTOR);
         }
+    }
+
+    public Collection<ResourceNode> getNodes() {
+        return java.util.Collections.unmodifiableSet(resourceNodes);
     }
 
     @Override
@@ -251,7 +262,7 @@ public class ResourceGraph implements IResourceVisitor {
             generator.writeFieldName("isInMainBundle");
             generator.writeBoolean(isInMainBundle);
 
-            if (!isInMainBundle && node.getHexDigest() == null) {
+            if (!isInMainBundle && node.getHexDigest() == null && com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(project).isEmpty()) {
                 throw new RuntimeException("Resource '" + node.getPath() + "' has no hex digest");
             }
         }

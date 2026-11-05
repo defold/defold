@@ -1,0 +1,23 @@
+output_directory: "build/packages"
+packages {
+  name: "common"
+  rules { name: "Common content" path: "/common/.*" }
+}
+packages {
+  name: "episodes_common"
+  rules { name: "Shared episode content" path: "/episodes/common/.*" }
+}
+packages {
+  name: "episodes_00_09"
+  rules { name: "Episodes 00–09" path: "/episodes/0[0-9]/.*[.](collection|txt)" }
+  rules { name: "Separate shared content" operation: REMOVE package: "episodes_common" }
+}
+packages {
+  name: "episodes_10_19"
+  rules { name: "Episodes 10–19" path: "/episodes/1[0-9]/.*[.](collection|txt)" }
+  rules { name: "Separate shared content" operation: REMOVE package: "episodes_common" }
+}
+packages {
+  name: "halloween"
+  rules { name: "Halloween content" path: "/halloween/.*[.](collection|txt)" }
+}

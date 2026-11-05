@@ -18,6 +18,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.lang.reflect.Modifier;
 
 import com.dynamo.bob.Project;
@@ -30,7 +32,7 @@ public class PluginScanner {
 
 	private static Logger logger = Logger.getLogger(PluginScanner.class.getName());
 
-	private static HashMap<String, Object> pluginsCache = new HashMap<>();
+	private static final Map<IClassScanner, Map<String, Object>> scannerCaches = new WeakHashMap<>();
 
 	/**
 	 * Get a previously cached instance or find and create an instance of a class
@@ -76,6 +78,16 @@ public class PluginScanner {
 	 * @return List with class instances or null if no class was found
 	 */
 	public static <T> List<T> getOrCreatePlugins(String packageName, Class<T> pluginBaseClass) throws CompileExceptionError {
+		return getOrCreatePlugins(Project.getClassLoaderScanner(), packageName, pluginBaseClass);
+	}
+
+	/** Keep discovery tied to each build or editor plugin reload's scanner. */
+	public static synchronized <T> List<T> getOrCreatePlugins(IClassScanner scanner, String packageName, Class<T> pluginBaseClass) throws CompileExceptionError {
+		if (scanner == null) {
+			logger.warning("PluginScanner has no class loader scanner");
+			return null;
+		}
+		Map<String, Object> pluginsCache = scannerCaches.computeIfAbsent(scanner, key -> new HashMap<>());
 
 		// check if we've already searched for and cached a plugin for this package path and base class
 		// and if that is the case return the cached instance
@@ -91,17 +103,11 @@ public class PluginScanner {
 			return plugins;
 		}
 
-		IClassScanner scanner = Project.getClassLoaderScanner();
-		if (scanner == null) {
-			logger.warning("PluginScanner has no class loader scanner");
-			return null;
-		}
-
 		logger.fine("PluginScanner searching %s for base class %s", packageName, pluginBaseClass);
 		
 		List<T> plugins = new ArrayList<>();
 		Set<String> classNames = scanner.scan(packageName);
-		for (String className : classNames) {
+		for (String className : Project.filterClassNames(classNames)) {
 			try {
 				Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
 				// check that the class extends or is of type pluginBaseClass and that it is not abstract
