@@ -1889,13 +1889,15 @@
                           :completions-selected-index nil})
         (resolve-selected-completion! view-node)))))
 
-(defn- on-lsp-completions [view-node insert-cursor request-cursor completions]
+(defn- on-lsp-completions [view-node insert-cursor request-cursor requested-while-busy completions]
   (ui/run-later
     (g/with-auto-evaluation-context evaluation-context
       (when (and (get-property view-node :completions-showing evaluation-context)
                  (= insert-cursor (get-property view-node :completions-insert-cursor evaluation-context)))
         (set-properties! view-node nil
-                         {:completions-lsp (assoc completions :request-cursor request-cursor)})
+                         {:completions-lsp (assoc completions
+                                             :request-cursor request-cursor
+                                             :requested-while-busy requested-while-busy)})
         (refresh-completion-selected-index! view-node)))))
 
 (defn- show-suggestions! [view-node & {:keys [explicit typed] :or {explicit false}}]
@@ -1965,14 +1967,19 @@
                                   {:trigger-kind :trigger-for-incomplete-completions}
 
                                   :else
-                                  {:trigger-kind :invoked})]
+                                  {:trigger-kind :invoked})
+                        requested-while-busy (get-property view-node :language-server-busy evaluation-context)]
                     (lsp/request-completions!
                       lsp resource request-cursor context
-                      #(on-lsp-completions view-node insert-cursor request-cursor %))
+                      #(on-lsp-completions view-node insert-cursor request-cursor requested-while-busy %))
                     (cond->
                       {:completions-showing true
                        :completions-insert-cursor insert-cursor
-                       :completions-lsp {:items [] :complete false :request-cursor request-cursor}}
+                       :completions-lsp {:items []
+                                         :complete false
+                                         :pending true
+                                         :request-cursor request-cursor
+                                         :requested-while-busy requested-while-busy}}
                       (not= insert-cursor completions-insert-cursor)
                       (assoc :completions-built-in (get-property view-node :suggested-completions evaluation-context)))))
                 ;; view already open, completions present: only filter/reset index
@@ -2380,10 +2387,10 @@
   [{:keys [canvas-repaint-info font font-name font-size
            visible-completion-ranges query screen-bounds completions-showing
            completions-doc project completions-combined completions-selected-index
-           completions-shortcut-text language-server-loading-text view-node]}]
+           completions-shortcut-text loading-text view-node]}]
   (let [item-count (count completions-combined)]
     (if (or (not completions-showing)
-            (and (zero? item-count) (nil? language-server-loading-text)))
+            (and (zero? item-count) (nil? loading-text)))
       {:fx/type ui/ext-value :value nil}
       (let [{:keys [^Canvas canvas ^LayoutInfo layout lines]} canvas-repaint-info
             ^Point2D cursor-bottom (or (and (pos? (count visible-completion-ranges))
@@ -2399,7 +2406,7 @@
             loading-padding 6.0
             loading-spacing 8.0
             loading-height (max cell-height (+ loading-indicator-size (* 2.0 loading-padding)))
-            footer-height (+ hint-height (if language-server-loading-text loading-height 0.0))
+            footer-height (+ hint-height (if loading-text loading-height 0.0))
             min-completions-height (* (min 3 item-count) cell-height)
             min-completions-width 150.0
             [^Point2D anchor ^Rectangle2D screen-bounds]
@@ -2439,12 +2446,12 @@
                                           (+ code-type-icon-size
                                              completion-icon-text-spacing
                                              max-display-string-width)
-                                          (if language-server-loading-text
+                                          (if loading-text
                                             (+ loading-indicator-size
                                                loading-spacing
                                                (* 2.0 loading-padding)
                                                (-> text
-                                                   (doto (.setText language-server-loading-text))
+                                                   (doto (.setText loading-text))
                                                    .getLayoutBounds
                                                    .getWidth))
                                             0.0)))
@@ -2500,7 +2507,7 @@
                          :cell-factory {:fx/cell-type fx.list-cell/lifecycle
                                         :describe (fn/partial completion-list-cell-view view-node)}}}}})
 
-               language-server-loading-text
+               loading-text
                (conj {:fx/type fx.h-box/lifecycle
                       :style-class "completion-popup-loading"
                       :alignment :center-left
@@ -2520,7 +2527,7 @@
                                   :pref-height loading-indicator-size
                                   :max-height loading-indicator-size}
                                  {:fx/type fx.label/lifecycle
-                                  :text language-server-loading-text}]})
+                                  :text loading-text}]})
 
                completions-shortcut-text
                (conj {:fx/type fx.label/lifecycle
@@ -4138,7 +4145,8 @@
   (let [language-server-busy (g/node-value view-node :language-server-busy)]
     (when (and (g/user-data view-node :language-server-busy)
                (not language-server-busy)
-               (g/node-value view-node :completions-showing))
+               (g/node-value view-node :completions-showing)
+               (:requested-while-busy (g/node-value view-node :completions-lsp)))
       (set-properties! view-node nil {:completions-lsp nil})
       (show-suggestions! view-node))
     (g/user-data! view-node :language-server-busy language-server-busy))
@@ -4167,15 +4175,22 @@
         view-node :completion-popup
         (when completions-showing
           (g/with-auto-evaluation-context evaluation-context
-            (let [scene (.getScene ^Canvas (:canvas canvas-repaint-info))]
+            (let [scene (.getScene ^Canvas (:canvas canvas-repaint-info))
+                  completions-combined (g/node-value view-node :completions-combined evaluation-context)
+                  localization (g/node-value view-node :localization evaluation-context)]
               {:fx/type completion-popup-view
-               :completions-combined (g/node-value view-node :completions-combined evaluation-context)
+               :completions-combined completions-combined
                :completions-selected-index (g/node-value view-node :completions-selected-index evaluation-context)
                :completions-showing completions-showing
                :completions-doc (g/node-value view-node :completions-doc evaluation-context)
                :completions-shortcut-text (g/node-value view-node :completions-shortcut-text evaluation-context)
-               :language-server-loading-text (when (g/node-value view-node :language-server-busy evaluation-context)
-                                               ((g/node-value view-node :localization evaluation-context) language-server-loading-message))
+               :loading-text (cond
+                               (:pending (g/node-value view-node :completions-lsp evaluation-context))
+                               (when (coll/empty? completions-combined)
+                                 (localization (localization/message "code.completions.loading")))
+
+                               (g/node-value view-node :language-server-busy evaluation-context)
+                               (localization language-server-loading-message))
                :project (g/node-value view-node :project evaluation-context)
                :canvas-repaint-info canvas-repaint-info
                :visible-completion-ranges (g/node-value view-node :visible-completion-ranges evaluation-context)

@@ -529,6 +529,9 @@
 (defn- document-symbols-id [resource]
   (pair ::lsp.server/document-symbol resource))
 
+(defn- completions-id [resource]
+  (pair ::lsp.server/completion resource))
+
 (defn- set-view-document-symbols [resource responses-ch document-symbols]
   (bound-fn write-document-symbols [state]
     (if-not (identical? responses-ch (get-in state [:active-requests (document-symbols-id resource)]))
@@ -545,11 +548,11 @@
             (update :active-requests dissoc (document-symbols-id resource))
             (update :active-request-listeners dissoc (document-symbols-id resource)))))))
 
-(defn- cancel-document-symbols-request [state resource]
-  (if-let [responses-ch (get-in state [:active-requests (document-symbols-id resource)])]
+(defn- cancel-active-request [state id]
+  (if-let [responses-ch (get-in state [:active-requests id])]
     (-> state
         ((cancel-requests responses-ch (coll/keys (:server->server-state state))))
-        (update :active-requests dissoc (document-symbols-id resource)))
+        (update :active-requests dissoc id))
     state))
 
 (defn- request-document-symbols [state resource]
@@ -569,7 +572,7 @@
                  (when (or (coll/not-empty responses) (not has-server))
                    (coll/into-> responses [] cat))))))
     (-> state
-        (cancel-document-symbols-request resource)
+        (cancel-active-request (document-symbols-id resource))
         (assoc-in [:active-requests (document-symbols-id resource)] responses-ch)
         (send-requests!
           responses-ch
@@ -875,7 +878,8 @@
           (update :resource->view-node dissoc resource)
           (update :view-node->resource dissoc view-node)
           (cancel-document-symbols-refresh resource)
-          (cancel-document-symbols-request resource)
+          (cancel-active-request (document-symbols-id resource))
+          (cancel-active-request (completions-id resource))
           ;; will close if clean or removed, keep open if dirty
           (sync-resource-state! resource))
       state)))
@@ -1135,35 +1139,47 @@
                          :complete    boolean, indicating whether further typing
                                       should trigger another completion request
                          :items       vector of completions
+                       skipped if a newer request for the same resource is made
 
   Kv-args:
-    :timeout-ms    timeout before giving up on requests and returning the
-                   results so far"
-  [lsp resource cursor context result-callback & {:keys [timeout-ms]
-                                                  :or {timeout-ms 1000}}]
+    :timeout-ms    optional timeout before giving up on requests and returning
+                   the results so far; without it, requests stay outstanding
+                   until answered or replaced"
+  [lsp resource cursor context result-callback & {:keys [timeout-ms]}]
   (if (and (resource/file-resource? resource)
            (resource/editable? resource))
-    (lsp (bound-fn [state]
-           (let [ch (a/chan 1)]
-             (a/go (result-callback (<! (a/reduce
-                                          (fn [acc {:keys [complete items]}]
-                                            (-> acc
-                                                (update :complete fn/and complete)
-                                                (update :items into items)))
-                                          {:complete true
-                                           :items []}
-                                          ch))))
-             (send-requests!
-               state ch
-               :capabilities-pred :completion
-               :resource resource
-               :timeout-ms timeout-ms
-               :requests-fn (fn [_ {:keys [out]}]
-                              [(lsp.server/completion
-                                 resource
-                                 cursor
-                                 context
-                                 #(vary-meta % assoc :editor.lsp.server-state/out out))])))))
+    (lsp (bound-fn request-completions [state]
+           (let [{:keys [in]} state
+                 id (completions-id resource)
+                 responses-ch (a/chan 1)]
+             (a/go
+               (let [result (<! (a/reduce
+                                  (fn [acc {:keys [complete items]}]
+                                    (-> acc
+                                        (update :complete fn/and complete)
+                                        (update :items into items)))
+                                  {:complete true
+                                   :items []}
+                                  responses-ch))]
+                 (>! in (bound-fn deliver-completions [state]
+                          (if-not (identical? responses-ch (get-in state [:active-requests id]))
+                            state
+                            (do (result-callback result)
+                                (update state :active-requests dissoc id)))))))
+             (-> state
+                 (cancel-active-request id)
+                 (assoc-in [:active-requests id] responses-ch)
+                 (send-requests!
+                   responses-ch
+                   :capabilities-pred :completion
+                   :resource resource
+                   :timeout-ms timeout-ms
+                   :requests-fn (fn [_ {:keys [out]}]
+                                  [(lsp.server/completion
+                                     resource
+                                     cursor
+                                     context
+                                     #(vary-meta % assoc :editor.lsp.server-state/out out))]))))))
     ;; Don't ask the servers about dependency (zip) resources
     (do (result-callback {:complete true :items []}) nil)))
 

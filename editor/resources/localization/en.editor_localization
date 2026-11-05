@@ -1098,6 +1098,7 @@ code.find.next = Next
 code.replace.next = Replace
 code.replace.all = Replace All
 code.language-server.loading = Language server is loading…
+code.completions.loading = Loading completions…
 
 # About dialog
 
