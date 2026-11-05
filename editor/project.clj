@@ -58,7 +58,6 @@
                      [commons-codec/commons-codec                 "1.10"]
                      [org.projectodd.shimdandy/shimdandy-api      "1.2.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.2.0"]
-                     [potemkin                                    "0.4.3"]
                      [com.sun.jersey/jersey-core                  "1.19"]
                      [com.sun.jersey/jersey-client                "1.19"]
                      [com.sun.jersey.contribs/jersey-multipart    "1.19"]
