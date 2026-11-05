@@ -117,6 +117,17 @@ namespace dmPhysics
         b2ContactData m_Data;
     };
 
+    struct Box2DTaskContext;
+    // Each world owns its task context. Finish all tasks before resetting or destroying it.
+    // Enqueue, finish, reset and destruction are called from the world's owning thread.
+    Box2DTaskContext* NewBox2DTaskContext(uint32_t worker_count);
+    void DeleteBox2DTaskContext(Box2DTaskContext* context);
+    void ResetBox2DTaskContext(Box2DTaskContext* context);
+    void* EnqueueBox2DTask(b2TaskCallbackFcn* callback, void* task_context, void* user_context);
+    void FinishBox2DTask(void* task, void* user_context);
+
+    struct ContactCollection;
+
     struct World2D
     {
         World2D(HContext2D context, const NewWorldParams& params);
@@ -124,6 +135,8 @@ namespace dmPhysics
         OverlapCache                m_TriggerOverlaps;
         HContext2D                  m_Context;
         b2WorldId                   m_WorldId;
+        Box2DTaskContext*           m_TaskContext;
+        ContactCollection*          m_ContactCollection;
         dmArray<RayCastRequest>     m_RayCastRequests;
         DebugDraw2D                 m_DebugDraw;
         GetWorldTransformCallback   m_GetWorldTransformCallback;
@@ -156,6 +169,7 @@ namespace dmPhysics
         float                       m_VelocityThreshold;
         int                         m_RayCastLimit;
         int                         m_TriggerOverlapCapacity;
+        int                         m_WorkerCount;
         uint8_t                     m_AllowDynamicTransforms:1;
         uint8_t                     :7;
     };

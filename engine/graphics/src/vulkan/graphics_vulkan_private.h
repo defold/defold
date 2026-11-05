@@ -509,6 +509,8 @@ namespace dmGraphics
         // Rendering state
         HRenderTarget                   m_CurrentRenderTarget;
         DeviceBuffer*                   m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
+        // Original handles identify bindings; current declarations are shader-filtered copies.
+        HVertexDeclaration              m_EnabledVertexDeclarations[MAX_VERTEX_BUFFERS];
         VertexDeclaration*              m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         uint32_t                        m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
         StorageBufferBinding            m_CurrentStorageBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];

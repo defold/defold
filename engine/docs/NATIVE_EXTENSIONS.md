@@ -11,15 +11,24 @@ functionality Defold provides via the Defold SDK.
 The defold sdk contains public headers and libraries from the engine.
 The internal structure of the sdk's are matching the structure in the **DYNAMO_HOME** folder.
 
-E.g. (don't use these specific ones, since they might grow "old", they're simply here for copy paste reasons)
+Extender downloads the combined SDK for a build from:
 
-  http://d.defold.com/archive/bdbf6ddaefb79c22214c86f945ea91d7fa6171de/engine/defoldsdk.zip
-  http://d.defold.com/archive/bdbf6ddaefb79c22214c86f945ea91d7fa6171de/engine/x86_64-macos/defoldsdk.zip
+    https://d.defold.com/archive/<channel>/<commit>/engine/defoldsdk.zip
 
 ### Build SDK
 
-The sdk is built, packaged and uploaded for each platform during the *build_engine* step in build.py.
-And when the *archive_engine* step is run, all platform sdk's are downloaded and merged into one zip file.
+Public CI packages each platform SDK during `archive_engine` and passes it to the
+`build-sdk` job as a GitHub Actions artifact. That job verifies the platform SDK
+checksums, merges the archives, and uploads the combined SDK, checksum, and platform
+SDK mappings to S3. The temporary platform artifacts are deleted after successful
+publication. Failed builds retain them for one day to allow retries. After cleanup
+or expiry, rerun the engine jobs as well to regenerate the inputs.
+
+`--sdk-artifacts-dir=<directory>` selects this flow: `archive_engine` stages
+`<directory>/<platform>/defoldsdk.zip` and `defoldsdk.sha256`, and `build_sdk`
+reads those files instead of downloading platform archives. Without this option,
+standalone and private-platform builds continue to archive individual SDKs to S3
+and download them when building the combined SDK.
 
 You can build each platform individually:
 

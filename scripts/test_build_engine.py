@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import os
 import tempfile
@@ -151,7 +153,18 @@ class SourceBuiltToolArchiveTests(unittest.TestCase):
                     tempfile.TemporaryDirectory() as directory:
                 self.check_sync_tools(repository, sources, Path(directory), host, target, installed_tools)
 
-    def check_sync_tools(self, repository, sources, root, host, target, installed_tools):
+    # Public Bob inputs must use CloudFront while preserving local tools and archived file permissions.
+    def test_sync_downloads_public_tools_through_cloudfront(self):
+        repository = Path(__file__).resolve().parents[1]
+        bob_directory = repository / 'com.dynamo.cr' / 'com.dynamo.cr.bob'
+        tool_sources = json.loads((bob_directory / 'tools.json').read_text())
+        sources = {path: source for path, source in tool_sources.items()
+                   if any(name in path for name in ('/luajit-64', '/libogg', '/oggz-validate'))}
+        with tempfile.TemporaryDirectory() as directory:
+            self.check_sync_tools(repository, sources, Path(directory), 'arm64-macos', 'armv7-android', True,
+                                  bucket_name='d.defold.com')
+
+    def check_sync_tools(self, repository, sources, root, host, target, installed_tools, bucket_name='test-bucket'):
         configuration = build.Configuration.__new__(build.Configuration)
         configuration.defold_root = str(repository)
         configuration.dynamo_home = str(root)
@@ -160,13 +173,15 @@ class SourceBuiltToolArchiveTests(unittest.TestCase):
         configuration.thread_pool = object()
         configuration._log = lambda message: None
         configuration._git_sha1 = lambda: 'test-revision'
-        configuration.get_archive_path = lambda: 's3://test-bucket/archive'
+        configuration.get_archive_path = lambda: 's3://%s/archive/dev' % bucket_name
         bucket = mock.Mock()
         objects = {}
+        contents = {}
         for path, source in sources.items():
             archive_path = path.removeprefix('libexec/')
-            key = 'archive/test-revision/engine/' + archive_path
+            key = 'archive/dev/test-revision/engine/' + archive_path
             content = archive_path.encode()
+            contents['https://d.defold.com/' + key] = content
             obj = mock.Mock()
             def download(destination, content=content):
                 Path(destination).write_bytes(content)
@@ -179,13 +194,32 @@ class SourceBuiltToolArchiveTests(unittest.TestCase):
                 platform = archive_path.split('/')[0]
                 installed.write_bytes(b'local build' if platform in (host, target) else b'previous revision')
                 installed.chmod(0o755)
-        bucket.objects.filter.return_value = [mock.Mock(key=key) for key in objects]
+        bucket.objects.filter.return_value = [mock.Mock(key=key) for key in objects] + [
+            mock.Mock(key='archive/dev/test-revision/engine/x86_64-linux/defoldsdk.zip')]
         bucket.Object.side_effect = objects.__getitem__
         def future(pool, function, *args):
             return lambda: function(*args)
+
+        def response(request, timeout):
+            content = contents[request.full_url]
+            result = io.BytesIO(content)
+            result.code = 200
+            result.headers = {'Content-Length': str(len(content))}
+            return result
+
         with mock.patch.object(build.s3, 'get_bucket', return_value=bucket), \
-                mock.patch.object(build, 'Future', side_effect=future):
+                mock.patch.object(build, 'Future', side_effect=future), \
+                mock.patch.object(build.http_cache.urllib.request, 'urlopen', side_effect=response) as http_download, \
+                contextlib.redirect_stdout(io.StringIO()):
+            if bucket_name == 'd.defold.com':
+                bucket.Object.side_effect = AssertionError('Unexpected direct S3 download')
             configuration.sync_archive()
+        bucket.objects.filter.assert_called_once_with(Prefix='archive/dev/test-revision/engine/')
+        if bucket_name == 'd.defold.com':
+            self.assertCountEqual(contents, [call.args[0].full_url for call in http_download.call_args_list])
+            bucket.Object.assert_not_called()
+        else:
+            http_download.assert_not_called()
         for path, source in sources.items():
             with self.subTest(tool=path):
                 installed = root / source
