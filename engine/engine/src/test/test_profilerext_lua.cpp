@@ -305,8 +305,8 @@ TEST_F(ProfilerExtLuaTest, SampleNameHashesMatchLabels)
     ASSERT_EQ(2u, samples_checked);
 }
 
-// Verifies cached sample and property hashes retain the reverse names used by
-// profiler labels, including when those reverse entries must be restored.
+// Verifies cached sample and property labels recover after reverse hashing is
+// enabled following collection and after their reverse entries are erased.
 TEST_F(ProfilerExtCachedNameTest, CachedHashesPreserveProfilerLabels)
 {
     ASSERT_TRUE(RunString("profiler.enable(true)"));
@@ -318,18 +318,31 @@ TEST_F(ProfilerExtCachedNameTest, CachedHashesPreserveProfilerLabels)
     uint32_t property_hash = dmHashBufferNoReverse32(property_name, strlen(property_name));
     uint64_t cached_scope_hash = 0;
 
-    for (uint32_t i = 0; i < 3; ++i)
+    dmHashEnableReverseHash(false);
+    for (uint32_t i = 0; i < 4; ++i)
     {
+        if (i == 1)
+        {
+            dmHashEnableReverseHash(true);
+        }
         HProfile frame = ProfileFrameBegin();
         ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin(sample_name, &cached_scope_hash));
         DM_PROPERTY_SET_U32(rmtp_CachedProfilerLabel, i);
         ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd(sample_name, cached_scope_hash));
         ASSERT_EQ(PROFILE_RESULT_OK, ProfileFrameEnd(frame));
 
-        ASSERT_STREQ(sample_name, dmHashReverseSafe32(sample_hash));
-        ASSERT_STREQ(property_name, dmHashReverseSafe32(property_hash));
-        dmHashReverseErase32(sample_hash);
-        dmHashReverseErase32(property_hash);
+        if (i == 0)
+        {
+            ASSERT_EQ((const void*)0, dmHashReverse32(sample_hash, 0));
+            ASSERT_EQ((const void*)0, dmHashReverse32(property_hash, 0));
+        }
+        else
+        {
+            ASSERT_STREQ(sample_name, dmHashReverseSafe32(sample_hash));
+            ASSERT_STREQ(property_name, dmHashReverseSafe32(property_hash));
+            dmHashReverseErase32(sample_hash);
+            dmHashReverseErase32(property_hash);
+        }
     }
 }
 

@@ -842,7 +842,7 @@ static inline uint32_t MakeColorFromHash(uint32_t hash)
     return (ba<<24) | (br << 16) | (bg << 8) | (bb << 0);
 }
 
-static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, dmProfiler::HSample sample)
+static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, dmProfiler::HSample sample, bool reverse_enabled)
 {
     dmProfileRender::ProfilerSample out;
 
@@ -854,7 +854,7 @@ static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, d
     out.m_Indent = (uint8_t)indent;
     out.m_NameHash = dmProfiler::SampleGetNameHash(sample);
     // The profiler renderer resolves labels through the reverse hash table.
-    if (dmHashReverse32(out.m_NameHash, 0) == 0)
+    if (reverse_enabled && dmHashReverse32(out.m_NameHash, 0) == 0)
     {
         const char* name = dmProfiler::SampleGetName(sample);
         out.m_NameHash = dmHashString32(name ? name : "<empty_sample_name>");
@@ -867,15 +867,15 @@ static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, d
     thread->m_Samples.Push(out);
 }
 
-static void TraverseSampleTree(dmProfileRender::ProfilerThread* thread, int indent, dmProfiler::HSample sample)
+static void TraverseSampleTree(dmProfileRender::ProfilerThread* thread, int indent, dmProfiler::HSample sample, bool reverse_enabled)
 {
-    ProcessSample(thread, indent, sample);
+    ProcessSample(thread, indent, sample, reverse_enabled);
 
     dmProfiler::SampleIterator iter;
     dmProfiler::SampleIterateChildren(sample, &iter);
     while (dmProfiler::SampleIterateNext(&iter))
     {
-        TraverseSampleTree(thread, indent + 1, iter.m_Sample);
+        TraverseSampleTree(thread, indent + 1, iter.m_Sample, reverse_enabled);
     }
 }
 
@@ -908,16 +908,17 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfiler::
     thread->m_SamplesTotalTime = dmProfiler::SampleGetTime(root);
 
     //printf("Thread: %s\n", thread_name);
-    TraverseSampleTree(thread, 0, root);
+    const bool reverse_enabled = dmHashIsReverseHashEnabled();
+    TraverseSampleTree(thread, 0, root, reverse_enabled);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-static void ProcessProperty(dmProfileRender::ProfilerFrame* frame, int indent, dmProfiler::HProperty property)
+static void ProcessProperty(dmProfileRender::ProfilerFrame* frame, int indent, dmProfiler::HProperty property, bool reverse_enabled)
 {
     uint32_t name_hash = dmProfiler::PropertyGetNameHash(property);
-    if (dmHashReverse32(name_hash, 0) == 0)
+    if (reverse_enabled && dmHashReverse32(name_hash, 0) == 0)
     {
         const char* name = dmProfiler::PropertyGetName(property);
         name_hash = dmHashString32(name ? name : "<empty_property_name>");
@@ -929,15 +930,15 @@ static void ProcessProperty(dmProfileRender::ProfilerFrame* frame, int indent, d
     dmProfileRender::AddProperty(frame, name_hash, type, value, indent);
 }
 
-static void TraversePropertyTree(dmProfileRender::ProfilerFrame* frame, int indent, dmProfiler::HProperty property)
+static void TraversePropertyTree(dmProfileRender::ProfilerFrame* frame, int indent, dmProfiler::HProperty property, bool reverse_enabled)
 {
-    ProcessProperty(frame, indent, property);
+    ProcessProperty(frame, indent, property, reverse_enabled);
 
     dmProfiler::PropertyIterator iter;
     dmProfiler::PropertyIterateChildren(property, &iter);
     while (dmProfiler::PropertyIterateNext(&iter))
     {
-        TraversePropertyTree(frame, indent + 1, iter.m_Property);
+        TraversePropertyTree(frame, indent + 1, iter.m_Property, reverse_enabled);
     }
 }
 
@@ -948,11 +949,12 @@ static void PropertyTreeCallback(void* _ctx, dmProfiler::HProperty root)
 
     DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
+    const bool reverse_enabled = dmHashIsReverseHashEnabled();
     dmProfiler::PropertyIterator iter;
     dmProfiler::PropertyIterateChildren(root, &iter);
     while (dmProfiler::PropertyIterateNext(&iter))
     {
-        TraversePropertyTree(g_ProfilerCurrentFrame, 0, iter.m_Property);
+        TraversePropertyTree(g_ProfilerCurrentFrame, 0, iter.m_Property, reverse_enabled);
     }
 }
 
