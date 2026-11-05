@@ -14,6 +14,8 @@
 
 package com.dynamo.bob.pipeline;
 
+import static org.junit.Assert.assertEquals;
+
 import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
@@ -52,6 +54,22 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
             PropertiesTestUtil.assertBoolean(properties, true, 0);
             PropertiesTestUtil.assertText(properties, "hello", 0);
         }
+    }
+
+    // Verifies directory-valued hash overrides do not become build dependencies (#11091).
+    @Test
+    public void testHashPropertyMatchingDirectory() throws Exception {
+        getFileSystem().addDirectory("/operator/operator");
+        addFile("/test.script", "go.property(\"hash\", hash(\"\"))");
+        String src = "components {\n" +
+                "  id: \"script\"\n" +
+                "  component: \"/test.script\"\n" +
+                "  properties { id: \"hash\" value: \"/operator/operator\" type: PROPERTY_TYPE_HASH }\n" +
+                "}\n";
+
+        PrototypeDesc prototype = getMessage(build("/test.go", src), PrototypeDesc.class);
+        PropertiesTestUtil.assertHash(prototype.getComponents(0).getPropertyDecls(), MurmurHash.hash64("/operator/operator"), 0);
+        assertEquals(0, prototype.getPropertyResourcesCount());
     }
 
     @Test(expected = CompileExceptionError.class)
