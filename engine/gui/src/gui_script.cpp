@@ -3748,6 +3748,9 @@ namespace dmGui
      * Alters the ordering of the two supplied nodes by moving the first node
      * above the second.
      * If the second argument is `nil` the first node is moved to the top.
+     * The moved node adopts the reference node's parent, or becomes a root node
+     * if the reference is `nil`. Moving a node relative to one of its descendants
+     * raises an error and leaves the hierarchy unchanged.
      *
      * @name gui.move_above
      * @param node [type:node] to move
@@ -3763,7 +3766,10 @@ namespace dmGui
             r = GetNodeHandle(LuaCheckNodeInternal(L, 2, &hnode));
         }
         Scene* scene = GuiScriptInstance_Check(L);
-        MoveNodeAbove(scene, GetNodeHandle(n), r);
+        if (MoveNodeAbove(scene, GetNodeHandle(n), r) == RESULT_INF_RECURSION)
+        {
+            return luaL_error(L, "Unable to move node above its descendant since it would cause an infinite loop");
+        }
         return 0;
     }
 
@@ -3771,6 +3777,9 @@ namespace dmGui
      * Alters the ordering of the two supplied nodes by moving the first node
      * below the second.
      * If the second argument is `nil` the first node is moved to the bottom.
+     * The moved node adopts the reference node's parent, or becomes a root node
+     * if the reference is `nil`. Moving a node relative to one of its descendants
+     * raises an error and leaves the hierarchy unchanged.
      *
      * @name gui.move_below
      * @param node [type:node] to move
@@ -3786,7 +3795,10 @@ namespace dmGui
             r = GetNodeHandle(LuaCheckNodeInternal(L, 2, &hnode));
         }
         Scene* scene = GuiScriptInstance_Check(L);
-        MoveNodeBelow(scene, GetNodeHandle(n), r);
+        if (MoveNodeBelow(scene, GetNodeHandle(n), r) == RESULT_INF_RECURSION)
+        {
+            return luaL_error(L, "Unable to move node below its descendant since it would cause an infinite loop");
+        }
         return 0;
     }
 
@@ -4462,11 +4474,38 @@ namespace dmGui
      */
     int LuaSetSize(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
+
         HNode hnode;
         InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         if(n->m_Node.m_SizeMode != SIZE_MODE_MANUAL)
         {
-            dmLogWarning("Can not set size on auto-sized nodes.");
+            DM_HASH_REVERSE_MEM(hash_ctx, DMHASH_MAX_REVERSE_LENGTH + 1);
+            char unnamed_id[32];
+            const char* node_id;
+            if (n->m_NameHash != 0)
+            {
+                node_id = dmHashReverseSafe64Alloc(&hash_ctx, n->m_NameHash);
+            }
+            else
+            {
+                dmSnPrintf(unnamed_id, sizeof(unnamed_id), "<unnamed:%u>", hnode);
+                node_id = unnamed_id;
+            }
+
+            Scene* scene = GetScene(L);
+            char url_buffer[1024];
+            const char* gui_url = "<unknown>";
+            if (scene->m_Context->m_GetURLCallback)
+            {
+                dmMessage::URL url;
+                scene->m_Context->m_GetURLCallback(scene, &url);
+                gui_url = dmScript::UrlToString(&url, url_buffer, sizeof(url_buffer));
+            }
+
+            luaL_where(L, 1);
+            dmLogWarning("%sCan not set size on auto-sized node '%s' in GUI '%s'.", lua_tostring(L, -1), node_id, gui_url);
+            lua_pop(L, 1);
             return 0;
         }
         if(n->m_Node.m_IsBone)

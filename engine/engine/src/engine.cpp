@@ -1797,13 +1797,17 @@ namespace dmEngine
 
 #if defined(__ANDROID__)
         {
-            const char* input_method = dmConfigFile::GetString(engine->m_Config, "android.input_method", "KeyEvents");
+            const char* input_method = dmConfigFile::GetString(engine->m_Config, "android.input_method", "KeyEvent");
 
             bool use_hidden_inputfield = false;
             if (!strcmp(input_method, "HiddenInputField"))
+            {
                 use_hidden_inputfield = true;
-            else if (strcmp(input_method, "KeyEvents"))
+            }
+            else if (strcmp(input_method, "KeyEvent") && strcmp(input_method, "KeyEvents"))
+            {
                 dmLogWarning("Unknown Android input method [%s], defaulting to key events", input_method);
+            }
 
             dmPlatform::SetAndroidInputMethod(use_hidden_inputfield);
         }

@@ -967,12 +967,19 @@ namespace dmGui
         return Point3(0,0,0);
     }
 
-    void MoveNodeBelow(HScene scene, HNode node, HNode reference)
+    Result MoveNodeBelow(HScene scene, HNode node, HNode reference)
     {
+        return RESULT_OK;
     }
 
-    void MoveNodeAbove(HScene scene, HNode node, HNode reference)
+    Result MoveNodeAbove(HScene scene, HNode node, HNode reference)
     {
+        return RESULT_OK;
+    }
+
+    HNode GetNodeParent(HScene scene, HNode node)
+    {
+        return INVALID_HANDLE;
     }
 
     Result SetNodeParent(HScene scene, HNode node, HNode parent, bool keep_scene_transform)
