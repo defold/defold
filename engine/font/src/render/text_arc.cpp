@@ -110,9 +110,19 @@ void FontGetTextArcFrame(float angle, float radius, float transform[16])
 
 void FontGetTextArcTransform(const FontTextArc* arc, float x, float baseline, float transform[16])
 {
-    const float angle = ((x - arc->m_MinX) / arc->m_Width - 0.5f) * arc->m_Span;
+    const float distance = x - (arc->m_MinX + arc->m_Width * 0.5f);
     const float radius = arc->m_Radius + (baseline - arc->m_FirstBaseline);
-    Matrix4 frame = GetTextArcFrame(angle, radius);
+    Matrix4 frame;
+    if (radius == 0.0f)
+    {
+        // A zero-length circular baseline uses its straight tangent.
+        frame = Matrix4::translation(Vector3(distance, 0.0f, 0.0f));
+    }
+    else
+    {
+        frame = GetTextArcFrame(distance / radius, radius);
+    }
+
     // Apply the inverse cluster pivot in this local frame.
     frame.setTranslation(frame.getTranslation()
                          - frame.getCol0().getXYZ() * x

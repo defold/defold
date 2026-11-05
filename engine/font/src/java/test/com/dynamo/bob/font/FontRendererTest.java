@@ -1101,7 +1101,14 @@ public class FontRendererTest {
             properties.arcRadius = 0.0f;
             properties.arcAngle = 90.0f;
             renderer.setProperties(properties);
-            assertNotNull(renderer.getArc());
+            FontRenderer.Arc zeroRadiusArc = renderer.getArc();
+            assertNotNull(zeroRadiusArc);
+            List<List<Float>> zeroRadiusBaselines = getArcBaselines(zeroRadiusArc);
+            int lineStride = zeroRadiusBaselines.size() / 2;
+            assertTrue(zeroRadiusBaselines.get(0).get(0) < 0.0f);
+            assertTrue(zeroRadiusBaselines.get(lineStride - 1).get(0) > 0.0f);
+            for (List<Float> point : zeroRadiusBaselines.subList(0, lineStride))
+                assertEquals(0.0f, point.get(1), 0.0001f);
             properties.arcRadius = -200.0f;
             renderer.setProperties(properties);
             assertArcPoint(getArcBaselines(renderer.getArc()).get(0), -200.0, -Math.PI * 0.25);
@@ -1334,7 +1341,7 @@ public class FontRendererTest {
                         assertEquals(minY, arc.min.get(1), 0.001f);
                         assertEquals(maxX, arc.max.get(0), 0.001f);
                         assertEquals(maxY, arc.max.get(1), 0.001f);
-                        if (degrees == 90.0f)
+                        if (degrees == 90.0f && Math.abs(radius) == 2000.0f)
                             assertTrue(0.0f < arc.min.get(1) || 0.0f > arc.max.get(1));
                     }
                 }

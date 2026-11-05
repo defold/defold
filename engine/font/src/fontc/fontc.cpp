@@ -2346,11 +2346,13 @@ static void WriteArcGuideBaselines(float** output_vertices, const FontTextArc& a
     for (uint32_t line = 0; line < line_count; ++line)
     {
         const float radius = arc.m_Radius + (lines[line].m_Baseline - lines[0].m_Baseline);
-        Vector3     previous = GetArcGuidePoint(-0.5f * arc.m_Span, radius);
+        Vector3     previous = radius == 0.0f ? Vector3(-arc.m_Width * 0.5f, 0.0f, 0.0f)
+                                           : GetArcGuidePoint(-0.5f * arc.m_Span, radius);
         for (uint32_t i = 1; i <= segments; ++i)
         {
             const float   angle = -0.5f * arc.m_Span + arc.m_Span * ((float)i / segments);
-            const Vector3 point = GetArcGuidePoint(angle, radius);
+            const Vector3 point = radius == 0.0f ? Vector3(arc.m_Width * ((float)i / segments - 0.5f), 0.0f, 0.0f)
+                                                   : GetArcGuidePoint(angle, radius);
             WriteArcGuideVertex(&vertices, previous, bounds);
             WriteArcGuideVertex(&vertices, point, bounds);
             previous = point;

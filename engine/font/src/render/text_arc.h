@@ -75,6 +75,8 @@ void FontGetTextArcFrame(float angle, float radius, float transform[16]);
 
 /**
  * Map a glyph cluster's baseline pivot onto the prepared arc.
+ * Each line preserves layout advances along its own radius. A zero-radius
+ * baseline follows a straight tangent through the origin.
  * @param arc Prepared mapping, borrowed for this call
  * @param x Aligned cluster pivot x coordinate
  * @param baseline Layout baseline y coordinate

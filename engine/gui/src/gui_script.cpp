@@ -1074,7 +1074,9 @@ namespace dmGui
      * centered on the node origin. Later lines retain their baseline spacing. `arc_angle` is the angular span
      * in degrees, from 0 to 360 (default 0). Zero selects textbox layout; 360 forms a full circle.
      * Arc layout ignores node size. Line Break wraps at the absolute radius times the angle in radians;
-     * explicit newlines are preserved. Both properties also support gui.animate.
+     * each line preserves its laid-out character spacing along its own radius.
+     * A zero-radius baseline follows a straight tangent through the origin.
+     * Explicit newlines are preserved. Both properties also support gui.animate.
      *
      * The value to set must either be a vmath.vector4, vmath.vector3, vmath.quat or a single number and depends on the property name you want to set.
      * I.e when setting the "position" property, you need to use a vmath.vector4 and when setting a single component of the property,

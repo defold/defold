@@ -35,6 +35,7 @@
 #include "glyph_gen.h"
 #include "glyph_vertex.h"
 #include "layout_vertex.h"
+#include "text_arc.h"
 #include "font_effect.h"
 #include "font_effect_index.h"
 #include "text_layout.h"
@@ -2500,6 +2501,51 @@ TEST(FontTextArc, CApi)
     ASSERT_EQ(0, TestTextArcC());
 }
 
+// Arc baselines preserve textbox advances regardless of text length, sweep or line radius.
+TEST(FontTextArc, PreservesBaselineSpacing)
+{
+    using namespace dmVMath;
+    const float widths[] = { 100.0f, 1000.0f };
+    const float sweeps[] = { 30.0f, 120.0f, 360.0f };
+    const float radii[] = { 200.0f, 120.0f, -120.0f, 0.0f };
+    FontTextArc arc = { 200.0f, 20.0f, 0.0f, 10.0f, 0.0f };
+    for (uint32_t w = 0; w < DM_ARRAY_SIZE(widths); ++w)
+    {
+        arc.m_Width = widths[w];
+        const float center = arc.m_MinX + arc.m_Width * 0.5f;
+        for (uint32_t s = 0; s < DM_ARRAY_SIZE(sweeps); ++s)
+        {
+            arc.m_Span = dmMath::DegToRad(sweeps[s]);
+            for (uint32_t r = 0; r < DM_ARRAY_SIZE(radii); ++r)
+            {
+                const float baseline = arc.m_FirstBaseline + radii[r] - arc.m_Radius;
+                Vector4     positions[2];
+                for (uint32_t i = 0; i < 2; ++i)
+                {
+                    const float pivot = center - 5.0f + i * 10.0f;
+                    Matrix4     frame;
+                    FontGetTextArcTransform(&arc, pivot, baseline, (float*)&frame);
+                    positions[i] = frame * Point3(pivot, baseline, 0.0f);
+                    ASSERT_NEAR(1.0f, Length(frame.getCol0().getXYZ()), 0.00001f);
+                    ASSERT_NEAR(1.0f, Length(frame.getCol1().getXYZ()), 0.00001f);
+                }
+                if (radii[r] == 0.0f)
+                {
+                    ASSERT_NEAR(10.0f, positions[1].getX() - positions[0].getX(), 0.001f);
+                    ASSERT_NEAR(0.0f, positions[0].getY(), 0.001f);
+                    ASSERT_NEAR(0.0f, positions[1].getY(), 0.001f);
+                }
+                else
+                {
+                    const float first = atan2f(positions[0].getX() / radii[r], positions[0].getY() / radii[r]);
+                    const float second = atan2f(positions[1].getX() / radii[r], positions[1].getY() / radii[r]);
+                    ASSERT_NEAR(10.0f, (second - first) * radii[r], 0.001f);
+                }
+            }
+        }
+    }
+}
+
 // Multiline arcs retain each glyph's size and texture data while using the laid-out baselines.
 TEST_F(FontTest, MultilineArcVertices)
 {
@@ -2548,22 +2594,23 @@ TEST_F(FontTest, MultilineArcVertices)
             config.m_ArcRadius = radii[r];
             config.m_ArcAngle = sweeps[s];
             ASSERT_EQ(24u, FontCreateLayoutVertices(config, metrics, curved, DM_ARRAY_SIZE(curved)));
-            const float span = dmMath::DegToRad(sweeps[s]);
             for (uint32_t i = 0; i < 4; ++i)
             {
                 const TextGlyph& text_glyph = glyphs[lines[i / 2].m_Index + i % 2];
                 const float pivot = text_glyph.m_X + text_glyph.m_Width * 0.5f - TextLayoutGetLineOriginX(layout, i / 2);
                 const float baseline = config.m_Height - layout_height + lines[i / 2].m_Baseline;
-                const float angle = (pivot / config.m_Width - 0.5f) * span - 1.5707963267948966f;
                 const float line_radius = radii[r] + baseline - first_baseline;
-                const float rotation = -angle - 1.5707963267948966f;
+                const float distance = pivot - config.m_Width * 0.5f;
+                const float angle = line_radius == 0.0f ? 0.0f : distance / line_radius;
+                const float origin_x = line_radius == 0.0f ? distance : sinf(angle) * line_radius;
+                const float origin_y = cosf(angle) * line_radius;
                 for (uint32_t v = i * 6; v < (i + 1) * 6; ++v)
                 {
                     const float x = flat[v].m_Position[0] - pivot;
                     const float y = flat[v].m_Position[1] - baseline;
-                    ASSERT_NEAR(cosf(angle) * line_radius + cosf(rotation) * x - sinf(rotation) * y,
+                    ASSERT_NEAR(origin_x + cosf(angle) * x + sinf(angle) * y,
                                 curved[v].m_Position[0], 0.001f);
-                    ASSERT_NEAR(-sinf(angle) * line_radius + sinf(rotation) * x + cosf(rotation) * y,
+                    ASSERT_NEAR(origin_y - sinf(angle) * x + cosf(angle) * y,
                                 curved[v].m_Position[1], 0.001f);
                     ASSERT_EQ(0, memcmp(flat[v].m_UV, curved[v].m_UV, sizeof(FontGlyphVertex) - sizeof(flat[v].m_Position)));
                 }
@@ -2630,9 +2677,10 @@ TEST_F(FontTest, ArcLayoutObjectHitTesting)
             for (uint32_t i = 0; i < DM_ARRAY_SIZE(sweeps); ++i)
             {
                 hit.m_ArcAngle = sweeps[i];
-                const float angle = dmMath::DegToRad(sweeps[i] * -0.25f);
                 const float radius = radii[r] + baseline - first_baseline;
-                hit.m_X = sinf(angle) * (radius + 8.0f);
+                const float distance = -hit.m_Width * 0.25f;
+                const float angle = radius == 0.0f ? 0.0f : distance / radius;
+                hit.m_X = radius == 0.0f ? distance : sinf(angle) * (radius + 8.0f);
                 hit.m_Y = cosf(angle) * (radius + 8.0f);
                 ASSERT_EQ(line, TextLayoutHitTestObject(layout, hit));
                 hit.m_X += 1000.0f;
