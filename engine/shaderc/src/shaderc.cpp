@@ -134,6 +134,10 @@ namespace dmShaderc
         if (compiler->m_Language == SHADER_LANGUAGE_HLSL)
         {
             ShaderCompileResult* result_xcompiled = CompileSPVC(context, (ShaderCompilerSPVC*) compiler, options);
+            if (result_xcompiled->m_LastError[0])
+            {
+                return result_xcompiled;
+            }
             ShaderCompileResult* result_hlsl = CompileRawHLSLToBinary(context, compiler, &options, result_xcompiled);
 
             FreeShaderCompileResult(result_xcompiled);
@@ -148,6 +152,7 @@ namespace dmShaderc
         result->m_Data.SetCapacity(0);
         result->m_MSLResourceMappings.SetCapacity(0);
         result->m_HLSLResourceMappings.SetCapacity(0);
+        result->m_HLSLShaderOutputs.SetCapacity(0);
         result->m_HLSLRootSignature.SetCapacity(0);
         free(result);
     }

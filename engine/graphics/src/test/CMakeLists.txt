@@ -74,13 +74,20 @@ defold_register_test_target(test_transcoder ON "${GRAPHICS_TEST_SRC_DIR}")
 
 # Headless WARP tests; require the Windows Graphics Tools debug layer.
 if(TARGET graphics_dx12 AND TARGET_PLATFORM STREQUAL "x86_64-win32")
-  defold_add_executable(test_graphics_dx12 "${GRAPHICS_TEST_SRC_DIR}/test_graphics_dx12.cpp")
+  include(shaderc_dxc)
+  shaderc_import_dxc()
+  # These tests only need the DXC wrapper, not the full SPIRV/Java shader pipeline.
+  defold_add_executable(test_graphics_dx12
+    "${GRAPHICS_TEST_SRC_DIR}/test_graphics_dx12.cpp"
+    "${DEFOLD_HOME}/engine/shaderc/src/shaderc_dxc.cpp")
+  target_include_directories(test_graphics_dx12 PRIVATE "${DEFOLD_HOME}/engine/shaderc/src")
   target_include_directories(test_graphics_dx12 PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
   defold_target_link_libraries(test_graphics_dx12 "${TARGET_PLATFORM}"
     testmain ddf dlib profile_null graphics_dx12 graphics_transcoder_null)
   defold_target_link_platform(test_graphics_dx12 "${TARGET_PLATFORM}" SCOPE PRIVATE)
   defold_target_link_glfw(test_graphics_dx12 "${TARGET_PLATFORM}" SCOPE PRIVATE)
-  target_link_libraries(test_graphics_dx12 PRIVATE d3d12 dxgi d3dcompiler)
+  target_link_libraries(test_graphics_dx12 PRIVATE d3d12 dxgi d3dcompiler shaderc_dxcompiler)
+  shaderc_stage_dxc(test_graphics_dx12)
   defold_target_link_socket(test_graphics_dx12 "${TARGET_PLATFORM}" PRIVATE)
   option(DEFOLD_RUN_DX12_TESTS "Run the WARP/debug-layer DX12 suite in run_tests" OFF)
   defold_register_test_target(test_graphics_dx12 ${DEFOLD_RUN_DX12_TESTS})

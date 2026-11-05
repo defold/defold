@@ -21,13 +21,39 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/profile.h>
+#include <dlib/thread.h>
 
 #include <box2d/box2d.h>
+#include <box2d/constants.h>
 
 #include "box2d_physics.h"
 
 namespace dmPhysics
 {
+    struct PreparedContact
+    {
+        void*    m_UserDataA;
+        void*    m_UserDataB;
+        uint32_t m_PointBegin;
+        uint32_t m_PointCount;
+        uint16_t m_GroupA;
+        uint16_t m_GroupB;
+    };
+    struct ContactChunk
+    {
+        World2D*                 m_World;
+        uint32_t                 m_Begin;
+        uint32_t                 m_End;
+        bool                     m_ContactPoints;
+        dmArray<b2ContactData>   m_Scratch;
+        dmArray<PreparedContact> m_Contacts;
+        dmArray<ContactPoint>    m_Points;
+    };
+    struct ContactCollection
+    {
+        ContactChunk m_Chunks[16];
+    };
+
     using namespace dmVMath;
 
     Context2D::Context2D()
@@ -40,6 +66,7 @@ namespace dmPhysics
     , m_TriggerEnterLimit(0.0f)
     , m_RayCastLimit(0)
     , m_TriggerOverlapCapacity(0)
+    , m_WorkerCount(1)
     , m_AllowDynamicTransforms(0)
     {
         m_Gravity.x = 0.0f;
@@ -49,6 +76,8 @@ namespace dmPhysics
     World2D::World2D(HContext2D context, const NewWorldParams& params)
     : m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
     , m_Context(context)
+    , m_TaskContext(0)
+    , m_ContactCollection(0)
     , m_RayCastRequests()
     , m_DebugDraw(&context->m_DebugCallbacks)
     , m_GetWorldTransformCallback(params.m_GetWorldTransformCallback)
@@ -66,6 +95,15 @@ namespace dmPhysics
         worldDef.contactHertz = 30.0f;
         worldDef.contactDampingRatio = 10.0f;
         worldDef.enableContinuous = true;
+        // Defold schedules Box2D tasks. The count includes the calling thread.
+        worldDef.workerCount = context->m_WorkerCount;
+        if (context->m_WorkerCount > 1)
+        {
+            m_TaskContext = NewBox2DTaskContext(context->m_WorkerCount - 1);
+            worldDef.enqueueTask = EnqueueBox2DTask;
+            worldDef.finishTask = FinishBox2DTask;
+            worldDef.userTaskContext = m_TaskContext;
+        }
         m_WorldId = b2CreateWorld(&worldDef);
 
         m_Bodies.SetCapacity(32);
@@ -157,6 +195,24 @@ namespace dmPhysics
         context->m_VelocityThreshold = params.m_VelocityThreshold;
         context->m_AllowDynamicTransforms = params.m_AllowDynamicTransforms;
 
+        int worker_count = params.m_Config ? dmConfigFile::GetInt(params.m_Config, "box2d.worker_count", 0) : 0;
+        if (worker_count < 0 || worker_count >= B2_MAX_WORKERS)
+        {
+            dmLogWarning("box2d.worker_count must be in the range 0 - %d and has been clamped.", B2_MAX_WORKERS - 1);
+            worker_count = dmMath::Clamp(worker_count, 0, B2_MAX_WORKERS - 1);
+        }
+        // Keep the validated platform set until the external task system is tested elsewhere.
+        bool has_thread_support = false;
+#if defined(_WIN32) || defined(__linux__) || defined(__APPLE__)
+        has_thread_support = dmThread::PlatformHasThreadSupport();
+#endif
+        if (worker_count > 0 && !has_thread_support)
+        {
+            dmLogWarning("box2d.worker_count is ignored because Box2D worker threads are not supported on this platform.");
+            worker_count = 0;
+        }
+        context->m_WorkerCount = worker_count + 1;
+
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK && result != dmMessage::RESULT_SOCKET_EXISTS)
         {
@@ -175,8 +231,10 @@ namespace dmPhysics
         if (!context->m_Worlds.Empty())
         {
             dmLogWarning("Deleting %u remaining 2D physics worlds because their context is being deleted.", context->m_Worlds.Size());
-            for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
-                delete context->m_Worlds[i];
+            while (!context->m_Worlds.Empty())
+            {
+                DeleteWorld2D(context, context->m_Worlds.Back());
+            }
         }
         if (context->m_Socket != 0)
             dmMessage::DeleteSocket(context->m_Socket);
@@ -238,6 +296,11 @@ namespace dmPhysics
             b2DestroyWorld(world->m_WorldId);
         }
 
+        if (world->m_TaskContext)
+        {
+            DeleteBox2DTaskContext(world->m_TaskContext);
+        }
+        delete world->m_ContactCollection;
         delete world;
     }
 
@@ -501,6 +564,231 @@ namespace dmPhysics
     }
     #endif
 
+    // Preserve collision callback cancellation for the sensor pass later in StepWorld2D.
+    static void SerialPostSolve(World2D* world, const StepWorldContext& step_context, CollisionCallback& collision_callback, ContactPointCallback contact_point_callback)
+    {
+        float inv_scale = world->m_Context->m_InvScale;
+
+        world->m_ContactBuffer.SetSize(0);
+
+        for (int i = 0; i < world->m_Bodies.Size() && (collision_callback || contact_point_callback); ++i)
+        {
+            Body* body = world->m_Bodies[i];
+            b2BodyId body_id = body->m_BodyId;
+            if (!b2Body_IsEnabled(body_id))
+            {
+                continue;
+            }
+
+            dmArray<b2ContactData>& contacts = GetContactsBuffer(world, body_id);
+            int num_contacts = contacts.Size();
+
+            for (int j = 0; j < num_contacts && (collision_callback || contact_point_callback); ++j)
+            {
+                b2ContactData& contact = contacts[j];
+
+                // Both bodies enumerate this contact with the same A/B orientation.
+                b2BodyId bodyIdA = b2Shape_GetBody(contact.shapeIdA);
+                if (!B2_ID_EQUALS(body_id, bodyIdA))
+                {
+                    continue;
+                }
+
+                float max_impulse = 0.0f;
+                for (int k = 0; k < contact.manifold.pointCount; ++k)
+                {
+                    b2ManifoldPoint& manifold = contact.manifold.points[k];
+                    max_impulse = dmMath::Max(max_impulse, manifold.normalImpulse);
+                }
+                if (max_impulse < world->m_Context->m_ContactImpulseLimit)
+                {
+                    continue;
+                }
+
+                if (collision_callback)
+                {
+                    if (!collision_callback(
+                            b2Shape_GetUserData(contact.shapeIdA),
+                            b2Shape_GetFilter(contact.shapeIdA).categoryBits,
+                            b2Shape_GetUserData(contact.shapeIdB),
+                            b2Shape_GetFilter(contact.shapeIdB).categoryBits,
+                            step_context.m_CollisionUserData))
+                    {
+                        collision_callback = 0;
+                    }
+                }
+
+                if (contact_point_callback)
+                {
+                    b2BodyId bodyIdB = b2Shape_GetBody(contact.shapeIdB);
+                    b2Vec2 vel_a = b2Body_GetLinearVelocity(bodyIdA);
+                    b2Vec2 vel_b = b2Body_GetLinearVelocity(bodyIdB);
+                    b2Vec2 rv    = b2Sub(vel_b, vel_a);
+
+                    ContactPoint cp;
+                    FromB2(contact.manifold.normal, cp.m_Normal, 1.0f); // Don't scale normal
+                    FromB2(rv, cp.m_RelativeVelocity, inv_scale);
+
+                    for (int k = 0; k < contact.manifold.pointCount && contact_point_callback; ++k)
+                    {
+                        b2ManifoldPoint& manifold_point = contact.manifold.points[k];
+
+                        b2Pos point = b2OffsetPos(b2Body_GetWorldCenter(bodyIdA), manifold_point.anchorA);
+                        FromB2(point, cp.m_PositionA, inv_scale);
+                        cp.m_PositionB = cp.m_PositionA;
+                        cp.m_UserDataA = b2Body_GetUserData(bodyIdA);
+                        cp.m_UserDataB = b2Body_GetUserData(bodyIdB);
+
+                        cp.m_Distance = -manifold_point.separation * inv_scale;
+                        cp.m_AppliedImpulse = manifold_point.normalImpulse * inv_scale;
+                        cp.m_MassA = b2Body_GetMass(bodyIdA);
+                        cp.m_MassB = b2Body_GetMass(bodyIdB);
+                        cp.m_GroupA = b2Shape_GetFilter(contact.shapeIdA).categoryBits;
+                        cp.m_GroupB = b2Shape_GetFilter(contact.shapeIdB).categoryBits;
+                        if (!contact_point_callback(cp, step_context.m_ContactPointUserData))
+                        {
+                            contact_point_callback = 0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    static void CollectContactChunk(void* user_data)
+    {
+        ContactChunk* chunk = (ContactChunk*)user_data;
+        World2D* world = chunk->m_World;
+        const float inv_scale = world->m_Context->m_InvScale;
+        chunk->m_Contacts.SetSize(0);
+        chunk->m_Points.SetSize(0);
+        for (uint32_t i = chunk->m_Begin; i < chunk->m_End; ++i)
+        {
+            b2BodyId body_id = world->m_Bodies[i]->m_BodyId;
+            if (!b2Body_IsEnabled(body_id))
+            {
+                continue;
+            }
+            int count = b2Body_GetContactCapacity(body_id);
+            if ((int)chunk->m_Scratch.Capacity() < count)
+            {
+                chunk->m_Scratch.SetCapacity(dmMath::Max((uint32_t)count, chunk->m_Scratch.Capacity() * 2U));
+            }
+            count = b2Body_GetContactData(body_id, chunk->m_Scratch.Begin(), count);
+
+            chunk->m_Scratch.SetSize(count);
+            for (int j = 0; j < count; ++j)
+            {
+                b2ContactData& contact = chunk->m_Scratch[j];
+                b2BodyId bodyIdA = b2Shape_GetBody(contact.shapeIdA);
+                if (!B2_ID_EQUALS(body_id, bodyIdA))
+                {
+                    continue;
+                }
+                float max_impulse = 0.0f;
+                for (int k = 0; k < contact.manifold.pointCount; ++k)
+                {
+                    max_impulse = dmMath::Max(max_impulse, contact.manifold.points[k].normalImpulse);
+                }
+                if (max_impulse < world->m_Context->m_ContactImpulseLimit)
+                {
+                    continue;
+                }
+                PreparedContact prepared;
+                prepared.m_UserDataA = b2Shape_GetUserData(contact.shapeIdA);
+                prepared.m_UserDataB = b2Shape_GetUserData(contact.shapeIdB);
+                prepared.m_GroupA = b2Shape_GetFilter(contact.shapeIdA).categoryBits;
+                prepared.m_GroupB = b2Shape_GetFilter(contact.shapeIdB).categoryBits;
+                prepared.m_PointBegin = chunk->m_Points.Size();
+                prepared.m_PointCount = 0;
+                if (chunk->m_ContactPoints)
+                {
+                    b2BodyId bodyIdB = b2Shape_GetBody(contact.shapeIdB);
+                    b2Vec2 vel_a = b2Body_GetLinearVelocity(bodyIdA);
+                    b2Vec2 vel_b = b2Body_GetLinearVelocity(bodyIdB);
+                    b2Vec2 rv = b2Sub(vel_b, vel_a);
+                    ContactPoint cp;
+                    FromB2(contact.manifold.normal, cp.m_Normal, 1.0f);
+                    FromB2(rv, cp.m_RelativeVelocity, inv_scale);
+                    for (int k = 0; k < contact.manifold.pointCount; ++k)
+                    {
+                        b2ManifoldPoint& point = contact.manifold.points[k];
+                        b2Pos position = b2OffsetPos(b2Body_GetWorldCenter(bodyIdA), point.anchorA);
+                        FromB2(position, cp.m_PositionA, inv_scale);
+                        cp.m_PositionB = cp.m_PositionA;
+                        cp.m_UserDataA = b2Body_GetUserData(bodyIdA);
+                        cp.m_UserDataB = b2Body_GetUserData(bodyIdB);
+                        cp.m_Distance = -point.separation * inv_scale;
+                        cp.m_AppliedImpulse = point.normalImpulse * inv_scale;
+                        cp.m_MassA = b2Body_GetMass(bodyIdA);
+                        cp.m_MassB = b2Body_GetMass(bodyIdB);
+                        cp.m_GroupA = prepared.m_GroupA;
+                        cp.m_GroupB = prepared.m_GroupB;
+                        if (chunk->m_Points.Full())
+                        {
+                            chunk->m_Points.SetCapacity(dmMath::Max(64U, chunk->m_Points.Capacity() * 2U));
+                        }
+                        chunk->m_Points.Push(cp);
+                        ++prepared.m_PointCount;
+                    }
+                }
+                if (chunk->m_Contacts.Full())
+                {
+                    chunk->m_Contacts.SetCapacity(dmMath::Max(64U, chunk->m_Contacts.Capacity() * 2U));
+                }
+                chunk->m_Contacts.Push(prepared);
+            }
+        }
+    }
+
+    // Only used when callbacks promise not to modify the world. Delivery remains on the calling thread.
+    static void ParallelPostSolve(World2D* world, const StepWorldContext& step_context, CollisionCallback& collision_callback, ContactPointCallback contact_point_callback)
+    {
+        if (world->m_Bodies.Empty())
+        {
+            return;
+        }
+        if (!world->m_ContactCollection)
+        {
+            world->m_ContactCollection = new ContactCollection;
+        }
+        uint32_t chunk_count = dmMath::Min(world->m_Bodies.Size(), dmMath::Min(16U, (uint32_t)world->m_Context->m_WorkerCount * 2U));
+        void* tasks[16];
+        ResetBox2DTaskContext(world->m_TaskContext);
+        for (uint32_t i = 0; i < chunk_count; ++i)
+        {
+            ContactChunk* chunk = &world->m_ContactCollection->m_Chunks[i];
+            chunk->m_World = world;
+            chunk->m_Begin = (uint32_t)((uint64_t)world->m_Bodies.Size() * i / chunk_count);
+            chunk->m_End = (uint32_t)((uint64_t)world->m_Bodies.Size() * (i + 1) / chunk_count);
+            chunk->m_ContactPoints = contact_point_callback != 0;
+            tasks[i] = EnqueueBox2DTask(CollectContactChunk, chunk, world->m_TaskContext);
+        }
+        for (uint32_t i = 0; i < chunk_count; ++i)
+        {
+            FinishBox2DTask(tasks[i], world->m_TaskContext);
+        }
+        for (uint32_t i = 0; i < chunk_count && (collision_callback || contact_point_callback); ++i)
+        {
+            ContactChunk* chunk = &world->m_ContactCollection->m_Chunks[i];
+            for (uint32_t j = 0; j < chunk->m_Contacts.Size() && (collision_callback || contact_point_callback); ++j)
+            {
+                const PreparedContact& contact = chunk->m_Contacts[j];
+                if (collision_callback && !collision_callback(contact.m_UserDataA, contact.m_GroupA, contact.m_UserDataB, contact.m_GroupB, step_context.m_CollisionUserData))
+                {
+                    collision_callback = 0;
+                }
+                for (uint32_t k = 0; k < contact.m_PointCount && contact_point_callback; ++k)
+                {
+                    if (!contact_point_callback(chunk->m_Points[contact.m_PointBegin + k], step_context.m_ContactPointUserData))
+                    {
+                        contact_point_callback = 0;
+                    }
+                }
+            }
+        }
+    }
+
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
     {
         float dt = step_context.m_DT;
@@ -567,6 +855,10 @@ namespace dmPhysics
         {
             DM_PROFILE("StepSimulation");
 
+            if (world->m_TaskContext)
+            {
+                ResetBox2DTaskContext(world->m_TaskContext);
+            }
             b2World_Step(world->m_WorldId, dt, step_context.m_Box2DSubStepCount);
 
             // Post-solve must happen after stepping
@@ -574,85 +866,13 @@ namespace dmPhysics
             {
                 DM_PROFILE("PostSolveCallbacks");
 
-                float inv_scale = world->m_Context->m_InvScale;
-
-                world->m_ContactBuffer.SetSize(0);
-
-                for (int i = 0; i < world->m_Bodies.Size() && (collision_callback || contact_point_callback); ++i)
+                if (world->m_TaskContext && step_context.m_ContactCallbacksReadOnly)
                 {
-                    Body* body = world->m_Bodies[i];
-                    b2BodyId body_id = body->m_BodyId;
-                    if (!b2Body_IsEnabled(body_id))
-                    {
-                        continue;
-                    }
-
-                    dmArray<b2ContactData>& contacts = GetContactsBuffer(world, body_id);
-                    int num_contacts = contacts.Size();
-
-                    for (int j = 0; j < num_contacts && (collision_callback || contact_point_callback); ++j)
-                    {
-                        b2ContactData& contact = contacts[j];
-
-                        // Both bodies enumerate this contact with the same A/B orientation.
-                        b2BodyId bodyIdA = b2Shape_GetBody(contact.shapeIdA);
-                        if (!B2_ID_EQUALS(body_id, bodyIdA))
-                            continue;
-
-                        float max_impulse = 0.0f;
-                        for (int k = 0; k < contact.manifold.pointCount; ++k)
-                        {
-                            b2ManifoldPoint& manifold = contact.manifold.points[k];
-                            max_impulse = dmMath::Max(max_impulse, manifold.normalImpulse);
-                        }
-                        if (max_impulse < world->m_Context->m_ContactImpulseLimit)
-                        {
-                            continue;
-                        }
-
-                        if (collision_callback)
-                        {
-                            if (!collision_callback(
-                                b2Shape_GetUserData(contact.shapeIdA),
-                                b2Shape_GetFilter(contact.shapeIdA).categoryBits,
-                                b2Shape_GetUserData(contact.shapeIdB),
-                                b2Shape_GetFilter(contact.shapeIdB).categoryBits,
-                                step_context.m_CollisionUserData))
-                                collision_callback = 0;
-                        }
-
-                        if (contact_point_callback)
-                        {
-                            b2BodyId bodyIdB = b2Shape_GetBody(contact.shapeIdB);
-                            b2Vec2 vel_a = b2Body_GetLinearVelocity(bodyIdA);
-                            b2Vec2 vel_b = b2Body_GetLinearVelocity(bodyIdB);
-                            b2Vec2 rv    = b2Sub(vel_b, vel_a);
-
-                            ContactPoint cp;
-                            FromB2(contact.manifold.normal, cp.m_Normal, 1.0f); // Don't scale normal
-                            FromB2(rv, cp.m_RelativeVelocity, inv_scale);
-
-                            for (int k = 0; k < contact.manifold.pointCount && contact_point_callback; ++k)
-                            {
-                                b2ManifoldPoint& manifold_point = contact.manifold.points[k];
-
-                                b2Pos point = b2OffsetPos(b2Body_GetWorldCenter(bodyIdA), manifold_point.anchorA);
-                                FromB2(point, cp.m_PositionA, inv_scale);
-                                cp.m_PositionB = cp.m_PositionA;
-                                cp.m_UserDataA = b2Body_GetUserData(bodyIdA);
-                                cp.m_UserDataB = b2Body_GetUserData(bodyIdB);
-
-                                cp.m_Distance = -manifold_point.separation * inv_scale;
-                                cp.m_AppliedImpulse = manifold_point.normalImpulse * inv_scale;
-                                cp.m_MassA = b2Body_GetMass(bodyIdA);
-                                cp.m_MassB = b2Body_GetMass(bodyIdB);
-                                cp.m_GroupA = b2Shape_GetFilter(contact.shapeIdA).categoryBits;
-                                cp.m_GroupB = b2Shape_GetFilter(contact.shapeIdB).categoryBits;
-                                if (!contact_point_callback(cp, step_context.m_ContactPointUserData))
-                                    contact_point_callback = 0;
-                            }
-                        }
-                    }
+                    ParallelPostSolve(world, step_context, collision_callback, contact_point_callback);
+                }
+                else
+                {
+                    SerialPostSolve(world, step_context, collision_callback, contact_point_callback);
                 }
             }
 
