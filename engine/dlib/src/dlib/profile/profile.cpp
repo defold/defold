@@ -53,7 +53,7 @@ static ProfileProperty  g_ProfileProperties[PROFILER_MAX_NUM_PROPERTIES];
 
 static bool IsProfileInitialized()
 {
-    return dmAtomicGet32(&g_ProfileInitialized) != 0;
+    return dmAtomicLoadAcquire32(&g_ProfileInitialized) != 0;
 }
 
 static void CreateRegisteredProperties();

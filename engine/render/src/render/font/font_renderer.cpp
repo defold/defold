@@ -591,8 +591,9 @@ namespace dmRender
         if (font_map->m_Texture)
         {
             dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-            float cache_width  = (float) dmGraphics::GetTextureWidth(graphics_context, font_map->m_Texture);
-            float cache_height = (float) dmGraphics::GetTextureHeight(graphics_context, font_map->m_Texture);
+            dmGraphics::TextureInfo texture_info = dmGraphics::GetTextureInfo(graphics_context, font_map->m_Texture);
+            float cache_width  = (float)texture_info.m_Width;
+            float cache_height = (float)texture_info.m_Height;
 
             im_recip /= cache_width;
             ih_recip /= cache_height;
@@ -658,8 +659,9 @@ namespace dmRender
         dmGraphics::HContext gc = GetGraphicsContext(render_context);
         if (curve_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_Texture)
         {
-            float width = (float)dmGraphics::GetTextureWidth(gc, font_map->m_Texture);
-            float height = (float)dmGraphics::GetTextureHeight(gc, font_map->m_Texture);
+            dmGraphics::TextureInfo texture_info = dmGraphics::GetTextureInfo(gc, font_map->m_Texture);
+            float width = (float)texture_info.m_Width;
+            float height = (float)texture_info.m_Height;
             curve_texture_size = Vector4(width, height, 1.0f / width, 1.0f / height);
         }
         int32_t vp_x = 0;

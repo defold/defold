@@ -286,7 +286,7 @@ namespace dmHttpServer
             // Allow a small shutdown acknowledgement, without reading a stream
             // or waiting for the client on the update thread.
             if (connection->m_Response && !connection->m_Response->m_Close && !connection->m_Response->m_Draining &&
-                !dmAtomicGet32(&connection->m_Response->m_Done))
+                !dmAtomicLoadAcquire32(&connection->m_Response->m_Done))
             {
                 bool progress = false;
                 SendResponse(connection->m_Response, &progress);
@@ -820,9 +820,9 @@ namespace dmHttpServer
         free(response->m_Buffer);
         response->m_Buffer = 0;
         response->m_Succeeded = succeeded;
-        // Publish last, with a full barrier: Update may immediately destroy this
+        // Publish last, with release ordering: Update may immediately destroy this
         // response and socket once it observes completion.
-        dmAtomicCompareStore32(&response->m_Done, 1, 0);
+        dmAtomicStoreRelease32(&response->m_Done, 1);
     }
 
     static Result SendResponse(AsyncResponse* response, bool* progress)
@@ -1004,7 +1004,7 @@ namespace dmHttpServer
             bool keep_connection = true;
             if (connection->m_Response)
             {
-                if (!dmAtomicGet32(&connection->m_Response->m_Done))
+                if (!dmAtomicLoadAcquire32(&connection->m_Response->m_Done))
                 {
                     continue;
                 }
