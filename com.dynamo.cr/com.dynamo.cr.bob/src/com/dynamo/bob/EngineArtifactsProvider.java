@@ -24,6 +24,7 @@ import com.dynamo.bob.util.TimeProfiler;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +37,8 @@ import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 public final class EngineArtifactsProvider {
     private static final Logger logger = Logger.getLogger(EngineArtifactsProvider.class.getName());
     private static File sCacheBase;
+
+    public static final String LINUX_UNSTRIPPED_ENGINE_NAME = "dmengine_unstripped";
 
     private EngineArtifactsProvider() {}
 
@@ -105,9 +108,13 @@ public final class EngineArtifactsProvider {
             for (String platformKey : platforms) {
                 Platform p = Platform.get(platformKey);
                 for (String symbolsFilename : getSymbolsFilenamesForPlatform(p, variantSuffix)) {
+                    if (p.getOsID() == OS.OS_ID_LINUX) {
+                        // Not removed by cleanEngines(), so a failed download must not leave symbols from an earlier build
+                        FileUtils.deleteQuietly(new File(new File(project.getBinaryOutputDirectory(), p.getExtenderPair()), LINUX_UNSTRIPPED_ENGINE_NAME));
+                    }
                     try {
                         String fallbackKey = (p != null) ? p.getOs() : null;
-                        File cached = getOrDownloadArtifact(platformKey, symbolsFilename, fallbackKey, false);
+                        File cached = getOrDownloadArtifact(Bob.ARTIFACTS_URL, platformKey, symbolsFilename, fallbackKey, false);
                         if (cached == null || !cached.exists() || cached.length() == 0) {
                             logger.warning("Symbols not available: %s/%s", platformKey, symbolsFilename);
                             continue;
@@ -118,6 +125,9 @@ public final class EngineArtifactsProvider {
                             if (!expectedDir.exists()) {
                                 unzipIfZip(cached, targetFolder);
                             }
+                        } else if (p.getOsID() == OS.OS_ID_LINUX) {
+                            // Fixed name so a debug variant symbol file isn't mistaken for an extender built dmengine
+                            FileUtils.copyFile(cached, new File(targetFolder, LINUX_UNSTRIPPED_ENGINE_NAME));
                         } else {
                             File target = new File(targetFolder, symbolsFilename);
                             if (!target.exists()) {
@@ -141,11 +151,18 @@ public final class EngineArtifactsProvider {
         List<File> binaryFiles = new ArrayList<File>();
         String[] exeSuffixes = platform.getExeSuffixes();
         String defaultDmengineExeName = getDefaultDmengineExeName(variant);
+        OS os = platform.getOsID();
+        // Match the stripped native engines selected by artifacts.gradle. Keeping
+        // the same subdirectory in the cache also separates Android symbols.
+        boolean stripped = os == OS.OS_ID_LINUX || os == OS.OS_ID_OSX || os == OS.OS_ID_IOS || os == OS.OS_ID_ANDROID;
         for (String exeSuffix : exeSuffixes) {
             String exeName = platform.getExePrefix() + defaultDmengineExeName + exeSuffix;
-            File file = getOrDownloadArtifact(platform.getPair(), exeName, platform.getOs(), true);
+            String artifactPath = stripped ? "stripped/" + exeName : exeName;
+            File file = getOrDownloadArtifact(artifactsURL, platform.getPair(), artifactPath, platform.getOs(), true);
             if (file == null || !file.exists() || file.length() == 0) {
-                throw new IOException(String.format("%s could not be found locally or downloaded, create an application manifest to build the engine remotely.", exeName));
+                throw new IOException(String.format(
+                        "The %s engine for %s (%s) is not available locally and could not be downloaded. " +
+                        "Check your internet connection and try again.", variant, platform.getPair(), exeName));
             }
             binaryFiles.add(file);
         }
@@ -155,7 +172,7 @@ public final class EngineArtifactsProvider {
 
     private static URL buildArtifactURL(String artifactsURL, String platformKey, String filename) throws IOException {
         try {
-            return new URL(String.format(artifactsURL + "%s/engine/%s/%s", EngineVersion.sha1, platformKey, filename));
+            return URI.create(String.format(artifactsURL + "%s/engine/%s/%s", EngineVersion.sha1, platformKey, filename)).toURL();
         } catch (Exception e) {
             throw new IOException(e);
         }
@@ -211,9 +228,14 @@ public final class EngineArtifactsProvider {
         else if (os == OS.OS_ID_WEB) {
             filenames.add(String.format("dmengine%s.js.symbols", variantSuffix));
             // wasm debug info sidecars, bundled next to the .wasm by HTML5Bundler
-            // when bundling with --with-symbols (only published for the debug variant)
-            filenames.add(String.format("dmengine%s.wasm.debug.wasm", variantSuffix));
-            filenames.add(String.format("dmengine%s.wasm.map", variantSuffix));
+            // when bundling with --with-symbols. Only published for the debug variant.
+            if (variantSuffix.isEmpty()) {
+                filenames.add(String.format("dmengine%s.wasm.debug.wasm", variantSuffix));
+                filenames.add(String.format("dmengine%s.wasm.map", variantSuffix));
+            }
+        }
+        else if (os == OS.OS_ID_LINUX) {
+            filenames.add(String.format("dmengine%s", variantSuffix));
         }
         return filenames;
     }
@@ -225,14 +247,14 @@ public final class EngineArtifactsProvider {
         return new File(dir, filename);
     }
 
-    private static File getOrDownloadArtifact(String platformKey, String filename, String fallbackPlatformKey, boolean executable) {
+    private static File getOrDownloadArtifact(String artifactsURL, String platformKey, String filename, String fallbackPlatformKey, boolean executable) {
         File cached = getCacheFile(platformKey, filename);
         try {
             if (cached.exists() && cached.length() > 0) {
                 return cached;
             }
-            URL primary = buildArtifactURL(Bob.ARTIFACTS_URL, platformKey, filename);
-            URL fallback = fallbackPlatformKey != null ? buildArtifactURL(Bob.ARTIFACTS_URL, fallbackPlatformKey, filename) : null;
+            URL primary = buildArtifactURL(artifactsURL, platformKey, filename);
+            URL fallback = fallbackPlatformKey != null ? buildArtifactURL(artifactsURL, fallbackPlatformKey, filename) : null;
             downloadWithFallback(primary, fallback, cached, executable);
             if (executable) {
                 cached.setExecutable(true);

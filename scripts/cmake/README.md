@@ -4,7 +4,7 @@
 
 The order of the includes are shown (.cmake is implied)
 
-- defold - a bit like our top level waf_dynamo.py
+- defold - sets up the common build configuration
 - functions - optional helpers that set defines/flags/linkerflags on build artefacts
 - tools - verify our list of tools (e.g. java, ninja etc)
 - verify our list of tools (e.g. java, ninja etc)
@@ -51,7 +51,7 @@ If you are not in `./scripts/build.py shell`, pass `-G Ninja` or set
 
 ### Feature toggles
 
-CMake builds honour the same feature flags as the legacy Waf flow.
+Engine features can be configured with CMake options or flags passed to `scripts/build.py`.
 
 For named engine features, pass comma-separated values with
 `DEFOLD_ENABLE_FEATURES`:
@@ -74,25 +74,124 @@ To clear features in an existing build directory, configure with an empty value:
 cmake -S . -B engine/build/arm64-macos -DDEFOLD_ENABLE_FEATURES=
 ```
 
-When invoking `scripts/build.py`, pass `--with-asan`, `--with-ubsan`, or
-`--with-tsan` after the `--` separator and the configure step applies the
+When invoking `scripts/build.py`, pass `--with-asan`, `--with-hwasan`, `--with-msan`,
+`--with-ubsan`, or `--with-tsan` after the `--` separator and the configure step applies the
 matching `WITH_*` cache options, such as `WITH_ASAN=ON`. The graphics toggles
 such as `--with-vulkan` continue to map to `WITH_VULKAN`.
 
+`WITH_MSAN=ON` enables Clang MemorySanitizer with origin tracking on Linux
+(`x86_64-linux` or `arm64-linux`). It cannot be combined with another sanitizer.
+Build its dependencies first with `scripts/build.py build_ext -- --with-msan`.
+This builds a pinned LLVM 20 libc++/libc++abi and instrumented external archives
+in `tmp/dynamo_home/ext/msan/<platform>`, separately from the ordinary dependencies
+used by Bob and JNI. It also rebuilds the normally packaged ASTC, SPIRV-Cross,
+GLFW, and Tremolo libraries. The build requires native Linux, Clang 20, and network
+access for the pinned sources on its first run.
+
+Then run `scripts/build.py build_engine -- --with-msan`, or configure CMake with
+`-DWITH_MSAN=ON`. MSan uses vanilla Lua and OpenH264's C++ kernels so those paths
+can be instrumented. The Linux nightly jobs prepare the instrumented dependencies
+before building and running the engine tests with MSan.
+
+GPU image/effect tests, including the font viewer, require an instrumented system
+graphics stack (X11, OpenGL/Vulkan loaders, and drivers), which `build_ext` does not
+provide. Automatic MSan runs skip those GPU tests with an explicit reason; their
+manual targets remain available. Null-backend rendering, shaders, fonts, and other engine tests
+remain instrumented. The font compiler API test compiles the API into its MSan
+executable instead of loading the ordinary JVM shared library.
+
+macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
+include Vulkan as an additional adapter. iOS devices still default to OpenGL ES;
+pass `--with-metal` (or `WITH_METAL=ON`) to include Metal on those devices.
+The iOS simulator (`arm64_sim-ios`) always uses Metal, regardless of graphics
+backend options. App manifest graphics selections
+control the bundled adapters and Bob's shader formats: Metal uses MSL, while
+Vulkan uses SPIR-V.
+
+`WITH_HWASAN=ON` enables HWAddressSanitizer for `arm64-android`, including shared
+libc++ linkage. It cannot be combined with other sanitizers. See the
+[Android HWASan workflow](../mobile/README_ANDROID.md#hwasan-android-14-arm64)
+for building and repacking an APK for Android 14 or newer.
+
+#### Threaded rendering
+
+Pass `--with-threaded-rendering` after the separator to enable the internal rendering
+execution capability:
+
+```bash
+./scripts/build.py build_engine --platform=arm64-macos -- --with-threaded-rendering
+```
+
+This maps to `WITH_THREADED_RENDERING=ON` in CMake, which adds the engine compile
+definition `DM_THREADED_RENDERING=1`. Omitting the flag explicitly
+sets it to `OFF`, including on subsequent builds in the same directory. Direct
+CMake configuration remains available. This is a development gate, not a released engine feature.
+The build define alone selects inline (off) or threaded (on) startup; there is no
+runtime selector yet. Enabled builds currently reject startup because the threaded
+executor and component/resource migration are not available. This option
+does not enable Emscripten pthreads or select a different web binary.
+
 ## Invocation
+
+`scripts/build.py` shows compact CMake and Ninja progress by default. A terminal
+updates one progress line; redirected output and CI print progress at ten-percent
+intervals, with updates during longer builds. Complete command output is
+saved under `logs/` in each CMake build directory. On failure, the console shows
+the failed command and its diagnostics and prints the full log's location.
+Engine CI uploads these logs as `cmake-logs-<platform>` artifacts, including when
+the build fails. Pass `--verbose` to stream the complete command output instead.
+
+Compiler diagnostics retain their colors on terminals, including through the
+runner's output capture. Redirected output, CI output, and saved logs stay plain.
+Use `--no-colors`, `NO_COLOR`, `NOCOLOR=1`, or `CLICOLOR=0` to disable colors.
+Build phase headings are cyan, component headings are brown,
+completed steps are green, and failed steps are red. Timing summary headings use
+the same colors to separate the final report from the build output.
+Command timing rows use the terminal's default foreground for both labels and
+values, keeping them readable on light and dark backgrounds.
+Build-owned command headings and status lines have a cyan `DEFOLD - ` prefix;
+the prefix remains as plain text when colors are disabled or output is redirected.
+Active progress bars use neutral text after that prefix. They are drawn by the
+runner using Ninja's counters; native CMake and compiler diagnostics retain their
+own colors.
+Shell-style command echoes use brown command names, green environment variable
+names, and cyan options. Values and paths use the terminal's normal foreground;
+arguments are quoted when needed. Verbose command echoes use the same formatting
+after credential redaction.
+Build-owned color roles are defined in `build_tools/build_console.py` as
+`Style` constants. Headings, SDK checks, progress, and shell echoes share that
+palette. Command timing rows and active progress text use the terminal's
+default foreground; native tool diagnostics keep their own colors.
+
+CMake has no separate rich console mode. With the Ninja generator, this display
+uses Ninja's native completed and total job counts. The build time summary and
+`build_times.json` retain command timings; nested commands contribute only once
+to the session total.
+
+Run `./scripts/build.py --platform=<platform> install_ext` before the first
+engine build, with the platform SDK already set up. It installs the remaining
+prepackaged dependencies, then calls `build_ext` to build Bullet, Basis Universal,
+LZ4, LuaJIT, both Box2D versions, HarfBuzz, libunibreak, Opus, SheenBidi, Skribidi, and desktop Protobuf
+with the same platform toolchain and installs them into
+`tmp/dynamo_home/ext`. Run `build_ext` when those sources or the toolchain change,
+or `install_ext` to also reinstall the packages.
+Its persistent CMake cache lives under `external/build/<platform>` and is
+separate from the engine build to keep normal rebuilds fast.
+
+The iOS, Android, and web window backends build directly into the engine's
+`platform` library during `build_engine`; they do not need a separate GLFW
+dependency from `install_ext`. Desktop platforms continue to use GLFW3.
 
 `scripts/build.py build_engine` configures from the top-level `CMakeLists.txt`,
 with one CMake cache under `engine/build/<platform>`. Each engine library still
 gets its own binary directory under `engine/<lib>/build/<platform>`, so objects,
 generated files, and archives stay with the library.
 
-During the transition, `scripts/build.py --with-waf build_engine` uses the
-restored Waf lib loop instead.
-
 For local shorthand, the host platform, release-with-debug-symbols build type,
 and tests are all defaulted:
 
 ```bash
+./scripts/build.py --platform=arm64-macos install_ext
 cmake -S . -B engine/build/arm64-macos
 cmake --build engine/build/arm64-macos --target all build_tests install
 cmake --build engine/build/arm64-macos --target run_tests
@@ -165,6 +264,48 @@ When `BUILD_TESTS=ON`, CMake generates the unit test targets during configure:
 `all` target and are only built when requested through `build_tests`,
 `run_tests`, or a direct `test_*`/`run_*` target.
 
+Pass `RUNTIME_DEPENDS <content-target> ...` to `defold_register_test_target`
+for generated assets that are only needed when running a test. `build_tests`
+and all test runners prepare these assets, while a direct binary build can
+compile without waiting for them. Generated headers and sources must remain
+compile dependencies. Xcode and Visual Studio solution test executables retain
+runtime dependencies because Run schemes and startup projects build the
+executable directly. iOS app targets also need these assets for the post-build
+step that copies them into the app bundle.
+
+Gamesys test content builds use up to two Bob processes with Ninja. Two
+dependency chains keep queued content visible to Ninja's scheduler so it starts
+alongside compilation. Their target dependencies preserve independent folder
+rebuilds, and separate folder targets avoid waiting for unrelated engine
+libraries. In CI, detected through `GITHUB_WORKFLOW`, each process uses two Bob
+worker threads by default so content builds leave CPU capacity for compilation.
+Set `-DDEFOLD_GAMESYS_BOB_THREADS=<count>` to change this positive CI limit.
+Local builds use Bob's default thread count. Each chain stages the source tree
+once and reuses it between folders, clearing Bob's build metadata before each
+invocation. Folder outputs and extracted tools remain isolated. Other generators
+use one chain and one source copy to bound JVM memory use.
+
+Native desktop `run_tests` builds its prerequisites, then runs up to two test
+commands concurrently. Set
+`-DDEFOLD_TEST_JOBS=1` to serialize them, or choose another positive worker
+limit. Tests use the `shared` resource group by default, so existing network
+tests and HTTP servers still run one at a time. Independently runnable font,
+sound, texture-codec, gameobject and headless gamesys tests use separate groups.
+Gameobject tests use module-local content and process-local message sockets.
+The headless gamesys suites use null device backends and share a group because
+their resource reload tests modify staged files; gamesys HTTP tests remain in
+the `shared` group. The scheduler only starts a command when its group is free,
+so queued tests do not occupy worker slots.
+The long macOS sound suite has priority to overlap with shared tests. A group
+lock covers the entire command, including server startup and cleanup, and also
+protects individually requested `run_*` targets. `RUN_GROUP <name>` opts a test
+into another group after checking its files, ports and devices are independent.
+`RUN_PRIORITY <integer>` gives long-running tests higher dispatch priority.
+Individual targets still run only the requested test. Output is grouped by
+completed command; a failure stops queued tests and lets active tests finish.
+Device runners, other generators and `run_tests_sequential` retain their
+existing execution order.
+
 ## Solution generation
 
 You can generate a solution for a platform with:
@@ -184,6 +325,20 @@ passed after the `--` separator.
 
 Note that for e.g. Android, the CMakeLists.txt _is_ the solution.
 
+
+## Windows CI linking and signing
+
+Windows CI, detected through `GITHUB_WORKFLOW`, links executables and DLLs with
+`/INCREMENTAL:NO`. Clean CI builds cannot reuse incremental link databases;
+this also avoids CMake's incremental manifest resource/relink passes. Debug
+symbols remain enabled. Local Windows builds keep CMake's incremental-link
+defaults for Debug and RelWithDebInfo.
+
+For signed Windows engine binaries, CI also reports the linker's elapsed time
+separately from signing. Each signing report includes time waiting for the
+shared gcloud lock, authentication, token retrieval, the combined signing and
+timestamp operation, and the total signing duration. These timings help identify
+which stage dominates the end of the build.
 
 ## Folder structures
 

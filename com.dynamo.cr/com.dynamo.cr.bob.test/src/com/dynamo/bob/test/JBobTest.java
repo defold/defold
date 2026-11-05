@@ -14,16 +14,19 @@
 
 package com.dynamo.bob.test;
 
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.junit.matchers.JUnitMatchers.hasItem;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -66,6 +69,79 @@ public class JBobTest {
 
     @BuilderParams(name = "InCopyBuilderMulti", inExts = ".in2", outExt = ".out")
     public static class InCopyBuilderMulti extends InCopyBuilder {}
+
+    @BuilderParams(name = "OutputFlags", inExts = ".outputflags", outExt = ".flagsc", isCacheble = true)
+    public static class OutputFlagsBuilder extends Builder {
+        @Override
+        public Task create(IResource input) {
+            return Task.newBuilder(this)
+                    .setName(params.name())
+                    .addInput(input)
+                    .addOutput(input.changeExt(".uncompressed"), Task.OutputFlags.UNCOMPRESSED)
+                    .addOutput(input.changeExt(".encrypted"), Task.OutputFlags.ENCRYPTED)
+                    .addOutput(input.changeExt(".both"), Task.OutputFlags.UNCOMPRESSED, Task.OutputFlags.ENCRYPTED)
+                    .addOutput(input.changeExt(".plain"))
+                    .build();
+        }
+
+        @Override
+        public void build(Task task) throws IOException, CompileExceptionError {
+            if (project.hasOption("fail-output-build")) {
+                throw new CompileExceptionError(task.firstInput(), 0, "Builder must not run");
+            }
+            for (IResource output : task.getOutputs()) {
+                output.setContent(task.firstInput().getContent());
+            }
+        }
+    }
+
+    @BuilderParams(name = "Stateful", inExts = ".stateful", outExt = ".statefulc", isCacheble = true)
+    public static class StatefulBuilder extends CopyBuilder {
+        private byte[] state;
+        private int buildCount;
+        private int clearCount;
+
+        @Override
+        public Task create(IResource input) throws IOException, CompileExceptionError {
+            state = input.getContent();
+            return super.create(input);
+        }
+
+        @Override
+        public void build(Task task) throws IOException, CompileExceptionError {
+            ++buildCount;
+            assertNotNull("State from create must remain available until the final build attempt", state);
+            switch (project.option("stateful-builder-outcome", "success")) {
+                case "compile-error":
+                    throw new CompileExceptionError(task.firstInput(), 0, "Expected compile error");
+                case "runtime-error":
+                    throw new IllegalStateException("Expected runtime error");
+                case "missing-output":
+                    return;
+                case "retry":
+                    if (buildCount == 1) {
+                        throw new OutOfMemoryError("Simulated retry");
+                    }
+                    break;
+            }
+            task.output(0).setContent(state);
+        }
+
+        @Override
+        public void clearState() {
+            ++clearCount;
+            state = null;
+        }
+    }
+
+    @BuilderParams(name = "ConstructorException", inExts = ".in_constructor_error", outExt = ".out")
+    public static class ConstructorExceptionBuilder extends CopyBuilder {
+        static final CompileExceptionError ERROR = new CompileExceptionError("Failed to construct builder");
+
+        public ConstructorExceptionBuilder() throws CompileExceptionError {
+            throw ERROR;
+        }
+    }
 
     @BuilderParams(name = "CBuilder", inExts = ".c", outExt = ".o")
     public static class CBuilder extends CopyBuilder {
@@ -215,8 +291,8 @@ public class JBobTest {
             @Override
             public java.util.Enumeration<URL> getResources(String name) throws IOException {
                 return Collections.enumeration(Arrays.asList(
-                        new URL("jar:" + validJarPath.toUri().toURL() + "!/" + name),
-                        new URL("jar:" + missingJarPath.toUri().toURL() + "!/" + name)));
+                        URI.create("jar:" + validJarPath.toUri() + "!/" + name).toURL(),
+                        URI.create("jar:" + missingJarPath.toUri() + "!/" + name).toURL()));
             }
         };
 
@@ -244,12 +320,126 @@ public class JBobTest {
     @Test
     public void testCopy() throws Exception {
         fileSystem.addFile("test.in", "test data".getBytes());
-        project.setInputs(Arrays.asList("test.in"));
+        project.setInputs(List.of("test.in"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(1));
         IResource testOut = fileSystem.get(ResourceUtil.minifyPath("test.out")).output();
         assertNotNull(testOut);
         assertThat(new String(testOut.getContent()), is("test data"));
+    }
+
+    private Task buildFlaggedOutputs(TaskResult.Result expectedResult) throws Exception {
+        List<TaskResult> results = build();
+        assertThat(results.size(), is(1));
+        TaskResult result = results.get(0);
+        assertThat(result.toString(), result.getResult(), is(expectedResult));
+        Task task = result.getTask();
+        List<Set<Task.OutputFlags>> expectedFlags = List.of(
+                Set.of(Task.OutputFlags.UNCOMPRESSED),
+                Set.of(Task.OutputFlags.ENCRYPTED),
+                Set.of(Task.OutputFlags.UNCOMPRESSED, Task.OutputFlags.ENCRYPTED),
+                Set.of());
+        assertThat(task.getOutputs().size(), is(expectedFlags.size()));
+        for (int i = 0; i < expectedFlags.size(); ++i) {
+            IResource output = task.output(i);
+            assertThat(task.getOutputFlags(output), is(expectedFlags.get(i)));
+            assertThat(project.getOutputFlags(output.getAbsPath()), is(expectedFlags.get(i)));
+            assertThat(new String(output.getContent(), StandardCharsets.UTF_8), is("test data"));
+        }
+        return task;
+    }
+
+    // Verifies that rebuilding unchanged outputs preserves each output's archive flags when compilation is skipped.
+    @Test
+    public void testOutputFlagsForSkippedTasks() throws Exception {
+        fileSystem.addFile("test.outputflags", "test data".getBytes(StandardCharsets.UTF_8));
+        project.setInputs(List.of("test.outputflags"));
+        buildFlaggedOutputs(TaskResult.Result.SUCCESS);
+
+        project.setOption("fail-output-build", "true");
+        buildFlaggedOutputs(TaskResult.Result.SKIPPED);
+    }
+
+    // Verifies that restoring cached outputs preserves archive flags without invoking the builder.
+    @Test
+    public void testOutputFlagsForCachedTasks() throws Exception {
+        Path cacheDirectory = Files.createTempDirectory("bob-output-flags-cache");
+        try {
+            project.setOption("resource-cache-local", cacheDirectory.toString());
+            fileSystem.addFile("test.outputflags", "test data".getBytes(StandardCharsets.UTF_8));
+            project.setInputs(List.of("test.outputflags"));
+            Task task = buildFlaggedOutputs(TaskResult.Result.SUCCESS);
+            for (IResource output : task.getOutputs()) {
+                output.remove();
+            }
+
+            project.setOption("fail-output-build", "true");
+            buildFlaggedOutputs(TaskResult.Result.SUCCESS);
+        } finally {
+            FileUtils.deleteDirectory(cacheDirectory.toFile());
+        }
+    }
+
+    private void addStatefulInput() {
+        fileSystem.addFile("test.stateful", "test data".getBytes(StandardCharsets.UTF_8));
+        project.setInputs(List.of("test.stateful"));
+    }
+
+    private Task buildStateful(TaskResult.Result expectedResult, int expectedBuildCount) throws Exception {
+        List<TaskResult> results = build();
+        assertThat(results.size(), is(1));
+        TaskResult result = results.get(0);
+        assertThat(result.toString(), result.getResult(), is(expectedResult));
+        StatefulBuilder builder = (StatefulBuilder) result.getTask().getBuilder();
+        assertThat(builder.buildCount, is(expectedBuildCount));
+        assertThat("Completed tasks must release builder state exactly once", builder.clearCount, is(1));
+        assertNull(builder.state);
+        if (result.isOk()) {
+            assertThat(new String(result.getTask().output(0).getContent(), StandardCharsets.UTF_8), is("test data"));
+        }
+        return result.getTask();
+    }
+
+    // Finished and unchanged tasks must release the state allocated during create, including skipped builds.
+    @Test
+    public void testClearBuilderStateAfterBuildAndSkip() throws Exception {
+        addStatefulInput();
+        buildStateful(TaskResult.Result.SUCCESS, 1);
+        buildStateful(TaskResult.Result.SKIPPED, 0);
+    }
+
+    // Restoring cached output must release builder state even though build is never called.
+    @Test
+    public void testClearBuilderStateAfterCacheHit() throws Exception {
+        Path cacheDirectory = Files.createTempDirectory("bob-builder-state-cache");
+        try {
+            project.setOption("resource-cache-local", cacheDirectory.toString());
+            addStatefulInput();
+            Task task = buildStateful(TaskResult.Result.SUCCESS, 1);
+            task.output(0).remove();
+            project.setOption("stateful-builder-outcome", "compile-error");
+            buildStateful(TaskResult.Result.SUCCESS, 0);
+        } finally {
+            FileUtils.deleteDirectory(cacheDirectory.toFile());
+        }
+    }
+
+    // Compile errors, runtime errors and missing outputs must release state when the task cannot be retried.
+    @Test
+    public void testClearBuilderStateAfterFailure() throws Exception {
+        addStatefulInput();
+        for (String outcome : List.of("compile-error", "runtime-error", "missing-output")) {
+            project.setOption("stateful-builder-outcome", outcome);
+            buildStateful(TaskResult.Result.FAILED, 1);
+        }
+    }
+
+    // An out-of-memory retry must retain create-time state and clean it only after the final attempt.
+    @Test
+    public void testRetainBuilderStateForRetry() throws Exception {
+        addStatefulInput();
+        project.setOption("stateful-builder-outcome", "retry");
+        buildStateful(TaskResult.Result.SUCCESS, 2);
     }
 
     @Test(expected=CompileExceptionError.class)
@@ -263,7 +453,7 @@ public class JBobTest {
     @Test
     public void testAbsPath() throws Exception {
         fileSystem.addFile("/root/test.in", "test data".getBytes());
-        project.setInputs(Arrays.asList("/root/test.in"));
+        project.setInputs(List.of("/root/test.in"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(1));
         IResource testOut = fileSystem.get(ResourceUtil.minifyPath("/root/test.out")).output();
@@ -349,7 +539,7 @@ public class JBobTest {
     @Test
     public void testChangeInput() throws Exception {
         fileSystem.addFile("test.in", "test data".getBytes());
-        project.setInputs(Arrays.asList("test.in"));
+        project.setInputs(List.of("test.in"));
         List<TaskResult> result;
 
         // build
@@ -373,7 +563,7 @@ public class JBobTest {
     @Test
     public void testRemoveOutput() throws Exception {
         fileSystem.addFile("test.in", "test data".getBytes());
-        project.setInputs(Arrays.asList("test.in"));
+        project.setInputs(List.of("test.in"));
         List<TaskResult> result;
 
         // build
@@ -391,7 +581,7 @@ public class JBobTest {
     @Test
     public void testRemoveGeneratedOutput() throws Exception {
         fileSystem.addFile("test.dynamic", "1\n2\n".getBytes());
-        project.setInputs(Arrays.asList("test.dynamic"));
+        project.setInputs(List.of("test.dynamic"));
 
         // build
         List<TaskResult> result = build();
@@ -416,7 +606,7 @@ public class JBobTest {
     @Test
     public void testCompileError() throws Exception {
         fileSystem.addFile("test.in_err", "test data_err".getBytes());
-        project.setInputs(Arrays.asList("test.in_err"));
+        project.setInputs(List.of("test.in_err"));
         List<TaskResult> result;
 
         // build
@@ -433,15 +623,26 @@ public class JBobTest {
     @Test(expected=CompileExceptionError.class)
     public void testCreateError() throws Exception {
         fileSystem.addFile("test.in_ce", "test".getBytes());
-        project.setInputs(Arrays.asList("test.in_ce"));
+        project.setInputs(List.of("test.in_ce"));
         // build
         build();
     }
 
     @Test
+    public void testConstructorCompileError() throws Exception {
+        fileSystem.addFile("test.in_constructor_error", "test".getBytes());
+        try {
+            project.createTask(project.getResource("test.in_constructor_error"), ConstructorExceptionBuilder.class);
+            fail("Expected the builder constructor to fail");
+        } catch (CompileExceptionError e) {
+            assertSame(ConstructorExceptionBuilder.ERROR, e);
+        }
+    }
+
+    @Test
     public void testMissingOutput() throws Exception {
         fileSystem.addFile("test.nooutput", "test data".getBytes());
-        project.setInputs(Arrays.asList("test.nooutput"));
+        project.setInputs(List.of("test.nooutput"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(1));
         assertFalse(result.get(0).isOk());
@@ -455,20 +656,20 @@ public class JBobTest {
     @Test
     public void testDynamic() throws Exception {
         fileSystem.addFile("test.dynamic", "1\n2\n".getBytes());
-        project.setInputs(Arrays.asList("test.dynamic"));
+        project.setInputs(List.of("test.dynamic"));
         List<TaskResult> result = build();
         assertThat(result.size(), is(3));
         assertThat(getResourceString(ResourceUtil.minifyPath("test_0.numberc")), is("10"));
         assertThat(getResourceString(ResourceUtil.minifyPath("test_1.numberc")), is("20"));
-        assertThat(result.get(1).getTask().getProductOf(), is((Task) result.get(0).getTask()));
-        assertThat(result.get(2).getTask().getProductOf(), is((Task) result.get(0).getTask()));
+        assertThat(result.get(1).getTask().getProductOf(), is(result.get(0).getTask()));
+        assertThat(result.get(2).getTask().getProductOf(), is(result.get(0).getTask()));
     }
 
 
     @Test
     public void testChangeOptions() throws Exception {
         fileSystem.addFile("test.c", "f();".getBytes());
-        project.setInputs(Arrays.asList("test.c"));
+        project.setInputs(List.of("test.c"));
         List<TaskResult> result;
 
         // build
@@ -491,7 +692,7 @@ public class JBobTest {
     @Test
     public void testCompileErrorOutputCreated() throws Exception {
         fileSystem.addFile("test.foeao", "test".getBytes());
-        project.setInputs(Arrays.asList("test.foeao"));
+        project.setInputs(List.of("test.foeao"));
         List<TaskResult> result;
 
         // build

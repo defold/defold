@@ -84,7 +84,7 @@ public class GamepadBuilder extends Builder {
             contents.add(gamepadsContent);
         }
 
-        return compile(paths.toArray(new String[paths.size()]), contents.toArray(new byte[contents.size()][]), platform);
+        return compile(paths.toArray(new String[0]), contents.toArray(new byte[contents.size()][]), platform);
     }
 
     /**

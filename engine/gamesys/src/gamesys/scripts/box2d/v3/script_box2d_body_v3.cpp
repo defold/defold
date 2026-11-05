@@ -44,27 +44,14 @@ namespace dmGameSystem
     struct B2DLuaBody
     {
         b2BodyId                  m_Body;
-        dmGameObject::HCollection m_Collection;
-        dmhash_t                  m_InstanceId;
-        uint32_t                  m_InstanceGeneration;
+        dmGameObject::HGameObject m_Instance;
     };
 
-    void PushBody(lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t instance_id)
+    void PushBody(lua_State* L, void* body, dmGameObject::HGameObject instance)
     {
         B2DLuaBody* luabody   = (B2DLuaBody*) lua_newuserdata(L, sizeof(B2DLuaBody));
         luabody->m_Body       = *(b2BodyId*) body;
-        luabody->m_Collection = collection;
-        luabody->m_InstanceId = instance_id;
-        luabody->m_InstanceGeneration = 0;
-
-        if (instance_id)
-        {
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, instance_id);
-            if (instance)
-            {
-                luabody->m_InstanceGeneration = dmGameObject::GetGeneration(instance);
-            }
-        }
+        luabody->m_Instance   = instance;
 
         luaL_getmetatable(L, BOX2D_TYPE_NAME_BODY);
         lua_setmetatable(L, -2);
@@ -166,12 +153,11 @@ namespace dmGameSystem
 
     static int VerifyBodyInternal(lua_State* L, B2DLuaBody* luabody)
     {
-        if (luabody->m_InstanceId) // check if the instance is alive
+        if (luabody->m_Instance)
         {
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(luabody->m_Collection, luabody->m_InstanceId);
-            if (!instance || dmGameObject::GetGeneration(instance) != luabody->m_InstanceGeneration)
+            if (!dmGameObject::IsValid(luabody->m_Instance))
             {
-                return luaL_error(L, "Cannot get b2body for game object instance '%s'. Has the game object been deleted?", dmHashReverseSafe64(luabody->m_InstanceId));
+                return luaL_error(L, "Cannot get b2body. Has the game object been deleted?");
             }
         }
 
@@ -193,7 +179,20 @@ namespace dmGameSystem
     {
         B2DLuaBody* luabody = CheckBodyInternal(L, index);
         VerifyBodyInternal(L, luabody);
-        return luabody->m_Collection;
+        return dmGameObject::GetCollection(luabody->m_Instance);
+    }
+
+    dmGameObject::HGameObject GetBodyInstance(b2BodyId body)
+    {
+        void* user_data = b2Body_GetUserData(body);
+        return user_data ? CompCollisionObjectGetInstance(user_data) : 0;
+    }
+
+    dmhash_t GetBodyInstanceId(lua_State* L, int index)
+    {
+        b2BodyId* body = CheckBody(L, index);
+        CollisionComponent* component = (CollisionComponent*)b2Body_GetUserData(*body);
+        return component && component->m_Instance ? dmGameObject::GetIdentifier(component->m_Instance) : 0;
     }
 
     static b2BodyId* ToBody(lua_State* L, int index)
@@ -274,7 +273,7 @@ namespace dmGameSystem
         lua_pushnumber(L, b2Shape_GetRestitution(shape));
         lua_setfield(L, -2, "restitution");
 
-        lua_pushinteger(L, b2Shape_GetMaterial(shape));
+        lua_pushinteger(L, b2Shape_GetUserMaterial(shape));
         lua_setfield(L, -2, "material");
 
         lua_pushinteger(L, 1);
@@ -285,11 +284,11 @@ namespace dmGameSystem
         lua_setfield(L, -2, "is_chain_segment");
     }
 
-    static void PushManifoldPoint(lua_State* L, const b2ManifoldPoint& point)
+    static void PushManifoldPoint(lua_State* L, const b2ManifoldPoint& point, b2BodyId body_a)
     {
         lua_newtable(L);
 
-        dmScript::PushVector3(L, FromB2(point.point, GetInvPhysicsScale()));
+        dmScript::PushVector3(L, FromB2(b2OffsetPos(b2Body_GetWorldCenter(body_a), point.anchorA), GetInvPhysicsScale()));
         lua_setfield(L, -2, "point");
 
         dmScript::PushVector3(L, FromB2(point.anchorA, GetInvPhysicsScale()));
@@ -344,7 +343,7 @@ namespace dmGameSystem
         lua_newtable(L);
         for (int i = 0; i < contact_data.manifold.pointCount; ++i)
         {
-            PushManifoldPoint(L, contact_data.manifold.points[i]);
+            PushManifoldPoint(L, contact_data.manifold.points[i], b2Shape_GetBody(contact_data.shapeIdA));
             lua_rawseti(L, -2, i + 1);
         }
         lua_setfield(L, -2, "points");
@@ -354,10 +353,9 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         B2DLuaBody* luabody = CheckBodyInternal(L, 1);
-        if (luabody->m_InstanceId)
+        if (luabody->m_Instance)
         {
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(luabody->m_Collection, luabody->m_InstanceId);
-            if (!instance || dmGameObject::GetGeneration(instance) != luabody->m_InstanceGeneration)
+            if (!dmGameObject::IsValid(luabody->m_Instance))
             {
                 lua_pushboolean(L, false);
                 return 1;
@@ -426,7 +424,7 @@ namespace dmGameSystem
         b2Transform target;
         target.p = CheckVec2(L, 2, GetPhysicsScale());
         target.q = b2MakeRot(luaL_checknumber(L, 3));
-        b2Body_SetTargetTransform(*body, target, luaL_checknumber(L, 4));
+        b2Body_SetTargetTransform(*body, target, luaL_checknumber(L, 4), true);
         return 0;
     }
 
@@ -462,7 +460,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
         b2Vec2 impulse = CheckVec2(L, 2, GetPhysicsScale());
-        b2Vec2 position = CheckVec2(L, 3, GetPhysicsScale()); // position relative center of body
+        b2Vec2 position = CheckVec2(L, 3, GetPhysicsScale()); // world-space application point
         b2Body_ApplyLinearImpulse(*body, impulse, position, true);
         return 0;
     }
@@ -526,7 +524,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
-        b2Body_ApplyMassFromShapes(*body);
+        b2Body_UpdateMassFromShapes(*body);
         return 0;
     }
 
@@ -545,7 +543,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        dmScript::PushVector3(L, FromB2(b2Body_GetWorldCenterOfMass(*body), GetInvPhysicsScale()));
+        dmScript::PushVector3(L, FromB2(b2Body_GetWorldCenter(*body), GetInvPhysicsScale()));
         return 1;
     }
 
@@ -554,7 +552,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        dmScript::PushVector3(L, FromB2(b2Body_GetLocalCenterOfMass(*body), GetInvPhysicsScale()));
+        dmScript::PushVector3(L, FromB2(b2Body_GetLocalCenter(*body), GetInvPhysicsScale()));
         return 1;
     }
 
@@ -599,7 +597,6 @@ namespace dmGameSystem
     static int Body_GetJoints(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HCollection collection = GetBodyCollection(L, 1);
         b2BodyId* body = CheckBody(L, 1);
 
         const int joint_count = b2Body_GetJointCount(*body);
@@ -614,7 +611,7 @@ namespace dmGameSystem
         {
             if (IsJointTracked(joints[i]))
             {
-                PushJoint(L, joints[i], collection);
+                PushJoint(L, joints[i]);
                 lua_rawseti(L, -2, joint_index);
                 ++joint_index;
             }
@@ -650,7 +647,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        PushAABB(L, b2Body_ComputeAABB(*body));
+        PushAABB(L, b2Body_ComputeBounds(*body));
         return 1;
     }
 
@@ -854,7 +851,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        lua_pushboolean(L, b2Body_IsFixedRotation(*body));
+        lua_pushboolean(L, b2Body_GetMotionLocks(*body).angularZ);
         return 1;
     }
 
@@ -863,7 +860,9 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
         bool enable = lua_toboolean(L, 2);
-        b2Body_SetFixedRotation(*body, enable);
+        b2MotionLocks locks = b2Body_GetMotionLocks(*body);
+        locks.angularZ = enable;
+        b2Body_SetMotionLocks(*body, locks);
         return 0;
     }
 
@@ -872,7 +871,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        lua_pushboolean(L, b2Body_IsSleepEnabled(*body));
+        lua_pushboolean(L, b2Body_IsSleepingEnabled(*body));
         return 1;
     }
 
@@ -887,7 +886,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         b2BodyId* body = CheckBody(L, 1);
         bool enable = lua_toboolean(L, 2);
-        b2Body_EnableSleep(*body, enable);
+        b2Body_EnableSleeping(*body, enable);
         return 0;
     }
 
@@ -1188,44 +1187,53 @@ namespace dmGameSystem
  */
 
 /*# Box2D world
+ *
+ * An opaque handle to the Box2D physics world owned by a collection. Obtain the
+ * current collection's world with [ref:b2d.get_world], or the world that owns a
+ * body with [ref:b2d.body.get_world]. Pass the handle to functions in
+ * `b2d.world`; it cannot be constructed directly from Lua.
+ *
  * @typedef
  * @name b2World
- * @param value [type:userdata]
+ * @param value [type:userdata] Box2D world handle
+ * @examples
+ *
+ * ```lua
+ * local world = b2d.get_world()
+ * if world then
+ *     print(b2d.world.get_gravity(world))
+ * end
+ * ```
  */
 
 /*# Box2D body
+ *
+ * An opaque handle to the native Box2D body of a collision-object component.
+ * Obtain it with [ref:b2d.get_body] and pass it to functions in `b2d.body`.
+ * The collision object owns the body, so use [ref:b2d.body.is_valid] before
+ * retaining a handle across deletion or collection changes.
+ *
  * @typedef
  * @name b2Body
- * @param value [type:userdata]
- */
-
-/*# Static (immovable) body
+ * @param value [type:userdata] Box2D body handle
+ * @examples
  *
- * @name b2d.body.B2_STATIC_BODY
- * @constant
- */
-/*# Kinematic body
- *
- * @name b2d.body.B2_KINEMATIC_BODY
- * @constant
- */
-/*# Dynamic body
- *
- * @name b2d.body.B2_DYNAMIC_BODY
- * @constant
+ * ```lua
+ * local body = b2d.get_body("#collisionobject")
+ * if body and b2d.body.is_valid(body) then
+ *     b2d.body.apply_force_to_center(body, vmath.vector3(0, 100, 0))
+ * end
+ * ```
  */
 
 /**
  * Creates a shape and attaches it to this body.
  * If the density is non-zero, this function automatically updates the mass of the body.
  * Contacts are not created until the next time step.
- * The definition may include `density`, `friction`, `restitution`, `material`,
- * `sensor` or `is_sensor`, `filter`, and the shape table itself. The shape table
- * can be in `definition.shape` or directly in `definition`.
  * @warning This function is locked during callbacks.
  * @name b2d.body.create_shape
  * @param body [type: b2Body] body
- * @param definition [type: table] the shape definition.
+ * @param definition [type:b2d.shape_create_definition] the shape definition.
  */
 
 /*# Create a chain and attach its segment shapes to this body.
@@ -1233,39 +1241,12 @@ namespace dmGameSystem
  * the ends of open chains. Ghost vertices are creation-time chain data only and
  * cannot be added to arbitrary shapes, bodies, or joints after creation.
  *
- * `definition.vertices`
- * : [type:table] array of local `vector3` vertices. Open chains require at least 2 vertices. Loop chains require at least 4 vertices.
- *
- * `definition.loop`
- * : [type:boolean] true to create a closed loop chain.
- *
- * `definition.prev_vertex`
- * : [type:vector3] optional ghost vertex before the first vertex for open chains.
- *
- * `definition.next_vertex`
- * : [type:vector3] optional ghost vertex after the last vertex for open chains.
- *
- * `definition.friction`
- * : [type:number] optional friction.
- *
- * `definition.restitution`
- * : [type:number] optional restitution.
- *
- * `definition.material`
- * : [type:number] optional material id.
- *
- * `definition.filter`
- * : [type:table] optional filter with `category_bits`, `mask_bits`, and `group_index`.
- *
- * `definition.enable_sensor_events`
- * : [type:boolean] true to enable sensor events for chain segments.
- *
  * @warning This function is locked during callbacks.
  * @name b2d.body.create_chain
  * @param body [type: b2Body] body
- * @param definition [type: table] the chain definition
+ * @param definition [type:b2d.chain_definition] the chain definition
  * @return chain [type: b2Chain] created chain handle
- * @return segments [type: table] array of shape info tables for the chain segments
+ * @return segments [type:b2d.shape_info[]] created chain segments
  * @examples
  *
  * ```lua
@@ -1291,7 +1272,7 @@ namespace dmGameSystem
  * @warning This function is locked during callbacks.
  * @name b2d.body.destroy_shape
  * @param body [type: b2Body] body
- * @param shape_index [type: number] 1-based shape index from `b2d.body.get_shapes`
+ * @param shape_index [type: integer] 1-based shape index from `b2d.body.get_shapes`
  */
 
 /*#
@@ -1604,19 +1585,13 @@ namespace dmGameSystem
 /** Get the list of all shapes attached to this body.
  * @name b2d.body.get_shapes
  * @param body [type: b2Body] body
- * @return shapes [type: table] a table of shape info entries. Each entry includes `shape_id` for use with `b2d.shape` functions.
+ * @return shapes [type:b2d.shape_info[]] attached shapes
  */
 
 /*# Get the joints attached to this body.
  * @name b2d.body.get_joints
  * @param body [type: b2Body] body
- * @return joints [type: table] array of `b2Joint` handles created by `b2d.joint`
- */
-
-/** Get the list of all contacts attached to this body.
- * @name b2d.body.get_contact_list
- * @param body [type: b2Body] body
- * @return edge [type: b2ContactEdge] the first edge
+ * @return joints [type:b2Joint[]] joint handles created by [ref:b2d.joint]
  */
 
 /** Get the user data pointer that was provided in the body definition.
@@ -1653,13 +1628,13 @@ namespace dmGameSystem
 /*# Set the body name.
  * @name b2d.body.set_name
  * @param body [type: b2Body] body
- * @param name [type: string] body name
+ * @param name [type: string] body name, truncated to 10 characters
  */
 
 /*# Get the body name.
  * @name b2d.body.get_name
  * @param body [type: b2Body] body
- * @return name [type: string] body name, or nil if no name is set
+ * @return name [type: string|nil] body name, or `nil` if no name is set
  */
 
 /*# Set velocity to reach a target transform.
@@ -1703,11 +1678,11 @@ namespace dmGameSystem
 /*# Get touching contact data for a body.
  * @name b2d.body.get_contact_data
  * @param body [type: b2Body] body
- * @return contacts [type: table] array of contact tables
+ * @return contacts [type:b2d.contact_data[]] array of contact tables
  */
 
 /*# Compute the world AABB of all body shapes.
  * @name b2d.body.compute_aabb
  * @param body [type: b2Body] body
- * @return aabb [type: table] table with `lower` and `upper` vector3 fields
+ * @return aabb [type:b2d.aabb] body bounds
  */

@@ -37,7 +37,7 @@
             [editor.validation :as validation]
             [util.array :as array]
             [util.coll :as coll])
-  (:import [com.jogamp.opengl GL GL2]
+  (:import [com.jogamp.opengl GL GL3]
            [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Tuple3d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -312,7 +312,7 @@
             vbuf
             renderables)))
 
-(defn- render-light-icon-impl [^GL2 gl render-args renderables renderable-count]
+(defn- render-light-icon-impl [^GL3 gl render-args renderables renderable-count]
   (let [renderable-count (long renderable-count)]
     (when (pos? renderable-count)
       (let [camera (:camera render-args)
@@ -322,7 +322,7 @@
           pass/transparent
           (let [vbuf (vbuf-push-light-icon-quads! (->tex-color-vtx (* renderable-count 6)) camera viewport renderables light-icon-render-color)
                 vertex-binding (vtx/use-with ::light-icon vbuf light-icon-shader)]
-            (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+            (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL3/GL_FILL)
             (gl/gl-enable gl GL/GL_BLEND)
             (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
             (try
@@ -331,7 +331,7 @@
                 (.glDrawArrays gl GL/GL_TRIANGLES 0 (count vbuf)))
               (finally
                 (gl/gl-disable gl GL/GL_BLEND)
-                (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_FILL))))
+                (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL3/GL_FILL))))
 
           pass/selection
           (let [vbuf (vbuf-push-light-icon-quads! (->selection-icon-vtx (* renderable-count 6)) camera viewport renderables light-icon-picking-color)
@@ -340,7 +340,7 @@
               (shader/set-samplers-by-index light-icon-selection-shader gl 0 (:texture-units icon-gpu-texture))
               (.glDrawArrays gl GL/GL_TRIANGLES 0 (count vbuf)))))))))
 
-(defn- render-point-outline-impl [^GL2 gl render-args renderables renderable-count]
+(defn- render-point-outline-impl [^GL3 gl render-args renderables renderable-count]
   (assert (= pass/outline (:pass render-args)))
   (let [camera (:camera render-args)
         vbuf (persistent!
@@ -398,7 +398,7 @@
               initial-vbuf
               renderables))))
 
-(defn- render-directional-outline-impl [^GL2 gl render-args renderables renderable-count]
+(defn- render-directional-outline-impl [^GL3 gl render-args renderables renderable-count]
   (assert (= pass/outline (:pass render-args)))
   (let [renderable-count (long renderable-count)
         vbuf-tris (vbuf-push-directional-outlines!
@@ -418,12 +418,12 @@
       (try
         (when (pos? (count vbuf-tris))
           (let [vb (vtx/use-with ::light-directional-gizmo-tris vbuf-tris outline-shader)]
-            (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+            (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL3/GL_FILL)
             (try
               (gl/with-gl-bindings gl render-args [outline-shader vb]
                 (.glDrawArrays gl GL/GL_TRIANGLES 0 (count vbuf-tris)))
               (finally
-                (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_LINE)))))
+                (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL3/GL_LINE)))))
         (let [vb (vtx/use-with ::light-directional-gizmo-lines vbuf-lines outline-shader)]
           (gl/with-gl-bindings gl render-args [outline-shader vb]
             (.glDrawArrays gl GL/GL_LINES 0 (count vbuf-lines))))
@@ -434,7 +434,7 @@
   (fn [gl render-args renderables renderable-count]
     (render-fn gl render-args (mapv unify-scale renderables) renderable-count)))
 
-(defn- render-spot-outline-impl [^GL2 gl render-args renderables _renderable-count]
+(defn- render-spot-outline-impl [^GL3 gl render-args renderables _renderable-count]
   (assert (= pass/outline (:pass render-args)))
   (let [visible-gizmos (filterv light-gizmo-visible? renderables)]
     (when (pos? (count visible-gizmos))
@@ -638,7 +638,7 @@
   (output own-build-errors g/Any (gu/passthrough ambient-light-build-errors))
   (output rt-tags g/Any (g/constantly ["light" "ambient_light"])))
 
-(defn load-ambient-light [_project self _resource data-desc]
+(defn load-ambient-light [_load-opts {self :node-id data-desc :source-value}]
   {:pre [(map? data-desc)]} ; DataProto$Data in JSON map format.
   (let [data (:data data-desc)]
     (g/set-properties self
@@ -663,8 +663,8 @@
   (output own-build-errors g/Any (gu/passthrough directional-light-build-errors))
   (output rt-tags g/Any (g/constantly ["light" "directional_light"])))
 
-(defn load-directional-light [project self resource data-desc]
-  (load-ambient-light project self resource data-desc))
+(defn load-directional-light [load-opts node-load-info]
+  (load-ambient-light load-opts node-load-info))
 
 ;; -----------------------------------------------------------------------------
 ;; PointLightNode
@@ -702,11 +702,11 @@
   (output own-build-errors g/Any (gu/passthrough point-light-build-errors))
   (output rt-tags g/Any (g/constantly ["light" "point_light"])))
 
-(defn load-point-light [project self resource data-desc]
+(defn load-point-light [load-opts {self :node-id data-desc :source-value :as node-load-info}]
   {:pre [(map? data-desc)]} ; DataProto$Data in JSON map format.
   (let [data (:data data-desc)]
     (concat
-      (load-directional-light project self resource data-desc)
+      (load-directional-light load-opts node-load-info)
       (g/set-property self :range (get data "range")))))
 
 (defmethod scene-tools/manip-scalable? ::PointLightNode [_node-id] true)
@@ -793,11 +793,11 @@
                 (update "inner_cone_angle" math/deg->rad)
                 (update "outer_cone_angle" math/deg->rad)))))
 
-(defn load-spot-light [project self resource data-desc]
+(defn load-spot-light [load-opts {self :node-id data-desc :source-value :as node-load-info}]
   {:pre [(map? data-desc)]} ; DataProto$Data in JSON map format.
   (let [data (:data data-desc)]
     (concat
-      (load-point-light project self resource data-desc)
+      (load-point-light load-opts node-load-info)
       (g/set-properties self
         :inner-cone-angle (get data "inner_cone_angle")
         :outer-cone-angle (get data "outer_cone_angle")))))

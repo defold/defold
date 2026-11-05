@@ -489,7 +489,7 @@ namespace dmGameSystem
         if (world->m_Components.Full())
         {
             ShowFullBufferError("Collision object", PHYSICS_MAX_COLLISION_OBJECTS_KEY, world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
         CollisionComponentBox2D* component = (CollisionComponentBox2D*)*params.m_UserData;
         assert(!component->m_BaseComponent.m_AddedToUpdate);
@@ -662,6 +662,12 @@ namespace dmGameSystem
             }
         }
 
+        // Avoid building event payloads that no component in this world requests.
+        const uint8_t reported_events = EVENT_MASK_COLLISION | EVENT_MASK_CONTACT;
+        uint8_t event_mask = 0;
+        for (uint32_t i = 0; i < world->m_Components.Size() && event_mask != reported_events; ++i)
+            event_mask |= world->m_Components[i]->m_BaseComponent.m_EventMask & reported_events;
+
         CollisionUserData collision_user_data;
         collision_user_data.m_World = &world->m_BaseWorld;
         collision_user_data.m_Context = &physics_context->m_BaseContext;
@@ -672,9 +678,10 @@ namespace dmGameSystem
         contact_user_data.m_Count = 0;
 
         dmPhysics::StepWorldContext step_world_context;
-        step_world_context.m_CollisionCallback = CollisionCallback;
+        step_world_context.m_ContactCallbacksReadOnly = world->m_BaseWorld.m_CallbackInfo && world->m_BaseWorld.m_CallbackInfoBatched;
+        step_world_context.m_CollisionCallback = (event_mask & EVENT_MASK_COLLISION) ? CollisionCallback : 0;
         step_world_context.m_CollisionUserData = &collision_user_data;
-        step_world_context.m_ContactPointCallback = ContactPointCallback;
+        step_world_context.m_ContactPointCallback = (event_mask & EVENT_MASK_CONTACT) ? ContactPointCallback : 0;
         step_world_context.m_ContactPointUserData = &contact_user_data;
         step_world_context.m_TriggerEnteredCallback = TriggerEnteredCallback;
         step_world_context.m_TriggerEnteredUserData = world;

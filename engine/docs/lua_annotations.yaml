@@ -1,0 +1,124 @@
+# Cross-document metadata for the generated Lua language-server annotations.
+#
+# Initial metadata and source documentation corrections were reconciled with
+# the MIT-licensed defold-annotations 1.13.0 at:
+# https://github.com/astrochili/defold-annotations/tree/b0731459640bb6aa9f91ea24128bb6584c270160
+#
+# Source-specific documentation corrections belong in their source API comments,
+# not in this file.
+
+standard_namespaces:
+  - base
+  - coroutine
+  - debug
+  - io
+  - math
+  - os
+  - package
+  - string
+  - table
+
+# These are engine callbacks rather than callable globals. The editor's bundled
+# LuaLS plugin supplies their signatures at definitions in supported script files.
+excluded_functions:
+  - init
+  - final
+  - update
+  - late_update
+  - fixed_update
+  - on_message
+  - on_input
+  - on_reload
+
+method_classes:
+  master: socket_master
+  client: socket_client
+  server: socket_server
+  connected: socket_connected
+  unconnected: socket_unconnected
+
+allowed_diagnostics:
+  - lowercase-global
+  - missing-return
+  - args-after-dots
+
+# Symbols that are documented in a namespaced document but are installed as
+# globals in the corresponding Lua environment.
+global_symbols:
+  - pprint
+
+# The editor API runs in a separate Lua environment from game scripts. These
+# entries accompany editor.apidoc and must not be exposed by the runtime bundle.
+editor_only_metadata:
+  generics:
+    - editor.ui.component
+  function_overloads:
+    - http.server.route
+    - zip.pack
+    - zip.unpack
+
+type_replacements:
+  b2BodyType: b2d.body.B2
+  b2MassData: b2d.mass_data
+  b2Transform: b2d.transform
+
+generics:
+  editor.ui.component: table<string, any>
+  vmath.clamp: number|vector3|vector4
+  vmath.dot: vector3|vector4
+  vmath.normalize: vector3|vector4|quaternion
+  vmath.mul_per_elem: vector3|vector4
+  vmath.slerp: vector3|vector4
+  vmath.lerp: vector3|vector4
+
+function_overloads:
+  http.server.route:
+    - "fun(path:string, handler:http.server.handler):http.route"
+    - "fun(path:string, method:string, handler:http.server.handler):http.route"
+    - 'fun(path:string, as:"string"|"json", handler:http.server.handler):http.route'
+    - "fun(path:string, openapi:table<string, any>, handler:http.server.handler):http.route"
+    - 'fun(path:string, method:string, as:"string"|"json", handler:http.server.handler):http.route'
+    - "fun(path:string, method:string, openapi:table<string, any>, handler:http.server.handler):http.route"
+    - 'fun(path:string, as:"string"|"json", openapi:table<string, any>, handler:http.server.handler):http.route'
+  render.render_target:
+    - "fun(name:string, parameters:render.render_target_params):render_target"
+  zip.pack:
+    - "fun(output_path:string, entries:zip.pack.entries)"
+  zip.unpack:
+    - "fun(archive_path:string, opts:zip.unpack.options)"
+    - "fun(archive_path:string, paths:string[])"
+    - "fun(archive_path:string, target_path:string, paths:string[])"
+    - "fun(archive_path:string, opts:zip.unpack.options, paths:string[])"
+
+classes:
+  # Script instances are userdata at runtime, but their metatables allow scripts
+  # to store arbitrary per-instance fields through `self`.
+  script_instance:
+    fields:
+      "[string]": any
+  # Keep hashes nominal in LuaLS. A plain alias is expanded to userdata in
+  # hovers, hiding the useful API type.
+  hash: {}
+  matrix4:
+    operators:
+      mul:
+        - ["matrix4", "matrix4"]
+        - ["vector4", "vector4"]
+        - ["number", "matrix4"]
+  quaternion:
+    operators:
+      mul: ["quaternion", "quaternion"]
+  vector3:
+    operators:
+      add: ["vector3", "vector3"]
+      div: ["number", "vector3"]
+      sub: ["vector3", "vector3"]
+      mul: ["number", "vector3"]
+      unm: [null, "vector3"]
+  vector4:
+    operators:
+      add: ["vector4", "vector4"]
+      div: ["number", "vector4"]
+      sub: ["vector4", "vector4"]
+      mul: ["number", "vector4"]
+      unm: [null, "vector4"]

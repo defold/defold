@@ -140,7 +140,7 @@ The debug info comes from the engine link step:
 * Vanilla bundles use the sidecars published for the *debug* variant of the official
   engines (release/headless variants are not published with wasm debug info).
   Locally built engines produce them for both `--opt-level < 2` (full debug info)
-  and optimized builds (line tables only) — see `engine/engine/src/wscript`.
+  and optimized builds (line tables only) — see `engine/engine/CMakeLists.txt`.
 * Extender (native extension) builds link with `-gseparate-dwarf -gsource-map`
   when bob sends `withSymbols` (see `withSymbolsLinkFlags` in `share/extender/build_input.yml`),
   so extension code is debuggable too. Note: the server does not embed sources
@@ -165,8 +165,8 @@ Chrome:
    Sources -> Page under the wasm module; breakpoints, stepping, and (at
    `--opt-level=0/1`) local variable inspection work.
 3. For engine builds from CI the DWARF source paths are repo-relative
-   (e.g. `engine/dlib/src/dlib/hash.cpp`, comp dir `engine/<lib>` for waf builds,
-   SDK headers under `defoldsdk/`). Use the extension options -> path substitution
+   (e.g. `engine/dlib/src/dlib/hash.cpp`, SDK headers under `defoldsdk/`).
+   Use the extension options -> path substitution
    to map these prefixes to a local Defold checkout. Emscripten system libraries
    appear under `/emsdk/emscripten`.
 4. Extension builds compile on the Extender server under the job directory;

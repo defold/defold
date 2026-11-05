@@ -16,7 +16,7 @@
   (:require [clj-kondo.hooks-api :as api]))
 
 (def implicit-clean-system-bindings
-  '#{cache world})
+  '{cache nil})
 
 (defn- binding-symbols [form]
   (into #{}
@@ -66,10 +66,10 @@
 (defn- implicit-binding-nodes [body]
   (let [body-symbols (free-symbols-in-nodes body)]
     (into []
-          (mapcat (fn [sym]
+          (mapcat (fn [[sym value]]
                     (when (contains? body-symbols sym)
                       [(api/token-node sym)
-                       (api/token-node nil)])))
+                       (api/token-node value)])))
           implicit-clean-system-bindings)))
 
 (defn- identity-node [node]

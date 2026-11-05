@@ -72,21 +72,21 @@
                              :min-width 10
                              :min-height 10
                              :style-class "notification-card-close-button"}]}]
-               (pos? (count actions))
-               (conj {:fx/type fx.flow-pane/lifecycle
-                      :hgap spacing
-                      :vgap spacing
-                      :padding {:left horizontal-padding
-                                :right horizontal-padding
-                                :bottom vertical-padding}
-                      :children (mapv
-                                  (fn [{:keys [message on-action]}]
-                                    {:fx/type fx.button/lifecycle
-                                     :style-class ["button" "notification-card-button"]
-                                     :text (localization-state message)
-                                     :on-action (fn [_]
-                                                  (invoke-action! notifications-node id on-action))})
-                                  actions)}))}]}))
+         (pos? (count actions))
+         (conj {:fx/type fx.flow-pane/lifecycle
+                :hgap spacing
+                :vgap spacing
+                :padding {:left horizontal-padding
+                          :right horizontal-padding
+                          :bottom vertical-padding}
+                :children (mapv
+                            (fn [{:keys [message on-action]}]
+                              {:fx/type fx.button/lifecycle
+                               :style-class ["button" "notification-card-button"]
+                               :text (localization-state message)
+                               :on-action (fn [_]
+                                            (invoke-action! notifications-node id on-action))})
+                            actions)}))}]}))
 
 (ui/defc ^:private notifications-view
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}

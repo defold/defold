@@ -164,6 +164,8 @@ namespace dmGameObject
 
         Prototype* proto = new Prototype();
         dmResource::Result r = AcquireResources(params->m_Factory, regist, proto_desc, proto, params->m_Filename);
+        if (r == dmResource::RESULT_OK && !RegisterPrototype(regist, proto))
+            r = dmResource::RESULT_OUT_OF_RESOURCES;
         if (r == dmResource::RESULT_OK) {
             ResourceDescriptorSetResource(params->m_Resource, proto);
         } else {
@@ -178,6 +180,8 @@ namespace dmGameObject
     static dmResource::Result ResGameObjectDestroy(const dmResource::ResourceDestroyParams* params)
     {
         Prototype* proto = (Prototype*) ResourceDescriptorGetResource(params->m_Resource);
+        if (proto->m_Index != INVALID_PROTOTYPE_INDEX)
+            UnregisterPrototype((HRegister)params->m_Context, proto);
         ReleaseResources(params->m_Factory, proto);
         delete proto;
         return dmResource::RESULT_OK;
@@ -194,6 +198,9 @@ namespace dmGameObject
         }
         Prototype* temp = new Prototype();
         dmResource::Result r = AcquireResources(params->m_Factory, regist, proto_desc, temp, params->m_Filename);
+        // The old metadata needs its own slot while instance reload callbacks run.
+        if (r == dmResource::RESULT_OK && !RegisterPrototype(regist, temp))
+            r = dmResource::RESULT_OUT_OF_RESOURCES;
         if (dmResource::RESULT_OK == r) {
             Prototype* proto = (Prototype*) ResourceDescriptorGetResource(params->m_Resource);
             Prototype::Component* c = proto->m_Components;

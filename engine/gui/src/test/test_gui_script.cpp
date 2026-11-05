@@ -16,6 +16,7 @@
 #include <jc_test/jc_test.h>
 #include <testmain/testmain.h>
 #include <dlib/dstrings.h>
+#include <dlib/log.h>
 #include <dmsdk/dlib/vmath.h>
 #include <platform/window.hpp>
 
@@ -53,6 +54,7 @@ static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str)
 }
 
 void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
+uintptr_t GetSceneUserDataCallback(dmGui::HScene scene);
 void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context);
 
@@ -88,6 +90,7 @@ public:
 
         dmGui::NewContextParams context_params;
         context_params.m_ScriptContext = m_ScriptContext;
+        context_params.m_GetUserDataCallback = GetSceneUserDataCallback;
         context_params.m_GetTextMetricsCallback = GetTextMetricsCallback;
         context_params.m_PhysicalWidth = 1;
         context_params.m_PhysicalHeight = 1;
@@ -107,6 +110,11 @@ public:
         dmPlatform::DeleteWindow(m_Window);
     }
 };
+
+uintptr_t GetSceneUserDataCallback(dmGui::HScene scene)
+{
+    return (uintptr_t)dmGui::GetSceneUserData(scene);
+}
 
 void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics)
 {
@@ -218,6 +226,16 @@ TEST_F(dmGuiScriptTest, TestInstanceCallback)
     lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
     dmScript::SetInstance(L);
     ASSERT_TRUE(dmScript::IsInstanceValid(L));
+
+    // Verify that a GUI script instance exposes its scene user data through META_TABLE_GET_USER_DATA.
+    dmScript::GetInstance(L);
+    uint32_t user_type_hash = dmScript::GetUserType(L, -1);
+    lua_pop(L, 1);
+
+    uintptr_t user_data = 0;
+    ASSERT_NE(0U, user_type_hash);
+    ASSERT_TRUE(dmScript::GetUserData(L, &user_data, user_type_hash));
+    ASSERT_EQ((uintptr_t)this, user_data);
 
     dmGui::DeleteScene(scene);
 
@@ -341,6 +359,100 @@ TEST_F(dmGuiScriptTest, TestGetType)
     dmGui::DeleteScene(scene);
 
     dmGui::DeleteScript(script);
+}
+
+static void* CreateTypeNameTestNode(void*, dmGui::HScene, dmGui::HNode, uint32_t)
+{
+    return 0;
+}
+
+// Node names distinguish built-in, bone, and custom subtypes without calling
+// metamethods, including when a custom subtype has no reverse-hash entry.
+TEST_F(dmGuiScriptTest, NodeTypeNames)
+{
+    dmHashEnableReverseHash(true);
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 16;
+    params.m_CreateCustomNodeCallback = CreateTypeNameTestNode;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    int top = lua_gettop(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+    dmScript::SetInstance(L);
+
+    struct TypeCase
+    {
+        dmGui::NodeType m_Type;
+        uint32_t m_CustomType;
+        bool m_IsBone;
+        const char* m_Name;
+    } cases[] = {
+        {dmGui::NODE_TYPE_BOX, 0, false, "gui.box"},
+        {dmGui::NODE_TYPE_TEXT, 0, false, "gui.text"},
+        {dmGui::NODE_TYPE_PIE, 0, false, "gui.pie"},
+        {dmGui::NODE_TYPE_TEMPLATE, 0, false, "gui.template"},
+        {dmGui::NODE_TYPE_PARTICLEFX, 0, false, "gui.particlefx"},
+        {dmGui::NODE_TYPE_BOX, 0, true, "gui.bone"},
+        {dmGui::NODE_TYPE_CUSTOM, dmHashString32("Spine"), false, "gui.Spine"},
+        {dmGui::NODE_TYPE_CUSTOM, 0xf0000001, false, "gui.custom_4026531841"},
+    };
+    for (uint32_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+    {
+        dmGui::HNode node = dmGui::NewNode(scene, Point3(), Vector3(1), cases[i].m_Type, cases[i].m_CustomType);
+        dmGui::SetNodeIsBone(scene, node, cases[i].m_IsBone);
+        dmGui::LuaPushNode(L, scene, node);
+        lua_setglobal(L, "node");
+        ASSERT_EQ(0, luaL_dostring(L, "debug.getmetatable(node).__tostring = error"));
+        lua_getglobal(L, "node");
+        char name[128];
+        ASSERT_TRUE(dmGui::GetNodeTypeName(L, -1, name, sizeof(name)));
+        ASSERT_STREQ(cases[i].m_Name, name);
+        ASSERT_EQ(top + 1, lua_gettop(L));
+        lua_pop(L, 1);
+    }
+    dmGui::DeleteScene(scene);
+    ASSERT_EQ(top, lua_gettop(L));
+    dmHashEnableReverseHash(false);
+}
+
+// Deleted/foreign nodes and missing scene context must be rejected without
+// dereferencing stale scenes or invoking a global __index handler.
+TEST_F(dmGuiScriptTest, NodeTypeNamesInvalidContext)
+{
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 2;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    int top = lua_gettop(L);
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(), Vector3(1), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::LuaPushNode(L, scene, node);
+    char name[128];
+
+    lua_pushnil(L);
+    dmScript::SetInstance(L);
+    ASSERT_EQ(0, luaL_dostring(L, "setmetatable(_G, {__index = function() error('unexpected lookup') end})"));
+    ASSERT_FALSE(dmGui::GetNodeTypeName(L, -1, name, sizeof(name)));
+    ASSERT_EQ(0, luaL_dostring(L, "setmetatable(_G, nil)"));
+
+    dmGui::HScene other = dmGui::NewScene(m_Context, &params);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, other->m_InstanceReference);
+    dmScript::SetInstance(L);
+    ASSERT_FALSE(dmGui::GetNodeTypeName(L, -1, name, sizeof(name)));
+    dmGui::DeleteScene(other);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+    dmScript::SetInstance(L);
+    ASSERT_TRUE(dmGui::GetNodeTypeName(L, -1, name, sizeof(name)));
+    dmGui::DeleteNode(scene, node, true);
+    ASSERT_FALSE(dmGui::GetNodeTypeName(L, -1, name, sizeof(name)));
+    dmGui::DeleteScene(scene);
+    ASSERT_FALSE(dmGui::GetNodeTypeName(L, -1, name, sizeof(name)));
+    lua_pop(L, 1);
+
+    ASSERT_EQ(0, luaL_dostring(L, "return newproxy(true)"));
+    ASSERT_FALSE(dmGui::GetNodeTypeName(L, -1, name, sizeof(name)));
+    lua_pop(L, 1);
+    ASSERT_EQ(top, lua_gettop(L));
 }
 
 TEST_F(dmGuiScriptTest, TestGetIndex)
@@ -676,6 +788,176 @@ TEST_F(dmGuiScriptTest, TestSizeMode)
 
     dmGui::DeleteScene(scene);
     dmGui::DeleteScript(script);
+}
+
+static dmArray<char> g_SizeWarnings;
+
+static void CaptureSizeWarning(LogSeverity severity, const char* domain, const char* message)
+{
+    if (severity == LOG_SEVERITY_WARNING && strcmp(domain, "GUI") == 0)
+    {
+        uint32_t length = (uint32_t)strlen(message);
+        g_SizeWarnings.SetCapacity(g_SizeWarnings.Size() + length);
+        g_SizeWarnings.PushArray(message, length);
+    }
+}
+
+class dmGuiSetSizeTest : public dmGuiScriptTest
+{
+public:
+    dmMessage::HSocket m_Socket;
+    dmGui::HScript m_Script;
+    dmGui::HScene m_Scene;
+    dmGui::HNode m_Node;
+
+    static void GetURL(dmGui::HScene scene, dmMessage::URL* url)
+    {
+        dmGuiSetSizeTest* test = (dmGuiSetSizeTest*)dmGui::GetSceneUserData(scene);
+        url->m_Socket = test->m_Socket;
+        url->m_Path = dmHashString64("/ui");
+        url->m_Fragment = dmHashString64("gui");
+    }
+
+    void SetUp() override
+    {
+        dmGuiScriptTest::SetUp();
+        dmHashEnableReverseHash(true);
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("gui_size_warning", &m_Socket));
+        dmGui::SetContextCallbacks(m_Context, GetURL, GetSceneUserDataCallback, 0, GetTextMetricsCallback);
+
+        m_Script = dmGui::NewScript(m_Context);
+        dmGui::NewSceneParams params;
+        params.m_MaxNodes = 4;
+        params.m_UserData = this;
+        m_Scene = dmGui::NewScene(m_Context, &params);
+        dmGui::SetSceneScript(m_Scene, m_Script);
+        m_Node = dmGui::NewNode(m_Scene, Point3(), Vector3(10, 20, 0), dmGui::NODE_TYPE_BOX, 0);
+        dmGui::SetNodeId(m_Scene, m_Node, "button");
+        dmGui::SetNodeSizeMode(m_Scene, m_Node, dmGui::SIZE_MODE_AUTO);
+
+        dmLuaDDF::LuaSource* source = LuaSourceFromStr(
+            "function init(self)\n"
+            "    gui.set_size(size_warning_node, vmath.vector3(99, 77, 0))\n"
+            "end\n");
+        source->m_Filename = "@/main/size_warning.gui_script";
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetScript(m_Script, source));
+
+        g_SizeWarnings.SetSize(0);
+        LogParams log_params;
+        dmLogInitialize(&log_params);
+        dmLogRegisterListener(CaptureSizeWarning);
+    }
+
+    void TearDown() override
+    {
+        dmLogFinalize();
+        dmLogUnregisterListener(CaptureSizeWarning);
+        dmGui::DeleteScene(m_Scene);
+        dmGui::DeleteScript(m_Script);
+        dmMessage::DeleteSocket(m_Socket);
+        dmHashEnableReverseHash(false);
+        dmGuiScriptTest::TearDown();
+    }
+
+    void ResizeNode(dmGui::HNode node, const Vector3& expected_size = Vector3(10, 20, 0))
+    {
+        lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+        int top = lua_gettop(L);
+        dmGui::LuaPushNode(L, m_Scene, node);
+        lua_setglobal(L, "size_warning_node");
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
+        ASSERT_EQ(top, lua_gettop(L));
+        Vector4 size = dmGui::GetNodeProperty(m_Scene, node, dmGui::PROPERTY_SIZE);
+        ASSERT_EQ(expected_size.getX(), size.getX());
+        ASSERT_EQ(expected_size.getY(), size.getY());
+        ASSERT_EQ(expected_size.getZ(), size.getZ());
+    }
+
+    const char* GetWarnings()
+    {
+        // Join the log thread before inspecting its output, without timing assumptions.
+        dmLogFinalize();
+        g_SizeWarnings.SetCapacity(g_SizeWarnings.Size() + 1);
+        g_SizeWarnings.Push('\0');
+        return g_SizeWarnings.Begin();
+    }
+
+    void CheckWarning(const char* node_id, const char* gui_url = "gui_size_warning:/ui#gui")
+    {
+        char expected[1024];
+        dmSnPrintf(expected, sizeof(expected),
+                   "WARNING:GUI: /main/size_warning.gui_script:2: Can not set size on auto-sized node '%s' in GUI '%s'.\n",
+                   node_id, gui_url);
+        ASSERT_STREQ(expected, GetWarnings());
+    }
+};
+
+// Identifies the node, GUI component, and Lua call site without resizing an auto-sized node (#13184).
+TEST_F(dmGuiSetSizeTest, NamedNodeWarning)
+{
+    ResizeNode(m_Node);
+    CheckWarning("button");
+}
+
+// Preserves long node IDs instead of falling back to a hash because of a small formatting buffer (#13184).
+TEST_F(dmGuiSetSizeTest, LongNodeIdWarning)
+{
+    char id[256];
+    memset(id, 'n', sizeof(id) - 1);
+    id[sizeof(id) - 1] = '\0';
+    dmGui::SetNodeId(m_Scene, m_Node, id);
+    ResizeNode(m_Node);
+    CheckWarning(id);
+}
+
+// Uses the node handle to distinguish unnamed runtime nodes in size warnings (#13184).
+TEST_F(dmGuiSetSizeTest, UnnamedNodeWarning)
+{
+    dmGui::SetNodeId(m_Scene, m_Node, (dmhash_t)0);
+    ResizeNode(m_Node);
+    char expected_id[32];
+    dmSnPrintf(expected_id, sizeof(expected_id), "<unnamed:%u>", m_Node);
+    CheckWarning(expected_id);
+}
+
+// Keeps a clone identifiable when its generated ID has no reverse-hash entry (#13184).
+TEST_F(dmGuiSetSizeTest, ClonedNodeWarning)
+{
+    dmGui::HNode clone;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::CloneNode(m_Scene, m_Node, &clone));
+    ResizeNode(clone);
+    char expected_id[64];
+    dmSnPrintf(expected_id, sizeof(expected_id), "<unknown:%" PRIu64 ">", dmGui::GetNodeId(m_Scene, clone));
+    CheckWarning(expected_id);
+}
+
+// Retains numeric node and component identifiers when reverse hashing is disabled (#13184).
+TEST_F(dmGuiSetSizeTest, WarningWithoutReverseHashes)
+{
+    dmHashEnableReverseHash(false);
+    ResizeNode(m_Node);
+    char expected_id[64];
+    dmSnPrintf(expected_id, sizeof(expected_id), "<unknown:%" PRIu64 ">", dmGui::GetNodeId(m_Scene, m_Node));
+    char expected_url[128];
+    dmSnPrintf(expected_url, sizeof(expected_url), "gui_size_warning:<unknown:%" PRIu64 ">#<unknown:%" PRIu64 ">",
+               dmHashString64("/ui"), dmHashString64("gui"));
+    CheckWarning(expected_id, expected_url);
+}
+
+// A GUI context without a URL callback still reports the node and call site safely (#13184).
+TEST_F(dmGuiSetSizeTest, WarningWithoutURLCallback)
+{
+    dmGui::SetContextCallbacks(m_Context, 0, GetSceneUserDataCallback, 0, GetTextMetricsCallback);
+    ResizeNode(m_Node);
+    CheckWarning("button", "<unknown>");
+}
+
+// Manual resizing continues to change the size without emitting a warning (#13184).
+TEST_F(dmGuiSetSizeTest, ManualSizeWithoutWarning)
+{
+    dmGui::SetNodeSizeMode(m_Scene, m_Node, dmGui::SIZE_MODE_MANUAL);
+    ResizeNode(m_Node, Vector3(99, 77, 0));
+    ASSERT_STREQ("", GetWarnings());
 }
 
 

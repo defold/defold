@@ -54,7 +54,9 @@ public class Texc {
         PF_RGBA_ASTC_10x8(28),
         PF_RGBA_ASTC_10x10(29),
         PF_RGBA_ASTC_12x10(30),
-        PF_RGBA_ASTC_12x12(31);
+        PF_RGBA_ASTC_12x12(31),
+        PF_RGBA16F(32),
+        PF_RGBA32F(33);
         private final int value;
         private PixelFormat(int value) {
             this.value = value;
@@ -225,4 +227,3 @@ public class Texc {
         public PixelFormat outPixelFormat = PixelFormat.PF_L8;
     };
 }
-

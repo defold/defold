@@ -32,59 +32,9 @@ However, the minimum API target numbers are fixed, and are specified our [sdk.py
 
 #### Version specific builds
 
-This step isn't required if you have Android Studio installed.
-It is mainly for the Defold team and the build server setup.
+For packaged SDKs used by CI, the required versions and API levels are defined in [build_tools/sdk.py](./build_tools/sdk.py). Install the SDK and NDK with `build.py install_sdk` before running `install_ext`, as described in the [setup guide](./README_SETUP.md#required-software---platform-sdks).
 
-**Note that the SDK version numbers aren't the same as the Api Level numbers!**
-
-* Download SDK Tools 24.3.4 (or later) from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html)
-
-NOTE: Newer versions of the SDK Tools come shipped with the new `sdkmanager` command line tool and not the old Android SDK Manager. The contents of the tools folder is also slightly different with an `sdklib-x.y.z.jar` instead of an `sdklib.jar` (as referenced by `waf_dynamo.py`). Older versions of the SDK Tools can be downloaded at the following URLs:
-
-* http://dl-ssl.google.com/android/repository/tools_r[rev]-windows.zip
-* http://dl-ssl.google.com/android/repository/tools_r[rev]-linux.zip
-* http://dl-ssl.google.com/android/repository/tools_r[rev]-macosx.zip
-
-Where [rev] corresponds to an SDK Tools revision, e.g. 23.0.2. The process of installation would be to create an `android-sdk` folder, unzip the downloaded SDK Tools into a `tools` folder inside `android-sdk` and then run the Android SDK Manager:
-
-    cd android-sdk/tools
-    ./android
-
-Install the platform tools and build tools for a version matching what is defined in `waf_dynamo.py` (currently 23.0.2).
-
-* Put the SDK in **~/android/android-sdk**
-* The Android NDK is managed as a package and automatically installed via install_ext from the `build.py` script
-
-Installer+GUI installation of those tools are a bit tricky, so it's recommended doing it via command line
-Here are some commands to help out with the process:
-
-    mkdir ~/android
-    cd ~/android
-
-    # Supported: macosx,linux,windows
-    PLATFORM=macosx
-    # The sdkmanager tool is provided in the Android SDK Tools package (25.2.3 and higher) and is located in android_sdk/tools/bin/ https://developer.android.com/studio/command-line/sdkmanager .
-    TOOL_VERSION=25.2.3
-    wget https://dl.google.com/android/repository/tools_r$TOOL_VERSION-$PLATFORM.zip
-    tar xvf tools_r$TOOL_VERSION-$PLATFORM.zip
-    mkdir android-sdk
-    mv tools android-sdk/tools
-
-    # You can list all the packages contained (not just the latest versions)
-    # and see their aliases (e.g. "tools")
-    ./android-sdk/tools/bin/sdkmanager --verbose --list --include_obsolete
-
-    # you can use some aliases to install them
-    # Note the API level version: E.g. "android-23"
-    ./android-sdk/tools/bin/sdkmanager --verbose "tools" "platform-tools" "extras;android;m2repository" "platforms;android-23" "build-tools;23.0.2"
-
-After installing the SDK check that the PATH env variable contains the path to the android sdk. If not, add it manually.
-
-**Note** Newer version have the suffixes ".bin" or ".exe" as they are now installers.
-Simply use that as the suffix, and and extract with e.g. **7z**
-
-* How to launch the [Android Tool](http://developer.android.com/sdk/installing/adding-packages.html) manually
-
+For local SDK installations, use Android Studio as described above or set `ANDROID_HOME` to the SDK directory.
 
 ## General
 
@@ -254,7 +204,9 @@ E.g. when an APK produces a crash, backing it up is always a good idea before yo
 ## Upgrading SDK (i.e. API LEVEL)
 
 In essence, updating the "sdk" means to update the supported api level.
-This is done by updating the `defold/packages/android-<android version>-<arch>.tar.gz` etc
+This is done by updating `defold/packages/android-<android version>-common.tar.gz`.
+The package contains `android.jar`, which is shared by all target architectures
+and is also required when building Bob on desktop hosts.
 
 Some relevant links:
 
@@ -276,17 +228,15 @@ Creating a new android package is straight forward:
     mkdir -p share/java
     cp ../tmp/dynamo_home/ext/SDKs/android-sdk/platforms/android-$APILEVEL/android.jar share/java
     ./../scripts/mobile/android_jar_reduce_size.sh share/java/android.jar
-    tar -cvzf android-$APILEVEL-armv7-android.tar.gz share
-    tar -cvzf android-$APILEVEL-arm64-android.tar.gz share
-    cp android-$APILEVEL-armv7-android.tar.gz ../packages
-    cp android-$APILEVEL-arm64-android.tar.gz ../packages
+    COPYFILE_DISABLE=1 tar -cvzf android-$APILEVEL-common.tar.gz share
+    cp android-$APILEVEL-common.tar.gz ../packages
 
 
 ### Update build script
 
-Update the reference to the tar ball in `<defold>/scripts/build.py`
-
-    PACKAGES_ANDROID="... android-36 ...".split()
+Update `ANDROID_TARGET_API_LEVEL` in `build_tools/sdk.py`. The common package
+list in `scripts/build.py` uses `sdk.ANDROID_PACKAGE` to select the matching
+archive automatically.
 
 Find and update all `ANDROID_BUILD_TOOLS_VERSION`, `ANDROID_TARGET_API_LEVEL` and `ANDROID_PLATFORM` in the `defold` project folder.
 

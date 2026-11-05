@@ -152,7 +152,7 @@ nodes {
   }
   type: TYPE_TEXT
   blend_mode: BLEND_MODE_ALPHA
-  text: "<text>"
+  text: "-text-"
   font: "font"
   id: "text"
   xanchor: XANCHOR_NONE

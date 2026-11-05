@@ -46,6 +46,18 @@ namespace dmScript
      * @language Lua
      */
 
+    /*# JSON decoding options
+     * @struct
+     * @name json.decode_options
+     * @member decode_null_as_userdata? [type:boolean] Decode JSON `null` as [ref:json.null] instead of `nil`.
+     */
+
+    /*# JSON encoding options
+     * @struct
+     * @name json.encode_options
+     * @member encode_empty_table_as_object? [type:boolean] Encode an empty table as an object instead of an array. The default is true.
+     */
+
     static int JsonToLuaInternal(lua_State* L, int options_index, const char* json, size_t json_len, int protected_mode)
     {
         int top = lua_gettop(L);
@@ -96,11 +108,9 @@ namespace dmScript
      *
      * @name json.decode
      * @param json [type:string] json data
-     * @param [options] [type:table] table with decode options
+     * @param [options] [type:json.decode_options] optional decoding options
      *
-     * - [type:boolean] `decode_null_as_userdata`: whether to decode a JSON null value as json.null or nil (default is nil)
-     *
-     * @return data [type:table] decoded json
+     * @return data [type:any] decoded JSON value
      *
      * @examples
      *
@@ -147,10 +157,8 @@ namespace dmScript
      * A Lua error is raised for syntax errors.
      *
      * @name json.encode
-     * @param tbl [type:table] lua table to encode
-     * @param [options] [type:table] table with encode options
-     *
-     * - [type:string] `encode_empty_table_as_object`: whether to encode an empty table as an JSON object or array (default is object)
+     * @param tbl [type:any] Lua value to encode
+     * @param [options] [type:json.encode_options] optional encoding options
      *
      * @return json [type:string] encoded json
      *

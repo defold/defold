@@ -34,6 +34,7 @@ import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.gamesys.proto.TextureSetProto.SpriteGeometry;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSetAnimation;
+import com.dynamo.gamesys.proto.Tile.SpriteTrimmingMode;
 import com.google.protobuf.Message;
 
 import com.dynamo.bob.util.MurmurHash;
@@ -43,11 +44,10 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testAtlas() throws Exception {
         addImage("/test.png", 16, 16);
-        StringBuilder src = new StringBuilder();
-        src.append("images: {");
-        src.append("  image: \"/test.png\"");
-        src.append("}");
-        List<Message> outputs = build("/test.atlas", src.toString());
+        String src = "images: {" +
+                "  image: \"/test.png\"" +
+                "}";
+        List<Message> outputs = build("/test.atlas", src);
         TextureSet textureSet = getMessage(outputs, TextureSet.class);
         TextureImage textureImage = (TextureImage)outputs.get(1);
         assertNotNull(textureSet);
@@ -61,27 +61,24 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         addImage("/test1.png", 16, 16);
         addImage("/test2.png", 16, 16);
 
-        StringBuilder src = new StringBuilder();
-        src.append("images: {");
-        src.append("  image: \"/test1.png\"");
-        src.append("}");
+        String src = "images: {" +
+                "  image: \"/test1.png\"" +
+                "}" +
+                "images: {" +
+                "  image: \"/test2.png\"" +
+                "}" +
+                "max_page_width: 16\n" +
+                "max_page_height: 16\n";
 
-        src.append("images: {");
-        src.append("  image: \"/test2.png\"");
-        src.append("}");
-
-        src.append("max_page_width: 16\n");
-        src.append("max_page_height: 16\n");
-
-        List<Message> outputs = build("/test.atlas", src.toString());
+        List<Message> outputs = build("/test.atlas", src);
         TextureSet textureSet = (TextureSet)outputs.get(0);
         TextureImage textureImage1 = (TextureImage)outputs.get(1);
 
         assertNotNull(textureSet);
         assertNotNull(textureImage1);
 
-        assertEquals(textureSet.getPageIndices(0), 0);
-        assertEquals(textureSet.getPageIndices(1), 1);
+        assertEquals(0, textureSet.getPageIndices(0));
+        assertEquals(1, textureSet.getPageIndices(1));
 
         int expectedSize = (16 * 16 + 8 * 8 + 4 * 4 + 2 * 2 + 1) * 4 * 2;
 
@@ -96,40 +93,35 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         addImage("/subfolder1/1.png", 16, 16);
         addImage("/subfolder2/1.png", 16, 16);
 
-        StringBuilder src = new StringBuilder();
-        src.append("images: {");
-        src.append("  image: \"/hat_nrm.png\"");
-        src.append("}");
+        String src = "images: {" +
+                "  image: \"/hat_nrm.png\"" +
+                "}" +
+                "images: {" +
+                "  image: \"/shirt_normal.png\"" +
+                "}" +
+                "animations {" +
+                "id: \"Hello\"" +
+                "  images: {" +
+                "    image: \"/shirt_normal.png\"" +
+                "  }" +
+                "  images: {" +
+                "    image: \"/subfolder1/1.png\"" +
+                "  }" +
+                "}" +
+                "animations {" +
+                "id: \"ValidDuplicates\"" +
+                "  images: {" +
+                "    image: \"/shirt_normal.png\"" +
+                "  }" +
+                "  images: {" +
+                "    image: \"/subfolder2/1.png\"" +
+                "  }" +
+                "}" +
+                "max_page_width: 16\n" +
+                "max_page_height: 16\n" +
+                "rename_patterns: \"_nrm=,_normal=,hat=cat\"\n";
 
-        src.append("images: {");
-        src.append("  image: \"/shirt_normal.png\"");
-        src.append("}");
-
-        src.append("animations {");
-        src.append("id: \"Hello\"");
-        src.append("  images: {");
-        src.append("    image: \"/shirt_normal.png\"");
-        src.append("  }");
-        src.append("  images: {");
-        src.append("    image: \"/subfolder1/1.png\"");
-        src.append("  }");
-        src.append("}");
-
-        src.append("animations {");
-        src.append("id: \"ValidDuplicates\"");
-        src.append("  images: {");
-        src.append("    image: \"/shirt_normal.png\"");
-        src.append("  }");
-        src.append("  images: {");
-        src.append("    image: \"/subfolder2/1.png\"");
-        src.append("  }");
-        src.append("}");
-
-        src.append("max_page_width: 16\n");
-        src.append("max_page_height: 16\n");
-        src.append("rename_patterns: \"_nrm=,_normal=,hat=cat\"\n");
-
-        List<Message> outputs = build("/test.atlas", src.toString());
+        List<Message> outputs = build("/test.atlas", src);
         TextureSet textureSet = (TextureSet)outputs.get(0);
 
         assertNotNull(textureSet);
@@ -205,17 +197,16 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         addImage("/2.png", 16, 6);
 
         // We don't allow duplicate files as single frame animations
-        StringBuilder src = new StringBuilder();
-        src.append("extrude_borders: 0\n");
-        src.append("images: {");
-        src.append("  image: \"/1.png\"");
-        src.append("}");
 
-        src.append("images: {");
-        src.append("  image: \"/2.png\"");
-        src.append("}");
+        String src = "extrude_borders: 0\n" +
+                "images: {" +
+                "  image: \"/1.png\"" +
+                "}" +
+                "images: {" +
+                "  image: \"/2.png\"" +
+                "}";
 
-        List<Message> outputs = build("/test.atlas", src.toString());
+        List<Message> outputs = build("/test.atlas", src);
 
         TextureSet textureSet = (TextureSet)outputs.get(0);
 
@@ -252,29 +243,27 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         addImage("/b/1.png", 16, 16);
         addImage("/b/2.png", 16, 16);
 
-        StringBuilder src = new StringBuilder();
-        src.append("animations: {");
-        src.append("  id: \"a\"");
-        src.append("  images: {");
-        src.append("    image: \"/a/1.png\"");
-        src.append("  }");
-        src.append("  images: {");
-        src.append("    image: \"/a/2.png\"");
-        src.append("  }");
-        src.append("}");
-
-        src.append("animations: {");
-        src.append("  id: \"b\"");
-        src.append("  images: {");
-        src.append("    image: \"/b/1.png\"");
-        src.append("  }");
-        src.append("  images: {");
-        src.append("    image: \"/b/2.png\"");
-        src.append("  }");
-        src.append("}");
+        String src = "animations: {" +
+                "  id: \"a\"" +
+                "  images: {" +
+                "    image: \"/a/1.png\"" +
+                "  }" +
+                "  images: {" +
+                "    image: \"/a/2.png\"" +
+                "  }" +
+                "}" +
+                "animations: {" +
+                "  id: \"b\"" +
+                "  images: {" +
+                "    image: \"/b/1.png\"" +
+                "  }" +
+                "  images: {" +
+                "    image: \"/b/2.png\"" +
+                "  }" +
+                "}";
 
 
-        List<Message> outputs = build("/test.atlas", src.toString());
+        List<Message> outputs = build("/test.atlas", src);
         TextureSet textureSet = (TextureSet)outputs.get(0);
 
         assertNotNull(textureSet);
@@ -309,6 +298,76 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         imageNameHashes.add(MurmurHash.hash64("b/2"));
 
         assertEquals(imageNameHashes, textureSet.getImageNameHashesList());
+    }
+
+    // https://github.com/defold/defold/issues/13019
+    @Test
+    public void testAtlasImagePivotVariants() throws Exception {
+        addImage("/test_image.png", 16, 16);
+
+        String src = "margin: 0\n" +
+                "extrude_borders: 0\n" +
+                "images: {" +
+                "  image: \"/test_image.png\"" +
+                "}" +
+                "animations: {" +
+                "  id: \"anim\"" +
+                "  images: {" +
+                "    image: \"/test_image.png\"" +
+                "    pivot_x: 0.0" +
+                "  }" +
+                "}";
+
+        List<Message> outputs = build("/test.atlas", src);
+        TextureSet textureSet = (TextureSet)outputs.get(0);
+        assertNotNull(textureSet);
+
+        // One packed rect, so the atlas is the size of a single image.
+        assertThat(textureSet.getWidth(), is(16));
+        assertThat(textureSet.getHeight(), is(16));
+
+        // But a geometry each. SpriteGeometry stores the pivot relative to the image center with
+        // +Y up, so an authored 0.5 becomes 0.0 and an authored 0.0 becomes -0.5.
+        assertThat(textureSet.getGeometriesCount(), is(2));
+        assertEquals(-0.5f, textureSet.getGeometries(0).getPivotX(), 0.0001f);
+        assertEquals(0.0f, textureSet.getGeometries(1).getPivotX(), 0.0001f);
+
+        // Tile quads first, then "anim" and the standalone image, pointing at a geometry each.
+        assertEquals(Arrays.asList(0, 1, 0, 1), textureSet.getFrameIndicesList());
+    }
+
+    // https://github.com/defold/defold/issues/7403
+    @Test
+    public void testAtlasImageTrimModeVariants() throws Exception {
+        addImage("/test_image.png", 16, 16);
+
+        String src = "margin: 0\n" +
+                "extrude_borders: 0\n" +
+                "images: {" +
+                "  image: \"/test_image.png\"" +
+                "}" +
+                "animations: {" +
+                "  id: \"anim\"" +
+                "  images: {" +
+                "    image: \"/test_image.png\"" +
+                "    sprite_trim_mode: SPRITE_TRIM_MODE_4" +
+                "  }" +
+                "}";
+
+        List<Message> outputs = build("/test.atlas", src);
+        TextureSet textureSet = (TextureSet)outputs.get(0);
+        assertNotNull(textureSet);
+
+        // One packed rect, but a geometry each.
+        assertThat(textureSet.getWidth(), is(16));
+        assertThat(textureSet.getHeight(), is(16));
+        assertThat(textureSet.getGeometriesCount(), is(2));
+        assertThat(textureSet.getGeometries(0).getTrimMode(), is(SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF));
+        assertThat(textureSet.getGeometries(1).getTrimMode(), is(SpriteTrimmingMode.SPRITE_TRIM_MODE_4));
+        assertThat(textureSet.getUseGeometries(), is(1));
+
+        // Images sort by path, then pivot, then trim mode number, so the untrimmed entry is first.
+        assertEquals(Arrays.asList(0, 1, 1, 0), textureSet.getFrameIndicesList());
     }
 
     @Test

@@ -368,7 +368,6 @@
                                     clj-value (inspect-impl java-value seen return-raw?)]
                                 (pair namespaced-key clj-value)))))))))))))))
 
-
 (defn inspect
   "Given a Java object, return a Clojure map representation of its structure.
 

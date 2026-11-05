@@ -47,7 +47,7 @@
   (scene-cache/drop-context! context))
 
 (defn- retained? [key]
-    (contains? @context key))
+  (contains? @context key))
 
 (defn- value [key]
   (get @context key))

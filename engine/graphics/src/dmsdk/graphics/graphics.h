@@ -19,6 +19,7 @@
 
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/jobsystem.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/platform/window.h>
 
 #include <graphics/graphics_ddf.h>
@@ -446,6 +447,83 @@ namespace dmGraphics
         BUFFER_ACCESS_READ_WRITE = 2,
     };
 
+    /*#
+     * Create a shader storage buffer.
+     * Storage buffers are available only when supported by the active graphics
+     * adapter. The size must be non-zero, four-byte aligned, and within the
+     * adapter's supported storage-buffer range.
+     * @name NewStorageBuffer
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param size [type:uint32_t] Buffer size in bytes
+     * @param data [type:const void*] Optional initial data
+     * @param buffer_usage [type:dmGraphics::BufferUsage] CPU update frequency hint
+     * @return buffer [type:dmGraphics::HStorageBuffer] Storage buffer, or 0 when unsupported or invalid
+     */
+    HStorageBuffer NewStorageBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
+
+    /*#
+     * Delete a shader storage buffer.
+     * @name DeleteStorageBuffer
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     */
+    void DeleteStorageBuffer(HContext context, HStorageBuffer storage_buffer);
+
+    /*#
+     * Replace the complete contents and size of a shader storage buffer.
+     * The size follows the same restrictions as `NewStorageBuffer`.
+     * @name SetStorageBufferData
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     * @param size [type:uint32_t] New buffer size in bytes
+     * @param data [type:const void*] Data used to replace the buffer contents
+     * @param buffer_usage [type:dmGraphics::BufferUsage] CPU update frequency hint
+     */
+    void SetStorageBufferData(HContext context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
+
+    /*#
+     * Update a byte range in a shader storage buffer.
+     * The offset and size must be four-byte aligned and the range must fit in
+     * the existing buffer.
+     * @name SetStorageBufferSubData
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     * @param offset [type:uint32_t] Destination byte offset
+     * @param size [type:uint32_t] Number of bytes to update
+     * @param data [type:const void*] Source data
+     */
+    void SetStorageBufferSubData(HContext context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data);
+
+    /*#
+     * Return the logical size of a shader storage buffer in bytes.
+     * @name GetStorageBufferSize
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     * @return size [type:uint32_t] Logical buffer size in bytes
+     */
+    uint32_t GetStorageBufferSize(HContext context, HStorageBuffer storage_buffer);
+
+    /*#
+     * Bind a shader storage buffer to a reflected descriptor set and binding.
+     * The set and binding must match the shader declaration.
+     * On DirectX 12, binding the same buffer to both readonly and writable
+     * declarations in one draw or dispatch is unsupported. The command is
+     * skipped with an error; use separate buffers or writable declarations for both bindings.
+     * @name EnableStorageBuffer
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     * @param set [type:uint32_t] Shader descriptor set
+     * @param binding [type:uint32_t] Shader resource binding
+     */
+    void EnableStorageBuffer(HContext context, HStorageBuffer storage_buffer, uint32_t set, uint32_t binding);
+
+    /*#
+     * Remove all bindings of a shader storage buffer from the graphics context.
+     * @name DisableStorageBuffer
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     */
+    void DisableStorageBuffer(HContext context, HStorageBuffer storage_buffer);
 
     /*#
      * Index buffer element types.
@@ -660,6 +738,32 @@ namespace dmGraphics
     };
 
     /*#
+     * Cubemap faces
+     *
+     * The six face values are contiguous, zero-based, and may be used as array indices.
+     * `CUBEMAP_FACE_COUNT` is the number of cubemap faces and is not a valid face.
+     * @enum
+     * @name CubeMapFace
+     * @member CUBEMAP_FACE_POSITIVE_X Positive X face (array index 0)
+     * @member CUBEMAP_FACE_NEGATIVE_X Negative X face (array index 1)
+     * @member CUBEMAP_FACE_POSITIVE_Y Positive Y face (array index 2)
+     * @member CUBEMAP_FACE_NEGATIVE_Y Negative Y face (array index 3)
+     * @member CUBEMAP_FACE_POSITIVE_Z Positive Z face (array index 4)
+     * @member CUBEMAP_FACE_NEGATIVE_Z Negative Z face (array index 5)
+     * @member CUBEMAP_FACE_COUNT Number of cubemap faces
+     */
+    enum CubeMapFace
+    {
+        CUBEMAP_FACE_POSITIVE_X = 0,
+        CUBEMAP_FACE_NEGATIVE_X = 1,
+        CUBEMAP_FACE_POSITIVE_Y = 2,
+        CUBEMAP_FACE_NEGATIVE_Y = 3,
+        CUBEMAP_FACE_POSITIVE_Z = 4,
+        CUBEMAP_FACE_NEGATIVE_Z = 5,
+        CUBEMAP_FACE_COUNT      = 6,
+    };
+
+    /*#
      * Texture filtering modes.
      * Controls how texels are sampled when scaling or rotating textures
      * @enum
@@ -833,6 +937,7 @@ namespace dmGraphics
      * @member m_MagFilter [type:dmGraphics::TextureFilter] Magnification filter (applied when enlarging). Determines how pixels are sampled when the texture is displayed larger than its native resolution
      * @member m_UWrap [type:dmGraphics::TextureWrap]       Wrapping mode for U (X) texture coordinate. Controls behavior when texture coordinates exceed [0,1]
      * @member m_VWrap [type:dmGraphics::TextureWrap]       Wrapping mode for V (Y) texture coordinate. Controls behavior when texture coordinates exceed [0,1]
+     * @member m_WWrap [type:dmGraphics::TextureWrap]       Wrapping mode for W (Z) texture coordinate. Controls behavior when texture coordinates exceed [0,1]
      * @member m_X [type:uint32_t]                          X offset in pixels for sub-texture updates. Defines the left edge of the destination region
      * @member m_Y [type:uint32_t]                          Y offset in pixels for sub-texture updates. Defines the top edge of the destination region
      * @member m_Z [type:uint32_t]                          Z offset (depth layer) for 3D textures. Ignored for standard 2D textures
@@ -854,6 +959,7 @@ namespace dmGraphics
         , m_MagFilter(TEXTURE_FILTER_LINEAR)
         , m_UWrap(TEXTURE_WRAP_CLAMP_TO_EDGE)
         , m_VWrap(TEXTURE_WRAP_CLAMP_TO_EDGE)
+        , m_WWrap(TEXTURE_WRAP_CLAMP_TO_EDGE)
         , m_X(0)
         , m_Y(0)
         , m_Z(0)
@@ -873,6 +979,7 @@ namespace dmGraphics
         TextureFilter m_MagFilter;
         TextureWrap   m_UWrap;
         TextureWrap   m_VWrap;
+        TextureWrap   m_WWrap;
 
         // For sub texture updates
         uint32_t m_X;
@@ -890,12 +997,26 @@ namespace dmGraphics
 
     struct RenderTargetCreationParams
     {
+        RenderTargetCreationParams()
+        : m_SampleCount(0)
+        , m_TextureType(TEXTURE_TYPE_2D)
+        , m_ColorBufferLoadOps()
+        , m_ColorBufferStoreOps()
+        , m_ColorBufferClearValue()
+        , m_DepthTexture(false)
+        , m_StencilTexture(false)
+        {}
+
         TextureCreationParams m_ColorBufferCreationParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureCreationParams m_DepthBufferCreationParams;
         TextureCreationParams m_StencilBufferCreationParams;
         TextureParams         m_ColorBufferParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams         m_DepthBufferParams;
         TextureParams         m_StencilBufferParams;
+        // Requested render target sample count. Adapters normalize this to a supported
+        // power-of-two value shared by all attachments.
+        uint32_t              m_SampleCount;
+        TextureType           m_TextureType;
         AttachmentOp          m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp          m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float                 m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
@@ -903,6 +1024,19 @@ namespace dmGraphics
 
         uint8_t               m_DepthTexture   : 1;
         uint8_t               m_StencilTexture : 1;
+    };
+
+    /*#
+     * Render target binding parameters.
+     * @struct
+     * @name RenderTargetBindingParams
+     * @member m_TransientBufferTypes [type:uint32_t] BufferType bit mask identifying attachments whose contents may be discarded after the render pass
+     * @member m_CubeMapFace [type:dmGraphics::CubeMapFace] Cubemap face to bind. For non-cubemap render targets this must remain `CUBEMAP_FACE_POSITIVE_X`, which is also the zero-initialized default
+     */
+    struct RenderTargetBindingParams
+    {
+        uint32_t    m_TransientBufferTypes;
+        CubeMapFace m_CubeMapFace;
     };
 
     /*#
@@ -1121,7 +1255,18 @@ namespace dmGraphics
     const char* GetSupportedExtension(HContext context, uint32_t index);
 
     /*#
-     * Read frame buffer pixels in BGRA format
+     * Read the current render target's first color attachment (or the backbuffer).
+     * Call between BeginFrame and Flip, after drawing the pixels to read. The call
+     * waits for preceding rendering and returns tightly packed BGRA8 pixels, with
+     * the top row first. Region coordinates have their origin at the bottom left.
+     * Multisampled attachments are resolved; cubemaps use the currently bound face.
+     * RGBA8/BGRA8 attachments are supported. Other formats are adapter-dependent.
+     * Backbuffer readback is adapter- and surface-dependent. On WebGPU, the
+     * surface must support copy-source usage. If it does not, an error is logged
+     * and the destination is left unchanged.
+     * The region must fit the attachment and buffer_size must be at least
+     * width * height * 4 bytes. Invalid regions leave the destination unchanged.
+     * Subsequent rendering can continue on the same target.
      * @name ReadPixels
      * @param context [type:dmGraphics::HContext] the context
      * @param x [type:int32_t] x-coordinate of the starting position
@@ -1200,13 +1345,28 @@ namespace dmGraphics
     void SetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
 
     /*#
-     * Set texture parameters
+     * Set texture parameters, including the W wrapping mode used by 3D textures.
      * @name SetTextureParams
      * @param context [type:dmGraphics::HContext] Graphics context
      * @param texture [type:dmGraphics::HTexture] Texture handle
      * @param min_filter [type:dmGraphics::TextureFilter] Minification filter type
      * @param mag_filter [type:dmGraphics::TextureFilter] Magnification filter type
      * @param uwrap [type:dmGraphics::TextureWrap] Wrapping mode for the U (X) texture coordinate.
+     * @param vwrap [type:dmGraphics::TextureWrap] Wrapping mode for the V (Y) texture coordinate
+     * @param wwrap [type:dmGraphics::TextureWrap] Wrapping mode for the W (Z) texture coordinate
+     * @param max_anisotropy [type:float]
+     */
+    void SetTextureParams(HContext context, HTexture texture, TextureFilter min_filter, TextureFilter mag_filter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy);
+
+    /*#
+     * Set texture parameters using the legacy U/V wrapping interface.
+     * The U wrapping mode is also applied to the W texture coordinate.
+     * @name SetTextureParams
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param texture [type:dmGraphics::HTexture] Texture handle
+     * @param min_filter [type:dmGraphics::TextureFilter] Minification filter type
+     * @param mag_filter [type:dmGraphics::TextureFilter] Magnification filter type
+     * @param uwrap [type:dmGraphics::TextureWrap] Wrapping mode for the U (X) and W (Z) texture coordinates
      * @param vwrap [type:dmGraphics::TextureWrap] Wrapping mode for the V (Y) texture coordinate
      * @param max_anisotropy [type:float]
      */
@@ -1539,12 +1699,13 @@ namespace dmGraphics
     void DeleteRenderTarget(HContext context, HRenderTarget render_target);
 
     /*#
+     * Bind a render target with generic binding parameters.
      * @name SetRenderTarget
      * @param context [type:dmGraphics::HContext] Graphics context
      * @param render_target [type:dmGraphics::HRenderTarget]
-     * @param transient_buffer_types [type:uint32_t]
+     * @param params [type:dmGraphics::RenderTargetBindingParams]
      */
-    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
+    void SetRenderTarget(HContext context, HRenderTarget render_target, const RenderTargetBindingParams& params);
 
     /*#
      * @name GetRenderTargetTexture
@@ -1564,6 +1725,22 @@ namespace dmGraphics
      * @param height [type:uint32_t&]
      */
     void GetRenderTargetSize(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
+
+    /*#
+     * @name GetRenderTargetSampleCount
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param render_target [type:dmGraphics::HRenderTarget]
+     * @return sample_count [type:uint32_t] the effective, adapter-conformed sample count
+     */
+    uint32_t GetRenderTargetSampleCount(HContext context, HRenderTarget render_target);
+
+    /*#
+     * @name GetRenderTargetTextureType
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param render_target [type:dmGraphics::HRenderTarget]
+     * @return texture_type [type:dmGraphics::TextureType] render target texture type
+     */
+    TextureType GetRenderTargetTextureType(HContext context, HRenderTarget render_target);
 
     /*#
      * @name SetRenderTargetSize
@@ -1743,6 +1920,20 @@ namespace dmGraphics
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
     /*#
+     * Sets the scissor rectangle for rendering.
+     *
+     * Defines the rectangular pixel region that rendering is clipped to when
+     * `STATE_SCISSOR_TEST` is enabled.
+     * @name SetScissor
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param x [type:int32_t] X coordinate of the scissor rectangle's origin (in pixels)
+     * @param y [type:int32_t] Y coordinate of the scissor rectangle's origin (in pixels)
+     * @param width [type:int32_t] Width of the scissor rectangle (in pixels)
+     * @param height [type:int32_t] Height of the scissor rectangle (in pixels)
+     */
+    void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
+
+    /*#
      * Activates a shader program for rendering.
      *
      * Binds the specified program to the graphics pipeline, making it the active program
@@ -1826,6 +2017,48 @@ namespace dmGraphics
      * @param instance_count [type:uint32_t] Number of instances to draw (for instanced rendering)
      */
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
+
+    /*#
+     * Draws indexed primitives.
+     *
+     * Renders geometry using indices from the supplied index buffer. The `first`
+     * argument is a byte offset into the index buffer.
+     * @name DrawElements
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param prim_type [type:dmGraphics::PrimitiveType] Type of primitives to draw
+     * @param first [type:uint32_t] Byte offset of the first index to draw
+     * @param count [type:uint32_t] Number of indices to draw
+     * @param type [type:dmGraphics::Type] Index element type
+     * @param index_buffer [type:dmGraphics::HIndexBuffer] Index buffer handle
+     * @param instance_count [type:uint32_t] Number of instances to draw (for instanced rendering)
+     */
+    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
+
+    /*#
+     * Sets one or more vec4 uniform values.
+     *
+     * Updates a shader uniform or uniform-buffer member starting at the supplied
+     * uniform location.
+     * @name SetConstantV4
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param data [type:const dmVMath::Vector4*] Vector data to upload
+     * @param count [type:int] Number of vec4 values to upload
+     * @param base_location [type:dmGraphics::HUniformLocation] Uniform location
+     */
+    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+
+    /*#
+     * Sets one or more mat4 uniform values.
+     *
+     * Updates a shader uniform or uniform-buffer member starting at the supplied
+     * uniform location.
+     * @name SetConstantM4
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param data [type:const dmVMath::Matrix4*] Matrix data to upload
+     * @param count [type:int] Number of mat4 values to upload
+     * @param base_location [type:dmGraphics::HUniformLocation] Uniform location
+     */
+    void SetConstantM4(HContext context, const dmVMath::Matrix4* data, int count, HUniformLocation base_location);
 
     /*#
      * Binds a texture sampler to a texture unit.

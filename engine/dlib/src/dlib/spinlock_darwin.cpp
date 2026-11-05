@@ -15,21 +15,22 @@
 #include "spinlock.h"
 
 #include <assert.h>
-#include <libkern/OSAtomic.h>
+#include <os/lock.h>
 #include <stdlib.h>
 
 namespace dmSpinlock
 {
-    static OSSpinLock* ToNative(Spinlock* lock)
+    static os_unfair_lock* ToNative(Spinlock* lock)
     {
-        return (OSSpinLock*) lock->m_Handle;
+        return (os_unfair_lock*) lock->m_Handle;
     }
 
     void Create(Spinlock* lock)
     {
-        OSSpinLock* native_lock = (OSSpinLock*) malloc(sizeof(OSSpinLock));
+        // Keep the native lock at a stable address for its entire lifetime.
+        os_unfair_lock* native_lock = (os_unfair_lock*) malloc(sizeof(os_unfair_lock));
         assert(native_lock != 0);
-        *native_lock = 0;
+        *native_lock = OS_UNFAIR_LOCK_INIT;
         lock->m_Handle = native_lock;
     }
 
@@ -41,11 +42,11 @@ namespace dmSpinlock
 
     void Lock(Spinlock* lock)
     {
-        OSSpinLockLock(ToNative(lock));
+        os_unfair_lock_lock(ToNative(lock));
     }
 
     void Unlock(Spinlock* lock)
     {
-        OSSpinLockUnlock(ToNative(lock));
+        os_unfair_lock_unlock(ToNative(lock));
     }
 }

@@ -1,0 +1,27 @@
+# Copyright 2020-2026 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
+# Use DAP-specific markers; Content-Length also appears in ordinary HTTP code.
+# Registration and protocol strings survive symbol stripping, so verify both
+# in the headless engine before checking their absence from the release engine.
+set(DEBUGGER_PATTERN "LuaDebugger|dmDebugger|supportsConfigurationDoneRequest")
+file(STRINGS "${DEBUG_ENGINE}" DEBUGGER_STRINGS REGEX "${DEBUGGER_PATTERN}")
+if(NOT DEBUGGER_STRINGS MATCHES "LuaDebugger" OR NOT DEBUGGER_STRINGS MATCHES "supportsConfigurationDoneRequest")
+  message(FATAL_ERROR "Debug engine is missing DAP implementation or registration: ${DEBUG_ENGINE}")
+endif()
+file(STRINGS "${RELEASE_ENGINE}" DEBUGGER_STRINGS LIMIT_COUNT 1 REGEX "${DEBUGGER_PATTERN}")
+if(DEBUGGER_STRINGS)
+  message(FATAL_ERROR "Debugger implementation or registration leaked into the release engine: ${DEBUGGER_STRINGS}")
+endif()
+message(STATUS "Release engine contains no debugger implementation or registration; headless engine contains both")

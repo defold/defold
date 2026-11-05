@@ -19,12 +19,138 @@
 
 namespace dmDDF
 {
-
-    static bool DDFCountSaveFunction(void* context, const void* buffer, uint32_t buffer_size)
+    // Return the number of bytes needed to encode an unsigned value as a
+    // protobuf base-128 varint. Each byte contributes seven payload bits, so
+    // the encoded size is between 1 byte for zero and 10 bytes for uint64_t.
+    static uint32_t VarIntSize(uint64_t value)
     {
-        uint32_t* count = (uint32_t*) context;
-        *count = *count + buffer_size;
+        uint32_t size = 1;
+        while (value > 0x7f)
+        {
+            ++size;
+            value >>= 7;
+        }
+        return size;
+    }
+
+    static bool AddSize(uint64_t* total, uint64_t size)
+    {
+        if (*total > UINT32_MAX || size > UINT32_MAX - *total)
+            return false;
+        *total += size;
         return true;
+    }
+
+    Result CalculateMessageSize(const void* message_, const Descriptor* desc, uint32_t* size)
+    {
+        const uint8_t* message = (const uint8_t*) message_;
+        uint64_t total = 0;
+
+        for (uint32_t i = 0; i < desc->m_FieldCount; ++i)
+        {
+            const FieldDescriptor* field_desc = &desc->m_Fields[i];
+            Type type = (Type) field_desc->m_Type;
+
+            if (field_desc->m_OneOfIndex != DDF_NO_ONE_OF_INDEX)
+            {
+                assert(field_desc->m_OneOfIndex > 0);
+                uint32_t oneof_offset = desc->m_OneOfDataOffsets[field_desc->m_OneOfIndex - 1];
+                uint8_t oneof_member = message[oneof_offset];
+                if (oneof_member != field_desc->m_Number)
+                    continue;
+            }
+
+            uint32_t element_size;
+            if (type == TYPE_MESSAGE)
+                element_size = field_desc->m_MessageDescriptor->m_Size;
+            else if (type == TYPE_STRING)
+                element_size = sizeof(const char*);
+            else if (type == TYPE_BYTES)
+                element_size = sizeof(RepeatedField);
+            else
+                element_size = ScalarTypeSize(type);
+
+            uint32_t count = 1;
+            const uint8_t* data_start = message + field_desc->m_Offset;
+            if (field_desc->m_Label == LABEL_REPEATED)
+            {
+                const RepeatedField* repeated = (const RepeatedField*) data_start;
+                count = repeated->m_ArrayCount;
+                data_start = (const uint8_t*) repeated->m_Array;
+            }
+
+            for (uint32_t j = 0; j < count; ++j)
+            {
+                const uint8_t* data = data_start + j * element_size;
+                uint64_t payload_size;
+
+                switch (type)
+                {
+                    case TYPE_DOUBLE:
+                        payload_size = sizeof(double);
+                        break;
+                    case TYPE_FLOAT:
+                        payload_size = sizeof(float);
+                        break;
+                    case TYPE_INT64:
+                    case TYPE_UINT64:
+                        payload_size = VarIntSize(*((const uint64_t*) data));
+                        break;
+                    case TYPE_INT32:
+                    {
+                        int32_t value = *((const int32_t*) data);
+                        payload_size = value < 0 ? 10 : VarIntSize((uint32_t) value);
+                        break;
+                    }
+                    case TYPE_UINT32:
+                    case TYPE_ENUM:
+                        payload_size = VarIntSize(*((const uint32_t*) data));
+                        break;
+                    case TYPE_BOOL:
+                        payload_size = 1;
+                        break;
+                    case TYPE_STRING:
+                    {
+                        const char* value = *((const char* const*) data);
+                        uint32_t length = value ? (uint32_t) strlen(value) : 0;
+                        payload_size = VarIntSize(length) + length;
+                        break;
+                    }
+                    case TYPE_MESSAGE:
+                    {
+                        if (!field_desc->m_FullyDefinedType)
+                        {
+                            data = (const uint8_t*) *((const uintptr_t*) data);
+                            if (data == 0)
+                                continue;
+                        }
+
+                        uint32_t message_size;
+                        Result result = CalculateMessageSize(data, field_desc->m_MessageDescriptor, &message_size);
+                        if (result != RESULT_OK)
+                            return result;
+                        payload_size = VarIntSize(message_size) + message_size;
+                        break;
+                    }
+                    case TYPE_BYTES:
+                    {
+                        const RepeatedField* bytes = (const RepeatedField*) data;
+                        payload_size = VarIntSize(bytes->m_ArrayCount) + bytes->m_ArrayCount;
+                        break;
+                    }
+                    default:
+                        assert(false);
+                        return RESULT_INTERNAL_ERROR;
+                }
+
+                uint32_t tag = field_desc->m_Number << 3;
+                if (!AddSize(&total, VarIntSize(tag) + payload_size))
+                    return RESULT_INTERNAL_ERROR;
+            }
+        }
+
+        *size = (uint32_t) total;
+        return RESULT_OK;
     }
 
     Result DoSaveMessage(const void* message_, const Descriptor* desc, void* context, SaveFunction save_function)
@@ -141,7 +267,7 @@ namespace dmDDF
                         }
 
                         uint32_t len = 0;
-                        Result e = DoSaveMessage(data, field_desc->m_MessageDescriptor, &len, &DDFCountSaveFunction);
+                        Result e = CalculateMessageSize(data, field_desc->m_MessageDescriptor, &len);
                         if (e != RESULT_OK)
                             return e;
 

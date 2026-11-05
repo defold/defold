@@ -56,7 +56,7 @@
 
 (deftest deep-inheritance
   (with-clean-system
-    (let [[n] (tx-nodes (g/make-node world SubSubType))]
+    (let [[n] (tx-nodes (g/make-node SubSubType))]
       (is (g/node-instance? SuperType n)))))
 
 (g/defnode SimpleNode)

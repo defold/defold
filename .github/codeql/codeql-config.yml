@@ -1,0 +1,4 @@
+name: "Defold CodeQL configuration"
+
+paths-ignore:
+  - "external/**"

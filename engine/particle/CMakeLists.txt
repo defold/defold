@@ -23,6 +23,10 @@ set(PARTICLE_DEPENDENCIES
   dlib
   graphics
   $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+set(PARTICLE_NULL_DEPENDENCIES
+  ddf
+  dlib
+  $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 set(PARTICLE_SHARED_DEPENDENCIES
   ddf_noasan
   dlib_noasan
@@ -53,6 +57,19 @@ if(TARGET graphics_proto)
 endif()
 defold_target_link_libraries(particle "${TARGET_PLATFORM}" SCOPE PUBLIC ${PARTICLE_DEPENDENCIES})
 
+defold_add_library(particle_null STATIC
+  "${PARTICLE_SRC_DIR}/particle_null.cpp"
+  "${PARTICLE_PROTO_CC}")
+target_include_directories(particle_null PUBLIC
+  "${PARTICLE_SRC_DIR}"
+  "${PARTICLE_PROTO_ROOT}"
+  "${CMAKE_CURRENT_BINARY_DIR}")
+add_dependencies(particle_null particle_proto_headers particle_proto_py particle_bproto)
+if(TARGET graphics_proto)
+  add_dependencies(particle_null graphics_proto_header)
+endif()
+defold_target_link_libraries(particle_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${PARTICLE_NULL_DEPENDENCIES})
+
 if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos|arm64-macos)$")
   defold_add_library(particle_shared SHARED
     "${PARTICLE_SRC_DIR}/particle.cpp"
@@ -69,7 +86,7 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
   set_target_properties(particle_shared PROPERTIES DEFOLD_SDK_HEADERS_TARGET particle_sdk_headers)
 endif()
 
-defold_install_targets(TARGETS particle
+defold_install_targets(TARGETS particle particle_null
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

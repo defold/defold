@@ -2,7 +2,17 @@
 
 ## Formatting
 
-Follow current code style as defined in `.clang-format`, or follow the existing style of the file you're editing.
+Use Uncrustify 0.83.0 with [engine/.uncrustify.cfg](../.uncrustify.cfg) for engine C and C++ sources and headers. To format a whole file, run from the repository root:
+
+```sh
+uncrustify -c engine/.uncrustify.cfg -l CPP --replace --no-backup path/to/file.cpp
+```
+
+Use `-l C` for C sources and C API headers, including public `dmsdk` headers intended for C. Use `-l CPP` for C++ or mixed C/C++ headers. Choose by the header's contents; `.h` is used for both languages.
+
+Always format new files in full. For existing files, format a temporary copy of the whole file and apply only formatting changes around the lines you edited. Uncrustify has no native changed-line mode. Preserve existing local declaration spacing, intentional alignment, and manual line breaks.
+
+Use braces for control-flow bodies and switch cases. Grouped case labels share a body. New case braces can require a second pass. Keep existing formatting where Uncrustify misparses an expression; do not add suppression comments.
 
 ## C-like C++
 
@@ -86,7 +96,7 @@ We compile (and ship) all our libraries with the `-O2` flag.
 Instead, we compartmentalize functionality into separate libraries, and during link time, either add `featureX_impl.a` or a `featureX_null.a` to the command line.
 
 If you _do_ need to build local libraries for better denug info, use the `--opt-level=0` flag on the command line.
-You can also use the `./scripts/submodule.sh` to rebuild a single library with `O0` and then relink the engine (usually the fastest option).
+After configuring the build, use CMake targets to rebuild individual libraries and relink the engine; see [Rebuilding the engine](../../README_BUILD.md#rebuilding-the-engine).
 
 ## Defines
 
@@ -116,7 +126,7 @@ Assets loaded with dmResource are cached locally. A non-standard batch-oriented 
 
 ### Engine Extensions
 
-Script extensions can be created using a simple extensions mechanism. To add a new extension to the engine the only required step is to link with the extension library and set "exported_symbols" in the wscript, see note below.
+Script extensions can be created using a simple extensions mechanism. To add a new extension to the engine the only required step is to link with the extension library and include its registration symbol in the list passed to `defold_create_exported_symbols_file` in `engine/engine/CMakeLists.txt`.
 
 We also use the same mechanic for our [native extensions](./NATIVE_EXTENSIONS.md).
 

@@ -1,0 +1,8 @@
+size { x: 200.0 y: 100.0 z: 0.0 w: 1.0 }
+leading: 1.0
+tracking: 0.0
+pivot: PIVOT_NW
+line_break: true
+text: "Here is the <sprite src=/icon.png width=1em height=1em/> logo"
+font: "/label/font_valid_font.font"
+material: "/label/material_valid.material"

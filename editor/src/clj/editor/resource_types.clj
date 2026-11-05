@@ -66,6 +66,7 @@
 
 (defn register-resource-types! [workspace]
   (g/transact
+    {:undoable false}
     (concat
       (animation-set/register-resource-types workspace)
       (app-manifest/register-resource-types workspace)

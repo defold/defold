@@ -37,6 +37,8 @@ DM_PROPERTY_U32(rmtp_SoundPlaying, 0, PROFILE_PROPERTY_FRAME_RESET, "# sounds pl
 
 namespace dmGameSystem
 {
+    static const char* SOUND_MAX_COMPONENT_COUNT_KEY = "sound.max_component_count";
+
     static const dmhash_t SOUND_EXT_HASHES[] = { dmHashString64("wavc"), dmHashString64("oggc"), dmHashString64("opusc") };
 
     struct PlayEntry
@@ -128,8 +130,8 @@ namespace dmGameSystem
         SoundWorld* world = (SoundWorld*)params.m_World;
         if (world->m_Components.Full())
         {
-            ShowFullBufferError("Sound", "sound.max_component_count", world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            ShowFullBufferError("Sound", SOUND_MAX_COMPONENT_COUNT_KEY, world->m_Components.Capacity());
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
         uint32_t index = world->m_Components.Alloc();
@@ -158,7 +160,9 @@ namespace dmGameSystem
 
         SoundComponent* component = &world->m_Components.Get(index);
         if (component->m_SoundData)
+        {
             dmResource::Release(context->m_Factory, component->m_SoundData);
+        }
 
         world->m_Components.Free(index, false);
 
@@ -226,7 +230,9 @@ namespace dmGameSystem
         {
             PlayEntry& entry = world->m_Entries[i];
             if (!entry.m_SoundInstance)
+            {
                 continue;
+            }
 
             DM_PROPERTY_ADD_U32(rmtp_SoundPlaying, 1);
             float prev_delay = entry.m_Delay;
@@ -278,14 +284,18 @@ namespace dmGameSystem
         return update_result;
     }
 
-    static dmGameObject::PropertyResult SoundSetParameter(SoundWorld* world, dmGameObject::HInstance instance, SoundComponent* component, dmSound::Parameter type, float value)
+    static dmGameObject::PropertyResult SoundSetParameter(SoundWorld* world, dmGameObject::HInstance instance, SoundComponent* component, dmSound::Parameter type, float value, uint32_t play_id, dmhash_t component_id)
     {
-        switch(type) {
-        case dmSound::PARAMETER_GAIN:   component->m_Gain   = value; break;
-        case dmSound::PARAMETER_PAN:    component->m_Pan    = value; break;
-        case dmSound::PARAMETER_SPEED:  component->m_Speed  = value; break;
-        default:
-            return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        // A voice-specific update must not change the defaults for future playback.
+        if (play_id == dmSound::INVALID_PLAY_ID)
+        {
+            switch(type) {
+            case dmSound::PARAMETER_GAIN:   component->m_Gain   = value; break;
+            case dmSound::PARAMETER_PAN:    component->m_Pan    = value; break;
+            case dmSound::PARAMETER_SPEED:  component->m_Speed  = value; break;
+            default:
+                return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+            }
         }
 
         Sound* sound = component->m_Resource;
@@ -295,6 +305,13 @@ namespace dmGameSystem
             PlayEntry& entry = world->m_Entries[i];
             if (entry.m_SoundInstance != 0 && entry.m_Sound == sound && entry.m_Instance == instance)
             {
+                // For a targeted update, require both the playback ID and the addressed component ID
+                // to match: multiple components on the same game object can share a sound resource.
+                if (play_id != dmSound::INVALID_PLAY_ID && (entry.m_PlayId != play_id || entry.m_Receiver.m_Fragment != component_id))
+                {
+                    continue;
+                }
+
                 float v = value;
                 switch(type) {
                 case dmSound::PARAMETER_GAIN:   v *= entry.m_Sound->m_Gain; break;
@@ -308,6 +325,10 @@ namespace dmGameSystem
                 if (r != dmSound::RESULT_OK)
                 {
                     return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+                }
+                if (play_id != dmSound::INVALID_PLAY_ID)
+                {
+                    break;
                 }
             }
         }
@@ -366,7 +387,8 @@ namespace dmGameSystem
                 if (result == dmSound::RESULT_OK)
                 {
                     result = dmSound::SetInstanceGroup(entry.m_SoundInstance, entry.m_Sound->m_GroupHash);
-                    if (result != dmSound::RESULT_OK) {
+                    if (result != dmSound::RESULT_OK)
+                    {
                         dmLogError("Failed to set sound group (%d)", result);
                     }
 
@@ -462,7 +484,7 @@ namespace dmGameSystem
         {
             dmGameSystemDDF::SetGain* set_gain = (dmGameSystemDDF::SetGain*)params.m_Message->m_Data;
 
-            if (dmGameObject::PROPERTY_RESULT_OK != SoundSetParameter(world, params.m_Instance, component, dmSound::PARAMETER_GAIN, set_gain->m_Gain))
+            if (dmGameObject::PROPERTY_RESULT_OK != SoundSetParameter(world, params.m_Instance, component, dmSound::PARAMETER_GAIN, set_gain->m_Gain, set_gain->m_PlayId, params.m_Message->m_Receiver.m_Fragment))
             {
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
@@ -472,7 +494,7 @@ namespace dmGameSystem
         {
             dmGameSystemDDF::SetPan* set_pan = (dmGameSystemDDF::SetPan*)params.m_Message->m_Data;
 
-            if (dmGameObject::PROPERTY_RESULT_OK != SoundSetParameter(world, params.m_Instance, component, dmSound::PARAMETER_PAN, set_pan->m_Pan))
+            if (dmGameObject::PROPERTY_RESULT_OK != SoundSetParameter(world, params.m_Instance, component, dmSound::PARAMETER_PAN, set_pan->m_Pan, set_pan->m_PlayId, params.m_Message->m_Receiver.m_Fragment))
             {
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
@@ -496,11 +518,15 @@ namespace dmGameSystem
         uint32_t index = *params.m_UserData;
         SoundComponent* component = &world->m_Components.Get(index);
 
-        if (params.m_PropertyId == SOUND_PROP_SOUND) {
+        if (params.m_PropertyId == SOUND_PROP_SOUND)
+        {
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetSoundDataResource(component), out_value);
-        } else {
+        }
+        else
+        {
             dmSound::Parameter parameter = GetSoundParameterType(params.m_PropertyId);
-            if (parameter == dmSound::PARAMETER_MAX) {
+            if (parameter == dmSound::PARAMETER_MAX)
+            {
                 return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
             }
             return SoundGetParameter(world, params.m_Instance, component, parameter, out_value);
@@ -519,21 +545,24 @@ namespace dmGameSystem
         }
 
         dmSound::Parameter parameter = GetSoundParameterType(params.m_PropertyId);
-        if (parameter == dmSound::PARAMETER_MAX) {
+        if (parameter == dmSound::PARAMETER_MAX)
+        {
             return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
         }
 
         if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+        {
             return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+        }
 
-        return SoundSetParameter(world, params.m_Instance, component, parameter, params.m_Value.m_Number);
+        return SoundSetParameter(world, params.m_Instance, component, parameter, params.m_Value.m_Number, dmSound::INVALID_PLAY_ID, 0);
     }
 
     static dmGameObject::Result CompSoundcInit(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
     {
         SoundContext* context = new SoundContext;
         context->m_Factory = ctx->m_Factory;
-        context->m_MaxComponentCount  = dmConfigFile::GetInt(ctx->m_Config, "sound.max_component_count", 32);
+        context->m_MaxComponentCount  = dmConfigFile::GetInt(ctx->m_Config, SOUND_MAX_COMPONENT_COUNT_KEY, 32);
         context->m_MaxSoundInstances  = dmConfigFile::GetInt(ctx->m_Config, "sound.max_sound_instances", 256);
 
         int32_t stream_chunk_size = dmConfigFile::GetInt(ctx->m_Config, "sound.stream_chunk_size", 16384);

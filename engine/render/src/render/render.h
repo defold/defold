@@ -26,6 +26,7 @@
 #include <script/lua_source_ddf.h>
 #include <graphics/graphics.h>
 #include "render/material_ddf.h"
+#include "render_execution.h"
 
 namespace dmRender
 {
@@ -184,6 +185,8 @@ namespace dmRender
         /// Max debug vertex count
         /// NOTE: This is per debug-type and not the total sum
         uint32_t                        m_MaxDebugVertexCount;
+        /// Request threaded rendering. Defaults to false; subject to renderer capabilities.
+        bool                            m_UseThread;
     };
 
     struct RenderCameraData
@@ -228,13 +231,31 @@ namespace dmRender
         dmGraphics::HUniformLocation m_Location;
         dmGraphics::TextureWrap      m_UWrap;
         dmGraphics::TextureWrap      m_VWrap;
+        dmGraphics::TextureWrap      m_WWrap;
         dmGraphics::TextureFilter    m_MinFilter;
         dmGraphics::TextureFilter    m_MagFilter;
         float                        m_MaxAnisotropy;
     };
 
+    /**
+     * Create renderer state and its execution context on the game owner. The current
+     * integration is inline-only; unsupported modes log a diagnostic and return null
+     * before initializing renderer state.
+     */
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
+    /**
+     * Delete renderer state and its owned execution context after all component
+     * lifetimes, frame queues and executor callbacks have drained/stopped.
+     */
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context);
+
+    /**
+     * Borrow execution state for internal frame-queue and component-bridge setup.
+     * The render context owns its lifetime; callers must not delete it or outlive it.
+     * @param render_context Render context owning execution state
+     * @return Borrowed execution context
+     */
+    HRenderExecution GetRenderExecution(HRenderContext render_context);
 
     dmScript::HContext GetScriptContext(HRenderContext render_context);
 
@@ -251,8 +272,9 @@ namespace dmRender
     void SetViewMatrix(HRenderContext render_context, const dmVMath::Matrix4& view);
     void SetProjectionMatrix(HRenderContext render_context, const dmVMath::Matrix4& projection);
 
-    // Set current frame time and delta-time (in seconds) used for built-in material constants.
-    void SetFrameTime(HRenderContext render_context, float time, float dt);
+    // Begin a render frame by setting its time and delta-time (in seconds) and resetting
+    // per-frame renderer state such as submitted light instances.
+    void BeginFrame(HRenderContext render_context, float time, float dt);
 
     HMaterial GetContextMaterial(HRenderContext render_context);
 
@@ -394,6 +416,7 @@ namespace dmRender
     void                            SetComputeProgramConstant(HComputeProgram compute_program, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t count);
     void                            SetComputeProgramConstantType(HComputeProgram compute_program, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            SetComputeProgramSampler(HComputeProgram compute_program, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+    bool                            SetComputeProgramSampler(HComputeProgram compute_program, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     uint32_t                        GetComputeProgramSamplerUnit(HComputeProgram compute_program, dmhash_t name_hash);
     bool                            GetComputeProgramConstant(HComputeProgram compute_program, dmhash_t name_hash, HConstant& out_value);
 
@@ -415,6 +438,7 @@ namespace dmRender
     uint32_t                        GetMaterialConstantCount(HMaterial material);
     bool                            GetMaterialConstantNameHash(HMaterial material, uint32_t index, dmhash_t* out_name_hash);
     bool                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+    bool                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
     void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
 
@@ -490,6 +514,32 @@ namespace dmRender
      * and is the basis for what's being written into the light buffer. It has a position and a rotation (direction),
      * and in the future it is likely that a light instance can override certain parameters of the light prototype.
      * A light prototype can be used across many light instances, and must live as long as the lights live.
+     * Instance data persists between frames; SubmitLightInstance selects which instances participate in the
+     * current frame's light buffer.
+     *
+     * Programs opt in to the engine-owned light UBO by declaring this exact std140 layout:
+     *
+     * struct Light {
+     *     vec4 position;
+     *     vec4 color;
+     *     vec4 direction_range;
+     *     vec4 params;
+     * };
+     * uniform LightBuffer {
+     *     vec4 light_info;
+     *     Light lights[MAX_LIGHT_COUNT];
+     * };
+     *
+     * light_info.xyz contains accumulated ambient color and light_info.w contains the number of
+     * non-ambient lights in the engine-owned buffer. Programs must clamp this count to their
+     * declared array capacity before indexing lights, for example:
+     *
+     * int light_count = min(int(light_info.w), MAX_LIGHT_COUNT);
+     *
+     * Light data is in world space. params contains type, intensity, inner cone angle, and outer
+     * cone angle. Cone angles are in radians and type is 0 for directional, 1 for point, and 2 for
+     * spot lights. Entry order is unspecified. The renderer binds the block automatically for
+     * graphics and compute programs.
      */
     HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params);
     void            SetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype, const LightPrototypeParams& params);
@@ -500,7 +550,7 @@ namespace dmRender
     HLightInstance  NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype);
     void            DeleteLightInstance(HRenderContext render_context, HLightInstance light_instance);
     void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation, float scale);
-    void            SetAmbientLight(HRenderContext render_context, dmVMath::Vector3 color);
+    void            SubmitLightInstance(HRenderContext render_context, HLightInstance light_instance);
     void            SetLightBufferCount(HRenderContext render_context, uint32_t max_lights);
 
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)

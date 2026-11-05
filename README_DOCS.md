@@ -2,6 +2,12 @@
 
 The Defold API documentation is generated from source file comments, similar to Doxygen but uses a proprietary python tool to generate json and sdoc files that the Editor and website uses for rendering documentation and provide completion.
 
+Generated JSON documents contain a top-level numeric `format_version`. This is
+the reference-document schema version, not the Defold release version. Consumers
+must treat a missing value as version 1 for backwards compatibility and reject
+newer unsupported versions instead of inferring the format from the stable,
+beta, or alpha channel.
+
 ## Markdown support
 
 The documentation formatter accepts Markdown with a few extensions:
@@ -46,7 +52,7 @@ Type information
 : Type denotations for parameters and return values are written with special syntax to allow them to be rendered clearly. The type text is arbitrary, but for consistency, use the following forms:
 
 ```
-[type:object]
+[type:script_instance]
 [type:vector3]
 [type:vector4]
 [type:vector]
@@ -54,16 +60,18 @@ Type information
 [type:url]
 [type:hash]
 [type:boolean]
-[type:table]
+[type:table<string, any>]
+[type:number[]]
+[type:{ width:number, height:number }]
 [type:number]
 [type:string]
-[type:constant]
+[type:myfeature.MODE]
 
 // Multiple types possible
 [type:string|hash|url]
 
 // Function signature
-[type:function(self, transaction, error)]
+[type:fun(self:script_instance, transaction:any, error:any)]
 ```
 
 Icons
@@ -159,7 +167,7 @@ There is no function tag. If the doc comment does not contain any of the other v
  *
  * @name json.decode
  * @param json [type:string] json data
- * @return data [type:table] decoded json
+ * @return data [type:any] decoded JSON value
  *
  */
 ```
@@ -188,13 +196,42 @@ Use these tags to denote doc comments for messages:
  */
 ```
 
-and for constants:
+For related constants, declare their shared type with `@enum`. The annotation
+generator associates constants named with either the `ENUM_VALUE` or
+`ENUM.VALUE` convention with that type:
 
 ```
+/*# Image types
+ * @enum
+ * @name image.TYPE
+ */
+
 /*# RGB image type
  *
  * @name image.TYPE_RGB
  * @constant
+ */
+```
+
+Alternatively, list enum values explicitly with `@member` when they are
+documented in the enum block. Do not also declare the same values as standalone
+constants:
+
+```
+/*# Image types
+ * @enum
+ * @name image.TYPE
+ * @member image.TYPE_RGB RGB image type.
+ * @member image.TYPE_RGBA RGBA image type.
+ */
+```
+
+Use an explicit type for a standalone constant that does not belong to an enum:
+
+```
+/*# Library version
+ * @name library.VERSION
+ * @constant [type:string]
  */
 ```
 
@@ -255,13 +292,13 @@ Also by convention definition lists are used to lay out the details of function 
  * Set the callback function to receive transaction events.
  *
  * @name iap.set_listener
- * @param listener [type:function(self, transaction, error)] listener callback function
+ * @param listener [type:fun(self:script_instance, transaction:any, error:any)] listener callback function
  *
  * `self`
- * : [type:object] The current object.
+ * : [type:script_instance] The current script instance.
  *
  * `transaction`
- * : [type:table] a table describing the transaction. The table contains the following fields:
+ * : [type:{ ident:string, state:number, date:string, original_trans?:any, trans_ident?:string, request_id?:string, receipt?:string }] a table describing the transaction. The table contains the following fields:
  *
  * - `ident`: product identifier
  * - `state`: transaction state
@@ -272,7 +309,7 @@ Also by convention definition lists are used to lay out the details of function 
  * - `receipt`: receipt (only set when state == TRANS_STATE_PURCHASED or TRANS_STATE_UNVERIFIED)
  *
  * `error`
- * : [type:table] a table containing any error information. The error parameter is `nil` on success.
+ * : [type:table<string, any>|nil] a table containing any error information. The error parameter is `nil` on success.
  *
  */
 ```

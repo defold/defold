@@ -73,6 +73,10 @@ namespace dmGameSystem
         }
         break;
 
+        case dmPhysicsDDF::CollisionShape::TYPE_MESH:
+            dmLogError("Mesh collision shapes are not supported by the Box2D backend.");
+            break;
+
         default:
             // NOTE: We do not create hulls here. Hulls can't currently be created as embedded shapes
             // In the future we might support that or support the collision shape message as a external resource

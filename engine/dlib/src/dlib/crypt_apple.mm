@@ -14,6 +14,7 @@
 
 #include "crypt.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #import <CommonCrypto/CommonDigest.h>
@@ -29,6 +30,45 @@ namespace dmCrypt
     void HashSha256(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
     {
         CC_SHA256(buf, (CC_LONG)buflen, digest);
+    }
+
+    struct HashSha256Context
+    {
+        CC_SHA256_CTX m_Hash;
+    };
+
+    HHashSha256 NewHashSha256()
+    {
+        HHashSha256 context = (HHashSha256)malloc(sizeof(HashSha256Context));
+        if (!context)
+        {
+            return 0;
+        }
+        if (CC_SHA256_Init(&context->m_Hash) != 1)
+        {
+            free(context);
+            return 0;
+        }
+        return context;
+    }
+
+    Result UpdateHashSha256(HHashSha256 context, const uint8_t* buf, uint32_t buflen)
+    {
+        if (buflen == 0)
+        {
+            return RESULT_OK;
+        }
+        return CC_SHA256_Update(&context->m_Hash, buf, (CC_LONG)buflen) == 1 ? RESULT_OK : RESULT_ERROR;
+    }
+
+    Result FinalHashSha256(HHashSha256 context, uint8_t* digest)
+    {
+        return CC_SHA256_Final(digest, &context->m_Hash) == 1 ? RESULT_OK : RESULT_ERROR;
+    }
+
+    void DeleteHashSha256(HHashSha256 context)
+    {
+        free(context);
     }
 
     void HashSha512(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
@@ -78,6 +118,14 @@ namespace dmCrypt
 
     bool Base64Decode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len)
     {
+        // Zero base64 characters decode into zero bytes. It has to be handled here, since the
+        // "*dst_len == 0" size query convention below cannot represent an empty result.
+        if (src_len == 0)
+        {
+            *dst_len = 0;
+            return true;
+        }
+
         @autoreleasepool
         {
             uint32_t padding_needed = (4 - (src_len % 4)) % 4;
@@ -95,7 +143,7 @@ namespace dmCrypt
                 data = [NSData dataWithBytes:src length:src_len];
             }
 
-            NSData* decoded = [[NSData alloc] initWithBase64EncodedData:data options:NSDataBase64DecodingIgnoreUnknownCharacters];
+            NSData* decoded = [[[NSData alloc] initWithBase64EncodedData:data options:NSDataBase64DecodingIgnoreUnknownCharacters] autorelease];
             if (decoded == nil)
             {
                 *dst_len = 0xFFFFFFFF;

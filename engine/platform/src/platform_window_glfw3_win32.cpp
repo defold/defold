@@ -328,6 +328,11 @@ namespace dmPlatform
             return;
         }
 
+        // The taskbar falls back to the class icon if startup blocks WM_GETICON.
+        // Use the shared resource handle so it outlives GLFW's per-window icons.
+        SetClassLongPtrW(hwnd, GCLP_HICON, (LONG_PTR) hIcon);
+        SetClassLongPtrW(hwnd, GCLP_HICONSM, (LONG_PTR) hIcon);
+
         GLFWimage image = {};
         const char* err_msg_or_null = HICONToGLFWImage(hIcon, &image);
 
@@ -385,6 +390,9 @@ namespace dmPlatform
 
     void SetFullscreenWindowModeParamsNative(GLFWmonitor* monitor, const GLFWvidmode* mode, WindowModeParams* mode_params)
     {
+        // The video mode already has the size needed to cover the monitor.
+        // Do not scale the borderless window dimensions a second time.
+        glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_FALSE);
         glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
         glfwGetMonitorPos(monitor, &mode_params->m_X, &mode_params->m_Y);
         mode_params->m_Width              = mode->width;

@@ -36,6 +36,7 @@ local function print_tilesource_contents(tilesource)
     for i = 1, #animations do
         local animation_node = animations[i]
         print(("    animation: %s"):format(editor.get(animation_node, "id")))
+        print(("    frames: {%s}"):format(table.concat(editor.get(animation_node, "frames"), ", ")))
     end
     local collision_groups = editor.get(tilesource, "collision_groups")
     print(("  collision groups: %s"):format(#collision_groups))
@@ -105,7 +106,21 @@ local function print_collision_object(collision, indent)
         elseif type == "shape-type-capsule" then
             print(("%s  diameter: %s"):format(indent, editor.get(shape, "diameter")))
             print(("%s  height: %s"):format(indent, editor.get(shape, "height")))
+        elseif type == "shape-type-hull" or type == "shape-type-mesh" then
+            assert(editor.can_get(shape, "mesh_scene"))
         end
+    end
+end
+
+local function print_font(font)
+    local styles = editor.get(font, "styles")
+    print(("  styles: %s"):format(#styles))
+    for i = 1, #styles do
+        local style = styles[i]
+        print(("    id: %s"):format(editor.get(style, "id")))
+        print(("    markup: [%s]"):format(editor.get(style, "markup"):gsub("\n", "\\n")))
+        assert(editor.can_set(style, "id"))
+        assert(editor.can_set(style, "markup"))
     end
 end
 
@@ -299,7 +314,7 @@ function M.get_commands()
                 print("Transaction: add animations and collision groups")
                 editor.transact({
                     editor.tx.add(tilesource, "animations", {id = "idle"}),
-                    editor.tx.add(tilesource, "animations", {id = "walk", start_tile = 2, end_tile = 6}),
+                    editor.tx.add(tilesource, "animations", {id = "walk", frames = {2, 3, 4, 5, 6}}),
                     editor.tx.add(tilesource, "collision_groups", {id = "obstacle"}),
                     editor.tx.add(tilesource, "collision_groups", {id = "character"}),
                     editor.tx.add(tilesource, "collision_groups", {}),
@@ -310,6 +325,17 @@ function M.get_commands()
                 print("After transaction (add animations and collision groups):")
                 print_tilesource_contents(tilesource)
 
+                -- Frames must round-trip as integer arrays, including duplicates and empty sequences.
+                local walk = editor.get(tilesource, "animations")[2]
+                local frames = editor.get(walk, "frames")
+                table.insert(frames, 2)
+                print(("Frames before setting modified array: {%s}"):format(table.concat(editor.get(walk, "frames"), ", ")))
+                editor.transact({editor.tx.set(walk, "frames", frames)})
+                print(("Frames after setting modified array: {%s}"):format(table.concat(editor.get(walk, "frames"), ", ")))
+                editor.transact({editor.tx.set(walk, "frames", {})})
+                print(("Frames after clearing: {%s}"):format(table.concat(editor.get(walk, "frames"), ", ")))
+                editor.transact({editor.tx.set(walk, "frames", frames)})
+
                 print("Transaction: set tile_collision_groups to its current value")
                 editor.transact({editor.tx.set(tilesource, "tile_collision_groups", editor.get(tilesource, "tile_collision_groups"))})
 
@@ -317,6 +343,12 @@ function M.get_commands()
                 print_tilesource_contents(tilesource)
 
                 print("Expected errors")
+                expect_error("Frames string", editor.tx.set, walk, "frames", "2-6")
+                expect_error("Fractional frame", editor.tx.set, walk, "frames", {1, 2.5})
+                expect_error("String frame", editor.tx.set, walk, "frames", {1, "2"})
+                expect_error("Added animation with invalid frames", editor.transact, {editor.tx.add(tilesource, "animations", {id = "invalid", frames = {1, false}})})
+                print(("Frames after rejected edits: {%s}"):format(table.concat(editor.get(walk, "frames"), ", ")))
+                print(("Animations after rejected attachment: %s"):format(#editor.get(tilesource, "animations")))
                 expect_error("Using non-existent collision group", editor.transact, {editor.tx.set(tilesource, "tile_collision_groups", {[2] = "does-not-exist"})})
 
                 print("Transaction: clear tilesource")
@@ -392,7 +424,7 @@ function M.get_commands()
                 print("Collision object initial state:")
                 print_collision_object(collision)
 
-                print("Transaction: add 3 shapes")
+                print("Transaction: add 5 shapes")
                 editor.transact({
                     editor.tx.set(collision, "collision_type", "collision-object-type-static"),
                     editor.tx.add(collision, "shapes", {
@@ -406,10 +438,18 @@ function M.get_commands()
                     editor.tx.add(collision, "shapes", {
                         id = "capsule",
                         type = "shape-type-capsule"
+                    }),
+                    editor.tx.add(collision, "shapes", {
+                        id = "hull",
+                        type = "shape-type-hull"
+                    }),
+                    editor.tx.add(collision, "shapes", {
+                        id = "mesh",
+                        type = "shape-type-mesh"
                     })
                 })
 
-                print("After transaction (add 3 shapes):")
+                print("After transaction (add 5 shapes):")
                 print_collision_object(collision)
 
                 print("Transaction: clear")
@@ -428,6 +468,8 @@ function M.get_commands()
                 local gui = "/test.gui"
                 print("GUI initial state:")
                 print_gui(gui)
+                print(("  can add undefined list: %s"):format(tostring(editor.can_add(gui, "undefined_list"))))
+                print(("  can reorder undefined list: %s"):format(tostring(editor.can_reorder(gui, "undefined_list"))))
 
                 print("Transaction: edit GUI")
                 editor.transact({
@@ -813,6 +855,65 @@ function M.get_commands()
 
                 print("After transaction (clear collection)")
                 print_coll(coll)
+
+                print("Font initial state:")
+                local font = "/test.font"
+                local markup = "<color=#aa3300>\n<ul>"
+                print_font(font)
+                print(("  can get styles: %s"):format(tostring(editor.can_get(font, "styles"))))
+                print(("  can add styles: %s"):format(tostring(editor.can_add(font, "styles"))))
+                print(("  can set styles: %s"):format(tostring(editor.can_set(font, "styles"))))
+
+                print("Transaction: add and edit font styles")
+                local styles = editor.get(font, "styles")
+                editor.transact({
+                    editor.tx.add(font, "styles", {}),
+                    editor.tx.add(font, "styles", {}),
+                    editor.tx.add(font, "styles", {id = "accent", markup = "<color=#ff6600>"}),
+                    editor.tx.set(styles[1], "id", "notice"),
+                    editor.tx.set(styles[1], "markup", markup)
+                })
+                print("After transaction (add and edit font styles):")
+                print_font(font)
+
+                print("Transaction: remove font style")
+                styles = editor.get(font, "styles")
+                editor.transact({editor.tx.remove(font, "styles", styles[2])})
+                print("After transaction (remove font style):")
+                print_font(font)
+
+                print("Transaction: clear font styles")
+                editor.transact({editor.tx.clear(font, "styles")})
+                print("After transaction (clear font styles):")
+                print_font(font)
+
+                print("Transaction: add font styles after clear")
+                editor.transact({
+                    editor.tx.add(font, "styles", {id = "notice", markup = markup}),
+                    editor.tx.add(font, "styles", {id = "accent", markup = "<color=#ff6600>"})
+                })
+                print("After transaction (add font styles after clear):")
+                print_font(font)
+
+                print("glTF lists:")
+                local gltf = "/assets/triangle.gltf"
+                for _, list in ipairs({"meshes", "materials", "textures"}) do
+                    print(("  %s: %d, can add: %s, can set: %s, can reorder: %s"):format(
+                        list, #editor.get(gltf, list), tostring(editor.can_add(gltf, list)),
+                        tostring(editor.can_set(gltf, list)), tostring(editor.can_reorder(gltf, list))))
+                end
+                local mesh = editor.get(gltf, "meshes")[1]
+                print(("  mesh: %s, %s, index: %d, primitives: %d, vertices: %d"):format(
+                    editor.get(mesh, "type"), editor.get(mesh, "name"), editor.get(mesh, "index"),
+                    editor.get(mesh, "primitive_count"), editor.get(mesh, "vertex_count")))
+                local material = editor.get(gltf, "materials")[1]
+                print(("  material: %s, %s, %s"):format(editor.get(material, "type"),
+                    editor.get(material, "name"), editor.get(material, "material")))
+                local texture = editor.get(gltf, "textures")[1]
+                print(("  texture: %s, %s, %s"):format(editor.get(texture, "type"),
+                    editor.get(texture, "name"), editor.get(texture, "image")))
+                print("  mesh name writable: " .. tostring(editor.can_set(mesh, "name")))
+                print("  image path: " .. editor.get(editor.get(texture, "image"), "path"))
             end
         })
     }

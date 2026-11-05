@@ -13,11 +13,13 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll
-  (:refer-clojure :exclude [any? bounded-count empty? every? mapcat merge merge-with not-any? not-empty not-every? some update-vals])
+  (:refer-clojure :exclude [any? bounded-count empty? every? keys mapcat merge merge-with not-any? not-empty not-every? some sort sort-by update-vals vals])
+  (:require [util.array :as array]
+            [util.task :as task])
   (:import [clojure.core Eduction Vec]
-           [clojure.lang Cons Cycle IEditableCollection LazilyPersistentVector LazySeq MapEntry Repeat Var]
-           [java.util ArrayList Arrays List]
-           [java.util.concurrent Semaphore StructuredTaskScope StructuredTaskScope$FailedException StructuredTaskScope$Joiner]
+           [clojure.lang Cons Counted Cycle IEditableCollection IReduceInit LazilyPersistentVector LazySeq MapEntry Repeat]
+           [java.util ArrayList Arrays Collection Comparator List]
+           [java.util.concurrent Semaphore]
            [java.util.concurrent.atomic AtomicInteger]))
 
 (set! *warn-on-reflection* true)
@@ -74,19 +76,10 @@
              (->Eduction (comp ~first-xform ~@more-xforms)
                          ~coll)))))
 
-(defmacro ^{:arglists '([coll init ...xforms acc-fn])} reduce->
-  "Similar to core.transduce or core.reduce, but takes the input sequence as the
-  first argument, followed by a mandatory init value, and the acc-fn as the last
-  argument. Any additional arguments specified between the init value and the
-  acc-fn will be composed into a transducer. The acc-fn is assumed to take
-  two arguments and will be used with reduce when no additional transducers are
-  supplied. When transducers are supplied, we will wrap the acc-fn in a
-  multi-arity function suitable for use with core.transduce.
-
-  See also: into->, transform->, reduce-kv->, run!->."
-  [coll second-arg third-arg & more]
+(defn- gen-reduce-form
+  [coll init third-arg more]
   (case (count more)
-    0 `(reduce ~third-arg ~second-arg ~coll)
+    0 `(reduce ~third-arg ~init ~coll)
     1 (let [xform third-arg
             acc-fn (first more)]
         `(transduce ~xform
@@ -94,7 +87,7 @@
                       (fn
                         ([~'acc] ~'acc)
                         ([~'acc ~'item] (~'acc-fn ~'acc ~'item))))
-                    ~second-arg
+                    ~init
                     ~coll))
     (let [first-xform third-arg
           more-xforms (butlast more)
@@ -104,8 +97,59 @@
                     (fn
                       ([~'acc] ~'acc)
                       ([~'acc ~'item] (~'acc-fn ~'acc ~'item))))
-                  ~second-arg
+                  ~init
                   ~coll))))
+
+(defn- gen-reduce-kv-form
+  [coll init third-arg more]
+  (case (count more)
+    0 `(reduce-kv ~third-arg ~init ~coll)
+    1 (let [xform third-arg
+            acc-fn (first more)]
+        `(transduce ~xform
+                    (let [~'acc-fn ~acc-fn]
+                      (fn
+                        ([~'acc] ~'acc)
+                        ([~'acc [~'k ~'v]] (~'acc-fn ~'acc ~'k ~'v))))
+                    ~init
+                    ~coll))
+    (let [first-xform third-arg
+          more-xforms (butlast more)
+          acc-fn (last more)]
+      `(transduce (comp ~first-xform ~@more-xforms)
+                  (let [~'acc-fn ~acc-fn]
+                    (fn
+                      ([~'acc] ~'acc)
+                      ([~'acc [~'k ~'v]] (~'acc-fn ~'acc ~'k ~'v))))
+                  ~init
+                  ~coll))))
+
+(defmacro ^{:arglists '([coll init ...xforms acc-fn])} reduce->
+  "Similar to core.transduce or core.reduce, but takes the input sequence as the
+  first argument, followed by a mandatory init value, and the acc-fn as the last
+  argument. Any additional arguments specified between the init value and the
+  acc-fn will be composed into a transducer. The acc-fn is assumed to take
+  two arguments and will be used with reduce when no additional transducers are
+  supplied. When transducers are supplied, we will wrap the acc-fn in a
+  multi-arity function suitable for use with core.transduce.
+
+  See also: into->, transform->, reduce-kv->, run!->, or reduce=> if you want
+  the init value to go first."
+  [coll init third-arg & more]
+  (gen-reduce-form coll init third-arg more))
+
+(defmacro ^{:arglists '([init coll ...xforms acc-fn])} reduce=>
+  "Similar to core.transduce or core.reduce, but takes a mandatory init value
+  as the first argument, followed by the input sequence, and the acc-fn as the
+  last argument. Any additional arguments specified between the init value and
+  the acc-fn will be composed into a transducer. The acc-fn is assumed to take
+  two arguments and will be used with reduce when no additional transducers are
+  supplied. When transducers are supplied, we will wrap the acc-fn in a
+  multi-arity function suitable for use with core.transduce.
+
+  See also: reduce-> if you want to the input sequence to go first."
+  [init coll third-arg & more]
+  (gen-reduce-form coll init third-arg more))
 
 (defmacro ^{:arglists '([coll init ...xforms acc-fn])} reduce-kv->
   "Similar to core.reduce-kv, but takes the input sequence as the first
@@ -117,29 +161,24 @@
   transducers are supplied, we will wrap the acc-fn in a multi-arity function
   suitable for use with core.transduce.
 
-  See also: into->, transform->, reduce->, run!->."
-  [coll second-arg third-arg & more]
-  (case (count more)
-    0 `(reduce-kv ~third-arg ~second-arg ~coll)
-    1 (let [xform third-arg
-            acc-fn (first more)]
-        `(transduce ~xform
-                    (let [~'acc-fn ~acc-fn]
-                      (fn
-                        ([~'acc] ~'acc)
-                        ([~'acc [~'k ~'v]] (~'acc-fn ~'acc ~'k ~'v))))
-                    ~second-arg
-                    ~coll))
-    (let [first-xform third-arg
-          more-xforms (butlast more)
-          acc-fn (last more)]
-      `(transduce (comp ~first-xform ~@more-xforms)
-                  (let [~'acc-fn ~acc-fn]
-                    (fn
-                      ([~'acc] ~'acc)
-                      ([~'acc [~'k ~'v]] (~'acc-fn ~'acc ~'k ~'v))))
-                  ~second-arg
-                  ~coll))))
+  See also: into->, transform->, reduce->, run!->, or reduce-kv=> if you want
+  the init value to go first."
+  [coll init third-arg & more]
+  (gen-reduce-kv-form coll init third-arg more))
+
+(defmacro ^{:arglists '([init coll ...xforms acc-fn])} reduce-kv=>
+  "Similar to core.reduce-kv, but takes a mandatory init value as the first
+  argument, followed by the input sequence, and the acc-fn as the last argument.
+  Any additional arguments specified between the init value and the acc-fn will
+  be composed into a transducer, which is expected to return a sequence of
+  pairs. The acc-fn is assumed to take three arguments and will be used with
+  reduce-kv when no additional transducers are supplied. When transducers are
+  supplied, we will wrap the acc-fn in a multi-arity function suitable for use
+  with core.transduce.
+
+  See also: reduce-kv-> if you want to the input sequence to go first."
+  [init coll third-arg & more]
+  (gen-reduce-kv-form coll init third-arg more))
 
 (defn comparable-value?
   "Returns true if the value is compatible with the default comparator used with
@@ -148,19 +187,43 @@
   (or (nil? value)
       (instance? Comparable value)))
 
+(defn keys
+  "Returns a counted IReduceInit over the map's keys, in the same order as (seq map)."
+  [map]
+  (reify
+    Counted
+    (count [_] (count map))
+
+    IReduceInit
+    (reduce [_ f init]
+      (reduce-kv (fn [result key _]
+                   (f result key))
+                 init
+                 map))))
+
+(defn vals
+  "Returns a counted IReduceInit over the map's values, in the same order as (seq map)."
+  [map]
+  (reify
+    Counted
+    (count [_] (count map))
+
+    IReduceInit
+    (reduce [_ f init]
+      (reduce-kv (fn [result _ value]
+                   (f result value))
+                 init
+                 map))))
+
 (defn key-set
   "Returns an unordered set with all keys from the supplied map."
-  [coll]
-  (into #{}
-        (map key)
-        coll))
+  [map]
+  (into #{} (keys map)))
 
 (defn sorted-key-set
   "Returns a sorted set with all keys from the supplied map."
-  [coll]
-  (into (sorted-set)
-        (map key)
-        coll))
+  [map]
+  (into (sorted-set) (keys map)))
 
 (defn list-or-cons?
   "Returns true if the specified value is either a IPersistentList or a
@@ -310,13 +373,20 @@
      Cycle true
      false))
 
+(definline eager?
+  "Returns true if lazy? returns false for the supplied value.
+
+  Does not check elements in the collection."
+  [value]
+  `(not (lazy? ~value)))
+
 (defn eager-seqable?
   "Returns true if the supplied value is seqable and eagerly evaluated. Useful
   in places where you want a keep around a reference to a seqable object without
   realizing it into a concrete collection. Note that this function will return
   true for nil, since it is a valid seqable value."
   [value]
-  (and (not (lazy? value))
+  (and (eager? value)
        (seqable? value)))
 
 (defonce conj-set (fnil conj #{}))
@@ -357,6 +427,17 @@
      coll
      (transform-> coll (apply comp xform xforms)))))
 
+(defn transform-non-empty->
+  "Transform the collection supplied as the first argument into a new collection
+  of the same type, using a transducer composed of the remaining arguments.
+  Returns nil if the resulting collection is empty. Preserves metadata. Passes
+  the coll unaltered to not-empty if no transducers are supplied.
+
+  See also: transform->."
+  ([coll] (not-empty coll))
+  ([coll xform] (not-empty (transform-> coll xform)))
+  ([coll xform & xforms] (not-empty (apply transform-> coll xform xforms))))
+
 (defn update-vals
   "Like core.update-vals, but retains the type of the input map or record. Also
   accepts additional arguments to f. Preserves metadata. If coll is nil, returns
@@ -374,10 +455,10 @@
           init (if (record? coll)
                  coll
                  (cond-> (empty coll)
-                         use-transient transient))]
+                   use-transient transient))]
       (with-meta (cond-> (reduce-kv rf init coll)
-                         use-transient persistent!)
-                 (meta coll)))))
+                   use-transient persistent!)
+        (meta coll)))))
 
 (defn update-vals-kv
   "Like core.update-vals, but calls f with both the key and the value of each
@@ -397,10 +478,10 @@
           init (if (record? coll)
                  coll
                  (cond-> (empty coll)
-                         use-transient transient))]
+                   use-transient transient))]
       (with-meta (cond-> (reduce-kv rf init coll)
-                         use-transient persistent!)
-                 (meta coll)))))
+                   use-transient persistent!)
+        (meta coll)))))
 
 (defn map-vals
   "Applies f to all values in the supplied associative collection. Returns a new
@@ -429,23 +510,27 @@
    (update-vals-kv coll f)))
 
 (defn pair-map-by
-  "Returns a hash-map where the keys are the result of applying the supplied
-  key-fn to each item in the input sequence and the values are the items
-  themselves. Returns a stateless transducer if no input sequence is
-  provided. Optionally, a value-fn can be supplied to transform the values."
+  "Returns a stateless transducer that produces pairs using key-fn and
+  value-fn. With only key-fn, the values are the items themselves. A seqable
+  or IReduceInit second argument supplies the collection; otherwise it
+  supplies value-fn. With a collection argument, returns a hash-map.
+
+  The two-argument collection form is deprecated. Use the three-argument
+  form with identity as value-fn instead."
   ([key-fn]
    {:pre [(ifn? key-fn)]}
    (map (pair-fn key-fn)))
+  ;; TODO: Remove the deprecated collection dispatch after 2027-10-15.
   ([key-fn value-fn-or-coll]
-   (if (fn? value-fn-or-coll)
-     (map (pair-fn key-fn value-fn-or-coll))
-     (into {}
-           (map (pair-fn key-fn))
-           value-fn-or-coll)))
+   (if (or (seqable? value-fn-or-coll) (instance? IReduceInit value-fn-or-coll))
+     (pair-map-by key-fn identity value-fn-or-coll)
+     (map (pair-fn key-fn value-fn-or-coll))))
   ([key-fn value-fn coll]
-   (into {}
-         (map (pair-fn key-fn value-fn))
-         coll)))
+   (persistent!
+     (reduce (fn [result item]
+               (assoc! result (key-fn item) (value-fn item)))
+             (transient {})
+             coll))))
 
 (defn merge
   "Like core.merge, but makes use of transients for efficiency, and ignores
@@ -719,8 +804,8 @@
                            (assoc-fn accumulated-by-key key accumulated)))
                        (cond-> coll use-transient transient)
                        pairs)
-               use-transient (-> (persistent!)
-                                 (with-meta (meta coll))))))))
+         use-transient (-> (persistent!)
+                           (with-meta (meta coll))))))))
 
 (defn mapcat-indexed
   "Returns the result of applying concat to the result of applying map-indexed
@@ -788,6 +873,81 @@
     :else
     (when-some [match (match-fn coll)]
       [(pair match init-path)])))
+
+(defmacro remove-from-associative [m k]
+  {:pre [(symbol? m)
+         (symbol? k)]}
+  `(cond
+     (nil? ~m) nil
+     (map? ~m) (dissoc ~m ~k)
+     :else (assoc ~m ~k nil)))
+
+(defn removing-assoc
+  "Like core.assoc, but removes the key from the resulting associative if it is
+  a map and the value is nil."
+  ([m k v]
+   (if (nil? v)
+     (remove-from-associative m k)
+     (assoc m k v)))
+  ([m k v & kvs]
+   (let [m (removing-assoc m k v)]
+     (if (nil? kvs)
+       m
+       (if (next kvs)
+         (recur m (first kvs) (second kvs) (nnext kvs))
+         (throw (IllegalArgumentException.
+                  "removing-assoc expects an even number of arguments after the associative.")))))))
+
+(defn removing-assoc-in
+  "Like core.assoc-in, but removes the key from the innermost associative if
+  it is a map and the value is nil, then removes any resulting empty maps along
+  the key path."
+  [m [k & ks] v]
+  (if (nil? ks)
+    (removing-assoc m k v)
+    (if-some [v (not-empty (removing-assoc-in (get m k) ks v))]
+      (assoc m k v)
+      (remove-from-associative m k))))
+
+(defn removing-update
+  "Like core.update, but removes the key from the resulting associative if it
+  is a map and the function returns nil."
+  ([m k f]
+   (if-some [v (f (get m k))]
+     (assoc m k v)
+     (remove-from-associative m k)))
+  ([m k f x]
+   (if-some [v (f (get m k) x)]
+     (assoc m k v)
+     (remove-from-associative m k)))
+  ([m k f x y]
+   (if-some [v (f (get m k) x y)]
+     (assoc m k v)
+     (remove-from-associative m k)))
+  ([m k f x y z]
+   (if-some [v (f (get m k) x y z)]
+     (assoc m k v)
+     (remove-from-associative m k)))
+  ([m k f x y z & more]
+   (if-some [v (apply f (get m k) x y z more)]
+     (assoc m k v)
+     (remove-from-associative m k))))
+
+(defn removing-update-in
+  "Like core.update-in, but removes the key from the innermost associative if it
+  is a map and the function returns nil, then removes any resulting empty maps
+  along the key path."
+  [m ks f & args]
+  (let [up (fn up [m ks f args]
+             (let [[k & ks] ks]
+               (if ks
+                 (if-some [v (not-empty (up (get m k) ks f args))]
+                   (assoc m k v)
+                   (remove-from-associative m k))
+                 (if-some [v (apply f (get m k) args)]
+                   (assoc m k v)
+                   (remove-from-associative m k)))))]
+    (up m ks f args)))
 
 (defn sorted-assoc-in-empty-fn
   "An empty-fn for use with assoc-in-ex. Returns vectors for integer keys and
@@ -957,6 +1117,7 @@
   not confuse with clojure.core/any?, which takes a single argument and always
   returns true."
   [pred coll]
+  #_{:clj-kondo/ignore [:defold/prefer-util-coll]}
   (boolean (some pred coll)))
 
 (defn not-any?
@@ -1028,6 +1189,48 @@
     (let [array-manager-id (System/identityHashCode (.am coll))]
       (primitive-types-by-array-manager-id array-manager-id))))
 
+(defn sort
+  "Returns a stable, eagerly-sorted, counted IReduceInit over the items in coll.
+
+  Sorting and input-mutation semantics match core.sort. Unlike core.sort, the
+  result is reducible but not seqable; consume it using reduce, into, mapv, or
+  an eduction."
+  ([coll]
+   (sort compare coll))
+  ([^Comparator comparator coll]
+   (let [^objects items (cond
+                          (and coll
+                               (.isArray (class coll))
+                               (not (.isPrimitive (.getComponentType (class coll)))))
+                          coll
+
+                          (instance? Collection coll)
+                          (.toArray ^Collection coll)
+
+                          :else
+                          (let [items (ArrayList.)]
+                            (reduce (fn [^ArrayList items item]
+                                      (.add items item)
+                                      items)
+                                    items
+                                    coll)
+                            (.toArray items)))]
+     (Arrays/sort items comparator)
+     (array/reducible items))))
+
+(defn sort-by
+  "Returns a stable, eagerly-sorted reducible ordered by (key-fn item).
+
+  Supports the same arities and comparator semantics as core.sort-by. Accepts
+  reducible inputs. Returns an IReduceInit that is not seqable; consume it using
+  reduce, into, mapv, or an eduction."
+  ([key-fn coll]
+   (sort-by key-fn compare coll))
+  ([key-fn ^Comparator comparator coll]
+   (sort (fn compare-keys [a b]
+           (.compare comparator (key-fn a) (key-fn b)))
+         coll)))
+
 (defn filterv->
   "Like core.filterv, but takes the input sequence as the first argument and
   supplies any arguments following the predicate function to it after the item
@@ -1062,28 +1265,22 @@
      (case item-count
        0 []
        1 [(f (items 0))]
-       (let [binding-frame (Var/cloneThreadBindingFrame)
-             results (object-array item-count)
+       (let [results (object-array item-count)
              next-index (AtomicInteger. 0)
              worker-count (min item-count (default-parallelism))]
-         (with-open [scope (StructuredTaskScope/open (StructuredTaskScope$Joiner/awaitAllSuccessfulOrThrow))]
+         (task/scope :all-successful
            (dotimes [_ worker-count]
-             (.fork
-               scope
-               ^Runnable
-               (fn []
-                 (do
-                   (Var/resetThreadBindingFrame binding-frame)
-                   (loop []
-                     (when-not (.isInterrupted (Thread/currentThread))
-                       (let [index (.getAndIncrement next-index)]
-                         (when (< index item-count)
-                           (aset results index (f (items index)))
-                           (recur)))))))))
-           (try
-             (.join scope)
-             (catch StructuredTaskScope$FailedException e (throw (.getCause e))))
-           (LazilyPersistentVector/createOwning results))))))
+             (task/fork
+               (loop []
+                 (when-not (.isInterrupted (Thread/currentThread))
+                   (let [index (.getAndIncrement next-index)]
+                     (when (< index item-count)
+                       (aset results index (f (items index)))
+                       (recur)))))))
+           ;; Keep dotimes in statement position to avoid a compiler-generated
+           ;; function.
+           nil)
+         (LazilyPersistentVector/createOwning results)))))
   ([f coll & colls]
    (pmapv #(apply f %) (apply mapv vector coll colls))))
 
@@ -1102,26 +1299,21 @@
   [children-fn build-fn root]
   (let [budget (Semaphore. (default-parallelism))]
     (letfn [(parallel-child-results [child-nodes]
-              (let [binding-frame (Var/cloneThreadBindingFrame)
-                    child-count (count child-nodes)
+              (let [child-count (count child-nodes)
                     results (object-array child-count)]
-                (with-open [scope (StructuredTaskScope/open (StructuredTaskScope$Joiner/awaitAllSuccessfulOrThrow))]
+                (task/scope :all-successful
                   (dotimes [index child-count]
                     (let [child-node (child-nodes index)]
                       (if (.tryAcquire budget)
-                        (.fork scope
-                               ^Runnable
-                               (fn []
-                                 (try
-                                   (Var/resetThreadBindingFrame binding-frame)
-                                   (aset results index (visit child-node))
-                                   (finally
-                                     (.release budget)))))
+                        (task/fork
+                          (try
+                            (aset results index (visit child-node))
+                            (finally
+                              (.release budget))))
                         (aset results index (visit child-node)))))
-                  (try
-                    (.join scope)
-                    (catch StructuredTaskScope$FailedException e
-                      (throw (.getCause e)))))
+                  ;; Keep dotimes in statement position to avoid a
+                  ;; compiler-generated function.
+                  nil)
                 (LazilyPersistentVector/createOwning results)))
             (visit [node]
               (let [child-nodes (vec (or (children-fn node) []))

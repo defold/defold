@@ -54,51 +54,61 @@ namespace dmGameSystem
      * @language Lua
      */
 
-    /*# uint8
-     * Unsigned integer, 1 byte
-     * @name buffer.VALUE_TYPE_UINT8
-     * @constant
-    */
-    /*# uint16
-     * Unsigned integer, 2 bytes
-     * @name buffer.VALUE_TYPE_UINT16
-     * @constant
-    */
-    /*# uint32
-     * Unsigned integer, 4 bytes
-     * @name buffer.VALUE_TYPE_UINT32
-     * @constant
-    */
-    /*# uint64
-     * Unsigned integer, 8 bytes
-     * @name buffer.VALUE_TYPE_UINT64
-     * @constant
-    */
-    /*# int8
-     * Signed integer, 1 byte
-     * @name buffer.VALUE_TYPE_INT8
-     * @constant
-    */
-    /*# int16
-     * Signed integer, 2 bytes
-     * @name buffer.VALUE_TYPE_INT16
-     * @constant
-    */
-    /*# int32
-     * Signed integer, 4 bytes
-     * @name buffer.VALUE_TYPE_INT32
-     * @constant
-    */
-    /*# int64
-     * Signed integer, 8 bytes
-     * @name buffer.VALUE_TYPE_INT64
-     * @constant
-    */
-    /*# float32
-     * Float, single precision, 4 bytes
-     * @name buffer.VALUE_TYPE_FLOAT32
-     * @constant
-    */
+    /*# Buffer value types
+     * @enum
+     * @name buffer.VALUE_TYPE
+     * @member buffer.VALUE_TYPE_FLOAT32 float32 Float, single precision, 4 bytes
+     * @member buffer.VALUE_TYPE_INT16 int16 Signed integer, 2 bytes
+     * @member buffer.VALUE_TYPE_INT32 int32 Signed integer, 4 bytes
+     * @member buffer.VALUE_TYPE_INT64 int64 Signed integer, 8 bytes
+     * @member buffer.VALUE_TYPE_INT8 int8 Signed integer, 1 byte
+     * @member buffer.VALUE_TYPE_UINT16 uint16 Unsigned integer, 2 bytes
+     * @member buffer.VALUE_TYPE_UINT32 uint32 Unsigned integer, 4 bytes
+     * @member buffer.VALUE_TYPE_UINT64 uint64 Unsigned integer, 8 bytes
+     * @member buffer.VALUE_TYPE_UINT8 uint8 Unsigned integer, 1 byte
+     */
+
+    /*# Typed data buffer
+     *
+     * A buffer stores one or more named streams of typed values. Create a buffer
+     * with [ref:buffer.create], or obtain one from APIs such as
+     * [ref:resource.get_buffer], [ref:sys.load_buffer], or [ref:image.load]. Use
+     * [ref:buffer.get_stream] to access the values in an individual stream.
+     *
+     * @typedef
+     * @name buffer_data
+     * @param value [type:userdata] typed data buffer
+     * @examples
+     *
+     * ```lua
+     * local vertices = buffer.create(3, {
+     *     { name = hash("position"), type = buffer.VALUE_TYPE_FLOAT32, count = 3 }
+     * })
+     * ```
+     */
+
+    /*# Named stream in a data buffer
+     *
+     * An indexable view of one named stream in a [type:buffer_data]. Obtain a
+     * stream with [ref:buffer.get_stream]. Reading or writing the stream accesses
+     * the values in its underlying buffer.
+     *
+     * @typedef
+     * @name buffer_stream
+     * @param value [type:userdata] named buffer stream
+     * @examples
+     *
+     * ```lua
+     * local vertices = buffer.create(1, {
+     *     { name = hash("position"), type = buffer.VALUE_TYPE_FLOAT32, count = 3 }
+     * })
+     * local positions = buffer.get_stream(vertices, "position")
+     * positions[1] = 10
+     * positions[2] = 20
+     * positions[3] = 0
+     * ```
+     */
+
 
 #define SCRIPT_LIB_NAME "buffer"
 #define SCRIPT_TYPE_NAME_BUFFER "buffer"
@@ -339,13 +349,13 @@ namespace dmGameSystem
      *
      * @name buffer.create
      * @param element_count [type:number] The number of elements the buffer should hold
-     * @param declaration [type:table] A table where each entry (table) describes a stream
+     * @param declaration [type:({ name:hash|string, type:buffer.VALUE_TYPE, count:number })[]] A table where each entry (table) describes a stream
      *
      * - [type:hash|string] `name`: The name of the stream
-     * - [type:constant] `type`: The data type of the stream
+     * - [type:buffer.VALUE_TYPE] `type`: The data type of the stream
      * - [type:number] `count`: The number of values each element should hold
      *
-     * @return buffer [type:buffer] the new buffer
+     * @return buffer [type:buffer_data] the new buffer
      *
      * @examples
      * How to create and initialize a buffer
@@ -426,9 +436,9 @@ namespace dmGameSystem
      * Get a specified stream from a buffer.
      *
      * @name buffer.get_stream
-     * @param buffer [type:buffer] the buffer to get the stream from
+     * @param buffer [type:buffer_data] the buffer to get the stream from
      * @param stream_name [type:hash|string] the stream name
-     * @return stream [type:bufferstream] the data stream
+     * @return stream [type:buffer_stream] the data stream
     */
     static int GetStream(lua_State* L)
     {
@@ -502,9 +512,9 @@ namespace dmGameSystem
      * The source and destination streams can be the same.
      *
      * @name buffer.copy_stream
-     * @param dst [type:bufferstream] the destination stream
+     * @param dst [type:buffer_stream] the destination stream
      * @param dstoffset [type:number] the offset to start copying data to (measured in value type)
-     * @param src [type:bufferstream] the source data stream
+     * @param src [type:buffer_stream] the source data stream
      * @param srcoffset [type:number] the offset to start copying data from (measured in value type)
      * @param count [type:number] the number of values to copy (measured in value type)
      *
@@ -576,9 +586,9 @@ namespace dmGameSystem
      * The source and destination buffer can be the same.
      *
      * @name buffer.copy_buffer
-     * @param dst [type:buffer] the destination buffer
+     * @param dst [type:buffer_data] the destination buffer
      * @param dstoffset [type:number] the offset to start copying data to
-     * @param src [type:buffer] the source data buffer
+     * @param src [type:buffer_data] the source data buffer
      * @param srcoffset [type:number] the offset to start copying data from
      * @param count [type:number] the number of elements to copy
      *
@@ -686,7 +696,7 @@ namespace dmGameSystem
      * Get a copy of all the bytes from a specified stream as a Lua string.
      *
      * @name buffer.get_bytes
-     * @param buffer [type:buffer] the source buffer
+     * @param buffer [type:buffer_data] the source buffer
      * @param stream_name [type:hash] the name of the stream
      * @return data [type:string] the buffer data as a Lua string
     */
@@ -927,10 +937,10 @@ namespace dmGameSystem
      * [icon:attention] The value type and count given when updating the entry should match those used when first creating it.
      *
      * @name buffer.set_metadata
-     * @param buf [type:buffer] the buffer to set the metadata on
+     * @param buf [type:buffer_data] the buffer to set the metadata on
      * @param metadata_name [type:hash|string] name of the metadata entry
-     * @param values [type:table] actual metadata, an array of numeric values
-     * @param value_type [type:constant] type of values when stored
+     * @param values [type:number[]] actual metadata, an array of numeric values
+     * @param value_type [type:buffer.VALUE_TYPE] type of values when stored
      *
      * @examples
      * How to set a metadata entry on a buffer
@@ -1043,10 +1053,10 @@ namespace dmGameSystem
      * Get a named metadata entry from a buffer along with its type.
      *
      * @name buffer.get_metadata
-     * @param buf [type:buffer] the buffer to get the metadata from
+     * @param buf [type:buffer_data] the buffer to get the metadata from
      * @param metadata_name [type:hash|string] name of the metadata entry
-     * @return values [type:table|nil] table of metadata values or `nil` if the entry does not exist
-     * @return value_type [type:constant|nil] numeric type of values or `nil`
+     * @return values [type:number[]|nil] table of metadata values or `nil` if the entry does not exist
+     * @return value_type [type:buffer.VALUE_TYPE|nil] numeric type of values or `nil`
      *
      * @examples
      * How to get a metadata entry from a buffer

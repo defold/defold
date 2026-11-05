@@ -31,6 +31,7 @@ import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +51,7 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.archive.EngineVersion;
 
@@ -59,7 +61,11 @@ public class HTML5Bundler implements IBundler {
 
     private static final String SplitFileDir = "archive";
     private static final String SplitFileJson = "archive_files.json";
-    private static int SplitFileSegmentSize = 2 * 1024 * 1024;
+    private static final String GitAttributesName = ".gitattributes";
+    // dmloader.js verifies the size and sha1 of the text files in the bundle, which git
+    // changes when it rewrites their line endings. A .gitattributes in the bundle root also
+    // covers every subdirectory. See issue #10006.
+    private static final String GitAttributesContent = "* -text\n";
     private static String SplitFileSHA1 = "";
 
     // previously it was hardcoded in dmloader.js
@@ -95,15 +101,37 @@ public class HTML5Bundler implements IBundler {
         return "index.html"; // relative to the appDir
     }
 
+    private static float getPixelRatioLimit(BobProjectProperties projectProperties, String name) throws IOException {
+        String value = projectProperties.getStringValue("html5", name, "0");
+        String message = "html5." + name + " must be a finite number greater than or equal to 0.";
+        final float ratio;
+        try {
+            ratio = Float.parseFloat(value);
+        } catch (NumberFormatException e) {
+            throw new IOException(message, e);
+        }
+        if (!Float.isFinite(ratio) || ratio < 0) {
+            throw new IOException(message);
+        }
+        return ratio;
+    }
+
     @Override
     public void updateManifestProperties(Project project, Platform platform,
                                 BobProjectProperties projectProperties,
                                 Map<String, Map<String, Object>> propertiesMap,
                                 Map<String, Object> properties) throws IOException {
 
+        float minPixelRatio = getPixelRatioLimit(projectProperties, "min_pixel_ratio");
+        float maxPixelRatio = getPixelRatioLimit(projectProperties, "max_pixel_ratio");
+        if (minPixelRatio > 0 && maxPixelRatio > 0 && minPixelRatio > maxPixelRatio) {
+            throw new IOException("html5.min_pixel_ratio must not exceed html5.max_pixel_ratio when both bounds are enabled.");
+        }
+        properties.put("DEFOLD_MIN_PIXEL_RATIO", minPixelRatio);
+        properties.put("DEFOLD_MAX_PIXEL_RATIO", maxPixelRatio);
 
         // Same value as engine is compiled with; 268435456
-        int customHeapSize = projectProperties.getIntValue("html5", "heap_size", 256) * 1024 * 1024;
+        long customHeapSize = projectProperties.getIntValue("html5", "heap_size", 256) * 1024L * 1024;
 
         {// Deprecated method of setting the heap size. For backwards compatibility
             if (projectProperties.getBooleanValue("html5", "set_custom_heap_size", false)) {
@@ -137,7 +165,7 @@ public class HTML5Bundler implements IBundler {
 
         // Check if game has configured a Facebook App ID
         String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
-        properties.put("DEFOLD_HAS_FACEBOOK_APP_ID", facebookAppId != null ? "true" : "false");
+        properties.put("DEFOLD_HAS_FACEBOOK_APP_ID", Boolean.toString(facebookAppId != null));
 
         String engineArgumentsString = projectProperties.getStringValue("html5", "engine_arguments", null);
         List<String> engineArguments = BundleHelper.createArrayFromString(engineArgumentsString);
@@ -164,7 +192,7 @@ public class HTML5Bundler implements IBundler {
         }
 
         // When running "Build HTML and Launch" we need to ignore the archive location prefix/suffix.
-        Boolean localLaunch = project.option("local-launch", "false").equals("true");
+        boolean localLaunch = project.option("local-launch", "false").equals("true");
         if (localLaunch) {
             properties.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", "archive");
             properties.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", "");
@@ -196,9 +224,12 @@ public class HTML5Bundler implements IBundler {
         properties.put("DEFOLD_HAS_WASM_PTHREAD_ENGINE", architectures.contains(Platform.WasmPthreadWeb));
 
         properties.put("DEFOLD_WASM_DEBUG_SYMBOLS", hasWasmDebugSymbols ? "true" : "false");
+
+        List<String> shaderAdapters = BundleHelper.createArrayFromString(project.option(ShaderCompilers.SHADER_ADAPTERS_OPTION, ""));
+        properties.put("DEFOLD_HAS_WEBGPU", shaderAdapters.contains(ShaderCompilers.SHADER_ADAPTER_WEBGPU));
     }
 
-    class SplitFile {
+    static class SplitFile {
         private File source;
         private Project project;
         private MessageDigest sha1;
@@ -238,7 +269,8 @@ public class HTML5Bundler implements IBundler {
                 input = new BufferedInputStream(new FileInputStream(source));
                 long remaining = source.length();
                 while (0 < remaining) {
-                    int thisRead = (int)Math.min(SplitFileSegmentSize, remaining);
+                    int splitFileSegmentSize = 2 * 1024 * 1024;
+                    int thisRead = (int)Math.min(splitFileSegmentSize, remaining);
 
                     byte[] readBuffer = new byte[thisRead];
                     long bytesRead = input.read(readBuffer, 0, thisRead);
@@ -267,11 +299,11 @@ public class HTML5Bundler implements IBundler {
             generator.writeNumber(source.length());
             if(this.sha1 != null) {
                 generator.writeFieldName("sha1");
-                String sha1 = new BigInteger(1, this.sha1.digest()).toString(16);
+                StringBuilder sha1 = new StringBuilder(new BigInteger(1, this.sha1.digest()).toString(16));
                 while (sha1.length() < 40) {
-                    sha1 = "0" + sha1;
+                    sha1.insert(0, "0");
                 }
-                generator.writeString(sha1);
+                generator.writeString(sha1.toString());
             }
             generator.writeFieldName("pieces");
             generator.writeStartArray();
@@ -345,11 +377,11 @@ public class HTML5Bundler implements IBundler {
                 n = is.read(buffer);
             }
             is.close();
-            String sha1 = new BigInteger(1, md.digest()).toString(16);
+            StringBuilder sha1 = new StringBuilder(new BigInteger(1, md.digest()).toString(16));
             while (sha1.length() < 40) {
-                sha1 = "0" + sha1;
+                sha1.insert(0, "0");
             }
-            return sha1;
+            return sha1.toString();
         } catch (IOException e) {
             return null;
         } catch (NoSuchAlgorithmException e) {
@@ -369,11 +401,7 @@ public class HTML5Bundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
         List<File> binsWasm = ExtenderUtil.getNativeExtensionEngineBinaries(project, platform);
         if (binsWasm == null) {
-            try {
-                binsWasm = Bob.getDefaultDmengineFiles(platform, variant);
-            } catch(IOException e) {
-                System.err.println(String.format("Unable to bundle platform %s: %s", platform, e.getMessage()));
-            }
+            binsWasm = Bob.getDefaultDmengineFiles(platform, variant);
         }
         else {
             logger.info("Using extender binary for WASM");
@@ -499,13 +527,15 @@ public class HTML5Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        File appDir = new File(bundleDirectory, title);
+        File appDir = new File(bundleDirectory, enginePrefix);
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 
         FileUtils.deleteDirectory(appDir);
         File splitDir = new File(appDir, SplitFileDir);
         splitDir.mkdirs();
         createSplitFiles(project, buildDir, splitDir);
+        // Before the bundle resources, so a project shipping its own wins.
+        createGitAttributes(appDir);
 
         BundleHelper.throwIfCanceled(canceled);
         // Copy bundle resources into bundle directory
@@ -578,6 +608,10 @@ public class HTML5Bundler implements IBundler {
             }
         }
         BundleHelper.moveBundleIfNeed(project, appDir);
+    }
+
+    private void createGitAttributes(File appDir) throws IOException {
+        FileUtils.write(new File(appDir, GitAttributesName), GitAttributesContent, StandardCharsets.UTF_8);
     }
 
     private void createSplitFiles(Project project, File buildDir, File targetDir) throws IOException {

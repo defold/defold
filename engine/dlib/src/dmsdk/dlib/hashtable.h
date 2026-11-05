@@ -123,7 +123,8 @@ public:
      */
     void Clear()
     {
-        memset(m_HashTable, 0xff, sizeof(uint32_t) * m_HashTableSize);
+        if (m_HashTableSize)
+            memset(m_HashTable, 0xff, sizeof(uint32_t) * m_HashTableSize);
         m_InitialEntriesNextFree = m_InitialEntries;
         m_FreeEntries = INVALID_INDEX;
         m_Count = 0;
@@ -254,7 +255,7 @@ public:
     /*#
      * Check if the table is full
      * @name Full
-     * @return true if the table is full
+     * @return full [type:bool] true if the table is full
      */
     bool Full()
     {
@@ -264,7 +265,7 @@ public:
     /*#
      * Check if the table is empty
      * @name Empty
-     * @return true if the table is empty
+     * @return empty [type:bool] true if the table is empty
      */
     bool Empty()
     {

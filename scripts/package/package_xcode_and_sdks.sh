@@ -1,18 +1,4 @@
 #! /usr/bin/env bash
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 # Note: I wasn't able to rename the top folder when packaging, since it messed up symlinks (also the packages became unnecessarily bloated)
 
 # Note 2: Due to the MacOS file resource links, packing using the built-in ´tar´ command is not advised.
@@ -28,7 +14,7 @@ set -e
 
 TARGET_DIR="$(pwd)/local_sdks"
 
-XCODE_CONTENTS="/Applications/Xcode.app/Contents"
+XCODE_CONTENTS="$(cd "$(/usr/bin/xcode-select -p)/.." && pwd)"
 PLATFORMS="$XCODE_CONTENTS/Developer/Platforms"
 XCODE="$XCODE_CONTENTS/Developer/Toolchains"
 
@@ -65,7 +51,7 @@ function make_archive() {
 function package_platform() {
     local platform=$1
     pushd $PLATFORMS/${platform}.platform/Developer/SDKs/
-    # Pick the symlink with the most version components, e.g. MacOSX26.5.sdk over MacOSX26.sdk
+    # Pick the symlink with the most version components, e.g. MacOSX27.0.sdk over MacOSX27.sdk
     PLATFORM_SYMLINK=$(find . -iname "${platform}*" -maxdepth 1 -type l | awk -F'.' '{print NF, $0}' | sort -rn | head -1 | cut -d' ' -f2-)
     PLATFORM_FOLDER=$(readlink ${PLATFORM_SYMLINK})
 

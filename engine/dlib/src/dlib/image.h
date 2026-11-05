@@ -40,6 +40,24 @@ namespace dmImage
         void*    m_Buffer;
     };
 
+    struct ImageInfo
+    {
+        ImageInfo() : m_Width(0), m_Height(0), m_Type(TYPE_RGB) {}
+        uint32_t m_Width;
+        uint32_t m_Height;
+        Type     m_Type;
+    };
+
+    /**
+     * Read image metadata from a buffer without decoding its pixels.
+     *
+     * @param buffer image buffer
+     * @param buffer_size image buffer size
+     * @param info output
+     * @return RESULT_OK on success
+     */
+    Result GetInfo(const void* buffer, uint32_t buffer_size, ImageInfo* info);
+
     /**
      * Load image from buffer.
      *
@@ -47,8 +65,9 @@ namespace dmImage
      *   Supported formats:
      *   png gray, gray + alpha, rgb and rgba
      *   jpg
+     *   hdr
      * </pre>
-     * 16-bit (or higher) channels are not supported.
+     * 16-bit (or higher) channels are not supported for png and jpg.
      *
      * @param buffer image buffer
      * @param buffer_size image buffer size
@@ -58,6 +77,14 @@ namespace dmImage
      * @return RESULT_OK on success
      */
     Result Load(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, HImage image);
+
+    /**
+     * Check if a buffer contains an HDR image.
+     * @param buffer image buffer
+     * @param buffer_size image buffer size
+     * @return true if the buffer contains an HDR image
+     */
+    bool IsHDR(const void* buffer, uint32_t buffer_size);
 
     /**
      * Free loaded image
@@ -82,6 +109,9 @@ namespace dmImage
             return 1;
         case dmImage::TYPE_LUMINANCE_ALPHA:
             return 2;
+        case dmImage::TYPE_RGBA32F:
+            // Float images are not exposed through the byte-oriented image consumers yet.
+            return 0;
         }
         return 0;
     }

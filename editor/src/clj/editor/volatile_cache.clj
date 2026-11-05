@@ -23,26 +23,26 @@
 (cache/defcache VolatileCache [cache accessed metadata]
   cache/CacheProtocol
   (lookup [_ item]
-          (get cache item))
+    (get cache item))
   (lookup [_ item not-found]
-          (get cache item not-found))
+    (get cache item not-found))
   (has? [_ item]
-        (contains? cache item))
+    (contains? cache item))
   (hit [this item]
-       (VolatileCache. cache (conj accessed item) metadata))
+    (VolatileCache. cache (conj accessed item) metadata))
   (miss [this item result]
-        (VolatileCache. (assoc cache item result) (conj accessed item) metadata))
+    (VolatileCache. (assoc cache item result) (conj accessed item) metadata))
   (evict [_ key]
-         (VolatileCache. (dissoc cache key) (disj accessed key) metadata))
+    (VolatileCache. (dissoc cache key) (disj accessed key) metadata))
   (seed [_ base]
-        (VolatileCache. base #{} metadata))
+    (VolatileCache. base #{} metadata))
 
   IMeta
   (meta [_this] metadata)
 
   IObj
   (withMeta [_this metadata]
-            (VolatileCache. cache accessed metadata)))
+    (VolatileCache. cache accessed metadata)))
 
 (defn volatile-cache-factory [base]
   (VolatileCache. base #{} nil))

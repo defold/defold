@@ -1,0 +1,10 @@
+name: "other"
+instances {
+  id: "other-player"
+  prototype: "/objects/player.go"
+}
+instances {
+  id: "spectator"
+  prototype: "/objects/spectator.go"
+}
+scale_along_z: 0

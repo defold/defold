@@ -18,10 +18,113 @@
 #include <jni/Texc_jni.h>
 
 #include <stdlib.h>
+#include <string.h>
 
+#include <dlib/image.h>
 #include <dlib/log.h>
 
 #include <texc.h>
+#include "texc_private.h"
+
+namespace
+{
+    // The generated JNI converters allocate these copies; native callers borrow them.
+    template <typename T>
+    struct ScopedEncodeSettings
+    {
+        T* m_Settings;
+
+        ScopedEncodeSettings(T* settings) : m_Settings(settings)
+        {
+        }
+
+        ~ScopedEncodeSettings()
+        {
+            delete[] m_Settings->m_Data;
+            free((void*)m_Settings->m_Path);
+        }
+    };
+
+    bool GetPixelFormat(dmImage::Type type, dmTexc::PixelFormat* pixel_format, uint32_t* bytes_per_pixel)
+    {
+        switch (type)
+        {
+        case dmImage::TYPE_RGB:
+            *pixel_format = dmTexc::PF_R8G8B8;
+            *bytes_per_pixel = 3;
+            return true;
+        case dmImage::TYPE_RGBA:
+            *pixel_format = dmTexc::PF_R8G8B8A8;
+            *bytes_per_pixel = 4;
+            return true;
+        case dmImage::TYPE_LUMINANCE:
+            *pixel_format = dmTexc::PF_L8;
+            *bytes_per_pixel = 1;
+            return true;
+        case dmImage::TYPE_LUMINANCE_ALPHA:
+            *pixel_format = dmTexc::PF_L8A8;
+            *bytes_per_pixel = 2;
+            return true;
+        case dmImage::TYPE_RGBA32F:
+            *pixel_format = dmTexc::PF_RGBA32F;
+            *bytes_per_pixel = 4U * sizeof(float);
+            return true;
+        }
+
+        return false;
+    }
+
+    bool CreateImageFromBuffer(uint32_t data_size, const uint8_t* data, dmTexc::Image* image)
+    {
+        if (!image)
+        {
+            return false;
+        }
+
+        memset(image, 0, sizeof(*image));
+
+        dmImage::Image loaded_image;
+        dmImage::Result result = dmImage::Load(data, data_size, false, false, &loaded_image);
+        if (result != dmImage::RESULT_OK)
+        {
+            return false;
+        }
+
+        dmTexc::PixelFormat pixel_format;
+        uint32_t bytes_per_pixel;
+        if (!GetPixelFormat(loaded_image.m_Type, &pixel_format, &bytes_per_pixel))
+        {
+            dmImage::Free(&loaded_image);
+            return false;
+        }
+
+        uint64_t texc_data_count = (uint64_t)loaded_image.m_Width * (uint64_t)loaded_image.m_Height * bytes_per_pixel;
+        if (texc_data_count > 0xffffffffULL)
+        {
+            dmImage::Free(&loaded_image);
+            return false;
+        }
+
+        image->m_Path = strdup("image");
+        image->m_Data = (uint8_t*)malloc((size_t)texc_data_count);
+        image->m_DataCount = (uint32_t)texc_data_count;
+        image->m_Width = loaded_image.m_Width;
+        image->m_Height = loaded_image.m_Height;
+        image->m_PixelFormat = pixel_format;
+        image->m_ColorSpace = dmTexc::CS_LRGB;
+
+        if (!image->m_Path || !image->m_Data)
+        {
+            dmImage::Free(&loaded_image);
+            dmTexc::DestroyLoadedImage(image);
+            return false;
+        }
+
+        memcpy(image->m_Data, loaded_image.m_Buffer, (size_t)texc_data_count);
+        dmImage::Free(&loaded_image);
+        return true;
+    }
+}
 
 JNIEXPORT jlong JNICALL Java_TexcLibraryJni_CreateImage(JNIEnv* env, jclass cls, jstring _path, jint width, jint height, jint pixelFormat, jint colorSpace, jbyteArray array)
 {
@@ -40,7 +143,7 @@ JNIEXPORT jlong JNICALL Java_TexcLibraryJni_CreateImage(JNIEnv* env, jclass cls,
         //dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
 
         dmJNI::ScopedString j_path(env, _path);
-        const char* path = strdup(j_path.m_String ? j_path.m_String : "null");
+        const char* path = j_path.m_String;
 
         dmJNI::ScopedByteArrayCritical j_array(env, array);
 
@@ -49,6 +152,175 @@ JNIEXPORT jlong JNICALL Java_TexcLibraryJni_CreateImage(JNIEnv* env, jclass cls,
 
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return obj;
+}
+
+JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_IsHDR(JNIEnv* env, jclass cls, jbyteArray array)
+{
+    dmLogDebug("%s: env = %p\n", __FUNCTION__, env);
+
+    if (!array)
+    {
+        dmLogError("%s: Image data array was null!", __FUNCTION__);
+        return JNI_FALSE;
+    }
+
+    jboolean result = JNI_FALSE;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmJNI::ScopedByteArray j_array(env, array);
+        result = dmImage::IsHDR(j_array.m_Array, j_array.m_ArraySize) ? JNI_TRUE : JNI_FALSE;
+    DM_JNI_GUARD_SCOPE_END(return JNI_FALSE;);
+    return result;
+}
+
+JNIEXPORT jobject JNICALL Java_TexcLibraryJni_GetImageInfo(JNIEnv* env, jclass cls, jbyteArray array)
+{
+    if (!array)
+    {
+        dmLogError("%s: Image data array was null!", __FUNCTION__);
+        return 0;
+    }
+
+    jobject obj = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmJNI::ScopedByteArray j_array(env, array);
+        dmImage::ImageInfo info;
+        if (dmImage::GetInfo(j_array.m_Array, j_array.m_ArraySize, &info) != dmImage::RESULT_OK)
+        {
+            return 0;
+        }
+
+        jclass info_class = env->FindClass(JAVA_PACKAGE_NAME "/TexcLibraryJni$ImageInfo");
+        if (!info_class)
+        {
+            return 0;
+        }
+
+        jmethodID constructor = env->GetMethodID(info_class, "<init>", "(II)V");
+        if (!constructor)
+        {
+            env->DeleteLocalRef(info_class);
+            return 0;
+        }
+
+        obj = env->NewObject(info_class, constructor, (jint)info.m_Width, (jint)info.m_Height);
+        env->DeleteLocalRef(info_class);
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return obj;
+}
+
+JNIEXPORT jobject JNICALL Java_TexcLibraryJni_CreateImageFromBuffer(JNIEnv* env, jclass cls, jbyteArray array)
+{
+    dmLogDebug("%s: env = %p\n", __FUNCTION__, env);
+
+    if (!array)
+    {
+        dmLogError("%s: Image data array was null!", __FUNCTION__);
+        return 0;
+    }
+
+    jobject obj = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmTexc::jni::ScopedContext jni_scope(env);
+        dmJNI::ScopedByteArray j_array(env, array);
+
+        dmTexc::Image image;
+        if (!CreateImageFromBuffer(j_array.m_ArraySize, (const uint8_t*)j_array.m_Array, &image))
+        {
+            return 0;
+        }
+
+        obj = dmTexc::jni::C2J_CreateImage(env, &jni_scope.m_TypeInfos, &image);
+        dmTexc::DestroyLoadedImage(&image);
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return obj;
+}
+
+JNIEXPORT jobject JNICALL Java_TexcLibraryJni_LoadKtx2(JNIEnv* env, jclass cls, jbyteArray array)
+{
+    jobject result = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        if (!array)
+            return 0;
+        dmJNI::ScopedByteArray input(env, array);
+        dmTexc::Ktx2Info info;
+        const char* error = 0;
+        dmTexc::Ktx2Texture* texture = dmTexc::LoadKtx2((const uint8_t*)input.m_Array, input.m_ArraySize, &info, &error);
+        if (!texture)
+        {
+            env->ThrowNew(env->FindClass("java/io/IOException"), error);
+            return 0;
+        }
+        jclass type = env->FindClass("com/dynamo/bob/pipeline/TexcLibraryJni$Ktx2Texture");
+        jmethodID constructor = type ? env->GetMethodID(type, "<init>", "(JIIIIIII)V") : 0;
+        if (constructor)
+        {
+            int flags = (info.m_Srgb ? 1 : 0) | (info.m_Premultiplied ? 2 : 0) |
+                (info.m_FlipX ? 4 : 0) | (info.m_FlipY ? 8 : 0) | (info.m_CanRepack ? 16 : 0);
+            result = env->NewObject(type, constructor, (jlong)texture, (jint)info.m_Width, (jint)info.m_Height,
+                (jint)info.m_LevelCount, (jint)info.m_Channels, (jint)flags,
+                (jint)info.m_VkFormat, (jint)info.m_Supercompression);
+        }
+        if (!result)
+            dmTexc::DestroyKtx2(texture);
+        if (type)
+            env->DeleteLocalRef(type);
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return result;
+}
+
+static jbyteArray Ktx2Mip(JNIEnv* env, jlong handle, jint level, bool repack)
+{
+    jbyteArray result = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmArray<uint8_t> bytes;
+        const char* error = 0;
+        dmTexc::Ktx2Texture* texture = (dmTexc::Ktx2Texture*)handle;
+        bool success = repack ? dmTexc::RepackKtx2Mip(texture, level, bytes, &error)
+                              : dmTexc::DecodeKtx2Mip(texture, level, bytes, &error);
+        if (!success)
+        {
+            env->ThrowNew(env->FindClass("java/io/IOException"), error);
+            return 0;
+        }
+        result = env->NewByteArray(bytes.Size());
+        if (result)
+            env->SetByteArrayRegion(result, 0, bytes.Size(), (const jbyte*)bytes.Begin());
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return result;
+}
+
+JNIEXPORT jbyteArray JNICALL Java_TexcLibraryJni_DecodeKtx2Mip(JNIEnv* env, jclass cls, jlong texture, jint level)
+{
+    return Ktx2Mip(env, texture, level, false);
+}
+
+JNIEXPORT jbyteArray JNICALL Java_TexcLibraryJni_RepackKtx2Mip(JNIEnv* env, jclass cls, jlong texture, jint level)
+{
+    return Ktx2Mip(env, texture, level, true);
+}
+
+JNIEXPORT void JNICALL Java_TexcLibraryJni_DestroyKtx2(JNIEnv* env, jclass cls, jlong texture)
+{
+    dmTexc::DestroyKtx2((dmTexc::Ktx2Texture*)texture);
+}
+
+JNIEXPORT jbyteArray JNICALL Java_TexcLibraryJni_EncodeKtx2Mip(JNIEnv* env, jclass cls, jlong texture, jint width, jint height, jbyteArray pixels)
+{
+    jbyteArray result = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmJNI::ScopedByteArray input(env, pixels);
+        dmArray<uint8_t> bytes;
+        const char* error = 0;
+        if (!dmTexc::EncodeKtx2Mip((dmTexc::Ktx2Texture*)texture, width, height, (const uint8_t*)input.m_Array, input.m_ArraySize, bytes, &error))
+        {
+            env->ThrowNew(env->FindClass("java/io/IOException"), error);
+            return 0;
+        }
+        result = env->NewByteArray(bytes.Size());
+        if (result)
+            env->SetByteArrayRegion(result, 0, bytes.Size(), (const jbyte*)bytes.Begin());
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return result;
 }
 
 JNIEXPORT jint JNICALL Java_TexcLibraryJni_CreatePreviewImage(JNIEnv* env, jclass cls, jint width, jint height, jbyteArray inputArray, jbyteArray outputArray)
@@ -127,14 +399,14 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_GetData(JNIEnv* env, jclass cls, j
     return obj;
 }
 
-JNIEXPORT jlong JNICALL Java_TexcLibraryJni_Resize(JNIEnv* env, jclass cls, jlong _image, jint width, jint height)
+JNIEXPORT jlong JNICALL Java_TexcLibraryJni_Resize(JNIEnv* env, jclass cls, jlong _image, jint width, jint height, jboolean srgb, jboolean premultiplied)
 {
     jlong obj = 0;
     DM_JNI_GUARD_SCOPE_BEGIN();
         dmTexc::Image* image = (dmTexc::Image*)_image;
         if (image)
         {
-            obj = (jlong)dmTexc::Resize(image, width, height);
+            obj = (jlong)dmTexc::Resize(image, width, height, srgb, premultiplied);
         }
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return obj;
@@ -215,7 +487,8 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_BasisUEncode(JNIEnv* env, jclass c
         dmTexc::jni::ScopedContext jni_scope(env);
         dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
 
-        dmTexc::BasisUEncodeSettings input;
+        dmTexc::BasisUEncodeSettings input = {};
+        ScopedEncodeSettings<dmTexc::BasisUEncodeSettings> input_scope(&input);
         bool result = J2C_CreateBasisUEncodeSettings(env, types, settings, &input);
         if (!result)
         {
@@ -258,7 +531,8 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_ASTCEncode(JNIEnv* env, jclass cls
         dmTexc::jni::ScopedContext jni_scope(env);
         dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
 
-        dmTexc::ASTCEncodeSettings input;
+        dmTexc::ASTCEncodeSettings input = {};
+        ScopedEncodeSettings<dmTexc::ASTCEncodeSettings> input_scope(&input);
         bool result = J2C_CreateASTCEncodeSettings(env, types, settings, &input);
         if (!result)
         {
@@ -291,7 +565,8 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_DefaultEncode(JNIEnv* env, jclass 
         dmTexc::jni::ScopedContext jni_scope(env);
         dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
 
-        dmTexc::DefaultEncodeSettings input;
+        dmTexc::DefaultEncodeSettings input = {};
+        ScopedEncodeSettings<dmTexc::DefaultEncodeSettings> input_scope(&input);
         bool result = J2C_CreateDefaultEncodeSettings(env, types, settings, &input);
         if (!result)
         {
@@ -314,7 +589,7 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_DefaultEncode(JNIEnv* env, jclass 
         result = dmTexc::DefaultEncode(&input, &out, &out_size);
         if (!result)
         {
-            dmLogError("%s: dmTexc::BasisUEncode failed", __FUNCTION__);
+            dmLogError("%s: dmTexc::DefaultEncode failed", __FUNCTION__);
             return 0;
         }
 
@@ -353,12 +628,20 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
     static const JNINativeMethod methods[] = {
         // Image api
         JNIFUNC(CreateImage, "(Ljava/lang/String;IIII[B)J"),
+        JNIFUNC(IsHDR, "([B)Z"),
+        JNIFUNC(GetImageInfo, "([B)L" JAVA_PACKAGE_NAME "/TexcLibraryJni$ImageInfo;"),
+        JNIFUNC(LoadKtx2, "([B)Lcom/dynamo/bob/pipeline/TexcLibraryJni$Ktx2Texture;"),
+        JNIFUNC(DecodeKtx2Mip, "(JI)[B"),
+        JNIFUNC(RepackKtx2Mip, "(JI)[B"),
+        JNIFUNC(EncodeKtx2Mip, "(JII[B)[B"),
+        JNIFUNC(DestroyKtx2, "(J)V"),
+        JNIFUNC(CreateImageFromBuffer, "([B)L" CLASS_NAME "$Image;"),
         JNIFUNC(CreatePreviewImage, "(II[B[B)I"),
         JNIFUNC(DestroyImage, "(J)V"),
         JNIFUNC(GetWidth, "(J)I"),
         JNIFUNC(GetHeight, "(J)I"),
         JNIFUNC(GetData, "(J)[B"),
-        JNIFUNC(Resize, "(JII)J"),
+        JNIFUNC(Resize, "(JIIZZ)J"),
         JNIFUNC(PreMultiplyAlpha, "(J)Z"),
         JNIFUNC(Flip, "(JI)Z"),
         JNIFUNC(Dither, "(JI)Z"),

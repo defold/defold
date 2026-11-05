@@ -13,20 +13,49 @@
 // specific language governing permissions and limitations under the License.
 
 #include "extension.hpp"
-#include <glfw/glfw.h>
+#include <platform/platform_app.h>
+
+void ExtensionRegisteriOSUIApplicationDelegate(void* delegate)
+{
+    dmPlatform::RegisteriOSApplicationDelegate(delegate);
+}
+
+void ExtensionUnregisteriOSUIApplicationDelegate(void* delegate)
+{
+    dmPlatform::UnregisteriOSApplicationDelegate(delegate);
+}
+
+void ExtensionRegisteriOSUISceneDelegate(void* delegate)
+{
+    dmPlatform::RegisteriOSSceneDelegate(delegate);
+}
+
+void ExtensionUnregisteriOSUISceneDelegate(void* delegate)
+{
+    dmPlatform::UnregisteriOSSceneDelegate(delegate);
+}
 
 namespace dmExtension
 {
 
     void RegisteriOSUIApplicationDelegate(void* delegate)
     {
-        glfwRegisterUIApplicationDelegate(delegate);
+        ExtensionRegisteriOSUIApplicationDelegate(delegate);
     }
 
     void UnregisteriOSUIApplicationDelegate(void* delegate)
     {
-        glfwUnregisterUIApplicationDelegate(delegate);
+        ExtensionUnregisteriOSUIApplicationDelegate(delegate);
+    }
+
+    void RegisteriOSUISceneDelegate(void* delegate)
+    {
+        ExtensionRegisteriOSUISceneDelegate(delegate);
+    }
+
+    void UnregisteriOSUISceneDelegate(void* delegate)
+    {
+        ExtensionUnregisteriOSUISceneDelegate(delegate);
     }
 
 }
-

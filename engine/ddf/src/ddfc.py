@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-
 LICENSE="""
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -852,7 +851,7 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
     pp_h.p('#include <assert.h>')
     pp_h.p('#include <ddf/ddf.h>')
     for d in file_desc.dependency:
-        if not 'ddf_extensions' in d:
+        if not 'ddf_extensions' in d and d != 'google/protobuf/descriptor.proto':
             pp_h.p('#include "%s"', d.replace(".proto", ".h"))
     pp_h.p('#include <dmsdk/dlib/align.h>')
 
@@ -884,7 +883,7 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
     pp_cpp = PrettyPrinter(f_cpp, 0)
     pp_cpp.p('#include <ddf/ddf.h>')
     for d in file_desc.dependency:
-        if not 'ddf_extensions' in d:
+        if not 'ddf_extensions' in d and d != 'google/protobuf/descriptor.proto':
             pp_cpp.p('#include "%s"', d.replace(".proto", ".h"))
     pp_cpp.p('#include "%s.h"' % base_name)
 

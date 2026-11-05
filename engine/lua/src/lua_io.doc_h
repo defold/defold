@@ -151,8 +151,9 @@
  * 
  * 
  * @name io.read
- * @param ...
+ * @param ... [type:any]
  */
+
 
 /*# returns a handle to a temporary file
  * 
@@ -183,7 +184,7 @@
  * 
  * 
  * @name io.write
- * @param ...
+ * @param ... [type:any]
  */
 
 /*# closes a file
@@ -273,7 +274,7 @@
  * 
  * 
  * @name file:read
- * @param ...
+ * @param ... [type:any]
  */
 
 /*# sets and gets the current file position
@@ -363,6 +364,5 @@
  * 
  * 
  * @name file:write
- * @param ...
+ * @param ... [type:any]
  */
-

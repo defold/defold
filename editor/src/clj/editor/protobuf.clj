@@ -265,11 +265,11 @@ Macros currently mean no foreseeable performance gain, however."
 (defn- options [^DescriptorProtos$FieldOptions field-options]
   (cond-> {}
 
-          (.getField field-options resource-desc)
-          (assoc :resource true)
+    (.getField field-options resource-desc)
+    (assoc :resource true)
 
-          (.getField field-options runtime-only-desc)
-          (assoc :runtime-only true)))
+    (.getField field-options runtime-only-desc)
+    (assoc :runtime-only true)))
 
 (defn pb-field-type->field-type-kw
   [pb-field-type]
@@ -360,8 +360,8 @@ Macros currently mean no foreseeable performance gain, however."
                          (let [value-type-kw (pb-field-type->field-type-kw (.getType field-desc))
                                value-info (cond-> {:value-type-kw value-type-kw
                                                    :value-class (pb-field-desc-class field-desc)}
-                                                  (.hasDefaultValue field-desc) ; Declared default in .proto file. Optional primitive fields only.
-                                                  (assoc :value-default (pb-primitive->clj (.getDefaultValue field-desc) value-type-kw)))]
+                                            (.hasDefaultValue field-desc) ; Declared default in .proto file. Optional primitive fields only.
+                                            (assoc :value-default (pb-primitive->clj (.getDefaultValue field-desc) value-type-kw)))]
                            (pair nil value-info)))
 
                        field-info
@@ -864,13 +864,13 @@ Macros currently mean no foreseeable performance gain, however."
 
 (defmacro map->pb [^Class cls m]
   (cond-> `((#'pb-builder ~cls) ~m)
-          (class? (ns-resolve *ns* cls))
-          (with-meta {:tag cls})))
+    (class? (ns-resolve *ns* cls))
+    (with-meta {:tag cls})))
 
 (defmacro str->pb [^Class cls str]
   (cond-> `(TextFormat/parse ~str ~cls)
-          (class? (resolve cls))
-          (with-meta {:tag cls})))
+    (class? (resolve cls))
+    (with-meta {:tag cls})))
 
 (defn- break-embedded-newlines
   [^String pb-str]
@@ -878,8 +878,8 @@ Macros currently mean no foreseeable performance gain, however."
 
 (defn pb->str [^Message pb format-newlines?]
   (cond-> (.printToString (TextFormat/printer) pb)
-          format-newlines?
-          (break-embedded-newlines)))
+    format-newlines?
+    (break-embedded-newlines)))
 
 (defn pb->bytes [^Message pb]
   (let [out (ByteArrayOutputStream. (* 4 1024))]
@@ -1195,8 +1195,8 @@ Macros currently mean no foreseeable performance gain, however."
 
 (defmacro read-pb [^Class cls input]
   (cond-> `(.build (read-pb-into! (#'new-builder ~cls) ~input))
-          (class? (resolve cls))
-          (with-meta {:tag cls})))
+    (class? (resolve cls))
+    (with-meta {:tag cls})))
 
 (defn str->map-with-defaults [^Class cls ^String str]
   (pb->map-with-defaults
@@ -1219,8 +1219,8 @@ Macros currently mean no foreseeable performance gain, however."
 
 (defmacro bytes->pb [^Class cls bytes]
   (cond-> `((parser-fn ~cls) ~bytes)
-          (class? (resolve cls))
-          (with-meta {:tag cls})))
+    (class? (resolve cls))
+    (with-meta {:tag cls})))
 
 (defn bytes->map-with-defaults [^Class cls bytes]
   (let [parser (parser-fn cls)]

@@ -55,9 +55,7 @@ namespace dmGameSystem
 
     struct B2DBodyMeta
     {
-        dmGameObject::HCollection m_Collection;
-        dmhash_t                  m_InstanceId;
-        uint32_t                  m_InstanceGeneration;
+        dmGameObject::HGameObject m_Instance;
     };
 
     static dmOpaqueHandleContainer<uintptr_t> g_BodyHandles;
@@ -76,8 +74,6 @@ namespace dmGameSystem
     {
         return (uint64_t)(uintptr_t)fixture;
     }
-
-    static uint32_t GetBodyInstanceGeneration(b2Body* body);
 
     static void EnsureBodyHandleCapacity()
     {
@@ -149,7 +145,7 @@ namespace dmGameSystem
         g_BodyHandles.Release(handle);
     }
 
-    static void RegisterBodyHandle(b2Body* body, dmGameObject::HCollection collection, dmhash_t instance_id, uint32_t instance_generation, HOpaqueHandle* out_handle)
+    static void RegisterBodyHandle(b2Body* body, dmGameObject::HGameObject instance, HOpaqueHandle* out_handle)
     {
         assert(body);
         EnsureBodyHandleCapacity();
@@ -162,10 +158,9 @@ namespace dmGameSystem
             if (body_ptr)
             {
                 B2DBodyMeta* body_meta = g_BodyMeta.Get(*existing_handle);
-                if (body_meta && body_meta->m_InstanceId)
+                if (body_meta && body_meta->m_Instance)
                 {
-                    dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(body_meta->m_Collection, body_meta->m_InstanceId);
-                    if (!instance || dmGameObject::GetGeneration(instance) != body_meta->m_InstanceGeneration)
+                    if (!dmGameObject::IsValid(body_meta->m_Instance))
                     {
                         InvalidateBodyHandle(*existing_handle);
                         existing_handle = 0;
@@ -179,16 +174,12 @@ namespace dmGameSystem
                 B2DBodyMeta* body_meta = g_BodyMeta.Get(*existing_handle);
                 if (body_meta)
                 {
-                    body_meta->m_Collection = collection;
-                    body_meta->m_InstanceId = instance_id;
-                    body_meta->m_InstanceGeneration = instance_generation;
+                    body_meta->m_Instance = instance;
                 }
                 else
                 {
                     B2DBodyMeta new_body_meta = {};
-                    new_body_meta.m_Collection = collection;
-                    new_body_meta.m_InstanceId = instance_id;
-                    new_body_meta.m_InstanceGeneration = instance_generation;
+                    new_body_meta.m_Instance = instance;
                     g_BodyMeta.Put(*existing_handle, new_body_meta);
                 }
 
@@ -204,27 +195,25 @@ namespace dmGameSystem
         g_BodyToHandle.Put(key, handle);
 
         B2DBodyMeta body_meta = {};
-        body_meta.m_Collection = collection;
-        body_meta.m_InstanceId = instance_id;
-        body_meta.m_InstanceGeneration = instance_generation;
+        body_meta.m_Instance = instance;
         g_BodyMeta.Put(handle, body_meta);
 
         *out_handle = handle;
     }
 
-    static void PushBodyInternal(lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t instance_id, uint32_t instance_generation)
+    static void PushBodyInternal(lua_State* L, void* body, dmGameObject::HGameObject instance)
     {
         B2DLuaBody* luabody = (B2DLuaBody*)lua_newuserdata(L, sizeof(B2DLuaBody));
 
-        RegisterBodyHandle((b2Body*)body, collection, instance_id, instance_generation, &luabody->m_Handle);
+        RegisterBodyHandle((b2Body*)body, instance, &luabody->m_Handle);
 
         luaL_getmetatable(L, BOX2D_TYPE_NAME_BODY);
         lua_setmetatable(L, -2);
     }
 
-    void PushBody(lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t instance_id)
+    void PushBody(lua_State* L, void* body, dmGameObject::HGameObject instance)
     {
-        PushBodyInternal(L, body, collection, instance_id, GetBodyInstanceGeneration((b2Body*)body));
+        PushBodyInternal(L, body, instance);
     }
 
     void PushBox2DVersion(lua_State* L)
@@ -347,14 +336,12 @@ namespace dmGameSystem
             return 0;
         }
 
-        dmhash_t instance_id = body_meta->m_InstanceId;
-        if (instance_id) // check if the instance is alive
+        if (body_meta->m_Instance)
         {
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(body_meta->m_Collection, instance_id);
-            if (!instance || dmGameObject::GetGeneration(instance) != body_meta->m_InstanceGeneration)
+            if (!dmGameObject::IsValid(body_meta->m_Instance))
             {
                 InvalidateBodyHandle(luabody->m_Handle);
-                luaL_error(L, "Cannot get b2body for game object instance '%s'. Has the game object been deleted?", dmHashReverseSafe64(instance_id));
+                luaL_error(L, "Cannot get b2body. Has the game object been deleted?");
                 return 0;
             }
         }
@@ -378,33 +365,21 @@ namespace dmGameSystem
         B2DLuaBody* luabody = CheckBodyInternal(L, index);
         B2DBodyMeta* body_meta = 0;
         VerifyBodyInternal(L, luabody, &body_meta);
-        return body_meta ? body_meta->m_Collection : 0;
+        return body_meta ? dmGameObject::GetCollection(body_meta->m_Instance) : 0;
     }
 
-    dmhash_t GetBodyInstanceId(b2Body* body)
+    dmhash_t GetBodyInstanceId(lua_State* L, int index)
     {
-        void* user_data = body->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp
-
-        dmGameObject::HInstance instance = 0;
-        if (user_data)
-        {
-            instance = dmGameSystem::CompCollisionObjectGetInstance(user_data);
-        }
-
-        return instance ? dmGameObject::GetIdentifier(instance) : 0;
+        B2DLuaBody* luabody = CheckBodyInternal(L, index);
+        B2DBodyMeta* body_meta = 0;
+        VerifyBodyInternal(L, luabody, &body_meta);
+        return body_meta && body_meta->m_Instance ? dmGameObject::GetIdentifier(body_meta->m_Instance) : 0;
     }
 
-    static uint32_t GetBodyInstanceGeneration(b2Body* body)
+    dmGameObject::HGameObject GetBodyInstance(b2Body* body)
     {
         void* user_data = body->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp
-
-        dmGameObject::HInstance instance = 0;
-        if (user_data)
-        {
-            instance = dmGameSystem::CompCollisionObjectGetInstance(user_data);
-        }
-
-        return instance ? dmGameObject::GetGeneration(instance) : 0;
+        return user_data ? CompCollisionObjectGetInstance(user_data) : 0;
     }
 
     b2Fixture* GetFixtureByIndex(b2Body* body, int fixture_index)
@@ -429,15 +404,11 @@ namespace dmGameSystem
         return 0;
     }
 
-    // Reuses the collection context from an existing Lua body handle when pushing a related
-    // native body. This keeps new handles tied to the same collection while deriving the
-    // instance id from the target body itself when that body belongs to a collision object.
     void PushBodyFromReference(lua_State* L, b2Body* body, int reference_index)
     {
         B2DLuaBody* reference_body = CheckBodyInternal(L, reference_index);
-        B2DBodyMeta* body_meta = 0;
-        VerifyBodyInternal(L, reference_body, &body_meta);
-        PushBodyInternal(L, body, body_meta->m_Collection, GetBodyInstanceId(body), GetBodyInstanceGeneration(body));
+        VerifyBodyInternal(L, reference_body, 0);
+        PushBodyInternal(L, body, GetBodyInstance(body));
     }
 
     static void PushFixtureInfo(lua_State* L, b2Fixture* fixture, int fixture_index)
@@ -642,7 +613,7 @@ namespace dmGameSystem
         {
             if (IsJointTracked(joint_edge->joint))
             {
-                PushJoint(L, joint_edge->joint, body_meta ? body_meta->m_Collection : 0);
+                PushJoint(L, joint_edge->joint, body_meta ? dmGameObject::GetCollection(body_meta->m_Instance) : 0);
                 lua_rawseti(L, -2, joint_index);
                 ++joint_index;
             }
@@ -1196,21 +1167,14 @@ namespace dmGameSystem
  * @version 2
  */
 
-/*# Static (immovable) body
- *
- * @name b2d.body.B2_STATIC_BODY
- * @constant
+/*# Body types
+ * @enum
+ * @name b2d.body.B2
+ * @member b2d.body.B2_DYNAMIC_BODY Dynamic body
+ * @member b2d.body.B2_KINEMATIC_BODY Kinematic body
+ * @member b2d.body.B2_STATIC_BODY Static (immovable) body
  */
-/*# Kinematic body
- *
- * @name b2d.body.B2_KINEMATIC_BODY
- * @constant
- */
-/*# Dynamic body
- *
- * @name b2d.body.B2_DYNAMIC_BODY
- * @constant
- */
+
 
 /**
  * Creates a fixture and attach it to this body. Use this function if you need
@@ -1221,16 +1185,8 @@ namespace dmGameSystem
  * @warning This function is locked during callbacks.
  * @name b2d.body.create_fixture
  * @param body [type: b2Body] body
- * @param definition [type: table] fixture definition table with:
- * `shape` = shape table, `friction` = number, `restitution` = number,
- * `density` = number, `sensor` = boolean, and optional `filter` table.
- * Supported shape tables are:
- * `circle` = `{ type = b2d.shape.SHAPE_TYPE_CIRCLE, radius = number, center = vector3_or_nil }`
- * `edge` = `{ type = b2d.shape.SHAPE_TYPE_EDGE, v1 = vector3, v2 = vector3, v0 = vector3_or_nil, v3 = vector3_or_nil }`
- * `polygon` = `{ type = b2d.shape.SHAPE_TYPE_POLYGON, vertices = { vector3, ... } }`
- * `box` = `{ type = b2d.shape.SHAPE_TYPE_BOX, hx = number, hy = number, center = vector3_or_nil, angle = radians_or_nil }`
- * `chain` = `{ type = b2d.shape.SHAPE_TYPE_CHAIN, vertices = { vector3, ... }, loop = boolean_or_nil, prev_vertex = vector3_or_nil, next_vertex = vector3_or_nil }`
- * @return fixture [type: table] fixture info table with `index`, `type`, `sensor`, `density`, `friction`, `restitution`, and `child_count`
+ * @param definition [type:b2d.fixture_definition] fixture definition
+ * @return fixture [type:b2d.fixture_info] fixture information
  * @examples
  *
  * ```lua
@@ -1276,7 +1232,7 @@ namespace dmGameSystem
 /** Get the body transform for the body's origin.
  * @name b2d.body.get_transform
  * @param body [type: b2Body] body
- * @return transform [type: table] table with `position` and `angle` in radians.
+ * @return transform [type:b2d.transform] the body transform
  */
 
 /*# Get the world body origin position.
@@ -1286,7 +1242,7 @@ namespace dmGameSystem
  */
 
 /*# Get the angle in radians.
- * @name b2d.body.get_world_center
+ * @name b2d.body.get_angle
  * @param body [type: b2Body] body
  * @return angle [type: number] the current world rotation angle in radians.
  */
@@ -1384,7 +1340,7 @@ namespace dmGameSystem
  * Get the mass data of the body.
  * @name b2d.body.get_mass_data
  * @param body [type: b2Body] body
- * @return data [type: table] table with `mass`, `center` in local coordinates, and `inertia`.
+ * @return data [type:b2d.mass_data] the mass data
  */
 
 /**
@@ -1394,7 +1350,7 @@ namespace dmGameSystem
  * @note Creating or destroying fixtures can also alter the mass.
  * @name b2d.body.set_mass_data
  * @param body [type: b2Body] body
- * @param data [type: table] table with `mass`, `center` in local coordinates, and `inertia`.
+ * @param data [type:b2d.mass_data] the mass data
  */
 
 /*#
@@ -1407,13 +1363,13 @@ namespace dmGameSystem
 /*# Get the fixtures attached to this body.
  * @name b2d.body.get_fixtures
  * @param body [type: b2Body] body
- * @return fixtures [type: table] array of fixture info tables with `index`, `type`, `sensor`, `density`, `friction`, `restitution`, and `child_count`
+ * @return fixtures [type:b2d.fixture_info[]] the attached fixtures
  */
 
 /*# Destroy a fixture from a body.
  * @name b2d.body.destroy_fixture
  * @param body [type: b2Body] body
- * @param fixture_index [type: number] 1-based fixture index from `b2d.body.get_fixtures`
+ * @param fixture_index [type: integer] 1-based fixture index from [ref:b2d.body.get_fixtures]
  */
 
 /*# Get the world coordinates of a point given the local coordinates.
@@ -1585,19 +1541,13 @@ namespace dmGameSystem
 /*# Get the joints attached to this body.
  * @name b2d.body.get_joints
  * @param body [type: b2Body] body
- * @return joints [type: table] array of `b2Joint` handles created by `b2d.joint`
- */
-
-/** Get the list of all contacts attached to this body.
- * @name b2d.body.get_contact_list
- * @param body [type: b2Body] body
- * @return edge [type: b2ContactEdge] the first edge
+ * @return joints [type:b2Joint[]] joint handles created by [ref:b2d.joint]
  */
 
 /*# Get the next body in the world's body list.
  * @name b2d.body.get_next
  * @param body [type: b2Body] body
- * @return body [type: b2Body] the next body
+ * @return body [type: b2Body|nil] the next body, or `nil` if this is the last body
  */
 
 /*# Get the parent world of this body.

@@ -52,15 +52,15 @@
     (pos-1b-put! vertex-buffer 42)
 
     (testing "what goes in comes out"
-             (is (= 1    (count vertex-buffer)))
-             (is (array= (byte-array [42])
-                         (contents-of vertex-buffer))))
+      (is (= 1    (count vertex-buffer)))
+      (is (array= (byte-array [42])
+                  (contents-of vertex-buffer))))
 
     (testing "once flipped, the data is still there"
-             (let [final (v/flip! vertex-buffer)]
-               (is (= 1    (count final)))
-               (is (array= (byte-array [42])
-                           (contents-of final)))))))
+      (let [final (v/flip! vertex-buffer)]
+        (is (= 1    (count final)))
+        (is (array= (byte-array [42])
+                    (contents-of final)))))))
 
 (def ^:private attribute-component-count
   (comp graphics.types/vector-type-component-count :vector-type))

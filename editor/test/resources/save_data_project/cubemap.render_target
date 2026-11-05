@@ -1,0 +1,6 @@
+type: TYPE_CUBEMAP
+color_attachments {
+  width: 64
+  height: 64
+  format: TEXTURE_FORMAT_RGBA
+}

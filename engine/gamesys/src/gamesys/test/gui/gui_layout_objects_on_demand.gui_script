@@ -1,0 +1,22 @@
+tests_done = false
+
+local function assert_layout_object(object, id, src)
+    assert(object.type == "link")
+    assert(object.id == hash(id))
+    assert(object.attributes.src == src)
+end
+
+function init(self)
+    local node = gui.get_node("text")
+    local initial_objects = gui.get_layout_objects(node)
+    assert(#initial_objects == 1)
+    assert_layout_object(initial_objects[1], "initial", "initial")
+
+    gui.set_text(node, "<link id=updated src=updated>Now</link>")
+    local updated_objects = gui.get_layout_objects(node)
+    assert(#updated_objects == 1)
+    assert_layout_object(updated_objects[1], "updated", "updated")
+    assert(updated_objects[1].text_length == 3)
+
+    tests_done = true
+end

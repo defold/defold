@@ -27,6 +27,7 @@ import java.awt.image.DataBufferInt;
 import java.nio.ShortBuffer;
 import java.nio.IntBuffer;
 
+import java.io.ByteArrayInputStream;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.FileInputStream;
@@ -62,6 +63,41 @@ public class TextureGenerator {
     public static class GenerateResult {
         public TextureImage textureImage;
         public ArrayList<byte[]> imageDatas;
+    }
+
+    private static class DecodedImage {
+        public boolean hdr;
+        public boolean premultiplied;
+        // KTX2 specifies its transfer function. Ordinary images retain legacy channel-value filtering.
+        public boolean srgbFiltering;
+        public TexcLibraryJni.Ktx2Texture ktx2;
+        public String path;
+        public int width;
+        public int height;
+        public int componentCount;
+        public int texcPixelFormat;
+        public int texcColorSpace;
+        public byte[] data;
+    }
+
+    private static class TextureGenerationSettings {
+        public TextureFormat textureFormat;
+        public int outputPixelFormat;
+        public String compressorName;
+        public String compressorPresetName;
+        public boolean generateMipMaps;
+        public TexcLibraryJni.Ktx2Texture ktx2Encoder;
+        public int maxTextureSize;
+        public boolean premulAlpha;
+        public boolean powerOfTwo;
+        public boolean squarePVRTC;
+        public boolean alignToCompressor;
+        public boolean dither;
+        public int compressionInputPixelFormat;
+        public String createProfileName;
+        public String resizeErrorMessage;
+        public String flipErrorMessage;
+        public String encodeErrorMessage;
     }
 
     private static final HashMap<TextureFormat, Integer> pixelFormatLUT = new HashMap<>();
@@ -252,7 +288,407 @@ public class TextureGenerator {
         return TextureCompression.getCompressor(TextureCompressorUncompressed.TextureCompressorName);
     }
 
-    private static List<Long> GenerateImages(long image, int width, int height, boolean generateMipChain) throws TextureGeneratorException {
+    private static boolean isFloatTextureFormat(TextureFormat textureFormat) {
+        switch (textureFormat) {
+            case TEXTURE_FORMAT_RGBA16F:
+            case TEXTURE_FORMAT_RGBA32F:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static boolean supportsASTCTextureFormat(TextureFormat textureFormat) {
+        ITextureCompressor textureCompressor = TextureCompression.getCompressor(TextureCompressorASTC.TextureCompressorName);
+        return textureCompressor != null && textureCompressor.supportsTextureFormat(textureFormat);
+    }
+
+    private static boolean isHDRTextureFormat(TextureFormat textureFormat) {
+        return isFloatTextureFormat(textureFormat) || supportsASTCTextureFormat(textureFormat);
+    }
+
+    private static int getHDRPixelFormat(TextureFormat textureFormat) throws TextureGeneratorException {
+        switch (textureFormat) {
+            case TEXTURE_FORMAT_RGBA16F:
+                return Texc.PixelFormat.PF_RGBA16F.getValue();
+            case TEXTURE_FORMAT_RGBA32F:
+                return Texc.PixelFormat.PF_RGBA32F.getValue();
+            default:
+                Integer pixelFormat = pixelFormatLUT.get(textureFormat);
+                if (supportsASTCTextureFormat(textureFormat) && pixelFormat != null) {
+                    return pixelFormat;
+                }
+                throw new TextureGeneratorException("HDR textures require a float or ASTC texture format.");
+        }
+    }
+
+    private static DecodedImage createDecodedImage(Texc.Image hdrImage) {
+        DecodedImage source = new DecodedImage();
+        source.hdr = true;
+        source.path = hdrImage.path;
+        source.width = hdrImage.width;
+        source.height = hdrImage.height;
+        source.componentCount = 4;
+        source.texcPixelFormat = hdrImage.pixelFormat.getValue();
+        source.texcColorSpace = hdrImage.colorSpace.getValue();
+        source.data = hdrImage.data;
+        return source;
+    }
+
+    private static TextureGenerationSettings createTextureGenerationSettings(DecodedImage source,
+        TextureFormat textureFormat, String compressorName, String compressorPresetName,
+        boolean generateMipMaps, int maxTextureSize, boolean premulAlpha) throws TextureGeneratorException {
+
+        TextureGenerationSettings settings = new TextureGenerationSettings();
+        settings.compressorName = compressorName;
+        settings.compressorPresetName = compressorPresetName;
+        settings.generateMipMaps = generateMipMaps;
+        settings.maxTextureSize = maxTextureSize;
+
+        if (source.hdr) {
+            if (!isHDRTextureFormat(textureFormat)) {
+                throw new TextureGeneratorException("HDR textures require RGBA16F, RGBA32F, or ASTC texture formats.");
+            }
+
+            settings.textureFormat = textureFormat;
+            settings.outputPixelFormat = getHDRPixelFormat(textureFormat);
+            settings.premulAlpha = false;
+            settings.powerOfTwo = false;
+            settings.squarePVRTC = false;
+            settings.alignToCompressor = supportsASTCTextureFormat(textureFormat);
+            settings.dither = false;
+            settings.compressionInputPixelFormat = Texc.PixelFormat.PF_RGBA32F.getValue();
+            settings.createProfileName = "Create HDR Texture";
+            settings.resizeErrorMessage = "could not resize HDR texture";
+            settings.flipErrorMessage = "could not flip HDR texture on ";
+            settings.encodeErrorMessage = "could not encode HDR texture";
+        } else {
+            textureFormat = textureFormatToSupportedTextureFormat(textureFormat);
+            Integer pixelFormat = pixelFormatLUT.get(textureFormat);
+            if (pixelFormat == null) {
+                throw new TextureGeneratorException("Invalid texture format.");
+            }
+
+            settings.textureFormat = textureFormat;
+            settings.outputPixelFormat = pixelFormat;
+            settings.premulAlpha = premulAlpha;
+            settings.powerOfTwo = true;
+            settings.squarePVRTC = true;
+            settings.alignToCompressor = true;
+            settings.dither = true;
+            settings.compressionInputPixelFormat = Texc.PixelFormat.PF_R8G8B8A8.getValue();
+            settings.createProfileName = "CreateTexture";
+            settings.resizeErrorMessage = "could not resize texture to POT";
+            settings.flipErrorMessage = "could not flip on ";
+            settings.encodeErrorMessage = "could not encode";
+        }
+
+        return settings;
+    }
+
+    private static List<byte[]> generateFromDecodedImage(TextureImage.Image.Builder builder, DecodedImage source, TextureGenerationSettings settings, EnumSet<FlipAxis> flipAxis, int firstMipLevel) throws TextureGeneratorException {
+
+        if (source.ktx2 != null) {
+            try {
+                return generateFromKtx2(builder, source, settings, flipAxis);
+            } catch (IOException e) {
+                throw new TextureGeneratorException(e.getMessage());
+            }
+        }
+
+        Logger logger = Logger.getLogger(TextureGenerator.class.getName());
+
+        ITextureCompressor textureCompressor = TextureCompression.getCompressor(settings.compressorName);
+
+        if (textureCompressor == null) {
+            if (!settings.compressorName.equals(TextureCompressorUncompressed.TextureCompressorName)) {
+                logger.warning(String.format("Texture compressor '%s' not found, using the default texture compressor.", settings.compressorName));
+            }
+            textureCompressor = getDefaultTextureCompressor();
+            settings.compressorPresetName = TextureCompressorUncompressed.TextureCompressorUncompressedPresetName;
+        }
+
+        TextureCompressorPreset textureCompressorPreset = TextureCompression.getPreset(settings.compressorPresetName);
+        if (textureCompressorPreset == null) {
+            throw new TextureGeneratorException("Texture compressor preset '" + settings.compressorPresetName + "' not found.");
+        }
+
+        if (!textureCompressor.supportsTextureFormat(settings.textureFormat)) {
+            throw new TextureGeneratorException("Texture compressor doesn't support the texture format " + settings.textureFormat);
+        }
+
+        if (!textureCompressor.supportsTextureCompressorPreset(textureCompressorPreset)) {
+            throw new TextureGeneratorException("Texture compressor doesn't support the texture compressor preset " + settings.compressorPresetName);
+        }
+
+        TimeProfiler.start(settings.createProfileName);
+        long textureImage = TexcLibraryJni.CreateImage(source.path, source.width, source.height, source.texcPixelFormat, source.texcColorSpace, source.data);
+        TimeProfiler.stop();
+        if (textureImage == 0) {
+            throw new TextureGeneratorException("Failed to create texture");
+        }
+
+        try {
+            int[] dimensions = textureDimensions(source, settings, textureCompressor);
+            int newWidth = dimensions[0];
+            int newHeight = dimensions[1];
+
+            if (settings.premulAlpha && !source.premultiplied) {
+                TimeProfiler.start("PreMultiplyAlpha");
+                if (!TexcLibraryJni.PreMultiplyAlpha(textureImage)) {
+                    throw new TextureGeneratorException("could not premultiply alpha");
+                }
+                TimeProfiler.stop();
+            }
+
+            if (source.width != newWidth || source.height != newHeight) {
+                TimeProfiler.start("Resize");
+                long resizedTextureImage = TexcLibraryJni.Resize(textureImage, newWidth, newHeight, source.srgbFiltering, settings.premulAlpha);
+                if (resizedTextureImage == 0) {
+                    throw new TextureGeneratorException(settings.resizeErrorMessage);
+                }
+                TexcLibraryJni.DestroyImage(textureImage);
+                textureImage = resizedTextureImage;
+                TimeProfiler.stop();
+            }
+
+            for (Texc.FlipAxis flip : flipAxis) {
+                TimeProfiler.start("FlipAxis");
+                if (!TexcLibraryJni.Flip(textureImage, flip.getValue())) {
+                    throw new TextureGeneratorException(settings.flipErrorMessage + flip);
+                }
+                TimeProfiler.stop();
+            }
+
+            if (settings.dither && (settings.outputPixelFormat == Texc.PixelFormat.PF_R4G4B4A4.getValue() || settings.outputPixelFormat == Texc.PixelFormat.PF_R5G6B5.getValue())) {
+                TimeProfiler.start("Dither");
+                if (!TexcLibraryJni.Dither(textureImage, settings.outputPixelFormat)) {
+                    throw new TextureGeneratorException("could not dither image");
+                }
+                TimeProfiler.stop();
+            }
+
+            builder.setWidth(newWidth)
+                    .setHeight(newHeight)
+                    .setOriginalWidth(source.width)
+                    .setOriginalHeight(source.height)
+                    .setFormat(settings.textureFormat);
+
+            List<byte[]> imageDatas = new ArrayList<>();
+            int offset = 0;
+            int mipMapLevel = firstMipLevel;
+
+            List<Long> mipImages = GenerateImages(textureImage, newWidth, newHeight, settings.generateMipMaps, source.srgbFiltering, settings.premulAlpha);
+            TimeProfiler.start("textureCompressor.compress");
+            TimeProfiler.addData("mips count", mipImages.size());
+
+            for (Long mipImage : mipImages) {
+                byte[] uncompressed = TexcLibraryJni.GetData(mipImage);
+                int mipWidth = TexcLibraryJni.GetWidth(mipImage);
+                int mipHeight = TexcLibraryJni.GetHeight(mipImage);
+                String paramsName = "MipMap_" + mipMapLevel;
+
+                TextureCompressorParams params = new TextureCompressorParams(paramsName, mipMapLevel, mipWidth, mipHeight, 0, source.componentCount, settings.compressionInputPixelFormat, settings.outputPixelFormat, source.texcColorSpace);
+                byte[] encodedMipData;
+                if (settings.ktx2Encoder == null) {
+                    encodedMipData = textureCompressor.compress(textureCompressorPreset, params, uncompressed);
+                } else {
+                    try {
+                        encodedMipData = settings.ktx2Encoder.encodeMip(mipWidth, mipHeight, uncompressed);
+                    } catch (IOException e) {
+                        throw new TextureGeneratorException(e.getMessage());
+                    }
+                }
+                if (encodedMipData.length == 0) {
+                    throw new TextureGeneratorException(settings.encodeErrorMessage);
+                }
+
+                imageDatas.add(encodedMipData);
+                builder.addMipMapOffset(offset);
+                builder.addMipMapSize(encodedMipData.length);
+                builder.addMipMapSizeCompressed(encodedMipData.length);
+                builder.addMipMapDimensions(textureCompressor.getAlignedWidth(settings.textureFormat, mipWidth));
+                builder.addMipMapDimensions(textureCompressor.getAlignedHeight(settings.textureFormat, mipHeight));
+
+                offset += encodedMipData.length;
+                mipMapLevel++;
+            }
+
+            TimeProfiler.stop();
+            builder.setDataSize(offset);
+            builder.setFormat(settings.textureFormat);
+
+            for (Long mipImage : mipImages) {
+                if (mipImage != textureImage) {
+                    TexcLibraryJni.DestroyImage(mipImage);
+                }
+            }
+
+            return imageDatas;
+        } finally {
+            TexcLibraryJni.DestroyImage(textureImage);
+        }
+    }
+
+    private static int[] textureDimensions(DecodedImage source, TextureGenerationSettings settings, ITextureCompressor textureCompressor) {
+        int newWidth = source.width;
+        int newHeight = source.height;
+
+        if (settings.powerOfTwo) {
+            newWidth = TextureUtil.closestPOT(newWidth);
+            newHeight = TextureUtil.closestPOT(newHeight);
+        }
+
+        if (settings.maxTextureSize > 0) {
+            while (newWidth > settings.maxTextureSize || newHeight > settings.maxTextureSize) {
+                newWidth = Math.max(newWidth / 2, 1);
+                newHeight = Math.max(newHeight / 2, 1);
+            }
+
+            assert(newWidth <= settings.maxTextureSize && newHeight <= settings.maxTextureSize);
+        }
+
+        if (settings.squarePVRTC &&
+            (newHeight != newWidth) &&
+            (settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 ||
+            settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 ||
+            settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 ||
+            settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1)) {
+
+            Logger.getLogger(TextureGenerator.class.getName()).warning("PVR compressed texture is not square and will be resized.");
+
+            newWidth = Math.max(newWidth, newHeight);
+            newHeight = newWidth;
+        }
+
+        if (settings.alignToCompressor) {
+            newWidth = textureCompressor.getAlignedWidth(settings.textureFormat, newWidth);
+            newHeight = textureCompressor.getAlignedHeight(settings.textureFormat, newHeight);
+        }
+        return new int[] { newWidth, newHeight };
+    }
+
+    /** Tests the KTX2 signature without loading the native texture compiler. */
+    public static boolean isKtx2(byte[] data) {
+        byte[] magic = {(byte)0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, (byte)0xbb, 0x0d, 0x0a, 0x1a, 0x0a};
+        if (data.length < magic.length) return false;
+        for (int i = 0; i < magic.length; ++i) {
+            if (data[i] != magic[i]) return false;
+        }
+        return true;
+    }
+
+    private static DecodedImage decodeKtx2Mip(DecodedImage source, int level, boolean premultiplyAlpha) throws IOException {
+        TexcLibraryJni.Ktx2Texture texture = source.ktx2;
+        DecodedImage decoded = new DecodedImage();
+        decoded.path = source.path;
+        decoded.width = Math.max(1, texture.width >> level);
+        decoded.height = Math.max(1, texture.height >> level);
+        decoded.componentCount = source.componentCount;
+        decoded.texcPixelFormat = source.texcPixelFormat;
+        decoded.texcColorSpace = source.texcColorSpace;
+        decoded.srgbFiltering = texture.srgb;
+        decoded.premultiplied = texture.premultiplied;
+        decoded.data = texture.decodeMip(level);
+        if (decoded.premultiplied && !premultiplyAlpha) {
+            for (int i = 0; i < decoded.data.length; i += 4) {
+                int alpha = decoded.data[i + 3] & 0xff;
+                for (int c = 0; c < 3; ++c) {
+                    int value = decoded.data[i + c] & 0xff;
+                    decoded.data[i + c] = (byte)(alpha == 0 ? 0 : Math.min(255, (value * 255 + alpha / 2) / alpha));
+                }
+            }
+            decoded.premultiplied = false;
+        }
+        return decoded;
+    }
+
+    private static List<byte[]> generateFromKtx2(TextureImage.Image.Builder builder, DecodedImage source,
+                                                TextureGenerationSettings settings, EnumSet<FlipAxis> flipAxis)
+            throws TextureGeneratorException, IOException {
+        TexcLibraryJni.Ktx2Texture texture = source.ktx2;
+        ITextureCompressor compressor = TextureCompression.getCompressor(settings.compressorName);
+        TextureCompressorPreset preset = TextureCompression.getPreset(settings.compressorPresetName);
+        if (compressor == null || preset == null || !compressor.supportsTextureFormat(settings.textureFormat)
+                || !compressor.supportsTextureCompressorPreset(preset)) {
+            throw new TextureGeneratorException("Invalid KTX2 texture compressor, preset, or output format.");
+        }
+        int[] dimensions = textureDimensions(source, settings, compressor);
+        int firstLevel = -1;
+        for (int level = 0; level < texture.levelCount; ++level) {
+            if (Math.max(1, texture.width >> level) == dimensions[0]
+                    && Math.max(1, texture.height >> level) == dimensions[1]) {
+                firstLevel = level;
+                break;
+            }
+        }
+        EnumSet<FlipAxis> flips = ktx2FlipAxes(texture, flipAxis);
+        if (firstLevel < 0) {
+            DecodedImage decoded = decodeKtx2Mip(source, 0, settings.premulAlpha);
+            List<byte[]> result = generateFromDecodedImage(builder, decoded, settings, flips, 0);
+            builder.setOriginalWidth(source.width).setOriginalHeight(source.height);
+            return result;
+        }
+
+        boolean preserve = settings.ktx2Encoder != null && texture.canRepack && flips.isEmpty()
+                && (texture.channels == 3 || texture.premultiplied == settings.premulAlpha);
+        builder.setWidth(dimensions[0]).setHeight(dimensions[1])
+                .setOriginalWidth(source.width).setOriginalHeight(source.height).setFormat(settings.textureFormat);
+        List<byte[]> result = new ArrayList<>();
+        int offset = 0;
+        int lastLevel = settings.generateMipMaps ? texture.levelCount - 1 : firstLevel;
+        for (int level = firstLevel; level <= lastLevel; ++level) {
+            int width = Math.max(1, texture.width >> level);
+            int height = Math.max(1, texture.height >> level);
+            boolean completeTail = settings.generateMipMaps && level == lastLevel && (width > 1 || height > 1);
+            TextureImage.Image.Builder mipBuilder = TextureImage.Image.newBuilder();
+            List<byte[]> mipData;
+            if (preserve) {
+                byte[] bytes = texture.repackMip(level);
+                mipData = new ArrayList<>();
+                mipData.add(bytes);
+                mipBuilder.addMipMapDimensions(width).addMipMapDimensions(height);
+            } else {
+                TextureGenerationSettings mipSettings = createTextureGenerationSettings(source, settings.textureFormat,
+                        settings.compressorName, settings.compressorPresetName, completeTail, 0, settings.premulAlpha);
+                // Authored mip sizes have already been validated against the target dimensions.
+                mipSettings.powerOfTwo = false;
+                mipSettings.alignToCompressor = false;
+                mipSettings.ktx2Encoder = settings.ktx2Encoder;
+                mipData = generateFromDecodedImage(mipBuilder, decodeKtx2Mip(source, level, settings.premulAlpha), mipSettings, flips, level - firstLevel);
+            }
+            for (int mip = 0; mip < mipData.size(); ++mip) {
+                byte[] bytes = mipData.get(mip);
+                result.add(bytes);
+                builder.addMipMapOffset(offset).addMipMapSize(bytes.length).addMipMapSizeCompressed(bytes.length)
+                        .addMipMapDimensions(mipBuilder.getMipMapDimensions(mip * 2))
+                        .addMipMapDimensions(mipBuilder.getMipMapDimensions(mip * 2 + 1));
+                offset += bytes.length;
+            }
+            if (preserve && completeTail) {
+                // Generate only the missing descendants; never replace the last authored level.
+                TextureGenerationSettings tailSettings = createTextureGenerationSettings(source, settings.textureFormat,
+                        settings.compressorName, settings.compressorPresetName, true, 0, settings.premulAlpha);
+                tailSettings.powerOfTwo = false;
+                tailSettings.alignToCompressor = false;
+                tailSettings.ktx2Encoder = settings.ktx2Encoder;
+                TextureImage.Image.Builder tail = TextureImage.Image.newBuilder();
+                List<byte[]> tailData = generateFromDecodedImage(tail, decodeKtx2Mip(source, level, settings.premulAlpha), tailSettings, flips, level - firstLevel);
+                for (int mip = 1; mip < tailData.size(); ++mip) {
+                    byte[] bytes = tailData.get(mip);
+                    result.add(bytes);
+                    builder.addMipMapOffset(offset).addMipMapSize(bytes.length).addMipMapSizeCompressed(bytes.length)
+                            .addMipMapDimensions(tail.getMipMapDimensions(mip * 2))
+                            .addMipMapDimensions(tail.getMipMapDimensions(mip * 2 + 1));
+                    offset += bytes.length;
+                }
+            }
+        }
+        builder.setDataSize(offset);
+        return result;
+    }
+
+    private static List<Long> GenerateImages(long image, int width, int height, boolean generateMipChain, boolean srgb, boolean premultiplied) throws TextureGeneratorException {
         TimeProfiler.start("GenerateImages");
         List<Long> images = new ArrayList<>();
         int baseWidth = TexcLibraryJni.GetWidth(image);
@@ -263,7 +699,7 @@ public class TextureGenerator {
         if (baseMatches) {
             images.add(image);
         } else {
-            long resizedBase = TexcLibraryJni.Resize(image, width, height);
+            long resizedBase = TexcLibraryJni.Resize(image, width, height, srgb, premultiplied);
             if (resizedBase == 0) {
                 throw new TextureGeneratorException("Failed to create mipmap 0");
             }
@@ -281,7 +717,7 @@ public class TextureGenerator {
             long resizedImage;
 
             TimeProfiler.start("ResizeMipLevel" + mipLevel);
-            resizedImage = TexcLibraryJni.Resize(prevImage, mipWidth, mipHeight);
+            resizedImage = TexcLibraryJni.Resize(prevImage, mipWidth, mipHeight, srgb, premultiplied);
             if (resizedImage == 0) {
                 throw new TextureGeneratorException("Failed to create mipmap " + mipLevel);
             }
@@ -295,201 +731,84 @@ public class TextureGenerator {
         return images;
     }
 
-    private static List<byte[]> generateFromColorAndFormat(TextureImage.Image.Builder builder,
-                                                           BufferedImage image,
-                                                           ColorModel colorModel,
-                                                           TextureFormat textureFormat,
-                                                           String compressorName,
-                                                           String compressorPresetName,
-                                                           boolean generateMipMaps,
-                                                           int maxTextureSize,
-                                                           boolean premulAlpha,
-                                                           EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
-
-        int width = image.getWidth();
-        int height = image.getHeight();
-        int componentCount = colorModel.getNumComponents();
-        Integer pixelFormat;
-
-        Logger logger = Logger.getLogger(TextureGenerator.class.getName());
-
-        // Transform the texture format to a supported texture format
-        textureFormat = textureFormatToSupportedTextureFormat(textureFormat);
-
-        // pick a pixel format (for texc) based on the texture format
-        pixelFormat = pixelFormatLUT.get(textureFormat);
-        if (pixelFormat == null) {
-            throw new TextureGeneratorException("Invalid texture format.");
-        }
-
+    private static DecodedImage createDecodedImage(BufferedImage image, ColorModel colorModel) {
         ByteBuffer byteBuffer = getByteBuffer(image);
-        byte[] bytes = byteBuffer.array();
-
-        TimeProfiler.start("CreateTexture");
-        long textureImage = TexcLibraryJni.CreateImage(null, width, height,
-                                                       Texc.PixelFormat.PF_A8B8G8R8.getValue(),
-                                                       Texc.ColorSpace.CS_SRGB.getValue(), bytes);
-
-        TimeProfiler.stop();
-        if (textureImage == 0) {
-            throw new TextureGeneratorException("Failed to create texture");
-        }
-
-        try {
-
-            ITextureCompressor textureCompressor = TextureCompression.getCompressor(compressorName);
-
-            if (textureCompressor == null) {
-                if (!compressorName.equals(TextureCompressorUncompressed.TextureCompressorName)) {
-                    logger.warning(String.format("Texture compressor '%s' not found, using the default texture compressor.", compressorName));
-                }
-                textureCompressor = getDefaultTextureCompressor();
-                compressorPresetName = TextureCompressorUncompressed.TextureCompressorUncompressedPresetName;
-            }
-
-            TextureCompressorPreset textureCompressorPreset = TextureCompression.getPreset(compressorPresetName);
-            if (textureCompressorPreset == null) {
-                throw new TextureGeneratorException("Texture compressor preset '" + compressorPresetName + "' not found.");
-            }
-
-            if (!textureCompressor.supportsTextureFormat(textureFormat)) {
-                throw new TextureGeneratorException("Texture compressor doesn't support the texture format " + textureFormat);
-            }
-
-            if (!textureCompressor.supportsTextureCompressorPreset(textureCompressorPreset)) {
-                throw new TextureGeneratorException("Texture compressor doesn't support the texture compressor preset " + compressorPresetName);
-            }
-
-            int newWidth  = image.getWidth();
-            int newHeight = image.getHeight();
-
-            // For pvrtc textures
-            newWidth = TextureUtil.closestPOT(newWidth);
-            newHeight = TextureUtil.closestPOT(newHeight);
-
-            // Shrink sides until width & height fit max texture size specified in tex profile
-            if (maxTextureSize > 0) {
-                while (newWidth > maxTextureSize || newHeight > maxTextureSize) {
-                    newWidth = Math.max(newWidth / 2, 1);
-                    newHeight = Math.max(newHeight / 2, 1);
-                }
-
-                assert(newWidth <= maxTextureSize && newHeight <= maxTextureSize);
-            }
-
-            // PVR textures need to be square on iOS
-            if ((newHeight != newWidth) &&
-                (textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 ||
-                textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 ||
-                textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 ||
-                textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1)) {
-
-                logger.warning("PVR compressed texture is not square and will be resized.");
-
-                newWidth = Math.max(newWidth, newHeight);
-                newHeight = newWidth;
-            }
-
-            // Premultiply before scale so filtering cannot introduce colour artefacts.
-            if (premulAlpha && !ColorModel.getRGBdefault().isAlphaPremultiplied()) {
-                TimeProfiler.start("PreMultiplyAlpha");
-                if (!TexcLibraryJni.PreMultiplyAlpha(textureImage)) {
-                    throw new TextureGeneratorException("could not premultiply alpha");
-                }
-                TimeProfiler.stop();
-            }
-
-            newWidth = textureCompressor.getAlignedWidth(textureFormat, newWidth);
-            newHeight = textureCompressor.getAlignedHeight(textureFormat, newHeight);
-
-            // Resize to POT if necessary
-            if (width != newWidth || height != newHeight) {
-                TimeProfiler.start("Resize");
-                long resizedTextureImage = TexcLibraryJni.Resize(textureImage, newWidth, newHeight);
-                if (resizedTextureImage == 0) {
-                    throw new TextureGeneratorException("could not resize texture to POT");
-                }
-                textureImage = resizedTextureImage;
-                TimeProfiler.stop();
-            }
-
-            // Loop over all axis that should be flipped.
-            for (Texc.FlipAxis flip : flipAxis) {
-                TimeProfiler.start("FlipAxis");
-                if (!TexcLibraryJni.Flip(textureImage, flip.getValue())) {
-                    throw new TextureGeneratorException("could not flip on " + flip);
-                }
-                TimeProfiler.stop();
-            }
-
-            if (pixelFormat == Texc.PixelFormat.PF_R4G4B4A4.getValue() || pixelFormat == Texc.PixelFormat.PF_R5G6B5.getValue()) {
-
-                TimeProfiler.start("Dither");
-                if (!TexcLibraryJni.Dither(textureImage, pixelFormat)) {
-                    throw new TextureGeneratorException("could not dither image");
-                }
-                TimeProfiler.stop();
-            }
-
-            // Generate output images for builder
-            builder.setWidth(newWidth)
-                    .setHeight(newHeight)
-                    .setOriginalWidth(width)
-                    .setOriginalHeight(height)
-                    .setFormat(textureFormat);
-
-            int mipMapLevel = 0;
-            int offset = 0;
-
-            List<Long> mipImages = GenerateImages(textureImage, newWidth, newHeight, generateMipMaps);
-            List<byte[]> compressedMipImageDatas = new ArrayList<>();
-            TimeProfiler.start("textureCompressor.compress");
-            TimeProfiler.addData("mips count", mipImages.size());
-            for (Long mipImage : mipImages) {
-
-                byte[] uncompressed = TexcLibraryJni.GetData(mipImage);
-                int mipWidth        = TexcLibraryJni.GetWidth(mipImage);
-                int mipHeight       = TexcLibraryJni.GetHeight(mipImage);
-                String paramsName   = "MipMap_" + mipMapLevel;
-
-                TextureCompressorParams params = new TextureCompressorParams(paramsName, mipMapLevel, mipWidth, mipHeight, 0, componentCount, Texc.PixelFormat.PF_R8G8B8A8.getValue(), pixelFormat, Texc.ColorSpace.CS_SRGB.getValue());
-                byte[] compressedData = textureCompressor.compress(textureCompressorPreset, params, uncompressed);
-
-                if (compressedData.length == 0) {
-                    throw new TextureGeneratorException("could not encode");
-                }
-
-                compressedMipImageDatas.add(compressedData);
-                builder.addMipMapOffset(offset);
-                builder.addMipMapSize(compressedData.length);
-                builder.addMipMapSizeCompressed(compressedData.length);
-                builder.addMipMapDimensions(textureCompressor.getAlignedWidth(textureFormat, mipWidth));
-                builder.addMipMapDimensions(textureCompressor.getAlignedHeight(textureFormat, mipHeight));
-
-                offset += compressedData.length;
-                mipMapLevel++;
-            }
-            TimeProfiler.stop();
-            builder.setDataSize(offset);
-            builder.setFormat(textureFormat);
-
-            // Cleanup the texture images
-            for (Long mipImage : mipImages) {
-                // Avoid double-destroying the original image handle (cleaned up in the finally block).
-                if (mipImage != textureImage) {
-                    TexcLibraryJni.DestroyImage(mipImage);
-                }
-            }
-
-            return compressedMipImageDatas;
-        } finally {
-            TexcLibraryJni.DestroyImage(textureImage);
-        }
+        DecodedImage source = new DecodedImage();
+        source.hdr = false;
+        source.path = null;
+        source.width = image.getWidth();
+        source.height = image.getHeight();
+        source.componentCount = colorModel.getNumComponents();
+        source.texcPixelFormat = Texc.PixelFormat.PF_A8B8G8R8.getValue();
+        source.texcColorSpace = Texc.ColorSpace.CS_SRGB.getValue();
+        source.data = byteBuffer.array();
+        return source;
     }
 
     // For convenience, some methods without the flipAxis and/or compress argument.
     // It will always try to flip on Y axis since this is the byte order that OpenGL expects for regular/most textures,
     // for those methods without this argument.
+    public static GenerateResult generate(byte[] data, TextureProfile texProfile, boolean compress) throws TextureGeneratorException, IOException {
+        return generate(data, texProfile, compress, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
+    }
+
+    public static GenerateResult generate(byte[] data, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
+        if (isKtx2(data)) {
+            try (TexcLibraryJni.Ktx2Texture texture = TexcLibraryJni.LoadKtx2(data)) {
+                return generate(createDecodedImage(texture), texProfile, compress, flipAxis);
+            }
+        }
+        if (TexcLibraryJni.IsHDR(data)) {
+            TimeProfiler.start("Load HDR Texture");
+            Texc.Image hdrImage = TexcLibraryJni.CreateImageFromBuffer(data);
+            TimeProfiler.stop();
+            if (hdrImage == null) {
+                throw new TextureGeneratorException("Failed to load HDR texture");
+            }
+            return generate(createDecodedImage(hdrImage), texProfile, compress, flipAxis);
+        }
+
+        return generate(new ByteArrayInputStream(data), texProfile, compress, flipAxis);
+    }
+
+    private static DecodedImage createDecodedImage(TexcLibraryJni.Ktx2Texture texture) {
+        DecodedImage source = new DecodedImage();
+        source.path = "KTX2";
+        source.width = texture.width;
+        source.height = texture.height;
+        // R and RG are data channels, not luminance and luminance-alpha.
+        source.componentCount = texture.channels == 3 ? 3 : 4;
+        source.texcPixelFormat = Texc.PixelFormat.PF_R8G8B8A8.getValue();
+        source.texcColorSpace = (texture.srgb ? Texc.ColorSpace.CS_SRGB : Texc.ColorSpace.CS_LRGB).getValue();
+        source.ktx2 = texture;
+        return source;
+    }
+
+    private static EnumSet<FlipAxis> ktx2FlipAxes(TexcLibraryJni.Ktx2Texture texture, EnumSet<FlipAxis> flipAxis) {
+        EnumSet<FlipAxis> flips = flipAxis.clone();
+        if (texture.flipX && !flips.remove(FlipAxis.FLIP_AXIS_X)) flips.add(FlipAxis.FLIP_AXIS_X);
+        if (texture.flipY && !flips.remove(FlipAxis.FLIP_AXIS_Y)) flips.add(FlipAxis.FLIP_AXIS_Y);
+        return flips;
+    }
+
+    /** Previews one authored mip at its original size, with editor orientation and premultiplied alpha. */
+    public static GenerateResult generateKtx2MipPreview(TexcLibraryJni.Ktx2Texture texture, int level)
+            throws TextureGeneratorException, IOException {
+        DecodedImage source = createDecodedImage(texture);
+        TextureGenerationSettings settings = createTextureGenerationSettings(source, TextureFormat.TEXTURE_FORMAT_RGBA,
+                TextureCompressorUncompressed.TextureCompressorName, TextureCompressorUncompressed.GetMigratedCompressionPreset(),
+                false, 0, true);
+        settings.powerOfTwo = false;
+        settings.alignToCompressor = false;
+        TextureImage.Image.Builder image = TextureImage.Image.newBuilder();
+        GenerateResult result = new GenerateResult();
+        result.imageDatas = new ArrayList<>(generateFromDecodedImage(image, decodeKtx2Mip(source, level, true), settings,
+                ktx2FlipAxes(texture, EnumSet.of(FlipAxis.FLIP_AXIS_Y)), 0));
+        result.textureImage = TextureImage.newBuilder().setType(TextureImage.Type.TYPE_2D).setCount(1)
+                .addAlternatives(image).build();
+        return result;
+    }
+
     public static GenerateResult generate(InputStream inputStream) throws TextureGeneratorException, IOException {
         TimeProfiler.start("Read Input Stream");
         BufferedImage origImage = ImageIO.read(inputStream);
@@ -522,7 +841,126 @@ public class TextureGenerator {
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
         TimeProfiler.stop();
+        if (origImage == null) {
+            throw new TextureGeneratorException("Unknown texture format.");
+        }
         return generate(origImage, texProfile, compress, flipAxis);
+    }
+
+    private static GenerateResult generate(DecodedImage source, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
+        TextureImage.Builder textureBuilder = TextureImage.newBuilder();
+        GenerateResult result = new GenerateResult();
+        result.imageDatas = new ArrayList<>();
+
+        if (texProfile != null) {
+            for (PlatformProfile platformProfile : texProfile.getPlatformsList()) {
+                if (source.ktx2 != null && platformProfile.getKeepKtx2Format()) {
+                    TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder();
+                    TextureGenerationSettings settings = createTextureGenerationSettings(source,
+                            pickOptimalFormat(source.componentCount, TextureFormat.TEXTURE_FORMAT_RGBA),
+                            TextureCompressorUncompressed.TextureCompressorName,
+                            TextureCompressorUncompressed.TextureCompressorUncompressedPresetName,
+                            platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), platformProfile.getPremultiplyAlpha());
+                    settings.powerOfTwo = false;
+                    settings.alignToCompressor = false;
+                    TexcLibraryJni.Ktx2Texture texture = source.ktx2;
+                    if (compress && (texture.vkFormat == 0 || texture.vkFormat >= 145)) {
+                        settings.ktx2Encoder = texture;
+                    }
+                    List<byte[]> imageDatas = generateFromDecodedImage(imageBuilder, source, settings, flipAxis, 0);
+                    if (settings.ktx2Encoder != null && texture.vkFormat == 0) {
+                        imageBuilder.setCompressionType(texture.supercompression == 1
+                                ? TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_ETC1S
+                                : TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC);
+                    } else {
+                        imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
+                        if (settings.ktx2Encoder != null) imageBuilder.setFormat(TextureFormat.TEXTURE_FORMAT_RGBA_BC7);
+                    }
+                    textureBuilder.addAlternatives(imageBuilder);
+                    result.imageDatas.addAll(imageDatas);
+                    continue;
+                }
+                for (TextureFormatAlternative formatAlternative : platformProfile.getFormatsList()) {
+                    TextureFormat textureFormat = formatAlternative.getFormat();
+
+                    if (source.hdr) {
+                        if (!isHDRTextureFormat(textureFormat)) {
+                            continue;
+                        }
+                    } else {
+                        // Prefer an output format matching the number of source channels.
+                        textureFormat = pickOptimalFormat(source.componentCount, textureFormat);
+                    }
+
+                    String textureCompressor = formatAlternative.getCompressor();
+                    String textureCompressorPreset = formatAlternative.getCompressorPreset();
+                    TextureImage.CompressionType compressionType;
+
+                    if (compress) {
+                        if (textureCompressor.isEmpty()) {
+                            compressionType = textureFormatToSupportedCompressionTypeOrDefault(textureFormat, formatAlternative.getCompressionType());
+                        } else {
+                            compressionType = textureCompressorToCompressionType(textureCompressor);
+                        }
+
+                        if (textureCompressorPreset.isEmpty()) {
+                            textureCompressor = compressionTypeToTextureCompressor(compressionType);
+                            textureCompressorPreset = compressionLevelToTextureCompressorPreset(compressionType, formatAlternative.getCompressionLevel());
+                        }
+                    } else {
+                        if (source.hdr) {
+                            if (supportsASTCTextureFormat(textureFormat)) {
+                                textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA32F;
+                            }
+                        } else {
+                            textureFormat = pickUncompressedFormat(textureFormat);
+                        }
+                        compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT;
+                        textureCompressor = compressionTypeToTextureCompressor(compressionType);
+                        textureCompressorPreset = compressionLevelToTextureCompressorPreset(compressionType, TextureFormatAlternative.CompressionLevel.NORMAL);
+                    }
+
+                    TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder();
+                    TextureGenerationSettings settings = createTextureGenerationSettings(source,
+                                                                                         textureFormat,
+                                                                                         textureCompressor,
+                                                                                         textureCompressorPreset,
+                                                                                         platformProfile.getMipmaps(),
+                                                                                         platformProfile.getMaxTextureSize(),
+                                                                                         !source.hdr && platformProfile.getPremultiplyAlpha());
+                    List<byte[]> imageDatas = generateFromDecodedImage(imageBuilder, source, settings, flipAxis, 0);
+                    imageBuilder.setCompressionType(compressionType);
+                    textureBuilder.addAlternatives(imageBuilder);
+                    result.imageDatas.addAll(imageDatas);
+                }
+            }
+
+            if (source.hdr && textureBuilder.getAlternativesCount() == 0) {
+                throw new TextureGeneratorException("HDR textures require a texture profile with RGBA16F, RGBA32F, or ASTC texture formats.");
+            }
+        }
+
+        if (textureBuilder.getAlternativesCount() == 0) {
+            TextureFormat textureFormat = source.hdr
+                    ? TextureFormat.TEXTURE_FORMAT_RGBA32F
+                    : pickOptimalFormat(source.componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
+            TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder();
+            TextureGenerationSettings settings = createTextureGenerationSettings(source,
+                                                                                 textureFormat,
+                                                                                 TextureCompressorUncompressed.TextureCompressorName,
+                                                                                 TextureCompressorUncompressed.TextureCompressorUncompressedPresetName,
+                                                                                 true,
+                                                                                 0,
+                                                                                 !source.hdr);
+            List<byte[]> imageDatas = generateFromDecodedImage(imageBuilder, source, settings, flipAxis, 0);
+            imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
+            textureBuilder.addAlternatives(imageBuilder);
+            result.imageDatas.addAll(imageDatas);
+        }
+
+        textureBuilder.setCount(1).setType(Type.TYPE_2D);
+        result.textureImage = textureBuilder.build();
+        return result;
     }
 
     public static GenerateResult generate(BufferedImage origImage, TextureProfile texProfile, boolean compress) throws TextureGeneratorException, IOException {
@@ -621,9 +1059,9 @@ public class TextureGenerator {
     // Main TextureGenerator.generate method that has all required arguments and the expected BufferedImage type for origImage.
     // Used by the editor
     public static GenerateResult generate(BufferedImage origImage, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
-        // Convert image into readable format
-        // Always convert to ABGR since the texc lib demands that for resizing etc
         TimeProfiler.start("generateTexture");
+
+        // Always convert to ABGR since the texc lib demands that for resizing etc.
         BufferedImage image;
         if (origImage.getType() != BufferedImage.TYPE_4BYTE_ABGR) {
             image = convertImage(origImage, BufferedImage.TYPE_4BYTE_ABGR);
@@ -631,91 +1069,7 @@ public class TextureGenerator {
             image = origImage;
         }
 
-        // Setup texture format and settings
-        ColorModel colorModel = origImage.getColorModel();
-        int componentCount = colorModel.getNumComponents();
-        TextureImage.Builder textureBuilder = TextureImage.newBuilder();
-
-        GenerateResult result = new GenerateResult();
-        result.imageDatas = new ArrayList<>();
-
-        int currentDataOffset = 0;
-        if (texProfile != null) {
-
-            // Generate an image for each format specified in the profile
-            for (PlatformProfile platformProfile : texProfile.getPlatformsList()) {
-                for (int i = 0; i < platformProfile.getFormatsList().size(); ++i) {
-                    TextureFormat textureFormat = platformProfile.getFormats(i).getFormat();
-                    String textureCompressor = platformProfile.getFormats(i).getCompressor();
-                    String textureCompressorPreset = platformProfile.getFormats(i).getCompressorPreset();
-                    TextureImage.CompressionType compressionType;
-
-                    // We pick a "new" format based on the input image component count and a "target" format.
-                    // For example, we would rather have a texture format with 3 channels if the input
-                    // image has 3 channels, even if the texture profile specified a format with 4 channels.
-                    textureFormat = pickOptimalFormat(componentCount, textureFormat);
-
-                    if (compress) {
-                        // If the textureCompressor field is empty, we use the leagcy settings
-                        if (textureCompressor.isEmpty()) {
-                            compressionType = textureFormatToSupportedCompressionTypeOrDefault(textureFormat, platformProfile.getFormats(i).getCompressionType());
-                        } else {
-                            compressionType = textureCompressorToCompressionType(textureCompressor);
-                        }
-
-                        // If the textureCompressorPreset field is empty, we use the leagcy pipeline
-                        if (textureCompressorPreset.isEmpty()) {
-                            TextureFormatAlternative.CompressionLevel compressionLevel = platformProfile.getFormats(i).getCompressionLevel();
-                            textureCompressor = compressionTypeToTextureCompressor(compressionType);
-                            textureCompressorPreset = compressionLevelToTextureCompressorPreset(compressionType, compressionLevel);
-                        }
-                    } else {
-                        // If there has been no compression requested, we still need to produce alternatives since
-                        // there are other settings that control how textures are produced (e.g pixel format)
-                        textureFormat = pickUncompressedFormat(textureFormat);
-                        compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT;
-                        textureCompressor = compressionTypeToTextureCompressor(compressionType);
-                        textureCompressorPreset = compressionLevelToTextureCompressorPreset(compressionType, TextureFormatAlternative.CompressionLevel.NORMAL);
-                    }
-
-                    try {
-                        TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder();
-                        List<byte[]> imageDatas = generateFromColorAndFormat(imageBuilder, image, colorModel, textureFormat, textureCompressor, textureCompressorPreset, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), platformProfile.getPremultiplyAlpha(), flipAxis);
-                        imageBuilder.setCompressionType(compressionType);
-                        textureBuilder.addAlternatives(imageBuilder);
-
-                        result.imageDatas.addAll(imageDatas);
-                    } catch (TextureGeneratorException e) {
-                        throw e;
-                    }
-
-                }
-            }
-
-            textureBuilder.setCount(1);
-            if (textureBuilder.getAlternativesCount() == 0) {
-                texProfile = null;
-            }
-        }
-
-        // If no texture profile was supplied, or no matching format was found, or no compression has been requested
-        if (texProfile == null) {
-
-            // Guess texture format based on number color components of input image
-            TextureFormat textureFormat = pickOptimalFormat(componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
-            TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder();
-            List<byte[]> imageDatas = generateFromColorAndFormat(imageBuilder, image, colorModel, textureFormat, TextureCompressorUncompressed.TextureCompressorName, TextureCompressorUncompressed.TextureCompressorUncompressedPresetName, true, 0, true, flipAxis);
-
-            imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
-            textureBuilder.addAlternatives(imageBuilder);
-            textureBuilder.setCount(1);
-
-            result.imageDatas.addAll(imageDatas);
-        }
-
-        textureBuilder.setType(Type.TYPE_2D);
-        result.textureImage = textureBuilder.build();
-
+        GenerateResult result = generate(createDecodedImage(image, origImage.getColorModel()), texProfile, compress, flipAxis);
         TimeProfiler.stop();
         return result;
     }

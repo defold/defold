@@ -196,7 +196,6 @@ function(defold_target_link_csharp_runtime target platform)
   target_link_libraries(${target} PRIVATE ${_aot_runtime_files})
 
   target_link_libraries(${target} PRIVATE
-    "-framework OpenAL"
     "-framework OpenGL"
     "-framework QuartzCore")
 endfunction()

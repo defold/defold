@@ -194,7 +194,7 @@ typedef enum WindowState
  * @member m_Samples [type:uint32_t] Requested multisample anti-aliasing sample count (default: 1)
  * @member m_BackgroundColor [type:uint32_t] Initial window background color value
  * @member m_ContextAlphabits [type:uint8_t] Requested alpha bits for the graphics context
- * @member m_OpenGLVersionHint [type:uint8_t:7] OpenGL version hint encoded as major*10 + minor (for example 33 means OpenGL 3.3)
+ * @member m_GraphicsApiVersionHint [type:uint8_t:7] Graphics API version hint
  * @member m_OpenGLUseCoreProfileHint [type:uint8_t:1] Request OpenGL core profile when opening the window
  * @member m_Hidden [type:uint8_t:1] Start window hidden
  * @member m_Fullscreen [type:uint8_t:1] Start window in fullscreen mode
@@ -220,7 +220,7 @@ typedef struct WindowCreateParams
     uint32_t                m_Samples;
     uint32_t                m_BackgroundColor;
     uint8_t                 m_ContextAlphabits;
-    uint8_t                 m_OpenGLVersionHint         : 7;
+    uint8_t                 m_GraphicsApiVersionHint    : 7;
     uint8_t                 m_OpenGLUseCoreProfileHint  : 1;
     uint8_t                 m_Hidden                    : 1;
     uint8_t                 m_Fullscreen                : 1;
@@ -306,6 +306,20 @@ uint32_t WindowGetStateParam(HWindow window, WindowState state);
  * @return scale_factor [type:float] display scale factor
  */
 float WindowGetDisplayScaleFactor(HWindow window);
+
+/*# get display density
+ * Returns a platform specific estimate of the display density, in dots per inch. 96 is returned on
+ * platforms that do not have a density of their own. The value is a logical density used for pixel
+ * scaling rather than a measurement of the display: Android reports the density bucket
+ * (`densityDpi`), which a user or an OEM can override, iOS reports the native scale of the screen
+ * expressed as dpi, HTML5 reports the device pixel ratio expressed as dpi and the desktop platforms
+ * derive it from the monitor physical size. Use it to scale sizes against a reference density, not
+ * to measure the display.
+ * @name WindowGetDisplayDensity
+ * @param window [type:HWindow] window handle
+ * @return density [type:float] platform specific display density estimate in dots per inch
+ */
+float WindowGetDisplayDensity(HWindow window);
 
 /*# set window size
  * @name WindowSetSize

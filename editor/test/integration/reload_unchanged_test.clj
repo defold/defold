@@ -22,6 +22,7 @@
             [editor.resource-update :as resource-update]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime]]))
 
 (set! *warn-on-reflection* true)
@@ -134,9 +135,9 @@
 
 (defn- perform-edits-to-all-editable-files [project]
   (into []
-        (mapcat (fn [[editable-resource-node-id]]
-                  (test-util/edit-resource-node editable-resource-node-id)))
-        (g/sources-of project :save-data)))
+        (mapcat (fn [arc]
+                  (test-util/edit-resource-node (gt/source-id arc))))
+        (g/inputs (g/now) project :save-data)))
 
 (defn- perform-edits-to-all-editable-files! [project]
   (g/transact (perform-edits-to-all-editable-files project))
@@ -148,11 +149,10 @@
 
 (deftest keep-existing-nodes-no-false-positives-test
   (test-util/with-scratch-project project-path
-    (let [project-graph (g/node-id->graph-id project)
-          resource-change-plans-atom (make-resource-change-plans-atom! project)
+    (let [resource-change-plans-atom (make-resource-change-plans-atom! project)
 
           resource+edited-contents
-          (with-open [_ (test-util/make-graph-reverter project-graph)]
+          (with-open [_ (test-util/make-system-reverter)]
             (perform-edits-to-all-editable-files! project)
             (into []
                   (map (fn [save-data]
@@ -240,15 +240,14 @@
 
 (deftest keep-existing-nodes-undo-after-save-test
   (test-util/with-scratch-project project-path
-    (let [project-graph (g/node-id->graph-id project)
-          resource-change-plans-atom (make-resource-change-plans-atom! project)]
+    (let [resource-change-plans-atom (make-resource-change-plans-atom! project)]
 
       ;; Perform edits on all editable files in the project.
       (perform-edits-to-all-editable-files! project)
 
       ;; Touch all files except the lazy-loaded non-editable ones. We don't want
       ;; to trigger a reload of these files for this test, as it will cause the
-      ;; undo queue to be cleared due to the necessary node replacements.
+      ;; undo to be cleared due to the necessary node replacements.
       (let [touch-resource? (comp (complement (set lazy-loaded-non-editable-file-proj-paths)) resource/proj-path)
             touched-resources (filterv touch-resource? (all-file-resources workspace))]
         (touch-and-resource-sync! touched-resources)
@@ -258,8 +257,8 @@
           (is (= (expect-reloaded project touched-resources [])
                  (resource-changes (@resource-change-plans-atom 0))))))
 
-      ;; Ensure the undo queue is intact.
-      (is (= 1 (g/undo-stack-count project-graph)))
+      ;; Ensure undo is intact.
+      (is (= 1 (g/undo-stack-count :undo/global)))
 
       ;; Ensure all editable files are considered dirty before saving.
       (is (= (save-datas->proj-path-set (project/all-save-data project))
@@ -272,8 +271,8 @@
       (is (= #{} (save-datas->proj-path-set (project/dirty-save-data project))))
 
       ;; Undo our changes past the point of the save.
-      (is (= 1 (g/undo-stack-count project-graph)))
-      (g/undo! project-graph)
+      (is (= 1 (g/undo-stack-count :undo/global)))
+      (g/undo! :undo/global)
 
       ;; Ensure all editable files are now considered dirty again.
       (is (= (save-datas->proj-path-set (project/all-save-data project))

@@ -15,6 +15,8 @@ int layout_cache_tests(void);
 int rasterizer_tests(void);
 int image_atlas_tests(void);
 int cpp_tests(void);
+int attributed_text_tests(void);
+int rich_text_tests(void);
 
 int main( void )
 {
@@ -34,6 +36,8 @@ int main( void )
 	RUN_TEST(rasterizer_tests);
 	RUN_TEST(image_atlas_tests);
 	RUN_TEST(cpp_tests);
+	RUN_TEST(attributed_text_tests);
+	RUN_TEST(rich_text_tests);
 
 	printf( "======================================\n" );
 	printf( "All tests passed!\n" );

@@ -1,17 +1,3 @@
--- Copyright 2020-2024 The Defold Foundation
--- Copyright 2014-2020 King
--- Copyright 2009-2014 Ragnar Svensson, Christian Murray
--- Licensed under the Defold License version 1.0 (the "License"); you may not use
--- this file except in compliance with the License.
---
--- You may obtain a copy of the License, together with FAQs at
--- https://www.defold.com/license
---
--- Unless required by applicable law or agreed to in writing, software distributed
--- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
--- CONDITIONS OF ANY KIND, either express or implied. See the License for the
--- specific language governing permissions and limitations under the License.
-
 require "lua.test_helpers"
 
 function make_constant(name, value, type)
@@ -38,6 +24,7 @@ function default_sampler(name)
         name = hash(name),
         u_wrap = graphics.TEXTURE_WRAP_CLAMP_TO_EDGE,
         v_wrap = graphics.TEXTURE_WRAP_CLAMP_TO_EDGE,
+        w_wrap = graphics.TEXTURE_WRAP_REPEAT,
         min_filter = graphics.TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST,
         mag_filter = graphics.TEXTURE_FILTER_LINEAR,
         max_anisotropy = 1
@@ -50,6 +37,7 @@ function assert_sampler(sampler, expected)
     assert(sampler.name           == expected.name)
     assert(sampler.u_wrap         == expected.u_wrap)
     assert(sampler.v_wrap         == expected.v_wrap)
+    assert(sampler.w_wrap         == expected.w_wrap)
     assert(sampler.min_filter     == expected.min_filter)
     assert(sampler.mag_filter     == expected.mag_filter)
     assert(sampler.max_anisotropy == expected.max_anisotropy)
@@ -150,6 +138,7 @@ function test_module_set_samplers(module, resource, sampler_name)
     local s = get_by_name(samplers, sampler_name)
     s.u_wrap = graphics.TEXTURE_WRAP_REPEAT
     s.v_wrap = graphics.TEXTURE_WRAP_REPEAT
+    s.w_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT
     module.set_samplers(resource, {
         [sampler_name] = s
     })

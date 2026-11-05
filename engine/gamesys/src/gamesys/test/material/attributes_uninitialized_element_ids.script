@@ -1,0 +1,5 @@
+function init(self)
+    local pipe_url = msg.url("#sprite")
+    go.set(pipe_url, "tint", vmath.vector4(1, 1, 1, 0))
+    go.animate(pipe_url, "tint", go.PLAYBACK_LOOP_PINGPONG, vmath.vector4(1), go.EASING_LINEAR, 2)
+end

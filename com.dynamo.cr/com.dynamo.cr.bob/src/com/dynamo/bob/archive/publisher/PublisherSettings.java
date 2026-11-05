@@ -25,6 +25,7 @@ import java.text.ParseException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.IResource;
 import org.apache.commons.io.IOUtils;
 
@@ -33,8 +34,8 @@ public class PublisherSettings {
     private IResource resource;
 
     public enum PublishMode {
-        Amazon, Zip, Folder
-    };
+        Zip, Folder
+    }
 
     private Map<String, Map<String, String>> properties = new LinkedHashMap<String, Map<String, String>>();
 
@@ -88,33 +89,14 @@ public class PublisherSettings {
         this.setValue("liveupdate", "mode", value.toString());
     }
     
-    public PublishMode getMode() {
+    public PublishMode getMode() throws CompileExceptionError {
         String value = this.getValue("liveupdate", "mode");
-        return value != null ? PublishMode.valueOf(value) : null;
-    }
-    
-    public void setAmazonCredentialProfile(String value) {
-        this.setValue("liveupdate", "amazon-credential-profile", value);
-    }
-
-    public String getAmazonCredentialProfile() {
-        return this.getValue("liveupdate", "amazon-credential-profile");
-    }
-    
-    public void setAmazonBucket(String value) {
-        this.setValue("liveupdate", "amazon-bucket", value);
-    }
-    
-    public String getAmazonBucket() {
-        return this.getValue("liveupdate", "amazon-bucket");
-    }
-
-    public void setAmazonPrefix(String value) {
-        this.setValue("liveupdate", "amazon-prefix", value);
-    }
-    
-    public String getAmazonPrefix() {
-        return this.getValue("liveupdate", "amazon-prefix");
+        try {
+            return value != null ? PublishMode.valueOf(value) : PublishMode.Zip;
+        } catch (IllegalArgumentException e) {
+            throw new CompileExceptionError(resource, 0,
+                    "Unsupported Live Update publishing mode '" + value + "'. Select Zip or Folder in the Live Update settings.", e);
+        }
     }
 
     public void setZipFilepath(String value) {

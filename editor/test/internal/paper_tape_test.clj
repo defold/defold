@@ -13,8 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.paper-tape-test
-  (:require [internal.history :refer :all]
-            [clojure.test :refer :all]))
+  (:require [clojure.test :refer [deftest is testing]]
+            [internal.paper-tape :refer [drop-current inext iprev ivalue paper-tape revision truncate]]))
 
 (deftest shuffling-items
   (testing "cursor back and forth"
@@ -67,3 +67,24 @@
 (deftest size-limit
   (let [tape (into (paper-tape 5) (range 10))]
     (is (= '(5 6 7 8 9) (seq tape)))))
+
+(deftest revision-test
+  (let [initial (paper-tape 5)
+        appended (conj initial :a)
+        rewound (iprev appended)]
+    (is (= 0 (revision initial)))
+    (is (= 1 (revision appended)))
+    (is (= 1 (revision (inext appended))))
+    (is (= 2 (revision rewound)))
+    (is (= 3 (revision (inext rewound))))
+    (is (= 3 (revision (truncate rewound))))
+    (is (= 2 (revision (drop-current appended))))
+    (is (= 2 (revision (empty appended))))
+    (is (= 0 (revision (empty initial)))))
+
+  (testing "Revision advances when appending at capacity"
+    (let [tape (into (paper-tape 2) [:a :b])
+          revision-before (revision tape)
+          tape (conj tape :c)]
+      (is (= 2 (count tape)))
+      (is (= (inc revision-before) (revision tape))))))

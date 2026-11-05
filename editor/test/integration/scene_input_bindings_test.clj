@@ -18,6 +18,7 @@
             [editor.app-view :as app-view]
             [editor.camera :as camera]
             [editor.curve-view :as curve-view]
+            [editor.gl :as gl]
             [editor.input :as input]
             [editor.mouse-binding :as mouse-binding]
             [editor.mouse-binding-test :refer [with-mouse-bindings]]
@@ -27,8 +28,13 @@
             [editor.tile-map-common :as tile-map-common]
             [editor.types :as types]
             [editor.ui :as ui]
-            [integration.test-util :as test-util])
-  (:import [javax.vecmath Point3d]))
+            [integration.test-util :as test-util]
+            [internal.graph.types :as gt])
+  (:import [javafx.scene Group Scene]
+           [javafx.scene.control ContextMenu]
+           [javax.vecmath Point3d]))
+
+(set! *warn-on-reflection* true)
 
 (defn- action [type x y button modifiers]
   {:type type
@@ -58,8 +64,15 @@
 
 (defn- open-tile-map-scene-view! [project app-view path width height]
   (test-util/open-scene-view! project app-view path width height
-                               {:grid tile-map/TileMapGrid
-                                :tool-controller tile-map/TileMapController}))
+                              {:grid tile-map/TileMapGrid
+                               :tool-controller tile-map/TileMapController}))
+
+(defn- make-curve-view! [app-view]
+  (let [view (curve-view/make-view! app-view nil nil nil test-util/localization {} false)]
+    (g/transact
+      {:undoable false}
+      (g/set-property view :viewport (types/->Region 0 128 0 128)))
+    view))
 
 (defn- refresh-selection! [view]
   (g/node-value view :all-renderables)
@@ -70,23 +83,24 @@
 
 (defn- tile-map-controller [view]
   (reduce
-    (fn [_ [node-id]]
-      (when (g/node-instance? tile-map/TileMapController node-id)
-        (reduced node-id)))
+    (fn [_ arc]
+      (let [source-node-id (gt/source-id arc)]
+        (when (g/node-instance? tile-map/TileMapController source-node-id)
+          (reduced source-node-id))))
     nil
-    (g/sources-of view :input-handlers)))
+    (g/inputs (g/now) view :input-handlers)))
 
 (defn- camera-controller [view]
   (reduce
-    (fn [_ [node-id]]
-      (when (g/node-instance? camera/CameraController node-id)
-        (reduced node-id)))
+    (fn [_ arc]
+      (let [source-node-id (gt/source-id arc)]
+        (when (g/node-instance? camera/CameraController source-node-id)
+          (reduced source-node-id))))
     nil
-    (g/sources-of view :input-handlers)))
+    (g/inputs (g/now) view :input-handlers)))
 
 (defn- cell-at [layer-node [x y]]
   (tile-map-common/cell-at (g/node-value layer-node :cell-map) [x y]))
-
 
 (defn- screen-pos->tile-cell
   [view resource-node screen-x screen-y]
@@ -286,7 +300,9 @@
         (refresh-selection! view)
         (is camera-controller)
         ;; Put the camera into 3D (perspective) mode.
-        (g/set-property! camera-controller :local-camera (camera/make-camera :perspective))
+        (g/transact
+          {:undoable false}
+          (g/set-property camera-controller :local-camera (camera/make-camera :perspective)))
         (reduce
           (partial dispatch-action! view)
           (input/make-input-state)
@@ -348,8 +364,7 @@
           {::camera/scene-camera-orthographic
            {:scene.camera.pan
             {:bindings [{:button :primary :modifiers #{:shift}}]}}})
-        (let [view (doto (curve-view/make-view! app-view (test-util/make-view-graph!) nil nil test-util/localization {} false)
-                     (g/set-property! :viewport (types/->Region 0 128 0 128)))]
+        (let [view (make-curve-view! app-view)]
           (run-persisted-override-pan-test! view {:button :primary :modifiers #{:shift}}))))))
 
 (deftest disallowed-curve-view-camera-bindings-are-ignored
@@ -368,12 +383,14 @@
          {:command :scene.camera.free-look
           :action ["Free Look"]
           :binding {:button :primary :modifiers #{:control}}}])
-      (let [view (doto (curve-view/make-view! app-view (test-util/make-view-graph!) nil nil test-util/localization {} false)
-                   (g/set-property! :viewport (types/->Region 0 128 0 128)))
+      (let [view (make-curve-view! app-view)
             camera-controller (camera-controller view)
-            initial-camera (g/node-value view :camera)]
+            initial-camera (g/node-value view :camera)
+            tool-picking-rect (selection/calc-picking-rect [64.0 64.0 0.0] [64.0 64.0 0.0])]
         (is camera-controller)
-        (g/set-property! view :tool-picking-rect (selection/calc-picking-rect [64.0 64.0 0.0] [64.0 64.0 0.0]))
+        (g/transact
+          {:undoable false}
+          (g/set-property view :tool-picking-rect tool-picking-rect))
         (doseq [{:keys [name button modifiers expected-movement]}
                 [{:name "orbit"
                   :button :primary
@@ -422,11 +439,11 @@
         ;; Sanity: the base binding (primary, no modifiers) must NOT pan,
         ;; because the override replaced it.
         (let [input-state (reduce
-                           (partial dispatch-action! view)
-                           (input/make-input-state)
-                           [(action :mouse-moved 64.0 64.0 :primary [])
-                            (action :mouse-pressed 64.0 64.0 :primary [])
-                            (action :drag-detected 64.0 64.0 :primary [])])]
+                            (partial dispatch-action! view)
+                            (input/make-input-state)
+                            [(action :mouse-moved 64.0 64.0 :primary [])
+                             (action :mouse-pressed 64.0 64.0 :primary [])
+                             (action :drag-detected 64.0 64.0 :primary [])])]
           (is (not= :track (:movement (g/user-data camera-controller :editor.camera/camera-state))))
           (dispatch-action! view input-state (action :mouse-released 64.0 64.0 :primary [])))
 
@@ -434,11 +451,11 @@
             "Camera should be unchanged when only the base binding's action is dispatched.")
 
         (let [input-state (reduce
-                           (partial dispatch-action! view)
-                           (input/make-input-state)
-                           [(action :mouse-moved 64.0 64.0 :secondary [:control])
-                            (action :mouse-pressed 64.0 64.0 :secondary [:control])
-                            (action :drag-detected 64.0 64.0 :secondary [:control])])]
+                            (partial dispatch-action! view)
+                            (input/make-input-state)
+                            [(action :mouse-moved 64.0 64.0 :secondary [:control])
+                             (action :mouse-pressed 64.0 64.0 :secondary [:control])
+                             (action :drag-detected 64.0 64.0 :secondary [:control])])]
           (is (= :track (:movement (g/user-data camera-controller :editor.camera/camera-state))))
           (let [input-state (dispatch-action! view input-state (action :mouse-moved 80.0 64.0 :secondary [:control]))
                 input-state (update-tick! view input-state 2)]
@@ -447,65 +464,78 @@
         (is (not= initial-camera (g/node-value view :camera))
             "Camera should have panned via the overridden binding.")))))
 
-(deftest right-click-over-object-selects-it
-  ;; Right-clicking an object must select it (so the context menu acts on
-  ;; the clicked object), even though right-click also resolves to a camera movement
-  ;; (pan) here. The CameraController has to propagate the secondary press instead of
-  ;; swallowing it, so the SelectionController can pick the object under the cursor and
-  ;; select it on release.
-  (test-util/with-loaded-project
-    (with-mouse-bindings
-      (mouse-binding/register!
-        ::camera/scene-camera-orthographic
-        "Scene 2D Camera"
-        [{:command :scene.camera.pan
-          :action ["Pan"]
-          :binding {:button :secondary :modifiers #{}}}])
-      (let [[resource-node view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
-            go-node (ffirst (g/sources-of resource-node :child-scenes))
-            ;; Showing the context menu on release is a JavaFX side effect that needs a
-            ;; live scene/window we don't have here. The object is selected just before
-            ;; the menu shows, so stub the menu with a no-op ContextMenu and assert the
-            ;; selection.
-            menu-stub (ui/run-now (proxy [javafx.scene.control.ContextMenu] []
-                                    (show [_node _x _y] nil)))]
-        ;; The root scene node is selected initially, not the game object.
-        (is (test-util/selected? app-view resource-node))
-        (with-redefs [selection/init-scene-context-menu! (fn [_scene _node] menu-stub)]
-          (reduce
-            (partial dispatch-action! view)
-            (input/make-input-state)
-            [(action :mouse-moved 64.0 64.0 :secondary [])
-             (action :mouse-pressed 64.0 64.0 :secondary [])
-             (assoc (action :mouse-released 64.0 64.0 :secondary [])
-                    :target (javafx.scene.Group.))]))
-        (is (test-util/selected? app-view go-node)
-            "Right-clicking the object should select it before showing the context menu.")))))
+(when (gl/supported?)
+  (deftest right-click-over-object-selects-it
+    ;; Right-clicking an object must select it (so the context menu acts on
+    ;; the clicked object), even though right-click also resolves to a camera movement
+    ;; (pan) here. The CameraController has to propagate the secondary press instead of
+    ;; swallowing it, so the SelectionController can pick the object under the cursor and
+    ;; select it on release.
+    (test-util/with-loaded-project
+      (with-mouse-bindings
+        (mouse-binding/register!
+          ::camera/scene-camera-orthographic
+          "Scene 2D Camera"
+          [{:command :scene.camera.pan
+            :action ["Pan"]
+            :binding {:button :secondary :modifiers #{}}}])
+        (let [[resource-node view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
+              go-node (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)
+              ;; Showing the context menu is a JavaFX side effect that needs a live
+              ;; scene/window we don't have here, so stub it with a ContextMenu that only
+              ;; records the show. Queueing and draining the menu both go through the main
+              ;; stage's scene, so we need a fake one of those too.
+              shown (atom nil)
+              menu-stub (ui/run-now (proxy [ContextMenu] []
+                                      (show [node x y] (reset! shown [node x y]))))
+              anchor (Group.)
+              stage (ui/run-now (doto (ui/make-stage)
+                                  (.setScene (Scene. anchor))))]
+          ;; The root scene node is selected initially, not the game object.
+          (is (test-util/selected? app-view resource-node))
+          (with-redefs [ui/*main-stage* (atom stage)
+                        selection/init-scene-context-menu! (fn [_scene _node] menu-stub)]
+            (reduce
+              (partial dispatch-action! view)
+              (input/make-input-state)
+              [(action :mouse-moved 64.0 64.0 :secondary [])
+               (action :mouse-pressed 64.0 64.0 :secondary [])
+               (assoc (action :mouse-released 64.0 64.0 :secondary [])
+                 :target anchor)])
+            (is (test-util/selected? app-view go-node)
+                "Right-clicking the object should select it before showing the context menu.")
+            (is (nil? @shown)
+                "The menu must not show during the release, or it would be built against the stale outline selection.")
+            ;; What the refresh timer does on the next tick, after the outline has caught up.
+            (ui/show-requested-context-menu!)
+            (is (= [anchor 64.0 64.0] @shown)
+                "The queued menu should show at the click position on the next refresh.")))))))
 
-(deftest empty-camera-binding-override-disables-default-pan
-  (test-util/with-loaded-project
-    (with-mouse-bindings
-      (mouse-binding/register!
-        ::camera/scene-camera-orthographic
-        "Scene 2D Camera"
-        [{:command :scene.camera.pan
-          :action ["Pan"]
-          :binding {:button :primary :modifiers #{:shift}}}])
-      (mouse-binding/set-user-overrides!
-        {::camera/scene-camera-orthographic
-         {:scene.camera.pan
-          {:bindings []}}})
-      (let [[_ view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
-            camera-ctrl (camera-controller view)
-            initial-camera (g/node-value view :camera)
-            input-state (reduce
-                          (partial dispatch-action! view)
-                          (input/make-input-state)
-                          [(action :mouse-moved 64.0 64.0 :primary [:shift])
-                           (action :mouse-pressed 64.0 64.0 :primary [:shift])
-                           (action :drag-detected 64.0 64.0 :primary [:shift])])]
-        (is camera-ctrl)
-        (is (not= :track (:movement (g/user-data camera-ctrl :editor.camera/camera-state))))
-        (dispatch-action! view input-state (action :mouse-released 64.0 64.0 :primary [:shift]))
-        (is (= initial-camera (g/node-value view :camera))
-            "Camera should stay unchanged when the override explicitly clears all pan bindings.")))))
+(when (gl/supported?)
+  (deftest empty-camera-binding-override-disables-default-pan
+    (test-util/with-loaded-project
+      (with-mouse-bindings
+        (mouse-binding/register!
+          ::camera/scene-camera-orthographic
+          "Scene 2D Camera"
+          [{:command :scene.camera.pan
+            :action ["Pan"]
+            :binding {:button :primary :modifiers #{:shift}}}])
+        (mouse-binding/set-user-overrides!
+          {::camera/scene-camera-orthographic
+           {:scene.camera.pan
+            {:bindings []}}})
+        (let [[_ view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
+              camera-ctrl (camera-controller view)
+              initial-camera (g/node-value view :camera)
+              input-state (reduce
+                            (partial dispatch-action! view)
+                            (input/make-input-state)
+                            [(action :mouse-moved 64.0 64.0 :primary [:shift])
+                             (action :mouse-pressed 64.0 64.0 :primary [:shift])
+                             (action :drag-detected 64.0 64.0 :primary [:shift])])]
+          (is camera-ctrl)
+          (is (not= :track (:movement (g/user-data camera-ctrl :editor.camera/camera-state))))
+          (dispatch-action! view input-state (action :mouse-released 64.0 64.0 :primary [:shift]))
+          (is (= initial-camera (g/node-value view :camera))
+              "Camera should stay unchanged when the override explicitly clears all pan bindings."))))))

@@ -16,8 +16,6 @@
 #include "sound.h"
 #include "sound_private.h"
 
-#include <glfw/glfw.h>
-
 #import <AVFoundation/AVFoundation.h>
 #import <UIKit/UIKit.h>
 
@@ -33,7 +31,7 @@ namespace {
     bool g_ignoreRouteChange = false;
     double g_preferredIOBufferDuration = 0.0;
 
-    id<UIApplicationDelegate> g_soundApplicationDelegate;
+    id g_soundApplicationDelegate;
 
     void configurePreferredIOBufferDuration(dmConfigFile::HConfig config, const dmSound::InitializeParams* params) {
         uint32_t frame_count = params->m_FrameCount;
@@ -83,10 +81,10 @@ namespace {
 // ---------------------------------------------------------------------------
 // SoundApplicationDelegate, iOS specific delegate
 // ---------------------------------------------------------------------------
-@interface SoundApplicationDelegate : NSObject <UIApplicationDelegate>
+@interface SoundApplicationDelegate : NSObject
 
-    - (void) applicationDidBecomeActive:(UIApplication *) application;
-    - (void) applicationWillResignActive:(UIApplication *) application;
+    - (void) handleApplicationDidBecomeActive:(NSNotification *) notification;
+    - (void) handleApplicationWillResignActive:(NSNotification *) notification;
 
     - (void) handleInterruption:(NSNotification *) notification;
     - (void) handleSecondaryAudio:(NSNotification *) notification;
@@ -118,14 +116,14 @@ namespace {
 
 @implementation SoundApplicationDelegate
 
-    - (void) applicationDidBecomeActive:(UIApplication *) application {
+    - (void) handleApplicationDidBecomeActive:(NSNotification *) notification {
         if (!::g_isSessionRouteChangeReasonCategoryChange)
         {
             ::activateAudioSession();
         }
     }
 
-    - (void) applicationWillResignActive:(UIApplication *) application {
+    - (void) handleApplicationWillResignActive:(NSNotification *) notification {
         ::g_audioInterrupted = true;
     }
 
@@ -205,7 +203,14 @@ namespace dmSound
         ::configurePreferredIOBufferDuration(config, params);
 
         ::g_soundApplicationDelegate = [[SoundApplicationDelegate alloc] init];
-        glfwRegisterUIApplicationDelegate(::g_soundApplicationDelegate);
+        [[NSNotificationCenter defaultCenter] addObserver:g_soundApplicationDelegate
+                                              selector:@selector(handleApplicationDidBecomeActive:)
+                                              name:UIApplicationDidBecomeActiveNotification
+                                              object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:g_soundApplicationDelegate
+                                              selector:@selector(handleApplicationWillResignActive:)
+                                              name:UIApplicationWillResignActiveNotification
+                                              object:nil];
 
         [[NSNotificationCenter defaultCenter] addObserver:g_soundApplicationDelegate
                                               selector:@selector(handleInterruption:)
@@ -229,22 +234,19 @@ namespace dmSound
         }
         ::applyPreferredIOBufferDuration(session);
 
+        // The scene can already be active when the engine initializes sound.
+        ::g_audioInterrupted = [UIApplication sharedApplication].applicationState != UIApplicationStateActive;
+        if (!::g_audioInterrupted)
+            [g_soundApplicationDelegate handleApplicationDidBecomeActive:nil];
+
         return RESULT_OK;
     }
 
     Result PlatformFinalize()
     {
-        glfwUnregisterUIApplicationDelegate(::g_soundApplicationDelegate);
-        [[NSNotificationCenter defaultCenter] removeObserver:g_soundApplicationDelegate
-                                              name:AVAudioSessionInterruptionNotification
-                                              object:nil];
-        [[NSNotificationCenter defaultCenter] removeObserver:g_soundApplicationDelegate
-                                              name:AVAudioSessionSilenceSecondaryAudioHintNotification
-                                              object:nil];
-        [[NSNotificationCenter defaultCenter] removeObserver:g_soundApplicationDelegate
-                                              name:AVAudioSessionRouteChangeNotification
-                                              object:nil];
+        [[NSNotificationCenter defaultCenter] removeObserver:g_soundApplicationDelegate];
         [::g_soundApplicationDelegate release];
+        ::g_soundApplicationDelegate = nil;
         return RESULT_OK;
     }
 

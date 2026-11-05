@@ -13,16 +13,26 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.model-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
+            [clojure.string :as string]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.types :as types]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [util.coll :as coll]
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto ModelProto$ModelDesc]
            [javax.vecmath Point3d]))
+
+(defn- find-mesh-set-build-target
+  [build-targets]
+  (coll/first-where #(contains? (:user-data %) :mesh-set)
+                    (eduction (coll/tree-xf #(coll/not-empty (:deps %)) :deps)
+                              build-targets)))
 
 (deftest aabb
   (test-util/with-loaded-project
@@ -83,10 +93,134 @@
                      (murmur/hash64 "treasure_chest_sub_sub_animation/treasure_chest_anim_out")}
                    (set (map :id (:animations (g/node-value node-id :animation-set))))))))))))
 
+(deftest mesh-selection
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/model/mesh_selection.model")
+          mesh-scene-node-id (test-util/resource-node project "/mesh/two_meshes.gltf")]
+      (testing "uses the mesh-name documentation for the selector"
+        (let [mesh-index-property (get-in (g/node-value node-id :_properties) [:properties :mesh-index])]
+          (is (= "property.model.mesh-name" (-> mesh-index-property :label :k)))
+          (is (= "Mesh" (test-util/localization (:label mesh-index-property))))
+          (is (= "property.model.mesh-name.tooltip" (-> mesh-index-property :tooltip :k)))
+          (is (= "Optional named raw mesh from the selected scene. Leave empty to render the whole scene. A selected mesh is rendered once in mesh-local coordinates without glTF node transforms."
+                 (test-util/localization (:tooltip mesh-index-property))))))
+
+      (testing "loads and saves a selected raw glTF mesh"
+        (is (= "LooseMesh" (test-util/prop node-id :mesh-name)))
+        (is (= 2 (test-util/prop node-id :mesh-index)))
+        (is (= [[-1 ""] [0 "LeftMesh"] [1 "RightMesh"] [2 "LooseMesh"]]
+               (get-in (g/node-value node-id :_properties) [:properties :mesh-index :edit-type :options])))
+        (is (= "LooseMesh" (:mesh-name (g/node-value node-id :save-value))))
+        (is (= 2 (:mesh-index (g/node-value node-id :save-value))))
+        (let [scene (g/node-value node-id :scene)]
+          (is (= 2 (count (:children scene))))
+          (is (= [0.0 0.0 0.0] (:translation (:pose (nth (:children scene) 1))))))
+        (let [mesh-set (get-in (g/node-value mesh-scene-node-id :content) [:mesh-set])
+              renderable-mesh-set (g/node-value mesh-scene-node-id :renderable-mesh-set)]
+          (is (= [0 0 1] (mapv (comp count :meshes) (:raw-models mesh-set))))
+          (is (identical? (get-in renderable-mesh-set [:renderable-models 0 :renderable-meshes])
+                          (get-in renderable-mesh-set [:renderable-raw-models 0 :renderable-meshes]))))
+        (test-util/with-prop [node-id :mesh-name "LeftMesh"]
+          (test-util/with-prop [node-id :mesh-index 0]
+            (let [scene (g/node-value node-id :scene)
+                  selected-model-scene (nth (:children scene) 1)
+                  mesh-set-build-target (find-mesh-set-build-target (g/node-value node-id :build-targets))]
+              (is (= [0.0 0.0 0.0] (:translation (:pose selected-model-scene))))
+              (is (pos? (count (:children selected-model-scene))))
+              (is (= [0] (mapv :mesh-index (get-in mesh-set-build-target [:user-data :mesh-set :models]))))
+              (is (= [0] (mapv :mesh-index (get-in mesh-set-build-target [:user-data :mesh-set :raw-models])))))))
+        (let [mesh-set-build-target (find-mesh-set-build-target (g/node-value node-id :build-targets))]
+          (is (coll/empty? (get-in mesh-set-build-target [:user-data :mesh-set :models])))
+          (is (= [2] (mapv :mesh-index (get-in mesh-set-build-target [:user-data :mesh-set :raw-models])))))
+        (is (coll/empty? (get-in (g/node-value mesh-scene-node-id :mesh-set-build-target)
+                                 [:user-data :mesh-set :raw-models]))))
+
+      (testing "a selected mesh with a skeleton uses the selected mesh bounds"
+        (let [skeleton-resource (workspace/resolve-workspace-resource workspace "/mesh/treasure_chest.gltf")]
+          (test-util/with-prop [node-id :skeleton skeleton-resource]
+            (let [aabb (:aabb (g/node-value node-id :scene))]
+              (is (= (Point3d. 0.0 0.0 0.0) (types/min-p aabb)))
+              (is (= (Point3d. 1.0 1.0 0.0) (types/max-p aabb)))))))
+
+      (testing "an invalid stale selection renders no mesh"
+        (test-util/with-prop [node-id :mesh-index 0]
+          (test-util/with-prop [node-id :mesh-name "MissingMesh"]
+            (is (g/error? (test-util/prop-error node-id :mesh-index)))
+            (is (= 1 (count (:children (g/node-value node-id :scene))))))))
+
+      (testing "an empty selection renders the entire scene and omits the fields"
+        (test-util/with-prop [node-id :mesh-name ""]
+          (test-util/with-prop [node-id :mesh-index -1]
+            (let [save-value (g/node-value node-id :save-value)]
+              (is (= "" (test-util/prop node-id :mesh-name)))
+              (is (not (contains? save-value :mesh-name)))
+              (is (not (contains? save-value :mesh-index)))
+              (is (= 3 (count (:children (g/node-value node-id :scene)))))
+              (let [mesh-set-build-target (find-mesh-set-build-target (g/node-value node-id :build-targets))]
+                (is (coll/empty? (get-in mesh-set-build-target [:user-data :mesh-set :raw-models])))))))))))
+
+;; Static scene and selected meshes reject skinned materials instead of building
+;; models whose missing skin data can crash graphics adapters.
+(deftest skinned-material-validation
+  (test-util/with-loaded-project
+    (doseq [model-path ["/model/test.model" "/model/mesh_selection.model"]]
+      (testing (str "static meshes reject skinned materials: " model-path)
+        (let [node-id (test-util/resource-node project model-path)
+              binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])
+              material-path "/builtins/materials/model_skinned_instanced.material"]
+          (test-util/with-prop [binding-id :material (workspace/resolve-workspace-resource workspace material-path)]
+            (let [result (g/node-value node-id :build-targets)]
+              (is (g/error-value? result))
+              (is (coll/any? #(and (string/includes? % material-path)
+                                   (string/includes? % "has no skin data")
+                                   (string/includes? % "bone_indices and bone_weights"))
+                             (coll/into-> [result] :eduction
+                               (coll/tree-xf :causes :causes)
+                               (keep :message)
+                               (map test-util/localization)))))))))))
+
+;; Missing and stale material bindings still validate the runtime's fallback
+;; assignment, preventing skinned materials from reaching static geometry.
+(deftest skinned-material-fallback
+  (let [scene (-> (json/read-str (slurp "test/resources/test_project/mesh/two_meshes.gltf") :key-fn keyword)
+                  (assoc :materials [{:name "A"} {:name "B"} {:name "C"}])
+                  (update :meshes coll/mapv-> update :primitives coll/mapv-> assoc :material 1))]
+    (test-util/with-temp-project-content
+      {"/test.model" {:mesh "/scene.gltf"
+                      :materials [{:name "A" :material "/builtins/materials/model_skinned_instanced.material"}
+                                  {:name "C" :material "/builtins/materials/model.material"}]}}
+      (spit (io/file (workspace/project-directory workspace) "scene.gltf") (json/write-str scene))
+      (workspace/resource-sync! workspace)
+      (let [node-id (test-util/resource-node project "/test.model")
+            binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])]
+        (doseq [binding-name ["A" "Stale"]]
+          (testing (str "runtime fallback validates binding: " binding-name)
+            (test-util/with-prop [binding-id :name binding-name]
+              (let [result (g/node-value node-id :build-targets)]
+                (is (g/error-value? result))
+                (is (coll/any? #(string/includes? (test-util/localization %) "has no skin data")
+                               (coll/into-> [result] :eduction
+                                 (coll/tree-xf :causes :causes)
+                                 (keep :message))))))))
+        (test-util/with-prop [binding-id :material (workspace/resolve-workspace-resource workspace "/builtins/materials/model.material")]
+          (is (not (g/error-value? (g/node-value node-id :build-targets)))))))))
+
+;; Skin data permits skinned materials without animation clips, preventing
+;; compatibility validation from incorrectly requiring an animation resource.
+(deftest skinned-material-without-animations
+  (testing "skin data permits skinned materials without animation clips"
+    (test-util/with-loaded-project
+      (let [node-id (test-util/resource-node project "/model/treasure_chest.model")
+            binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])
+            material (workspace/resolve-workspace-resource workspace "/builtins/materials/model_skinned_instanced.material")]
+        (test-util/with-prop [node-id :animations nil]
+          (test-util/with-prop [binding-id :material material]
+            (is (not (g/error-value? (g/node-value node-id :build-targets))))))))))
+
 (deftest model-validation
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/model/test.model")]
-      
+
       (testing "mesh is required"
         (is (nil? (test-util/prop-error node-id :mesh)))
         (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.gltf")]]

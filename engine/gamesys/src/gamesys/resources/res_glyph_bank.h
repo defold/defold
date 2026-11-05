@@ -17,7 +17,7 @@
 
 #include <dmsdk/font/font.h>
 #include <dmsdk/resource/resource.h>
-#include <render/font_ddf.h>
+#include <font/glyphbank_ddf.h>
 
 namespace dmGameSystem
 {
@@ -25,7 +25,9 @@ namespace dmGameSystem
 
     HFont GetFont(GlyphBankResource* resource);
 
-    dmRenderDDF::GlyphBank* GetGlyphBank(GlyphBankResource* resource);
+    void SetGlyphBankReferenceSize(GlyphBankResource* resource, float size);
+
+    dmFontDDF::GlyphBank* GetGlyphBank(GlyphBankResource* resource);
 
     dmResource::Result ResGlyphBankPreload(const dmResource::ResourcePreloadParams* params);
 

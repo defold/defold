@@ -106,21 +106,6 @@ namespace dmGameSystem
         free((void*)response->m_Url);
     }
 
-    static void AppendBytes(dmArray<char>& buffer, const void* data, uint32_t data_size)
-    {
-        if (!data || data_size == 0)
-        {
-            return;
-        }
-
-        uint32_t left = buffer.Capacity() - buffer.Size();
-        if (left < data_size)
-        {
-            buffer.OffsetCapacity((int32_t)dmMath::Max(data_size - left, 1024U));
-        }
-        buffer.PushArray((const char*)data, data_size);
-    }
-
     static bool CopyBuffer(const dmArray<char>& source, uint64_t* target)
     {
         *target = 0;
@@ -214,14 +199,22 @@ namespace dmGameSystem
         {
             case HTTP_RESPONSE_EVENT_HEADER:
             {
-                AppendBytes(request->m_ResponseHeaders, HttpResponseGetHeader(response), HttpResponseGetHeaderSize(response));
                 char newline = '\n';
-                AppendBytes(request->m_ResponseHeaders, &newline, 1);
+                if (!dmHttpService::AppendResponseBuffer(request->m_ResponseHeaders, HttpResponseGetHeader(response), HttpResponseGetHeaderSize(response)) ||
+                    !dmHttpService::AppendResponseBuffer(request->m_ResponseHeaders, &newline, 1))
+                {
+                    dmLogError("HTTP response headers exceed the maximum buffer size. Canceling request.");
+                    return HTTP_CALLBACK_RESULT_CANCEL;
+                }
             }
             break;
 
             case HTTP_RESPONSE_EVENT_DATA:
-                AppendBytes(request->m_Response, HttpResponseGetData(response), HttpResponseGetDataSize(response));
+                if (!dmHttpService::AppendResponseBuffer(request->m_Response, HttpResponseGetData(response), HttpResponseGetDataSize(response), HttpResponseGetBytesTotal(response)))
+                {
+                    dmLogError("HTTP response body exceeds the maximum buffer size. Canceling request.");
+                    return HTTP_CALLBACK_RESULT_CANCEL;
+                }
                 break;
 
             case HTTP_RESPONSE_EVENT_PROGRESS:
@@ -260,6 +253,31 @@ namespace dmGameSystem
         return request;
     }
 
+    /*# HTTP response data
+     * @struct
+     * @name http.response
+     * @member status [type:integer] response status
+     * @member response? [type:string] response data when it is not saved to disk
+     * @member headers? [type:table<string, string>] response headers for status 200 or 206
+     * @member path? [type:string] destination path when the response is saved to disk
+     * @member error? [type:string] unexpected error, such as a file I/O error
+     * @member bytes_received? [type:integer] bytes transferred when progress reporting is enabled
+     * @member bytes_total? [type:integer] total request size when progress reporting is enabled
+     * @member range_start? [type:integer] requested-file start offset
+     * @member range_end? [type:integer] requested-file end offset, inclusive
+     * @member document_size? [type:integer] full requested-file size
+     */
+
+    /*# HTTP request options
+     * @struct
+     * @name http.request_options
+     * @member timeout? [type:number] timeout in seconds
+     * @member path? [type:string] absolute destination path; overwritten only for status 200
+     * @member ignore_cache? [type:boolean] do not return cached data for status 304; unavailable on HTML5
+     * @member chunked_transfer? [type:boolean] use chunked transfer encoding for HTTPS requests larger than 16 KB; defaults to true and is unavailable on HTML5
+     * @member report_progress? [type:boolean] report transferred and total byte counts to the callback
+     */
+
     /*# perform a HTTP/HTTPS request
      * Perform a HTTP/HTTPS request.
      *
@@ -268,38 +286,17 @@ namespace dmGameSystem
      * @name http.request
      * @param url [type:string] target url
      * @param method [type:string] HTTP/HTTPS method, e.g. "GET", "PUT", "POST" etc.
-     * @param callback [type:function(self, id, response)] response callback function
+     * @param callback [type:fun(self:script_instance, id:hash, response:http.response)] response callback function
      *
      * `self`
-     * : [type:object] The script instance
+     * : [type:script_instance] The current script instance
      *
      * `id`
      * : [type:hash] Internal message identifier. Do not use!
      *
-     * `response`
-     * : [type:table] The response data. Contains the fields:
-     *
-     * - [type:number] `status`: the status of the response
-     * - [type:string] `response`: the response data (if not saved on disc)
-     * - [type:table] `headers`: all the returned headers (if status is 200 or 206)
-     * - [type:string] `path`: the stored path (if saved to disc)
-     * - [type:string] `error`: if any unforeseen errors occurred (e.g. file I/O)
-     * - [type:number] `bytes_received`: the amount of bytes received/sent for a request, only if option `report_progress` is true
-     * - [type:number] `bytes_total`: the total amount of bytes for a request, only if option `report_progress` is true
-     * - [type:number] `range_start`: the start offset into the requested file
-     * - [type:number] `range_end`: the end offset into the requested file (inclusive)
-     * - [type:number] `document_size`: the full size of the requested file
-     *
-     * @param [headers] [type:table] optional table with custom headers
+     * @param [headers] [type:table<string, string>] optional table with custom headers
      * @param [post_data] [type:string] optional data to send
-     * @param [options] [type:table] optional table with request parameters. Supported entries:
-     *
-     * - [type:number] `timeout`: timeout in seconds
-     * - [type:string] `path`: path on disc where to download the file. Only overwrites the path if status is 200. [icon:attention] Path should be absolute
-     * - [type:boolean] `ignore_cache`: don't return cached data if we get a 304. [icon:attention] Not available in HTML5 build
-     * - [type:boolean] `chunked_transfer`: use chunked transfer encoding for https requests larger than 16kb. Defaults to true. [icon:attention] Not available in HTML5 build
-     * - [type:boolean] `report_progress`: when it is true, the amount of bytes sent and/or received for a request will be passed into the callback function
-     *
+     * @param [options] [type:http.request_options] optional request options
      *
      * @examples
      *

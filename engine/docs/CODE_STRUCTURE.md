@@ -84,9 +84,12 @@ Since the projects under `defold/share/ext` are farily cumbersome to maintain an
 
 The benefit is that we can use the same build system for all platforms, which makes it easy to maintain such a library.
 
-Currently includes `Bullet 3D` and `glfw`.
+Currently includes `Bullet 3D`.
 
-The output is stored in the repository, under `defold/packages`
+Bullet is built and installed into `${DYNAMO_HOME}/ext` by `install_ext`, after
+installing prepackaged dependencies. The mobile and web platform implementations
+are built directly from `engine/platform`; desktop GLFW 3 packages are maintained
+in `share/ext/glfw`.
 
 See the [readme](../../external/README.md) for more detailed info.
 

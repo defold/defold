@@ -124,6 +124,7 @@ namespace dmGui
         uint64_t                m_TextureHash;
         uint64_t                m_FlipbookAnimHash;
         uint64_t                m_FontHash;
+        dmhash_t                m_TextStyle;
         uint64_t                m_ParticlefxHash;
         dmhash_t                m_LayerHash;
         dmhash_t                m_MaterialNameHash;
@@ -176,6 +177,7 @@ namespace dmGui
         void**                  m_NodeDescTable;
         TextureSetAnimDesc      m_TextureSetAnimDesc;
         float                   m_FlipbookAnimPosition;
+        float                   m_FontSize;
         uint16_t                m_LayerIndex;
         PieBounds               m_OuterBounds;
         NodeTextureType         m_TextureType;
@@ -309,6 +311,7 @@ namespace dmGui
         CloneCustomNodeCallback               m_CloneCustomNodeCallback;
         UpdateCustomNodeCallback              m_UpdateCustomNodeCallback;
         void*                                 m_CreateCustomNodeCallbackContext;
+        PrepareNodeTextLayoutCallback         m_PrepareNodeTextLayoutCallback;
         GetResourceCallback                   m_GetResourceCallback;
         void*                                 m_GetResourceCallbackContext;
         FetchTextureSetAnimCallback           m_FetchTextureSetAnimCallback;

@@ -74,7 +74,7 @@ public class TileSetc {
 
             String collisionPath = tileSet.getCollision();
             BufferedImage collisionImage = null;
-            if (!collisionPath.equals("")) {
+            if (!collisionPath.isEmpty()) {
                 collisionImage = loadImageFile(collisionPath);
             }
 

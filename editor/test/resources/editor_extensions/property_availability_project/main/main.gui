@@ -31,7 +31,7 @@ nodes {
     y: 100.0
   }
   type: TYPE_TEXT
-  text: "<text>"
+  text: "-text-"
   font: "always_on_top"
   id: "text"
   inherit_alpha: true

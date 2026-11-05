@@ -1,17 +1,3 @@
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 import os, sys, pprint
 
 ###########################################
@@ -85,11 +71,12 @@ def _format_doc_lines(lines, indent):
         lines = lines.splitlines()
     return ('\n' + indent_str + ' * ').join(lines)
 
-def gen_doc(docs, name, renamed, indent=1, language='C++'):
+def gen_doc(docs, name, renamed, indent=1, language='C++', renames=None):
     doc = _find_doc(docs, name)
     if not doc:
         return f"""    /*#
         * Generated from [ref:{name}]
+        * @name {renamed}
         */"""
 
     lines = []
@@ -129,6 +116,11 @@ def gen_doc(docs, name, renamed, indent=1, language='C++'):
 
         v = _format_doc_lines('\n' + v, indent)
         _add_line(lines, 'examples', v)
+
+    if renames:
+        # Empty replacements strip namespaces from declarations, but docs need qualified C++ names.
+        doc_renames = {key: value for key, value in renames.items() if value}
+        lines = [line if line.startswith('@name ') else rename_symbols(doc_renames, line) for line in lines]
 
     indent_str = get_indent(indent)
     return indent_str + '/*# ' + _format_doc_lines(lines, indent) + '\n'+ indent_str + ' */'
@@ -221,8 +213,16 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
             continue
         renamed = rename_symbols(prefixes, n)
 
-        out_doc = gen_doc(docs, enum_type.name, renamed)
+        out_doc = gen_doc(docs, enum_type.name, renamed, renames=prefixes)
         l(out_doc)
+        if n in info.get('enum_aliases', []):
+            # Callback return types must retain their C type identity in C++.
+            l('    typedef ::%s %s;' % (n, renamed))
+            for enum_value in enum_type.values:
+                value_name = enum_value['name']
+                l('    static const %s %s = ::%s;' % (renamed, rename_symbols(prefixes, value_name), value_name))
+            l('')
+            continue
         l('    enum %s {' % renamed)
         for enum_value in enum_type.values:
             n = enum_value['name']
@@ -242,7 +242,7 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
         # out_doc = get_cpp_doc(prefixes, doc)
         # if out_doc is None:
-        out_doc = gen_doc(docs, decl['name'], renamed)
+        out_doc = gen_doc(docs, decl['name'], renamed, renames=prefixes)
         l(out_doc)
         l('    typedef %s %s;' % (n, renamed))
         l('')
@@ -255,7 +255,7 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
         # out_doc = get_cpp_doc(prefixes, doc)
         # if out_doc is None:
-        out_doc = gen_doc(docs, decl['name'], renamed)
+        out_doc = gen_doc(docs, decl['name'], renamed, renames=prefixes)
         l(out_doc)
         l('    typedef %s %s;' % (n, renamed))
         l('')
@@ -270,7 +270,7 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
         # out_doc = get_cpp_doc(prefixes, doc)
         # if out_doc is None:
-        out_doc = gen_doc(docs, decl['name'], renamed)
+        out_doc = gen_doc(docs, decl['name'], renamed, renames=prefixes)
         l(out_doc)
         l('    %s;' % cpp_func)
         l('')
@@ -293,4 +293,3 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
     l('') # always have a newline at the end
     return out_lines
-

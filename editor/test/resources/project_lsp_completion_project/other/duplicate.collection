@@ -1,0 +1,6 @@
+name: "duplicate"
+instances {
+  id: "player"
+  prototype: "/objects/player.go"
+}
+scale_along_z: 0

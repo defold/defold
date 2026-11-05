@@ -23,6 +23,7 @@
 
 #include <gameobject/gameobject.h>
 #include <dmsdk/gamesys/render_constants.h>
+#include <dmsdk/resource/resource.hpp>
 
 namespace dmScript
 {
@@ -135,7 +136,7 @@ namespace dmGameSystem
         struct Info
         {
             dmhash_t m_NameHash;
-            float    m_Values[4]; // Enough to store a float vec4 property (no support for mat4 yet)
+            float    m_Values[16]; // Enough to store a float mat4 property
         };
 
         Info*   m_Infos;
@@ -166,13 +167,18 @@ namespace dmGameSystem
 
     // Script resource helpers (Maybe these should be in a "gamesys_script.h" file?)
     int   ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash);
+
+    // Returns the factory-owned descriptor without retaining the resource.
+    HResourceDescriptor CheckResourceDescriptor(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext);
+
     void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext);
+
     void  PushTextureInfo(lua_State* L, dmGraphics::HContext graphics_context, dmGraphics::HTexture texture_handle, dmhash_t texture_resource_path);
     void  PushSampler(lua_State* L, dmRender::HSampler sampler);
     void  PushRenderConstant(lua_State* L, dmRender::HConstant constant);
     void  PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr);
     void  PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttributeInfo* attribute, const uint8_t* value_ptr);
-    void  GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy);
+    void  GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureWrap* w_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy);
     void  GetConstantValuesFromLua(lua_State* L, dmRenderDDF::MaterialDesc::ConstantType* type, dmArray<dmVMath::Vector4>* scratch_values);
 
     // gamesys_resource.cpp
@@ -193,7 +199,6 @@ namespace dmGameSystem
         uint16_t                                  m_Height;
         uint16_t                                  m_Depth;
         uint16_t                                  m_MaxMipMaps;
-        uint16_t                                  m_TextureBpp;
         uint16_t                                  m_UsageFlags;
         uint8_t                                   m_LayerCount;
     };

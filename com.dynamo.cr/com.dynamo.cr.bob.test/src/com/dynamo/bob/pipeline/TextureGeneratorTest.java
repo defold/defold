@@ -16,13 +16,16 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.EnumSet;
 
 import com.defold.extension.pipeline.texture.*;
-import com.defold.extension.pipeline.texture.TestTextureCompressor;
 import com.dynamo.graphics.proto.Graphics;
 import org.junit.Before;
 import org.junit.Test;
@@ -36,7 +39,7 @@ import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
 import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
-public class TextureGeneratorTest {
+public class TextureGeneratorTest extends AbstractProtoBuilderTest {
 
     //                                AABBGGRR
     private static int pixelWhite = 0xFF332211;
@@ -46,6 +49,7 @@ public class TextureGeneratorTest {
 
     @Before
     public void setUp() throws Exception {
+        addTestFiles();
         TextureCompression.registerCompressor(new TextureCompressorBasisU());
         TextureCompression.registerCompressor(new TextureCompressorASTC());
     }
@@ -87,6 +91,31 @@ public class TextureGeneratorTest {
         return textureProfile.build();
     }
 
+    static TextureProfile createHDRTextureProfile(TextureFormat textureFormat, boolean mipmaps, int maxTextureSize)
+    {
+        TextureFormatAlternative.Builder textureFormatAlt = TextureFormatAlternative.newBuilder();
+        textureFormatAlt.setFormat(textureFormat);
+        textureFormatAlt.setCompressionType(Graphics.TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
+        textureFormatAlt.setCompressionLevel(CompressionLevel.NORMAL);
+
+        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
+        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
+        platformProfile.addFormats(textureFormatAlt.build());
+        platformProfile.setMipmaps(mipmaps);
+        platformProfile.setMaxTextureSize(maxTextureSize);
+        platformProfile.setPremultiplyAlpha(false);
+
+        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
+        textureProfile.setName("HDR Test Profile");
+        textureProfile.addPlatforms(platformProfile.build());
+        return textureProfile.build();
+    }
+
+    static float getFloat(byte[] data, int index)
+    {
+        return ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(index);
+    }
+
     static void assertASTCMip(Image image, TextureGenerator.GenerateResult result, TextureFormat textureFormat, int mipIndex, int offset, int width, int height)
     {
         int expectedSize = TextureCompressorASTC.getCompressedDataSize(textureFormat, width, height);
@@ -108,6 +137,28 @@ public class TextureGeneratorTest {
         assertEquals((byte) (color >> 8), data[offset+1]);  // G
         assertEquals((byte) (color >> 0), data[offset+2]);  // R
         assertEquals((byte) (color >> 24), data[offset+3]); // A
+    }
+
+    // Unreadable streams report a texture format error instead of dereferencing a null image.
+    @Test
+    public void testUnknownTextureFormatFromStream() throws IOException {
+        try {
+            TextureGenerator.generate(new ByteArrayInputStream(new byte[12]), null, false, EnumSet.noneOf(FlipAxis.class));
+            fail("Expected an unknown texture format error");
+        } catch (TextureGeneratorException e) {
+            assertEquals("Unknown texture format.", e.getMessage());
+        }
+    }
+
+    // Bytes with an unrecognized signature use the same diagnostic through the ImageIO fallback.
+    @Test
+    public void testUnknownTextureFormatFromBytes() throws IOException {
+        try {
+            TextureGenerator.generate(new byte[12], null, false);
+            fail("Expected an unknown texture format error");
+        } catch (TextureGeneratorException e) {
+            assertEquals("Unknown texture format.", e.getMessage());
+        }
     }
 
     @Test
@@ -138,6 +189,71 @@ public class TextureGeneratorTest {
             offset += size;
             ++i;
         }
+    }
+
+    // Verifies HDR dimensions are returned through JNI, guarding against regressions in ImageInfo construction.
+    @Test
+    public void testHDRImageInfo() throws IOException {
+        TexcLibraryJni.ImageInfo info = TexcLibraryJni.GetImageInfo(getFile("/hdr_2x2.hdr"));
+
+        assertNotNull(info);
+        assertEquals(2, info.width);
+        assertEquals(2, info.height);
+    }
+
+    @Test
+    public void testHDRDefaultRGBA32F() throws TextureGeneratorException, IOException {
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getFile("/hdr_2x2.hdr"), null, false, EnumSet.noneOf(FlipAxis.class));
+
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        Image image = result.textureImage.getAlternatives(0);
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA32F, image.getFormat());
+        assertEquals(2, image.getWidth());
+        assertEquals(2, image.getHeight());
+        assertEquals(2, image.getMipMapOffsetCount());
+        assertEquals(64, image.getMipMapSize(0));
+        assertEquals(16, image.getMipMapSize(1));
+        assertEquals(80, image.getDataSize());
+
+        byte[] firstMip = result.imageDatas.get(0);
+        assertEquals(1.0f, getFloat(firstMip, 0), 0.0001f);
+        assertEquals(0.0f, getFloat(firstMip, 1), 0.0001f);
+        assertEquals(0.0f, getFloat(firstMip, 2), 0.0001f);
+        assertEquals(1.0f, getFloat(firstMip, 3), 0.0001f);
+    }
+
+    @Test
+    public void testHDRProfileRGBA16F() throws TextureGeneratorException, IOException {
+        TextureProfile textureProfile = createHDRTextureProfile(TextureFormat.TEXTURE_FORMAT_RGBA16F, false, 0);
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getFile("/hdr_2x2.hdr"), textureProfile, false, EnumSet.noneOf(FlipAxis.class));
+
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        Image image = result.textureImage.getAlternatives(0);
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA16F, image.getFormat());
+        assertEquals(1, image.getMipMapOffsetCount());
+        assertEquals(32, image.getMipMapSize(0));
+        assertEquals(32, image.getDataSize());
+
+        byte[] firstMip = result.imageDatas.get(0);
+        assertEquals(0x00, firstMip[0] & 0xff);
+        assertEquals(0x3c, firstMip[1] & 0xff);
+    }
+
+    @Test
+    public void testHDRProfileASTC() throws TextureGeneratorException, IOException {
+        TextureFormat textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4X4;
+        TextureProfile textureProfile = createASTCTextureProfile(textureFormat, true, 0);
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getFile("/hdr_2x2.hdr"), textureProfile, true, EnumSet.noneOf(FlipAxis.class));
+
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        Image image = result.textureImage.getAlternatives(0);
+        assertEquals(textureFormat, image.getFormat());
+        assertEquals(Graphics.TextureImage.CompressionType.COMPRESSION_TYPE_ASTC, image.getCompressionType());
+        assertEquals(2, image.getMipMapOffsetCount());
+
+        assertASTCMip(image, result, textureFormat, 0, 0, 2, 2);
+        assertASTCMip(image, result, textureFormat, 1, 16, 1, 1);
+        assertEquals(32, image.getDataSize());
     }
 
     @Test

@@ -33,6 +33,9 @@ defold_add_library(testmain STATIC ${TESTMAIN_COMMON_SOURCES} ${TESTMAIN_PLATFOR
 target_include_directories(testmain PUBLIC
   "${TESTMAIN_INCLUDE_DIR}"
   "${TESTMAIN_SRC_DIR}/common")
+if(DEFOLD_PLATFORM_TESTMAIN_LIBS)
+  target_link_libraries(testmain PUBLIC ${DEFOLD_PLATFORM_TESTMAIN_LIBS})
+endif()
 
 defold_install_targets(TARGETS testmain
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}

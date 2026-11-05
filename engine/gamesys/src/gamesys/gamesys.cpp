@@ -15,6 +15,7 @@
 #include "gamesys.h"
 
 #include "gamesys_private.h"
+#include "gamesys_context_private.h"
 
 #include <dmsdk/dlib/log.h>
 #include <dlib/static_assert.h>
@@ -26,7 +27,6 @@
 #include <dmsdk/resource/resource.h>
 
 #include "resources/res_collection_proxy.h"
-#include "resources/res_particlefx.h"
 #include "resources/res_texture.h"
 #include "resources/res_shader_program.h"
 #include "resources/res_model.h"
@@ -36,7 +36,6 @@
 #include "resources/res_compute.h"
 #include "resources/res_collision_object.h"
 #include "resources/res_convex_shape.h"
-#include "resources/res_gui.h"
 #include "resources/res_sound.h"
 #include "resources/res_camera.h"
 #include "resources/res_input_binding.h"
@@ -59,10 +58,8 @@
 #include "components/comp_private.h"
 #include "components/comp_collection_proxy.h"
 #include "components/comp_collision_object.h"
-#include "components/comp_particlefx.h"
 #include "components/comp_model.h"
 #include "components/comp_mesh.h"
-#include "components/comp_gui.h"
 #include "components/comp_camera.h"
 #include "components/comp_factory.h"
 #include "components/comp_collection_factory.h"
@@ -74,7 +71,6 @@ DM_PROPERTY_GROUP(rmtp_Components, "Gameobject Components", 0);
 
 namespace dmGameSystem
 {
-
 #define DEFINE_EXT_CONSTANTS(prefix, ext)              \
         const char* prefix##_EXT = ext;                \
         const dmhash_t prefix##_EXT_HASH = dmHashString64(ext);
@@ -139,7 +135,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("convexshapec", physics_context, 0, ResConvexShapeCreate, 0, ResConvexShapeDestroy, ResConvexShapeRecreate);
         REGISTER_RESOURCE_TYPE("collisionobjectc", physics_context, 0, ResCollisionObjectCreate, 0, ResCollisionObjectDestroy, ResCollisionObjectRecreate);
         REGISTER_RESOURCE_TYPE("collectionproxyc", 0, 0, ResCollectionProxyCreate, 0, ResCollectionProxyDestroy, ResCollectionProxyRecreate);
-        REGISTER_RESOURCE_TYPE("particlefxc", 0, ResParticleFXPreload, ResParticleFXCreate, 0, ResParticleFXDestroy, ResParticleFXRecreate);
+        // particlefxc: res_particlefx.cpp
         REGISTER_RESOURCE_TYPE("texturec", graphics_context, ResTexturePreload, ResTextureCreate, ResTexturePostCreate, ResTextureDestroy, ResTextureRecreate);
         REGISTER_RESOURCE_TYPE("spc", graphics_context, ResShaderProgramPreload, ResShaderProgramCreate, 0, ResShaderProgramDestroy, ResShaderProgramRecreate);
         // fontc: res_font.cpp
@@ -165,7 +161,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("renderc", render_context, 0, ResRenderPrototypeCreate, 0, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
         REGISTER_RESOURCE_TYPE("spritec", 0, ResSpritePreload, ResSpriteCreate, 0, ResSpriteDestroy, ResSpriteRecreate);
         REGISTER_RESOURCE_TYPE("texturesetc", physics_context, ResTextureSetPreload, ResTextureSetCreate, 0, ResTextureSetDestroy, ResTextureSetRecreate);
-        REGISTER_RESOURCE_TYPE(TILE_MAP_EXT, physics_context, ResTileGridPreload, ResTileGridCreate, 0, ResTileGridDestroy, ResTileGridRecreate);
+        // tilemapc: res_tilegrid.cpp
         REGISTER_RESOURCE_TYPE("meshsetc", 0, ResMeshSetPreload, ResMeshSetCreate, 0, ResMeshSetDestroy, ResMeshSetRecreate);
         REGISTER_RESOURCE_TYPE("skeletonc", 0, ResSkeletonPreload, ResSkeletonCreate, 0, ResSkeletonDestroy, ResSkeletonRecreate);
         REGISTER_RESOURCE_TYPE("rigscenec", 0, ResRigScenePreload, ResRigSceneCreate, 0, ResRigSceneDestroy, ResRigSceneRecreate);
@@ -176,18 +172,17 @@ namespace dmGameSystem
         return e;
     }
 
-    dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
+    static dmGameObject::Result RegisterComponentTypesInternal(HContext game_system,
+                                                dmResource::HFactory factory,
                                                 dmGameObject::HRegister regist,
                                                 dmRender::HRenderContext render_context,
                                                 PhysicsContext* physics_context,
-                                                ParticleFXContext* particlefx_context,
                                                 SpriteContext* sprite_context,
                                                 CollectionProxyContext* collection_proxy_context,
                                                 FactoryContext* factory_context,
                                                 CollectionFactoryContext *collectionfactory_context,
                                                 ModelContext* model_context,
-                                                LabelContext* label_context,
-                                                TilemapContext* tilemap_context)
+                                                LabelContext* label_context)
     {
         HResourceType type;
         dmGameObject::ComponentType component_type;
@@ -233,7 +228,7 @@ namespace dmGameSystem
     component_type.m_ReadsTransforms = set_reads_transforms;\
     component_type.m_InstanceHasUserData = (uint32_t)true;\
     component_type.m_UpdateOrderPrio = prio;\
-    go_result = dmGameObject::RegisterComponentType(regist, component_type);\
+    go_result = game_system ? RegisterComponentType(game_system, component_type) : dmGameObject::RegisterComponentType(regist, component_type);\
     if (go_result != dmGameObject::RESULT_OK)\
         return go_result;
 
@@ -282,13 +277,7 @@ namespace dmGameSystem
 
         // prio: 725  comp_mesh.cpp
 
-        REGISTER_COMPONENT_TYPE("particlefxc", 800, particlefx_context,
-                &CompParticleFXNewWorld, &CompParticleFXDeleteWorld,
-                &CompParticleFXCreate, &CompParticleFXDestroy, 0, 0, &CompParticleFXAddToUpdate, CompParticleFXGetComponent,
-                &CompParticleFXUpdate, 0, 0, &CompParticleFXRender, 0, &CompParticleFXOnMessage, 0,
-                &CompParticleFXOnReload, CompParticleFXGetProperty, CompParticleFXSetProperty,
-                0, 0,
-                1);
+        // prio: 800  comp_particlefx.cpp
 
         REGISTER_COMPONENT_TYPE("factoryc", 900, factory_context,
                 CompFactoryNewWorld, CompFactoryDeleteWorld,
@@ -316,18 +305,12 @@ namespace dmGameSystem
                 0, CompSpriteIterProperties,
                 1);
 
-        REGISTER_COMPONENT_TYPE(TILE_MAP_EXT, 1200, tilemap_context,
-                CompTileGridNewWorld, CompTileGridDeleteWorld,
-                CompTileGridCreate, CompTileGridDestroy, 0, 0, CompTileGridAddToUpdate, CompTileGridGetComponent,
-                0, CompTileGridLateUpdate, 0, CompTileGridRender, 0, CompTileGridOnMessage, 0,
-                CompTileGridOnReload, CompTileGridGetProperty, CompTileGridSetProperty,
-                0, CompTileGridIterProperties,
-                1);
+        // prio: 1200  comp_tilegrid.cpp
 
         REGISTER_COMPONENT_TYPE("labelc", 1400, label_context,
                 CompLabelNewWorld, CompLabelDeleteWorld,
                 CompLabelCreate, CompLabelDestroy, 0, 0, CompLabelAddToUpdate, CompLabelGetComponent,
-                CompLabelUpdate, CompLabelLateUpdate, 0, CompLabelRender, 0, CompLabelOnMessage, 0,
+                CompLabelUpdate, CompLabelLateUpdate, 0, CompLabelRender, 0, CompLabelOnMessage, CompLabelOnInput,
                 CompLabelOnReload, CompLabelGetProperty, CompLabelSetProperty,
                 0, CompLabelIterProperties,
                 1);
@@ -335,5 +318,67 @@ namespace dmGameSystem
         #undef REGISTER_COMPONENT_TYPE
 
         return go_result;
+    }
+
+    dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
+                                                dmGameObject::HRegister regist,
+                                                dmRender::HRenderContext render_context,
+                                                PhysicsContext* physics_context,
+                                                SpriteContext* sprite_context,
+                                                CollectionProxyContext* collection_proxy_context,
+                                                FactoryContext* factory_context,
+                                                CollectionFactoryContext* collectionfactory_context,
+                                                ModelContext* model_context,
+                                                LabelContext* label_context)
+    {
+        // Existing isolated component tests supply their own type contexts.
+        return RegisterComponentTypesInternal(0, factory, regist, render_context, physics_context,
+            sprite_context, collection_proxy_context, factory_context, collectionfactory_context, model_context, label_context);
+    }
+
+    bool Initialize(HContext context, dmConfigFile::HConfig config)
+    {
+        const ContextParams& params = context->m_Params;
+        context->m_SpriteContext.m_RenderContext = params.m_RenderContext;
+        context->m_SpriteContext.m_Factory = params.m_Factory;
+        context->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(config, "sprite.max_count", 128);
+        context->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(config, "sprite.subpixels", 1);
+
+        context->m_ModelContext.m_RenderContext = params.m_RenderContext;
+        context->m_ModelContext.m_Factory = params.m_Factory;
+        context->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(config, "model.max_count", 128);
+        context->m_ModelContext.m_MaxBoneMatrixTextureWidth = (uint16_t)dmConfigFile::GetInt(config, "model.max_bone_matrix_texture_width", 1024);
+        context->m_ModelContext.m_MaxBoneMatrixTextureHeight = (uint16_t)dmConfigFile::GetInt(config, "model.max_bone_matrix_texture_height", 1024);
+
+        context->m_LabelContext.m_RenderContext = params.m_RenderContext;
+        context->m_LabelContext.m_MaxLabelCount = dmConfigFile::GetInt(config, "label.max_count", 64);
+        context->m_LabelContext.m_Subpixels = dmConfigFile::GetInt(config, "label.subpixels", 1);
+
+        context->m_CollectionProxyContext.m_Factory = params.m_Factory;
+        context->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(config, COLLECTION_PROXY_MAX_COUNT_KEY, 8);
+
+        context->m_FactoryContext.m_Factory = params.m_Factory;
+        context->m_FactoryContext.m_ScriptContext = params.m_ScriptContext;
+        context->m_FactoryContext.m_MaxFactoryCount = dmConfigFile::GetInt(config, FACTORY_MAX_COUNT_KEY, 128);
+
+        context->m_CollectionFactoryContext.m_Factory = params.m_Factory;
+        context->m_CollectionFactoryContext.m_ScriptContext = params.m_ScriptContext;
+        context->m_CollectionFactoryContext.m_MaxCollectionFactoryCount = dmConfigFile::GetInt(config, COLLECTION_FACTORY_MAX_COUNT_KEY, 128);
+
+        dmResource::Result resource_result = RegisterResourceTypes(params.m_Factory, params.m_RenderContext,
+            params.m_InputContext, params.m_PhysicsContext, &context->m_ModelContext);
+        if (resource_result != dmResource::RESULT_OK)
+            return false;
+
+        dmGameObject::Result component_result = RegisterComponentTypesInternal(context, params.m_Factory,
+            params.m_Register, params.m_RenderContext, params.m_PhysicsContext, &context->m_SpriteContext,
+            &context->m_CollectionProxyContext, &context->m_FactoryContext, &context->m_CollectionFactoryContext,
+            &context->m_ModelContext, &context->m_LabelContext);
+        if (component_result != dmGameObject::RESULT_OK)
+        {
+            dmLogError("Unable to register game-system components (%d)", component_result);
+            return false;
+        }
+        return true;
     }
 }

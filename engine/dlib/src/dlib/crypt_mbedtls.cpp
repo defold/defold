@@ -14,6 +14,7 @@
 
 #include "crypt.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #include <mbedtls/base64.h>
@@ -41,6 +42,51 @@ namespace dmCrypt
         HashMbedTLS(MBEDTLS_MD_SHA256, buf, buflen, digest, 32);
     }
 
+    struct HashSha256Context
+    {
+        mbedtls_md_context_t m_Hash;
+    };
+
+    HHashSha256 NewHashSha256()
+    {
+        HHashSha256 context = (HHashSha256)malloc(sizeof(HashSha256Context));
+        if (!context)
+        {
+            return 0;
+        }
+        mbedtls_md_init(&context->m_Hash);
+        const mbedtls_md_info_t* info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+        if (!info || mbedtls_md_setup(&context->m_Hash, info, 0) != 0 || mbedtls_md_starts(&context->m_Hash) != 0)
+        {
+            DeleteHashSha256(context);
+            return 0;
+        }
+        return context;
+    }
+
+    Result UpdateHashSha256(HHashSha256 context, const uint8_t* buf, uint32_t buflen)
+    {
+        if (buflen == 0)
+        {
+            return RESULT_OK;
+        }
+        return mbedtls_md_update(&context->m_Hash, buf, buflen) == 0 ? RESULT_OK : RESULT_ERROR;
+    }
+
+    Result FinalHashSha256(HHashSha256 context, uint8_t* digest)
+    {
+        return mbedtls_md_finish(&context->m_Hash, digest) == 0 ? RESULT_OK : RESULT_ERROR;
+    }
+
+    void DeleteHashSha256(HHashSha256 context)
+    {
+        if (context)
+        {
+            mbedtls_md_free(&context->m_Hash);
+            free(context);
+        }
+    }
+
     void HashSha512(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
     {
         HashMbedTLS(MBEDTLS_MD_SHA512, buf, buflen, digest, 64);
@@ -53,6 +99,21 @@ namespace dmCrypt
 
     bool Base64Encode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len)
     {
+        // mbedtls short circuits an empty input to a zero length output, skipping the terminating
+        // null it writes for every other input length. Handle it here to keep the behaviour the
+        // same for all input lengths (and across the platform implementations).
+        if (src_len == 0)
+        {
+            if (*dst_len == 0)
+            {
+                *dst_len = 1; // room for the terminating null
+                return false;
+            }
+            dst[0] = 0;
+            *dst_len = 0;
+            return true;
+        }
+
         size_t out_len = 0;
         int r = mbedtls_base64_encode(dst, *dst_len, &out_len, src, src_len);
         if (r != 0)
@@ -73,6 +134,14 @@ namespace dmCrypt
 
     bool Base64Decode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len)
     {
+        // Zero base64 characters decode into zero bytes. It has to be handled here, since the
+        // "*dst_len == 0" size query convention below cannot represent an empty result.
+        if (src_len == 0)
+        {
+            *dst_len = 0;
+            return true;
+        }
+
         size_t out_len = 0;
 
         uint32_t padding_needed = (4 - (src_len % 4)) % 4;

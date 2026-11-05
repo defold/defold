@@ -1,0 +1,27 @@
+local direct = require("modules.direct")
+
+local hash_double = "#"
+local hash_single = '#'
+local path_double = "/pla"
+local path_single = '/pla'
+local socket_double = "world:/pla"
+local socket_single = 'world:/pla'
+local socket_empty_double = "world:"
+local socket_empty_single = 'world:'
+local require_double = require("/pla")
+local require_single = require '/pla'
+local require_multiline = require(
+    "/pla")
+local require_commented = require( -- comment before argument
+      "/pla")
+local require_global = _G.require("/pla")
+local divide_after_string = "5"/
+local escaped_quote = "\"/pla"
+local hash_partial = "#player-v"
+local hash_punctuation = "#player."
+local socket_punctuation = "1-world.:"
+local require_global_no_parens = _G.require '/pla'
+
+function init(self)
+    direct.init(self)
+end

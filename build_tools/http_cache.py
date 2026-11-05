@@ -1,17 +1,3 @@
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 import sys, os, os.path, glob, urllib, urllib.request, codecs, time, hashlib
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -120,13 +106,14 @@ def _extract_md5_from_headers(headers):
             md5_hex = etag
     return md5_hex
 
-def download(url, cb=None, cb_count=10, retries=8, timeout=60):
+def download(url, cb=None, cb_count=10, retries=8, timeout=60, cache_root=None):
     """
     Download with retries and validation.
     Returns absolute cache file path on success.
     Raises RuntimeError on failure.
+    cache_root overrides the shared download cache when isolated storage is needed.
     """
-    c = Cache('~/.dcache', 10**9 * 4)
+    c = Cache(cache_root if cache_root is not None else '~/.dcache', 10**9 * 4)
     attempt = 0
     last_err = None
 

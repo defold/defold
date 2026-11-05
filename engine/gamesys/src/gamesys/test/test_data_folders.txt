@@ -7,6 +7,7 @@ camera
 collection_factory
 collection_proxy
 collision_object
+collision_object_3d
 convex_shape
 data
 display_profiles

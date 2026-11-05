@@ -1,0 +1,10 @@
+name: "level"
+instances {
+  id: "boss"
+  prototype: "/objects/boss.go"
+}
+instances {
+  id: "decoy-id"
+  prototype: "/objects/decoy.go"
+}
+scale_along_z: 0

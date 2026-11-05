@@ -1,7 +1,8 @@
 # Editor styling
+
 The editor uses JavaFX stylesheets to control look and feel. A single stylesheet is set on the root node (by convention) in the scene. The stylesheet `editor.css` is loaded as a regular java resource, from the uberjar or from the file-system in dev-mode. If an `editor.css` is found in the current working directory that file will take precedence over the aforementioned java resource.
 
-The stylesheet can be reloaded with the function key `F5`.
+Edit the SCSS files in `styling/stylesheets/`, not the generated `resources/editor.css` file.
 
 The CSS is divided into multiple files and grouped into `base`, `mixins`, `components` and `modules`.
 
@@ -13,23 +14,26 @@ The CSS is divided into multiple files and grouped into `base`, `mixins`, `compo
 Note: The best way to understand how JavaFX styling works is by studying the default stylesheet `modena.css` included in `jfxrt.jar`
 
 ## Generating the stylesheet
-The `editor.css` stylesheet is generated from the the sass/scss files in `styling/stylesheets`. To generate the file you can use either leiningen or gulp:
 
-### Using leiningen
+The `editor.css` stylesheet is generated from the Sass/SCSS files in `styling/stylesheets/`. To generate it, use Leiningen or Gulp:
 
-Generate once:
+### Using Leiningen
+
+Run these commands from `editor/`. To generate the stylesheet once:
 
 ```sh
 lein sass once
 ```
 
-Watch and re-generate css on changes:
+To watch SCSS files and regenerate CSS automatically after each change, keep this command running:
 
 ```sh
-lein sass watch
+lein sass auto
 ```
 
-### Using nodej
+Reload the stylesheet in the running editor after each change using **Help → Reload Stylesheet** or `F5`.
+
+### Using Node.js
 
 In the `styling` directory:
 

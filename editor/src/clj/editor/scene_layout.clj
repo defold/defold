@@ -68,18 +68,18 @@
         region (->region offset dims)
         sub-region (shrink region (:padding desc 0))]
     (into [[(:id desc) region]]
-         (loop [children (:children desc)
-                dims (:children dims)
-                offset [(:left sub-region) (:top sub-region)]
-                result []]
-           (if-let [child (first children)]
-             (let [dim (first dims)
-                   width (:width dim)
-                   height (:height dim)
-                   [x y] offset
-                   next-offset [(+ x width) y]]
-               (recur (rest children) (rest dims) next-offset (into result (place child dim offset sub-region))))
-             result)))))
+          (loop [children (:children desc)
+                 dims (:children dims)
+                 offset [(:left sub-region) (:top sub-region)]
+                 result []]
+            (if-let [child (first children)]
+              (let [dim (first dims)
+                    width (:width dim)
+                    height (:height dim)
+                    [x y] offset
+                    next-offset [(+ x width) y]]
+                (recur (rest children) (rest dims) next-offset (into result (place child dim offset sub-region))))
+              result)))))
 
 (defn layout [desc ^Region viewport]
   (let [dims (dims desc [(width viewport) (height viewport)])

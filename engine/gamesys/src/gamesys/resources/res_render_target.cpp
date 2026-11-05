@@ -43,6 +43,8 @@ namespace dmGameSystem
     static void GetRenderTargetParams(dmRenderDDF::RenderTargetDesc* ddf, uint32_t& buffer_type_flags, dmGraphics::RenderTargetCreationParams& params)
     {
         assert(ddf->m_ColorAttachments.m_Count <= dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS);
+        params.m_SampleCount = ddf->m_SampleCount == 0 ? 1 : ddf->m_SampleCount;
+        params.m_TextureType = TextureImageToTextureType(ddf->m_Type);
 
         for (int i = 0; i < ddf->m_ColorAttachments.m_Count; ++i)
         {
@@ -239,6 +241,11 @@ namespace dmGameSystem
 
         RenderTargetResource* rt_resource = new RenderTargetResource();
         rt_resource->m_RenderTarget       = dmGraphics::NewRenderTarget(graphics_context, buffer_type_flags, rt_params);
+        if (!rt_resource->m_RenderTarget)
+        {
+            delete rt_resource;
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
 
         dmResource::Result res = CreateAttachmentResources(graphics_context, params->m_Factory, rt_resource, params->m_Filename, num_color_textures, rt_params.m_DepthTexture);
         if (res != dmResource::RESULT_OK)
@@ -280,12 +287,18 @@ namespace dmGameSystem
         GetRenderTargetParams(ddf, buffer_type_flags, rt_params);
         dmDDF::FreeMessage(ddf);
 
+        dmGraphics::HRenderTarget new_render_target = dmGraphics::NewRenderTarget(graphics_context, buffer_type_flags, rt_params);
+        if (!new_render_target)
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
         if (rt_resource->m_RenderTarget)
         {
             dmGraphics::DeleteRenderTarget(graphics_context, rt_resource->m_RenderTarget);
         }
 
-        rt_resource->m_RenderTarget              = dmGraphics::NewRenderTarget(dmRender::GetGraphicsContext(render_context), buffer_type_flags, rt_params);
+        rt_resource->m_RenderTarget = new_render_target;
 
         // Clear out any existing resources and recreate new ones for the updated resource.
         for (int i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)

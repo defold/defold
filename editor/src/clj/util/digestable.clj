@@ -183,7 +183,7 @@
   (digest-raw! "}" writer))
 
 (defn- to-sorted-set [set]
-  {:pre [(set? set)]}
+  {:pre [(instance? java.util.Set set)]}
   (if (or (sorted? set)
           (< (count set) 2))
     set
@@ -211,8 +211,8 @@
     (extend class Digestable simple-digestable-impl)))
 
 (extend (Class/forName "[B") Digestable
-  {:digest! (fn digest-byte-array! [value writer _opts]
-              (digest-tagged-bytes! 'Bytes value writer))})
+        {:digest! (fn digest-byte-array! [value writer _opts]
+                    (digest-tagged-bytes! 'Bytes value writer))})
 
 (extend-protocol Digestable
   com.google.protobuf.ByteString
@@ -231,7 +231,7 @@
   (digest! [value writer opts]
     (digest-tagged! 'Function (fn->symbol value) writer opts))
 
-  clojure.lang.IPersistentSet
+  java.util.Set
   (digest! [value writer opts]
     (digest-set! value writer opts))
 

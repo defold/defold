@@ -1,0 +1,4 @@
+components {
+  id: "script"
+  component: "/component_input_source.scriptc"
+}

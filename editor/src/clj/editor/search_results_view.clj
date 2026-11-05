@@ -165,8 +165,8 @@
   (make-matched-item-value-path
     (map (fn [token]
            (cond-> token
-                   (keyword? token)
-                   (protobuf/keyword->field-name)))
+             (keyword? token)
+             (protobuf/keyword->field-name)))
          path)))
 
 (defn- make-matched-setting-item-value-path
@@ -292,8 +292,7 @@
             stop-consumer! ui/timer-stop!
             report-error! (fn [error] (ui/run-later (throw error)))
             workspace (project/workspace project)
-            search-data-future (project-search/make-search-data-future report-error! project)
-            {:keys [abort-search! start-search!]} (project-search/make-file-searcher workspace search-data-future start-consumer! stop-consumer! report-error!)
+            {:keys [abort-search! start-search!]} (project-search/make-file-searcher workspace project start-consumer! stop-consumer! report-error!)
             on-input-changed! (fn [_ _ _]
                                 (let [term (.getText search)
                                       exts (.getText types)
@@ -312,12 +311,21 @@
                              (doseq [[resource opts] (resolve-search-in-files-tree-view-selection (ui/selection resources-tree))]
                                (open-fn resource opts))
                              (dismiss-and-abort-search!))]
+        (init-search-in-files-tree-view! resources-tree)
+
+        (let [term (prefs/get prefs search-in-files-term-prefs-key)
+              exts (prefs/get prefs search-in-files-exts-prefs-key)
+              include-libraries? (prefs/get prefs search-in-files-include-libraries-prefs-key)]
+          (start-search! term exts include-libraries?)
+          (ui/text! search term)
+          (ui/text! types exts)
+          (ui/value! include-libraries-check-box include-libraries?))
+
         (localization/localize! (.titleProperty stage) localization (localization/message "dialog.search-in-files.title"))
         (localization/localize! search-label localization (localization/message "dialog.search-in-files.label.search"))
         (localization/localize! types-label localization (localization/message "dialog.search-in-files.label.types"))
         (localization/localize! include-libraries-check-box localization (localization/message "dialog.search-in-files.label.include-libraries"))
         (localization/localize! ok localization (localization/message "dialog.search-in-files.button.keep-results"))
-        (init-search-in-files-tree-view! resources-tree)
 
         (ui/on-action! ok (fn on-ok! [_] (dismiss-and-show-find-results!)))
         (ui/on-double! resources-tree (fn on-double! [^Event event]
@@ -325,32 +333,24 @@
                                         (open-selected!)))
 
         (.addEventFilter scene KeyEvent/KEY_PRESSED
-                         (ui/event-handler event
-                           (let [^KeyEvent event event]
-                             (condp = (.getCode event)
-                               KeyCode/DOWN   (when (and (= TextField (type (ui/focus-owner scene)))
-                                                         (not= 0 (.getExpandedItemCount resources-tree)))
-                                                (.consume event)
-                                                (ui/request-focus! resources-tree))
-                               KeyCode/ESCAPE (do (.consume event)
-                                                  (dismiss-and-abort-search!))
-                               KeyCode/ENTER  (do (.consume event)
-                                                  (if (= TextField (type (ui/focus-owner scene)))
-                                                    (dismiss-and-show-find-results!)
-                                                    (open-selected!)))
-                               KeyCode/TAB    (when (and (= types (ui/focus-owner scene))
-                                                         (= 0 (.getExpandedItemCount resources-tree)))
-                                                (.consume event)
-                                                (ui/request-focus! search))
-                               nil))))
-
-        (let [term (prefs/get prefs search-in-files-term-prefs-key)
-              exts (prefs/get prefs search-in-files-exts-prefs-key)
-              include-libraries? (prefs/get prefs search-in-files-include-libraries-prefs-key)]
-          (ui/text! search term)
-          (ui/text! types exts)
-          (ui/value! include-libraries-check-box include-libraries?)
-          (start-search! term exts include-libraries?))
+          (ui/event-handler event
+            (let [^KeyEvent event event]
+              (condp = (.getCode event)
+                KeyCode/DOWN   (when (and (= TextField (type (ui/focus-owner scene)))
+                                          (not= 0 (.getExpandedItemCount resources-tree)))
+                                 (.consume event)
+                                 (ui/request-focus! resources-tree))
+                KeyCode/ESCAPE (do (.consume event)
+                                   (dismiss-and-abort-search!))
+                KeyCode/ENTER  (do (.consume event)
+                                   (if (= TextField (type (ui/focus-owner scene)))
+                                     (dismiss-and-show-find-results!)
+                                     (open-selected!)))
+                KeyCode/TAB    (when (and (= types (ui/focus-owner scene))
+                                          (= 0 (.getExpandedItemCount resources-tree)))
+                                 (.consume event)
+                                 (ui/request-focus! search))
+                nil))))
 
         (ui/observe (.textProperty search) on-input-changed!)
         (ui/observe (.textProperty types) on-input-changed!)
@@ -382,10 +382,14 @@
                                (open-selected!)))))
       (.add progress-indicator))))
 
-(defn make-search-results-view! [view-graph ^AnchorPane search-results-container open-resource-fn]
-  (g/make-node! view-graph SearchResultsView
-                :open-resource-fn open-resource-fn
-                :search-results-container search-results-container))
+(defn make-search-results-view! [^AnchorPane search-results-container open-resource-fn]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (g/make-node SearchResultsView
+          :open-resource-fn open-resource-fn
+          :search-results-container search-results-container)))))
 
 (defn show-search-in-files-dialog! [search-results-view project prefs localization show-search-results-tab-fn]
   (let [results-tab-tree-view (make-search-in-files-tree-view)
@@ -402,11 +406,11 @@
    :children (cond-> [{:fx/type fxui/legacy-label
                        :wrap-text false
                        :text proj-path}]
-                     qualifier
-                     (conj {:fx/type fxui/legacy-label
-                            :style {:-fx-text-fill :-df-text-dark}
-                            :wrap-text false
-                            :text qualifier}))})
+               qualifier
+               (conj {:fx/type fxui/legacy-label
+                      :style {:-fx-text-fill :-df-text-dark}
+                      :wrap-text false
+                      :text qualifier}))})
 
 (defn- resource-cell [{:keys [resource qualifier]}]
   (let [proj-path (resource/resource->proj-path resource)]
@@ -529,7 +533,7 @@
       (when-let [^TreeItem tree-item (.getSelectedItem (.getSelectionModel tree-table-view))]
         (when-let [{:keys [resource node-id]} (.getValue tree-item)]
           [[:open-resource (cond-> {:resource resource}
-                                   node-id (assoc :opts {:select-node node-id}))]])))))
+                             node-id (assoc :opts {:select-node node-id}))]])))))
 
 (defmethod handle-override-inspector-event :on-transfer-overrides [{:keys [transfer-overrides-plan]}]
   [[:transfer-overrides transfer-overrides-plan]])
@@ -619,19 +623,19 @@
         transfer-overrides-context-menu-items
         (cond-> []
 
-                (coll/not-empty pull-up-overrides-menu-items)
-                (conj {:fx/type fxui/ext-localize
-                       :localization localization
-                       :message menu-items/pull-up-overrides-message
-                       :desc {:fx/type fx.menu/lifecycle
-                              :items pull-up-overrides-menu-items}})
+          (coll/not-empty pull-up-overrides-menu-items)
+          (conj {:fx/type fxui/ext-localize
+                 :localization localization
+                 :message menu-items/pull-up-overrides-message
+                 :desc {:fx/type fx.menu/lifecycle
+                        :items pull-up-overrides-menu-items}})
 
-                (coll/not-empty push-down-overrides-menu-items)
-                (conj {:fx/type fxui/ext-localize
-                       :localization localization
-                       :message menu-items/push-down-overrides-message
-                       :desc {:fx/type fx.menu/lifecycle
-                              :items push-down-overrides-menu-items}}))
+          (coll/not-empty push-down-overrides-menu-items)
+          (conj {:fx/type fxui/ext-localize
+                 :localization localization
+                 :message menu-items/push-down-overrides-message
+                 :desc {:fx/type fx.menu/lifecycle
+                        :items push-down-overrides-menu-items}}))
 
         context-menu
         (when (coll/not-empty transfer-overrides-context-menu-items)
@@ -648,8 +652,8 @@
               :columns tree-table-columns
               :root (->tree-item tree)}
 
-             context-menu
-             (assoc :context-menu context-menu))}))
+       context-menu
+       (assoc :context-menu context-menu))}))
 
 (defn- transfer-overrides-plan-menu-item [transfer-overrides-plan localization evaluation-context]
   {:fx/type fxui/ext-localize

@@ -543,7 +543,7 @@
        (uniform-type? (:uniform-type value))
        (array-size? (:array-size value))
        (let [location (:location value)]
-         (or (= -1 location) ; Built-in uniforms like gl_ModelViewProjectionMatrix have no location.
+         (or (= -1 location) ; Built-in uniforms have no location.
              (location? location)))))
 
 (defn attribute-info? [value]
@@ -574,9 +574,9 @@
               :location location
               :array-size array-size)
 
-            (< (vector-type-component-count target-vector-type)
-               (vector-type-component-count source-vector-type))
-            (assoc :vector-type target-vector-type))))
+      (< (vector-type-component-count target-vector-type)
+         (vector-type-component-count source-vector-type))
+      (assoc :vector-type target-vector-type))))
 
 (defn attribute-info-byte-size
   ^long [{:keys [data-type vector-type :as _attribute-info]}]

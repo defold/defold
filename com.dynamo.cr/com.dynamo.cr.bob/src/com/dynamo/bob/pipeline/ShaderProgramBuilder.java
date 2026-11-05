@@ -71,6 +71,22 @@ public class ShaderProgramBuilder extends Builder {
         public ArrayList<ShaderBuildResult> shaderBuildResults;
         public ArrayList<SPIRVReflector>    reflectors = new ArrayList<>();
         public byte[]                       hlslRootSignature;
+        public String                       vertexProgram;
+        public String                       fragmentProgram;
+        public String                       computeProgram;
+
+        public void setShaderSourcePaths(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules) {
+            for (ShaderCompilePipeline.ShaderModuleDesc shaderModule : shaderModules) {
+                if (shaderModule.resourcePath == null || shaderModule.resourcePath.isEmpty()) {
+                    continue;
+                }
+                switch (shaderModule.type) {
+                    case SHADER_TYPE_VERTEX -> vertexProgram = shaderModule.resourcePath;
+                    case SHADER_TYPE_FRAGMENT -> fragmentProgram = shaderModule.resourcePath;
+                    case SHADER_TYPE_COMPUTE -> computeProgram = shaderModule.resourcePath;
+                }
+            }
+        }
     }
 
     ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modulesDescs = new ArrayList<>();
@@ -143,13 +159,13 @@ public class ShaderProgramBuilder extends Builder {
             this.modulesDescs.get(i).source = this.modulePreprocessors.get(i).getCompiledSource();
         }
 
-        compileOptions.excludeGlesSm100 = getExcludeGlesSm100Flag();
+        compileOptions.excludeGlesSm100 = compileOptions.excludeGlesSm100 || getExcludeGlesSm100Flag();
         compileOptions.shaderAdapters = this.project.option(ShaderCompilers.SHADER_ADAPTERS_OPTION, null);
         compileOptions.glslEsDefaultFloatPrecision = shaderPrecisionFromString(this.project.getProjectProperties().getStringValue("shader", "glsl_es_default_precision_float", "mediump"));
         compileOptions.glslEsDefaultIntPrecision = shaderPrecisionFromString(this.project.getProjectProperties().getStringValue("shader", "glsl_es_default_precision_int", "highp"));
 
         if (getOutputHlslFlag()) {
-            addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_HLSL_51);
+            addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_HLSL_60);
         }
         if (getOutputSpirvFlag()) {
             addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_SPIRV);
@@ -163,6 +179,9 @@ public class ShaderProgramBuilder extends Builder {
         if (getOutputGLSLFlag()) {
             ArrayList<ShaderDesc.Language> glslLanguages = ShaderCompilers.GetSupportedOpenGLVersionsForPlatform(this.project.getPlatform());
             for (ShaderDesc.Language glslLanguage : glslLanguages) {
+                if (compileOptions.excludeGlesSm100 && glslLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100) {
+                    continue;
+                }
                 addUniqueShaderLanguage(glslLanguage);
             }
         }
@@ -223,6 +242,15 @@ public class ShaderProgramBuilder extends Builder {
         shaderDescBuilder.setReflection(makeShaderReflectionBuilder(shaderCompileresult.reflectors));
         if (shaderCompileresult.hlslRootSignature != null) {
             shaderDescBuilder.setHlslRootSignature(ByteString.copyFrom(shaderCompileresult.hlslRootSignature));
+        }
+        if (shaderCompileresult.vertexProgram != null) {
+            shaderDescBuilder.setVertexProgram(shaderCompileresult.vertexProgram);
+        }
+        if (shaderCompileresult.fragmentProgram != null) {
+            shaderDescBuilder.setFragmentProgram(shaderCompileresult.fragmentProgram);
+        }
+        if (shaderCompileresult.computeProgram != null) {
+            shaderDescBuilder.setComputeProgram(shaderCompileresult.computeProgram);
         }
 
         shaderDescBuildResult.shaderDesc = shaderDescBuilder.build();
@@ -377,6 +405,7 @@ public class ShaderProgramBuilder extends Builder {
         resourceBindingBuilder.setSet(res.set);
         resourceBindingBuilder.setBinding(res.binding);
         resourceBindingBuilder.setStageFlags(res.stageFlags);
+        resourceBindingBuilder.setResourceAccessFlags(Byte.toUnsignedInt(res.accessFlags));
 
         if (res.blockSize != 0) {
             resourceBindingBuilder.setBlockSize(res.blockSize);
@@ -533,6 +562,7 @@ public class ShaderProgramBuilder extends Builder {
                 ShaderCompilePipeline.ShaderModuleDesc transformedDesc = new ShaderCompilePipeline.ShaderModuleDesc();
                 transformedDesc.type = old.type;
                 transformedDesc.source = transformResult.output;
+                transformedDesc.resourcePath = old.resourcePath;
                 newDescs.add(transformedDesc);
             }
             shaderDescs = newDescs;
@@ -555,9 +585,25 @@ public class ShaderProgramBuilder extends Builder {
             for (Shaderc.HLSLResourceMapping mapping : result.hLSLResourceMappings) {
                 ShaderDesc.HLSLResourceMapping.Builder hlslResourceMappingBuilder = ShaderDesc.HLSLResourceMapping.newBuilder();
                 hlslResourceMappingBuilder.setNameHash(mapping.nameHash);
+                hlslResourceMappingBuilder.setRootParameterIndex(mapping.rootParameterIndex);
                 hlslResourceMappingBuilder.setBinding(mapping.shaderResourceBinding);
                 hlslResourceMappingBuilder.setSet(mapping.shaderResourceSet);
                 builder.addHlslResourceMapping(hlslResourceMappingBuilder);
+            }
+        }
+
+        if (result.hLSLShaderOutputs != null) {
+            for (Shaderc.HLSLShaderOutput output : result.hLSLShaderOutputs) {
+                ShaderDesc.HLSLShaderOutput.ComponentType componentType = switch (output.type) {
+                    case BASE_TYPE_UINT32 -> ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_UINT32;
+                    case BASE_TYPE_INT32 -> ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_SINT32;
+                    case BASE_TYPE_FP32 -> ShaderDesc.HLSLShaderOutput.ComponentType.COMPONENT_TYPE_FLOAT32;
+                    default -> throw new IllegalArgumentException("Unsupported HLSL output type: " + output.type);
+                };
+                builder.addHlslShaderOutputs(ShaderDesc.HLSLShaderOutput.newBuilder()
+                    .setLocation(output.location)
+                    .setComponentType(componentType)
+                    .setComponentCount(output.componentCount));
             }
         }
 
@@ -652,7 +698,7 @@ public class ShaderProgramBuilder extends Builder {
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
                 if (Platform.getHostPlatform().isWindows()) {
-                    compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_51);
+                    compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_60);
                 }
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_MSL_22);
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);

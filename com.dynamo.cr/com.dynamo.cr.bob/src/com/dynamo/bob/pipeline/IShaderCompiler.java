@@ -33,7 +33,7 @@ public interface IShaderCompiler {
         public String shaderAdapters;
         public Shaderc.ShaderPrecision glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
         public Shaderc.ShaderPrecision glslEsDefaultIntPrecision   = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
-    };
+    }
 
     ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, CompileOptions options) throws IOException, CompileExceptionError;
 }

@@ -48,6 +48,7 @@
             [util.thread-util :as thread-util])
   (:import [clojure.lang Named]
            [com.defold.control ClippingContainer]
+           [com.sun.javafx.util Utils]
            [java.io File]
            [java.nio.file Path Paths]
            [java.util Collection List]
@@ -73,14 +74,13 @@
 (def ^:private dialogs-css-delay
   (delay (str (io/resource "dialogs.css"))))
 
-(defn max-dialog-stage-height []
-  (let [screens (Screen/getScreens)
-        n (.size screens)]
-    (loop [i 0
-           max-height 0.0]
-      (if (= i n)
-        max-height
-        (recur (unchecked-inc i) (max max-height (.getHeight (.getVisualBounds ^Screen (.get screens i)))))))))
+(defn- max-dialog-height [owner]
+  (let [^Window window (if (instance? Window owner) owner (ui/main-stage))
+        screen (if window
+                 (Utils/getScreen window)
+                 (Screen/getPrimary))
+        screen-margin 32.0]
+    (- (.getHeight (.getVisualBounds ^Screen screen)) (* 2.0 screen-margin))))
 
 (defn dialog-stage
   "Dialog `:stage` that manages scene graph itself and provides layout common
@@ -96,54 +96,59 @@
     :size          dialog width, either :small, :default or :large
     :width         explicit dialog width, overriding :size width
     :height        explicit dialog height, overriding :size content height cap
+    :owner         the owner window, defaults to main stage; the dialog's max
+                   height is limited to the owner's screen
     :content       a content of a dialog, not padded; you can use
                    \"dialog-content-padding\" style class to set desired padding
                    (or \"text-area-with-dialog-content-padding\" for text areas)
     :root-props    extra props to scene root's v-box lifecycle (sans :children)"
-  [{:keys [size header content footer root-props width height]
+  [{:keys [size header content footer root-props width height owner]
     :or {size :default root-props {}}
     :as props}]
-  (-> props
-      (dissoc :size :header :content :footer :root-props)
-      (assoc :fx/type fxui/dialog-stage
-             :max-height (max-dialog-stage-height)
-             :scene {:fx/type fx.scene/lifecycle
-                     :stylesheets [@dialogs-css-delay]
-                     :root (-> root-props
-                               (fxui/add-style-classes "dialog-body")
-                               (cond->
-                                 (not width)
-                                 (fxui/add-style-classes
-                                   (case size
-                                     :small "dialog-body-small"
-                                     :default "dialog-body-default"
-                                     :large "dialog-body-large")))
-                               (assoc :fx/type fx.v-box/lifecycle
-                                      :children (if content
-                                                  [{:fx/type fx.v-box/lifecycle
-                                                    :style-class "dialog-with-content-header"
-                                                    :children [header]}
-                                                   {:fx/type fx.v-box/lifecycle
-                                                    :style-class "dialog-content"
-                                                    :v-box/vgrow :always
-                                                    :children [(cond-> {:fx/type clipping-container
-                                                                        :v-box/vgrow :always
-                                                                        :children [content]}
-                                                                 (not height)
-                                                                 (assoc :pref-height-cap (case size
-                                                                                           :small 480.0
-                                                                                           :default 600.0
-                                                                                           :large 720.0)))]}
-                                                   {:fx/type fx.v-box/lifecycle
-                                                    :style-class "dialog-with-content-footer"
-                                                    :children [footer]}]
-                                                  [{:fx/type fx.v-box/lifecycle
-                                                    :style-class "dialog-without-content-header"
-                                                    :children [header]}
-                                                   {:fx/type fx.region/lifecycle :style-class "dialog-no-content"}
-                                                   {:fx/type fx.v-box/lifecycle
-                                                    :style-class "dialog-without-content-footer"
-                                                    :children [footer]}])))})))
+  (let [max-height (max-dialog-height owner)]
+    (-> props
+        (dissoc :size :header :content :footer :root-props)
+        (cond-> height (assoc :height (min height max-height)))
+        (assoc :fx/type fxui/dialog-stage
+               :max-height max-height
+               :scene {:fx/type fx.scene/lifecycle
+                       :stylesheets [@dialogs-css-delay]
+                       :root (-> root-props
+                                 (util/provide-defaults :max-height max-height)
+                                 (fxui/add-style-classes "dialog-body")
+                                 (cond->
+                                   (not width)
+                                   (fxui/add-style-classes
+                                     (case size
+                                       :small "dialog-body-small"
+                                       :default "dialog-body-default"
+                                       :large "dialog-body-large")))
+                                 (assoc :fx/type fx.v-box/lifecycle
+                                        :children (if content
+                                                    [{:fx/type fx.v-box/lifecycle
+                                                      :style-class "dialog-with-content-header"
+                                                      :children [header]}
+                                                     {:fx/type fx.v-box/lifecycle
+                                                      :style-class "dialog-content"
+                                                      :v-box/vgrow :always
+                                                      :children [(cond-> {:fx/type clipping-container
+                                                                          :v-box/vgrow :always
+                                                                          :children [content]}
+                                                                   (not height)
+                                                                   (assoc :pref-height-cap (case size
+                                                                                             :small 480.0
+                                                                                             :default 600.0
+                                                                                             :large 720.0)))]}
+                                                     {:fx/type fx.v-box/lifecycle
+                                                      :style-class "dialog-with-content-footer"
+                                                      :children [footer]}]
+                                                    [{:fx/type fx.v-box/lifecycle
+                                                      :style-class "dialog-without-content-header"
+                                                      :children [header]}
+                                                     {:fx/type fx.region/lifecycle :style-class "dialog-no-content"}
+                                                     {:fx/type fx.v-box/lifecycle
+                                                      :style-class "dialog-without-content-footer"
+                                                      :children [footer]}])))}))))
 
 (defn- confirmation-dialog-header->fx-desc [localization header]
   {:pre [header]}
@@ -369,6 +374,8 @@
      :buttons [{:text (localization/message "updater.dialog.button.not-now")
                 :cancel-button true
                 :result :cancel}
+               {:text (localization/message "updater.dialog.button.skip-newer-version")
+                :result :skip}
                {:text (localization/message "updater.dialog.button.install-and-restart")
                 :result :restart}
                {:text (localization/message "updater.dialog.button.download-newer-version")
@@ -399,10 +406,12 @@
      :owner owner
      :buttons [{:text (localization/message "updater.dialog.button.not-now")
                 :cancel-button true
-                :result false}
+                :result :later}
+               {:text (localization/message "updater.dialog.button.skip-version")
+                :result :skip}
                {:text (localization/message "updater.dialog.button.download")
                 :default-button true
-                :result true}]}))
+                :result :update}]}))
 
 (defn- messages
   [ex-map]
@@ -958,10 +967,11 @@
 (defn sanitize-file-name [extension name]
   (let [name (sanitize-common name)]
     (cond-> name
-            ; disallow "." and ".." names (only necessary when there is no extension)
-            (not (seq extension)) (string/replace #"^\.{1,2}$" "")
-            ; append extension if there was one
-            (and (seq extension) (seq name)) (str "." extension))))
+      ;; Disallow "." and ".." names when there is no extension.
+      (not (seq extension)) (string/replace #"^\.{1,2}$" "")
+
+      ;; Append extension if there was one.
+      (and (seq extension) (seq name)) (str "." extension))))
 
 (defn- apply-extension [name extension]
   (cond-> name (seq extension) (str "." extension)))
@@ -1054,21 +1064,22 @@
                      (case (:event-type event)
                        :set-name (assoc state :name (:fx/event event))
                        :cancel (assoc state ::fxui/result nil)
-                       :confirm (assoc state ::fxui/result
-                                             (sanitize-against-extensions
-                                               (:name state)
-                                               (:extensions options)))))
-    :description (assoc options :fx/type rename-dialog
-                                :localization (:localization options)
-                                :initial-name name)))
+                       :confirm (assoc state
+                                  ::fxui/result (sanitize-against-extensions
+                                                  (:name state)
+                                                  (:extensions options)))))
+    :description (assoc options
+                   :fx/type rename-dialog
+                   :localization (:localization options)
+                   :initial-name name)))
 
 (defn- relativize [^File base ^File path]
   (let [[^Path base ^Path path] (map #(Paths/get (.toURI ^File %)) [base path])]
     (str ""
          (when (.startsWith path base)
            (-> base
-             (.relativize path)
-             (.toString))))))
+               (.relativize path)
+               (.toString))))))
 
 (defn- new-file-dialog
   [{:keys [^File base-dir ^File location type ext name localization] :as props}]
@@ -1143,26 +1154,26 @@
                      (case event-type
                        :set-file-name (assoc state :name event)
                        :set-location (assoc state :location (io/file base-dir (sanitize-path event)))
-                       :pick-location (assoc state :location
-                                             (let [window (fxui/event->window event)
-                                                   previous-location (:location state)
-                                                   initial-dir (if (.exists ^File previous-location)
-                                                                 previous-location
-                                                                 base-dir)
-                                                   path (make-directory-dialog (localization (localization/message "dialog.directory.title.set-path")) initial-dir window)]
-                                               (if path
-                                                 (io/file base-dir (relativize base-dir path))
-                                                 previous-location)))
+                       :pick-location (assoc state
+                                        :location (let [window (fxui/event->window event)
+                                                        previous-location (:location state)
+                                                        initial-dir (if (.exists ^File previous-location)
+                                                                      previous-location
+                                                                      base-dir)
+                                                        path (make-directory-dialog (localization (localization/message "dialog.directory.title.set-path")) initial-dir window)]
+                                                    (if path
+                                                      (io/file base-dir (relativize base-dir path))
+                                                      previous-location)))
                        :cancel (assoc state ::fxui/result nil)
-                       :confirm (assoc state ::fxui/result
-                                             ;; We need to the actual case of
-                                             ;; the path in the file system for
-                                             ;; an exact match in the internal
-                                             ;; resource maps, which are
-                                             ;; case-sensitive unlike the NTFS
-                                             ;; file system.
-                                             (-> (path/actual-cased (:location state))
-                                                 (io/file (sanitize-file-name ext (:name state)))))))
+                       :confirm (assoc state
+                                  ;; We need to the actual case of
+                                  ;; the path in the file system for
+                                  ;; an exact match in the internal
+                                  ;; resource maps, which are
+                                  ;; case-sensitive unlike the NTFS
+                                  ;; file system.
+                                  ::fxui/result (-> (path/actual-cased (:location state))
+                                                    (io/file (sanitize-file-name ext (:name state)))))))
     :description {:fx/type new-file-dialog
                   :localization localization}))
 
@@ -1188,10 +1199,10 @@
                          {:text (localization/message "dialog.name-conflict.button.name-differently")
                           :result :rename}]
 
-                        (not any-dest-is-broken-symlink)
-                        (conj {:text (localization/message "dialog.name-conflict.button.overwrite-files")
-                               :variant :danger
-                               :result :overwrite}))})))
+                  (not any-dest-is-broken-symlink)
+                  (conj {:text (localization/message "dialog.name-conflict.button.overwrite-files")
+                         :variant :danger
+                         :result :overwrite}))})))
 
 (def ext-with-selection-props
   (fx/make-ext-with-props

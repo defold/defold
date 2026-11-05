@@ -158,6 +158,12 @@ namespace dmSound
      * Currently used by the WASAPI backend when Windows reports AUDCLNT_E_DEVICE_INVALIDATED.
      */
     void NotifyDeviceInvalidated();
+
+    /**
+     * Thread-safe request to reopen the audio device on the next sound update.
+     * May be called by platform notification callbacks, including during device open/close.
+     */
+    void RequestDeviceReset();
 }
 
 namespace dmSound

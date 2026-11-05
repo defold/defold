@@ -47,13 +47,11 @@ namespace dmRender
         return profiles;
     }
 
-
-    void DeleteDisplayProfiles(HDisplayProfiles profiles)
+    static void ClearDisplayProfiles(HDisplayProfiles profiles)
     {
         uint32_t profile_count = profiles->m_Profiles.Size();
         if(profile_count == 0)
         {
-            delete profiles;
             return;
         }
         DisplayProfiles::Qualifier* qualifier = &profiles->m_Qualifiers[0];
@@ -71,11 +69,19 @@ namespace dmRender
                 ++qualifier;
             }
         }
+        profiles->m_Profiles.SetSize(0);
+        profiles->m_Qualifiers.SetSize(0);
+    }
+
+    void DeleteDisplayProfiles(HDisplayProfiles profiles)
+    {
+        ClearDisplayProfiles(profiles);
         delete profiles;
     }
 
     uint32_t SetDisplayProfiles(HDisplayProfiles profiles, DisplayProfilesParams& params)
     {
+        ClearDisplayProfiles(profiles);
         profiles->m_NameHash = params.m_NameHash;
         if(params.m_DisplayProfilesDDF == 0x0)
         {

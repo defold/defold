@@ -23,7 +23,7 @@
 
 namespace dmGraphics
 {
-    int GetShaderStageFlags(ShaderDesc::ShaderType type)
+    inline int GetShaderStageFlags(ShaderDesc::ShaderType type)
     {
         switch(type)
         {

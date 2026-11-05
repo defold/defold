@@ -23,8 +23,8 @@
 
 (defn- dump []
   (->> (Profiler/dumpJson)
-    json/read-str
-    (mapv (fn [e] (into {} (map (fn [[k v]] [(keyword k) v]) e))))))
+       json/read-str
+       (mapv (fn [e] (into {} (map (fn [[k v]] [(keyword k) v]) e))))))
 
 (defn- sleep []
   (try
@@ -34,12 +34,12 @@
 (deftest threads []
   (clear!)
   (profiler/profile "outer" -1
-                    (sleep)
-                    (doall
-                      (pcalls
-                        (fn []
-                          (profiler/profile "inner" -1
-                                            (sleep))))))
+    (sleep)
+    (doall
+      (pcalls
+        (fn []
+          (profiler/profile "inner" -1
+            (sleep))))))
   (let [data (into {} (map (fn [e] [(:name e) e]) (dump)))
         outer (get data "outer")
         inner (get data "inner")]

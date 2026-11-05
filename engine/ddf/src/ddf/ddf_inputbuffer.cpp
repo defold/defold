@@ -69,6 +69,15 @@ namespace dmDDF
         assert(value);
         assert(m_Current <= m_End);
 
+        // Tags, lengths, and small scalar values commonly fit in one varint
+        // byte. Handle that case here to avoid entering the general 64-bit
+        // decoder and its continuation-byte loop.
+        if (m_Current < m_End && (uint8_t)*m_Current < 0x80)
+        {
+            *value = (uint8_t)*m_Current++;
+            return true;
+        }
+
         uint64_t tmp;
         if (ReadVarInt64(&tmp))
         {
@@ -89,6 +98,14 @@ namespace dmDDF
 
     bool InputBuffer::ReadVarInt64(uint64_t* value)
     {
+        // Keep the same one-byte fast path for callers that decode 64-bit
+        // values directly; the remaining path handles multi-byte varints.
+        if (m_Current < m_End && (uint8_t)*m_Current < 0x80)
+        {
+            *value = (uint8_t)*m_Current++;
+            return true;
+        }
+
         uint64_t result = 0;
         int count = 0;
 

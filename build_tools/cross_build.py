@@ -1,18 +1,4 @@
 #!/usr/bin/env python
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 import json
 import os
 import subprocess
@@ -69,28 +55,31 @@ def load_platform_sdks(path):
         return json.load(f)
 
 
-def merge_platform_sdks(defold_root, platform):
-    """Merge public platform SDK mappings with the private mapping for platform.
+def merge_platform_sdks(defold_root, platforms):
+    """Merge public SDK mappings with private mappings for one or more platforms.
 
-    Private repositories can contain SDK mappings for multiple platforms. A
-    cross build should only expose the mapping for the target platform being
-    built, while keeping all public mappings from the base repository.
+    Private repositories can contain mappings for additional platforms. Only
+    expose the requested private mappings, keeping all public mappings from the
+    base repository. A single platform string is accepted for cross builds.
     """
     platform_sdks = load_platform_sdks(get_platform_sdks_path(defold_root))
 
-    private_root = get_platform_root(platform) if platform else ''
-    if private_root:
-        private_platform_sdks_path = get_platform_sdks_path(private_root)
-        if os.path.exists(private_platform_sdks_path):
-            private_platform_sdks = load_platform_sdks(private_platform_sdks_path)
-            if platform in private_platform_sdks:
-                platform_sdks[platform] = private_platform_sdks[platform]
+    if isinstance(platforms, str):
+        platforms = [platforms]
+    for platform in platforms or []:
+        private_root = get_platform_root(platform) if platform else ''
+        if private_root:
+            private_platform_sdks_path = get_platform_sdks_path(private_root)
+            if os.path.exists(private_platform_sdks_path):
+                private_platform_sdks = load_platform_sdks(private_platform_sdks_path)
+                if platform in private_platform_sdks:
+                    platform_sdks[platform] = private_platform_sdks[platform]
 
     return platform_sdks
 
 
-def write_merged_platform_sdks(defold_root, platform, output_path):
-    platform_sdks = merge_platform_sdks(defold_root, platform)
+def write_merged_platform_sdks(defold_root, platforms, output_path):
+    platform_sdks = merge_platform_sdks(defold_root, platforms)
     with open(output_path, 'w') as f:
         json.dump(platform_sdks, f, indent=4)
         f.write('\n')

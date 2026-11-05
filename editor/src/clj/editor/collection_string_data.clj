@@ -28,17 +28,17 @@
   "Throws an informative exception if the supplied value is not a
   GameObject$EmbeddedComponentDesc in map format with the :data field converted
   to a map."
-  [embedded-component-desc owning-resource]
+  [embedded-component-desc owner-resource]
   (let [component-data (:data embedded-component-desc)]
     (when-not (map? component-data)
-      (let [owning-proj-path (resource/resource->proj-path owning-resource)
+      (let [owner-proj-path (resource/resource->proj-path owner-resource)
             component-id (:id embedded-component-desc)
             component-type (:type embedded-component-desc)]
         (throw (ex-info (format "Invalid embedded component '%s' of type '%s' in '%s'."
                                 component-id
                                 component-type
-                                owning-proj-path)
-                        {:proj-path owning-proj-path
+                                owner-proj-path)
+                        {:proj-path owner-proj-path
                          :id component-id
                          :type component-type
                          :data component-data}))))))
@@ -50,15 +50,15 @@
   embedded game object have been string decoded. You'll need to call
   verify-string-decoded-embedded-component-desc! separately on the embedded
   components."
-  [embedded-instance-desc owning-resource]
+  [embedded-instance-desc owner-resource]
   (let [prototype-desc (:data embedded-instance-desc)]
     (when-not (map? prototype-desc)
-      (let [owning-proj-path (resource/resource->proj-path owning-resource)
+      (let [owner-proj-path (resource/resource->proj-path owner-resource)
             game-object-instance-id (:id embedded-instance-desc)]
         (throw (ex-info (format "Invalid embedded game object instance '%s' in '%s'."
                                 game-object-instance-id
-                                owning-proj-path)
-                        {:proj-path owning-proj-path
+                                owner-proj-path)
+                        {:proj-path owner-proj-path
                          :id game-object-instance-id
                          :data prototype-desc}))))))
 
@@ -70,13 +70,12 @@
   "Takes a GameObject$EmbeddedComponentDesc in map format with string :data and
   returns a GameObject$EmbeddedComponentDesc in map format with the :data field
   converted to a map."
-  [ext->embedded-component-resource-type string-encoded-embedded-component-desc]
+  [read-opts owner-resource ext->embedded-component-resource-type string-encoded-embedded-component-desc]
   (let [component-ext (:type string-encoded-embedded-component-desc)
         component-resource-type (ext->embedded-component-resource-type component-ext)
-        component-read-fn (:read-fn component-resource-type)
         string->component-data (fn [^String embedded-component-string]
                                  (with-open [reader (StringReader. embedded-component-string)]
-                                   (component-read-fn reader)))]
+                                   ((:read-fn component-resource-type) read-opts owner-resource reader)))]
     (update string-encoded-embedded-component-desc :data string->component-data)))
 
 (defn string-decode-prototype-desc
@@ -84,17 +83,17 @@
   GameObject$EmbeddedComponentDescs and returns a GameObject$PrototypeDesc in
   map format with the :data fields in each GameObject$EmbeddedComponentDesc
   converted to a map."
-  [ext->embedded-component-resource-type string-encoded-prototype-desc]
-  (let [string-decode-embedded-component-desc (partial string-decode-embedded-component-desc ext->embedded-component-resource-type)]
+  [read-opts owner-resource ext->embedded-component-resource-type string-encoded-prototype-desc]
+  (let [string-decode-embedded-component-desc (partial string-decode-embedded-component-desc read-opts owner-resource ext->embedded-component-resource-type)]
     (protobuf/sanitize-repeated string-encoded-prototype-desc :embedded-components string-decode-embedded-component-desc)))
 
 (defn string-decode-embedded-instance-desc
   "Takes a GameObject$EmbeddedInstanceDesc in map format with string :data and
   returns a GameObject$EmbeddedInstanceDesc in map format with the :data field
   converted to a map."
-  [ext->embedded-component-resource-type string-encoded-embedded-instance-desc]
+  [read-opts owner-resource ext->embedded-component-resource-type string-encoded-embedded-instance-desc]
   (let [game-object-read-fn (partial protobuf/str->map-without-defaults GameObject$PrototypeDesc)
-        string-decode-prototype-desc (partial string-decode-prototype-desc ext->embedded-component-resource-type)
+        string-decode-prototype-desc (partial string-decode-prototype-desc read-opts owner-resource ext->embedded-component-resource-type)
         string-decode-embedded-prototype-desc (comp string-decode-prototype-desc game-object-read-fn)]
     (update string-encoded-embedded-instance-desc :data string-decode-embedded-prototype-desc)))
 
@@ -103,8 +102,8 @@
   GameObject$EmbeddedInstanceDescs and returns a GameObject$CollectionDesc in
   map format with the :data fields in each GameObject$EmbeddedInstanceDescs
   converted to a map."
-  [ext->embedded-component-resource-type string-encoded-collection-desc]
-  (let [string-decode-embedded-instance-desc (partial string-decode-embedded-instance-desc ext->embedded-component-resource-type)]
+  [read-opts owner-resource ext->embedded-component-resource-type string-encoded-collection-desc]
+  (let [string-decode-embedded-instance-desc (partial string-decode-embedded-instance-desc read-opts owner-resource ext->embedded-component-resource-type)]
     (protobuf/sanitize-repeated string-encoded-collection-desc :embedded-instances string-decode-embedded-instance-desc)))
 
 ;; -----------------------------------------------------------------------------

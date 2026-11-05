@@ -14,12 +14,12 @@
 
 (ns editor.github
   (:require
-   [clojure.string :as string]
-   [editor.connection-properties :refer [connection-properties]]
-   [editor.gl :as gl]
-   [editor.system :as system])
+    [clojure.string :as string]
+    [editor.connection-properties :refer [connection-properties]]
+    [editor.gl :as gl]
+    [editor.system :as system])
   (:import
-   (java.net URI URLEncoder)))
+    (java.net URI URLEncoder)))
 
 (set! *warn-on-reflection* true)
 
@@ -60,11 +60,11 @@
   ([]
    (new-issue-link {}))
   ([fields]
-      (let [gl-info (gl/info)
-            fields (cond-> fields
-                     gl-info (assoc "GPU" (:renderer gl-info)
-                               "GPU Driver" (:version gl-info)))]
-        (str issue-repo "/issues/new?title=&labels=new&body="
+   (let [gl-info (gl/info)
+         fields (cond-> fields
+                  gl-info (assoc "GPU" (:renderer gl-info)
+                                 "GPU Driver" (:version gl-info)))]
+     (str issue-repo "/issues/new?title=&labels=new&body="
           (URLEncoder/encode (issue-body (merge (default-fields) fields)))))))
 
 (defn new-suggestion-link

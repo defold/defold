@@ -27,7 +27,7 @@ namespace dmPhysics
         rgb[2] = (color & 0xFF) / 255.0f;
     }
 
-    static void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context)
+    static void DrawPolygon(b2Transform transform, const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context)
     {
         DebugDraw2D* debug_draw_2d = (DebugDraw2D*)context;
 
@@ -39,9 +39,9 @@ namespace dmPhysics
             uint32_t segment_count = dmMath::Min(MAX_SEGMENT_COUNT, (uint32_t)vertexCount);
             for (uint32_t i = 0; i < segment_count; ++i)
             {
-                FromB2(vertices[i], points[2*i], inv_scale);
+                FromB2(b2TransformPoint(transform, vertices[i]), points[2*i], inv_scale);
                 uint32_t j = (i + 1) % segment_count;
-                FromB2(vertices[j], points[2*i + 1], inv_scale);
+                FromB2(b2TransformPoint(transform, vertices[j]), points[2*i + 1], inv_scale);
             }
 
             float rgb[3];
@@ -120,14 +120,14 @@ namespace dmPhysics
         }
     }
 
-    static void DrawSolidCircle( b2Transform transform, float radius, b2HexColor color, void* context )
+    static void DrawSolidCircle( b2Transform transform, b2Vec2 center, float radius, b2HexColor color, void* context )
     {
         DebugDraw2D* debug_draw_2d = (DebugDraw2D*)context;
         if (debug_draw_2d->m_Callbacks->m_DrawTriangles)
         {
             float inv_scale = debug_draw_2d->m_Callbacks->m_InvScale;
             dmVMath::Point3 c;
-            FromB2(transform.p, c, inv_scale);
+            FromB2(b2TransformPoint(transform, center), c, inv_scale);
             radius *= inv_scale;
             const uint32_t MAX_TRI_COUNT = 16;
             dmVMath::Point3 points[MAX_TRI_COUNT * 3];
@@ -201,14 +201,14 @@ namespace dmPhysics
     DebugDraw2D::DebugDraw2D(DebugCallbacks* callbacks)
     : m_Callbacks(callbacks)
     {
-        memset(&m_DebugDraw, 0, sizeof(m_DebugDraw));
+        m_DebugDraw = b2DefaultDebugDraw();
 
         m_DebugDraw.DrawPolygonFcn          = DrawPolygon;
         m_DebugDraw.DrawSolidPolygonFcn     = DrawSolidPolygon;
         m_DebugDraw.DrawCircleFcn           = DrawCircle;
         m_DebugDraw.DrawSolidCircleFcn      = DrawSolidCircle;
         m_DebugDraw.DrawSolidCapsuleFcn     = DrawSolidCapsule;
-        m_DebugDraw.DrawSegmentFcn          = DrawSegment;
+        m_DebugDraw.DrawLineFcn              = DrawSegment;
         m_DebugDraw.DrawTransformFcn        = DrawTransform;
         m_DebugDraw.DrawPointFcn            = DrawPoint;
         m_DebugDraw.DrawStringFcn           = DrawString;
@@ -222,8 +222,8 @@ namespace dmPhysics
         m_DebugDraw.drawContacts         = force_flag;
         m_DebugDraw.drawGraphColors      = force_flag;
         m_DebugDraw.drawContactNormals   = force_flag;
-        m_DebugDraw.drawContactImpulses  = force_flag;
-        m_DebugDraw.drawFrictionImpulses = force_flag;
+        m_DebugDraw.drawContactForces    = force_flag;
+        m_DebugDraw.drawFrictionForces   = force_flag;
         m_DebugDraw.context              = this;
     }
 }
