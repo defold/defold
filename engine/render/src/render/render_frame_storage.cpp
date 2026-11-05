@@ -352,12 +352,12 @@ namespace dmRender
         return RENDER_FRAME_OK;
     }
 
-    inline const RenderFrameView* GetRenderFrameView(HRenderFrameStorage frame)
+    const RenderFrameView* GetRenderFrameView(HRenderFrameStorage frame)
     {
         return frame->m_State == RENDER_FRAME_STORAGE_SEALED ? &frame->m_View : 0;
     }
 
-    inline const void* GetRenderFrameTableData(const RenderFrameView& frame, uint32_t table_index)
+    const void* GetRenderFrameTableData(const RenderFrameView& frame, uint32_t table_index)
     {
         assert(table_index < frame.m_Statistics.m_TableCount);
         return frame.m_Tables[table_index].m_Data;
