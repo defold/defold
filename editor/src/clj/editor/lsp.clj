@@ -879,6 +879,7 @@
           (update :view-node->resource dissoc view-node)
           (cancel-document-symbols-refresh resource)
           (cancel-active-request (document-symbols-id resource))
+          (update :active-request-listeners dissoc (document-symbols-id resource))
           (cancel-active-request (completions-id resource))
           ;; will close if clean or removed, keep open if dirty
           (sync-resource-state! resource))
