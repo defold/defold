@@ -16,7 +16,6 @@
 
 #include <ddf/ddf.h>
 #include <dlib/testutil.h>
-#include <hid_private.h>
 #include <input/input_ddf.h>
 
 #include "../input.h"

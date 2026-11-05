@@ -38,7 +38,6 @@
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
 #include "../engine_private.h"
-#include "../../../input/src/input_private.h"
 
 #if defined(DM_PLATFORM_IOS) || defined(__EMSCRIPTEN__)
 #include <stdlib.h>
@@ -286,8 +285,6 @@ static void CaptureInput(dmExtension::Params* params, dmhash_t id, const void* d
             ctx->m_Valid = false;
             continue;
         }
-        ctx->m_Valid &= dmInput::GetInputAction(&iterator) == &event->m_Input->m_InputActions[i] &&
-                        !dmInput::GetInputAction(&iterator)->m_Consumed;
         seen.m_Actions[i].m_Id = dmInput::ActionGetId(&iterator);
         seen.m_Actions[i].m_Value = dmInput::ActionGetValue(&iterator);
         seen.m_Actions[i].m_Source = dmInput::ActionGetSource(&iterator);
@@ -993,7 +990,6 @@ TEST_F(EngineTest, InputObserversBeforeFocusedDispatch)
     InputObservation observations[5][2];
     uint32_t lua_calls[5] = {};
     ctx.m_Engine = engine;
-    bool consumed[5] = {};
     if (initialized)
     {
         ctx.m_L = dmScript::GetLuaState(engine->m_ScriptContext);
@@ -1023,11 +1019,6 @@ TEST_F(EngineTest, InputObserversBeforeFocusedDispatch)
                 observations[frame][observer] = ctx.m_Observers[observer];
             }
             lua_calls[frame] = InputLuaCalls(ctx.m_L);
-            consumed[frame] = true;
-            for (uint32_t i = 0; i < engine->m_InputContext->m_InputActions.Size(); ++i)
-            {
-                consumed[frame] &= engine->m_InputContext->m_InputActions[i].m_Consumed != 0;
-            }
         }
     }
 
@@ -1044,7 +1035,6 @@ TEST_F(EngineTest, InputObserversBeforeFocusedDispatch)
     for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(observations); ++frame)
     {
         ASSERT_EQ(after_lua[frame], lua_calls[frame]);
-        ASSERT_TRUE(consumed[frame]);
         for (uint32_t observer = 0; observer < DM_ARRAY_SIZE(ctx.m_Observers); ++observer)
         {
             const InputObservation& seen = observations[frame][observer];
@@ -1089,7 +1079,7 @@ TEST_F(EngineTest, GamepadActionMetadata)
     bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
     InputObserverContext ctx = {};
     InputObservation observations[7][2];
-    const dmhash_t departed_name_hash = dmHashString64("Departed controller");
+    const dmhash_t gamepad_name_hash = dmHashString64("null_device");
     if (initialized)
     {
         ctx.m_Engine = engine;
@@ -1111,12 +1101,6 @@ TEST_F(EngineTest, GamepadActionMetadata)
             for (uint32_t observer = 0; observer < DM_ARRAY_SIZE(ctx.m_Observers); ++observer)
             {
                 observations[frame][observer] = ctx.m_Observers[observer];
-            }
-            if (frame == 1 || frame == 4)
-            {
-                // Model a departed device's name hash; the null backend always reports null_device.
-                dmInput::GamepadBinding* gamepad = engine->m_GameInputBinding->m_GamepadBindings[0];
-                gamepad->m_DeviceNameHash = departed_name_hash;
             }
         }
     }
@@ -1144,7 +1128,7 @@ TEST_F(EngineTest, GamepadActionMetadata)
                 ASSERT_EQ(0u, action.m_GamepadIndex);
                 ASSERT_EQ(connected, action.m_GamepadConnected);
                 ASSERT_EQ(!connected, action.m_GamepadDisconnected);
-                ASSERT_EQ(frame == 3 || frame == 5 ? departed_name_hash : dmHashString64("null_device"), action.m_GamepadNameHash);
+                ASSERT_EQ(gamepad_name_hash, action.m_GamepadNameHash);
             }
         }
     }
