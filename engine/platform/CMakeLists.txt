@@ -233,17 +233,3 @@ endif()
 if(BUILD_TESTS)
     add_subdirectory(src/test)
 endif()
-
-if(BUILD_TESTS)
-    defold_add_library(platform_test STATIC "${CMAKE_CURRENT_LIST_DIR}/src/test/platform_test.cpp")
-    defold_target_link_libraries(platform_test "${TARGET_PLATFORM}" SCOPE PUBLIC platform)
-    add_dependencies(platform_test platform_sdk_headers)
-    defold_add_sdk_headers_target(platform_test_sdk_headers
-        DESTINATION include/platform
-        SOURCE_ROOT "${CMAKE_CURRENT_LIST_DIR}/src/test"
-        FILES "${CMAKE_CURRENT_LIST_DIR}/src/test/platform_test.hpp"
-        DEPENDS platform_test)
-    set_target_properties(platform_test PROPERTIES DEFOLD_SDK_HEADERS_TARGET platform_test_sdk_headers)
-    defold_install_targets(TARGETS platform_test ARCHIVE DESTINATION lib/${TARGET_PLATFORM})
-    install(FILES "${CMAKE_CURRENT_LIST_DIR}/src/test/platform_test.hpp" DESTINATION include/platform)
-endif()

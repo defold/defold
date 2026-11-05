@@ -21,6 +21,7 @@
 #include <dlib/path.h>
 #include <dlib/sys.h>
 #include <dlib/time.h>
+#include "../platform_window_glfw3.h"
 #include "../platform_window_glfw3_private.h"
 #include "../window_state.h"
 
@@ -126,6 +127,15 @@ protected:
         free(m_PreviousEnvironment);
     }
 };
+
+// Verifies the borrowed GLFW handle identifies the platform-owned window without exposing its layout to callers.
+TEST_F(WindowPlacementTest, GLFWWindowHandle)
+{
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
+    GLFWwindow* glfw_window = dmPlatform::GetGLFWWindow(m_Window);
+    ASSERT_NE((GLFWwindow*)0, glfw_window);
+    ASSERT_EQ(m_Window, (HWindow)glfwGetWindowUserPointer(glfw_window));
+}
 
 // Verifies close captures the actual geometry and X11 restoration preserves the requested position.
 TEST_F(WindowPlacementTest, RecreateRestoresActualGeometry)

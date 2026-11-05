@@ -393,8 +393,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
     font_skribidi
     font_richtext
     font_render
-    graphics_test
-    platform_test)
+    graphics_test)
   set(WITH_OPENGL ON)
   defold_target_link_graphics(fontviewer "${TARGET_PLATFORM}" SCOPE PRIVATE)
   defold_target_link_platform(fontviewer "${TARGET_PLATFORM}" SCOPE PRIVATE)

@@ -12,17 +12,19 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_PLATFORM_TEST_HPP
-#define DM_PLATFORM_TEST_HPP
+#ifndef DM_PLATFORM_WINDOW_GLFW3_H
+#define DM_PLATFORM_WINDOW_GLFW3_H
 
-#include <platform/window.hpp>
+#include "window.hpp"
+
 struct GLFWwindow;
 
+// Native window interop for GLFW3 platform builds.
 namespace dmPlatform
 {
-    // Test/tool interop for a live GLFW3 window. The native pointer is borrowed;
-    // other window backends return null. Do not pass a null-backend test window.
-    GLFWwindow* TestGetGLFWWindow(HWindow window);
+    // Returns the GLFW3 handle for an open window. The handle is borrowed until
+    // CloseWindow(); callers must not destroy it. Call on the platform thread.
+    GLFWwindow* GetGLFWWindow(HWindow window);
 }
 
-#endif // DM_PLATFORM_TEST_HPP
+#endif // DM_PLATFORM_WINDOW_GLFW3_H
