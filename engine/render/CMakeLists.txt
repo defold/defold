@@ -148,3 +148,17 @@ endif()
 if(BUILD_TESTS)
   add_subdirectory(src/test)
 endif()
+
+if(BUILD_TESTS)
+  defold_add_library(render_test STATIC "${RENDER_SRC_DIR}/test/render_test.cpp")
+  defold_target_link_libraries(render_test "${TARGET_PLATFORM}" SCOPE PUBLIC render)
+  add_dependencies(render_test render_sdk_headers)
+  defold_add_sdk_headers_target(render_test_sdk_headers
+    DESTINATION include/render
+    SOURCE_ROOT "${RENDER_SRC_DIR}/test"
+    FILES "${RENDER_SRC_DIR}/test/render_test.hpp"
+    DEPENDS render_test)
+  set_target_properties(render_test PROPERTIES DEFOLD_SDK_HEADERS_TARGET render_test_sdk_headers)
+  defold_install_targets(TARGETS render_test ARCHIVE DESTINATION lib/${TARGET_PLATFORM})
+  install(FILES "${RENDER_SRC_DIR}/test/render_test.hpp" DESTINATION include/render)
+endif()

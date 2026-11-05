@@ -174,8 +174,8 @@ TEST_P(ResourceTest, TestPreloadAsync)
     dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_name);
     dmResource::Result r;
 
-    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
-    null_context->m_UseAsyncTextureLoad   = 1;
+    dmGraphics::HContext null_context = m_GraphicsContext;
+    dmGraphics::TestSetAsyncTextureLoad(null_context, true);
 
     uint64_t stop_time = dmTime::GetMonotonicTime() + 30*10e6;
     while (dmTime::GetMonotonicTime() < stop_time)
@@ -306,12 +306,6 @@ TEST_F(RenderTargetResourceTest, InvalidCubemapFailsToReload)
     dmResource::Release(m_Factory, resource);
 }
 
-static dmGraphics::Texture* GetTextureBase(dmGraphics::HContext context, dmGraphics::HTexture texture)
-{
-    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*)context;
-    return dmGraphics::GetAssetFromContainer<dmGraphics::Texture>(null_context->m_BaseContext.m_AssetHandleContainer, texture);
-}
-
 // Float texture resources preserve their formats, dimensions, and mip counts.
 TEST_F(TextureResourceTest, FloatTextureResources)
 {
@@ -322,9 +316,9 @@ TEST_F(TextureResourceTest, FloatTextureResources)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/texture/hdr_rgba16f.texturec", (void**)&texture_16f));
     ASSERT_NE((dmGameSystem::TextureResource*)0, texture_16f);
 
-    dmGraphics::Texture* texture_16f_base = GetTextureBase(m_GraphicsContext, texture_16f->m_Texture);
-    ASSERT_NE((dmGraphics::Texture*)0, texture_16f_base);
-    ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGBA16F, texture_16f_base->m_Format);
+    dmGraphics::HTexture texture_16f_base = texture_16f->m_Texture;
+    ASSERT_NE((dmGraphics::HTexture)0, texture_16f_base);
+    ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGBA16F, dmGraphics::TestGetTextureFormat(m_GraphicsContext, texture_16f_base));
     ASSERT_EQ(2u, dmGraphics::GetTextureWidth(m_GraphicsContext, texture_16f->m_Texture));
     ASSERT_EQ(2u, dmGraphics::GetTextureHeight(m_GraphicsContext, texture_16f->m_Texture));
     ASSERT_EQ(2u, dmGraphics::GetTextureMipmapCount(m_GraphicsContext, texture_16f->m_Texture));
@@ -334,9 +328,9 @@ TEST_F(TextureResourceTest, FloatTextureResources)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/texture/hdr_rgba32f.texturec", (void**)&texture_32f));
     ASSERT_NE((dmGameSystem::TextureResource*)0, texture_32f);
 
-    dmGraphics::Texture* texture_32f_base = GetTextureBase(m_GraphicsContext, texture_32f->m_Texture);
-    ASSERT_NE((dmGraphics::Texture*)0, texture_32f_base);
-    ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGBA32F, texture_32f_base->m_Format);
+    dmGraphics::HTexture texture_32f_base = texture_32f->m_Texture;
+    ASSERT_NE((dmGraphics::HTexture)0, texture_32f_base);
+    ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGBA32F, dmGraphics::TestGetTextureFormat(m_GraphicsContext, texture_32f_base));
     ASSERT_EQ(2u, dmGraphics::GetTextureWidth(m_GraphicsContext, texture_32f->m_Texture));
     ASSERT_EQ(2u, dmGraphics::GetTextureHeight(m_GraphicsContext, texture_32f->m_Texture));
     ASSERT_EQ(1u, dmGraphics::GetTextureMipmapCount(m_GraphicsContext, texture_32f->m_Texture));
@@ -346,16 +340,16 @@ TEST_F(TextureResourceTest, FloatTextureResources)
 // Unsupported half-float textures fall back to a supported float alternative.
 TEST_F(TextureResourceTest, FloatTextureSelectsSupportedAlternative)
 {
-    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*)m_GraphicsContext;
-    null_context->m_BaseContext.m_TextureFormatSupport &= ~(1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F);
+    dmGraphics::HContext null_context = m_GraphicsContext;
+    dmGraphics::TestSetTextureFormats(null_context, dmGraphics::TestGetTextureFormats(null_context) & (~(1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F)));
 
     dmGameSystem::TextureResource* texture = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/texture/hdr_rgba16f.texturec", (void**)&texture));
     ASSERT_NE((dmGameSystem::TextureResource*)0, texture);
 
-    dmGraphics::Texture* texture_base = GetTextureBase(m_GraphicsContext, texture->m_Texture);
-    ASSERT_NE((dmGraphics::Texture*)0, texture_base);
-    ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGBA32F, texture_base->m_Format);
+    dmGraphics::HTexture texture_base = texture->m_Texture;
+    ASSERT_NE((dmGraphics::HTexture)0, texture_base);
+    ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGBA32F, dmGraphics::TestGetTextureFormat(m_GraphicsContext, texture_base));
     ASSERT_EQ(2u, dmGraphics::GetTextureMipmapCount(m_GraphicsContext, texture->m_Texture));
     dmResource::Release(m_Factory, texture);
 }
@@ -363,17 +357,17 @@ TEST_F(TextureResourceTest, FloatTextureSelectsSupportedAlternative)
 // A blank texture remains available when no float alternative is supported.
 TEST_F(TextureResourceTest, UnsupportedFloatTextureUsesBlankFallback)
 {
-    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*)m_GraphicsContext;
-    null_context->m_BaseContext.m_TextureFormatSupport &= ~(1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F);
-    null_context->m_BaseContext.m_TextureFormatSupport &= ~(1ULL << dmGraphics::TEXTURE_FORMAT_RGBA32F);
+    dmGraphics::HContext null_context = m_GraphicsContext;
+    dmGraphics::TestSetTextureFormats(null_context, dmGraphics::TestGetTextureFormats(null_context) & (~(1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F)));
+    dmGraphics::TestSetTextureFormats(null_context, dmGraphics::TestGetTextureFormats(null_context) & (~(1ULL << dmGraphics::TEXTURE_FORMAT_RGBA32F)));
 
     dmGameSystem::TextureResource* texture = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/texture/hdr_rgba16f.texturec", (void**)&texture));
     ASSERT_NE((dmGameSystem::TextureResource*)0, texture);
 
-    dmGraphics::Texture* texture_base = GetTextureBase(m_GraphicsContext, texture->m_Texture);
-    ASSERT_NE((dmGraphics::Texture*)0, texture_base);
-    ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGBA, texture_base->m_Format);
+    dmGraphics::HTexture texture_base = texture->m_Texture;
+    ASSERT_NE((dmGraphics::HTexture)0, texture_base);
+    ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGBA, dmGraphics::TestGetTextureFormat(m_GraphicsContext, texture_base));
     ASSERT_EQ(1u, dmGraphics::GetTextureWidth(m_GraphicsContext, texture->m_Texture));
     ASSERT_EQ(1u, dmGraphics::GetTextureHeight(m_GraphicsContext, texture->m_Texture));
     dmResource::Release(m_Factory, texture);
@@ -504,12 +498,13 @@ TEST_F(LightResourceTest, LightResourcePrototype)
     dmRender::HLightPrototype light_prototype = dmGameSystem::GetLightPrototype(res);
     ASSERT_NE((dmRender::HLightPrototype)0, light_prototype);
 
-    const dmRender::LightPrototype* proto = dmRender::GetLightPrototype(m_RenderContext, light_prototype);
-    ASSERT_NE((void*)0, proto);
-    ASSERT_EQ(dmRender::LIGHT_TYPE_POINT, proto->m_Type);
-    ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.5f, 0.25f, 1.0f), proto->m_Color);
-    ASSERT_NEAR(2.0f, proto->m_Intensity, EPSILON);
-    ASSERT_NEAR(10.0f, proto->m_Range, EPSILON);
+    dmRender::LightPrototypeParams proto;
+    ASSERT_TRUE(dmRender::TestGetLightPrototypeParams(m_RenderContext, light_prototype, &proto));
+
+    ASSERT_EQ(dmRender::LIGHT_TYPE_POINT, proto.m_Type);
+    ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.5f, 0.25f, 1.0f), proto.m_Color);
+    ASSERT_NEAR(2.0f, proto.m_Intensity, EPSILON);
+    ASSERT_NEAR(10.0f, proto.m_Range, EPSILON);
 
     dmResource::Release(m_Factory, (void*)res);
 
@@ -521,11 +516,11 @@ TEST_F(LightResourceTest, LightResourcePrototype)
 
     light_prototype = dmGameSystem::GetLightPrototype(res);
     ASSERT_NE((dmRender::HLightPrototype)0, light_prototype);
-    proto = dmRender::GetLightPrototype(m_RenderContext, light_prototype);
-    ASSERT_NE((void*)0, proto);
-    ASSERT_EQ(dmRender::LIGHT_TYPE_DIRECTIONAL, proto->m_Type);
-    ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f), proto->m_Color);
-    ASSERT_NEAR(3.0f, proto->m_Intensity, EPSILON);
+    ASSERT_TRUE(dmRender::TestGetLightPrototypeParams(m_RenderContext, light_prototype, &proto));
+
+    ASSERT_EQ(dmRender::LIGHT_TYPE_DIRECTIONAL, proto.m_Type);
+    ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f), proto.m_Color);
+    ASSERT_NEAR(3.0f, proto.m_Intensity, EPSILON);
 
     dmResource::Release(m_Factory, (void*)res);
 
@@ -537,11 +532,11 @@ TEST_F(LightResourceTest, LightResourcePrototype)
 
     light_prototype = dmGameSystem::GetLightPrototype(res);
     ASSERT_NE((dmRender::HLightPrototype)0, light_prototype);
-    proto = dmRender::GetLightPrototype(m_RenderContext, light_prototype);
-    ASSERT_NE((void*)0, proto);
-    ASSERT_EQ(dmRender::LIGHT_TYPE_AMBIENT, proto->m_Type);
-    ASSERT_VEC4(dmVMath::Vector4(0.1f, 0.2f, 0.3f, 1.0f), proto->m_Color);
-    ASSERT_NEAR(5.0f, proto->m_Intensity, EPSILON);
+    ASSERT_TRUE(dmRender::TestGetLightPrototypeParams(m_RenderContext, light_prototype, &proto));
+
+    ASSERT_EQ(dmRender::LIGHT_TYPE_AMBIENT, proto.m_Type);
+    ASSERT_VEC4(dmVMath::Vector4(0.1f, 0.2f, 0.3f, 1.0f), proto.m_Color);
+    ASSERT_NEAR(5.0f, proto.m_Intensity, EPSILON);
 
     dmResource::Release(m_Factory, (void*)res);
 
@@ -553,14 +548,14 @@ TEST_F(LightResourceTest, LightResourcePrototype)
 
     light_prototype = dmGameSystem::GetLightPrototype(res);
     ASSERT_NE((dmRender::HLightPrototype)0, light_prototype);
-    proto = dmRender::GetLightPrototype(m_RenderContext, light_prototype);
-    ASSERT_NE((void*)0, proto);
-    ASSERT_EQ(dmRender::LIGHT_TYPE_SPOT, proto->m_Type);
-    ASSERT_VEC4(dmVMath::Vector4(0.2f, 0.8f, 0.1f, 1.0f), proto->m_Color);
-    ASSERT_NEAR(4.0f, proto->m_Intensity, EPSILON);
-    ASSERT_NEAR(20.0f, proto->m_Range, EPSILON);
-    ASSERT_NEAR(15.0f * 3.14159265f / 180.0f, proto->m_InnerConeAngle, EPSILON);
-    ASSERT_NEAR(30.0f * 3.14159265f / 180.0f, proto->m_OuterConeAngle, EPSILON);
+    ASSERT_TRUE(dmRender::TestGetLightPrototypeParams(m_RenderContext, light_prototype, &proto));
+
+    ASSERT_EQ(dmRender::LIGHT_TYPE_SPOT, proto.m_Type);
+    ASSERT_VEC4(dmVMath::Vector4(0.2f, 0.8f, 0.1f, 1.0f), proto.m_Color);
+    ASSERT_NEAR(4.0f, proto.m_Intensity, EPSILON);
+    ASSERT_NEAR(20.0f, proto.m_Range, EPSILON);
+    ASSERT_NEAR(15.0f * 3.14159265f / 180.0f, proto.m_InnerConeAngle, EPSILON);
+    ASSERT_NEAR(30.0f * 3.14159265f / 180.0f, proto.m_OuterConeAngle, EPSILON);
 
     dmResource::Release(m_Factory, (void*)res);
 }
@@ -569,9 +564,9 @@ TEST_F(LightResourceTest, LightComponentUpdatesLightBuffer)
 {
     // CompLightLateUpdate calls dmRender::SetLightInstance, which commits into m_LightBufferScratch
     // (same data ApplyMaterialProgramLightBuffers uploads to the GPU light uniform buffer).
-    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
+    dmRender::HRenderContext render_ctx = (dmRender::HRenderContext) m_RenderContext;
     ASSERT_NE((void*)0, render_ctx);
-    ASSERT_GE(render_ctx->m_MaxLightCount, 3u);
+    ASSERT_GE(dmRender::TestGetLightState(render_ctx).m_MaxLightCount, 3u);
 
     const Quat rot_id(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -592,28 +587,28 @@ TEST_F(LightResourceTest, LightComponentUpdatesLightBuffer)
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(4u, render_ctx->m_LightBufferScratch.Size());
+    ASSERT_EQ(4u, dmRender::TestGetLightState(render_ctx).m_ScratchCount);
 
     // Ambient lights now retain the same per-instance source data as the other
     // types, but are folded into light_info.xyz instead of the uploaded lights[].
-    const dmRender::LightSTD140& L_ambient = render_ctx->m_LightBufferScratch[0];
+    const dmRender::TestLight& L_ambient = dmRender::TestGetLightScratch(render_ctx, 0);
     ASSERT_VEC4(dmVMath::Vector4(0.1f, 0.2f, 0.3f, 1.0f), L_ambient.m_Color);
     ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_AMBIENT, 5.0f, 0.0f, 0.0f), L_ambient.m_Params);
 
     // Creation order matches CompLightWorld component order and light buffer indices 0..3.
-    const dmRender::LightSTD140& L_point = render_ctx->m_LightBufferScratch[1];
+    const dmRender::TestLight& L_point = dmRender::TestGetLightScratch(render_ctx, 1);
     ASSERT_VEC3(pos_point, L_point.m_Position);
     ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.5f, 0.25f, 1.0f), L_point.m_Color);
     ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, 0.0f, 10.0f), L_point.m_DirectionRange);
     ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_POINT, 2.0f, 0.0f, 0.0f), L_point.m_Params);
 
-    const dmRender::LightSTD140& L_dir = render_ctx->m_LightBufferScratch[2];
+    const dmRender::TestLight& L_dir = dmRender::TestGetLightScratch(render_ctx, 2);
     ASSERT_VEC3(pos_dir, L_dir.m_Position);
     ASSERT_VEC4(dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f), L_dir.m_Color);
     ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, -1.0f, 0.0f), L_dir.m_DirectionRange);
     ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_DIRECTIONAL, 3.0f, 0.0f, 0.0f), L_dir.m_Params);
 
-    const dmRender::LightSTD140& L_spot = render_ctx->m_LightBufferScratch[3];
+    const dmRender::TestLight& L_spot = dmRender::TestGetLightScratch(render_ctx, 3);
     ASSERT_VEC3(pos_spot, L_spot.m_Position);
     ASSERT_VEC4(dmVMath::Vector4(0.2f, 0.8f, 0.1f, 1.0f), L_spot.m_Color);
     ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, -1.0f, 20.0f), L_spot.m_DirectionRange);
@@ -623,22 +618,22 @@ TEST_F(LightResourceTest, LightComponentUpdatesLightBuffer)
     dmGameObject::SetPosition(go_point, pos_point_moved);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_VEC3(pos_point_moved, render_ctx->m_LightBufferScratch[1].m_Position);
-    ASSERT_VEC3(pos_dir, render_ctx->m_LightBufferScratch[2].m_Position);
-    ASSERT_VEC3(pos_spot, render_ctx->m_LightBufferScratch[3].m_Position);
+    ASSERT_VEC3(pos_point_moved, dmRender::TestGetLightScratch(render_ctx, 1).m_Position);
+    ASSERT_VEC3(pos_dir, dmRender::TestGetLightScratch(render_ctx, 2).m_Position);
+    ASSERT_VEC3(pos_spot, dmRender::TestGetLightScratch(render_ctx, 3).m_Position);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 TEST_F(LightResourceTest, AmbientLightsAreCompactedIntoLightInfo)
 {
-    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
+    dmRender::HRenderContext render_ctx = (dmRender::HRenderContext) m_RenderContext;
     ASSERT_NE((void*)0, render_ctx);
-    ASSERT_GT(render_ctx->m_MaxLightCount, 0u);
+    ASSERT_GT(dmRender::TestGetLightState(render_ctx).m_MaxLightCount, 0u);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    const uint32_t ambient_count = render_ctx->m_MaxLightCount;
+    const uint32_t ambient_count = dmRender::TestGetLightState(render_ctx).m_MaxLightCount;
     for (uint32_t i = 0; i < ambient_count; ++i)
     {
         char id_buf[32];
@@ -649,7 +644,7 @@ TEST_F(LightResourceTest, AmbientLightsAreCompactedIntoLightInfo)
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(ambient_count, render_ctx->m_LightBufferScratch.Size());
+    ASSERT_EQ(ambient_count, dmRender::TestGetLightState(render_ctx).m_ScratchCount);
 
     dmRender::BeginFrame(m_RenderContext, 1.0f, m_UpdateContext.m_DT);
     dmRender::RenderListBegin(m_RenderContext);
@@ -660,8 +655,8 @@ TEST_F(LightResourceTest, AmbientLightsAreCompactedIntoLightInfo)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/light_buffer.materialc", (void**) &material_res));
     dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, material_res->m_Material);
 
-    ASSERT_EQ(0u, render_ctx->m_LightBufferUploadScratch.Size());
-    ASSERT_VEC3(Vector3(0.5f * ambient_count, 1.0f * ambient_count, 1.5f * ambient_count), render_ctx->m_AmbientLight);
+    ASSERT_EQ(0u, dmRender::TestGetLightState(render_ctx).m_UploadScratchCount);
+    ASSERT_VEC3(Vector3(0.5f * ambient_count, 1.0f * ambient_count, 1.5f * ambient_count), dmRender::TestGetLightState(render_ctx).m_AmbientLight);
 
     dmResource::Release(m_Factory, (void*) material_res);
 
@@ -670,9 +665,9 @@ TEST_F(LightResourceTest, AmbientLightsAreCompactedIntoLightInfo)
 
 TEST_F(LightResourceTest, LightComponentUsesWorldTransform)
 {
-    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
+    dmRender::HRenderContext render_ctx = (dmRender::HRenderContext) m_RenderContext;
     ASSERT_NE((void*)0, render_ctx);
-    ASSERT_GE(render_ctx->m_MaxLightCount, 1u);
+    ASSERT_GE(dmRender::TestGetLightState(render_ctx).m_MaxLightCount, 1u);
 
     const Quat rot_id(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -689,15 +684,15 @@ TEST_F(LightResourceTest, LightComponentUsesWorldTransform)
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(2u, render_ctx->m_LightBufferScratch.Size());
-    ASSERT_VEC3(dmGameObject::GetWorldPosition(child_light), render_ctx->m_LightBufferScratch[1].m_Position);
-    ASSERT_NEAR(10.0f, render_ctx->m_LightBufferScratch[1].m_DirectionRange.getW(), EPSILON);
+    ASSERT_EQ(2u, dmRender::TestGetLightState(render_ctx).m_ScratchCount);
+    ASSERT_VEC3(dmGameObject::GetWorldPosition(child_light), dmRender::TestGetLightScratch(render_ctx, 1).m_Position);
+    ASSERT_NEAR(10.0f, dmRender::TestGetLightScratch(render_ctx, 1).m_DirectionRange.getW(), EPSILON);
 
     dmGameObject::SetScale(parent, Vector3(2.0f, 3.0f, 4.0f));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_VEC3(dmGameObject::GetWorldPosition(child_light), render_ctx->m_LightBufferScratch[1].m_Position);
-    ASSERT_NEAR(20.0f, render_ctx->m_LightBufferScratch[1].m_DirectionRange.getW(), EPSILON);
+    ASSERT_VEC3(dmGameObject::GetWorldPosition(child_light), dmRender::TestGetLightScratch(render_ctx, 1).m_Position);
+    ASSERT_NEAR(20.0f, dmRender::TestGetLightScratch(render_ctx, 1).m_DirectionRange.getW(), EPSILON);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -723,11 +718,12 @@ TEST_F(LightResourceTest, ReloadLightResourceTest)
     ASSERT_NE((void*)0, resource);
 
     dmRender::HLightPrototype valid_light_prototype_a = dmGameSystem::GetLightPrototype(resource);
-    const dmRender::LightPrototype* valid_light_prototype_data_a = dmRender::GetLightPrototype(m_RenderContext, valid_light_prototype_a);
-    ASSERT_NE((void*)0, valid_light_prototype_data_a);
-    ASSERT_VEC4(dmVMath::Vector4(1.0, 0.5, 0.25, 1.0), valid_light_prototype_data_a->m_Color);
-    ASSERT_NEAR(2.0, valid_light_prototype_data_a->m_Intensity, EPSILON);
-    ASSERT_NEAR(10.0, valid_light_prototype_data_a->m_Range, EPSILON);
+    dmRender::LightPrototypeParams valid_light_prototype_data_a;
+    ASSERT_TRUE(dmRender::TestGetLightPrototypeParams(m_RenderContext, valid_light_prototype_a, &valid_light_prototype_data_a));
+
+    ASSERT_VEC4(dmVMath::Vector4(1.0, 0.5, 0.25, 1.0), valid_light_prototype_data_a.m_Color);
+    ASSERT_NEAR(2.0, valid_light_prototype_data_a.m_Intensity, EPSILON);
+    ASSERT_NEAR(10.0, valid_light_prototype_data_a.m_Range, EPSILON);
 
     ASSERT_TRUE(CopyResource(GetContentFolder(), valid_light_a, tmp_path));
     ASSERT_TRUE(CopyResource(GetContentFolder(), valid_light_b, valid_light_a));
@@ -738,11 +734,12 @@ TEST_F(LightResourceTest, ReloadLightResourceTest)
     // A reload will keep the same prototype handle.
     dmRender::HLightPrototype valid_light_prototype_b = dmGameSystem::GetLightPrototype(resource);
     ASSERT_EQ(valid_light_prototype_a, valid_light_prototype_b);
-    const dmRender::LightPrototype* valid_light_prototype_data_b = dmRender::GetLightPrototype(m_RenderContext, valid_light_prototype_b);
-    ASSERT_NE((void*)0, valid_light_prototype_data_b);
+    dmRender::LightPrototypeParams valid_light_prototype_data_b;
+    ASSERT_TRUE(dmRender::TestGetLightPrototypeParams(m_RenderContext, valid_light_prototype_b, &valid_light_prototype_data_b));
 
-    ASSERT_VEC4(dmVMath::Vector4(1.0, 0.0, 0.0, 1.0), valid_light_prototype_data_b->m_Color);
-    ASSERT_NEAR(3.0, valid_light_prototype_data_b->m_Intensity, EPSILON);
+
+    ASSERT_VEC4(dmVMath::Vector4(1.0, 0.0, 0.0, 1.0), valid_light_prototype_data_b.m_Color);
+    ASSERT_NEAR(3.0, valid_light_prototype_data_b.m_Intensity, EPSILON);
 
     dmResource::Release(m_Factory, (void**) resource);
 
@@ -830,7 +827,7 @@ TEST_F(ResourceFolderTest, TestCreateTextureFromScript)
     dmhash_t res_hash = dmHashString64("/test_simple.texturec");
     HResourceDescriptor rd = dmResource::FindByHash(m_Factory, res_hash);
     ASSERT_NE((HResourceDescriptor)0, rd);
-    ASSERT_EQ(2, rd->m_ReferenceCount);
+    ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, res_hash));
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_simple.texturec", &resource));
     ASSERT_TRUE(resource != 0x0);
@@ -913,8 +910,8 @@ TEST_F(ResourceFolderTest, TestCreateTextureFromScript)
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Test 12: create texture async
     ///////////////////////////////////////////////////////////////////////////////////////////
-    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
-    null_context->m_UseAsyncTextureLoad   = 1;
+    dmGraphics::HContext null_context = m_GraphicsContext;
+    dmGraphics::TestSetAsyncTextureLoad(null_context, true);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
@@ -951,8 +948,8 @@ TEST_F(ResourceFolderTest, TestCreateTextureAsyncFromCoroutine)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
-    null_context->m_UseAsyncTextureLoad   = 1;
+    dmGraphics::HContext null_context = m_GraphicsContext;
+    dmGraphics::TestSetAsyncTextureLoad(null_context, true);
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_texture_async_from_coroutine.goc", dmHashString64("/create_texture_async_from_coroutine"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE(0, go);
@@ -1548,7 +1545,7 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionLoadInitialize)
 
 TEST_F(CollectionProxyComponentTest, AmbientLightAccumulatesAcrossCollectionProxy)
 {
-    dmRender::RenderContext* render_ctx = (dmRender::RenderContext*) m_RenderContext;
+    dmRender::HRenderContext render_ctx = (dmRender::HRenderContext) m_RenderContext;
     ASSERT_NE((void*)0, render_ctx);
 
     dmGameSystem::MaterialResource* material_res = 0;
@@ -1574,8 +1571,8 @@ TEST_F(CollectionProxyComponentTest, AmbientLightAccumulatesAcrossCollectionProx
 
     // The enabled proxy renders its child collection, which submits the ambient
     // and point instances before the light buffer snapshot is compacted.
-    ASSERT_VEC3(Vector3(0.5f, 1.0f, 1.5f), render_ctx->m_AmbientLight);
-    ASSERT_EQ(1u, render_ctx->m_LightBufferUploadScratch.Size());
+    ASSERT_VEC3(Vector3(0.5f, 1.0f, 1.5f), dmRender::TestGetLightState(render_ctx).m_AmbientLight);
+    ASSERT_EQ(1u, dmRender::TestGetLightState(render_ctx).m_UploadScratchCount);
 
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompCollectionProxyDisable(proxy.m_World, proxy.m_Component));
     UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
@@ -1588,8 +1585,8 @@ TEST_F(CollectionProxyComponentTest, AmbientLightAccumulatesAcrossCollectionProx
 
     // The light instance still owns its latest data, but the disabled child is
     // not rendered and therefore does not submit the instance for this frame.
-    ASSERT_VEC3(Vector3(0.0f, 0.0f, 0.0f), render_ctx->m_AmbientLight);
-    ASSERT_EQ(0u, render_ctx->m_LightBufferUploadScratch.Size());
+    ASSERT_VEC3(Vector3(0.0f, 0.0f, 0.0f), dmRender::TestGetLightState(render_ctx).m_AmbientLight);
+    ASSERT_EQ(0u, dmRender::TestGetLightState(render_ctx).m_UploadScratchCount);
 
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompCollectionProxyEnable(proxy.m_World, proxy.m_Component));
     UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
@@ -1600,8 +1597,8 @@ TEST_F(CollectionProxyComponentTest, AmbientLightAccumulatesAcrossCollectionProx
     dmRender::RenderListEnd(m_RenderContext);
     dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, material_res->m_Material);
 
-    ASSERT_VEC3(Vector3(0.5f, 1.0f, 1.5f), render_ctx->m_AmbientLight);
-    ASSERT_EQ(1u, render_ctx->m_LightBufferUploadScratch.Size());
+    ASSERT_VEC3(Vector3(0.5f, 1.0f, 1.5f), dmRender::TestGetLightState(render_ctx).m_AmbientLight);
+    ASSERT_EQ(1u, dmRender::TestGetLightState(render_ctx).m_UploadScratchCount);
 
     dmGameObject::Delete(m_Collection, proxy_go, true);
     UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
@@ -1612,8 +1609,8 @@ TEST_F(CollectionProxyComponentTest, AmbientLightAccumulatesAcrossCollectionProx
     dmRender::RenderListEnd(m_RenderContext);
     dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, material_res->m_Material);
 
-    ASSERT_VEC3(Vector3(0.0f, 0.0f, 0.0f), render_ctx->m_AmbientLight);
-    ASSERT_EQ(0u, render_ctx->m_LightBufferUploadScratch.Size());
+    ASSERT_VEC3(Vector3(0.0f, 0.0f, 0.0f), dmRender::TestGetLightState(render_ctx).m_AmbientLight);
+    ASSERT_EQ(0u, dmRender::TestGetLightState(render_ctx).m_UploadScratchCount);
 
     dmResource::Release(m_Factory, (void*) material_res);
 }
@@ -2028,22 +2025,23 @@ static const uint8_t PACKED_BUFFER[] = {
 class PackedBufferTest : public jc_test_base_class
 {
 protected:
-    ResourceDescriptor m_Descriptor;
+    HResourceDescriptor m_Descriptor;
 
     void SetUp()
     {
         dmBuffer::NewContext();
-        memset(&m_Descriptor, 0, sizeof(m_Descriptor));
+        m_Descriptor = dmResource::TestNewDescriptor();
     }
 
     void TearDown()
     {
-        if (m_Descriptor.m_Resource)
+        if (ResourceDescriptorGetResource(m_Descriptor))
         {
             dmResource::ResourceDestroyParams params = {};
-            params.m_Resource = &m_Descriptor;
+            params.m_Resource = m_Descriptor;
             dmGameSystem::ResBufferDestroy(&params);
         }
+        dmResource::TestDeleteDescriptor(m_Descriptor);
         dmBuffer::DeleteContext();
     }
 
@@ -2062,7 +2060,7 @@ protected:
         create.m_BufferSize = size;
         create.m_Filename = "/packed.bufferc";
         create.m_PreloadData = preload;
-        create.m_Resource = &m_Descriptor;
+        create.m_Resource = m_Descriptor;
         return dmGameSystem::ResBufferCreate(&create);
     }
 };
@@ -2071,7 +2069,7 @@ protected:
 TEST_F(PackedBufferTest, LoadInterleaved)
 {
     ASSERT_EQ(dmResource::RESULT_OK, Load(PACKED_BUFFER, sizeof(PACKED_BUFFER)));
-    dmGameSystem::BufferResource* resource = (dmGameSystem::BufferResource*)m_Descriptor.m_Resource;
+    dmGameSystem::BufferResource* resource = (dmGameSystem::BufferResource*)ResourceDescriptorGetResource(m_Descriptor);
     ASSERT_EQ(1u, resource->m_ElementCount);
     ASSERT_EQ(8u, resource->m_Stride);
     void* data;
@@ -2095,7 +2093,7 @@ TEST_F(PackedBufferTest, ZeroElements)
     memcpy(bytes, PACKED_BUFFER, sizeof(bytes));
     bytes[8] = 0;
     ASSERT_EQ(dmResource::RESULT_OK, Load(bytes, 48));
-    dmGameSystem::BufferResource* resource = (dmGameSystem::BufferResource*)m_Descriptor.m_Resource;
+    dmGameSystem::BufferResource* resource = (dmGameSystem::BufferResource*)ResourceDescriptorGetResource(m_Descriptor);
     ASSERT_EQ(0u, resource->m_ElementCount);
     dmBuffer::ValueType type;
     uint32_t count;
@@ -2138,10 +2136,10 @@ TEST_F(PackedBufferTest, InvalidData)
 TEST_F(PackedBufferTest, Reload)
 {
     ASSERT_EQ(dmResource::RESULT_OK, Load(PACKED_BUFFER, sizeof(PACKED_BUFFER)));
-    dmGameSystem::BufferResource* resource = (dmGameSystem::BufferResource*)m_Descriptor.m_Resource;
+    dmGameSystem::BufferResource* resource = (dmGameSystem::BufferResource*)ResourceDescriptorGetResource(m_Descriptor);
     dmBuffer::HBuffer original = resource->m_Buffer;
     dmResource::ResourceRecreateParams params = {};
-    params.m_Resource = &m_Descriptor;
+    params.m_Resource = m_Descriptor;
     params.m_Buffer = PACKED_BUFFER;
     params.m_BufferSize = sizeof(PACKED_BUFFER) - 1;
     ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmGameSystem::ResBufferRecreate(&params));
@@ -2320,14 +2318,14 @@ public:
         ASSERT_EQ(draws, dmGraphics::GetDrawCount());
         if (expected_buffer)
         {
-            dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
-            ASSERT_EQ(1u, context->m_RenderObjects.Size());
-            dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*)context->m_RenderObjects[0]->m_VertexBuffer;
+            dmRender::HRenderContext context = (dmRender::HRenderContext)m_RenderContext;
+            ASSERT_EQ(1u, dmRender::TestGetRenderObjectCount(context));
+            dmGraphics::HVertexBuffer buffer = (dmGraphics::HVertexBuffer)dmRender::TestGetRenderObject(context, 0)->m_VertexBuffer;
             void* bytes;
             uint32_t size;
             ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetBytes(expected_buffer->m_Buffer, &bytes, &size));
-            ASSERT_EQ(size, buffer->m_Base.m_Size);
-            ASSERT_EQ(0, memcmp(bytes, buffer->m_Buffer, size));
+            ASSERT_EQ(size, dmGraphics::GetVertexBufferSize(buffer));
+            ASSERT_EQ(0, memcmp(bytes, dmGraphics::TestGetVertexBufferData(buffer), size));
         }
         dmRender::ClearRenderObjects(m_RenderContext);
     }

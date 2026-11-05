@@ -35,7 +35,7 @@
 #include <dmsdk/engine/engine_event.hpp>
 #include <dmsdk/engine/extension.hpp>
 #include "test_engine.h"
-#include "../../../graphics/src/graphics_private.h"
+#include <graphics/graphics_test.hpp>
 #include "../engine.h"
 #include "../engine_private.h"
 

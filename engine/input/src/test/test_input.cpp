@@ -25,7 +25,7 @@
 #include <dlib/static_assert.h>
 
 #include <ddf/ddf.h>
-#include <hid_private.h>
+#include <hid/hid_test.hpp>
 
 #include "../input.h"
 #include "../input_private.h"
@@ -712,7 +712,7 @@ TEST_F(InputTest, GamepadNameHashSurvivesDisconnect)
     dmInput::GamepadBinding* gamepad = binding->m_GamepadBindings[0];
     // The null backend's live name is fixed; model a different departed device's cached hash.
     gamepad->m_DeviceNameHash = dmHashString64("Departed controller");
-    gamepad->m_Gamepad->m_Connected = false;
+    dmHID::TestSetGamepadConnected(gamepad->m_Gamepad, false);
     dmHID::SetGamepadConnectivity(m_HidContext, 0, false);
     dmInput::UpdateBinding(binding, m_DT);
     ASSERT_EQ(dmHashString64("Departed controller"), dmInput::GetGamepadNameHash(binding, 0));
@@ -1309,7 +1309,9 @@ TEST_F(InputTest, SharedButtonSourcesFollowActiveInputs)
             dmHID::SetKey(keyboard, dmHID::KEY_0, step.m_KeyDown);
             dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, step.m_MouseDown);
             if (step.m_MouseDown && pointer_sources[i] == dmHID::INPUT_SOURCE_TOUCH)
-                mouse->m_Packet.m_LeftButtonFromTouch = 1;
+            {
+                dmHID::TestSetMouseLeftButtonFromTouch(mouse, true);
+            }
             dmHID::Update(m_HidContext);
             dmInput::UpdateBinding(binding, m_DT);
             ASSERT_EQ(step.m_Source, action->m_Source);
@@ -1396,9 +1398,11 @@ TEST_F(InputTest, TouchAndSimulatedMouseSources)
         dmHID::AddTouch(touch, 10 + i, 20 + i, 1, phases[i]);
         dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, !released);
         if (!released)
-            mouse->m_Packet.m_LeftButtonFromTouch = 1;
+        {
+            dmHID::TestSetMouseLeftButtonFromTouch(mouse, true);
+        }
         dmHID::SetMousePosition(mouse, 10 + i, 20 + i);
-        mouse->m_Packet.m_PositionFromTouch = 1;
+        dmHID::TestSetMousePositionFromTouch(mouse, true);
         dmHID::Update(m_HidContext);
         dmInput::UpdateBinding(binding, m_DT);
         const dmInput::Action* touch_action = dmInput::GetAction(binding, dmHashString64("TOUCH_1"));
@@ -1427,7 +1431,7 @@ TEST_F(InputTest, SimulatedMouseSourceWithoutTouchBinding)
     ddf.m_MouseTrigger.m_Count = 4;
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
     dmInput::SetBinding(binding, &ddf);
-    m_HidContext->m_IgnoreTouchDevice = 1;
+    dmHID::TestSetDeviceIgnored(m_HidContext, dmHID::INPUT_SOURCE_TOUCH, true);
     dmHID::HMouse mouse = dmHID::GetMouse(m_HidContext, 0);
     const dmInput::Action* click = dmInput::GetAction(binding, dmHashString64("click"));
     const dmInput::Action* right = dmInput::GetAction(binding, dmHashString64("right"));
@@ -1435,9 +1439,9 @@ TEST_F(InputTest, SimulatedMouseSourceWithoutTouchBinding)
     const dmInput::Action* wheel = dmInput::GetAction(binding, dmHashString64("wheel"));
 
     dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, true);
-    mouse->m_Packet.m_LeftButtonFromTouch = 1;
+    dmHID::TestSetMouseLeftButtonFromTouch(mouse, true);
     dmHID::SetMousePosition(mouse, 10, 20);
-    mouse->m_Packet.m_PositionFromTouch = 1;
+    dmHID::TestSetMousePositionFromTouch(mouse, true);
     dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_RIGHT, true);
     dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_MIDDLE, true);
     dmHID::SetMouseWheel(mouse, 1);
@@ -1525,7 +1529,7 @@ static void UnnamedActionCallback(dmhash_t action_id, dmInput::Action* action, v
 // Verifies disabled accelerometer input allocates no sensor action during setup, updates, or reloads, while pointer input still works.
 TEST_F(InputTest, DisabledAccelerometerDoesNotAllocate)
 {
-    m_HidContext->m_IgnoreAcceleration = 1;
+    dmHID::TestSetDeviceIgnored(m_HidContext, dmHID::INPUT_SOURCE_ACCELEROMETER, true);
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
     dmInput::SetBinding(binding, m_TestDDF);
     ASSERT_EQ((dmInput::AccelerationBinding*)0, binding->m_AccelerationBinding);
@@ -1565,10 +1569,8 @@ TEST_F(InputTest, UnnamedActionSources)
     dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
     ASSERT_EQ(0U, actions.Size());
 
-    m_HidContext->m_AccelerometerConnected = 1;
-    m_HidContext->m_AccelerationPacket.m_X = 0.25f;
-    m_HidContext->m_AccelerationPacket.m_Y = -0.5f;
-    m_HidContext->m_AccelerationPacket.m_Z = 1.0f;
+    dmHID::TestSetAccelerometerConnected(m_HidContext, true);
+    dmHID::TestSetAcceleration(m_HidContext, 0.25f, -0.5f, 1.0f);
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
     dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
@@ -1606,7 +1608,7 @@ TEST_F(InputTest, UnnamedActionSources)
 
     // Touch-emulated pointer movement must retain its source alongside acceleration.
     dmHID::SetMousePosition(mouse, 15, 25);
-    mouse->m_Packet.m_PositionFromTouch = 1;
+    dmHID::TestSetMousePositionFromTouch(mouse, true);
     dmInput::UpdateBinding(binding, m_DT);
     actions.SetSize(0);
     dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
@@ -1623,7 +1625,7 @@ TEST_F(InputTest, UnnamedActionSources)
     ASSERT_FALSE(actions[1].m_PositionSet);
 
     // A missing mouse packet must not replay the previous movement.
-    m_HidContext->m_IgnoreMouse = 1;
+    dmHID::TestSetDeviceIgnored(m_HidContext, dmHID::INPUT_SOURCE_MOUSE, true);
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
     actions.SetSize(0);
@@ -1632,7 +1634,7 @@ TEST_F(InputTest, UnnamedActionSources)
     ASSERT_EQ(dmHID::INPUT_SOURCE_ACCELEROMETER, actions[0].m_Source);
 
     // Stationary mouse polling still permits an unchanged accelerometer sample.
-    m_HidContext->m_IgnoreMouse = 0;
+    dmHID::TestSetDeviceIgnored(m_HidContext, dmHID::INPUT_SOURCE_MOUSE, false);
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
     actions.SetSize(0);
@@ -1641,7 +1643,7 @@ TEST_F(InputTest, UnnamedActionSources)
     ASSERT_EQ(dmHID::INPUT_SOURCE_ACCELEROMETER, actions[0].m_Source);
     ASSERT_FALSE(actions[0].m_PositionSet);
 
-    m_HidContext->m_AccelerometerConnected = 0;
+    dmHID::TestSetAccelerometerConnected(m_HidContext, false);
     dmHID::SetMousePosition(mouse, 20, 20);
     dmInput::UpdateBinding(binding, m_DT);
     actions.SetSize(0);
@@ -1656,8 +1658,8 @@ TEST_F(InputTest, UnnamedActionSources)
     ASSERT_EQ(0U, actions.Size());
 
     // Reconnecting reuses the sensor action and reports the new sample without stale pointer data.
-    m_HidContext->m_AccelerometerConnected = 1;
-    m_HidContext->m_AccelerationPacket.m_X = 0.75f;
+    dmHID::TestSetAccelerometerConnected(m_HidContext, true);
+    dmHID::TestSetAcceleration(m_HidContext, 0.75f, -0.5f, 1.0f);
     dmInput::UpdateBinding(binding, m_DT);
     dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
     ASSERT_EQ(acceleration_binding, binding->m_AccelerationBinding);
@@ -1674,8 +1676,8 @@ TEST_F(InputTest, UnnamedActionSourcesAfterRebind)
 {
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
     dmInput::SetBinding(binding, m_TestDDF);
-    m_HidContext->m_AccelerometerConnected = 1;
-    m_HidContext->m_AccelerationPacket.m_X = 0.25f;
+    dmHID::TestSetAccelerometerConnected(m_HidContext, true);
+    dmHID::TestSetAcceleration(m_HidContext, 0.25f, 0.0f, 0.0f);
     dmHID::Update(m_HidContext);
     dmHID::SetMousePosition(dmHID::GetMouse(m_HidContext, 0), 10, 20);
     dmInput::UpdateBinding(binding, m_DT);

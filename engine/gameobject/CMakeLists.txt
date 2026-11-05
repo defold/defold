@@ -121,3 +121,17 @@ install(FILES ${GAMEOBJECT_PROTO_PY} DESTINATION lib/python)
 if(BUILD_TESTS)
   add_subdirectory(src/gameobject/test)
 endif()
+
+if(BUILD_TESTS)
+  defold_add_library(gameobject_test STATIC "${GAMEOBJECT_SRC_DIR}/gameobject/test/gameobject_test.cpp")
+  defold_target_link_libraries(gameobject_test "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+  add_dependencies(gameobject_test gameobject_sdk_headers)
+  defold_add_sdk_headers_target(gameobject_test_sdk_headers
+    DESTINATION include/gameobject
+    SOURCE_ROOT "${GAMEOBJECT_SRC_DIR}/gameobject/test"
+    FILES "${GAMEOBJECT_SRC_DIR}/gameobject/test/gameobject_test.hpp"
+    DEPENDS gameobject_test)
+  set_target_properties(gameobject_test PROPERTIES DEFOLD_SDK_HEADERS_TARGET gameobject_test_sdk_headers)
+  defold_install_targets(TARGETS gameobject_test ARCHIVE DESTINATION lib/${TARGET_PLATFORM})
+  install(FILES "${GAMEOBJECT_SRC_DIR}/gameobject/test/gameobject_test.hpp" DESTINATION include/gameobject)
+endif()

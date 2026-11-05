@@ -190,16 +190,16 @@ endif()
 
 set(_DEFOLD_TEST_LIBS
   ${_GAMESYS_TEST_FONT_GEN_LIB}
-  testmain test_script dlib mbedtls zip ddf resource gameobject extension script input
-  particle rig gui liveupdate profile_null platform_null hid_null
-  render sound_null
+  testmain test_script dlib mbedtls zip ddf resource resource_test gameobject extension script input
+  particle particle_test rig gui gui_test liveupdate profile_null platform_null hid_null
+  render render_test sound_null
   ${_GAMESYS_TEST_PHYSICS_LIBS}
   ${_GAMESYS_TEST_FONT_LIBS})
 
 # Mirrors Waf's GRAPHICS_GAMESYS_TEST group. These tests are headless and must
 # not select the platform graphics backend through the general graphics mapper.
 set(_GS_TEST_GRAPHICS_LIBS
-  graphics_null image graphics_transcoder_basisu basis_transcoder)
+  graphics_null graphics_test image graphics_transcoder_basisu basis_transcoder)
 
 set(_GS_TEST_DEFINES)
 if(TARGET_PLATFORM MATCHES "^(x86_64-xbone|js-web|wasm-web|wasm_pthread-web)$")
@@ -264,7 +264,7 @@ foreach(_component_render_test IN ITEMS test_component_render test_component_ren
   target_include_directories(${_component_render_test} PRIVATE "${GS_SRC_ROOT}" "${GS_GENERATED_INCLUDE_DIR}")
   target_link_libraries(${_component_render_test} PRIVATE gamesys)
   defold_target_link_libraries(${_component_render_test} "${TARGET_PLATFORM}"
-    testmain gameobject render ddf dlib resource script extension lua
+    testmain gameobject gameobject_test render ddf dlib resource script extension lua
     graphics_null platform_null profile_null hid_null zip mbedtls)
   defold_target_link_socket(${_component_render_test} "${TARGET_PLATFORM}" PRIVATE)
   defold_target_link_app(${_component_render_test} "${TARGET_PLATFORM}" SCOPE PRIVATE)

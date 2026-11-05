@@ -81,6 +81,7 @@ function(input_configure_test target)
       profile_null
       testmain
       hid_null
+      hid_test
       input
   )
 

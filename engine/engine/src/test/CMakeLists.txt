@@ -205,7 +205,7 @@ target_include_directories(test_engine PRIVATE
   "${ENGINE_PROTO_DIR}"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(test_engine PRIVATE CONTENT_ROOT="${ENGINE_TEST_CONTENT_ROOT}")
-defold_target_link_libraries(test_engine "${TARGET_PLATFORM}" testmain)
+defold_target_link_libraries(test_engine "${TARGET_PLATFORM}" testmain resource_test graphics_test)
 engine_configure_executable(test_engine test engine engine_service null "profile_null;profilerext_null" "ProfilerExt")
 defold_register_test_target(test_engine ON "${ENGINE_TEST_ENGINE_ROOT}"
   STAGE_FILES

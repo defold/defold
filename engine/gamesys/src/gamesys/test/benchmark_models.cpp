@@ -107,8 +107,8 @@ class ModelBenchmark : public ModelTest
             attributes[i].m_Values.m_BinaryValues.m_Count = dmGraphics::VectorTypeToElementCount(attributes[i].m_VectorType) * sizeof(float);
         }
         dmRender::SetMaterialProgramAttributes(material, attributes, normal_matrix ? 2 : 1);
-        dmRender::RenderContext* render_context = (dmRender::RenderContext*)m_RenderContext;
-        render_context->m_Material = material;
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext)m_RenderContext;
+        dmRender::TestSetMaterial(render_context, material);
         const uint32_t stride = dmGraphics::GetVertexDeclarationStride(dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE));
 
         FrameTimes cold = {};
@@ -134,7 +134,7 @@ class ModelBenchmark : public ModelTest
             Report(name, "warm", sample, g_Options.m_Frames, total, components, model_world, stride);
         }
 
-        render_context->m_Material = 0;
+        dmRender::TestSetMaterial(render_context, 0);
         ASSERT_TRUE(dmGameObject::Final(m_Collection));
         dmRender::DeleteMaterial(m_RenderContext, material);
         dmGraphics::DeleteProgram(m_GraphicsContext, program);
@@ -164,7 +164,7 @@ class ModelBenchmark : public ModelTest
         ASSERT_TRUE(updated);
         ASSERT_TRUE(post_updated);
         ASSERT_EQ(dmRender::RESULT_OK, result);
-        ASSERT_EQ(g_Options.m_Instances, ((dmRender::RenderContext*)m_RenderContext)->m_RenderList.Size());
+        ASSERT_EQ(g_Options.m_Instances, dmRender::TestGetRenderListCount(m_RenderContext));
         times->m_Update = update - begin;
         times->m_Submit = submit - update;
         times->m_Draw = draw - submit;
@@ -180,10 +180,10 @@ class ModelBenchmark : public ModelTest
             dmGameSystem::GetModelComponentAttributeRenderDataCount(components[i], &initialized);
             caches += initialized;
         }
-        dmRender::BufferedRenderBuffer* buffer;
+        dmRender::HBufferedRenderBuffer buffer;
         dmGameSystem::GetModelWorldInstanceRenderBuffer(world, &buffer);
-        ASSERT_GT(buffer->m_Buffers.Size(), 0u);
-        uint32_t bytes = dmGraphics::GetVertexBufferSize(buffer->m_Buffers[0]);
+        ASSERT_GT(dmRender::TestGetBufferedBufferCount(buffer), 0u);
+        uint32_t bytes = dmGraphics::GetVertexBufferSize(dmRender::TestGetBufferedBuffer(buffer, 0));
         ASSERT_EQ(g_Options.m_Instances * stride, bytes);
         uint8_t world_batches, local_batches, instanced_batches;
         dmGameSystem::GetModelWorldRenderBatchStats(world, &world_batches, &local_batches, &instanced_batches);
