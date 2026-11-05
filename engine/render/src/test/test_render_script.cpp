@@ -3123,12 +3123,20 @@ TEST_F(dmRenderScriptTest, TestDispatch)
 }
 
 extern "C" void dmExportedSymbols();
+int RunRenderScriptBenchmark(int argc, char** argv);
 
 int main(int argc, char **argv)
 {
     dmExportedSymbols();
     TestMainPlatformInit();
     dmDDF::RegisterAllTypes();
+    for (int i = 1; i < argc; ++i)
+    {
+        if (strcmp(argv[i], "--benchmark-render-script") == 0)
+        {
+            return RunRenderScriptBenchmark(argc, argv);
+        }
+    }
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

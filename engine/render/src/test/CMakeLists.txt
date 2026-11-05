@@ -67,6 +67,7 @@ foreach(_render_test IN ITEMS
 endforeach()
 
 target_sources(test_render_frame_queue PRIVATE "${RENDER_TEST_ROOT}/render_frame_benchmark.cpp")
+target_sources(test_render_script PRIVATE "${RENDER_TEST_ROOT}/render_script_benchmark.cpp")
 
 # Vector-font tests load sibling font fixtures that are outside Node's mounted
 # working directory. Embed them at the paths used by the tests in the web VFS.
