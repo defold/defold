@@ -238,6 +238,39 @@
         (g/undo! ::shadow)
         (ensure-matching-arcs!)))))
 
+(g/defnode OverrideTargetOwner
+  (input targets g/Str :array :cascade-delete))
+
+;; Verifies lifting preserves all targets and their depth-first order when
+;; target-only branches must be resumed after visiting a nested target.
+(deftest source-arcs-across-nested-target-branches-test
+  (with-clean-system
+    (let [[source target owner]
+          (tx-nodes (g/make-nodes [source TestNode
+                                   target PassthroughNode
+                                   _owner OverrideTargetOwner]
+                      (g/connect source :val-val target :str-in)))
+          [left-target]
+          (tx-nodes (g/override target {:traverse-fn g/never-override-traverse-fn}))
+          [nested-target]
+          (tx-nodes (g/override left-target {:traverse-fn g/never-override-traverse-fn}))
+          [right-target]
+          (tx-nodes (g/override target {:traverse-fn g/never-override-traverse-fn}))]
+      (g/transact (mapv #(g/connect % :str-out owner :targets)
+                        [left-target nested-target right-target]))
+      (let [override-node-ids (tx-nodes (g/override owner))
+            basis (g/now)
+            override-by-original (coll/into-> override-node-ids {}
+                                   (map (fn [node-id]
+                                          [(g/override-original basis node-id) node-id])))
+            override-source (override-by-original source)
+            expected-arcs (mapv #(gt/->Arc override-source :val-val
+                                           (override-by-original %) :str-in)
+                                [nested-target left-target right-target])]
+        (is (= expected-arcs
+               (g/outputs basis override-source :val-val)
+               (g/outputs basis override-source)))))))
+
 (deftest graph-override-cleanup
   (with-clean-system
     (let [[original override] (tx-nodes (g/make-nodes [n (TestNode :val "original")]
