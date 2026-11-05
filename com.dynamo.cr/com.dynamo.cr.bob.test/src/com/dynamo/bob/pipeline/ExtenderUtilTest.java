@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.junit.After;
@@ -244,6 +245,50 @@ public class ExtenderUtilTest {
         } finally {
             r8Project.dispose();
         }
+    }
+
+    // Verifies that the build options end up next to the keys of a top-level context in the app manifest. Guards
+    // against a second context key replacing them, which made the server build the debug engine for a release bundle.
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testAppManifestOptionsMergeWithManifestContext() throws Exception {
+        project.getProjectProperties().putStringValue("ios", "privacymanifest", "");
+        String yaml = "context:\n  debugSourcePath: /Users/me/mygame\n  baseVariant: debug\nplatforms:\n  web:\n    context: {}\n";
+        createFile(fileSystem, "context.appmanifest", yaml.getBytes(StandardCharsets.UTF_8));
+        project.getProjectProperties().putStringValue("native_extension", "app_manifest", "context.appmanifest");
+
+        Map<String, String> options = new HashMap<>();
+        options.put("baseVariant", "release");
+        options.put("withSymbols", "true");
+        byte[] content = findResource(ExtenderUtil.getExtensionSources(project, Platform.WasmWeb, options),
+                ExtenderUtil.appManifestPath).getContent();
+
+        Map<String, Object> manifest = new Yaml().load(new String(content, StandardCharsets.UTF_8));
+        Map<String, Object> context = (Map<String, Object>) manifest.get("context");
+        assertEquals("/Users/me/mygame", context.get("debugSourcePath"));
+        assertEquals("release", context.get("baseVariant"));
+        assertEquals(Boolean.TRUE, context.get("withSymbols"));
+        assertTrue(manifest.containsKey("platforms"));
+    }
+
+    // Verifies that the build options are still added to an app manifest without a top-level context.
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testAppManifestOptionsWithoutManifestContext() throws Exception {
+        project.getProjectProperties().putStringValue("ios", "privacymanifest", "");
+        String yaml = "platforms:\n  web:\n    context: {}\n";
+        createFile(fileSystem, "plain.appmanifest", yaml.getBytes(StandardCharsets.UTF_8));
+        project.getProjectProperties().putStringValue("native_extension", "app_manifest", "plain.appmanifest");
+
+        Map<String, String> options = new HashMap<>();
+        options.put("baseVariant", "release");
+        byte[] content = findResource(ExtenderUtil.getExtensionSources(project, Platform.WasmWeb, options),
+                ExtenderUtil.appManifestPath).getContent();
+
+        Map<String, Object> manifest = new Yaml().load(new String(content, StandardCharsets.UTF_8));
+        Map<String, Object> context = (Map<String, Object>) manifest.get("context");
+        assertEquals("release", context.get("baseVariant"));
+        assertTrue(manifest.containsKey("platforms"));
     }
 
     @Test

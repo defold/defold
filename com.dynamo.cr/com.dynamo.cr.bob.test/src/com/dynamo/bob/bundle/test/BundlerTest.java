@@ -60,6 +60,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
@@ -998,15 +999,12 @@ public class BundlerTest {
         return null;
     }
 
-    // Verifies that --with-symbols places the wasm sidecars next to the engine, points the wasm at
-    // their bundled names and makes the loader keep the module URL devtools resolve them against.
-    @Test
-    public void testBundleHTML5WithWasmDebugSymbols()
+    // Builds and bundles with --with-symbols. Before bundling, the given DWARF file, a mock source map
+    // and mock symbol maps of both engine variants are placed in the platform build folder, where the
+    // files of an extender build or of a download end up. A null DWARF file means a copy of the engine,
+    // which has the build id of the engine, like a sidecar from the same link.
+    private void bundleHTML5WithWasmDebugFiles(String variant, byte[] dwarf)
             throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
-        if (platform != Platform.WasmWeb && platform != Platform.WasmPthreadWeb) {
-            return;
-        }
-
         createDefaultFiles(contentRoot);
 
         try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
@@ -1016,41 +1014,129 @@ public class BundlerTest {
             project.scan(scanner, "com.dynamo.bob.pipeline");
             setProjectProperties(project);
             project.setOption("with-symbols", "true");
+            project.setOption("variant", variant);
 
             List<TaskResult> buildResult = project.build(Progress.discarding(), "clean", "build");
             for (TaskResult taskResult : buildResult) {
                 assertTrue(taskResult.toString(), taskResult.isOk());
             }
 
-            // fake the wasm debug info sidecars next to the engine binaries
-            // (the default bundling variant is release)
+            File engine = null;
+            for (File file : Bob.getDefaultDmengineFiles(platform, variant)) {
+                if (file.getName().endsWith(".wasm")) {
+                    engine = file;
+                }
+            }
+            assertNotNull(engine);
+
             File platformBinaryDir = new File(project.getBinaryOutputDirectory(), platform.getExtenderPair());
             platformBinaryDir.mkdirs();
-            createFile(platformBinaryDir.getAbsolutePath(), "dmengine_release.wasm.debug.wasm", "mock_dwarf_content");
-            createFile(platformBinaryDir.getAbsolutePath(), "dmengine_release.wasm.map", "mock_source_map_content");
+            File dwarfFile = new File(platformBinaryDir, engine.getName() + ".debug.wasm");
+            if (dwarf != null) {
+                FileUtils.writeByteArrayToFile(dwarfFile, dwarf);
+            } else {
+                FileUtils.copyFile(engine, dwarfFile);
+            }
+            createFile(platformBinaryDir.getAbsolutePath(), engine.getName() + ".map", "mock_source_map_content");
+            createFile(platformBinaryDir.getAbsolutePath(), "dmengine.js.symbols", "mock_debug_symbols");
+            createFile(platformBinaryDir.getAbsolutePath(), "dmengine_release.js.symbols", "mock_release_symbols");
 
             List<TaskResult> bundleResult = project.build(Progress.discarding(), "bundle");
             for (TaskResult taskResult : bundleResult) {
                 assertTrue(taskResult.toString(), taskResult.isOk());
             }
-
-            String exeName = BundleHelper.projectNameToBinaryName("unnamed");
-            String suffix = (platform == Platform.WasmPthreadWeb) ? "_pthread" : "";
-            File outputDirFile = getOutputDirFile(outputDir, "unnamed");
-
-            // the sidecars are served next to the wasm, named after it
-            checkFileExist(outputDirFile, new File(outputDirFile, exeName + suffix + ".wasm.debug.wasm"));
-            checkFileExist(outputDirFile, new File(outputDirFile, exeName + suffix + ".wasm.map"));
-
-            // the debug references embedded in the wasm are rewritten to the bundled names
-            String wasm = FileUtils.readFileToString(new File(outputDirFile, exeName + suffix + ".wasm"), StandardCharsets.ISO_8859_1);
-            assertTrue(wasm.contains(exeName + suffix + ".wasm.debug.wasm"));
-            assertTrue(wasm.contains(exeName + suffix + ".wasm.map"));
-
-            // the loader switches to URL-preserving wasm instantiation
-            String dmloader = FileUtils.readFileToString(new File(outputDirFile, "dmloader.js"), StandardCharsets.UTF_8);
-            assertTrue(dmloader.contains("wasm_debug_symbols: \"true\" === \"true\""));
         }
+    }
+
+    // Verifies that a debug bundle with --with-symbols places the wasm sidecars next to the engine, points the
+    // wasm at their bundled names, makes the loader keep the module URL devtools resolve them against, and
+    // bundles the symbol map of the debug engine.
+    @Test
+    public void testBundleHTML5WithWasmDebugSymbols()
+            throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        if (platform != Platform.WasmWeb && platform != Platform.WasmPthreadWeb) {
+            return;
+        }
+
+        bundleHTML5WithWasmDebugFiles("debug", null);
+
+        String exeName = BundleHelper.projectNameToBinaryName("unnamed");
+        String suffix = (platform == Platform.WasmPthreadWeb) ? "_pthread" : "";
+        File outputDirFile = getOutputDirFile(outputDir, "unnamed");
+
+        checkFileExist(outputDirFile, new File(outputDirFile, exeName + suffix + ".wasm.debug.wasm"));
+        checkFileExist(outputDirFile, new File(outputDirFile, exeName + suffix + ".wasm.map"));
+
+        String wasm = FileUtils.readFileToString(new File(outputDirFile, exeName + suffix + ".wasm"), StandardCharsets.ISO_8859_1);
+        assertTrue(wasm.contains(exeName + suffix + ".wasm.debug.wasm"));
+        assertTrue(wasm.contains(exeName + suffix + ".wasm.map"));
+
+        String dmloader = FileUtils.readFileToString(new File(outputDirFile, "dmloader.js"), StandardCharsets.UTF_8);
+        assertTrue(dmloader.contains("wasm_debug_symbols: \"true\" === \"true\""));
+
+        File symbolsDir = new File(outputDirFile.getParentFile(), exeName + "_symbols");
+        File symbolMap = new File(symbolsDir, exeName + suffix + "_wasm.js.symbols");
+        assertEquals("mock_debug_symbols", FileUtils.readFileToString(symbolMap, StandardCharsets.UTF_8));
+    }
+
+    // Verifies that a release bundle keeps the wasm sidecars out of the deployed folder: they go to the symbols
+    // folder, the wasm doesn't reference them and the loader path is unchanged. Guards against shipping debug info,
+    // since the editor bundles with symbols by default. Also verifies that the symbol map of the release engine is
+    // selected when the build folder holds those of both variants.
+    @Test
+    public void testBundleHTML5ReleaseWasmDebugSymbols()
+            throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        if (platform != Platform.WasmWeb && platform != Platform.WasmPthreadWeb) {
+            return;
+        }
+
+        bundleHTML5WithWasmDebugFiles("release", null);
+
+        String exeName = BundleHelper.projectNameToBinaryName("unnamed");
+        String suffix = (platform == Platform.WasmPthreadWeb) ? "_pthread" : "";
+        File outputDirFile = getOutputDirFile(outputDir, "unnamed");
+        File symbolsDir = new File(outputDirFile.getParentFile(), exeName + "_symbols");
+
+        assertFalse(new File(outputDirFile, exeName + suffix + ".wasm.debug.wasm").exists());
+        assertFalse(new File(outputDirFile, exeName + suffix + ".wasm.map").exists());
+        assertTrue(new File(symbolsDir, exeName + suffix + ".wasm.debug.wasm").isFile());
+        assertTrue(new File(symbolsDir, exeName + suffix + ".wasm.map").isFile());
+
+        String wasm = FileUtils.readFileToString(new File(outputDirFile, exeName + suffix + ".wasm"), StandardCharsets.ISO_8859_1);
+        assertFalse(wasm.contains("external_debug_info"));
+        assertFalse(wasm.contains("sourceMappingURL"));
+
+        String dmloader = FileUtils.readFileToString(new File(outputDirFile, "dmloader.js"), StandardCharsets.UTF_8);
+        assertTrue(dmloader.contains("wasm_debug_symbols: \"false\" === \"true\""));
+
+        File symbolMap = new File(symbolsDir, exeName + suffix + "_wasm.js.symbols");
+        assertEquals("mock_release_symbols", FileUtils.readFileToString(symbolMap, StandardCharsets.UTF_8));
+    }
+
+    // Verifies that sidecars with another build id than the engine are left out of the bundle. Guards against wrong
+    // lines in devtools and symbolication from the sidecars of another engine, such as those of the packed debug
+    // engine for an extender build, or of an earlier engine version left in the build folder.
+    @Test
+    public void testBundleHTML5IgnoresWasmDebugSymbolsOfOtherEngine()
+            throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        if (platform != Platform.WasmWeb && platform != Platform.WasmPthreadWeb) {
+            return;
+        }
+
+        byte[] buildIdSection = {0x00, 0x0c, 0x08, 'b', 'u', 'i', 'l', 'd', '_', 'i', 'd', 0x02, 0x01, 0x02};
+        byte[] otherEngineDwarf = new byte[8 + buildIdSection.length];
+        System.arraycopy(new byte[] {0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00}, 0, otherEngineDwarf, 0, 8);
+        System.arraycopy(buildIdSection, 0, otherEngineDwarf, 8, buildIdSection.length);
+        bundleHTML5WithWasmDebugFiles("release", otherEngineDwarf);
+
+        String exeName = BundleHelper.projectNameToBinaryName("unnamed");
+        String suffix = (platform == Platform.WasmPthreadWeb) ? "_pthread" : "";
+        File outputDirFile = getOutputDirFile(outputDir, "unnamed");
+        File symbolsDir = new File(outputDirFile.getParentFile(), exeName + "_symbols");
+
+        assertFalse(new File(outputDirFile, exeName + suffix + ".wasm.debug.wasm").exists());
+        assertFalse(new File(symbolsDir, exeName + suffix + ".wasm.debug.wasm").exists());
+        assertFalse(new File(symbolsDir, exeName + suffix + ".wasm.map").exists());
     }
 
     // Verifies that a bundle without --with-symbols ships no sidecars and leaves the regular wasm loading path active.

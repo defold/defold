@@ -41,6 +41,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -336,13 +337,46 @@ public class ExtenderUtil {
                 }
             }
 
-            byte[] prefixBytes = prefix.toString().getBytes(StandardCharsets.UTF_8);
             byte[] content = migrateAppManifest(getResource().getContent());
+            if (options != null) {
+                byte[] merged = mergeIntoAppManifestContext(content, prefix.toString());
+                if (merged != null) {
+                    return merged;
+                }
+            }
+            byte[] prefixBytes = prefix.toString().getBytes(StandardCharsets.UTF_8);
             byte[] c = new byte[prefixBytes.length + content.length];
             System.arraycopy(prefixBytes, 0, c, 0, prefixBytes.length);
             System.arraycopy(content, 0, c, prefixBytes.length, content.length);
             return c;
         }
+    }
+
+    // A manifest with its own top-level context can't get the options as a prefix: when loading
+    // the YAML, the second context key would replace them and the server would build the wrong
+    // variant. Returns null if the manifest has no such context.
+    @SuppressWarnings("unchecked")
+    private static byte[] mergeIntoAppManifestContext(byte[] content, String optionsYaml) {
+        Object manifestValue;
+        try {
+            manifestValue = new Yaml().load(new String(content, StandardCharsets.UTF_8));
+        } catch (YAMLException e) {
+            return null;
+        }
+        if (!(manifestValue instanceof Map<?, ?>) || !((Map<?, ?>) manifestValue).containsKey("context")) {
+            return null;
+        }
+        Map<String, Object> manifest = (Map<String, Object>) manifestValue;
+        Map<String, Object> context = new LinkedHashMap<>();
+        if (manifest.get("context") instanceof Map<?, ?>) {
+            context.putAll((Map<String, Object>) manifest.get("context"));
+        }
+        Map<String, Object> options = new Yaml().load(optionsYaml);
+        if (options.get("context") instanceof Map<?, ?>) {
+            context.putAll((Map<String, Object>) options.get("context"));
+        }
+        manifest.put("context", context);
+        return new Yaml().dump(manifest).getBytes(StandardCharsets.UTF_8);
     }
 
     private static String normalizeLibraryName(String library) {

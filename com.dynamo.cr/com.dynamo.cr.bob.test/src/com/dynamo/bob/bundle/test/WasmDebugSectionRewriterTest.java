@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 
 import org.junit.Rule;
@@ -197,6 +198,34 @@ public class WasmDebugSectionRewriterTest {
                               urlSection("external_debug_info", "dmengine.wasm.debug.wasm"),
                               section(10, new byte[] {0x00}));
         assertRewriteThrows(input, "Game.wasm.debug.wasm", null);
+    }
+
+    private byte[] readBuildId(byte[] input) throws IOException {
+        File in = tmp.newFile();
+        Files.write(in.toPath(), input);
+        return WasmDebugSectionRewriter.readBuildId(in);
+    }
+
+    // Verifies that the build id is found among other sections, as it is what pairs a wasm with its DWARF file.
+    @Test
+    public void testReadBuildId() throws IOException {
+        byte[] input = concat(modulePrefix(),
+                              customSection("name", new byte[] {0x01, 0x02, 0x03}),
+                              customSection("build_id", new byte[] {0x02, 0x0a, 0x0b}),
+                              urlSection("external_debug_info", "dmengine.wasm.debug.wasm"));
+        assertArrayEquals(new byte[] {0x02, 0x0a, 0x0b}, readBuildId(input));
+    }
+
+    // Verifies that a module without a build id gives null, which is the case for an engine linked without one.
+    @Test
+    public void testReadBuildIdMissing() throws IOException {
+        assertNull(readBuildId(concat(modulePrefix(), customSection("name", new byte[] {0x01}))));
+    }
+
+    // Verifies that reading the build id rejects a file that isn't wasm, such as a truncated or unrelated sidecar.
+    @Test(expected = IOException.class)
+    public void testReadBuildIdNotAWasmBinary() throws IOException {
+        readBuildId("not a wasm binary".getBytes(StandardCharsets.UTF_8));
     }
 
     // Verifies that input without the wasm header is rejected.

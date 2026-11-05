@@ -24,7 +24,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -33,6 +32,8 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -83,6 +84,8 @@ public class HTML5Bundler implements IBundler {
     // makes the loader use URL-preserving wasm instantiation so browser devtools can
     // resolve the debug info
     private boolean hasWasmDebugSymbols = false;
+    // the engine wasm binary of each bundled architecture
+    private final Map<Platform, File> wasmEngines = new HashMap<>();
 
     public static final String MANIFEST_NAME = "engine_template.html";
 
@@ -426,7 +429,8 @@ public class HTML5Bundler implements IBundler {
                     }
                 } else if (binExtension.equals("wasm")) {
                     File wasmOut = new File(appDir, enginePrefix + suffix + ".wasm");
-                    copyWasmWithDebugSymbols(project, platform, bin, appDir, wasmOut);
+                    copyWasmWithDebugSymbols(project, platform, variant, bin, appDir, wasmOut);
+                    wasmEngines.put(platform, bin);
 
                     if (platform == Platform.WasmWeb)
                         WasmSize = wasmOut.length();
@@ -446,6 +450,11 @@ public class HTML5Bundler implements IBundler {
         }
     }
 
+    // The folder next to the bundle for files that belong with a release, but must not be deployed
+    private static File getSymbolsDir(File appDir) {
+        return new File(appDir.getParentFile(), appDir.getName() + "_symbols");
+    }
+
     // Locates a wasm debug info sidecar. It is delivered in one of three ways, depending on
     // where the engine came from: next to the engine binary (locally built engine, unpacked
     // from bob), in the platform build folder (extender build zip, or downloaded from the
@@ -463,47 +472,66 @@ public class HTML5Bundler implements IBundler {
         return (packed != null && packed.exists()) ? packed : null;
     }
 
-    // Copies the engine wasm binary into the bundle. When bundling with --with-symbols,
-    // the debug info sidecars produced by -gseparate-dwarf and -gsource-map are placed
-    // next to the .wasm (browser devtools resolve them relative to the .wasm URL), and
-    // the references embedded in the binary are rewritten to the bundled file names.
-    private void copyWasmWithDebugSymbols(Project project, Platform platform, File bin, File appDir, File wasmOut) throws IOException {
+    private static boolean isFromSameLink(File bin, File dwarf) {
+        try {
+            byte[] buildId = WasmDebugSectionRewriter.readBuildId(bin);
+            return buildId != null && Arrays.equals(buildId, WasmDebugSectionRewriter.readBuildId(dwarf));
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    // Copies the engine wasm binary into the bundle. When bundling with --with-symbols, it also
+    // copies the debug info sidecars produced by -gseparate-dwarf and -gsource-map, if they come
+    // from the same link as the engine: they can also be those of the packed debug engine, or left
+    // in a build folder by an earlier engine version. Only the DWARF file has a build id, but the
+    // source map is always linked together with it.
+    // Debug bundles get the sidecars next to the .wasm (browser devtools resolve them relative to
+    // the .wasm URL), with the wasm references rewritten to the bundled names. Release bundles are
+    // deployed as they are and only use the sidecars to symbolicate crashes, so there they go into
+    // the symbols folder, and the wasm doesn't reference them.
+    private void copyWasmWithDebugSymbols(Project project, Platform platform, String variant, File bin, File appDir, File wasmOut) throws IOException {
+        boolean debugVariant = Bob.VARIANT_DEBUG.equals(variant);
         String dwarfOutName = null;
         String sourceMapOutName = null;
         if (project.hasOption("with-symbols")) {
             File dwarf = findWasmDebugFile(project, platform, bin, bin.getName() + ".debug.wasm");
             File sourceMap = findWasmDebugFile(project, platform, bin, bin.getName() + ".map");
-            long bytes = 0;
-            if (dwarf != null) {
-                dwarfOutName = wasmOut.getName() + ".debug.wasm";
-                FileUtils.copyFile(dwarf, new File(appDir, dwarfOutName));
-                bytes += dwarf.length();
-            }
-            if (sourceMap != null) {
-                sourceMapOutName = wasmOut.getName() + ".map";
-                FileUtils.copyFile(sourceMap, new File(appDir, sourceMapOutName));
-                bytes += sourceMap.length();
-            }
-            if (dwarfOutName == null && sourceMapOutName == null) {
+            if (dwarf == null || !isFromSameLink(bin, dwarf)) {
                 // official release engines are published without debug info, and the
                 // editor bundles with symbols by default, so that is not worth a warning
-                String message = String.format("No wasm debug info found for %s (%s.debug.wasm / %s.map). The engine was likely built without debug info.",
-                        platform.getPair(), bin.getName(), bin.getName());
-                if (Bob.VARIANT_DEBUG.equals(project.option("variant", Bob.VARIANT_RELEASE))) {
+                String message = dwarf == null
+                        ? String.format("No wasm debug info found for %s (%s.debug.wasm / %s.map). The engine was likely built without debug info.",
+                                platform.getPair(), bin.getName(), bin.getName())
+                        : String.format("Ignoring the wasm debug info in %s, which does not belong to the engine %s.", dwarf, bin);
+                if (debugVariant) {
                     logger.warning(message);
                 } else {
                     logger.info(message);
                 }
             } else {
-                hasWasmDebugSymbols = true;
-                logger.info("Bundled wasm debug info for %s (%d MB). Do not deploy these files to production.",
-                        wasmOut.getName(), bytes >> 20);
+                File outDir = debugVariant ? appDir : getSymbolsDir(appDir);
+                dwarfOutName = wasmOut.getName() + ".debug.wasm";
+                FileUtils.copyFile(dwarf, new File(outDir, dwarfOutName));
+                long bytes = dwarf.length();
+                if (sourceMap != null) {
+                    sourceMapOutName = wasmOut.getName() + ".map";
+                    FileUtils.copyFile(sourceMap, new File(outDir, sourceMapOutName));
+                    bytes += sourceMap.length();
+                }
+                if (debugVariant) {
+                    hasWasmDebugSymbols = true;
+                    logger.info("Bundled wasm debug info for %s (%d MB). Do not deploy these files to production.",
+                            wasmOut.getName(), bytes >> 20);
+                } else {
+                    logger.info("Stored wasm debug info for %s (%d MB) in %s.", wasmOut.getName(), bytes >> 20, outDir);
+                }
             }
         }
-        if (dwarfOutName != null || sourceMapOutName != null) {
+        if (debugVariant && dwarfOutName != null) {
             WasmDebugSectionRewriter.rewrite(bin, wasmOut, dwarfOutName, sourceMapOutName);
         } else {
-            // strip any references to debug info files that are not part of the bundle
+            // strip any references to debug info files that are not next to the wasm
             try {
                 WasmDebugSectionRewriter.rewrite(bin, wasmOut, null, null);
             } catch (IOException e) {
@@ -538,6 +566,7 @@ public class HTML5Bundler implements IBundler {
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 
         FileUtils.deleteDirectory(appDir);
+        FileUtils.deleteDirectory(getSymbolsDir(appDir));
         File splitDir = new File(appDir, SplitFileDir);
         splitDir.mkdirs();
         createSplitFiles(project, buildDir, splitDir);
@@ -551,43 +580,6 @@ public class HTML5Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Copy symbols for relevant web pairs.
-        String[] webSymbolPairs = new String[] {
-            Platform.WasmWeb.getExtenderPair(),
-            Platform.WasmPthreadWeb.getExtenderPair()
-        };
-        for (String pair : webSymbolPairs) {
-            String dir = FilenameUtils.concat(project.getBinaryOutputDirectory(), pair);
-
-            File srcSymbols = null;
-            // Try to discover any *.js.symbols in the platform directory
-            File platformDir = new File(dir);
-            File[] matches = platformDir.listFiles(new FilenameFilter() {
-                @Override
-                public boolean accept(File d, String name) {
-                    return name.endsWith(".js.symbols");
-                }
-            });
-            if (matches != null && matches.length > 0) {
-                srcSymbols = matches[0];
-            }
-
-            if (srcSymbols != null) {
-                // Put all HTML5 symbols into a single folder named <ExeName>_symbols
-                File symbolsDir = new File(appDir.getParentFile(), enginePrefix + "_symbols");
-                symbolsDir.mkdirs();
-                String destName;
-                if (pair.equals(Platform.WasmWeb.getExtenderPair())) {
-                    destName = enginePrefix + "_wasm.js.symbols";
-                } else if (pair.equals(Platform.WasmPthreadWeb.getExtenderPair())) {
-                    destName = enginePrefix + "_pthread_wasm.js.symbols";
-                } else {
-                    destName = srcSymbols.getName();
-                }
-                File destSymbols = new File(symbolsDir, destName);
-                FileUtils.copyFile(srcSymbols, destSymbols);
-            }
-        }
 
 
         if (architectures.contains(Platform.WasmWeb)) {
@@ -596,6 +588,17 @@ public class HTML5Bundler implements IBundler {
 
         if (architectures.contains(Platform.WasmPthreadWeb)) {
             buildWasm(project, canceled, Platform.WasmPthreadWeb, appDir, variant, enginePrefix, "_pthread");
+        }
+
+        // Copy the symbol map of each bundled engine into a single folder. A build folder
+        // can hold the maps of several engine variants, so it is selected by the engine name.
+        for (Map.Entry<Platform, File> engine : wasmEngines.entrySet()) {
+            String symbolsName = FilenameUtils.getBaseName(engine.getValue().getName()) + ".js.symbols";
+            File srcSymbols = findWasmDebugFile(project, engine.getKey(), engine.getValue(), symbolsName);
+            if (srcSymbols != null) {
+                String destName = enginePrefix + (engine.getKey() == Platform.WasmPthreadWeb ? "_pthread" : "") + "_wasm.js.symbols";
+                FileUtils.copyFile(srcSymbols, new File(getSymbolsDir(appDir), destName));
+            }
         }
 
         BundleHelper.throwIfCanceled(canceled);

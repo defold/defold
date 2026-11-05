@@ -130,7 +130,8 @@ public final class EngineArtifactsProvider {
                             FileUtils.copyFile(cached, new File(targetFolder, LINUX_UNSTRIPPED_ENGINE_NAME));
                         } else {
                             File target = new File(targetFolder, symbolsFilename);
-                            if (!target.exists()) {
+                            // The build folder outlives engine upgrades, and these files must match the engine
+                            if (!target.exists() || p.getOsID() == OS.OS_ID_WEB) {
                                 target.getParentFile().mkdirs();
                                 FileUtils.copyFile(cached, target);
                             }

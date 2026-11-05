@@ -48,6 +48,17 @@ target_link_options(defold_sdk INTERFACE
   "$<$<CONFIG:Debug>:-gseparate-dwarf>"
   "$<$<CONFIG:Debug>:-gsource-map>")
 
+# Deterministic debug info paths on CI, so DWARF source paths can be mapped to a
+# local checkout with a single path substitution (SDK headers appear under
+# defoldsdk/, repo sources as repo-relative paths). The last matching prefix map
+# wins, and the SDK root is inside the repo root.
+if(DEFINED ENV{GITHUB_WORKFLOW})
+  target_compile_options(defold_sdk INTERFACE
+    "-fdebug-compilation-dir=."
+    "-fdebug-prefix-map=${DEFOLD_HOME}/="
+    "-fdebug-prefix-map=${DEFOLD_SDK_ROOT}=defoldsdk")
+endif()
+
 # Link options base
 set(_DEFOLD_INITIAL_MEMORY 33554432)
 if(WITH_ASAN AND TARGET_PLATFORM MATCHES "^wasm")

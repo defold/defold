@@ -518,7 +518,9 @@ platforms:
         engineLibs: ["engine", "engine_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_js", "gameobject", "ddf", "font", "font_richtext", "font_render", "resource", "gamesys", "font_gen", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "script_bullet3d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "lz4", "image", "gui", "crashext", "liveupdate", "sound_nosimd", "decoder_wav", "decoder_ogg"]
         flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC", "-Wno-nontrivial-memcall"]
         linkFlags:  ["--emit-symbol-map", "-O{{optLevel}}"]
-        # appended to linkFlags by the server when the client requests symbols (bob --with-symbols);
+        # appended to linkFlags by the server when the client requests symbols (bob --with-symbols),
+        # in release builds only with releaseDebugInfo in the app manifest context, since these flags
+        # also disable JS minification and parts of the wasm optimization;
         # produces the dmengine.wasm.debug.wasm and dmengine.wasm.map sidecars returned via symbolsPattern.
         # plain -gsource-map only: -gsource-map=inline reads every source as strict
         # UTF-8 at link time and would fail the build on any non-UTF-8 user source.

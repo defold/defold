@@ -49,6 +49,7 @@ public class WasmDebugSectionRewriter {
 
     public static final String EXTERNAL_DEBUG_INFO = "external_debug_info";
     public static final String SOURCE_MAPPING_URL  = "sourceMappingURL";
+    public static final String BUILD_ID            = "build_id";
 
     private static final byte[] WASM_MAGIC   = {0x00, 0x61, 0x73, 0x6d}; // "\0asm"
     private static final byte[] WASM_VERSION = {0x01, 0x00, 0x00, 0x00};
@@ -120,6 +121,39 @@ public class WasmDebugSectionRewriter {
             if (dwarfUrl != null) {
                 writeUrlSection(os, EXTERNAL_DEBUG_INFO, dwarfUrl);
             }
+        }
+    }
+
+    /**
+     * Returns the contents of the build_id custom section, or null if the wasm binary
+     * has none. A wasm and a separate DWARF file with the same build id are from the
+     * same link.
+     */
+    public static byte[] readBuildId(File file) throws IOException {
+        try (InputStream is = new BufferedInputStream(new FileInputStream(file))) {
+            byte[] magic = readBytes(is, 4, "wasm header");
+            byte[] version = readBytes(is, 4, "wasm header");
+            if (!Arrays.equals(magic, WASM_MAGIC) || !Arrays.equals(version, WASM_VERSION)) {
+                throw new IOException(String.format("%s is not a wasm (version 1) binary", file));
+            }
+            int id;
+            while ((id = is.read()) != -1) {
+                Leb size = readLeb(is);
+                long remaining = size.value;
+                if (id == SECTION_CUSTOM) {
+                    Leb nameLen = readLeb(is);
+                    if (nameLen.size + nameLen.value > size.value) {
+                        throw new IOException(String.format("Malformed custom section in %s: name is larger than the section", file));
+                    }
+                    byte[] name = readBytes(is, (int)nameLen.value, "custom section name");
+                    remaining -= nameLen.size + name.length;
+                    if (BUILD_ID.equals(new String(name, StandardCharsets.UTF_8))) {
+                        return readBytes(is, (int)remaining, BUILD_ID);
+                    }
+                }
+                skipBytes(is, remaining, String.format("section id %d", id));
+            }
+            return null;
         }
     }
 

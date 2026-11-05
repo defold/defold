@@ -124,26 +124,31 @@ UUID:
 HTML5 builds can be debugged as native C/C++ code directly in the browser.
 Bundle with the debug variant and symbols:
 
-	$ java -jar bob.jar --platform=wasm-web --architectures=wasm-web --variant=debug --with-symbols resolve build bundle
+	$ java -jar bob.jar --platform=wasm-web --architectures=wasm-web --variant=debug --with-symbols --archive resolve build bundle
 
 With `--with-symbols` the bundle contains the wasm debug info next to the engine:
 
 * `<Project>.wasm.debug.wasm` — the DWARF debug info (used by Chrome)
 * `<Project>.wasm.map` — a wasm source map with inlined sources (used by Firefox)
 
-and `dmloader.js` switches to URL-preserving streaming instantiation of the wasm
-(browser devtools resolve the debug info relative to the URL of the wasm module,
-so a module instantiated from an ArrayBuffer cannot be debugged).
+and `dmloader.js` switches to URL-preserving streaming instantiation of the wasm,
+even with `html5.wasm_streaming` disabled (browser devtools resolve the debug info
+relative to the URL of the wasm module, so a module instantiated from an ArrayBuffer
+cannot be debugged).
+
+The editor bundles with symbols by default, so its Debug bundles have these files too.
 
 The debug info comes from the engine link step:
 
-* Vanilla bundles use the sidecars published for the *debug* variant of the official
-  engines (release/headless variants are not published with wasm debug info).
-  Locally built engines produce them for both `--opt-level < 2` (full debug info)
-  and optimized builds (line tables only) — see `engine/engine/CMakeLists.txt`.
-* Extender (native extension) builds link with `-gseparate-dwarf -gsource-map`
-  when bob sends `withSymbols` (see `withSymbolsLinkFlags` in `share/extender/build_input.yml`),
-  so extension code is debuggable too. Note: the server does not embed sources
+* Vanilla bundles use the sidecars of the *debug* variant of the official engines,
+  which are published with the engine (release/headless variants have no wasm debug
+  info). Only `dmengine` links them in optimized builds, with line tables only — see
+  `engine/engine/CMakeLists.txt`. In a `--opt-level < 2` build all variants have full
+  debug info.
+* Extender (native extension) builds of the debug variant link with `-gseparate-dwarf
+  -gsource-map` when bob sends `withSymbols` (see `withSymbolsLinkFlags` in
+  `share/extender/build_input.yml`), so extension code is debuggable too. Release
+  builds only do so if the app manifest asks for it, see below. Note: the server does not embed sources
   into the map, so in Firefox extender-built engines show the file tree without
   content; Chrome + DWARF is unaffected.
 
@@ -155,8 +160,8 @@ Serving requirements:
 * The `_pthread` architecture additionally needs the COOP/COEP headers
   (`Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`).
 * Do not deploy the sidecars to production — the DWARF file contains the full
-  debug info (and code/data sections) and can be 50-200 MB; the inline source
-  map contains the sources.
+  debug info (and code/data sections), 12-13 MB for an optimized engine, and the
+  source map of an official engine contains the sources.
 
 Chrome:
 
@@ -215,26 +220,32 @@ that the `.wasm` is served with `Content-Type: application/wasm`.
 
 #### Symbolicating a production callstack
 
-A Release bundle built with `--with-symbols` produces what is needed to symbolicate
-crashes collected from end users:
+A Release bundle built with `--with-symbols` always gets a symbol map, which
+resolves frames to function names:
 
-* `<Project>/<Project>.wasm` — the deployed engine module
-* `<Project>/<Project>.wasm.debug.wasm` — the DWARF sidecar. It is a full wasm
-  module, so symbolizers run directly against it; the deployed `.wasm` is not
-  needed. Only Extender builds and locally built engines have it for the release
-  variant; official engines publish it for the debug variant only.
 * `<Project>_symbols/<Project>_wasm.js.symbols` — wasm function index -> mangled
   name (`--emit-symbol-map`). Published for all official engine variants as
   `dmengine[_release].js.symbols`.
 
-Archive these together per release: an Extender build is unique, so the sidecar
-from that exact build zip is the only one that matches the deployed wasm.
-Deploy only the `.wasm` (never the sidecars, see above).
+To also resolve frames to file:line:column, an Extender build needs the
+`releaseDebugInfo` option at the top level of the app manifest:
 
-Through Extender `--with-symbols` also changes the engine itself: the link keeps
-the `name` section and unminified JS, so a Release `.wasm` grew from 3.0 MB to
-3.8 MB and its `.js` from 257 KB to 460 KB in a test project. Crash reports only
-match a sidecar from the same build, so ship the build that has the symbols.
+	context:
+	    releaseDebugInfo: true
+
+It is opt-in as these link flags also change the engine: the link keeps the `name`
+section and skips JS minification and parts of the wasm optimization, so a Release
+`.wasm` grew from 3.0 MB to 3.8 MB and its `.js` from 257 KB to 460 KB in a test
+project. Official release engines are not linked this way. The bundle then also has:
+
+* `<Project>_symbols/<Project>.wasm.debug.wasm` — the DWARF sidecar. It is a full
+  wasm module, so symbolizers run directly against it; the deployed `.wasm` is not
+  needed, and does not reference it.
+* `<Project>_symbols/<Project>.wasm.map` — the source map
+
+Archive the symbols folder per release: an Extender build is unique, so the sidecar
+from that exact build is the only one that matches the deployed wasm. Bob checks that
+the `build_id` of a sidecar matches the engine, and leaves out one that doesn't.
 
 The engine crash handler logs the raw JS stack to the console
 (`CALL STACK: ... CALL STACK END`; it is also stored in the crash dump) as a one
@@ -248,23 +259,24 @@ how the stack was captured, production wasm frames look like:
 The `0x...` offset is a byte offset from the start of the wasm file. Resolve a
 collected stack with:
 
-	$ python scripts/web/symbolicate_web_callstack.py --wasm-debug Game/Game.wasm.debug.wasm stack.txt
+	$ python scripts/web/symbolicate_web_callstack.py --wasm-debug Game_symbols/Game.wasm.debug.wasm stack.txt
 
 which annotates every wasm frame with `function at file:line:column` (locations
 via llvm-symbolizer from the emsdk — found via `$EMSDK` or `$DYNAMO_HOME`, or pass
-`--emsdk`). The symbol map is picked up from the `<Project>_symbols` folder next
-to the bundle, or pass `--symbols`; without one the name section of the sidecar is
-used. Safari frames carry no offset and resolve to a function name only. So do all
-frames of builds without a sidecar:
+`--emsdk`). The symbol map is picked up from the folder of the sidecar or the
+`<Project>_symbols` folder next to it, or pass `--symbols`; without one the name
+section of the sidecar is used. Safari frames carry no offset and resolve to a
+function name only. So do all frames of builds without a sidecar:
 
 	$ python scripts/web/symbolicate_web_callstack.py --symbols dmengine_release.js.symbols stack.txt
 
 Notes:
 
 * Inlined frames are not printed, and function names are looked up by function
-  index. Running `llvm-symbolizer` or `emsymbolizer` on an address directly gives
-  the right file and line in its first location, but its function names and
-  inlined frames can point at unrelated functions.
+  index. Running `emsymbolizer` on an address, or `llvm-symbolizer` with
+  `--adjust-vma=<file offset of the code section>`, gives the right file and line
+  in its first location, but its function names and inlined frames can point at
+  unrelated functions.
 * Source paths are repo-relative for CI engines and job-dir-relative for
   Extender extension code — the same paths as in the Chrome path substitution
   notes above (`debugSourcePath` controls the Extender side).

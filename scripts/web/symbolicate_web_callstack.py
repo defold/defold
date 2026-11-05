@@ -73,11 +73,17 @@ def infer_symbols_path(wasm_debug_path):
         if name.endswith(suffix):
             name = name[: -len(suffix)]
             break
-    # bundle layout: <Game>/<Game>[_pthread].wasm.debug.wasm and
-    # <Game>_symbols/<Game>[_pthread]_wasm.js.symbols next to the bundle folder
+    # The symbol map is <Game>_symbols/<Game>[_pthread]_wasm.js.symbols next to the bundle
+    # folder. The sidecar is in that folder too for release bundles, and for debug bundles
+    # it is <Game>/<Game>[_pthread].wasm.debug.wasm in the bundle folder.
     title = name[: -len("_pthread")] if name.endswith("_pthread") else name
-    bundled = wasm_debug_path.parent.parent / f"{title}_symbols" / f"{name}_wasm.js.symbols"
-    return bundled if bundled.is_file() else wasm_debug_path.parent / f"{name}.js.symbols"
+    for candidate in (
+        wasm_debug_path.parent / f"{name}_wasm.js.symbols",
+        wasm_debug_path.parent.parent / f"{title}_symbols" / f"{name}_wasm.js.symbols",
+    ):
+        if candidate.is_file():
+            return candidate
+    return wasm_debug_path.parent / f"{name}.js.symbols"
 
 
 def expand_stack_lines(stack_text):
@@ -228,8 +234,9 @@ def main():
     parser.add_argument(
         "--symbols",
         help="Path to the .js.symbols symbol map, the source of function names. Defaults to "
-        "<Game>_symbols/<Game>_wasm.js.symbols next to the bundle folder, then to "
-        "<Game>.js.symbols next to the sidecar, then to the name section of the sidecar.",
+        "<Game>_wasm.js.symbols next to the sidecar, then to <Game>_symbols/<Game>_wasm.js.symbols "
+        "next to the sidecar folder, then to <Game>.js.symbols next to the sidecar, then to the "
+        "name section of the sidecar.",
     )
     parser.add_argument(
         "--emsdk",

@@ -161,17 +161,6 @@ else()
     if(DEFOLD_PLATFORM_SUPPORTS_FPIC)
         list(APPEND _DEFOLD_NON_MSVC_OPTIONS -fPIC)
     endif()
-    if(DEFINED ENV{GITHUB_WORKFLOW})
-        # Deterministic debug info paths on CI, so DWARF source paths can be
-        # mapped to a local checkout with a single path
-        # substitution (SDK headers appear under defoldsdk/, repo sources as
-        # repo-relative paths). The last matching prefix map wins, and the SDK
-        # root is inside the repo root.
-        list(APPEND _DEFOLD_NON_MSVC_OPTIONS
-            "-fdebug-compilation-dir=."
-            "-fdebug-prefix-map=${DEFOLD_HOME}/="
-            "-fdebug-prefix-map=${DEFOLD_SDK_ROOT}=defoldsdk")
-    endif()
     target_compile_options(defold_sdk INTERFACE ${_DEFOLD_NON_MSVC_OPTIONS})
 endif()
 
