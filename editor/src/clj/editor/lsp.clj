@@ -1274,15 +1274,4 @@
       #_{:languages #{"lua"}
          :watched-files [{:pattern "**/.luacheckrc"}]
          :launcher {:command ["/Users/vlaaad/Projects/vscode-luacheck/lua_language_server" "--"]}}})
-  ;; Simulate editor startup: clear open views' symbols, then restart all servers
-  (let [lsp (g/graph-value :lsp)]
-    (g/transact
-      {:undoable false}
-      (for [view-node (coll/keys (:view-node->resource (lsp)))]
-        (g/set-property view-node :document-symbols [])))
-    (lsp (fn [state]
-           (let [servers (set (coll/keys (:server->server-state state)))]
-             (-> state
-                 ((set-servers #{}))
-                 ((set-servers servers)))))))
   :-)
