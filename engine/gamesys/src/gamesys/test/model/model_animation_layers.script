@@ -2,7 +2,8 @@ require "model.lua_test_helpers"
 
 -- Definitions can be created outside a component's script callbacks.
 local options = { order = 1, weight = 0.5, bones = { "b_Spine01_02" } }
-local shared = model.animation_layer("upper_body", options)
+-- A custom layer named "base" must coexist with implicit base playback.
+local shared = model.animation_layer("base", options)
 local chained = model.animation_layer(hash("chained"), { order = 2, bones = { hash("b_Tail01_012") } })
 local replaced = model.animation_layer("replaced", { order = 3 })
 local weak_callbacks = setmetatable({}, { __mode = "v" })
@@ -51,12 +52,11 @@ function init(self)
     for _, weight in ipairs({ -0.1, 1.1, math.huge, 0/0 }) do
         assert_error(function() model.animation_layer("bad", { order = 1, weight = weight }) end)
     end
-    assert_error(function() model.animation_layer("base", { order = 1 }) end)
+    assert_error(function() model.animation_layer("", { order = 1 }) end)
     assert_error(function() model.animation_layer("bad", { order = 1, bones = "spine" }) end)
     assert_error(function() model.animation_layer("bad", { order = 1, bones = { false } }) end)
     assert_error(function() model.animation_layer("bad", { order = 1, bones = { root = "spine" } }) end)
     assert_error(function() model.animation_layer("bad", { order = 1, bones = { [2] = "spine" } }) end)
-    assert_error(function() model.destroy_animation_layer({}) end)
     assert_error(function() play({}, "#fox", "Run") end)
     assert_error(function() model.play_anim("#fox", "Run", go.PLAYBACK_LOOP_FORWARD, { layer = chained, offset = math.huge }) end)
     assert_error(function() model.play_anim("#fox", "Run", 99, { layer = chained }) end)
@@ -73,18 +73,20 @@ function init(self)
 
     local missing = model.animation_layer("missing", { order = 5, bones = { "missing" } })
     assert_error(function() play(missing, "#fox", "Run") end)
-    model.destroy_animation_layer(missing)
-    local duplicate_name = model.animation_layer("upper_body", { order = 5 })
+    missing = nil
+    local duplicate_name = model.animation_layer("base", { order = 5 })
     local duplicate_order = model.animation_layer("another", { order = 1 })
     assert_error(function() play(duplicate_name, "#fox", "Run") end)
     assert_error(function() play(duplicate_order, "#fox", "Run") end)
-    model.destroy_animation_layer(duplicate_name)
-    model.destroy_animation_layer(duplicate_order)
+    duplicate_name = nil
+    duplicate_order = nil
 
-    -- Releasing the caller's handle must not cancel either model's animation.
-    model.destroy_animation_layer(shared)
-    assert_error(function() play(shared, "#fox", "Run") end)
-    assert_error(function() model.destroy_animation_layer(shared) end)
+    -- Collecting the shared Lua handle must not cancel either model's animation.
+    local weak_layers = setmetatable({ shared }, { __mode = "v" })
+    shared = nil
+    collectgarbage("collect") -- Finalize the unreachable userdata.
+    collectgarbage("collect") -- Remove the finalized userdata from the weak table.
+    assert(weak_layers[1] == nil)
 
     play(chained, "#fox", "Run", function(self, message_id, message)
         check_message(self, message_id, message, "Run")
@@ -129,6 +131,6 @@ function update(self, dt)
 end
 
 function final(self)
-    model.destroy_animation_layer(chained)
-    model.destroy_animation_layer(replaced)
+    chained = nil
+    replaced = nil
 end

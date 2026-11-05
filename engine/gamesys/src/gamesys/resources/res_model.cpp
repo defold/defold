@@ -203,20 +203,20 @@ namespace dmGameSystem
 
             for (int c = 0; c < 3; ++c)
             {
-                vertex->pos[c] = *positions++;
-                vertex->normal[c] = normals ? *normals++ : 0.0f;
+                vertex->m_Position[c] = *positions++;
+                vertex->m_Normal[c] = normals ? *normals++ : 0.0f;
             }
 
             for (int c = 0; c < 4; ++c)
             {
-                vertex->color[c] = colors ? *colors++ : 1.0f;
-                vertex->tangent[c] = tangents ? *tangents++ : 0.0f;
+                vertex->m_Color[c] = colors ? *colors++ : 1.0f;
+                vertex->m_Tangent[c] = tangents ? *tangents++ : 0.0f;
             }
 
             for (int c = 0; c < 2; ++c)
             {
-                vertex->uv0[c] = uv0 ? *uv0++ : 0.0f;
-                vertex->uv1[c] = uv1 ? *uv1++ : 0.0f;
+                vertex->m_UV0[c] = uv0 ? *uv0++ : 0.0f;
+                vertex->m_UV1[c] = uv1 ? *uv1++ : 0.0f;
             }
 
             if (format == RIG_MODEL_VERTEX_FORMAT_SKINNED)

@@ -1806,10 +1806,10 @@ TEST_F(RigInstanceTest, GetVertexCount)
 }
 
 #define ASSERT_VERT_POS(exp, act)\
-    ASSERT_EQ(exp, Vector3(act.pos[0], act.pos[1], act.pos[2]));
+    ASSERT_EQ(exp, Vector3(act.m_Position[0], act.m_Position[1], act.m_Position[2]));
 
 #define ASSERT_VERT_NORM(exp, act)\
-    ASSERT_EQ(exp, Vector3(act.normal[0], act.normal[1], act.normal[2]));
+    ASSERT_EQ(exp, Vector3(act.m_Normal[0], act.m_Normal[1], act.m_Normal[2]));
 
 #define ASSERT_VERT_UV(exp_u, exp_v, act_u, act_v)\
     ASSERT_NEAR(exp_u, act_u, RIG_EPSILON_FLOAT);\
@@ -1873,7 +1873,7 @@ TEST_F(RigInstanceTest, GenerateTexcoordData)
 
     // sample 0
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, m_FirstMesh, Matrix4::identity(), data));
-    ASSERT_VERT_UV(-1.0f, 2.0f, data[0].uv0[0], data[0].uv0[1]);
+    ASSERT_VERT_UV(-1.0f, 2.0f, data[0].m_UV0[0], data[0].m_UV0[1]);
 }
 
 // Test to verify that two rigs does not interfere with each others pose information,

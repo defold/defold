@@ -30,7 +30,7 @@ namespace dmRig
     using namespace dmVMath;
 
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
-    static const float CURSOR_EPSILON = 0.0001f;
+    static const float CURSOR_EPSILON    = 0.0001f;
 
     const float TEXTURE_TRANSFORM_2D_IDENTITY[9] = {
         1.0f, 0.0f, 0.0f,
@@ -50,7 +50,7 @@ namespace dmRig
         // Temporary scratch buffers used for store pose as transform and matrices
         // (avoids modifying the real pose transform data during rendering).
         dmArray<dmVMath::Matrix4>       m_ScratchPoseMatrixBuffer;
-        dmArray<BonePose>              m_ScratchLayerPose;
+        dmArray<BonePose>               m_ScratchLayerPose;
         // Temporary scratch buffers used when transforming the vertex buffer,
         // used to creating primitives from indices.
         dmArray<dmVMath::Vector3>       m_ScratchPositionBufferWorld;
@@ -146,7 +146,55 @@ namespace dmRig
         return 0;
     }
 
-    static Result SetPlayerCursor(RigPlayer* player, float cursor, bool normalized);
+    static Result SetPlayerCursor(RigPlayer* player, float cursor, bool normalized)
+    {
+        float t = cursor;
+
+        if (!player)
+        {
+            return dmRig::RESULT_ERROR;
+        }
+
+        if (!player->m_Animation)
+        {
+            return RESULT_OK;
+        }
+
+        float duration = player->m_Animation->m_Duration;
+        if (normalized)
+        {
+            t = t * duration;
+        }
+
+        if (player->m_Playback == dmRig::PLAYBACK_LOOP_PINGPONG && player->m_Backwards)
+        {
+            // NEVER set cursor on the "looped" part of a pingpong animation
+            player->m_Backwards = 0;
+        }
+
+        if (fabs(t) > duration)
+        {
+            t = fmod(t, duration);
+            if (fabs(t) < CURSOR_EPSILON)
+            {
+                t = duration;
+            }
+        }
+
+        if (t < 0.0f)
+        {
+            t = duration - fmod(fabs(t), duration);
+        }
+
+        if (player->m_Backwards)
+        {
+            t = duration - t;
+        }
+
+        player->m_Cursor = t;
+
+        return dmRig::RESULT_OK;
+    }
 
     static void PlayAnimation(HRigInstance instance, RigPlaybackState* state, const dmRigDDF::RigAnimation* animation, RigPlayback playback, float blend_duration, float offset, float playback_rate)
     {
@@ -187,70 +235,114 @@ namespace dmRig
         return RESULT_OK;
     }
 
+    static void InitializeLayerMask(HRigInstance instance, RigLayer* layer)
+    {
+        HAnimationLayer definition = layer->m_Definition;
+        uint32_t bone_count = instance->m_Pose.Size();
+        layer->m_Mask.SetCapacity(bone_count);
+        layer->m_Mask.SetSize(bone_count);
+        memset(layer->m_Mask.Begin(), definition->m_AllBones ? 1 : 0, bone_count);
+
+        for (uint32_t i = 0; i < definition->m_Bones.Size(); ++i)
+        {
+            dmhash_t bone_name = definition->m_Bones[i];
+            uint32_t bone_index = *instance->m_BoneIndices->Get(bone_name);
+            layer->m_Mask[bone_index] = 1;
+        }
+
+        // Include descendants of selected bones. Skeletons store parents before children.
+        for (uint32_t i = 0; i < bone_count; ++i)
+        {
+            uint32_t parent_index = instance->m_Skeleton->m_Bones[i].m_Parent;
+            if (parent_index != INVALID_BONE_INDEX && layer->m_Mask[parent_index])
+            {
+                layer->m_Mask[i] = 1;
+            }
+        }
+    }
+
+    static void InsertLayer(HRigInstance instance, RigLayer* layer)
+    {
+        if (instance->m_Layers.Full())
+        {
+            instance->m_Layers.OffsetCapacity(4);
+        }
+
+        // Shift higher-order layers to keep evaluation order ascending.
+        uint32_t index = instance->m_Layers.Size();
+        int32_t order = layer->m_Definition->m_Order;
+        instance->m_Layers.Push(layer);
+        while (index > 0 && instance->m_Layers[index - 1]->m_Definition->m_Order > order)
+        {
+            instance->m_Layers[index] = instance->m_Layers[index - 1];
+            --index;
+        }
+        instance->m_Layers[index] = layer;
+    }
+
     Result PlayAnimation(HRigInstance instance, HAnimationLayer definition, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate)
     {
         if (!definition)
+        {
             return PlayAnimation(instance, animation_id, playback, blend_duration, offset, playback_rate);
+        }
 
         const dmRigDDF::RigAnimation* animation = FindAnimation(instance->m_AnimationSet, animation_id);
         if (!animation)
+        {
             return RESULT_ANIM_NOT_FOUND;
+        }
+
         if (!instance->m_Skeleton || instance->m_Pose.Empty() || !instance->m_BoneIndices)
+        {
             return RESULT_ERROR;
+        }
 
         RigLayer* layer = FindLayer(instance, definition);
         if (!layer)
         {
-            // Validate everything before allocating or replacing any playback.
+            // Validate the definition before allocating or changing playback.
             for (uint32_t i = 0; i < instance->m_Layers.Size(); ++i)
             {
                 HAnimationLayer other = instance->m_Layers[i]->m_Definition;
                 if (other->m_Name == definition->m_Name || other->m_Order == definition->m_Order)
+                {
                     return RESULT_LAYER_CONFLICT;
-            }
-            for (uint32_t i = 0; i < definition->m_Bones.Size(); ++i)
-            {
-                const uint32_t* bone = instance->m_BoneIndices->Get(definition->m_Bones[i]);
-                if (!bone || *bone >= instance->m_Pose.Size())
-                    return RESULT_BONE_NOT_FOUND;
+                }
             }
 
+            uint32_t bone_count = instance->m_Pose.Size();
+            for (uint32_t i = 0; i < definition->m_Bones.Size(); ++i)
+            {
+                dmhash_t bone_name = definition->m_Bones[i];
+                const uint32_t* bone_index = instance->m_BoneIndices->Get(bone_name);
+                if (!bone_index || *bone_index >= bone_count)
+                {
+                    return RESULT_BONE_NOT_FOUND;
+                }
+            }
+
+            // Each model owns its playback state, mask and pose for the shared definition.
             layer = new RigLayer;
             memset(&layer->m_Playback, 0, sizeof(layer->m_Playback));
             layer->m_Definition = definition;
             ++definition->m_RefCount;
-            uint32_t bone_count = instance->m_Pose.Size();
-            layer->m_Mask.SetCapacity(bone_count);
-            layer->m_Mask.SetSize(bone_count);
-            memset(layer->m_Mask.Begin(), definition->m_AllBones ? 1 : 0, bone_count);
-            for (uint32_t i = 0; i < definition->m_Bones.Size(); ++i)
-                layer->m_Mask[*instance->m_BoneIndices->Get(definition->m_Bones[i])] = 1;
-            // Skeletons are stored parent before child.
-            for (uint32_t i = 0; i < bone_count; ++i)
-            {
-                uint32_t parent = instance->m_Skeleton->m_Bones[i].m_Parent;
-                if (parent != INVALID_BONE_INDEX && layer->m_Mask[parent])
-                    layer->m_Mask[i] = 1;
-            }
+
+            InitializeLayerMask(instance, layer);
             layer->m_Pose.SetCapacity(bone_count);
             layer->m_Pose.SetSize(bone_count);
+
+            // Preserve the base pose separately before adding the first overlay.
             if (instance->m_Layers.Empty())
             {
                 instance->m_BasePose.SetCapacity(bone_count);
                 instance->m_BasePose.SetSize(bone_count);
                 memcpy(instance->m_BasePose.Begin(), instance->m_Pose.Begin(), bone_count * sizeof(BonePose));
             }
-            if (instance->m_Layers.Full())
-                instance->m_Layers.OffsetCapacity(4);
-            uint32_t index = instance->m_Layers.Size();
-            instance->m_Layers.Push(layer);
-            while (index > 0 && instance->m_Layers[index - 1]->m_Definition->m_Order > definition->m_Order)
-            {
-                instance->m_Layers[index] = instance->m_Layers[index - 1];
-                --index;
-            }
-            instance->m_Layers[index] = layer;
+
+            InsertLayer(instance, layer);
         }
+
         PlayAnimation(instance, &layer->m_Playback, animation, playback, blend_duration, offset, playback_rate);
         return RESULT_OK;
     }
@@ -1144,56 +1236,6 @@ namespace dmRig
         return SetPlayerCursor(GetPlayer(instance), cursor, normalized);
     }
 
-    static Result SetPlayerCursor(RigPlayer* player, float cursor, bool normalized)
-    {
-        float t = cursor;
-
-        if (!player)
-        {
-            return dmRig::RESULT_ERROR;
-        }
-
-        if (!player->m_Animation)
-        {
-            return RESULT_OK;
-        }
-
-        float duration = player->m_Animation->m_Duration;
-        if (normalized)
-        {
-            t = t * duration;
-        }
-
-        if (player->m_Playback == dmRig::PLAYBACK_LOOP_PINGPONG && player->m_Backwards)
-        {
-            // NEVER set cursor on the "looped" part of a pingpong animation
-            player->m_Backwards = 0;
-        }
-
-        if (fabs(t) > duration)
-        {
-            t = fmod(t, duration);
-            if (fabs(t) < CURSOR_EPSILON)
-            {
-                t = duration;
-            }
-        }
-
-        if (t < 0.0f)
-        {
-            t = duration - fmod(fabs(t), duration);
-        }
-
-        if (player->m_Backwards)
-        {
-            t = duration - t;
-        }
-
-        player->m_Cursor = t;
-
-        return dmRig::RESULT_OK;
-    }
-
     float GetPlaybackRate(HRigInstance instance)
     {
         RigPlayer* player = GetPlayer(instance);
@@ -1530,20 +1572,20 @@ namespace dmRig
             {
                 for (int c = 0; c < 3; ++c)
                 {
-                    out_write_ptr->pos[c] = *positions++;
-                    out_write_ptr->normal[c] = *normals++;
+                    out_write_ptr->m_Position[c] = *positions++;
+                    out_write_ptr->m_Normal[c] = *normals++;
                 }
 
                 for (int c = 0; c < 4; ++c)
                 {
-                    out_write_ptr->color[c] = colors ? *colors++ : 1.0f;
-                    out_write_ptr->tangent[c] = *tangents++;
+                    out_write_ptr->m_Color[c] = colors ? *colors++ : 1.0f;
+                    out_write_ptr->m_Tangent[c] = *tangents++;
                 }
 
                 for (int c = 0; c < 2; ++c)
                 {
-                    out_write_ptr->uv0[c] = uv0 ? *uv0++ : 0.0f;
-                    out_write_ptr->uv1[c] = uv1 ? *uv1++ : 0.0f;
+                    out_write_ptr->m_UV0[c] = uv0 ? *uv0++ : 0.0f;
+                    out_write_ptr->m_UV1[c] = uv1 ? *uv1++ : 0.0f;
                 }
 
                 out_write_ptr++;
@@ -1570,20 +1612,20 @@ namespace dmRig
 
                 for (int c = 0; c < 3; ++c)
                 {
-                    out_write_ptr->pos[c] = positions[idx*3+c];
-                    out_write_ptr->normal[c] = normals[idx*3+c];
+                    out_write_ptr->m_Position[c] = positions[idx*3+c];
+                    out_write_ptr->m_Normal[c] = normals[idx*3+c];
                 }
 
                 for (int c = 0; c < 4; ++c)
                 {
-                    out_write_ptr->color[c] = colors ? colors[idx*4+c] : 1.0f;
-                    out_write_ptr->tangent[c] = tangents[idx*4+c];
+                    out_write_ptr->m_Color[c] = colors ? colors[idx*4+c] : 1.0f;
+                    out_write_ptr->m_Tangent[c] = tangents[idx*4+c];
                 }
 
                 for (int c = 0; c < 2; ++c)
                 {
-                    out_write_ptr->uv0[c] = uv0 ? uv0[idx*2+c] : 0.0f;
-                    out_write_ptr->uv1[c] = uv1 ? uv1[idx*2+c] : 0.0f;
+                    out_write_ptr->m_UV0[c] = uv0 ? uv0[idx*2+c] : 0.0f;
+                    out_write_ptr->m_UV1[c] = uv1 ? uv1[idx*2+c] : 0.0f;
                 }
 
                 out_write_ptr++;

@@ -178,7 +178,7 @@ namespace dmGameSystem
     {
         LuaAnimationLayer* layer = (LuaAnimationLayer*)luaL_checkudata(L, index, ANIMATION_LAYER_TYPE);
         if (!layer->m_Layer)
-            luaL_error(L, "animation layer has been destroyed");
+            luaL_error(L, "animation layer is no longer valid");
         return layer;
     }
 
@@ -194,6 +194,9 @@ namespace dmGameSystem
      * Creates an immutable layer definition, independent of any model component.
      * Reuse the returned handle in the `layer` property of [ref:model.play_anim].
      * Each model keeps its own playback cursor, crossfade and completion callback.
+     * Handles are released automatically by Lua's garbage collector. Existing playback
+     * keeps its own reference, so collecting a handle does not stop its animations.
+     * The definition is freed when neither Lua handles nor model playback reference it.
      *
      * The base animation is evaluated first, followed by layers in increasing order.
      * Layers override the pose beneath them with their weight; weights are not normalized.
@@ -202,7 +205,7 @@ namespace dmGameSystem
      * the skeleton's rest transforms. Additional layers only affect skeletal animation.
      *
      * @name model.animation_layer
-     * @param name [type:string|hash] layer name; the name "base" is reserved
+     * @param name [type:string|hash] non-empty layer name
      * @param options [type:table] layer configuration, copied at creation
      *
      * `order`
@@ -230,49 +233,59 @@ namespace dmGameSystem
     static int LuaModelComp_AnimationLayer(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmRig::AnimationLayerParams params = {};
-        params.m_Name = dmScript::CheckHashOrString(L, 1);
-        if (params.m_Name == dmHashString64("base") || params.m_Name == dmHashString64(""))
-            return luaL_error(L, "animation layer name must be non-empty and cannot be 'base'");
+        dmhash_t name = dmScript::CheckHashOrString(L, 1);
+        if (name == dmHashString64(""))
+            return luaL_error(L, "animation layer name must be non-empty");
+
         luaL_checktype(L, 2, LUA_TTABLE);
         lua_getfield(L, 2, "order");
         lua_Number order = luaL_checknumber(L, -1);
         if (!isfinite(order) || order < 1 || order > INT_MAX || floor(order) != order)
             return luaL_error(L, "animation layer order must be a positive 32-bit integer");
-        params.m_Order = (int32_t)order;
+
         lua_pop(L, 1);
+
         lua_getfield(L, 2, "weight");
         lua_Number weight = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
         if (!isfinite(weight) || weight < 0 || weight > 1)
             return luaL_error(L, "animation layer weight must be in [0, 1]");
-        params.m_Weight = (float)weight;
         lua_pop(L, 1);
+
         lua_getfield(L, 2, "bones");
-        params.m_AllBones = lua_isnil(L, -1);
-        if (!params.m_AllBones)
+        bool all_bones = lua_isnil(L, -1);
+        uint32_t bone_count = 0;
+        if (!all_bones)
         {
             luaL_checktype(L, -1, LUA_TTABLE);
-            params.m_BoneCount = lua_objlen(L, -1);
+            bone_count = lua_objlen(L, -1);
             // Reject sparse arrays and non-array keys instead of silently dropping roots.
             lua_pushnil(L);
             while (lua_next(L, -2))
             {
                 lua_Number key = lua_type(L, -2) == LUA_TNUMBER ? lua_tonumber(L, -2) : 0;
-                if (key < 1 || key > params.m_BoneCount || floor(key) != key)
+                if (key < 1 || key > bone_count || floor(key) != key)
                     return luaL_error(L, "animation layer bones must be an array of bone names");
                 dmScript::CheckHashOrString(L, -1);
                 lua_pop(L, 1);
             }
         }
         // Lua owns this temporary buffer, including if argument validation raises an error.
-        dmhash_t* bones = (dmhash_t*)lua_newuserdata(L, sizeof(dmhash_t) * params.m_BoneCount);
-        for (uint32_t i = 0; i < params.m_BoneCount; ++i)
+        dmhash_t* bones = (dmhash_t*)lua_newuserdata(L, sizeof(dmhash_t) * bone_count);
+        for (uint32_t i = 0; i < bone_count; ++i)
         {
             lua_rawgeti(L, -2, i + 1);
             bones[i] = dmScript::CheckHashOrString(L, -1);
             lua_pop(L, 1);
         }
+
+        dmRig::AnimationLayerParams params;
+        params.m_Name = name;
+        params.m_Order = (int32_t)order;
+        params.m_Weight = (float)weight;
         params.m_Bones = bones;
+        params.m_BoneCount = bone_count;
+        params.m_AllBones = all_bones;
+
         LuaAnimationLayer* layer = (LuaAnimationLayer*)lua_newuserdata(L, sizeof(LuaAnimationLayer));
         layer->m_Layer = 0;
         luaL_getmetatable(L, ANIMATION_LAYER_TYPE);
@@ -281,22 +294,6 @@ namespace dmGameSystem
         lua_remove(L, -2); // Temporary bone buffer.
         lua_remove(L, -2); // Bone array.
         return 1;
-    }
-
-    /*# destroy an animation layer handle
-     * Invalidates the handle so it can no longer be passed to [ref:model.play_anim].
-     * Existing playback keeps its own reference and continues unaffected. Definitions
-     * are freed when no handles or model playback instances reference them. Unreachable
-     * handles are also released by Lua's garbage collector.
-     *
-     * @name model.destroy_animation_layer
-     * @param layer_id [type:userdata] handle returned by [ref:model.animation_layer]
-     */
-    static int LuaModelComp_DestroyAnimationLayer(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 0);
-        CheckAnimationLayer(L, 1);
-        return AnimationLayerGC(L);
     }
 
     struct AnimationCallbackContext
@@ -957,7 +954,6 @@ namespace dmGameSystem
     static const luaL_reg MODEL_COMP_FUNCTIONS[] =
     {
         {"animation_layer", LuaModelComp_AnimationLayer},
-        {"destroy_animation_layer", LuaModelComp_DestroyAnimationLayer},
         {"play_anim", LuaModelComp_PlayAnim},
         {"cancel",  LuaModelComp_Cancel},
         {"get_go",  LuaModelComp_GetGO},
