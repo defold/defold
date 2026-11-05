@@ -66,7 +66,7 @@ namespace dmRender
     typedef HOpaqueHandle                   HLightPrototype;
     typedef HOpaqueHandle                   HLightInstance;
 
-    static const uint32_t RENDERLIST_MAX_DISPATCHES        = 255;
+    static const uint8_t RENDERLIST_MAX_DISPATCHES         = 255;
     static const uint8_t RENDERLIST_INVALID_DISPATCH       = RENDERLIST_MAX_DISPATCHES;
     static const HRenderType INVALID_RENDER_TYPE_HANDLE    = ~0ULL;
     static const uint32_t INVALID_SAMPLER_UNIT             = 0xffffffff;

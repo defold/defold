@@ -753,6 +753,7 @@ namespace dmRender
                 }
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
+                // A selected text batch can produce no glyph vertices.
                 if (text_context.m_VerticesFlushed != text_context.m_VertexIndex)
                 {
                     const uint32_t vertex_size = sizeof(FontDefaultVertex);
