@@ -780,11 +780,11 @@
       :prompt         filter text field's prompt, string or MessagePattern,
                       defaults to \"dialog.select-item.prompt\" message
       :owner          the owner window, defaults to main stage
-      :items-ref      optional IRef with the items, replacing the items arg;
-                      nil while the items are still loading
+      :items-ref      optional watched reference containing replacement items;
+                      nil means loading and keeps the currently displayed items
       :loading-message
-                      optional MessagePattern shown with a spinner in the
-                      footer while :items-ref holds nil
+                      optional string or MessagePattern shown beside the footer
+                      spinner while :items-ref contains nil
       :preview-item-fn
                       optional side-effecting fn of two args, an item to preview
                       and a source keyword describing what triggered it:

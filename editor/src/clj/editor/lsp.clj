@@ -305,9 +305,8 @@
 
   Either :requests, or :requests-fn must be provided (but not both). Requests
   are sent to running servers that match :capabilities-pred and :resource. If
-  no server matches, responses-ch is closed immediately; otherwise, if
-  :timeout-ms is provided, timeout-based cancellation is scheduled for
-  outstanding requests.
+  no server matches, responses-ch closes immediately. When :timeout-ms is
+  supplied, outstanding requests are cancelled after that timeout.
 
   Args:
     state             LSP state
@@ -808,16 +807,17 @@
       state)))
 
 (defn document-symbols-pending?
-  "Whether the document symbols request for a viewed resource awaits an answer"
+  "True while a document-symbol request is pending for the resource."
   [lsp resource]
   (contains? (:active-requests (lsp)) (document-symbols-id resource)))
 
 (defn on-document-symbols-ready!
-  "Call ready-fn once the pending document symbols request for a viewed
-  resource is answered, or right away if no request is pending
+  "Call ready-fn when the resource's pending symbol request finishes, or as
+  soon as this registration is processed if no request is pending.
 
-  ready-fn receives no args and runs on the LSP manager thread after the view
-  update is scheduled, so a ui/run-later from ready-fn sees the new symbols"
+  ready-fn takes no arguments and runs on the LSP manager thread. Any symbol
+  update is queued on the UI thread first; use ui/run-later to read it.
+  Registrations survive request replacement and are discarded on view close."
   [lsp resource ready-fn]
   (lsp (bound-fn add-document-symbols-listener [state]
          (let [id (document-symbols-id resource)]
@@ -826,7 +826,10 @@
              (do (ready-fn) state))))))
 
 (defn set-render-progress!
-  "Set the function that shows language server progress in the editor"
+  "Set the callback that displays language server progress.
+
+  render-progress! receives a progress value, or progress/done when no server
+  reports active work. It runs on the LSP manager thread."
   [lsp render-progress!]
   (lsp #(assoc % :render-progress! render-progress!)))
 

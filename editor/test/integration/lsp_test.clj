@@ -1005,10 +1005,8 @@
       (is (await= 2 @hover-requests))
       (set-servers! lsp #{}))))
 
-;; Verifies that document symbols are written whenever the server answers a held
-;; request, and that a late answer for a closed view is dropped. Guards against
-;; the Structure pane staying empty while the language server loads its
-;; workspace.
+;; Verifies that delayed symbol requests publish the latest results after an
+;; edit and discard results for closed views.
 (deftest held-document-symbols-test
   (with-scratch-project "test/resources/lsp_project"
     (let [lsp (lsp/get-lsp)
