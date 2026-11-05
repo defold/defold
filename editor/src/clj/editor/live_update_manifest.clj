@@ -463,8 +463,9 @@
                                (delay (workspace/add-resource-listener! workspace 0 listener))))))))
 
 (defn- load-manifest [{:keys [workspace]} {:keys [source-value] self :node-id}]
-  (listen-for-resource-changes! workspace)
-  [(g/set-property self :output-directory (:output-directory source-value (protobuf/default LiveUpdateManifest$ManifestDesc :output-directory)))
+  ;; Resource loaders construct transaction data without querying the graph.
+  [(g/callback listen-for-resource-changes! workspace)
+   (g/set-property self :output-directory (:output-directory source-value (protobuf/default LiveUpdateManifest$ManifestDesc :output-directory)))
    (g/set-property self :provider-settings (:providers source-value []))
    (load-environment workspace [self])
    (g/connect workspace :root self :project-root)
