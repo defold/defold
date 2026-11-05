@@ -230,6 +230,26 @@ a newer runtime; the source build and runtime checks establish that separately.
 - `install_ext_packages --platform=arm64-macos` successfully installed all five
   desktop DXC archives exactly once, including both Linux packages.
 
+## macOS allocation-fix package update (2026-11-05)
+
+- Rebuilt both macOS archives from the pinned source with the same three
+  variable-sized allocation fixes as the Linux packages. Used Apple Clang
+  21.0.0, Release configuration, and a macOS 12.0 deployment target.
+- Extracted each candidate archive and ran ASAN-enabled DXC API checks with
+  `ASAN_OPTIONS=new_delete_type_mismatch=1`: the
+  `Shaderc.HLSLPixelOutputMetadata` shader and arguments, sparse output
+  reflection (slots, masks and numeric types), and vertex and compute shaders
+  all passed. Tests ran on macOS 26.5.2, natively for arm64 and through Rosetta
+  for x86_64. These were focused DXC checks, not a full engine test run.
+- Standalone vertex and compute compilation passed with `DYLD_LIBRARY_PATH`
+  and `DYLD_FALLBACK_LIBRARY_PATH` unset. Verified both Mach-O architectures,
+  relative install names and runtime paths, system-only dependencies, and the
+  macOS 12.0 minimum in all four binaries. Runtime testing on macOS 12.0 remains
+  separate.
+- Both archives retain the same 36 files. Headers and licenses are unchanged;
+  only `dxc` and `libdxcompiler.dylib` changed. The Windows archive has not yet
+  been rebuilt with these fixes.
+
 ## macOS package validation (2026-10-28)
 
 - Built both archives from the pinned sources with Apple Clang 21.0.0, Release
