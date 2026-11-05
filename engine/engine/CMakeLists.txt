@@ -560,6 +560,8 @@ if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
             "${DEFOLD_HOME}/build_tools/embed_wasm_sourcemap_sources.py"
             "$<TARGET_FILE_DIR:dmengine>/$<TARGET_FILE_BASE_NAME:dmengine>.wasm.map"
             --search-dir "${DEFOLD_HOME}"
+            --link-dir "${CMAKE_BINARY_DIR}"
+            --prefix-map "defoldsdk=${DEFOLD_SDK_ROOT}"
     VERBATIM)
 endif()
 

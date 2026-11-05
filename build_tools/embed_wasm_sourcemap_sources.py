@@ -25,11 +25,31 @@
 #
 # Source map format: https://tc39.es/ecma426/ (sources/sourcesContent are
 # parallel arrays; relative sources resolve against the map location).
+#
+# With -fdebug-compilation-dir=. the DWARF paths are relative, and
+# wasm-sourcemap.py takes them as relative to its working directory. That makes
+# a source named engine/dlib/src/hash.cpp come out as
+# ../../../<link dir>/engine/dlib/src/hash.cpp in the map, which does not exist.
+# With --link-dir those sources get their DWARF path back as their name.
 
 import argparse
 import json
 import os
 import sys
+
+def dwarf_path(src, map_dir, link_dir):
+    if not link_dir or os.path.isabs(src):
+        return None
+    path = os.path.normpath(os.path.join(map_dir, src))
+    if path.startswith(link_dir + os.sep) and not os.path.isfile(path):
+        return os.path.relpath(path, link_dir)
+    return None
+
+def apply_prefix_map(src, prefix_map):
+    for prefix, replacement in prefix_map:
+        if src.startswith(prefix + '/'):
+            return os.path.join(replacement, src[len(prefix) + 1:])
+    return src
 
 def resolve_source(src, source_root, search_dirs):
     candidates = []
@@ -44,16 +64,20 @@ def resolve_source(src, source_root, search_dirs):
             return candidate
     return None
 
-def embed_sources(map_file, search_dirs):
+def embed_sources(map_file, search_dirs, link_dir, prefix_map):
     with open(map_file, 'r', encoding='utf-8') as f:
         source_map = json.load(f)
 
     sources = source_map.get('sources', [])
     source_root = source_map.get('sourceRoot', '')
+    map_dir = os.path.dirname(os.path.abspath(map_file))
     contents = []
     missing = 0
-    for src in sources:
-        path = resolve_source(src, source_root, search_dirs)
+    for index, src in enumerate(sources):
+        original = dwarf_path(src, map_dir, link_dir)
+        if original:
+            sources[index] = src = original
+        path = resolve_source(apply_prefix_map(src, prefix_map), source_root, search_dirs)
         if path is None:
             contents.append(None)
             missing += 1
@@ -74,6 +98,10 @@ def main():
     parser.add_argument('map_file', help='the .wasm.map file to update in place')
     parser.add_argument('--search-dir', action='append', default=[], dest='search_dirs',
                         help='extra directory to resolve relative source paths against (repeatable)')
+    parser.add_argument('--link-dir',
+                        help='working directory of the link step, for sources with relative DWARF paths')
+    parser.add_argument('--prefix-map', action='append', default=[], dest='prefix_maps', metavar='PREFIX=DIR',
+                        help='directory to read sources starting with PREFIX/ from (repeatable)')
     args = parser.parse_args()
 
     if not os.path.isfile(args.map_file):
@@ -83,7 +111,9 @@ def main():
     # relative sources resolve against the map location first (emcc passes
     # --basepath=<output dir> to wasm-sourcemap.py), then any extra dirs
     search_dirs = [os.path.dirname(os.path.abspath(args.map_file))] + args.search_dirs
-    embed_sources(args.map_file, search_dirs)
+    link_dir = os.path.abspath(args.link_dir) if args.link_dir else None
+    prefix_map = [item.split('=', 1) for item in args.prefix_maps]
+    embed_sources(args.map_file, search_dirs, link_dir, prefix_map)
     return 0
 
 if __name__ == '__main__':

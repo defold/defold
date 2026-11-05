@@ -998,6 +998,8 @@ public class BundlerTest {
         return null;
     }
 
+    // Verifies that --with-symbols places the wasm sidecars next to the engine, points the wasm at
+    // their bundled names and makes the loader keep the module URL devtools resolve them against.
     @Test
     public void testBundleHTML5WithWasmDebugSymbols()
             throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
@@ -1051,6 +1053,7 @@ public class BundlerTest {
         }
     }
 
+    // Verifies that a bundle without --with-symbols ships no sidecars and leaves the regular wasm loading path active.
     @Test
     public void testBundleHTML5WithoutWasmDebugSymbols()
             throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {

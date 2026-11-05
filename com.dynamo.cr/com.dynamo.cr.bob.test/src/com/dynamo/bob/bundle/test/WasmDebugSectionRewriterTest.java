@@ -106,6 +106,7 @@ public class WasmDebugSectionRewriterTest {
         }
     }
 
+    // Verifies that existing debug references are replaced with the bundled file names.
     @Test
     public void testRewrite() throws IOException {
         byte[] input = concat(modulePrefix(),
@@ -117,6 +118,7 @@ public class WasmDebugSectionRewriterTest {
         assertArrayEquals(expected, rewrite(input, "Game.wasm.debug.wasm", "Game.wasm.map"));
     }
 
+    // Verifies that rewriting an already rewritten module adds no further sections.
     @Test
     public void testRewriteIsIdempotent() throws IOException {
         byte[] input = concat(modulePrefix(),
@@ -125,6 +127,7 @@ public class WasmDebugSectionRewriterTest {
         assertArrayEquals(once, rewrite(once, "Game.wasm.debug.wasm", "Game.wasm.map"));
     }
 
+    // Verifies that bundles without sidecars lose their dangling debug references and keep other custom sections.
     @Test
     public void testStripOnly() throws IOException {
         byte[] input = concat(modulePrefix(),
@@ -137,6 +140,7 @@ public class WasmDebugSectionRewriterTest {
         assertArrayEquals(expected, rewrite(input, null, null));
     }
 
+    // Verifies that debug references are added to a module linked without them.
     @Test
     public void testAppendWhenAbsent() throws IOException {
         byte[] input = modulePrefix();
@@ -146,6 +150,7 @@ public class WasmDebugSectionRewriterTest {
         assertArrayEquals(expected, rewrite(input, "Game.wasm.debug.wasm", "Game.wasm.map"));
     }
 
+    // Verifies that duplicate debug references collapse into a single rewritten section.
     @Test
     public void testDuplicateSectionsAreAllDropped() throws IOException {
         byte[] input = concat(modulePrefix(),
@@ -156,6 +161,7 @@ public class WasmDebugSectionRewriterTest {
         assertArrayEquals(expected, rewrite(input, "Game.wasm.debug.wasm", null));
     }
 
+    // Verifies that padded LEB128 section sizes from binaryen stay byte-identical, which keeps code offsets valid for DWARF.
     @Test
     public void testPaddedSectionSizesAreCopiedVerbatim() throws IOException {
         byte[] codePayload = new byte[] {0x00};
@@ -173,6 +179,7 @@ public class WasmDebugSectionRewriterTest {
         assertArrayEquals(expected, rewrite(input, "Game.wasm.debug.wasm", null));
     }
 
+    // Verifies that a truncated module is rejected instead of producing a corrupt bundle.
     @Test
     public void testTruncatedInput() throws IOException {
         byte[] full = concat(modulePrefix(),
@@ -183,6 +190,7 @@ public class WasmDebugSectionRewriterTest {
         assertRewriteThrows(truncated, null, null);
     }
 
+    // Verifies that a debug section before the code section is rejected, since removing it would shift code offsets.
     @Test
     public void testDebugSectionBeforeCodeSection() throws IOException {
         byte[] input = concat(HEADER,
@@ -191,6 +199,7 @@ public class WasmDebugSectionRewriterTest {
         assertRewriteThrows(input, "Game.wasm.debug.wasm", null);
     }
 
+    // Verifies that input without the wasm header is rejected.
     @Test
     public void testNotAWasmBinary() throws IOException {
         assertRewriteThrows("not a wasm binary".getBytes(StandardCharsets.UTF_8), null, null);
