@@ -168,36 +168,6 @@ public class MathUtil {
         q.mul(q1, q);
     }
 
-    /**
-     * Convert a Matrix4f between different vecmath versions.
-     * @param mv2 Matrix4f of vecmath2 flavor
-     * @return A new vecmath1 Matrix4f
-     */
-    public static Matrix4f vecmath2ToVecmath1(org.openmali.vecmath2.Matrix4f mv2) {
-        Matrix4f mv1 = new Matrix4f();
-        for (int r = 0; r < 4; ++r) {
-            for (int c = 0; c < 4; ++c) {
-                mv1.setElement(r, c, mv2.get(r, c));
-            }
-        }
-        return mv1;
-    }
-
-    /**
-     * Convert a Matrix4f between different vecmath versions.
-     * @param mv1 Matrix4f of vecmath1 flavor
-     * @return A new vecmath2 Matrix4f
-     */
-    public static org.openmali.vecmath2.Matrix4f vecmath1ToVecmath2(Matrix4f mv1) {
-        org.openmali.vecmath2.Matrix4f mv2 = new org.openmali.vecmath2.Matrix4f();
-        for (int r = 0; r < 4; ++r) {
-            for (int c = 0; c < 4; ++c) {
-                mv2.set(r, c, mv1.getElement(r, c));
-            }
-        }
-        return mv2;
-    }
-
     // Get quaternion rotation from a matrix
     // From: http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/
     public static void quaternionFromMatrix(Matrix3d m, Quat4d r)
