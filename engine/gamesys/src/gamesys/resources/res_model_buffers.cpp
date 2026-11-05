@@ -16,6 +16,7 @@
 #include "../modelbuffers.h"
 
 #include <dlib/log.h>
+#include <graphics/graphics.h>
 #include <rig/rig.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,6 +51,17 @@ namespace dmGameSystem
         return index < resource->m_Ranges.Size() ? &resource->m_Ranges[index].m_Buffers : 0;
     }
 
+    static uint32_t GetModelBufferSemanticFlags(uint32_t attribute_mask)
+    {
+        return (attribute_mask & (1u << ATTRIBUTE_POSITION) ? dmGraphics::SEMANTIC_FLAG_POSITION : 0)
+               | (attribute_mask & (1u << ATTRIBUTE_NORMAL) ? dmGraphics::SEMANTIC_FLAG_NORMAL : 0)
+               | (attribute_mask & (1u << ATTRIBUTE_TANGENT) ? dmGraphics::SEMANTIC_FLAG_TANGENT : 0)
+               | (attribute_mask & (1u << ATTRIBUTE_COLOR) ? dmGraphics::SEMANTIC_FLAG_COLOR : 0)
+               | (attribute_mask & ((1u << ATTRIBUTE_TEXCOORD0) | (1u << ATTRIBUTE_TEXCOORD1)) ? dmGraphics::SEMANTIC_FLAG_TEXCOORD : 0)
+               | (attribute_mask & (1u << ATTRIBUTE_WEIGHTS) ? dmGraphics::SEMANTIC_FLAG_BONE_WEIGHTS : 0)
+               | (attribute_mask & (1u << ATTRIBUTE_BONE_INDICES) ? dmGraphics::SEMANTIC_FLAG_BONE_INDICES : 0);
+    }
+
     dmResource::Result ResModelBuffersPreload(const dmResource::ResourcePreloadParams* params)
     {
         const ModelBuffersHeader* header = (const ModelBuffersHeader*)params->m_Buffer;
@@ -74,6 +86,7 @@ namespace dmGameSystem
 
             item.m_Buffers.m_VertexCount = descriptor.m_VertexCount;
             item.m_Buffers.m_IndexCount = descriptor.m_IndexCount;
+            item.m_Buffers.m_SemanticFlags = GetModelBufferSemanticFlags(descriptor.m_AttributeMask);
             item.m_Buffers.m_VertexBufferOffset = descriptor.m_VertexOffset;
             item.m_Buffers.m_IndexBufferOffset = descriptor.m_IndexOffset;
             item.m_Buffers.m_IndexBufferElementType = descriptor.m_IndexElementSize == 2 ? dmGraphics::TYPE_UNSIGNED_SHORT : dmGraphics::TYPE_UNSIGNED_INT;

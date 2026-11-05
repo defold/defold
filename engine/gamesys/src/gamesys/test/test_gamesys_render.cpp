@@ -1976,6 +1976,7 @@ TEST_F(ModelTest, SharedModelBuffers)
     ASSERT_EQ(first->m_Meshes.Size(), second->m_Meshes.Size());
     ASSERT_EQ(&first->m_Model->m_MeshSet, first->m_RigScene->m_MeshSetRes->m_MeshSet);
     dmGameSystem::ModelResourceBuffers* buffers = first->m_Meshes[0].m_Buffers;
+    ASSERT_EQ((uint32_t)(dmGraphics::SEMANTIC_FLAG_POSITION | dmGraphics::SEMANTIC_FLAG_NORMAL | dmGraphics::SEMANTIC_FLAG_TEXCOORD), buffers->m_SemanticFlags);
     ASSERT_EQ(buffers, second->m_Meshes[0].m_Buffers);
     ASSERT_EQ(0u, first->m_Meshes[0].m_Mesh->m_Positions.m_Count);
     ASSERT_EQ(0u, second->m_Meshes[0].m_Mesh->m_Positions.m_Count);
@@ -2264,6 +2265,7 @@ TEST_F(ModelTest, ModelBuffersSkinData)
     ASSERT_GT(model->m_Meshes.Size(), 0u);
     dmGameSystem::MeshInfo& info = model->m_Meshes[0];
     ASSERT_EQ(dmGameSystem::RIG_MODEL_VERTEX_FORMAT_SKINNED, info.m_Buffers->m_RigModelVertexFormat);
+    ASSERT_EQ((uint32_t)(dmGraphics::SEMANTIC_FLAG_POSITION | dmGraphics::SEMANTIC_FLAG_TEXCOORD | dmGraphics::SEMANTIC_FLAG_BONE_WEIGHTS | dmGraphics::SEMANTIC_FLAG_BONE_INDICES), info.m_Buffers->m_SemanticFlags);
     ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::LoadModelMeshData(m_Factory, info.m_Buffers, info.m_Mesh));
     ASSERT_EQ(info.m_Buffers->m_VertexCount * 4, info.m_Mesh->m_BoneIndices.m_Count);
     ASSERT_EQ(info.m_Buffers->m_VertexCount * 4, info.m_Mesh->m_Weights.m_Count);
@@ -2855,6 +2857,76 @@ TEST_F(ModelTest, TextureOverridesSplitBatchKeys)
     }
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmResource::Release(m_Factory, texture_resource);
+}
+
+// Missing source streams use attribute defaults without CPU recovery; available streams recover their source data.
+TEST_F(ModelTest, AttributeSemanticAvailability)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/model/static_vertex_attributes.goc", dmHashString64("/semantics"), 0, Point3(0), Quat::identity(), Vector3(1));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+
+    dmGameSystem::ModelResource* model;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/dynamic_vertex_attributes.modelc", (void**)&model));
+    ASSERT_EQ(1u, model->m_Meshes.Size());
+    dmRigDDF::Mesh* mesh = model->m_Meshes[0].m_Mesh;
+    ASSERT_EQ(0u, mesh->m_Positions.m_Count);
+    ASSERT_EQ(0u, model->m_Meshes[0].m_Buffers->m_SemanticFlags & dmGraphics::SEMANTIC_FLAG_COLOR);
+
+    dmRender::HMaterial materials[2];
+    dmGraphics::HProgram programs[2];
+    const float default_color[] = { 1, 0, 0, 1 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+    {
+        TestShaderDesc shader("void main() {}");
+        shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
+        shader.AddInput("custom_color", 1, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+        programs[i] = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+        materials[i] = dmRender::NewMaterial(m_RenderContext, programs[i]);
+        dmRender::SetMaterialVertexSpace(materials[i], dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL);
+        dmGraphics::VertexAttribute attribute = {};
+        attribute.m_NameHash = dmHashString64("custom_color");
+        attribute.m_SemanticType = i == 0 ? dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR : dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
+        attribute.m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+        attribute.m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+        attribute.m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+        attribute.m_Values.m_BinaryValues.m_Data = (uint8_t*)default_color;
+        attribute.m_Values.m_BinaryValues.m_Count = sizeof(default_color);
+        dmRender::SetMaterialProgramAttributes(materials[i], &attribute, 1);
+    }
+
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    void* model_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("modelc")));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+    {
+        context->m_Material = materials[i];
+        for (uint32_t frame = 0; frame < 2; ++frame)
+        {
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            RenderCollection(m_RenderContext, m_Collection);
+            ASSERT_EQ(i == 0 ? 0u : model->m_Meshes[0].m_Buffers->m_VertexCount * 3, mesh->m_Positions.m_Count);
+            dmRender::BufferedRenderBuffer* buffer;
+            dmGameSystem::GetModelWorldInstanceRenderBuffer(model_world, &buffer);
+            ASSERT_EQ(sizeof(default_color), dmGraphics::GetVertexBufferSize(buffer->m_Buffers[0]));
+            const char* data = (const char*)dmGraphics::MapVertexBuffer(m_GraphicsContext, buffer->m_Buffers[0], dmGraphics::BUFFER_ACCESS_READ_ONLY);
+            for (uint32_t element = 0; element < 4; ++element)
+            {
+                float expected = i == 0 ? default_color[element] : (element < 3 ? mesh->m_Positions[element] : 1.0f);
+                ASSERT_NEAR(expected, ReadUnalignedFloat(data + element * sizeof(float)), EPSILON);
+            }
+            dmGraphics::UnmapVertexBuffer(m_GraphicsContext, buffer->m_Buffers[0]);
+        }
+    }
+
+    context->m_Material = 0;
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmResource::Release(m_Factory, model);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+    {
+        dmRender::DeleteMaterial(m_RenderContext, materials[i]);
+        dmGraphics::DeleteProgram(m_GraphicsContext, programs[i]);
+    }
 }
 
 // Compare native instance packing with the generic writer, including layout

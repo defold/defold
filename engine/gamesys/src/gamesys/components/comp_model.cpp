@@ -886,48 +886,19 @@ namespace dmGameSystem
 
     static uint8_t* WriteMeshAttributes(ModelWorld* world, dmRender::HRenderContext render_context, MeshRenderItem* render_item, dmGraphics::VertexStepFunction step_function, dmGraphics::VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_count)
     {
-        if (!render_item->m_Mesh->m_Positions.m_Count)
+        const uint32_t mesh_semantics = dmGraphics::SEMANTIC_FLAG_POSITION | dmGraphics::SEMANTIC_FLAG_NORMAL |
+                                        dmGraphics::SEMANTIC_FLAG_TANGENT | dmGraphics::SEMANTIC_FLAG_COLOR | dmGraphics::SEMANTIC_FLAG_TEXCOORD;
+        if ((attribute_infos->m_SemanticFlags[step_function] & render_item->m_Buffers->m_SemanticFlags & mesh_semantics) && !render_item->m_Mesh->m_Positions.m_Count)
         {
-            bool needs_mesh_data = false;
-
-            for (uint32_t i = 0; i < attribute_infos->m_NumInfos && !needs_mesh_data; ++i)
+            dmResource::Result result = LoadModelMeshData(dmGameObject::GetFactory(render_item->m_Component->m_Instance), render_item->m_Buffers, render_item->m_Mesh);
+            if (result != dmResource::RESULT_OK)
             {
-                const dmGraphics::VertexAttributeInfo& attribute = attribute_infos->m_Infos[i];
-                if (attribute.m_StepFunction != step_function)
-                {
-                    continue;
-                }
-
-                switch (attribute.m_SemanticType)
-                {
-                    case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
-                    case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL:
-                    case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT:
-                    case dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR:
-                    case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
-                    {
-                        needs_mesh_data = true;
-                        break;
-                    }
-                    default:
-                    {
-                        break;
-                    }
-                }
-            }
-
-            if (needs_mesh_data)
-            {
-                dmResource::Result result = LoadModelMeshData(dmGameObject::GetFactory(render_item->m_Component->m_Instance), render_item->m_Buffers, render_item->m_Mesh);
-                if (result != dmResource::RESULT_OK)
-                {
-                    dmLogError("Unable to load model CPU geometry (%s)", dmResource::ResultToString(result));
-                }
+                dmLogError("Unable to load model CPU geometry (%s)", dmResource::ResultToString(result));
             }
         }
 
         dmVMath::Matrix4 normal_matrix;
-        if (FindAttribute(attribute_infos, step_function, dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX))
+        if (attribute_infos->m_SemanticFlags[step_function] & dmGraphics::SEMANTIC_FLAG_NORMAL_MATRIX)
         {
             normal_matrix = dmRender::GetNormalMatrix(render_context, render_item->m_World);
         }
@@ -1004,6 +975,8 @@ namespace dmGameSystem
         dmGraphics::VertexAttributeInfos* non_default_attribute = GetScratchVertexAttributeInfos(material_infos->m_NumInfos);
         non_default_attribute->m_VertexStride = 0;
         non_default_attribute->m_NumInfos     = 0;
+        non_default_attribute->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX] = 0;
+        non_default_attribute->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE] = 0;
 
         for (int i = 0; i < material_infos->m_NumInfos; ++i)
         {
@@ -1024,6 +997,7 @@ namespace dmGameSystem
                 writable_attribute_info->m_VectorType = attr_material.m_VectorType;
 
                 non_default_attribute->m_VertexStride += value_byte_size;
+                non_default_attribute->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX] |= 1u << attr_model.m_SemanticType;
             }
         }
 
@@ -2227,6 +2201,8 @@ namespace dmGameSystem
             dmGraphics::VertexAttributeInfo* info = (dmGraphics::VertexAttributeInfo*) &scratch_attribute_infos->m_Infos[i];
             info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
         }
+        scratch_attribute_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX] |= scratch_attribute_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE];
+        scratch_attribute_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE] = 0;
 
         *vx_decl_in_out    = vx_decl;
         *vertex_stride_out = vertex_stride;

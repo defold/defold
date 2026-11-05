@@ -55,6 +55,7 @@ namespace dmGameSystem
         dmGraphics::HIndexBuffer    m_IndexBuffer;
         uint32_t                    m_VertexCount;
         uint32_t                    m_IndexCount;
+        uint32_t                    m_SemanticFlags; // Source streams: bit N corresponds to dmGraphics::VertexAttribute::SemanticType N.
         uint32_t                    m_VertexBufferOffset; // Byte offset of this mesh's vertex range.
         uint32_t                    m_IndexBufferOffset;  // Byte offset of this mesh's index range.
         dmGraphics::Type            m_IndexBufferElementType;
