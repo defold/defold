@@ -390,7 +390,7 @@ namespace dmGameObject
      * @struct
      * @name ComponentOnInputParams
      * @member m_Instance [type: HGameObject] Instance handle
-     * @member m_InputAction [type: const InputAction*] Information about the input that occurred (note that input being released is also treated as input). Borrowed only for this callback; copy values needed later.
+     * @member m_InputAction [type: const InputAction*] Information about the input that occurred (note that input being released is also treated as input)
      * @member m_Context [type: void*] User context
      * @member m_UserData [type: uintptr_t*] User data storage pointer
      */
