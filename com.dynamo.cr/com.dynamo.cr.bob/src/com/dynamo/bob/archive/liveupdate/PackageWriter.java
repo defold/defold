@@ -131,6 +131,12 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         for (Output output : PackageArtifacts.readBuildOutputs(project)) {
             previousOutputs.put(output.path(), output);
         }
+        // Recognize shared destinations, but only retire outputs from this build directory.
+        Map<Path, Output> knownOutputs = new LinkedHashMap<>();
+        for (Output output : PackageArtifacts.readProjectBuildOutputs(project)) {
+            knownOutputs.put(output.path(), output);
+        }
+        knownOutputs.putAll(previousOutputs);
         List<Delivery> deliveries = new ArrayList<>();
         Map<Path, Path> stagedOutputs = new LinkedHashMap<>();
         List<Output> outputs = new ArrayList<>();
@@ -191,7 +197,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                     }
                 }
 
-                Output previous = findPreviousOutput(previousOutputs, destination);
+                Output previous = findPreviousOutput(knownOutputs, destination);
                 if (Files.exists(destination) && !legacyPlacement
                         && (previous == null || (previous.legacy() && previous.directory()))) {
                     throw new CompileExceptionError(

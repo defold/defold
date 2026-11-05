@@ -154,6 +154,25 @@ public final class PackageArtifacts {
         return Files.exists(index) ? read(Path.of(project.getRootDirectory()), index) : readOutputs(project);
     }
 
+    /** Finds package outputs owned by any build directory, so editor and CLI builds can replace each other's artifacts. */
+    static List<Output> readProjectBuildOutputs(Project project) throws IOException {
+        Path root = Path.of(project.getRootDirectory());
+        Path directory = directory(root);
+        if (!Files.isDirectory(directory)) {
+            return List.of();
+        }
+        List<Output> outputs = new ArrayList<>();
+        try (var indexes = Files.list(directory)) {
+            for (Path index : indexes.sorted().toList()) {
+                String name = index.getFileName().toString();
+                if (name.startsWith("build-") && name.endsWith(".outputs")) {
+                    outputs.addAll(read(root, index));
+                }
+            }
+        }
+        return List.copyOf(outputs);
+    }
+
     /** Retain generated report paths when later builds omit the report options. */
     public static void recordReportOutputs(Project project, Collection<Path> paths) throws IOException {
         Path buildIndex = buildIndex(project);

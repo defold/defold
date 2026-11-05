@@ -2096,6 +2096,37 @@ public class ProjectBuildTest {
         assertNoPackageStaging();
     }
 
+    // Editor and CLI build directories can replace the same packages without retiring each other's separate outputs.
+    @Test
+    public void testPackageOutputsAcrossBuildDirectories() throws Exception {
+        createPackageProject();
+        buildPackageProject(true, false);
+        byte[] zip = Files.readAllBytes(Path.of(contentRoot, "packages/episode.zip"));
+        byte[] manifest = Files.readAllBytes(Path.of(contentRoot, "packages/copy/liveupdate.game.dmanifest"));
+        for (String outputDirectory : List.of("other-packages", "packages")) {
+            setPackageOutputDirectory(outputDirectory);
+            try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build/default_bundle")) {
+                ClassLoaderScanner scanner = new ClassLoaderScanner();
+                project.scan(scanner, "com.dynamo.bob");
+                project.scan(scanner, "com.dynamo.bob.pipeline");
+                project.setOption("archive", "true");
+                project.setOption("variant", "debug");
+                project.setOption("liveupdate", "true");
+                for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                    assertTrue(result.toString(), result.isOk());
+                }
+            }
+            assertArrayEquals(zip, Files.readAllBytes(Path.of(contentRoot, "packages/episode.zip")));
+            assertArrayEquals(zip, Files.readAllBytes(Path.of(contentRoot, outputDirectory, "episode.zip")));
+            assertArrayEquals(manifest, Files.readAllBytes(Path.of(contentRoot, outputDirectory, "copy/liveupdate.game.dmanifest")));
+        }
+        assertFalse(Files.exists(Path.of(contentRoot, "other-packages/episode.zip")));
+        assertFalse(Files.exists(Path.of(contentRoot, "other-packages/copy")));
+        buildPackageProject(true, false);
+        assertArrayEquals(zip, Files.readAllBytes(Path.of(contentRoot, "packages/episode.zip")));
+        assertNoPackageStaging();
+    }
+
     // A copied project rebases internal ownership and cannot retire the original project's outputs.
     @Test
     public void testPackageOwnershipFollowsProjectCopy() throws Exception {
