@@ -17,24 +17,23 @@
 
 #include <dmsdk/dlib/atomic.h>
 
-// Internal publication helpers. A release store publishes preceding writes to a
-// thread that observes the stored value with an acquire load. MSVC retains the
-// stronger Interlocked operations used by the SDK helpers.
-inline void dmAtomicStoreRelease32(int32_atomic_t* ptr, int32_t value)
-{
-#if defined(_MSC_VER)
-    dmAtomicStore32(ptr, value);
-#else
-    __atomic_store_n(ptr, value, __ATOMIC_RELEASE);
-#endif
-}
-
+// Acquire observes data published by dmAtomicStoreRelease32. GCC/Clang polling
+// avoids a read-modify-write operation; MSVC uses the existing full-barrier primitive.
 inline int32_t dmAtomicLoadAcquire32(int32_atomic_t* ptr)
 {
 #if defined(_MSC_VER)
-    return dmAtomicGet32(ptr);
+    return InterlockedCompareExchange((volatile long*)ptr, 0, 0);
 #else
     return __atomic_load_n(ptr, __ATOMIC_ACQUIRE);
+#endif
+}
+
+inline void dmAtomicStoreRelease32(int32_atomic_t* ptr, int32_t value)
+{
+#if defined(_MSC_VER)
+    InterlockedExchange((volatile long*)ptr, (long)value);
+#else
+    __atomic_store_n(ptr, value, __ATOMIC_RELEASE);
 #endif
 }
 

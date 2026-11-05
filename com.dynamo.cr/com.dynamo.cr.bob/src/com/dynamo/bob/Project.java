@@ -23,7 +23,6 @@ import com.defold.extension.pipeline.texture.TextureCompression;
 import com.defold.extension.pipeline.texture.TextureCompressorPreset;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.EngineVersion;
-import com.dynamo.bob.archive.publisher.AWSPublisher;
 import com.dynamo.bob.archive.publisher.FolderPublisher;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.Publisher;
@@ -413,7 +412,6 @@ public class Project implements AutoCloseable {
                         // namespaces we don't need to scan
                         !className.startsWith("com.dynamo.bob.pipeline.antlr") &&
                         // classes we don't need to bob light
-                        !(is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) &&
                         !(is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) &&
                         !(is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper")))
                 .toList();
@@ -663,9 +661,7 @@ public class Project implements AutoCloseable {
             } else {
                 PublisherSettings settings = PublisherSettings.load(publisherSettings);
                 if (shouldPublish) {
-                    if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
-                        this.publisher = new AWSPublisher(settings);
-                    } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
+                    if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
                         this.publisher = new ZipPublisher(this, getRootDirectory(), settings);
                     } else if (PublisherSettings.PublishMode.Folder.equals(settings.getMode())) {
                         this.publisher = new FolderPublisher(getRootDirectory(), settings);

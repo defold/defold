@@ -1489,6 +1489,164 @@ TYPED_TEST(PhysicsTest, JointHinge)
 
 }
 
+// Verify that Allow Dynamic Transforms preserves hinge limits while both bodies
+// cross +/-180 degrees repeatedly in either direction (regression for #8438).
+TYPED_TEST(PhysicsTest, JointHingeLimitsAcrossAngleWrap)
+{
+    for (int direction = -1; direction <= 1; direction += 2)
+    {
+        TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, true);
+        dmPhysics::SetGravity2D(TestFixture::m_World, dmVMath::Vector3(0.0f));
+
+        const float joint_angle = -(float)M_PI / 3.0f;
+        VisualObject vo_a;
+        VisualObject vo_b;
+        vo_b.m_Rotation = dmVMath::Quat::rotationZ(joint_angle);
+
+        dmPhysics::CollisionObjectData data;
+        data.m_UserData = &vo_a;
+        dmPhysics::HCollisionShape2D shape = dmPhysics::NewBoxShape2D(TestFixture::m_Context, dmVMath::Vector3(0.5f, 0.5f, 0.0f));
+        dmPhysics::HCollisionObject2D co_a = dmPhysics::NewCollisionObject2D(TestFixture::m_World, data, &shape, 1u);
+        data.m_UserData = &vo_b;
+        dmPhysics::HCollisionObject2D co_b = dmPhysics::NewCollisionObject2D(TestFixture::m_World, data, &shape, 1u);
+
+        dmPhysics::ConnectJointParams joint_params(dmPhysics::JOINT_TYPE_HINGE);
+        joint_params.m_HingeJointParams.m_EnableLimit = true;
+        joint_params.m_HingeJointParams.m_LowerAngle = joint_angle;
+        joint_params.m_HingeJointParams.m_UpperAngle = joint_angle;
+        dmVMath::Point3 anchor(0.0f);
+        dmPhysics::HJoint joint = dmPhysics::CreateJoint2D(TestFixture::m_World, co_a, anchor, co_b, anchor, dmPhysics::JOINT_TYPE_HINGE, joint_params);
+        ASSERT_NE((dmPhysics::HJoint)0x0, joint);
+
+        dmVMath::Vector3 angular_velocity(0.0f, 0.0f, (float)direction);
+        dmPhysics::SetAngularVelocity2D(TestFixture::m_Context, co_a, angular_velocity);
+        dmPhysics::SetAngularVelocity2D(TestFixture::m_Context, co_b, angular_velocity);
+
+        uint32_t wrap_count = 0;
+        float previous_angle = 0.0f;
+        for (uint32_t i = 0; i < 900; ++i)
+        {
+            dmPhysics::StepWorld2D(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+            dmVMath::Quat relative_rotation = conj(vo_a.m_Rotation) * vo_b.m_Rotation;
+            float angle = atan2f(2.0f * relative_rotation.getW() * relative_rotation.getZ(), 1.0f - 2.0f * relative_rotation.getZ() * relative_rotation.getZ());
+            ASSERT_NEAR(joint_angle, angle, 0.001f);
+
+            float body_angle = atan2f(2.0f * vo_a.m_Rotation.getW() * vo_a.m_Rotation.getZ(), 1.0f - 2.0f * vo_a.m_Rotation.getZ() * vo_a.m_Rotation.getZ());
+            if (fabsf(body_angle - previous_angle) > (float)M_PI)
+            {
+                ++wrap_count;
+            }
+            previous_angle = body_angle;
+        }
+        ASSERT_GE(wrap_count, 2u);
+
+        dmPhysics::DeleteJoint2D(TestFixture::m_World, joint);
+        dmPhysics::DeleteCollisionObject2D(TestFixture::m_World, co_a);
+        dmPhysics::DeleteCollisionObject2D(TestFixture::m_World, co_b);
+        dmPhysics::DeleteCollisionShape2D(shape);
+    }
+}
+
+// The null-physics target uses Box2D headers but does not link the library.
+#if defined(PHYSICS_TEST_BOX2D_DEFOLD) && !defined(PHYSICS_TEST_NULL)
+// Verify that scripted rotations across +/-180 degrees retain accumulated turns
+// with Allow Dynamic Transforms enabled (regression for #8438).
+TYPED_TEST(PhysicsTest, DynamicTransformRotationAcrossAngleWrap)
+{
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, true);
+    TestFixture::m_StepWorldContext.m_DT = 0.0f;
+
+    for (int direction = -1; direction <= 1; direction += 2)
+    {
+        VisualObject vo;
+        dmPhysics::CollisionObjectData data;
+        data.m_UserData = &vo;
+        dmPhysics::HCollisionShape2D shape = dmPhysics::NewBoxShape2D(TestFixture::m_Context, dmVMath::Vector3(0.5f, 0.5f, 0.0f));
+        dmPhysics::HCollisionObject2D co = dmPhysics::NewCollisionObject2D(TestFixture::m_World, data, &shape, 1u);
+        b2Body* body = (b2Body*)co;
+
+        // Seed the accumulated angle directly to isolate transform sync from simulation.
+        float initial_angle = direction * (5.0f * (float)M_PI - 0.1f);
+        body->SetTransform(body->GetPosition(), initial_angle);
+        float expected_angle = initial_angle + direction * 0.2f;
+        vo.m_Rotation = dmVMath::Quat::rotationZ(expected_angle);
+
+        dmPhysics::StepWorld2D(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+        ASSERT_NEAR(expected_angle, body->GetAngle(), 0.00001f);
+
+        dmPhysics::DeleteCollisionObject2D(TestFixture::m_World, co);
+        dmPhysics::DeleteCollisionShape2D(shape);
+    }
+}
+
+// Verify that an unchanged rotation after hundreds of turns neither drifts nor
+// wakes a sleeping body due to precision loss in dynamic transform sync.
+TYPED_TEST(PhysicsTest, DynamicTransformUnchangedAccumulatedRotationStaysAsleep)
+{
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, true);
+    TestFixture::m_StepWorldContext.m_DT = 0.0f;
+
+    for (int direction = -1; direction <= 1; direction += 2)
+    {
+        VisualObject vo;
+        dmPhysics::CollisionObjectData data;
+        data.m_UserData = &vo;
+        dmPhysics::HCollisionShape2D shape = dmPhysics::NewBoxShape2D(TestFixture::m_Context, dmVMath::Vector3(0.5f, 0.5f, 0.0f));
+        dmPhysics::HCollisionObject2D co = dmPhysics::NewCollisionObject2D(TestFixture::m_World, data, &shape, 1u);
+        b2Body* body = (b2Body*)co;
+
+        const float angle = (float)(direction * (300.0 * 2.0 * M_PI + 0.25));
+        body->SetTransform(body->GetPosition(), angle);
+        vo.m_Rotation = dmVMath::Quat::rotationZ(angle);
+        body->SetAwake(false);
+
+        dmPhysics::StepWorld2D(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+        ASSERT_EQ(angle, body->GetAngle());
+        ASSERT_FALSE(body->IsAwake());
+
+        dmPhysics::DeleteCollisionObject2D(TestFixture::m_World, co);
+        dmPhysics::DeleteCollisionShape2D(shape);
+    }
+}
+
+// Verify that position-only updates retain accumulated rotation with Allow
+// Dynamic Transforms enabled, even after multiple full turns (#8438).
+TYPED_TEST(PhysicsTest, DynamicTransformPositionUpdatePreservesAccumulatedRotation)
+{
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, true);
+    TestFixture::m_StepWorldContext.m_DT = 0.0f;
+
+    for (int direction = -1; direction <= 1; direction += 2)
+    {
+        VisualObject vo;
+        dmPhysics::CollisionObjectData data;
+        data.m_UserData = &vo;
+        dmPhysics::HCollisionShape2D shape = dmPhysics::NewBoxShape2D(TestFixture::m_Context, dmVMath::Vector3(0.5f, 0.5f, 0.0f));
+        dmPhysics::HCollisionObject2D co = dmPhysics::NewCollisionObject2D(TestFixture::m_World, data, &shape, 1u);
+        b2Body* body = (b2Body*)co;
+
+        // Seed the accumulated angle directly, with the matching game-object rotation.
+        float angle = direction * (4.0f * (float)M_PI + 0.25f);
+        body->SetTransform(body->GetPosition(), angle);
+        vo.m_Rotation = dmVMath::Quat::rotationZ(angle);
+        vo.m_Position = dmVMath::Point3(2.0f, 3.0f, 0.0f);
+
+        dmPhysics::StepWorld2D(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+        dmVMath::Point3 position = dmPhysics::GetWorldPosition2D(TestFixture::m_Context, co);
+        ASSERT_NEAR(2.0f, position.getX(), 0.00001f);
+        ASSERT_NEAR(3.0f, position.getY(), 0.00001f);
+        ASSERT_NEAR(angle, body->GetAngle(), 0.00001f);
+
+        dmPhysics::DeleteCollisionObject2D(TestFixture::m_World, co);
+        dmPhysics::DeleteCollisionShape2D(shape);
+    }
+}
+#endif
+
 TYPED_TEST(PhysicsTest, JointWeld)
 {
     VisualObject vo_a;

@@ -1577,6 +1577,7 @@ namespace dmEngine
         UpdateGuiSafeAreaAdjust(engine, physical_width, physical_height);
 
         dmPhysics::NewContextParams physics_params;
+        physics_params.m_Config = engine->m_Config;
         physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);
         const char* physics_type = dmConfigFile::GetString(engine->m_Config, "physics.type", "2D");
         physics_params.m_Gravity.setX(dmConfigFile::GetFloat(engine->m_Config, "physics.gravity_x", 0.0f));
@@ -1796,13 +1797,17 @@ namespace dmEngine
 
 #if defined(__ANDROID__)
         {
-            const char* input_method = dmConfigFile::GetString(engine->m_Config, "android.input_method", "KeyEvents");
+            const char* input_method = dmConfigFile::GetString(engine->m_Config, "android.input_method", "KeyEvent");
 
             bool use_hidden_inputfield = false;
             if (!strcmp(input_method, "HiddenInputField"))
+            {
                 use_hidden_inputfield = true;
-            else if (strcmp(input_method, "KeyEvents"))
+            }
+            else if (strcmp(input_method, "KeyEvent") && strcmp(input_method, "KeyEvents"))
+            {
                 dmLogWarning("Unknown Android input method [%s], defaulting to key events", input_method);
+            }
 
             dmPlatform::SetAndroidInputMethod(use_hidden_inputfield);
         }

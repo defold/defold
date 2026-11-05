@@ -4653,11 +4653,37 @@ namespace dmGui
         n->m_Node.m_IsVisible = visible;
     }
 
-    void MoveNodeBelow(HScene scene, HNode node, HNode reference)
+    // Returns true if ancestor is a parent, grandparent, or higher ancestor of node.
+    // A node is not considered its own ancestor.
+    static bool IsNodeAncestor(HScene scene, const InternalNode* ancestor, const InternalNode* node)
+    {
+        // Siblings cannot be ancestors of each other.
+        if (ancestor->m_ParentIndex == node->m_ParentIndex)
+        {
+            return false;
+        }
+
+        uint16_t parent_index = node->m_ParentIndex;
+        while (parent_index != INVALID_INDEX)
+        {
+            if (parent_index == ancestor->m_Index)
+            {
+                return true;
+            }
+            parent_index = scene->m_Nodes[parent_index].m_ParentIndex;
+        }
+        return false;
+    }
+
+    Result MoveNodeBelow(HScene scene, HNode node, HNode reference)
     {
         if (node != INVALID_HANDLE && node != reference)
         {
             InternalNode* n = GetNode(scene, node);
+            if (reference != INVALID_HANDLE && IsNodeAncestor(scene, n, GetNode(scene, reference)))
+            {
+                return RESULT_INF_RECURSION;
+            }
             RemoveFromNodeList(scene, n);
             InternalNode* parent = 0x0;
             InternalNode* prev = 0x0;
@@ -4677,13 +4703,18 @@ namespace dmGui
             }
             AddToNodeList(scene, n, parent, prev);
         }
+        return RESULT_OK;
     }
 
-    void MoveNodeAbove(HScene scene, HNode node, HNode reference)
+    Result MoveNodeAbove(HScene scene, HNode node, HNode reference)
     {
         if (node != INVALID_HANDLE && node != reference)
         {
             InternalNode* n = GetNode(scene, node);
+            if (reference != INVALID_HANDLE && IsNodeAncestor(scene, n, GetNode(scene, reference)))
+            {
+                return RESULT_INF_RECURSION;
+            }
             RemoveFromNodeList(scene, n);
             InternalNode* parent = 0x0;
             InternalNode* prev = 0x0;
@@ -4707,6 +4738,7 @@ namespace dmGui
             }
             AddToNodeList(scene, n, parent, prev);
         }
+        return RESULT_OK;
     }
 
     HNode GetNodeParent(HScene scene, HNode node)
@@ -4839,12 +4871,9 @@ namespace dmGui
         {
             parent_node = GetNode(scene, parent);
             // Check for infinite recursion
-            uint16_t ancestor_index = parent_node->m_ParentIndex;
-            while (ancestor_index != INVALID_INDEX)
+            if (IsNodeAncestor(scene, n, parent_node))
             {
-                if (n->m_Index == ancestor_index)
-                    return RESULT_INF_RECURSION;
-                ancestor_index = scene->m_Nodes[ancestor_index].m_ParentIndex;
+                return RESULT_INF_RECURSION;
             }
             parent_index = parent_node->m_Index;
         }
