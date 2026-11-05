@@ -33,6 +33,10 @@ namespace dmExtension
      */
     HExtensionDesc GetFirstExtension();
 
+    // Native engine publishers borrow the supplied registry for synchronous delivery.
+    // Callback parameters live on the stack; publishing performs no parameter allocation.
+    void BroadcastEvent(HContextRegistry context_registry, dmhash_t event_id, const void* data, uint32_t data_size);
+
     /**
      * Get next extension
      * @return extension [type:HExtensionDesc] The next extension, or 0.

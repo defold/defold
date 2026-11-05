@@ -398,6 +398,7 @@ namespace dmGameSystem
         world->m_IsStepping = 1;
         dmPhysics::StepWorld3D(world->m_World3D, *step_ctx);
         world->m_IsStepping = 0;
+        BroadcastPhysicsPostStepEvent(collection, dmPhysics::GetWorldContext3D(world->m_World3D), dmPhysics::EVENT_TYPE_BULLET3D, step_ctx->m_DT);
         if (g_ScriptBullet3DProcessWorldQueriesCallback)
         {
             g_ScriptBullet3DProcessWorldQueriesCallback(dmPhysics::GetWorldContext3D(world->m_World3D));

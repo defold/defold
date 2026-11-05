@@ -18,6 +18,7 @@
 #include "../extension.h"
 #include "../extension.hpp"
 #include <dmsdk/engine/engine_event.hpp>
+#include <dmsdk/physics/physics_event.hpp>
 #include "test_extension.h"
 #include <dlib/array.h>
 #include <dlib/context_registry.h>
@@ -584,6 +585,8 @@ static void FinalizeEventTest(EventTestContext* context)
 // IDs must be matching C/C++ constant expressions; runtime checks verify their names and source windows.
 TEST(dmExtension, BuiltinEventHashes)
 {
+    DM_STATIC_ASSERT(PHYSICS_EVENT_POST_STEP == dmPhysics::EVENT_POST_STEP, Physics_Post_Step_Event_Mismatch);
+    EXPECT_EQ(dmHashString64("_dm_event_physics_post_step"), dmPhysics::EVENT_POST_STEP);
     DM_STATIC_ASSERT(ENGINE_STATE_EVENT == dmEngine::EVENT_STATE, Engine_State_Event_Mismatch);
     DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT == dmEngine::EVENT_WINDOW, Engine_Window_Event_Mismatch);
     DM_STATIC_ASSERT(ENGINE_EVENT_INPUT_ACTIONS == dmEngine::EVENT_INPUT_ACTIONS, Engine_Event_INPUT_ACTIONS_Mismatch);

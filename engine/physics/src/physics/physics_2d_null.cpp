@@ -359,6 +359,12 @@ namespace dmPhysics
         return 0;
     }
 
+    void* GetWorldContext2D(HWorld2D world, EventType* type)
+    {
+        *type = EVENT_TYPE_BOX2D;
+        return GetWorldContext2D(world);
+    }
+
     void* GetCollisionObjectContext2D(HCollisionObject2D collision_object)
     {
         return 0;

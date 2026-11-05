@@ -698,6 +698,21 @@ namespace dmExtension
         return false;
     }
 
+    void BroadcastEvent(HContextRegistry context_registry, dmhash_t event_id, const void* data, uint32_t data_size)
+    {
+        ExtensionParamsImpl impl;
+        impl.m_ContextRegistry = context_registry;
+        Params params = {};
+        params.m_Impl = &impl;
+        if (context_registry)
+        {
+            params.m_ConfigFile = (HConfigFile)ContextRegistryGet(context_registry, CONFIGFILE_CONTEXT_NAME);
+            params.m_ResourceFactory = (HResourceFactory)ContextRegistryGet(context_registry, RESOURCE_FACTORY_CONTEXT_NAME);
+            params.m_L = (lua_State*)ContextRegistryGet(context_registry, "lua");
+        }
+        BroadcastEvent(&params, event_id, data, data_size);
+    }
+
     void BroadcastEvent(Params* params, dmhash_t event_id, const void* data, uint32_t data_size)
     {
         float previous_dt = params->m_Impl->m_DT;
