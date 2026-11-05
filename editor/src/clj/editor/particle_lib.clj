@@ -207,12 +207,17 @@
     (ParticleLibrary/Particle_ResetAttributeScratchBuffer context)
     (let [first-particle-attribute-info (ParticleLibrary$VertexAttributeInfo.)
           particle-attribute-info-array (.toArray first-particle-attribute-info num-attribute-infos)
-          infos (ParticleLibrary$VertexAttributeInfos.)]
+          infos (ParticleLibrary$VertexAttributeInfos.)
+          ^ints semantic-flags (.semanticFlags infos)]
       (doseq [i (range num-attribute-infos)]
-        (attribute-info->particle-attribute-info context
-                                                 (aget ^objects particle-attribute-info-array i)
-                                                 (get attribute-infos i)
-                                                 vertex-attribute-bytes))
+        (let [particle-attribute-info (attribute-info->particle-attribute-info context
+                                                                               (aget ^objects particle-attribute-info-array i)
+                                                                               (get attribute-infos i)
+                                                                               vertex-attribute-bytes)
+              step-function (.stepFunction particle-attribute-info)]
+          (aset-int semantic-flags step-function
+                    (bit-or (aget semantic-flags step-function)
+                            (bit-shift-left 1 (.semanticType particle-attribute-info))))))
       ;; Sync each struct to native memory so the native library sees our data
       (doseq [i (range num-attribute-infos)]
         (.write ^Structure (aget ^objects particle-attribute-info-array i)))
