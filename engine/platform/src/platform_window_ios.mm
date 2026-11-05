@@ -15,9 +15,13 @@
 #include "native/native.h"
 
 #include "native/native_handles.h"
+#import "native/ios/app/ViewController.h"
 
-#include <dlib/array.h>
+#include <assert.h>
 #include <math.h>
+#include <string.h>
+#include <dlib/array.h>
+#include <dlib/log.h>
 #include <UIKit/UIKit.h>
 
 #include "platform_window_ios.h"
@@ -37,6 +41,55 @@ namespace dmPlatform
     id GetiOSEAGLContext()
     {
         return dmNativeGetiOSEAGLContext();
+    }
+
+    void SetiOSHomeIndicatorMode(const char* mode)
+    {
+        assert([NSThread isMainThread]);
+
+        HomeIndicatorMode indicator_mode = HOME_INDICATOR_MODE_DEFERRED;
+        if (strcmp(mode, "system") == 0)
+            indicator_mode = HOME_INDICATOR_MODE_SYSTEM;
+        else if (strcmp(mode, "auto_hide") == 0)
+            indicator_mode = HOME_INDICATOR_MODE_AUTO_HIDE;
+        else if (strcmp(mode, "deferred") != 0)
+            dmLogWarning("Unknown ios.home_indicator_mode '%s', defaulting to deferred", mode);
+
+        UIWindow* window = (UIWindow*)dmNativeGetiOSUIWindow();
+        ViewController* controller = (ViewController*)window.rootViewController;
+        controller.homeIndicatorMode = indicator_mode;
+    }
+
+    void SetiOSFrameRate(bool use_high_refresh_rate, uint32_t frequency)
+    {
+        assert([NSThread isMainThread]);
+
+        static bool s_WarnedFrequencyLimit = false;
+        static bool s_WarnedInfoPlistLimit = false;
+
+        UIWindow* window = (UIWindow*)dmNativeGetiOSUIWindow();
+        uint32_t screen_maximum = window ? (uint32_t)window.screen.maximumFramesPerSecond : 0;
+        uint32_t limit = (uint32_t)dmNativeGetWindowRefreshRate();
+
+        if (!use_high_refresh_rate)
+        {
+            dmNativeSetiOSPreferredFrameRate(0);
+            if (frequency > limit && screen_maximum > limit && !s_WarnedFrequencyLimit)
+            {
+                dmLogWarning("display.update_frequency is %u but ios.use_high_refresh_rate is disabled; rendering is limited to %u Hz", frequency, limit);
+                s_WarnedFrequencyLimit = true;
+            }
+            return;
+        }
+
+        if (limit < screen_maximum && !s_WarnedInfoPlistLimit)
+        {
+            dmLogWarning("ios.use_high_refresh_rate is enabled but Info.plist does not set CADisableMinimumFrameDurationOnPhone; rendering is limited to %u Hz", limit);
+            s_WarnedInfoPlistLimit = true;
+        }
+
+        uint32_t rate = (frequency == 0 || frequency > limit) ? limit : frequency;
+        dmNativeSetiOSPreferredFrameRate((int)rate);
     }
 
     bool GetSafeAreaiOS(HWindow window, WindowSafeArea* out)

@@ -6,6 +6,9 @@ include(defold)
 project(bullet3d LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 
 set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}/ext" CACHE PATH "External library install prefix" FORCE)
+if(DEFOLD_EXTERNAL_INSTALL_PREFIX)
+  set(CMAKE_INSTALL_PREFIX "${DEFOLD_EXTERNAL_INSTALL_PREFIX}" CACHE PATH "External library install prefix" FORCE)
+endif()
 
 set(BULLET_VERSION 3.25)
 set(BULLET_PHYSICS_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/package/bullet-${BULLET_VERSION}")

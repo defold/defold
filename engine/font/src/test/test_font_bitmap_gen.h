@@ -47,19 +47,19 @@ struct FontImageCase
     const char* m_Name;
     const char* m_Source;
     const char* m_Text;
-    float m_Size;
-    float m_Outline;
-    float m_OutlineAlpha;
-    float m_FaceAlpha;
-    float m_ShadowAlpha;
-    float m_ShadowBlur;
-    float m_ShadowX;
-    float m_ShadowY;
-    bool  m_Multi;
-    bool  m_Markup;
-    bool  m_Change;
-    float m_EdgeScale; // Nonzero selects an 8x edge capture at this screen scale.
-    int32_t m_Pivot; // -1 for ordinary cases; otherwise FONT_ALIGNMENT_PIVOTS index.
+    float       m_Size;
+    float       m_Outline;
+    float       m_OutlineAlpha;
+    float       m_FaceAlpha;
+    float       m_ShadowAlpha;
+    float       m_ShadowBlur;
+    float       m_ShadowX;
+    float       m_ShadowY;
+    bool        m_Multi;
+    bool        m_Markup;
+    bool        m_Change;
+    float       m_EdgeScale; // Nonzero selects an 8x edge capture at this screen scale.
+    int32_t     m_Pivot; // -1 for ordinary cases; otherwise FONT_ALIGNMENT_PIVOTS index.
 };
 
 // Test-only bridge to the production Vector backend. The graphics context is borrowed.

@@ -27,6 +27,45 @@ defold_target_link_socket(test_platform "${TARGET_PLATFORM}" PRIVATE)
 
 add_dependencies(test_platform platform_null)
 
+# Exercise the vendor fallback with a backend that supplies no density query.
+defold_add_executable(test_platform_vendor
+    "${CMAKE_CURRENT_LIST_DIR}/test_platform.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../window.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../platform_window_null.cpp")
+target_compile_definitions(test_platform_vendor PRIVATE DM_PLATFORM_VENDOR)
+defold_target_link_libraries(test_platform_vendor "${TARGET_PLATFORM}" dlib profile_null testmain)
+defold_target_link_socket(test_platform_vendor "${TARGET_PLATFORM}" PRIVATE)
+defold_register_test_target(test_platform_vendor ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+
+if(PLATFORM_USE_GLFW3)
+    target_sources(test_platform PRIVATE
+        "${CMAKE_CURRENT_LIST_DIR}/test_window_state.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../window_state.cpp")
+
+    # Exercise the real persistence code with deterministic Win32 DPI transitions.
+    defold_add_executable(test_window_placement_dpi
+        "${CMAKE_CURRENT_LIST_DIR}/test_window_placement_dpi.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../platform_window_glfw3_state.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../window_state.cpp")
+    target_compile_definitions(test_window_placement_dpi PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+    defold_target_link_libraries(test_window_placement_dpi "${TARGET_PLATFORM}" dlib profile_null testmain)
+    defold_target_link_socket(test_window_placement_dpi "${TARGET_PLATFORM}" PRIVATE)
+    defold_register_test_target(test_window_placement_dpi ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+
+    defold_add_executable(test_window_placement "${CMAKE_CURRENT_LIST_DIR}/test_window_placement.cpp")
+    defold_target_link_libraries(test_window_placement "${TARGET_PLATFORM}" dlib profile_null testmain platform)
+    defold_target_link_opengl(test_window_placement "${TARGET_PLATFORM}" PRIVATE)
+    defold_target_link_glfw(test_window_placement "${TARGET_PLATFORM}" PRIVATE)
+    defold_target_link_socket(test_window_placement "${TARGET_PLATFORM}" PRIVATE)
+    if(TARGET_PLATFORM_OS STREQUAL "macos")
+        target_link_libraries(test_window_placement PRIVATE "-framework Cocoa" "-framework IOKit" "-framework CoreVideo")
+    elseif(TARGET_PLATFORM_OS STREQUAL "win32")
+        target_link_libraries(test_window_placement PRIVATE user32 gdi32 shell32)
+    endif()
+    # Requires a desktop session; the geometry/codec tests above also run headless.
+    defold_register_test_target(test_window_placement FALSE)
+endif()
+
 # Register into global build_tests and run_tests with working directory set to engine/input
 defold_register_test_target(test_platform ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
@@ -53,20 +92,21 @@ if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
         testmain
         platform)
     defold_register_test_target(test_native_web ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+endif()
 
-    _defold_find_wasm_runner(_platform_js_test_runner)
-    if(_platform_js_test_runner)
-        add_custom_target(run_test_library_platform_js
-            COMMAND "${_platform_js_test_runner}" "${CMAKE_CURRENT_LIST_DIR}/test_library_platform.js"
-            WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/../.."
-            USES_TERMINAL
-            VERBATIM)
-        if(TARGET run_tests)
-            add_dependencies(run_tests run_test_library_platform_js)
-        endif()
-    else()
-        message(WARNING "Bun or Node.js not found; run_test_library_platform_js is unavailable")
+# The browser library and loader tests use a host JS runtime and need no WASM build.
+_defold_find_wasm_runner(_platform_js_test_runner)
+if(_platform_js_test_runner)
+    add_custom_target(run_test_library_platform_js
+        COMMAND "${_platform_js_test_runner}" "${CMAKE_CURRENT_LIST_DIR}/test_library_platform.js"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/../.."
+        USES_TERMINAL
+        VERBATIM)
+    if(TARGET run_tests)
+        add_dependencies(run_tests run_test_library_platform_js)
     endif()
+else()
+    message(WARNING "Bun or Node.js not found; run_test_library_platform_js is unavailable")
 endif()
 
 if(TARGET_PLATFORM STREQUAL "wasm-web")
@@ -94,6 +134,26 @@ if(TARGET_PLATFORM STREQUAL "wasm-web")
 endif()
 
 if(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")
+    defold_add_executable(test_platform_home_indicator
+        "${CMAKE_CURRENT_LIST_DIR}/test_platform_home_indicator.mm")
+    defold_target_link_libraries(test_platform_home_indicator "${TARGET_PLATFORM}"
+        dlib profile_null testmain platform)
+    defold_target_link_app(test_platform_home_indicator "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_opengl(test_platform_home_indicator "${TARGET_PLATFORM}" PRIVATE)
+    target_link_libraries(test_platform_home_indicator PRIVATE "-framework QuartzCore")
+    defold_target_link_socket(test_platform_home_indicator "${TARGET_PLATFORM}" PRIVATE)
+    defold_register_test_target(test_platform_home_indicator ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+
+    defold_add_executable(test_platform_frame_rate
+        "${CMAKE_CURRENT_LIST_DIR}/test_platform_frame_rate.mm")
+    defold_target_link_libraries(test_platform_frame_rate "${TARGET_PLATFORM}"
+        dlib profile_null testmain platform)
+    defold_target_link_app(test_platform_frame_rate "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_opengl(test_platform_frame_rate "${TARGET_PLATFORM}" PRIVATE)
+    target_link_libraries(test_platform_frame_rate PRIVATE "-framework QuartzCore")
+    defold_target_link_socket(test_platform_frame_rate "${TARGET_PLATFORM}" PRIVATE)
+    defold_register_test_target(test_platform_frame_rate ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+
     defold_add_executable(test_platform_safe_area
         "${CMAKE_CURRENT_LIST_DIR}/test_platform_safe_area.mm")
     defold_target_link_libraries(test_platform_safe_area "${TARGET_PLATFORM}"

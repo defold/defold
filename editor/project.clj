@@ -72,6 +72,7 @@
                      [net.java.dev.jna/jna-platform               "4.1.0"]
 
                      [com.defold.lib/bob                          "1.0"]
+                     [com.defold.lib/dmengine                     "1.0"]
                      [com.defold.lib/icu4j                        "1.0"]
 
                      [metosin/reitit-core "0.8.0-alpha1"]
@@ -82,10 +83,6 @@
                      [org.commonmark/commonmark-ext-yaml-front-matter "0.25.1"]
                      [org.commonmark/commonmark-ext-heading-anchor "0.25.1"]
                      [org.jsoup/jsoup "1.11.3"]
-
-                     [com.cognitect.aws/api "0.8.673"]
-                     [com.cognitect.aws/endpoints "1.1.12.478"]
-                     [com.cognitect.aws/s3 "847.2.1387.0"]
 
                      [org.luaj/luaj-jse "3.0.1"]
 
@@ -309,7 +306,8 @@
                                                     [org.openjfx/javafx-media "27" :classifier "linux" :exclusions [org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-fxml "27" :classifier "linux" :exclusions [org.openjfx/javafx-controls]]
                                                     [org.openjfx/javafx-swing "27" :classifier "linux" :exclusions [org.openjfx/javafx-graphics]]]
-                                     :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-linux/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
+                                     :uberjar-exclusions [#"^lib/(?!x86_64-linux/)(?:x86_64|arm64)-(?:linux|macos|win32)/"
+                                                          #"^libexec/(?!$)(?!.*/$)(?!x86_64-linux/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:dll|dylib)$"]
                                      :uberjar-name "editor-x86_64-linux-standalone.jar"}
                       :x86_64-win32 {:dependencies [[org.openjfx/javafx-base "27" :classifier "win"]
@@ -318,7 +316,8 @@
                                                     [org.openjfx/javafx-media "27" :classifier "win" :exclusions [org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-fxml "27" :classifier "win" :exclusions [org.openjfx/javafx-controls]]
                                                     [org.openjfx/javafx-swing "27" :classifier "win" :exclusions [org.openjfx/javafx-graphics]]]
-                                     :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-win32/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
+                                     :uberjar-exclusions [#"^lib/(?!x86_64-win32/)(?:x86_64|arm64)-(?:linux|macos|win32)/"
+                                                          #"^libexec/(?!$)(?!.*/$)(?!x86_64-win32/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:so|dylib)$"]
                                      :uberjar-name "editor-x86_64-win32-standalone.jar"}
                       :x86_64-macos {:dependencies [[org.openjfx/javafx-base "27" :classifier "mac"]
@@ -327,7 +326,8 @@
                                                     [org.openjfx/javafx-media "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-fxml "27" :classifier "mac" :exclusions [org.openjfx/javafx-controls]]
                                                     [org.openjfx/javafx-swing "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics]]]
-                                     :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
+                                     :uberjar-exclusions [#"^lib/(?!x86_64-macos/)(?:x86_64|arm64)-(?:linux|macos|win32)/"
+                                                          #"^libexec/(?!$)(?!.*/$)(?!x86_64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:so|dll)$"]
                                      :uberjar-name "editor-x86_64-macos-standalone.jar"}
                       :arm64-macos {:dependencies [[org.openjfx/javafx-base "27" :classifier "mac-aarch64"]
@@ -336,7 +336,8 @@
                                                    [org.openjfx/javafx-media "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics]]
                                                    [org.openjfx/javafx-fxml "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-controls]]
                                                    [org.openjfx/javafx-swing "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics]]]
-                                    :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!arm64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
+                                    :uberjar-exclusions [#"^lib/(?!arm64-macos/)(?:x86_64|arm64)-(?:linux|macos|win32)/"
+                                                         #"^libexec/(?!$)(?!.*/$)(?!arm64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                          #"^[^/]+\.(?:so|dll)$"]
                                     :uberjar-name "editor-arm64-macos-standalone.jar"}
                       :dev     {:dependencies      [;; generic javafx dep picks up natives for the current platform

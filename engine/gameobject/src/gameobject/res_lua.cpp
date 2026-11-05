@@ -130,8 +130,7 @@ namespace dmGameObject
         return dmResource::RESULT_OK;
     }
 
-
-    static dmResource::Result ResLuaCreate(const dmResource::ResourceCreateParams* params)
+    static dmResource::Result ResLuaPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmLuaDDF::LuaModule* lua_module = 0;
         dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params->m_Buffer, params->m_BufferSize, &lua_module);
@@ -140,6 +139,15 @@ namespace dmGameObject
 
         PatchLuaBytecode(&lua_module->m_Source);
 
+        for (uint32_t i = 0; i < lua_module->m_Resources.m_Count; ++i)
+            dmResource::PreloadHint(params->m_HintInfo, lua_module->m_Resources[i]);
+        *params->m_PreloadData = lua_module;
+        return dmResource::RESULT_OK;
+    }
+
+    static dmResource::Result ResLuaCreate(const dmResource::ResourceCreateParams* params)
+    {
+        dmLuaDDF::LuaModule* lua_module = (dmLuaDDF::LuaModule*)params->m_PreloadData;
         LuaScript* lua_script = new LuaScript(lua_module);
         ResourceDescriptorSetResource(params->m_Resource, lua_script);
         ResourceDescriptorSetResourceSize(params->m_Resource, sizeof(LuaScript) + params->m_BufferSize - lua_script->m_LuaModule->m_Source.m_Script.m_Count);
@@ -163,6 +171,20 @@ namespace dmGameObject
 
         PatchLuaBytecode(&lua_module->m_Source);
 
+        // Lua modules retain no resource references. Recreate must still record
+        // their current dependencies, which PreloadHint supplies on first load.
+        for (uint32_t i = 0; i < lua_module->m_Resources.m_Count; ++i)
+        {
+            void* dependency = 0;
+            dmResource::Result result = dmResource::Get(params->m_Factory, lua_module->m_Resources[i], &dependency);
+            if (result != dmResource::RESULT_OK)
+            {
+                dmDDF::FreeMessage(lua_module);
+                return result;
+            }
+            dmResource::Release(params->m_Factory, dependency);
+        }
+
         ModuleContext* module_context = (ModuleContext*) params->m_Context;
         uint32_t context_count = module_context->m_ScriptContexts.Size();
         for (uint32_t i = 0; i < context_count; ++i) {
@@ -182,13 +204,13 @@ namespace dmGameObject
         void* context = ResourceTypeContextGetContextByHash(ctx, ResourceTypeGetNameHash(type));
         assert(context);
         return (ResourceResult)dmResource::SetupType(ctx,
-                                                    type,
-                                                    context,
-                                                    0,
-                                                    ResLuaCreate,
-                                                    0,
-                                                    ResLuaDestroy,
-                                                    ResLuaRecreate);
+                                                     type,
+                                                     context,
+                                                     ResLuaPreload,
+                                                     ResLuaCreate,
+                                                     0,
+                                                     ResLuaDestroy,
+                                                     ResLuaRecreate);
     }
 }
 

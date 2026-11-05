@@ -14,7 +14,8 @@
 
 (ns util.coll
   (:refer-clojure :exclude [any? bounded-count empty? every? keys mapcat merge merge-with not-any? not-empty not-every? some sort sort-by update-vals vals])
-  (:require [util.task :as task])
+  (:require [util.array :as array]
+            [util.task :as task])
   (:import [clojure.core Eduction Vec]
            [clojure.lang Cons Counted Cycle IEditableCollection IReduceInit LazilyPersistentVector LazySeq MapEntry Repeat]
            [java.util ArrayList Arrays Collection Comparator List]
@@ -372,13 +373,20 @@
      Cycle true
      false))
 
+(definline eager?
+  "Returns true if lazy? returns false for the supplied value.
+
+  Does not check elements in the collection."
+  [value]
+  `(not (lazy? ~value)))
+
 (defn eager-seqable?
   "Returns true if the supplied value is seqable and eagerly evaluated. Useful
   in places where you want a keep around a reference to a seqable object without
   realizing it into a concrete collection. Note that this function will return
   true for nil, since it is a valid seqable value."
   [value]
-  (and (not (lazy? value))
+  (and (eager? value)
        (seqable? value)))
 
 (defonce conj-set (fnil conj #{}))
@@ -1208,20 +1216,7 @@
                                     coll)
                             (.toArray items)))]
      (Arrays/sort items comparator)
-     (reify
-       Counted
-       (count [_] (alength items))
-
-       IReduceInit
-       (reduce [_ f init]
-         (loop [index 0
-                result init]
-           (if (= index (alength items))
-             result
-             (let [result (f result (aget items index))]
-               (if (reduced? result)
-                 @result
-                 (recur (inc index) result))))))))))
+     (array/reducible items))))
 
 (defn sort-by
   "Returns a stable, eagerly-sorted reducible ordered by (key-fn item).

@@ -99,6 +99,10 @@ def cases(full, rich):
     add('stress_vector', True, 'atlas_growth', text=''.join(chr(0xE000 + i) for i in range(64)), size=8, outline_alpha=0, outline=0)
     if full:
         add('arabic_vector', True, 'rtl_wrapped', text='مرحبا    بالعالم', size=24, outline_alpha=0, outline=0)
+        add('ttf_vector', True, 'color', text='😀 🍎 🚀', outline_alpha=0, outline=0)
+        add('ttf_vector', True, 'color_fallback', text='😀 🇸🇪 🚀', outline_alpha=0, outline=0)
+        if rich:
+            add('ttf_vector', True, 'color_tint', text='<ul><color=#0000FF>😀 🍎 🚀</color></ul>', markup=True, outline_alpha=0, outline=0)
         lorem=json.loads((DATA/'lorem.json').read_text(encoding="utf-8"))
         for language in ('english','arabic'):
             for multi in (False,True):add('arabic' if language=='arabic' else 'latin',multi,language,text=lorem[language])

@@ -52,6 +52,9 @@ endfunction()
 
 foreach(_render_test IN ITEMS
   test_render
+  test_render_execution
+  test_render_frame
+  test_render_frame_queue
   test_display_profiles
   test_render_programs
   test_render_script
@@ -61,6 +64,19 @@ foreach(_render_test IN ITEMS
     "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols.cpp")
   render_configure_test(${_render_test})
 endforeach()
+
+target_sources(test_render_frame_queue PRIVATE "${RENDER_TEST_ROOT}/render_frame_benchmark.cpp")
+
+# Vector-font tests load sibling font fixtures that are outside Node's mounted
+# working directory. Embed them at the paths used by the tests in the web VFS.
+if(TARGET_PLATFORM MATCHES "web$")
+  foreach(_render_test_font IN ITEMS vera_mo_bd.ttf SourceCodePro-Regular.otf color-test.ttf)
+    set(_render_test_font_path "${DEFOLD_HOME}/engine/font/src/test/data/${_render_test_font}")
+    target_link_options(test_render PRIVATE
+      "SHELL:--embed-file \"${_render_test_font_path}@/font/src/test/data/${_render_test_font}\"")
+    set_property(TARGET test_render APPEND PROPERTY LINK_DEPENDS "${_render_test_font_path}")
+  endforeach()
+endif()
 
 # Extend the font image matrix after renderer targets exist. The ordinary font
 # unit tests keep their lower-level dependencies and need no graphics context.

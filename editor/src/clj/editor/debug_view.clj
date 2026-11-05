@@ -960,8 +960,9 @@
       (= user-data (prefs/get prefs [:run :simulated-resolution])))))
 
 (handler/defhandler :run.reset-resolution :global
-  (enabled? [prefs] (prefs/get prefs [:run :simulated-resolution]))
-  (run [project prefs]
+  (enabled? [project] project)
+  (run [project workspace prefs]
+    (engine/reset-window-size! (workspace/project-directory workspace))
     (prefs/set! prefs [:run :simulated-resolution] nil)
     (prefs/set! prefs [:run :simulate-rotated-device] false)
     (let [project-settings-data (project-settings-screen-data project)]

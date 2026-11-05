@@ -767,6 +767,13 @@ public class TestHttpServer extends AbstractHandler
                 buffer[i] = (byte) ((i % 255) & 0xff);
             response.getOutputStream().write(buffer);
         }
+        else if (target.equals("/chunked")) {
+            response.setStatus(HttpServletResponse.SC_OK);
+            baseRequest.setHandled(true);
+            response.getOutputStream().write("chunked response".getBytes("UTF-8"));
+            // Flush before completing the response so Jetty uses chunked encoding.
+            response.flushBuffer();
+        }
         else if (target.equals("/src/test/data/test.config")) {
             // For dmConfigFile test
             response.setStatus(HttpServletResponse.SC_OK);

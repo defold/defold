@@ -105,7 +105,7 @@
   ([tgts]
    (graph-dependencies (g/now) tgts))
   ([basis tgts]
-   (g/dependencies basis tgts)))
+   (set (g/dependencies basis tgts))))
 
 (defn graph-remove-node
   [graph node-id]

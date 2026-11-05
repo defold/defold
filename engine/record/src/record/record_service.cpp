@@ -17,13 +17,13 @@
 #include "record_service.h"
 #include "record_service_openapi.h"
 #include <dlib/array.h>
+#include <dlib/crypt.h>
 #include <dlib/dstrings.h>
 #include <dlib/mutex.h>
 #include <dlib/sys.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
 #include <dlib/webserver.h>
-#include <mbedtls/md.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -129,10 +129,8 @@ namespace dmRecord
     static void PrepareFile(void* arg)
     {
         RecordingFile* recording = (RecordingFile*)arg;
-        mbedtls_md_context_t hash;
-        mbedtls_md_init(&hash);
-        const mbedtls_md_info_t* info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-        bool failed = !info || mbedtls_md_setup(&hash, info, 0) != 0 || mbedtls_md_starts(&hash) != 0;
+        dmCrypt::HHashSha256 hash = dmCrypt::NewHashSha256();
+        bool failed = hash == 0;
         FILE* file = failed ? 0 : FileOpen(recording->m_Path, "rb");
         uint64_t size = 0;
         if (!file)
@@ -146,7 +144,7 @@ namespace dmRecord
             while ((count = fread(buffer, 1, sizeof(buffer), file)) != 0)
             {
                 size += count;
-                if (mbedtls_md_update(&hash, buffer, count) != 0)
+                if (dmCrypt::UpdateHashSha256(hash, buffer, (uint32_t)count) != dmCrypt::RESULT_OK)
                 {
                     failed = true;
                     break;
@@ -156,11 +154,11 @@ namespace dmRecord
             fclose(file);
         }
         uint8_t digest[32];
-        if (!failed && mbedtls_md_finish(&hash, digest) != 0)
+        if (!failed && dmCrypt::FinalHashSha256(hash, digest) != dmCrypt::RESULT_OK)
         {
             failed = true;
         }
-        mbedtls_md_free(&hash);
+        dmCrypt::DeleteHashSha256(hash);
         DM_MUTEX_SCOPED_LOCK(recording->m_Mutex);
         if (!failed)
         {

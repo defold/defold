@@ -758,6 +758,18 @@ ordinary paths."
        (sort-by resource/proj-path util/natural-order)
        (run! #(load-clojure-plugin! workspace %))))
 
+(defn show-plugin-resource-type-error-dialog! [type-ext exception localization]
+  (log/error :message "Plugin Resource Type Error"
+             :ext type-ext
+             :exception exception)
+  (dialogs/make-info-dialog
+    localization
+    {:title (localization/message "dialog.plugin-resource-type-error.title")
+     :icon :icon/triangle-error
+     :always-on-top true
+     :header (localization/message "dialog.plugin-resource-type-error.header"
+                                   {"ext" type-ext})}))
+
 ; Determine if the extension has plugins, if so, it needs to be extracted
 
 (defn- jar-file? [resource]

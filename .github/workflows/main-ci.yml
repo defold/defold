@@ -79,7 +79,7 @@ jobs:
   # by GitHub and must not be used; an alias cannot be overridden, so a step that needs to
   # differ has to be written out in full.
   #
-  #   &if_bob_enabled &should_release &build_sha &step_validate_build_commit
+  #   &if_bob_enabled &if_sdk_enabled &should_release &build_sha &step_validate_build_commit
   #   &step_checkout &step_dcache_key &step_cache_dcache &step_cache_lein &step_python &step_java &step_cmake &step_linux_clang &step_build_external
   #   &step_download_bob &step_download_dynamo_home &step_download_engine_share &step_chmod_dynamo_home
   #   &step_remove_bob_maven &step_stop_gradle &step_notify
@@ -234,7 +234,7 @@ jobs:
           ref: *build_sha
       - &step_python
         name: "Install Python"
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: 3.13
       - &step_dcache_key
@@ -286,7 +286,7 @@ jobs:
         run: sudo softwareupdate --install-rosetta --agree-to-license
       - &step_java
         name: "Install Java"
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           java-version: "25.0.4+101.0.LTS"
           distribution: "temurin"
@@ -299,7 +299,7 @@ jobs:
             com.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties
       - &step_cmake
         name: "Install CMake"
-        uses: lukka/get-cmake@a89e43e22a96abafcd7a62db652a65ecd33052c9 # v4.4.4
+        uses: lukka/get-cmake@f86dd60acae0d132056913e248bdabf0e0580b7a # v4.4.5
         with:
           # This action stores its CMake and Ninja download in the Actions cache by
           # default, under a key derived from the versions alone. A contrib build must
@@ -320,7 +320,7 @@ jobs:
         run: "emcc -v && export | grep EM"
       - name: "Setup Node for WASM tests"
         if: matrix.platform == 'wasm-web'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
           package-manager-cache: false
@@ -376,6 +376,13 @@ jobs:
         with:
           platform: ${{ matrix.platform || 'x86_64-linux' }}
           cache: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch' }}
+      - name: "Test build scripts"
+        if: matrix.platform == 'x86_64-win32' || matrix.platform == 'arm64-macos' || matrix.platform == 'x86_64-linux' || matrix.platform == 'arm64-linux'
+        run: |
+          build_test_path="$PATH"
+          source ci/env.sh
+          export PATH="$PATH:$build_test_path"
+          python -m unittest discover -s scripts -p 'test_build_*.py'
       - name: "Enable KVM"
         if: matrix.emulator
         run: |-
@@ -404,7 +411,7 @@ jobs:
             if [ -z "$ANDROID_SERIAL" ]; then echo 'No Android device attached, refusing to skip the tests silently'; exit 1; fi
             export ANDROID_SERIAL
             echo "Running ${{ matrix.platform }} tests on $ANDROID_SERIAL"
-            ci/ci.sh engine --skip-install-ext --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} --skip-builtins --skip-docs
+            ci/ci.sh engine --skip-install-ext --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} --sdk-artifacts-dir=tmp/sdk-artifacts --skip-builtins --skip-docs
       # matrix.engine_args carries the per-platform flags; codesign and the gcloud key
       # come from env, which a matrix cannot reference, so they are appended here.
       - name: "Build engine"
@@ -412,7 +419,7 @@ jobs:
         env:
           LIBGL_ALWAYS_SOFTWARE: ${{ runner.os == 'Linux' && '1' || '' }}
           GALLIUM_DRIVER: ${{ runner.os == 'Linux' && 'llvmpipe' || '' }}
-        run: 'ci/ci.sh engine --skip-install-ext --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} ${{ matrix.engine_args }}${{ matrix.codesign && format('' {0}'', env.OPTION_CODESIGN) || '''' }}${{ matrix.gcloud && format('' --gcloud-service-key="{0}"'', env.GCLOUD_EDITOR_SERVICE_KEY) || '''' }}'
+        run: 'ci/ci.sh engine --skip-install-ext --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} --sdk-artifacts-dir=tmp/sdk-artifacts ${{ matrix.engine_args }}${{ matrix.codesign && format('' {0}'', env.OPTION_CODESIGN) || '''' }}${{ matrix.gcloud && format('' --gcloud-service-key="{0}"'', env.GCLOUD_EDITOR_SERVICE_KEY) || '''' }}'
       # Run browser lifecycle tests separately while the regular engine tests are skipped.
       - name: "Install browser test dependencies"
         if: matrix.platform == 'wasm-web'
@@ -436,11 +443,41 @@ jobs:
             engine/platform/src/test/browser/playwright-report
             engine/platform/src/test/browser/test-results
           retention-days: 7
+      - name: "Upload CMake build logs"
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cmake-logs-${{ matrix.platform }}
+          path: |
+            engine/**/logs/*.log
+            external/**/logs/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+      - &step_upload_gradle_logs
+        name: "Upload Gradle build logs"
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gradle-logs-${{ github.job }}-${{ matrix.platform || 'host' }}
+          path: com.dynamo.cr/**/logs/*.log
+          if-no-files-found: ignore
+          retention-days: 7
       - name: "Upload build reports"
         if: always() && runner.os == 'Linux' && endsWith(matrix.platform, '-linux')
         uses: ./.github/actions/upload-build-reports
         with:
           platform: ${{ matrix.platform }}
+      - name: "Upload temporary platform SDK"
+        if: &if_sdk_enabled ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true))) && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: "platform-sdk-${{ matrix.platform }}"
+          # Preserve the platform subdirectory when the SDK job combines artifacts.
+          path: "tmp/sdk-artifacts/"
+          if-no-files-found: "error"
+          compression-level: 0
+          retention-days: 1
+          overwrite: true
       - name: "Upload engine build for the jobs downstream"
         # A contrib build has no S3 credentials, so bob and the editor pick the engine
         # up from here instead of from the archive. See pr-ok-to-test.yml.
@@ -581,6 +618,7 @@ jobs:
         run: "chmod -R +x tmp/dynamo_home/bin tmp/dynamo_home/ext/bin"
       - name: "Build bob"
         run: "ci/ci.sh --skip-tests --skip-install-ext ${{ env.OPTION_SKIP_ARCHIVE }} bob"
+      - *step_upload_gradle_logs
       - name: "Upload bob jar"
         if: *if_bob_enabled
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -615,6 +653,7 @@ jobs:
           path: "${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist"
       - name: "Test bob"
         run: "ci/ci.sh test-bob --skip-install-ext"
+      - *step_upload_gradle_logs
       - *step_stop_gradle
       - name: "Upload test results"
         if: failure()
@@ -628,19 +667,51 @@ jobs:
   build-sdk:
     needs: [bld-eng]
     runs-on: ubuntu-22.04
-    # The SDK is merged from the per-platform SDK archives on S3. A contrib build never
-    # writes them, so there is nothing to merge.
-    if: ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true))) && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
+    # Only the combined SDK is published to S3; platform SDKs are temporary artifacts.
+    if: *if_sdk_enabled
     timeout-minutes: 10
     steps:
       - *step_validate_build_commit
       - *step_checkout
       - *step_python
+      - name: "Download temporary platform SDKs"
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: "platform-sdk-*"
+          path: "tmp/sdk-artifacts/"
+          merge-multiple: true
       - name: "Install libzip tools"
         run: "sudo apt-get update && sudo apt-get install -y --no-install-recommends zipmerge"
       - name: "Build SDK"
-        run: "ci/ci.sh sdk"
+        run: "ci/ci.sh sdk --sdk-artifacts-dir=tmp/sdk-artifacts"
       - *step_notify
+
+  cleanup-sdk-artifacts:
+    # A failed SDK job retains its inputs for retries until the one-day expiry.
+    needs: [build-sdk]
+    runs-on: ubuntu-22.04
+    permissions:
+      actions: write
+    timeout-minutes: 5
+    steps:
+      - name: "Delete temporary platform SDKs after successful publication"
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              ...context.repo,
+              run_id: context.runId,
+              per_page: 100,
+            });
+            for (const artifact of artifacts) {
+              if (artifact.name.startsWith('platform-sdk-')) {
+                await github.rest.actions.deleteArtifact({
+                  ...context.repo,
+                  artifact_id: artifact.id,
+                });
+                core.info(`Deleted ${artifact.name}`);
+              }
+            }
 
   # ---- BUILD EDITOR ------------------
 
@@ -938,7 +1009,7 @@ jobs:
           sparse-checkout-cone-mode: false
       - name: "Install Python"
         if: *should_release
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: 3.13
       - name: "Read dependency cache key"
