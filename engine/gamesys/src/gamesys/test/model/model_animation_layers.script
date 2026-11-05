@@ -61,6 +61,10 @@ function init(self)
     assert_error(function() model.play_anim("#fox", "Run", go.PLAYBACK_LOOP_FORWARD, { layer = chained, offset = math.huge }) end)
     assert_error(function() model.play_anim("#fox", "Run", 99, { layer = chained }) end)
 
+    assert_error(function() model.cancel("#fox", "bad") end)
+    assert_error(function() model.cancel("#fox", { layer = "base" }) end)
+    assert_error(function() model.cancel("#fox", { layer = {} }) end)
+
     -- Editing the options after creation must not change the shared definition.
     options.order = 0
     options.weight = 5
@@ -81,6 +85,13 @@ function init(self)
     duplicate_name = nil
     duplicate_order = nil
 
+    -- Cancelling a shared layer on one model leaves the other model playing.
+    play(shared, "#cancelled", "Walk", never_complete("targeted_cancelled"))
+    model.cancel("#cancelled", { layer = shared })
+    model.cancel("#cancelled", { layer = shared })
+    collectgarbage("collect")
+    assert(weak_callbacks.targeted_cancelled == nil)
+
     -- Collecting the shared Lua handle must not cancel either model's animation.
     local weak_layers = setmetatable({ shared }, { __mode = "v" })
     shared = nil
@@ -94,6 +105,8 @@ function init(self)
     end)
     -- Empty masks and zero weight still advance and emit completion messages.
     play(model.animation_layer("empty", { order = 2, weight = 0, bones = {} }), "#other", "Run")
+    model.play_anim("#fox", "Run", go.PLAYBACK_LOOP_FORWARD, { layer = replaced }, never_complete("targeted_reuse"))
+    model.cancel("#fox", { layer = replaced })
     model.play_anim("#fox", "Run", go.PLAYBACK_LOOP_FORWARD, { layer = replaced }, never_complete("replaced"))
     play(replaced, "#fox", "Run", complete("Run"))
     -- A definition with no remaining Lua handle stays alive while in use.
@@ -104,6 +117,7 @@ function init(self)
     model.cancel("#cancelled")
     collectgarbage("collect")
     assert(weak_callbacks.replaced == nil)
+    assert(weak_callbacks.targeted_reuse == nil)
 end
 
 function on_message(self, message_id, message)

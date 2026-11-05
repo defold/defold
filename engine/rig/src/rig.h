@@ -48,6 +48,9 @@ namespace dmRig
     // A successful play retains the definition until cancellation or instance destruction.
     Result PlayAnimation(HRigInstance instance, HAnimationLayer layer, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate);
 
+    // Remove one layer without stopping base playback or other layers.
+    Result CancelAnimation(HRigInstance instance, HAnimationLayer layer);
+
     /**
      * Gets the pose matrix cache data pointer and number of matrices in the cache
      * @param context The rig context

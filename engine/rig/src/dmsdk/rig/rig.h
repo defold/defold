@@ -99,16 +99,17 @@ namespace dmRig
         HAnimationLayer m_Layer; // Null for base playback.
     };
 
+    // Keep existing field offsets stable for native animation event callbacks.
     struct RigKeyframeEventData
     {
         uint64_t        m_EventId;
         uint64_t        m_AnimationId;
-        uint64_t        m_String;
-        HAnimationLayer m_Layer; // Null for base playback.
         float           m_T;
         float           m_BlendWeight;
         int32_t         m_Integer;
         float           m_Float;
+        uint64_t        m_String;
+        HAnimationLayer m_Layer; // Null for base playback.
     };
 
     struct RigModelVertex

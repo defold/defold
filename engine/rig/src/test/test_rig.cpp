@@ -1521,6 +1521,87 @@ TEST_F(AnimationLayerTest, SharedDefinitionLifetimeAndSkeletonMapping)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::CancelAnimation(m_Instance));
 }
 
+// Verifies cancellation recomposes held poses in order and restores the base after the last layer is removed.
+TEST_F(AnimationLayerTest, CancelHeldLayers)
+{
+    dmRig::HAnimationLayer lower = Layer("lower", 1, 0.5f);
+    dmRig::HAnimationLayer middle = Layer("middle", 2, 0.5f);
+    dmRig::HAnimationLayer upper = Layer("upper", 3, 0.5f);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, 1, dmRig::PLAYBACK_ONCE_FORWARD, 0, 0, 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, lower, 2, dmRig::PLAYBACK_ONCE_FORWARD, 0, 0, 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, middle, 3, dmRig::PLAYBACK_ONCE_FORWARD, 0, 0, 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, upper, 4, dmRig::PLAYBACK_ONCE_FORWARD, 0, 0, 1));
+    ASSERT_NE(dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY, dmRig::AcquirePoseMatrixCacheEntry(m_Context, m_Instance));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 2));
+    ASSERT_FALSE(dmRig::IsAnimating(m_Instance));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::CancelAnimation(m_Instance, lower));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0));
+    ASSERT_NEAR(30, (*dmRig::GetPose(m_Instance))[0].m_Local.GetTranslation().getX(), RIG_EPSILON_FLOAT);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::CancelAnimation(m_Instance, middle));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::CancelAnimation(m_Instance, upper));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::CancelAnimation(m_Instance, upper));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0));
+    ASSERT_NEAR(10, (*dmRig::GetPose(m_Instance))[0].m_Local.GetTranslation().getX(), RIG_EPSILON_FLOAT);
+    const Matrix4* matrices;
+    uint32_t count;
+    dmRig::GetPoseMatrixCacheData(m_Context, &matrices, &count);
+    ASSERT_NEAR(10, matrices[0].getTranslation().getX(), RIG_EPSILON_FLOAT);
+    dmRig::ReleaseAnimationLayer(lower);
+    dmRig::ReleaseAnimationLayer(middle);
+    dmRig::ReleaseAnimationLayer(upper);
+}
+
+// Verifies immediate reuse after cancelling the last layer preserves the original base pose and playback cursor.
+TEST_F(AnimationLayerTest, CancelAndReplayBeforeUpdate)
+{
+    dmRig::HAnimationLayer layer = Layer("overlay", 1, 0.5f);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, 1, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, layer, 2, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.5f));
+    float cursor = dmRig::GetCursor(m_Instance, true);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::CancelAnimation(m_Instance, layer));
+    ASSERT_NEAR(cursor, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, layer, 3, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0));
+    ASSERT_NEAR(20, (*dmRig::GetPose(m_Instance))[0].m_Local.GetTranslation().getX(), RIG_EPSILON_FLOAT);
+    dmRig::ReleaseAnimationLayer(layer);
+}
+
+static void CancelLayerOnCompletion(dmRig::RigEventType type, void* data, void* user_data1, void* user_data2)
+{
+    if (type != dmRig::RIG_EVENT_TYPE_COMPLETED)
+    {
+        return;
+    }
+    LayerCompletionContext* context = (LayerCompletionContext*)user_data1;
+    dmRig::RigCompletedEventData* event = (dmRig::RigCompletedEventData*)data;
+    if (event->m_Layer)
+    {
+        ++context->m_LayerCount;
+    }
+    else
+    {
+        ++context->m_BaseCount;
+        dmRig::CancelAnimation(context->m_Instance, context->m_Replacement);
+    }
+}
+
+// Verifies targeted cancellation from a callback discards a queued layer completion and recomposes the held base.
+TEST_F(AnimationLayerTest, CancelQueuedCompletion)
+{
+    dmRig::HAnimationLayer layer = Layer("overlay", 1, 1);
+    LayerCompletionContext completion = { m_Instance, layer, 0, 0 };
+    dmRig::SetEventCallback(m_Instance, CancelLayerOnCompletion, &completion, 0);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, 1, dmRig::PLAYBACK_ONCE_FORWARD, 0, 0, 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, layer, 2, dmRig::PLAYBACK_ONCE_FORWARD, 0, 0, 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 2));
+    ASSERT_EQ(1u, completion.m_BaseCount);
+    ASSERT_EQ(0u, completion.m_LayerCount);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0));
+    ASSERT_NEAR(10, (*dmRig::GetPose(m_Instance))[0].m_Local.GetTranslation().getX(), RIG_EPSILON_FLOAT);
+    dmRig::ReleaseAnimationLayer(layer);
+}
+
 TEST_F(RigContextTest, InstanceCreation)
 {
     dmRig::HRigInstance instance = 0x0;

@@ -540,12 +540,26 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*# cancel all animation on a model
-     * Cancels all animation on a model component. Freezes the base pose and releases
+    /*# cancel animation on a model
+     * Without a layer, cancels all animation, freezes the base pose and releases
      * additional layers, without invoking their completion callbacks.
+     * With a layer, removes only that layer from this model. Its contribution disappears
+     * on the next pose update, revealing the base and remaining layers. Their playback
+     * is unaffected. The cancelled layer's completion callback is not invoked.
+     * Cancelling a layer that is not attached to the model has no effect.
+     * The handle remains reusable and other models using it are unaffected.
      *
      * @name model.cancel
      * @param url [type:string|hash|url] the model for which to cancel the animation
+     * @param [options] [type:table] optional cancellation properties
+     *
+     * `layer`
+     * : [type:userdata] handle returned by [ref:model.animation_layer]. Omit to cancel all animation.
+     *
+     * @examples
+     * ```lua
+     * model.cancel("#model", { layer = upper_body })
+     * ```
      */
     static int LuaModelComp_Cancel(lua_State* L)
     {
@@ -556,6 +570,25 @@ namespace dmGameSystem
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        if (!lua_isnoneornil(L, 2))
+        {
+            luaL_checktype(L, 2, LUA_TTABLE);
+            lua_getfield(L, 2, "layer");
+            if (!lua_isnil(L, -1))
+            {
+                // Keep the userdata rooted until the component has released its reference.
+                dmRig::HAnimationLayer layer = CheckAnimationLayer(L, -1)->m_Layer;
+                ModelWorld* world;
+                ModelComponent* component;
+                dmScript::GetComponentFromLua(L, 1, MODEL_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0);
+                CompModelCancelAnimation(component, layer);
+                lua_pop(L, 1);
+                assert(top == lua_gettop(L));
+                return 0;
+            }
+            lua_pop(L, 1);
+        }
 
         dmModelDDF::ModelCancelAnimation msg;
 

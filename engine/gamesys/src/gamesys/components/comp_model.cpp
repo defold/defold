@@ -2817,6 +2817,25 @@ namespace dmGameSystem
         return result;
     }
 
+    void CompModelCancelAnimation(HModelComponent component, dmRig::HAnimationLayer layer)
+    {
+        dmRig::CancelAnimation(component->m_RigInstance, layer);
+        for (uint32_t i = 0; i < component->m_AnimationCallbacks.Size(); ++i)
+        {
+            ModelAnimationCallbacks callbacks = component->m_AnimationCallbacks[i];
+            if (callbacks.m_Layer != layer)
+            {
+                continue;
+            }
+            component->m_AnimationCallbacks.EraseSwap(i);
+            if (callbacks.m_DestroyCallback)
+            {
+                callbacks.m_DestroyCallback(callbacks.m_Context);
+            }
+            break;
+        }
+    }
+
     // Preserve the public SDK signature and binary symbol for existing native extensions.
     dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, FModelAnimationCallback callback, void* callback_ctx)
     {

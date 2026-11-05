@@ -47,6 +47,11 @@ namespace dmRig
         return dmRig::RESULT_OK;
     }
 
+    Result CancelAnimation(HRigInstance instance, HAnimationLayer layer)
+    {
+        return dmRig::RESULT_OK;
+    }
+
     dmhash_t GetAnimation(HRigInstance instance)
     {
         return 0;

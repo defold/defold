@@ -186,7 +186,9 @@ namespace dmRig
         uint8_t                       m_DoRender : 1;
         uint8_t                       m_HasPoseMatrixCacheAnimatedPose : 1;
         uint8_t                       m_RequiresUpdate : 1;
-        uint8_t : 4;
+        /// Recompose held poses after removing a layer, even when no animation is playing
+        uint8_t                       m_LayerPoseDirty : 1;
+        uint8_t : 3;
     };
 
     /*

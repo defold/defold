@@ -333,7 +333,7 @@ namespace dmRig
             layer->m_Pose.SetSize(bone_count);
 
             // Preserve the base pose separately before adding the first overlay.
-            if (instance->m_Layers.Empty())
+            if (instance->m_BasePose.Empty())
             {
                 instance->m_BasePose.SetCapacity(bone_count);
                 instance->m_BasePose.SetSize(bone_count);
@@ -357,6 +357,7 @@ namespace dmRig
         }
         instance->m_Layers.SetSize(0);
         instance->m_BasePose.SetSize(0);
+        instance->m_LayerPoseDirty = 0;
     }
 
     Result CancelAnimation(HRigInstance instance)
@@ -373,6 +374,30 @@ namespace dmRig
         }
         ClearLayers(instance);
         instance->m_HasPoseMatrixCacheAnimatedPose = 0;
+        return RESULT_OK;
+    }
+
+    Result CancelAnimation(HRigInstance instance, HAnimationLayer definition)
+    {
+        for (uint32_t i = 0; i < instance->m_Layers.Size(); ++i)
+        {
+            RigLayer* layer = instance->m_Layers[i];
+            if (layer->m_Definition != definition)
+            {
+                continue;
+            }
+
+            // Preserve evaluation order and the current frame's published pose.
+            for (uint32_t j = i + 1; j < instance->m_Layers.Size(); ++j)
+            {
+                instance->m_Layers[j - 1] = instance->m_Layers[j];
+            }
+            instance->m_Layers.SetSize(instance->m_Layers.Size() - 1);
+            ReleaseAnimationLayer(layer->m_Definition);
+            delete layer;
+            instance->m_LayerPoseDirty = 1;
+            break;
+        }
         return RESULT_OK;
     }
 
@@ -1048,7 +1073,7 @@ namespace dmRig
         if (!instance->m_MorphSlots.Empty())
             ResetMorphWeights(instance);
 
-        if (!IsAnimating(instance))
+        if (!IsAnimating(instance) && (!instance->m_LayerPoseDirty || !instance->m_Enabled))
         {
             // Held poses still need publishing to the skinning cache each frame.
             if (instance->m_Skeleton && instance->m_PoseMatrixCacheIndex != INVALID_POSE_MATRIX_CACHE_ENTRY)
@@ -1068,6 +1093,13 @@ namespace dmRig
         }
 
         dmArray<BonePose>& pose = instance->m_Pose;
+        // The last removed layer leaves its base pose available until this update.
+        if (instance->m_Layers.Empty() && !instance->m_BasePose.Empty())
+        {
+            memcpy(pose.Begin(), instance->m_BasePose.Begin(), pose.Size() * sizeof(BonePose));
+            instance->m_BasePose.SetSize(0);
+        }
+        instance->m_LayerPoseDirty = 0;
         dmArray<BonePose>& base_pose = instance->m_Layers.Empty() ? pose : instance->m_BasePose;
         EvaluatePlayback(context, instance, &instance->m_BasePlayback, 0, base_pose, dt);
         if (!instance->m_Layers.Empty())
