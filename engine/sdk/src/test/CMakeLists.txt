@@ -231,6 +231,7 @@ set(_sdk_exclude_endings
 set(_sdk_c_includes
   extension.h
   configfile.h
+  deprecated.h
   resource.h)
 
 file(READ "${SDK_TEST_ROOT}/test_include.cpp" _sdk_include_cpp_template)

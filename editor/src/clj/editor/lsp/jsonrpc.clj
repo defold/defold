@@ -86,8 +86,8 @@
     (a/go
       (let [request (cond-> {:jsonrpc "2.0"
                              :method (:method value)}
-                            (contains? value :params)
-                            (assoc :params (:params value)))]
+                      (contains? value :params)
+                      (assoc :params (:params value)))]
         (if-let [response-ch (:response-ch value)]
           (let [id (:next-id state)
                 request (assoc request :id id)]
@@ -152,8 +152,8 @@
    {:pre [(int? code) (string? message)]}
    {:error (cond-> {:code code
                     :message message}
-                   (some? data)
-                   (assoc :data data))}))
+             (some? data)
+             (assoc :data data))}))
 
 (defn notification->request [notification response-ch]
   (assoc notification :response-ch response-ch))
@@ -183,8 +183,8 @@
          (a/go
            (>! jsonrpc (cond-> {:method method
                                 :response-ch ch}
-                               (some? params)
-                               (assoc :params params)))
+                         (some? params)
+                         (assoc :params params)))
            (<! ch))
          ([response] response)
 
@@ -193,8 +193,8 @@
                 (str "Client response timeout: " method)
                 (cond-> {:timeout-ms timeout-ms
                          :method method}
-                        (some? params)
-                        (assoc :params params))))))))
+                  (some? params)
+                  (assoc :params params))))))))
 
 (defn notification
   "Create a notification that can be submitted to a JSON-RPC message sink
@@ -208,8 +208,8 @@
    (notification method nil))
   ([method params]
    (cond-> {:method method}
-           (some? params)
-           (assoc :params params))))
+     (some? params)
+     (assoc :params params))))
 
 (defn unwrap-response
   "Given a response, returns result on success or throws exception on error

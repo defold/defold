@@ -463,15 +463,15 @@
 
 (defn- eval-dynamics [context evaluation-context]
   (cond-> context
-          (contains? context :dynamics)
-          (update :env
-                  (fn [env]
-                    (into env
-                          (map (fn [[dynamic-key [node-key label]]]
-                                 (let [node-id (env node-key)
-                                       value (g/node-value node-id label evaluation-context)]
-                                   (pair dynamic-key value))))
-                          (:dynamics context))))))
+    (contains? context :dynamics)
+    (update :env
+            (fn [env]
+              (into env
+                    (map (fn [[dynamic-key [node-key label]]]
+                           (let [node-id (env node-key)
+                                 value (g/node-value node-id label evaluation-context)]
+                             (pair dynamic-key value))))
+                    (:dynamics context))))))
 
 (defn active
   ([command command-contexts]
@@ -536,13 +536,13 @@
           (map
             (fn [item]
               (cond-> item
-                      (:children item)
-                      (update :children do-realize-menu menus))))
+                (:children item)
+                (update :children do-realize-menu menus))))
           (mapcat
             (fn [item]
               (cond-> [item]
-                      (and (contains? item :id) (contains? menus (:id item)))
-                      (into (do-realize-menu (items-at-location menus (:id item)) menus))))))
+                (and (contains? item :id) (contains? menus (:id item)))
+                (into (do-realize-menu (items-at-location menus (:id item)) menus))))))
         items))
 
 (defn realize-menu [location]

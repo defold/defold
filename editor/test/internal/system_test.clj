@@ -19,6 +19,7 @@
             [editor.localization :as localization]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
+            [internal.invalidate-counters :as ic]
             [internal.system :as is]
             [support.test-support :as ts])
   (:import [clojure.lang ExceptionInfo]
@@ -575,7 +576,7 @@
 
 (defn- invalidate-count
   [endpoint]
-  (get (is/invalidate-counters @g/*the-system*) endpoint 0))
+  (ic/counter (is/invalidate-counters @g/*the-system*) endpoint))
 
 (deftest undo-preserves-non-undoable-connection
   (testing "undo property change keeps non-undoable connection and successors"
@@ -648,7 +649,7 @@
 
         (is (not (cached? sink-output)))
         (is (cached? unrelated-output))
-        (is (< sink-invalidate-count (invalidate-count sink-output)))
+        (is (not= sink-invalidate-count (invalidate-count sink-output)))
         (is (= unrelated-invalidate-count (invalidate-count unrelated-output))))
 
       (is (= "INITIAL" (g/node-value sink :loud)))
@@ -658,7 +659,7 @@
         (g/redo! :undo/global)
 
         (is (not (cached? sink-output)))
-        (is (< sink-invalidate-count (invalidate-count sink-output)))))))
+        (is (not= sink-invalidate-count (invalidate-count sink-output)))))))
 
 (deftest undo-removes-user-data-for-deleted-nodes
   (ts/with-clean-system

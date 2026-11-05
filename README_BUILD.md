@@ -136,28 +136,55 @@ $ ./scripts/build.py install_ext --platform=arm64-android
 It is important that you provide the `--platform` if you target a platform other than the host platform.
 With host platform, we mean any of the `x86_64-win32`, `x86_64-macos`, `arm64-macos`, `x86_64-linux` or `arm64-linux`.
 
-The `install_ext` command first installs the prepackaged dependencies from `./packages`,
-including Box2D and Protocol Buffers (a.k.a. protobuf). After installing the packages
-and support files, it checks the SDK and builds and installs source
-dependencies with CMake. These include Bullet, Basis Universal, LZ4, and GLFW on iOS.
+The `install_ext` command first installs the remaining prepackaged dependencies
+from `./packages` and support files, then calls `build_ext` to check the SDK and
+build and install source dependencies with CMake. These include Bullet, Basis
+Universal, LZ4, both Box2D versions, HarfBuzz, libunibreak, Opus, SheenBidi,
+Skribidi and desktop Protobuf.
+The DXC shader tools for all five desktop host platforms are installed from
+versioned archives in `packages`; normal builds do not compile LLVM/DXC.
+Explicit DXC package rebuilds use pinned, checksum-verified source archives and
+an isolated LLVM build. See [DXC build notes](external/dxc/README.md) for package
+rebuilds, the Ubuntu 22.04 Docker workflow for both Linux architectures, focused
+builds, and shader prototype validation.
+Mobile and web platform backends are built with the engine.
 Cross-builds build source dependencies for both the host and target platform.
+These source dependencies are no longer installed from package archives.
 
 When `install_ext` finishes, the dependencies are installed in `${DYNAMO_HOME}/ext`.
 Run it for each target platform before building the engine or packaging a local
 platform SDK, and repeat it after `distclean`.
 
-Run `install_ext` again when the external sources or toolchain change.
+Run `build_ext` when only the external sources or toolchain change, or `install_ext`
+to also reinstall the packages.
 Subsequent calls reuse the CMake build cache; ordinary engine rebuilds use the
 installed libraries.
+
+For a fresh external installation and build, run
+`./scripts/build.py clean_ext install_ext --platform=<platform>`.
+`clean_ext` removes external build directories and installed dependency files for
+the selected platform (the host platform when `--platform` is omitted). It retains
+other platforms, shared dependency files, platform SDKs, engine outputs, and
+package archives outside the build directories.
 
 This step also installs some Python dependencies:
 
 * `boto` - For interacting with AWS. Installed from wheel package in `packages/`.
 * `markdown` - Used when generating script API docs. Installed from wheel package in `packages/`.
-* `protobuf` - Installed from wheel package in `packages/`
+* `protobuf` - Installed from the pinned wheel in `packages/python`.
 * `Pygments` - For use by the `CodeHilite` extension used by `markdown` in `script_doc.py`. Installed from wheel package in `packages/`.
 * `requests` - Installed using pip
 * `pyaml` - Installed using pip
+
+DDF generators use these bundled Python dependencies without loading host
+site-packages. `install_ext` checks that the bundled Python Protobuf runtime loads,
+and `check_sdk` checks both the runtime and Protoc. CMake first searches
+`tmp/dynamo_home/ext/bin/<host-platform>/` for Protoc and falls back to `PATH`
+when the host compiler is absent. Reconfiguring an existing build replaces any
+previously cached local compiler with the SDK compiler.
+
+`./scripts/build.py check_sdk` shows tool versions and status. Add `--verbose`
+to include tool paths and per-check timings.
 
 ### STEP 4 - Build the engine
 

@@ -44,7 +44,8 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.coll :as coll]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [util.http-server.types :as http-server.types])
   (:import [editor.code.data Cursor CursorRange LayoutInfo Rect]
            [java.io BufferedReader IOException]
            [java.util.concurrent ArrayBlockingQueue]
@@ -321,7 +322,7 @@
     :add (let [new-state (swap! state #(-> %
                                            (assoc :text "")
                                            (cond-> (not (string/blank? (:text %)))
-                                                   (update :filters conj [(:text %) true]))))]
+                                             (update :filters conj [(:text %) true]))))]
            (save-filters! prefs (:filters new-state)))
     :select (let [new-state (swap! state assoc-in [:filters (:index e) 1] (:fx/event e))]
               (save-filters! prefs (:filters new-state)))))
@@ -398,9 +399,9 @@
 
 (handler/defhandler :edit.find :console-view
   (run [term-field view-node]
-       (when-some [selected-text (view/non-empty-single-selection-text view-node)]
-         (set-find-term! selected-text))
-       (focus-term-field! term-field)))
+    (when-some [selected-text (view/non-empty-single-selection-text view-node)]
+      (set-find-term! selected-text))
+    (focus-term-field! term-field)))
 
 (handler/defhandler :code.find-next :console-view
   (run [view-node] (find-next! view-node)))
@@ -668,8 +669,8 @@
               :lines lines'
               :regions regions')
 
-            (empty? clean-lines)
-            (assoc :invalidated-row 0))))
+      (empty? clean-lines)
+      (assoc :invalidated-row 0))))
 
 (defn- append-entries [props entries resource-map resource-suffix-map-delay on-region-click!]
   (assert (map? props))
@@ -701,10 +702,10 @@
         (when-let [tx-data (view/set-properties
                              view-node nil
                              (cond-> (assoc props :document-width document-width)
-                                     was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
-                                     clear (assoc :cursor-ranges [data/document-start-cursor-range])
-                                     clear (assoc :invalidated-row 0)
-                                     clear (data/frame-cursor prev-layout)))]
+                               was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
+                               clear (assoc :cursor-ranges [data/document-start-cursor-range])
+                               clear (assoc :invalidated-row 0)
+                               clear (data/frame-cursor prev-layout)))]
           (g/transact {:undoable false} tx-data)))))
   (view/repaint-view! view-node elapsed-time {:cursor-visible false :editable false}))
 
@@ -854,7 +855,7 @@
     200
     {"content-type" "text/plain; charset=utf-8"}
     (reify
-      http-server/ConnectionWrite
+      http-server.types/ConnectionWrite
       (connection-write! [_ output-stream]
         (let [writer (io/writer output-stream :encoding "UTF-8")
               queue (ArrayBlockingQueue. 1024)

@@ -1,0 +1,11 @@
+#include <metal_stdlib>
+using namespace metal;
+
+struct Data { float4 member1; };
+struct StorageArguments { device Data* my_data [[id(0)]]; };
+
+fragment float4 main0(constant StorageArguments& args [[buffer(1)]])
+{
+    args.my_data[1].member1 = float4(0, 1, 0, 1);
+    return float4(1);
+}

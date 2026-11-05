@@ -1,12 +1,55 @@
-# Copyright 2020-2026 The Defold Foundation
-# Licensed under the Defold License version 1.0
-
+import contextlib
+import io
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import build
+
+
+class SanitizerFeatureTests(unittest.TestCase):
+    # MSan must reach CMake when selected and reset when a build directory is reused.
+    def test_msan_option_and_default(self):
+        configuration = build.Configuration.__new__(build.Configuration)
+        configuration._log = lambda message: None
+        configuration.build_options = ['--with-msan']
+        self.assertIn('-DWITH_MSAN:BOOL=ON', configuration._cmake_feature_defines())
+        configuration.build_options = []
+        self.assertIn('-DWITH_MSAN:BOOL=OFF', configuration._cmake_feature_defines())
+
+    # MSan dependencies must not overwrite the normal archives used by Bob's JNI libraries.
+    def test_msan_external_build_uses_a_separate_cache(self):
+        configuration = build.Configuration.__new__(build.Configuration)
+        configuration.defold_root = '/defold'
+        configuration.dynamo_home = '/defold/tmp/dynamo_home'
+        configuration.build_options = ['--with-msan']
+        configuration.build_tracker = mock.Mock()
+        with mock.patch.object(configuration, '_run_cmake') as run:
+            normal, _ = configuration._configure_ext_platform('arm64-linux')
+            instrumented, _ = configuration._configure_ext_platform('arm64-linux', msan=True)
+        self.assertNotEqual(normal, instrumented)
+        self.assertIn('-DWITH_MSAN:BOOL=OFF', run.call_args_list[0].args[0])
+        self.assertIn('-DWITH_MSAN:BOOL=ON', run.call_args_list[1].args[0])
+
+    # Instrumented dependency builds must follow both the normal dependencies and libc++.
+    def test_build_ext_prepares_msan_runtime_and_dependencies(self):
+        configuration = build.Configuration.__new__(build.Configuration)
+        configuration.defold_root = '/defold'
+        configuration.dynamo_home = '/defold/tmp/dynamo_home'
+        configuration.host = configuration.target_platform = 'arm64-linux'
+        configuration.build_options = ['--with-msan']
+        configuration.check_sdk = mock.Mock()
+        configuration._form_env = mock.Mock(return_value={})
+        calls = mock.Mock()
+        configuration._build_ext_platform = calls.dependencies
+        with mock.patch.object(build.run, 'env_command', calls.runtime):
+            configuration.build_ext()
+        self.assertEqual(['dependencies', 'runtime', 'dependencies'],
+                         [call[0] for call in calls.mock_calls])
+        self.assertEqual(mock.call.dependencies('arm64-linux', msan=True), calls.mock_calls[-1])
 
 
 class CompilationDatabaseTests(unittest.TestCase):
@@ -54,6 +97,139 @@ class CompilationDatabaseTests(unittest.TestCase):
         self.write_database('arm64-android', target_commands)
         self.write_database('wasm-web', [{'file': 'unrelated.cpp'}])
         self.assertEqual(host_commands + target_commands, self.read_global_database())
+
+
+class WasmTestSupportTests(unittest.TestCase):
+    def setUp(self):
+        self.configuration = build.Configuration.__new__(build.Configuration)
+        self.configuration.host = 'x86_64-linux'
+        self.configuration.target_platform = 'wasm-web'
+        self.configuration.skip_tests = False
+        self.configuration._log = mock.Mock()
+        runner = build.wasm_runner.WasmRunner('node', '/test/node')
+        self.configuration._find_wasm_test_runner = mock.Mock(return_value=(runner, []))
+
+    # Linux CI must run non-threaded WASM tests instead of silently treating them as unsupported.
+    def test_linux_runs_non_threaded_wasm_with_node(self):
+        self.assertTrue(self.configuration._can_run_tests())
+        self.configuration._find_wasm_test_runner.assert_called_once_with()
+
+    # An explicit --skip-tests must still bypass WASM runner discovery.
+    def test_linux_respects_skip_tests(self):
+        self.configuration.skip_tests = True
+        self.assertFalse(self.configuration._can_run_tests())
+        self.configuration._find_wasm_test_runner.assert_not_called()
+
+    # A missing JavaScript runtime must fail the build rather than silently skip the suite.
+    def test_linux_fails_when_wasm_runner_is_missing(self):
+        self.configuration._find_wasm_test_runner.return_value = (None, ['node is unavailable'])
+        with self.assertRaises(SystemExit):
+            self.configuration._can_run_tests()
+        self.configuration._find_wasm_test_runner.assert_called_once_with()
+
+    # Enabling non-threaded WASM on Linux must leave threaded test support unchanged.
+    def test_linux_keeps_threaded_wasm_disabled(self):
+        self.configuration.target_platform = 'wasm_pthread-web'
+        self.assertFalse(self.configuration._can_run_tests())
+        self.configuration._find_wasm_test_runner.assert_not_called()
+
+
+class SourceBuiltToolArchiveTests(unittest.TestCase):
+    # Sync supplies LuaJIT and Ogg for every Bob host without replacing locally built host/target tools.
+    def test_sync_installs_archived_tools(self):
+        repository = Path(__file__).resolve().parents[1]
+        bob_directory = repository / 'com.dynamo.cr' / 'com.dynamo.cr.bob'
+        tool_sources = json.loads((bob_directory / 'tools.json').read_text())
+        sources = {path: source for path, source in tool_sources.items()
+                   if any(name in path for name in ('/luajit-64', '/libogg', '/oggz-validate'))}
+        cases = (
+            ('arm64-macos', 'armv7-android', True),
+            ('arm64-macos', 'x86_64-macos', True),
+            ('x86_64-win32', 'armv7-android', True),
+            ('arm64-macos', 'armv7-android', False),
+        )
+        for host, target, installed_tools in cases:
+            with self.subTest(host=host, target=target, installed_tools=installed_tools), \
+                    tempfile.TemporaryDirectory() as directory:
+                self.check_sync_tools(repository, sources, Path(directory), host, target, installed_tools)
+
+    # Public Bob inputs must use CloudFront while preserving local tools and archived file permissions.
+    def test_sync_downloads_public_tools_through_cloudfront(self):
+        repository = Path(__file__).resolve().parents[1]
+        bob_directory = repository / 'com.dynamo.cr' / 'com.dynamo.cr.bob'
+        tool_sources = json.loads((bob_directory / 'tools.json').read_text())
+        sources = {path: source for path, source in tool_sources.items()
+                   if any(name in path for name in ('/luajit-64', '/libogg', '/oggz-validate'))}
+        with tempfile.TemporaryDirectory() as directory:
+            self.check_sync_tools(repository, sources, Path(directory), 'arm64-macos', 'armv7-android', True,
+                                  bucket_name='d.defold.com')
+
+    def check_sync_tools(self, repository, sources, root, host, target, installed_tools, bucket_name='test-bucket'):
+        configuration = build.Configuration.__new__(build.Configuration)
+        configuration.defold_root = str(repository)
+        configuration.dynamo_home = str(root)
+        configuration.host = host
+        configuration.target_platform = target
+        configuration.thread_pool = object()
+        configuration._log = lambda message: None
+        configuration._git_sha1 = lambda: 'test-revision'
+        configuration.get_archive_path = lambda: 's3://%s/archive/dev' % bucket_name
+        bucket = mock.Mock()
+        objects = {}
+        contents = {}
+        for path, source in sources.items():
+            archive_path = path.removeprefix('libexec/')
+            key = 'archive/dev/test-revision/engine/' + archive_path
+            content = archive_path.encode()
+            contents['https://d.defold.com/' + key] = content
+            obj = mock.Mock()
+            def download(destination, content=content):
+                Path(destination).write_bytes(content)
+                Path(destination).chmod(0o644)
+            obj.download_file.side_effect = download
+            objects[key] = obj
+            if installed_tools:
+                installed = root / source
+                installed.parent.mkdir(parents=True, exist_ok=True)
+                platform = archive_path.split('/')[0]
+                installed.write_bytes(b'local build' if platform in (host, target) else b'previous revision')
+                installed.chmod(0o755)
+        bucket.objects.filter.return_value = [mock.Mock(key=key) for key in objects] + [
+            mock.Mock(key='archive/dev/test-revision/engine/x86_64-linux/defoldsdk.zip')]
+        bucket.Object.side_effect = objects.__getitem__
+        def future(pool, function, *args):
+            return lambda: function(*args)
+
+        def response(request, timeout):
+            content = contents[request.full_url]
+            result = io.BytesIO(content)
+            result.code = 200
+            result.headers = {'Content-Length': str(len(content))}
+            return result
+
+        with mock.patch.object(build.s3, 'get_bucket', return_value=bucket), \
+                mock.patch.object(build, 'Future', side_effect=future), \
+                mock.patch.object(build.http_cache.urllib.request, 'urlopen', side_effect=response) as http_download, \
+                contextlib.redirect_stdout(io.StringIO()):
+            if bucket_name == 'd.defold.com':
+                bucket.Object.side_effect = AssertionError('Unexpected direct S3 download')
+            configuration.sync_archive()
+        bucket.objects.filter.assert_called_once_with(Prefix='archive/dev/test-revision/engine/')
+        if bucket_name == 'd.defold.com':
+            self.assertCountEqual(contents, [call.args[0].full_url for call in http_download.call_args_list])
+            bucket.Object.assert_not_called()
+        else:
+            http_download.assert_not_called()
+        for path, source in sources.items():
+            with self.subTest(tool=path):
+                installed = root / source
+                archive_path = path.removeprefix('libexec/')
+                platform = archive_path.split('/')[0]
+                expected = b'local build' if installed_tools and platform in (host, target) else archive_path.encode()
+                self.assertEqual(expected, installed.read_bytes())
+                if os.name != 'nt':
+                    self.assertEqual(0o755, installed.stat().st_mode & 0o777)
+        self.assertEqual(20, len(objects))
 
 
 if __name__ == '__main__':

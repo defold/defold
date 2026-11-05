@@ -1,24 +1,11 @@
 #!/usr/bin/env python
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 import sys
 import subprocess
 import platform
 import os
 import base64
 import re
+import shlex
 from argparse import ArgumentParser
 from ci_helper import is_platform_supported, is_platform_private, is_repo_private, should_build_private_platform
 
@@ -181,6 +168,7 @@ def install_linux(args):
     call("update-alternatives --display llvm-ar")
 
     packages = [
+        f"llvm-{clang_version}", # llvm-symbolizer for sanitizer stack traces
         "autoconf",
         "automake",
         "build-essential",
@@ -189,19 +177,24 @@ def install_linux(args):
         "libtool",
         "libxi-dev",
         "libx11-xcb-dev",
+        "libxcursor-dev",
+        "libxinerama-dev",
         "libxrandr-dev",
         "libopenal-dev",
         "libgl1-mesa-dev",
         "libgl1-mesa-dri",
+        "mesa-vulkan-drivers",
         "libglw1-mesa-dev",
         "openssl",
         "tofrodos",
         "tree",
-        "valgrind",
         "uuid-dev",
         "xvfb",
         "xauth"
     ]
+    # LuaJIT's VM generator needs a 32-bit host toolchain for armv7 cross-builds.
+    if args.platform == 'armv7-android':
+        packages.extend(["libc6-dev-i386", "gcc-multilib"])
     aptget(" ".join(packages))
 
 
@@ -252,9 +245,7 @@ def create_gcloud_options(gcloud_service_key):
         opts.append('--gcloud-certfile=%s' % gcloud_certfile)
     return opts
 
-def build_engine(channel, platform, args):
-
-    install_sdk = 'install_sdk'
+def sdk_commands(platform):
     # for some platforms, we use the locally installed platform sdk
     if platform in ('x86_64-macos',
                     'arm64-macos',
@@ -267,9 +258,23 @@ def build_engine(channel, platform, args):
                     'armv7-android',
                     'arm64-android',
                     'x86_64-android'):
-        install_sdk = ''
+        return []
+    return ['install_sdk']
 
-    cmd_args = ('"%s" scripts/build.py distclean %s install_ext' % (sys.executable, install_sdk)).split()
+
+def prepare_ext(platform):
+    commands = ['distclean'] + sdk_commands(platform) + ['install_ext_packages']
+    call('"%s" scripts/build.py %s --platform=%s' % (sys.executable, ' '.join(commands), platform))
+    call('"%s" ci/ext_cache.py prepare --platform=%s' % (sys.executable, platform))
+
+
+def build_engine(channel, platform, args):
+    cmd_args = ('"%s" scripts/build.py' % sys.executable).split()
+    if not args.skip_install_ext:
+        cmd_args.extend(['distclean'] + sdk_commands(platform) + ['install_ext'])
+    elif args.with_msan:
+        # The ordinary dependency cache cannot supply MSan-instrumented archives.
+        cmd_args.append('build_ext')
 
     cmd_opts = []
     build_opts = []
@@ -277,6 +282,8 @@ def build_engine(channel, platform, args):
     cmd_opts.append('--platform=%s' % platform)
     # ccache isn't needed on CI
     cmd_opts.append('--disable-ccache')
+    if platform in ('x86_64-linux', 'arm64-linux'):
+        build_opts.append('--with-vulkan')
     if args.verbose:
         cmd_opts.append('--verbose')
 
@@ -287,6 +294,9 @@ def build_engine(channel, platform, args):
 
     if args.archive:
         cmd_args.append('archive_engine')
+    if args.sdk_artifacts_dir:
+        option = '--sdk-artifacts-dir=%s' % args.sdk_artifacts_dir
+        cmd_opts.append(subprocess.list2cmdline([option]) if sys.platform == 'win32' else shlex.quote(option))
 
     if args.codesign:
         cmd_opts.append('--codesign')
@@ -301,10 +311,10 @@ def build_engine(channel, platform, args):
     if args.codesign and args.gcloud_service_key:
         cmd_opts.extend(create_gcloud_options(args.gcloud_service_key))
 
-    if args.with_valgrind:
-        build_opts.append('--with-valgrind')
     if args.with_asan:
         build_opts.append('--with-asan')
+    if args.with_msan:
+        build_opts.append('--with-msan')
     if args.with_ubsan:
         build_opts.append('--with-ubsan')
     if args.with_tsan:
@@ -321,13 +331,23 @@ def build_engine(channel, platform, args):
     if build_opts:
         cmd += ' -- ' + ' '.join(build_opts)
 
+    if args.with_tsan and platform in ('x86_64-linux', 'arm64-linux'):
+        # Mesa's software renderer reports internal fence teardown races under TSAN.
+        # Render serially in Mesa; the engine's own threads remain instrumented.
+        cmd = 'LP_NUM_THREADS=0 ' + cmd
+
     call(cmd)
 
 def build_editor2(channel, platform, args):
     if not platform in PLATFORMS_DESKTOP:
         raise Exception("Unsupported platform for editor build: %s" % platform)
 
-    cmd_args = ('"%s" scripts/build.py %sinstall_ext build_editor2' % (sys.executable, '' if args.skip_distclean else 'distclean ')).split()
+    cmd_args = ('"%s" scripts/build.py' % sys.executable).split()
+    if not args.skip_install_ext:
+        if not args.skip_distclean:
+            cmd_args.append('distclean')
+        cmd_args.append('install_ext')
+    cmd_args.append('build_editor2')
     cmd_opts = []
     cmd_opts.append('--channel=%s' % channel)
     cmd_opts.append('--platform=%s' % platform)
@@ -354,7 +374,12 @@ def test_editor(channel, platform, args):
     if not platform in PLATFORMS_DESKTOP:
         raise Exception("Unsupported platform for editor tests: %s" % platform)
 
-    cmd_args = ('"%s" scripts/build.py %sinstall_ext test_editor2' % (sys.executable, '' if args.skip_distclean else 'distclean ')).split()
+    cmd_args = ('"%s" scripts/build.py' % sys.executable).split()
+    if not args.skip_install_ext:
+        if not args.skip_distclean:
+            cmd_args.append('distclean')
+        cmd_args.append('install_ext')
+    cmd_args.append('test_editor2')
     cmd_opts = []
     cmd_opts.append('--channel=%s' % channel)
     cmd_opts.append('--platform=%s' % platform)
@@ -402,11 +427,11 @@ def install_ext(platform = None):
 
 
 def build_bob(channel, branch, args):
-    # sync_archive downloads the engine binaries this sha1 archived to S3 and archive_bob
-    # uploads the resulting jar. With --skip-archive neither runs and build_bob falls back
+    # sync_archive downloads public engine binaries through CloudFront and archive_bob
+    # uploads the resulting jar to S3. With --skip-archive neither runs and build_bob falls back
     # to the artifacts already in $DYNAMO_HOME, which is how a build without S3 credentials
     # (an external contribution, or a local build) gets a bob.jar.
-    build_cmds = ['install_ext']
+    build_cmds = [] if args.skip_install_ext else ['install_ext']
     if not args.skip_archive:
         build_cmds.append('sync_archive')
     build_cmds.append('build_bob')
@@ -422,8 +447,9 @@ def build_bob(channel, branch, args):
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
-def test_bob(channel):
-    call('"%s" scripts/build.py install_ext --channel=%s' % (sys.executable, channel))
+def test_bob(channel, args):
+    if not args.skip_install_ext:
+        call('"%s" scripts/build.py install_ext --channel=%s' % (sys.executable, channel))
     call('"%s" scripts/build.py test_bob --channel=%s' % (sys.executable, channel))
 
 
@@ -491,20 +517,25 @@ def gen_release_notes(channel):
     elif not notes_json_exists:
         print("::warning::No release notes generated for %s on '%s' - shipping without them" % (version, channel))
 
-def build_sdk(channel, platforms=None):
+def build_sdk(channel, platforms=None, sdk_artifacts_dir=None):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
     cmd_opts = []
     cmd_opts.append("--channel=%s" % channel)
     if platforms:
         platforms = ','.join(platform.strip() for platform in platforms.split(','))
         cmd_opts.append("--platforms=%s" % platforms)
+    if sdk_artifacts_dir:
+        option = '--sdk-artifacts-dir=%s' % sdk_artifacts_dir
+        cmd_opts.append(subprocess.list2cmdline([option]) if sys.platform == 'win32' else shlex.quote(option))
 
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
 
-def smoke_test():
-    call('"%s" scripts/build.py distclean install_ext smoke_test' % sys.executable)
+def smoke_test(args):
+    commands = [] if args.skip_install_ext else ['distclean', 'install_ext']
+    commands.append('smoke_test')
+    call('"%s" scripts/build.py %s' % (sys.executable, ' '.join(commands)))
 
 
 
@@ -550,13 +581,14 @@ def get_pull_request_target_branch():
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform, should-build-private-platform)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (prepare-ext, build-ext, clean-engine, engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform, should-build-private-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--platforms", dest="platforms", help="Comma-separated platforms to include in the combined SDK")
+    parser.add_argument("--sdk-artifacts-dir", dest="sdk_artifacts_dir", help="Stage platform SDKs here with engine; read them here with sdk")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
+    parser.add_argument("--with-msan", dest="with_msan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
     parser.add_argument("--with-tsan", dest="with_tsan", action='store_true', help="")
-    parser.add_argument("--with-valgrind", dest="with_valgrind", action='store_true', help="")
     parser.add_argument("--with-vanilla-lua", dest="with_vanilla_lua", action='store_true', help="")
     parser.add_argument("--archive", dest="archive", action='store_true', help="Archive engine artifacts to S3")
     parser.add_argument("--skip-archive", dest="skip_archive", action='store_true', help="Build bob without reading from or writing to the S3 archive")
@@ -569,7 +601,7 @@ def main(argv):
     parser.add_argument("--verbose", dest="verbose", action='store_true', help="Enable verbose build output")
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", default="archived", help="Engine artifacts to include when building the editor")
     parser.add_argument("--channel", dest="channel", help="Override the release channel derived from the branch")
-    parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Skip install_ext before archive-editor")
+    parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Use prepared external dependencies without reinstalling them or cleaning DYNAMO_HOME")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
     parser.add_argument("--gcloud-service-key", dest="gcloud_service_key", help="String containing Google Cloud service account key")
@@ -629,7 +661,17 @@ def main(argv):
 
     # execute commands
     for command in args.commands:
-        if command == "engine":
+        if command == "prepare-ext":
+            if not platform:
+                raise Exception("No --platform specified.")
+            prepare_ext(platform)
+        elif command == "build-ext":
+            if not platform:
+                raise Exception("No --platform specified.")
+            call('"%s" ci/ext_cache.py build --platform=%s' % (sys.executable, platform))
+        elif command == "clean-engine":
+            call('"%s" scripts/build.py clean' % sys.executable)
+        elif command == "engine":
             if not platform:
                 raise Exception("No --platform specified.")
             build_engine(channel, platform, args)
@@ -648,11 +690,11 @@ def main(argv):
         elif command == "bob":
             build_bob(channel, branch, args)
         elif command == "test-bob":
-            test_bob(channel)
+            test_bob(channel, args)
         elif command == "sdk":
-            build_sdk(channel, args.platforms or platform)
+            build_sdk(channel, args.platforms or platform, args.sdk_artifacts_dir)
         elif command == "smoke":
-            smoke_test()
+            smoke_test(args)
         elif command == "install":
             install(args)
         elif command == "install_ext":

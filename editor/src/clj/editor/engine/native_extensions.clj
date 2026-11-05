@@ -29,7 +29,8 @@
             [editor.yaml :as yaml]
             [util.coll :as coll])
   (:import [com.defold.extender.client ExtenderClient ExtenderClientCache ExtenderResource]
-           [com.dynamo.bob Platform]
+           [com.dynamo.bob IProgress IProgress$Message$BuildingEngine Platform]
+           [com.dynamo.bob.bundle BundleHelper]
            [java.io File]
            [java.net URI]
            [java.nio.charset StandardCharsets]
@@ -60,7 +61,7 @@
    (.getPair Platform/Arm64Android) {:platform      "arm64-android"
                                      :library-paths #{"android" "arm64-android"}}
    (.getPair Platform/X86_64Android) {:platform     "x86_64-android"
-                                     :library-paths #{"android" "x86_64-android"}}
+                                      :library-paths #{"android" "x86_64-android"}}
    (.getPair Platform/WasmWeb)      {:platform      "wasm-web"
                                      :library-paths #{"web" "wasm-web"}}
    (.getPair Platform/WasmPthreadWeb) {:platform      "wasm_pthread-web"
@@ -232,16 +233,16 @@
     platform))
 
 (defn- get-main-manifest-section-and-key [platform]
-   (case platform
-     "armv7-android"    ["android" "manifest"]
-     "arm64-android"    ["android" "manifest"]
-     "x86_64-android"   ["android" "manifest"]
-     "arm64-ios"        ["ios" "infoplist"]
-     "arm64_sim-ios"    ["ios" "infoplist"]
-     "arm64-osx"        ["osx" "infoplist"]
-     "x86_64-osx"       ["osx" "infoplist"]
-     "wasm-web"         ["html5" "htmlfile"]
-     "wasm_pthread-web" ["html5" "htmlfile"]))
+  (case platform
+    "armv7-android"    ["android" "manifest"]
+    "arm64-android"    ["android" "manifest"]
+    "x86_64-android"   ["android" "manifest"]
+    "arm64-ios"        ["ios" "infoplist"]
+    "arm64_sim-ios"    ["ios" "infoplist"]
+    "arm64-osx"        ["osx" "infoplist"]
+    "x86_64-osx"       ["osx" "infoplist"]
+    "wasm-web"         ["html5" "htmlfile"]
+    "wasm_pthread-web" ["html5" "htmlfile"]))
 
 (defn- get-main-manifest-name [ne-platform]
   (case ne-platform
@@ -298,7 +299,8 @@
              (extension-resource-nodes-by-upload-path project evaluation-context platform)
              (get-main-manifest-file-upload-resource project evaluation-context platform)))))
 
-(defn get-engine-archive [project platform prefs evaluation-context]
+(defn get-engine-archive
+  [project platform prefs evaluation-context ^IProgress progress]
   (if-not (supported-platform? platform)
     (throw (engine-build-errors/unsupported-platform-error platform))
     (let [basis (:basis evaluation-context)
@@ -330,7 +332,9 @@
               (.setHeader extender-client "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes auth StandardCharsets/UTF_8)))))
             (when (pos? (count headers))
               (.setHeaders extender-client headers))
-            (.build extender-client extender-platform sdk-version extender-resources destination-file log-file)
+            (.message progress IProgress$Message$BuildingEngine/INSTANCE)
+            (.build extender-client extender-platform sdk-version extender-resources destination-file log-file
+                    (BundleHelper/createProgressListener progress extender-platform extender-resources))
             {:id {:type :custom :version cache-key}
              :engine-archive destination-file
              :extender-platform extender-platform}

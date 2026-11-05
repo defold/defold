@@ -209,8 +209,8 @@
                     :command :file.save}]}])
 
     (handler/defhandler :file.open :global
-        (enabled? [selection] true)
-        (run [selection] 123))
+      (enabled? [selection] true)
+      (run [selection] 123))
 
     (handler/defhandler :file.save :global
       (enabled? [selection] true)
@@ -219,11 +219,11 @@
     (let [root (Pane.)
           scene (ui/run-now (Scene. root))
           command-context {:name :global :env {:selection []}}]
-     (let [menu-items (make-menu-items scene ::my-menu command-context)]
-       (is (= 1 (count menu-items)))
-       (is (instance? Menu (first menu-items)))
-       (is (= 2 (count (.getItems (first menu-items)))))
-       (is (instance? MenuItem (first (.getItems (first menu-items)))))))))
+      (let [menu-items (make-menu-items scene ::my-menu command-context)]
+        (is (= 1 (count menu-items)))
+        (is (instance? Menu (first menu-items)))
+        (is (= 2 (count (.getItems (first menu-items)))))
+        (is (instance? MenuItem (first (.getItems (first menu-items)))))))))
 
 (deftest options-menu-test
   (test-support/with-clean-system

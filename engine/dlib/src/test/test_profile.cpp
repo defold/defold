@@ -18,11 +18,11 @@
 #include <jc_test/jc_test.h>
 #include "dlib/dstrings.h"
 #include "dlib/hash.h"
+#include "dlib/log.h"
 #include "dlib/mutex.h"
 #include "dlib/profile/profile.h"
 #include "dlib/profile/profile_private.h"
 #include "dlib/thread.h"
-#include "dlib/time.h"
 
 #include "test_profiler_dummy.h"
 
@@ -35,10 +35,160 @@ TEST(dmProfile, SmallTest)
     ProfileFinalize();
 }
 
+static void* FailToCreateProfiler()
+{
+    return 0;
+}
+
+// Verifies that registering a failed profiler twice preserves the listener list,
+// guarding against the sys.reboot() hang after Remotery startup fails (#13602).
+TEST(dmProfile, RegisterFailedProfilerTwice)
+{
+    ProfileInitialize();
+    DummyProfilerRegister();
+
+    ProfileListener listener = {};
+    listener.m_Create = FailToCreateProfiler;
+
+    // Registration logs can traverse the list before we detect a cycle.
+    LogSeverity log_level = dmLogGetLevel();
+    dmLogSetLevel(LOG_SEVERITY_WARNING);
+
+    ProfileRegisterProfiler("ProfilerRemotery", &listener);
+    bool disabled = listener.m_Disabled;
+    ProfileListener* next_before = listener.m_Next;
+
+    // Reboot retries registration when Remotery did not initialize successfully.
+    ProfileRegisterProfiler("ProfilerRemotery", &listener);
+    ProfileListener* next_after = listener.m_Next;
+
+    // Restore the link before cleanup so a regression fails instead of hanging.
+    listener.m_Next = next_before;
+    ProfileFinalize();
+    // Use the stored name to keep cleanup independent of name truncation.
+    ProfileUnregisterProfiler(listener.m_Name);
+    DummyProfilerUnregister();
+    dmLogSetLevel(log_level);
+
+    ASSERT_TRUE(disabled);
+    ASSERT_NE((ProfileListener*)0, next_before);
+    ASSERT_EQ(next_before, next_after);
+}
+
+static uint32_t g_ThreadNameCallCount = 0;
+
+static void* CreateThreadNameProfiler()
+{
+    return &g_ThreadNameCallCount;
+}
+
+static ProfileResult CountThreadNames(void* ctx, const char*)
+{
+    ++*(uint32_t*)ctx;
+    return PROFILE_RESULT_OK;
+}
+
+// Verifies that unregistering an unknown name preserves other listeners,
+// guarding against the registry being cleared on a failed name lookup (#13602).
+TEST(dmProfile, UnregisterUnknownProfilerKeepsListeners)
+{
+    ProfileListener first = {};
+    first.m_Create = CreateThreadNameProfiler;
+    first.m_SetThreadName = CountThreadNames;
+    ProfileListener second = first;
+
+    g_ThreadNameCallCount = 0;
+    ProfileInitialize();
+    ProfileRegisterProfiler("FirstProfiler", &first);
+    ProfileRegisterProfiler("SecondProfiler", &second);
+    ProfileSetThreadName("BeforeUnregister");
+    uint32_t calls_before = g_ThreadNameCallCount;
+
+    ProfileUnregisterProfiler("MissingProfiler");
+    ProfileSetThreadName("AfterMissingProfiler");
+    uint32_t calls_after_missing = g_ThreadNameCallCount;
+
+    ProfileUnregisterProfiler("FirstProfiler");
+    ProfileSetThreadName("AfterFirstProfiler");
+    uint32_t calls_after_first = g_ThreadNameCallCount;
+
+    ProfileFinalize();
+    ProfileUnregisterProfiler("SecondProfiler");
+
+    ASSERT_EQ(2U, calls_before);
+    ASSERT_EQ(4U, calls_after_missing);
+    ASSERT_EQ(5U, calls_after_first);
+}
+
+// Verifies that a truncated profiler name can be unregistered using its original
+// name without retaining the listener or removing other registered listeners.
+TEST(dmProfile, UnregisterLongProfilerNameKeepsListeners)
+{
+    const char* name = "ProfilerRemotery";
+    ProfileListener listener = {};
+    listener.m_Create = CreateThreadNameProfiler;
+    listener.m_SetThreadName = CountThreadNames;
+    ProfileListener other = listener;
+
+    g_ThreadNameCallCount = 0;
+    ProfileInitialize();
+    ProfileRegisterProfiler("OtherProfiler", &other);
+    ProfileRegisterProfiler(name, &listener);
+    ProfileSetThreadName("BeforeUnregister");
+    uint32_t calls_before = g_ThreadNameCallCount;
+
+    ProfileUnregisterProfiler(name);
+    ProfileSetThreadName("AfterLongProfiler");
+    uint32_t calls_after = g_ThreadNameCallCount;
+
+    ProfileUnregisterProfiler(name);
+    ProfileSetThreadName("AfterMissingProfiler");
+    uint32_t calls_after_missing = g_ThreadNameCallCount;
+
+    ProfileFinalize();
+    // Ensure cleanup also succeeds if the original-name lookup regresses.
+    ProfileUnregisterProfiler(listener.m_Name);
+    ProfileUnregisterProfiler("OtherProfiler");
+
+    ASSERT_EQ(2U, calls_before);
+    ASSERT_EQ(3U, calls_after);
+    ASSERT_EQ(4U, calls_after_missing);
+}
+
+// Verifies that duplicate long names and names with the same stored prefix are
+// rejected, preventing ambiguous listener lookup after name truncation.
+TEST(dmProfile, RegisterDuplicateLongProfilerName)
+{
+    ProfileListener first = {};
+    first.m_Create = CreateThreadNameProfiler;
+    first.m_SetThreadName = CountThreadNames;
+    ProfileListener duplicate = first;
+    ProfileListener same_prefix = first;
+
+    g_ThreadNameCallCount = 0;
+    ProfileInitialize();
+    ProfileRegisterProfiler("ProfilerRemotery", &first);
+    ProfileRegisterProfiler("ProfilerRemotery", &duplicate);
+    ProfileRegisterProfiler("ProfilerRemoteryExtra", &same_prefix);
+    ProfileSetThreadName("BeforeUnregister");
+    uint32_t calls_before = g_ThreadNameCallCount;
+
+    ProfileUnregisterProfiler("ProfilerRemotery");
+    ProfileSetThreadName("AfterUnregister");
+    uint32_t calls_after = g_ThreadNameCallCount;
+
+    ProfileFinalize();
+    // Remove any duplicates left behind if registration or lookup regresses.
+    ProfileUnregisterProfiler(first.m_Name);
+    ProfileUnregisterProfiler(duplicate.m_Name);
+    ProfileUnregisterProfiler(same_prefix.m_Name);
+
+    ASSERT_EQ(1U, calls_before);
+    ASSERT_EQ(1U, calls_after);
+}
+
 TEST(dmProfile, Profile)
 {
-    const double tolerance_per_wait = 0.060; // 60 ms per busy wait, including waits in child scopes.
-
     DummyProfilerRegister();
     ProfileInitialize();
 
@@ -50,40 +200,38 @@ TEST(dmProfile, Profile)
             HProfile profile = ProfileFrameBegin();
             {
                 DM_PROFILE("a");
-                dmTime::BusyWait(100000);
+                ctx->m_Time += 100000;
                 {
                     {
                         DM_PROFILE("a_b1");
-                        dmTime::BusyWait(50000);
+                        ctx->m_Time += 50000;
                         {
                             DM_PROFILE("a_b1_c")
-                            dmTime::BusyWait(40000);
+                            ctx->m_Time += 40000;
                         }
                     }
                     {
                         DM_PROFILE("b2");
-                        dmTime::BusyWait(50000);
+                        ctx->m_Time += 50000;
                         {
                             DM_PROFILE("a_b2_c1");
-                            dmTime::BusyWait(40000);
+                            ctx->m_Time += 40000;
                         }
                         {
                             DM_PROFILE("a_b2_c2");
-                            dmTime::BusyWait(60000);
+                            ctx->m_Time += 60000;
                         }
                     }
                 }
             }
             {
                 DM_PROFILE("a_d");
-                dmTime::BusyWait(80000);
+                ctx->m_Time += 80000;
             }
 
 
             {
                 //DM_MUTEX_SCOPED_LOCK(ctx.m_Mutex);
-
-                double ticks_per_sec = 1000000.0;
 
                 ASSERT_EQ(8U, (uint32_t)ctx->m_NumSamples);
 
@@ -97,17 +245,17 @@ TEST(dmProfile, Profile)
                 ASSERT_STREQ("a_d", dmHashReverseSafe64(ctx->m_Samples[index++].m_NameHash));
 
                 index = 1;
-                ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, 6 * tolerance_per_wait);
-                ASSERT_NEAR((50000 + 40000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, 2 * tolerance_per_wait);
-                ASSERT_NEAR((40000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, tolerance_per_wait);
-                ASSERT_NEAR((50000 + 40000 + 60000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, 3 * tolerance_per_wait);
-                ASSERT_NEAR((40000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, tolerance_per_wait);
-                ASSERT_NEAR((60000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, tolerance_per_wait);
-                ASSERT_NEAR((80000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, tolerance_per_wait);
+                ASSERT_EQ((uint64_t)(100000 + 50000 + 40000 + 50000 + 40000 + 60000), ctx->m_Samples[index++].m_Length);
+                ASSERT_EQ((uint64_t)(50000 + 40000), ctx->m_Samples[index++].m_Length);
+                ASSERT_EQ((uint64_t)40000, ctx->m_Samples[index++].m_Length);
+                ASSERT_EQ((uint64_t)(50000 + 40000 + 60000), ctx->m_Samples[index++].m_Length);
+                ASSERT_EQ((uint64_t)40000, ctx->m_Samples[index++].m_Length);
+                ASSERT_EQ((uint64_t)60000, ctx->m_Samples[index++].m_Length);
+                ASSERT_EQ((uint64_t)80000, ctx->m_Samples[index++].m_Length);
             }
 
             ProfileFrameEnd(profile);
-            dmTime::BusyWait(80000);
+            ctx->m_Time += 80000;
         }
 
     }

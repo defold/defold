@@ -1,0 +1,1256 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+#include "debugger_private.h"
+#include <dlib/dstrings.h>
+#include <dlib/time.h>
+#include <limits.h>
+#include <stdlib.h>
+#include <string.h>
+
+namespace dmDebugger
+{
+    int StackDepth(lua_State* L)
+    {
+        lua_Debug ar;
+        if (!lua_getstack(L, 0, &ar))
+            return 0;
+        // Each lua_getstack walks from the current frame, so probing every
+        // level makes a depth lookup quadratic. Find the first missing level
+        // with exponential bounds and binary search instead. Measure the real
+        // stack: Lua/LuaJIT return hooks are unbalanced after errors/tail calls,
+        // and Lua 5.1's synthetic tail-call frames must still count here.
+        int lower = 0;
+        int upper = 1;
+        while (upper < INT_MAX && lua_getstack(L, upper, &ar))
+        {
+            lower = upper;
+            upper = upper <= INT_MAX / 2 ? upper * 2 : INT_MAX;
+        }
+        while (upper - lower > 1)
+        {
+            int middle = lower + (upper - lower) / 2;
+            if (lua_getstack(L, middle, &ar))
+                lower = middle;
+            else
+                upper = middle;
+        }
+        return upper;
+    }
+
+    void ClearReferences(Debugger* d)
+    {
+        for (uint32_t i = 0; i < d->m_References.Size(); ++i)
+        {
+            Reference& r = d->m_References[i];
+            if (r.m_LuaRef != LUA_NOREF)
+                luaL_unref(r.m_L, LUA_REGISTRYINDEX, r.m_LuaRef);
+            free(r.m_EvaluateName);
+        }
+        d->m_References.SetSize(0);
+        for (uint32_t i = 0; i < d->m_Frames.Size(); ++i)
+        {
+            luaL_unref(d->m_Frames[i].m_L, LUA_REGISTRYINDEX, d->m_Frames[i].m_FunctionRef);
+            luaL_unref(d->m_Frames[i].m_L, LUA_REGISTRYINDEX, d->m_Frames[i].m_ThreadRef);
+        }
+        d->m_Frames.SetSize(0);
+    }
+
+    static bool MatchesFunction(lua_State* L, int level, int function_ref, int* line = 0)
+    {
+        lua_Debug ar;
+        if (!lua_getstack(L, level, &ar))
+            return false;
+        lua_getinfo(L, "fl", &ar);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
+        bool same = lua_rawequal(L, -1, -2) != 0;
+        lua_pop(L, 2);
+        if (line)
+            *line = ar.currentline;
+        return same;
+    }
+
+    static int CompareFrames(const void* a, const void* b)
+    {
+        const Frame* left = (const Frame*)a;
+        const Frame* right = (const Frame*)b;
+        if (left->m_ThreadId != right->m_ThreadId)
+            return left->m_ThreadId < right->m_ThreadId ? -1 : 1;
+        return (left->m_Level > right->m_Level) - (left->m_Level < right->m_Level);
+    }
+
+    static void RefreshFrames(Debugger* d)
+    {
+        // Evaluation can resume a suspended coroutine, replacing or removing
+        // its frames without a DAP continue. Keep expired frames pinned until
+        // resume so their variable references never contain a dangling state.
+        for (uint32_t i = 0; i < d->m_Frames.Size(); ++i)
+        {
+            Frame& frame = d->m_Frames[i];
+            int line = 0;
+            if (frame.m_Valid)
+            {
+                Thread* thread = FindThread(d, frame.m_ThreadId, true);
+                frame.m_Valid = thread && frame.m_ExecutionVersion == thread->m_ExecutionVersion &&
+                                MatchesFunction(frame.m_L, frame.m_Level, frame.m_FunctionRef, &line) && line == frame.m_Line;
+            }
+        }
+        for (uint32_t i = 0; i < d->m_Threads.Size(); ++i)
+        {
+            Thread*    thread = d->m_Threads[i];
+            lua_State* L = GetThread(thread);
+            if (!L)
+                continue;
+            lua_Debug ar;
+            int level = 0;
+            for (; lua_getstack(L, level, &ar); ++level)
+            {
+                lua_getinfo(L, "Sl", &ar);
+                // C callbacks and Lua 5.1's eliminated tail-call placeholders
+                // have no inspectable Lua function or environment.
+                if (!dmStrEq(ar.what, "Lua") && !dmStrEq(ar.what, "main"))
+                    continue;
+                bool captured = false;
+                for (uint32_t j = 0; j < d->m_Frames.Size(); ++j)
+                    if (d->m_Frames[j].m_Valid && d->m_Frames[j].m_L == L && d->m_Frames[j].m_Level == level)
+                    {
+                        captured = true;
+                        break;
+                    }
+                if (captured)
+                    continue;
+                lua_getinfo(L, "f", &ar);
+                int function_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+                lua_pushthread(L);
+                Frame frame = { d->m_NextId++, L, level, thread->m_Id, luaL_ref(L, LUA_REGISTRYINDEX), function_ref,
+                                ar.currentline, thread->m_ExecutionVersion, true };
+                Push(d->m_Frames, frame);
+            }
+            thread->m_EvaluationDepth = level;
+        }
+        if (d->m_Frames.Size() > 1)
+            qsort(d->m_Frames.Begin(), d->m_Frames.Size(), sizeof(Frame), CompareFrames);
+    }
+
+    void CaptureFrames(Debugger* d)
+    {
+        ClearReferences(d);
+        RefreshFrames(d);
+    }
+
+    static Frame* FindFrame(Debugger* d, int id)
+    {
+        if (id <= 0)
+            return 0;
+        for (uint32_t i = 0; i < d->m_Frames.Size(); ++i)
+            if (d->m_Frames[i].m_Id == (uint32_t)id && d->m_Frames[i].m_Valid)
+                return &d->m_Frames[i];
+        return 0;
+    }
+
+    static uint32_t AddReference(Debugger* d, lua_State* L, ReferenceKind kind, int level, int index = 0, const char* evaluate_name = 0, int result_count = 0)
+    {
+        bool     value = kind == REFERENCE_VALUE || kind == REFERENCE_RESULTS;
+        uint32_t frame_id = 0;
+        for (uint32_t i = 0; level >= 0 && i < d->m_Frames.Size(); ++i)
+            if (d->m_Frames[i].m_Valid && d->m_Frames[i].m_L == L && d->m_Frames[i].m_Level == level)
+            {
+                frame_id = d->m_Frames[i].m_Id;
+                break;
+            }
+        for (uint32_t i = 0; i < d->m_References.Size(); ++i)
+        {
+            Reference& r = d->m_References[i];
+            if (r.m_L != L || r.m_Kind != kind || r.m_Level != level || r.m_FrameId != frame_id)
+                continue;
+            if (!value)
+                return r.m_Id;
+            const void* pointer = lua_topointer(L, index);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, r.m_LuaRef);
+            bool same = lua_topointer(L, -1) == pointer;
+            lua_pop(L, 1);
+            if (same)
+            {
+                if (!r.m_EvaluateName && evaluate_name)
+                    r.m_EvaluateName = strdup(evaluate_name);
+                return r.m_Id;
+            }
+        }
+        Reference r = { d->m_NextId++, L, level, LUA_NOREF, kind, evaluate_name ? strdup(evaluate_name) : 0, frame_id, result_count };
+        if (value)
+        {
+            lua_pushvalue(L, index);
+            r.m_LuaRef = luaL_ref(L, LUA_REGISTRYINDEX);
+        }
+        Push(d->m_References, r);
+        return r.m_Id;
+    }
+
+    void QuoteLuaString(const char* text, uint32_t size, Buffer& value)
+    {
+        value.Add("\"");
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            unsigned char c = (unsigned char)text[i];
+            if (c == '\\' || c == '"')
+            {
+                value.Add("\\");
+                value.Add(text + i, 1);
+            }
+            else if (c == '\n')
+                value.Add("\\n");
+            else if (c == '\r')
+                value.Add("\\r");
+            else if (c == '\t')
+                value.Add("\\t");
+            else
+            {
+                uint32_t bytes = c >= 32 && c != 127 ? Utf8Bytes(text + i, size - i) : 0;
+                if (bytes)
+                {
+                    value.Add(text + i, bytes);
+                    i += bytes - 1;
+                }
+                else
+                    // Three digits keep an adjacent digit out of the byte escape.
+                    value.Format("\\%03u", (unsigned)c);
+            }
+        }
+        value.Add("\"");
+    }
+
+    void FormatValue(Debugger* d, lua_State* L, int index, Buffer& value)
+    {
+        switch (lua_type(L, index))
+        {
+            case LUA_TNIL:
+                value.Add("nil");
+                break;
+            case LUA_TBOOLEAN:
+                value.Add(lua_toboolean(L, index) ? "true" : "false");
+                break;
+            case LUA_TNUMBER:
+                value.Format("%.17g", (double)lua_tonumber(L, index));
+                break;
+            case LUA_TSTRING:
+            {
+                size_t      length = 0;
+                const char* text = lua_tolstring(L, index, &length);
+                QuoteLuaString(text, (uint32_t)length, value);
+                break;
+            }
+            case LUA_TUSERDATA:
+                if (d->m_UserdataFormatter)
+                {
+                    char text[1024];
+                    if (d->m_UserdataFormatter(L, index, text, sizeof(text)))
+                    {
+                        value.Add(text);
+                        break;
+                    }
+                }
+                // Unknown userdata retains its identity without calling __tostring.
+            default:
+                value.Format("%s: %p", lua_typename(L, lua_type(L, index)), lua_topointer(L, index));
+                break;
+        }
+    }
+
+    static bool ExpressionMatches(Debugger* d, lua_State* L, int level, int index, const char* expression)
+    {
+        if (!expression || !expression[0])
+            return false;
+        if (index < 0)
+            index = lua_gettop(L) + index + 1;
+        bool matches = Inspect(d, L, level, expression) && lua_rawequal(L, index, -1);
+        lua_pop(L, 1);
+        return matches;
+    }
+
+    static void ValueBody(Debugger* d, lua_State* L, int level, int index, Buffer& body, const char* value_key, const char* evaluate_name = 0, bool variable = false)
+    {
+        if (index < 0)
+            index = lua_gettop(L) + index + 1;
+        Buffer value;
+        FormatValue(d, L, index, value);
+        body.String(value_key);
+        body.Add(":");
+        body.String(value.Data(), value.Size());
+        if (d->m_VariableType)
+        {
+            body.Add(",\"type\":");
+            body.String(lua_typename(L, lua_type(L, index)));
+        }
+        if (!ExpressionMatches(d, L, level, index, evaluate_name))
+            evaluate_name = 0;
+        if (variable && evaluate_name)
+        {
+            body.Add(",\"evaluateName\":");
+            body.String(evaluate_name);
+        }
+        bool     expandable = PushValueTable(d, L, index);
+        uint32_t reference = expandable ? AddReference(d, L, REFERENCE_VALUE, level, index, evaluate_name) : 0;
+        body.Format(",\"variablesReference\":%u", reference);
+        if (reference && d->m_VariablePaging)
+        {
+            int table = lua_gettop(L);
+            int named = 0, indexed = 0;
+            lua_pushnil(L);
+            while (lua_next(L, table))
+            {
+                if (lua_type(L, -2) == LUA_TNUMBER)
+                    ++indexed;
+                else
+                    ++named;
+                lua_pop(L, 1);
+            }
+            body.Format(",\"namedVariables\":%d,\"indexedVariables\":%d", named, indexed);
+        }
+        if (expandable)
+            lua_pop(L, 1);
+    }
+
+    static void ResultsBody(Debugger* d, lua_State* L, int level, int result_count, Buffer& body)
+    {
+        int    table = lua_gettop(L);
+        Buffer value;
+        for (int i = 1; i <= result_count; ++i)
+        {
+            if (i > 1)
+                value.Add(", ");
+            lua_rawgeti(L, table, i);
+            FormatValue(d, L, -1, value);
+            lua_pop(L, 1);
+        }
+        body.Add("\"result\":");
+        body.String(value.Data(), value.Size());
+        if (d->m_VariableType)
+            body.Add(",\"type\":\"tuple\"");
+        body.Format(",\"variablesReference\":%u,\"defoldResultCount\":%d", AddReference(d, L, REFERENCE_RESULTS, level, table, 0, result_count), result_count);
+        body.Add(",\"presentationHint\":{\"kind\":\"virtual\",\"attributes\":[\"readOnly\"]}");
+        if (d->m_VariablePaging)
+            body.Format(",\"namedVariables\":0,\"indexedVariables\":%d", result_count);
+    }
+
+    struct Evaluation
+    {
+        lua_State* m_L;
+        Thread*    m_Thread;
+        uint64_t   m_ExecutionVersion;
+        int        m_FunctionRef;
+        int        m_EnvironmentRef;
+        int        m_Depth;
+        bool       m_Active;
+        bool       m_Global;
+    };
+
+    // Search backwards so inner locals shadow outer locals, even when nil.
+    int LocalIndex(lua_State* L, lua_Debug* ar, const char* name)
+    {
+        int result = 0;
+        for (int i = 1;; ++i)
+        {
+            const char* local = lua_getlocal(L, ar, i);
+            if (!local)
+                break;
+            if (local[0] != '(' && dmStrEq(local, name))
+                result = i;
+            lua_pop(L, 1);
+        }
+        return result;
+    }
+
+    int UpvalueIndex(lua_State* L, int function, const char* name)
+    {
+        for (int i = 1;; ++i)
+        {
+            const char* upvalue = lua_getupvalue(L, function, i);
+            if (!upvalue)
+                break;
+            bool found = dmStrEq(upvalue, name);
+            lua_pop(L, 1);
+            if (found)
+                return i;
+        }
+        return 0;
+    }
+
+    void PushEnvironment(lua_State* L, int level)
+    {
+        lua_Debug ar;
+        if (level >= 0 && lua_getstack(L, level, &ar))
+        {
+            lua_getinfo(L, "f", &ar);
+            lua_getfenv(L, -1);
+            lua_remove(L, -2);
+        }
+        else
+            lua_pushvalue(L, LUA_GLOBALSINDEX);
+    }
+
+    static bool EvaluationFrame(Evaluation* e, lua_Debug* frame)
+    {
+        if (e->m_ExecutionVersion != e->m_Thread->m_ExecutionVersion)
+            return false;
+        int level = StackDepth(e->m_L) - e->m_Depth;
+        // Evaluation can resume this coroutine between binding accesses. A
+        // function at the same depth may have replaced the selected frame.
+        return MatchesFunction(e->m_L, level, e->m_FunctionRef) && lua_getstack(e->m_L, level, frame);
+    }
+
+    static int EvaluationIndex(lua_State* L)
+    {
+        Evaluation* e = (Evaluation*)lua_touserdata(L, lua_upvalueindex(1));
+        if (!e->m_Active)
+            return luaL_error(L, "Evaluation frame is no longer active");
+        if (e->m_Global)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, e->m_EnvironmentRef);
+            lua_pushvalue(L, 2);
+            lua_gettable(L, -2);
+            return 1;
+        }
+        const char* name = lua_type(L, 2) == LUA_TSTRING ? lua_tostring(L, 2) : 0;
+        lua_Debug   frame;
+        if (!EvaluationFrame(e, &frame))
+            return luaL_error(L, "Evaluation frame is no longer active");
+        int local = name ? LocalIndex(e->m_L, &frame, name) : 0;
+        if (local)
+        {
+            lua_getlocal(e->m_L, &frame, local);
+            lua_xmove(e->m_L, L, 1);
+            return 1;
+        }
+        lua_rawgeti(L, LUA_REGISTRYINDEX, e->m_FunctionRef);
+        int upvalue = name ? UpvalueIndex(L, lua_gettop(L), name) : 0;
+        if (upvalue)
+        {
+            lua_getupvalue(L, -1, upvalue);
+            return 1;
+        }
+        lua_rawgeti(L, LUA_REGISTRYINDEX, e->m_EnvironmentRef);
+        lua_pushvalue(L, 2);
+        lua_gettable(L, -2);
+        return 1;
+    }
+
+    static int EvaluationNewIndex(lua_State* L)
+    {
+        Evaluation* e = (Evaluation*)lua_touserdata(L, lua_upvalueindex(1));
+        if (!e->m_Active)
+            return luaL_error(L, "Evaluation frame is no longer active");
+        if (e->m_Global)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, e->m_EnvironmentRef);
+            lua_pushvalue(L, 2);
+            lua_pushvalue(L, 3);
+            lua_settable(L, -3);
+            return 0;
+        }
+        const char* name = lua_type(L, 2) == LUA_TSTRING ? lua_tostring(L, 2) : 0;
+        lua_Debug   frame;
+        if (!EvaluationFrame(e, &frame))
+            return luaL_error(L, "Evaluation frame is no longer active");
+        int local = name ? LocalIndex(e->m_L, &frame, name) : 0;
+        if (local)
+        {
+            lua_pushvalue(L, 3);
+            lua_xmove(L, e->m_L, 1);
+            lua_setlocal(e->m_L, &frame, local);
+            return 0;
+        }
+        lua_rawgeti(L, LUA_REGISTRYINDEX, e->m_FunctionRef);
+        int upvalue = name ? UpvalueIndex(L, lua_gettop(L), name) : 0;
+        if (upvalue)
+        {
+            lua_pushvalue(L, 3);
+            lua_setupvalue(L, -2, upvalue);
+            return 0;
+        }
+        lua_rawgeti(L, LUA_REGISTRYINDEX, e->m_EnvironmentRef);
+        lua_pushvalue(L, 2);
+        lua_pushvalue(L, 3);
+        lua_settable(L, -3);
+        return 0;
+    }
+
+    static bool SnapshotContains(lua_State* L)
+    {
+        lua_pushvalue(L, 2);
+        lua_rawget(L, lua_upvalueindex(1));
+        bool contains = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
+        return contains;
+    }
+    static int SnapshotIndex(lua_State* L)
+    {
+        bool local = SnapshotContains(L);
+        lua_pushvalue(L, 2);
+        if (local)
+            lua_rawget(L, lua_upvalueindex(2));
+        else
+            lua_gettable(L, lua_upvalueindex(3));
+        return 1;
+    }
+    static int SnapshotNewIndex(lua_State* L)
+    {
+        bool local = SnapshotContains(L);
+        lua_pushvalue(L, 2);
+        lua_pushvalue(L, 3);
+        if (local)
+            lua_rawset(L, lua_upvalueindex(2));
+        else
+            lua_settable(L, lua_upvalueindex(3));
+        return 0;
+    }
+    static void SnapshotValue(lua_State* L, int names, int values, const char* name)
+    {
+        lua_setfield(L, values, name);
+        lua_pushboolean(L, true);
+        lua_setfield(L, names, name);
+    }
+
+    // Evaluated closures can escape to the program. Retain a snapshot of the
+    // visible bindings for them, rather than a pointer into a suspended frame.
+    static void SnapshotEnvironment(lua_State* L, Evaluation* e, int environment)
+    {
+        int top = lua_gettop(L);
+        lua_newtable(L);
+        int names = lua_gettop(L);
+        lua_newtable(L);
+        int values = lua_gettop(L);
+        if (!e->m_Global)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, e->m_FunctionRef);
+            int function = lua_gettop(L);
+            for (int i = 1;; ++i)
+            {
+                const char* name = lua_getupvalue(L, function, i);
+                if (!name)
+                    break;
+                SnapshotValue(L, names, values, name);
+            }
+            lua_Debug frame;
+            bool active = EvaluationFrame(e, &frame);
+            for (int i = 1; active; ++i)
+            {
+                const char* name = lua_getlocal(L, &frame, i);
+                if (!name)
+                    break;
+                if (name[0] != '(')
+                    SnapshotValue(L, names, values, name);
+                else
+                    lua_pop(L, 1);
+            }
+        }
+        lua_rawgeti(L, LUA_REGISTRYINDEX, environment);
+        lua_newtable(L);
+        lua_CFunction functions[] = { SnapshotIndex, SnapshotNewIndex };
+        const char*   fields[] = { "__index", "__newindex" };
+        for (int i = 0; i < 2; ++i)
+        {
+            lua_pushvalue(L, names);
+            lua_pushvalue(L, values);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, e->m_EnvironmentRef);
+            lua_pushcclosure(L, functions[i], 3);
+            lua_setfield(L, -2, fields[i]);
+        }
+        lua_setmetatable(L, -2);
+        lua_settop(L, top);
+    }
+
+    struct EvaluationCall
+    {
+        uint64_t m_Deadline;
+        int      m_Result;
+        int      m_ResultCount;
+        bool     m_AllResults;
+        bool     m_TimedOut;
+    };
+
+    static char g_EvaluationKey;
+
+    void CheckEvaluation(lua_State* L)
+    {
+        lua_pushlightuserdata(L, &g_EvaluationKey);
+        lua_rawget(L, LUA_REGISTRYINDEX);
+        EvaluationCall* call = (EvaluationCall*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        if (call && dmTime::GetTime() >= call->m_Deadline)
+        {
+            call->m_TimedOut = true;
+            // If application pcall catches this error, interrupt its caller's
+            // next instruction instead of spending another full interval in
+            // the same protected infinite loop.
+            lua_sethook(L, Hook, LUA_MASKCOUNT, 1);
+            luaL_error(L, "Debugger evaluation timed out");
+        }
+    }
+
+    static int EndHookSuppression(lua_State* L)
+    {
+        lua_pushnil(L);
+        return lua_error(L);
+    }
+
+    static int CallEvaluation(lua_State* L)
+    {
+        EvaluationCall* call = (EvaluationCall*)lua_touserdata(L, lua_upvalueindex(1));
+        lua_Hook old_hook = lua_gethook(L);
+        int old_mask = lua_gethookmask(L);
+        int old_count = lua_gethookcount(L);
+        // LuaJIT suppresses hooks across its entire VM while stopped in a hook.
+        // Unwinding a fresh coroutine clears that suppression. The enclosing
+        // lua_pcall saves the original hook state and restores it on our final
+        // lua_error, including when evaluation succeeds. No application frame
+        // is unwound by either operation. Lua 5.1 uses the fresh thread's hooks.
+        lua_State* probe = lua_newthread(L);
+        lua_pushcfunction(probe, EndHookSuppression);
+        lua_resume(probe, 0);
+        lua_pop(L, 1);
+        // Lua 5.1 children inherit this hook. Keep the normal event mask so
+        // coroutines created by evaluation can hit breakpoints after it ends.
+        lua_sethook(L, Hook, LUA_MASKLINE | LUA_MASKCALL | LUA_MASKRET | LUA_MASKCOUNT, 1000);
+        call->m_Result = lua_pcall(L, lua_gettop(L) - 1, call->m_AllResults ? LUA_MULTRET : 1, 0);
+        lua_sethook(L, old_hook, old_mask, old_count);
+        if (!call->m_Result && call->m_AllResults)
+        {
+            call->m_ResultCount = lua_gettop(L);
+            if (call->m_ResultCount > 1)
+            {
+                // Allocation can raise a Lua error before packing completes.
+                call->m_Result = LUA_ERRRUN;
+                // The hook-restoring lua_error below transports one value.
+                // Pack all returns first; keep the count outside the table
+                // because Lua tables do not retain nil slots.
+                if (lua_checkstack(L, 2))
+                {
+                    lua_createtable(L, call->m_ResultCount, 0);
+                    for (int i = 1; i <= call->m_ResultCount; ++i)
+                    {
+                        lua_pushvalue(L, i);
+                        lua_rawseti(L, -2, i);
+                    }
+                    lua_replace(L, 1);
+                    lua_settop(L, 1);
+                    call->m_Result = 0;
+                }
+                else
+                {
+                    lua_settop(L, 0);
+                    lua_pushliteral(L, "Too many results for evaluation");
+                }
+            }
+            else if (!call->m_ResultCount)
+                lua_pushnil(L);
+        }
+        if (dmTime::GetTime() >= call->m_Deadline)
+        {
+            lua_pop(L, 1);
+            lua_pushliteral(L, "Debugger evaluation timed out");
+            call->m_Result = LUA_ERRRUN;
+            call->m_TimedOut = true;
+        }
+        return lua_error(L);
+    }
+
+    bool Evaluate(Debugger* d, lua_State* L, int level, const char* expression, bool repl, const char* assignment, int* result_count)
+    {
+        if (result_count)
+            *result_count = 0;
+        lua_Debug frame;
+        if (level >= 0 && !lua_getstack(L, level, &frame))
+        {
+            lua_pushliteral(L, "Invalid frame");
+            return false;
+        }
+        // A separate thread permits instruction hooks while the original Lua
+        // frame is inside its stop hook, and preserves yielded VM stacks.
+        lua_State* evaluation_L = lua_newthread(L);
+        int        thread_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        Buffer source;
+        if (assignment)
+        {
+            // Check the target as an expression before placing it on the left
+            // of an assignment. Compilation does not execute the target.
+            source.Add("return ");
+            source.Add(assignment);
+            if (luaL_loadbuffer(evaluation_L, source.Data(), source.Size(), "=(DAP assignment)"))
+            {
+                lua_xmove(evaluation_L, L, 1);
+                luaL_unref(L, LUA_REGISTRYINDEX, thread_ref);
+                return false;
+            }
+            lua_pop(evaluation_L, 1);
+            source.Clear();
+            char temporary[40];
+            char capture[40];
+            int  suffix = 0;
+            do
+            {
+                dmSnPrintf(temporary, sizeof(temporary), "__dap_value_%d", suffix);
+                dmSnPrintf(capture, sizeof(capture), "__dap_capture_%d", suffix++);
+            } while (strstr(expression, temporary) || strstr(assignment, temporary) ||
+                     strstr(expression, capture) || strstr(assignment, capture));
+            // Keep the target and RHS in one assignment so Lua evaluates them
+            // in its normal order. Capture the result without reading the target
+            // again, which could call a function or an indexing metamethod twice.
+            source.Format("local %s\nlocal function %s(value) %s = value; return value end\n", temporary, capture, temporary);
+            source.Add(assignment);
+            source.Format(" = %s((", capture);
+            source.Add(expression);
+            source.Format("))\nreturn %s", temporary);
+        }
+        else
+        {
+            source.Add("return ");
+            source.Add(expression);
+        }
+        int result = luaL_loadbuffer(evaluation_L, source.Data(), source.Size(), "=(DAP evaluation)");
+        if (result && repl)
+        {
+            lua_pop(evaluation_L, 1);
+            result = luaL_loadbuffer(evaluation_L, expression, strlen(expression), "=(DAP evaluation)");
+        }
+        if (result)
+        {
+            lua_xmove(evaluation_L, L, 1);
+            luaL_unref(L, LUA_REGISTRYINDEX, thread_ref);
+            return false;
+        }
+
+        Evaluation* e = (Evaluation*)lua_newuserdata(evaluation_L, sizeof(Evaluation));
+        e->m_L = L;
+        e->m_Thread = TrackThread(d, L);
+        e->m_ExecutionVersion = e->m_Thread->m_ExecutionVersion;
+        e->m_Thread->m_EvaluationDepth = StackDepth(L);
+        e->m_Depth = level >= 0 ? e->m_Thread->m_EvaluationDepth - level : 0;
+        e->m_Active = true;
+        e->m_Global = level < 0;
+        int context = lua_gettop(evaluation_L);
+        PushEnvironment(L, level);
+        e->m_EnvironmentRef = luaL_ref(L, LUA_REGISTRYINDEX);
+        e->m_FunctionRef = LUA_NOREF;
+        if (level >= 0)
+        {
+            lua_getinfo(L, "f", &frame);
+            e->m_FunctionRef = luaL_ref(L, LUA_REGISTRYINDEX);
+        }
+        lua_newtable(evaluation_L);
+        lua_newtable(evaluation_L);
+        lua_pushvalue(evaluation_L, context);
+        lua_pushcclosure(evaluation_L, EvaluationIndex, 1);
+        lua_setfield(evaluation_L, -2, "__index");
+        lua_pushvalue(evaluation_L, context);
+        lua_pushcclosure(evaluation_L, EvaluationNewIndex, 1);
+        lua_setfield(evaluation_L, -2, "__newindex");
+        lua_setmetatable(evaluation_L, -2);
+        lua_pushvalue(evaluation_L, -1);
+        int environment_ref = luaL_ref(evaluation_L, LUA_REGISTRYINDEX);
+        lua_setfenv(evaluation_L, context - 1);
+        // Keep the userdata alive throughout the call and invalidate it afterwards.
+        int context_ref = luaL_ref(evaluation_L, LUA_REGISTRYINDEX);
+        int arguments = 0;
+        if (level >= 0)
+        {
+            // LuaJIT exposes varargs as negative locals; Lua 5.1 exposes none.
+            // Older LuaJIT versions can report temporaries here, so check the
+            // name. Copy values with an explicit count to retain trailing nils.
+            int function = lua_gettop(evaluation_L);
+            for (;;)
+            {
+                if (!lua_checkstack(L, 1) || !lua_checkstack(evaluation_L, 1))
+                {
+                    lua_settop(evaluation_L, function - 1);
+                    lua_pushliteral(evaluation_L, "Too many varargs for evaluation");
+                    result = LUA_ERRRUN;
+                    break;
+                }
+                const char* name = lua_getlocal(L, &frame, -arguments - 1);
+                if (!name)
+                    break;
+                if (!dmStrEq(name, "(*vararg)"))
+                {
+                    lua_pop(L, 1);
+                    break;
+                }
+                // Yielded frames use a separate evaluation thread; the
+                // suspended coroutine itself must not be called or resumed.
+                lua_xmove(L, evaluation_L, 1);
+                ++arguments;
+            }
+        }
+        d->m_Evaluating = true;
+        bool timed_out = false;
+        if (!result)
+        {
+            EvaluationCall call = { dmTime::GetTime() + (uint64_t)d->m_EvaluationTimeout * 1000, LUA_ERRRUN, 0, result_count && repl && !assignment, false };
+            lua_pushlightuserdata(L, &g_EvaluationKey);
+            lua_pushlightuserdata(L, &call);
+            lua_rawset(L, LUA_REGISTRYINDEX);
+            lua_pushlightuserdata(evaluation_L, &call);
+            lua_pushcclosure(evaluation_L, CallEvaluation, 1);
+            lua_insert(evaluation_L, lua_gettop(evaluation_L) - arguments - 1);
+            lua_pcall(evaluation_L, arguments + 1, 1, 0);
+            result = call.m_Result;
+            if (result_count && !result)
+                *result_count = call.m_ResultCount;
+            timed_out = call.m_TimedOut;
+            lua_pushlightuserdata(L, &g_EvaluationKey);
+            lua_pushnil(L);
+            lua_rawset(L, LUA_REGISTRYINDEX);
+        }
+        lua_xmove(evaluation_L, L, 1);
+        SnapshotEnvironment(L, e, environment_ref);
+        e->m_Active = false;
+        luaL_unref(L, LUA_REGISTRYINDEX, e->m_FunctionRef);
+        luaL_unref(L, LUA_REGISTRYINDEX, e->m_EnvironmentRef);
+        luaL_unref(L, LUA_REGISTRYINDEX, context_ref);
+        luaL_unref(L, LUA_REGISTRYINDEX, environment_ref);
+        // Cached coroutine APIs and native callbacks can persist new threads in
+        // any context, even after an error. While running, coalesce discovery
+        // until a stop or threads request: conditions and logpoints must not
+        // walk the whole Lua heap on every hit. Paused evaluations report new
+        // threads immediately, excluding our still-pinned temporary thread.
+        d->m_ThreadDiscoveryPending = true;
+        // A timeout can leave its count-only hook on application coroutines.
+        // Restore those hooks before running any more application code, even
+        // when evaluating a condition or logpoint that does not stop.
+        if (d->m_Paused || timed_out)
+            DiscoverEvaluationThreads(d, evaluation_L);
+        d->m_Evaluating = false;
+        luaL_unref(L, LUA_REGISTRYINDEX, thread_ref);
+        return result == 0;
+    }
+
+    static bool FrameInfo(const Frame& frame, lua_Debug* ar)
+    {
+        if (!lua_getstack(frame.m_L, frame.m_Level, ar))
+            return false;
+        return lua_getinfo(frame.m_L, "nSl", ar) != 0;
+    }
+
+    static void KeyName(Debugger* d, lua_State* L, int index, Buffer& name)
+    {
+        size_t length = 0;
+        const char* key = lua_type(L, index) == LUA_TSTRING ? lua_tolstring(L, index, &length) : 0;
+        if (key && strlen(key) == length && IsIdentifier(key))
+            name.Add(key);
+        else
+        {
+            name.Add("[");
+            // Equal vector components do not imply equal userdata table keys.
+            if (lua_type(L, index) == LUA_TUSERDATA)
+                name.Format("userdata: %p", lua_topointer(L, index));
+            else
+                FormatValue(d, L, index, name);
+            name.Add("]");
+        }
+    }
+
+    static void Variable(Debugger* d, lua_State* L, int level, const char* name, Buffer& body, int* count, const char* evaluate_name, bool read_only = false)
+    {
+        if ((*count)++)
+            body.Add(",");
+        body.Add("{\"name\":");
+        body.String(name);
+        body.Add(",");
+        ValueBody(d, L, level, -1, body, "value", evaluate_name, true);
+        if (read_only)
+            body.Add(",\"presentationHint\":{\"attributes\":[\"readOnly\"]}");
+        body.Add("}");
+    }
+
+    static bool Page(int ordinal, int start, int count)
+    {
+        return ordinal >= start && (!count || ordinal - start < count);
+    }
+
+    static bool Variables(Debugger* d, const Reference& r, Buffer& body, int start, int count, const char* filter)
+    {
+        lua_State* L = r.m_L;
+        int        top = lua_gettop(L);
+        int        ordinal = 0, emitted = 0;
+        lua_Debug  ar;
+        bool       indexed = dmStrEq(filter, "indexed");
+        body.Add("{\"variables\":[");
+        if (r.m_Kind == REFERENCE_LOCALS || r.m_Kind == REFERENCE_UPVALUES)
+        {
+            lua_getstack(L, r.m_Level, &ar);
+            if (r.m_Kind == REFERENCE_UPVALUES)
+                lua_getinfo(L, "f", &ar);
+            int function = lua_gettop(L);
+            for (int i = 1; !indexed; ++i)
+            {
+                const char* name = r.m_Kind == REFERENCE_LOCALS ? lua_getlocal(L, &ar, i) : lua_getupvalue(L, function, i);
+                if (!name)
+                    break;
+                if (name[0] != '(' && (r.m_Kind != REFERENCE_LOCALS || LocalIndex(L, &ar, name) == i) && Page(ordinal++, start, count))
+                {
+                    bool visible = r.m_Kind == REFERENCE_LOCALS || LocalIndex(L, &ar, name) == 0;
+                    Variable(d, L, r.m_Level, name, body, &emitted, visible && IsIdentifier(name) ? name : 0);
+                }
+                lua_pop(L, 1);
+            }
+        }
+        else if (r.m_Kind == REFERENCE_RESULTS)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, r.m_LuaRef);
+            int table = lua_gettop(L);
+            for (int i = 1; !dmStrEq(filter, "named") && i <= r.m_ResultCount; ++i)
+            {
+                if (!Page(i - 1, start, count))
+                    continue;
+                Buffer name;
+                name.Format("[%d]", i);
+                lua_rawgeti(L, table, i);
+                Variable(d, L, r.m_Level, name.Data(), body, &emitted, 0, true);
+                lua_pop(L, 1);
+            }
+        }
+        else
+        {
+            if (r.m_Kind == REFERENCE_GLOBALS)
+                PushEnvironment(L, r.m_Level);
+            else
+                lua_rawgeti(L, LUA_REGISTRYINDEX, r.m_LuaRef);
+            Buffer parent;
+            if (r.m_Kind == REFERENCE_VALUE)
+            {
+                if (ExpressionMatches(d, L, r.m_Level, -1, r.m_EvaluateName))
+                    parent.Add(r.m_EvaluateName);
+                if (!PushValueTable(d, L, -1))
+                {
+                    lua_settop(L, top);
+                    body.Clear();
+                    body.Add("Value no longer has inspectable members");
+                    return false;
+                }
+            }
+            int table = lua_gettop(L);
+            lua_pushnil(L);
+            while (lua_next(L, table))
+            {
+                bool numeric = lua_type(L, -2) == LUA_TNUMBER;
+                bool include = !filter[0] || (indexed ? numeric : !numeric);
+                if (include && Page(ordinal++, start, count))
+                {
+                    Buffer name;
+                    KeyName(d, L, -2, name);
+                    Buffer expression;
+                    if (r.m_Kind == REFERENCE_VALUE)
+                    {
+                        if (parent.Size())
+                            KeyExpression(L, -2, parent.Data(), expression);
+                    }
+                    else
+                    {
+                        bool shadowed = false;
+                        if (lua_type(L, -2) == LUA_TSTRING && r.m_Level >= 0 && lua_getstack(L, r.m_Level, &ar))
+                        {
+                            shadowed = LocalIndex(L, &ar, name.Data()) != 0;
+                            lua_getinfo(L, "f", &ar);
+                            shadowed |= UpvalueIndex(L, lua_gettop(L), name.Data()) != 0;
+                            lua_pop(L, 1);
+                        }
+                        if (!shadowed)
+                            KeyExpression(L, -2, "", expression);
+                    }
+                    Variable(d, L, r.m_Level, name.Data(), body, &emitted, expression.Data());
+                }
+                lua_pop(L, 1);
+            }
+        }
+        lua_settop(L, top);
+        body.Add("]}");
+        return true;
+    }
+
+    static bool SetVariable(Debugger* d, const Reference& r, const char* name, const char* expression, Buffer& body)
+    {
+        lua_State* L = r.m_L;
+        int        top = lua_gettop(L);
+        if (!Evaluate(d, L, r.m_Level, expression, false))
+        {
+            body.Add(lua_tostring(L, -1) ? lua_tostring(L, -1) : "Evaluation failed");
+            lua_settop(L, top);
+            return false;
+        }
+        RefreshFrames(d);
+        if (r.m_FrameId && !FindFrame(d, r.m_FrameId))
+        {
+            body.Add("Evaluation frame is no longer active");
+            lua_settop(L, top);
+            return false;
+        }
+        int       value = lua_gettop(L);
+        bool      found = false;
+        lua_Debug ar;
+        if (r.m_Kind == REFERENCE_LOCALS || r.m_Kind == REFERENCE_UPVALUES)
+        {
+            lua_getstack(L, r.m_Level, &ar);
+            if (r.m_Kind == REFERENCE_LOCALS)
+            {
+                int local = LocalIndex(L, &ar, name);
+                if (local)
+                {
+                    lua_pushvalue(L, value);
+                    lua_setlocal(L, &ar, local);
+                    found = true;
+                }
+            }
+            else
+            {
+                lua_getinfo(L, "f", &ar);
+                int upvalue = UpvalueIndex(L, lua_gettop(L), name);
+                if (upvalue)
+                {
+                    lua_pushvalue(L, value);
+                    lua_setupvalue(L, -2, upvalue);
+                    found = true;
+                }
+            }
+        }
+        else
+        {
+            if (r.m_Kind == REFERENCE_GLOBALS)
+                PushEnvironment(L, r.m_Level);
+            else
+            {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, r.m_LuaRef);
+                if (!PushValueTable(d, L, -1))
+                {
+                    lua_settop(L, top);
+                    body.Add("Value no longer has inspectable members");
+                    return false;
+                }
+            }
+            int table = lua_gettop(L);
+            lua_pushnil(L);
+            while (lua_next(L, table))
+            {
+                Buffer key;
+                KeyName(d, L, -2, key);
+                lua_pop(L, 1);
+                if (dmStrEq(key.Data(), name))
+                {
+                    lua_pushvalue(L, value);
+                    lua_rawset(L, table);
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if (found)
+        {
+            body.Add("{");
+            ValueBody(d, L, r.m_Level, value, body, "value");
+            body.Add("}");
+        }
+        else
+            body.Add("Unknown variable");
+        lua_settop(L, top);
+        return found;
+    }
+
+    bool ValueRequest(Debugger* d, const Json& request, const char* command, int seq, int args)
+    {
+        if (!dmStrEq(command, "stackTrace") && !dmStrEq(command, "scopes") && !dmStrEq(command, "variables") &&
+            !dmStrEq(command, "evaluate") && !dmStrEq(command, "setVariable") && !dmStrEq(command, "exceptionInfo") &&
+            !dmStrEq(command, "setExpression") && !dmStrEq(command, "completions"))
+            return false;
+        if (!d->m_Paused)
+        {
+            Respond(d, seq, command, 0, "Lua is running");
+            return true;
+        }
+        RefreshFrames(d);
+        Buffer      body;
+        const char* error = 0;
+        bool        invalidate = false;
+        if (dmStrEq(command, "stackTrace"))
+        {
+            int thread = request.Integer(request.Field(args, "threadId"));
+            int start = request.Integer(request.Field(args, "startFrame"), 0);
+            int count = request.Integer(request.Field(args, "levels"), 0);
+            if (thread <= 0 || !FindThread(d, (uint32_t)thread) || start < 0 || count < 0)
+                error = "Invalid thread or stack range";
+            else
+            {
+                body.Add("{\"stackFrames\":[");
+                int ordinal = 0, emitted = 0;
+                for (uint32_t i = 0; i < d->m_Frames.Size(); ++i)
+                {
+                    Frame& frame = d->m_Frames[i];
+                    if (!frame.m_Valid || frame.m_ThreadId != (uint32_t)thread)
+                        continue;
+                    if (!Page(ordinal++, start, count))
+                        continue;
+                    lua_Debug ar;
+                    if (!FrameInfo(frame, &ar))
+                        continue;
+                    if (emitted++)
+                        body.Add(",");
+                    body.Format("{\"id\":%u,\"name\":", frame.m_Id);
+                    body.String(ar.name ? ar.name : ar.what);
+                    bool has_source = ar.source && ar.source[0] == '@';
+                    body.Format(",\"line\":%d,\"column\":%d", has_source && ar.currentline > 0 ? ar.currentline - !d->m_LinesStartAt1 : 0, has_source && d->m_ColumnsStartAt1 ? 1 : 0);
+                    if (has_source)
+                    {
+                        Buffer path;
+                        ClientPath(d, ar.source, path);
+                        body.Add(",\"source\":{\"path\":");
+                        body.String(path.Data());
+                        body.Add(",\"name\":");
+                        const char* name = strrchr(path.Data(), '/');
+                        body.String(name ? name + 1 : path.Data());
+                        body.Add(",\"sourceReference\":0}");
+                    }
+                    body.Add("}");
+                }
+                body.Format("],\"totalFrames\":%d}", ordinal);
+            }
+        }
+        else if (dmStrEq(command, "scopes"))
+        {
+            Frame* frame = FindFrame(d, request.Integer(request.Field(args, "frameId")));
+            if (!frame)
+                error = "Invalid frameId";
+            else
+            {
+                body.Add("{\"scopes\":[");
+                const char* names[] = { "Locals", "Upvalues", "Globals" };
+                for (int i = 0; i < 3; ++i)
+                {
+                    if (i)
+                        body.Add(",");
+                    body.Format("{\"name\":\"%s\",\"variablesReference\":%u,\"expensive\":%s}", names[i], AddReference(d, frame->m_L, (ReferenceKind)i, frame->m_Level), i == 2 ? "true" : "false");
+                }
+                body.Add("]}");
+            }
+        }
+        else if (dmStrEq(command, "evaluate") || dmStrEq(command, "setExpression") || dmStrEq(command, "completions"))
+        {
+            Frame*      frame = FindFrame(d, request.Integer(request.Field(args, "frameId")));
+            Thread*     thread = FindThread(d, d->m_StoppedThread);
+            bool        global = request.Field(args, "frameId") < 0;
+            lua_State*  L = global ? (thread ? GetThread(thread) : 0) : (frame ? frame->m_L : 0);
+            int         level = global ? -1 : (frame ? frame->m_Level : -1);
+            uint32_t    frame_id = frame ? frame->m_Id : 0;
+            bool        assignment = dmStrEq(command, "setExpression");
+            const char* expression = request.String(request.Field(args, "expression"));
+            const char* value = assignment ? request.String(request.Field(args, "value")) : expression;
+            if (!L)
+                error = "Invalid frameId";
+            else if (dmStrEq(command, "completions"))
+            {
+                if (!Completions(d, L, level, request, args, body))
+                    error = body.Data();
+            }
+            else if (!expression || !value)
+                error = "Invalid frameId or expression";
+            else
+            {
+                const char* context = request.String(request.Field(args, "context"), "");
+                bool        hover = !assignment && dmStrEq(context, "hover");
+                bool        repl = !assignment && dmStrEq(context, "repl");
+                int         result_count = 0;
+                // Watch evaluations can be triggered by an invalidation. Sending
+                // another event for them would cause a client refresh loop.
+                invalidate = assignment || dmStrEq(context, "repl");
+                bool ok = hover ? Inspect(d, L, level, expression) :
+                                  Evaluate(d, L, level, value, repl, assignment ? expression : 0, repl ? &result_count : 0);
+                RefreshFrames(d);
+                if (frame_id && !FindFrame(d, frame_id))
+                    level = -1;
+                if (ok)
+                {
+                    body.Add("{");
+                    if (result_count > 1)
+                        ResultsBody(d, L, level, result_count, body);
+                    else
+                        ValueBody(d, L, level, -1, body, assignment ? "value" : "result", expression);
+                    body.Add("}");
+                }
+                else
+                {
+                    body.Add(lua_tostring(L, -1) ? lua_tostring(L, -1) : "Evaluation failed");
+                    error = body.Data();
+                }
+                lua_pop(L, 1);
+            }
+        }
+        else if (dmStrEq(command, "exceptionInfo"))
+        {
+            int thread = request.Integer(request.Field(args, "threadId"));
+            if (thread <= 0 || (uint32_t)thread != d->m_StoppedThread || !d->m_Exception.Size())
+                error = "No exception on this thread";
+            else
+            {
+                body.Add("{\"exceptionId\":\"LuaError\",\"breakMode\":\"unhandled\",\"description\":");
+                body.String(d->m_Exception.Data(), d->m_Exception.Size());
+                body.Add("}");
+            }
+        }
+        else
+        {
+            int id = request.Integer(request.Field(args, "variablesReference"));
+            // Copy: rendering nested tables can grow and relocate the reference array.
+            Reference r = {};
+            bool      found = false;
+            for (uint32_t i = 0; i < d->m_References.Size(); ++i)
+                if (id > 0 && d->m_References[i].m_Id == (uint32_t)id)
+                {
+                    r = d->m_References[i];
+                    found = true;
+                    break;
+                }
+            if (!found || (r.m_FrameId && !FindFrame(d, r.m_FrameId)))
+                error = "Invalid variablesReference";
+            else if (dmStrEq(command, "variables"))
+            {
+                int         start = request.Integer(request.Field(args, "start"), 0);
+                int         count = request.Integer(request.Field(args, "count"), 0);
+                const char* filter = request.String(request.Field(args, "filter"), "");
+                if (start < 0 || count < 0 || (filter[0] && !dmStrEq(filter, "named") && !dmStrEq(filter, "indexed")))
+                    error = "Invalid variable range or filter";
+                else if (!Variables(d, r, body, start, count, filter))
+                    error = body.Data();
+            }
+            else if (r.m_Kind == REFERENCE_RESULTS)
+                error = "Evaluation results are read-only";
+            else
+            {
+                const char* name = request.String(request.Field(args, "name"));
+                const char* value = request.String(request.Field(args, "value"));
+                if (!name || !value)
+                    error = "Missing variable name or value";
+                else
+                {
+                    invalidate = true;
+                    if (!SetVariable(d, r, name, value, body))
+                        error = body.Data();
+                }
+            }
+        }
+        Respond(d, seq, command, error ? 0 : &body, error);
+        if (invalidate && d->m_InvalidatedEvent)
+        {
+            Buffer invalidated;
+            invalidated.Add("{\"areas\":[\"variables\"]}");
+            Event(d, "invalidated", &invalidated);
+        }
+        return true;
+    }
+} // namespace dmDebugger

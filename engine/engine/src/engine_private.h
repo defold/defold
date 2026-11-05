@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <dmsdk/dlib/configfile.h>
+#include <dmsdk/gameobject/res_collection.h>
 #include <dlib/hashtable.h>
 #include <dlib/jobsystem.h>
 #include <dlib/message.h>
@@ -36,8 +37,6 @@
 #include <gui/gui.h>
 
 #include <gamesys/gamesys.h>
-
-#include <record/record.h>
 
 #include "engine.h"
 #include "engine_service.h"
@@ -60,7 +59,7 @@ namespace dmEngine
         }
 
         //`RunResult::EXIT` value (as `run_action` in `AppDelegate.m` `ShutdownEngine()`)
-        // compares with GLFW_APP_RUN_EXIT, that's why `RunResult` should have the same values as `glfwAppRunAction`
+        // compares with dmPlatform::APP_RUN_EXIT, that's why `RunResult` should have the same values as `dmPlatform::AppRunAction`
         enum Action
         {
             NONE,
@@ -93,20 +92,6 @@ namespace dmEngine
         float    m_TotalTime;   // Total running time of the game
     };
 
-    struct RecordData
-    {
-        RecordData()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-
-        dmRecord::HRecorder m_Recorder;
-        char*               m_Buffer;
-        uint32_t            m_FrameCount;
-        uint32_t            m_FramePeriod;
-        uint32_t            m_Fps;
-    };
-
     struct Engine
     {
         Engine(dmEngineService::HEngineService engine_service);
@@ -118,7 +103,7 @@ namespace dmEngine
         bool                                        m_Alive;
 
         dmGameObject::HRegister                     m_Register;
-        dmGameObject::HCollection                   m_MainCollection;
+        dmGameObject::CollectionResource*           m_MainCollectionResource;
         dmArray<dmGameObject::InputAction>          m_InputBuffer;
         dmHashTable64<void*>                        m_ResourceTypeContexts;
 
@@ -129,18 +114,13 @@ namespace dmEngine
         HJobContext                                 m_JobThreadContext;
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
+        dmGameSystem::HContext                      m_GameSystem;
         dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
         dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
         dmScript::HContext                          m_ScriptContext;
         dmResource::HFactory                        m_Factory;
         dmGui::HContext                             m_GuiContext;
         dmMessage::HSocket                          m_SystemSocket;
-        dmGameSystem::SpriteContext                 m_SpriteContext;
-        dmGameSystem::CollectionProxyContext        m_CollectionProxyContext;
-        dmGameSystem::FactoryContext                m_FactoryContext;
-        dmGameSystem::CollectionFactoryContext      m_CollectionFactoryContext;
-        dmGameSystem::ModelContext                  m_ModelContext;
-        dmGameSystem::LabelContext                  m_LabelContext;
         dmGameObject::ModuleContext                 m_ModuleContext;
 
         dmGameSystem::FontResource*                 m_SystemFont;
@@ -159,6 +139,7 @@ namespace dmEngine
         bool                                        m_QuitOnEsc;
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
         bool                                        m_RunWhileIconified;
+        bool                                        m_UseHighRefreshRate;       // iOS: allow display link rates above 60 Hz
         uint32_t                                    m_SwapInterval;             // Swap interval requested by the application
         uint32_t                                    m_EffectiveSwapInterval;    // Swap interval currently applied to the graphics context
         uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
@@ -174,13 +155,15 @@ namespace dmEngine
         uint32_t                                    m_ClearColor;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
+        uint32_t                                    m_PendingWindowResizeWidth;
+        uint32_t                                    m_PendingWindowResizeHeight;
+        bool                                        m_HasPendingWindowResize;
         float                                       m_MaxTimeStep;
 
         float                                       m_ThrottleCooldownMax;
         float                                       m_ThrottleCooldown;
         bool                                        m_ThrottleEnabled;
 
-        RecordData                                  m_RecordData;
         void*                                       m_DependenciesJsonResource;
         uint32_t                                    m_DependenciesJsonSize;
         uint8_t                                     m_GuiSafeAreaMode;
@@ -191,6 +174,8 @@ namespace dmEngine
     void Delete(HEngine engine);
     bool GetProjectFile(int argc, char *argv[], char* resources_path, char* project_file, uint32_t project_file_size);
     bool Init(HEngine engine, int argc, char *argv[]);
+    void OnWindowResize(void* user_data, uint32_t width, uint32_t height);
+    void FlushPendingWindowResize(HEngine engine);
     void Step(HEngine engine);
 
     void ReloadResources(HEngine engine, const char* extension);
@@ -263,6 +248,12 @@ namespace dmEngine
     // adds at most max(0, max_time_step - fixed_dt); negative balance shortens the
     // step without allowing negative dt. Exposed for deterministic unit testing.
     float CalcPacedTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& frame_time_balance);
+
+    // Calculates the simulation step for a platform-paced callback. Elapsed time
+    // is capped at max(max_time_step, max_frame_intervals * fixed_dt) and
+    // accumulated; callbacks that arrive faster than fixed_dt run no step until
+    // a full step has accumulated. Exposed for deterministic unit testing.
+    float CalcCallbackTimeStep(float frame_dt, float fixed_dt, float max_time_step, uint32_t max_frame_intervals, float& accum_frame_time, uint32_t& num_steps);
 
     /**
      *

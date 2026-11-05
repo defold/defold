@@ -24,16 +24,21 @@ set(FONT_HARFBUZZ_SRC_DIR "${FONT_SRC_DIR}/harfbuzz")
 set(FONT_TRUETYPE_SRC_DIR "${FONT_SRC_DIR}/truetype")
 set(FONT_PUBLIC_HEADERS
   "${FONT_SRC_DIR}/font.h"
+  "${FONT_SRC_DIR}/font_vector_slug.h"
+  "${FONT_SRC_DIR}/font_vector_paint.hpp"
+  "${FONT_SRC_DIR}/fontgen.h"
   "${FONT_SRC_DIR}/font_glyphbank.h"
   "${FONT_SRC_DIR}/fontcollection.h"
   "${FONT_SRC_DIR}/markup.h"
+  "${FONT_SRC_DIR}/font_effect.h"
   "${FONT_SRC_DIR}/text_layout.h")
 set(FONT_RENDER_PUBLIC_HEADERS
   "${FONT_RENDER_SRC_DIR}/font_render.h")
 set(FONT_INTERNAL_HEADERS
   "${FONT_RENDER_SRC_DIR}/glyph_gen.h")
 set(FONT_RENDER_VERTEX_HEADERS
-  "${FONT_RENDER_SRC_DIR}/glyph_vertex.h")
+  "${FONT_RENDER_SRC_DIR}/glyph_vertex.h"
+  "${FONT_RENDER_SRC_DIR}/layout_vertex.h")
 set(FONT_DEPENDENCIES dlib)
 set(FONT_RENDER_DEPENDENCIES
   dlib
@@ -59,10 +64,12 @@ if(TARGET ddf)
 endif()
 
 file(GLOB FONT_SOURCES CONFIGURE_DEPENDS "${FONT_SRC_DIR}/*.cpp")
+list(FILTER FONT_SOURCES EXCLUDE REGEX "/fontgen(_null|_res_ttf)?\\.cpp$")
 list(FILTER FONT_SOURCES EXCLUDE REGEX "/markup(_null)?\\.cpp$")
 list(FILTER FONT_SOURCES EXCLUDE REGEX "/text_layout_markup\\.cpp$")
 list(APPEND FONT_SOURCES
   "${FONT_TRUETYPE_SRC_DIR}/font_truetype.cpp"
+  "${FONT_TRUETYPE_SRC_DIR}/font_colr.cpp"
   "${FONT_RENDER_SRC_DIR}/glyph_gen.cpp")
 set(FONT_LIBRARY_SOURCES ${FONT_SOURCES})
 set(FONT_LIBRARY_DEPENDENCIES ${FONT_DEPENDENCIES})
@@ -75,6 +82,7 @@ set(FONT_GLYPH_VERTEX_SOURCE "${FONT_RENDER_SRC_DIR}/glyph_vertex.cpp")
 set(FONT_LAYOUT_VERTEX_SOURCE "${FONT_RENDER_SRC_DIR}/layout_vertex.cpp")
 set(FONT_RENDER_SOURCES
   "${FONT_RENDER_SRC_DIR}/font_render.cpp"
+  "${FONT_RENDER_SRC_DIR}/font_effect.cpp"
   "${FONT_GLYPH_VERTEX_SOURCE}"
   "${FONT_LAYOUT_VERTEX_SOURCE}")
 set(FONT_RICHTEXT_SOURCES
@@ -90,10 +98,7 @@ if(TARGET ddf)
 endif()
 defold_target_link_libraries(font "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_LIBRARY_DEPENDENCIES})
 
-# The full-layout path gets mapping, metrics, and outlines from HarfBuzz. Keep
-# the standalone TrueType/OpenType parser in the legacy font library only.
 set(FONT_SKRIBIDI_SOURCES ${FONT_SOURCES})
-list(FILTER FONT_SKRIBIDI_SOURCES EXCLUDE REGEX "/font_truetype\\.cpp$")
 list(APPEND FONT_SKRIBIDI_SOURCES
   "${FONT_HARFBUZZ_SRC_DIR}/font_harfbuzz.cpp")
 set(FONT_SKRIBIDI_LIBRARY_SOURCES ${FONT_SKRIBIDI_SOURCES})
@@ -114,6 +119,20 @@ if(TARGET ddf)
 endif()
 defold_target_link_libraries(font_skribidi "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_SKRIBIDI_LIBRARY_DEPENDENCIES})
 set_target_properties(font_skribidi PROPERTIES DEFOLD_SDK_HEADERS_TARGET font_sdk_headers)
+
+defold_add_library(font_gen STATIC
+  "${FONT_SRC_DIR}/fontgen.cpp"
+  "${FONT_SRC_DIR}/fontgen_res_ttf.cpp")
+target_include_directories(font_gen PUBLIC "${FONT_SRC_DIR}" "${FONT_RENDER_SRC_DIR}" "${FONT_ROOT}/../gamesys/src")
+target_compile_definitions(font_gen PRIVATE "DLIB_LOG_DOMAIN=\"FONT\"")
+defold_target_link_libraries(font_gen "${TARGET_PLATFORM}" SCOPE PUBLIC dlib extension font resource)
+set_target_properties(font_gen PROPERTIES DEFOLD_SDK_HEADERS_TARGET font_sdk_headers)
+
+defold_add_library(font_gen_null STATIC "${FONT_SRC_DIR}/fontgen_null.cpp")
+target_include_directories(font_gen_null PUBLIC "${FONT_SRC_DIR}" "${FONT_ROOT}/../gamesys/src")
+target_compile_definitions(font_gen_null PRIVATE "DLIB_LOG_DOMAIN=\"FONT\"")
+defold_target_link_libraries(font_gen_null "${TARGET_PLATFORM}" SCOPE PUBLIC dlib extension)
+set_target_properties(font_gen_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET font_sdk_headers)
 
 defold_add_library(font_richtext STATIC ${FONT_RICHTEXT_SOURCES})
 target_include_directories(font_richtext PUBLIC "${FONT_SRC_DIR}" "${FONT_ROOT}")
@@ -245,7 +264,7 @@ if(FONT_RENDERER_IS_DESKTOP)
   install(FILES "${FONT_RENDERER_JAR}" DESTINATION share/java)
 endif()
 
-defold_install_targets(TARGETS font font_skribidi font_richtext font_richtext_null
+defold_install_targets(TARGETS font font_skribidi font_gen font_gen_null font_richtext font_richtext_null
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
@@ -307,9 +326,11 @@ add_custom_target(font_sdk_headers
 
 install(FILES
   "${FONT_SRC_DIR}/font.h"
+  "${FONT_SRC_DIR}/fontgen.h"
   "${FONT_SRC_DIR}/font_glyphbank.h"
   "${FONT_SRC_DIR}/fontcollection.h"
   "${FONT_SRC_DIR}/markup.h"
+  "${FONT_SRC_DIR}/font_effect.h"
   "${FONT_SRC_DIR}/text_layout.h"
   DESTINATION include/font)
 install(FILES ${FONT_RENDER_PUBLIC_HEADERS} DESTINATION include/font)

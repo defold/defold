@@ -47,15 +47,16 @@ static uint32_t GlyphBankGetResourceSize(HFont hfont)
 {
     const uint64_t provider_size = GetProvider(hfont)->m_ResourceSize;
     if (provider_size > UINT32_MAX - sizeof(GlyphBankFont))
+    {
         return UINT32_MAX;
+    }
     return (uint32_t)(sizeof(GlyphBankFont) + provider_size);
 }
 
 static float GlyphBankGetScaleFromSize(HFont hfont, uint32_t size)
 {
-    (void)hfont;
-    (void)size;
-    return 1.0f;
+    const float reference_size = GetProvider(hfont)->m_ReferenceSize;
+    return reference_size > 0.0f ? size / reference_size : 1.0f;
 }
 
 static float GlyphBankGetAscent(HFont hfont, float scale)
@@ -85,11 +86,17 @@ static uint32_t GlyphBankGetGlyphIndex(HFont hfont, uint32_t codepoint)
         const int32_t  mid = left + (right - left) / 2;
         const uint32_t current = provider->m_GetCodepoint(provider->m_Context, (uint32_t)mid);
         if (current == codepoint)
+        {
             return (uint32_t)mid + 1;
+        }
         if (current < codepoint)
+        {
             left = mid + 1;
+        }
         else
+        {
             right = mid - 1;
+        }
     }
     return 0;
 }
@@ -98,11 +105,15 @@ static FontResult GlyphBankGetGlyph(HFont hfont, uint32_t glyph_index, const Fon
 {
     FontGlyphBankProvider* provider = GetProvider(hfont);
     if (glyph_index == 0 || glyph_index > provider->m_GlyphCount || !options || !output)
+    {
         return FONT_RESULT_ERROR;
+    }
 
     FontGlyphBankGlyph glyph;
     if (!provider->m_GetGlyph(provider->m_Context, glyph_index - 1, &glyph))
+    {
         return FONT_RESULT_ERROR;
+    }
 
     memset(output, 0, sizeof(*output));
     output->m_GlyphIndex = glyph_index;
@@ -113,6 +124,38 @@ static FontResult GlyphBankGetGlyph(HFont hfont, uint32_t glyph_index, const Fon
     output->m_LeftBearing = glyph.m_LeftBearing;
     output->m_Ascent = glyph.m_Ascent;
     output->m_Descent = glyph.m_Descent;
+    output->m_Outline.m_Width = glyph.m_OutlineWidth;
+    output->m_Outline.m_Height = glyph.m_OutlineAscent + glyph.m_OutlineDescent;
+    output->m_Outline.m_LeftBearing = glyph.m_OutlineLeftBearing;
+    output->m_Outline.m_Ascent = glyph.m_OutlineAscent;
+    output->m_Outline.m_Descent = glyph.m_OutlineDescent;
+    output->m_Vector.m_Data = glyph.m_VectorData;
+    output->m_Vector.m_DataSize = glyph.m_VectorDataSize;
+    output->m_Vector.m_CurveCount = glyph.m_VectorDataSize / (sizeof(float) * 8);
+
+    if (output->m_Vector.m_CurveCount != 0 && !options->m_GenerateImage)
+    {
+        output->m_Width = glyph.m_OutlineWidth;
+        output->m_Height = glyph.m_OutlineAscent + glyph.m_OutlineDescent;
+        output->m_LeftBearing = glyph.m_OutlineLeftBearing;
+        output->m_Ascent = glyph.m_OutlineAscent;
+        output->m_Descent = glyph.m_OutlineDescent;
+    }
+
+    if (provider->m_HasLayoutMetrics && !options->m_GenerateImage)
+    {
+        output->m_Width = glyph.m_LayoutWidth;
+        output->m_LeftBearing = glyph.m_LayoutLeftBearing;
+    }
+
+    if (provider->m_HasUnpaddedMetrics && options->m_UseUnpaddedBounds && !options->m_GenerateImage)
+    {
+        output->m_Width = glyph.m_UnpaddedWidth;
+        output->m_LeftBearing = glyph.m_LayoutLeftBearing;
+        output->m_Ascent = glyph.m_UnpaddedAscent;
+        output->m_Descent = glyph.m_UnpaddedDescent;
+        output->m_Height = glyph.m_UnpaddedAscent + glyph.m_UnpaddedDescent;
+    }
 
     if (options->m_GenerateImage && glyph.m_DataSize != 0)
     {
@@ -137,7 +180,9 @@ static FontResult GlyphBankFreeGlyph(HFont hfont, FontGlyph* glyph)
 HFont FontCreateGlyphBank(const char* path, FontGlyphBankProvider* provider)
 {
     if (!path || !provider || !provider->m_GetCodepoint || !provider->m_GetGlyph || provider->m_GlyphCount > INT32_MAX)
+    {
         return 0;
+    }
 
     GlyphBankFont* font = new GlyphBankFont;
     memset(font, 0, sizeof(*font));

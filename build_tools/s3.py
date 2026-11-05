@@ -1,26 +1,15 @@
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 import run
 from log import log
 import json
 import os
 import re
 import sys
-from urllib.parse import urlparse
+import tempfile
+from urllib.parse import quote, urlparse
 from datetime import datetime
 from configparser import ConfigParser
+
+import http_cache
 
 s3buckets = {}
 
@@ -94,6 +83,22 @@ def get_bucket(bucket_name):
     bucket = s3_client.Bucket(bucket_name)
     s3buckets[bucket_name] = bucket
     return bucket
+
+
+def download_archive_file(bucket_name, key, path):
+    """Read public archives through CloudFront; keep private buckets authenticated."""
+    key = key.replace('\\', '/')
+    if bucket_name != 'd.defold.com':
+        get_bucket(bucket_name).Object(key).download_file(path)
+        return
+
+    url = 'https://d.defold.com/' + quote(key, safe='/')
+    log('Downloading %s -> %s' % (url, path))
+    # Isolate concurrent downloads from cache eviction and replace the destination
+    # only after validation. Keep the temporary file on the destination filesystem.
+    with tempfile.TemporaryDirectory(prefix='defold-archive-', dir=os.path.dirname(os.path.abspath(path))) as cache_root:
+        downloaded = http_cache.download(url, cache_root=cache_root)
+        os.replace(downloaded, path)
 
 
 def find_files_in_bucket(archive_path, bucket, sha1, path, pattern):

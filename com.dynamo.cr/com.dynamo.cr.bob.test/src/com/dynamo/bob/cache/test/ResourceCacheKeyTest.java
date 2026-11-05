@@ -65,6 +65,10 @@ public class ResourceCacheKeyTest {
 			builder.addOutput(output);
 			return this;
 		}
+		public DummyBuilder addExtraCacheKey(String key) {
+			builder.addExtraCacheKey(key);
+			return this;
+		}
 		@Override
 		public Task create(IResource input) throws IOException, CompileExceptionError {
 			if (input != null) {
@@ -126,6 +130,25 @@ public class ResourceCacheKeyTest {
 		String key2 = ResourceCacheKey.calculate(task2.calculateSignature(), output);
 
 		assertEquals(key1, key2);
+	}
+
+	// Repeated keys and insertion order must not change cache identity, but a new distinct key must.
+	@Test
+	public void testExtraCacheKeySetSemantics() throws CompileExceptionError, IOException, NoSuchAlgorithmException {
+		IResource output = createResource("someOutput").output();
+		// These strings have the same hash code, so unsorted set iteration would depend on insertion order.
+		DummyBuilder builder = new DummyBuilder().addExtraCacheKey("Aa").addExtraCacheKey("BB");
+		Task task = builder.create(null);
+		String key = ResourceCacheKey.calculate(task.calculateSignature(), output);
+
+		builder.addExtraCacheKey("Aa").addExtraCacheKey("BB");
+		assertEquals(key, ResourceCacheKey.calculate(task.calculateSignature(), output));
+
+		Task reversed = new DummyBuilder().addExtraCacheKey("BB").addExtraCacheKey("Aa").create(null);
+		assertEquals(key, ResourceCacheKey.calculate(reversed.calculateSignature(), output));
+
+		builder.addExtraCacheKey("new-version");
+		assertNotEquals(key, ResourceCacheKey.calculate(task.calculateSignature(), output));
 	}
 
 	// is project options taken into account and produce different keys?

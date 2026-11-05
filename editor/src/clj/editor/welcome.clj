@@ -127,8 +127,6 @@
         [nil error]))
     [{} nil]))
 
-
-
 ;; -----------------------------------------------------------------------------
 ;; Game project settings
 ;; -----------------------------------------------------------------------------
@@ -243,7 +241,7 @@
     (loop [entry (.getNextEntry zip)]
       (when entry
         (let [parts (cond-> (string/split (FilenameUtils/separatorsToUnix (.getName entry)) #"/")
-                            skip-root? (next))
+                      skip-root? (next))
               entry-dst ^File (apply io/file dst parts)]
           (if (.isDirectory entry)
             (.mkdir entry-dst)
@@ -612,8 +610,8 @@
   (doto (HBox.)
     (ui/add-style! "header-pane")
     (ui/add-child! (doto (Label.)
-                      (ui/add-style! "df-sub-header")
-                      (localization/localize! localization (localization/message message-key))))))
+                     (ui/add-style! "df-sub-header")
+                     (localization/localize! localization (localization/message message-key))))))
 
 (defn- show-progress!
   ^ProgressBar [^Parent root localization header-text-key template-name-key cancel-button-text-key cancel!]

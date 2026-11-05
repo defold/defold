@@ -1451,7 +1451,8 @@ namespace dmGameSystem
         return 1;
     }
     /*# get collision shape info
-     * Gets collision shape data from a collision object
+     * Gets collision shape data from a collision object. Dimensions are in game units,
+     * independent of the `physics.scale` setting.
      *
      * @name physics.get_shape
      * @param url [type:string|hash|url] the collision object.
@@ -1521,7 +1522,8 @@ namespace dmGameSystem
     }
 
     /*# set collision shape data
-     * Sets collision shape data for a collision object. Please note that updating data in 3D
+     * Sets collision shape data for a collision object. Dimensions are in game units,
+     * independent of the `physics.scale` setting. Please note that updating data in 3D
      * can be quite costly for box and capsules. Because of the physics engine, the cost
      * comes from having to recreate the shape objects when certain shapes needs to be updated.
      *
@@ -1891,6 +1893,61 @@ namespace dmGameSystem
         int m_StackIndices[PHYSICS_LUA_KEY_COUNT];
     };
 
+    static const uint32_t PHYSICS_LUA_ID_CACHE_CAPACITY = 256;
+    static const uint32_t PHYSICS_LUA_GROUP_CACHE_CAPACITY = 16;
+    static const uint32_t PHYSICS_LUA_EVENT_TYPE_COUNT = PHYSICS_MESSAGE_TYPE_RAY_CAST_MISSED + 1;
+    static const uint32_t PHYSICS_LUA_BASE_STACK_SLOTS = 33;
+
+    struct PhysicsLuaHashes
+    {
+        dmhash_t m_Groups[PHYSICS_LUA_GROUP_CACHE_CAPACITY];
+        uint32_t m_GroupCount;
+        int      m_GroupValues;
+        int      m_TypeValues;
+        dmhash_t m_IdKeys[PHYSICS_LUA_ID_CACHE_CAPACITY];
+        bool     m_IdValid[PHYSICS_LUA_ID_CACHE_CAPACITY];
+        int      m_IdValues;
+    };
+
+    static void PushPhysicsIdHash(lua_State* L, dmhash_t id, PhysicsLuaHashes& hashes)
+    {
+        uint32_t slot = (uint32_t)id & (PHYSICS_LUA_ID_CACHE_CAPACITY - 1);
+        if (hashes.m_IdValid[slot] && hashes.m_IdKeys[slot] == id)
+        {
+            lua_rawgeti(L, hashes.m_IdValues, slot + 1);
+            return;
+        }
+
+        dmScript::PushHash(L, id);
+        hashes.m_IdKeys[slot] = id;
+        hashes.m_IdValid[slot] = true;
+        // Replacing a cache reference leaves hashes retained by event tables intact.
+        lua_pushvalue(L, -1);
+        lua_rawseti(L, hashes.m_IdValues, slot + 1);
+    }
+
+    static void PushPhysicsGroupHash(lua_State* L, dmhash_t group, PhysicsLuaHashes& hashes)
+    {
+        for (uint32_t i = 0; i < hashes.m_GroupCount; ++i)
+        {
+            if (hashes.m_Groups[i] == group)
+            {
+                lua_pushvalue(L, hashes.m_GroupValues + i);
+                return;
+            }
+        }
+
+        dmScript::PushHash(L, group);
+        if (hashes.m_GroupCount < PHYSICS_LUA_GROUP_CACHE_CAPACITY)
+        {
+            // Keep cached userdata rooted until the batch is constructed.
+            uint32_t index = hashes.m_GroupCount++;
+            hashes.m_Groups[index] = group;
+            lua_pushvalue(L, -1);
+            lua_replace(L, hashes.m_GroupValues + index);
+        }
+    }
+
     static void PushPhysicsLuaKeys(lua_State* L, PhysicsLuaKeys* keys)
     {
         for (uint32_t i = 0; i < PHYSICS_LUA_KEY_COUNT; ++i)
@@ -1900,142 +1957,155 @@ namespace dmGameSystem
         }
     }
 
-    static void SetPhysicsLuaField(lua_State* L, int table_index, const PhysicsLuaKeys& keys, PhysicsLuaKey key)
-    {
-        lua_pushvalue(L, keys.m_StackIndices[key]);
-        lua_insert(L, -2);
-        lua_rawset(L, table_index);
-    }
-
-    static void PushCollision(lua_State* L, dmPhysicsDDF::Collision* collision, int vector3_metatable_index, const PhysicsLuaKeys& keys)
+    static void PushCollision(lua_State* L, dmPhysicsDDF::Collision* collision, int vector3_metatable_index, const PhysicsLuaKeys& keys, PhysicsLuaHashes& hashes)
     {
         lua_createtable(L, 0, 3);
         const int table_index = lua_gettop(L);
 
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_POSITION]);
         PushVector3WithMetatable(L, *((dmVMath::Vector3*) &collision->m_Position), vector3_metatable_index);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_POSITION);
-        dmScript::PushHash(L, collision->m_Id);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_ID);
-        dmScript::PushHash(L, collision->m_Group);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_GROUP);
+        lua_rawset(L, table_index);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_ID]);
+        PushPhysicsIdHash(L, collision->m_Id, hashes);
+        lua_rawset(L, table_index);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_GROUP]);
+        PushPhysicsGroupHash(L, collision->m_Group, hashes);
+        lua_rawset(L, table_index);
     }
 
-    static void PushCollisionEvent(lua_State* L, dmPhysicsDDF::CollisionEvent* event, int vector3_metatable_index, const PhysicsLuaKeys& keys)
+    static void PushCollisionEvent(lua_State* L, dmPhysicsDDF::CollisionEvent* event, int vector3_metatable_index, const PhysicsLuaKeys& keys, PhysicsLuaHashes& hashes)
     {
-        DM_PROFILE("PushCollisionEvent");
-
-        lua_createtable(L, 0, 2);
+        // The batch adds the type field after constructing the event.
+        lua_createtable(L, 0, 3);
         const int table_index = lua_gettop(L);
 
-        PushCollision(L, &event->m_A, vector3_metatable_index, keys);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_A);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_A]);
+        PushCollision(L, &event->m_A, vector3_metatable_index, keys, hashes);
+        lua_rawset(L, table_index);
 
-        PushCollision(L, &event->m_B, vector3_metatable_index, keys);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_B);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_B]);
+        PushCollision(L, &event->m_B, vector3_metatable_index, keys, hashes);
+        lua_rawset(L, table_index);
     }
 
-    static void PushContactPoint(lua_State* L, dmPhysicsDDF::ContactPoint* point, int vector3_metatable_index, const PhysicsLuaKeys& keys)
+    static void PushContactPoint(lua_State* L, dmPhysicsDDF::ContactPoint* point, int vector3_metatable_index, const PhysicsLuaKeys& keys, PhysicsLuaHashes& hashes)
     {
         lua_createtable(L, 0, 7);
         const int table_index = lua_gettop(L);
 
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_POSITION]);
         PushVector3WithMetatable(L, *((dmVMath::Vector3*) &point->m_Position), vector3_metatable_index);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_POSITION);
+        lua_rawset(L, table_index);
 
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_INSTANCE_POSITION]);
         PushVector3WithMetatable(L, *((dmVMath::Vector3*) &point->m_InstancePosition), vector3_metatable_index);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_INSTANCE_POSITION);
+        lua_rawset(L, table_index);
 
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_NORMAL]);
         PushVector3WithMetatable(L, point->m_Normal, vector3_metatable_index);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_NORMAL);
+        lua_rawset(L, table_index);
 
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_RELATIVE_VELOCITY]);
         PushVector3WithMetatable(L, point->m_RelativeVelocity, vector3_metatable_index);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_RELATIVE_VELOCITY);
+        lua_rawset(L, table_index);
 
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_MASS]);
         lua_pushnumber(L, point->m_Mass);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_MASS);
+        lua_rawset(L, table_index);
 
-        dmScript::PushHash(L, point->m_Id);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_ID);
-        dmScript::PushHash(L, point->m_Group);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_GROUP);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_ID]);
+        PushPhysicsIdHash(L, point->m_Id, hashes);
+        lua_rawset(L, table_index);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_GROUP]);
+        PushPhysicsGroupHash(L, point->m_Group, hashes);
+        lua_rawset(L, table_index);
     }
 
-    static void PushContactPointEvent(lua_State* L, dmPhysicsDDF::ContactPointEvent* event, int vector3_metatable_index, const PhysicsLuaKeys& keys)
+    static void PushContactPointEvent(lua_State* L, dmPhysicsDDF::ContactPointEvent* event, int vector3_metatable_index, const PhysicsLuaKeys& keys, PhysicsLuaHashes& hashes)
     {
-        DM_PROFILE("PushContactPointEvent");
-
-        lua_createtable(L, 0, 4);
+        lua_createtable(L, 0, 5);
         const int table_index = lua_gettop(L);
 
-        PushContactPoint(L, &event->m_A, vector3_metatable_index, keys);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_A);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_A]);
+        PushContactPoint(L, &event->m_A, vector3_metatable_index, keys, hashes);
+        lua_rawset(L, table_index);
 
-        PushContactPoint(L, &event->m_B, vector3_metatable_index, keys);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_B);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_B]);
+        PushContactPoint(L, &event->m_B, vector3_metatable_index, keys, hashes);
+        lua_rawset(L, table_index);
 
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_DISTANCE]);
         lua_pushnumber(L, event->m_Distance);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_DISTANCE);
+        lua_rawset(L, table_index);
 
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_APPLIED_IMPULSE]);
         lua_pushnumber(L, event->m_AppliedImpulse);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_APPLIED_IMPULSE);
+        lua_rawset(L, table_index);
     }
 
-    static void PushTrigger(lua_State* L, dmPhysicsDDF::Trigger* trigger, const PhysicsLuaKeys& keys)
+    static void PushTrigger(lua_State* L, dmPhysicsDDF::Trigger* trigger, const PhysicsLuaKeys& keys, PhysicsLuaHashes& hashes)
     {
         lua_createtable(L, 0, 2);
         const int table_index = lua_gettop(L);
 
-        dmScript::PushHash(L, trigger->m_Id);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_ID);
-        dmScript::PushHash(L, trigger->m_Group);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_GROUP);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_ID]);
+        PushPhysicsIdHash(L, trigger->m_Id, hashes);
+        lua_rawset(L, table_index);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_GROUP]);
+        PushPhysicsGroupHash(L, trigger->m_Group, hashes);
+        lua_rawset(L, table_index);
     }
 
-    static void PushTriggerEvent(lua_State* L, dmPhysicsDDF::TriggerEvent* event, const PhysicsLuaKeys& keys)
+    static void PushTriggerEvent(lua_State* L, dmPhysicsDDF::TriggerEvent* event, const PhysicsLuaKeys& keys, PhysicsLuaHashes& hashes)
     {
-        DM_PROFILE("PushTriggerEvent");
-
-        lua_createtable(L, 0, 3);
+        lua_createtable(L, 0, 4);
         const int table_index = lua_gettop(L);
 
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_ENTER]);
         lua_pushboolean(L, event->m_Enter);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_ENTER);
+        lua_rawset(L, table_index);
 
-        PushTrigger(L, &event->m_A, keys);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_A);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_A]);
+        PushTrigger(L, &event->m_A, keys, hashes);
+        lua_rawset(L, table_index);
 
-        PushTrigger(L, &event->m_B, keys);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_B);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_B]);
+        PushTrigger(L, &event->m_B, keys, hashes);
+        lua_rawset(L, table_index);
     }
 
-    static void PushRayCastResponse(lua_State* L, dmPhysicsDDF::RayCastResponse* event, const PhysicsLuaKeys& keys)
+    static void PushRayCastResponse(lua_State* L, dmPhysicsDDF::RayCastResponse* event, const PhysicsLuaKeys& keys, PhysicsLuaHashes& hashes)
     {
-        DM_PROFILE("PushRayCastResponse");
-
-        lua_createtable(L, 0, 6);
+        lua_createtable(L, 0, 7);
         const int table_index = lua_gettop(L);
 
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_POSITION]);
         dmScript::PushVector3(L, *((dmVMath::Vector3*) &event->m_Position));
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_POSITION);
+        lua_rawset(L, table_index);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_NORMAL]);
         dmScript::PushVector3(L, event->m_Normal);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_NORMAL);
+        lua_rawset(L, table_index);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_FRACTION]);
         lua_pushnumber(L, event->m_Fraction);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_FRACTION);
-        dmScript::PushHash(L, event->m_Id);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_ID);
-        dmScript::PushHash(L, event->m_Group);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_GROUP);
+        lua_rawset(L, table_index);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_ID]);
+        PushPhysicsIdHash(L, event->m_Id, hashes);
+        lua_rawset(L, table_index);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_GROUP]);
+        PushPhysicsGroupHash(L, event->m_Group, hashes);
+        lua_rawset(L, table_index);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_REQUEST_ID]);
         lua_pushinteger(L, event->m_RequestId);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_REQUEST_ID);
+        lua_rawset(L, table_index);
     }
 
     static void PushRayCastMissed(lua_State* L, dmPhysicsDDF::RayCastMissed* event, const PhysicsLuaKeys& keys)
     {
-        DM_PROFILE("PushRayCastMissed");
-        lua_createtable(L, 0, 1);
+        lua_createtable(L, 0, 2);
         const int table_index = lua_gettop(L);
+        lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_REQUEST_ID]);
         lua_pushinteger(L, event->m_RequestId);
-        SetPhysicsLuaField(L, table_index, keys, PHYSICS_LUA_KEY_REQUEST_ID);
+        lua_rawset(L, table_index);
     }
 
     static dmhash_t GetPhysicsMessageNameHash(PhysicsMessageType type)
@@ -2065,10 +2135,10 @@ namespace dmGameSystem
         lua_State* L = dmScript::GetCallbackLuaContext(cbk);
         DM_LUA_STACK_CHECK(L, 0);
 
-        // SetupCallback, the cached field keys, the largest event table, and
+        // SetupCallback, cached keys and hashes, the largest event table, and
         // transient values from creating uncached hashes can exceed Lua's
         // guaranteed LUA_MINSTACK slots.
-        const int required_stack_slots = 32;
+        const int required_stack_slots = PHYSICS_LUA_BASE_STACK_SLOTS + PHYSICS_LUA_EVENT_TYPE_COUNT + PHYSICS_LUA_GROUP_CACHE_CAPACITY;
         if (!lua_checkstack(L, required_stack_slots))
         {
             dmLogError("Failed to grow Lua stack for physics.set_event_listener() callback");
@@ -2089,6 +2159,19 @@ namespace dmGameSystem
         PhysicsLuaKeys keys;
         PushPhysicsLuaKeys(L, &keys);
 
+        PhysicsLuaHashes hashes;
+        hashes.m_GroupCount = 0;
+        hashes.m_TypeValues = lua_gettop(L) + 1;
+        for (uint32_t i = 0; i < PHYSICS_LUA_EVENT_TYPE_COUNT; ++i)
+            dmScript::PushHash(L, GetPhysicsMessageNameHash((PhysicsMessageType)i));
+        hashes.m_GroupValues = lua_gettop(L) + 1;
+        for (uint32_t i = 0; i < PHYSICS_LUA_GROUP_CACHE_CAPACITY; ++i)
+            lua_pushnil(L);
+
+        memset(hashes.m_IdValid, 0, sizeof(hashes.m_IdValid));
+        lua_createtable(L, PHYSICS_LUA_ID_CACHE_CAPACITY, 0);
+        hashes.m_IdValues = lua_gettop(L);
+
         lua_createtable(L, count, 0);
         // -1: events table
 
@@ -2100,16 +2183,16 @@ namespace dmGameSystem
             switch (msg.m_Type)
             {
                 case PHYSICS_MESSAGE_TYPE_COLLISION:
-                    PushCollisionEvent(L, (dmPhysicsDDF::CollisionEvent*)data, vector3_metatable_index, keys);
+                    PushCollisionEvent(L, (dmPhysicsDDF::CollisionEvent*)data, vector3_metatable_index, keys, hashes);
                     break;
                 case PHYSICS_MESSAGE_TYPE_CONTACT_POINT:
-                    PushContactPointEvent(L, (dmPhysicsDDF::ContactPointEvent*)data, vector3_metatable_index, keys);
+                    PushContactPointEvent(L, (dmPhysicsDDF::ContactPointEvent*)data, vector3_metatable_index, keys, hashes);
                     break;
                 case PHYSICS_MESSAGE_TYPE_TRIGGER:
-                    PushTriggerEvent(L, (dmPhysicsDDF::TriggerEvent*)data, keys);
+                    PushTriggerEvent(L, (dmPhysicsDDF::TriggerEvent*)data, keys, hashes);
                     break;
                 case PHYSICS_MESSAGE_TYPE_RAY_CAST_RESPONSE:
-                    PushRayCastResponse(L, (dmPhysicsDDF::RayCastResponse*)data, keys);
+                    PushRayCastResponse(L, (dmPhysicsDDF::RayCastResponse*)data, keys, hashes);
                     break;
                 case PHYSICS_MESSAGE_TYPE_RAY_CAST_MISSED:
                     PushRayCastMissed(L, (dmPhysicsDDF::RayCastMissed*)data, keys);
@@ -2118,8 +2201,9 @@ namespace dmGameSystem
             // -2: events table
             // -1: event
 
-            dmScript::PushHash(L, GetPhysicsMessageNameHash(msg.m_Type));
-            SetPhysicsLuaField(L, lua_gettop(L) - 1, keys, PHYSICS_LUA_KEY_TYPE);
+            lua_pushvalue(L, keys.m_StackIndices[PHYSICS_LUA_KEY_TYPE]);
+            lua_pushvalue(L, hashes.m_TypeValues + msg.m_Type);
+            lua_rawset(L, -3);
             // -2: events table
             // -1: event
 
@@ -2129,7 +2213,7 @@ namespace dmGameSystem
         }
         // -1: events table
 
-        // Move the result below the cached metatable and keys and then discard
+        // Move the result below the cached metatable, keys and hashes, then discard
         // all cached stack values before invoking the callback.
         lua_insert(L, vector3_metatable_index);
         lua_settop(L, vector3_metatable_index);

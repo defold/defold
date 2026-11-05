@@ -1,6 +1,3 @@
-# Copyright 2020-2026 The Defold Foundation
-# Licensed under the Defold License version 1.0
-
 """Run ready tests without occupying workers with queued resource-group locks."""
 
 import argparse
@@ -55,6 +52,8 @@ def run_tests(tests, jobs, lock_dir):
                 print('[%d/%d] %s: %s (%.2fs)' %
                       (completed, len(tests), test['name'], 'FAILED' if code else 'PASSED', seconds), flush=True)
                 sys.stdout.buffer.write(output)
+                if output and not output.endswith(b'\n'):
+                    sys.stdout.buffer.write(b'\n')
                 sys.stdout.buffer.flush()
                 failed |= code != 0
             # Let already running tests finish and report, but stop dispatching

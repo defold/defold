@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 """PNG likeness using Pillow: 100 * (1 - normalized RGB RMSE).
 
 Install with: ./scripts/build.py install_ext, then ./scripts/build.py shell
@@ -41,12 +27,13 @@ def _likeness(squared_error, samples):
     return normalized, 100.0 * (1.0 - normalized)
 
 
-def compare(actual, reference, difference_path, background=(0, 0, 0), region=None):
+def compare(actual, reference, difference_path, background=(0, 0, 0), region=None, foreground=True):
     """Compare equal-sized RGB images and write a 4x absolute difference PNG.
 
     Inputs must already be composited onto their background. Foreground RMSE
     uses the union in region, so extra pixels and missing effects count fully;
     whole-image RMSE is reported separately. No reference files are modified.
+    Set foreground=False for whole-image tests, including uniform clears.
     """
     if actual.size != reference.size:
         raise ValueError("Image dimensions must match")
@@ -54,6 +41,9 @@ def compare(actual, reference, difference_path, background=(0, 0, 0), region=Non
     difference = ImageChops.difference(actual, reference)
     difference.point(lambda value: min(255, value * 4)).save(difference_path)
     _, whole = _likeness(sum(ImageStat.Stat(difference).sum2), actual.width * actual.height * 3)
+    if not foreground:
+        return dict(normalized_difference=1.0 - whole / 100.0, likeness_percent=whole,
+                    whole_likeness_percent=whole, foreground_pixels=None)
     a, b = actual.crop(region), reference.crop(region)
     mask = ImageChops.lighter(foreground_mask(a, background), foreground_mask(b, background))
     count = mask.histogram()[255]

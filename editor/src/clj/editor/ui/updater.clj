@@ -18,7 +18,7 @@
             [editor.dialogs :as dialogs]
             [editor.fxui :as fxui]
             [editor.localization :as localization]
-            [editor.markdown :as markdown]
+            [editor.markdown-view :as markdown-view]
             [editor.ui :as ui]
             [editor.updater :as updater]
             [service.log :as log])
@@ -67,7 +67,7 @@
                       (localization/message "updater.release-notes-dialog.header"
                                             {"count" (count versions)
                                              "version" (first versions)})))}
-   :content {:fx/type markdown/view
+   :content {:fx/type markdown-view/view
              :content (:markdown release-notes)
              :project project
              :stylesheets [(str (io/resource "editor.css"))]

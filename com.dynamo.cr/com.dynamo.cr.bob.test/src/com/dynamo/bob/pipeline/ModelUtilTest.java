@@ -23,8 +23,10 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -282,6 +284,64 @@ public class ModelUtilTest {
         } catch (IOException e) {
             e.printStackTrace();
             return null;
+        }
+    }
+
+    @Test
+    public void testLoadDracoSharedAccessors() throws Exception {
+        Modelimporter.Scene scene = loadScene("draco_shared.gltf");
+        assertEquals(1, scene.models.length);
+        assertEquals(2, scene.models[0].meshes.length);
+        Modelimporter.Mesh triangles = scene.models[0].meshes[0];
+        Modelimporter.Mesh strip = scene.models[0].meshes[1];
+        assertEquals(4, triangles.vertexCount);
+        assertEquals(4, strip.vertexCount);
+        assertEquals(6, triangles.indices.length);
+        assertEquals(4, strip.indices.length);
+        assertEquals(Modelimporter.PrimitiveType.PRIMITIVE_TYPE_TRIANGLES, triangles.primitiveType);
+        assertEquals(Modelimporter.PrimitiveType.PRIMITIVE_TYPE_TRIANGLE_STRIP, strip.primitiveType);
+        assertEquals(0.0f, triangles.positions[0], EPSILON);
+        assertEquals(10.0f, strip.positions[0], EPSILON);
+        assertEquals(128.0f / 255.0f, triangles.colors[1], EPSILON);
+    }
+
+    @Test
+    public void testLoadMeshoptWithoutFallbackBuffers() throws Exception {
+        String json;
+        try (InputStream stream = getClass().getResourceAsStream("box_meshopt.gltf")) {
+            json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        for (String extension : List.of("EXT_meshopt_compression", "KHR_meshopt_compression")) {
+            byte[] content = json.replace("EXT_meshopt_compression", extension).getBytes(StandardCharsets.UTF_8);
+            Modelimporter.Scene scene = ModelUtil.loadScene(content, "box_meshopt.gltf", null, (path, uri) -> {
+                throw new AssertionError("Embedded data and omitted fallbacks must not be resolved: " + uri);
+            });
+            assertEquals(1, scene.models.length);
+            assertEquals(24, scene.models[0].meshes[0].vertexCount);
+            assertEquals(72, scene.models[0].meshes[0].positions.length);
+            assertEquals(36, scene.models[0].meshes[0].indices.length);
+            assertEquals(-0.5f, scene.models[0].meshes[0].aabb.min.x, EPSILON);
+            assertEquals(0.5f, scene.models[0].meshes[0].aabb.max.x, EPSILON);
+            assertEquals(2, scene.buffers.length);
+            assertEquals(0, scene.buffers[1].buffer.length);
+        }
+    }
+
+    @Test
+    public void testLoadMeshoptMissingCompressedSourceFails() throws Exception {
+        String json;
+        try (InputStream stream = getClass().getResourceAsStream("box_meshopt.gltf")) {
+            json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        byte[] content = json.replaceFirst("data:[^\"]+", "missing.bin").getBytes(StandardCharsets.UTF_8);
+        try {
+            ModelUtil.loadScene(content, "box_meshopt.gltf", null, (path, uri) -> {
+                assertEquals("missing.bin", uri);
+                return null;
+            });
+            fail("Expected the missing compressed source to fail import");
+        } catch (ModelImporterJni.ModelException expected) {
+            assertTrue(expected.getMessage().contains("Missing external buffer data"));
         }
     }
 

@@ -74,6 +74,12 @@ namespace dmGameSystem
      * @member play_id [type:number] Sequential playback identifier returned by [ref:sound.play].
      */
 
+    /*# Sound parameter properties
+     * @struct
+     * @name sound.parameter_properties
+     * @member play_id? [type:number] Playback identifier returned by [ref:sound.play]. If omitted, all voices and the component defaults are updated.
+     */
+
 
     /*# [type:number] sound gain
      *
@@ -582,6 +588,21 @@ namespace dmGameSystem
         return 1;
     }
 
+    // Read play_id from the optional properties table, defaulting to all voices when omitted.
+    static uint32_t CheckPlayId(lua_State* L, int index)
+    {
+        uint32_t play_id = dmSound::INVALID_PLAY_ID;
+        if (!lua_isnoneornil(L, index))
+        {
+            luaL_checktype(L, index, LUA_TTABLE);
+            lua_getfield(L, index, "play_id");
+            if (!lua_isnil(L, -1))
+                play_id = luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+        }
+        return play_id;
+    }
+
     /*# stop a playing a sound(s)
      * Stop playing all active voices or just one voice if `play_id` provided
      *
@@ -602,32 +623,14 @@ namespace dmGameSystem
     static int Sound_Stop(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        int top = lua_gettop(L);
         (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        uint32_t play_id = dmSound::INVALID_PLAY_ID;
-
-        if (top > 1 && !lua_isnil(L,2)) // table with args
-        {
-            luaL_checktype(L, 2, LUA_TTABLE);
-            lua_pushvalue(L, 2);
-
-            lua_getfield(L, -1, "play_id");
-            if (!lua_isnil(L, -1))
-            {
-                play_id = luaL_checknumber(L, -1);
-            }
-            lua_pop(L, 1);
-
-            lua_pop(L, 1);
-        }
-
         dmGameSystemDDF::StopSound msg;
-        msg.m_PlayId = play_id;
+        msg.m_PlayId = CheckPlayId(L, 2);
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopSound::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::StopSound::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
@@ -665,17 +668,24 @@ namespace dmGameSystem
     }
 
     /*# set sound gain
-     * Set gain on all active playing voices of a sound.
+     * Set gain on all voices of a sound, or just the voice identified by `play_id`.
+     * Without `play_id`, this also updates the component gain used for future playback.
+     * With `play_id`, other voices and the component gain are unchanged. Delayed and paused
+     * voices can be updated. If the voice no longer exists, this call has no effect.
+     * The gain is multiplied by the gain in the sound resource.
      *
      * @name sound.set_gain
      * @param url [type:string|hash|url] the sound to set the gain of
      * @param [gain] [type:number] sound gain between 0 and 1 [-60dB .. 0dB]. The final gain of the sound will be a combination of this gain, the group gain and the master gain.
+     * @param [properties] [type:sound.parameter_properties] optional playback to update
      * @examples
      *
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will set the gain to 0.9
      *
      * ```lua
      * sound.set_gain("#sound", 0.9)
+     * local id = sound.play("#sound")
+     * sound.set_gain("#sound", 0.4, { play_id = id })
      * ```
      */
     static int Sound_SetGain(lua_State* L)
@@ -692,13 +702,18 @@ namespace dmGameSystem
 
         dmGameSystemDDF::SetGain msg;
         msg.m_Gain = gain;
+        msg.m_PlayId = CheckPlayId(L, 3);
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetGain::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetGain::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
     }
 
     /*# set sound pan
-     * Set panning on all active playing voices of a sound.
+     * Set panning on all voices of a sound, or just the voice identified by `play_id`.
+     * Without `play_id`, this also updates the component pan used for future playback.
+     * With `play_id`, other voices and the component pan are unchanged. Delayed and paused
+     * voices can be updated. If the voice no longer exists, this call has no effect.
+     * The pan is added to the pan in the sound resource.
      *
      * The valid range is from -1.0 to 1.0, representing -45 degrees left, to +45 degrees right.
      *
@@ -708,12 +723,15 @@ namespace dmGameSystem
      * @name sound.set_pan
      * @param url [type:string|hash|url] the sound to set the panning value to
      * @param [pan] [type:number] sound panning between -1.0 and 1.0
+     * @param [properties] [type:sound.parameter_properties] optional playback to update
      * @examples
      *
-     * Assuming the script belongs to an instance with a sound-component with id "sound", this will set the gain to 0.5
+     * Assuming the script belongs to an instance with a sound-component with id "sound", this will set the pan to 0.5
      *
      * ```lua
      * sound.set_pan("#sound", 0.5) -- pan to the right
+     * local id = sound.play("#sound")
+     * sound.set_pan("#sound", -0.5, { play_id = id }) -- pan this voice to the left
      * ```
      */
     static int Sound_SetPan(lua_State* L)
@@ -730,6 +748,7 @@ namespace dmGameSystem
 
         dmGameSystemDDF::SetPan msg;
         msg.m_Pan = pan;
+        msg.m_PlayId = CheckPlayId(L, 3);
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetPan::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetPan::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
@@ -824,7 +843,11 @@ namespace dmGameSystem
      */
 
     /*# set sound gain
-     * Post this message to a sound-component to set gain on all active playing voices.
+     * Post this message to a sound-component to set gain on all voices, or just the voice
+     * identified by `play_id`. Without `play_id`, the component gain is also updated for
+     * future playback. A targeted update leaves other voices and the component gain unchanged.
+     * Delayed and paused voices can be updated; an unknown or completed `play_id` has no effect.
+     * The gain is multiplied by the gain in the sound resource.
      *
      * [icon:attention] Note that gain is in linear scale, between 0 and 1.
      * To get the dB value from the gain, use the formula `20 * log(gain)`.
@@ -834,12 +857,35 @@ namespace dmGameSystem
      * @message
      * @name set_gain
      * @param [gain] [type:number] sound gain between 0 and 1, default is 1.
+     * @param [play_id] [type:number] optional playback identifier returned by [ref:sound.play].
      * @examples
      *
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will set the gain to 0.5
      *
      * ```lua
      * msg.post("#sound", "set_gain", {gain = 0.5})
+     * local id = sound.play("#sound")
+     * msg.post("#sound", "set_gain", {gain = 0.4, play_id = id})
+     * ```
+     */
+
+    /*# set sound pan
+     * Post this message to a sound-component to set panning on all voices, or just the voice
+     * identified by `play_id`. Without `play_id`, the component pan is also updated for
+     * future playback. A targeted update leaves other voices and the component pan unchanged.
+     * Delayed and paused voices can be updated; an unknown or completed `play_id` has no effect.
+     * The pan is added to the pan in the sound resource.
+     *
+     * @message
+     * @name set_pan
+     * @param [pan] [type:number] sound panning between -1.0 and 1.0, default is 0.
+     * @param [play_id] [type:number] optional playback identifier returned by [ref:sound.play].
+     * @examples
+     *
+     * ```lua
+     * msg.post("#sound", "set_pan", {pan = 0.5})
+     * local id = sound.play("#sound")
+     * msg.post("#sound", "set_pan", {pan = -0.5, play_id = id})
      * ```
      */
 

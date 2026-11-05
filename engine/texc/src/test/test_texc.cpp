@@ -482,6 +482,7 @@ TEST_P(TexcCompileTest, EncodeBasisU)
     for (uint32_t rdo = 0; rdo < 2; ++rdo)
     {
         settings.m_rdo_uastc = rdo;
+        settings.m_ColorSpace = rdo ? dmTexc::CS_SRGB : dmTexc::CS_LRGB;
         uint8_t* out = 0;
         uint32_t out_size = 0;
         ASSERT_TRUE(dmTexc::BasisUEncode(&settings, &out, &out_size));
@@ -489,6 +490,9 @@ TEST_P(TexcCompileTest, EncodeBasisU)
 
         basist::basisu_transcoder transcoder;
         ASSERT_TRUE(transcoder.validate_file_checksums(out, out_size, true));
+        basist::basisu_file_info file_info;
+        ASSERT_TRUE(transcoder.get_file_info(out, out_size, file_info));
+        ASSERT_EQ(settings.m_ColorSpace == dmTexc::CS_SRGB, file_info.m_srgb);
         ASSERT_EQ(basist::basis_tex_format::cUASTC_LDR_4x4, transcoder.get_basis_tex_format(out, out_size));
         basist::basisu_image_level_info level_info;
         ASSERT_TRUE(transcoder.get_image_level_info(out, out_size, level_info, 0, 0));

@@ -52,6 +52,8 @@ public class ShadercJni {
             try {
                 Method getSharedLib = clsbob.getMethod("getSharedLib", String.class);
                 Method addToPaths = clsbob.getMethod("addToPaths", String.class);
+                File dxc = (File)getSharedLib.invoke(null, "dxcompiler");
+                System.load(dxc.getAbsolutePath());
                 File lib = (File)getSharedLib.invoke(null, LIBRARY_NAME);
                 System.load(lib.getAbsolutePath());
             } catch (InvocationTargetException e) {
@@ -68,6 +70,7 @@ public class ShadercJni {
         else {
             try {
                 System.out.printf("Fallback to regular System.loadLibrary(%s)\n", LIBRARY_NAME);
+                System.loadLibrary("dxcompiler");
                 System.loadLibrary(LIBRARY_NAME); // Requires the java.library.path to be set
             } catch (Exception e) {
                 System.err.printf("Native code library failed to load: %s\n", e);
@@ -89,6 +92,7 @@ public class ShadercJni {
     public static native void SetResourceBinding(long context, long compiler, long nameHash, int binding);
     public static native void SetResourceSet(long context, long compiler, long nameHash, int set);
     public static native void SetResourceStageFlags(long context, long nameHash, int stageFlags);
+    public static native void SetResourceAccessFlags(long context, long nameHash, int accessFlags);
 
     public static native Shaderc.ShaderCompileResult Compile(long context, long compiler, Shaderc.ShaderCompilerOptions options);
     public static native Shaderc.HLSLRootSignature   HLSLMergeRootSignatures(Shaderc.ShaderCompileResult[] shaders);

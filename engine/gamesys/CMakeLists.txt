@@ -13,6 +13,9 @@ add_compile_definitions(DLIB_LOG_DOMAIN="GAMESYS")
 set(GS_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(GS_SRC_DIR "${GS_ROOT}/src/gamesys")
 set(GS_DMSDK_SRC_DIR "${GS_ROOT}/src")
+if(TARGET_PLATFORM MATCHES "^(x86_64|arm64)-(macos|linux)$|^x86_64-win32$")
+  add_subdirectory(src/gamesys/jni)
+endif()
 set(GS_PROTO_DIR "${GS_ROOT}/proto/gamesys")
 set(GS_DLIB_PROTO_ROOT "${GS_ROOT}/../dlib/proto")
 set(GS_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}")
@@ -159,11 +162,10 @@ set(GAMESYS_PROTO_PY_DIR "${GS_PROTO_PY_DIR}" CACHE INTERNAL "Generated gamesys 
 # ========= gamesys (main) =========
 
 # Mirror ant_glob patterns from wscript:
-#   ['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp', 'fontgen/*.cpp']
-file(GLOB GS_TOP_LEVEL
+#   ['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp']
+file(GLOB GS_TOP_LEVEL CONFIGURE_DEPENDS
     "${GS_SRC_DIR}/*.cpp"
-    "${GS_SRC_DIR}/scripts/*.cpp"
-    "${GS_SRC_DIR}/fontgen/*.cpp")
+    "${GS_SRC_DIR}/scripts/*.cpp")
 file(GLOB_RECURSE GS_RESOURCES "${GS_SRC_DIR}/resources/*.cpp")
 file(GLOB_RECURSE GS_COMPONENTS "${GS_SRC_DIR}/components/*.cpp")
 set(GS_SOURCES ${GS_TOP_LEVEL} ${GS_RESOURCES} ${GS_COMPONENTS})
@@ -429,8 +431,7 @@ defold_install_targets(TARGETS gamesys gamesys_gui gamesys_particle gamesys_mode
 
 set(GAMESYS_PUBLIC_HEADERS
     "${GS_SRC_DIR}/gamesys.h"
-    "${GS_SRC_DIR}/components/comp_gui.h"
-    "${GS_SRC_DIR}/fontgen/fontgen.h")
+    "${GS_SRC_DIR}/components/comp_gui.h")
 file(GLOB_RECURSE GAMESYS_DMSDK_HEADERS CONFIGURE_DEPENDS
     "${GS_ROOT}/src/dmsdk/*.h"
     "${GS_ROOT}/src/dmsdk/*.hpp")
@@ -474,7 +475,6 @@ add_custom_target(gamesys_sdk_headers
 
 install(FILES "${GS_SRC_DIR}/gamesys.h" DESTINATION include/gamesys)
 install(FILES "${GS_SRC_DIR}/components/comp_gui.h" DESTINATION include/gamesys/components)
-install(FILES "${GS_SRC_DIR}/fontgen/fontgen.h" DESTINATION include/gamesys/fontgen)
 install(FILES ${GS_PROTO_HEADERS} "${GS_MODEL_HEADER}" DESTINATION include/gamesys)
 install(FILES "${GS_HTTP_PROTO_HEADER}" DESTINATION include/dlib)
 install(FILES "${GS_HTTP_PROTO}" DESTINATION share/proto/dlib)

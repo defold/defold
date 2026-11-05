@@ -25,15 +25,16 @@
 #include <dlib/opaque_handle_container.h>
 
 #include "../graphics_private.h"
+#include "../graphics_resource_retirement.h"
 
 namespace dmGraphics
 {
     struct MetalContext;
     struct MetalPipeline;
-    struct ResourceToDestroy;
+    struct MetalResourceToDestroy;
 
     typedef dmHashTable64<MetalPipeline> PipelineCache;
-    typedef dmArray<ResourceToDestroy>   ResourcesToDestroyList;
+    typedef dmArray<MetalResourceToDestroy>   MetalResourcesToDestroyList;
 
     const static uint8_t  MAX_FRAMES_IN_FLIGHT       = 2; // Keep two frames in flight for better CPU/GPU overlap
     const static uint16_t MAX_ENCODER_RESOURCE_CACHE = 256;
@@ -73,7 +74,7 @@ namespace dmGraphics
         MTL::ComputePipelineState* m_ComputePipelineState;
     };
 
-    struct ResourceToDestroy
+    struct MetalResourceToDestroy
     {
         union
         {
@@ -100,6 +101,14 @@ namespace dmGraphics
     {
         UniformBuffer     m_BaseUniformBuffer;
         MetalDeviceBuffer m_DeviceBuffer;
+    };
+
+    struct MetalStorageBuffer
+    {
+        StorageBuffer     m_Base;
+        MetalDeviceBuffer m_DeviceBuffer;
+        uint64_t          m_LastRenderPass;
+        uint8_t           m_RenderPassAccess;
     };
 
     struct MetalConstantScratchBuffer
@@ -185,6 +194,7 @@ namespace dmGraphics
         , m_HasPendingClearColor(0)
         , m_HasPendingClearDepth(0)
         , m_HasPendingClearStencil(0)
+        , m_ResumePass(0)
         , m_ColorAttachmentCount(0)
         {
             memset(&m_Base, 0, sizeof(m_Base));
@@ -224,6 +234,7 @@ namespace dmGraphics
         uint32_t       m_HasPendingClearColor : 1;
         uint32_t       m_HasPendingClearDepth : 1;
         uint32_t       m_HasPendingClearStencil : 1;
+        uint32_t       m_ResumePass : 1;
         uint32_t       m_ColorAttachmentCount : 4;
     };
 
@@ -246,10 +257,11 @@ namespace dmGraphics
         MetalShaderModule*    m_VertexModule;
         MetalShaderModule*    m_FragmentModule;
         MetalShaderModule*    m_ComputeModule;
-        MTL::ArgumentEncoder* m_ArgumentEncoders[MAX_SET_COUNT];
-        MetalArgumentBinding  m_ArgumentBufferBindings[MAX_SET_COUNT];
+        // SPIRV-Cross packs each stage independently, including shared descriptor sets.
+        MTL::ArgumentEncoder* m_ArgumentEncoders[3][MAX_SET_COUNT];
+        MetalArgumentBinding  m_ArgumentBufferBindings[3][MAX_SET_COUNT];
 
-        uint32_t              m_ResourceToMslIndex[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        uint32_t              m_ResourceToMslIndex[3][MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         uint32_t              m_WorkGroupSize[3]; // x,y,z
         uint8_t*              m_UniformData;
         uint64_t              m_Hash;
@@ -261,7 +273,7 @@ namespace dmGraphics
 
     struct MetalFrameResource
     {
-        ResourcesToDestroyList*    m_ResourcesToDestroy;
+        MetalResourcesToDestroyList*    m_ResourcesToDestroy;
         MetalConstantScratchBuffer m_ConstantScratchBuffer;
         MetalArgumentBufferPool    m_ArgumentBufferPool;
         MTL::CommandBuffer*        m_CommandBuffer;
@@ -309,6 +321,7 @@ namespace dmGraphics
         void*                              m_View;
         CAMetalLayer*                      m_Layer;
         MetalFrameResource                 m_FrameResources[MAX_FRAMES_IN_FLIGHT];
+        ResourceRetirementQueue<MetalResourceToDestroy>* m_ResourceRetirementQueue;
         MTL::Device*                       m_Device;
         MTL::CommandQueue*                 m_CommandQueue;
         PipelineState                      m_PipelineState;
@@ -335,9 +348,11 @@ namespace dmGraphics
 
         // Per-frame render state
         MetalDeviceBuffer*                 m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
+        // Original handles identify bindings; current declarations are shader-filtered copies.
+        HVertexDeclaration                 m_EnabledVertexDeclarations[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         uint32_t                           m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
-        MetalStorageBufferBinding          m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
+        MetalStorageBufferBinding          m_CurrentStorageBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         MetalUniformBuffer*                m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         MetalProgram*                      m_CurrentProgram;
         MetalPipeline*                     m_CurrentPipeline;
@@ -353,6 +368,7 @@ namespace dmGraphics
         MTL::Resource*                     m_ComputeUsedResources[MAX_ENCODER_RESOURCE_CACHE];
         MTL::ResourceUsage                 m_ComputeUsedResourceUsage[MAX_ENCODER_RESOURCE_CACHE];
         uint16_t                           m_RenderUsedResourceCount;
+        uint64_t                           m_RenderPassSerial;
         uint16_t                           m_ComputeUsedResourceCount;
 
         MetalTexture*                      m_DefaultTexture2D;

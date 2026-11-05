@@ -61,21 +61,21 @@
 
       (testing "Build error links to source node"
         (are [component-resource-path error-resource-path error-outline-path]
-            (with-open [_ (make-restore-point!)]
-              (add-component-from-file! workspace game-object component-resource-path)
-              (let [old-artifact-map (workspace/artifact-map workspace)
-                    build-results (build/build-project! project main-collection old-artifact-map nil (g/make-evaluation-context))
-                    error-value (:error build-results)]
-                (if (is (some? error-value) component-resource-path)
-                  (let [error-tree (build-errors-view/build-resource-tree error-value)
-                        error-item-of-parent-resource (first (:children error-tree))
-                        error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                    (is (= [(resource error-resource-path) (resource-node error-resource-path)]
-                           (error-item-open-info-without-opts error-item-of-parent-resource)))
-                    (is (= [(resource error-resource-path) (outline-node error-resource-path error-outline-path)]
-                           (error-item-open-info-without-opts error-item-of-faulty-node))))
-                  (workspace/artifact-map! workspace (:artifact-map build-results))))
-              true)
+          (with-open [_ (make-restore-point!)]
+            (add-component-from-file! workspace game-object component-resource-path)
+            (let [old-artifact-map (workspace/artifact-map workspace)
+                  build-results (build/build-project! project main-collection old-artifact-map nil (g/make-evaluation-context))
+                  error-value (:error build-results)]
+              (if (is (some? error-value) component-resource-path)
+                (let [error-tree (build-errors-view/build-resource-tree error-value)
+                      error-item-of-parent-resource (first (:children error-tree))
+                      error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
+                  (is (= [(resource error-resource-path) (resource-node error-resource-path)]
+                         (error-item-open-info-without-opts error-item-of-parent-resource)))
+                  (is (= [(resource error-resource-path) (outline-node error-resource-path error-outline-path)]
+                         (error-item-open-info-without-opts error-item-of-faulty-node))))
+                (workspace/artifact-map! workspace (:artifact-map build-results))))
+            true)
 
           "/errors/syntax_error.script"
           "/errors/syntax_error.script" []
@@ -100,21 +100,21 @@
 
       (testing "Build errors from missing files link to referencing files, not referenced"
         (are [resource-path error-resource-path error-outline-path add-fn]
-            (with-open [_ (make-restore-point!)]
-              (add-fn resource-path)
-              (let [old-artifact-map (workspace/artifact-map workspace)
-                    build-results (build/build-project! project main-collection old-artifact-map nil (g/make-evaluation-context))
-                    error-value (:error build-results)]
-                (if (is (some? error-value) resource-path)
-                  (let [error-tree (build-errors-view/build-resource-tree error-value)
-                        error-item-of-parent-resource (first (:children error-tree))
-                        error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                    (is (= [(resource error-resource-path) (resource-node error-resource-path)]
-                           (error-item-open-info-without-opts error-item-of-parent-resource)))
-                    (is (= [(resource error-resource-path) (outline-node error-resource-path error-outline-path)]
-                           (error-item-open-info-without-opts error-item-of-faulty-node))))
-                  (workspace/artifact-map! workspace (:artifact-map build-results))))
-              true)
+          (with-open [_ (make-restore-point!)]
+            (add-fn resource-path)
+            (let [old-artifact-map (workspace/artifact-map workspace)
+                  build-results (build/build-project! project main-collection old-artifact-map nil (g/make-evaluation-context))
+                  error-value (:error build-results)]
+              (if (is (some? error-value) resource-path)
+                (let [error-tree (build-errors-view/build-resource-tree error-value)
+                      error-item-of-parent-resource (first (:children error-tree))
+                      error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
+                  (is (= [(resource error-resource-path) (resource-node error-resource-path)]
+                         (error-item-open-info-without-opts error-item-of-parent-resource)))
+                  (is (= [(resource error-resource-path) (outline-node error-resource-path error-outline-path)]
+                         (error-item-open-info-without-opts error-item-of-faulty-node))))
+                (workspace/artifact-map! workspace (:artifact-map build-results))))
+            true)
 
           "/file_not_found.gui"
           "/main/main.collection" ["go", "file_not_found"]

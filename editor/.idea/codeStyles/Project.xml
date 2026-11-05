@@ -12,6 +12,7 @@
           <entry key="clojure.core.cache/defcache" value="-1" />
           <entry key="clojure.core/assoc!" value="1" />
           <entry key="clojure.core/cond-&gt;" value="-1" />
+          <entry key="clojure.core/cond-&gt;&gt;" value="-1" />
           <entry key="clojure.core/defmulti" value="-1" />
           <entry key="clojure.core/defonce" value="-1" />
           <entry key="clojure.core/vector-of" value="-1" />
@@ -120,6 +121,7 @@
           <entry key="util.debug-util/log-time-and-memory" value="-1" />
           <entry key="util.debug-util/measuring" value="-1" />
           <entry key="util.debug-util/metrics-time" value="-1" />
+          <entry key="util.fn/defn-cached" value="-1" />
           <entry key="util.profiler/profile" value="-1" />
           <entry key="vlaaad.reveal/defaction" value="-1" />
           <entry key="vlaaad.reveal/defstream" value="-1" />

@@ -1,7 +1,23 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #include <test_script.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
+#include <dlib/thread.h>
 #include <gamesys/components/comp_collision_object.h>
 #include <gamesys/physics_ddf.h>
 
@@ -9,6 +25,11 @@
 #include "gamesys_private.h"
 #include "scripts/bullet3d/script_bullet3d.h"
 #include "test_gamesys.h"
+
+#if defined(DM_PHYSICS_BOX2D_V3)
+#include <box2d/box2d.h>
+#include "components/box2d/comp_collision_object_box2d.h"
+#endif
 
 using namespace dmVMath;
 
@@ -117,7 +138,7 @@ static void RunPhysicsScriptTest(dmResource::HFactory factory, dmGameObject::HCo
 
     dmGameObject::HInstance go = Spawn(factory, collection, prototype_path, dmHashString64(instance_path), 0,
                                        Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     bool tests_done = false;
     uint32_t update_count = 0;
@@ -162,13 +183,13 @@ TEST_F(ComponentTest, JointTest)
     dmhash_t hash_go_joint_test_c = dmHashString64("/joint_test_c");
 
     dmGameObject::HInstance go_c = Spawn(m_Factory, m_Collection, path_joint_test_c, hash_go_joint_test_c, 0, Point3(0, -100, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_c);
+    ASSERT_NE(0, go_c);
 
     dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_joint_test_b, hash_go_joint_test_b, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_b);
+    ASSERT_NE(0, go_b);
 
     dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_joint_test_a, hash_go_joint_test_a, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_a);
+    ASSERT_NE(0, go_a);
 
     // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
     bool tests_done = false;
@@ -226,6 +247,55 @@ TEST_F(ComponentTest, Box2DChainApiTest)
                          "/collision_object/box2d_chain_test.goc", "/box2d_chain_test");
 }
 
+class CollisionShapeScale3DTest : public Bullet3DComponentTest
+{
+    void SetUp() override
+    {
+        SetContentFolder("collision_object_3d");
+        m_projectOptions.m_Scale = (float)atof(GetParam());
+        ScriptBaseTest::SetUp();
+    }
+};
+
+// Verify Lua shape reads/writes and native Bullet sizes at non-unit scales, guarding against #11636.
+TEST_P(CollisionShapeScale3DTest, GetSetCollisionShape)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/collision_object_3d/get_set_shape_3d.goc",
+                                      dmHashString64("/get_set_shape_3d"), 0, Point3(0, 0, 0),
+                                      Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go);
+
+    uint32_t component_type = 0;
+    dmGameObject::HComponent component = 0;
+    dmGameObject::HComponentWorld component_world = 0;
+    ASSERT_EQ(dmGameObject::RESULT_OK,
+              dmGameObject::GetComponent(go, dmHashString64("collisionobject"), &component_type, &component, &component_world));
+    btCollisionObject* object = (btCollisionObject*)dmGameSystem::CompCollisionObjectGetBullet3DCollisionObject(component);
+    ASSERT_NE((void*)0, object);
+    ASSERT_EQ(COMPOUND_SHAPE_PROXYTYPE, object->getCollisionShape()->getShapeType());
+    btCompoundShape* compound = (btCompoundShape*)object->getCollisionShape();
+    ASSERT_EQ(3, compound->getNumChildShapes());
+
+    const float scale = m_projectOptions.m_Scale;
+    btSphereShape* sphere = (btSphereShape*)compound->getChildShape(0);
+    ASSERT_EQ(SPHERE_SHAPE_PROXYTYPE, sphere->getShapeType());
+    ASSERT_NEAR(5.0f * scale, sphere->getRadius(), 0.00001f);
+    btBoxShape* box = (btBoxShape*)compound->getChildShape(1);
+    ASSERT_EQ(BOX_SHAPE_PROXYTYPE, box->getShapeType());
+    ASSERT_NEAR(6.0f * scale, box->getHalfExtentsWithMargin().x(), 0.00001f);
+    ASSERT_NEAR(9.0f * scale, box->getHalfExtentsWithMargin().y(), 0.00001f);
+    ASSERT_NEAR(12.0f * scale, box->getHalfExtentsWithMargin().z(), 0.00001f);
+    btCapsuleShape* capsule = (btCapsuleShape*)compound->getChildShape(2);
+    ASSERT_EQ(CAPSULE_SHAPE_PROXYTYPE, capsule->getShapeType());
+    ASSERT_NEAR(3.0f * scale, capsule->getRadius(), 0.00001f);
+    ASSERT_NEAR(7.0f * scale, capsule->getHalfHeight(), 0.00001f);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+static const char* collision_shape_scales[] = {"1.0", "0.1", "0.01"};
+INSTANTIATE_TEST_CASE_P(PhysicsScale, CollisionShapeScale3DTest, jc_test_values_in(collision_shape_scales));
+
 TEST_F(Bullet3DComponentTest, Bullet3DApiTest)
 {
     /* Intent: verify the native Bullet3D Lua wrappers against both rigid-body
@@ -240,16 +310,16 @@ TEST_F(Bullet3DComponentTest, Bullet3DApiTest)
     ** where a mismatch can silently corrupt simulation state or revive stale userdata.
     */
     dmGameObject::HInstance rigid_body = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_rigid_body"), 0, Point3(10, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, rigid_body);
+    ASSERT_NE(0, rigid_body);
 
     dmGameObject::HInstance trigger = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_trigger.goc", dmHashString64("/bullet3d_trigger"), 0, Point3(20, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, trigger);
+    ASSERT_NE(0, trigger);
 
     dmGameObject::HInstance static_body = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_static.goc", dmHashString64("/bullet3d_static"), 0, Point3(200, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, static_body);
+    ASSERT_NE(0, static_body);
 
     dmGameObject::HInstance kinematic_body = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_kinematic.goc", dmHashString64("/bullet3d_kinematic"), 0, Point3(100, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, kinematic_body);
+    ASSERT_NE(0, kinematic_body);
 
     RunPhysicsScriptTest(m_Factory, m_Collection, &m_UpdateContext, m_ScriptContext, "/collision_object/bullet3d_test.goc", "/bullet3d_test");
 }
@@ -269,37 +339,37 @@ TEST_F(Bullet3DComponentTest, Bullet3DWorldQueryApiTest)
     ** native ordering, scaling and broadphase implementation details.
     */
     dmGameObject::HInstance compound = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_compound.goc", dmHashString64("/bullet3d_query_compound"), 0, Point3(-50, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, compound);
+    ASSERT_NE(0, compound);
 
     dmGameObject::HInstance hull = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_hull.goc", dmHashString64("/bullet3d_query_hull"), 0, Point3(-30, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, hull);
+    ASSERT_NE(0, hull);
 
     dmGameObject::HInstance near_box = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_static.goc", dmHashString64("/bullet3d_query_near"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, near_box);
+    ASSERT_NE(0, near_box);
 
     dmGameObject::HInstance filtered_box = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_filtered.goc", dmHashString64("/bullet3d_query_filtered"), 0, Point3(5, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, filtered_box);
+    ASSERT_NE(0, filtered_box);
 
     dmGameObject::HInstance far_box = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_static.goc", dmHashString64("/bullet3d_query_far"), 0, Point3(10, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, far_box);
+    ASSERT_NE(0, far_box);
 
     dmGameObject::HInstance trigger = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_trigger.goc", dmHashString64("/bullet3d_query_trigger"), 0, Point3(15, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, trigger);
+    ASSERT_NE(0, trigger);
 
     dmGameObject::HInstance contact_filtered = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_filtered.goc", dmHashString64("/bullet3d_query_contact_filtered"), 0, Point3(28.5f, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, contact_filtered);
+    ASSERT_NE(0, contact_filtered);
 
     dmGameObject::HInstance contact_a = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_kinematic.goc", dmHashString64("/bullet3d_query_contact_a"), 0, Point3(30, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, contact_a);
+    ASSERT_NE(0, contact_a);
 
     dmGameObject::HInstance contact_b = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_static.goc", dmHashString64("/bullet3d_query_contact_b"), 0, Point3(31.5f, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, contact_b);
+    ASSERT_NE(0, contact_b);
 
     dmGameObject::HInstance movable = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_static.goc", dmHashString64("/bullet3d_query_movable"), 0, Point3(50, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, movable);
+    ASSERT_NE(0, movable);
 
     dmGameObject::HInstance rotated = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_static.goc", dmHashString64("/bullet3d_query_rotated"), 0, Point3(70, 0, 0), Quat(0, 0, 0.38268343f, 0.92387953f), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, rotated);
+    ASSERT_NE(0, rotated);
 
     RunPhysicsScriptTest(m_Factory, m_Collection, &m_UpdateContext, m_ScriptContext, "/collision_object/bullet3d_query_test.goc", "/bullet3d_query_test");
 }
@@ -316,9 +386,9 @@ TEST_F(Bullet3DComponentTest, Bullet3DConstraintApiTest)
     ** or world references across component lifecycle changes.
     */
     dmGameObject::HInstance body_a = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_constraint_a"), 0, Point3(-5, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, body_a);
+    ASSERT_NE(0, body_a);
     dmGameObject::HInstance body_b = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_constraint_b"), 0, Point3(5, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, body_b);
+    ASSERT_NE(0, body_b);
 
     RunPhysicsScriptTest(m_Factory, m_Collection, &m_UpdateContext, m_ScriptContext, "/collision_object/bullet3d_constraint_test.goc", "/bullet3d_constraint_test");
 }
@@ -334,7 +404,7 @@ TEST_F(Bullet3DComponentTest, Bullet3DNativeScaleConversionTest)
     ** values that the higher-level Lua round-trip tests cannot detect.
     */
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_native_scale"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     uint32_t                      component_type = 0;
     dmGameObject::HComponent      component = 0;
@@ -348,7 +418,7 @@ TEST_F(Bullet3DComponentTest, Bullet3DNativeScaleConversionTest)
     ASSERT_NE((void*)0, rigid_body);
 
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-    dmGameSystem::PushBullet3DCollisionObject(L, collision_object, m_Collection, dmGameObject::GetIdentifier(go));
+    dmGameSystem::PushBullet3DCollisionObject(L, collision_object, go);
     lua_setglobal(L, "bullet3d_native_scale_body");
 
     ASSERT_TRUE(dmScriptTest::RunString(L,
@@ -415,8 +485,8 @@ TEST_F(Bullet3DComponentTest, Bullet3DAngularSpringScaleConversionTest)
     */
     dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_spring_scale_a"), 0, Point3(-1, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_spring_scale_b"), 0, Point3(1, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_a);
-    ASSERT_NE((void*)0, go_b);
+    ASSERT_NE(0, go_a);
+    ASSERT_NE(0, go_b);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -442,9 +512,9 @@ TEST_F(Bullet3DComponentTest, Bullet3DAngularSpringScaleConversionTest)
     ASSERT_EQ(0, world->getNumConstraints());
 
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-    dmGameSystem::PushBullet3DCollisionObject(L, collision_object_a, m_Collection, dmGameObject::GetIdentifier(go_a));
+    dmGameSystem::PushBullet3DCollisionObject(L, collision_object_a, go_a);
     lua_setglobal(L, "bullet3d_spring_scale_body_a");
-    dmGameSystem::PushBullet3DCollisionObject(L, collision_object_b, m_Collection, dmGameObject::GetIdentifier(go_b));
+    dmGameSystem::PushBullet3DCollisionObject(L, collision_object_b, go_b);
     lua_setglobal(L, "bullet3d_spring_scale_body_b");
 
     ASSERT_TRUE(dmScriptTest::RunString(L,
@@ -516,14 +586,14 @@ TEST_F(Bullet3DComponentTest, Bullet3DStaleIdentitiesDoNotRecycle)
     lua_State*        L = dmScript::GetLuaState(m_ScriptContext);
 
     btCollisionObject collision_object;
-    dmGameSystem::PushBullet3DCollisionObject(L, &collision_object, 0, 0);
+    dmGameSystem::PushBullet3DCollisionObject(L, &collision_object, 0);
     lua_setglobal(L, "bullet3d_stale_collision_object");
     dmGameSystem::ScriptBullet3DInvalidateCollisionObject(&collision_object);
 
     bool collision_object_revived = false;
     for (uint32_t i = 0; i < previous_generation_count; ++i)
     {
-        dmGameSystem::PushBullet3DCollisionObject(L, &collision_object, 0, 0);
+        dmGameSystem::PushBullet3DCollisionObject(L, &collision_object, 0);
         lua_getglobal(L, "bullet3d_stale_collision_object");
         collision_object_revived |= dmGameSystem::IsBullet3DCollisionObjectValid(L, -1);
         lua_pop(L, 1);
@@ -569,7 +639,7 @@ TEST_F(Bullet3DComponentTest, Bullet3DCollisionObjectHandleInvalidatedOnResource
     ** replacing its native body, so generation checks alone cannot prevent stale access.
     */
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_lifetime_test.goc", dmHashString64("/bullet3d_lifetime_reload"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -579,10 +649,10 @@ TEST_F(Bullet3DComponentTest, Bullet3DCollisionObjectHandleInvalidatedOnResource
     ASSERT_TRUE(lua_toboolean(L, -1));
     lua_pop(L, 1);
 
-    uint32_t generation = dmGameObject::GetGeneration(go);
+    uint32_t generation = dmGameObject::GetInstanceGeneration(go);
     ASSERT_EQ(dmResource::RESULT_OK,
               dmResource::ReloadResource(m_Factory, "/collision_object/bullet3d_body.collisionobjectc", 0));
-    ASSERT_EQ(generation, dmGameObject::GetGeneration(go));
+    ASSERT_EQ(generation, dmGameObject::GetInstanceGeneration(go));
 
     lua_pushboolean(L, 1);
     lua_setglobal(L, "bullet3d_lifetime_reload_complete");
@@ -618,16 +688,16 @@ TEST_F(Bullet3DComponentTest, Bullet3DHandlesInvalidatedOnCollectionTeardown)
                                                                        m_Register,
                                                                        32,
                                                                        0x0);
-    ASSERT_NE((void*)0, collection);
+    ASSERT_NE(0, collection);
 
     dmGameObject::HInstance go = Spawn(m_Factory, collection, "/collision_object/bullet3d_lifetime_test.goc", dmHashString64("/bullet3d_lifetime_teardown"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(collection));
 
     dmGameObject::HInstance primary_go = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_static.goc", dmHashString64("/bullet3d_lifetime_primary"), 0, Point3(100, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, primary_go);
+    ASSERT_NE(0, primary_go);
 
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
     lua_getglobal(L, "bullet3d_lifetime_ready");
@@ -649,7 +719,7 @@ TEST_F(Bullet3DComponentTest, Bullet3DHandlesInvalidatedOnCollectionTeardown)
               dmGameObject::GetComponent(primary_go, dmHashString64("collisionobject"), &primary_body_component_type, &primary_body_component, &primary_body_component_world));
     btCollisionObject* primary_body = (btCollisionObject*)dmGameSystem::CompCollisionObjectGetBullet3DCollisionObject(primary_body_component);
     ASSERT_NE((void*)0, primary_body);
-    dmGameSystem::PushBullet3DCollisionObject(L, primary_body, m_Collection, dmGameObject::GetIdentifier(primary_go));
+    dmGameSystem::PushBullet3DCollisionObject(L, primary_body, primary_go);
     lua_setglobal(L, "bullet3d_primary_body");
 
     ASSERT_TRUE(dmScriptTest::RunString(L,
@@ -701,10 +771,10 @@ TEST_F(ComponentTest, PhysicsListenerTest)
     dmhash_t hash_go_trigger = dmHashString64("/test_trigger");
 
     dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_b);
+    ASSERT_NE(0, go_b);
 
     dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_test_trigger, hash_go_trigger, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_a);
+    ASSERT_NE(0, go_a);
 
     bool tests_done = false;
     while (!tests_done)
@@ -721,6 +791,111 @@ TEST_F(ComponentTest, PhysicsListenerTest)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
 }
+
+// Verifies that with use_fixed_timestep the physics.set_event_listener() callback runs once per fixed step,
+// inside the fixed update. Guards against batched events being delivered only after update() (#10917).
+TEST_F(ComponentTest, PhysicsListenerFixedTimestepTest)
+{
+    m_PhysicsContextBox2D.m_BaseContext.m_UseFixedTimestep = true;
+    m_UpdateContext.m_FixedUpdateFrequency = 60;
+    m_UpdateContext.m_DT = 3.5f / 60.0f;
+
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, "/collision_object/callback_fixed_object.goc", dmHashString64("/test_object"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go_b);
+
+    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, "/collision_object/callback_trigger.goc", dmHashString64("/test_trigger"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go_a);
+
+    bool tests_done = false;
+    for (int i = 0; i < 100 && !tests_done; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+    ASSERT_TRUE(tests_done);
+
+    lua_getglobal(L, "fixed_steps");
+    int fixed_steps = (int)lua_tointeger(L, -1);
+    lua_getglobal(L, "callbacks");
+    int callbacks = (int)lua_tointeger(L, -1);
+    lua_getglobal(L, "callbacks_outside_fixed_update");
+    int callbacks_outside_fixed_update = (int)lua_tointeger(L, -1);
+    lua_getglobal(L, "steps_with_multiple_callbacks");
+    int steps_with_multiple_callbacks = (int)lua_tointeger(L, -1);
+    lua_pop(L, 4);
+
+    ASSERT_EQ(0, callbacks_outside_fixed_update);
+    ASSERT_EQ(0, steps_with_multiple_callbacks);
+    ASSERT_EQ(fixed_steps, callbacks);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+#if defined(DM_PHYSICS_BOX2D_V3)
+class PhysicsWorkerListenerTest : public ScriptBaseTest
+{
+    const char* GetContentFolder() const override
+    {
+        return "collision_object";
+    }
+
+    void SetUp() override
+    {
+        m_projectOptions.m_PhysicsWorkerCount = (uint32_t)atoi(GetParam());
+        ScriptBaseTest::SetUp();
+    }
+};
+
+// Verify real worker-backed steps flush Lua events before the next fixed tick, and listener mutations
+// are immediately queryable and affect the following tick, including two physics ticks per game update.
+TEST_P(PhysicsWorkerListenerTest, FixedTicksWithMutationAndRaycast)
+{
+    m_PhysicsContextBox2D.m_BaseContext.m_UseFixedTimestep = true;
+    m_UpdateContext.m_FixedUpdateFrequency = 30;
+    m_UpdateContext.m_DT = 2.0f / 30.0f;
+
+    dmGameObject::HInstance floor = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_static.goc", dmHashString64("/floor"), 0, Point3(0, -9.99f, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, floor);
+    ASSERT_NE((dmGameObject::HInstance)0, Spawn(m_Factory, m_Collection, "/collision_object/body.goc", dmHashString64("/body")));
+    ASSERT_NE((dmGameObject::HInstance)0, Spawn(m_Factory, m_Collection, "/collision_object/body.goc", dmHashString64("/query_target"), 0, Point3(100, 100, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1)));
+
+    uint32_t component_type = 0;
+    dmGameObject::HComponent component = 0;
+    dmGameObject::HComponentWorld component_world = 0;
+    ASSERT_EQ(dmGameObject::RESULT_OK,
+              dmGameObject::GetComponent(floor, dmHashString64("collisionobject"), &component_type, &component, &component_world));
+    b2WorldId world = *(b2WorldId*)dmGameSystem::CompCollisionObjectGetBox2DWorld(component_world);
+    uint32_t expected_workers = 1;
+#if defined(_WIN32) || defined(__linux__) || defined(__APPLE__)
+    if (dmThread::PlatformHasThreadSupport())
+    {
+        expected_workers += m_projectOptions.m_PhysicsWorkerCount;
+    }
+#endif
+    ASSERT_EQ(expected_workers, (uint32_t)b2World_GetWorkerCount(world));
+
+    ASSERT_NE((dmGameObject::HInstance)0, Spawn(m_Factory, m_Collection, "/collision_object/callback_workers.goc", dmHashString64("/listener")));
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    for (uint32_t frame = 0; frame < 3; ++frame)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        lua_getglobal(L, "worker_callbacks");
+        ASSERT_EQ(2 * (frame + 1), (uint32_t)lua_tointeger(L, -1));
+        lua_pop(L, 1);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+static const char* physics_worker_counts[] = { "0", "3" };
+INSTANTIATE_TEST_CASE_P(Workers, PhysicsWorkerListenerTest, jc_test_values_in(physics_worker_counts));
+#endif
 
 TEST_F(ComponentTest, PhysicsDDFDecoderTest)
 {
@@ -928,6 +1103,109 @@ TEST_F(ComponentTest, PhysicsBatchedEventDecoderTest)
     DestroyPhysicsTestCallback(L, &callback);
 }
 
+// Retained event tables remain independent across batches, including repeated hashes and more groups than the batch cache holds.
+TEST_F(ComponentTest, PhysicsBatchedEventRetentionTest)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    AssertLua(L,
+        "physics_batches = {}\n"
+        "function retain_physics_events(self, events)\n"
+        "    physics_batches[#physics_batches + 1] = events\n"
+        "end\n");
+    PhysicsTestCallback callback = CreatePhysicsTestCallback(L, "retain_physics_events");
+    dmPhysicsDDF::CollisionEvent events[24] = {};
+    dmGameSystem::PhysicsMessage messages[DM_ARRAY_SIZE(events)];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(events); ++i)
+    {
+        char group[32];
+        dmSnPrintf(group, sizeof(group), "group_%u", i);
+        events[i].m_A.m_Group = dmHashString64(group);
+        events[i].m_B.m_Group = dmHashString64("group_0");
+        events[i].m_A.m_Id = dmHashString64("object_a");
+        events[i].m_B.m_Id = dmHashString64("object_b");
+        messages[i].m_Offset = i * sizeof(events[0]);
+        messages[i].m_Type = dmGameSystem::PHYSICS_MESSAGE_TYPE_COLLISION;
+    }
+    int top = lua_gettop(L);
+    for (uint32_t batch = 1; batch <= 2; ++batch)
+    {
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(events); ++i)
+            events[i].m_A.m_Position = Point3((float)batch, (float)i, 0.0f);
+        dmGameSystem::RunBatchedEventCallback(callback.m_Callback, DM_ARRAY_SIZE(messages), messages, (const uint8_t*)events);
+        ASSERT_EQ(top, lua_gettop(L));
+        lua_gc(L, LUA_GCCOLLECT, 0);
+    }
+    AssertLua(L,
+        "for batch, events in ipairs(physics_batches) do\n"
+        "    assert(#events == 24)\n"
+        "    for i, event in ipairs(events) do\n"
+        "        assert(event.type == hash('collision_event'))\n"
+        "        assert(event.a.id == hash('object_a') and event.b.id == hash('object_b'))\n"
+        "        assert(event.a.group == hash('group_' .. (i - 1)))\n"
+        "        assert(event.b.group == hash('group_0'))\n"
+        "        assert(event.a.position == vmath.vector3(batch, i - 1, 0))\n"
+        "    end\n"
+        "end\n"
+        "physics_batches[1][1].a.position.x = 99\n"
+        "assert(physics_batches[1][2].a.position.x == 1)\n"
+        "assert(physics_batches[2][1].a.position.x == 2)\n"
+        "physics_batches = nil\n"
+        "retain_physics_events = nil\n");
+    DestroyPhysicsTestCallback(L, &callback);
+}
+
+// Hash bucket collisions, including zero and matching low bits, must preserve retained IDs across batches and GC.
+TEST_F(ComponentTest, PhysicsBatchedEventIdCacheTest)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    AssertLua(L,
+              "retained_id_batches = {}\n"
+              "function retain_id_batch(self, events)\n"
+              "    retained_id_batches[#retained_id_batches + 1] = events\n"
+              "end\n");
+    PhysicsTestCallback callback = CreatePhysicsTestCallback(L, "retain_id_batch");
+    const uint32_t event_count = 300;
+    dmPhysicsDDF::CollisionEvent events[event_count] = {};
+    dmGameSystem::PhysicsMessage messages[event_count];
+    int top = lua_gettop(L);
+    for (uint32_t batch = 0; batch < 2; ++batch)
+    {
+        for (uint32_t i = 0; i < event_count; ++i)
+        {
+            // Every ID shares the low 32 bits; both sides repeat it before eviction.
+            events[i].m_A.m_Id = (dmhash_t)(batch * event_count + i) << 32;
+            events[i].m_B.m_Id = events[i].m_A.m_Id;
+            messages[i].m_Offset = i * sizeof(events[0]);
+            messages[i].m_Type = dmGameSystem::PHYSICS_MESSAGE_TYPE_COLLISION;
+        }
+        dmGameSystem::RunBatchedEventCallback(callback.m_Callback, event_count, messages, (const uint8_t*)events);
+        ASSERT_EQ(top, lua_gettop(L));
+        lua_gc(L, LUA_GCCOLLECT, 0);
+    }
+    lua_getglobal(L, "retained_id_batches");
+    for (uint32_t batch = 0; batch < 2; ++batch)
+    {
+        lua_rawgeti(L, -1, batch + 1);
+        for (uint32_t i = 0; i < event_count; ++i)
+        {
+            lua_rawgeti(L, -1, i + 1);
+            const char* sides[] = { "a", "b" };
+            for (uint32_t side = 0; side < 2; ++side)
+            {
+                lua_getfield(L, -1, sides[side]);
+                lua_getfield(L, -1, "id");
+                ASSERT_EQ((dmhash_t)(batch * event_count + i) << 32, dmScript::CheckHash(L, -1));
+                lua_pop(L, 2);
+            }
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1);
+    AssertLua(L, "retained_id_batches = nil; retain_id_batch = nil");
+    DestroyPhysicsTestCallback(L, &callback);
+}
+
 /* Update mass for physics collision object */
 TEST_F(ComponentTest, PhysicsUpdateMassTest)
 {
@@ -945,7 +1223,7 @@ TEST_F(ComponentTest, PhysicsUpdateMassTest)
     dmhash_t hash_go_object = dmHashString64("/test_object");
 
     dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_b);
+    ASSERT_NE(0, go_b);
 
     bool tests_done = false;
     while (!tests_done)

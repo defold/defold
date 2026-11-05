@@ -58,8 +58,8 @@
 (defn add-default-scale-to-component-desc [component-desc]
   ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.
   (cond-> component-desc
-          (not (contains? component-desc :scale))
-          (assoc :scale scene/default-scale)))
+    (not (contains? component-desc :scale))
+    (assoc :scale scene/default-scale)))
 
 (defn- sanitize-component-property-desc [component-property-desc]
   ;; GameObject$ComponentPropertyDesc or GameObject$ComponentDesc in map format.
@@ -252,7 +252,7 @@
                                     (dissoc :data :properties :type) ; Runtime uses :property-decls, not :properties
                                     (assoc :component fused-build-resource-path)
                                     (cond-> (seq go-props)
-                                            (assoc :property-decls (properties/go-props->decls go-props false)))))
+                                      (assoc :property-decls (properties/go-props->decls go-props false)))))
                               component-msgs
                               component-build-resource-paths
                               component-go-props)
@@ -320,5 +320,5 @@
   (cond-> {:node-id node-id
            :aabb geom/null-aabb}
 
-          (pos? (count component-scenes))
-          (assoc :children component-scenes)))
+    (pos? (count component-scenes))
+    (assoc :children component-scenes)))

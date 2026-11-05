@@ -76,8 +76,8 @@
   (let [proj-path->source-resource (comp :resource :resource proj-path->resource-property-build-target)
         instance-desc-with-go-props (cond-> (instance-desc-with-go-props instance-desc proj-path->source-resource)
 
-                                            (empty? (:children instance-desc))
-                                            (dissoc :children))]
+                                      (empty? (:children instance-desc))
+                                      (dissoc :children))]
     (collection-common/game-object-instance-build-target game-object-build-target instance-desc-with-go-props pose proj-path->resource-property-build-target)))
 
 (defn- instance-desc->game-object-instance-build-target [instance-desc game-object-build-target proj-path->build-target]
@@ -198,8 +198,8 @@
                   child-instance-scenes (map (comp desc->instance-scene child-id->desc)
                                              (:children desc))]
               (cond-> instance-scene
-                      (seq child-instance-scenes)
-                      (update :children util/intov child-instance-scenes))))]
+                (seq child-instance-scenes)
+                (update :children util/intov child-instance-scenes))))]
     desc->instance-scene))
 
 (g/defnk produce-scene [_node-id collection-desc embedded-component-resource-data->scene-index embedded-component-scenes referenced-component-proj-path->scene-index referenced-component-scenes referenced-collection-proj-path->index referenced-collection-scenes referenced-game-object-proj-path->index referenced-game-object-scenes]

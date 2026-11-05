@@ -3038,26 +3038,15 @@ static int CreateBuffer(lua_State* L)
     dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
 
-    // JG: We have to do this awkwardness because the create functions for the resource
-    //     dmDDF::LoadMessage won't accept an empty dmBufferDDF::BufferDesc structure
-    //     and the buffer res won't accept a bufferdesc with a stream that doesn't have data
-    int dummy_value_ptr = 0;
-    dmBufferDDF::StreamDesc buffer_stream_dummy_ddf = {};
-    buffer_stream_dummy_ddf.m_ValueType  = dmBufferDDF::VALUE_TYPE_INT8;
-    buffer_stream_dummy_ddf.m_ValueCount = 1;
-    buffer_stream_dummy_ddf.m_I.m_Data   = &dummy_value_ptr;
-    buffer_stream_dummy_ddf.m_I.m_Count  = 1;
-
-    dmBufferDDF::BufferDesc buffer_desc_dummy_ddf = {};
-    buffer_desc_dummy_ddf.m_Streams.m_Data = &buffer_stream_dummy_ddf;
-    buffer_desc_dummy_ddf.m_Streams.m_Count = 1;
-
-    dmArray<uint8_t> ddf_buffer;
-    dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&buffer_desc_dummy_ddf, dmBufferDDF::BufferDesc::m_DDFDescriptor, ddf_buffer);
-    assert(ddf_result == dmDDF::RESULT_OK);
-
+    // Create an empty BUFC v1 resource before applying the Lua buffer and its ownership.
+    uint8_t empty_buffer[] = {
+        'B', 'U', 'F', 'C', 1, 0, 1, 0,
+        0, 0, 0, 0, 1, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, dmBuffer::VALUE_TYPE_INT8, 1, 0, 0,
+    };
     BufferResource* resource = 0x0;
-    dmResource::Result resource_res = dmResource::CreateResource(g_ResourceModule.m_Factory, path_str, ddf_buffer.Begin(), ddf_buffer.Size(), (void**) &resource);
+    dmResource::Result resource_res = dmResource::CreateResource(g_ResourceModule.m_Factory, path_str, empty_buffer, sizeof(empty_buffer), (void**) &resource);
 
     if (resource_res != dmResource::RESULT_OK)
     {
@@ -3087,14 +3076,14 @@ static int CreateBuffer(lua_State* L)
     // before overwriting the resource buffer we just created, we need to garbage collect it
     dmBuffer::Destroy(resource->m_Buffer);
 
-    if (resource->m_BufferDDF != 0x0)
-        dmDDF::FreeMessage(resource->m_BufferDDF);
-    resource->m_BufferDDF = 0;
     resource->m_Buffer    = buffer;
     resource->m_Stride    = dmBuffer::GetStructSize(buffer);
 
     dmBuffer::GetCount(buffer, &resource->m_ElementCount);
     dmBuffer::GetContentVersion(buffer, &resource->m_Version);
+
+    HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, canonical_path_hash);
+    dmResource::SetResourceSize(rd, sizeof(BufferResource) + (size_t)resource->m_ElementCount * resource->m_Stride);
 
     if (transfer_ownership)
     {
@@ -3239,7 +3228,8 @@ static int SetBuffer(lua_State* L)
     }
 
     dmBuffer::HBuffer src_buffer                  = dmGameSystem::UnpackLuaBuffer(luabuf);
-    void* resource                                = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
+    HResourceDescriptor rd                        = CheckResourceDescriptor(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
+    void* resource                                = dmResource::GetResource(rd);
     dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)resource;
     dmBuffer::HBuffer dst_buffer                  = buffer_resource->m_Buffer;
 
@@ -3308,6 +3298,7 @@ static int SetBuffer(lua_State* L)
             dmBuffer::Destroy(buffer_resource->m_Buffer);
             buffer_resource->m_Buffer       = dst_buffer;
             buffer_resource->m_ElementCount = src_count;
+            buffer_resource->m_Stride       = dmBuffer::GetStructSize(dst_buffer);
         }
         else
         {
@@ -3323,6 +3314,12 @@ static int SetBuffer(lua_State* L)
     dmBuffer::UpdateContentVersion(dst_buffer);
     dmBuffer::GetContentVersion(buffer_resource->m_Buffer, &buffer_resource->m_Version);
     buffer_resource->m_NameHash = path_hash;
+
+    // Copies into the existing buffer keep its resident size.
+    if (buffer_resource->m_Buffer != dst_buffer)
+    {
+        dmResource::SetResourceSize(rd, sizeof(BufferResource) + (size_t)buffer_resource->m_ElementCount * buffer_resource->m_Stride);
+    }
 
     assert(top == lua_gettop(L));
     return 0;

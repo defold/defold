@@ -211,8 +211,8 @@
     (extend class Digestable simple-digestable-impl)))
 
 (extend (Class/forName "[B") Digestable
-  {:digest! (fn digest-byte-array! [value writer _opts]
-              (digest-tagged-bytes! 'Bytes value writer))})
+        {:digest! (fn digest-byte-array! [value writer _opts]
+                    (digest-tagged-bytes! 'Bytes value writer))})
 
 (extend-protocol Digestable
   com.google.protobuf.ByteString

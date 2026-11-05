@@ -27,6 +27,7 @@ set(SCRIPT_PROTO_FILES
   "${SCRIPT_SRC_DIR}/script/script_doc_ddf.proto"
   "${SCRIPT_SRC_DIR}/script/sys_ddf.proto")
 set(SCRIPT_PUBLIC_HEADERS
+  "${SCRIPT_SRC_DIR}/script_extension.h"
   "${SCRIPT_SRC_DIR}/script.h")
 file(GLOB_RECURSE SCRIPT_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${SCRIPT_SRC_DIR}/dmsdk/*.h"
@@ -159,6 +160,7 @@ add_custom_target(script_sdk_headers
   DEPENDS ${SCRIPT_SDK_HEADER_TARGETS})
 
 install(FILES
+  "${SCRIPT_SRC_DIR}/script_extension.h"
   "${SCRIPT_SRC_DIR}/script.h"
   ${SCRIPT_PROTO_HEADERS}
   DESTINATION include/script)

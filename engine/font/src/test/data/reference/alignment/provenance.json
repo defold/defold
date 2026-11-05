@@ -1,0 +1,92 @@
+{
+  "issue": "https://github.com/defold/defold/issues/13339",
+  "revision": "9614cb812c53d149ac84eac8c98e7b670b68f4bd",
+  "worktree_dirty": true,
+  "platform": "arm64-macos",
+  "backend": "opengl",
+  "driver": "Not recorded by this generator",
+  "reference_source": "Native TTF preview with legacy layout, matching editor preview of an offline font. Actual captures use the Bob-compiled glyph bank, including monospaced settings.",
+  "review": "All nine preview references visually reviewed against the corresponding compiled captures. No image registration, origin correction, resampling or production-code change. Final preview generator reproduces all nine PNGs byte-for-byte.",
+  "capture": {
+    "text": "Example",
+    "font": "vera_mo_bd.ttf",
+    "size": 15,
+    "scale": 3,
+    "text_node_size": [
+      65,
+      30
+    ],
+    "image_size": [
+      240,
+      140
+    ],
+    "white_box": [
+      20,
+      20,
+      200,
+      100
+    ],
+    "background": [
+      255,
+      255,
+      255
+    ],
+    "pivots": [
+      "nw",
+      "n",
+      "ne",
+      "w",
+      "center",
+      "e",
+      "sw",
+      "s",
+      "se"
+    ]
+  },
+  "comparison": {
+    "threshold": 98,
+    "metric": "foreground union RGB RMSE",
+    "region": [
+      20,
+      20,
+      200,
+      100
+    ],
+    "shared_configurations": [
+      "legacy-plain",
+      "legacy-rich",
+      "full-plain",
+      "full-rich"
+    ]
+  },
+  "reproduce": "From engine/font: <test_font_bitmap_gen> --case compiled_sdf_single_pivot_<pivot> --alignment-preview --output build/pivot-preview",
+  "binary_sha256": "45d5f7edcf2bb93191ecab7716a490c9a3050c2ef8497141abd99e53e92c5479",
+  "bob_light_jar_sha256": "b7957ec6609a3e758d296c576347d146387f95b822cf648cb71ae5ee5908a978",
+  "compiled_glyph_bank_sha256": "479c5b0ac70dc62639aea2f62557c82c17d6d32dfc9d3dceb1adf2b36c0311cf",
+  "input_sha256": {
+    "engine/font/src/test/test_font_alignment.h": "7de5a4ce575bd74985f61d5eb0202c3d03664ab1e1f99e3b3d3ad4fdb154fcdd",
+    "engine/font/src/test/test_font_bitmap_gen.cpp": "871ed9746c32192614ea4e5970f60bd980ae9f79d4caac6dd58c6899d77ee27f",
+    "engine/font/src/test/test_font_bitmap_gen.h": "f291d374b36aa0e8acb70736dd29fc7eaae7c39faa6344acf6ab8d51d739c721",
+    "engine/font/src/test/data/font_render/alignment.font": "397ce3ab3cb8c59bf33d36a73a92a5130049293561490d576ed4a8fa0b761828",
+    "engine/font/src/test/data/vera_mo_bd.ttf": "cfd27092561b2386c631f403b289abfb4b98d25cbf5ddf818bc45161579f45b3",
+    "engine/font/src/render/layout_vertex.cpp": "f81c2aefe445b095dd22c1f5dfa88a9272b1497f28aebf6ce1b6ac8b5972d896",
+    "engine/font/src/render/glyph_vertex.cpp": "e7807ef1c01f374ae02c9aba1c26076cebf84ea8c896cfc43ec20232fe706863",
+    "engine/font/src/render/glyph_gen.cpp": "d2d8f004f9d6913720973874984b26a5dc2dc0398b706e125b431e36a2b18072",
+    "engine/font/src/text_layout_legacy.cpp": "f88418c4e4e3ef8d4bd8fd7654121e226d8a3e3718a875c03744becf63980c6f",
+    "engine/font/src/font_ttf.cpp": "0aad92f6b73a2a544b925cf8e85098a12d765ff5c55875f9420a9aa3bd29f424",
+    "engine/font/src/truetype/font_truetype.cpp": "49328e93ca91a5dc2e1ba58e92d665a2e0e1b30e1621e320cf9d96e4c46c0a58",
+    "engine/font/src/test/data/font_render/font.vp": "98d560599e2bebd02a73ec35088fecbb20a23b2d1d3a9adacd681105b1b8480f",
+    "engine/font/content/builtins/fonts/font-df.fp": "fe52bc752938e2bad3bacadc31809f54b82bd0d4114f113d8a3ea593e0beadcf"
+  },
+  "png_sha256": {
+    "compiled_sdf_single_pivot_center.png": "69b3d58e3cb721e850faa199179d61478609f7a19c66be3da83bbeaca1eaf2e4",
+    "compiled_sdf_single_pivot_e.png": "584bd7e319f61637b5331fb060ff1f839ba543d843a10bde62b8462b56f84e7f",
+    "compiled_sdf_single_pivot_n.png": "804c98e9a44e9fec36c7666dcff8f4fbe99bb05163099e90075161a2b1d77625",
+    "compiled_sdf_single_pivot_ne.png": "c16cace799179379255bd3f66ba064cc39e249441f5bd722b82e87240ef88fff",
+    "compiled_sdf_single_pivot_nw.png": "779f2fe7ec8d4321f876cc7c75d0ad7714be9bcbcfbcc70502af4e6451b1386d",
+    "compiled_sdf_single_pivot_s.png": "a283e7a277309f229469d5d4a441810d01ae39f957670e9a639cc80c01c5b1a0",
+    "compiled_sdf_single_pivot_se.png": "c75230cc5678ddda6ef59023d640c6d28e7f397654585c9c4b677cf9d5af7286",
+    "compiled_sdf_single_pivot_sw.png": "8ae7bc8453c1d512ffc395a8c2c2b01e8e68780060bef5747057d52bdeeaa952",
+    "compiled_sdf_single_pivot_w.png": "4061b05eabdad0d0c59ab43f50f0b99ca6f0a38ebb2f0aa7df3e92df9f33c77c"
+  }
+}

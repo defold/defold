@@ -558,10 +558,10 @@
                        (let [scene (some-> (first (g/outputs basis self :_node-id)) gt/target-id)
                              node-tree (g/node-value scene :node-tree evaluation-context)]
                          (g/override node-tree {}
-                                     (fn [evaluation-context id-mapping]
-                                       (let [node-tree-or (id-mapping node-tree)]
-                                         (for [[from to] [[:_node-id :node-tree]]]
-                                           (g/connect node-tree-or from self to)))))))))))
+                           (fn [evaluation-context id-mapping]
+                             (let [node-tree-or (id-mapping node-tree)]
+                               (for [[from to] [[:_node-id :node-tree]]]
+                                 (g/connect node-tree-or from self to)))))))))))
   (input node-tree g/NodeID :cascade-delete)
   (input id-prefix g/Str))
 

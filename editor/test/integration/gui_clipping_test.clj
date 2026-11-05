@@ -23,10 +23,10 @@
 
 (defn- gui-node [scene id]
   (let [id->node (->> (get-in (g/node-value scene :node-outline) [:children 0])
-                   (tree-seq fn/constantly-true :children)
-                   (map :node-id)
-                   (map (fn [node-id] [(g/node-value node-id :id) node-id]))
-                   (into {}))]
+                      (tree-seq fn/constantly-true :children)
+                      (map :node-id)
+                      (map (fn [node-id] [(g/node-value node-id :id) node-id]))
+                      (into {}))]
     (id->node id)))
 
 (defn- add-box! [project scene parent]
@@ -38,21 +38,21 @@
 
 (defn- add-clipper!
   ([project scene parent]
-    (add-clipper! project scene parent false false))
+   (add-clipper! project scene parent false false))
   ([project scene parent inverted?]
-    (add-clipper! project scene parent inverted? false))
+   (add-clipper! project scene parent inverted? false))
   ([project scene parent inverted? visible?]
-    (let [parent (or parent (g/node-value scene :node-tree))
-          node (add-box! project scene parent)]
-      (g/set-properties! node
-        :clipping-mode :clipping-mode-stencil
-        :clipping-visible visible?
-        :clipping-inverted inverted?)
-      node)))
+   (let [parent (or parent (g/node-value scene :node-tree))
+         node (add-box! project scene parent)]
+     (g/set-properties! node
+       :clipping-mode :clipping-mode-stencil
+       :clipping-visible visible?
+       :clipping-inverted inverted?)
+     node)))
 
 (defn- add-inv-clipper!
   ([project scene parent]
-    (add-inv-clipper! project scene parent false))
+   (add-inv-clipper! project scene parent false))
   ([project scene parent visible?]
    (add-clipper! project scene parent true visible?)))
 
@@ -109,7 +109,7 @@
                                               (:color-mask clipping-state) fb colors))))))))
                 gpu
                 scenes)
-      :fb)))
+        :fb)))
 
 (defn- clipping-states [s]
   (into {}
@@ -128,7 +128,7 @@
 
 (defn- scene->clipper-clipping-states [scene-id]
   (-> (g/node-value scene-id :scene)
-    clipper-clipping-states))
+      clipper-clipping-states))
 
 (defn- assert-clipping [scene-id states]
   ;; states is {node-id [ref-val mask write-mask child-ref child-mask child-write-mask]
@@ -138,7 +138,7 @@
                                        {:ref-val child-ref :mask child-mask :write-mask child-write-mask :color-mask [true true true true]}]])
                                states))
         actual (-> (scene->clipper-clipping-states scene-id)
-                 (select-keys (keys expected)))
+                   (select-keys (keys expected)))
         [exp act both] (data/diff expected actual)]
     (is (nil? exp))
     (is (nil? act))))
@@ -147,7 +147,7 @@
   (let [expected ref-vals
         actual (into {} (map (fn [[nid [s cs]]] [nid (:ref-val s)])
                              (-> (scene->clipper-clipping-states scene-id)
-                               (select-keys (keys expected)))))
+                                 (select-keys (keys expected)))))
         [exp act both] (data/diff expected actual)]
     (is (nil? exp))
     (is (nil? act))))
@@ -160,18 +160,16 @@
        scene-seq
        (filter (fn [s]
                  (let [wm (get-in s [:renderable :user-data :clipping-state :write-mask])]
-                         (or (nil? wm) (= 0 wm)))))))
+                   (or (nil? wm) (= 0 wm)))))))
 
 (defn- clipper-seq [scene]
   (->> scene
-    scene-seq
-    (filter (fn [s] (let [wm (get-in s [:renderable :user-data :clipping-state :write-mask])]
-                      (and (some? wm) (> wm 0)))))))
+       scene-seq
+       (filter (fn [s] (let [wm (get-in s [:renderable :user-data :clipping-state :write-mask])]
+                         (and (some? wm) (> wm 0)))))))
 
 (defn- seq->render-order [scene-seq]
   (into {} (map (fn [s] [(:node-id s) (get-in s [:renderable :index])]) scene-seq)))
-
-
 
 (defn- assert-render-order [scene-id expected]
   (testing "render order"
@@ -343,7 +341,6 @@
           inv (second (get states d))]
       (is (= (bit-and (:ref-val inv) (:mask inv)) (bit-and (:ref-val prev) (:mask inv)))))))
 
-
 ;; STENCIL BUFFER TESTS
 
 ;; Hierarchy:
@@ -381,8 +378,8 @@
           a (add-clipper! project scene nil false true)
           b (add-inv-clipper! project scene a true)
           c (add-box! project scene b)
-          fb (render scene {a [2r11111000 0          0         ]
-                            b [0          2r00011000 0         ]
+          fb (render scene {a [2r11111000 0          0]
+                            b [0          2r00011000 0]
                             c [0          0          2r00110000]})]
       (is (= fb [2r11000000 2r00011000 2r00100000])))))
 
@@ -403,8 +400,8 @@
           a (add-clipper! project scene nil false true)
           b (add-box! project scene a)
           c (add-box! project scene b)
-          fb (render scene {a [2r11110000 0          0         ]
-                            b [0          2r00110000 0         ]
+          fb (render scene {a [2r11110000 0          0]
+                            b [0          2r00110000 0]
                             c [0          0          2r00011000]})]
       (is (= fb [2r11000000 2r00100000 2r00010000])))))
 
@@ -425,8 +422,8 @@
           a (add-inv-clipper! project scene nil true)
           b (add-clipper! project scene a false true)
           c (add-box! project scene b)
-          fb (render scene {a [2r11111000 0          0         ]
-                            b [0          2r00011110 0         ]
+          fb (render scene {a [2r11111000 0          0]
+                            b [0          2r00011110 0]
                             c [0          0          2r00000011]})]
       (is (= fb [2r11111000 2r00000100 2r000000010])))))
 
@@ -447,8 +444,8 @@
           a (add-inv-clipper! project scene nil true)
           b (add-inv-clipper! project scene a true)
           c (add-box! project scene b)
-          fb (render scene {a [2r11111000 0          0         ]
-                            b [0          2r00011110 0         ]
+          fb (render scene {a [2r11111000 0          0]
+                            b [0          2r00011110 0]
                             c [0          0          2r00000011]})]
       (is (= fb [2r11111000 2r00000110 2r00000001])))))
 
@@ -469,8 +466,8 @@
           a (add-inv-clipper! project scene nil true)
           b (add-inv-clipper! project scene a true)
           c (add-box! project scene b)
-          fb (render scene {a [2r01100000 0          0         ]
-                            b [0          2r00000110 0         ]
+          fb (render scene {a [2r01100000 0          0]
+                            b [0          2r00000110 0]
                             c [0          0          2r00111100]})]
       (is (= fb [2r01100000 2r00000110 2r00011000])))))
 
@@ -503,12 +500,12 @@
           c-box (add-box! project scene c)
           d (add-inv-clipper! project scene c false)
           d-box (add-box! project scene d)
-          fb (render scene {a     [2r11100000 0          0         ]
-                            a-box [2r11111111 0          0         ]
-                            b     [2r11000000 0          0         ]
-                            b-box [2r11111111 0          0         ]
-                            c     [0          2r00110000 0         ]
-                            c-box [0          2r11111111 0         ]
+          fb (render scene {a     [2r11100000 0          0]
+                            a-box [2r11111111 0          0]
+                            b     [2r11000000 0          0]
+                            b-box [2r11111111 0          0]
+                            c     [0          2r00110000 0]
+                            c-box [0          2r11111111 0]
                             d     [0          0          2r00011000]
                             d-box [0          0          2r11111111]})]
       (is (= fb [2r00100000 2r00001000 2r11000111]))
@@ -810,9 +807,9 @@
 
 (defn- scene->clipper-states [scene]
   (->> (g/node-value scene :scene)
-    clipper-seq
-    (map (fn [s] [(:node-id s) (get-in s [:renderable :user-data :clipping-state])]))
-    (into {})))
+       clipper-seq
+       (map (fn [s] [(:node-id s) (get-in s [:renderable :user-data :clipping-state])]))
+       (into {})))
 
 ;; Verify that the number of root nodes is infinite and clears the stencil buffer at overflow.
 ;;

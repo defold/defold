@@ -1,6 +1,3 @@
-# Copyright 2020-2026 The Defold Foundation
-# Licensed under the Defold License version 1.0
-
 """Check 16 KB PT_LOAD and GNU_RELRO alignment in linked Android ELF files."""
 
 import argparse

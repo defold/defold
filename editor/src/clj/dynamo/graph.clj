@@ -20,6 +20,7 @@
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
+            [internal.invalidate-counters :as ic]
             [internal.low-memory :as low-memory]
             [internal.node :as in]
             [internal.system :as is]
@@ -47,7 +48,9 @@
 
 (namespaces/import-vars [internal.graph connected? dependencies node-ids pre-traverse successors])
 
-(namespaces/import-vars [internal.system endpoint-invalidated-since? evaluation-context-invalidate-counters full-invalidation-since?])
+(namespaces/import-vars [internal.invalidate-counters endpoint-invalidated-since? full-invalidation-since?])
+
+(namespaces/import-vars [internal.system evaluation-context-invalidate-counters])
 
 ;; ---------------------------------------------------------------------------
 ;; State handling
@@ -226,8 +229,8 @@
   ([snapshot-invalidate-counters]
    (endpoint-invalidated-pred snapshot-invalidate-counters (invalidate-counters)))
   ([snapshot-invalidate-counters system-invalidate-counters]
-   {:pre [(or (nil? snapshot-invalidate-counters) (map? snapshot-invalidate-counters))
-          (map? system-invalidate-counters)]}
+   {:pre [(or (nil? snapshot-invalidate-counters) (ic/counters? snapshot-invalidate-counters))
+          (ic/counters? system-invalidate-counters)]}
    (cond
      (or (nil? snapshot-invalidate-counters)
          (identical? snapshot-invalidate-counters system-invalidate-counters))
@@ -316,8 +319,8 @@
   (when (and (not (:dry-run transact-opts))
              (= :ok (:status tx-result)))
     (let [undo-key (or (:undo-key transact-opts) :undo/global)
-          {:keys [basis label nodes-deleted outputs-modified sequence-label undoable-changes]} tx-result]
-      (swap! *the-system* is/merge-basis pre-tx-basis basis outputs-modified nodes-deleted undo-key label sequence-label undoable-changes (:full-invalidation transact-opts))))
+          {:keys [basis label nodes-added nodes-deleted outputs-modified sequence-label undoable-changes]} tx-result]
+      (swap! *the-system* is/merge-basis pre-tx-basis basis outputs-modified nodes-added nodes-deleted undo-key label sequence-label undoable-changes (:full-invalidation transact-opts))))
   nil)
 
 (defn transact

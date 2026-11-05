@@ -173,6 +173,38 @@ TEST_F(ScriptUserTypeTest, TestGetUserData)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+// Public instance access must round-trip through proxy globals; changing only
+// GetInstance to a raw lookup breaks SetInstance's existing __newindex behavior.
+TEST_F(ScriptUserTypeTest, InstanceLookupThroughGlobalMetatable)
+{
+    int top = lua_gettop(L);
+    lua_pushvalue(L, LUA_GLOBALSINDEX);
+    lua_newtable(L); // Proxy globals.
+    lua_newtable(L); // Proxy metatable.
+    lua_newtable(L); // Storage shared by __index and __newindex.
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -3, "__index");
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -3, "__newindex");
+    lua_pop(L, 1);
+    lua_setmetatable(L, -2);
+    lua_replace(L, LUA_GLOBALSINDEX);
+
+    void* instance = lua_newuserdata(L, 1);
+    dmScript::SetInstance(L);
+    dmScript::GetInstance(L);
+    void* result = lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    dmScript::GetInstanceRaw(L);
+    bool raw_missing = lua_isnil(L, -1);
+    lua_pop(L, 1);
+
+    lua_replace(L, LUA_GLOBALSINDEX);
+    ASSERT_EQ(instance, result);
+    ASSERT_TRUE(raw_missing);
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)

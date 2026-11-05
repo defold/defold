@@ -1,17 +1,3 @@
--- Copyright 2020-2026 The Defold Foundation
--- Copyright 2014-2020 King
--- Copyright 2009-2014 Ragnar Svensson, Christian Murray
--- Licensed under the Defold License version 1.0 (the "License"); you may not use
--- this file except in compliance with the License.
---
--- You may obtain a copy of the License, together with FAQs at
--- https://www.defold.com/license
---
--- Unless required by applicable law or agreed to in writing, software distributed
--- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
--- CONDITIONS OF ANY KIND, either express or implied. See the License for the
--- specific language governing permissions and limitations under the License.
-
 tests_done = false
 
 -- Test intent:
@@ -181,7 +167,6 @@ local function test_v3_world(body)
     b2d.world.set_maximum_linear_speed(world, max_linear_speed)
 
     b2d.world.set_contact_tuning(world, 30, 10, 3)
-    b2d.world.set_joint_tuning(world, 60, 2)
     assert(type(b2d.world.get_awake_body_count(world)) == "number")
 
     local profile = b2d.world.get_profile(world)
@@ -192,6 +177,7 @@ local function test_v3_world(body)
     assert(type(counters) == "table")
     assert(type(counters.body_count) == "number")
     assert(type(counters.color_counts) == "table")
+    assert(#counters.color_counts == 24)
 
     b2d.world.explode(world, {
         position = vmath.vector3(100000, 100000, 0),
@@ -200,8 +186,6 @@ local function test_v3_world(body)
         impulse_per_length = 1,
     })
     b2d.world.rebuild_static_tree(world)
-    b2d.world.enable_speculative(world, false)
-    b2d.world.enable_speculative(world, true)
 
     local target = vmath.vector3(100, 100, 0)
     local query_filter = {

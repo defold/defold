@@ -64,7 +64,7 @@
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
-            [editor.markdown :as markdown]
+            [editor.markdown-view :as markdown-view]
             [editor.menu-items :as menu-items]
             [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
@@ -106,10 +106,11 @@
             [util.profiler :as profiler]
             [util.thread-util :as thread-util])
   (:import [com.defold.editor Editor]
+           [com.dynamo.bob IProgress Platform]
            [com.sun.javafx.scene NodeHelper]
            [java.io File IOException PipedInputStream PipedOutputStream]
            [java.net SocketTimeoutException URL]
-           [java.time LocalTime]
+           [java.time LocalTime Year]
            [java.time.format DateTimeFormatter]
            [java.util Arrays Collection]
            [java.util.concurrent ExecutionException]
@@ -335,20 +336,19 @@
   (and (not (g/error-value? outline-pane-desc))
        (coll/any? #(= :outline-pane %) (get open-sidebar-panes active-view))))
 
-(g/defnk produce-right-split-desc [right-split active-sidebar ^:try outline-pane-desc outline-active]
+(g/defnk produce-right-split-desc [right-split active-sidebar ^:try outline-pane-desc]
   {:fx/type fxui/ext-dedupe-identical-desc
    :desc {:fx/type fx/ext-let-refs
-          ;; If outline is active (requested by the view), we want to ensure
-          ;; that it's updated even if it's hidden when the debug view is shown.
+          ;; We want to ensure that the outline stays mounted even if it's
+          ;; hidden, so it keeps its expansion state and stays up to date.
           ;; This is necessary because the outline view defines commands on the
           ;; :workbench context, which is available throughout the editor, and
-          ;; those commands expect the outline view to be up to date. When
-          ;; outline is active, it's guaranteed that it's not an error value,
-          ;; but we need to keep the `^:try` so that the broken outline does not
-          ;; fail this whole output when it's inactive
-          :refs (if outline-active
-                  {:outline-pane outline-pane-desc}
-                  {})
+          ;; those commands expect the outline view to be up to date. We need
+          ;; to keep the `^:try` so that the broken outline does not fail this
+          ;; whole output
+          :refs (if (g/error-value? outline-pane-desc)
+                  {}
+                  {:outline-pane outline-pane-desc})
           :desc {:fx/type ext-with-split-pane-props
                  :desc {:fx/type ui/ext-value :value right-split}
                  :props {:items (or (coll/not-empty
@@ -382,6 +382,7 @@
   (input active-outline g/Any)
   (input active-scene g/Any)
   (input project-id g/NodeID)
+  (input outline-selection-by-resource-node g/Any)
   (input selected-node-ids-by-resource-node g/Any)
   (input selected-node-properties-by-resource-node g/Any)
   (input sub-selections-by-resource-node g/Any)
@@ -422,6 +423,8 @@
   ;; NOTE: Empty rather than nil when nothing is selected. Command contexts with a nil
   ;; selection stop the context chain in handler/eval-contexts, which leaves a
   ;; context menu opened over a tab without a resource with nothing to show.
+  (output outline-selection g/Any (g/fnk [outline-selection-by-resource-node active-resource-node]
+                                    (get outline-selection-by-resource-node active-resource-node [])))
   (output selected-node-ids g/Any (g/fnk [selected-node-ids-by-resource-node active-resource-node]
                                     (get selected-node-ids-by-resource-node active-resource-node [])))
   (output selected-node-properties g/Any (g/fnk [selected-node-properties-by-resource-node active-resource-node]
@@ -748,8 +751,9 @@
       (set-pane-visible! scene pane-kw false))))
 
 (handler/defhandler :app.preferences :global
-  (run [workspace prefs app-view localization]
+  (run [workspace prefs app-view project localization]
     (prefs-dialog/open! prefs localization)
+    (project/update-language-servers! project prefs {})
     (workspace/update-build-settings! workspace prefs)
     (mouse-binding/set-user-overrides! (prefs/get prefs [:window :mouse-bindings]))
     (let [new-keymap (keymap/from-prefs prefs)]
@@ -779,6 +783,7 @@
 (def ^:private initial-app-task-progress
   {:main progress/done
    :build progress/done
+   :build-engine progress/done
    :resource-sync progress/done
    :save-all progress/done
    :fetch-libraries progress/done
@@ -790,7 +795,7 @@
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
-  [:save-all :resource-sync :fetch-libraries :build :download-update :main])
+  [:save-all :resource-sync :fetch-libraries :build :build-engine :download-update :main])
 
 (def status-bar-controls-delay
   (delay
@@ -859,7 +864,7 @@
 (defn make-render-task-progress [key]
   (assert (contains? initial-app-task-progress key))
   (progress/throttle-render-progress
-    (fn [progress] (render-task-progress! key progress))))
+    (fn render-progress! [progress] (render-task-progress! key progress))))
 
 (defn begin-task-progress! [key]
   (let [prev-progress-atom (atom nil)]
@@ -976,14 +981,11 @@
                                    instance-debug (and debug last-instance?)
                                    launched-target (->> (engine/launch! engine project-directory prefs instance-debug instance-index focus)
                                                         (decorate-target engine-descriptor)
-                                                        (targets/add-launched-target! instance-index))]
+                                                        (targets/add-launched-target! prefs instance-index))]
                                (when (not last-instance?)
                                  (Thread/sleep pause-ms))        ;pause needed to make sure the launch order of instances is right
                                launched-target))
           last-launched-target (last launched-targets)]
-      (if (= count 1)
-        (targets/select-target! prefs last-launched-target)
-        (targets/select-target! prefs {:id :all-launched-targets}))
       (report-build-launch-progress! (localization/message "progress.launched-engine" {"engine" (targets/target-message last-launched-target)}))
       launched-targets)
     (catch Exception e
@@ -992,18 +994,15 @@
       (throw e))))
 
 (defn- make-launched-log-sink [launched-target on-service-url-found]
-  (let [initial-output (atom "")
-        version-line (atom nil)
+  (let [version-line (atom nil)
         updated-target (atom nil)]
     (fn [line]
-      (when (< (count @initial-output) 5000)
-        (swap! initial-output str line "\n")
-        (when-let [target-info (engine/parse-launched-target-info @initial-output)]
-          (let [result-target (targets/update-launched-target! launched-target target-info)]
-            (reset! updated-target result-target)))
-        (when (not @version-line)
-          (when-let [engine-version-line (engine/parse-engine-version-line line)]
-            (reset! version-line engine-version-line))))
+      ;; Metadata may arrive after startup, e.g. when attaching a debugger.
+      (when-let [target-info (engine/parse-launched-target-info line)]
+        (reset! updated-target (targets/update-launched-target! launched-target target-info)))
+      (when-not @version-line
+        (when-let [engine-version-line (engine/parse-engine-version-line line)]
+          (reset! version-line engine-version-line)))
       ;; After the version line, wait briefly for stream readiness, then call the callback.
       (when (and @updated-target (= @version-line line))
         (future
@@ -1024,10 +1023,13 @@
   (try
     (report-build-launch-progress!
       (localization/message "progress.rebooting-engine" {"engine" (targets/target-message target)}))
-    (engine/reboot! target (local-url target web-server) debug focus)
-    (report-build-launch-progress!
-      (localization/message "progress.rebooted-engine" {"engine" (targets/target-message target)}))
-    target
+    (let [target (assoc target :debugger-port (when debug (engine/debugger-port target)))]
+      (when (targets/launched-target? target)
+        (targets/update-launched-target! target (select-keys target [:debugger-port])))
+      (engine/reboot! target (local-url target web-server) debug focus)
+      (report-build-launch-progress!
+        (localization/message "progress.rebooted-engine" {"engine" (targets/target-message target)}))
+      target)
     (catch Exception e
       (report-build-launch-progress! (localization/message "progress.engine-reboot-failed"))
       (throw e))))
@@ -1049,17 +1051,17 @@
 
 (defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug focus]
   (let [selected-target (targets/selected-target prefs)
-        launch-new-engine! (fn []
+        launch-new-engine! (fn launch-new-engine! []
                              (targets/kill-launched-targets!)
                              (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug focus)
                                    last-launched-target (last launched-targets)]
                                (doseq [launched-target launched-targets]
                                  (targets/when-url (:id launched-target)
-                                                   #(on-launched-hook! project (:process launched-target) %))
-                                 (let [log-stream (:log-stream launched-target)]
-                                   (console/reset-console-stream! log-stream)
-                                   (console/reset-remote-log-pump-thread! nil)
-                                   (console/start-log-pump! log-stream (make-launched-log-sink launched-target (partial on-service-url-found prefs)))))
+                                                   (fn on-target-url-found [url]
+                                                     (on-launched-hook! project (:process launched-target) url)))
+                                 (console/start-log-pump!
+                                   (:log-stream launched-target)
+                                   (make-launched-log-sink launched-target (partial on-service-url-found prefs))))
                                last-launched-target))]
     (try
       {:target
@@ -1226,7 +1228,9 @@
                          debugging tools
     :run-build-hooks     optional flag that indicates whether to run pre- and
                          post-build hooks
-    :render-progress!    optional progress reporter fn
+    :render-progress!    optional project build progress reporter fn
+    :render-engine-progress!
+                         optional engine build progress reporter fn
     :task-cancelled?     optional fn that will be called periodically to check
                          if the user has cancelled the build process.
     :old-artifact-map    optional old artifact map with previous build results
@@ -1234,11 +1238,12 @@
   [project & {:keys [;; required
                      prefs
                      ;; optional
-                     debug build-engine run-build-hooks render-progress! task-cancelled? old-artifact-map lint]
+                     debug build-engine run-build-hooks render-progress! render-engine-progress! task-cancelled? old-artifact-map lint]
               :or {debug false
                    build-engine true
                    run-build-hooks true
                    render-progress! progress/null-render-progress!
+                   render-engine-progress! progress/null-render-progress!
                    task-cancelled? fn/constantly-false
                    old-artifact-map {}}}]
   {:pre [(or (not build-engine) (some? prefs))]}
@@ -1252,29 +1257,49 @@
         ;; engine build in the final phase.
         engine-build-future-atom (atom nil)
 
+        engine-progress
+        (when build-engine
+          (bob/->progress
+            (fn render-engine-build-progress! [progress]
+              ;; The extender client does not support cancelling remote builds.
+              ;; The initial message has no server progress yet.
+              ;; Keep the task visible until the engine download also finishes.
+              (render-engine-progress!
+                (if (or (and (progress/done? progress)
+                             (not= progress/done progress))
+                        (= (localization/message "progress.building-engine")
+                           (progress/message progress)))
+                  (progress/make-indeterminate (progress/message progress))
+                  (assoc progress :cancel-state :not-cancellable))))
+            task-cancelled?))
+
         cancel-engine-build!
         (fn cancel-engine-build! []
-          (when-some [engine-build-future (thread-util/preset! engine-build-future-atom nil)]
+          ;; Closing the progress also prevents reports from a cancelled future.
+          (when engine-progress
+            (.close ^IProgress engine-progress))
+          (when-let [engine-build-future (thread-util/preset! engine-build-future-atom nil)]
             (future-cancel engine-build-future)
             nil))
 
         start-engine-build!
         (fn start-engine-build! []
           (assert (ui/on-ui-thread?))
-          (cancel-engine-build!)
           (when build-engine
+            (render-engine-progress! (progress/make-indeterminate (localization/message "progress.fetching-engine")))
             (let [evaluation-context (g/make-evaluation-context)
                   platform (engine/current-platform)]
               (reset! engine-build-future-atom
                       (future
                         (try
-                          (let [engine (engine/get-engine project evaluation-context prefs platform)]
-                            (ui/run-later
-                              ;; This potentially saves us from having to
-                              ;; re-calculate native extension file hashes the
-                              ;; next time we build the project.
-                              (g/update-cache-from-evaluation-context! evaluation-context))
-                            engine)
+                          (with-open [progress ^IProgress engine-progress]
+                            (let [engine (engine/get-engine project evaluation-context prefs platform progress)]
+                              (ui/run-later
+                                ;; This potentially saves us from having to
+                                ;; re-calculate native extension file hashes the
+                                ;; next time we build the project.
+                                (g/update-cache-from-evaluation-context! evaluation-context))
+                              engine))
                           (catch Throwable error
                             error))))
               nil)))
@@ -1295,29 +1320,31 @@
                     (ui-thread-fn return-value)
                     (catch Throwable error
                       (reset! build-in-progress-atom false)
-                      (render-progress! progress/done)
                       (cancel-engine-build!)
+                      (render-progress! progress/done)
                       (future/fail! result-future error)
                       (throw error)))))
               (catch Throwable error
-                (reset! build-in-progress-atom false)
-                (render-progress! progress/done)
-                (cancel-engine-build!)
-                (ui/run-later (future/fail! result-future error))
+                (ui/run-later
+                  (reset! build-in-progress-atom false)
+                  (cancel-engine-build!)
+                  (render-progress! progress/done)
+                  (future/fail! result-future error))
                 (error-reporting/report-exception! error))))
           nil)
 
         finish-with-result!
         (fn finish-with-result! [project-build-results]
           (reset! build-in-progress-atom false)
-          (render-progress! progress/done)
           (cancel-engine-build!)
+          (render-progress! progress/done)
           (future/complete! result-future project-build-results)
           nil)
 
         phase-7-await-lint!
         (fn phase-7-await-lint! [project-build-results]
-          (if lint
+          (if-not lint
+            (finish-with-result! project-build-results)
             (do
               (render-progress! (progress/make-indeterminate (localization/message "progress.linting")))
               (run-on-background-thread!
@@ -1352,8 +1379,7 @@
                                            (g/map->error {:causes (cond-> errors existing-error (conj existing-error))})))
                           warnings
                           (assoc :warning (g/map->error {:causes warnings})))))
-                    (finish-with-result! project-build-results)))))
-            (finish-with-result! project-build-results)))
+                    (finish-with-result! project-build-results)))))))
 
         phase-6-await-engine-build!
         (fn phase-6-await-engine-build! [project-build-results]
@@ -1362,7 +1388,7 @@
             (if (nil? engine-build-future)
               (phase-7-await-lint! project-build-results)
               (do
-                (render-progress! (progress/make-indeterminate (localization/message "progress.fetching-engine")))
+                (render-progress! progress/done)
                 (run-on-background-thread!
                   (fn run-engine-build-on-background-thread! []
                     (deref engine-build-future))
@@ -1502,6 +1528,7 @@
                     :build-engine (not skip-engine)
                     :prefs prefs
                     :render-progress! render-progress!
+                    :render-engine-progress! (make-render-task-progress :build-engine)
                     :task-cancelled? task-cancelled?
                     :old-artifact-map (workspace/artifact-map workspace))
       (fn [{:keys [engine] :as build-results}]
@@ -1553,14 +1580,15 @@
                     :build-engine (not skip-engine)
                     :prefs prefs
                     :render-progress! render-progress!
+                    :render-engine-progress! (make-render-task-progress :build-engine)
                     :task-cancelled? task-cancelled?
                     :old-artifact-map (workspace/artifact-map workspace))
       (fn [{:keys [engine] :as build-results}]
         (if (and (handle-build-results! workspace render-build-error! build-results)
                  (or engine skip-engine))
           (let [{:keys [error target]} (launch-built-project! project engine project-directory prefs web-server true true)]
-            (when (and target (nil? (debug-view/current-session debug-view)))
-              (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0)))
+            (when (and target (not (debug-view/current-session debug-view)))
+              (debug-view/start-debugger! debug-view project target false))
             (cond-> build-results
               error (assoc :error (exception->target-error error))
               target (assoc :target target)))
@@ -1685,28 +1713,13 @@
     (build-html5! app-view project prefs web-server build-errors-view changes-view
                   bob/build-html5-bob-commands)))
 
-(defn- updated-build-resource-proj-paths [old-etags new-etags]
-  ;; We only want to return resources that were present in the old etags since
-  ;; we don't want to ask the engine to reload something it has not seen yet.
-  ;; It is presumed that the engine will follow any newly-introduced references
-  ;; and load the resources. We might ask the engine to reload these resources
-  ;; the next time they are modified.
-  (into #{}
-        (keep (fn [[proj-path old-etag]]
-                (when-some [new-etag (new-etags proj-path)]
-                  (when (not= old-etag new-etag)
-                    proj-path))))
-        old-etags))
-
-(defn- updated-build-resources [evaluation-context project old-etags new-etags proj-path-or-resource]
+(defn- updated-build-resource-proj-paths [evaluation-context project old-etags new-etags proj-path-or-resource]
   (let [resource-node (project/get-resource-node project proj-path-or-resource evaluation-context)
-        flat-build-targets (build/resolve-node-dependencies resource-node project evaluation-context)
-        updated-build-resource-proj-paths (updated-build-resource-proj-paths old-etags new-etags)]
-    (into []
-          (keep (fn [{build-resource :resource :as _build-target}]
-                  (when (contains? updated-build-resource-proj-paths (resource/proj-path build-resource))
-                    build-resource)))
-          (rseq flat-build-targets))))
+        flat-build-targets (build/resolve-node-dependencies resource-node project evaluation-context)]
+    (hot-reload/updated-build-resource-proj-paths
+      old-etags
+      new-etags
+      (eduction (map (comp resource/proj-path :resource)) (rseq flat-build-targets)))))
 
 (defn- can-hot-reload? [debug-view prefs evaluation-context]
   (when-some [target (targets/selected-target prefs)]
@@ -1747,14 +1760,14 @@
             (workspace/etags! workspace etags)
             (workspace/save-build-cache! workspace)
             (try
-              (when-some [updated-build-resources
-                          (not-empty
-                            (g/with-auto-evaluation-context evaluation-context
-                              (updated-build-resources evaluation-context project old-etags etags "/game.project")))]
+              (when-let [updated-proj-paths
+                         (coll/not-empty
+                           (g/with-auto-evaluation-context evaluation-context
+                             (updated-build-resource-proj-paths evaluation-context project old-etags etags "/game.project")))]
                 (if (targets/all-launched-targets? target)
                   (doseq [launched-target (targets/all-launched-targets)]
-                    (engine/reload-build-resources! launched-target updated-build-resources))
-                  (engine/reload-build-resources! target updated-build-resources)))
+                    (engine/reload-build-resource-paths! launched-target updated-proj-paths))
+                  (engine/reload-build-resource-paths! target updated-proj-paths)))
               (cond-> build-results (targets/controllable-target? target) (assoc :target target))
               (catch Exception e
                 (dialogs/make-info-dialog
@@ -1913,20 +1926,22 @@
   (let [root ^Parent (ui/load-fxml "about.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)]
-    (ui/with-controls root [version channel editor-sha1 engine-sha1 time sponsor-push
-                            version-label channel-label build-time-label editor-sha1-label engine-sha1-label
+    (ui/with-controls root [version channel architecture editor-sha1 engine-sha1 time sponsor-push
+                            version-label channel-label architecture-label build-time-label editor-sha1-label engine-sha1-label
                             copyright-label foundation-label]
       (let [missing-text (localization (localization/message "dialog.about.value.unavailable"))]
         (ui/text! version-label (localization (localization/message "dialog.about.label.version")))
         (ui/text! channel-label (localization (localization/message "dialog.about.label.channel")))
+        (ui/text! architecture-label (localization (localization/message "dialog.about.label.architecture")))
         (ui/text! build-time-label (localization (localization/message "dialog.about.label.build-time")))
         (ui/text! editor-sha1-label (localization (localization/message "dialog.about.label.editor-sha1")))
         (ui/text! engine-sha1-label (localization (localization/message "dialog.about.label.engine-sha1")))
-        (ui/text! copyright-label (localization (localization/message "dialog.about.footer.copyright")))
+        (ui/text! copyright-label (localization (localization/message "dialog.about.footer.copyright" {"year" (str (Year/now))})))
         (ui/text! foundation-label (localization (localization/message "dialog.about.footer.foundation")))
         (ui/title! stage (localization (localization/message "command.app.about")))
         (ui/text! version (or (system/defold-version) missing-text))
         (ui/text! channel (or (system/defold-channel) missing-text))
+        (ui/text! architecture (.getArch (Platform/getHostPlatform)))
         (ui/text! editor-sha1 (or (system/defold-editor-sha1) missing-text))
         (ui/text! engine-sha1 (or (system/defold-engine-sha1) missing-text))
         (ui/text! time (or (system/defold-build-time) missing-text))
@@ -2524,11 +2539,15 @@
     (when (= :scene (:id view-type))
       (ui/observe (.selectedProperty tab)
                   (fn [_ _ selected]
-                    (when selected
-                      (when-let [content-parent (.getParent (.getContent tab))]
-                        (.applyCss content-parent)
-                        (.layout content-parent)
-                        (refresh-scene-view! view 0))))))
+                    (if-not selected
+                      (scene/suspend-scene-view! view)
+                      (do
+                        (scene/resume-scene-view! view)
+                        (when-let [content-parent (.getParent (.getContent tab))]
+                          (.applyCss content-parent)
+                          (.layout content-parent)
+                          (refresh-scene-view! view 0))))))
+      (scene/suspend-scene-view! view))
 
     (.add tabs tab)
     (ui/add-styles! tab style-classes)
@@ -2554,7 +2573,7 @@
         project (project/get-project basis)
         resource (resource-node/resource basis resource-node)
         workspace (resource/workspace resource)
-        resource-type (resource/lookup-resource-type basis workspace resource)
+        resource-type (resource/resource-type resource basis)
 
         camera-opts (when (= :scene (:id view-type))
                       (if-some [stored-camera (camera/try-load-camera-from-prefs prefs (resource/resource->proj-path resource))]
@@ -2855,7 +2874,7 @@
       view :view
       {:fx/type fxui/ext-with-anchor-pane-props
        :desc {:fx/type ui/ext-value :value parent}
-       :props {:children [{:fx/type markdown/view
+       :props {:children [{:fx/type markdown-view/view
                            :anchor-pane/top 0
                            :anchor-pane/right 0
                            :anchor-pane/bottom 0

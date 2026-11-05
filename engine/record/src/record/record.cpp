@@ -12,284 +12,295 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-// Skip the content of the file vpx_integer.h
-// We got redefinitions of standard integers types
-#define VPX_INTEGER_H
-#include <stdint.h>
-
+#include "record_private.h"
+#include <dmsdk/dlib/dstrings.h>
+#include <dmsdk/dlib/log.h>
 #include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include "record.h"
-#include <vpx/vpx_encoder.h>
-#include <vpx/vp8cx.h>
-#include <dlib/log.h>
+#include <dmsdk/dlib/condition_variable.h>
+#include <dmsdk/dlib/thread.h>
 
 namespace dmRecord
 {
-    struct Recorder
+    enum RecordingRequest
     {
-        Recorder(const NewParams* params)
-        {
-            memset(this, 0, sizeof(*this));
-            m_Width = params->m_Width;
-            m_Height = params->m_Height;
-            m_Fps = params->m_Fps;
-            m_Filename = strdup(params->m_Filename);
-        }
-
-        ~Recorder()
-        {
-            free(m_Filename);
-            if (m_File)
-            {
-                fclose(m_File);
-            }
-        }
-
-        uint32_t            m_Width;
-        uint32_t            m_Height;
-        uint32_t            m_Fps;
-        char*               m_Filename;
-        FILE*               m_File;
-        vpx_codec_ctx_t     m_Codec;
-        vpx_image_t         m_VpxImage;
-        uint32_t            m_FrameCount;
+        RECORDING_REQUEST_NONE,
+        RECORDING_REQUEST_START,
+        RECORDING_REQUEST_STOP,
+        RECORDING_REQUEST_FINALIZE
     };
 
-    static void MemPutLE16(char *mem, unsigned int val)
+    struct RecordingOperation
     {
-        mem[0] = val;
-        mem[1] = val >> 8;
+        Status                                  m_Status;
+        Window                                  m_Window;
+        void*                                   m_NativeWindow;
+        dmMutex::HMutex                         m_Mutex;
+        dmConditionVariable::HConditionVariable m_Condition;
+        dmThread::Thread                        m_Thread;
+        RecordingRequest                        m_Request;
+        bool                                    m_WindowPrepared;
+    };
+    static RecordingOperation g_Recording;
+    static uint64_t           g_OperationId;
+
+    static void RestorePreparedWindow()
+    {
+        if (g_Recording.m_WindowPrepared)
+        {
+            g_Recording.m_WindowPrepared = false;
+            RestoreWindow();
+        }
     }
 
-    static void MemPutLE32(char *mem, unsigned int val)
+    static void PublishCompletedStatus(const Status* status)
     {
-        mem[0] = val;
-        mem[1] = val >> 8;
-        mem[2] = val >> 16;
-        mem[3] = val >> 24;
+        if (status->m_Pending)
+        {
+            return;
+        }
+        if (!status->m_Active)
+        {
+            RestorePreparedWindow();
+        }
+        NotifyStatus(status);
     }
 
-    const uint32_t IVF_HEADER_SIZE = 32;
-    const uint32_t FOURCC = 0x30385056;
-
-    static bool WriteIvfFileHeader(Recorder* recorder)
+    static void RecordingWorker(void* arg)
     {
-        char header[IVF_HEADER_SIZE];
-
-        header[0] = 'D';
-        header[1] = 'K';
-        header[2] = 'I';
-        header[3] = 'F';
-        MemPutLE16(header+4,  0);                       /* version */
-        MemPutLE16(header+6,  32);                      /* headersize */
-        MemPutLE32(header+8,  FOURCC);                  /* fourcc */
-        MemPutLE16(header+12, recorder->m_Width);       /* width */
-        MemPutLE16(header+14, recorder->m_Height);      /* height */
-        MemPutLE32(header+16, recorder->m_Fps);         /* rate */
-        MemPutLE32(header+20, 1);                       /* scale */
-        MemPutLE32(header+24, recorder->m_FrameCount);  /* length */
-        MemPutLE32(header+28, 0);                       /* unused */
-
-        return fwrite(header, 1, sizeof(header), recorder->m_File) == sizeof(header);
-    }
-
-    static bool WriteIvfFrameHeader(HRecorder recorder, const vpx_codec_cx_pkt_t *pkt)
-    {
-        char             header[12];
-        vpx_codec_pts_t  pts;
-
-        if(pkt->kind != VPX_CODEC_CX_FRAME_PKT)
-            return true;
-
-        pts = pkt->data.frame.pts;
-        MemPutLE32(header, pkt->data.frame.sz);
-        MemPutLE32(header+4, pts&0xFFFFFFFF);
-        MemPutLE32(header+8, pts >> 32);
-
-        return fwrite(header, 1, sizeof(header), recorder->m_File) == sizeof(header);
-    }
-
-    Result New(const NewParams* params, HRecorder* recorder)
-    {
-        *recorder = 0;
-
-        if (params->m_ContainerFormat != CONTAINER_FORMAT_IVF)
+        RecordingOperation* operation = (RecordingOperation*)arg;
+        for (;;)
         {
-            return RESULT_INVAL_ERROR;
-        }
-
-        if (params->m_VideoCodec != VIDOE_CODEC_VP8)
-        {
-            return RESULT_INVAL_ERROR;
-        }
-
-        if (params->m_Filename == 0)
-        {
-            return RESULT_INVAL_ERROR;
-        }
-        else if (params->m_Width % 8 != 0 || params->m_Height % 8 != 0
-                || params->m_Width == 0 || params->m_Height == 0)
-        {
-            dmLogError("Window width and height must be a multiple of 8. Current width: %d; height: %d", params->m_Width, params->m_Height);
-            return RESULT_INVAL_ERROR;
-        }
-
-        vpx_codec_enc_cfg_t cfg;
-        vpx_image_t vpx_image;
-        if(!vpx_img_alloc(&vpx_image, VPX_IMG_FMT_YV12, params->m_Width, params->m_Height, 1))
-        {
-            return RESULT_UNKNOWN_ERROR;
-        }
-
-        vpx_codec_err_t res = vpx_codec_enc_config_default(vpx_codec_vp8_cx(), &cfg, 0);
-        if (res)
-        {
-            dmLogError("Failed to get default configuration (%s)", vpx_codec_err_to_string(res));
-            vpx_img_free(&vpx_image);
-            return RESULT_UNKNOWN_ERROR;
-        }
-
-        cfg.rc_target_bitrate = params->m_Width * params->m_Height * cfg.rc_target_bitrate / cfg.g_w / cfg.g_h;
-        cfg.g_w = params->m_Width;
-        cfg.g_h = params->m_Height;
-        cfg.g_timebase.num = 1;
-        cfg.g_timebase.den = params->m_Fps;
-
-        vpx_codec_ctx_t codec;
-        res = vpx_codec_enc_init(&codec, vpx_codec_vp8_cx(), &cfg, 0);
-        if(res)
-        {
-            dmLogError("Unable to init codec (%s)", vpx_codec_err_to_string(res));
-            vpx_img_free(&vpx_image);
-            return RESULT_UNKNOWN_ERROR;
-        }
-
-        FILE* f = fopen(params->m_Filename, "wb");
-        if (!f)
-        {
-            vpx_img_free(&vpx_image);
-            vpx_codec_destroy(&codec);
-            return RESULT_IO_ERROR;
-        }
-
-        fseek(f, IVF_HEADER_SIZE, SEEK_SET);
-
-        Recorder* r = new Recorder(params);
-        r->m_Codec = codec;
-        r->m_VpxImage = vpx_image;
-        r->m_File = f;
-        *recorder = r;
-        return RESULT_OK;
-    }
-
-    /*
-     * TODO: This code needs to be optimized.
-     * RGBA to YV12 with flipped y
-     * Links:
-     * http://groups.google.com/a/chromium.org/group/chromium-reviews/browse_thread/thread/720aafe35a78942a?pli=1
-     */
-    static void RGBAToYV12(const uint8_t *rgba, uint32_t width, uint32_t height, void *y_plane, void *u_plane, void *v_plane)
-    {
-        for (uint32_t iy = 0; iy < height; ++iy)
-        {
-            uint8_t* y_plane_row = (uint8_t*) y_plane + iy * width;
-            for (uint32_t ix = 0; ix < width; ++ix)
+            RecordingRequest request;
+            Status pending;
+            Window window;
             {
-                int i = (iy * width + ix) * 4;
-                uint8_t B = rgba[i+0];
-                uint8_t G = rgba[i+1];
-                uint8_t R = rgba[i+2];
-                float y = (float)( R*66 + G*129 + B*25 + 128 ) / 256 + 16;
-                *y_plane_row = (uint8_t) y;
-                ++y_plane_row;
-            }
-        }
-
-        uint32_t half_height = height >> 1;
-        uint32_t half_width = width >> 1;
-
-        for (uint32_t iy = 0; iy < half_height; iy++)
-        {
-            uint32_t base_src = (iy * 2) * width * 4;
-            uint8_t *v_plane_row = (uint8_t*)v_plane + iy * half_width;
-            uint8_t *u_plane_row = (uint8_t*)u_plane + iy * half_width;
-
-            for (uint32_t xPixel = 0; xPixel < half_width; xPixel++)
-            {
-                uint8_t B = rgba[base_src+0];
-                uint8_t G = rgba[base_src+1];
-                uint8_t R = rgba[base_src+2];
-
-                float u = (float)( R*-38 + G*-74 + B*112 + 128 ) / 256 + 128;
-                float v = (float)( R*112 + G*-94 + B*-18 + 128 ) / 256 + 128;
-
-                *v_plane_row = (uint8_t) v;
-                *u_plane_row = (uint8_t) u;
-                ++u_plane_row;
-                ++v_plane_row;
-
-                base_src += 8;
-            }
-        }
-    }
-
-    Result Delete(HRecorder recorder)
-    {
-        Result result = RESULT_OK;
-
-        fseek(recorder->m_File, 0, SEEK_SET);
-        if (!WriteIvfFileHeader(recorder))
-        {
-            result = RESULT_IO_ERROR;
-        }
-
-        vpx_img_free(&recorder->m_VpxImage);
-        vpx_codec_destroy(&recorder->m_Codec);
-
-        delete recorder;
-        return result;
-    }
-
-    Result RecordFrame(HRecorder recorder, const void* frame_buffer,
-            uint32_t frame_buffer_size, BufferFormat format)
-    {
-        vpx_codec_iter_t iter = NULL;
-        const vpx_codec_cx_pkt_t *pkt;
-        vpx_codec_err_t res;
-        int flags = 0;
-
-        RGBAToYV12((const uint8_t*) frame_buffer, recorder->m_Width, recorder->m_Height, recorder->m_VpxImage.planes[0], recorder->m_VpxImage.planes[1], recorder->m_VpxImage.planes[2]);
-        res = vpx_codec_encode(&recorder->m_Codec, &recorder->m_VpxImage, recorder->m_FrameCount, 1, flags, VPX_DL_REALTIME);
-        if (res)
-        {
-            dmLogError("Failed to encode frame (%s)", vpx_codec_err_to_string(res))
-            return RESULT_UNKNOWN_ERROR;
-        }
-
-        while ((pkt = vpx_codec_get_cx_data(&recorder->m_Codec, &iter)))
-        {
-            switch (pkt->kind)
-            {
-            case VPX_CODEC_CX_FRAME_PKT:
-                if (!WriteIvfFrameHeader(recorder, pkt))
+                DM_MUTEX_SCOPED_LOCK(operation->m_Mutex);
+                while (operation->m_Request == RECORDING_REQUEST_NONE)
                 {
-                    return RESULT_IO_ERROR;
+                    dmConditionVariable::Wait(operation->m_Condition, operation->m_Mutex);
                 }
+                request = operation->m_Request;
+                operation->m_Request = RECORDING_REQUEST_NONE;
+                pending = operation->m_Status;
+                window = operation->m_Window;
+            }
+            // WinRT initialization and native recorder destruction must share a
+            // thread, including shutdown during an outstanding start or stop.
+            if (request == RECORDING_REQUEST_FINALIZE)
+            {
+                FinalizeNative();
+                return;
+            }
+            Status result;
+            if (request == RECORDING_REQUEST_STOP)
+            {
+                StopNative(&result);
+            }
+            else
+            {
+                StartNative(&window, pending.m_Path, pending.m_Fps, pending.m_Audio, &result);
+            }
+            if (!result.m_Path[0])
+            {
+                dmStrlCpy(result.m_Path, pending.m_Path, sizeof(result.m_Path));
+            }
+            result.m_Id = pending.m_Id;
+            result.m_Stopping = pending.m_Stopping;
+            result.m_Pending = false;
+            DM_MUTEX_SCOPED_LOCK(operation->m_Mutex);
+            operation->m_Status = result;
+        }
+    }
 
-                if (fwrite(pkt->data.frame.buf, 1, pkt->data.frame.sz,
-                        recorder->m_File) != pkt->data.frame.sz)
+    void GetStatus(Status* status)
+    {
+        if (!g_Recording.m_Mutex)
+        {
+            memset(status, 0, sizeof(*status));
+            status->m_Supported = IsSupported();
+            if (!status->m_Supported)
+            {
+                dmStrlCpy(status->m_Failure, GetUnsupportedReason(), sizeof(status->m_Failure));
+            }
+            return;
+        }
+        DM_MUTEX_SCOPED_LOCK(g_Recording.m_Mutex);
+        *status = g_Recording.m_Status;
+    }
+
+    void Update()
+    {
+        if (!g_Recording.m_Mutex)
+        {
+            return;
+        }
+        Status status;
+        GetStatus(&status);
+        // Preserve a completed start before native polling can replace it with
+        // an automatic stop or an asynchronous capture failure.
+        PublishCompletedStatus(&status);
+        if (!status.m_Pending && status.m_Active)
+        {
+            Status current;
+            GetNativeStatus(&current);
+            current.m_Id = status.m_Id;
+            Window window = {};
+            if (current.m_Active && GetWindow(g_Recording.m_NativeWindow, &window) &&
+                (window.m_Width != g_Recording.m_Window.m_Width ||
+                 window.m_Height != g_Recording.m_Window.m_Height ||
+                 window.m_Scale != g_Recording.m_Window.m_Scale))
+            {
+                current.m_Stopping = true;
+            }
+            {
+                DM_MUTEX_SCOPED_LOCK(g_Recording.m_Mutex);
+                if (current.m_Active && (current.m_Stopping || current.m_Failure[0]))
                 {
-                    return RESULT_IO_ERROR;
+                    // Finalize on the same worker that owns the native recorder.
+                    dmLogWarning("Stopping video recording: %s", current.m_Failure[0] ? current.m_Failure : "capture ended or window size changed");
+                    current.m_Stopping = true;
+                    current.m_Pending = true;
+                    g_Recording.m_Request = RECORDING_REQUEST_STOP;
+                    dmConditionVariable::Signal(g_Recording.m_Condition);
                 }
-                break;
-            default:
-                break;
+                g_Recording.m_Status = current;
+            }
+            if (!current.m_Active)
+            {
+                PublishCompletedStatus(&current);
             }
         }
-        recorder->m_FrameCount++;
-
-        return RESULT_OK;
     }
-}
+
+    static bool Fail(Status* status, const char* message)
+    {
+        dmStrlCpy(status->m_Failure, message, sizeof(status->m_Failure));
+        return false;
+    }
+
+    bool Start(const StartParams* params, Status* status)
+    {
+        GetStatus(status);
+        if (status->m_Pending || status->m_Active)
+        {
+            return Fail(status, "a recording operation is already active");
+        }
+        if (!IsSupported())
+        {
+            return Fail(status, GetUnsupportedReason());
+        }
+        if (!params->m_Path || !params->m_Path[0] || strlen(params->m_Path) >= sizeof(status->m_Path))
+        {
+            return Fail(status, "recording path is empty or too long");
+        }
+        if (params->m_Fps < 1 || params->m_Fps > 60)
+        {
+            return Fail(status, "fps must be between 1 and 60");
+        }
+        if (params->m_Audio && !IsAudioSupported())
+        {
+            return Fail(status, "application audio is not supported by this recording backend");
+        }
+        Window window = {};
+        if (!params->m_Window)
+        {
+            return Fail(status, "recording window is unavailable");
+        }
+        // A caller may replace a completed operation before the next Update.
+        // Preserve its receipt and restore its window before preparing another.
+        PublishCompletedStatus(status);
+        if (!PrepareWindow(params->m_Window, &window))
+        {
+            RestoreWindow();
+            return Fail(status, "recording window is unavailable");
+        }
+        g_Recording.m_WindowPrepared = true;
+        if (!g_Recording.m_Mutex)
+        {
+            g_Recording.m_Mutex = dmMutex::New();
+            g_Recording.m_Condition = dmConditionVariable::New();
+        }
+        {
+            DM_MUTEX_SCOPED_LOCK(g_Recording.m_Mutex);
+            g_Recording.m_Window = window;
+            g_Recording.m_NativeWindow = params->m_Window;
+            memset(&g_Recording.m_Status, 0, sizeof(g_Recording.m_Status));
+            Status* pending = &g_Recording.m_Status;
+            pending->m_Id = ++g_OperationId;
+            pending->m_Supported = true;
+            pending->m_Pending = true;
+            pending->m_Fps = params->m_Fps;
+            pending->m_Audio = params->m_Audio;
+            dmStrlCpy(pending->m_Path, params->m_Path, sizeof(pending->m_Path));
+            g_Recording.m_Request = RECORDING_REQUEST_START;
+            if (!g_Recording.m_Thread)
+            {
+                g_Recording.m_Thread = dmThread::New(RecordingWorker, 512 * 1024, &g_Recording, "record");
+            }
+            if (!g_Recording.m_Thread)
+            {
+                g_Recording.m_Request = RECORDING_REQUEST_NONE;
+                pending->m_Pending = false;
+                dmStrlCpy(pending->m_Failure, "recording worker unavailable", sizeof(pending->m_Failure));
+            }
+            else
+            {
+                dmConditionVariable::Signal(g_Recording.m_Condition);
+            }
+            *status = *pending;
+        }
+        if (!g_Recording.m_Thread)
+        {
+            RestorePreparedWindow();
+            return false;
+        }
+        return true;
+    }
+
+    bool Stop(Status* status)
+    {
+        GetStatus(status);
+        if (status->m_Pending || !status->m_Active)
+        {
+            return Fail(status, "no active recording is ready to stop");
+        }
+        // Preserve STARTED even if the caller stops before the next Update.
+        PublishCompletedStatus(status);
+        DM_MUTEX_SCOPED_LOCK(g_Recording.m_Mutex);
+        g_Recording.m_Status.m_Pending = true;
+        g_Recording.m_Status.m_Stopping = true;
+        g_Recording.m_Request = RECORDING_REQUEST_STOP;
+        *status = g_Recording.m_Status;
+        dmConditionVariable::Signal(g_Recording.m_Condition);
+        return true;
+    }
+
+    void Finalize()
+    {
+        // No worker calls into Lua, scene objects, or the main dispatch queue.
+        // Join before the engine destroys the window and platform contexts.
+        if (g_Recording.m_Thread)
+        {
+            {
+                DM_MUTEX_SCOPED_LOCK(g_Recording.m_Mutex);
+                g_Recording.m_Request = RECORDING_REQUEST_FINALIZE;
+                dmConditionVariable::Signal(g_Recording.m_Condition);
+            }
+            dmThread::Join(g_Recording.m_Thread);
+#if defined(_WIN32)
+            // Win32 Join waits for termination; Detach closes the thread handle.
+            dmThread::Detach(g_Recording.m_Thread);
+#endif
+        }
+        RestorePreparedWindow();
+        if (g_Recording.m_Condition)
+        {
+            dmConditionVariable::Delete(g_Recording.m_Condition);
+        }
+        if (g_Recording.m_Mutex)
+        {
+            dmMutex::Delete(g_Recording.m_Mutex);
+        }
+        memset(&g_Recording, 0, sizeof(g_Recording));
+    }
+} // namespace dmRecord

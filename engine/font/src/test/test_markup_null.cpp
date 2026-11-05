@@ -14,6 +14,7 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include <dlib/testutil.h>
 
 #include "../fontcollection.h"
 #include "../markup.h"
@@ -42,7 +43,7 @@ TEST(MarkupNull, ResolvesPlainRenderData)
     const float base_color[4] = { 0.25f, 0.5f, 0.75f, 0.125f };
     TextGlyph   glyph = {};
     TextGlyphRenderData data;
-    TextLayoutGetGlyphRenderData(0, glyph, base_color, &data);
+    TextLayoutGetGlyphRenderData(0, glyph, base_color, &data, true);
 
     ASSERT_EQ(0u, data.m_StyleFlags);
     ASSERT_EQ(0.0f, data.m_OutlineWidth);
@@ -74,9 +75,11 @@ TEST(MarkupNull, LinksPlainTextLayout)
     ASSERT_EQ(4u, codepoints.Size());
 }
 
+// Verify that precompiled styles render with a staged font even when the parser is disabled.
 TEST(MarkupNull, PrecompiledBaseStyleRendersWithoutParser)
 {
-    HFont font = FontLoadFromPath("src/test/data/vera_mo_bd.ttf");
+    char font_path[512];
+    HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(font_path, sizeof(font_path), "src/test/data/vera_mo_bd.ttf"));
     ASSERT_NE((HFont)0, font);
     HFontCollection collection = FontCollectionCreate();
     ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, font));
@@ -116,7 +119,7 @@ TEST(MarkupNull, PrecompiledBaseStyleRendersWithoutParser)
     TextLayoutUpdate(layout, 0.25f);
     const float         color[] = { 1.0f, 1.0f, 1.0f, 1.0f };
     TextGlyphRenderData data;
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], color, &data);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], color, &data, true);
     ASSERT_EQ(1.25f, data.m_OutlineWidth);
     ASSERT_EQ(0.375f, data.m_OutlineColor[3]);
     ASSERT_NE(0.0f, data.m_OffsetY);

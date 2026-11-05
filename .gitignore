@@ -34,6 +34,7 @@ engine/.clang_complete
 .npm
 /**/.project
 /**/.gradle
+/com.dynamo.cr/*/logs/
 *.eclipse.buildship.core.prefs
 *.classpath
 
@@ -89,8 +90,6 @@ editor/.lsp/sqlite.db
 # generated solutions
 /solutions
 
-# ChatGPT
-AGENTS.md
 /share/ext/astcenc/build/
 /share/ext/astcenc/source
 /engine/dlib/test_http_server.log

@@ -12,28 +12,28 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <glfw/glfw.h>
+#include <platform/platform_app.h>
 #include <dmsdk/dlib/android.h>
 
 namespace dmAndroid
 {
     void RegisterOnActivityResultListener(OnActivityResult listener)
     {
-        glfwAndroidRegisterOnActivityResultListener((glfwactivityresultfun)listener);
+        dmPlatform::AndroidRegisterActivityResultListener((dmPlatform::FAndroidActivityResult)listener);
     }
 
     void UnregisterOnActivityResultListener(OnActivityResult listener)
     {
-        glfwAndroidUnregisterOnActivityResultListener((glfwactivityresultfun)listener);
+        dmPlatform::AndroidUnregisterActivityResultListener((dmPlatform::FAndroidActivityResult)listener);
     }
 
     void RegisterOnActivityCreateListener(OnActivityCreate listener)
     {
-        glfwAndroidRegisterOnCreateListener((glfwoncreatefun)listener);
+        dmPlatform::AndroidRegisterActivityCreateListener((dmPlatform::FAndroidActivityCreate)listener);
     }
 
     void UnregisterOnActivityCreateListener(OnActivityCreate listener)
     {
-        glfwAndroidUnregisterOnCreateListener((glfwoncreatefun)listener);
+        dmPlatform::AndroidUnregisterActivityCreateListener((dmPlatform::FAndroidActivityCreate)listener);
     }
 }

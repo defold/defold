@@ -1,17 +1,3 @@
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 """Exercise the macOS launcher in a temporary app bundle, without a JVM."""
 
 import os
@@ -57,14 +43,19 @@ exit "${LAUNCHER_TEST_EXIT_CODE:-0}"
             "[launcher]\n"
             f"java = {java}\n"
             "jar = editor.jar\n"
+            "vmargs = -Ddefold.launcherpath=${bootstrap.launcherpath}\n"
             "main = EditorMain\n")
 
-    def launch(self, *args, exit_code=0, closed_output=False):
+    def launch(self, *args, exit_code=0, closed_output=False, launcher=None,
+               cwd=None, search_path=None):
         env = dict(os.environ, LAUNCHER_TEST_EXIT_CODE=str(exit_code),
                    LAUNCHER_TEST_PID_FILE=str(self.directory / "java.pid"))
+        if search_path is not None:
+            env["PATH"] = search_path
+        command = str(self.launcher) if launcher is None else launcher
         # A separate process group also lets a failed regression clean up a
         # child left behind by the old fork-and-wait implementation.
-        with subprocess.Popen([str(self.launcher), *args], env=env,
+        with subprocess.Popen([command, *args], env=env, cwd=cwd,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               text=True, start_new_session=True) as process:
             try:
@@ -91,6 +82,34 @@ exit "${LAUNCHER_TEST_EXIT_CODE:-0}"
         self.assertIn("arg=-cp\narg=editor.jar\n", output)
         self.assertIn("arg=EditorMain\narg=--project=path with spaces/game.project\n", output)
         self.assertIn(f"launcher={self.launcher}\n", output)
+
+    # Relative and PATH launches must record an absolute executable path that
+    # can start another editor after changing directories (issue #7729).
+    def test_relaunches_after_relative_and_path_launches(self):
+        working_directory = self.directory / "working"
+        working_directory.mkdir()
+        launches = (
+            ("relative", os.path.relpath(self.launcher, working_directory), None),
+            ("absolute PATH entry", "Defold", str(self.launcher.parent)),
+            ("relative PATH entry", "Defold", os.path.relpath(self.launcher.parent, working_directory)),
+        )
+        for name, command, search_path in launches:
+            with self.subTest(launch=name):
+                _, code, output = self.launch(launcher=command, cwd=working_directory,
+                                              search_path=search_path)
+                self.assertEqual(0, code, output)
+                prefix = "arg=-Ddefold.launcherpath="
+                launcher_paths = [line[len(prefix):] for line in output.splitlines()
+                                  if line.startswith(prefix)]
+                self.assertEqual(1, len(launcher_paths), output)
+                launcher_path = launcher_paths[0]
+                self.assertTrue(Path(launcher_path).is_absolute(), output)
+                self.assertEqual(self.launcher, Path(launcher_path).resolve())
+                self.assertIn(f"launcher={launcher_path}\n", output)
+                _, code, output = self.launch(launcher=launcher_path, cwd=self.directory,
+                                              search_path="")
+                self.assertEqual(0, code, output)
+                self.assertIn("arg=EditorMain\n", output)
 
     # Pass through both an ordinary failure code (7) and the legacy restart code
     # (17) unchanged, without relaunching the executable when it exits with 17.

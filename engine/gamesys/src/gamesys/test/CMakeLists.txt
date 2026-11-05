@@ -180,6 +180,7 @@ set(_COMMON_EXPORTED
   ScriptLibTileMap)
 
 defold_get_physics_libraries(_GAMESYS_TEST_PHYSICS_LIBS)
+defold_get_font_gen_library(_GAMESYS_TEST_FONT_GEN_LIB)
 defold_get_font_libraries(_GAMESYS_TEST_FONT_LIBS)
 defold_get_gamesys_libraries(_GAMESYS_TEST_GAMESYS_LIBS)
 
@@ -188,6 +189,7 @@ if(DEFOLD_PLATFORM_SUPPORTS_COMPUTE)
 endif()
 
 set(_DEFOLD_TEST_LIBS
+  ${_GAMESYS_TEST_FONT_GEN_LIB}
   testmain test_script dlib mbedtls zip ddf resource gameobject extension script input
   particle rig gui liveupdate profile_null platform_null hid_null
   render sound_null
@@ -214,11 +216,17 @@ set(_GS_TEST_INCLUDES
   "${CMAKE_CURRENT_BINARY_DIR}")
 
 function(gamesys_configure_common_test target)
+  cmake_parse_arguments(GS_TEST "BENCHMARK;PROFILE" "" "" ${ARGN})
+  set(_test_libs ${_DEFOLD_TEST_LIBS})
+  if(GS_TEST_BENCHMARK OR GS_TEST_PROFILE)
+    list(REMOVE_ITEM _test_libs profile_null)
+    list(APPEND _test_libs profile)
+  endif()
   add_dependencies(${target} gamesys_test_embeds)
   target_include_directories(${target} PRIVATE ${_GS_TEST_INCLUDES})
   target_compile_definitions(${target} PRIVATE ${_GS_TEST_DEFINES})
   target_link_libraries(${target} PRIVATE ${_GAMESYS_TEST_GAMESYS_LIBS})
-  defold_target_link_libraries(${target} ${TARGET_PLATFORM} ${_DEFOLD_TEST_LIBS})
+  defold_target_link_libraries(${target} ${TARGET_PLATFORM} ${_test_libs})
   defold_target_link_libraries(${target} ${TARGET_PLATFORM} ${_GS_TEST_GRAPHICS_LIBS})
   defold_target_link_bullet3d(${target} ${TARGET_PLATFORM})
   defold_target_link_lua(${target} ${TARGET_PLATFORM})
@@ -229,12 +237,14 @@ function(gamesys_configure_common_test target)
   # The headless suites use null device backends and module-local content.
   # Keep them together because resource reload tests modify staged files.
   # HTTP tests register separately and retain the shared server group.
-  defold_register_test_target(${target} ON "${GS_TEST_RUN_DIR}"
-    RUN_GROUP gamesys
-    RUNTIME_DEPENDS gamesys_test_content
-    STAGE_FILES
-      "build/src/gamesys/test" "build/src/gamesys/test"
-      ${_GS_HOST_TEST_STAGE_FILES})
+  if(NOT GS_TEST_BENCHMARK)
+    defold_register_test_target(${target} ON "${GS_TEST_RUN_DIR}"
+      RUN_GROUP gamesys
+      RUNTIME_DEPENDS gamesys_test_content
+      STAGE_FILES
+        "build/src/gamesys/test" "build/src/gamesys/test"
+        ${_GS_HOST_TEST_STAGE_FILES})
+  endif()
 
   defold_target_link_libraries_web(${target} ${TARGET_PLATFORM} SCOPE PRIVATE
     library_sys.js library_script.js library_render.js)
@@ -243,6 +253,31 @@ endfunction()
 # ---------------------------------------------------------------------------
 # test_gamesys
 # ---------------------------------------------------------------------------
+
+# Asset-free internal component/render ownership contracts. Keep them independent
+# of the large gamesys content build so lifecycle/concurrency checks stay focused.
+set(_COMPONENT_RENDER_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_component_render.cpp")
+defold_create_exported_symbols_file("${_COMPONENT_RENDER_EXPORTS}" "GraphicsAdapterNull;ResourceProviderFile")
+foreach(_component_render_test IN ITEMS test_component_render test_component_render_state)
+  defold_add_executable(${_component_render_test}
+    "${GS_TEST_ROOT}/${_component_render_test}.cpp" "${_COMPONENT_RENDER_EXPORTS}")
+  target_include_directories(${_component_render_test} PRIVATE "${GS_SRC_ROOT}" "${GS_GENERATED_INCLUDE_DIR}")
+  target_link_libraries(${_component_render_test} PRIVATE gamesys)
+  defold_target_link_libraries(${_component_render_test} "${TARGET_PLATFORM}"
+    testmain gameobject render ddf dlib resource script extension lua
+    graphics_null platform_null profile_null hid_null zip mbedtls)
+  defold_target_link_socket(${_component_render_test} "${TARGET_PLATFORM}" PRIVATE)
+  defold_target_link_app(${_component_render_test} "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_glfw(${_component_render_test} "${TARGET_PLATFORM}" PRIVATE)
+  defold_target_link_libraries_web(${_component_render_test} "${TARGET_PLATFORM}"
+    library_sys.js library_script.js library_render.js)
+  if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
+    find_package(Threads REQUIRED)
+    target_link_libraries(${_component_render_test} PRIVATE Threads::Threads dl)
+  endif()
+  defold_register_test_target(${_component_render_test} ON "${GS_TEST_RUN_DIR}" RUN_GROUP gamesys)
+endforeach()
+
 set(TEST_GS_SOURCES
   "${GS_TEST_ROOT}/test_gamesys.cpp"
   "${GS_TEST_ROOT}/test_gamesys_components.cpp"
@@ -258,6 +293,32 @@ defold_create_exported_symbols_file("${_TEST1_EXPORTED_CPP}" "${_TEST1_SYMBOLS}"
 
 defold_add_executable(test_gamesys ${TEST_GS_SOURCES} ${_TEST1_EXPORTED_CPP} ${_EMBED_HEADERS} ${_EMBED_CPP})
 gamesys_configure_common_test(test_gamesys)
+
+# Pure geometry tests do not require graphics or compiled game content.
+defold_add_executable(test_gamesys_geometry
+  "${GS_TEST_ROOT}/test_gamesys_geometry.cpp"
+  "${GS_SRC_ROOT}/geometry.cpp")
+defold_target_link_libraries(test_gamesys_geometry "${TARGET_PLATFORM}" testmain)
+defold_register_test_target(test_gamesys_geometry ON "${GS_TEST_ROOT}")
+
+# Deterministic profiler call counts guard batching without timing assertions.
+defold_add_executable(test_gamesys_profile
+  "${GS_TEST_ROOT}/test_gamesys_profile.cpp"
+  ${_TEST1_EXPORTED_CPP} ${_EMBED_HEADERS} ${_EMBED_CPP})
+gamesys_configure_common_test(test_gamesys_profile PROFILE)
+
+# Opt-in CPU benchmark using real model/rig code, null devices, and profiler counters.
+defold_feature_enabled(performance_tests GAMESYS_BUILD_PERFORMANCE_TESTS)
+if(GAMESYS_BUILD_PERFORMANCE_TESTS)
+  defold_add_executable(benchmark_models
+    "${GS_TEST_ROOT}/benchmark_models.cpp"
+    ${_TEST1_EXPORTED_CPP} ${_EMBED_HEADERS} ${_EMBED_CPP})
+  gamesys_configure_common_test(benchmark_models BENCHMARK)
+  # Build with the tests when enabled, but run separately to avoid concurrent suites.
+  defold_register_test_target(benchmark_models OFF "${GS_TEST_RUN_DIR}"
+    RUNTIME_DEPENDS gamesys_test_data_model)
+  add_dependencies(benchmark_models gamesys_test_data_model)
+endif()
 
 # ---------------------------------------------------------------------------
 # test_app_shader_program
@@ -303,7 +364,7 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
       find_package(Threads REQUIRED)
       target_link_libraries(test_app_shader_program PRIVATE Threads::Threads dl)
     endif()
-    defold_target_link_libraries_web(test_app_shader_program "${TARGET_PLATFORM}" library_sys.js library_glfw.js)
+    defold_target_link_libraries_web(test_app_shader_program "${TARGET_PLATFORM}" library_sys.js)
     defold_register_test_target(test_app_shader_program OFF)
   endif()
   if(_shader_program_had_with_opengl)

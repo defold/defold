@@ -101,27 +101,27 @@
   (let [scope (:name pattern)
         captures (:captures pattern)]
     (cond-> transient-runs
-            scope (append-run! (.start match-result) scope)
-            captures (append-captures! (or scope parent-scope) match-result captures)
-            scope (append-run! (.end match-result) parent-scope))))
+      scope (append-run! (.start match-result) scope)
+      captures (append-captures! (or scope parent-scope) match-result captures)
+      scope (append-run! (.end match-result) parent-scope))))
 
 (defn- append-begin! [transient-runs parent-scope ^MatchResult match-result pattern]
   (let [scope (:name pattern)
         content-scope (:content-name pattern)
         captures (or (:begin-captures pattern) (:captures pattern))]
     (cond-> transient-runs
-            scope (append-run! (.start match-result) scope)
-            captures (append-captures! (or scope parent-scope) match-result captures)
-            content-scope (append-run! (.end match-result) content-scope))))
+      scope (append-run! (.start match-result) scope)
+      captures (append-captures! (or scope parent-scope) match-result captures)
+      content-scope (append-run! (.end match-result) content-scope))))
 
 (defn- append-end! [transient-runs parent-scope ^MatchResult match-result pattern]
   (let [scope (:name pattern)
         content-scope (:content-name pattern)
         captures (or (:end-captures pattern) (:captures pattern))]
     (cond-> transient-runs
-            content-scope (append-run! (.start match-result) content-scope)
-            captures (append-captures! (or scope parent-scope) match-result captures)
-            scope (append-run! (.end match-result) parent-scope))))
+      content-scope (append-run! (.start match-result) content-scope)
+      captures (append-captures! (or scope parent-scope) match-result captures)
+      scope (append-run! (.end match-result) parent-scope))))
 
 (defn- find-parent-scope [^AnalysisContext context]
   (when-some [parent-pattern (.parent-pattern context)]

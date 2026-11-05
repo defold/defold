@@ -162,7 +162,7 @@
 
 (defn show-graph [basis & {:keys [root-id input-fn output-fn] :or {root-id nil} :as opts}]
   (let [f (-> (apply subgraph->dot basis (mapcat identity opts))
-            (dot->image))]
+              (dot->image))]
     (when f
       (ui/open-file f))))
 
@@ -309,7 +309,7 @@
                               "[color=\"" (interpolate-colors (sorted-map 0.0 "#94d2bd"  ;; 1
                                                                           3.0 "#ee9b00"  ;; 1000
                                                                           6.0 "#ae2012") ;; 1000000
-                                                              weight) "\", weight=" weight"]"))))
+                                                              weight) "\", weight=" weight "]"))))
                 (string/join "\n"))
            "}"))))
 

@@ -47,7 +47,6 @@
      (bundle locale->content)
      #(throw %))))
 
-
 (deftest pattern-test
   (testing "message pattern"
     (let [localization (make {"en" "hello = Hello, {name}!

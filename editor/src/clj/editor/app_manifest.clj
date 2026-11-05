@@ -20,7 +20,8 @@
             [editor.localization :as localization]
             [editor.properties :as properties]
             [editor.resource-io :as resource-io]
-            [editor.yaml :as yaml])
+            [editor.yaml :as yaml]
+            [util.coll :as coll])
   (:import [com.dynamo.bob.util AppManifestMigration]))
 
 (def macos #{:x86_64-osx :arm64-osx})
@@ -34,6 +35,8 @@
 (def web #{:wasm-web :wasm_pthread-web})
 
 (def linux #{:x86_64-linux :arm64-linux})
+
+(def desktop (coll/into-> [macos windows linux] #{} cat))
 
 (def vulkan
   #{:x86_64-linux :arm64-linux
@@ -212,17 +215,17 @@
            ~value-sym (if (not (~pred ~value-sym))
                         ~fix
                         ~value-sym)]
-      ~(reduce
-         (fn [form [k pred fix]]
-           `(let [~map-sym ~value-sym
-                  ~value-sym (get ~map-sym ~k ::not-found)
-                  ~value-sym (if (or (identical? ~value-sym ::not-found)
-                                     (not (~pred ~value-sym)))
-                               ~fix
-                               ~value-sym)]
-              (assoc ~map-sym ~k ~form)))
-         `(~f-expr ~value-sym)
-         (reverse forms)))))
+       ~(reduce
+          (fn [form [k pred fix]]
+            `(let [~map-sym ~value-sym
+                   ~value-sym (get ~map-sym ~k ::not-found)
+                   ~value-sym (if (or (identical? ~value-sym ::not-found)
+                                      (not (~pred ~value-sym)))
+                                ~fix
+                                ~value-sym)]
+               (assoc ~map-sym ~k ~form)))
+          `(~f-expr ~value-sym)
+          (reverse forms)))))
 
 (defn get-toggle-value [manifest toggle]
   (case (:toggle toggle)
@@ -269,7 +272,6 @@
                  :context map? {}
                  key boolean? false
                  (constantly (if enabled value (not value)))))))
-
 
 ;; endregion
 
@@ -322,7 +324,7 @@
                                                        (mapcat second)
                                                        (map #(get-toggle-value manifest %)))
                                                      choices)))]
-         (if all-toggles-unify-to-nil nil none))))))
+          (if all-toggles-unify-to-nil nil none))))))
 
 (defn set-setting-value [manifest setting value]
   (case (:setting setting)
@@ -342,8 +344,8 @@
                                              (mapcat second))
                                            choices))]
               (as-> manifest $
-                    (reduce #(set-toggle-value %1 %2 false) $ disabled-toggles)
-                    (reduce #(set-toggle-value %1 %2 true) $ enabled-toggles)))))
+                (reduce #(set-toggle-value %1 %2 false) $ disabled-toggles)
+                (reduce #(set-toggle-value %1 %2 true) $ enabled-toggles)))))
 
 (defn setting-property-setter [setting]
   (fn [_evaluation-context self old new]
@@ -372,9 +374,13 @@
 
 (def record-setting
   (make-check-box-setting
-    (concat
-      (exclude-libs-toggles all-platforms ["record" "vpx"])
-      (libs-toggles all-platforms ["record_null"]))))
+    (coll/into-> [(exclude-libs-toggles all-platforms ["record" "record_script"])
+                  (exclude-libs-toggles desktop ["record_service"])
+                  (exclude-libs-toggles linux ["openh264"])
+                  (generic-contains-toggles all-platforms :excludeSymbols ["ScriptRecord"])
+                  (generic-contains-toggles desktop :excludeSymbols ["EngineRecord"])]
+      []
+      cat)))
 
 (def profiler-setting
   (let [none-toggles (concat
@@ -552,15 +558,12 @@
     :rig   (concat (libs-toggles all-platforms ["gamesys_model_null"])   (exclude-libs-toggles all-platforms ["gamesys_model"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptModelExt"]))
     :model))
 
-
 (def generic-vulkan
-  (disj vulkan :armv7-android :arm64-android :x86_64-android :arm64-ios))
+  (disj vulkan :x86_64-win32 :armv7-android :arm64-android :x86_64-android :arm64-ios))
 
 (def generic-vulkan-toggles
   (concat
-    (exclude-libs-toggles [:x86_64-win32] ["platform"])
-    (libs-toggles [:x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
-    (libs-toggles windows ["graphics_vulkan" "vulkan"])
+    (libs-toggles linux ["platform_vulkan"])
     (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
     (generic-contains-toggles linux :dynamicLibs ["vulkan"])
     (generic-contains-toggles generic-vulkan :symbols ["GraphicsAdapterVulkan"])))
@@ -575,22 +578,64 @@
     :both generic-vulkan-toggles
     :open-gl))
 
+(def windows-graphics-choice-options
+  [[:open-gl "OpenGL"]
+   [:vulkan "Vulkan"]
+   [:dx12 "DX12"]
+   [:open-gl-vulkan "OpenGL & Vulkan"]
+   [:open-gl-dx12 "OpenGL & DX12"]
+   [:vulkan-dx12 "Vulkan & DX12"]
+   [:open-gl-vulkan-dx12 "OpenGL & Vulkan & DX12"]])
+
+(def graphics-setting-windows
+  (let [vulkan (into [] cat
+                     [(exclude-libs-toggles windows ["platform"])
+                      (libs-toggles windows ["platform_vulkan" "graphics_vulkan" "vulkan"])
+                      (generic-contains-toggles windows :symbols ["GraphicsAdapterVulkan"])])
+
+        dx12 (into [] cat
+                   [(libs-toggles windows ["graphics_dx12"])
+                    ;; Extender runs on a case-sensitive host. Preserve the SDK filename case
+                    ;; while accepting names written by earlier editors.
+                    (into []
+                          (mapcat (fn [platform]
+                                    (mapv (fn [[library legacy-library]]
+                                            (contains-toggle platform :libs (str library ".lib")
+                                                             [(str library ".lib") library
+                                                              (str legacy-library ".lib") legacy-library]))
+                                          [["d3d12" "D3D12"] ["dxgi" "DXGI"] ["d3dcompiler" "d3dcompiler"]])))
+                          windows)
+                    (generic-contains-toggles windows :symbols ["GraphicsAdapterDX12"])])
+
+        exclude-open-gl (into [] cat
+                              [(exclude-libs-toggles windows ["graphics"])
+                               (generic-contains-toggles windows :excludeSymbols ["GraphicsAdapterOpenGL"])])]
+    ;; Match supersets before subsets. OpenGL is supplied by engine defaults.
+    (make-choice-setting
+      :vulkan-dx12 (into [] cat [vulkan dx12 exclude-open-gl])
+      :open-gl-vulkan-dx12 (into vulkan dx12)
+      :vulkan (into vulkan exclude-open-gl)
+      :dx12 (into dx12 exclude-open-gl)
+      :open-gl-vulkan vulkan
+      :open-gl-dx12 dx12
+      :open-gl)))
+
 (def open-gl-android-toggles
   (concat
-    (libs-toggles android ["graphics_opengles" "dmglfw"])
-    (exclude-libs-toggles android ["dmglfw_vulkan"])
+    (libs-toggles android ["graphics_opengles" "platform"])
+    (exclude-libs-toggles android ["platform_vulkan"])
     (generic-contains-toggles android :symbols ["GraphicsAdapterOpenGLES"])
     (generic-contains-toggles android :dynamicLibs ["EGL" "GLESv1_CM" "GLESv2"])))
 
 ;; Vulkan-only Android: graphics_vulkan + Vulkan adapter. libvulkan.so is loaded
 ;; dynamically at runtime, so none of the Android choices should link -lvulkan.
-;; Use dmglfw_vulkan to avoid linking the Android OpenGL ES/EGL system libs.
+;; Use platform_vulkan to avoid linking the Android OpenGL ES/EGL system libs.
 ;; Order: :both (GLES+Vulkan), then :open-gl (GLES-only), then :vulkan (Vulkan-only).
 ;; Final :both is :none — empty / unspecified Android context defaults to GLES+Vulkan.
 (def vulkan-android-toggles
   (concat
-    (libs-toggles android ["graphics_vulkan" "dmglfw_vulkan"])
-    (exclude-libs-toggles android ["graphics_opengles" "dmglfw"])
+    (libs-toggles android ["graphics_vulkan" "platform_vulkan"])
+    (exclude-libs-toggles android ["graphics_opengles" "platform"])
     (generic-contains-toggles android :symbols ["GraphicsAdapterVulkan"])
     (generic-contains-toggles android :excludeSymbols ["GraphicsAdapterOpenGLES"])
     (generic-contains-toggles android :excludeDynamicLibs ["vulkan" "EGL" "GLESv1_CM" "GLESv2"])))
@@ -598,8 +643,8 @@
 (def graphics-setting-android
   (make-choice-setting
     :both (concat
-            (libs-toggles android ["graphics_opengles" "graphics_vulkan" "dmglfw"])
-            (exclude-libs-toggles android ["dmglfw_vulkan"])
+            (libs-toggles android ["graphics_opengles" "graphics_vulkan" "platform"])
+            (exclude-libs-toggles android ["platform_vulkan"])
             (generic-contains-toggles android :symbols ["GraphicsAdapterOpenGLES" "GraphicsAdapterVulkan"])
             (generic-contains-toggles android :excludeDynamicLibs ["vulkan"])
             (generic-contains-toggles android :dynamicLibs ["EGL" "GLESv1_CM" "GLESv2"]))
@@ -734,8 +779,8 @@
   (make-choice-setting
     :web-gpu (concat
                webgpu-toggles
-              (exclude-libs-toggles web ["graphics"])
-              (generic-contains-toggles web :excludeSymbols ["GraphicsAdapterOpenGL"]))
+               (exclude-libs-toggles web ["graphics"])
+               (generic-contains-toggles web :excludeSymbols ["GraphicsAdapterOpenGL"]))
     :both webgpu-toggles
     :web-gl))
 
@@ -788,7 +833,19 @@
                     manifest
                     [:excludeLibs :libs :engineLibs]))
           manifest
-          (conj windows :win32)))
+          (conj windows :win32 :x86-win32)))
+
+(defn- migrate-mobile-library-names [manifest]
+  (reduce (fn [manifest platform]
+            (reduce (fn [manifest key]
+                      (if-let [libs (get-in-guarded manifest :platforms map? platform map? :context map? key vector?)]
+                        (assoc-in manifest [:platforms platform :context key]
+                                  (mapv #(get AppManifestMigration/NATIVE_PLATFORM_LIBRARY_NAMES % %) libs))
+                        manifest))
+                    manifest
+                    [:excludeLibs :libs :engineLibs]))
+          manifest
+          (into #{:android :ios :web} cat [android ios web])))
 
 (defn- migrate-macos-vulkan-platform [manifest]
   ;; platform_vulkan replaces the new default platform library. Keep old
@@ -860,6 +917,93 @@
                            platforms
                            platforms))))))
 
+(defn- recording-library-name [library]
+  (let [library-name (get AppManifestMigration/WINDOWS_LIBRARY_NAMES library)]
+    (#{"record" "record_null" "record_script" "record_service"} library-name)))
+
+(defn- migrate-record-context [context platform]
+  ;; The null backend was removed. Explicit selections now exclude recording,
+  ;; as do the legacy VPX toggle and its native-recorder migration.
+  (let [excluded-libraries
+        (mapv #(or (recording-library-name %) %) (:excludeLibs context))
+
+        excluded-library-names (set excluded-libraries)
+        excluded-symbols (:excludeSymbols context)
+        obsolete #{"vpx" "vpx.lib" "libvpx" "libvpx.lib"}
+        common-platform (or (nil? platform) (= :common platform))
+        linux-platform (or common-platform (= :linux platform) (linux platform))
+
+        desktop-platform
+        (or linux-platform (desktop platform) (#{:osx :win32 :x86-win32} platform))
+
+        included-library-names
+        (coll/into-> [(:libs context) (:engineLibs context)]
+          #{}
+          (comp cat (keep recording-library-name)))
+
+        excludes-recording
+        (or (included-library-names "record_null")
+            (and (excluded-library-names "record")
+                 (or (coll/any? obsolete excluded-libraries)
+                     (excluded-library-names "record_null")
+                     (excluded-library-names "record_script")
+                     (and (excluded-library-names "record_service")
+                          (coll/any? #{"EngineRecord"} excluded-symbols)))))]
+    (if-not excludes-recording
+      (cond-> context
+        (excluded-library-names "record_null")
+        (update :excludeLibs #(coll/into-> % [] (remove (comp #{"record_null"} recording-library-name)))))
+      (let [required-libraries
+            (cond-> ["record" "record_script"]
+              desktop-platform
+              (conj "record_service")
+
+              linux-platform
+              (conj "openh264"))
+
+            libraries
+            (coll/into-> excluded-libraries [] (remove (conj obsolete "record_null")))
+
+            required-symbols
+            (cond-> ["ScriptRecord"]
+              desktop-platform
+              (conj "EngineRecord"))]
+        (reduce (fn [context key]
+                  (cond-> context
+                    (get context key)
+                    (update key #(coll/into-> % [] (remove recording-library-name)))))
+                (assoc context
+                  :excludeLibs
+                  (coll/into-> required-libraries libraries (remove (set libraries)))
+
+                  :excludeSymbols
+                  (coll/into-> required-symbols
+                    (or excluded-symbols [])
+                    (remove (set excluded-symbols))))
+                [:libs :engineLibs])))))
+
+(defn- migrate-record-exclusions [manifest]
+  (if-not (map? manifest)
+    manifest
+    (let [context-paths
+          (coll/into-> (get-in-guarded manifest :platforms map?)
+            [[nil [:context]]]
+            (map (fn [[platform _]]
+                   [platform [:platforms platform :context]])))]
+      (reduce (fn [manifest [platform path]]
+                ;; Contexts come from arbitrary YAML. Validate their shape here
+                ;; so the context migration only handles valid library lists.
+                (let [context (get-in manifest path)]
+                  (if-not (and (map? context)
+                               (coll/every? #(or (nil? (get context %))
+                                                 (vector? (get context %)))
+                                            [:excludeLibs :excludeSymbols :libs :engineLibs]))
+                    manifest
+                    (assoc-in manifest path
+                              (migrate-record-context context platform)))))
+              manifest
+              context-paths))))
+
 (defn- load-app-manifest [_load-opts {self :node-id}]
   (g/expand-ec
     (fn [evaluation-context]
@@ -867,9 +1011,11 @@
         (when-not (g/error? manifest)
           (let [migrated-manifest (-> manifest
                                       migrate-windows-library-names
+                                      migrate-mobile-library-names
                                       migrate-macos-vulkan-platform
                                       migrate-simulator-graphics
-                                      migrate-bullet3d-exclusions)]
+                                      migrate-bullet3d-exclusions
+                                      migrate-record-exclusions)]
             (when-not (= manifest migrated-manifest)
               ;; Prevent the project loader from caching the original lines as save-data.
               (g/flag-nodes-as-migrated! evaluation-context [self])
@@ -1021,6 +1167,13 @@
                                                         [:both "OpenGL & Vulkan"]]}))
             (value (setting-property-getter graphics-setting))
             (set (setting-property-setter graphics-setting)))
+  (property graphics-windows g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :graphics-windows))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-windows))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options windows-graphics-choice-options}))
+            (value (setting-property-getter graphics-setting-windows))
+            (set (setting-property-setter graphics-setting-windows)))
   (property graphics-osx g/Any
             (dynamic label (properties/label-dynamic :appmanifest :graphics-osx))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-osx))

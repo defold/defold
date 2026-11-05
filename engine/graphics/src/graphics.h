@@ -110,7 +110,9 @@ namespace dmGraphics
         // BC (S3TC/RGTC/BPTC) for 2D array / 3D textures. WebGL2 forbids these
         // compressed families on array/3D targets while allowing them on 2D.
         CONTEXT_FEATURE_BC_ARRAY_TEXTURES      = 9,
-        MAX_CONTEXT_FEATURE_COUNT              = 10,
+        // Availability for the current surface; query after BeginFrame.
+        CONTEXT_FEATURE_BACKBUFFER_READBACK    = 10,
+        MAX_CONTEXT_FEATURE_COUNT              = 11,
     };
 
     // Binding family for shader resources in a program.
@@ -149,6 +151,7 @@ namespace dmGraphics
         // Per-stage binding limits
         uint32_t    m_MaxSamplersPerStage;
         uint32_t    m_MaxTexturesPerStage;
+        uint32_t    m_MaxStorageBuffersPerStage;
         uint32_t    m_MaxVertexAttributes;
         uint32_t    m_MaxVertexBuffers;
 
@@ -246,8 +249,10 @@ namespace dmGraphics
             int16_t  m_Location;
             uint16_t m_Size;
             uint16_t m_Offset;
+            uint16_t m_Reserved0;
             Type     m_Type;
             bool     m_Normalize;
+            uint8_t  m_Reserved1[3];
         };
 
         Stream*            m_Streams;

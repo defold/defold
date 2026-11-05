@@ -110,13 +110,13 @@
             decimal-point-offset (Integer/parseInt num-str (inc index-of-e) (.length num-str) 10)
             index-of-decimal-point (.indexOf num-str decimal-point-int)
             index-of-adjusted-decimal-point (cond-> (+ index-of-decimal-point decimal-point-offset)
-                                                    is-negative dec)
+                                              is-negative dec)
             index-of-last-significant-decimal-digit (last-index-of-significant-digit num-str (dec index-of-e))
             end-index (cond-> (max index-of-last-significant-decimal-digit
                                    (+ 1 index-of-decimal-point decimal-point-offset))
-                              is-negative dec)
+                        is-negative dec)
             read-offset (min 0 (cond-> (+ -1 index-of-decimal-point decimal-point-offset)
-                                       is-negative dec))
+                                 is-negative dec))
             string-builder (StringBuilder. 32)]
         (when is-negative
           (.appendCodePoint string-builder minus-sign-int))

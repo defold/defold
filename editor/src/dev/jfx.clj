@@ -242,10 +242,10 @@
 (defn- node-props [^Node node]
   (let [layout-bounds (.getLayoutBounds node)]
     (cond-> {:layout-size [(.getWidth layout-bounds) (.getHeight layout-bounds)]}
-            (.isDisable node) (assoc :disable true)
-            (.isMouseTransparent node) (assoc :mouse-transparent true)
-            (not (.isManaged node)) (assoc :managed false)
-            (not (.isVisible node)) (assoc :visible false))))
+      (.isDisable node) (assoc :disable true)
+      (.isMouseTransparent node) (assoc :mouse-transparent true)
+      (not (.isManaged node)) (assoc :managed false)
+      (not (.isVisible node)) (assoc :visible false))))
 
 (defn- region-props [^Region region]
   {:is-snap-to-pixel (.isSnapToPixel region)})
@@ -271,20 +271,20 @@
 (defn- info [obj]
   (cond-> {:type (type obj)}
 
-          (instance? Styleable obj)
-          (into (styleable-props obj))
+    (instance? Styleable obj)
+    (into (styleable-props obj))
 
-          (instance? Node obj)
-          (into (node-props obj))
+    (instance? Node obj)
+    (into (node-props obj))
 
-          (instance? Region obj)
-          (into (region-props obj))
+    (instance? Region obj)
+    (into (region-props obj))
 
-          (satisfies? InfoProps obj)
-          (into (info-props obj))
+    (satisfies? InfoProps obj)
+    (into (info-props obj))
 
-          (satisfies? DataItems obj)
-          (assoc :data (to-coll (data-items obj)))))
+    (satisfies? DataItems obj)
+    (assoc :data (to-coll (data-items obj)))))
 
 (defn- cleanup-xform [value-fn]
   (let [item-fn (or value-fn identity)
@@ -318,6 +318,6 @@
 
 (defn info-tree [obj]
   (cond-> (info-map obj)
-          (satisfies? Related obj)
-          (into (cleanup-xform info-tree)
-                (related obj))))
+    (satisfies? Related obj)
+    (into (cleanup-xform info-tree)
+          (related obj))))

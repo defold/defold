@@ -13,13 +13,14 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns hooks.clojure-core-cache
-  (:require [clj-kondo.hooks-api :as api]))
+  (:require [clj-kondo.hooks-api :as api]
+            [clojure.string :as string]))
 
 (defn- binding-symbols [argv-node]
   (into []
         (comp
           (filter symbol?)
-          (remove #(-> % name (.startsWith "_"))))
+          (remove #(string/starts-with? (name %) "_")))
         (tree-seq coll? seq (api/sexpr argv-node))))
 
 (defn- consume-bindings-node [argv-node body]

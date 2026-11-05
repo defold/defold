@@ -47,14 +47,14 @@
 (defn- augment-props [p _node-id]
   (into {} (map (fn [[k v]]
                   [k (assoc v
-                            :node-id _node-id
-                            :type (type (:value v)))])
+                       :node-id _node-id
+                       :type (type (:value v)))])
                 p)))
 
 (g/defnode UserProps
   (property user-properties g/Any)
   (output _properties g/Properties (g/fnk [_node-id user-properties]
-                                          (update user-properties :properties augment-props _node-id))))
+                                     (update user-properties :properties augment-props _node-id))))
 
 (g/defnode Vec3Prop
   (property my-prop t/Vec3))
@@ -166,20 +166,20 @@
 
 (deftest unifying-values
   (testing "Empty"
-           (is (= nil (properties/unify-values []))))
+    (is (= nil (properties/unify-values []))))
   (testing "One"
-           (is (= 1 (properties/unify-values [1]))))
+    (is (= 1 (properties/unify-values [1]))))
   (testing "One and nil"
-           (is (= nil (properties/unify-values [1 nil]))))
+    (is (= nil (properties/unify-values [1 nil]))))
   (testing "Equality"
-           (let [vals (repeat 10 1)]
-             (is (= 1 (properties/unify-values (take 10 (repeat 1)))))))
+    (let [vals (repeat 10 1)]
+      (is (= 1 (properties/unify-values (take 10 (repeat 1)))))))
   (testing "Early-out"
-           (let [count 100
-                 counter (atom 0)
-                 vals (map #(do (swap! counter inc) %) (range count))]
-             (is (nil? (properties/unify-values vals)))
-             (is (< @counter count)))))
+    (let [count 100
+          counter (atom 0)
+          vals (map #(do (swap! counter inc) %) (range count))]
+      (is (nil? (properties/unify-values vals)))
+      (is (< @counter count)))))
 
 (g/defnode DisplayLinkedProps
   (property a g/Num)
@@ -190,7 +190,7 @@
   (property overridden-properties g/Any (default {})
             (dynamic override (g/fnk [user-properties-input] user-properties-input)))
   (property overridden-properties-cat g/Any (default {})
-           (dynamic override (g/fnk [user-properties-input] user-properties-input)))
+            (dynamic override (g/fnk [user-properties-input] user-properties-input)))
   (property b g/Num)
 
   (display-order [:a :b ["Linked" :linked-properties-cat] ["Overridden" :overridden-properties-cat]])
@@ -226,10 +226,10 @@
   (property count g/Any)
 
   (output _properties g/Properties (g/fnk [_declared-properties]
-                                          (assoc-in _declared-properties [:properties :a :edit-type :set-fn]
-                                                    (fn [evaluation-context self old new]
-                                                      (swap! (g/node-value self :count evaluation-context) inc)
-                                                      (g/set-property self :a new))))))
+                                     (assoc-in _declared-properties [:properties :a :edit-type :set-fn]
+                                               (fn [evaluation-context self old new]
+                                                 (swap! (g/node-value self :count evaluation-context) inc)
+                                                 (g/set-property self :a new))))))
 
 (deftest dynamic-set-fn
   (with-clean-system

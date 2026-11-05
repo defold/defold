@@ -74,12 +74,12 @@
 (defn- make-class-filter
   ^FieldAndClassFilter [ignore-known-singletons ignored-class-filter]
   (cond-> (Filters/getClassFilters ignore-known-singletons)
-          ignored-class-filter (compose-class-filters ignored-class-filter)))
+    ignored-class-filter (compose-class-filters ignored-class-filter)))
 
 (defn- make-field-filter
   ^FieldFilter [ignore-known-singletons ignore-outer-class-reference ignore-non-strong-references ignored-class-filter]
   (cond-> (Filters/getFieldFilters ignore-known-singletons ignore-outer-class-reference ignore-non-strong-references)
-          ignored-class-filter (compose-class-filters ignored-class-filter)))
+    ignored-class-filter (compose-class-filters ignored-class-filter)))
 
 (defn- make-listener-factory
   ^MemoryMeterListener$Factory [debug]

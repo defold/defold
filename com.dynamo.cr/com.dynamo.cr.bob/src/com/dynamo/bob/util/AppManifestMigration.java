@@ -25,6 +25,10 @@ public final class AppManifestMigration {
     // prefix; external and custom libraries must retain their original names.
     public static final Map<String, String> WINDOWS_LIBRARY_NAMES;
 
+    // GLFW 2 backends are now compiled into the engine platform libraries.
+    public static final Map<String, String> NATIVE_PLATFORM_LIBRARY_NAMES = Collections.unmodifiableMap(
+            new HashMap<>(Map.of("dmglfw", "platform", "dmglfw_vulkan", "platform_vulkan")));
+
     static {
         Map<String, String> names = new HashMap<>();
         for (String library : List.of(
@@ -105,7 +109,10 @@ public final class AppManifestMigration {
                 "profilerext",
                 "profilerext_null",
                 "record",
+                // Retained to migrate manifests that selected the removed null backend.
                 "record_null",
+                "record_script",
+                "record_service",
                 "render",
                 "resource",
                 "rig",

@@ -16,8 +16,10 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -137,6 +139,28 @@ public class TextureGeneratorTest extends AbstractProtoBuilderTest {
         assertEquals((byte) (color >> 24), data[offset+3]); // A
     }
 
+    // Unreadable streams report a texture format error instead of dereferencing a null image.
+    @Test
+    public void testUnknownTextureFormatFromStream() throws IOException {
+        try {
+            TextureGenerator.generate(new ByteArrayInputStream(new byte[12]), null, false, EnumSet.noneOf(FlipAxis.class));
+            fail("Expected an unknown texture format error");
+        } catch (TextureGeneratorException e) {
+            assertEquals("Unknown texture format.", e.getMessage());
+        }
+    }
+
+    // Bytes with an unrecognized signature use the same diagnostic through the ImageIO fallback.
+    @Test
+    public void testUnknownTextureFormatFromBytes() throws IOException {
+        try {
+            TextureGenerator.generate(new byte[12], null, false);
+            fail("Expected an unknown texture format error");
+        } catch (TextureGeneratorException e) {
+            assertEquals("Unknown texture format.", e.getMessage());
+        }
+    }
+
     @Test
     public void testRGBA() throws TextureGeneratorException, IOException {
         int[][] mipMaps = new int[][] {
@@ -165,6 +189,16 @@ public class TextureGeneratorTest extends AbstractProtoBuilderTest {
             offset += size;
             ++i;
         }
+    }
+
+    // Verifies HDR dimensions are returned through JNI, guarding against regressions in ImageInfo construction.
+    @Test
+    public void testHDRImageInfo() throws IOException {
+        TexcLibraryJni.ImageInfo info = TexcLibraryJni.GetImageInfo(getFile("/hdr_2x2.hdr"));
+
+        assertNotNull(info);
+        assertEquals(2, info.width);
+        assertEquals(2, info.height);
     }
 
     @Test

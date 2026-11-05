@@ -116,6 +116,13 @@ if(NOT EXISTS "${_GS_BUILTINS_GRAPHICS_DIR}/default.texture_profiles")
 endif()
 file(GLOB_RECURSE _GS_BUILTINS_GRAPHICS_SOURCES CONFIGURE_DEPENDS LIST_DIRECTORIES false "${_GS_BUILTINS_GRAPHICS_DIR}/*")
 
+# Font tests need current builtins before builtins.zip is produced on a clean build.
+set(_GS_BUILTINS_FONTS_DIR "${GS_ENGINE_CONTENT_DIR}/builtins/fonts")
+get_filename_component(_GS_FONT_SHADERS_DIR "${GS_ENGINE_CONTENT_DIR}/../../font/content/builtins/fonts" ABSOLUTE)
+file(GLOB_RECURSE _GS_BUILTINS_FONT_SOURCES CONFIGURE_DEPENDS LIST_DIRECTORIES false
+  "${_GS_BUILTINS_FONTS_DIR}/*"
+  "${_GS_FONT_SHADERS_DIR}/*")
+
 if(DEFINED ENV{DM_BOB_ROOTFOLDER} AND NOT "$ENV{DM_BOB_ROOTFOLDER}" STREQUAL "")
   set(_GS_BOB_ROOT_BASE "$ENV{DM_BOB_ROOTFOLDER}/gamesys")
 else()
@@ -153,9 +160,11 @@ foreach(_lane RANGE 0 ${_GS_LAST_CONTENT_LANE})
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${GS_TEST_ROOT}" "${_stage_root}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_stage_root}/builtins"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_BUILTINS_GRAPHICS_DIR}" "${_stage_root}/builtins/graphics"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_BUILTINS_FONTS_DIR}" "${_stage_root}/builtins/fonts"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_FONT_SHADERS_DIR}" "${_stage_root}/builtins/fonts"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
     COMMAND "${CMAKE_COMMAND}" -E touch "${_source_stamp}"
-    DEPENDS ${_GS_ALL_TEST_SOURCES} ${_GS_BUILTINS_GRAPHICS_SOURCES}
+    DEPENDS ${_GS_ALL_TEST_SOURCES} ${_GS_BUILTINS_GRAPHICS_SOURCES} ${_GS_BUILTINS_FONT_SOURCES}
     ${_GS_CONTENT_JOB_POOL}
     COMMENT "Staging gamesys test sources for content chain ${_lane}"
     VERBATIM)
@@ -204,7 +213,9 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
   endforeach()
   gamesys_collect_prebuilt_outputs(_prebuilt_copy_commands _prebuilt_sources "${GS_TEST_ROOT}" "${GS_TEST_RUNTIME_DIR}/${_folder}" ${_folder_sources})
 
-  set(_bob_root "${_GS_BOB_ROOT_BASE}/${_folder}")
+  # Each lane is sequential, so reuse its extracted native tools. A directory
+  # per folder retains dozens of identical copies of the compiler libraries.
+  set(_bob_root "${_GS_BOB_ROOT_BASE}/lane-${_GS_CONTENT_LANE}")
   set(_stamp "${CMAKE_CURRENT_BINARY_DIR}/.bob/${_folder}.stamp")
   add_custom_command(
     OUTPUT "${_stamp}"

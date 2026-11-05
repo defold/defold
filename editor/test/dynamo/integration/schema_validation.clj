@@ -162,8 +162,8 @@
 
 (g/defnode BadSchemaPropNode
   (property bad-schema-prop g/Int
-    (default 0)
-    (value (g/fnk [] "I should be an Int"))))
+            (default 0)
+            (value (g/fnk [] "I should be an Int"))))
 
 (deftest test-schema-validation-on-property-access
   (with-clean-system

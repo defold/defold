@@ -77,7 +77,7 @@
            [javafx.scene.layout Region StackPane]
            [javafx.scene.paint Color]
            [javafx.scene.shape SVGPath]
-           [javafx.stage PopupWindow Window]
+           [javafx.stage PopupWindow PopupWindow$AnchorLocation Window]
            [javafx.util Callback Duration]))
 
 (set! *warn-on-reflection* true)
@@ -107,13 +107,68 @@
       (create [_ descs opts]
         (assert (= len (count descs)))
         (with-meta (mapv #(fx.lifecycle/create %1 %2 opts) lifecycles descs)
-                   tuple-lifecycle-instance-meta))
+          tuple-lifecycle-instance-meta))
       (advance [_ components descs opts]
         (assert (= len (count descs)))
         (with-meta (mapv #(fx.lifecycle/advance %1 %2 %3 opts) lifecycles components descs)
-                   tuple-lifecycle-instance-meta))
+          tuple-lifecycle-instance-meta))
       (delete [_ components opts]
         (mapv #(fx.lifecycle/delete %1 %2 opts) lifecycles components)))))
+
+(def ext-reapply-props-on-key-changed
+  "Advances :desc normally and reapplies :props whenever :key changes.
+
+  The :props map uses cljfx prop definitions as keys. These props are owned by
+  this extension and must be omitted from the wrapped description. Prop value
+  lifecycles are preserved on key changes; their values are retracted and
+  assigned again after advancing the child."
+  (reify fx.lifecycle/Lifecycle
+    (create [_ {:keys [desc props key] :or {props {}}} opts]
+      (let [child (fx.lifecycle/create fx.lifecycle/dynamic desc opts)
+            instance (fx.component/instance child)]
+        (with-meta {:child child
+                    :key key
+                    :props (fx.lifecycle/advance-prop-map {} props {} instance opts)}
+          ui/child-instance-meta)))
+    (advance [_ component {:keys [desc props key] :or {props {}}} opts]
+      (let [old-instance (fx.component/instance (:child component))
+            child (fx.lifecycle/advance fx.lifecycle/dynamic (:child component) desc opts)
+            instance (fx.component/instance child)
+            old-props (:props component)
+            prop-components
+            (cond
+              (not (identical? old-instance instance))
+              (do
+                (doseq [[prop value] old-props]
+                  (fx.lifecycle/delete (fx.prop/lifecycle prop) value opts))
+                (fx.lifecycle/advance-prop-map {} props {} instance opts))
+
+              (= key (:key component))
+              (fx.lifecycle/advance-prop-map old-props props {} instance opts)
+
+              :else
+              (do
+                (doseq [[prop value] old-props]
+                  (fx.prop/retract! prop old-instance value))
+                (let [prop-components
+                      (reduce-kv
+                        (fn [acc prop desc]
+                          (let [value (if-let [entry (find old-props prop)]
+                                        (fx.lifecycle/advance (fx.prop/lifecycle prop) (val entry) desc opts)
+                                        (fx.lifecycle/create (fx.prop/lifecycle prop) desc opts))]
+                            (fx.prop/assign! prop instance value)
+                            (assoc acc prop value)))
+                        {}
+                        props)]
+                  (doseq [[prop value] old-props
+                          :when (not (contains? props prop))]
+                    (fx.lifecycle/delete (fx.prop/lifecycle prop) value opts))
+                  prop-components)))]
+        (assoc component :child child :key key :props prop-components)))
+    (delete [_ {:keys [child props]} opts]
+      (doseq [[prop value] props]
+        (fx.lifecycle/delete (fx.prop/lifecycle prop) value opts))
+      (fx.lifecycle/delete fx.lifecycle/dynamic child opts))))
 
 (extend-protocol fx.lifecycle/Lifecycle
   MultiFn
@@ -542,8 +597,37 @@
     (Bindings/valueAt (.getProperties node) custom-tooltip-node-showing-key)))
 
 (defn- show-tooltip! [^Tooltip tooltip ^Node node]
-  (let [screen-bounds (.localToScreen node (.getBoundsInLocal node))]
-    (.show tooltip node (.getMinX screen-bounds) (+ 8.0 (.getMaxY screen-bounds)))))
+  (let [screen-bounds (.localToScreen node (.getBoundsInLocal node))
+        below-y (+ 8.0 (.getMaxY screen-bounds))
+
+        place-above-if-needed!
+        (fn place-above-if-needed! []
+          (when (and (= PopupWindow$AnchorLocation/WINDOW_TOP_LEFT (.getAnchorLocation tooltip))
+                     (< (.getAnchorY tooltip) (.getMaxY screen-bounds)))
+            ;; Auto-fix can move the popup over its owner, causing a mouse exit
+            ;; that hides it and starts another hover. Anchor above the owner so
+            ;; subsequent layout changes grow the tooltip away from the pointer.
+            (.setAnchorLocation tooltip PopupWindow$AnchorLocation/WINDOW_BOTTOM_LEFT)
+            (.setAnchorY tooltip (- (.getMinY screen-bounds) 8.0))))
+
+        ^ChangeListener anchor-listener
+        (fn on-tooltip-anchor-changed [_ _ _]
+          (place-above-if-needed!))
+
+        hide-listener
+        (reify ChangeListener
+          (changed [this observable _ showing]
+            (when-not showing
+              (.removeListener observable this)
+              (.removeListener (.anchorYProperty tooltip) anchor-listener))))]
+    (.setAnchorLocation tooltip PopupWindow$AnchorLocation/WINDOW_TOP_LEFT)
+
+    ;; Observe both initial auto-fix and later Markdown layout changes.
+    (.addListener (.anchorYProperty tooltip) anchor-listener)
+    (.addListener (.showingProperty tooltip) hide-listener)
+
+    (.show tooltip node (.getMinX screen-bounds) below-y)
+    (place-above-if-needed!)))
 
 (def prop-immediate-tooltip
   (fx/make-binding-prop
@@ -737,11 +821,13 @@
                                   (partition-all 2)
                                   (map-indexed
                                     (fn [row [label input]]
-                                      [(assoc label :grid-pane/column 0
-                                                    :grid-pane/row row
-                                                    :grid-pane/halignment :right)
-                                       (assoc input :grid-pane/column 1
-                                                    :grid-pane/row row)]))
+                                      [(assoc label
+                                         :grid-pane/column 0
+                                         :grid-pane/row row
+                                         :grid-pane/halignment :right)
+                                       (assoc input
+                                         :grid-pane/column 1
+                                         :grid-pane/row row)]))
                                   cat)
                                 children)))))
 
@@ -1220,8 +1306,8 @@
                                                  (vreset! prev-y-vol y)
                                                  (when (<= 1.0 (abs max-delta))
                                                    (f (cond-> max-delta
-                                                              (.isShiftDown e) (* 10.0)
-                                                              (.isControlDown e) (* 0.1)))))))
+                                                        (.isShiftDown e) (* 10.0)
+                                                        (.isControlDown e) (* 0.1)))))))
             ^EventHandler on-mouse-released (fn [^MouseEvent e]
                                               (when @f-vol
                                                 (vreset! f-vol nil)
@@ -1379,8 +1465,8 @@
                prop-value-field-text edit
                prop-select-all-text-on-click true)
         (cond-> hover-overlay
-                (-> (dissoc :hover-overlay)
-                    (assoc prop-hover-overlay hover-overlay)))
+          (-> (dissoc :hover-overlay)
+              (assoc prop-hover-overlay hover-overlay)))
         (dissoc :state :swap-state :on-value-changed :on-invalid-value :to-value :text :component :commit-on-enter))))
 
 (defn- stringify-value [f v]
@@ -1400,9 +1486,10 @@
 (defn- make-value-field [component commit-on-enter props]
   {:fx/type fx/ext-state
    :initial-state {:value (:value props)}
-   :desc (assoc props :fx/type value-field-impl-stringify-step
-                      :component component
-                      :commit-on-enter commit-on-enter)})
+   :desc (assoc props
+           :fx/type value-field-impl-stringify-step
+           :component component
+           :commit-on-enter commit-on-enter)})
 
 (defn value-field
   "Text field with value commit/reset semantics
@@ -1556,10 +1643,10 @@
                              :style-class "ext-color-picker-icon"
                              :on-shown handle-color-picker-shown
                              :on-hidden handle-color-picker-hidden}
-                            value (assoc :value value)
-                            on-value-changed (assoc :on-value-changed on-value-changed)
-                            prefs (assoc :custom-colors (prefs/get prefs saved-colors-prefs-path)
-                                         :on-custom-colors-changed #(prefs/set! prefs saved-colors-prefs-path (mapv color->web-string %))))])
+                      value (assoc :value value)
+                      on-value-changed (assoc :on-value-changed on-value-changed)
+                      prefs (assoc :custom-colors (prefs/get prefs saved-colors-prefs-path)
+                                   :on-custom-colors-changed #(prefs/set! prefs saved-colors-prefs-path (mapv color->web-string %))))])
        resolve-input-color)})
 
 (def ^:private ext-with-expanded-scroll-pane-content-props
@@ -1573,8 +1660,8 @@
                              (Bindings/createDoubleBinding
                                (fn []
                                  (cond-> (.getHeight scroll-pane)
-                                         (.isVisible scroll-bar)
-                                         (- (.getHeight scroll-bar))))
+                                   (.isVisible scroll-bar)
+                                   (- (.getHeight scroll-bar))))
                                (into-array
                                  Observable
                                  [(.heightProperty scroll-pane)
@@ -1654,7 +1741,7 @@
                     :message message
                     :child component
                     :object object}
-                   ui/child-instance-meta)))
+          ui/child-instance-meta)))
     (advance [_ component {:keys [localization message desc object-fn]} opts]
       (let [component (update component :child #(fx.lifecycle/advance fx.lifecycle/dynamic % desc opts))
             object (cond-> (fx.component/instance component) object-fn object-fn)

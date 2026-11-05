@@ -50,6 +50,7 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.archive.EngineVersion;
 
@@ -94,15 +95,37 @@ public class HTML5Bundler implements IBundler {
         return "index.html"; // relative to the appDir
     }
 
+    private static float getPixelRatioLimit(BobProjectProperties projectProperties, String name) throws IOException {
+        String value = projectProperties.getStringValue("html5", name, "0");
+        String message = "html5." + name + " must be a finite number greater than or equal to 0.";
+        final float ratio;
+        try {
+            ratio = Float.parseFloat(value);
+        } catch (NumberFormatException e) {
+            throw new IOException(message, e);
+        }
+        if (!Float.isFinite(ratio) || ratio < 0) {
+            throw new IOException(message);
+        }
+        return ratio;
+    }
+
     @Override
     public void updateManifestProperties(Project project, Platform platform,
                                 BobProjectProperties projectProperties,
                                 Map<String, Map<String, Object>> propertiesMap,
                                 Map<String, Object> properties) throws IOException {
 
+        float minPixelRatio = getPixelRatioLimit(projectProperties, "min_pixel_ratio");
+        float maxPixelRatio = getPixelRatioLimit(projectProperties, "max_pixel_ratio");
+        if (minPixelRatio > 0 && maxPixelRatio > 0 && minPixelRatio > maxPixelRatio) {
+            throw new IOException("html5.min_pixel_ratio must not exceed html5.max_pixel_ratio when both bounds are enabled.");
+        }
+        properties.put("DEFOLD_MIN_PIXEL_RATIO", minPixelRatio);
+        properties.put("DEFOLD_MAX_PIXEL_RATIO", maxPixelRatio);
 
         // Same value as engine is compiled with; 268435456
-        int customHeapSize = projectProperties.getIntValue("html5", "heap_size", 256) * 1024 * 1024;
+        long customHeapSize = projectProperties.getIntValue("html5", "heap_size", 256) * 1024L * 1024;
 
         {// Deprecated method of setting the heap size. For backwards compatibility
             if (projectProperties.getBooleanValue("html5", "set_custom_heap_size", false)) {
@@ -193,6 +216,9 @@ public class HTML5Bundler implements IBundler {
         properties.put("DEFOLD_HAS_WASM_ENGINE", hasWasm);
 
         properties.put("DEFOLD_HAS_WASM_PTHREAD_ENGINE", architectures.contains(Platform.WasmPthreadWeb));
+
+        List<String> shaderAdapters = BundleHelper.createArrayFromString(project.option(ShaderCompilers.SHADER_ADAPTERS_OPTION, ""));
+        properties.put("DEFOLD_HAS_WEBGPU", shaderAdapters.contains(ShaderCompilers.SHADER_ADAPTER_WEBGPU));
     }
 
     static class SplitFile {
@@ -444,7 +470,7 @@ public class HTML5Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        File appDir = new File(bundleDirectory, title);
+        File appDir = new File(bundleDirectory, enginePrefix);
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 
         FileUtils.deleteDirectory(appDir);

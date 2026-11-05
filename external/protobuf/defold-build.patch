@@ -1,0 +1,128 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -275,10 +275,6 @@
+ 
+ if (protobuf_BUILD_PROTOBUF_BINARIES)
+   include(${protobuf_SOURCE_DIR}/cmake/utf8_range.cmake)
+-  include(${protobuf_SOURCE_DIR}/cmake/libprotobuf-lite.cmake)
+-  if (NOT DEFINED protobuf_LIB_PROTOBUF_LITE)
+-    set(protobuf_LIB_PROTOBUF_LITE libprotobuf-lite)
+-  endif ()
+   include(${protobuf_SOURCE_DIR}/cmake/libprotobuf.cmake)
+   if (NOT DEFINED protobuf_LIB_PROTOBUF)
+     set(protobuf_LIB_PROTOBUF libprotobuf)
+--- a/cmake/install.cmake
++++ b/cmake/install.cmake
+@@ -26,14 +26,12 @@
+ endif()
+ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/protobuf.pc.cmake
+                ${CMAKE_CURRENT_BINARY_DIR}/protobuf.pc @ONLY)
+-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/protobuf-lite.pc.cmake
+-               ${CMAKE_CURRENT_BINARY_DIR}/protobuf-lite.pc @ONLY)
+ if (protobuf_BUILD_LIBUPB)
+   configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/upb.pc.cmake
+                 ${CMAKE_CURRENT_BINARY_DIR}/upb.pc @ONLY)
+ endif ()
+ 
+-set(_protobuf_libraries libprotobuf-lite libprotobuf)
++set(_protobuf_libraries libprotobuf)
+ if (protobuf_BUILD_LIBPROTOC)
+     list(APPEND _protobuf_libraries libprotoc)
+ endif (protobuf_BUILD_LIBPROTOC)
+@@ -79,7 +77,7 @@
+   endforeach ()
+ endif (protobuf_BUILD_PROTOC_BINARIES)
+ 
+-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/protobuf.pc ${CMAKE_CURRENT_BINARY_DIR}/protobuf-lite.pc DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
++install(FILES ${CMAKE_CURRENT_BINARY_DIR}/protobuf.pc DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
+ if (protobuf_BUILD_LIBUPB)
+   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/upb.pc DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
+ endif ()
+--- a/cmake/libprotoc.cmake
++++ b/cmake/libprotoc.cmake
+@@ -2,6 +2,9 @@
+ 
+ include(${protobuf_SOURCE_DIR}/src/file_lists.cmake)
+ include(${protobuf_SOURCE_DIR}/cmake/protobuf-configure-target.cmake)
++
++# Defold uses only C++, Java, Python, and external protoc plugins.
++list(FILTER libprotoc_srcs EXCLUDE REGEX "/compiler/(csharp|kotlin|objectivec|php|ruby|rust)/|/upb_generator/")
+ 
+ add_library(libprotoc ${protobuf_SHARED_OR_STATIC}
+   ${libprotoc_srcs}
+@@ -17,7 +20,7 @@
+     LINK_DEPENDS ${protobuf_SOURCE_DIR}/src/libprotoc.map)
+ endif()
+ target_link_libraries(libprotoc PRIVATE libprotobuf)
+-target_link_libraries(libprotoc PUBLIC libupb ${protobuf_ABSL_USED_TARGETS})
++target_link_libraries(libprotoc PUBLIC ${protobuf_ABSL_USED_TARGETS})
+ protobuf_configure_target(libprotoc)
+ if(protobuf_BUILD_SHARED_LIBS)
+   target_compile_definitions(libprotoc
+--- a/src/google/protobuf/compiler/main.cc
++++ b/src/google/protobuf/compiler/main.cc
+@@ -8,16 +8,9 @@
+ #include "absl/log/initialize.h"
+ #include "google/protobuf/compiler/command_line_interface.h"
+ #include "google/protobuf/compiler/cpp/generator.h"
+-#include "google/protobuf/compiler/csharp/csharp_generator.h"
+ #include "google/protobuf/compiler/java/generator.h"
+-#include "google/protobuf/compiler/kotlin/generator.h"
+-#include "google/protobuf/compiler/objectivec/generator.h"
+-#include "google/protobuf/compiler/php/php_generator.h"
+ #include "google/protobuf/compiler/python/generator.h"
+ #include "google/protobuf/compiler/python/pyi_generator.h"
+-#include "google/protobuf/compiler/ruby/rbs_generator.h"
+-#include "google/protobuf/compiler/ruby/ruby_generator.h"
+-#include "google/protobuf/compiler/rust/generator.h"
+ #ifdef GOOGLE_PROTOBUF_RUNTIME_INCLUDE_BASE
+ #include "google/protobuf/compiler/code_generator_lite.h"
+ #endif
+@@ -66,12 +59,6 @@
+   cli.RegisterGenerator("--java_out", "--java_opt", &java_generator,
+                         "Generate Java source file.");
+ 
+-  // Proto2 Kotlin
+-  kotlin::KotlinGenerator kt_generator;
+-  cli.RegisterGenerator("--kotlin_out", "--kotlin_opt", &kt_generator,
+-                        "Generate Kotlin file.");
+-
+-
+   // Proto2 Python
+   python::Generator py_generator;
+   cli.RegisterGenerator("--python_out", "--python_opt", &py_generator,
+@@ -86,34 +73,6 @@
+   cli.RegisterGenerator("--pyi_out", &pyi_generator,
+                         "Generate python pyi stub.");
+ 
+-  // PHP
+-  php::Generator php_generator;
+-  cli.RegisterGenerator("--php_out", "--php_opt", &php_generator,
+-                        "Generate PHP source file.");
+-
+-  // Ruby
+-  ruby::Generator rb_generator;
+-  cli.RegisterGenerator("--ruby_out", "--ruby_opt", &rb_generator,
+-                        "Generate Ruby source file.");
+-
+-  ruby::RBSGenerator rbs_generator;
+-  cli.RegisterGenerator("--rbs_out", "--rbs_opt", &rbs_generator,
+-                        "Generate RBS type definition.");
+-
+-  // CSharp
+-  csharp::Generator csharp_generator;
+-  cli.RegisterGenerator("--csharp_out", "--csharp_opt", &csharp_generator,
+-                        "Generate C# source file.");
+-
+-  // Objective-C
+-  objectivec::ObjectiveCGenerator objc_generator;
+-  cli.RegisterGenerator("--objc_out", "--objc_opt", &objc_generator,
+-                        "Generate Objective-C header and source.");
+-
+-  // Rust
+-  rust::RustGenerator rust_generator;
+-  cli.RegisterGenerator("--rust_out", "--rust_opt", &rust_generator,
+-                        "Generate Rust sources.");
+ #ifdef DISABLE_PROTOC_CONFIG
+   auto cleanup = internal::DisableAllowlistInternalOnly();
+ #endif  // DISABLE_PROTOC_CONFIG

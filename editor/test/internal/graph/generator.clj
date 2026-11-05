@@ -72,23 +72,23 @@
 
 (def gen-label
   (gen/not-empty
-   (gen/vector labels)))
+    (gen/vector labels)))
 
 (defn gen-nodes
   [max-id]
   (gen/fmap (fn [[in out]] (node (into #{} in) (into #{} out)))
             (gen/tuple
-             gen-label
-             gen-label)))
+              gen-label
+              gen-label)))
 
 (defn node-bindings
   [gsym nodes]
   (into []
         (mapcat
-         (fn [[sym node]]
-           `[~sym  ~(next-node-id)
-             ~gsym (ig/add-node ~gsym ~sym (assoc ~node :_node-id ~sym))])
-         nodes)))
+          (fn [[sym node]]
+            `[~sym  ~(next-node-id)
+              ~gsym (ig/add-node ~gsym ~sym (assoc ~node :_node-id ~sym))])
+          nodes)))
 
 (defn remove-nodes
   [dead-nodes]
@@ -121,9 +121,9 @@
 (defn subselect
   [coll fraction]
   (gen/not-empty
-   (gen/vector
-    (gen/elements coll)
-    (/ (count coll) fraction))))
+    (gen/vector
+      (gen/elements coll)
+      (/ (count coll) fraction))))
 
 (defn s
   [g]
@@ -159,4 +159,4 @@
   ;; => true
 
   (= ((make-random-graph-builder)) ((make-random-graph-builder))))
-  ;; => false
+;; => false

@@ -19,7 +19,8 @@
             [dynamo.graph :as g]
             [internal.graph.types :as gt]
             [internal.node :as in]
-            [support.test-support :refer [tx-nodes with-clean-system]])
+            [support.test-support :refer [tx-nodes with-clean-system]]
+            [util.coll :as coll])
   (:import clojure.lang.ExceptionInfo))
 
 (def ^:dynamic *calls*)
@@ -35,8 +36,8 @@
 
 (deftest node-property-defaults
   (are [expected property] (= expected (gt/get-property (g/construct WithDefaults) (g/now) property))
-       "o rly?"      :default-value
-       "uff-da"      :overridden-indirect))
+    "o rly?"      :default-value
+    "uff-da"      :overridden-indirect))
 
 (g/defnode SimpleTestNode
   (property foo g/Str (default "FOO!")))
@@ -70,12 +71,12 @@
 
 (deftest dependency-mapping
   (testing "node reports its own dependencies"
-           (let [deps (g/input-dependencies DependencyTestNode)]
-             (are [input affected-outputs] (and (contains? deps input) (= affected-outputs (get deps input)))
-                  :an-input           #{:depends-on-input :depends-on-several}
-                  :a-property         #{:depends-on-property :depends-on-several :a-property :_properties :_declared-properties})
-             (is (not (contains? deps :_this)))
-             (is (not (contains? deps :unused-input))))))
+    (let [deps (g/input-dependencies DependencyTestNode)]
+      (are [input affected-outputs] (and (contains? deps input) (= affected-outputs (get deps input)))
+        :an-input           #{:depends-on-input :depends-on-several}
+        :a-property         #{:depends-on-property :depends-on-several :a-property :_properties :_declared-properties})
+      (is (not (contains? deps :_this)))
+      (is (not (contains? deps :unused-input))))))
 
 (g/defnode EmptyNode)
 
@@ -181,9 +182,9 @@
                                                          target VisibilityTestNode]
                                             (g/connect source :foo target :bar)))
           tx-result                     (g/set-property! source :foo "hi")
-          properties-modified-on-target (set (keep #(when (= (gt/endpoint-node-id %) target)
-                                                      (gt/endpoint-label %))
-                                                   (:outputs-modified tx-result)))]
+          properties-modified-on-target (coll/into-> (:outputs-modified tx-result) #{}
+                                          (filter #(= (gt/endpoint-node-id %) target))
+                                          (map gt/endpoint-label))]
       (is (= #{:_declared-properties :baz :_properties} properties-modified-on-target)))))
 
 (deftest visibility-properties
@@ -201,8 +202,9 @@
                                   (g/make-node EnablementTestNode))]
       (g/transact (g/connect snode :foo enode :bar))
       (let [tx-result     (g/transact (g/set-property snode :foo 1))
-            enode-results (filter #(= (gt/endpoint-node-id %) enode) (:outputs-modified tx-result))
-            modified      (into #{} (map gt/endpoint-label) enode-results)]
+            modified      (coll/into-> (:outputs-modified tx-result) #{}
+                            (filter #(= (gt/endpoint-node-id %) enode))
+                            (map gt/endpoint-label))]
         (is (= #{:_declared-properties :baz :_properties} modified))))))
 
 (deftest enablement-properties
@@ -437,8 +439,8 @@
             (value (g/fnk [foo] foo))
             (set (fn [_evaluation-context self old-value new-value]
                    (concat
-                    (g/set-property self :foo new-value)
-                    (g/set-property self :bar new-value)))))
+                     (g/set-property self :foo new-value)
+                     (g/set-property self :bar new-value)))))
   (property multi-prop g/Str
             (value (g/fnk [bar foo] (str bar "-" foo)))
             (dynamic visible (g/fnk [multi-prop] multi-prop))))
@@ -457,7 +459,7 @@
 (g/defnode DynamicGetterNode
   (property suffixed g/Str
             (value (g/fnk [prefix suffixed]
-                          (str prefix "/" suffixed))))
+                     (str prefix "/" suffixed))))
   (input prefix g/Str))
 
 (g/defnode DynamicGetterOutputNode
@@ -556,8 +558,8 @@
 (g/defnode Producer
   (property val g/Str (default ""))
   (output produce g/Str (g/fnk [val]
-                               (swap! production-count inc)
-                               val)))
+                          (swap! production-count inc)
+                          val)))
 
 (g/defnode Consumer
   (input in1 g/Str)

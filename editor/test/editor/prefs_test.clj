@@ -785,7 +785,7 @@
 
       (testing "reset on unregistered path throws"
         (test-util/check-thrown-with-data!
-            (path-error-data? [:nonexistent])
+          (path-error-data? [:nonexistent])
           (prefs/reset-path! p [:nonexistent]))))))
 
 (deftest reset-with-multiple-scopes-test

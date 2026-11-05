@@ -116,10 +116,10 @@
        (swap! *moved-files* into moved-files)))))
 
 (defmacro bulk-change [workspace & forms]
- `(with-bindings {#'*no-sync* true
-                  #'*moved-files* (atom [])}
-    ~@forms
-    (workspace/resource-sync! ~workspace @*moved-files*)))
+  `(with-bindings {#'*no-sync* true
+                   #'*moved-files* (atom [])}
+     ~@forms
+     (workspace/resource-sync! ~workspace @*moved-files*)))
 
 (defn- touch-file
   ([workspace name]

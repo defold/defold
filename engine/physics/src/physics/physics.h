@@ -19,6 +19,7 @@
 #include <dmsdk/physics/physics.h>
 #include <dmsdk/dlib/vmath.h>
 
+#include <dlib/configfile.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/transform.h>
@@ -229,6 +230,8 @@ namespace dmPhysics
     {
         NewContextParams();
 
+        /// Optional backend settings, read only during context creation. The caller retains ownership.
+        dmConfigFile::HConfig m_Config;
         /// Gravity of the worlds created in this context
         dmVMath::Vector3 m_Gravity;
         /// Number of 3D worlds the context supports
@@ -362,6 +365,9 @@ namespace dmPhysics
         /// Time step
         float                   m_DT;
         bool                    m_FixedTimeStep;
+        /// Collision/contact callbacks do not modify physics. Box2D v3 may collect contacts in parallel.
+        /// Callbacks still run on the calling thread. Defaults to false for immediate/mutating callbacks.
+        bool                    m_ContactCallbacksReadOnly;
         uint32_t                m_MaxFixedTimeSteps;
         uint32_t                m_Box2DVelocityIterations;
         uint32_t                m_Box2DPositionIterations;
@@ -1450,10 +1456,10 @@ namespace dmPhysics
     bool              MakeCollisionShapeOwned3D(HCollisionObject3D object, uint32_t index, HCollisionShape3D* out_shape);
     void              RefreshCollisionShape3D(HWorld3D world, HCollisionObject3D object);
     HCollisionShape3D GetCollisionShape3D(HCollisionObject3D collision_object, uint32_t index);
-    void              GetCollisionShapeRadius3D(HCollisionShape3D shape, float* radius);
-    void              GetCollisionShapeHalfBoxExtents3D(HCollisionShape3D shape, float* xyz);
-    void              GetCollisionShapeCapsuleRadiusHeight3D(HCollisionShape3D shape, float* radius, float* half_height);
-    void              SetCollisionShapeRadius3D(HCollisionShape3D shape, float radius);
+    void              GetCollisionShapeRadius3D(HWorld3D world, HCollisionShape3D shape, float* radius);
+    void              GetCollisionShapeHalfBoxExtents3D(HWorld3D world, HCollisionShape3D shape, float* xyz);
+    void              GetCollisionShapeCapsuleRadiusHeight3D(HWorld3D world, HCollisionShape3D shape, float* radius, float* half_height);
+    void              SetCollisionShapeRadius3D(HWorld3D world, HCollisionShape3D shape, float radius);
     void              SetCollisionShapeHalfBoxExtents3D(HCollisionShape2D shape, float w, float h, float d);
 
     void              GetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D shape, float* radius);

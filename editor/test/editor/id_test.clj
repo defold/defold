@@ -43,7 +43,6 @@
     (is (= ["sprite3" "sprite4" "sprite5"]
            (id/resolve-all ["sprite1" "sprite2" "sprite3"] #{"sprite" "sprite1" "sprite2"})))))
 
-
 (deftest id-test
   (doseq [[basename taken-ids expected]
           [["go" ["go"] #_=> "go1"]

@@ -51,6 +51,23 @@ function(_defold_testserver_server_dir_args out_var)
   set(${out_var} "${_server_dir_args}" PARENT_SCOPE)
 endfunction()
 
+function(_defold_testserver_wasm_runner_args out_var platform)
+  set(_runner_args)
+  if(platform MATCHES "^(wasm-web|wasm_pthread-web)$")
+    _defold_find_wasm_runner(_wasm_runner)
+    if(_wasm_runner)
+      set(_runner_args "--runner-arg=${_wasm_runner}")
+    else()
+      message(WARNING "Bun or Node.js not found for web test server targets. The run target will fail until a runner is installed.")
+      set(_runner_args "--runner-arg=${CMAKE_COMMAND}" "--runner-arg=-E" "--runner-arg=false")
+    endif()
+    foreach(_target IN LISTS ARGN)
+      _defold_configure_wasm_test(${_target})
+    endforeach()
+  endif()
+  set(${out_var} "${_runner_args}" PARENT_SCOPE)
+endfunction()
+
 function(defold_register_test_with_server target platform)
   if(NOT TARGET ${target})
     message(FATAL_ERROR "defold_register_test_with_server: target '${target}' does not exist")
@@ -143,6 +160,7 @@ function(defold_register_test_with_server target platform)
   endif()
 
   set(_run_target "run_${target}_server")
+  _defold_testserver_wasm_runner_args(_WASM_RUNNER_ARGS "${platform}" ${target})
   defold_test_run_settings(_test_runner _test_run_options shared)
   set(_test_command ${DEFOLD_ANDROID_TEST_ENV} "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
     --workdir "${_RUN_DIR_ABS}"
@@ -152,6 +170,7 @@ function(defold_register_test_with_server target platform)
     ${_ANDROID_ARGS}
     ${_SERVER_DIR_ARGS}
     ${_IOS_RUNNER_ARGS}
+    ${_WASM_RUNNER_ARGS}
     -- "$<TARGET_FILE:${target}>")
   if(NOT TARGET ${_run_target})
     add_custom_target(${_run_target}
@@ -178,6 +197,7 @@ function(defold_register_test_with_server target platform)
         --port "${DTS_PORT}"
         --config "${_CFG_PATH}"
         ${_SERVER_DIR_ARGS}
+        ${_WASM_RUNNER_ARGS}
         -- "$<TARGET_FILE:${target}>"
       DEPENDS ${_sequential_dep} ${_runtime_deps})
   endif()
@@ -289,6 +309,7 @@ function(defold_register_tests_with_server group platform)
   endif()
 
   defold_test_run_settings(_test_runner _test_run_options shared)
+  _defold_testserver_wasm_runner_args(_WASM_RUNNER_ARGS "${platform}" ${DTS_TARGETS})
   set(_test_command ${DEFOLD_ANDROID_TEST_ENV} "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
     --workdir "${_RUN_DIR_ABS}"
     --ip "${_SERVER_IP}"
@@ -297,6 +318,7 @@ function(defold_register_tests_with_server group platform)
     ${_ANDROID_ARGS}
     ${_SERVER_DIR_ARGS}
     ${_IOS_RUNNER_ARGS}
+    ${_WASM_RUNNER_ARGS}
     -- ${_TEST_EXES})
   if(NOT TARGET ${_run_target})
     add_custom_target(${_run_target}
@@ -323,6 +345,7 @@ function(defold_register_tests_with_server group platform)
         --port "${DTS_PORT}"
         --config "${_CFG_PATH}"
         ${_SERVER_DIR_ARGS}
+        ${_WASM_RUNNER_ARGS}
         -- ${_TEST_EXES}
       DEPENDS ${_sequential_dep} ${_runtime_deps})
   endif()

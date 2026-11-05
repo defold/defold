@@ -1,0 +1,5 @@
+#include <metal_stdlib>
+using namespace metal;
+
+struct VertexOut { float4 position [[position]]; float4 color [[user(locn0)]]; };
+fragment float4 main0(VertexOut in [[stage_in]]) { return in.color; }

@@ -21,7 +21,7 @@
 
 (defn- dependencies
   [& pairs]
-  (ts/graph-dependencies (g/now) (map #(apply gt/endpoint %) (partition 2 pairs))))
+  (ts/graph-dependencies (g/now) (mapv #(apply gt/endpoint %) (partition 2 pairs))))
 
 (g/defnode SingleOutput
   (output out-from-inline g/Str (g/fnk [] "out-from-inline")))
@@ -32,6 +32,43 @@
 (g/defnode InputUsedByOutput
   (input string-input g/Str)
   (output out-from-input g/Str (g/fnk [string-input] string-input)))
+
+(g/defnode DependencyCacheSource
+  (property value g/Str (default "before"))
+  (output value-out g/Str (g/fnk [value] value)))
+
+;; Verifies dependency results for equal roots, value changes, connection
+;; changes, historical bases, and undo/redo.
+(deftest dependency-cache-lifetime-test
+  (ts/with-clean-system
+    (let [[source target extra-target]
+          (ts/tx-nodes
+            (g/make-nodes [source DependencyCacheSource
+                           target InputUsedByOutput
+                           _extra-target InputUsedByOutput]
+              (g/connect source :value-out target :string-input)))
+          initial-basis (g/now)
+          roots #{(gt/endpoint source :value-out)}
+          initial-result (g/dependencies initial-basis roots)
+          initial-endpoints #{(gt/endpoint source :value-out)
+                              (gt/endpoint target :out-from-input)}
+          connected-endpoints (conj initial-endpoints
+                                    (gt/endpoint extra-target :out-from-input))]
+      (is (= initial-endpoints (set initial-result)))
+      (is (= initial-endpoints
+             (set (g/dependencies initial-basis
+                                  (hash-set (gt/endpoint source :value-out))))))
+      (g/transact (g/set-property source :value "after"))
+      (is (= "after" (g/node-value target :out-from-input)))
+      (is (= initial-endpoints (set (g/dependencies (g/now) roots))))
+      (g/transact {:undo-key ::connection}
+        (g/connect source :value-out extra-target :string-input))
+      (is (= connected-endpoints (set (g/dependencies (g/now) roots))))
+      (is (= initial-endpoints (set (g/dependencies initial-basis roots))))
+      (g/undo! ::connection)
+      (is (= initial-endpoints (set (g/dependencies (g/now) roots))))
+      (g/redo! ::connection)
+      (is (= connected-endpoints (set (g/dependencies (g/now) roots)))))))
 
 (deftest single-connection
   (testing "results include inputs"
@@ -139,7 +176,7 @@
   (input input-5 g/Str)
 
   (output input-counter g/Int (g/fnk [input-1 input-2 input-3 input-4 input-5]
-                                   (count (keep identity [input-1 input-2 input-3 input-4 input-5])))))
+                                (count (keep identity [input-1 input-2 input-3 input-4 input-5])))))
 
 (deftest one-step-multipath
   (testing "one output to several inputs"

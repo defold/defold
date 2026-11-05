@@ -70,8 +70,9 @@ namespace dmGameSystem
 
     static void CompCameraUpdateViewProjection(CameraComponent* camera, dmRender::RenderContext* render_context)
     {
-        dmVMath::Point3 pos = dmGameObject::GetWorldPosition(camera->m_Instance);
-        dmVMath::Quat rot = dmGameObject::GetWorldRotation(camera->m_Instance);
+        dmTransform::Transform world_transform = dmGameObject::GetWorldTransform(camera->m_Instance);
+        dmVMath::Point3 pos = dmVMath::Point3(world_transform.GetTranslation());
+        dmVMath::Quat rot = world_transform.GetRotation();
 
         UpdateRenderCamera(render_context, camera->m_RenderCamera, &pos, &rot);
 

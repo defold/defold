@@ -53,8 +53,8 @@
   (let [cursor-range (some-> line-number data/line-number->CursorRange)]
     (cond-> {:filename path}
 
-            (some? cursor-range)
-            (assoc :cursor-range cursor-range))))
+      (some? cursor-range)
+      (assoc :cursor-range cursor-range))))
 
 (defn guess-indent-type [lines]
   ;; TODO: Use default from preferences if indeterminate.

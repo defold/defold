@@ -360,6 +360,100 @@ TEST_F(dmGuiScriptTest, TestGetType)
     dmGui::DeleteScript(script);
 }
 
+static void* CreateTypeNameTestNode(void*, dmGui::HScene, dmGui::HNode, uint32_t)
+{
+    return 0;
+}
+
+// Node names distinguish built-in, bone, and custom subtypes without calling
+// metamethods, including when a custom subtype has no reverse-hash entry.
+TEST_F(dmGuiScriptTest, NodeTypeNames)
+{
+    dmHashEnableReverseHash(true);
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 16;
+    params.m_CreateCustomNodeCallback = CreateTypeNameTestNode;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    int top = lua_gettop(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+    dmScript::SetInstance(L);
+
+    struct TypeCase
+    {
+        dmGui::NodeType m_Type;
+        uint32_t m_CustomType;
+        bool m_IsBone;
+        const char* m_Name;
+    } cases[] = {
+        {dmGui::NODE_TYPE_BOX, 0, false, "gui.box"},
+        {dmGui::NODE_TYPE_TEXT, 0, false, "gui.text"},
+        {dmGui::NODE_TYPE_PIE, 0, false, "gui.pie"},
+        {dmGui::NODE_TYPE_TEMPLATE, 0, false, "gui.template"},
+        {dmGui::NODE_TYPE_PARTICLEFX, 0, false, "gui.particlefx"},
+        {dmGui::NODE_TYPE_BOX, 0, true, "gui.bone"},
+        {dmGui::NODE_TYPE_CUSTOM, dmHashString32("Spine"), false, "gui.Spine"},
+        {dmGui::NODE_TYPE_CUSTOM, 0xf0000001, false, "gui.custom_4026531841"},
+    };
+    for (uint32_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+    {
+        dmGui::HNode node = dmGui::NewNode(scene, Point3(), Vector3(1), cases[i].m_Type, cases[i].m_CustomType);
+        dmGui::SetNodeIsBone(scene, node, cases[i].m_IsBone);
+        dmGui::LuaPushNode(L, scene, node);
+        lua_setglobal(L, "node");
+        ASSERT_EQ(0, luaL_dostring(L, "debug.getmetatable(node).__tostring = error"));
+        lua_getglobal(L, "node");
+        char name[128];
+        ASSERT_TRUE(dmGui::GetNodeTypeName(L, -1, name, sizeof(name)));
+        ASSERT_STREQ(cases[i].m_Name, name);
+        ASSERT_EQ(top + 1, lua_gettop(L));
+        lua_pop(L, 1);
+    }
+    dmGui::DeleteScene(scene);
+    ASSERT_EQ(top, lua_gettop(L));
+    dmHashEnableReverseHash(false);
+}
+
+// Deleted/foreign nodes and missing scene context must be rejected without
+// dereferencing stale scenes or invoking a global __index handler.
+TEST_F(dmGuiScriptTest, NodeTypeNamesInvalidContext)
+{
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 2;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    int top = lua_gettop(L);
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(), Vector3(1), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::LuaPushNode(L, scene, node);
+    char name[128];
+
+    lua_pushnil(L);
+    dmScript::SetInstance(L);
+    ASSERT_EQ(0, luaL_dostring(L, "setmetatable(_G, {__index = function() error('unexpected lookup') end})"));
+    ASSERT_FALSE(dmGui::GetNodeTypeName(L, -1, name, sizeof(name)));
+    ASSERT_EQ(0, luaL_dostring(L, "setmetatable(_G, nil)"));
+
+    dmGui::HScene other = dmGui::NewScene(m_Context, &params);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, other->m_InstanceReference);
+    dmScript::SetInstance(L);
+    ASSERT_FALSE(dmGui::GetNodeTypeName(L, -1, name, sizeof(name)));
+    dmGui::DeleteScene(other);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+    dmScript::SetInstance(L);
+    ASSERT_TRUE(dmGui::GetNodeTypeName(L, -1, name, sizeof(name)));
+    dmGui::DeleteNode(scene, node, true);
+    ASSERT_FALSE(dmGui::GetNodeTypeName(L, -1, name, sizeof(name)));
+    dmGui::DeleteScene(scene);
+    ASSERT_FALSE(dmGui::GetNodeTypeName(L, -1, name, sizeof(name)));
+    lua_pop(L, 1);
+
+    ASSERT_EQ(0, luaL_dostring(L, "return newproxy(true)"));
+    ASSERT_FALSE(dmGui::GetNodeTypeName(L, -1, name, sizeof(name)));
+    lua_pop(L, 1);
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 TEST_F(dmGuiScriptTest, TestGetIndex)
 {
     dmGui::HScript script = NewScript(m_Context);

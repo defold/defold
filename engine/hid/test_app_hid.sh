@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -e
 
 # adb push /Users/mathiaswesterdahl/work/defold/engine/hid/build/src/test/test_app_hid /data/local/tmp/unittest/hid/test_app_hid

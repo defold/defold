@@ -35,7 +35,9 @@
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.notifications :as notifications]
+            [editor.outline :as outline]
             [editor.placeholder-resource :as placeholder-resource]
+            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
@@ -57,7 +59,8 @@
             [util.eduction :as e]
             [util.fn :as fn]
             [util.thread-util :as thread-util])
-  (:import [java.io File FileNotFoundException]
+  (:import [clojure.lang ArityException]
+           [java.io File FileNotFoundException]
            [java.util.concurrent.atomic AtomicLong]
            [org.apache.commons.io FilenameUtils]))
 
@@ -110,6 +113,20 @@
        :script-intelligence script-intelligence
        :workspace workspace})))
 
+(defn- resource-load-error [node-id resource exception]
+  (if-not (instance? ArityException exception)
+    (resource-io/invalid-content-error node-id nil :fatal resource exception)
+    ;; Only callback arity errors get extension-update advice. Other illegal
+    ;; arguments can come from malformed content in built-in resource types.
+    (g/->error
+      node-id nil :fatal nil
+      (localization/message
+        "error.resource-not-loaded-update-extension"
+        {"resource" (resource/proj-path resource)})
+      {:type :invalid-content
+       :resource resource
+       :exception exception})))
+
 (defn- load-resource-node [{:keys [project] :as load-opts} {:keys [node-id resource resource-type] :as node-load-info} transpiler-tx-data-fn]
   (try
     (let [load-fn (:load-fn resource-type)
@@ -131,11 +148,11 @@
         not-empty))
     (catch Exception exception
       (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception exception)
-      (let [node-type (:node-type resource-type)
-            invalid-content-error (resource-io/invalid-content-error node-id nil :fatal resource exception)]
-        (g/mark-defective node-id node-type invalid-content-error)))
+      (let [node-type (resource-type->node-type resource-type)
+            error (resource-load-error node-id resource exception)]
+        (g/mark-defective node-id node-type error)))
     (catch Throwable throwable
-      (let [node-type (:node-type resource-type)
+      (let [node-type (resource-type->node-type resource-type)
             proj-path (resource/proj-path resource)]
         (throw (ex-info (format "Error when loading resource '%s'" proj-path)
                         {:node-type node-type
@@ -204,19 +221,14 @@
     of the bytes consumed during the read operation.
 
   :dependency-proj-paths (optional)
-    Whe the resource-type specifies both a :read-fn and a :dependencies-fn, this
-    will be a vector of proj-paths reported as dependencies by the
-    :dependencies-fn when we give it the source-value returned by the :read-fn."
+    When the resource-type specifies a :dependencies-fn, this will be a vector
+    of proj-paths reported as dependencies. Resource types without a :read-fn
+    pass nil as the source-value."
   [read-opts node-id resource]
   {:pre [(g/node-id? node-id)]}
   (let [resource-metrics (:resource-metrics read-opts)
-        editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
-        editable (resource/editable-resource? resource)
-        type-ext->resource-type (editable->type-ext->resource-type editable)
-
         {:keys [lazy-loaded read-fn] :as resource-type}
-        (or (type-ext->resource-type (resource/type-ext resource))
-            (type-ext->resource-type resource/placeholder-resource-type-ext))
+        (resource/lookup-resource-type resource (:editable->type-ext->resource-type read-opts))
 
         ;; Seeing as how we're operating on a list of resources that we got from
         ;; the file system itself, you might assume that every resource will
@@ -234,11 +246,11 @@
               (make-file-not-found-error node-id resource))
             (catch Exception exception
               (log/warn :msg (format "Unable to read resource '%s'" (resource/proj-path resource)) :exception exception)
-              (resource-io/invalid-content-error node-id nil :fatal resource exception))
+              (resource-load-error node-id resource exception))
             (catch Throwable throwable
               (let [proj-path (resource/proj-path resource)]
                 (throw (ex-info (format "Error when reading resource '%s'" proj-path)
-                                {:node-type (:node-type resource-type)
+                                {:node-type (resource-type->node-type resource-type)
                                  :proj-path proj-path}
                                 throwable)))))
 
@@ -256,25 +268,39 @@
           read-result)
 
         dependency-proj-paths
-        (when (some? source-value)
+        (when (and (nil? read-error)
+                   (or (some? source-value)
+                       (nil? read-fn)))
           (when-let [dependencies-fn (:dependencies-fn resource-type)]
             (try
               (du/measuring resource-metrics (resource/proj-path resource) :find-new-reload-dependencies
                 (not-empty (vec (dependencies-fn read-opts resource source-value))))
+              (catch ArityException exception
+                (log/warn :msg (format "Unable to determine dependencies for resource '%s'"
+                                       (resource/proj-path resource))
+                          :exception exception)
+                (resource-load-error node-id resource exception))
               (catch Exception exception
                 (log/warn :msg (format "Unable to determine dependencies for resource '%s', assuming none."
                                        (resource/proj-path resource))
                           :exception exception)
-                nil))))]
+                nil))))
 
-    (cond-> {:node-id node-id
-             :owner-resource resource
-             :resource resource
-             :resource-type resource-type}
-            read-error (assoc :read-error read-error)
-            source-value (assoc :source-value source-value)
-            disk-sha256 (assoc :disk-sha256 disk-sha256)
-            dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths))))
+        read-error (if (g/error-value? dependency-proj-paths)
+                     dependency-proj-paths
+                     read-error)
+
+        node-load-info {:node-id node-id
+                        :owner-resource resource
+                        :resource resource
+                        :resource-type resource-type}]
+
+    (if read-error
+      (assoc node-load-info :read-error read-error)
+      (cond-> node-load-info
+        source-value (assoc :source-value source-value)
+        disk-sha256 (assoc :disk-sha256 disk-sha256)
+        dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths)))))
 
 (defn- sort-node-ids-for-loading-impl
   ([node-ids in-progress queue queued batch node-id->dependency-node-ids]
@@ -301,12 +327,20 @@
 
 (defn ^{:dynamic (system/defold-dev?)} node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} load-opts transpiler-tx-data-fn]
   ;; At this point, the node-id refers to a created node in the graph.
-  (e/cons
-    (g/set-property node-id :loaded true)
-    (if read-error
-      (let [node-type (resource-node-type resource)]
-        (g/mark-defective node-id node-type read-error))
-      (load-resource-node load-opts node-load-info transpiler-tx-data-fn))))
+  (let [load-tx-data
+        (if-not read-error
+          (load-resource-node load-opts node-load-info transpiler-tx-data-fn)
+          (let [node-type (resource-node-type resource)]
+            (g/mark-defective node-id node-type read-error)))]
+
+    (e/cons
+      (g/set-property node-id :loaded true)
+      (g/expand-ec
+        (fn apply-resource-load-tx-data [evaluation-context]
+          ;; Connection, reading, or source-value conversion may have failed.
+          ;; Keep that error and avoid applying load or save connections.
+          (when-not (g/defective? (:basis evaluation-context) node-id)
+            load-tx-data))))))
 
 (defn- sort-node-load-infos-for-loading
   "Sorts the node-load-infos so that referenced nodes are loaded before the
@@ -451,32 +485,42 @@
       node-id+resource-pairs)))
 
 (defn node-load-infos->stored-disk-state [node-load-infos]
-  (let [[disk-sha256s-by-node-id
-         node-id+source-value-pairs]
-        (iutil/into-multiple
-          [{} []]
-          [(keep (fn [{:keys [resource] :as node-load-info}]
-                   (when (and (resource/file-resource? resource)
-                              (resource/stateful? resource))
-                     (let [{:keys [disk-sha256 node-id]} node-load-info]
-                       (pair node-id disk-sha256)))))
-           (keep (fn [{:keys [node-id read-error resource source-value] :as _node-load-info}]
-                   ;; The source-value output will never be evaluated for
-                   ;; non-editable or stateless resources, so there is no need
-                   ;; to store their entries.
-                   (when (and (some? source-value)
-                              (resource/editable? resource)
-                              (resource/stateful? resource))
-                     (pair node-id
-                           (or read-error
-                               (let [resource-type (resource/resource-type resource)]
-                                 ;; Note: Here, source-value is whatever was
-                                 ;; returned by the read-fn, so it's technically
-                                 ;; a save-value.
-                                 (resource-node/save-value->source-value source-value resource-type)))))))]
-          node-load-infos)]
-    {:disk-sha256s-by-node-id disk-sha256s-by-node-id
-     :node-id+source-value-pairs node-id+source-value-pairs}))
+  (coll/reduce-> node-load-infos
+    {:disk-sha256s-by-node-id {}
+     :node-id+source-value-pairs []
+     :error-tx-data []}
+    (fn [disk-state {:keys [disk-sha256 node-id read-error resource source-value]}]
+      (let [stateful (resource/stateful? resource)
+            disk-state (cond-> disk-state
+                         (and stateful (resource/file-resource? resource))
+                         (assoc-in [:disk-sha256s-by-node-id node-id] disk-sha256))]
+        ;; The source-value output is unused for non-editable or stateless
+        ;; resources, so there is no need to store their entries.
+        (if-not (and stateful
+                     (resource/editable? resource)
+                     (or (some? source-value)
+                         (some? read-error)))
+          disk-state
+          (let [resource-type (resource/resource-type resource)
+
+                stored-source-value
+                (or read-error
+                    ;; Convert the read-fn result to a stored source-value.
+                    (try
+                      (resource-node/save-value->source-value source-value resource-type)
+                      (catch ArityException exception
+                        (log/warn :msg (format "Unable to convert source value for resource '%s'"
+                                               (resource/proj-path resource))
+                                  :exception exception)
+                        (resource-load-error node-id resource exception))))]
+
+            (cond-> (update disk-state :node-id+source-value-pairs
+                            conj (pair node-id stored-source-value))
+              (g/error-value? stored-source-value)
+              ;; Apply read or conversion errors after creating the nodes.
+              (update :error-tx-data into
+                      (let [node-type (resource-type->node-type resource-type)]
+                        (g/mark-defective node-id node-type stored-source-value))))))))))
 
 (defn log-cache-info! [cache message]
   ;; Disabled during tests to minimize log spam.
@@ -515,9 +559,9 @@
 
                             (cond-> [save-data-endpoint+cached-value]
 
-                                    is-save-value-output-cached
-                                    (conj (pair (g/endpoint node-id :save-value)
-                                                (or read-error source-value))))))))
+                              is-save-value-output-cached
+                              (conj (pair (g/endpoint node-id :save-value)
+                                          (or read-error source-value))))))))
               node-load-infos)]
 
     (g/cache-output-values! endpoint+cached-value-pairs)
@@ -906,13 +950,14 @@
 (declare workspace)
 
 (defn load-nodes! [project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts]
-  (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs]} (node-load-infos->stored-disk-state node-load-infos)
+  (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs error-tx-data]} (node-load-infos->stored-disk-state node-load-infos)
         workspace (workspace project)]
     (resource-node/merge-source-values! node-id+source-value-pairs)
     (let [{:keys [basis] :as tx-result}
           (g/transact transact-opts
             (e/concat
               prelude-tx-data
+              error-tx-data
               (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
               (load-nodes-tx-data project node-load-infos progress/null-render-progress! render-progress! resource-metrics)
               (g/callback render-progress! (progress/make-indeterminate (localization/message "progress.finalizing")))))
@@ -1001,7 +1046,13 @@
         :resource resource))
     (g/connect node-id :node-id+resource project :node-id+resources)
     (when-let [connect-fn (:connect-fn (resource/resource-type resource))]
-      (connect-fn project node-id resource))))
+      (try
+        (g/eager-tx-data
+          (connect-fn project node-id resource))
+        (catch ArityException exception
+          (log/warn :msg (format "Unable to connect resource '%s'" (resource/proj-path resource)) :exception exception)
+          (let [error-value (resource-load-error node-id resource exception)]
+            (g/mark-defective node-id node-type error-value)))))))
 
 (defn make-resource-nodes-tx-data [project node-id+resource-pairs]
   {:pre [(g/node-id? project)]}
@@ -1219,17 +1270,23 @@
        (into {})))
 
 (defn- perform-selection [basis project all-selections]
-  (let [all-node-ids (->> all-selections
-                          vals
-                          (reduce into [])
-                          distinct
-                          vec)]
+  (let [all-node-ids (coll/into-> all-selections []
+                       (mapcat val)
+                       (map outline/selection-node-id)
+                       (distinct))]
     (concat
       (g/set-property project :all-selections all-selections)
       (for [arc (g/inputs basis project :all-selected-node-ids)]
         (g/disconnect (gt/source-id arc) (gt/source-label arc) project :all-selected-node-ids))
       (for [arc (g/inputs basis project :all-selected-node-properties)]
         (g/disconnect (gt/source-id arc) (gt/source-label arc) project :all-selected-node-properties))
+      (for [arc (g/inputs basis project :all-selected-node-outlines)
+            :when (not (contains? all-selections (gt/source-id arc)))]
+        (g/disconnect (gt/source-id arc) (gt/source-label arc) project :all-selected-node-outlines))
+      (for [[resource-node _selection] all-selections
+            :when (coll/not-any? #(= resource-node (gt/source-id %))
+                                 (g/inputs basis project :all-selected-node-outlines))]
+        (g/connect resource-node :node-outline project :all-selected-node-outlines))
       (for [node-id all-node-ids]
         (concat
           (g/connect node-id :_node-id project :all-selected-node-ids)
@@ -1259,10 +1316,10 @@
   (reduce (fn [m [old new]]
             (if-let [v (get m old)]
               (-> m
-                (dissoc old)
-                (assoc new (val-fn [new v])))
+                  (dissoc old)
+                  (assoc new (val-fn [new v])))
               m))
-    m key-m))
+          m key-m))
 
 (def ^:private make-resource-nodes-by-path-map
   (partial into {} (map (juxt (comp resource/proj-path second) first))))
@@ -1316,38 +1373,34 @@
     (when (coll/any? coll/not-empty (vals (dissoc plan :invalidate-outputs :kept)))
       (g/reset-undo! :undo/global))
 
-    ;; Create the new nodes in the graph.
-    (du/measuring process-metrics :make-new-nodes
-      (g/transact transact-opts
-        (make-resource-nodes-tx-data project new-node-id+resource-pairs)))
+    (let [prelude-tx-data
+          (e/concat
+            ;; Create the new nodes in the graph.
+            (make-resource-nodes-tx-data project new-node-id+resource-pairs)
 
-    ;; Transfer of overrides must happen before we delete the original nodes below.
-    ;; The new target nodes do not need to be loaded. When loading the new targets,
-    ;; corresponding override-nodes for the incoming connections will be created in the
-    ;; overrides.
-    (du/measuring process-metrics :transfer-overrides
-      (g/transact transact-opts
-        (du/if-metrics
-          ;; Doing metrics - Submit separate transaction steps for each resource.
-          (for [[resource old-node-id] (:transfer-overrides plan)]
-            (g/transfer-overrides {old-node-id (resource->node-id resource)}))
+            ;; Transfer of overrides must happen before we delete the original
+            ;; nodes below. The new target nodes do not need to be loaded. When
+            ;; loading the new targets, corresponding override-nodes for the
+            ;; incoming connections will be created in the overrides.
+            (du/if-metrics
+              ;; Doing metrics - Submit separate transaction steps for each
+              ;; resource.
+              (e/map (fn make-transfer-overrides-tx-data [[resource old-node-id]]
+                       (g/transfer-overrides {old-node-id (resource->node-id resource)}))
+                     (:transfer-overrides plan))
 
-          ;; Not doing metrics - submit as a single transaction step.
-          (g/transfer-overrides
-            (into {}
+              ;; Not doing metrics - submit as a single transaction step.
+              (g/transfer-overrides
+                (coll/into-> (:transfer-overrides plan) {}
                   (map (fn [[resource old-node-id]]
-                         (pair old-node-id
-                               (resource->node-id resource))))
-                  (:transfer-overrides plan))))))
+                         (pair old-node-id (resource->node-id resource)))))))
 
-    ;; must delete old versions of resource nodes before loading to avoid
-    ;; load functions finding these when doing lookups of dependencies...
-    (du/measuring process-metrics :delete-old-nodes
-      (g/transact transact-opts
-        (for [node-id (:delete plan)]
-          (g/delete-node node-id))))
+            ;; Must delete old versions of resource nodes before loading to
+            ;; avoid load functions finding these when doing lookups of
+            ;; dependencies.
+            (e/map g/delete-node (:delete plan)))
 
-    (let [read-progress-span 1
+          read-progress-span 1
           load-progress-span 3
           total-progress-span (+ read-progress-span load-progress-span)
           total-progress (progress/make localization/empty-message total-progress-span 0)
@@ -1394,7 +1447,7 @@
           migrated-node-ids
           (let [render-progress! (progress/nest-render-progress render-progress! total-progress load-progress-span)]
             (du/measuring process-metrics :load-new-nodes
-              (load-nodes! project nil node-load-infos render-progress! resource-metrics transact-opts)))]
+              (load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))]
 
       (du/measuring process-metrics :update-cache-with-dependencies
         ;; Write any cached values created for old non-replaced resource node
@@ -1431,21 +1484,19 @@
                   flaw (make-file-not-found-error node-id resource)]
               (g/mark-defective node-id flaw))))))
 
-    ;; invalidate outputs.
+    ;; Invalidate all outputs of changed stateless nodes
     (du/measuring process-metrics :invalidate-outputs
       (let [basis (g/now)]
         (du/if-metrics
           (doseq [node-id (:invalidate-outputs plan)]
             (du/measuring resource-metrics (resource/proj-path (resource-node/resource basis node-id)) :invalidate-outputs
-              (g/invalidate-outputs! (mapv (fn [arc]
-                                             (g/endpoint node-id (gt/source-label arc)))
-                                           (g/explicit-outputs basis node-id)))))
-          (g/invalidate-outputs! (into []
-                                       (mapcat (fn [node-id]
-                                                 (map (fn [arc]
-                                                        (g/endpoint node-id (gt/source-label arc)))
-                                                      (g/explicit-outputs basis node-id))))
-                                       (:invalidate-outputs plan))))))
+              (g/invalidate-outputs! (mapv #(g/endpoint node-id %)
+                                           (g/output-labels (g/node-type* basis node-id))))))
+          (g/invalidate-outputs!
+            (coll/into-> (:invalidate-outputs plan) []
+              (mapcat (fn [node-id]
+                        (mapv #(g/endpoint node-id %)
+                              (g/output-labels (g/node-type* basis node-id))))))))))
 
     ;; restore overridden properties.
     (du/measuring process-metrics :restore-overridden-properties
@@ -1635,6 +1686,7 @@
   (input editor-localization-bundle g/NodeID :cascade-delete)
   (input all-selected-node-ids g/Any :array)
   (input all-selected-node-properties g/Any :array)
+  (input all-selected-node-outlines g/Any :array :substitute gu/array-subst-remove-errors)
   (input resources g/Any)
   (input save-data g/Any :array :substitute gu/array-subst-remove-errors)
   (input node-id+resources g/Any :array :cascade-delete)
@@ -1649,23 +1701,48 @@
   (input breakpoints Breakpoints :array :substitute gu/array-subst-remove-errors)
   (input proj-path+meta-info-pairs g/Any :array :substitute gu/array-subst-remove-errors)
 
-  (output selected-node-ids-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-selections]
-                                                             (let [selected-node-id-set (set all-selected-node-ids)]
-                                                               (->> all-selections
-                                                                 (map (fn [[key vals]] [key (filterv selected-node-id-set vals)]))
-                                                                 (into {})))))
-  (output selected-node-properties-by-resource-node g/Any :cached (g/fnk [all-selected-node-properties all-selections]
-                                                                    (let [props (->> all-selected-node-properties
-                                                                                  (map (fn [p] [(:node-id p) p]))
-                                                                                  (into {}))]
-                                                                      (->> all-selections
-                                                                        (map (fn [[key vals]] [key (vec (keep props vals))]))
-                                                                        (into {})))))
-  (output sub-selections-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-sub-selections]
-                                                               (let [selected-node-id-set (set all-selected-node-ids)]
-                                                                 (->> all-sub-selections
-                                                                   (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
-                                                                   (into {})))))
+  (output selected-outline-entries g/Any :cached
+          (g/fnk [all-selected-node-outlines]
+            (coll/into-> all-selected-node-outlines {}
+              (mapcat outline/selection-id->outline))))
+  (output outline-selection-by-resource-node g/Any :cached
+          (g/fnk [all-selected-node-ids selected-outline-entries all-selections]
+            (let [node-ids (set all-selected-node-ids)]
+              (coll/map-vals
+                (fn [selections]
+                  (coll/into-> selections []
+                    (filter (fn [selection]
+                              (if (outline/entry-selection? selection)
+                                (contains? selected-outline-entries selection)
+                                (contains? node-ids selection))))))
+                all-selections))))
+  (output selected-node-ids-by-resource-node g/Any :cached
+          (g/fnk [outline-selection-by-resource-node]
+            (coll/map-vals (fn [outline-selection]
+                             (coll/into-> outline-selection []
+                               (map outline/selection-node-id)
+                               (distinct)))
+                           outline-selection-by-resource-node)))
+  (output selected-node-properties-by-resource-node g/Any :cached
+          (g/fnk [all-selected-node-properties selected-outline-entries outline-selection-by-resource-node]
+            (let [props (coll/pair-map-by :node-id identity all-selected-node-properties)]
+              (coll/map-vals
+                (fn [selections]
+                  (coll/into-> selections []
+                    (keep (fn [selection]
+                            (let [node-id (outline/selection-node-id selection)
+                                  entry (selected-outline-entries selection)]
+                              (when-let [property-set (:properties entry (props node-id))]
+                                (assoc property-set
+                                  :node-id node-id
+                                  :selection-id selection)))))))
+                outline-selection-by-resource-node))))
+  (output sub-selections-by-resource-node g/Any :cached
+          (g/fnk [all-selected-node-ids all-sub-selections]
+            (let [selected-node-id-set (set all-selected-node-ids)]
+              (coll/map-vals
+                #(filterv (comp selected-node-id-set first) %)
+                all-sub-selections))))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-id+resources] (make-resource-nodes-by-path-map node-id+resources)))
   (output save-data g/Any :cached (g/fnk [save-data] (filterv :save-value save-data)))
   (output dirty-save-data g/Any :cached (g/fnk [save-data]
@@ -1679,9 +1756,9 @@
   (output use-font-layout g/Bool (g/fnk [use-font-layout] (true? use-font-layout)))
   (output use-rich-text g/Bool (g/fnk [use-rich-text] (not (false? use-rich-text))))
   (output display-width g/Num (g/fnk [settings]
-                                 (double (or (get settings ["display" "width"]) 0))))
+                                (double (or (get settings ["display" "width"]) 0))))
   (output display-height g/Num (g/fnk [settings]
-                                  (double (or (get settings ["display" "height"]) 0))))
+                                 (double (or (get settings ["display" "height"]) 0))))
   (output render-clear-color g/Any (g/fnk [settings]
                                      (vector-of :double
                                        (get settings ["render" "clear_color_red"] 0.0)
@@ -1736,8 +1813,8 @@
 
 (defn project-title [project]
   (some-> project
-    (settings)
-    (get ["project" "title"])))
+          (settings)
+          (get ["project" "title"])))
 
 (defn- disconnect-from-inputs [basis src tgt connections]
   (let [outputs (set (g/output-labels (g/node-type* basis src)))
@@ -1788,8 +1865,9 @@
             tx-data-context-map' (assoc tx-data-context-map' :load-opts load-opts)
 
             node-load-info (read-node-load-info read-opts node-id resource)
-            {:keys [disk-sha256s-by-node-id node-id+source-value-pairs]} (node-load-infos->stored-disk-state [node-load-info])
+            {:keys [disk-sha256s-by-node-id node-id+source-value-pairs error-tx-data]} (node-load-infos->stored-disk-state [node-load-info])
             load-tx-data (e/concat
+                           error-tx-data
                            (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
                            (node-load-info-tx-data node-load-info load-opts transpiler-tx-data-fn))
             loaded-resources' (conj (or loaded-resources #{}) resource)
@@ -1851,6 +1929,16 @@
   resource/ResourceListener
   (handle-changes [this changes render-progress!]
     (handle-resource-changes project-id changes render-progress!)))
+
+(defn update-language-servers! [project prefs server-definitions]
+  {:pre [(ui/on-ui-thread?)]}
+  (let [{:keys [extension-language-servers lua-language-servers project-language-server]}
+        (g/user-data-swap! project ::language-servers coll/merge server-definitions)]
+    (lsp/set-servers!
+      (lsp/get-lsp)
+      (cond-> (set extension-language-servers)
+        project-language-server (conj project-language-server)
+        (prefs/get prefs [:code :enable-lua-language-server]) (into lua-language-servers)))))
 
 (defn make-project [workspace-id extensions]
   (let [code-preprocessors (workspace/code-preprocessors workspace-id)
@@ -1933,7 +2021,7 @@
              (let [node-id (gt/source-id arc)]
                (when-not (g/defective? basis node-id)
                  (let [node-type (g/node-type* basis node-id)
-                     output-cached? (g/cached-outputs node-type)]
+                       output-cached? (g/cached-outputs node-type)]
                    (eduction
                      (filter output-cached?)
                      (map #(g/endpoint node-id %))
