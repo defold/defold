@@ -2193,23 +2193,20 @@ namespace dmGameSystem
                 world->m_RenderObjectsInUse = 0;
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
-                {
-                    uint32_t vertex_data_size = world->m_VertexBufferWritePtr - world->m_VertexBufferData;
-                    uint32_t index_data_size  = world->m_IndexBufferWritePtr - world->m_IndexBufferData;
+            {
+                uint32_t vertex_data_size = world->m_VertexBufferWritePtr - world->m_VertexBufferData;
+                uint32_t index_data_size  = world->m_IndexBufferWritePtr - world->m_IndexBufferData;
 
-                    if (vertex_data_size && index_data_size)
-                    {
-                        dmRender::SetBufferData(params.m_Context, world->m_VertexBuffer, vertex_data_size, world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-                        dmRender::SetBufferData(params.m_Context, world->m_IndexBuffer, index_data_size, world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                dmRender::SetBufferData(params.m_Context, world->m_VertexBuffer, vertex_data_size, world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                dmRender::SetBufferData(params.m_Context, world->m_IndexBuffer, index_data_size, world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
-                        DM_PROPERTY_ADD_U32(rmtp_SpriteVertexCount, world->m_VertexCount);
-                        DM_PROPERTY_ADD_U32(rmtp_SpriteVertexSize, vertex_data_size);
-                        DM_PROPERTY_ADD_U32(rmtp_SpriteIndexSize, index_data_size);
+                DM_PROPERTY_ADD_U32(rmtp_SpriteVertexCount, world->m_VertexCount);
+                DM_PROPERTY_ADD_U32(rmtp_SpriteVertexSize, vertex_data_size);
+                DM_PROPERTY_ADD_U32(rmtp_SpriteIndexSize, index_data_size);
 
-                        world->m_DispatchCount++;
-                    }
-                }
+                world->m_DispatchCount++;
                 break;
+            }
             default:
                 assert(params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH);
                 RenderBatch(world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);

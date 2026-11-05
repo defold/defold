@@ -205,10 +205,10 @@ namespace dmRender
                                     installed_adapter_family == dmGraphics::ADAPTER_FAMILY_METAL ||
                                     installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VENDOR;
 
-        context->m_RenderListDispatch.SetCapacity(255);
+        context->m_RenderListDispatch.SetCapacity(RENDERLIST_MAX_DISPATCHES);
         context->m_RenderItemDispatches.SetCapacity(8);
         context->m_RenderItemDispatches.Push(0); // Reserve the invalid handle.
-        context->m_SubmittedRenderItemDispatches.SetCapacity(255);
+        context->m_SubmittedRenderItemDispatches.SetCapacity(RENDERLIST_MAX_DISPATCHES);
         context->m_FirstFreeRenderItem = ~0u;
         context->m_TransientRenderListDirty = false;
 
@@ -619,7 +619,7 @@ namespace dmRender
     }
 
     // Compute new sort values for everything that matches tag_mask
-    static void MakeSortBuffer(HRenderContext context, uint32_t tag_count, dmhash_t* tags, SortOrder sort_order, bool* dispatch_used)
+    static void MakeSortBuffer(HRenderContext context, uint32_t tag_count, dmhash_t* tags, SortOrder sort_order, bool (& dispatch_used)[RENDERLIST_MAX_DISPATCHES])
     {
         DM_PROFILE("MakeSortBuffer");
 
@@ -1382,8 +1382,16 @@ namespace dmRender
         PrepareRenderList(context);
         SortOrder effective_sort_order = (sort_order == SORT_UNSPECIFIED) ? SORT_BACK_TO_FRONT : sort_order;
 
-        bool dispatch_used[RENDERLIST_INVALID_DISPATCH] = {};
-        MakeSortBuffer(context, predicate ? predicate->m_TagCount : 0, predicate ? predicate->m_Tags : 0, effective_sort_order, dispatch_used);
+        uint32_t tag_count = 0;
+        dmhash_t* tags = 0;
+        if (predicate)
+        {
+            tag_count = predicate->m_TagCount;
+            tags = predicate->m_Tags;
+        }
+
+        bool dispatch_used[RENDERLIST_MAX_DISPATCHES] = {};
+        MakeSortBuffer(context, tag_count, tags, effective_sort_order, dispatch_used);
 
         if (context->m_RenderListSortBuffer.Empty())
             return RESULT_OK;
