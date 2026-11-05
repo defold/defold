@@ -638,7 +638,7 @@
     fx.lifecycle/scalar))
 
 (defn- select-list-dialog
-  [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner localization preview-item-fn]
+  [{:keys [filter-term filtered-items filter-in-progress loading title ok-label prompt cell-fn selection owner localization preview-item-fn loading-message]
     :as props}]
   {:fx/type dialog-stage
    :title (localization title)
@@ -666,11 +666,20 @@
                                    (assoc list-view-selection-preview-prop preview-item-fn))}}}
    :footer {:fx/type fx.h-box/lifecycle
             :alignment :center-left
-            :children [{:fx/type fx.progress-indicator/lifecycle
+            :spacing 8
+            ;; Shrink the spinner a bit, it's huge at 32.0
+            :children [(let [size (if loading 16.0 32.0)]
+                         {:fx/type fx.progress-indicator/lifecycle
+                          :h-box/hgrow :never
+                          :pref-width size
+                          :pref-height size
+                          :max-width size
+                          :max-height size
+                          :visible (or filter-in-progress loading)})
+                       {:fx/type fxui/legacy-label
                         :h-box/hgrow :never
-                        :pref-width 32.0
-                        :pref-height 32.0
-                        :visible filter-in-progress}
+                        :visible (boolean (and loading loading-message))
+                        :text (if (and loading loading-message) (localization loading-message) "")}
                        {:fx/type dialog-buttons
                         :h-box/hgrow :always
                         :children [{:fx/type fxui/legacy-button
@@ -773,6 +782,11 @@
       :prompt         filter text field's prompt, string or MessagePattern,
                       defaults to \"dialog.select-item.prompt\" message
       :owner          the owner window, defaults to main stage
+      :items-ref      optional watched reference containing replacement items;
+                      nil means loading and keeps the currently displayed items
+      :loading-message
+                      optional string or MessagePattern shown beside the footer
+                      spinner while :items-ref contains nil
       :preview-item-fn
                       optional side-effecting fn of two args, an item to preview
                       and a source keyword describing what triggered it:
@@ -783,7 +797,7 @@
   ([items localization]
    (make-select-list-dialog items localization {}))
   ([items localization options]
-   (let [items (localization/sort-if-annotated @localization items)
+   (let [items-ref (:items-ref options)
          cell-fn (wrap-cell-fn (:cell-fn options default-cell-fn) localization)
          filter-atom (:filter-atom options)
          filter-fn (or (:filter-fn options)
@@ -795,36 +809,57 @@
          filter-future-atom (atom nil)
          state-atom (atom {:filter-term nil ; Non-string value to ensure set-filter-term won't early-out.
                            :filter-in-progress false
+                           :loading false
+                           :items (localization/sort-if-annotated @localization items)
                            :filtered-items []
                            :selected-indices []})
+
+         filter-items
+         (fn filter-items [state filter-term]
+           (let [items (:items state)]
+             (swap! filter-future-atom
+                    (fn [pending-filter-future]
+                      (thread-util/cancel-future! pending-filter-future)
+                      (future
+                        (try
+                          (let [filtered-items (vec (filter-fn filter-term items))
+                                selected-indices (if (coll/empty? filtered-items) [] [0])]
+                            (thread-util/throw-if-interrupted!)
+                            (swap! state-atom
+                                   (fn [state]
+                                     (thread-util/throw-if-interrupted!)
+                                     (assoc state
+                                       :filter-in-progress false
+                                       :filtered-items filtered-items
+                                       :selected-indices selected-indices))))
+                          (catch InterruptedException _
+                            nil)
+                          (catch Throwable error
+                            (error-reporting/report-exception! error))))))
+             (assoc state
+               :filter-term filter-term
+               :filter-in-progress true)))
 
          set-filter-term
          (fn set-filter-term [state filter-term]
            (if (= (:filter-term state) filter-term)
              state
-             (do (swap! filter-future-atom
-                        (fn [pending-filter-future]
-                          (thread-util/cancel-future! pending-filter-future)
-                          (future
-                            (try
-                              (let [filtered-items (vec (filter-fn filter-term items))
-                                    selected-indices (if (coll/empty? filtered-items) [] [0])]
-                                (thread-util/throw-if-interrupted!)
-                                (swap! state-atom
-                                       (fn [state]
-                                         (thread-util/throw-if-interrupted!)
-                                         (assoc state
-                                           :filter-in-progress false
-                                           :filtered-items filtered-items
-                                           :selected-indices selected-indices))))
-                              (catch InterruptedException _
-                                nil)
-                              (catch Throwable error
-                                (error-reporting/report-exception! error))))))
-                 (assoc state
-                   :filter-term filter-term
-                   :filter-in-progress true))))
+             (filter-items state filter-term)))
+
+         set-items
+         (fn set-items [state items]
+           (if-not items
+             (assoc state :loading true)
+             (-> state
+                 (assoc :loading false
+                        :items (localization/sort-if-annotated @localization items))
+                 (filter-items (:filter-term state)))))
+
          _ (swap! state-atom set-filter-term filter-term)
+         _ (when items-ref
+             (add-watch items-ref state-atom (fn on-items-changed [_ _ _ items]
+                                               (swap! state-atom set-items items)))
+             (swap! state-atom set-items @items-ref))
          event-handler (select-list-dialog-event-handler set-filter-term)
          result (fxui/show-dialog-and-await-result!
                   :state-atom state-atom
@@ -851,8 +886,11 @@
                                 :prompt (or (:prompt options)
                                             (localization/message "dialog.select-item.prompt"))
                                 :cell-fn cell-fn
+                                :loading-message (:loading-message options)
                                 :owner (or (:owner options) (ui/main-stage))
                                 :selection (:selection options :single)})]
+     (when items-ref
+       (remove-watch items-ref state-atom))
      (swap! filter-future-atom thread-util/cancel-future!)
      (when result
        (let [{:keys [filter-term selected-items]} result]

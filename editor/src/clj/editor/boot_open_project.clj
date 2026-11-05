@@ -39,6 +39,7 @@
             [editor.http-server.prefs :as http-server.prefs]
             [editor.icons :as icons]
             [editor.localization :as localization]
+            [editor.lsp :as lsp]
             [editor.lsp.project :as lsp.project]
             [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
@@ -293,6 +294,7 @@
       (.addEventFilter ^StackPane (.lookup root "#overlay") MouseEvent/ANY ui/ignore-event-filter)
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
       (ui/add-application-unfocused-callback! :main-stage-unfocused app-view/handle-application-unfocused! app-view changes-view project prefs)
+      (lsp/set-render-progress! (lsp/get-lsp) (app-view/make-render-task-progress :language-server))
       (project/update-language-servers! project prefs {:project-language-server (lsp.project/language-server project)})
       (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs localization web-server)
 

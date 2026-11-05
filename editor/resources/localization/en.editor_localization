@@ -783,6 +783,8 @@ prefs.keymap.inherited-from = Inherited from {context}
 progress.ready = Ready
 progress.writing = Writing {resource}
 progress.linting = Linting code…
+progress.language-server = {title}
+progress.language-server-with-message = {title}: {message}
 progress.fetching-engine = Fetching engine…
 progress.executing-pre-build-hooks = Executing pre-build hooks…
 progress.executing-post-build-hooks = Executing post-build hooks…
@@ -1095,6 +1097,7 @@ code.find.prev = Previous
 code.find.next = Next
 code.replace.next = Replace
 code.replace.all = Replace All
+code.language-server.loading = Language server is loading…
 
 # About dialog
 
