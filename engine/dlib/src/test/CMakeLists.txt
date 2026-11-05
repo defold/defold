@@ -136,6 +136,7 @@ dlib_add_test(test_socket DEFINES ${_dlib_test_socket_defines})
 if(NOT DLIB_TEST_SKIP_THREADS)
   dlib_add_test(test_thread)
   dlib_add_test(test_mutex)
+  dlib_add_test(test_time_threading_startup)
 endif()
 
 if(DLIB_TEST_SKIP_PROFILE_RUN)

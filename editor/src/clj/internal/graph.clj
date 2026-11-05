@@ -22,10 +22,10 @@
             [util.eduction :as e]
             [util.pkid-vector :as pkid-vector])
   (:import [clojure.lang IPersistentSet Indexed]
-           [com.github.benmanes.caffeine.cache Cache Caffeine]
+           [com.github.benmanes.caffeine.cache Cache Caffeine LoadingCache]
            [internal.graph.types Arc Endpoint]
-           [java.util ArrayList Objects]
-           [java.util.concurrent ConcurrentHashMap ForkJoinPool TimeUnit]))
+           [java.util ArrayList HashMap Objects]
+           [java.util.concurrent ConcurrentHashMap ForkJoinPool]))
 
 ;; A brief braindump on Overrides.
 ;;
@@ -506,6 +506,57 @@
   [graph original-node-id]
   (coll/not-empty (get (gt/node->overrides graph) original-node-id)))
 
+;; Scan small override lists directly to avoid index and cache lookup overhead.
+(def ^:private ^:const min-indexed-override-count 32)
+
+(def ^:private ^Cache override-index-cache
+  (-> (Caffeine/newBuilder) .weakKeys (.maximumSize 10000) .build))
+
+(def ^:private ^LoadingCache override-comparison-cache
+  (-> (Caffeine/newBuilder)
+      .weakKeys
+      (.maximumSize 1000)
+      (.build (fn make-comparison-cache [_]
+                (-> (Caffeine/newBuilder) .weakKeys (.maximumSize 32) .build)))))
+
+(defn- override-index [basis node-id]
+  (when-let [override-node-ids (overrides basis node-id)]
+    ;; Membership tables are immutable, and override ids survive repointing.
+    ;; Weak identity keys allow reuse across revisions without retaining tables.
+    (or (.getIfPresent override-index-cache override-node-ids)
+        (.get override-index-cache override-node-ids
+              (fn compute-override-index [override-node-ids]
+                (let [nodes (gt/nodes basis)
+                      node-ids-by-override-id (HashMap.)]
+                  ;; Fully populate before publishing to concurrent readers.
+                  (doseq [override-node-id override-node-ids]
+                    (let [override-id (gt/override-id (nodes override-node-id))]
+                      (.put node-ids-by-override-id override-id
+                            (coll/conj-vector (.get node-ids-by-override-id override-id) override-node-id))))
+                  {:node-ids-by-override-id node-ids-by-override-id
+                   :ids (coll/into-> (.keySet node-ids-by-override-id) (int-map/int-set))}))))))
+
+(defn- target-overrides-for-source
+  [basis target-id source-index next-override-id]
+  (let [target-node-ids (overrides basis target-id)]
+    (if (or (nil? source-index) (< (count target-node-ids) min-indexed-override-count))
+      target-node-ids
+      (let [target-index (override-index basis target-id)
+            ^Cache comparisons (.get override-comparison-cache target-index)
+            target-ids-covered
+            (.get comparisons source-index
+                  (fn compare-override-ids [source-index]
+                    (let [^IPersistentSet source-ids (:ids source-index)
+                          target-ids (:ids target-index)]
+                      (and (<= (count target-ids) (count source-ids))
+                           (coll/every? #(.contains source-ids %) target-ids)))))]
+        (if-not target-ids-covered
+          target-node-ids
+          ;; Every target branch has a source sibling, so only the next branch
+          ;; remains after conflicts are excluded. Preserve all node ids for
+          ;; that override id, including their original order.
+          (.get ^HashMap (:node-ids-by-override-id target-index) next-override-id))))))
+
 (defn- arcs-for-node [node-id->label->arc-table node-id]
   (let [label->arc-table (node-id->label->arc-table node-id)]
     (coll/into-> label->arc-table :eduction
@@ -625,15 +676,20 @@
 
 (defn override-of [graph node-id override-id]
   (let [^Indexed os (overrides graph node-id)
-        n (count os)
-        nodes (gt/nodes graph)]
-    (loop [i 0]
-      (if (= i n)
-        nil
-        (let [override-node-id (.nth os i)]
-          (if (Objects/equals override-id (gt/override-id (nodes override-node-id)))
-            override-node-id
-            (recur (inc i))))))))
+        n (count os)]
+    (if (<= min-indexed-override-count n)
+      (-> (override-index graph node-id)
+          ^HashMap (:node-ids-by-override-id)
+          (.get override-id)
+          (get 0))
+      (let [nodes (gt/nodes graph)]
+        (loop [i 0]
+          (if (= i n)
+            nil
+            (let [override-node-id (.nth os i)]
+              (if (Objects/equals override-id (gt/override-id (nodes override-node-id)))
+                override-node-id
+                (recur (inc i))))))))))
 
 (defn- node-id->arcs [node-id->label->arc-table node-id]
   (-> node-id->label->arc-table
@@ -665,22 +721,26 @@
   original target of `arc` - for which `source-override-chain` is the
   first and longest subsequence of its own chain of overrides.
   * the `arc` has not been shadowed by an intermediate explicit arc"
-  [basis source-override-chain source-override-node-chain conflicting-source-overrides-chain arc]
+  [basis source-override-chain source-override-node-chain source-index-chain arc]
   (let [target (gt/target-id arc)
         target-label (gt/target-label arc)]
     (if (coll/empty? source-override-chain)
       [arc]
-      (let [^IPersistentSet disallowed-override-ids (first conflicting-source-overrides-chain)
+      (let [source-index (first source-index-chain)
+            next-override-id (first source-override-chain)
+            ^IPersistentSet source-ids (or (:ids source-index) (int-map/int-set))
             nodes (gt/nodes basis)
-            target-override-node-ids (overrides basis target)]
+            target-override-node-ids (target-overrides-for-source basis target source-index next-override-id)]
         (into []
               (comp
                 ;; only follow what could make the source override chain
                 ;; a subsequence of this target chain - don't traverse
                 ;; up the wrong branch
                 (remove (fn [target-override-node-id]
-                          ;; measurably faster than contains?
-                          (.contains disallowed-override-ids (gt/override-id (nodes target-override-node-id)))))
+                          (let [override-id (-> target-override-node-id nodes gt/override-id)]
+                            (and (not= next-override-id override-id)
+                                 ;; measurably faster than contains?
+                                 (.contains source-ids override-id)))))
                 ;; An explicit arc shadows/blocks implicit arcs
                 (filter (fn [target-override-node-id]
                           (coll/not-any?
@@ -696,14 +756,14 @@
                               (lift-source-arc basis
                                                (rest source-override-chain)
                                                (rest source-override-node-chain)
-                                               (rest conflicting-source-overrides-chain)
+                                               (rest source-index-chain)
                                                (assoc arc
                                                  :source-id (first source-override-node-chain)
                                                  :target-id target-override-node-id))
                               (lift-source-arc basis
                                                source-override-chain
                                                source-override-node-chain
-                                               conflicting-source-overrides-chain
+                                               source-index-chain
                                                (assoc arc :target-id target-override-node-id)))))))
               target-override-node-ids)))))
 
@@ -715,20 +775,15 @@
           (keep (fn [[override-chain override-node-chain explicit-arcs]]
                   ;; Here we can (assert (every? #(= (:source-id %) (:source-id (first explicit-arcs))) explicit-arcs))
                   (let [source (gt/source-id (first explicit-arcs))
-                        nodes (gt/nodes basis)
-                        ;; conflicting-overrides is to prevent following target
+                        ;; The source index prevents following target
                         ;; overrides along the wrong "branches" (for which there may be another
                         ;; better -earlier- matching source node).
-                        conflicting-overrides-chain (mapv (fn [node next-override]
-                                                            (disj (into (int-map/int-set)
-                                                                        (map #(gt/override-id (nodes %)))
-                                                                        (overrides basis node))
-                                                                  next-override))
-                                                          (conj override-node-chain source)
-                                                          override-chain)]
+                        source-index-chain (coll/into-> (conj override-node-chain source) []
+                                             (take (count override-chain))
+                                             (map #(override-index basis %)))]
                     (coll/not-empty
                       (coll/into-> explicit-arcs []
-                        (mapcat #(lift-source-arc basis override-chain override-node-chain conflicting-overrides-chain %)))))))
+                        (mapcat #(lift-source-arc basis override-chain override-node-chain source-index-chain %)))))))
           cat)
         override-chains+explicit-arcs))
 
@@ -1024,11 +1079,16 @@
     node-id
     label))
 
-(def ^:private ^Cache basis-dependencies-cache
+(def ^:private ^LoadingCache basis-dependencies-cache
+  ;; Reuse results while the graph has the same Successors object.
+  ;; Weak keys let unused Successors objects be collected. The inner cache
+  ;; must not refer back to its Successors object.
+  ;; Limit both cache sizes: one result can contain millions of endpoints.
   (-> (Caffeine/newBuilder)
-      (.expireAfterAccess 10 TimeUnit/SECONDS)
-      (.maximumSize 32)
-      (.build)))
+      .weakKeys
+      (.maximumSize 4)
+      (.build (fn make-dependencies-cache [_]
+                (-> (Caffeine/newBuilder) (.maximumSize 4) .build)))))
 
 (defmacro ^:private dependencies-impl [basis endpoints initial-nodes]
   ;; Generate separate runtime walkers for performance. On a project with ~1M
@@ -1077,12 +1137,14 @@
   using reduce, into, or an eduction. Use set to convert it to a set when set
   operations are needed."
   [basis endpoints]
+  (assert (coll/eager? endpoints))
   (if (coll/empty? endpoints)
     array/empty-reducible
-    (.get basis-dependencies-cache
-          (pair endpoints (System/identityHashCode (gt/successors basis)))
-          (fn compute-dependencies [_]
-            (dependencies-impl basis endpoints nil)))))
+    (let [^Cache dependencies-cache
+          (.get basis-dependencies-cache (gt/successors basis))]
+      (.get dependencies-cache endpoints
+            (fn compute-dependencies [_]
+              (dependencies-impl basis endpoints nil))))))
 
 (defn invalidation-dependencies [initial-basis basis endpoints]
   ;; Unchanged successors allow the dependency-result cache to be reused.
