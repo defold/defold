@@ -124,22 +124,6 @@
     :completion-trigger-characters
     (combined-completion-trigger-characters state resource)))
 
-(defn- set-view-node-language-server-busy-tx [state resource view-node]
-  {:pre [(= view-node (get-in state [:resource->view-node resource]))]}
-  (g/set-property
-    view-node
-    :language-server-busy
-    (coll/any?
-      (fn [[server {:keys [progress]}]]
-        (and (coll/not-empty progress)
-             (server-handles-resource? server resource)))
-      (:server->server-state state))))
-
-(defn- refresh-language-server-busy-for-server-tx [state server]
-  (for [[resource view-node] (:resource->view-node state)
-        :when (server-handles-resource? server resource)]
-    (set-view-node-language-server-busy-tx state resource view-node)))
-
 (s/def ::extension string?)
 (s/def ::extensions (s/coll-of ::extension :kind set? :min-count 1))
 (s/def ::configuration map?)
@@ -425,8 +409,7 @@
               :let [view-node (get-in state [:resource->view-node resource])]
               :when view-node]
           (set-view-node-diagnostics-tx state resource view-node))
-        (refresh-completion-trigger-characters-for-server-tx state server)
-        (refresh-language-server-busy-for-server-tx state server))))
+        (refresh-completion-trigger-characters-for-server-tx state server))))
   (a/close! in)
   (a/close! out))
 
@@ -486,18 +469,11 @@
                                     (fn update-progress [state]
                                       (if-not (contains? (:server->server-state state) server)
                                         state
-                                        (let [was-busy (coll/not-empty (get-in state [:server->server-state server :progress]))
-                                              state (if (= "end" kind)
+                                        (let [state (if (= "end" kind)
                                                       (update-in state [:server->server-state server :progress] dissoc token)
                                                       (update-in state [:server->server-state server :progress token]
                                                                  merge (select-keys value [:title :message :percentage])))]
                                           (render-server-progress! state)
-                                          (when-not (= (boolean was-busy)
-                                                       (boolean (coll/not-empty (get-in state [:server->server-state server :progress]))))
-                                            (ui/run-later
-                                              (g/transact
-                                                {:undoable false}
-                                                (refresh-language-server-busy-for-server-tx state server))))
                                           state))))
                      :on-response (partial on-server-response server))
     (-> state
@@ -528,9 +504,6 @@
 
 (defn- document-symbols-id [resource]
   (pair ::lsp.server/document-symbol resource))
-
-(defn- completions-id [resource]
-  (pair ::lsp.server/completion resource))
 
 (defn- set-view-document-symbols [resource responses-ch document-symbols]
   (bound-fn write-document-symbols [state]
@@ -831,8 +804,7 @@
           {:undoable false}
           (concat
             (set-view-node-diagnostics-tx state resource view-node)
-            (set-view-node-completion-trigger-characters-tx state resource view-node)
-            (set-view-node-language-server-busy-tx state resource view-node))))
+            (set-view-node-completion-trigger-characters-tx state resource view-node))))
       state)))
 
 (defn document-symbols-pending?
@@ -880,7 +852,6 @@
           (cancel-document-symbols-refresh resource)
           (cancel-active-request (document-symbols-id resource))
           (update :active-request-listeners dissoc (document-symbols-id resource))
-          (cancel-active-request (completions-id resource))
           ;; will close if clean or removed, keep open if dirty
           (sync-resource-state! resource))
       state)))
@@ -1140,47 +1111,35 @@
                          :complete    boolean, indicating whether further typing
                                       should trigger another completion request
                          :items       vector of completions
-                       skipped if a newer request for the same resource is made
 
   Kv-args:
-    :timeout-ms    optional timeout before giving up on requests and returning
-                   the results so far; without it, requests stay outstanding
-                   until answered or replaced"
-  [lsp resource cursor context result-callback & {:keys [timeout-ms]}]
+    :timeout-ms    timeout before giving up on requests and returning the
+                   results so far"
+  [lsp resource cursor context result-callback & {:keys [timeout-ms]
+                                                  :or {timeout-ms 1000}}]
   (if (and (resource/file-resource? resource)
            (resource/editable? resource))
-    (lsp (bound-fn request-completions [state]
-           (let [{:keys [in]} state
-                 id (completions-id resource)
-                 responses-ch (a/chan 1)]
-             (a/go
-               (let [result (<! (a/reduce
-                                  (fn [acc {:keys [complete items]}]
-                                    (-> acc
-                                        (update :complete fn/and complete)
-                                        (update :items into items)))
-                                  {:complete true
-                                   :items []}
-                                  responses-ch))]
-                 (>! in (bound-fn deliver-completions [state]
-                          (if-not (identical? responses-ch (get-in state [:active-requests id]))
-                            state
-                            (do (result-callback result)
-                                (update state :active-requests dissoc id)))))))
-             (-> state
-                 (cancel-active-request id)
-                 (assoc-in [:active-requests id] responses-ch)
-                 (send-requests!
-                   responses-ch
-                   :capabilities-pred :completion
-                   :resource resource
-                   :timeout-ms timeout-ms
-                   :requests-fn (fn [_ {:keys [out]}]
-                                  [(lsp.server/completion
-                                     resource
-                                     cursor
-                                     context
-                                     #(vary-meta % assoc :editor.lsp.server-state/out out))]))))))
+    (lsp (bound-fn [state]
+           (let [ch (a/chan 1)]
+             (a/go (result-callback (<! (a/reduce
+                                          (fn [acc {:keys [complete items]}]
+                                            (-> acc
+                                                (update :complete fn/and complete)
+                                                (update :items into items)))
+                                          {:complete true
+                                           :items []}
+                                          ch))))
+             (send-requests!
+               state ch
+               :capabilities-pred :completion
+               :resource resource
+               :timeout-ms timeout-ms
+               :requests-fn (fn [_ {:keys [out]}]
+                              [(lsp.server/completion
+                                 resource
+                                 cursor
+                                 context
+                                 #(vary-meta % assoc :editor.lsp.server-state/out out))])))))
     ;; Don't ask the servers about dependency (zip) resources
     (do (result-callback {:complete true :items []}) nil)))
 
@@ -1290,5 +1249,4 @@
          :launcher {:command ["build/plugins/lsp-lua-language-server/plugins/bin/arm64-macos/bin/lua-language-server" "--configpath=build/plugins/lsp-lua-language-server/plugins/share/config.json"]}}
       #_{:languages #{"lua"}
          :watched-files [{:pattern "**/.luacheckrc"}]
-         :launcher {:command ["/Users/vlaaad/Projects/vscode-luacheck/lua_language_server" "--"]}}})
-  :-)
+         :launcher {:command ["/Users/vlaaad/Projects/vscode-luacheck/lua_language_server" "--"]}}}))

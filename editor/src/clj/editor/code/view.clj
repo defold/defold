@@ -25,7 +25,6 @@
             [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.list-view :as fx.list-view]
             [cljfx.fx.popup :as fx.popup]
-            [cljfx.fx.progress-indicator :as fx.progress-indicator]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.svg-path :as fx.svg-path]
@@ -1686,7 +1685,6 @@
                                                                (:completion-trigger-characters grammar)])))
   (property document-symbols g/Any (default []) (dynamic visible (g/constantly false)))
   (property diagnostics r/Regions (default []) (dynamic visible (g/constantly false)))
-  (property language-server-busy g/Bool (default false) (dynamic visible (g/constantly false)))
   (property document-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property color-scheme ColorScheme (dynamic visible (g/constantly false)))
   (property elapsed-time-at-last-action g/Num (default 0.0) (dynamic visible (g/constantly false)))
@@ -1889,15 +1887,13 @@
                           :completions-selected-index nil})
         (resolve-selected-completion! view-node)))))
 
-(defn- on-lsp-completions [view-node insert-cursor request-cursor requested-while-busy completions]
+(defn- on-lsp-completions [view-node insert-cursor request-cursor completions]
   (ui/run-later
     (g/with-auto-evaluation-context evaluation-context
       (when (and (get-property view-node :completions-showing evaluation-context)
                  (= insert-cursor (get-property view-node :completions-insert-cursor evaluation-context)))
         (set-properties! view-node nil
-                         {:completions-lsp (assoc completions
-                                             :request-cursor request-cursor
-                                             :requested-while-busy requested-while-busy)})
+                         {:completions-lsp (assoc completions :request-cursor request-cursor)})
         (refresh-completion-selected-index! view-node)))))
 
 (defn- show-suggestions! [view-node & {:keys [explicit typed] :or {explicit false}}]
@@ -1967,19 +1963,14 @@
                                   {:trigger-kind :trigger-for-incomplete-completions}
 
                                   :else
-                                  {:trigger-kind :invoked})
-                        requested-while-busy (get-property view-node :language-server-busy evaluation-context)]
+                                  {:trigger-kind :invoked})]
                     (lsp/request-completions!
                       lsp resource request-cursor context
-                      #(on-lsp-completions view-node insert-cursor request-cursor requested-while-busy %))
+                      #(on-lsp-completions view-node insert-cursor request-cursor %))
                     (cond->
                       {:completions-showing true
                        :completions-insert-cursor insert-cursor
-                       :completions-lsp {:items []
-                                         :complete false
-                                         :pending true
-                                         :request-cursor request-cursor
-                                         :requested-while-busy requested-while-busy}}
+                       :completions-lsp {:items [] :complete false :request-cursor request-cursor}}
                       (not= insert-cursor completions-insert-cursor)
                       (assoc :completions-built-in (get-property view-node :suggested-completions evaluation-context)))))
                 ;; view already open, completions present: only filter/reset index
@@ -2381,16 +2372,13 @@
                            (accept-suggestion! view-node (code-completion/insertion completion)))})
     {}))
 
-(def ^:private language-server-loading-message (localization/message "code.language-server.loading"))
-
 (defn- completion-popup-view
   [{:keys [canvas-repaint-info font font-name font-size
            visible-completion-ranges query screen-bounds completions-showing
            completions-doc project completions-combined completions-selected-index
-           completions-shortcut-text loading-text view-node]}]
+           completions-shortcut-text view-node]}]
   (let [item-count (count completions-combined)]
-    (if (or (not completions-showing)
-            (and (zero? item-count) (nil? loading-text)))
+    (if (or (not completions-showing) (zero? item-count))
       {:fx/type ui/ext-value :value nil}
       (let [{:keys [^Canvas canvas ^LayoutInfo layout lines]} canvas-repaint-info
             ^Point2D cursor-bottom (or (and (pos? (count visible-completion-ranges))
@@ -2401,12 +2389,7 @@
             ^double cell-height (data/line-height glyph-metrics)
             max-visible-completions-count 10
             text (doto (Text.) (.setFont font))
-            hint-height (if completions-shortcut-text 15.0 0.0)
-            loading-indicator-size 12.0
-            loading-padding 6.0
-            loading-spacing 8.0
-            loading-height (max cell-height (+ loading-indicator-size (* 2.0 loading-padding)))
-            footer-height (+ hint-height (if loading-text loading-height 0.0))
+            hint-height (if completions-shortcut-text 15 0)
             min-completions-height (* (min 3 item-count) cell-height)
             min-completions-width 150.0
             [^Point2D anchor ^Rectangle2D screen-bounds]
@@ -2417,7 +2400,7 @@
                                       (min (- (.getMaxX bounds) min-completions-width))
                                       (max (.getMinX bounds)))
                                   (-> (.getY anchor)
-                                      (min (- (.getMaxY bounds) min-completions-height footer-height))
+                                      (min (- (.getMaxY bounds) min-completions-height hint-height))
                                       (max (.getMinY bounds))))
                                 bounds)))
                        (partial min-key #(.distance anchor ^Point2D (key %)))
@@ -2425,7 +2408,7 @@
                        screen-bounds)
             max-completions-width (min 700.0 (- (.getMaxX screen-bounds) (.getX anchor)))
             max-completions-height (min (* cell-height max-visible-completions-count)
-                                        (-> (- (.getMaxY screen-bounds) (.getY anchor) footer-height)
+                                        (-> (- (.getMaxY screen-bounds) (.getY anchor) hint-height)
                                             (/ cell-height)
                                             Math/floor
                                             (* cell-height)))
@@ -2445,19 +2428,10 @@
                                      (max min-completions-width
                                           (+ code-type-icon-size
                                              completion-icon-text-spacing
-                                             max-display-string-width)
-                                          (if loading-text
-                                            (+ loading-indicator-size
-                                               loading-spacing
-                                               (* 2.0 loading-padding)
-                                               (-> text
-                                                   (doto (.setText loading-text))
-                                                   .getLayoutBounds
-                                                   .getWidth))
-                                            0.0)))
+                                             max-display-string-width)))
                                   (min max-completions-width))
             refresh-key [query completions-combined]
-            selected-completion (get completions-combined completions-selected-index)]
+            selected-completion (completions-combined completions-selected-index)]
         {:fx/type fx/ext-let-refs
          :refs
          {:content
@@ -2469,66 +2443,42 @@
              :style-class "completion-popup-background"}
             {:fx/type fx.v-box/lifecycle
              :children
-             (cond-> []
-               (pos? item-count)
-               (conj {:fx/type ext-with-list-view-props
-                      :props {:selected-index [refresh-key completions-selected-index]}
-                      :desc
-                      {:fx/type ext-with-list-view-props
-                       :props {:items [refresh-key completions-combined]}
-                       :desc
-                       {:fx/type fx.ext.list-view/with-selection-props
-                        :props {:on-selected-index-changed (fn [index]
-                                                             (set-properties! view-node nil {:completions-selected-index index})
-                                                             (resolve-selected-completion! view-node))}
-                        :desc
-                        {:fx/type fx.list-view/lifecycle
-                         :style {:-fx-font-family (str \" font-name \") :-fx-font-size font-size}
-                         :id "fuzzy-choices-list-view"
-                         :style-class ["flat-list-view" "completion-popup-list-view"]
-                         :fixed-cell-size cell-height
-                         :event-filter (fn [e]
-                                         (when (instance? KeyEvent e)
-                                           (let [^KeyEvent e e
-                                                 code (.getCode e)]
-                                             ;; redirect everything except arrows to canvas
-                                             (when-not (or (= KeyCode/UP code)
-                                                           (= KeyCode/DOWN code)
-                                                           (= KeyCode/PAGE_UP code)
-                                                           (= KeyCode/PAGE_DOWN code))
-                                               (ui/send-event! (get-property view-node :canvas) e)
-                                               (.consume e)))))
-                         :min-width completions-width
-                         :pref-width completions-width
-                         :max-width completions-width
-                         :min-height min-completions-height
-                         :pref-height (* cell-height item-count)
-                         :max-height (min (* cell-height max-visible-completions-count) max-completions-height)
-                         :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                        :describe (fn/partial completion-list-cell-view view-node)}}}}})
-
-               loading-text
-               (conj {:fx/type fx.h-box/lifecycle
-                      :style-class "completion-popup-loading"
-                      :alignment :center-left
-                      :spacing loading-spacing
-                      :padding loading-padding
-                      :pref-height loading-height
-                      :min-height loading-height
-                      :max-height loading-height
-                      :pref-width completions-width
-                      :max-width completions-width
-                      :min-width completions-width
-                      :children [{:fx/type fx.progress-indicator/lifecycle
-                                  :min-width loading-indicator-size
-                                  :pref-width loading-indicator-size
-                                  :max-width loading-indicator-size
-                                  :min-height loading-indicator-size
-                                  :pref-height loading-indicator-size
-                                  :max-height loading-indicator-size}
-                                 {:fx/type fx.label/lifecycle
-                                  :text loading-text}]})
-
+             (cond->
+               [{:fx/type ext-with-list-view-props
+                 :props {:selected-index [refresh-key completions-selected-index]}
+                 :desc
+                 {:fx/type ext-with-list-view-props
+                  :props {:items [refresh-key completions-combined]}
+                  :desc
+                  {:fx/type fx.ext.list-view/with-selection-props
+                   :props {:on-selected-index-changed (fn [index]
+                                                        (set-properties! view-node nil {:completions-selected-index index})
+                                                        (resolve-selected-completion! view-node))}
+                   :desc
+                   {:fx/type fx.list-view/lifecycle
+                    :style {:-fx-font-family (str \" font-name \") :-fx-font-size font-size}
+                    :id "fuzzy-choices-list-view"
+                    :style-class ["flat-list-view" "completion-popup-list-view"]
+                    :fixed-cell-size cell-height
+                    :event-filter (fn [e]
+                                    (when (instance? KeyEvent e)
+                                      (let [^KeyEvent e e
+                                            code (.getCode e)]
+                                        ;; redirect everything except arrows to canvas
+                                        (when-not (or (= KeyCode/UP code)
+                                                      (= KeyCode/DOWN code)
+                                                      (= KeyCode/PAGE_UP code)
+                                                      (= KeyCode/PAGE_DOWN code))
+                                          (ui/send-event! (get-property view-node :canvas) e)
+                                          (.consume e)))))
+                    :min-width completions-width
+                    :pref-width completions-width
+                    :max-width completions-width
+                    :min-height min-completions-height
+                    :pref-height (* cell-height item-count)
+                    :max-height (min (* cell-height max-visible-completions-count) max-completions-height)
+                    :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                   :describe (fn/partial completion-list-cell-view view-node)}}}}}]
                completions-shortcut-text
                (conj {:fx/type fx.label/lifecycle
                       :style-class "completion-popup-hint"
@@ -3458,6 +3408,8 @@
       :children)
     (map #(dissoc % :children))))
 
+(def ^:private language-server-loading-message (localization/message "code.language-server.loading"))
+
 (handler/defhandler :code.jump-to-symbol :code-view
   (enabled? [view-node evaluation-context]
     (let [resource-node (get-property view-node :resource-node evaluation-context)
@@ -4142,15 +4094,6 @@
                          (assoc :cursor-opacity new-cursor-opacity))))]
     (set-properties! view-node nil props))
 
-  (let [language-server-busy (g/node-value view-node :language-server-busy)]
-    (when (and (g/user-data view-node :language-server-busy)
-               (not language-server-busy)
-               (g/node-value view-node :completions-showing)
-               (:requested-while-busy (g/node-value view-node :completions-lsp)))
-      (set-properties! view-node nil {:completions-lsp nil})
-      (show-suggestions! view-node))
-    (g/user-data! view-node :language-server-busy language-server-busy))
-
   ;; Repaint the view.
   (g/let-ec [prev-canvas-repaint-info (g/user-data view-node :canvas-repaint-info)
              prev-cursor-repaint-info (g/user-data view-node :cursor-repaint-info)
@@ -4175,22 +4118,13 @@
         view-node :completion-popup
         (when completions-showing
           (g/with-auto-evaluation-context evaluation-context
-            (let [scene (.getScene ^Canvas (:canvas canvas-repaint-info))
-                  completions-combined (g/node-value view-node :completions-combined evaluation-context)
-                  localization (g/node-value view-node :localization evaluation-context)]
+            (let [scene (.getScene ^Canvas (:canvas canvas-repaint-info))]
               {:fx/type completion-popup-view
-               :completions-combined completions-combined
+               :completions-combined (g/node-value view-node :completions-combined evaluation-context)
                :completions-selected-index (g/node-value view-node :completions-selected-index evaluation-context)
                :completions-showing completions-showing
                :completions-doc (g/node-value view-node :completions-doc evaluation-context)
                :completions-shortcut-text (g/node-value view-node :completions-shortcut-text evaluation-context)
-               :loading-text (cond
-                               (:pending (g/node-value view-node :completions-lsp evaluation-context))
-                               (when (coll/empty? completions-combined)
-                                 (localization (localization/message "code.completions.loading")))
-
-                               (g/node-value view-node :language-server-busy evaluation-context)
-                               (localization language-server-loading-message))
                :project (g/node-value view-node :project evaluation-context)
                :canvas-repaint-info canvas-repaint-info
                :visible-completion-ranges (g/node-value view-node :visible-completion-ranges evaluation-context)
