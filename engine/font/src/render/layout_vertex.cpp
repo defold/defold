@@ -736,7 +736,7 @@ void FontApplySpatialGradient(const FontLayoutVertexConfig& config, const TextLi
         if (color.m_Type == FONT_COLOR_EFFECT_LINEAR)
         {
             // Angles rotate counterclockwise: 0 is bottom-to-top; 90 is right-to-left in local text space.
-            const float angle = color.m_Parameters[0] * (float)(M_PI / 180.0);
+            const float angle = dmMath::DegToRad(color.m_Parameters[0]);
             const float dx = -sinf(angle), dy = cosf(angle);
             const float extent = fabsf(dx) * width + fabsf(dy) * height;
             color.m_Parameters[0] = dx * width / extent;
@@ -748,7 +748,7 @@ void FontApplySpatialGradient(const FontLayoutVertexConfig& config, const TextLi
         {
             const float radius_x = color.m_Parameters[2] * dmMath::Max(width, height);
             const float radius_y = color.m_Parameters[3] * dmMath::Max(width, height);
-            const float angle = color.m_Parameters[4] * (float)(M_PI / 180.0);
+            const float angle = dmMath::DegToRad(color.m_Parameters[4]);
             const float cosine = cosf(angle), sine = sinf(angle);
             // Undo the counterclockwise rotation in local distance units before
             // dividing by each radius. Rotating normalized UVs would distort the ellipse.

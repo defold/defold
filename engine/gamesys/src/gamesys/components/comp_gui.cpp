@@ -2612,7 +2612,7 @@ namespace dmGameSystem
                 backwards = true;
             }
 
-            stopAngle = dmMath::Min(360.0f, stopAngle) * PI / 180.0f;
+            stopAngle = dmMath::DegToRad(dmMath::Min(360.0f, stopAngle));
 
             // 1. Division computes number of cirlce segments needed, and we need 1 more
             // vertex than that (1 lone segment = 2 perimeter vertices).

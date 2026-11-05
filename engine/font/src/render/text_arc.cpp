@@ -77,12 +77,11 @@ bool FontPrepareTextArc(HTextLayout layout, float width, float height, uint32_t 
     (void)layout_width;
     const float y = valign == 1 ? (height - layout_height) * 0.5f : valign == 2 ? 0.0f :
                     height - layout_height;
-    const float radians = 0.017453292519943295f;
     arc->m_Radius = radius;
     arc->m_MinX = min_x;
     arc->m_Width = max_x - min_x;
     arc->m_FirstBaseline = y + lines[0].m_Baseline;
-    arc->m_Span = degrees * radians;
+    arc->m_Span = dmMath::DegToRad(degrees);
     return true;
 }
 

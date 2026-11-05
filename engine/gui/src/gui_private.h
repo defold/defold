@@ -419,7 +419,7 @@ namespace dmGui
         {
             return node.m_Properties[PROPERTY_SIZE];
         }
-        const float width = node.m_LineBreak ? fabsf(text_params.getZ()) * fabsf(text_params.getW()) * 0.017453292519943295f : 0.0f;
+        const float width = node.m_LineBreak ? fabsf(text_params.getZ()) * dmMath::DegToRad(fabsf(text_params.getW())) : 0.0f;
         return dmVMath::Vector4(width, 0.0f, 0.0f, 0.0f);
     }
 

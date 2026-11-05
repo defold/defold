@@ -2475,7 +2475,7 @@ TEST_F(FontTest, MultilineArcVertices)
             config.m_ArcRadius = radii[r];
             config.m_ArcAngle = sweeps[s];
             ASSERT_EQ(24u, FontCreateLayoutVertices(config, metrics, curved, DM_ARRAY_SIZE(curved)));
-            const float span = sweeps[s] * 0.017453292519943295f;
+            const float span = dmMath::DegToRad(sweeps[s]);
             for (uint32_t i = 0; i < 4; ++i)
             {
                 const TextGlyph& text_glyph = glyphs[lines[i / 2].m_Index + i % 2];
@@ -2557,7 +2557,7 @@ TEST_F(FontTest, ArcLayoutObjectHitTesting)
             for (uint32_t i = 0; i < DM_ARRAY_SIZE(sweeps); ++i)
             {
                 hit.m_ArcAngle = sweeps[i];
-                const float angle = sweeps[i] * -0.25f * 0.017453292519943295f;
+                const float angle = dmMath::DegToRad(sweeps[i] * -0.25f);
                 const float radius = radii[r] + baseline - first_baseline;
                 hit.m_X = sinf(angle) * (radius + 8.0f);
                 hit.m_Y = cosf(angle) * (radius + 8.0f);

@@ -237,7 +237,7 @@ namespace dmGameSystem
         {
             return component->m_Size.getX();
         }
-        return component->m_LineBreak ? fabsf(component->m_ArcRadius) * fabsf(component->m_ArcAngle) * 0.017453292519943295f : 0.0f;
+        return component->m_LineBreak ? fabsf(component->m_ArcRadius) * dmMath::DegToRad(fabsf(component->m_ArcAngle)) : 0.0f;
     }
 
     static HTextLayout GetOrCreateTextLayout(LabelComponent* component)

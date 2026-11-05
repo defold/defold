@@ -162,7 +162,7 @@ HFontTextCurve FontTextCurveCreate(const FontTextCurveKnot* knots, uint32_t coun
             CurveSample& sample = curve->m_Samples[segment * steps + j];
             const float  distance = last.m_Distance - first.m_Distance;
             const float  t = distance > 0 ? (sample.m_Distance - first.m_Distance) / distance : (float)j / steps;
-            sample.m_Roll = (a.m_RollDegrees + (b.m_RollDegrees - a.m_RollDegrees) * t) * 0.017453292519943295f;
+            sample.m_Roll = dmMath::DegToRad(a.m_RollDegrees + (b.m_RollDegrees - a.m_RollDegrees) * t);
             sample.m_Scale = a.m_Scale + (b.m_Scale - a.m_Scale) * t;
         }
     }

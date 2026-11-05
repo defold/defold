@@ -902,7 +902,7 @@ static float GetLayoutWidth(FontcContext* session, bool line_break, float width)
     {
         return width;
     }
-    return line_break ? fabsf(properties.m_ArcRadius) * properties.m_ArcAngle * 0.017453292519943295f : 0.0f;
+    return line_break ? fabsf(properties.m_ArcRadius) * dmMath::DegToRad(properties.m_ArcAngle) : 0.0f;
 }
 
 static TextResult CreateLayout(FontcContext* session, const uint32_t* codepoints, uint32_t count, bool line_break, float width, float leading, float tracking, HTextLayout* layout)
@@ -2312,8 +2312,8 @@ static bool CreateArcGuide(const FontTextArc& arc, HTextLayout layout, const flo
 {
     const float    start = box[2];
     const float    span = box[3] - start;
-    const uint32_t segments = dmMath::Max(2u, (uint32_t)(2.0f * ceilf(span / (4.0f * 0.017453292519943295f))));
-    const bool     end_edges = span < 6.283185307179586f - 0.00001f;
+    const uint32_t segments = dmMath::Max(2u, (uint32_t)(2.0f * ceilf(span / dmMath::DegToRad(4.0f))));
+    const bool     end_edges = span < dmMath::DegToRad(360.0f) - 0.00001f;
     const uint32_t outline_count = segments * 4 + (end_edges ? 4 : 0);
     const uint32_t line_count = TextLayoutGetLineCount(layout);
     if (line_count > (UINT32_MAX - outline_count - 4) / (segments * 2))
