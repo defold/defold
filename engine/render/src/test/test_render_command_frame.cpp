@@ -23,7 +23,7 @@
 #include <testmain/testmain.h>
 
 #include "render/render_command.h"
-#include "render/render_pass.h"
+#include "render/render_frame.h"
 #include "render/render_private.h"
 
 using namespace dmRender;

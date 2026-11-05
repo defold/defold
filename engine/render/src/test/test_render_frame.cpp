@@ -19,7 +19,7 @@
 
 #include <testmain/testmain.h>
 
-#include "render/render_frame.h"
+#include "render/render_frame_storage.h"
 
 using namespace dmRender;
 

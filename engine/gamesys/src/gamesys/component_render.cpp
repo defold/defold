@@ -21,7 +21,7 @@
 #include <dlib/log.h>
 #include <gameobject/component.h>
 #include <render/render_command.h>
-#include <render/render_pass.h>
+#include <render/render_frame.h>
 
 #include "component_render.h"
 #include "component_render_state_private.h"

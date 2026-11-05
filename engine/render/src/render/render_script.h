@@ -24,7 +24,7 @@
 
 #include "render.h"
 #include "render_command.h"
-#include "render_pass.h"
+#include "render_frame.h"
 #include "render_private.h"
 
 namespace dmRender

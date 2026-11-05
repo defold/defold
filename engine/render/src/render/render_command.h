@@ -18,7 +18,7 @@
 #include <stdint.h>
 
 #include <render/render.h>
-#include <render/render_frame.h>
+#include <render/render_frame_storage.h>
 
 namespace dmRender
 {
@@ -102,7 +102,8 @@ namespace dmRender
     };
 
     /**
-     * Resource kinds referenced by pass commands. Lifetime retention/versioning is D2.4.
+     * Resource kinds referenced by pass commands. These descriptors do not yet keep
+     * resources alive or protect queued frames from resource replacement or handle reuse.
      */
     enum RenderCommandDependencyType
     {

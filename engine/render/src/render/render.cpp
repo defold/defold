@@ -28,7 +28,7 @@
 
 #include "render_private.h"
 #include "render_script.h"
-#include "render_pass.h"
+#include "render_frame.h"
 #include "debug_renderer.h"
 #include "font/font_renderer.h"
 

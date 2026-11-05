@@ -19,7 +19,7 @@
 #include <dlib/mutex.h>
 
 #include "render_execution.h"
-#include "render_frame.h"
+#include "render_frame_storage.h"
 
 namespace dmRender
 {

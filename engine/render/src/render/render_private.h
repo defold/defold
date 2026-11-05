@@ -434,8 +434,9 @@ namespace dmRender
     };
 
     // Execution state is separate from producer recording state. Legacy component
-    // list updates still access this context inline until their D3 migration; the
-    // production threaded executor remains gated until that ownership is resolved.
+    // list updates still access this context inline. Before enabling the production
+    // threaded executor, components must publish inputs for the render owner to use
+    // when building lists, rather than modify execution state on the game owner.
     struct RenderContext
     {
         RenderRecordingContext      m_Recording;

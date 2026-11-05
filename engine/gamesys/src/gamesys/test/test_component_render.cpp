@@ -31,7 +31,7 @@
 #include <platform/window.hpp>
 #include <render/render_execution.h>
 #include <render/render_frame_queue.h>
-#include <render/render_pass.h>
+#include <render/render_frame.h>
 #include <render/render_private.h>
 #include <resource/resource.h>
 #include <script/script.h>
@@ -1135,7 +1135,8 @@ TEST(ComponentRender, ComponentInputsAreConsumedBeforePassCommands)
         ASSERT_NE((dmGameObject::HCollection)0, collection);
 
         // Exercise the real pass consumer with null graphics. Legacy list preparation
-        // remains serialized here; moving that preparation to its owner is D2.2 work.
+        // remains serialized here until components publish inputs and the render
+        // owner takes over list preparation from the game owner.
         ASSERT_TRUE(dmGameSystem::BeginFrame(fixture.m_Context));
         dmRender::BeginFrame(fixture.m_RenderContext, 1.0f, 0.125f);
         dmRender::RenderListBegin(fixture.m_RenderContext);

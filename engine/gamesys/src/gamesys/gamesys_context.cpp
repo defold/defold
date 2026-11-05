@@ -14,7 +14,7 @@
 
 #include <dlib/log.h>
 #include <gameobject/gameobject.h>
-#include <render/render_pass.h>
+#include <render/render_frame.h>
 
 #include "gamesys_context_private.h"
 
@@ -89,8 +89,14 @@ namespace dmGameSystem
             dmRender::RenderFrameResult result = dmRender::RecordRenderFrameInfo(frame, info);
             if (result == dmRender::RENDER_FRAME_OK)
             {
-                result = script ? dmRender::RecordRenderScriptInstance(script, dt, frame)
-                    : dmRender::RecordDefaultRenderCommands(render_context, frame, info, clear_color);
+                if (script)
+                {
+                    result = dmRender::RecordRenderScriptInstance(script, dt, frame);
+                }
+                else
+                {
+                    result = dmRender::RecordDefaultRenderCommands(render_context, frame, info, clear_color);
+                }
             }
             if (result != dmRender::RENDER_FRAME_OK)
             {
