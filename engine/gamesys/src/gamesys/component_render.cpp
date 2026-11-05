@@ -68,6 +68,10 @@ namespace dmGameSystem
     static void ConsumeFrame(void* user_context, const dmRender::RenderFrameView& frame)
     {
         ComponentRenderContext* context = (ComponentRenderContext*)user_context;
+        if (dmRender::GetRenderExecutionMode(context->m_Execution) == dmRender::EXECUTION_MODE_THREADED)
+        {
+            dmGraphics::BeginFrame(dmRender::GetGraphicsContext(context->m_RenderContext));
+        }
         dmRender::BeginRenderFrameConsumption(context->m_RenderContext, frame);
         ConsumeComponentRenderFrame(context->m_StateContext, frame);
         dmRender::RenderListEnd(context->m_RenderContext);

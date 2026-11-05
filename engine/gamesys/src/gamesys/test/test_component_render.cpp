@@ -1146,14 +1146,24 @@ TEST(ComponentRender, ComponentInputsAreConsumedBeforePassCommands)
 
         GetWorld(collection)->m_Value = 999;
         const uint32_t first_consume_event = fixture.m_Probe.m_EventCount;
+        dmGraphics::NullContext* graphics = (dmGraphics::NullContext*)fixture.m_Graphics;
+        if (modes[i] == dmRender::EXECUTION_MODE_INLINE)
+        {
+            // The inline engine begins graphics before recording Lua/pass commands.
+            dmGraphics::BeginFrame(fixture.m_Graphics);
+        }
         ASSERT_TRUE(dmGameSystem::SubmitRender(fixture.m_Context, 0, 0.125f, 0));
         dmRender::BeginRenderFrameRecording(fixture.m_RenderContext, 99.0f, 0.5f);
         if (modes[i] == dmRender::EXECUTION_MODE_THREADED)
         {
+            ASSERT_EQ(0u, graphics->m_BeginFrameCount);
             ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW));
             ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_CONSUMED, Pump(&executor, true));
         }
 
+        ASSERT_EQ(1u, graphics->m_BeginFrameCount);
+        dmGraphics::Flip(fixture.m_Graphics);
+        ASSERT_EQ(1u, graphics->m_FlipCount);
         ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));
         ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW));
         ASSERT_EQ(EVENT_TYPE_RENDER_CREATE, fixture.m_Probe.m_Events[first_consume_event].m_EventType);
@@ -1237,6 +1247,7 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     // Leave execution timing stale to verify consumption applies the recorded values.
     render->m_Time = 0.0f;
     render->m_Dt = 0.0f;
+    dmGraphics::BeginFrame(graphics);
     ASSERT_TRUE(dmGameSystem::SubmitRender(context, 0, 0.125f, 0x44332211));
 
     ASSERT_EQ(3.25f, render->m_Time);
@@ -1248,6 +1259,9 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     dmRender::RenderFrameQueueStatus status = dmRender::GetRenderFrameQueueStatus(queue);
     ASSERT_EQ((uint64_t)1, status.m_Published);
     ASSERT_EQ((uint64_t)1, status.m_Consumed);
+    ASSERT_EQ(1u, null_graphics->m_BeginFrameCount);
+    dmGraphics::Flip(graphics);
+    ASSERT_EQ(1u, null_graphics->m_FlipCount);
 
     ASSERT_TRUE(dmGameSystem::PostUpdate(context, 0));
     status = dmRender::GetRenderFrameQueueStatus(queue);

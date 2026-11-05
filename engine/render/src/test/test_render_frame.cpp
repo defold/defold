@@ -16,12 +16,48 @@
 #include <jc_test/jc_test.h>
 
 #include <string.h>
+#include <stdlib.h>
+
+#include <dlib/memory.h>
 
 #include <testmain/testmain.h>
 
 #include "render/render_frame_storage.h"
 
 using namespace dmRender;
+
+enum FrameAllocationFailure
+{
+    FRAME_ALLOCATION_FAILURE_NONE,
+    FRAME_ALLOCATION_FAILURE_DESCRIPTOR,
+    FRAME_ALLOCATION_FAILURE_PAYLOAD,
+};
+
+static FrameAllocationFailure g_FrameAllocationFailure = FRAME_ALLOCATION_FAILURE_NONE;
+
+// Only the test's separately compiled storage implementation uses these wrappers.
+extern "C" void* RenderFrameTestMalloc(size_t size)
+{
+    if (g_FrameAllocationFailure == FRAME_ALLOCATION_FAILURE_DESCRIPTOR)
+    {
+        g_FrameAllocationFailure = FRAME_ALLOCATION_FAILURE_NONE;
+        return 0;
+    }
+    return malloc(size);
+}
+
+namespace dmMemory
+{
+    Result RenderFrameTestAlignedMalloc(void** memory, unsigned int alignment, unsigned int size)
+    {
+        if (g_FrameAllocationFailure == FRAME_ALLOCATION_FAILURE_PAYLOAD)
+        {
+            g_FrameAllocationFailure = FRAME_ALLOCATION_FAILURE_NONE;
+            return RESULT_NOMEM;
+        }
+        return AlignedMalloc(memory, alignment, size);
+    }
+}
 
 struct ReleaseLog
 {
@@ -405,40 +441,48 @@ TEST(RenderFrame, DynamicCaptureState)
     DeleteRenderFrame(frame);
 }
 
-// Verify an allocation failure rejects the frame, releases references once, and retains dynamic blocks for reuse.
+// Verify descriptor and payload allocation failures reject the frame and preserve existing blocks for reuse.
 TEST(RenderFrame, DynamicFailureCleanup)
 {
-    RenderFrameLimits limits = { 0, 2, 1 };
-    HRenderFrameStorage frame = NewRenderFrame(limits);
-    ASSERT_NE((HRenderFrameStorage)0, frame);
-    ReleaseLog releases = {};
-    uint32_t resource = 42;
-    BeginRenderFrame(frame, 1);
-    uint32_t index;
-    void* first;
-    void* second;
-    ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(frame, 0, 1, 1, 1, &index, &first));
-    ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(frame, 0, 1, 128 * 1024, 16, &index, &second));
-    ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(frame, &resource, ReleaseReference, &releases));
-    const uint64_t retained_capacity = GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity;
-    // Inject the allocator's failure result without relying on an enormous host allocation.
-    ASSERT_EQ(RENDER_FRAME_OUT_OF_MEMORY, FailRenderFrame(frame, RENDER_FRAME_OUT_OF_MEMORY));
-    void* data = &index;
-    ASSERT_EQ(RENDER_FRAME_OUT_OF_MEMORY, AllocateRenderFrameDynamicTable(frame, 0, 1, 1, 1, &index, &data));
-    ASSERT_EQ(RENDER_FRAME_OUT_OF_MEMORY, SealRenderFrame(frame));
-    ASSERT_EQ((const RenderFrameView*)0, GetRenderFrameView(frame));
-    ResetRenderFrame(frame);
-    ASSERT_EQ(1u, releases.m_Count);
-    ASSERT_EQ(retained_capacity, GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity);
-    BeginRenderFrame(frame, 2);
-    ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(frame, 0, 1, 1, 1, &index, &data));
-    ASSERT_EQ(first, data);
-    ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(frame, 0, 1, 128 * 1024, 16, &index, &data));
-    ASSERT_EQ(second, data);
-    ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_DynamicAllocationCount);
-    ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(frame, &resource, ReleaseReference, &releases));
-    DeleteRenderFrame(frame);
-    ASSERT_EQ(2u, releases.m_Count);
+    const FrameAllocationFailure failures[] = { FRAME_ALLOCATION_FAILURE_DESCRIPTOR, FRAME_ALLOCATION_FAILURE_PAYLOAD };
+    for (uint32_t i = 0; i < sizeof(failures) / sizeof(failures[0]); ++i)
+    {
+        RenderFrameLimits limits = { 0, 3, 1 };
+        HRenderFrameStorage frame = NewRenderFrame(limits);
+        ASSERT_NE((HRenderFrameStorage)0, frame);
+        ReleaseLog releases = {};
+        uint32_t resource = 42;
+        BeginRenderFrame(frame, 1);
+        uint32_t index;
+        void* first;
+        void* second;
+        ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(frame, 0, 1, 1, 1, &index, &first));
+        ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(frame, 0, 1, 128 * 1024, 16, &index, &second));
+        ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(frame, &resource, ReleaseReference, &releases));
+        const uint64_t retained_capacity = GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity;
+        // Force a new block, then fail one of its actual allocations.
+        g_FrameAllocationFailure = failures[i];
+        void* data = &index;
+        ASSERT_EQ(RENDER_FRAME_OUT_OF_MEMORY, AllocateRenderFrameDynamicTable(frame, 0, 1, 256 * 1024, 16, &index, &data));
+        ASSERT_EQ(FRAME_ALLOCATION_FAILURE_NONE, g_FrameAllocationFailure);
+        ASSERT_EQ((void*)&index, data);
+        ASSERT_EQ(2u, GetRenderFrameStatistics(frame).m_TableCount);
+        ASSERT_EQ(retained_capacity, GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity);
+        ASSERT_EQ(RENDER_FRAME_OUT_OF_MEMORY, SealRenderFrame(frame));
+        ASSERT_EQ((const RenderFrameView*)0, GetRenderFrameView(frame));
+        ResetRenderFrame(frame);
+        ASSERT_EQ(1u, releases.m_Count);
+        ASSERT_EQ(retained_capacity, GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity);
+        BeginRenderFrame(frame, 2);
+        ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(frame, 0, 1, 1, 1, &index, &data));
+        ASSERT_EQ(first, data);
+        ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(frame, 0, 1, 128 * 1024, 16, &index, &data));
+        ASSERT_EQ(second, data);
+        ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_DynamicAllocationCount);
+        ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(frame, &resource, ReleaseReference, &releases));
+        DeleteRenderFrame(frame);
+        ASSERT_EQ(2u, releases.m_Count);
+    }
 }
 
 // Verify alignment padding cannot take a capture beyond its declared payload capacity.

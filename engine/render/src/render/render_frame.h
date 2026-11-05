@@ -89,6 +89,8 @@ namespace dmRender
     /**
      * Start execution from the published frame metadata. Called before component
      * consumption and pass replay; the consumer never reads producer timing.
+     * Does not begin graphics: inline callers begin before Lua recording, while
+     * threaded callers begin on the render owner before consumption.
      * @param context Render-owner execution context
      * @param frame Published frame with exactly one metadata table
      */

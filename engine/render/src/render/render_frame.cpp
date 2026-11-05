@@ -93,7 +93,6 @@ namespace dmRender
                 // owner builds the lists, instead of components updating them inline.
                 context->m_Time = info->m_Time;
                 context->m_Dt = info->m_Dt;
-                dmGraphics::BeginFrame(context->m_GraphicsContext);
                 return;
             }
         }

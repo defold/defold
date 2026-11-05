@@ -2158,7 +2158,7 @@ bail:
                         dmEngineService::BeginFrame(engine->m_EngineService);
 
                     // Begin recording and prepare legacy list/light state before inline
-                    // component callbacks. Graphics execution begins after submission.
+                    // component callbacks.
                     dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
 
                     // Call pre render functions for extensions, if available.
@@ -2181,13 +2181,13 @@ bail:
                     }
 
                     dmRender::HRenderScriptInstance script = engine->m_RenderScriptPrototype ? engine->m_RenderScriptPrototype->m_Instance : 0;
-                    if (!captured || !dmGameSystem::SubmitRender(engine->m_GameSystem, script, dt, engine->m_ClearColor))
+                    // Inline extensions can issue graphics calls from render-script update.
+                    // Begin before recording, even on failure, to keep BeginFrame/Flip balanced.
+                    // The threaded executor begins graphics on its consumer instead.
+                    dmGraphics::BeginFrame(engine->m_GraphicsContext);
+                    if (captured)
                     {
-                        // A failed recording cancels its packet, but the legacy inline
-                        // presentation boundary still needs a frame. Keep Flip/vsync,
-                        // extension callbacks and engine-service Begin/End balanced so
-                        // an editable Lua error does not turn into an uncapped game loop.
-                        dmGraphics::BeginFrame(engine->m_GraphicsContext);
+                        dmGameSystem::SubmitRender(engine->m_GameSystem, script, dt, engine->m_ClearColor);
                     }
                 }
 

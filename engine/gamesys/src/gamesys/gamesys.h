@@ -379,6 +379,8 @@ namespace dmGameSystem
      * Record render-script passes on the game owner, then submit the complete frame.
      * Called after component capture and render-message dispatch, before PostUpdate.
      * Inline and threaded use one consumer: component inputs first, pass commands next.
+     * Inline callers must begin the graphics frame before this call, so Lua extensions
+     * can issue graphics work. Threaded consumers begin graphics on the render owner.
      * Recording failures cancel the whole unpublished packet, not just its last command.
      * Successful submission means accepted work, not successful rendering; consumer
      * errors are observed at BeginFrame/PostUpdate in both execution modes.

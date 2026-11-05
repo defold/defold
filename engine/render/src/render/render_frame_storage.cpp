@@ -244,6 +244,11 @@ namespace dmRender
             }
 
             block = (RenderFrameDynamicBlock*)malloc(sizeof(RenderFrameDynamicBlock));
+            if (!block)
+            {
+                dmLogError("Unable to allocate render frame dynamic block descriptor.");
+                return FailCapture(frame, RENDER_FRAME_OUT_OF_MEMORY);
+            }
             block->m_Payload = 0;
 
             dmMemory::Result allocation_result = dmMemory::AlignedMalloc((void**)&block->m_Payload, 16, capacity);
