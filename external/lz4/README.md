@@ -1,7 +1,7 @@
 # LZ4
 
 The `src` directory contains the unmodified raw-block compression and
-decompression sources from [LZ4 1.10.0](https://github.com/lz4/lz4/releases/tag/v1.10.0).
+decompression sources from [LZ4 1.11.0](https://github.com/lz4/lz4/releases/tag/v1.11.0).
 Defold uses LZ4 HC level 9 through its dlib wrapper.
 
 Build and install with the regular Defold toolchain:
