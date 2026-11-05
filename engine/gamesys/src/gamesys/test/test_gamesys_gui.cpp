@@ -2061,7 +2061,7 @@ TEST_F(LabelComponentTest, LabelScriptedCurve)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/curve.goc", dmHashString64("/go"),
-                                      0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+                                       0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((dmGameObject::HInstance)0, go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -2114,7 +2114,7 @@ TEST_F(GuiTest, GuiTextCurveLayout)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"),
-                                      0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+                                       0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((dmGameObject::HInstance)0, go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -2148,7 +2148,7 @@ TEST_F(GuiTest, GuiTextArcLayout)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_text_layout_cache.goc", dmHashString64("/go"),
-                                      0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+                                       0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((dmGameObject::HInstance)0, go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -2835,13 +2835,13 @@ TEST_F(LabelComponentTest, LabelArcProperties)
     const dmhash_t label_id = dmHashString64("label");
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/label/valid_label.goc", dmHashString64("/go"),
-                                      0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+                                       0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE(0, go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     dmGameObject::PropertyOptions options;
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, dmHashString64("text"), options,
-                                                                        dmGameObject::PropertyVar("AA\nAA")));
+                                                                          dmGameObject::PropertyVar("AA\nAA")));
     HTextLayout straight = PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_NE((HTextLayout)0, straight);
     ASSERT_EQ(2u, TextLayoutGetLineCount(straight));
@@ -2855,7 +2855,7 @@ TEST_F(LabelComponentTest, LabelArcProperties)
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, label_id, property, options, desc));
         ASSERT_EQ(defaults[i], desc.m_Variant.m_Number);
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, label_id, property, options,
-                                                                            dmGameObject::PropertyVar(authored[i])));
+                                                                              dmGameObject::PropertyVar(authored[i])));
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, label_id, property, options, desc));
         ASSERT_EQ(authored[i], desc.m_Variant.m_Number);
     }
@@ -3089,7 +3089,9 @@ TEST_F(LabelComponentTest, LabelCurvedLayoutObjectPositions)
     for (uint32_t mode = 0; mode < 2; ++mode)
     {
         if (mode)
+        {
             dmGameSystem::CompLabelSetCurve(component, curve);
+        }
         ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&url, &url, dmHashString64("sample"), 0, 0, 0, 0, 0, 0));
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -3134,7 +3136,9 @@ TEST_F(GuiTest, GuiCurvedLayoutObjectPositions)
     for (uint32_t mode = 0; mode < 2; ++mode)
     {
         if (mode)
+        {
             dmGui::SetNodeTextCurve(scene, node, curve);
+        }
         ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&url, &url, dmHashString64("sample"), 0, 0, 0, 0, 0, 0));
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));

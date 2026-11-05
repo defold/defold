@@ -308,9 +308,13 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     settings.m_Size = c.m_Size;
     settings.m_Width = rtl_wrapped ? 100 : geometry.m_LayoutWidth;
     if (resources.m_Curve)
+    {
         settings.m_Width = FontTextCurveGetLength(resources.m_Curve);
+    }
     else if (c.m_Mapping == 2)
+    {
         settings.m_Width = 240.0f * 6.283185307179586f;
+    }
     settings.m_LineBreak = rtl_wrapped || c.m_Mapping != 0;
     settings.m_Leading = 1;
     settings.m_BaseStyle = default_style;
@@ -351,9 +355,11 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     entry.m_Curve = resources.m_Curve;
     entry.m_ArcRadius = 240.0f;
     entry.m_ArcAngle = c.m_Mapping == 1 ? 120.0f : c.m_Mapping == 2 ? 360.0f :
-                                                                      0.0f;
+                       0.0f;
     if (c.m_Mapping)
+    {
         entry.m_Align = dmRender::TEXT_ALIGN_CENTER;
+    }
     entry.m_Leading = 1;
     entry.m_VAlign = dmRender::TEXT_VALIGN_TOP;
     entry.m_FaceColor = dmGraphics::PackRGBA(dmVMath::Vector4(1, 1, 1, c.m_FaceAlpha));

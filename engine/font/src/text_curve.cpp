@@ -75,16 +75,22 @@ static Vector3 Transport(const Vector3& up, const Vector3& from, const Vector3& 
 HFontTextCurve FontTextCurveCreate(const FontTextCurveKnot* knots, uint32_t count, bool closed, const Vector3& initial_up)
 {
     if (!knots || count < 2 || count > UINT32_MAX / 64 - 1 || !IsFinite(initial_up))
+    {
         return 0;
+    }
     const float up_component = Vectormath::Aos::maxElem(AbsPerElem(initial_up));
     if (up_component == 0.0f)
+    {
         return 0;
+    }
     const Vector3 up = initial_up / up_component;
     for (uint32_t i = 0; i < count; ++i)
     {
         if (!IsFinite(knots[i].m_Position) || !IsFinite(knots[i].m_InHandle) || !IsFinite(knots[i].m_OutHandle) ||
             !isfinite(knots[i].m_RollDegrees) || !isfinite(knots[i].m_Scale) || knots[i].m_Scale <= 0.0f)
+        {
             return 0;
+        }
     }
 
     const uint32_t steps = 64;
@@ -140,7 +146,9 @@ HFontTextCurve FontTextCurveCreate(const FontTextCurveKnot* knots, uint32_t coun
         const float        correction = atan2f(Dot(Cross(up, first.m_Up), first.m_Tangent), Dot(up, first.m_Up));
         const float        length = last.m_Distance;
         for (uint32_t i = 1; i < curve->m_Samples.Size(); ++i)
+        {
             curve->m_Samples[i].m_Up = Rotate(curve->m_Samples[i].m_Up, curve->m_Samples[i].m_Tangent, correction * curve->m_Samples[i].m_Distance / length);
+        }
     }
     for (uint32_t segment = 0; segment < segments; ++segment)
     {
@@ -168,23 +176,31 @@ HFontTextCurve FontTextCurveCreate(const FontTextCurveKnot* knots, uint32_t coun
     {
         const uint32_t last_bucket = (uint32_t)(curve->m_Samples[i].m_Distance * curve->m_DistanceToIndex);
         for (; bucket <= last_bucket; ++bucket)
+        {
             curve->m_DistanceIndex[bucket] = i;
+        }
     }
     for (; bucket <= sample_count; ++bucket)
+    {
         curve->m_DistanceIndex[bucket] = sample_count - 1;
+    }
     return curve;
 }
 
 void FontTextCurveRetain(HFontTextCurve curve)
 {
     if (curve)
+    {
         ++curve->m_References;
+    }
 }
 
 void FontTextCurveRelease(HFontTextCurve curve)
 {
     if (curve && --curve->m_References == 0)
+    {
         delete curve;
+    }
 }
 
 float FontTextCurveGetLength(HFontTextCurve curve)
@@ -206,7 +222,9 @@ static CurveSample SampleCurve(HFontTextCurve curve, float distance)
     {
         distance = fmodf(distance, length);
         if (distance < 0)
+        {
             distance += length;
+        }
     }
     if (!(distance > 0 && distance < length))
     {
@@ -219,14 +237,20 @@ static CurveSample SampleCurve(HFontTextCurve curve, float distance)
     uint32_t       low = curve->m_DistanceIndex[bucket];
     uint32_t       high = curve->m_DistanceIndex[bucket + 1];
     if (low > 0)
+    {
         --low;
+    }
     while (high - low > 1)
     {
         const uint32_t mid = (low + high) / 2;
         if (curve->m_Samples[mid].m_Distance < distance)
+        {
             low = mid;
+        }
         else
+        {
             high = mid;
+        }
     }
     const CurveSample& a = curve->m_Samples[low];
     const CurveSample& b = curve->m_Samples[high];

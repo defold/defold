@@ -164,7 +164,9 @@ bool FontGetLayoutVertexMetrics(const FontLayoutVertexConfig& config, FontLayout
     }
 
     if (HasCurvedText(config) && config.m_RenderDecorations)
+    {
         TextLayoutInitializeDecorationGeometry(config.m_Layout, true);
+    }
 
     uint32_t       glyph_quad_count = 0;
     uint32_t       outline_quad_count = 0;
@@ -1061,8 +1063,8 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
     const float          layout_y = OffsetLayoutY(config.m_VerticalAlign, config.m_Height, layout_height);
     FontTextArc arc;
     const bool use_arc = !config.m_Curve && FontPrepareTextArc(config.m_Layout, config.m_Width, config.m_Height,
-                                            config.m_Align, config.m_VerticalAlign, config.m_MonospacePadding,
-                                            config.m_ArcRadius, config.m_ArcAngle, &arc);
+                                                               config.m_Align, config.m_VerticalAlign, config.m_MonospacePadding,
+                                                               config.m_ArcRadius, config.m_ArcAngle, &arc);
     uint32_t             shadow_vertex_index = 0;
     uint32_t             outline_vertex_index = metrics.m_ShadowQuadCount * 6;
     uint32_t             face_vertex_index = (metrics.m_ShadowQuadCount + metrics.m_OutlineQuadCount) * 6;
@@ -1108,7 +1110,9 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
                     cluster_scale = Length(cluster_transform.getCol0().getXYZ());
                 }
                 else
+                {
                     FontGetTextArcTransform(&arc, pivot_x, line_y, (float*)&cluster_transform);
+                }
                 cluster_transform = config.m_Transform * cluster_transform;
             }
 
@@ -1318,7 +1322,9 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
                     layers.m_SdfSmoothing /= Length(decoration_transform.getCol0().getXYZ());
                 }
                 else
+                {
                     FontGetTextArcTransform(&arc, pivot_x, line_y, (float*)&decoration_transform);
+                }
                 decoration_transform = config.m_Transform * decoration_transform;
             }
             layers.m_Transform = &decoration_transform;

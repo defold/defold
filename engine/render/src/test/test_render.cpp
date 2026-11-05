@@ -4905,7 +4905,9 @@ TEST_F(VectorFontTest, ColorFollowsArcAndCurve)
         entry.m_Curve = mode == 2 ? curve : 0;
         Matrix4 frame = Matrix4::identity();
         if (entry.m_Curve)
+        {
             frame = FontTextCurveGetTransform(curve, pivot, baseline);
+        }
         else if (entry.m_ArcAngle)
         {
             FontTextArc arc;

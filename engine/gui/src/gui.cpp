@@ -2094,7 +2094,9 @@ namespace dmGui
                 float* text_params = (float*)&animated_node.m_Properties[PROPERTY_TEXT_PARAMS];
                 // Easing may overshoot, but the arc angle keeps its valid range.
                 if (anim->m_Value == text_params + 3)
+                {
                     *anim->m_Value = dmMath::Clamp(*anim->m_Value, 0.0f, 360.0f);
+                }
                 // Flag local transform as dirty for the node
                 scene->m_Nodes[anim->m_Node & 0xffff].m_Node.m_DirtyLocal = 1;
 
@@ -3579,7 +3581,9 @@ namespace dmGui
     Result SetNodeTextArcRadius(HScene scene, HNode node, float radius)
     {
         if (!isfinite(radius))
+        {
             return RESULT_INVAL_ERROR;
+        }
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].setZ(radius);
         n->m_Node.m_DirtyLocal = 1;
@@ -3594,7 +3598,9 @@ namespace dmGui
     Result SetNodeTextArcAngle(HScene scene, HNode node, float degrees)
     {
         if (!isfinite(degrees) || degrees < 0.0f || degrees > 360.0f)
+        {
             return RESULT_INVAL_ERROR;
+        }
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].setW(degrees);
         n->m_Node.m_DirtyLocal = 1;
@@ -4619,7 +4625,9 @@ namespace dmGui
     {
         const Node& text_node = GetNode(scene, node)->m_Node;
         if (text_node.m_NodeType == NODE_TYPE_TEXT && (text_node.m_TextCurve || text_node.m_Properties[PROPERTY_TEXT_PARAMS].getW() != 0.0f))
+        {
             return scene->m_PickNodeTextCallback && scene->m_PickNodeTextCallback(scene, node, x, y);
+        }
         Vector4 scale((float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Context->m_DefaultProjectWidth,
                 (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Context->m_DefaultProjectHeight, 1, 1);
         Matrix4 transform;

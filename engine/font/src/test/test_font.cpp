@@ -2263,7 +2263,9 @@ TEST(FontTextCurve, UnevenSegments)
     knots[2].m_Position = Vector3(0.001f, 0, 0);
     knots[3].m_Position = knots[4].m_Position = Vector3(100, 0, 0);
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(knots); ++i)
+    {
         knots[i].m_Scale = 1;
+    }
     HFontTextCurve curve = FontTextCurveCreate(knots, DM_ARRAY_SIZE(knots), false, Vector3(0, 1, 0));
     ASSERT_NE((HFontTextCurve)0, curve);
     const float distances[] = { 0, 0.0005f, 0.001f, 0.1f, 25, 50, 99.999f, 100 };
@@ -2330,7 +2332,9 @@ TEST_F(FontTest, CurveScaleSdfSmoothing)
         ASSERT_NE((HFontTextCurve)0, config.m_Curve);
         ASSERT_EQ(12u, FontCreateLayoutVertices(config, metrics, scaled, 12));
         for (uint32_t vertex = 0; vertex < 12; ++vertex)
+        {
             EXPECT_NEAR(normal[vertex].m_SdfParams[2] / scales[i], scaled[vertex].m_SdfParams[2], 0.0001f);
+        }
         const float flat_width = normal[1].m_Position[0] - normal[0].m_Position[0];
         const float curve_width = scaled[1].m_Position[0] - scaled[0].m_Position[0];
         EXPECT_NEAR(flat_width * scales[i], curve_width, 0.001f);
@@ -2395,14 +2399,16 @@ TEST_F(FontTest, MultilineCurveVertices)
     ASSERT_NE(0, memcmp(flat, curved, sizeof(curved)));
     ASSERT_NEAR(1.0f, Length(FontTextCurveGetTransform(curve, 20, 0).getCol1().getXYZ()), 0.001f);
     for (uint32_t line = 1; line < 3; ++line)
-    for (uint32_t vertex = 0; vertex < 12; ++vertex)
     {
-        const uint32_t other = line * 12 + vertex;
-        const Vector3 offset(curved[other].m_Position[0] - curved[vertex].m_Position[0],
-                             curved[other].m_Position[1] - curved[vertex].m_Position[1],
-                             curved[other].m_Position[2] - curved[vertex].m_Position[2]);
-        ASSERT_NEAR(fabsf(TextLayoutGetLines(layout)[line].m_Baseline - TextLayoutGetLines(layout)[0].m_Baseline), Length(offset), 0.001f);
-        ASSERT_EQ(0, memcmp(flat[other].m_UV, curved[other].m_UV, sizeof(FontGlyphVertex) - sizeof(flat[other].m_Position)));
+        for (uint32_t vertex = 0; vertex < 12; ++vertex)
+        {
+            const uint32_t other = line * 12 + vertex;
+            const Vector3 offset(curved[other].m_Position[0] - curved[vertex].m_Position[0],
+                                 curved[other].m_Position[1] - curved[vertex].m_Position[1],
+                                 curved[other].m_Position[2] - curved[vertex].m_Position[2]);
+            ASSERT_NEAR(fabsf(TextLayoutGetLines(layout)[line].m_Baseline - TextLayoutGetLines(layout)[0].m_Baseline), Length(offset), 0.001f);
+            ASSERT_EQ(0, memcmp(flat[other].m_UV, curved[other].m_UV, sizeof(FontGlyphVertex) - sizeof(flat[other].m_Position)));
+        }
     }
     config.m_Curve = 0;
     config.m_ArcAngle = 0;
@@ -2463,29 +2469,31 @@ TEST_F(FontTest, MultilineArcVertices)
     const float radii[] = { -200.0f, 0.0f, 200.0f };
     const float sweeps[] = { 30.0f, 90.0f, 180.0f, 360.0f };
     for (uint32_t r = 0; r < DM_ARRAY_SIZE(radii); ++r)
-    for (uint32_t s = 0; s < DM_ARRAY_SIZE(sweeps); ++s)
     {
-        config.m_ArcRadius = radii[r];
-        config.m_ArcAngle = sweeps[s];
-        ASSERT_EQ(24u, FontCreateLayoutVertices(config, metrics, curved, DM_ARRAY_SIZE(curved)));
-        const float span = sweeps[s] * 0.017453292519943295f;
-        for (uint32_t i = 0; i < 4; ++i)
+        for (uint32_t s = 0; s < DM_ARRAY_SIZE(sweeps); ++s)
         {
-            const TextGlyph& text_glyph = glyphs[lines[i / 2].m_Index + i % 2];
-            const float pivot = text_glyph.m_X + text_glyph.m_Width * 0.5f - TextLayoutGetLineOriginX(layout, i / 2);
-            const float baseline = config.m_Height - layout_height + lines[i / 2].m_Baseline;
-            const float angle = (pivot / config.m_Width - 0.5f) * span - 1.5707963267948966f;
-            const float line_radius = radii[r] + baseline - first_baseline;
-            const float rotation = -angle - 1.5707963267948966f;
-            for (uint32_t v = i * 6; v < (i + 1) * 6; ++v)
+            config.m_ArcRadius = radii[r];
+            config.m_ArcAngle = sweeps[s];
+            ASSERT_EQ(24u, FontCreateLayoutVertices(config, metrics, curved, DM_ARRAY_SIZE(curved)));
+            const float span = sweeps[s] * 0.017453292519943295f;
+            for (uint32_t i = 0; i < 4; ++i)
             {
-                const float x = flat[v].m_Position[0] - pivot;
-                const float y = flat[v].m_Position[1] - baseline;
-                ASSERT_NEAR(cosf(angle) * line_radius + cosf(rotation) * x - sinf(rotation) * y,
-                            curved[v].m_Position[0], 0.001f);
-                ASSERT_NEAR(-sinf(angle) * line_radius + sinf(rotation) * x + cosf(rotation) * y,
-                            curved[v].m_Position[1], 0.001f);
-                ASSERT_EQ(0, memcmp(flat[v].m_UV, curved[v].m_UV, sizeof(FontGlyphVertex) - sizeof(flat[v].m_Position)));
+                const TextGlyph& text_glyph = glyphs[lines[i / 2].m_Index + i % 2];
+                const float pivot = text_glyph.m_X + text_glyph.m_Width * 0.5f - TextLayoutGetLineOriginX(layout, i / 2);
+                const float baseline = config.m_Height - layout_height + lines[i / 2].m_Baseline;
+                const float angle = (pivot / config.m_Width - 0.5f) * span - 1.5707963267948966f;
+                const float line_radius = radii[r] + baseline - first_baseline;
+                const float rotation = -angle - 1.5707963267948966f;
+                for (uint32_t v = i * 6; v < (i + 1) * 6; ++v)
+                {
+                    const float x = flat[v].m_Position[0] - pivot;
+                    const float y = flat[v].m_Position[1] - baseline;
+                    ASSERT_NEAR(cosf(angle) * line_radius + cosf(rotation) * x - sinf(rotation) * y,
+                                curved[v].m_Position[0], 0.001f);
+                    ASSERT_NEAR(-sinf(angle) * line_radius + sinf(rotation) * x + cosf(rotation) * y,
+                                curved[v].m_Position[1], 0.001f);
+                    ASSERT_EQ(0, memcmp(flat[v].m_UV, curved[v].m_UV, sizeof(FontGlyphVertex) - sizeof(flat[v].m_Position)));
+                }
             }
         }
     }
@@ -4897,7 +4905,9 @@ TEST_F(FontTest, LayoutObjectCurvedPositions)
     const float radii[] = { 0, 200, -200, 10, 200, 200 };
     const float angles[] = { 0, 90, 90, 90, 360, 90 };
     for (uint32_t mode = 0; mode < DM_ARRAY_SIZE(angles); ++mode)
+    {
         for (uint32_t align = 0; align < 3; ++align)
+        {
             for (uint32_t valign = 0; valign < 3; ++valign)
             {
                 const float pivot_x = align * 0.5f;
@@ -4919,11 +4929,17 @@ TEST_F(FontTest, LayoutObjectCurvedPositions)
                     // The midpoint of the two left vertices of the bottom outline is
                     // the actual corner, independent of the one-unit debug stroke.
                     for (uint32_t axis = 0; axis < 3; ++axis)
+                    {
                         EXPECT_NEAR((vertices[i * 24].m_Position[axis] + vertices[i * 24 + 2].m_Position[axis]) * 0.5f, position.getElem(axis), 0.001f);
+                    }
                     if (mode == 5)
+                    {
                         EXPECT_NE(0.0f, position.getZ());
+                    }
                     else
+                    {
                         EXPECT_EQ(0.0f, position.getZ());
+                    }
                     if (mode == 0)
                     {
                         float x, y;
@@ -4933,6 +4949,8 @@ TEST_F(FontTest, LayoutObjectCurvedPositions)
                     }
                 }
             }
+        }
+    }
     FontTextCurveRelease(curve);
     TextLayoutRelease(layout);
 }

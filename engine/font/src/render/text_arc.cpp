@@ -23,7 +23,9 @@ float FontGetTextClusterPivot(const TextGlyph* glyphs, const TextLine* line, uin
 {
     uint32_t start = index;
     while (start > line->m_Index && glyphs[start - 1].m_Cluster == glyphs[index].m_Cluster)
+    {
         --start;
+    }
     uint32_t next = start + 1;
     float    minimum = glyphs[start].m_X;
     float    maximum = minimum + glyphs[start].m_Width;
@@ -34,7 +36,9 @@ float FontGetTextClusterPivot(const TextGlyph* glyphs, const TextLine* line, uin
         ++next;
     }
     if (end)
+    {
         *end = next;
+    }
     return line_x + (minimum + maximum) * 0.5f - first_x;
 }
 
@@ -42,7 +46,9 @@ bool FontPrepareTextArc(HTextLayout layout, float width, float height, uint32_t 
 {
     const uint32_t line_count = TextLayoutGetLineCount(layout);
     if (degrees == 0.0f || line_count == 0)
+    {
         return false;
+    }
 
     const TextLine*      lines = TextLayoutGetLines(layout);
     const TextParagraph* paragraphs = TextLayoutGetParagraphs(layout);
@@ -52,21 +58,25 @@ bool FontPrepareTextArc(HTextLayout layout, float width, float height, uint32_t 
     {
         uint32_t line_align = align;
         if (paragraphs[lines[i].m_ParagraphIndex].m_Direction == TEXT_DIRECTION_RTL && align != 1)
+        {
             line_align = 2 - align;
+        }
         const float factor = line_align * 0.5f;
         const float x = factor * (width - lines[i].m_Width) - padding * 0.5f;
         min_x = dmMath::Min(min_x, x);
         max_x = dmMath::Max(max_x, x + lines[i].m_Width);
     }
     if (max_x <= min_x)
+    {
         return false;
+    }
 
     float layout_width;
     float layout_height;
     TextLayoutGetBounds(layout, &layout_width, &layout_height);
     (void)layout_width;
     const float y = valign == 1 ? (height - layout_height) * 0.5f : valign == 2 ? 0.0f :
-                                                                                  height - layout_height;
+                    height - layout_height;
     const float radians = 0.017453292519943295f;
     arc->m_Radius = radius;
     arc->m_MinX = min_x;
@@ -84,7 +94,7 @@ void FontGetTextArcFrame(float angle, float radius, float transform[16])
         { cosine, -sine, 0.0f, 0.0f },
         { sine, cosine, 0.0f, 0.0f },
         { 0.0f, 0.0f, 1.0f, 0.0f },
-        { sine * radius, cosine * radius, 0.0f, 1.0f }
+        { sine* radius, cosine* radius, 0.0f, 1.0f }
     };
     memcpy(transform, matrix, sizeof(matrix));
 }

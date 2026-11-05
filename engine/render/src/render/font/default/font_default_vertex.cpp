@@ -359,9 +359,13 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
             {
                 const float pivot = FontGetTextClusterPivot(glyphs, &line, gi, line_start_x, first_x, &cluster_end);
                 if (te.m_Curve)
+                {
                     cluster_transform = FontTextCurveGetTransform(te.m_Curve, pivot, layout_y + lines[0].m_Baseline);
+                }
                 else
+                {
                     FontGetTextArcTransform(&arc, pivot, line_start_y, (float*)&cluster_transform);
+                }
                 cluster_transform = te.m_Transform * cluster_transform;
             }
             if ((g->m_Flags & TEXT_GLYPH_FLAG_OBJECT) || dmUtf8::IsWhiteSpace(g->m_Codepoint))

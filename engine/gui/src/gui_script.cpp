@@ -1307,7 +1307,9 @@ namespace dmGui
                 Result result = pd->m_Component == 2 ? SetNodeTextArcRadius(scene, hnode, new_element_value)
                                                      : SetNodeTextArcAngle(scene, hnode, new_element_value);
                 if (result != RESULT_OK)
+                {
                     return DM_LUA_ERROR("Invalid value for '%s'", dmHashReverseSafe64(property_hash));
+                }
                 return 0;
             }
             current_value.setElem(pd->m_Component, new_element_value);
@@ -1585,7 +1587,9 @@ namespace dmGui
         {
             const float value = to.getElem(arc_property->m_Component);
             if (!isfinite(value) || (arc_property->m_Component == 3 && (value < 0.0f || value > 360.0f)))
+            {
                 return DM_LUA_ERROR("Invalid animation target for '%s'", dmHashReverseSafe64(property_hash));
+            }
         }
 
         dmEasing::Curve curve;
@@ -3534,7 +3538,9 @@ namespace dmGui
         HNode node;
         InternalNode* internal = LuaCheckNodeInternal(L, 1, &node);
         if (internal->m_Node.m_NodeType != NODE_TYPE_TEXT)
+        {
             return DM_LUA_ERROR("gui.set_curve requires a text node");
+        }
         HFontTextCurve curve = dmScript::CheckTextCurve(L, 2, 3);
         SetNodeTextCurve(GuiScriptInstance_Check(L), node, curve);
         FontTextCurveRelease(curve);

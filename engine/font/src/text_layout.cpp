@@ -191,7 +191,9 @@ void TextLayoutInitializeDecorationGeometry(HTextLayout layout, bool force_glyph
             }
         }
         if (!needs_geometry)
+        {
             return;
+        }
     }
 
     layout->m_DecorationGeometryOffsets.EnsureSize(decoration_count);
@@ -350,9 +352,13 @@ static uint8_t GetObjectPosition(HTextLayout layout, const TextLayoutObject* obj
             continue;
         }
         if (object_line)
+        {
             *object_line = line_index;
+        }
         if (object_glyph)
+        {
             *object_glyph = UINT32_MAX;
+        }
 
         const bool right_to_left = paragraph.m_Direction == TEXT_DIRECTION_RTL;
         float line_x = paragraph_x + (right_to_left ? paragraph_width - line.m_Width : 0.0f);
@@ -408,7 +414,9 @@ static uint8_t GetObjectPosition(HTextLayout layout, const TextLayoutObject* obj
                 nearest_cluster = glyph.m_Cluster;
                 found_glyph = true;
                 if (object_glyph)
+                {
                     *object_glyph = i;
+                }
             }
         }
 
@@ -439,14 +447,20 @@ uint8_t TextLayoutGetObjectPositionLocal(HTextLayout layout, const TextLayoutObj
 uint8_t TextLayoutGetObjectPositionLocal(HTextLayout layout, const TextLayoutObject* object, float width, float pivot_x, float pivot_y, float arc_radius, float arc_angle, HFontTextCurve curve, dmVMath::Point3* position)
 {
     if (!position)
+    {
         return 0;
+    }
     float    x, y;
     uint32_t line_index, glyph_index;
     if (!GetObjectPosition(layout, object, 0.0f, 0.0f, width, true, pivot_x, pivot_y, &x, &y, &line_index, &glyph_index))
+    {
         return 0;
+    }
     *position = dmVMath::Point3(x, y, 0.0f);
     if (!curve && arc_angle == 0.0f)
+    {
         return 1;
+    }
 
     // Curved rendering anchors the path at the node origin, without the
     // textbox's horizontal pivot translation. Alignment still positions lines.
@@ -461,12 +475,16 @@ uint8_t TextLayoutGetObjectPositionLocal(HTextLayout layout, const TextLayoutObj
     const float      layout_y = -pivot_y * layout->m_Height;
     dmVMath::Matrix4 transform = dmVMath::Matrix4::identity();
     if (curve)
+    {
         transform = FontTextCurveGetTransform(curve, pivot, layout_y + layout->m_Lines[0].m_Baseline);
+    }
     else
     {
         FontTextArc arc;
         if (FontPrepareTextArc(layout, width, 0.0f, (uint32_t)(pivot_x * 2), (uint32_t)((1.0f - pivot_y) * 2), layout->m_MonospacePadding, arc_radius, arc_angle, &arc))
+        {
             FontGetTextArcTransform(&arc, pivot, layout_y + line.m_Baseline, (float*)&transform);
+        }
     }
     *position = dmVMath::Point3((transform * dmVMath::Point3(x, y, 0.0f)).getXYZ());
     return 1;
@@ -1442,7 +1460,9 @@ static bool HitTestProjectedBounds(const TextLayoutObjectBounds& bounds, const d
     const dmVMath::Vector4 up = transform.getCol1() * (bounds.m_MaxY - bounds.m_MinY);
     const float            determinant = right.getX() * up.getY() - right.getY() * up.getX();
     if (determinant == 0.0f)
+    {
         return false;
+    }
     const float dx = x - origin.getX();
     const float dy = y - origin.getY();
     const float u = (dx * up.getY() - dy * up.getX()) / determinant;
@@ -1466,7 +1486,9 @@ static uint32_t HitTestLayoutClusters(HTextLayout layout, const TextLayoutHitTes
     {
         const TextLine& line = lines[line_index];
         if (line.m_Length == 0)
+        {
             continue;
+        }
         const float    first_x = TextLayoutGetLineOriginX(layout, line_index);
         const float    first_y = glyphs[line.m_Index].m_Y;
         const uint32_t align = TextLayoutResolveAlign(params.m_Align, paragraphs[line.m_ParagraphIndex].m_Direction);
@@ -1486,7 +1508,9 @@ static uint32_t HitTestLayoutClusters(HTextLayout layout, const TextLayoutHitTes
             }
             dmVMath::Matrix4 cluster_transform = transform;
             if (params.m_Curve)
+            {
                 cluster_transform = transform * FontTextCurveGetTransform(params.m_Curve, pivot, layout_y + lines[0].m_Baseline);
+            }
             else if (use_arc)
             {
                 FontGetTextArcTransform(&arc, pivot, baseline, (float*)&cluster_transform);
@@ -1495,7 +1519,9 @@ static uint32_t HitTestLayoutClusters(HTextLayout layout, const TextLayoutHitTes
             if (HitTestProjectedBounds(bounds, cluster_transform, params.m_X, params.m_Y))
             {
                 if (!objects_only)
+                {
                     return start;
+                }
                 const uint32_t cluster = glyphs[start].m_Cluster;
                 for (uint32_t i = layout->m_Objects.Size(); i-- > 0;)
                 {
@@ -1517,7 +1543,9 @@ static uint32_t HitTestLayoutClusters(HTextLayout layout, const TextLayoutHitTes
 bool TextLayoutHitTestText(HTextLayout layout, const TextLayoutHitTestParams& params)
 {
     if (!layout)
+    {
         return false;
+    }
     TextLayoutRefreshObjectStyles(layout);
     return HitTestLayoutClusters(layout, params, false) != UINT32_MAX;
 }
@@ -1531,7 +1559,9 @@ uint32_t TextLayoutHitTestObject(HTextLayout layout, const TextLayoutHitTestPara
 
     TextLayoutRefreshObjectStyles(layout);
     if (params.m_Curve || params.m_ArcAngle != 0.0f)
+    {
         return HitTestLayoutClusters(layout, params, true);
+    }
     TextLayoutUpdateObjectBounds(layout, params);
 
     for (uint32_t i = layout->m_Objects.Size(); i-- > 0;)

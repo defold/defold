@@ -421,8 +421,8 @@ namespace dmRender
             te.m_FrustumCullingRadiusSq = radius * radius * (LengthSqr(te.m_Transform.getCol0()) + LengthSqr(te.m_Transform.getCol1()) + LengthSqr(te.m_Transform.getCol2()));
         }
         else if (text_layout && FontPrepareTextArc(text_layout, te.m_Width, te.m_Height, te.m_Align, te.m_VAlign,
-                                              font_map->m_IsMonospaced ? font_map->m_Padding : 0.0f,
-                                              te.m_ArcRadius, te.m_ArcAngle, &arc))
+                                                   font_map->m_IsMonospaced ? font_map->m_Padding : 0.0f,
+                                                   te.m_ArcRadius, te.m_ArcAngle, &arc))
         {
             // Include the circle, baseline offsets and glyph extents so curved
             // text cannot disappear at the straight-text bounds.

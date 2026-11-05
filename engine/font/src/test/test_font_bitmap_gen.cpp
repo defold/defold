@@ -605,7 +605,9 @@ static void TestFontAlignmentImage(const FontImageCase& c)
 HFontTextCurve CreateFontImageCurve(uint32_t mapping)
 {
     if (mapping < 3)
+    {
         return 0;
+    }
     FontTextCurveKnot knots[4] = {};
     const float       heights[] = { 0, 20, -20, 0 };
     for (uint32_t i = 0; i < 4; ++i)
@@ -687,7 +689,9 @@ static void TestFontImage(const FontImageCase& c)
     FontImageCaptureGeometry geometry = arabic ? g_Capture_arabic : paragraph ? g_Capture_english : g_Capture_single_line;
     HFontTextCurve           curve = CreateFontImageCurve(c.m_Mapping);
     if (c.m_Mapping)
+    {
         geometry = c.m_Mapping < 3 ? g_Capture_arc : g_Capture_path;
+    }
     if (strstr(c.m_Name, "radial_block_ellipse"))
     {
         geometry = g_Capture_radial_block_ellipse;
@@ -702,9 +706,13 @@ static void TestFontImage(const FontImageCase& c)
     }
     settings.m_Width = geometry.m_LayoutWidth;
     if (curve)
+    {
         settings.m_Width = FontTextCurveGetLength(curve);
+    }
     else if (c.m_Mapping == 2)
+    {
         settings.m_Width = 240.0f * 6.283185307179586f;
+    }
     settings.m_Leading = 1;
     settings.m_LineBreak = paragraph || c.m_Mapping != 0;
     settings.m_UseBaseStyle = 1;
@@ -798,7 +806,9 @@ static void TestFontImage(const FontImageCase& c)
     }
     // Curved rich-text captures sample a reserved opaque texel for decorations.
     if (c.m_Mapping)
+    {
         memset(atlas.Begin(), 255, 4);
+    }
     FontLayoutVertexConfig config = {};
     config.m_Layout = layout;
     config.m_ResolveGlyph = ResolveImageGlyph;
@@ -848,9 +858,11 @@ static void TestFontImage(const FontImageCase& c)
     config.m_DecorationV = 0.5f / atlas_height;
     config.m_ArcRadius = 240.0f;
     config.m_ArcAngle = c.m_Mapping == 1 ? 120.0f : c.m_Mapping == 2 ? 360.0f :
-                                                                       0.0f;
+                        0.0f;
     if (c.m_Mapping)
+    {
         config.m_Align = 1;
+    }
     FontLayoutVertexMetrics metrics;
     ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
     ASSERT_GT(metrics.m_VertexCount, 0u);

@@ -959,7 +959,9 @@ namespace dmGameSystem
                 dmGui::SetNodeTextTracking(scene, n, node_desc->m_TextTracking);
                 if (dmGui::SetNodeTextArcRadius(scene, n, node_desc->m_ArcRadius) != dmGui::RESULT_OK ||
                     dmGui::SetNodeTextArcAngle(scene, n, node_desc->m_ArcAngle) != dmGui::RESULT_OK)
+                {
                     return false;
+                }
             break;
 
             case dmGuiDDF::NodeDesc::TYPE_PIE:
@@ -1850,7 +1852,9 @@ namespace dmGameSystem
         FontResource*      font_resource = (FontResource*)dmGui::GetNodeFont(scene, node);
         dmRender::HFontMap font_map = font_resource ? ResFontGetHandle(font_resource) : 0;
         if (!font_map)
+        {
             return 0;
+        }
         const Vector4 size = dmGui::GetNodeTextSize(scene, node);
         params->m_Width = size.getX();
         params->m_Height = size.getY();
@@ -1875,7 +1879,9 @@ namespace dmGameSystem
         {
             Point3 local;
             if (!dmGui::ScreenToNodeRenderPosition(scene, node, x, y, &local))
+            {
                 return 0;
+            }
             params->m_X = local.getX();
             params->m_Y = local.getY();
         }

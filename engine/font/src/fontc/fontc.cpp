@@ -899,7 +899,9 @@ static float GetLayoutWidth(FontcContext* session, bool line_break, float width)
 {
     const FontcProperties& properties = session->m_Properties;
     if (properties.m_ArcAngle == 0.0f)
+    {
         return width;
+    }
     return line_break ? fabsf(properties.m_ArcRadius) * properties.m_ArcAngle * 0.017453292519943295f : 0.0f;
 }
 
@@ -2174,7 +2176,9 @@ static bool ResolveLayoutGlyphMetrics(void* context, const TextGlyph& text_glyph
         glyph->m_Bitmap.m_Width = (uint16_t)glyph->m_Width;
     }
     if (result != FONT_RESULT_OK || glyph->m_Bitmap.m_Width == 0 || glyph->m_Height <= 0.0f)
+    {
         return false;
+    }
 
     output->m_Glyph = glyph;
     output->m_CellX = 0;
@@ -2215,7 +2219,9 @@ static void ExpandTextArcBox(const FontGlyphVertex* quad, float* box, float* rad
         negative |= cross < 0.0f;
     }
     if (!positive || !negative)
+    {
         box[0] = 0.0f;
+    }
 }
 
 static bool GetLayoutVertexBounds(HFontRenderer renderer, FontLayoutVertexConfig config, const FontTextArc& arc, float* bounds, float* box)
@@ -2226,13 +2232,19 @@ static bool GetLayoutVertexBounds(HFontRenderer renderer, FontLayoutVertexConfig
     config.m_ResolveGlyphContext = &context;
     FontLayoutVertexMetrics metrics;
     if (!FontGetLayoutVertexMetrics(config, &metrics))
+    {
         return false;
+    }
     if (metrics.m_VertexCount == 0)
+    {
         return true;
+    }
 
     FontGlyphVertex* vertices = (FontGlyphVertex*)malloc(metrics.m_VertexBufferSize);
     if (!vertices)
+    {
         return false;
+    }
     const uint32_t count = FontCreateLayoutVertices(config, metrics, vertices, metrics.m_VertexCount);
     box[0] = FLT_MAX;
     box[1] = 0.0f;
@@ -2247,7 +2259,9 @@ static bool GetLayoutVertexBounds(HFontRenderer renderer, FontLayoutVertexConfig
             vertices[i].m_Position[1] == vertices[i + 1].m_Position[1] &&
             vertices[i].m_Position[0] == vertices[i + 2].m_Position[0] &&
             vertices[i].m_Position[1] == vertices[i + 2].m_Position[1])
+        {
             continue;
+        }
         ExpandTextArcBox(vertices + i, box, radial_bounds);
         for (uint32_t j = i; j < i + 6; ++j)
         {
@@ -2261,7 +2275,9 @@ static bool GetLayoutVertexBounds(HFontRenderer renderer, FontLayoutVertexConfig
         }
     }
     if (!has_bounds)
+    {
         memset(box, 0, sizeof(float) * 4);
+    }
     else if (radial_bounds[0] < 0.0f || box[0] == 0.0f)
     {
         // Continue the inner edge across the center with a signed radius.
@@ -2301,22 +2317,32 @@ static bool CreateArcGuide(const FontTextArc& arc, HTextLayout layout, const flo
     const uint32_t outline_count = segments * 4 + (end_edges ? 4 : 0);
     const uint32_t line_count = TextLayoutGetLineCount(layout);
     if (line_count > (UINT32_MAX - outline_count - 4) / (segments * 2))
+    {
         return false;
+    }
     const uint32_t vertex_count = outline_count + line_count * segments * 2 + 4;
     const uint64_t float_count = (uint64_t)vertex_count * 3;
     if (float_count > SIZE_MAX / sizeof(float))
+    {
         return false;
+    }
     float* vertices = (float*)malloc((size_t)float_count * sizeof(float));
     if (!vertices)
+    {
         return false;
+    }
     output->m_Vertices = vertices;
     output->m_VertexCount = vertex_count;
     output->m_OutlineVertexCount = outline_count;
     if (end_edges)
     {
         for (uint32_t end = 0; end < 2; ++end)
+        {
             for (uint32_t edge = 0; edge < 2; ++edge)
+            {
                 WriteArcGuideVertex(&vertices, GetArcGuidePoint(start + span * end, box[edge]), output->m_Bounds);
+            }
+        }
     }
     Vector3 inner = GetArcGuidePoint(start, box[0]);
     Vector3 outer = GetArcGuidePoint(start, box[1]);
@@ -2355,11 +2381,15 @@ static bool CreateArcGuide(const FontTextArc& arc, HTextLayout layout, const flo
 FontRendererResult FontcGetArc(HFontRenderer renderer, FontcArc* output)
 {
     if (!renderer || !renderer->m_HasProperties || !renderer->m_HasText || !output)
+    {
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    }
     memset(output, 0, sizeof(*output));
     HTextLayout layout = 0;
     if (GetRetainedLayout(renderer, &layout) != TEXT_RESULT_OK)
+    {
         return FONT_RENDERER_RESULT_TEXT_ERROR;
+    }
     FontLayoutVertexConfig config;
     GetLayoutVertexConfig(renderer, layout, Matrix4::identity(), &config);
     FontTextArc arc;

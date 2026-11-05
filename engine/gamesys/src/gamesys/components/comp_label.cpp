@@ -230,9 +230,13 @@ namespace dmGameSystem
     static float GetTextLayoutWidth(const LabelComponent* component)
     {
         if (component->m_Curve)
+        {
             return FontTextCurveGetLength(component->m_Curve);
+        }
         if (component->m_ArcAngle == 0.0f)
+        {
             return component->m_Size.getX();
+        }
         return component->m_LineBreak ? fabsf(component->m_ArcRadius) * fabsf(component->m_ArcAngle) * 0.017453292519943295f : 0.0f;
     }
 
@@ -1110,28 +1114,44 @@ namespace dmGameSystem
         else if (set_property == LABEL_PROP_ARC_RADIUS)
         {
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+            {
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            }
             const float value = (float)params.m_Value.m_Number;
             if (!isfinite(value))
+            {
                 return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+            }
             if (!component->m_Curve && component->m_LineBreak && component->m_ArcAngle != 0.0f)
+            {
                 InvalidateTextLayout(component);
+            }
             component->m_ArcRadius = value;
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (set_property == LABEL_PROP_ARC_ANGLE)
         {
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+            {
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            }
             float value = (float)params.m_Value.m_Number;
             if (!isfinite(value))
+            {
                 return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+            }
             if (params.m_Options && params.m_Options->m_IsAnimation)
+            {
                 value = dmMath::Clamp(value, 0.0f, 360.0f);
+            }
             else if (value < 0.0f || value > 360.0f)
+            {
                 return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+            }
             if (!component->m_Curve && component->m_LineBreak && value != component->m_ArcAngle)
+            {
                 InvalidateTextLayout(component);
+            }
             component->m_ArcAngle = value;
             return dmGameObject::PROPERTY_RESULT_OK;
         }
