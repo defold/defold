@@ -45,6 +45,7 @@ namespace dmPhysics
         uint32_t                 m_Begin;
         uint32_t                 m_End;
         bool                     m_ContactPoints;
+        bool                     m_UseContactEvents;
         dmArray<b2ContactData>   m_Scratch;
         dmArray<PreparedContact> m_Contacts;
         dmArray<ContactPoint>    m_Points;
@@ -83,6 +84,8 @@ namespace dmPhysics
     , m_GetWorldTransformCallback(params.m_GetWorldTransformCallback)
     , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
     , m_AllowDynamicTransforms(context->m_AllowDynamicTransforms)
+    , m_ExternalBox2DAccess(0)
+    , m_ContactEventsInitialized(0)
     {
         m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
 
@@ -306,12 +309,84 @@ namespace dmPhysics
 
     void* GetWorldContext2D(HWorld2D world)
     {
+        // Raw Box2D callers can disable events or move sleeping bodies without generating events.
+        world->m_ExternalBox2DAccess = 1;
         return (void*)&world->m_WorldId;
     }
 
     void* GetCollisionObjectContext2D(HCollisionObject2D collision_object)
     {
+        ((Body*)collision_object)->m_World->m_ExternalBox2DAccess = 1;
         return (void*) collision_object;
+    }
+
+    static uint64_t GetContactKey(b2ContactId contact_id)
+    {
+        uint32_t values[3];
+        b2StoreContactId(contact_id, values);
+        // All contacts in this table belong to the same world.
+        return ((uint64_t)values[0] << 32) | values[2];
+    }
+
+    static void AddTouchingContact(World2D* world, b2ContactId contact_id)
+    {
+        if (world->m_TouchingContacts.Full())
+        {
+            uint32_t capacity = dmMath::Max(64U, world->m_TouchingContacts.Capacity() * 2U);
+            world->m_TouchingContacts.SetCapacity(capacity);
+            world->m_TouchingContactIndices.SetCapacity(capacity * 2U, capacity);
+        }
+        world->m_TouchingContactIndices.Put(GetContactKey(contact_id), world->m_TouchingContacts.Size());
+        world->m_TouchingContacts.Push(contact_id);
+    }
+
+    static dmArray<b2ContactData>& GetContactsBuffer(HWorld2D world, b2BodyId id);
+
+    static void UpdateContactEvents(World2D* world)
+    {
+        if (!world->m_ContactEventsInitialized)
+        {
+            // A newly enabled listener also needs contacts that began while no listener was active.
+            for (uint32_t i = 0; i < world->m_Bodies.Size(); ++i)
+            {
+                b2BodyId body_id = world->m_Bodies[i]->m_BodyId;
+                dmArray<b2ContactData>& contacts = GetContactsBuffer(world, body_id);
+                for (uint32_t j = 0; j < contacts.Size(); ++j)
+                {
+                    if (B2_ID_EQUALS(body_id, b2Shape_GetBody(contacts[j].shapeIdA)))
+                    {
+                        AddTouchingContact(world, contacts[j].contactId);
+                    }
+                }
+            }
+            world->m_ContactEventsInitialized = 1;
+            return;
+        }
+        b2ContactEvents events = b2World_GetContactEvents(world->m_WorldId);
+        for (int i = 0; i < events.endCount; ++i)
+        {
+            uint64_t key = GetContactKey(events.endEvents[i].contactId);
+            uint32_t* index = world->m_TouchingContactIndices.Get(key);
+            if (index)
+            {
+                uint32_t removed_index = *index;
+                world->m_TouchingContactIndices.Erase(key);
+                world->m_TouchingContacts.EraseSwap(removed_index);
+                if (removed_index < world->m_TouchingContacts.Size())
+                {
+                    world->m_TouchingContactIndices.Put(GetContactKey(world->m_TouchingContacts[removed_index]), removed_index);
+                }
+            }
+        }
+        for (int i = 0; i < events.beginCount; ++i)
+        {
+            b2ContactId contact_id = events.beginEvents[i].contactId;
+            if (!b2Contact_IsValid(contact_id))
+            {
+                continue;
+            }
+            AddTouchingContact(world, contact_id);
+        }
     }
 
     static dmArray<b2ContactData>& GetContactsBuffer(HWorld2D world, b2BodyId id)
@@ -655,13 +730,79 @@ namespace dmPhysics
         }
     }
 
+    static void PrepareContact(ContactChunk* chunk, const b2ContactData& contact)
+    {
+        World2D* world = chunk->m_World;
+        const float inv_scale = world->m_Context->m_InvScale;
+        float max_impulse = 0.0f;
+        for (int k = 0; k < contact.manifold.pointCount; ++k)
+        {
+            max_impulse = dmMath::Max(max_impulse, contact.manifold.points[k].normalImpulse);
+        }
+        if (max_impulse < world->m_Context->m_ContactImpulseLimit)
+        {
+            return;
+        }
+        PreparedContact prepared;
+        prepared.m_UserDataA = b2Shape_GetUserData(contact.shapeIdA);
+        prepared.m_UserDataB = b2Shape_GetUserData(contact.shapeIdB);
+        prepared.m_GroupA = b2Shape_GetFilter(contact.shapeIdA).categoryBits;
+        prepared.m_GroupB = b2Shape_GetFilter(contact.shapeIdB).categoryBits;
+        prepared.m_PointBegin = chunk->m_Points.Size();
+        prepared.m_PointCount = 0;
+        if (chunk->m_ContactPoints)
+        {
+            b2BodyId bodyIdA = b2Shape_GetBody(contact.shapeIdA);
+            b2BodyId bodyIdB = b2Shape_GetBody(contact.shapeIdB);
+            b2Vec2 vel_a = b2Body_GetLinearVelocity(bodyIdA);
+            b2Vec2 vel_b = b2Body_GetLinearVelocity(bodyIdB);
+            b2Vec2 rv = b2Sub(vel_b, vel_a);
+            ContactPoint cp;
+            FromB2(contact.manifold.normal, cp.m_Normal, 1.0f);
+            FromB2(rv, cp.m_RelativeVelocity, inv_scale);
+            for (int k = 0; k < contact.manifold.pointCount; ++k)
+            {
+                const b2ManifoldPoint& point = contact.manifold.points[k];
+                b2Pos position = b2OffsetPos(b2Body_GetWorldCenter(bodyIdA), point.anchorA);
+                FromB2(position, cp.m_PositionA, inv_scale);
+                cp.m_PositionB = cp.m_PositionA;
+                cp.m_UserDataA = b2Body_GetUserData(bodyIdA);
+                cp.m_UserDataB = b2Body_GetUserData(bodyIdB);
+                cp.m_Distance = -point.separation * inv_scale;
+                cp.m_AppliedImpulse = point.normalImpulse * inv_scale;
+                cp.m_MassA = b2Body_GetMass(bodyIdA);
+                cp.m_MassB = b2Body_GetMass(bodyIdB);
+                cp.m_GroupA = prepared.m_GroupA;
+                cp.m_GroupB = prepared.m_GroupB;
+                if (chunk->m_Points.Full())
+                {
+                    chunk->m_Points.SetCapacity(dmMath::Max(64U, chunk->m_Points.Capacity() * 2U));
+                }
+                chunk->m_Points.Push(cp);
+                ++prepared.m_PointCount;
+            }
+        }
+        if (chunk->m_Contacts.Full())
+        {
+            chunk->m_Contacts.SetCapacity(dmMath::Max(64U, chunk->m_Contacts.Capacity() * 2U));
+        }
+        chunk->m_Contacts.Push(prepared);
+    }
+
     static void CollectContactChunk(void* user_data)
     {
         ContactChunk* chunk = (ContactChunk*)user_data;
         World2D* world = chunk->m_World;
-        const float inv_scale = world->m_Context->m_InvScale;
         chunk->m_Contacts.SetSize(0);
         chunk->m_Points.SetSize(0);
+        if (chunk->m_UseContactEvents)
+        {
+            for (uint32_t i = chunk->m_Begin; i < chunk->m_End; ++i)
+            {
+                PrepareContact(chunk, b2Contact_GetData(world->m_TouchingContacts[i]));
+            }
+            return;
+        }
         for (uint32_t i = chunk->m_Begin; i < chunk->m_End; ++i)
         {
             b2BodyId body_id = world->m_Bodies[i]->m_BodyId;
@@ -685,66 +826,17 @@ namespace dmPhysics
                 {
                     continue;
                 }
-                float max_impulse = 0.0f;
-                for (int k = 0; k < contact.manifold.pointCount; ++k)
-                {
-                    max_impulse = dmMath::Max(max_impulse, contact.manifold.points[k].normalImpulse);
-                }
-                if (max_impulse < world->m_Context->m_ContactImpulseLimit)
-                {
-                    continue;
-                }
-                PreparedContact prepared;
-                prepared.m_UserDataA = b2Shape_GetUserData(contact.shapeIdA);
-                prepared.m_UserDataB = b2Shape_GetUserData(contact.shapeIdB);
-                prepared.m_GroupA = b2Shape_GetFilter(contact.shapeIdA).categoryBits;
-                prepared.m_GroupB = b2Shape_GetFilter(contact.shapeIdB).categoryBits;
-                prepared.m_PointBegin = chunk->m_Points.Size();
-                prepared.m_PointCount = 0;
-                if (chunk->m_ContactPoints)
-                {
-                    b2BodyId bodyIdB = b2Shape_GetBody(contact.shapeIdB);
-                    b2Vec2 vel_a = b2Body_GetLinearVelocity(bodyIdA);
-                    b2Vec2 vel_b = b2Body_GetLinearVelocity(bodyIdB);
-                    b2Vec2 rv = b2Sub(vel_b, vel_a);
-                    ContactPoint cp;
-                    FromB2(contact.manifold.normal, cp.m_Normal, 1.0f);
-                    FromB2(rv, cp.m_RelativeVelocity, inv_scale);
-                    for (int k = 0; k < contact.manifold.pointCount; ++k)
-                    {
-                        b2ManifoldPoint& point = contact.manifold.points[k];
-                        b2Pos position = b2OffsetPos(b2Body_GetWorldCenter(bodyIdA), point.anchorA);
-                        FromB2(position, cp.m_PositionA, inv_scale);
-                        cp.m_PositionB = cp.m_PositionA;
-                        cp.m_UserDataA = b2Body_GetUserData(bodyIdA);
-                        cp.m_UserDataB = b2Body_GetUserData(bodyIdB);
-                        cp.m_Distance = -point.separation * inv_scale;
-                        cp.m_AppliedImpulse = point.normalImpulse * inv_scale;
-                        cp.m_MassA = b2Body_GetMass(bodyIdA);
-                        cp.m_MassB = b2Body_GetMass(bodyIdB);
-                        cp.m_GroupA = prepared.m_GroupA;
-                        cp.m_GroupB = prepared.m_GroupB;
-                        if (chunk->m_Points.Full())
-                        {
-                            chunk->m_Points.SetCapacity(dmMath::Max(64U, chunk->m_Points.Capacity() * 2U));
-                        }
-                        chunk->m_Points.Push(cp);
-                        ++prepared.m_PointCount;
-                    }
-                }
-                if (chunk->m_Contacts.Full())
-                {
-                    chunk->m_Contacts.SetCapacity(dmMath::Max(64U, chunk->m_Contacts.Capacity() * 2U));
-                }
-                chunk->m_Contacts.Push(prepared);
+                PrepareContact(chunk, contact);
             }
         }
     }
 
     // Only used when callbacks promise not to modify the world. Delivery remains on the calling thread.
-    static void ParallelPostSolve(World2D* world, const StepWorldContext& step_context, CollisionCallback& collision_callback, ContactPointCallback contact_point_callback)
+    static void PreparedPostSolve(World2D* world, const StepWorldContext& step_context, CollisionCallback& collision_callback, ContactPointCallback contact_point_callback)
     {
-        if (world->m_Bodies.Empty())
+        bool use_contact_events = !world->m_ExternalBox2DAccess;
+        uint32_t count = use_contact_events ? world->m_TouchingContacts.Size() : world->m_Bodies.Size();
+        if (count == 0)
         {
             return;
         }
@@ -752,19 +844,30 @@ namespace dmPhysics
         {
             world->m_ContactCollection = new ContactCollection;
         }
-        uint32_t chunk_count = dmMath::Min(world->m_Bodies.Size(), dmMath::Min(16U, (uint32_t)world->m_Context->m_WorkerCount * 2U));
+        uint32_t chunk_count = world->m_TaskContext ? dmMath::Min(count, dmMath::Min(16U, (uint32_t)world->m_Context->m_WorkerCount * 2U)) : 1U;
         void* tasks[16];
-        ResetBox2DTaskContext(world->m_TaskContext);
+        if (world->m_TaskContext)
+        {
+            ResetBox2DTaskContext(world->m_TaskContext);
+        }
         for (uint32_t i = 0; i < chunk_count; ++i)
         {
             ContactChunk* chunk = &world->m_ContactCollection->m_Chunks[i];
             chunk->m_World = world;
-            chunk->m_Begin = (uint32_t)((uint64_t)world->m_Bodies.Size() * i / chunk_count);
-            chunk->m_End = (uint32_t)((uint64_t)world->m_Bodies.Size() * (i + 1) / chunk_count);
+            chunk->m_Begin = (uint32_t)((uint64_t)count * i / chunk_count);
+            chunk->m_End = (uint32_t)((uint64_t)count * (i + 1) / chunk_count);
             chunk->m_ContactPoints = contact_point_callback != 0;
-            tasks[i] = EnqueueBox2DTask(CollectContactChunk, chunk, world->m_TaskContext);
+            chunk->m_UseContactEvents = use_contact_events;
+            if (world->m_TaskContext)
+            {
+                tasks[i] = EnqueueBox2DTask(CollectContactChunk, chunk, world->m_TaskContext);
+            }
+            else
+            {
+                CollectContactChunk(chunk);
+            }
         }
-        for (uint32_t i = 0; i < chunk_count; ++i)
+        for (uint32_t i = 0; world->m_TaskContext && i < chunk_count; ++i)
         {
             FinishBox2DTask(tasks[i], world->m_TaskContext);
         }
@@ -787,6 +890,14 @@ namespace dmPhysics
                 }
             }
         }
+    }
+
+    static void SetDynamicTransform(World2D* world, void* user_data, const b2WorldTransform& transform)
+    {
+        Point3 position;
+        FromB2(transform.p, position, world->m_Context->m_InvScale);
+        Quat rotation = Quat::rotationZ(b2Rot_GetAngle(transform.q));
+        (*world->m_SetWorldTransformCallback)(user_data, position, rotation);
     }
 
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
@@ -861,14 +972,25 @@ namespace dmPhysics
             }
             b2World_Step(world->m_WorldId, dt, step_context.m_Box2DSubStepCount);
 
+            if (!world->m_ExternalBox2DAccess && step_context.m_ContactCallbacksReadOnly && (collision_callback || contact_point_callback))
+            {
+                UpdateContactEvents(world);
+            }
+            else if (world->m_ContactEventsInitialized)
+            {
+                world->m_TouchingContacts.SetSize(0);
+                world->m_TouchingContactIndices.Clear();
+                world->m_ContactEventsInitialized = 0;
+            }
+
             // Post-solve must happen after stepping
             if (collision_callback || contact_point_callback)
             {
                 DM_PROFILE("PostSolveCallbacks");
 
-                if (world->m_TaskContext && step_context.m_ContactCallbacksReadOnly)
+                if (step_context.m_ContactCallbacksReadOnly)
                 {
-                    ParallelPostSolve(world, step_context, collision_callback, contact_point_callback);
+                    PreparedPostSolve(world, step_context, collision_callback, contact_point_callback);
                 }
                 else
                 {
@@ -876,23 +998,33 @@ namespace dmPhysics
                 }
             }
 
-            float inv_scale = world->m_Context->m_InvScale;
             // Update transforms of dynamic bodies
             if (world->m_SetWorldTransformCallback)
             {
-                for (int i=0; i < world->m_Bodies.Size(); ++i)
+                // Immediate callbacks can change transforms after stepping. Raw Box2D callers can
+                // also move sleeping bodies, which do not appear in the move events.
+                bool read_only = step_context.m_ContactCallbacksReadOnly || (!step_context.m_CollisionCallback && !step_context.m_ContactPointCallback);
+                if (!world->m_ExternalBox2DAccess && read_only && dt > 0.0f)
                 {
-                    Body* body = world->m_Bodies[i];
-                    b2BodyId body_id = body->m_BodyId;
-                    b2BodyType body_type = b2Body_GetType(body_id);
-
-                    if (body_type == b2_dynamicBody && b2Body_IsEnabled(body_id))
+                    b2BodyEvents events = b2World_GetBodyEvents(world->m_WorldId);
+                    for (int i = 0; i < events.moveCount; ++i)
                     {
-                        Point3 position;
-                        FromB2(b2Body_GetPosition(body_id), position, inv_scale);
-                        b2Rot rot = b2Body_GetRotation(body_id);
-                        Quat rotation = Quat::rotationZ(b2Rot_GetAngle(rot));
-                        (*world->m_SetWorldTransformCallback)(b2Body_GetUserData(body_id), position, rotation);
+                        const b2BodyMoveEvent& event = events.moveEvents[i];
+                        if (b2Body_GetType(event.bodyId) == b2_dynamicBody)
+                        {
+                            SetDynamicTransform(world, event.userData, event.transform);
+                        }
+                    }
+                }
+                else
+                {
+                    for (uint32_t i = 0; i < world->m_Bodies.Size(); ++i)
+                    {
+                        b2BodyId body_id = world->m_Bodies[i]->m_BodyId;
+                        if (b2Body_GetType(body_id) == b2_dynamicBody && b2Body_IsEnabled(body_id))
+                        {
+                            SetDynamicTransform(world, b2Body_GetUserData(body_id), b2Body_GetTransform(body_id));
+                        }
                     }
                 }
             }
@@ -1788,6 +1920,7 @@ namespace dmPhysics
 
         Body* body         = new Body();
         body->m_BodyId     = bodyId;
+        body->m_World      = world;
         body->m_Shapes     = (ShapeData**) malloc(shape_count * sizeof(ShapeData*));
         body->m_ShapeCount = shape_count;
 

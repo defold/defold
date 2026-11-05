@@ -77,6 +77,8 @@ struct Callbacks
     dmThread::TlsKey m_Key;
     uint32_t         m_Collisions;
     uint32_t         m_Contacts;
+    uint32_t         m_Transforms;
+    float            m_AppliedImpulse;
     bool             m_OnCallingThread;
     uint64_t         m_Hash;
     bool             m_StopCallbacks;
@@ -112,6 +114,7 @@ static void SetTransform(void* user_data, const dmVMath::Point3& position, const
     CheckCallingThread(body->m_Callbacks);
     body->m_Position = position;
     body->m_Rotation = rotation;
+    ++body->m_Callbacks->m_Transforms;
 }
 
 static void HashBytes(Callbacks* callbacks, const void* data, uint32_t size)
@@ -144,6 +147,7 @@ static bool Contact(const dmPhysics::ContactPoint& point, void* user_data)
     Callbacks* callbacks = (Callbacks*)user_data;
     CheckCallingThread(callbacks);
     ++callbacks->m_Contacts;
+    callbacks->m_AppliedImpulse += point.m_AppliedImpulse;
     const uint32_t ids[] = { ((Body*)point.m_UserDataA)->m_Id, point.m_GroupA, ((Body*)point.m_UserDataB)->m_Id, point.m_GroupB };
     HashBytes(callbacks, ids, sizeof(ids));
     const float values[] = { point.m_PositionA.getX(), point.m_PositionA.getY(), point.m_PositionA.getZ(), point.m_PositionB.getX(), point.m_PositionB.getY(), point.m_PositionB.getZ(), point.m_Normal.getX(), point.m_Normal.getY(), point.m_Normal.getZ(), point.m_RelativeVelocity.getX(), point.m_RelativeVelocity.getY(), point.m_RelativeVelocity.getZ(), point.m_Distance, point.m_AppliedImpulse, point.m_MassA, point.m_MassB };
@@ -172,6 +176,8 @@ static void CompareThreadedCallbacks(bool read_only, bool stop_callbacks, bool m
             callbacks[mode].m_Key = key;
             callbacks[mode].m_Collisions = 0;
             callbacks[mode].m_Contacts = 0;
+            callbacks[mode].m_Transforms = 0;
+            callbacks[mode].m_AppliedImpulse = 0.0f;
             callbacks[mode].m_OnCallingThread = true;
             dmThread::SetTlsValue(key, &callbacks[mode]);
             CreateContext(mode ? 3 : 0, &contexts[mode]);
@@ -364,6 +370,255 @@ TEST(Box2DThreading, ImmediateCallbacksCanChangeVelocity)
 {
     ASSERT_FALSE(dmPhysics::StepWorldContext().m_ContactCallbacksReadOnly);
     CompareThreadedCallbacks(false, false, true);
+}
+
+struct BufferedEventScene
+{
+    dmPhysics::HContext2D         m_Context;
+    dmPhysics::HWorld2D           m_World;
+    dmPhysics::HCollisionShape2D  m_Shape;
+    dmPhysics::HCollisionObject2D m_Objects[3];
+    Body                          m_Bodies[3];
+    Callbacks                     m_Callbacks;
+};
+
+static void CreateBufferedEventScene(BufferedEventScene* scene, int workers)
+{
+    memset(&scene->m_Callbacks, 0, sizeof(scene->m_Callbacks));
+    scene->m_Callbacks.m_Key = dmThread::AllocTls();
+    scene->m_Callbacks.m_OnCallingThread = true;
+    dmThread::SetTlsValue(scene->m_Callbacks.m_Key, &scene->m_Callbacks);
+    CreateContext(workers, &scene->m_Context);
+    dmPhysics::NewWorldParams params;
+    params.m_GetWorldTransformCallback = GetTransform;
+    params.m_SetWorldTransformCallback = SetTransform;
+    scene->m_World = dmPhysics::NewWorld2D(scene->m_Context, params);
+    dmPhysics::SetGravity2D(scene->m_World, dmVMath::Vector3(0.0f));
+    scene->m_Shape = dmPhysics::NewCircleShape2D(scene->m_Context, 0.5f);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        Body* body = &scene->m_Bodies[i];
+        body->m_Id = i;
+        body->m_Position = dmVMath::Point3(i == 1 ? 0.9f : i * 4.0f, 0.0f, 0.0f);
+        body->m_Rotation = dmVMath::Quat::identity();
+        body->m_Callbacks = &scene->m_Callbacks;
+        dmPhysics::CollisionObjectData data;
+        data.m_Type = i ? dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC : dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+        data.m_Mass = i ? 1.0f : 0.0f;
+        data.m_UserData = body;
+        scene->m_Objects[i] = dmPhysics::NewCollisionObject2D(scene->m_World, data, &scene->m_Shape, 1);
+        body->m_PhysicsBody = ((dmPhysics::Body*)scene->m_Objects[i])->m_BodyId;
+    }
+}
+
+static void DeleteBufferedEventScene(BufferedEventScene* scene)
+{
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        dmPhysics::DeleteCollisionObject2D(scene->m_World, scene->m_Objects[i]);
+    }
+    dmPhysics::DeleteCollisionShape2D(scene->m_Shape);
+    dmPhysics::DeleteWorld2D(scene->m_Context, scene->m_World);
+    dmPhysics::DeleteContext2D(scene->m_Context);
+    dmThread::FreeTls(scene->m_Callbacks.m_Key);
+}
+
+static void CheckBufferedContacts(BufferedEventScene* scene, dmPhysics::StepWorldContext& step)
+{
+    scene->m_Callbacks.m_Collisions = 0;
+    scene->m_Callbacks.m_Contacts = 0;
+    scene->m_Callbacks.m_AppliedImpulse = 0.0f;
+    dmPhysics::StepWorld2D(scene->m_World, step);
+    uint32_t collisions = 0;
+    uint32_t points = 0;
+    float applied_impulse = 0.0f;
+    dmArray<b2ContactData> contacts;
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        b2BodyId body_id = scene->m_Bodies[i].m_PhysicsBody;
+        int capacity = b2Body_GetContactCapacity(body_id);
+        contacts.SetCapacity(capacity);
+        int count = b2Body_GetContactData(body_id, contacts.Begin(), capacity);
+        contacts.SetSize(count);
+        for (int j = 0; j < count; ++j)
+        {
+            if (B2_ID_EQUALS(body_id, b2Shape_GetBody(contacts[j].shapeIdA)))
+            {
+                float max_impulse = 0.0f;
+                float impulse = 0.0f;
+                for (int k = 0; k < contacts[j].manifold.pointCount; ++k)
+                {
+                    float point_impulse = contacts[j].manifold.points[k].normalImpulse;
+                    max_impulse = dmMath::Max(max_impulse, point_impulse);
+                    impulse += point_impulse;
+                }
+                if (max_impulse < scene->m_Context->m_ContactImpulseLimit)
+                {
+                    continue;
+                }
+                ++collisions;
+                points += contacts[j].manifold.pointCount;
+                applied_impulse += impulse * scene->m_Context->m_InvScale;
+            }
+        }
+    }
+    ASSERT_EQ(step.m_CollisionCallback ? collisions : 0U, scene->m_Callbacks.m_Collisions);
+    ASSERT_EQ(step.m_ContactPointCallback ? points : 0U, scene->m_Callbacks.m_Contacts);
+    ASSERT_NEAR(step.m_ContactPointCallback ? applied_impulse : 0.0f, scene->m_Callbacks.m_AppliedImpulse, 0.00001f);
+}
+
+// Begin/end buffers must preserve ongoing contacts, late listeners, deletion and reused contact IDs.
+TEST(Box2DThreading, BufferedContactsSurviveWorldChanges)
+{
+    for (int workers = 0; workers <= 3; workers += 3)
+    {
+        BufferedEventScene scene;
+        CreateBufferedEventScene(&scene, workers);
+        dmPhysics::StepWorldContext step;
+        step.m_DT = 0.0f;
+        step.m_Box2DSubStepCount = 4;
+        step.m_CollisionUserData = &scene.m_Callbacks;
+        step.m_ContactPointUserData = &scene.m_Callbacks;
+        CheckBufferedContacts(&scene, step);
+        step.m_ContactCallbacksReadOnly = true;
+        for (int tick = 0; tick < 32; ++tick)
+        {
+            if (tick % 8 == 1 || tick % 8 == 2)
+            {
+                dmPhysics::SetEnabled2D(scene.m_World, scene.m_Objects[1], tick % 8 == 2);
+            }
+            else if (tick % 8 == 3)
+            {
+                dmPhysics::DeleteCollisionObject2D(scene.m_World, scene.m_Objects[1]);
+                scene.m_Bodies[1].m_Position = dmVMath::Point3(0.9f, 0.0f, 0.0f);
+                dmPhysics::CollisionObjectData data;
+                data.m_UserData = &scene.m_Bodies[1];
+                scene.m_Objects[1] = dmPhysics::NewCollisionObject2D(scene.m_World, data, &scene.m_Shape, 1);
+                scene.m_Bodies[1].m_PhysicsBody = ((dmPhysics::Body*)scene.m_Objects[1])->m_BodyId;
+            }
+            else if (tick % 8 == 4 || tick % 8 == 5)
+            {
+                b2ShapeId shape = ((dmPhysics::Body*)scene.m_Objects[1])->m_Shapes[0]->m_ShapeId;
+                b2Filter filter = b2Shape_GetFilter(shape);
+                filter.maskBits = tick % 8 == 4 ? 0 : 1;
+                b2Shape_SetFilter(shape, filter);
+            }
+            step.m_CollisionCallback = tick % 8 == 7 ? 0 : Collision;
+            step.m_ContactPointCallback = tick % 8 == 7 ? 0 : Contact;
+            CheckBufferedContacts(&scene, step);
+            if (tick == 0)
+            {
+                ASSERT_EQ(1U, scene.m_Callbacks.m_Collisions);
+            }
+        }
+        DeleteBufferedEventScene(&scene);
+    }
+}
+
+// Buffered contacts must read each step's solved manifold and preserve impulse filtering after begin events stop.
+TEST(Box2DThreading, BufferedContactManifoldsStayCurrent)
+{
+    for (int workers = 0; workers <= 3; workers += 3)
+    {
+        BufferedEventScene scene;
+        CreateBufferedEventScene(&scene, workers);
+        dmPhysics::SetGravity2D(scene.m_World, dmVMath::Vector3(-10.0f, 0.0f, 0.0f));
+        dmPhysics::StepWorldContext step;
+        step.m_DT = 1.0f / 60.0f;
+        step.m_Box2DSubStepCount = 4;
+        step.m_ContactCallbacksReadOnly = true;
+        step.m_CollisionCallback = Collision;
+        step.m_CollisionUserData = &scene.m_Callbacks;
+        step.m_ContactPointCallback = Contact;
+        step.m_ContactPointUserData = &scene.m_Callbacks;
+        for (int tick = 0; tick < 60; ++tick)
+        {
+            CheckBufferedContacts(&scene, step);
+        }
+        ASSERT_GT(scene.m_Callbacks.m_AppliedImpulse, 0.0f);
+        scene.m_Context->m_ContactImpulseLimit = 1000.0f;
+        CheckBufferedContacts(&scene, step);
+        ASSERT_EQ(0U, scene.m_Callbacks.m_Collisions);
+        ASSERT_EQ(0U, scene.m_Callbacks.m_Contacts);
+        DeleteBufferedEventScene(&scene);
+    }
+}
+
+// Move events must skip sleeping bodies and kinematics while applying the final transform before sleep.
+TEST(Box2DThreading, BufferedTransformsIncludeSleepTransition)
+{
+    for (int workers = 0; workers <= 3; workers += 3)
+    {
+        BufferedEventScene scene;
+        CreateBufferedEventScene(&scene, workers);
+        b2Vec2 position = { 4.0f, 0.0f };
+        b2Body_SetTransform(scene.m_Bodies[1].m_PhysicsBody, position, b2Rot_identity);
+        b2Body_SetType(scene.m_Bodies[0].m_PhysicsBody, b2_kinematicBody);
+        b2Vec2 velocity = { 1.0f, 0.0f };
+        b2Body_SetLinearVelocity(scene.m_Bodies[0].m_PhysicsBody, velocity);
+        b2Body_SetLinearVelocity(scene.m_Bodies[1].m_PhysicsBody, velocity);
+        b2Body_SetAwake(scene.m_Bodies[2].m_PhysicsBody, false);
+        dmPhysics::StepWorldContext step;
+        step.m_DT = 1.0f / 60.0f;
+        step.m_Box2DSubStepCount = 4;
+        dmPhysics::StepWorld2D(scene.m_World, step);
+        ASSERT_EQ(1U, scene.m_Callbacks.m_Transforms);
+        ASSERT_EQ(dmPhysics::GetWorldPosition2D(scene.m_Context, scene.m_Objects[1]).getX(), scene.m_Bodies[1].m_Position.getX());
+        b2Body_SetSleepThreshold(scene.m_Bodies[1].m_PhysicsBody, 10.0f);
+        for (int tick = 0; tick < 120 && !dmPhysics::IsSleeping2D(scene.m_Objects[1]); ++tick)
+        {
+            scene.m_Callbacks.m_Transforms = 0;
+            dmPhysics::StepWorld2D(scene.m_World, step);
+            ASSERT_EQ(1U, scene.m_Callbacks.m_Transforms);
+        }
+        ASSERT_TRUE(dmPhysics::IsSleeping2D(scene.m_Objects[1]));
+        ASSERT_EQ(dmPhysics::GetWorldPosition2D(scene.m_Context, scene.m_Objects[1]).getX(), scene.m_Bodies[1].m_Position.getX());
+        scene.m_Callbacks.m_Transforms = 0;
+        dmPhysics::StepWorld2D(scene.m_World, step);
+        ASSERT_EQ(0U, scene.m_Callbacks.m_Transforms);
+        DeleteBufferedEventScene(&scene);
+    }
+}
+
+// Exposing either raw handle must preserve contacts with events disabled and sleeping-body teleports.
+TEST(Box2DThreading, RawBox2DAccessPreservesScanBehavior)
+{
+    for (int workers = 0; workers <= 3; workers += 3)
+    {
+        for (int world_access = 0; world_access < 2; ++world_access)
+        {
+            BufferedEventScene scene;
+            CreateBufferedEventScene(&scene, workers);
+            dmPhysics::StepWorldContext step;
+            step.m_DT = 0.0f;
+            step.m_Box2DSubStepCount = 4;
+            step.m_ContactCallbacksReadOnly = true;
+            step.m_CollisionCallback = Collision;
+            step.m_CollisionUserData = &scene.m_Callbacks;
+            CheckBufferedContacts(&scene, step);
+            if (world_access)
+            {
+                dmPhysics::GetWorldContext2D(scene.m_World);
+            }
+            else
+            {
+                dmPhysics::GetCollisionObjectContext2D(scene.m_Objects[1]);
+            }
+            b2Body_EnableContactEvents(scene.m_Bodies[0].m_PhysicsBody, false);
+            b2Body_EnableContactEvents(scene.m_Bodies[1].m_PhysicsBody, false);
+            dmPhysics::SetEnabled2D(scene.m_World, scene.m_Objects[1], false);
+            dmPhysics::SetEnabled2D(scene.m_World, scene.m_Objects[1], true);
+            CheckBufferedContacts(&scene, step);
+            ASSERT_EQ(1U, scene.m_Callbacks.m_Collisions);
+            b2Body_SetAwake(scene.m_Bodies[1].m_PhysicsBody, false);
+            b2Vec2 position = { 4.0f, 0.0f };
+            b2Body_SetTransform(scene.m_Bodies[1].m_PhysicsBody, position, b2Rot_identity);
+            step.m_DT = 1.0f / 60.0f;
+            CheckBufferedContacts(&scene, step);
+            ASSERT_EQ(4.0f, scene.m_Bodies[1].m_Position.getX());
+            DeleteBufferedEventScene(&scene);
+        }
+    }
 }
 
 // Deleting a context with live worlds must release native worlds and join their workers.
