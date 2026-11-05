@@ -25,20 +25,19 @@
 
 /*# Engine event definitions
  *
- * Built-in event hashes and payloads published through the generic extension
+ * Built-in event identifiers and payloads published through the generic extension
  * event transport in `<dmsdk/extension/extension.h>`. Custom events may use
  * arbitrary name hashes and payloads without central registration.
  *
- * Built-in IDs are precomputed dmHashString64 values and integer constant
- * expressions in C and C++.
+ * Built-in IDs are integer constant expressions in C and C++.
  *
- * Built-in event hashes and their names:
+ * Built-in events:
  *
- * | Constant | Name | Payload and delivery |
- * | -------- | ---- | -------------------- |
- * | `EVENT_STATE` | `_dm_event_engine_state` | StateEvent. Successful initialization and engine deletion. |
- * | `EVENT_WINDOW` | `_dm_event_engine_window` | WindowEvent. Resize, minimize/restore and focus notifications from the window callbacks. May precede engine Initialize. |
- * | `EVENT_INPUT_ACTIONS` | `_dm_event_input_actions` | InputActionsEvent. One action batch per completed input update, after binding resolution and text-last ordering, before focused collection dispatch. Includes empty updates. |
+ * | Constant | Payload and delivery |
+ * | -------- | -------------------- |
+ * | `EVENT_STATE` | StateEvent. Successful initialization and engine deletion. |
+ * | `EVENT_WINDOW` | WindowEvent. Resize, minimize/restore and focus notifications from the window callbacks. May precede engine Initialize. |
+ * | `EVENT_INPUT_ACTIONS` | InputActionsEvent. One action batch per completed input update, after binding resolution and text-last ordering, before focused collection dispatch. Includes empty updates. |
  *
  * Payloads and their handles are borrowed for the synchronous callback. Obtain
  * the source engine from the callback registry using ENGINE_CONTEXT_NAME.
@@ -68,8 +67,7 @@ extern "C" {
 namespace dmEngine
 {
     /*# engine state notification
-     * Hash of `_dm_event_engine_state` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
-     * Precomputed dmHashString64 value; no runtime hashing.
+     * Event identifier for StateEvent notifications.
      * @constant
      * @name EVENT_STATE
      * @language C++
@@ -77,8 +75,7 @@ namespace dmEngine
     static const dmhash_t EVENT_STATE = ENGINE_STATE_EVENT;
 
     /*# engine window notification
-     * Hash of `_dm_event_engine_window` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
-     * Precomputed dmHashString64 value; no runtime hashing.
+     * Event identifier for WindowEvent notifications.
      * @constant
      * @name EVENT_WINDOW
      * @language C++
@@ -86,8 +83,7 @@ namespace dmEngine
     static const dmhash_t EVENT_WINDOW = ENGINE_WINDOW_EVENT;
 
     /*# input actions have been resolved
-     * Hash of `_dm_event_input_actions` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
-     * Precomputed dmHashString64 value; no runtime hashing.
+     * Event identifier for InputActionsEvent notifications.
      * @constant
      * @name EVENT_INPUT_ACTIONS
      * @language C++
@@ -179,8 +175,7 @@ namespace dmEngine
 
 #endif // #define DMSDK_ENGINE_EVENT_GEN_HPP
 /*# engine state notification
- * Hash of `_dm_event_engine_state` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Precomputed dmHashString64 value; no runtime hashing.
+ * Event identifier for EngineStateEvent notifications.
  * @constant
  * @name ENGINE_STATE_EVENT
  * @language C
@@ -196,8 +191,7 @@ namespace dmEngine
  */
 
 /*# engine window notification
- * Hash of `_dm_event_engine_window` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Precomputed dmHashString64 value; no runtime hashing.
+ * Event identifier for EngineWindowEvent notifications.
  * @constant
  * @name ENGINE_WINDOW_EVENT
  * @language C
@@ -216,8 +210,7 @@ namespace dmEngine
  */
 
 /*# input actions have been resolved
- * Hash of `_dm_event_input_actions` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Precomputed dmHashString64 value; no runtime hashing.
+ * Event identifier for EngineInputActionsEvent notifications.
  * @constant
  * @name ENGINE_EVENT_INPUT_ACTIONS
  * @language C

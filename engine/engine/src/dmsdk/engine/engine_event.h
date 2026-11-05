@@ -21,20 +21,19 @@
 #include <dmsdk/input/input.h>
 
 /*# Engine event definitions
- * Built-in event hashes and payloads published through the generic extension
+ * Built-in event identifiers and payloads published through the generic extension
  * event transport in `<dmsdk/extension/extension.h>`. Custom events may use
  * arbitrary name hashes and payloads without central registration.
  *
- * Built-in IDs are precomputed dmHashString64 values and integer constant
- * expressions in C and C++.
+ * Built-in IDs are integer constant expressions in C and C++.
  *
- * Built-in event hashes and their names:
+ * Built-in events:
  *
- * | Constant | Name | Payload and delivery |
- * | -------- | ---- | -------------------- |
- * | `ENGINE_STATE_EVENT` | `_dm_event_engine_state` | EngineStateEvent. Successful initialization and engine deletion. |
- * | `ENGINE_WINDOW_EVENT` | `_dm_event_engine_window` | EngineWindowEvent. Resize, minimize/restore and focus notifications from the window callbacks. May precede engine Initialize. |
- * | `ENGINE_EVENT_INPUT_ACTIONS` | `_dm_event_input_actions` | EngineInputActionsEvent. One action batch per completed input update, after binding resolution and text-last ordering, before focused collection dispatch. Includes empty updates. |
+ * | Constant | Payload and delivery |
+ * | -------- | -------------------- |
+ * | `ENGINE_STATE_EVENT` | EngineStateEvent. Successful initialization and engine deletion. |
+ * | `ENGINE_WINDOW_EVENT` | EngineWindowEvent. Resize, minimize/restore and focus notifications from the window callbacks. May precede engine Initialize. |
+ * | `ENGINE_EVENT_INPUT_ACTIONS` | EngineInputActionsEvent. One action batch per completed input update, after binding resolution and text-last ordering, before focused collection dispatch. Includes empty updates. |
  *
  * Payloads and their handles are borrowed for the synchronous callback. Obtain
  * the source engine from the callback registry using ENGINE_CONTEXT_NAME.
@@ -51,8 +50,7 @@
  */
 
 /*# engine state notification
- * Hash of `_dm_event_engine_state` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Precomputed dmHashString64 value; no runtime hashing.
+ * Event identifier for EngineStateEvent notifications.
  * @constant
  * @name ENGINE_STATE_EVENT
  */
@@ -72,8 +70,7 @@ typedef enum EngineState
 } EngineState;
 
 /*# engine window notification
- * Hash of `_dm_event_engine_window` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Precomputed dmHashString64 value; no runtime hashing.
+ * Event identifier for EngineWindowEvent notifications.
  * @constant
  * @name ENGINE_WINDOW_EVENT
  */
@@ -99,8 +96,7 @@ typedef enum EngineWindowEventType
 } EngineWindowEventType;
 
 /*# input actions have been resolved
- * Hash of `_dm_event_input_actions` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Precomputed dmHashString64 value; no runtime hashing.
+ * Event identifier for EngineInputActionsEvent notifications.
  * @constant
  * @name ENGINE_EVENT_INPUT_ACTIONS
  */
