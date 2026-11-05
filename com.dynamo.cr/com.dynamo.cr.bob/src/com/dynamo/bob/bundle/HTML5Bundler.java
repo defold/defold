@@ -485,8 +485,15 @@ public class HTML5Bundler implements IBundler {
                 bytes += sourceMap.length();
             }
             if (dwarfOutName == null && sourceMapOutName == null) {
-                logger.warning("No wasm debug info found for %s (%s.debug.wasm / %s.map). The engine was likely built without debug info.",
+                // official release engines are published without debug info, and the
+                // editor bundles with symbols by default, so that is not worth a warning
+                String message = String.format("No wasm debug info found for %s (%s.debug.wasm / %s.map). The engine was likely built without debug info.",
                         platform.getPair(), bin.getName(), bin.getName());
+                if (Bob.VARIANT_DEBUG.equals(project.option("variant", Bob.VARIANT_RELEASE))) {
+                    logger.warning(message);
+                } else {
+                    logger.info(message);
+                }
             } else {
                 hasWasmDebugSymbols = true;
                 logger.info("Bundled wasm debug info for %s (%d MB). Do not deploy these files to production.",

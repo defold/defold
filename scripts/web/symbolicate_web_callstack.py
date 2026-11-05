@@ -292,7 +292,7 @@ def main():
         mangled = sorted({name for name in symbol_map.values()})
         demangled = demangle(mangled, cxxfilt)
         index_names = {index: demangled[name] for index, name in symbol_map.items()}
-    else:
+    elif wasm_debug_data:
         index_names = load_name_section(wasm_debug_data, wasm_debug_path)
         if not index_names and any(WASM_INDEX_FRAME_RE.search(line) for line in stack_lines):
             print(
