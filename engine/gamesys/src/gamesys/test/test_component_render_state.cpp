@@ -29,7 +29,7 @@ struct ComponentFixture
 {
     HRenderExecution             m_Execution;
     HComponentRenderStateContext m_Components;
-    HRenderFrameQueue             m_Queue;
+    HRenderFrameQueue            m_Queue;
 };
 
 struct ComponentProbe

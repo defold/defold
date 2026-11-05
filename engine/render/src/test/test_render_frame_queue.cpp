@@ -25,7 +25,6 @@
 #include <testmain/testmain.h>
 
 #include "render/render_frame_queue.h"
-#include "render/render_frame_queue_private.h"
 #include "render_frame_benchmark.h"
 
 using namespace dmRender;
@@ -1252,7 +1251,7 @@ TEST(RenderFrameQueue, SlotBudgetAndFrameIdExhaustion)
     ASSERT_EQ(RENDER_FRAME_RETIRED, status.m_States[0]);
     ASSERT_EQ(RENDER_FRAME_RETIRED, status.m_States[1]);
     ASSERT_EQ(2u, RetireRenderFrames(fixture.m_Queue));
-    ASSERT_EQ(sizeof(RenderFrameQueueContext) + 2 * GetRenderFrameStorageSize(fixture.m_Queue->m_Params.m_Limits),
+    ASSERT_EQ(sizeof(RenderFrameQueue) + 2 * GetRenderFrameStorageSize(fixture.m_Queue->m_Params.m_Limits),
         GetRenderFrameQueueStorageSize(fixture.m_Queue->m_Params.m_Limits));
     fixture.m_Queue->m_NextFrameId = UINT64_MAX;
     ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &extra));

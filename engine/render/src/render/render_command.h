@@ -23,6 +23,21 @@
 namespace dmRender
 {
     /**
+     * Private frame table tags reserved for pass command data.
+     */
+    const uint32_t RENDER_COMMAND_TABLE_TYPE            = UINT32_MAX - 1;
+    const uint32_t RENDER_COMMAND_PAYLOAD_TABLE_TYPE    = UINT32_MAX - 2;
+    const uint32_t RENDER_COMMAND_DEPENDENCY_TABLE_TYPE = UINT32_MAX - 3;
+
+    /**
+     * Draw/debug-draw operand 4 holds a camera snapshot's frame-table index + 1.
+     * Zero inherits the preceding camera selection; NONE explicitly disables it.
+     * SET_RENDER_CAMERA_SNAPSHOT uses operand 0 with an index + 1 or NONE.
+     */
+    const uint64_t RENDER_COMMAND_CAMERA_INHERIT = 0;
+    const uint64_t RENDER_COMMAND_CAMERA_NONE    = UINT64_MAX;
+
+    /**
      * Operations recorded by render scripts and replayed by the renderer.
      */
     enum CommandType
@@ -76,21 +91,6 @@ namespace dmRender
     };
 
     /**
-     * Private frame table tags reserved for pass command data.
-     */
-    const uint32_t RENDER_COMMAND_TABLE_TYPE = UINT32_MAX - 1;
-    const uint32_t RENDER_COMMAND_PAYLOAD_TABLE_TYPE = UINT32_MAX - 2;
-    const uint32_t RENDER_COMMAND_DEPENDENCY_TABLE_TYPE = UINT32_MAX - 3;
-
-    /**
-     * Draw/debug-draw operand 4 holds a camera snapshot's frame-table index + 1.
-     * Zero inherits the preceding camera selection; NONE explicitly disables it.
-     * SET_RENDER_CAMERA_SNAPSHOT uses operand 0 with an index + 1 or NONE.
-     */
-    const uint64_t RENDER_COMMAND_CAMERA_INHERIT = 0;
-    const uint64_t RENDER_COMMAND_CAMERA_NONE = UINT64_MAX;
-
-    /**
      * The selected camera's immutable values. Reapplied before each draw, like a live camera.
      */
     struct RenderCommandCamera
@@ -98,7 +98,7 @@ namespace dmRender
         dmVMath::Matrix4 m_View;
         dmVMath::Matrix4 m_Projection;
         dmVMath::Matrix4 m_ViewProjection;
-        uint8_t         m_UseFrustum : 1;
+        uint8_t          m_UseFrustum : 1;
     };
 
     /**

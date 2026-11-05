@@ -15,13 +15,16 @@
 #ifndef DM_RENDER_FRAME_QUEUE_H
 #define DM_RENDER_FRAME_QUEUE_H
 
+#include <dlib/condition_variable.h>
+#include <dlib/mutex.h>
+
 #include "render_execution.h"
 #include "render_frame.h"
 
 namespace dmRender
 {
-    struct RenderFrameQueueContext;
-    typedef RenderFrameQueueContext* HRenderFrameQueue;
+    struct RenderFrameQueue;
+    typedef RenderFrameQueue* HRenderFrameQueue;
 
     /** CPU slot ownership. Retirement permits CPU storage reuse, not GPU resource deletion. */
     enum RenderFrameState
@@ -77,6 +80,56 @@ namespace dmRender
         void*               m_ConsumeContext;
         FRenderFrameService m_Service;
         void*               m_ServiceContext;
+    };
+
+    /** Fixed slot metadata protected by the queue mutex in threaded mode. */
+    struct RenderFrameSlot
+    {
+        RenderFrameId       m_FrameId;
+        HRenderFrameStorage m_Frame;
+        RenderFrameState    m_State;
+    };
+
+    /**
+     * One accepted Ready/Reading frame and one game-owned Building frame. No queue of
+     * replaceable snapshots: accepted frames may carry side effects and must be consumed.
+     */
+    struct RenderFrameQueue
+    {
+        RenderFrameQueueParams                  m_Params;
+        RenderFrameSlot                         m_Slots[2];
+        RenderFrameId                           m_NextFrameId;
+        uint64_t                                m_Revision;
+        uint64_t                                m_Published;
+        uint64_t                                m_Consumed;
+        uint64_t                                m_Cancelled;
+        uint64_t                                m_Retired;
+        // Requested/completed service generations are protected by the handoff mutex.
+        uint64_t                                m_ServiceRequested;
+        uint64_t                                m_ServiceAcknowledged;
+        // Render-owner-only completion, published when TryLock next succeeds.
+        uint64_t                                m_CompletedService;
+        // Registered and invoked only by the game owner; the executor never reads these.
+        FRenderFrameExecutorShutdown            m_ExecutorShutdown;
+        void*                                   m_ExecutorShutdownContext;
+        dmMutex::HMutex                         m_Mutex;
+        dmConditionVariable::HConditionVariable m_Changed;
+        int32_t                                 m_Building;
+        int32_t                                 m_Active;
+        // Render-owner-only acknowledgement, kept until TryLock succeeds on a later pump.
+        int32_t                                 m_Completed;
+        // Use full bytes, not bitfields: the shared flags and owner-local guards have
+        // different synchronization and must not read/modify/write the same byte.
+        // Shared flags are protected by the handoff mutex in threaded mode.
+        // Cancellation does not restore an update credit while the previous reader is active.
+        uint8_t                                 m_LeadReserved;
+        uint8_t                                 m_Stopping;
+        uint8_t                                 m_ServicePending;
+        uint8_t                                 m_ServiceCompletionPending; // Render owner only.
+        // These guards are updated by their respective owners outside the handoff lock.
+        uint8_t                                 m_InPump; // Render owner only.
+        uint8_t                                 m_InRetire; // Game owner only.
+        uint8_t                                 m_ExecutorShutdownComplete; // Game owner only.
     };
 
     /** Game-owner diagnostic snapshot; revision supports event-driven waits without lost wakes. */
