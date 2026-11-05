@@ -1,0 +1,852 @@
+{
+  "environment": {
+    "cpu": "Apple M5 Max",
+    "os": "ARM64 macOS 27.0.1",
+    "compiler": "Apple clang 21.0.0",
+    "flags": "-O2 -g -fno-omit-frame-pointer",
+    "api": "LZ4_compress_HC, level 9, one-shot",
+    "method": "Both libraries loaded into the same process; alternating order; round trips checked using the 1.10 decoder."
+  },
+  "upstream_commit": "710ed4f0d7e79d39544d67cc0965ba332e1989ca",
+  "restoration": "Change static int to LZ4_FORCE_INLINE int for LZ4HC_compress_generic_internal only.",
+  "samples": [
+    {
+      "a_MBps": 505.7025,
+      "b_MBps": 422.6514,
+      "ratio": 0.835771,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 459.5142,
+      "b_MBps": 420.9249,
+      "ratio": 0.916022,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 521.3795,
+      "b_MBps": 450.6853,
+      "ratio": 0.864409,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 510.5076,
+      "b_MBps": 466.8662,
+      "ratio": 0.914514,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 499.1261,
+      "b_MBps": 473.9663,
+      "ratio": 0.949592,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 553.7681,
+      "b_MBps": 500.8154,
+      "ratio": 0.904377,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 551.5796,
+      "b_MBps": 496.3713,
+      "ratio": 0.899909,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 549.3733,
+      "b_MBps": 499.1106,
+      "ratio": 0.908509,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 473.6386,
+      "b_MBps": 498.6551,
+      "ratio": 1.052818,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 141.5137,
+      "b_MBps": 137.4019,
+      "ratio": 0.970944,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 141.0373,
+      "b_MBps": 137.7626,
+      "ratio": 0.976781,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 141.3397,
+      "b_MBps": 137.6235,
+      "ratio": 0.973707,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 141.067,
+      "b_MBps": 137.7103,
+      "ratio": 0.976205,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 141.0399,
+      "b_MBps": 137.8559,
+      "ratio": 0.977424,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 141.8589,
+      "b_MBps": 138.1987,
+      "ratio": 0.974198,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 140.8546,
+      "b_MBps": 136.3471,
+      "ratio": 0.967999,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 140.6862,
+      "b_MBps": 136.6675,
+      "ratio": 0.971435,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 139.8495,
+      "b_MBps": 136.7134,
+      "ratio": 0.977575,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-1.11"
+    },
+    {
+      "a_MBps": 497.1061,
+      "b_MBps": 544.196,
+      "ratio": 1.094728,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "restore-inline",
+      "corpus_index": 0,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 501.1126,
+      "b_MBps": 545.893,
+      "ratio": 1.089362,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "restore-inline",
+      "corpus_index": 0,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 502.3388,
+      "b_MBps": 547.3812,
+      "ratio": 1.089665,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "restore-inline",
+      "corpus_index": 0,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 501.3019,
+      "b_MBps": 551.9659,
+      "ratio": 1.101065,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "restore-inline",
+      "corpus_index": 0,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 503.6366,
+      "b_MBps": 545.9572,
+      "ratio": 1.08403,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "restore-inline",
+      "corpus_index": 0,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 505.5182,
+      "b_MBps": 548.7152,
+      "ratio": 1.085451,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "restore-inline",
+      "corpus_index": 0,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 507.9323,
+      "b_MBps": 552.7441,
+      "ratio": 1.088224,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "restore-inline",
+      "corpus_index": 0,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 505.4133,
+      "b_MBps": 548.2619,
+      "ratio": 1.084779,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "restore-inline",
+      "corpus_index": 0,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 480.7488,
+      "b_MBps": 535.836,
+      "ratio": 1.114586,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "restore-inline",
+      "corpus_index": 0,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 137.1623,
+      "b_MBps": 139.9535,
+      "ratio": 1.02035,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "restore-inline",
+      "corpus_index": 2,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 135.0796,
+      "b_MBps": 135.9343,
+      "ratio": 1.006327,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "restore-inline",
+      "corpus_index": 2,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 136.847,
+      "b_MBps": 139.882,
+      "ratio": 1.022178,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "restore-inline",
+      "corpus_index": 2,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 138.447,
+      "b_MBps": 140.9753,
+      "ratio": 1.018261,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "restore-inline",
+      "corpus_index": 2,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 138.8216,
+      "b_MBps": 141.0518,
+      "ratio": 1.016066,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "restore-inline",
+      "corpus_index": 2,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 138.86,
+      "b_MBps": 142.1427,
+      "ratio": 1.023641,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "restore-inline",
+      "corpus_index": 2,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 138.482,
+      "b_MBps": 141.8208,
+      "ratio": 1.02411,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "restore-inline",
+      "corpus_index": 2,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 138.7646,
+      "b_MBps": 141.192,
+      "ratio": 1.017493,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "restore-inline",
+      "corpus_index": 2,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 138.2133,
+      "b_MBps": 141.8248,
+      "ratio": 1.02613,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "restore-inline",
+      "corpus_index": 2,
+      "a_ref": "c72c7c0ec132ad2ce2fe9fad7b0c728d9faee2fc",
+      "b_ref": "head-inline"
+    },
+    {
+      "a_MBps": 548.9227,
+      "b_MBps": 537.2126,
+      "ratio": 0.978667,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "inline-commit",
+      "corpus_index": 0,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 552.9434,
+      "b_MBps": 535.0266,
+      "ratio": 0.967597,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "inline-commit",
+      "corpus_index": 0,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 553.7095,
+      "b_MBps": 541.6674,
+      "ratio": 0.978252,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "inline-commit",
+      "corpus_index": 0,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 553.8323,
+      "b_MBps": 541.2238,
+      "ratio": 0.977234,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "inline-commit",
+      "corpus_index": 0,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 558.3788,
+      "b_MBps": 540.8072,
+      "ratio": 0.968531,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "inline-commit",
+      "corpus_index": 0,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 558.0335,
+      "b_MBps": 535.5849,
+      "ratio": 0.959772,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "inline-commit",
+      "corpus_index": 0,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 556.1969,
+      "b_MBps": 539.3963,
+      "ratio": 0.969794,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "inline-commit",
+      "corpus_index": 0,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 554.3128,
+      "b_MBps": 541.5909,
+      "ratio": 0.977049,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "inline-commit",
+      "corpus_index": 0,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 556.6734,
+      "b_MBps": 542.8853,
+      "ratio": 0.975231,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "case": "inline-commit",
+      "corpus_index": 0,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 139.3662,
+      "b_MBps": 138.6516,
+      "ratio": 0.994872,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "inline-commit",
+      "corpus_index": 2,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 137.6229,
+      "b_MBps": 138.8318,
+      "ratio": 1.008784,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "inline-commit",
+      "corpus_index": 2,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 140.513,
+      "b_MBps": 139.3095,
+      "ratio": 0.991435,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "inline-commit",
+      "corpus_index": 2,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 134.3824,
+      "b_MBps": 137.2166,
+      "ratio": 1.021091,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "inline-commit",
+      "corpus_index": 2,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 135.4087,
+      "b_MBps": 126.6052,
+      "ratio": 0.934985,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "inline-commit",
+      "corpus_index": 2,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 133.6615,
+      "b_MBps": 130.7775,
+      "ratio": 0.978423,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "inline-commit",
+      "corpus_index": 2,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 134.6359,
+      "b_MBps": 135.0905,
+      "ratio": 1.003377,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "inline-commit",
+      "corpus_index": 2,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 135.7621,
+      "b_MBps": 134.0153,
+      "ratio": 0.987134,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "inline-commit",
+      "corpus_index": 2,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 134.7738,
+      "b_MBps": 134.5499,
+      "ratio": 0.998338,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "case": "inline-commit",
+      "corpus_index": 2,
+      "a_ref": "5c2068c60653c2037426cbe87f9c6c87eafd39b2",
+      "b_ref": "710ed4f0d7e79d39544d67cc0965ba332e1989ca"
+    },
+    {
+      "a_MBps": 560.9255,
+      "b_MBps": 556.6986,
+      "ratio": 0.992464,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 547.6286,
+      "b_MBps": 550.9567,
+      "ratio": 1.006077,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 551.1064,
+      "b_MBps": 547.8416,
+      "ratio": 0.994076,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 560.3849,
+      "b_MBps": 552.3516,
+      "ratio": 0.985665,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 561.9362,
+      "b_MBps": 556.0008,
+      "ratio": 0.989438,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 561.2108,
+      "b_MBps": 555.9985,
+      "ratio": 0.990712,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 561.6159,
+      "b_MBps": 554.4496,
+      "ratio": 0.98724,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 559.9261,
+      "b_MBps": 553.4099,
+      "ratio": 0.988362,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 557.5669,
+      "b_MBps": 552.7687,
+      "ratio": 0.991394,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 538.9474,
+      "b_MBps": 549.1621,
+      "ratio": 1.018953,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 506.4418,
+      "b_MBps": 545.8963,
+      "ratio": 1.077905,
+      "bytes_a": 968,
+      "bytes_b": 968,
+      "corpus_index": 0,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 140.5589,
+      "b_MBps": 139.6421,
+      "ratio": 0.993478,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 141.7888,
+      "b_MBps": 140.3913,
+      "ratio": 0.990144,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 138.6245,
+      "b_MBps": 140.5273,
+      "ratio": 1.013726,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 142.0832,
+      "b_MBps": 141.6809,
+      "ratio": 0.997169,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 142.304,
+      "b_MBps": 140.8559,
+      "ratio": 0.989824,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 140.2088,
+      "b_MBps": 140.0056,
+      "ratio": 0.99855,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 138.632,
+      "b_MBps": 139.154,
+      "ratio": 1.003765,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 141.862,
+      "b_MBps": 140.3704,
+      "ratio": 0.989486,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 139.9975,
+      "b_MBps": 140.5023,
+      "ratio": 1.003606,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 142.0358,
+      "b_MBps": 141.3402,
+      "ratio": 0.995102,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-restored-1.11"
+    },
+    {
+      "a_MBps": 141.9369,
+      "b_MBps": 141.2536,
+      "ratio": 0.995186,
+      "bytes_a": 1563378,
+      "bytes_b": 1563378,
+      "corpus_index": 2,
+      "case": "1.10-to-restored-1.11"
+    }
+  ],
+  "summary": [
+    {
+      "case": "1.10-to-1.11",
+      "corpus_index": 0,
+      "rounds": 9,
+      "a_MBps_median": 510.5076,
+      "b_MBps_median": 473.9663,
+      "paired_ratio_median": 0.908509,
+      "paired_ratio_min": 0.835771,
+      "paired_ratio_max": 1.052818
+    },
+    {
+      "case": "1.10-to-1.11",
+      "corpus_index": 2,
+      "rounds": 9,
+      "a_MBps_median": 141.0399,
+      "b_MBps_median": 137.6235,
+      "paired_ratio_median": 0.974198,
+      "paired_ratio_min": 0.967999,
+      "paired_ratio_max": 0.977575
+    },
+    {
+      "case": "1.10-to-restored-1.11",
+      "corpus_index": 0,
+      "rounds": 11,
+      "a_MBps_median": 559.9261,
+      "b_MBps_median": 552.7687,
+      "paired_ratio_median": 0.991394,
+      "paired_ratio_min": 0.985665,
+      "paired_ratio_max": 1.077905
+    },
+    {
+      "case": "1.10-to-restored-1.11",
+      "corpus_index": 2,
+      "rounds": 11,
+      "a_MBps_median": 141.7888,
+      "b_MBps_median": 140.5023,
+      "paired_ratio_median": 0.995186,
+      "paired_ratio_min": 0.989486,
+      "paired_ratio_max": 1.013726
+    },
+    {
+      "case": "inline-commit",
+      "corpus_index": 0,
+      "rounds": 9,
+      "a_MBps_median": 554.3128,
+      "b_MBps_median": 540.8072,
+      "paired_ratio_median": 0.975231,
+      "paired_ratio_min": 0.959772,
+      "paired_ratio_max": 0.978667
+    },
+    {
+      "case": "inline-commit",
+      "corpus_index": 2,
+      "rounds": 9,
+      "a_MBps_median": 135.4087,
+      "b_MBps_median": 135.0905,
+      "paired_ratio_median": 0.994872,
+      "paired_ratio_min": 0.934985,
+      "paired_ratio_max": 1.021091
+    },
+    {
+      "case": "restore-inline",
+      "corpus_index": 0,
+      "rounds": 9,
+      "a_MBps_median": 502.3388,
+      "b_MBps_median": 547.3812,
+      "paired_ratio_median": 1.089362,
+      "paired_ratio_min": 1.08403,
+      "paired_ratio_max": 1.114586
+    },
+    {
+      "case": "restore-inline",
+      "corpus_index": 2,
+      "rounds": 9,
+      "a_MBps_median": 138.447,
+      "b_MBps_median": 141.0518,
+      "paired_ratio_median": 1.02035,
+      "paired_ratio_min": 1.006327,
+      "paired_ratio_max": 1.02613
+    }
+  ]
+}
