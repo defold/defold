@@ -88,6 +88,97 @@ TEST(dmJson, InitialCapacityAndGrowingArray)
     ASSERT_EQ(42, json.Integer(json.Field(0, "value")));
 }
 
+// Reused text and nodes must discard previous values across growth, smaller
+// documents, parse modes and failed parses without reading stale trailing bytes.
+TEST(dmJson, ReusedDocumentStorage)
+{
+    dmJson::Document json(0);
+    ASSERT_EQ(0u, json.m_TextCapacity);
+    ASSERT_TRUE(json.m_Text == 0);
+    ASSERT_EQ(0u, json.m_Nodes.Capacity());
+    dmArray<char> text;
+    Array(text, 128);
+    ASSERT_TRUE(json.Parse(text.Begin(), text.Size()));
+    char* storage = json.m_Text;
+    uint32_t capacity = json.m_TextCapacity;
+    uint32_t node_capacity = json.m_Nodes.Capacity();
+
+    const char small[] = "{\"value\":\"a\\nb\"}";
+    ASSERT_TRUE(json.Parse(small, sizeof(small) - 1));
+    ASSERT_EQ(2u, json.m_Nodes.Size());
+    ASSERT_STREQ("a\nb", json.String(json.Field(0, "value")));
+    const char metadata[] = "{\"value\":\"a\\u0000b\",\"number\":1e400}";
+    ASSERT_TRUE(json.Parse(metadata, sizeof(metadata) - 1, 0, dmJson::PARSE_PRESERVE_VALUES));
+    ASSERT_EQ(3u, json.m_Nodes.Size());
+    ASSERT_STREQ("raw", json.String(json.Field(0, "value"), "raw"));
+    const dmJson::Node& value = json.Get(json.Field(0, "value"));
+    ASSERT_EQ(0, memcmp(metadata + value.m_Offset, json.m_Text + value.m_Offset, value.m_Length));
+
+    uint32_t offset;
+    ASSERT_FALSE(json.Parse("\"x", 2, &offset));
+    ASSERT_EQ(2u, offset);
+    ASSERT_FALSE(json.Parse("\"\xff\"", 3, &offset));
+    ASSERT_EQ(1u, offset);
+    ASSERT_FALSE(json.Parse("", 0, &offset));
+    ASSERT_EQ(0u, offset);
+    ASSERT_TRUE(json.Parse("{}", 2));
+    ASSERT_EQ(1u, json.m_Nodes.Size());
+    ASSERT_EQ(-1, json.Get(0).m_First);
+    ASSERT_EQ(-1, json.Field(0, "number"));
+    ASSERT_TRUE(storage == json.m_Text);
+    ASSERT_EQ(capacity, json.m_TextCapacity);
+    ASSERT_EQ(node_capacity, json.m_Nodes.Capacity());
+
+    uint32_t size = capacity + 17;
+    text.SetCapacity(size);
+    text.SetSize(size);
+    memset(text.Begin(), 'a', size);
+    text[0] = text[size - 1] = '"';
+    ASSERT_TRUE(json.Parse(text.Begin(), size));
+    ASSERT_EQ(size - 2, strlen(json.String(0)));
+    ASSERT_EQ(size, json.Get(0).m_Length);
+    ASSERT_GE(json.m_TextCapacity, size + 1);
+    storage = json.m_Text;
+    capacity = json.m_TextCapacity;
+    ASSERT_TRUE(json.Parse("[]", 2));
+    ASSERT_EQ(1u, json.m_Nodes.Size());
+    ASSERT_EQ(-1, json.Get(0).m_First);
+    ASSERT_TRUE(storage == json.m_Text);
+    ASSERT_EQ(capacity, json.m_TextCapacity);
+    ASSERT_EQ(0, json.m_Text[2]);
+}
+
+// Geometric text-buffer growth stays within the document limit plus its NUL,
+// rejects oversized input and permits a smaller document after rejection.
+TEST(dmJson, ReusedTextStorageLimit)
+{
+    dmJson::Document json(0);
+    dmArray<char> text;
+    text.SetCapacity(dmJson::MAX_DOCUMENT_SIZE + 1);
+    text.SetSize(text.Capacity());
+    const uint32_t sizes[] = { dmJson::MAX_DOCUMENT_SIZE / 4 * 3, dmJson::MAX_DOCUMENT_SIZE };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
+    {
+        uint32_t size = sizes[i];
+        memset(text.Begin(), 'a', size);
+        text[0] = text[size - 1] = '"';
+        ASSERT_TRUE(json.Parse(text.Begin(), size));
+        ASSERT_EQ(size - 2, strlen(json.String(0)));
+        ASSERT_GE(json.m_TextCapacity, size + 1);
+        ASSERT_LE(json.m_TextCapacity, dmJson::MAX_DOCUMENT_SIZE + 1);
+    }
+    char* storage = json.m_Text;
+    uint32_t capacity = json.m_TextCapacity;
+    text[dmJson::MAX_DOCUMENT_SIZE] = ' ';
+    uint32_t offset;
+    ASSERT_FALSE(json.Parse(text.Begin(), text.Size(), &offset));
+    ASSERT_EQ(0u, offset);
+    ASSERT_TRUE(json.Parse("null", 4));
+    ASSERT_EQ(dmJson::TYPE_NULL, json.Get(0).m_Type);
+    ASSERT_TRUE(storage == json.m_Text);
+    ASSERT_EQ(capacity, json.m_TextCapacity);
+}
+
 // Explicit reserves, including a zero reserve, must grow safely while mixed node types retain their values.
 TEST(dmJson, ReservedCapacityAndMixedValues)
 {

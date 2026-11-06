@@ -1457,6 +1457,8 @@ namespace dmDebugger
             Disconnect(d);
             return;
         }
+        // Reuse storage across this batch, allocating only for complete frames.
+        dmJson::Document request(0);
         for (int i = 0; i < 32 && !d->m_ClosePending; ++i)
         {
             uint32_t offset = 0, size = 0;
@@ -1470,7 +1472,6 @@ namespace dmDebugger
             {
                 break;
             }
-            dmJson::Document request;
             if (!request.Parse(d->m_Input.Data() + offset, size))
             {
                 Disconnect(d);

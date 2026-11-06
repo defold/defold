@@ -67,18 +67,21 @@ namespace dmJson
     };
 
     // A small, bounded JSON document. Strings are decoded in the owned buffer;
-    // node indices stay valid when the node array grows.
+    // text and node storage are reused between parses. Node indices stay valid
+    // when the node array grows.
     struct Document
     {
         dmArray<Node>     m_Nodes;
         char*             m_Text;
         char*             m_Cursor;
         char*             m_End;
+        uint32_t          m_TextCapacity; // Allocated bytes, including the terminating NUL.
         bool              m_Valid;
         bool              m_DecodeValues;
         // Zero capacity defers node allocation until parsing the first value.
         Document(uint32_t initial_capacity = 32);
         ~Document();
+        // Parsing a new document invalidates previous node indices and string pointers.
         bool            Parse(const char* text, uint32_t size, uint32_t* error_offset = 0, ParseMode mode = PARSE_DECODE_VALUES);
         int             Field(int object, const char* name) const;
         const Node&     Get(int node) const;

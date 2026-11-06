@@ -221,6 +221,7 @@ namespace dmJson
     : m_Text(0)
     , m_Cursor(0)
     , m_End(0)
+    , m_TextCapacity(0)
     , m_Valid(true)
     , m_DecodeValues(true)
     {
@@ -692,9 +693,21 @@ namespace dmJson
                 i += bytes;
             } while (i < end);
         }
-        free(m_Text);
         m_Nodes.SetSize(0);
-        m_Text = (char*)malloc(size + 1);
+        if (size + 1 > m_TextCapacity)
+        {
+            uint32_t capacity = m_TextCapacity * 2;
+            if (capacity < size + 1)
+            {
+                capacity = size + 1;
+            }
+            if (capacity > MAX_DOCUMENT_SIZE + 1)
+            {
+                capacity = MAX_DOCUMENT_SIZE + 1;
+            }
+            m_Text = (char*)realloc(m_Text, capacity);
+            m_TextCapacity = capacity;
+        }
         memcpy(m_Text, text, size);
         m_Text[size] = 0;
         m_Cursor = m_Text;
