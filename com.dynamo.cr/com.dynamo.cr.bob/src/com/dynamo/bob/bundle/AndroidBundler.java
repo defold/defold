@@ -819,6 +819,13 @@ public class AndroidBundler implements IBundler {
 
 
 
+    private void addApkSigningArgs(Project project, List<String> args) throws IOException, CompileExceptionError {
+        args.add("--ks"); args.add(getKeystore(project));
+        args.add("--ks-pass"); args.add("file:" + getKeystorePasswordFile(project));
+        args.add("--ks-key-alias"); args.add(getKeystoreAlias(project));
+        args.add("--key-pass"); args.add("file:" + getKeyPasswordFile(project));
+    }
+
     /**
      * Create a universal APK set. A universal APK includes all of the app's
      * code and resources such that the APK is compatible with all device
@@ -826,26 +833,18 @@ public class AndroidBundler implements IBundler {
      */
     private File createUniversalApks(Project project, File aab, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
         logger.info("Creating universal APK set");
-        String keystore = getKeystore(project);
-        String keystorePasswordFile = getKeystorePasswordFile(project);
-        String keystoreAlias = getKeystoreAlias(project);
-        String keyPasswordFile = getKeyPasswordFile(project);
-
         String aabPath = aab.getAbsolutePath();
         String name = FilenameUtils.getBaseName(aabPath);
         String apksPath = outDir.getAbsolutePath() + File.separator + name + ".apks";
 
-        Result res = null;
+        List<String> args = new ArrayList<String>();
+        args.add("build-apks");
+        args.add("--mode"); args.add("UNIVERSAL");
+        args.add("--bundle"); args.add(aabPath);
+        args.add("--output"); args.add(apksPath);
+        addApkSigningArgs(project, args);
+
         try {
-            List<String> args = new ArrayList<String>();
-            args.add("build-apks");
-            args.add("--mode"); args.add("UNIVERSAL");
-            args.add("--bundle"); args.add(aabPath);
-            args.add("--output"); args.add(apksPath);
-            args.add("--ks"); args.add(keystore);
-            args.add("--ks-pass"); args.add("file:" + keystorePasswordFile);
-            args.add("--ks-key-alias"); args.add(keystoreAlias);
-            args.add("--key-pass"); args.add("file:" + keyPasswordFile);
             AndroidTools.bundletool(args);
         } catch (Exception e) {
             String msg = e.getMessage();
@@ -891,6 +890,33 @@ public class AndroidBundler implements IBundler {
         // cleanup
         apks.delete();
         return apk;
+    }
+
+    /**
+     * Estimate the Google Play download size from the split APKs Google Play would serve,
+     * and write it to reportFile. A failure is logged but doesn't fail the bundle.
+     */
+    private void writeDownloadSizeReport(Project project, File aab, File outDir, File reportFile) {
+        logger.info("Estimating Google Play download size");
+        File apks = new File(outDir, FilenameUtils.getBaseName(aab.getPath()) + "-download-size.apks");
+        FileUtils.deleteQuietly(reportFile);
+        try {
+            List<String> args = new ArrayList<String>();
+            args.add("build-apks");
+            args.add("--bundle"); args.add(aab.getAbsolutePath());
+            args.add("--output"); args.add(apks.getAbsolutePath());
+            addApkSigningArgs(project, args);
+            AndroidTools.bundletool(args);
+
+            Result res = AndroidTools.bundletool(Arrays.asList("get-size", "total", "--apks", apks.getAbsolutePath(), "--dimensions", "ABI"));
+            AndroidDownloadSize size = AndroidDownloadSize.parse(new String(res.stdOutErr, StandardCharsets.UTF_8));
+            FileUtils.writeStringToFile(reportFile, size.toJson(), StandardCharsets.UTF_8);
+            logger.info(size.toLogMessage());
+        } catch (Exception e) {
+            logger.warning("Failed to estimate Google Play download size: %s", e.getMessage());
+        } finally {
+            apks.delete();
+        }
     }
 
     public static final String MANIFEST_NAME = "AndroidManifest.xml";
@@ -972,6 +998,14 @@ public class AndroidBundler implements IBundler {
             TimeProfiler.start("Create APK");
             File apk = createAPK(aab, project, outDir, canceled);
             TimeProfiler.stop();
+        }
+
+        String downloadSizeReport = project.option("download-size-report", null);
+        if (downloadSizeReport != null) {
+            TimeProfiler.start("Estimate download size");
+            writeDownloadSizeReport(project, aab, outDir, new File(downloadSizeReport));
+            TimeProfiler.stop();
+            BundleHelper.throwIfCanceled(canceled);
         }
 
         if (!bundleFormat.contains("aab")) {
