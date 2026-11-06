@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package>
+    <id>com.defold.resource-loading</id>
+    <title>Defold Resource Loading</title>
+    <owner><name>Defold Foundation</name></owner>
+
+    <import-schema>os-signpost</import-schema>
+
+    <!-- LogLoadProfile in resource_private.h defines this text format. The XcTrace
+         profiler forwards the existing profiler text channel without interpreting it.
+         Durations in the message are milliseconds; Instruments uses nanoseconds.
+         Reported is the delivery time, not the resource's start or completion time.
+         ResourceLoads.clp parses the timing suffix after the last separator. -->
+    <point-schema>
+        <id>defold-resource-load</id>
+        <title>Resource Load</title>
+        <timestamp-column>
+            <mnemonic>reported</mnemonic>
+            <title>Reported</title>
+            <type>event-time</type>
+        </timestamp-column>
+        <column>
+            <mnemonic>resource</mnemonic>
+            <title>Resource</title>
+            <type>string</type>
+        </column>
+        <column>
+            <mnemonic>total</mnemonic>
+            <title>Total</title>
+            <type>duration</type>
+        </column>
+        <column>
+            <mnemonic>preload</mnemonic>
+            <title>Preload</title>
+            <type>duration</type>
+        </column>
+        <column>
+            <mnemonic>read</mnemonic>
+            <title>Read</title>
+            <type>duration</type>
+        </column>
+        <column>
+            <mnemonic>create</mnemonic>
+            <title>Create</title>
+            <type>duration</type>
+        </column>
+        <column>
+            <mnemonic>post-create</mnemonic>
+            <title>Post Create</title>
+            <type>duration</type>
+        </column>
+        <column>
+            <mnemonic>post-create-calls</mnemonic>
+            <title>Post Create Calls</title>
+            <type>uint32</type>
+        </column>
+        <column>
+            <mnemonic>queue</mnemonic>
+            <title>Queue</title>
+            <type>duration</type>
+        </column>
+        <column>
+            <mnemonic>wait</mnemonic>
+            <title>Wait</title>
+            <type>duration</type>
+        </column>
+        <column>
+            <mnemonic>result</mnemonic>
+            <title>Result</title>
+            <type>string</type>
+        </column>
+        <column>
+            <mnemonic>process</mnemonic>
+            <title>Process</title>
+            <type>process</type>
+        </column>
+    </point-schema>
+
+    <!-- These samples are emitted by the macOS capture helper, not the engine.
+         Power is a machine-wide estimate averaged over the preceding window. -->
+    <os-signpost-point-schema>
+        <id>defold-system-power</id>
+        <title>System Power Sample</title>
+        <subsystem>"com.defold.energy"</subsystem>
+        <category>"PointsOfInterest"</category>
+        <name>"System Power"</name>
+        <pattern>
+            <message>"component: " ?component ", watts: " ?watts ", window: " ?window " ns"</message>
+        </pattern>
+        <timestamp-column><mnemonic>reported</mnemonic><title>Reported</title><type>event-time</type></timestamp-column>
+        <column><mnemonic>component</mnemonic><title>System Component</title><type>string</type><expression>?component</expression></column>
+        <column><mnemonic>power</mnemonic><title>Estimated Power (W)</title><type>fixed-decimal</type><expression>?watts</expression></column>
+        <column><mnemonic>window</mnemonic><title>Sample Window</title><type>duration</type><expression>?window</expression></column>
+    </os-signpost-point-schema>
+    <os-signpost-point-schema>
+        <id>defold-application-energy</id>
+        <title>Application Energy Sample</title>
+        <subsystem>"com.defold.energy"</subsystem>
+        <category>"PointsOfInterest"</category>
+        <name>"Application Energy"</name>
+        <pattern>
+            <message>"pid: " ?pid ", impact per second: " ?impact ", window: " ?window " ns"</message>
+        </pattern>
+        <timestamp-column><mnemonic>reported</mnemonic><title>Reported</title><type>event-time</type></timestamp-column>
+        <column><mnemonic>pid</mnemonic><title>Application PID</title><type>uint32</type><expression>?pid</expression></column>
+        <column><mnemonic>impact</mnemonic><title>Energy Impact / s</title><type>fixed-decimal</type><expression>?impact</expression></column>
+        <column><mnemonic>window</mnemonic><title>Sample Window</title><type>duration</type><expression>?window</expression></column>
+    </os-signpost-point-schema>
+
+    <modeler>
+        <id>com.defold.resource-loading.parser</id>
+        <title>Defold Resource Log Parser</title>
+        <purpose>Extract the timing suffix without interpreting delimiters inside resource paths.</purpose>
+        <production-system><rule-path>ResourceLoads.clp</rule-path></production-system>
+        <output>
+            <schema-ref>defold-resource-load</schema-ref>
+            <required-input>
+                <schema-ref>os-signpost</schema-ref>
+                <attribute><name>subsystem</name><string>com.defold.profiler</string></attribute>
+                <attribute><name>category</name><string>PointsOfInterest</string></attribute>
+            </required-input>
+        </output>
+    </modeler>
+
+    <instrument>
+        <id>com.defold.resource-loading.instrument</id>
+        <title>Defold Resource Loading</title>
+        <category>Behavior</category>
+        <purpose>Compare resource loading totals and stages reported by resource.profile.</purpose>
+        <icon>Generic</icon>
+        <create-table>
+            <id>resource-loads</id>
+            <schema-ref>defold-resource-load</schema-ref>
+        </create-table>
+        <graph>
+            <title>Reported Loads</title>
+            <lane>
+                <title>Total Load Time</title>
+                <table-ref>resource-loads</table-ref>
+                <plot>
+                    <value-from>total</value-from>
+                    <label-from>resource</label-from>
+                </plot>
+            </lane>
+        </graph>
+        <list>
+            <title>Resource Loads</title>
+            <table-ref>resource-loads</table-ref>
+            <empty-content-suggestion>Enable resource.profile=1 and native profiling before launching the application.</empty-content-suggestion>
+            <column>resource</column>
+            <column>total</column>
+            <column>preload</column>
+            <column>read</column>
+            <column>create</column>
+            <column>post-create</column>
+            <column>post-create-calls</column>
+            <column>queue</column>
+            <column>wait</column>
+            <column>result</column>
+            <column>reported</column>
+            <column>process</column>
+        </list>
+    </instrument>
+    <instrument>
+        <id>com.defold.energy.instrument</id>
+        <title>Defold Energy</title>
+        <category>Behavior</category>
+        <purpose>Correlate powermetrics system power estimates and application energy impact with engine activity.</purpose>
+        <icon>Generic</icon>
+        <create-table><id>system-power</id><schema-ref>defold-system-power</schema-ref></create-table>
+        <create-table><id>application-energy</id><schema-ref>defold-application-energy</schema-ref></create-table>
+        <graph>
+            <title>Energy</title>
+            <lane>
+                <title>System Power (W)</title>
+                <table-ref>system-power</table-ref>
+                <plot-template>
+                    <instance-by>component</instance-by>
+                    <label-format>%s</label-format>
+                    <value-from>power</value-from>
+                </plot-template>
+            </lane>
+            <lane>
+                <title>Application Energy Impact / s</title>
+                <table-ref>application-energy</table-ref>
+                <plot><value-from>impact</value-from></plot>
+            </lane>
+        </graph>
+        <list>
+            <title>System Power Samples</title>
+            <table-ref>system-power</table-ref>
+            <column>reported</column><column>component</column><column>power</column><column>window</column>
+        </list>
+        <list>
+            <title>Application Energy Samples</title>
+            <table-ref>application-energy</table-ref>
+            <column>reported</column><column>pid</column><column>impact</column><column>window</column>
+        </list>
+    </instrument>
+</package>

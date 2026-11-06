@@ -11,6 +11,20 @@ import dlib
 
 class TestHttpServer(unittest.TestCase):
 
+    # Trace response codes must include their reason phrases instead of being reported as unsupported.
+    def testTraceStatusCodes(self):
+        c = http.client.HTTPConnection('localhost:8500')
+        try:
+            for status, reason in [(202, 'Accepted'), (400, 'Bad Request'), (409, 'Conflict'), (501, 'Not Implemented')]:
+                with self.subTest(status=status):
+                    c.request('GET', '/status/%d' % status)
+                    r = c.getresponse()
+                    r.read()
+                    self.assertEqual(status, r.status)
+                    self.assertEqual(reason, r.reason)
+        finally:
+            c.close()
+
     def testDifferentResponseLengths(self):
         c = http.client.HTTPConnection('localhost:8500')
         for i in range(40):

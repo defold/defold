@@ -14,9 +14,16 @@
 
 (ns editor.engine-profiler
   (:require [clojure.java.io :as io]
+            [editor.engine :as engine]
+            [editor.future :as future]
             [editor.handler :as handler]
+            [editor.localization :as localization]
+            [editor.notifications :as notifications]
+            [editor.os :as os]
+            [editor.prefs :as prefs]
             [editor.targets :as targets]
             [editor.ui :as ui]
+            [editor.workspace :as workspace]
             [util.http-server :as http-server]))
 
 (def ^:private port 17815)
@@ -32,6 +39,36 @@
   (run [prefs]
     (let [address (:address (targets/selected-target prefs))]
       (ui/open-url (format "http://%s:8002/" address)))))
+
+(handler/defhandler :run.start-native-trace :global
+  (active? [] (os/is-mac-os?))
+  (enabled? [prefs] (targets/controllable-target? (targets/selected-target prefs)))
+  (run [prefs workspace]
+    (let [target (targets/selected-target prefs)
+          {:keys [delay-ms duration-ms include-energy output-directory]} (prefs/get prefs [:profile :xctrace])
+          notifications (workspace/notifications workspace)]
+      (future/io
+        (let [notification
+              (try
+                (let [{:keys [status trace]} (engine/start-native-trace! target delay-ms duration-ms include-energy output-directory)]
+                  (case (long status)
+                    202 {:type :info
+                         :message (localization/message "notification.engine-profiler.trace-requested"
+                                                        {"path" (:path trace)})}
+                    409 {:type :warning
+                         :message (localization/message "notification.engine-profiler.trace-busy")}
+                    (404 501) {:type :error
+                               :message (localization/message "notification.engine-profiler.trace-unsupported")}
+                    {:type :error
+                     :message (localization/message "notification.engine-profiler.trace-request-failed"
+                                                    {"status" status})}))
+                (catch Exception exception
+                  {:type :error
+                   :message (localization/message "notification.engine-profiler.trace-connection-failed"
+                                                  {"error" (or (ex-message exception)
+                                                               (.getSimpleName (class exception)))})}))]
+          (ui/run-later
+            (notifications/show! notifications (assoc notification :id ::native-trace))))))))
 
 (defn routes []
   {"/engine-profiler/{*path}"
