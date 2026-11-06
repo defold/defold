@@ -46,9 +46,12 @@ namespace dmPhysics
     /*# physics world step completed
      * Event identifier for Event notifications after each Defold physics-world
      * update. Delivery is synchronous on the engine thread after native stepping and
-     * physics-to-game-object updates, before the collection's queued message dispatch.
-     * Fixed updates publish once per completed world update; paused or skipped updates
-     * do not publish. Backend-internal solver substeps do not publish separate events.
+     * game-object world-transform propagation, before the collection's queued message
+     * dispatch. Fixed updates publish once per completed world update; paused or skipped
+     * world updates do not publish. A backend can perform zero or multiple internal
+     * simulation substeps in one world update, as Bullet does with fixed substeps.
+     * These substeps do not publish separate events. m_Dt carries the supplied world
+     * update interval; the amount of native simulation time advanced can differ.
      * @constant
      * @name EVENT_POST_STEP
      * @language C++
@@ -87,7 +90,7 @@ namespace dmPhysics
      * @language C++
      * @member m_World [type:const void*] borrowed native world access; interpretation depends on m_Type
      * @member m_Type [type:EventType] native backend identifying the world representation
-     * @member m_Dt [type:float] time-scaled dt supplied to this world update, in seconds
+     * @member m_Dt [type:float] time-scaled world update interval in seconds; native simulated time can differ
      */
     typedef PhysicsEvent Event;
 
@@ -98,9 +101,12 @@ namespace dmPhysics
 /*# physics world step completed
  * Event identifier for PhysicsEvent notifications after each Defold physics-world
  * update. Delivery is synchronous on the engine thread after native stepping and
- * physics-to-game-object updates, before the collection's queued message dispatch.
- * Fixed updates publish once per completed world update; paused or skipped updates
- * do not publish. Backend-internal solver substeps do not publish separate events.
+ * game-object world-transform propagation, before the collection's queued message
+ * dispatch. Fixed updates publish once per completed world update; paused or skipped
+ * world updates do not publish. A backend can perform zero or multiple internal
+ * simulation substeps in one world update, as Bullet does with fixed substeps.
+ * These substeps do not publish separate events. m_Dt carries the supplied world
+ * update interval; the amount of native simulation time advanced can differ.
  * @constant
  * @name PHYSICS_EVENT_POST_STEP
  * @language C
@@ -134,5 +140,5 @@ namespace dmPhysics
  * @language C
  * @member m_World [type:const void*] borrowed native world access; interpretation depends on m_Type
  * @member m_Type [type:PhysicsEventType] native backend identifying the world representation
- * @member m_Dt [type:float] time-scaled dt supplied to this world update, in seconds
+ * @member m_Dt [type:float] time-scaled world update interval in seconds; native simulated time can differ
  */

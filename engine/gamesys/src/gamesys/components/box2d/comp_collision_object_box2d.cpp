@@ -592,6 +592,11 @@ namespace dmGameSystem
         DM_PROFILE("StepWorld2D");
         dmPhysics::StepWorld2D(world->m_World2D, *step_ctx);
 
+        if (g_NumPhysicsTransformsUpdated > 0)
+        {
+            dmGameObject::UpdateTransforms(collection);
+        }
+
         dmPhysics::EventType event_type;
         const void* native_world = dmPhysics::GetWorldContext2D(world->m_World2D, &event_type);
         BroadcastPhysicsPostStepEvent(collection, native_world, event_type, step_ctx->m_DT);
@@ -623,11 +628,6 @@ namespace dmGameSystem
 
         dmMessage::HSocket socket = dmGameObject::GetMessageSocket(collection);
         dmGameObject::DispatchMessages(collection, &socket, 1);
-
-        if (g_NumPhysicsTransformsUpdated > 0)
-        {
-            dmGameObject::UpdateTransforms(collection);
-        }
     }
 
     static dmGameObject::UpdateResult CompCollisionObjectUpdateInternal(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)

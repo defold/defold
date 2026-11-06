@@ -28,13 +28,14 @@
 
 struct PhysicsEventProbe
 {
-    HContextRegistry     m_Registry;
-    const void*          m_World;
-    dmPhysics::EventType m_Type;
-    uint32_t             m_Count[2];
-    uint32_t             m_Bodies[2];
-    uint32_t             m_Contacts[2];
-    float                m_Dt;
+    HContextRegistry        m_Registry;
+    const void*             m_World;
+    dmGameObject::HInstance m_Instance;
+    dmPhysics::EventType    m_Type;
+    uint32_t                m_Count[2];
+    uint32_t                m_Bodies[2];
+    uint32_t                m_Contacts[2];
+    float                   m_Dt;
 };
 
 static PhysicsEventProbe* g_PhysicsProbe;
@@ -52,6 +53,11 @@ static void ObservePhysicsStep(dmExtension::Params* params, dmhash_t event_id, c
     ASSERT_EQ(g_PhysicsProbe->m_Registry, dmExtension::ParamsGetContextRegistry(params));
     ASSERT_EQ(g_PhysicsProbe->m_World, event->m_World);
     ASSERT_GT(event->m_Dt, 0.0f);
+    dmVMath::Point3 local_position = dmGameObject::GetPosition(g_PhysicsProbe->m_Instance);
+    dmVMath::Point3 world_position = dmGameObject::GetWorldPosition(g_PhysicsProbe->m_Instance);
+    ASSERT_EQ(local_position.getX(), world_position.getX());
+    ASSERT_EQ(local_position.getY(), world_position.getY());
+    ASSERT_EQ(local_position.getZ(), world_position.getZ());
     ASSERT_EQ((lua_State*)ContextRegistryGet(g_PhysicsProbe->m_Registry, LUA_CONTEXT_NAME), params->m_L);
     ASSERT_EQ((HConfigFile)ContextRegistryGet(g_PhysicsProbe->m_Registry, CONFIGFILE_CONTEXT_NAME), params->m_ConfigFile);
     float extension_dt = -1.0f;
@@ -132,7 +138,8 @@ class PhysicsPostStepTest : public ComponentTest
         m_Probe.m_World = dmGameSystem::CompCollisionObjectGetBox2DWorld(dmGameObject::GetWorld(m_Collection, type));
         g_PhysicsProbe = &m_Probe;
         ASSERT_TRUE(dmGameObject::Init(m_Collection));
-        ASSERT_NE((dmGameObject::HInstance)0, Spawn(m_Factory, m_Collection, "/collision_object/body.goc", dmHashString64("/physics_event_a"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1)));
+        m_Probe.m_Instance = Spawn(m_Factory, m_Collection, "/collision_object/body.goc", dmHashString64("/physics_event_a"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+        ASSERT_NE((dmGameObject::HInstance)0, m_Probe.m_Instance);
         ASSERT_NE((dmGameObject::HInstance)0, Spawn(m_Factory, m_Collection, "/collision_object/body.goc", dmHashString64("/physics_event_b"), 0, dmVMath::Point3(2, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1)));
     }
 
@@ -143,7 +150,7 @@ class PhysicsPostStepTest : public ComponentTest
     }
 };
 
-// Both observers see the live native world and contact data after solving, with the owning registry and world dt.
+// Both observers see native contacts and current game-object world positions after solving, with the owning registry and world dt.
 TEST_F(PhysicsPostStepTest, NativeWorldAndContacts)
 {
     m_UpdateContext.m_DT = 1.0f / 30.0f;
@@ -155,6 +162,7 @@ TEST_F(PhysicsPostStepTest, NativeWorldAndContacts)
     ASSERT_GT(m_Probe.m_Contacts[0], 0u);
     ASSERT_EQ(m_Probe.m_Contacts[0], m_Probe.m_Contacts[1]);
     ASSERT_EQ(m_UpdateContext.m_DT, m_Probe.m_Dt);
+    ASSERT_NE(0.0f, dmGameObject::GetWorldPosition(m_Probe.m_Instance).getX());
 }
 
 // Fixed mode publishes per actual world update, including multiple fixed updates and frames without a fixed step.
@@ -191,13 +199,18 @@ class PhysicsPostStep3DTest : public Bullet3DComponentTest
     {
         RegisterPhysicsListeners();
         Bullet3DComponentTest::SetUp();
+        m_PhysicsContextBullet3D.m_BaseContext.m_MaxFixedTimesteps = 2;
         memset(&m_Probe, 0, sizeof(m_Probe));
         m_Probe.m_Registry = m_ContextRegistry;
         uint32_t type = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("collisionobjectc"));
         m_Probe.m_World = dmGameSystem::CompCollisionObjectGetBullet3DWorld(dmGameObject::GetWorld(m_Collection, type));
         g_PhysicsProbe = &m_Probe;
         ASSERT_TRUE(dmGameObject::Init(m_Collection));
-        ASSERT_NE((dmGameObject::HInstance)0, Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/physics_event_3d"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1)));
+        m_Probe.m_Instance = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/physics_event_3d"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+        ASSERT_NE((dmGameObject::HInstance)0, m_Probe.m_Instance);
+        dmGameObject::UpdateContext update_context = m_UpdateContext;
+        update_context.m_DT = 0.0f;
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &update_context));
     }
 
     void TearDown()
@@ -217,4 +230,56 @@ TEST_F(PhysicsPostStep3DTest, NativeWorld)
     ASSERT_EQ(1u, m_Probe.m_Bodies[0]);
     ASSERT_EQ(m_Probe.m_Bodies[0], m_Probe.m_Bodies[1]);
     ASSERT_EQ(m_UpdateContext.m_DT, m_Probe.m_Dt);
+}
+
+// Both listeners see the propagated world position of a moving Bullet body during post-step delivery.
+TEST_F(PhysicsPostStep3DTest, WorldTransforms)
+{
+    const btDiscreteDynamicsWorld* world = (const btDiscreteDynamicsWorld*)m_Probe.m_World;
+    btRigidBody* body = btRigidBody::upcast(world->getCollisionObjectArray()[0]);
+    body->setLinearVelocity(btVector3(1, 0, 0));
+    m_UpdateContext.m_DT = 1.0f / 30.0f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(1u, m_Probe.m_Count[0]);
+    ASSERT_EQ(1u, m_Probe.m_Count[1]);
+    ASSERT_GT(dmGameObject::GetWorldPosition(m_Probe.m_Instance).getX(), 0.0f);
+}
+
+// Production Bullet settings publish once per world update, including zero or multiple internal substeps.
+TEST_F(PhysicsPostStep3DTest, InternalSubsteps)
+{
+    const btDiscreteDynamicsWorld* world = (const btDiscreteDynamicsWorld*)m_Probe.m_World;
+    btRigidBody* body = btRigidBody::upcast(world->getCollisionObjectArray()[0]);
+    body->setLinearVelocity(btVector3(1, 0, 0));
+    float before_x = body->getWorldTransform().getOrigin().x();
+
+    m_UpdateContext.m_DT = 1.0f / 240.0f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(before_x, body->getWorldTransform().getOrigin().x());
+    ASSERT_EQ(1u, m_Probe.m_Count[0]);
+    ASSERT_EQ(1u, m_Probe.m_Count[1]);
+    ASSERT_EQ(m_UpdateContext.m_DT, m_Probe.m_Dt);
+
+    m_UpdateContext.m_DT = 1.0f / 30.0f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_NEAR(before_x + 1.0f / 30.0f, body->getWorldTransform().getOrigin().x(), 0.00001f);
+    ASSERT_EQ(2u, m_Probe.m_Count[0]);
+    ASSERT_EQ(2u, m_Probe.m_Count[1]);
+    ASSERT_EQ(m_UpdateContext.m_DT, m_Probe.m_Dt);
+}
+
+// Fixed Bullet updates publish independently of rendered frames, with one notification per fixed world update.
+TEST_F(PhysicsPostStep3DTest, FixedStepTiming)
+{
+    m_PhysicsContextBullet3D.m_BaseContext.m_UseFixedTimestep = true;
+    m_UpdateContext.m_FixedUpdateFrequency = 60;
+    m_UpdateContext.m_DT = 3.5f / 60.0f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(3u, m_Probe.m_Count[0]);
+    ASSERT_EQ(3u, m_Probe.m_Count[1]);
+    ASSERT_EQ(1.0f / 60.0f, m_Probe.m_Dt);
+    m_UpdateContext.m_DT = 0.2f / 60.0f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(3u, m_Probe.m_Count[0]);
+    ASSERT_EQ(3u, m_Probe.m_Count[1]);
 }
