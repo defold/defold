@@ -214,6 +214,34 @@ TEST_F(TileGrid3DResourceTest, LoadTileGrid)
     dmResource::Release(m_Factory, resource);
 }
 
+// Preserve every resource-created color attachment between passes, matching OpenGL (#13603).
+TEST_F(RenderTargetResourceTest, PreservesColorAttachments)
+{
+    dmRenderDDF::RenderTargetDesc desc = {};
+    desc.m_Type = dmGraphics::TextureImage::TYPE_2D;
+    dmRenderDDF::RenderTargetDesc::ColorAttachment attachments[dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS] = {};
+    desc.m_ColorAttachments.m_Data = attachments;
+    desc.m_ColorAttachments.m_Count = dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS;
+    for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+    {
+        attachments[i].m_Width = 4;
+        attachments[i].m_Height = 4;
+        attachments[i].m_Format = dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA;
+    }
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&desc, dmRenderDDF::RenderTargetDesc::m_DDFDescriptor, buffer));
+    dmGameSystem::RenderTargetResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, "/preserve.render_targetc", buffer.Begin(), buffer.Size(), (void**) &resource));
+    dmGraphics::NullContext* context = (dmGraphics::NullContext*) m_GraphicsContext;
+    dmGraphics::NullRenderTarget* target = dmGraphics::GetAssetFromContainer<dmGraphics::NullRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, resource->m_RenderTarget);
+    for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+    {
+        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_LOAD, target->m_ColorBufferLoadOps[i]);
+        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_STORE, target->m_ColorBufferStoreOps[i]);
+    }
+    dmResource::Release(m_Factory, resource);
+}
+
 // Reject empty and zero-sized serialized attachments before creating a framebuffer.
 TEST_F(RenderTargetResourceTest, InvalidAttachmentsFailToCreate)
 {
