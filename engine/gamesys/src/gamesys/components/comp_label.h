@@ -57,6 +57,7 @@ namespace dmGameSystem
     struct LabelComponent;
 
     const char*      CompLabelGetText(const LabelComponent* component);
+    void             CompLabelSetText(LabelComponent* component, const char* text);
     HTextLayout      CompLabelGetTextLayout(LabelComponent* component);
 
     // Resolves the object's lower-left corner relative to the label pivot, before scale and rotation.

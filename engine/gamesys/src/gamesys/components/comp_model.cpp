@@ -2767,6 +2767,11 @@ namespace dmGameSystem
         return result;
     }
 
+    void CompModelCancelAnimation(ModelComponent* component)
+    {
+        dmRig::CancelAnimation(component->m_RigInstance);
+    }
+
     dmGameObject::UpdateResult CompModelOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
@@ -2785,7 +2790,7 @@ namespace dmGameSystem
         {
             if (params.m_Message->m_Id == dmModelDDF::ModelCancelAnimation::m_DDFDescriptor->m_NameHash)
             {
-                dmRig::CancelAnimation(component->m_RigInstance);
+                CompModelCancelAnimation(component);
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {

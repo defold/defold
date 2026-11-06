@@ -67,6 +67,9 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    void CompModelCancelAnimation(ModelComponent* component)
+    { }
+
     void CompModelOnReload(const dmGameObject::ComponentOnReloadParams& params)
     { }
 

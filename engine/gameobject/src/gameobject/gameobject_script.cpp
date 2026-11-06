@@ -612,16 +612,27 @@ namespace dmGameObject
 
     void GetComponentFromLua(lua_State* L, int index, HCollection hcollection, const char* component_ext, dmGameObject::HComponent* out_component, dmMessage::URL* url, dmGameObject::HComponentWorld* out_world)
     {
+        GetComponentFromLua(L, index, hcollection, component_ext, out_component, url, out_world, 0);
+    }
+
+    void GetComponentFromLua(lua_State* L, int index, HCollection hcollection, const char* component_ext, dmGameObject::HComponent* out_component, dmMessage::URL* url, dmGameObject::HComponentWorld* out_world, HInstance* out_instance)
+    {
         Collection* collection = GetCollectionFromHandle(hcollection);
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
         {
             dmMessage::URL receiver;
             dmScript::ResolveURL(L, index, &receiver, &sender);
-            if (sender.m_Socket != receiver.m_Socket || sender.m_Socket != dmGameObject::GetMessageSocket(hcollection))
+            if (receiver.m_Socket != dmGameObject::GetMessageSocket(hcollection))
             {
-                luaL_error(L, "function called can only access instances within the same collection.");
-                return; // Actually never reached
+                dmhash_t socket_name = dmMessage::GetSocketNameHash(receiver.m_Socket);
+                HCollection target_collection = GetCollectionByHash(collection->m_Register, socket_name);
+                if (!target_collection)
+                {
+                    luaL_error(L, "The collection could not be found for socket '%s'", dmHashReverseSafe64(socket_name));
+                    return; // Actually never reached
+                }
+                collection = GetCollectionFromHandle(target_collection);
             }
 
             Instance* instance = GetInstanceFromIdentifier(collection, receiver.m_Path);
@@ -665,6 +676,10 @@ namespace dmGameObject
             if (url)
             {
                 *url = receiver;
+            }
+            if (out_instance)
+            {
+                *out_instance = GetInstanceHandle(collection, instance);
             }
         }
         else

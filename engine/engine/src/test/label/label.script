@@ -103,9 +103,10 @@ local function test_set_scale_xy(val)
 end
 
 
+-- These URLs resolve to the script component, which label.set_text rejects immediately.
 local function test_bad_url()
-	label.set_text(nil, "hello") -- script
-	label.set_text("#", "hello") -- script
+	assert(not pcall(label.set_text, nil, "hello"))
+	assert(not pcall(label.set_text, "#", "hello"))
 end
 
 function init(self)

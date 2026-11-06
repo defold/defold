@@ -92,7 +92,7 @@ namespace dmScript
 
     /*#
      * Get component user data from a url.
-     * @note The object referenced by the url must be in the same collection as the caller.
+     * @note Components in other loaded collections can be addressed using their full URLs.
      *
      * @name GetComponentFromLua
      * @param L [type:lua_State*] Lua state
@@ -103,6 +103,21 @@ namespace dmScript
      * @param url [type:dmMessage::URL*] The resolved url. May be 0
      */
     void GetComponentFromLua(lua_State* L, int index, const char* component_type, dmGameObject::HComponentWorld* out_world, dmGameObject::HComponent* component, dmMessage::URL* url);
+
+    /*#
+     * Get component user data and its owning game object from a url.
+     * @note Components in other loaded collections can be addressed using their full URLs.
+     *
+     * @name GetComponentFromLua
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] index to argument (a url)
+     * @param component_type [type:const char*] E.g. "factoryc". The call will fail if the found component does not have the specified extension
+     * @param world [type:dmGameObject::HComponentWorld*] The world owning the component. May be 0
+     * @param component [type:dmGameObject::HComponent*] The component data associated with the url
+     * @param url [type:dmMessage::URL*] The resolved url. May be 0
+     * @param instance [type:dmGameObject::HInstance*] The game object owning the component. May be 0
+     */
+    void GetComponentFromLua(lua_State* L, int index, const char* component_type, dmGameObject::HComponentWorld* out_world, dmGameObject::HComponent* component, dmMessage::URL* url, dmGameObject::HInstance* out_instance);
 
     /*# buffer ownership
      *
