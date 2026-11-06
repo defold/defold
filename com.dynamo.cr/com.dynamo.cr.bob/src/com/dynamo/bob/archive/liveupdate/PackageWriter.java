@@ -35,6 +35,7 @@ import org.apache.commons.io.FileUtils;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.Task;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ManifestBuilder;
@@ -42,6 +43,8 @@ import com.dynamo.bob.archive.liveupdate.PackageArtifacts.Output;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.liveupdate.proto.LiveUpdateManifest.FileCompression;
+import com.dynamo.liveupdate.proto.LiveUpdateManifest.FileCompressionPreset;
 import com.dynamo.liveupdate.proto.Manifest.PackageMetadata;
 import com.dynamo.liveupdate.proto.Manifest.PackageOutput;
 import com.dynamo.liveupdate.proto.Manifest.PackageRequirement;
@@ -49,8 +52,9 @@ import com.dynamo.liveupdate.proto.Manifest.PackageRequirement;
 /** Owns temporary payloads and the transaction that publishes a complete set of artifacts. */
 public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsumer, AutoCloseable {
 
-    /** Finalized artifacts, both as a complete list and indexed by package for report generation. */
-    public record WriteResult(List<Output> outputs, Map<String, List<Output>> packages) {}
+    /** Finalized artifacts and per-package payload sizes for report generation. */
+    public record WriteResult(List<Output> outputs, Map<String, List<Output>> packages,
+            Map<String, Map<String, Long>> storedSizes) {}
 
     private record Delivery(PackageResolver.Package pkg,
             PackageProvider provider,
@@ -59,16 +63,25 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
     private final Project project;
     private final PackageResolver.Plan plan;
     private final Path stage;
-    private final Map<String, Path> prepared = new LinkedHashMap<>();
+    private record FileSettings(FileCompression compression, int level) {
+        FileSettings(FileCompressionPreset preset) {
+            this(preset.getFileCompression(), preset.getFileCompression() == FileCompression.LZ4 ? preset.getLz4Level() : 0);
+        }
+    }
+
+    private final FileSettings baseCompression;
+    private final Map<FileSettings, Map<String, ArchiveEntry>> prepared = new LinkedHashMap<>();
     private final Set<String> packaged = new TreeSet<>();
 
     /**
      * Creates a temporary payload staging area for the resolved plan. The caller must close the writer on success or
      * failure.
      */
-    public PackageWriter(Project project, PackageResolver.Plan plan) throws IOException {
+    public PackageWriter(Project project, PackageResolver.Plan plan, FileCompressionPreset baseCompression) throws IOException {
         this.project = project;
         this.plan = plan;
+        this.baseCompression = new FileSettings(baseCompression);
+        prepared.put(this.baseCompression, new LinkedHashMap<>());
         Path buildDirectory = Path.of(project.getRootDirectory(), project.getBuildDirectory());
         Files.createDirectories(buildDirectory);
         stage = Files.createTempDirectory(buildDirectory, ".liveupdate-");
@@ -80,7 +93,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
 
     /**
      * Retains prepared payloads needed by any package, adding their Live Update header once per content hash.
-     * Called by parallel archive workers; resources shared with the base or other packages reuse the same prepared bytes.
+     * Called by parallel archive workers; packages with the same compression reuse these bytes.
      */
     @Override
     public synchronized void accept(ArchiveEntry entry, byte[] payload) throws IOException {
@@ -90,6 +103,12 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
             return;
         }
 
+        writePayload(entry, payload);
+        prepared.get(baseCompression).put(path, entry);
+    }
+
+    /** Stores each payload once, even when different resource paths contain the same bytes. */
+    private void writePayload(ArchiveEntry entry, byte[] payload) throws IOException {
         Path file = stage.resolve("payloads").resolve(entry.getHexDigest());
         if (!Files.exists(file)) {
             try (OutputStream output = Files.newOutputStream(file)) {
@@ -97,20 +116,46 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                 output.write(payload);
             }
         }
-        prepared.put(path, file);
+    }
+
+    /** Prepares only variants that differ from Base, caching them for packages with the same file compression. */
+    private List<ArchiveEntry> prepare(PackageResolver.Package pkg, FileCompressionPreset preset) throws IOException, CompileExceptionError {
+        FileSettings compression = new FileSettings(preset);
+        Map<String, ArchiveEntry> entries = prepared.computeIfAbsent(compression, key -> new LinkedHashMap<>());
+        List<ArchiveEntry> result = new ArrayList<>();
+        for (String path : pkg.resources().stream().sorted().toList()) {
+            PackageArtifacts.checkCanceled(project::isBuildCanceled);
+            ArchiveEntry entry = entries.get(path);
+            if (entry == null) {
+                ArchiveEntry original = prepared.get(baseCompression).get(path);
+                if (original == null) {
+                    throw new IOException("Missing prepared resource: " + path);
+                }
+                Set<Task.OutputFlags> flags = project.getOutputFlags(original.getFilename());
+                boolean compress = compression.compression() == FileCompression.LZ4
+                        && (flags == null || !flags.contains(Task.OutputFlags.UNCOMPRESSED));
+                String root = Path.of(project.getRootDirectory(), project.getBuildDirectory()).toAbsolutePath().toString();
+                entry = new ArchiveEntry(root, original.getFilename(), compress, original.isEncrypted());
+                writePayload(entry, project.getArchiveBuilder().prepareResource(entry, preset.getLz4Level()));
+                entries.put(path, entry);
+            }
+            result.add(entry);
+        }
+        return List.copyOf(result);
     }
 
     /**
-     * Validates all output declarations and invokes every provider with a package-local manifest.
+     * Validates all output declarations, then prepares and writes selected packages with package-local manifests.
      * Stages fresh artifacts and ownership together before installation, removing obsolete owned manifest outputs.
      *
      * @param manifests configured manifest builder, including hashing and engine-version settings
      * @param buildOutputs reserved build outputs that package destinations must not overlap
+     * @param selection package names to write; other packages remain available in dependency metadata
      * @return the finalized artifacts and their package associations
      * @throws IOException on I/O failure or cancellation; installation attempts to restore previous outputs
      * @throws CompileExceptionError on invalid providers, settings, or output collisions
      */
-    public WriteResult write(ManifestBuilder manifests, Collection<IResource> buildOutputs) throws IOException, CompileExceptionError {
+    public WriteResult write(ManifestBuilder manifests, Collection<IResource> buildOutputs, Set<String> selection) throws IOException, CompileExceptionError {
         Map<String, PackageProvider> providers = PackageProviders.discover(Project.getClassLoaderScanner());
         PackageProvider.Context context = PackageProviders.context(project, plan, providers);
         Path legacyOutput = PackageBuilder.manifestPath(project).isEmpty() ? PackageBuilder.legacyOutput(project) : null;
@@ -141,6 +186,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         Map<Path, Path> stagedOutputs = new LinkedHashMap<>();
         List<Output> outputs = new ArrayList<>();
         Map<String, List<Output>> packageOutputs = new LinkedHashMap<>();
+        Map<String, Map<String, Long>> storedSizes = new LinkedHashMap<>();
 
         // Reserve build outputs before they exist, including this writer's ownership index.
         List<Path> reservedOutputs = new ArrayList<>(List.of(PackageArtifacts.buildIndex(project)));
@@ -157,7 +203,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         for (PackageResolver.Package pkg : plan.packages().values()) {
             context.checkCanceled();
             String name = pkg.description().getName();
-            String providerId = pkg.description().getProvider();
+            String providerId = PackageResolver.containerPreset(context.manifest(), pkg.description().getContainerPreset()).getProvider();
             PackageProvider provider = providers.get(providerId);
             List<PackageProvider.Artifact> artifacts = List.copyOf(provider.describeOutputs(context, pkg));
             if (legacyOutput != null) {
@@ -198,6 +244,12 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                 }
 
                 Output previous = findPreviousOutput(knownOutputs, destination);
+                if (previous != null && Files.exists(destination) && project.hasOption("package")
+                        && selection.contains(name) && !previous.packageName().isEmpty()
+                        && !selection.contains(previous.packageName())) {
+                    throw new CompileExceptionError("Package output belongs to unselected package '"
+                            + previous.packageName() + "': " + destination);
+                }
                 if (Files.exists(destination) && !legacyPlacement
                         && (previous == null || (previous.legacy() && previous.directory()))) {
                     throw new CompileExceptionError(
@@ -214,9 +266,19 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         }
 
         for (Delivery delivery : deliveries) {
+            if (!selection.contains(delivery.pkg().description().getName())) {
+                continue;
+            }
             context.checkCanceled();
             int firstOutput = outputs.size();
             PackageResolver.Package pkg = delivery.pkg();
+            FileCompressionPreset preset = PackageResolver.fileCompressionPreset(context.manifest(), pkg.description().getFileCompressionPreset());
+            List<ArchiveEntry> entries = prepare(pkg, preset);
+            Map<String, Long> sizes = new LinkedHashMap<>();
+            for (ArchiveEntry entry : entries) {
+                sizes.put(entry.getRelativeFilename(), (long)(entry.isCompressed() ? entry.getCompressedSize() : entry.getSize()));
+            }
+            storedSizes.put(pkg.description().getName(), Map.copyOf(sizes));
             PackageMetadata.Builder metadata = PackageMetadata.newBuilder()
                     .setName(pkg.description().getName())
                     .addAllOutputs(references);
@@ -227,15 +289,13 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                         .addAllPackages(requirement.getValue()));
             }
 
-            if (!prepared.keySet().containsAll(pkg.resources())) {
-                throw new IOException("Missing prepared resource in " + pkg.description().getName());
-            }
             List<PackageProvider.PreparedResource> resources = new ArrayList<>();
-            for (String path : pkg.resources().stream().sorted().toList()) {
-                resources.add(new PackageProvider.PreparedResource(context.resources().get(path), prepared.get(path)));
+            for (ArchiveEntry entry : entries) {
+                resources.add(new PackageProvider.PreparedResource(new PackageProvider.ResourceInfo(entry),
+                        stage.resolve("payloads").resolve(entry.getHexDigest())));
             }
             resources = List.copyOf(resources);
-            byte[] manifest = manifests.buildPackageManifest(pkg.resources(), metadata.build());
+            byte[] manifest = manifests.buildPackageManifest(entries, metadata.build());
             Path packageStage = stage.resolve("package-" + packageOutputs.size());
             Files.createDirectory(packageStage);
             delivery.provider().write(context, pkg, resources, manifest, packageStage);
@@ -258,7 +318,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                     throw new IOException("Provider did not produce a regular, non-symlink output: " + artifact.name());
                 }
                 stagedOutputs.put(destination, output);
-                outputs.add(new Output(destination, artifact.name(), artifact.directory(), bundle, legacyPlacement));
+                outputs.add(new Output(destination, artifact.name(), artifact.directory(), bundle, legacyPlacement, pkg.description().getName()));
             }
             packageOutputs.put(pkg.description().getName(), List.copyOf(outputs.subList(firstOutput, outputs.size())));
         }
@@ -270,7 +330,8 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         List<Output> ownedOutputs = new ArrayList<>(outputs);
         // Legacy releases are retained when their destination changes; folders can also contain unowned files.
         for (Output previous : previousOutputs.values()) {
-            if (previous.legacy() && obsolete.remove(previous.path())) {
+            if ((previous.legacy() || (project.hasOption("package") && !selection.contains(previous.packageName())))
+                    && obsolete.remove(previous.path())) {
                 ownedOutputs.add(previous);
             }
         }
@@ -279,7 +340,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         Files.write(ownership, PackageArtifacts.serializeOutputs(project, ownedOutputs));
         stagedOutputs.put(PackageArtifacts.buildIndex(project), ownership);
         finalizeOutputs(project, stagedOutputs, obsolete);
-        return new WriteResult(List.copyOf(outputs), Map.copyOf(packageOutputs));
+        return new WriteResult(List.copyOf(outputs), Map.copyOf(packageOutputs), Map.copyOf(storedSizes));
     }
 
     /** Carries forward files absent from the new staged folder, preserving the legacy publisher's merge behavior. */
@@ -410,12 +471,12 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
     /** Validate the entire artifact set before copying into the bundle. */
     private static List<Output> validatedOutputs(Project project) throws IOException {
         if (!PackageArtifacts.resource(project).exists()) {
-            throw new IOException("Live Update artifact index is missing; run build before bundling");
+            throw new IOException("Live Update artifact index is missing; run bundle again");
         }
         List<Output> outputs = PackageArtifacts.readOutputs(project);
         for (Output output : outputs) {
             if (!isValidOutput(project, output.path(), output.directory())) {
-                throw new IOException("Live Update artifact is missing or has an invalid file type; run build before bundling: " + output.path());
+                throw new IOException("Live Update artifact is missing or has an invalid file type; run bundle again: " + output.path());
             }
         }
         return outputs;
@@ -461,7 +522,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                 continue;
             }
             Path destination = bundleDirectory.resolve(output.name()).toAbsolutePath().normalize();
-            outputs.add(new Output(destination, output.name(), output.directory(), true, output.legacy()));
+            outputs.add(new Output(destination, output.name(), output.directory(), true, output.legacy(), output.packageName()));
             if (output.path().equals(destination)) {
                 continue;
             }
@@ -485,6 +546,28 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
 
         Set<Path> obsolete = new LinkedHashSet<>(previous.keySet());
         removeCurrentOutputs(obsolete, previous, outputs);
+        if (project.hasOption("package")) {
+            Set<String> selected = Set.copyOf(List.of(project.option("package", "").split(",")));
+            List<Output> available = PackageArtifacts.readBuildOutputs(project);
+            for (Output output : previous.values()) {
+                if (!selected.contains(output.packageName()) && obsolete.remove(output.path())) {
+                    outputs.add(output);
+                    // Application bundlers may recreate their directory. Restore unselected copies from
+                    // their existing package artifacts, without rebuilding the packages themselves.
+                    if (!Files.exists(output.path(), LinkOption.NOFOLLOW_LINKS)) {
+                        for (Output source : available) {
+                            if (source.packageName().equals(output.packageName()) && source.name().equals(output.name())) {
+                                if (!isValidOutput(project, source.path(), source.directory())) {
+                                    throw new IOException("Live Update artifact is missing or has an invalid file type; run bundle again: " + source.path());
+                                }
+                                copies.put(output.path(), source.path());
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // Stage all artifacts and the index together. A cancelled delivery
         // restores the previous package copies and their ownership, so it can be retried.

@@ -46,7 +46,8 @@ public final class PackageArtifacts {
             String name,
             boolean directory,
             boolean bundle,
-            boolean legacy) {}
+            boolean legacy,
+            String packageName) {}
 
     /** Returns the persistent ownership directory, outside the disposable build directory. */
     private static Path directory(Path projectRoot) {
@@ -77,7 +78,7 @@ public final class PackageArtifacts {
         return parse(projectRoot, Files.readString(index, StandardCharsets.UTF_8));
     }
 
-    /** Returns the .lupackages build output recording the artifacts from the latest successful build. */
+    /** Returns the .lupackages build output recording the artifacts from the latest successful bundle. */
     public static IResource resource(Project project) {
         return project.getGameProjectResource().disableMinifyPath().changeExt(".lupackages");
     }
@@ -92,7 +93,7 @@ public final class PackageArtifacts {
                     .append(output.bundle()).append(' ')
                     .append(Base64.getEncoder().encodeToString(path)).append(' ')
                     .append(Base64.getEncoder().encodeToString(name)).append(' ')
-                    .append(output.legacy()).append('\n');
+                    .append(output.legacy()).append(" package:").append(output.packageName()).append('\n');
         }
         return text.toString().getBytes(StandardCharsets.UTF_8);
     }
@@ -127,7 +128,12 @@ public final class PackageArtifacts {
         List<Output> outputs = new ArrayList<>();
         for (String line : content.lines().toList()) {
             String[] fields = line.split(" ", -1);
-            if (fields.length < 5 || fields.length > 7) {
+            int last = fields.length - 1;
+            String packageName = "";
+            if (fields[last].startsWith("package:")) {
+                packageName = fields[last--].substring("package:".length());
+            }
+            if (last < 4 || last > 6) {
                 throw new IOException("Invalid Live Update artifact index");
             }
             Path path = Path.of(new String(Base64.getDecoder().decode(fields[2]), StandardCharsets.UTF_8));
@@ -142,8 +148,8 @@ public final class PackageArtifacts {
             boolean bundle = Boolean.parseBoolean(fields[1]);
             String name = new String(Base64.getDecoder().decode(fields[3]), StandardCharsets.UTF_8);
             // Ignore fingerprints stored by earlier versions of these build records.
-            boolean legacy = Boolean.parseBoolean(fields[fields.length - 1]);
-            outputs.add(new Output(path, name, directory, bundle, legacy));
+            boolean legacy = Boolean.parseBoolean(fields[last]);
+            outputs.add(new Output(path, name, directory, bundle, legacy, packageName));
         }
         return List.copyOf(outputs);
     }
@@ -183,7 +189,7 @@ public final class PackageArtifacts {
         }
         for (Path path : paths) {
             path = path.toAbsolutePath().normalize();
-            outputs.put(path, new Output(path, path.getFileName().toString(), false, false, false));
+            outputs.put(path, new Output(path, path.getFileName().toString(), false, false, false, ""));
         }
         Files.createDirectories(index.getParent());
         Path staged = Files.createTempFile(index.getParent(), ".reports-", ".tmp");

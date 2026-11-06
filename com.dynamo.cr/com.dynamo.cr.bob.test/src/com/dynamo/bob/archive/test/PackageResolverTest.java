@@ -18,6 +18,8 @@ import com.dynamo.bob.archive.liveupdate.PackageResolver;
 import com.dynamo.bob.archive.liveupdate.PackageResolver.Loading;
 import com.dynamo.bob.archive.liveupdate.PackageResolver.Resource;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.ManifestDesc;
+import com.dynamo.liveupdate.proto.LiveUpdateManifest.ContainerPreset;
+import com.dynamo.liveupdate.proto.LiveUpdateManifest.FileCompressionPreset;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.NoMatchPolicy;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.PackageDesc;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.RuleDesc;
@@ -42,6 +44,55 @@ public class PackageResolverTest {
         return ManifestDesc.newBuilder().addAllPackages(List.of(packages)).build();
     }
     private static Resource leaf() { return new Resource(Map.of()); }
+
+    // Preset errors are shared by authoring and build validation, including unused presets and Base references.
+    @Test
+    public void fileCompressionPresetValidation() {
+        var preset = FileCompressionPreset.newBuilder().setName("preset");
+        var manifest = ManifestDesc.newBuilder().addFileCompressionPresets(preset)
+                .setBaseFileCompressionPreset("preset")
+                .addPackages(pkg("content").toBuilder().setFileCompressionPreset("preset"));
+        assertTrue(PackageResolver.validate(manifest.build()).isEmpty());
+        assertEquals(9, PackageResolver.fileCompressionPreset(manifest.build(), "preset").getLz4Level());
+        assertEquals(9, PackageResolver.fileCompressionPreset(manifest.build(), "").getLz4Level());
+        for (int level : List.of(0, 13)) {
+            manifest.setFileCompressionPresets(0, preset.clone().setLz4Level(level));
+            assertTrue(PackageResolver.validate(manifest.build()).stream().anyMatch(d -> d.message().contains("LZ4 compression level")));
+        }
+        manifest.setFileCompressionPresets(0, preset).addFileCompressionPresets(preset);
+        assertTrue(PackageResolver.validate(manifest.build()).stream().anyMatch(d -> d.message().contains("Duplicate compression preset")));
+        manifest.clearFileCompressionPresets().addFileCompressionPresets(preset.clone().setName(""));
+        assertTrue(PackageResolver.validate(manifest.build()).stream().anyMatch(d -> d.message().contains("name is required")));
+        manifest.clearFileCompressionPresets();
+        assertEquals(Set.of("base", "content"), PackageResolver.validate(manifest.build()).stream()
+                .filter(d -> d.message().contains("Unknown file compression preset"))
+                .map(PackageResolver.Diagnostic::packageName).collect(java.util.stream.Collectors.toSet()));
+    }
+
+    // Container names and ZIP levels are validated independently of file presets with the same name.
+    @Test
+    public void containerPresetValidation() {
+        var preset = ContainerPreset.newBuilder().setName("preset");
+        var manifest = ManifestDesc.newBuilder().addContainerPresets(preset)
+                .addFileCompressionPresets(FileCompressionPreset.newBuilder().setName("preset"))
+                .addPackages(pkg("content").toBuilder().setContainerPreset("preset").setFileCompressionPreset("preset"));
+        assertTrue(PackageResolver.validate(manifest.build()).isEmpty());
+        assertEquals(1, PackageResolver.containerPreset(manifest.build(), "").getZipLevel());
+        for (int level : List.of(-2, 10)) {
+            manifest.setContainerPresets(0, preset.clone().setZipLevel(level));
+            assertTrue(PackageResolver.validate(manifest.build()).stream().anyMatch(d -> d.message().contains("ZIP compression level")));
+        }
+        manifest.setContainerPresets(0, preset).addContainerPresets(preset);
+        assertTrue(PackageResolver.validate(manifest.build()).stream().anyMatch(d -> d.message().contains("Duplicate container preset")));
+        manifest.clearContainerPresets().addContainerPresets(preset.clone().setName(""));
+        assertTrue(PackageResolver.validate(manifest.build()).stream().anyMatch(d -> d.message().contains("name is required")));
+        manifest.setContainerPresets(0, preset.clone().setProvider(""));
+        assertTrue(PackageResolver.validate(manifest.build()).stream().anyMatch(d -> d.message().contains("provider is required")));
+        manifest.clearContainerPresets();
+        assertEquals(1, PackageResolver.validate(manifest.build()).stream()
+                .filter(d -> d.message().contains("Unknown container preset"))
+                .count());
+    }
 
     // A source with inseparable base/LU outputs must fail conversion rather than silently change membership.
     @Test

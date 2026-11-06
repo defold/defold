@@ -27,6 +27,9 @@ import java.util.TreeSet;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
+import com.dynamo.liveupdate.proto.LiveUpdateManifest.ContainerPreset;
+import com.dynamo.liveupdate.proto.LiveUpdateManifest.FileCompression;
+import com.dynamo.liveupdate.proto.LiveUpdateManifest.FileCompressionPreset;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.ManifestDesc;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.NoMatchPolicy;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.PackageDesc;
@@ -245,9 +248,100 @@ public final class PackageResolver {
         return select(manifest, List.of(), false).diagnostics();
     }
 
+    /** Resolves file compression; an omitted choice uses LZ4 at its default level. */
+    public static FileCompressionPreset fileCompressionPreset(ManifestDesc manifest, String name) {
+        if (name.isEmpty()) {
+            return FileCompressionPreset.getDefaultInstance();
+        }
+        for (FileCompressionPreset preset : manifest.getFileCompressionPresetsList()) {
+            if (preset.getName().equals(name)) {
+                return preset;
+            }
+        }
+        throw new IllegalArgumentException("Unknown file compression preset: " + name);
+    }
+
+    /** Returns property errors keyed by preset name for the editor and build validation. */
+    public static Map<String, Map<String, String>> fileCompressionPresetErrors(ManifestDesc manifest) {
+        Map<String, Map<String, String>> errors = new LinkedHashMap<>();
+        Set<String> names = new LinkedHashSet<>();
+        for (FileCompressionPreset preset : manifest.getFileCompressionPresetsList()) {
+            Map<String, String> properties = new LinkedHashMap<>();
+            if (preset.getName().isBlank()) {
+                properties.put("name", "A compression preset name is required");
+            } else if (!names.add(preset.getName())) {
+                properties.put("name", "Duplicate compression preset: " + preset.getName());
+            }
+            if (preset.getFileCompression() == FileCompression.LZ4
+                    && (preset.getLz4Level() < 1 || preset.getLz4Level() > 12)) {
+                properties.put("lz4-level", "LZ4 compression level must be between 1 and 12");
+            }
+            if (!properties.isEmpty()) {
+                errors.put(preset.getName(), Map.copyOf(properties));
+            }
+        }
+        return Map.copyOf(errors);
+    }
+
+    /** Resolves a container preset; an omitted choice uses ZIP at its default level. */
+    public static ContainerPreset containerPreset(ManifestDesc manifest, String name) {
+        if (name.isEmpty()) {
+            return ContainerPreset.getDefaultInstance();
+        }
+        for (ContainerPreset preset : manifest.getContainerPresetsList()) {
+            if (preset.getName().equals(name)) {
+                return preset;
+            }
+        }
+        throw new IllegalArgumentException("Unknown container preset: " + name);
+    }
+
+    /** Returns container property errors shared by editor properties and build validation. */
+    public static Map<String, Map<String, String>> containerPresetErrors(ManifestDesc manifest) {
+        Map<String, Map<String, String>> errors = new LinkedHashMap<>();
+        Set<String> names = new LinkedHashSet<>();
+        for (ContainerPreset preset : manifest.getContainerPresetsList()) {
+            Map<String, String> properties = new LinkedHashMap<>();
+            if (preset.getName().isBlank()) {
+                properties.put("name", "A container preset name is required");
+            } else if (!names.add(preset.getName())) {
+                properties.put("name", "Duplicate container preset: " + preset.getName());
+            }
+            if (preset.getProvider().isBlank()) {
+                properties.put("provider", "A container provider is required");
+            }
+            if (preset.getProvider().equals("zip") && (preset.getZipLevel() < -1 || preset.getZipLevel() > 9)) {
+                properties.put("zip-level", "ZIP compression level must be between -1 and 9");
+            }
+            if (!properties.isEmpty()) {
+                errors.put(preset.getName(), Map.copyOf(properties));
+            }
+        }
+        return Map.copyOf(errors);
+    }
+
     /** Shares authoring checks between immediate editor validation and full resource selection. */
     private static Selection select(ManifestDesc manifest, Collection<String> sourcePaths, boolean matchSources) {
         List<Diagnostic> diagnostics = new ArrayList<>();
+        for (var errors : List.of(containerPresetErrors(manifest), fileCompressionPresetErrors(manifest))) {
+            for (var preset : errors.entrySet()) {
+                for (String message : preset.getValue().values()) {
+                    diagnostics.add(new Diagnostic(Severity.ERROR, "", -1, "", "Compression preset '" + preset.getKey() + "': " + message));
+                }
+            }
+        }
+        Map<String, String> choices = new LinkedHashMap<>();
+        choices.put("base", manifest.getBaseFileCompressionPreset());
+        for (PackageDesc pkg : manifest.getPackagesList()) {
+            choices.put(pkg.getName(), pkg.getFileCompressionPreset());
+        }
+        for (var choice : choices.entrySet()) {
+            try {
+                fileCompressionPreset(manifest, choice.getValue());
+            } catch (IllegalArgumentException e) {
+                diagnostics.add(new Diagnostic(Severity.ERROR, choice.getKey(), -1, "", e.getMessage()));
+            }
+        }
         Map<RuleId, List<String>> matches = new LinkedHashMap<>();
         Set<String> inventory = new TreeSet<>();
         for (String source : sourcePaths) {
@@ -256,8 +350,10 @@ public final class PackageResolver {
 
         for (PackageDesc pkg : manifest.getPackagesList()) {
             String name = pkg.getName();
-            if (pkg.getProvider().isBlank()) {
-                diagnostics.add(new Diagnostic(Severity.ERROR, name, -1, "", "A provider is required"));
+            try {
+                containerPreset(manifest, pkg.getContainerPreset());
+            } catch (IllegalArgumentException e) {
+                diagnostics.add(new Diagnostic(Severity.ERROR, name, -1, "", e.getMessage()));
             }
 
             for (int i = 0; i < pkg.getRulesCount(); ++i) {

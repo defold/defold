@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.dynamo.bob.Project;
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.bundle.BundleHelper;
@@ -32,7 +33,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-/** Cached package contents for reports, independent of whether compiler tasks ran this time. */
+/** Cached package contents for reports, from the latest bundle invocation. */
 public final class PackageReport {
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -50,7 +51,7 @@ public final class PackageReport {
      * Container sizes are measured later by {@link #read}; this method does not write the report resource.
      */
     public static byte[] create(Project project, ArchiveBuilder archive, PackageResolver.Plan plan,
-            Map<String, List<PackageArtifacts.Output>> outputs) throws IOException {
+            PackageWriter.WriteResult outputs, java.util.Set<String> selection) throws IOException, CompileExceptionError {
         ObjectNode report = JSON.createObjectNode();
         Map<String, ObjectNode> resources = new LinkedHashMap<>();
         for (List<ArchiveEntry> entries : List.of(archive.getIncludedEntries(), archive.getExcludedEntries())) {
@@ -61,6 +62,10 @@ public final class PackageReport {
                 row.put("source", plan.primarySources().getOrDefault(path, ""));
                 row.put("size", entry.getSize());
                 row.put("compressed_size", entry.isCompressed() ? entry.getCompressedSize() : entry.getSize());
+                ObjectNode sizes = row.putObject("compressed_sizes");
+                if (selection.contains("base") && plan.base().contains(path)) {
+                    sizes.put("base", row.get("compressed_size").asLong());
+                }
                 row.put("encrypted", entry.isEncrypted());
                 row.putArray("packages");
                 resources.put(path, row);
@@ -68,32 +73,45 @@ public final class PackageReport {
         }
 
         ArrayNode packages = report.putArray("packages");
-        ObjectNode base = addPackage(packages, resources, "base", "archive", plan.base());
         Path root = Path.of(project.getRootDirectory()).toAbsolutePath().normalize();
-        for (String extension : List.of(".projectc", ".arci", ".arcd", ".dmanifest")) {
-            IResource output = project.getGameProjectResource().disableMinifyPath().changeExt(extension);
-            Path path = Path.of(output.getAbsPath());
-            addOutput(base.withArray("outputs"), root, path, path.getFileName().toString(), false);
+        if (selection.contains("base")) {
+            ObjectNode base = addPackage(packages, resources, "base", "archive", plan.base());
+            for (String extension : List.of(".projectc", ".arci", ".arcd", ".dmanifest")) {
+                IResource output = project.getGameProjectResource().disableMinifyPath().changeExt(extension);
+                Path path = Path.of(output.getAbsPath());
+                addOutput(base.withArray("outputs"), root, path, path.getFileName().toString(), false);
+            }
+
+            String certificates = project.getProjectProperties().getStringValue("network", "ssl_certificates");
+            if (certificates != null && !certificates.isEmpty()) {
+                Path path = root.resolve(project.getBuildDirectory()).resolve(BundleHelper.SSL_CERTIFICATES_NAME);
+                addOutput(base.withArray("outputs"), root, path,
+                        BundleHelper.SSL_CERTIFICATES_NAME, false);
+            }
+
         }
 
-        String certificates = project.getProjectProperties().getStringValue("network", "ssl_certificates");
-        if (certificates != null && !certificates.isEmpty()) {
-            Path path = root.resolve(project.getBuildDirectory()).resolve(BundleHelper.SSL_CERTIFICATES_NAME);
-            addOutput(base.withArray("outputs"), root, path,
-                    BundleHelper.SSL_CERTIFICATES_NAME, false);
-        }
-
+        var manifest = PackageProviders.manifest(project, plan);
         for (PackageResolver.Package pkg : plan.packages().values()) {
             String name = pkg.description().getName();
-            ObjectNode row = addPackage(packages, resources, name, pkg.description().getProvider(), pkg.resources());
-            for (PackageArtifacts.Output output : outputs.getOrDefault(name, List.of())) {
+            if (!selection.contains(name)) {
+                continue;
+            }
+            ObjectNode row = addPackage(packages, resources, name, PackageResolver.containerPreset(manifest, pkg.description().getContainerPreset()).getProvider(), pkg.resources());
+            for (Map.Entry<String, Long> size : outputs.storedSizes().getOrDefault(name, Map.of()).entrySet()) {
+                resources.get(size.getKey()).with("compressed_sizes").put(name, size.getValue());
+            }
+            for (PackageArtifacts.Output output : outputs.packages().getOrDefault(name, List.of())) {
                 addOutput(row.withArray("outputs"), root, output.path(), output.name(), output.directory());
             }
         }
 
         ArrayNode rows = report.putArray("package_resources");
         for (String path : resources.keySet().stream().sorted().toList()) {
-            rows.add(resources.get(path));
+            ObjectNode row = resources.get(path);
+            if (row.withArray("packages").size() > 0) {
+                rows.add(row);
+            }
         }
         return JSON.writeValueAsBytes(report);
     }
@@ -134,7 +152,7 @@ public final class PackageReport {
     public static ObjectNode read(Project project) throws IOException {
         IResource cache = resource(project);
         if (!cache.exists()) {
-            throw new IOException("Live Update report data is missing; run build before requesting a report");
+            throw new IOException("Live Update report data is missing; run bundle before requesting a report");
         }
 
         ObjectNode report = (ObjectNode) JSON.readTree(cache.getContent());

@@ -27,6 +27,7 @@ import java.util.function.BooleanSupplier;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.archive.ArchiveEntry;
+import com.dynamo.liveupdate.proto.LiveUpdateManifest.ManifestDesc;
 
 /** Implement in com.defold.extension.pipeline to add a package output format. */
 public interface PackageProvider {
@@ -110,7 +111,7 @@ public interface PackageProvider {
             this.payload = payload;
         }
 
-        /** Returns the resource path, content hash, sizes, and archive flags. */
+        /** Returns the resource path, content hash, sizes, and archive flags for this package's prepared payload. */
         public ResourceInfo info() {
             return info;
         }
@@ -122,11 +123,13 @@ public interface PackageProvider {
     }
 
     /**
-     * Read-only build data shared by provider callbacks, including the full plan and all prepared resource metadata.
+     * Read-only build data shared by provider callbacks, including the manifest presets, full plan and resource metadata.
+     * Resource hashes and sizes use Base compression. PreparedResource.info() describes each package's actual payloads.
      * Provider settings are parsed values indexed by provider and property id; projectSettings is serialized game.project data.
      * The cancellation callback remains live for the duration of writing.
      */
     record Context(PackageResolver.Plan plan,
+            ManifestDesc manifest,
             Map<String, ResourceInfo> resources,
             String platform,
             List<String> architectures,

@@ -669,7 +669,12 @@ if(a&&a.length>0)for(c in a[0])a[0].hasOwnProperty(c)&&-1===i.indexOf(c)&&i.push
                 { title: "Compiled size", data: "size", render: function(value, type) {
                     return type === 'display' ? formatBytes(value) : value;
                 } },
-                { title: "Stored size", data: "compressed_size", render: function(value, type) {
+                { title: "Stored size", data: function(row) {
+                    var sizes = row.compressed_sizes;
+                    if (!sizes) return row.compressed_size;
+                    if (selectedPackage) return sizes[selectedPackage] || 0;
+                    return Object.keys(sizes).reduce(function(total, name) { return total + sizes[name]; }, 0);
+                  }, render: function(value, type) {
                     return type === 'display' ? formatBytes(value) : value;
                 } }
             ] : [
@@ -728,6 +733,7 @@ if(a&&a.length>0)for(c in a[0])a[0].hasOwnProperty(c)&&-1===i.indexOf(c)&&i.push
         });
         $('#package-filter').on('change', function() {
           selectedPackage = this.value;
+          resourceTable.rows().invalidate();
           $('#package-list tbody tr').each(function() {
             $(this).toggleClass('active', $(this).data('package') === selectedPackage);
           });

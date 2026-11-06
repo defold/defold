@@ -29,7 +29,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
 import com.dynamo.bob.Bob;
-import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.liveupdate.PackageReport;
@@ -127,11 +126,6 @@ public class ReportGenerator {
                         row.get("compressed_size").asLong(), row.get("encrypted").asBoolean(), !base);
                 (base ? resources : excludedResources).put(entry.path, entry);
             }
-        } else if (project.option("archive", "false").equals("true")) {
-            ArchiveBuilder archiveBuilder = project.getArchiveBuilder();
-            if (archiveBuilder != null) {
-                parseArchiveBuilder(archiveBuilder);
-            }
         } else {
             parseFromDisk();
         }
@@ -175,51 +169,6 @@ public class ReportGenerator {
 
             ResourceEntry resEntry = new ResourceEntry(archiveEntry.getRelativeFilename(),
                     archiveEntry.getSize(),
-                    compressedSize,
-                    encrypted,
-                    excluded);
-
-            this.excludedResources.put(archiveEntry.getRelativeFilename(), resEntry);
-        }
-    }
-
-    private void parseArchiveBuilder(ArchiveBuilder archiveBuilder) {
-        List<ArchiveEntry> includedEntries = archiveBuilder.getIncludedEntries();
-        List<ArchiveEntry> excludedEntries = archiveBuilder.getExcludedEntries();
-        int padding = archiveBuilder.getResourcePadding();
-
-        for (ArchiveEntry archiveEntry : includedEntries) {
-            long compressedSize = 0;
-            long size = 0;
-            if (!archiveEntry.isDuplicatedDataBlob()) {
-                compressedSize = archiveEntry.isCompressed() ? archiveEntry.getCompressedSize() : archiveEntry.getSize();
-                compressedSize = ((compressedSize + padding - 1) / padding) * padding;
-                size= archiveEntry.getSize();
-            }
-            boolean encrypted = archiveEntry.isEncrypted();
-            boolean excluded = false;
-
-            ResourceEntry resEntry = new ResourceEntry(archiveEntry.getRelativeFilename(),
-                    size,
-                    compressedSize,
-                    encrypted,
-                    excluded);
-
-            this.resources.put(archiveEntry.getRelativeFilename(), resEntry);
-        }
-
-        for (ArchiveEntry archiveEntry : excludedEntries) {
-            long compressedSize = 0;
-            long size = 0;
-            if (!archiveEntry.isDuplicatedDataBlob()) {
-                compressedSize = archiveEntry.isCompressed() ? archiveEntry.getCompressedSize() : archiveEntry.getSize();
-                size = archiveEntry.getSize();
-            }
-            boolean encrypted = archiveEntry.isEncrypted();
-            boolean excluded = true;
-
-            ResourceEntry resEntry = new ResourceEntry(archiveEntry.getRelativeFilename(),
-                    size,
                     compressedSize,
                     encrypted,
                     excluded);

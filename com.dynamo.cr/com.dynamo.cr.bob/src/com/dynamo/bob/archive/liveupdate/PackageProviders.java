@@ -39,8 +39,6 @@ import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.ManifestDesc;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.PackageDesc;
-import com.dynamo.liveupdate.proto.LiveUpdateManifest.ProviderProperty;
-import com.dynamo.liveupdate.proto.LiveUpdateManifest.ProviderSettings;
 
 /** Shared provider discovery, property descriptions and settings resolution. */
 public final class PackageProviders {
@@ -61,15 +59,6 @@ public final class PackageProviders {
         }
 
         @Override
-        public List<Property> getProperties() {
-            if (this == ZIP) {
-                List<String> levels = List.of("-1", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9");
-                return List.of(new Property("compression-level", "Compression Level", PropertyType.INTEGER, "1", levels));
-            }
-            return List.of();
-        }
-
-        @Override
         public List<Artifact> describeOutputs(Context context, PackageResolver.Package pkg) {
             String name = pkg.description().getName() + (this == ZIP ? ".zip" : "");
             return List.of(new Artifact(name, this == FOLDER));
@@ -87,8 +76,7 @@ public final class PackageProviders {
                     ? new ZipOutputStream(new BufferedOutputStream(Files.newOutputStream(output)))
                     : null) {
                 if (zip != null) {
-                    Number compressionLevel = (Number) context.providerSettings().get(getId()).get("compression-level");
-                    zip.setLevel(compressionLevel.intValue());
+                    zip.setLevel(PackageResolver.containerPreset(context.manifest(), pkg.description().getContainerPreset()).getZipLevel());
                 }
 
                 Set<String> written = new HashSet<>();
@@ -146,22 +134,7 @@ public final class PackageProviders {
             }
         }
 
-        String manifestPath = PackageBuilder.manifestPath(project);
-        ManifestDesc manifest;
-        if (manifestPath.isEmpty()) {
-            ManifestDesc.Builder builder = ManifestDesc.newBuilder();
-            for (PackageResolver.Package pkg : plan.packages().values()) {
-                builder.addPackages(pkg.description());
-            }
-            String compression = project.getPublisher().getPublisherSettings().getCompressionLevelValue();
-            if (compression != null) {
-                builder.addProviders(ProviderSettings.newBuilder().setProvider("zip")
-                        .addProperties(ProviderProperty.newBuilder().setName("compression-level").setValue(compression)));
-            }
-            manifest = builder.build();
-        } else {
-            manifest = PackageBuilder.parse(project.getResource(manifestPath).getContent());
-        }
+        ManifestDesc manifest = manifest(project, plan);
 
         String architectureOption = project.option("architectures", null);
         List<String> architectures;
@@ -175,9 +148,28 @@ public final class PackageProviders {
         }
 
         Map<String, Map<String, Object>> providerSettings = settings(manifest, schemas(providers));
-        return new PackageProvider.Context(plan, resources, project.getPlatform().getPair(), architectures,
+        return new PackageProvider.Context(plan, manifest, resources, project.getPlatform().getPair(), architectures,
                 project.option("variant", "release"), project.getOptions(), project.getProjectProperties().serialize(),
                 providerSettings, project::isBuildCanceled);
+    }
+
+    /** Supplies current authoring settings, or explicit legacy settings for the shared writers and report. */
+    static ManifestDesc manifest(Project project, PackageResolver.Plan plan) throws IOException, CompileExceptionError {
+        String manifestPath = PackageBuilder.manifestPath(project);
+        ManifestDesc manifest;
+        if (manifestPath.isEmpty()) {
+            ManifestDesc.Builder builder = ManifestDesc.newBuilder().setBaseFileCompressionPreset("legacy");
+            for (PackageResolver.Package pkg : plan.packages().values()) {
+                builder.addPackages(pkg.description().toBuilder().setFileCompressionPreset("legacy"));
+            }
+            builder.addFileCompressionPresets(PackageBuilder.legacyCompression(project));
+            builder.addContainerPresets(PackageBuilder.legacyContainer(project));
+            manifest = builder.build();
+        } else {
+            manifest = PackageBuilder.parse(project.getResource(manifestPath).getContent());
+        }
+
+        return manifest;
     }
 
     /**
@@ -240,7 +232,7 @@ public final class PackageProviders {
     static Map<String, Map<String, Object>> settings(ManifestDesc manifest, Map<String, Schema> schemas) throws CompileExceptionError {
         Set<String> used = new LinkedHashSet<>();
         for (PackageDesc pkg : manifest.getPackagesList()) {
-            used.add(pkg.getProvider());
+            used.add(PackageResolver.containerPreset(manifest, pkg.getContainerPreset()).getProvider());
         }
 
         Map<String, Map<String, String>> authored = new LinkedHashMap<>();

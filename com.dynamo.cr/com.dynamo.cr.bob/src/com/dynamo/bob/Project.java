@@ -46,6 +46,8 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.GuiCustomTypeRegistry;
 import com.dynamo.bob.pipeline.GamepadBuilder;
+import com.dynamo.bob.pipeline.GameProjectBuilder;
+import com.dynamo.bob.pipeline.graph.BuildGraph;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.TextureGenerator;
@@ -411,6 +413,7 @@ public class Project implements AutoCloseable {
                         !className.startsWith("com.dynamo.bob.pipeline.ModelImporter") &&
                         !className.startsWith("com.dynamo.bob.font.FontRenderer") &&
                         !className.startsWith("com.dynamo.bob.font.generated.") &&
+                        !className.equals("com.dynamo.bob.util.LZ4") &&
                         // namespaces we don't need to scan
                         !className.startsWith("com.dynamo.bob.pipeline.antlr") &&
                         // classes we don't need to bob light
@@ -633,17 +636,44 @@ public class Project implements AutoCloseable {
         }
     }
 
+    private GameProjectBuilder gameProjectBuilder;
+
     private void createTasks() throws CompileExceptionError {
+        gameProjectBuilder = null;
         circularDependencyChecker = new LinkedHashSet<>();
         tasks = new HashMap<String, Task>();
         if(this.inputs == null || this.inputs.isEmpty()) {
-            createTask(getGameProjectResource());
+            Task task = createTask(getGameProjectResource());
+            if (task != null && task.getBuilder() instanceof GameProjectBuilder builder) {
+                gameProjectBuilder = builder;
+            }
         }
         else {
+            if (hasOption("package")) {
+                throw new CompileExceptionError("--package cannot be combined with --build-input or --build-input-file");
+            }
             for (String input : this.inputs) {
                 createTask(getResource(input));
             }
         }
+    }
+
+    /** Effective compiler options recorded with the graph, using the builders' existing signature declarations. */
+    public Map<String, String> getCompilationOptions() throws CompileExceptionError {
+        Map<String, String> result = new java.util.TreeMap<>();
+        for (Class<? extends Builder> builder : extToBuilder.values()) {
+            BuilderParams params = builder.getAnnotation(BuilderParams.class);
+            for (String name : params.paramsForSignature()) {
+                if (hasOption(name)) {
+                    result.put(name, option(name, ""));
+                }
+            }
+        }
+        result.put("platform", getPlatform().getPair());
+        result.put("architectures", option("architectures", ""));
+        result.put("variant", option("variant", Bob.VARIANT_RELEASE));
+        result.put("experimental-path-minification", Boolean.toString(hasOption("experimental-path-minification")));
+        return result;
     }
 
     private void logWarning(String fmt, Object... args) {
@@ -664,11 +694,12 @@ public class Project implements AutoCloseable {
     public void setLiveUpdatePlan(com.dynamo.bob.archive.liveupdate.PackageResolver.Plan plan) { liveUpdatePlan = plan; }
 
     public void createPublisher() throws CompileExceptionError {
-        boolean shouldPublish = this.option("liveupdate", "false").equals("true");
+        boolean shouldPublish = com.dynamo.bob.archive.liveupdate.PackageBuilder.splitPackages(this)
+                && (!hasOption("package") || Arrays.stream(option("package", "").split(",")).anyMatch(name -> !name.equals("base")));
         boolean manifestMode = !com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(this).isEmpty();
         try {
             String settingsPath = this.getProjectProperties().getStringValue("liveupdate", "settings", "/liveupdate.settings"); // if no value set use old hardcoded path (backward compatability)
-            if (manifestMode || settingsPath.endsWith(".lumanifest")) {
+            if (manifestMode) {
                 this.publisher = new NullPublisher(new PublisherSettings());
                 return;
             }
@@ -850,6 +881,12 @@ public class Project implements AutoCloseable {
             if (title != null && title.isEmpty()) {
                 throw new Exception("`project.title` in `game.project` must be non-empty.");
             }
+            if (!projectProperties.getStringValue("archive", "manifest", "").isBlank()
+                    && !projectProperties.getStringValue("liveupdate", "settings", "").isBlank()
+                    && !projectProperties.isDefault("liveupdate", "settings")) {
+                throw new CompileExceptionError(getGameProjectResource(), 0,
+                        "archive.manifest and liveupdate.settings cannot both be set. Clear one of these settings in game.project.");
+            }
             return doBuild(progress, commands);
         } catch (CompileExceptionError e) {
 
@@ -1027,6 +1064,19 @@ public class Project implements AutoCloseable {
     private void bundle(IProgress progress) throws IOException, CompileExceptionError {
         try (progress) {
             progress.message(IProgress.Message.Bundling.INSTANCE);
+            createPublisher();
+            if (BundleHelper.isArchiveIncluded(this)) {
+                BuildGraph graph = BuildGraph.load(this);
+                graph.validate(this);
+                outputs.clear();
+                outputs.putAll(graph.outputFlags(this));
+                if (!GameProjectBuilder.bundle(this, graph)) {
+                    return;
+                }
+            } else if (hasOption("package")
+                    && !new com.dynamo.bob.archive.liveupdate.PackageBuilder(this).selectedPackages(this).contains("base")) {
+                return;
+            }
 
             Platform platform = getPlatform();
             IBundler bundler = createBundler(platform);
@@ -2130,6 +2180,10 @@ public class Project implements AutoCloseable {
                                     break loop;
                                 }
                             }
+                            if (shouldBuildProject && gameProjectBuilder != null) {
+                                BundleHelper.throwIfCanceled(progress);
+                                gameProjectBuilder.saveBuildGraph();
+                            }
                             break;
                         }
                         case "clean": {
@@ -2188,11 +2242,15 @@ public class Project implements AutoCloseable {
             // to use all the cores just for texture generation
             TextureGenerator.maxThreads = getHalfThreads();
 
-            TaskBuilder taskBuilder = new TaskBuilder(getTasks(), this);
+            List<Task> selectedTasks = getTasks();
+            TaskBuilder taskBuilder = new TaskBuilder(selectedTasks, this);
 
-            // Collect declared flags before execution, including for skipped and cached tasks.
+            // Retain flags for earlier package builds and refresh declarations for every selected task, including cached ones.
             outputs.clear();
-            for (Task task : getTasks()) {
+            if (gameProjectBuilder != null) {
+                outputs.putAll(gameProjectBuilder.previousOutputFlags());
+            }
+            for (Task task : selectedTasks) {
                 List<IResource> taskOutputs = task.getOutputs();
                 for (int outputIndex = 0; outputIndex < taskOutputs.size(); ++outputIndex) {
                     IResource res = taskOutputs.get(outputIndex);

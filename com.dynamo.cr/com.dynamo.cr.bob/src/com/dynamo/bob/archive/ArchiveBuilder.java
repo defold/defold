@@ -76,6 +76,7 @@ public class ArchiveBuilder {
     private ManifestBuilder manifestBuilder = null;
     private byte[] archiveIndexMD5 = new byte[MD5_HASH_DIGEST_BYTE_LENGTH];
     private int resourcePadding = 4;
+    private int compressionLevel = 9;
     private boolean forceCompression = false; // for building unit tests to create test content
 
     @FunctionalInterface
@@ -131,7 +132,12 @@ public class ArchiveBuilder {
     }
 
     public byte[] compressResourceData(byte[] buffer) {
-        return LZ4.compress(buffer);
+        return LZ4.compress(buffer, compressionLevel);
+    }
+
+    /** Selects the LZ4 level for Base archive workers before preparation starts. */
+    public void setCompressionLevel(int compressionLevel) {
+        this.compressionLevel = compressionLevel;
     }
 
     public void setForceCompression(boolean forceCompression) {
@@ -161,20 +167,23 @@ public class ArchiveBuilder {
         return includedEntries;
     }
 
-    private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, Set<String> excludedResources, ConcurrentHashMap<String, ArchiveEntry> writtenIntoArcd) throws IOException, CompileExceptionError {
-        byte[] buffer = this.loadResourceData(entry.getFilename());
+    /** Prepares one compression/encryption variant, including its hash and Live Update header. */
+    public byte[] prepareResource(ArchiveEntry entry) throws IOException, CompileExceptionError {
+        return prepareResource(entry, compressionLevel);
+    }
 
-        int resourceEntryFlags = 0;
+    /** Prepares a package variant without changing the Base archive's compression level. */
+    public byte[] prepareResource(ArchiveEntry entry, int level) throws IOException, CompileExceptionError {
+        byte[] buffer = this.loadResourceData(entry.getFilename());
 
         if (entry.isCompressed()) {
             // Compress data
-            byte[] compressed = this.compressResourceData(buffer);
+            byte[] compressed = LZ4.compress(buffer, level);
             if (this.shouldUseCompressedResourceData(buffer, compressed)) {
                 // Note, when forced, the compressed size may be larger than the original size (For unit tests)
                 buffer = compressed;
                 entry.setCompressedSize(compressed.length);
                 entry.setFlag(ArchiveEntry.FLAG_COMPRESSED);
-                resourceEntryFlags |= ResourceEntryFlag.COMPRESSED.getNumber();
             } else {
                 entry.setCompressedSize(ArchiveEntry.FLAG_UNCOMPRESSED);
             }
@@ -183,10 +192,7 @@ public class ArchiveBuilder {
         // we need to do this last or the compression won't work as well
         if (entry.isEncrypted()) {
             buffer = this.encryptResourceData(buffer);
-            resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
         }
-
-        String normalisedPath = FilenameUtils.separatorsToUnix(entry.getRelativeFilename());
 
         // Calculate hash digest values for resource
         String hexDigest = null;
@@ -200,17 +206,30 @@ public class ArchiveBuilder {
         }
 
         entry.setHexDigest(hexDigest);
-        hexDigestCache.put(entry.getRelativeFilename(), hexDigest);
-
-        if (preparedResourceConsumer != null || (excludedResources.contains(normalisedPath) && this.publisher != null)) {
-            byte[] header = ByteBuffer.allocate(16)
-                .putInt(entry.getSize()) // 4 bytes
-                .put((byte)(entry.getFlags() | ArchiveEntry.FLAG_LIVEUPDATE)) // 1 byte
-                .put(archiveEntryPadding) // 11 bytes
+        byte[] header = ByteBuffer.allocate(16)
+                .putInt(entry.getSize())
+                .put((byte)(entry.getFlags() | ArchiveEntry.FLAG_LIVEUPDATE))
+                .put(archiveEntryPadding)
                 .array();
-            entry.setHeader(header);
+        entry.setHeader(header);
+        return buffer;
+    }
+
+    private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, Set<String> excludedResources, ConcurrentHashMap<String, ArchiveEntry> writtenIntoArcd) throws IOException, CompileExceptionError {
+        byte[] buffer = prepareResource(entry);
+        String normalisedPath = FilenameUtils.separatorsToUnix(entry.getRelativeFilename());
+        String hexDigest = entry.getHexDigest();
+        hexDigestCache.put(entry.getRelativeFilename(), hexDigest);
+        int resourceEntryFlags = 0;
+        if (entry.isCompressed()) {
+            resourceEntryFlags |= ResourceEntryFlag.COMPRESSED.getNumber();
         }
-        if (preparedResourceConsumer != null) preparedResourceConsumer.accept(entry, buffer);
+        if (entry.isEncrypted()) {
+            resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
+        }
+        if (preparedResourceConsumer != null) {
+            preparedResourceConsumer.accept(entry, buffer);
+        }
 
         // Write resource to resource pack or data archive
         if (excludedResources.contains(normalisedPath)) {

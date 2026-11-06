@@ -186,10 +186,23 @@ and CSS inline so Bob can serve one HTML file. When updating those libraries,
 run `inline_libraries.py` from `share/report_libs/` and insert its generated
 `<style>` and `<script>` tags. See the [report library guide](../../share/report_libs/README.md).
 
-## Live Update package manifests
+## Archive manifests
 
-Set `liveupdate.settings = /content.lumanifest` in `game.project` to use named
-packages. Selecting a legacy `.settings` file preserves legacy resource selection:
+Set `archive.manifest = /content.archivemanifest` in `game.project` to use named
+packages:
+
+```ini
+[archive]
+manifest = /content.archivemanifest
+```
+
+Explicitly setting both `archive.manifest` and `liveupdate.settings` is an error
+for both build and bundle. Clear one of the settings. The inherited default
+`liveupdate.settings` path does not count as an explicit selection.
+
+The `liveupdate.settings` workflow is deprecated but remains supported. Use
+`archive.manifest` for new projects. Without an archive manifest, legacy resource
+selection is preserved:
 a resource reachable through any non-excluded route remains bundled. Bob adapts
 the final legacy base/Live Update sets to one internal package and uses the same
 preparation and writers as manifest projects. It does not generate rules or change
@@ -202,8 +215,15 @@ separates common content, two episode ranges, and seasonal content:
 
 ```protobuf
 output_directory: "build/packages"
+base_file_compression_preset: "lz4"
+container_presets { name: "zip" zip_level: 9 }
+container_presets { name: "folder" provider: "folder" }
+file_compression_presets { name: "lz4" lz4_level: 12 }
+file_compression_presets { name: "none" file_compression: NONE }
 packages {
   name: "common"
+  container_preset: "zip"
+  file_compression_preset: "lz4"
   rules { name: "Common content" path: "/common/.*" }
 }
 packages {
@@ -225,6 +245,27 @@ packages {
   rules { name: "Halloween content" path: "/halloween/.*[.](collection|txt)" }
 }
 ```
+
+The manifest stores independent container and file-compression presets. Packages
+select `container_preset` (ZIP, Folder, or a custom provider) and
+`file_compression_preset` (LZ4 or None). Base selects only
+`base_file_compression_preset`.
+
+ZIP presets configure `zip_level` from `-1` to `9` (default `1`; `-1` uses the
+Java default, `0` disables compression). LZ4 presets configure `lz4_level` from
+`1` to `12` (default `9`). Folder and None have no compression-level setting.
+Omitted selections use ZIP and LZ4 defaults. Unknown references, duplicate names
+within either preset group, and invalid levels are errors.
+
+In the editor, configure these under Compression Types → Container or File.
+A Folder package using None stores files without LZ4 compression. Manifest mode
+replaces `project.compress_archive`; legacy projects continue using that setting.
+Conversion copies legacy container and file settings into separate presets.
+
+A resource shared by packages with different file compression gets the matching
+payload and hash in each package's manifest. LZ4 retains the existing threshold:
+files that do not compress enough, and compiler outputs marked uncompressed, are
+stored unchanged.
 
 Rules run in order. Java regular expressions match the entire source path,
 including its leading slash. Selected sources contribute their actual compiled
@@ -251,9 +292,43 @@ Select them with a Path rule; adding them to `project.custom_resources` is not
 required. Once their package is mounted, read them with `sys.load_resource()`,
 for example `sys.load_resource("/episodes/00/description.txt")`.
 
-Use `--archive --liveupdate yes` to export. With Live Update disabled, the selected
-content is included in the base instead. The `zip` provider is the default and
-writes `<name>.zip`; `folder` writes `<name>/`. The manifest's `output_directory`
+`build` compiles resources and saves their dependency graph in `game.graph.json`.
+`bundle` reads that graph and the prebuilt resources, then applies the current
+archive manifest. It never compiles missing or changed sources. Use the same
+platform, architectures, variant, and compiler settings for both commands.
+
+```sh
+java -jar bob.jar build
+java -jar bob.jar --all-packages --bundle-output bundle bundle
+```
+
+Without selection options, bundle produces a self-contained Base containing all
+selected content. `--all-packages` writes Base and every external package.
+`--package base` writes only the manifest's Base, preserving its startup locks.
+Repeat `--package` to select external packages without producing an application:
+
+```sh
+java -jar bob.jar --package common --package halloween build
+java -jar bob.jar --package common --package halloween bundle
+```
+
+The first selective build establishes a complete graph automatically. Later
+selective builds compile the selected roots and their dependency closure, retaining
+other compiled results. New roots or incompatible settings establish the complete
+graph again using the ordinary compiler cache. Every bundle recreates the selected
+archives and preserves unselected package outputs.
+
+Current manifest rules, compression, provider settings, and output paths take effect
+at bundle time. Rules selecting resources absent from the saved graph require another
+build. `--all-packages` and `--package` cannot be combined; `--package` also cannot be
+combined with `--build-input` or `--build-input-file`.
+
+`--archive` and `-a` are accepted with a deprecation warning and ignored.
+`--liveupdate yes` is a deprecated alias for `--all-packages`; `no` keeps the default.
+Explicit new selection options take precedence over the deprecated flag.
+Legacy settings expose their external content as the package `liveupdate`.
+
+The `zip` provider is the default and writes `<name>.zip`; `folder` writes `<name>/`. The manifest's `output_directory`
 sets the parent directory for every provider and defaults to `build/packages`.
 Relative paths resolve from the project root; absolute paths are also accepted.
 Environment variables use `${NAME}`, `$NAME`, or `%NAME%`, for example
@@ -261,8 +336,7 @@ Environment variables use `${NAME}`, `$NAME`, or `%NAME%`, for example
 and reports an error for undefined variables. The current values determine
 the output paths on every export.
 
-ZIP compression defaults to `1` and can be set in the manifest (see provider
-properties below). Manifest mode uses its own output directory and provider
+ZIP compression defaults to `1` and can be set in the selected container preset. Manifest mode uses its own output directory and provider
 settings; it does not read a separate legacy `.settings` file.
 
 Native engine-only bundles (`--exclude-archive`) skip package copying and require
@@ -277,11 +351,11 @@ packages with the existing Live Update API.
 ### Package reports
 
 Use `--bundle-report-html` with `bundle` to inspect the base and all Live Update
-packages in one standalone file. This report requires an archive build and also
-supports legacy projects:
+packages selected by that invocation in one standalone file. It also supports
+legacy projects:
 
 ```sh
-java -jar bob.jar --archive --liveupdate yes --bundle-report-html build/bundle-report.html build bundle
+java -jar bob.jar --all-packages --bundle-report-html bundle-report.html build bundle
 ```
 
 The report lists package providers, resource counts, compiled sizes, and the
@@ -295,25 +369,27 @@ the HTML works offline without a server or companion files.
 
 Bob saves package contents in `game.lureport.json` alongside the build outputs.
 The report is written after every requested bundle succeeds. A later invocation
-can use `--bundle-report-html build/bundle-report.html bundle` to regenerate it
-from cached data without rebuilding packages.
+can use `--all-packages --bundle-report-html bundle-report.html bundle` to regenerate
+packages and the report from the saved build graph without compiling resources.
 
 `--build-report-html` and `--build-report-json` remain options for the `build`
 command. They run after compiling, independently of bundling; `bundle` alone
-does not generate or overwrite build reports.
+does not generate or overwrite build reports. Build reports show compiled byte sizes;
+archive compression and container sizes belong to the bundle report.
 
 ### Package builds and bundle placement
 
-Every build with Live Update export enabled recreates all packages from scratch.
-Bob still uses its normal build cache for resource compilation. Each provider
+Every `bundle` invocation recreates the selected archives from scratch.
+Bob uses its normal build cache for resource compilation during `build`. Each provider
 writes to an empty staging directory, and Bob installs the completed outputs
 only after every provider succeeds. Package generation does not use cache keys
 or skip unchanged packages.
 
-The build's `game.lupackages` file lists the artifacts to place in a later bundle.
+The `game.lupackages` file lists the artifacts generated by the latest `bundle` invocation.
 Output records in `.internal/liveupdate` retain generated paths across clean
 builds and disabled export, keeping generated packages out of resource matching.
-Renamed or removed artifacts are retired after all providers complete successfully.
+Renamed or removed artifacts are retired after all selected providers complete successfully.
+Explicit package selection preserves artifacts owned by unselected packages.
 Moving or copying a project rebases ownership of artifacts within the project;
 it does not transfer ownership of external output directories.
 
@@ -321,7 +397,7 @@ Manifest packages are written only to the manifest's output directory. Legacy
 `save-zip-in-bundle-folder` and `save-folder-in-bundle-folder` settings request an
 additional copy during `bundle`. Bob copies these artifacts through fresh staging and
 removes obsolete owned outputs. Missing source artifacts or invalid file types
-require another `build` before bundling. Failed or cancelled delivery restores
+require another `bundle`. Failed or cancelled delivery restores
 the previous package copies and output records, so the bundle step can be retried.
 Source artifacts remain at their configured destinations.
 
@@ -329,7 +405,7 @@ Source artifacts remain at their configured destinations.
 
 Implement `com.dynamo.bob.archive.liveupdate.PackageProvider` in the existing
 `com.defold.extension.pipeline` plugin namespace. `getId()` identifies the
-provider in `.lumanifest`. `describeOutputs()` declares relative artifact names
+provider in a container preset. `describeOutputs()` declares relative artifact names
 and whether each is a directory. Bob checks collisions before calling `write()`.
 
 Override `getDisplayName()` and `getProperties()` to expose settings on the
@@ -341,15 +417,16 @@ provider, and are saved independently of package membership:
 
 ```protobuf
 providers {
-  provider: "zip"
-  properties { name: "compression-level" value: "9" }
+  provider: "studio-package"
+  properties { name: "quality" value: "9" }
 }
 ```
 
 Both output description and writing receive typed, immutable values through
 `context.providerSettings().get(getId())`. Settings for unused providers remain
-in the authored manifest but are not applied. ZIP exposes compression level (`0`–`9`, plus
-`-1` for the ZIP library default); Folder has no additional settings.
+in the authored manifest but are not applied. Built-in ZIP/Folder compression is
+configured through presets. Providers can inspect the manifest and its presets
+through `context.manifest()`.
 
 `write()` receives an immutable context and package plan, prepared resource
 streams, a package-local manifest, and a staging directory. Resource streams
@@ -357,6 +434,9 @@ already contain the engine's 16-byte Live Update header and the prepared
 compressed/encrypted payload. Use each resource's hash as its content identifier.
 The context includes base membership, source/output mappings, runtime dependencies,
 provenance, sizes/hashes, platform, architectures, variant, and effective settings.
+Both callbacks share the same context, whose resource hashes and sizes use Base
+compression. Use `PreparedResource.info()` for each package's actual payload
+hashes and sizes. Declaring outputs does not prepare package compression variants.
 Argumentless CLI options may have null values. Providers cannot alter membership.
 Poll `context.checkCanceled()` during long operations and close opened streams.
 Write only inside the assigned staging directory. Bob publishes declared outputs
@@ -364,7 +444,7 @@ only after all providers succeed, and cleans staging on failure or cancellation.
 
 ### Editor preview
 
-Open `.lumanifest` to edit packages and ordered rules in the outline/properties.
+Open `.archivemanifest` to edit packages and ordered rules in the outline/properties.
 Select the manifest in the outline to edit **Output Directory** and settings
 for each provider used by its packages. The output directory has a folder picker. Each package shows its resolved artifact paths; right-click
 a path to copy it or open its folder. Before export, **Open Folder** opens the

@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -377,17 +378,33 @@ public class ManifestBuilder {
     }
 
     /** A package manifest contains only its own entries, with local engine dependants. */
-    public byte[] buildPackageManifest(Set<String> members, PackageMetadata metadata) throws IOException {
+    public byte[] buildPackageManifest(List<ArchiveEntry> entries, PackageMetadata metadata) throws IOException {
         ManifestData full = buildManifestData(false);
-        ManifestData.Builder data = full.toBuilder().clearResources().setPackageMetadata(metadata).setHasExcludedResources(!members.isEmpty());
-        Set<Long> memberHashes = new HashSet<>();
-        for (String member : members) memberHashes.add(MurmurHash.hash64(member));
+        ManifestData.Builder data = full.toBuilder().clearResources().setPackageMetadata(metadata).setHasExcludedResources(!entries.isEmpty());
+        Map<Long, ArchiveEntry> members = new HashMap<>();
+        for (ArchiveEntry entry : entries) {
+            members.put(MurmurHash.hash64(entry.getRelativeFilename()), entry);
+        }
         for (ResourceEntry entry : full.getResourcesList()) {
-            if (!memberHashes.contains(entry.getUrlHash())) continue;
+            ArchiveEntry prepared = members.get(entry.getUrlHash());
+            if (prepared == null) {
+                continue;
+            }
             ResourceEntry.Builder resource = entry.toBuilder().clearDependants();
-            resource.setFlags((entry.getFlags() & ~ResourceEntryFlag.BUNDLED_VALUE) | ResourceEntryFlag.EXCLUDED_VALUE);
+            int flags = ResourceEntryFlag.EXCLUDED_VALUE;
+            if (prepared.isCompressed()) {
+                flags |= ResourceEntryFlag.COMPRESSED_VALUE;
+            }
+            if (prepared.isEncrypted()) {
+                flags |= ResourceEntryFlag.ENCRYPTED_VALUE;
+            }
+            resource.setFlags(flags);
+            resource.setHash(HashDigest.newBuilder().setData(ByteString.copyFrom(prepared.getHash(), 0,
+                    CryptographicOperations.getHashSize(resourceHashAlgorithm))));
+            resource.setSize(prepared.getSize());
+            resource.setCompressedSize(prepared.getCompressedSize());
             for (long dependency : entry.getDependantsList()) {
-                if (memberHashes.contains(dependency)) resource.addDependants(dependency);
+                if (members.containsKey(dependency)) resource.addDependants(dependency);
             }
             data.addResources(resource);
         }

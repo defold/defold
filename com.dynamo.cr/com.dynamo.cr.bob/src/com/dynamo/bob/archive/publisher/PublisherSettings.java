@@ -124,14 +124,9 @@ public class PublisherSettings {
         return value != null && value.equals("1");
     }
 
-    /** Raw legacy value for conversion to package provider settings. */
-    public String getCompressionLevelValue() {
-        return this.getValue("liveupdate", "zip-compression-level");
-    }
-
     public int getCompressionLevel() {
-        if (getCompressionLevelValue() != null) {
-            return Integer.parseInt(getCompressionLevelValue());
+        if (this.getValue("liveupdate", "zip-compression-level") != null) {
+            return Integer.parseInt(this.getValue("liveupdate", "zip-compression-level"));
         }
         return 1;
     }
