@@ -1020,6 +1020,10 @@ namespace dmHttpServer
             }
             sender->m_Pending.SetSize(0);
         }
+        if (sender->m_Active.Empty())
+        {
+            return true;
+        }
         dmSocket::Selector selector;
         for (uint32_t i = 0; i < sender->m_Active.Size(); ++i)
         {
@@ -1167,6 +1171,7 @@ namespace dmHttpServer
         dmSocket::SelectorZero(&selector);
 
         // Iterate over persistent connections, select phase
+        bool has_request_connections = false;
         for (uint32_t i = 0; i < server->m_Connections.Size(); ++i)
         {
             Connection* connection = &server->m_Connections[i];
@@ -1176,6 +1181,12 @@ namespace dmHttpServer
             }
             dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_READ, connection->m_Socket);
             dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_EXCEPT, connection->m_Socket);
+            has_request_connections = true;
+        }
+        // WSAPoll rejects an empty set when every client is awaiting a response.
+        if (!has_request_connections)
+        {
+            return RESULT_OK;
         }
 
         r = dmSocket::Select(&selector, 0);
