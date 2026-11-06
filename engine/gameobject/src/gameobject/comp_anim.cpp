@@ -45,12 +45,23 @@ namespace dmGameObject
     static const dmhash_t PROP_EULER_Y = dmHashString64("euler.y");
     static const dmhash_t PROP_EULER_Z = dmHashString64("euler.z");
 
+    // Built-in curves without completion callbacks need no separately owned state.
+    struct AnimationExtras
+    {
+        dmEasing::Curve  m_Easing;
+        AnimationStopped m_AnimationStopped;
+        void*            m_Userdata1;
+        void*            m_Userdata2;
+        uint32_t         m_PreviousListener;
+        uint32_t         m_NextListener;
+    };
+
     struct Animation
     {
         HInstance           m_Instance;
         dmhash_t            m_ComponentId;
         dmhash_t            m_PropertyId;
-        Playback            m_Playback;
+        uint16_t            m_Playback : 3;
         uint16_t            m_Playing : 1;
         uint16_t            m_Finished : 1;
         uint16_t            m_Composite : 1;
@@ -59,7 +70,8 @@ namespace dmGameObject
         uint16_t            m_IsGameObjectTransformProperty : 1;
         uint16_t            m_IsGameObjectEulerProperty : 1;
         uint16_t            m_EulerChannel : 2;
-        dmEasing::Curve     m_Easing;
+        uint8_t             m_EasingType;
+        AnimationExtras*    m_Extras;
         // Euler tracks use stable pool slots; other tracks retain property pointers.
         union
         {
@@ -72,11 +84,6 @@ namespace dmGameObject
         float               m_Cursor;
         float               m_Duration;
         float               m_InvDuration;
-        AnimationStopped    m_AnimationStopped;
-        void*               m_Userdata1;
-        void*               m_Userdata2;
-        uint32_t            m_PreviousListener;
-        uint32_t            m_NextListener;
         uint32_t            m_Index;
         uint32_t            m_Next;
     };
@@ -88,7 +95,9 @@ namespace dmGameObject
         dmIndexPool<uint32_t>               m_AnimMapIndexPool;
         dmHashTable<HGameObject, uint32_t>   m_InstanceToIndex;
         dmHashTable<uintptr_t, uint32_t>     m_ListenerInstanceToIndex;
-        uint32_t                            m_InUpdate : 1;
+        uint32_t                             m_InUpdate : 1;
+        uint32_t                             m_HasPendingAnimations : 1;
+        uint32_t                             m_HasStoppedAnimations : 1;
     };
 
     static uint32_t GetAnimationCapacity(uint32_t capacity)
@@ -141,10 +150,11 @@ namespace dmGameObject
         }
     }
 
-    static void StopAnimation(Animation* anim, bool finished)
+    static void StopAnimation(AnimWorld* world, Animation* anim, bool finished)
     {
         anim->m_Finished = finished;
         anim->m_Playing = 0;
+        world->m_HasStoppedAnimations = 1;
     }
 
     static void StopAnimations(AnimWorld* world, uint32_t* head_ptr, dmhash_t component_id, dmhash_t property_id)
@@ -157,7 +167,7 @@ namespace dmGameObject
                 Animation* anim = &world->m_Animations[world->m_AnimMap[index]];
                 if (anim->m_ComponentId == component_id && (property_id == 0 || anim->m_PropertyId == property_id))
                 {
-                    StopAnimation(anim, false);
+                    StopAnimation(world, anim, false);
                 }
                 index = anim->m_Next;
             }
@@ -172,7 +182,7 @@ namespace dmGameObject
             while (index != INVALID_INDEX)
             {
                 Animation* anim = &world->m_Animations[world->m_AnimMap[index]];
-                StopAnimation(anim, false);
+                StopAnimation(world, anim, false);
                 index = anim->m_Next;
             }
         }
@@ -217,27 +227,35 @@ namespace dmGameObject
         DM_PROPERTY_ADD_U32(rmtp_ComponentsAnim, size);
 
         uint32_t i = 0;
-        for (i = 0; i < size; ++i)
+        if (world->m_HasPendingAnimations)
         {
-            Animation& anim = world->m_Animations[i];
-            if (!anim.m_Playing)
-                continue;
-            float dt = params.m_UpdateContext->m_DT;
-            // Check delay
-            if (anim.m_Delay > dt)
+            world->m_HasPendingAnimations = 0;
+            for (i = 0; i < size; ++i)
             {
-                continue;
-            }
-            if (anim.m_FirstUpdate)
-            {
+                Animation& anim = world->m_Animations[i];
+                if (!anim.m_Playing || !anim.m_FirstUpdate)
+                {
+                    continue;
+                }
+                float dt = params.m_UpdateContext->m_DT;
+                // Check delay
+                if (anim.m_Delay > dt)
+                {
+                    world->m_HasPendingAnimations = 1;
+                    continue;
+                }
                 anim.m_FirstUpdate = 0;
                 // Update from-value
                 if (!anim.m_Composite)
                 {
                     if (anim.m_IsGameObjectEulerProperty)
+                    {
                         anim.m_From = collection->m_EulerRotations.m_Rotations[anim.m_EulerSlot].m_Value.getElem(anim.m_EulerChannel);
+                    }
                     else if (anim.m_Value != 0x0)
+                    {
                         anim.m_From = *anim.m_Value;
+                    }
                     else
                     {
                         PropertyDesc desc;
@@ -258,9 +276,9 @@ namespace dmGameObject
                         uint32_t anim_index = world->m_AnimMap[index];
                         Animation* a2 = &world->m_Animations[anim_index];
                         if (anim_index != i && !a2->m_FirstUpdate && a2->m_ComponentId == anim.m_ComponentId
-                                && a2->m_PropertyId == anim.m_PropertyId && a2->m_Delay <= 0.0f)
+                            && a2->m_PropertyId == anim.m_PropertyId && a2->m_Delay <= 0.0f)
                         {
-                            StopAnimation(a2, false);
+                            StopAnimation(world, a2, false);
                         }
                         index = a2->m_Next;
                     }
@@ -273,7 +291,9 @@ namespace dmGameObject
             Animation& anim = world->m_Animations[i];
             // Ignore canceled or delayed animations
             if (!anim.m_Playing)
+            {
                 continue;
+            }
             float dt = params.m_UpdateContext->m_DT;
             if (anim.m_Delay > dt)
             {
@@ -293,37 +313,45 @@ namespace dmGameObject
             bool completed = false;
             switch (anim.m_Playback)
             {
-            case PLAYBACK_ONCE_FORWARD:
-            case PLAYBACK_ONCE_BACKWARD:
-            case PLAYBACK_ONCE_PINGPONG:
-                if (anim.m_Cursor >= anim.m_Duration)
+                case PLAYBACK_ONCE_FORWARD:
+                case PLAYBACK_ONCE_BACKWARD:
+                case PLAYBACK_ONCE_PINGPONG:
                 {
-                    anim.m_Cursor = anim.m_Duration;
-                    completed = true;
-                }
-                break;
-            case PLAYBACK_LOOP_FORWARD:
-            case PLAYBACK_LOOP_BACKWARD:
-                if (anim.m_Duration > 0)
-                {
-                    while (anim.m_Cursor >= anim.m_Duration)
+                    if (anim.m_Cursor >= anim.m_Duration)
                     {
-                        anim.m_Cursor -= anim.m_Duration;
+                        anim.m_Cursor = anim.m_Duration;
+                        completed = true;
                     }
+                    break;
                 }
-                break;
-            case PLAYBACK_LOOP_PINGPONG:
-                if (anim.m_Duration > 0)
+                case PLAYBACK_LOOP_FORWARD:
+                case PLAYBACK_LOOP_BACKWARD:
                 {
-                    while (anim.m_Cursor >= anim.m_Duration)
+                    if (anim.m_Duration > 0)
                     {
-                        anim.m_Cursor -= anim.m_Duration;
-                        anim.m_Backwards = ~anim.m_Backwards;
+                        while (anim.m_Cursor >= anim.m_Duration)
+                        {
+                            anim.m_Cursor -= anim.m_Duration;
+                        }
                     }
+                    break;
                 }
-                break;
-            default:
-                break;
+                case PLAYBACK_LOOP_PINGPONG:
+                {
+                    if (anim.m_Duration > 0)
+                    {
+                        while (anim.m_Cursor >= anim.m_Duration)
+                        {
+                            anim.m_Cursor -= anim.m_Duration;
+                            anim.m_Backwards = ~anim.m_Backwards;
+                        }
+                    }
+                    break;
+                }
+                default:
+                {
+                    break;
+                }
             }
 
             // Evaluate animation
@@ -331,16 +359,24 @@ namespace dmGameObject
             {
                 float t = 1.0f;
                 if (anim.m_Cursor < anim.m_Duration)
+                {
                     t = dmMath::Clamp(anim.m_Cursor * anim.m_InvDuration, 0.0f, 1.0f);
+                }
                 if (anim.m_Backwards)
+                {
                     t = 1.0f - t;
-                if (anim.m_Playback == PLAYBACK_ONCE_PINGPONG || anim.m_Playback == PLAYBACK_LOOP_PINGPONG) {
+                }
+                if (anim.m_Playback == PLAYBACK_ONCE_PINGPONG || anim.m_Playback == PLAYBACK_LOOP_PINGPONG)
+                {
                     t *= 2.0f;
-                    if (t > 1.0f) {
+                    if (t > 1.0f)
+                    {
                         t = 2.0f - t;
                     }
                 }
-                t = dmEasing::GetValue(anim.m_Easing, t);
+                t = anim.m_EasingType == dmEasing::TYPE_FLOAT_VECTOR
+                    ? dmEasing::GetValue(anim.m_Extras->m_Easing, t)
+                    : dmEasing::GetValue((dmEasing::Type)anim.m_EasingType, t);
                 float v = anim.m_From + (anim.m_To - anim.m_From) * t;
                 if (anim.m_IsGameObjectEulerProperty)
                 {
@@ -370,71 +406,82 @@ namespace dmGameObject
             }
             if (completed)
             {
-                StopAnimation(&anim, true);
+                StopAnimation(world, &anim, true);
             }
         }
         if (transforms_updated)
+        {
             collection->m_DirtyTransforms = 1;
+        }
         if (euler_updated)
         {
             DM_PROFILE("EulerWriteback");
             CommitEulerRotations(collection);
         }
         i = 0;
-        // Prune canceled animations and call callbacks
-        while (i < size)
+        // Prune canceled animations and call callbacks only when something stopped.
+        if (world->m_HasStoppedAnimations)
         {
-            Animation* anim = &world->m_Animations[i];
-            if (!anim->m_Playing)
+            world->m_HasStoppedAnimations = 0;
+            while (i < size)
             {
-                if (anim->m_AnimationStopped != 0x0)
+                Animation* anim = &world->m_Animations[i];
+                if (!anim->m_Playing)
                 {
-                    uint32_t orig_size = size;
-                    anim->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, anim->m_Finished,
-                            anim->m_Userdata1, anim->m_Userdata2);
-                    // Check if the callback added animations, in which case we need to update the pointer (possible relocation)
-                    size = world->m_Animations.Size();
-                    if (size != orig_size)
-                        anim = &world->m_Animations[i];
-                    RemoveAnimationCallback(world, anim);
-
-                    if (anim->m_Easing.release_callback != 0x0)
+                    if (anim->m_Extras && anim->m_Extras->m_AnimationStopped != 0x0)
                     {
-                        anim->m_Easing.release_callback(&anim->m_Easing);
+                        uint32_t orig_size = size;
+                        anim->m_Extras->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, anim->m_Finished,
+                                                           anim->m_Extras->m_Userdata1, anim->m_Extras->m_Userdata2);
+                        // Check if the callback added animations, in which case we need to update the pointer (possible relocation)
+                        size = world->m_Animations.Size();
+                        if (size != orig_size)
+                        {
+                            anim = &world->m_Animations[i];
+                        }
+                        RemoveAnimationCallback(world, anim);
+                    }
+                    if (anim->m_Extras)
+                    {
+                        if (anim->m_Extras->m_Easing.release_callback)
+                        {
+                            anim->m_Extras->m_Easing.release_callback(&anim->m_Extras->m_Easing);
+                        }
+                        delete anim->m_Extras;
+                    }
+                    uint32_t* head_ptr = world->m_InstanceToIndex.Get(anim->m_Instance);
+                    uint32_t* index_ptr = head_ptr;
+                    while (*index_ptr != INVALID_INDEX)
+                    {
+                        if (*index_ptr == anim->m_Index)
+                        {
+                            *index_ptr = anim->m_Next;
+                            world->m_AnimMapIndexPool.Push(anim->m_Index);
+                            break;
+                        }
+                        else
+                        {
+                            index_ptr = &world->m_Animations[world->m_AnimMap[*index_ptr]].m_Next;
+                        }
+                    }
+                    // Remove instance when the list is empty
+                    if (*head_ptr == INVALID_INDEX)
+                    {
+                        world->m_InstanceToIndex.Erase(anim->m_Instance);
+                    }
+                    // delete the instance from the list
+                    anim = &world->m_Animations.EraseSwap(i);
+                    --size;
+                    if (size > i)
+                    {
+                        // We swapped, anim points to the swapped animation, update its map
+                        world->m_AnimMap[anim->m_Index] = i;
                     }
                 }
-                uint32_t* head_ptr = world->m_InstanceToIndex.Get(anim->m_Instance);
-                uint32_t* index_ptr = head_ptr;
-                while (*index_ptr != INVALID_INDEX)
+                else
                 {
-                    if (*index_ptr == anim->m_Index)
-                    {
-                        *index_ptr = anim->m_Next;
-                        world->m_AnimMapIndexPool.Push(anim->m_Index);
-                        break;
-                    }
-                    else
-                    {
-                        index_ptr = &world->m_Animations[world->m_AnimMap[*index_ptr]].m_Next;
-                    }
+                    ++i;
                 }
-                // Remove instance when the list is empty
-                if (*head_ptr == INVALID_INDEX)
-                {
-                    world->m_InstanceToIndex.Erase(anim->m_Instance);
-                }
-                // delete the instance from the list
-                anim = &world->m_Animations.EraseSwap(i);
-                --size;
-                if (size > i)
-                {
-                    // We swapped, anim points to the swapped animation, update its map
-                    world->m_AnimMap[anim->m_Index] = i;
-                }
-            }
-            else
-            {
-                ++i;
             }
         }
         world->m_InUpdate = 0;
@@ -461,17 +508,17 @@ namespace dmGameObject
     }
 
     static bool PlayAnimation(AnimWorld* world, HGameObject instance, dmhash_t component_id,
-                     dmhash_t property_id,
-                     Playback playback,
-                     float* value,
-                     float from,
-                     float to,
-                     dmEasing::Curve easing,
-                     float duration,
-                     float delay,
-                     AnimationStopped animation_stopped,
-                     void* userdata1, void* userdata2,
-                     bool composite)
+                              dmhash_t property_id,
+                              Playback playback,
+                              float* value,
+                              float from,
+                              float to,
+                              dmEasing::Curve easing,
+                              float duration,
+                              float delay,
+                              AnimationStopped animation_stopped,
+                              void* userdata1, void* userdata2,
+                              bool composite)
     {
         uint32_t top = world->m_Animations.Size();
         if (world->m_Animations.Full())
@@ -518,7 +565,17 @@ namespace dmGameObject
         animation.m_ComponentId = component_id;
         animation.m_PropertyId = property_id;
         animation.m_Playback = playback;
-        animation.m_Easing = easing;
+        animation.m_EasingType = easing.type;
+        if (easing.type == dmEasing::TYPE_FLOAT_VECTOR || easing.release_callback || animation_stopped)
+        {
+            animation.m_Extras = new AnimationExtras;
+            animation.m_Extras->m_Easing = easing;
+            animation.m_Extras->m_AnimationStopped = animation_stopped;
+            animation.m_Extras->m_Userdata1 = userdata1;
+            animation.m_Extras->m_Userdata2 = userdata2;
+            animation.m_Extras->m_PreviousListener = INVALID_INDEX;
+            animation.m_Extras->m_NextListener = INVALID_INDEX;
+        }
         animation.m_Value = value;
         animation.m_From = from;
         animation.m_To = to;
@@ -526,18 +583,15 @@ namespace dmGameObject
         animation.m_Duration = dmMath::Max(duration, 0.0f);
         animation.m_InvDuration = 0.0f;
         if (animation.m_Duration > 0.0f)
+        {
             animation.m_InvDuration = 1.0f / animation.m_Duration;
-        animation.m_AnimationStopped = animation_stopped;
-        animation.m_Userdata1 = userdata1;
-        animation.m_Userdata2 = userdata2;
-        animation.m_PreviousListener = INVALID_INDEX;
-        animation.m_NextListener = INVALID_INDEX;
+        }
         animation.m_Next = INVALID_INDEX;
         animation.m_Playing = 1;
         animation.m_Composite = composite ? 1 : 0;
         animation.m_IsGameObjectTransformProperty = component_id == 0 && IsGameObjectTransformProperty(property_id) ? 1 : 0;
         animation.m_IsGameObjectEulerProperty = component_id == 0 && !composite &&
-            (property_id == PROP_EULER_X || property_id == PROP_EULER_Y || property_id == PROP_EULER_Z) ? 1 : 0;
+                                                (property_id == PROP_EULER_X || property_id == PROP_EULER_Y || property_id == PROP_EULER_Z) ? 1 : 0;
         if (animation.m_IsGameObjectEulerProperty)
         {
             Collection* collection;
@@ -548,8 +602,11 @@ namespace dmGameObject
             animation.m_EulerChannel = property_id == PROP_EULER_X ? 0 : property_id == PROP_EULER_Y ? 1 : 2;
         }
         if (animation.m_Playback == PLAYBACK_ONCE_BACKWARD || animation.m_Playback == PLAYBACK_LOOP_BACKWARD)
+        {
             animation.m_Backwards = 1;
+        }
         animation.m_FirstUpdate = 1;
+        world->m_HasPendingAnimations = 1;
 
 
         if (0x0 != animation_stopped)
@@ -566,8 +623,8 @@ namespace dmGameObject
             else
             {
                 Animation* last_anim = &world->m_Animations[world->m_AnimMap[*index_ptr]];
-                animation.m_NextListener = last_anim->m_Index;
-                last_anim->m_PreviousListener = index;
+                animation.m_Extras->m_NextListener = last_anim->m_Index;
+                last_anim->m_Extras->m_PreviousListener = index;
             }
             world->m_ListenerInstanceToIndex.Put((uintptr_t)userdata1, index);
         }
@@ -738,16 +795,20 @@ namespace dmGameObject
                 {
                     uint32_t anim_index = world->m_AnimMap[index];
                     Animation* anim = &world->m_Animations[anim_index];
-                    StopAnimation(anim, false);
-                    if (anim->m_AnimationStopped != 0x0)
+                    StopAnimation(world, anim, false);
+                    if (anim->m_Extras && anim->m_Extras->m_AnimationStopped != 0x0)
                     {
-                        anim->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, anim->m_Finished,
-                                anim->m_Userdata1, anim->m_Userdata2);
+                        anim->m_Extras->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, anim->m_Finished,
+                                                           anim->m_Extras->m_Userdata1, anim->m_Extras->m_Userdata2);
                         RemoveAnimationCallback(world, anim);
                     }
-                    if (anim->m_Easing.release_callback != 0x0)
+                    if (anim->m_Extras)
                     {
-                        anim->m_Easing.release_callback(&anim->m_Easing);
+                        if (anim->m_Extras->m_Easing.release_callback)
+                        {
+                            anim->m_Extras->m_Easing.release_callback(&anim->m_Extras->m_Easing);
+                        }
+                        delete anim->m_Extras;
                     }
                     world->m_AnimMapIndexPool.Push(index);
                     index = anim->m_Next;
@@ -780,38 +841,40 @@ namespace dmGameObject
 
     static void RemoveAnimationCallback(AnimWorld* world, Animation* anim)
     {
-        uint32_t previous = anim->m_PreviousListener;
-        uint32_t next = anim->m_NextListener;
+        uint32_t previous = anim->m_Extras->m_PreviousListener;
+        uint32_t next = anim->m_Extras->m_NextListener;
 
         if (INVALID_INDEX != previous)
         {
             uint32_t anim_index_prev = world->m_AnimMap[previous];
-            world->m_Animations[anim_index_prev].m_NextListener = next;
+            world->m_Animations[anim_index_prev].m_Extras->m_NextListener = next;
         }
         if (INVALID_INDEX != next)
         {
             uint32_t anim_index_next = world->m_AnimMap[next];
-            world->m_Animations[anim_index_next].m_PreviousListener = previous;
+            world->m_Animations[anim_index_next].m_Extras->m_PreviousListener = previous;
         }
         if (INVALID_INDEX == previous)
         {
             if (INVALID_INDEX == next)
             {
-                uint32_t* p = world->m_ListenerInstanceToIndex.Get((uintptr_t)anim->m_Userdata1);
+                uint32_t* p = world->m_ListenerInstanceToIndex.Get((uintptr_t)anim->m_Extras->m_Userdata1);
                 if (p != 0)
-                    world->m_ListenerInstanceToIndex.Erase((uintptr_t)anim->m_Userdata1);
+                {
+                    world->m_ListenerInstanceToIndex.Erase((uintptr_t)anim->m_Extras->m_Userdata1);
+                }
             }
             else
             {
-                world->m_ListenerInstanceToIndex.Put((uintptr_t)anim->m_Userdata1, next);
+                world->m_ListenerInstanceToIndex.Put((uintptr_t)anim->m_Extras->m_Userdata1, next);
             }
         }
 
-        anim->m_PreviousListener = INVALID_INDEX;
-        anim->m_NextListener = INVALID_INDEX;
-        anim->m_AnimationStopped = 0x0;
-        anim->m_Userdata1 = 0x0;
-        anim->m_Userdata2 = 0x0;
+        anim->m_Extras->m_PreviousListener = INVALID_INDEX;
+        anim->m_Extras->m_NextListener = INVALID_INDEX;
+        anim->m_Extras->m_AnimationStopped = 0x0;
+        anim->m_Extras->m_Userdata1 = 0x0;
+        anim->m_Extras->m_Userdata2 = 0x0;
 
     }
 
@@ -829,13 +892,13 @@ namespace dmGameObject
                 uint32_t anim_index = world->m_AnimMap[index];
                 Animation* const anim = &world->m_Animations[anim_index];
 
-                index = anim->m_NextListener;
+                index = anim->m_Extras->m_NextListener;
 
-                anim->m_PreviousListener = INVALID_INDEX;
-                anim->m_NextListener = INVALID_INDEX;
-                anim->m_AnimationStopped = 0x0;
-                anim->m_Userdata1 = 0x0;
-                anim->m_Userdata2 = 0x0;
+                anim->m_Extras->m_PreviousListener = INVALID_INDEX;
+                anim->m_Extras->m_NextListener = INVALID_INDEX;
+                anim->m_Extras->m_AnimationStopped = 0x0;
+                anim->m_Extras->m_Userdata1 = 0x0;
+                anim->m_Extras->m_Userdata2 = 0x0;
             }
             world->m_ListenerInstanceToIndex.Erase((uintptr_t)userdata1);
         }

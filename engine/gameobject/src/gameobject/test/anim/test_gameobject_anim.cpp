@@ -110,6 +110,49 @@ static dmhash_t hash(const char* s)
     return dmHashString64(s);
 }
 
+static void CountReleasedCurve(dmEasing::Curve* curve)
+{
+    ++*(uint32_t*)curve->userdata1;
+}
+
+// Callback-free tracks still release owned curves once, on completion, cancellation, and deletion.
+TEST_F(AnimTest, CallbackFreeCurveLifetime)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    uint32_t released = 0;
+    dmVMath::FloatVector values(2);
+    values.values[0] = 0;
+    values.values[1] = 1;
+    dmEasing::Curve curve(dmEasing::TYPE_FLOAT_VECTOR);
+    curve.vector = &values;
+    curve.release_callback = CountReleasedCurve;
+    curve.userdata1 = &released;
+    m_UpdateContext.m_DT = 0.25f;
+    for (uint32_t pass = 0; pass < 3; ++pass)
+    {
+        dmGameObject::PropertyVar target(10.0f);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, go, 0, hash("position.x"),
+                                                            dmGameObject::PLAYBACK_ONCE_FORWARD, target, curve, 0.5f, 0, 0, 0, 0));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_EQ(pass, released);
+        if (pass == 0)
+        {
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        }
+        else if (pass == 1)
+        {
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(m_Collection, go, 0, hash("position.x")));
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        }
+        else
+        {
+            dmGameObject::Delete(m_Collection, go, false);
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        }
+        ASSERT_EQ(pass + 1, released);
+    }
+}
+
 TEST_F(AnimTest, AnimateAndStop)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
