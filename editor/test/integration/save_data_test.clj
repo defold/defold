@@ -1738,7 +1738,7 @@
 
           migrated-resource-node-ids
           (project/load-nodes!
-            project nil node-load-infos progress/null-render-progress! nil
+            project nil node-load-infos nil progress/null-render-progress! nil
             {:full-invalidation true
              :undoable false})
 
