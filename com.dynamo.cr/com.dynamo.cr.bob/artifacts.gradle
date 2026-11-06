@@ -89,6 +89,20 @@ enginePlatforms.each { platform ->
         }
     }
 }
+// Wasm debug info sidecars of locally built engines. Official engines publish them to
+// the artifact server instead, where Bob downloads them when bundling with --with-symbols.
+if (!useArchive || settings.preferLocalEngines) {
+    ['wasm-web', 'wasm_pthread-web'].each { platform ->
+        engines.each { engine ->
+            ["${engine}.wasm.debug.wasm", "${engine}.wasm.map"].each { name ->
+                def source = new File(dynamoHome, "bin/${platform}/${name}")
+                if (source.isFile()) {
+                    add("libexec/${platform}/${name}".toString(), source)
+                }
+            }
+        }
+    }
+}
 // Local Switch builds use the same fallback as public engines.
 if (!useArchive) {
     ['dmengine', 'dmengine_release'].each { engine ->

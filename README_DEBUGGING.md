@@ -119,12 +119,172 @@ UUID:
 
 ### HTML5
 
-1. Download the engine:
+#### Native debugging in the browser (DWARF / source maps)
 
-	$ wget http://d.defold.com/archive/<sha1>/engine/armv7-android/dmengine.js
+HTML5 builds can be debugged as native C/C++ code directly in the browser.
+Bundle with the debug variant and symbols:
 
-1. Download the symbols
+	$ java -jar bob.jar --platform=wasm-web --architectures=wasm-web --variant=debug --with-symbols --archive resolve build bundle
 
-	$ ... dmengine.js.symbols
+With `--with-symbols` the bundle contains the wasm debug info next to the engine:
 
-1. Match the callstack with the symbols
+* `<Project>.wasm.debug.wasm` — the DWARF debug info (used by Chrome)
+* `<Project>.wasm.map` — a wasm source map with inlined sources (used by Firefox)
+
+and `dmloader.js` switches to URL-preserving streaming instantiation of the wasm,
+even with `html5.wasm_streaming` disabled (browser devtools resolve the debug info
+relative to the URL of the wasm module, so a module instantiated from an ArrayBuffer
+cannot be debugged).
+
+The editor bundles with symbols by default, so its Debug bundles have these files too.
+
+The debug info comes from the engine link step:
+
+* Vanilla bundles use the sidecars of the *debug* variant of the official engines,
+  which are published with the engine (release/headless variants have no wasm debug
+  info). Only `dmengine` links them in optimized builds, with line tables only — see
+  `engine/engine/CMakeLists.txt`. In a `--opt-level < 2` build all variants have full
+  debug info.
+* Extender (native extension) builds of the debug variant link with `-gseparate-dwarf
+  -gsource-map` when bob sends `withSymbols` (see `withSymbolsLinkFlags` in
+  `share/extender/build_input.yml`), so extension code is debuggable too. Release
+  builds only do so if the app manifest asks for it, see below. Note: the server does not embed sources
+  into the map, so in Firefox extender-built engines show the file tree without
+  content; Chrome + DWARF is unaffected.
+
+Serving requirements:
+
+* Serve `.wasm` with `Content-Type: application/wasm` (required for streaming
+  instantiation; `python3 -m http.server` works).
+* The sidecars must be served from the same directory as the `.wasm`.
+* The `_pthread` architecture additionally needs the COOP/COEP headers
+  (`Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`).
+* Do not deploy the sidecars to production — the DWARF file contains the full
+  debug info (and code/data sections), 12-13 MB for an optimized engine, and the
+  source map of an official engine contains the sources.
+
+Chrome:
+
+1. Install the [C/C++ DevTools Support (DWARF)](https://chromewebstore.google.com/detail/cc++-devtools-support-dwa/pdcpmagijalfljmkmjngeonclgbbannb) extension.
+2. Open DevTools before loading the page. The C/C++ sources appear in
+   Sources -> Page under the wasm module; breakpoints, stepping, and (at
+   `--opt-level=0/1`) local variable inspection work.
+3. For engine builds from CI the DWARF source paths are repo-relative
+   (e.g. `engine/dlib/src/dlib/hash.cpp`, SDK headers under `defoldsdk/`).
+   Use the extension options -> path substitution
+   to map these prefixes to a local Defold checkout. Emscripten system libraries
+   appear under `/emsdk/emscripten`.
+4. Extension builds compile on the Extender server under the job directory;
+   pass `debugSourcePath` (top-level appmanifest context) to control the
+   compilation dir, and map `extensions/` -> your project in path substitutions.
+
+Firefox:
+
+* Firefox reads the wasm source map. Engine builds embed the sources into the
+  map (`sourcesContent`, via `build_tools/embed_wasm_sourcemap_sources.py`), so
+  files and line breakpoints/stepping work. Note that wasm source maps carry no
+  scope/type information — there is no variable inspection in Firefox; use
+  Chrome + DWARF for the full experience.
+* The sources usually appear only after a second reload with devtools open, and
+  a breakpoint set on a C/C++ line is often not armed until the debugger has
+  paused once: hit pause and resume, and the breakpoints start hitting. Firefox
+  installs source mapped wasm breakpoints lazily; this is a devtools quirk, not
+  a problem with the debug info (Chrome does not need it).
+* For Extender builds the map has no sources embedded (see above), so all files
+  show without content.
+* Firefox always logs one `Source map error: Error: URL constructor: is not a
+  valid URL` for a module named `wasm:<page>/dmloader.js line NNN >
+  WebAssembly.Module`. That is not the engine: it is the eight byte module
+  `EngineLoader.isWASMSupported` compiles from a byte array to detect wasm
+  support (a URL-less module devtools cannot map). The engine module appears
+  separately as `wasm:<page>/<Title>.wasm` and is the one to look for.
+
+Safari:
+
+* Native C/C++ debugging is not available, and no Web Inspector setting enables
+  it. JavaScriptCore does parse the `sourceMappingURL` section of the wasm
+  module, but Web Inspector never requests the map: its source map downloads are
+  driven by scripts and by stylesheet/script network resources, not by wasm.
+  Verified — Safari does not fetch the `.wasm.map` from the custom section, nor
+  when the `.wasm` is served with an explicit `SourceMap:` response header.
+  There is no DWARF support either (the Chrome C/C++ extension is a Chrome
+  DevTools extension with no Safari counterpart). You get the wasm
+  disassembly, the console, and JS level stacks. Use Chrome to debug engine
+  code, and Safari only to reproduce Safari specific issues — the
+  `.js.symbols` map still symbolicates callstacks there.
+
+Browsers identify the engine module by the URL it was fetched from, so if
+the module shows up as `wasm://wasm/...` or named after `dmloader.js`, the
+streaming instantiation was not used and no debug info will be attached — check
+that the `.wasm` is served with `Content-Type: application/wasm`.
+
+#### Symbolicating a production callstack
+
+A Release bundle built with `--with-symbols` always gets a symbol map, which
+resolves frames to function names:
+
+* `<Project>_symbols/<Project>_wasm.js.symbols` — wasm function index -> mangled
+  name (`--emit-symbol-map`). Published for all official engine variants as
+  `dmengine[_release].js.symbols`.
+
+To also resolve frames to file:line:column, an Extender build needs the
+`releaseDebugInfo` option at the top level of the app manifest:
+
+	context:
+	    releaseDebugInfo: true
+
+It is opt-in as these link flags also change the engine: the link keeps the `name`
+section and skips JS minification and parts of the wasm optimization, so a Release
+`.wasm` grew from 3.0 MB to 3.8 MB and its `.js` from 257 KB to 460 KB in a test
+project. Official release engines are not linked this way. The bundle then also has:
+
+* `<Project>_symbols/<Project>.wasm.debug.wasm` — the DWARF sidecar. It is a full
+  wasm module, so symbolizers run directly against it; the deployed `.wasm` is not
+  needed, and does not reference it.
+* `<Project>_symbols/<Project>.wasm.map` — the source map
+
+Archive the symbols folder per release: an Extender build is unique, so the sidecar
+from that exact build is the only one that matches the deployed wasm. Bob checks that
+the `build_id` of a sidecar matches the engine, and leaves out one that doesn't.
+
+The engine crash handler logs the raw JS stack to the console
+(`CALL STACK: ... CALL STACK END`; it is also stored in the crash dump) as a one
+line JSON array followed by the Lua callstack. Depending on the browser and on
+how the stack was captured, production wasm frames look like:
+
+* `at <name> (https://host/Game.wasm:wasm-function[1234]:0x56789a)`
+* `<name>@https://host/Game.wasm:wasm-function[1234]:0x56789a`
+* `<?>.wasm-function[1234]@[wasm code]` — Safari, function index only, no offset
+
+The `0x...` offset is a byte offset from the start of the wasm file. Resolve a
+collected stack with:
+
+	$ python scripts/web/symbolicate_web_callstack.py --wasm-debug Game_symbols/Game.wasm.debug.wasm stack.txt
+
+which annotates every wasm frame with `function at file:line:column` (locations
+via llvm-symbolizer from the emsdk — found via `$EMSDK` or `$DYNAMO_HOME`, or pass
+`--emsdk`). The symbol map is picked up from the folder of the sidecar or the
+`<Project>_symbols` folder next to it, or pass `--symbols`; without one the name
+section of the sidecar is used. Safari frames carry no offset and resolve to a
+function name only. So do all frames of builds without a sidecar:
+
+	$ python scripts/web/symbolicate_web_callstack.py --symbols dmengine_release.js.symbols stack.txt
+
+Notes:
+
+* Inlined frames are not printed, and function names are looked up by function
+  index. Running `emsymbolizer` on an address, or `llvm-symbolizer` with
+  `--adjust-vma=<file offset of the code section>`, gives the right file and line
+  in its first location, but its function names and inlined frames can point at
+  unrelated functions.
+* Source paths are repo-relative for CI engines and job-dir-relative for
+  Extender extension code — the same paths as in the Chrome path substitution
+  notes above (`debugSourcePath` controls the Extender side).
+* With-symbols links also embed a `build_id` custom section, identical in the
+  `.wasm` and the `.wasm.debug.wasm` sidecar, so the pair is directly usable
+  with external symbolication services. E.g. Sentry:
+  `sentry-cli debug-files check <Project>.wasm.debug.wasm` shows the Debug ID
+  (the same for both files), and `sentry-cli debug-files upload` uploads the
+  sidecar for server-side symbolication. Runtime crash-reporter integration
+  (SDK wiring) is intentionally not part of the engine — build it as an
+  extension.

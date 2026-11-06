@@ -458,6 +458,13 @@ var EngineLoader = {
 
     stream_wasm: "{{html5.wasm_streaming}}" === "true",
 
+    // true when the bundle contains wasm debug info next to the .wasm
+    // (.wasm.debug.wasm with DWARF for Chrome, .wasm.map source map for Firefox).
+    // The wasm is then instantiated from a plain streaming fetch: devtools resolve
+    // the debug info references relative to the URL of the wasm module, and a
+    // module instantiated from an ArrayBuffer or a synthesized Response has none.
+    wasm_debug_symbols: "{{DEFOLD_WASM_DEBUG_SYMBOLS}}" === "true",
+
     // Capture the variant once so every request and verification uses the same metadata.
     selectEngine: function(exeName) {
         const pthread = Module['isWASMPthreadSupported'];
@@ -472,7 +479,9 @@ var EngineLoader = {
                 size: pthread ? this.wasm_pthread_size : this.wasm_size,
                 sha1: pthread ? this.wasm_pthread_sha1 : this.wasm_sha1
             },
-            streaming: this.stream_wasm
+            // Debug info requires streaming regardless of html5.wasm_streaming: it is
+            // the only way the module keeps its URL.
+            streaming: this.stream_wasm || this.wasm_debug_symbols
         };
     },
 
@@ -511,19 +520,43 @@ var EngineLoader = {
     streamAndInstantiateWasmAsync: async function(asset, imports, scope) {
         scope = scope || createLoaderScope();
         scope.check();
-        var canCount = typeof TransformStream === "function" && ReadableStream.prototype.pipeThrough;
+        const debugSymbols = EngineLoader.wasm_debug_symbols;
+        var canCount = debugSymbols || (typeof TransformStream === "function" && ReadableStream.prototype.pipeThrough);
         // Hash verification requires the bytes before instantiation.
         if (asset.sha1{{#html5.verify_downloaded_file_size}} || !canCount{{/html5.verify_downloaded_file_size}}) {
+            if (debugSymbols) {
+                console.warn("The wasm debug info will not work in devtools: verifying the sha1 of '" + asset.url +
+                    "' (--with-sha1) instantiates it from memory, so it has no URL to resolve the debug info against.");
+            }
             return EngineLoader.loadAndInstantiateWasmAsync(asset, imports, scope);
         }
         var streamScope = createLoaderScope(scope);
         var controller = new AbortController();
         streamScope.own(function() { controller.abort(); });
         var streamedSize = 0;
+        var cloneCounted = null;
+        async function countClone(clone) {
+            const reader = clone.body.getReader();
+            for (;;) {
+                const chunk = await reader.read();
+                streamScope.check();
+                if (chunk.done) return;
+                streamedSize += chunk.value.byteLength;
+                ProgressUpdater.updateCurrent(chunk.value.byteLength);
+            }
+        }
         async function fetchWithProgress() {
             const response = await fetch(asset.url, { signal: controller.signal });
             streamScope.check();
             if (!response.ok || !canCount) return response;
+            if (debugSymbols) {
+                // The Response rewrapped below has an empty url, which detaches the module
+                // from its URL and breaks the wasm debug info in devtools. Count on a clone
+                // and hand over the original, URL-attributed response.
+                cloneCounted = countClone(response.clone());
+                cloneCounted.catch(function() {}); // a broken stream fails the instantiation too
+                return response;
+            }
             const stream = new TransformStream({
                 transform: function(chunk, target) {
                     streamScope.check();
@@ -542,6 +575,7 @@ var EngineLoader = {
             streamScope.check();
             output = await streamScope.wait(WebAssembly.instantiateStreaming(ready[0], ready[1]));
             scope.check();
+            if (cloneCounted) await streamScope.wait(cloneCounted);
             {{#html5.verify_downloaded_file_size}}
             if (streamedSize != asset.size) {
                 throw new Error("Unexpected wasm size: " + streamedSize + ", expected: " + asset.size);
@@ -550,6 +584,11 @@ var EngineLoader = {
         } catch (error) {
             scope.check();
             console.log('wasm streaming instantiation failed, falling back to XHR: ' + error);
+            if (debugSymbols) {
+                console.warn("The wasm debug info will not work in devtools: the wasm module could not be " +
+                    "instantiated by streaming, so it has no URL to resolve '" + asset.url + ".debug.wasm' / '" +
+                    asset.url + ".map' against. Serve '" + asset.url + "' with 'Content-Type: application/wasm'.");
+            }
             ProgressUpdater.updateCurrent(-streamedSize);
             // Return without awaiting so finally cancels the stream while the fallback downloads.
             return EngineLoader.loadAndInstantiateWasmAsync(asset, imports, scope);

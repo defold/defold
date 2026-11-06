@@ -35,12 +35,29 @@ if(_DEFOLD_WITH_PTHREAD)
   target_compile_options(defold_sdk INTERFACE -pthread)
 endif()
 
+# Debug builds carry full debug info; optimized builds keep line tables in the
+# objects so the static libs shipped in defoldsdk still carry file:line info
+# for wasm debugging. Plain -gsource-map only: -gsource-map=inline aborts the
+# link on any non-UTF-8 source (e.g. Bullet headers); sourcesContent is embedded
+# post-link instead (build_tools/embed_wasm_sourcemap_sources.py).
 target_compile_options(defold_sdk INTERFACE
   "$<$<CONFIG:Debug>:-gseparate-dwarf>"
-  "$<$<CONFIG:Debug>:-gsource-map>")
+  "$<$<CONFIG:Debug>:-gsource-map>"
+  "$<$<NOT:$<CONFIG:Debug>>:-gline-tables-only>")
 target_link_options(defold_sdk INTERFACE
   "$<$<CONFIG:Debug>:-gseparate-dwarf>"
   "$<$<CONFIG:Debug>:-gsource-map>")
+
+# Deterministic debug info paths on CI, so DWARF source paths can be mapped to a
+# local checkout with a single path substitution (SDK headers appear under
+# defoldsdk/, repo sources as repo-relative paths). The last matching prefix map
+# wins, and the SDK root is inside the repo root.
+if(DEFINED ENV{GITHUB_WORKFLOW})
+  target_compile_options(defold_sdk INTERFACE
+    "-fdebug-compilation-dir=."
+    "-fdebug-prefix-map=${DEFOLD_HOME}/="
+    "-fdebug-prefix-map=${DEFOLD_SDK_ROOT}=defoldsdk")
+endif()
 
 # Link options base
 set(_DEFOLD_INITIAL_MEMORY 33554432)
@@ -51,6 +68,9 @@ endif()
 set(_DEFOLD_EM_LINK_OPTS
   -Wno-warn-absolute-paths
   --emit-symbol-map
+  # build_id custom section, identical in the .wasm and the .wasm.debug.wasm
+  # sidecar; crash symbolication services (e.g. Sentry) match the pair by it
+  -Wl,--build-id
   -lidbfs.js
   -sDISABLE_EXCEPTION_CATCHING=1
   -sALLOW_UNIMPLEMENTED_SYSCALLS=0

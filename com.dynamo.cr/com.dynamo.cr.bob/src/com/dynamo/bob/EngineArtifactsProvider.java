@@ -64,6 +64,31 @@ public final class EngineArtifactsProvider {
         }
     }
 
+    /**
+     * Returns a file bundled next to the engine binaries in bob's libexec folder, or null if
+     * it is not part of this bob. Used for optional engine artifacts such as the wasm debug
+     * info sidecars, which are packed for locally built engines but downloaded from the
+     * artifact server for official builds.
+     */
+    public static File getOptionalEngineFile(Platform platform, String filename) {
+        try {
+            Bob.init();
+            String path = platform.getPair() + "/" + filename;
+            File f = new File(Bob.getRootFolder(), path);
+            if (!f.exists()) {
+                URL url = Bob.class.getResource("/libexec/" + path);
+                if (url == null) {
+                    return null;
+                }
+                Bob.atomicCopy(url, f, false);
+            }
+            return f;
+        } catch (Exception e) {
+            logger.warning("Failed to unpack '%s' for platform '%s': %s", filename, platform.getPair(), e.getMessage());
+            return null;
+        }
+    }
+
     public static void downloadSymbols(Project project, IProgress progress) throws IOException, CompileExceptionError {
         try (progress) {
             String archs = project.option("architectures", null);
@@ -82,9 +107,7 @@ public final class EngineArtifactsProvider {
 
             for (String platformKey : platforms) {
                 Platform p = Platform.get(platformKey);
-                String symbolsFilename = getSymbolsFilenameForPlatform(p, variantSuffix);
-
-                if (symbolsFilename != null) {
+                for (String symbolsFilename : getSymbolsFilenamesForPlatform(p, variantSuffix)) {
                     if (p.getOsID() == OS.OS_ID_LINUX) {
                         // Not removed by cleanEngines(), so a failed download must not leave symbols from an earlier build
                         FileUtils.deleteQuietly(new File(new File(project.getBinaryOutputDirectory(), p.getExtenderPair()), LINUX_UNSTRIPPED_ENGINE_NAME));
@@ -107,7 +130,8 @@ public final class EngineArtifactsProvider {
                             FileUtils.copyFile(cached, new File(targetFolder, LINUX_UNSTRIPPED_ENGINE_NAME));
                         } else {
                             File target = new File(targetFolder, symbolsFilename);
-                            if (!target.exists()) {
+                            // The build folder outlives engine upgrades, and these files must match the engine
+                            if (!target.exists() || p.getOsID() == OS.OS_ID_WEB) {
                                 target.getParentFile().mkdirs();
                                 FileUtils.copyFile(cached, target);
                             }
@@ -189,25 +213,32 @@ public final class EngineArtifactsProvider {
         return "dmengine" + getVariantSuffix(variant);
     }
 
-    private static String getSymbolsFilenameForPlatform(Platform platform, String variantSuffix) {
-        if (platform == null) return null;
+    private static List<String> getSymbolsFilenamesForPlatform(Platform platform, String variantSuffix) {
+        List<String> filenames = new ArrayList<String>();
+        if (platform == null) return filenames;
         OS os = platform.getOsID();
         if (os == OS.OS_ID_WINDOWS) {
-            return String.format("dmengine%s.pdb", variantSuffix);
+            filenames.add(String.format("dmengine%s.pdb", variantSuffix));
         }
-        if (os == OS.OS_ID_ANDROID) {
-            return String.format("libdmengine%s.so", variantSuffix);
+        else if (os == OS.OS_ID_ANDROID) {
+            filenames.add(String.format("libdmengine%s.so", variantSuffix));
         }
-        if (os == OS.OS_ID_OSX || os == OS.OS_ID_IOS) {
-            return String.format("dmengine%s.dSYM.zip", variantSuffix);
+        else if (os == OS.OS_ID_OSX || os == OS.OS_ID_IOS) {
+            filenames.add(String.format("dmengine%s.dSYM.zip", variantSuffix));
         }
-        if (os == OS.OS_ID_WEB) {
-            return String.format("dmengine%s.js.symbols", variantSuffix);
+        else if (os == OS.OS_ID_WEB) {
+            filenames.add(String.format("dmengine%s.js.symbols", variantSuffix));
+            // wasm debug info sidecars, bundled next to the .wasm by HTML5Bundler
+            // when bundling with --with-symbols. Only published for the debug variant.
+            if (variantSuffix.isEmpty()) {
+                filenames.add(String.format("dmengine%s.wasm.debug.wasm", variantSuffix));
+                filenames.add(String.format("dmengine%s.wasm.map", variantSuffix));
+            }
         }
-        if (os == OS.OS_ID_LINUX) {
-            return String.format("dmengine%s", variantSuffix);
+        else if (os == OS.OS_ID_LINUX) {
+            filenames.add(String.format("dmengine%s", variantSuffix));
         }
-        return null;
+        return filenames;
     }
 
     private static File getCacheFile(String platformKey, String filename) {
