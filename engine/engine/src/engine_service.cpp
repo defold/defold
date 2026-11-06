@@ -628,14 +628,14 @@ namespace dmEngineService
     #define CHECK_RESULT_BOOL(_RESULT) \
         if (r != dmWebServer::RESULT_OK)\
         {\
-            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", _RESULT); \
+            dmLogWarning("Failed to transmit profile data over HTTP (result: %d).", _RESULT); \
             return false; \
         }
 
     #define CHECK_RESULT(_RESULT) \
         if (r != dmWebServer::RESULT_OK)\
         {\
-            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", _RESULT); \
+            dmLogWarning("Failed to transmit profile data over HTTP (result: %d).", _RESULT); \
         }
 
     static dmWebServer::Result SendString(dmWebServer::Request* request, const char* str)
@@ -721,7 +721,7 @@ namespace dmEngineService
         dmWebServer::Result     r = SendString(request, iterator_context.m_IncludeTimings ? "RES2" : FOURCC_RESOURCES);
         if (r != dmWebServer::RESULT_OK)
         {
-            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", r);
+            dmLogWarning("Failed to transmit profile data over HTTP (result: %d).", r);
             return;
         }
         dmResource::IterateResources(params->m_Factory, ResourceIteratorFunction, &iterator_context);

@@ -911,7 +911,7 @@ static void DispatchCompletedRequest(SetTextureAsyncRequest* request)
         }
         else
         {
-            dmLogError("Failed to setup resource.create_texture_async callback (has the calling script been destroyed?)");
+            dmLogError("Failed to set up resource.create_texture_async callback. The calling script may have been destroyed.");
         }
 
         dmScript::DestroyCallback(request->m_CallbackInfo);

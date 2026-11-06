@@ -176,14 +176,14 @@ dmResource::Result GetApplicationSupportPath(dmResource::HManifest manifest, cha
     const char* project_id = dmResource::GetProjectId(manifest, id_buf, sizeof(id_buf));
     if (project_id == 0)
     {
-        dmLogError("Failed get project id from manifest");
+        dmLogError("Failed to get project ID from manifest.");
         return RESULT_IO_ERROR;
     }
 
     dmSys::Result s_result = dmSys::GetApplicationSupportPath(id_buf, buffer, buffer_len);
     if (dmSys::RESULT_OK != s_result)
     {
-        dmLogError("Failed get application support path for \"%s\", result = %i", id_buf, dmSys::RESULT_OK);
+        dmLogError("Failed to get application support path for '%s' (result: %i).", id_buf, s_result);
         return RESULT_IO_ERROR;
     }
     return RESULT_OK;

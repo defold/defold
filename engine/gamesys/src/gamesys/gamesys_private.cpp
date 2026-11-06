@@ -77,7 +77,7 @@ namespace dmGameSystem
         }
 
         if (n > (int) sizeof(buf) - 1) {
-            dmLogError("Buffer underflow when formatting message-error (LogMessageError)");
+            dmLogError("Log message exceeded the buffer capacity and was truncated (LogMessageError).");
         }
 
         dmLogError("%s", buf);

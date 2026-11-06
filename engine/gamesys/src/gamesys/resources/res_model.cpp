@@ -462,8 +462,8 @@ namespace dmGameSystem
             if (!AreAllMaterialsWorldSpace(resource) && !dmGraphics::IsTextureFormatSupported(context, BIND_POSE_CACHE_TEXTURE_FORMAT))
             {
                 dmLogError(
-                    "Failed to create Model component. One or more materials has vertex space option VERTEX_SPACE_LOCAL,"
-                    "which requires a float texture for storing animation data but the format (%s) isn't supported.",
+                    "Failed to create model component. One or more materials have vertex space option VERTEX_SPACE_LOCAL, "
+                    "which requires a float texture for storing animation data, but texture format %s is not supported.",
                     dmGraphics::GetTextureFormatLiteral(BIND_POSE_CACHE_TEXTURE_FORMAT));
                 return dmResource::RESULT_NOT_SUPPORTED;
             }
