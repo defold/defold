@@ -236,7 +236,11 @@ static void CompareThreadedCallbacks(bool read_only, bool stop_callbacks, bool m
             }
         }
         ASSERT_GT(callbacks[0].m_Contacts, 0u);
-        ASSERT_EQ(read_only && worlds[1]->m_TaskContext != 0, worlds[1]->m_ContactCollection != 0);
+        for (uint32_t mode = 0; mode < 2; ++mode)
+        {
+            // Serial callbacks must stream contacts without materializing a prepared collection.
+            ASSERT_EQ(read_only && worlds[mode]->m_TaskContext != 0, worlds[mode]->m_ContactCollection != 0);
+        }
 
         dmArray<dmPhysics::RayCastResponse> results[2];
         dmPhysics::RayCastRequest ray;

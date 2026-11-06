@@ -644,28 +644,41 @@ namespace dmPhysics
     static void SerialPostSolve(World2D* world, const StepWorldContext& step_context, CollisionCallback& collision_callback, ContactPointCallback contact_point_callback)
     {
         float inv_scale = world->m_Context->m_InvScale;
+        bool use_contact_events = step_context.m_ContactCallbacksReadOnly && !world->m_ExternalBox2DAccess;
 
         world->m_ContactBuffer.SetSize(0);
 
-        for (int i = 0; i < world->m_Bodies.Size() && (collision_callback || contact_point_callback); ++i)
+        for (uint32_t i = 0; i < (use_contact_events ? world->m_TouchingContacts.Size() : world->m_Bodies.Size()) && (collision_callback || contact_point_callback); ++i)
         {
-            Body* body = world->m_Bodies[i];
-            b2BodyId body_id = body->m_BodyId;
-            if (!b2Body_IsEnabled(body_id))
+            b2ContactData buffered_contact;
+            b2ContactData* contacts;
+            uint32_t num_contacts;
+            b2BodyId body_id = b2_nullBodyId;
+            if (use_contact_events)
             {
-                continue;
+                buffered_contact = b2Contact_GetData(world->m_TouchingContacts[i]);
+                contacts = &buffered_contact;
+                num_contacts = 1;
+            }
+            else
+            {
+                body_id = world->m_Bodies[i]->m_BodyId;
+                if (!b2Body_IsEnabled(body_id))
+                {
+                    continue;
+                }
+                dmArray<b2ContactData>& buffer = GetContactsBuffer(world, body_id);
+                contacts = buffer.Begin();
+                num_contacts = buffer.Size();
             }
 
-            dmArray<b2ContactData>& contacts = GetContactsBuffer(world, body_id);
-            int num_contacts = contacts.Size();
-
-            for (int j = 0; j < num_contacts && (collision_callback || contact_point_callback); ++j)
+            for (uint32_t j = 0; j < num_contacts && (collision_callback || contact_point_callback); ++j)
             {
                 b2ContactData& contact = contacts[j];
 
                 // Both bodies enumerate this contact with the same A/B orientation.
                 b2BodyId bodyIdA = b2Shape_GetBody(contact.shapeIdA);
-                if (!B2_ID_EQUALS(body_id, bodyIdA))
+                if (!use_contact_events && !B2_ID_EQUALS(body_id, bodyIdA))
                 {
                     continue;
                 }
@@ -845,12 +858,9 @@ namespace dmPhysics
         {
             world->m_ContactCollection = new ContactCollection;
         }
-        uint32_t chunk_count = world->m_TaskContext ? dmMath::Min(count, dmMath::Min(16U, (uint32_t)world->m_Context->m_WorkerCount * 2U)) : 1U;
+        uint32_t chunk_count = dmMath::Min(count, dmMath::Min(16U, (uint32_t)world->m_Context->m_WorkerCount * 2U));
         void* tasks[16];
-        if (world->m_TaskContext)
-        {
-            ResetBox2DTaskContext(world->m_TaskContext);
-        }
+        ResetBox2DTaskContext(world->m_TaskContext);
         for (uint32_t i = 0; i < chunk_count; ++i)
         {
             ContactChunk* chunk = &world->m_ContactCollection->m_Chunks[i];
@@ -859,16 +869,9 @@ namespace dmPhysics
             chunk->m_End = (uint32_t)((uint64_t)count * (i + 1) / chunk_count);
             chunk->m_ContactPoints = contact_point_callback != 0;
             chunk->m_UseContactEvents = use_contact_events;
-            if (world->m_TaskContext)
-            {
-                tasks[i] = EnqueueBox2DTask(CollectContactChunk, chunk, world->m_TaskContext);
-            }
-            else
-            {
-                CollectContactChunk(chunk);
-            }
+            tasks[i] = EnqueueBox2DTask(CollectContactChunk, chunk, world->m_TaskContext);
         }
-        for (uint32_t i = 0; world->m_TaskContext && i < chunk_count; ++i)
+        for (uint32_t i = 0; i < chunk_count; ++i)
         {
             FinishBox2DTask(tasks[i], world->m_TaskContext);
         }
@@ -999,7 +1002,7 @@ namespace dmPhysics
             {
                 DM_PROFILE("PostSolveCallbacks");
 
-                if (step_context.m_ContactCallbacksReadOnly)
+                if (world->m_TaskContext && step_context.m_ContactCallbacksReadOnly)
                 {
                     PreparedPostSolve(world, step_context, collision_callback, contact_point_callback);
                 }
