@@ -14,12 +14,11 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-
+import com.dynamo.bob.fs.ResourceUtil;
 import org.junit.Test;
 
-import com.dynamo.bob.fs.ResourceUtil;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 // These tests intentionally exercise the legacy extension compatibility API.
 public class BuilderUtilTest {

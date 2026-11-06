@@ -14,11 +14,13 @@
 
 package com.dynamo.bob.bundle;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import com.dynamo.bob.ClassLoaderResourceScanner;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.ZipMountPoint;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,14 +30,11 @@ import java.nio.file.Files;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
-import com.dynamo.bob.ClassLoaderResourceScanner;
-import com.dynamo.bob.Project;
-import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.fs.ZipMountPoint;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class AndroidBundlerVkQualityTest {
     private final DefaultFileSystem fileSystem = new DefaultFileSystem();

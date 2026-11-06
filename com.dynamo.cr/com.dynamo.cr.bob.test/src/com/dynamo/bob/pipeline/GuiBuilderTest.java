@@ -14,27 +14,28 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.IOException;
-import java.util.*;
-
-import org.junit.Test;
-import org.junit.Assert;
-
-import com.dynamo.gamesys.proto.Gui;
-import com.dynamo.gamesys.proto.Gui.Property.PropertyType;
-import com.dynamo.gamesys.proto.Gui.SceneDesc.LayoutDesc;
-import com.dynamo.gamesys.proto.Gui.NodeDesc;
-import com.dynamo.proto.DdfMath.Quat;
-import com.dynamo.proto.DdfMath.Vector3;
-import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.bob.BuilderParams;
-import com.dynamo.bob.ProtoParams;
-import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.ProtoBuilder;
+import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.gamesys.proto.Gui;
+import com.dynamo.gamesys.proto.Gui.NodeDesc;
+import com.dynamo.gamesys.proto.Gui.Property.PropertyType;
+import com.dynamo.gamesys.proto.Gui.SceneDesc.LayoutDesc;
+import com.dynamo.proto.DdfMath.Quat;
+import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.proto.DdfMath.Vector4;
+import org.junit.Assert;
+import org.junit.Test;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 public class GuiBuilderTest extends AbstractProtoBuilderTest {
 

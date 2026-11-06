@@ -14,13 +14,21 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.fail;
+import com.dynamo.bob.util.MathUtil;
+import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.graphics.proto.Graphics.TextureImage;
+import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.rig.proto.Rig;
+import org.junit.Test;
 
+import javax.vecmath.Point4i;
+import javax.vecmath.Quat4d;
+import javax.vecmath.Tuple3d;
+import javax.vecmath.Tuple4d;
+import javax.vecmath.Tuple4f;
+import javax.vecmath.Tuple4i;
+import javax.vecmath.Vector3d;
+import javax.vecmath.Vector4f;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,23 +42,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import javax.vecmath.Point4i;
-import javax.vecmath.Quat4d;
-import javax.vecmath.Tuple3d;
-import javax.vecmath.Tuple4d;
-import javax.vecmath.Tuple4f;
-import javax.vecmath.Tuple4i;
-import javax.vecmath.Vector3d;
-import javax.vecmath.Vector4f;
-
-import org.junit.Test;
-
-import com.dynamo.bob.util.MathUtil;
-import com.dynamo.bob.util.MurmurHash;
-
-import com.dynamo.proto.DdfMath.Vector3;
-import com.dynamo.graphics.proto.Graphics.TextureImage;
-import com.dynamo.rig.proto.Rig;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class ModelUtilTest {
 

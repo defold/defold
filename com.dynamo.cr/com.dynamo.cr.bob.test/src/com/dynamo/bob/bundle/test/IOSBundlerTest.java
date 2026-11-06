@@ -14,9 +14,10 @@
 
 package com.dynamo.bob.bundle.test;
 
-import java.io.IOException;
-import org.junit.Test;
 import com.dynamo.bob.bundle.IOSBundler;
+import org.junit.Test;
+
+import java.io.IOException;
 
 public class IOSBundlerTest {
     private static String plist(String body) {
