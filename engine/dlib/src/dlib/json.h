@@ -39,6 +39,14 @@ namespace dmJson
         TYPE_NUMBER,
         TYPE_BOOL
     };
+    enum ParseMode
+    {
+        PARSE_DECODE_VALUES,
+        // Validate string and number values without decoding them. Their encoded
+        // spans remain in m_Text; String/Integer/UnsignedInteger return fallbacks.
+        // Object keys are always decoded and must not contain embedded NUL.
+        PARSE_PRESERVE_VALUES
+    };
     struct Node
     {
         Type        m_Type;
@@ -63,9 +71,10 @@ namespace dmJson
         char*             m_Cursor;
         char*             m_End;
         bool              m_Valid;
+        bool              m_DecodeValues;
         Document();
         ~Document();
-        bool            Parse(const char* text, uint32_t size, uint32_t* error_offset = 0);
+        bool            Parse(const char* text, uint32_t size, uint32_t* error_offset = 0, ParseMode mode = PARSE_DECODE_VALUES);
         int             Field(int object, const char* name) const;
         const Node&     Get(int node) const;
         const char*     String(int node, const char* fallback = 0) const;
@@ -75,7 +84,7 @@ namespace dmJson
 
         private:
         void  Space();
-        char* ReadString();
+        char* ReadString(bool decode);
         int   Value(int depth);
     };
 

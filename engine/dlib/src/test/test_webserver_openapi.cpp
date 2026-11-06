@@ -252,6 +252,16 @@ TEST_F(WebServerOpenAPITest, PreserveJSONValues)
     ASSERT_STREQ(json, paths.Begin());
 }
 
+// Metadata examples containing NUL escapes and numbers beyond double range must survive registration and aggregation.
+TEST_F(WebServerOpenAPITest, PreserveUnrepresentableValues)
+{
+    static const char json[] = "{\"/values\":{" GET_OPERATION ",\"x-data\":{\"string\":\"a\\u0000b\",\"number\":1e400}}}";
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/values", &m_Params, json));
+    dmArray<char> paths;
+    dmWebServer::GetOpenAPIPaths(m_Server, &paths);
+    ASSERT_STREQ(json, paths.Begin());
+}
+
 // Decoding escaped path names must preserve their original spans for conflict diagnostics and aggregation.
 TEST_F(WebServerOpenAPITest, EncodedPathLocations)
 {

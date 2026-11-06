@@ -132,6 +132,7 @@ namespace dmJson
     , m_Cursor(0)
     , m_End(0)
     , m_Valid(true)
+    , m_DecodeValues(true)
     {
         m_Nodes.SetCapacity(512);
     }
@@ -176,7 +177,7 @@ namespace dmJson
         }
         return value;
     }
-    char* Document::ReadString()
+    char* Document::ReadString(bool decode)
     {
         if (m_Cursor == m_End || *m_Cursor++ != '"')
         {
@@ -190,8 +191,11 @@ namespace dmJson
             unsigned char c = *m_Cursor++;
             if (c == '"')
             {
-                *out = 0;
-                return begin;
+                if (decode)
+                {
+                    *out = 0;
+                }
+                return decode ? begin : 0;
             }
             if (c < 32)
             {
@@ -199,7 +203,10 @@ namespace dmJson
             }
             if (c != '\\')
             {
-                *out++ = c;
+                if (decode)
+                {
+                    *out++ = c;
+                }
                 continue;
             }
             if (m_Cursor == m_End)
@@ -207,29 +214,25 @@ namespace dmJson
                 break;
             }
             c = *m_Cursor++;
-            if (c == '"' || c == '\\' || c == '/')
+            if (c == 'b')
             {
-                *out++ = c;
-            }
-            else if (c == 'b')
-            {
-                *out++ = '\b';
+                c = '\b';
             }
             else if (c == 'f')
             {
-                *out++ = '\f';
+                c = '\f';
             }
             else if (c == 'n')
             {
-                *out++ = '\n';
+                c = '\n';
             }
             else if (c == 'r')
             {
-                *out++ = '\r';
+                c = '\r';
             }
             else if (c == 't')
             {
-                *out++ = '\t';
+                c = '\t';
             }
             else if (c == 'u')
             {
@@ -240,7 +243,7 @@ namespace dmJson
                 int cp = Unicode(m_Cursor);
                 m_Cursor += 4;
                 // Decoded JSON values are C strings. Reject embedded NUL.
-                if (cp <= 0 || (cp >= 0xdc00 && cp <= 0xdfff))
+                if (cp < 0 || (decode && cp == 0) || (cp >= 0xdc00 && cp <= 0xdfff))
                 {
                     break;
                 }
@@ -257,6 +260,10 @@ namespace dmJson
                     }
                     m_Cursor += 6;
                     cp = 0x10000 + ((cp - 0xd800) << 10) + low - 0xdc00;
+                }
+                if (!decode)
+                {
+                    continue;
                 }
                 if (cp < 0x80)
                 {
@@ -283,10 +290,15 @@ namespace dmJson
                     }
                     *out++ = 0x80 | (cp & 63);
                 }
+                continue;
             }
-            else
+            else if (c != '"' && c != '\\' && c != '/')
             {
                 break;
+            }
+            if (decode)
+            {
+                *out++ = c;
             }
         }
         m_Valid = false;
@@ -332,7 +344,7 @@ namespace dmJson
                 uint64_t    name_hash = 0;
                 if (c == '{')
                 {
-                    name = ReadString();
+                    name = ReadString(true);
                     if (!m_Valid)
                     {
                         break;
@@ -430,7 +442,7 @@ namespace dmJson
         else if (c == '"')
         {
             m_Nodes[id].m_Type = TYPE_STRING;
-            m_Nodes[id].m_String = ReadString();
+            m_Nodes[id].m_String = ReadString(m_DecodeValues);
         }
         else if (c == '-' || (c >= '0' && c <= '9'))
         {
@@ -484,10 +496,13 @@ namespace dmJson
                 }
             }
             m_Nodes[id].m_Type = TYPE_NUMBER;
-            m_Nodes[id].m_Number = ReadNumber(begin, m_Cursor);
-            if (!isfinite(m_Nodes[id].m_Number))
+            if (m_DecodeValues)
             {
-                m_Valid = false;
+                m_Nodes[id].m_Number = ReadNumber(begin, m_Cursor);
+                if (!isfinite(m_Nodes[id].m_Number))
+                {
+                    m_Valid = false;
+                }
             }
         }
         else
@@ -509,9 +524,10 @@ namespace dmJson
         m_Nodes[id].m_Length = (uint32_t)(m_Cursor - m_Text) - node.m_Offset;
         return id;
     }
-    bool Document::Parse(const char* text, uint32_t size, uint32_t* error_offset)
+    bool Document::Parse(const char* text, uint32_t size, uint32_t* error_offset, ParseMode mode)
     {
         m_Valid = false;
+        m_DecodeValues = mode == PARSE_DECODE_VALUES;
         if (error_offset)
         {
             *error_offset = 0;
@@ -571,17 +587,17 @@ namespace dmJson
     }
     const char* Document::String(int node, const char* fallback) const
     {
-        return Get(node).m_Type == TYPE_STRING ? Get(node).m_String : fallback;
+        return m_DecodeValues && Get(node).m_Type == TYPE_STRING ? Get(node).m_String : fallback;
     }
     int Document::Integer(int node, int fallback) const
     {
         double n = Get(node).m_Number;
-        return Get(node).m_Type == TYPE_NUMBER && n >= INT_MIN && n <= INT_MAX && floor(n) == n ? (int)n : fallback;
+        return m_DecodeValues && Get(node).m_Type == TYPE_NUMBER && n >= INT_MIN && n <= INT_MAX && floor(n) == n ? (int)n : fallback;
     }
     bool Document::UnsignedInteger(int node, uint32_t* value) const
     {
         const Node& n = Get(node);
-        if (n.m_Type != TYPE_NUMBER || n.m_Number < 0 || n.m_Number > UINT32_MAX || floor(n.m_Number) != n.m_Number)
+        if (!m_DecodeValues || n.m_Type != TYPE_NUMBER || n.m_Number < 0 || n.m_Number > UINT32_MAX || floor(n.m_Number) != n.m_Number)
         {
             return false;
         }

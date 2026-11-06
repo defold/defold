@@ -118,7 +118,7 @@ namespace dmWebServer
         }
         dmJson::Document document;
         uint32_t offset;
-        if (!document.Parse(json, (uint32_t)strlen(json), &offset))
+        if (!document.Parse(json, (uint32_t)strlen(json), &offset, dmJson::PARSE_PRESERVE_VALUES))
         {
             return ParseError(offset, document.m_Valid ? "Unexpected data after Paths Object" : "Invalid JSON", error);
         }

@@ -291,6 +291,42 @@ TEST(dmJson, SourceLocations)
     ASSERT_EQ(2u, json.Get(json.Get(object).m_Next).m_Length);
 }
 
+// Metadata values retain their encoded tokens even when they cannot be decoded as C strings or doubles.
+TEST(dmJson, PreserveValues)
+{
+    const char text[] = "{\"\\u006bey\":\"a\\u0000b\",\"number\":1e400,\"valid\":true}";
+    dmJson::Document json;
+    ASSERT_FALSE(json.Parse(text, sizeof(text) - 1));
+    ASSERT_FALSE(json.Parse("1e400", 5));
+    ASSERT_TRUE(json.Parse(text, sizeof(text) - 1, 0, dmJson::PARSE_PRESERVE_VALUES));
+    int string = json.Field(0, "key");
+    int number = json.Field(0, "number");
+    ASSERT_GE(string, 0);
+    ASSERT_GE(number, 0);
+    ASSERT_EQ(dmJson::TYPE_STRING, json.Get(string).m_Type);
+    ASSERT_EQ(dmJson::TYPE_NUMBER, json.Get(number).m_Type);
+    ASSERT_EQ(0, memcmp(text + json.Get(string).m_Offset, json.m_Text + json.Get(string).m_Offset, json.Get(string).m_Length));
+    ASSERT_EQ(0, memcmp(text + json.Get(number).m_Offset, json.m_Text + json.Get(number).m_Offset, json.Get(number).m_Length));
+    ASSERT_STREQ("fallback", json.String(string, "fallback"));
+    ASSERT_EQ(-1, json.Integer(number));
+    uint32_t value;
+    ASSERT_FALSE(json.UnsignedInteger(number, &value));
+    ASSERT_TRUE(json.Boolean(json.Field(0, "valid")));
+    ASSERT_TRUE(json.Parse("42", 2));
+    ASSERT_EQ(42, json.Integer(0));
+}
+
+// Preserving values must still validate JSON syntax, Unicode escapes, UTF-8 and decoded object keys.
+TEST(dmJson, PreserveValuesValidation)
+{
+    const char* invalid[] = { "1e+", "01", "1.", "NaN", "Infinity", "\"\\q\"", "\"\\ud800\"", "\"\\udc00\"", "\"\xff\"", "{\"a\\u0000b\":0}", "{\"key\":0,\"\\u006bey\":1}" };
+    dmJson::Document json;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(invalid); ++i)
+    {
+        ASSERT_FALSE(json.Parse(invalid[i], (uint32_t)strlen(invalid[i]), 0, dmJson::PARSE_PRESERVE_VALUES));
+    }
+}
+
 // Diagnostics distinguish trailing data from syntax and UTF-8 failures at original input offsets.
 TEST(dmJson, ErrorOffsets)
 {
