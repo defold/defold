@@ -451,4 +451,11 @@ static dmExtension::Result ProfilerRemotery_AppFinalize(dmExtension::AppParams* 
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(ProfilerRemotery, g_ProfilerName, ProfilerRemotery_AppInitialize, ProfilerRemotery_AppFinalize, 0, 0, 0, 0);
+static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+{
+    dmExtension::SetAppInitializeFn(extension, ProfilerRemotery_AppInitialize);
+    dmExtension::SetAppFinalizeFn(extension, ProfilerRemotery_AppFinalize);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(ProfilerRemotery, RegisterExtension, 0);

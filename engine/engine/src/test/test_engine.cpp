@@ -29,8 +29,11 @@
 #include <dlib/profile.h>
 #include <script/sys_ddf.h>
 #include <render/render_ddf.h>
+#include <extension/extension.h>
 #include <gameobject/component.h>
 #include <dmsdk/extension/extension.hpp>
+#include <dmsdk/engine/engine_event.hpp>
+#include <dmsdk/engine/extension.hpp>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
@@ -66,6 +69,93 @@ static float    g_ExtensionTotalDT              = 0.0f;
 static uint32_t g_ExtensionUpdateCount          = 0;
 static bool     g_ExtensionFloatLookupSucceeded = true;
 
+struct EngineEventObservations
+{
+    dmEngine::HEngine m_Engine;
+    uint32_t          m_Initialized;
+    uint32_t          m_Deleted;
+    uint32_t          m_Finalized;
+    uint32_t          m_Resized;
+    uint32_t          m_Width;
+    uint32_t          m_Height;
+    bool              m_InitSucceeded;
+    bool              m_InitializedContexts;
+    bool              m_DeletedContexts;
+    bool              m_DeletedBeforeFinalize;
+    bool              m_CollectionAliveAtDelete;
+    bool              m_WindowStateApplied;
+    bool              m_PayloadValid;
+    bool              m_WindowAccessorValid;
+    bool              m_WindowClearedAtAppFinalize;
+};
+static EngineEventObservations g_EngineEvents = {};
+static bool g_ObserveEngineEvents = false;
+
+static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const void* data, uint32_t data_size)
+{
+    if (!g_ObserveEngineEvents)
+    {
+        return;
+    }
+    if (event_id == dmEngine::EVENT_STATE)
+    {
+        bool valid = data && data_size == sizeof(dmEngine::StateEvent);
+        g_EngineEvents.m_PayloadValid &= valid;
+        if (!valid)
+        {
+            return;
+        }
+        const dmEngine::StateEvent* event = (const dmEngine::StateEvent*)data;
+        HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
+        dmEngine::HEngine engine = (dmEngine::HEngine)ContextRegistryGet(registry, ENGINE_CONTEXT_NAME);
+        g_EngineEvents.m_PayloadValid &= engine == g_EngineEvents.m_Engine;
+        HWindow window = dmEngine::GetWindow(engine);
+        g_EngineEvents.m_WindowAccessorValid &= window == g_EngineEvents.m_Engine->m_Window;
+        if (event->m_State == dmEngine::STATE_INITIALIZED)
+        {
+            ++g_EngineEvents.m_Initialized;
+            g_EngineEvents.m_InitializedContexts = params->m_L && params->m_ResourceFactory;
+        }
+        else if (event->m_State == dmEngine::STATE_DELETE)
+        {
+            ++g_EngineEvents.m_Deleted;
+            g_EngineEvents.m_DeletedBeforeFinalize = g_EngineEvents.m_Finalized == 0;
+            g_EngineEvents.m_DeletedContexts = params->m_L && params->m_ResourceFactory &&
+                                               g_EngineEvents.m_Engine->m_RenderContext && g_EngineEvents.m_Engine->m_HidContext;
+            dmhash_t collection_path;
+            g_EngineEvents.m_CollectionAliveAtDelete = g_EngineEvents.m_Engine->m_MainCollectionResource &&
+                                                       ResourceGetPath(params->m_ResourceFactory, g_EngineEvents.m_Engine->m_MainCollectionResource, &collection_path) == RESOURCE_RESULT_OK;
+        }
+    }
+    else if (event_id == dmEngine::EVENT_WINDOW)
+    {
+        bool valid = data && data_size == sizeof(dmEngine::WindowEvent);
+        g_EngineEvents.m_PayloadValid &= valid;
+        if (!valid)
+        {
+            return;
+        }
+        const dmEngine::WindowEvent* resized = (const dmEngine::WindowEvent*)data;
+        if (resized->m_Type != dmEngine::WINDOW_EVENT_RESIZED)
+        {
+            return;
+        }
+        HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
+        dmEngine::HEngine engine = (dmEngine::HEngine)ContextRegistryGet(registry, ENGINE_CONTEXT_NAME);
+        g_EngineEvents.m_PayloadValid &= engine == g_EngineEvents.m_Engine &&
+                                         resized->m_Window == g_EngineEvents.m_Engine->m_Window;
+        ++g_EngineEvents.m_Resized;
+        g_EngineEvents.m_Width = resized->m_Data.m_Size.m_Width;
+        g_EngineEvents.m_Height = resized->m_Data.m_Size.m_Height;
+        if (resized->m_Data.m_Size.m_Width && resized->m_Data.m_Size.m_Height)
+        {
+            float dx = g_EngineEvents.m_Engine->m_InvPhysicalWidth - 1.0f / resized->m_Data.m_Size.m_Width;
+            float dy = g_EngineEvents.m_Engine->m_InvPhysicalHeight - 1.0f / resized->m_Data.m_Size.m_Height;
+            g_EngineEvents.m_WindowStateApplied &= dx < 0.00001f && dx > -0.00001f && dy < 0.00001f && dy > -0.00001f;
+        }
+    }
+}
+
 static dmExtension::Result DeltaTimeTestLifecycle(dmExtension::Params*)
 {
     return dmExtension::RESULT_OK;
@@ -85,7 +175,37 @@ static dmExtension::Result DeltaTimeTestUpdate(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(EngineDeltaTimeTestExt, "test_dt", 0, 0, DeltaTimeTestLifecycle, DeltaTimeTestUpdate, 0, DeltaTimeTestLifecycle);
+static dmExtension::Result DeltaTimeTestFinalize(dmExtension::Params*)
+{
+    if (g_ObserveEngineEvents)
+    {
+        ++g_EngineEvents.m_Finalized;
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result EngineEventAppFinalize(dmExtension::AppParams* params)
+{
+    if (g_ObserveEngineEvents)
+    {
+        HContextRegistry registry = dmExtension::AppParamsGetContextRegistry(params);
+        g_EngineEvents.m_PayloadValid &= ContextRegistryGet(registry, ENGINE_CONTEXT_NAME) == g_EngineEvents.m_Engine;
+        g_EngineEvents.m_WindowClearedAtAppFinalize = dmEngine::GetWindow(g_EngineEvents.m_Engine) == 0;
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result RegisterDeltaTimeTest(dmExtension::HExtension extension)
+{
+    dmExtension::SetAppFinalizeFn(extension, EngineEventAppFinalize);
+    dmExtension::SetInitializeFn(extension, DeltaTimeTestLifecycle);
+    dmExtension::SetUpdateFn(extension, DeltaTimeTestUpdate);
+    dmExtension::SetFinalizeFn(extension, DeltaTimeTestFinalize);
+    dmExtension::SetEventFn(extension, EngineEvent);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineDeltaTimeTestExt, RegisterDeltaTimeTest, 0);
 
 static void TestEngineInitialize(void* _ctx)
 {
@@ -579,6 +699,187 @@ TEST_F(EngineTest, WindowResizeBeforeRenderContext)
 
     dmEngine::Delete(engine);
     dmEngineFinalize();
+}
+
+static const char* g_DeprecatedEngineContextNames[] = {
+    "dmEngine::GetConfigFile is deprecated.",
+    "dmEngine::GetWebServer is deprecated.",
+    "dmEngine::GetGameObjectRegister is deprecated.",
+    "dmEngine::GetHIDContext is deprecated.",
+};
+static uint32_t g_DeprecatedEngineContextWarnings[4];
+
+static void CaptureDeprecatedEngineContextWarning(LogSeverity severity, const char*, const char* message)
+{
+    if (severity != LOG_SEVERITY_WARNING)
+    {
+        return;
+    }
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(g_DeprecatedEngineContextNames); ++i)
+    {
+        if (strstr(message, g_DeprecatedEngineContextNames[i]))
+        {
+            ++g_DeprecatedEngineContextWarnings[i];
+        }
+    }
+}
+
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable:4996)
+#endif
+
+// Deprecated helpers preserve context identity and warn once per helper across repeated calls.
+TEST(dmEngine, DeprecatedContextAccessors)
+{
+    int contexts[4] = { 1, 2, 3, 4 };
+    HContextRegistry registry = ContextRegistryCreate();
+    ContextRegistrySet(registry, CONFIGFILE_CONTEXT_NAME, &contexts[0]);
+    ContextRegistrySet(registry, WEBSERVER_CONTEXT_NAME, &contexts[1]);
+    ContextRegistrySet(registry, GAMEOBJECT_CONTEXT_NAME, &contexts[2]);
+    ContextRegistrySet(registry, HID_CONTEXT_NAME, &contexts[3]);
+    dmExtension::AppParams params;
+    dmExtension::AppParamsInitialize(&params);
+    ExtensionAppParamsSetContextRegistry(&params, registry);
+
+    memset(g_DeprecatedEngineContextWarnings, 0, sizeof(g_DeprecatedEngineContextWarnings));
+    LogSeverity level = dmLogGetLevel();
+    dmLogSetLevel(LOG_SEVERITY_WARNING);
+    dmLog::LogParams log_params;
+    dmLog::LogInitialize(&log_params);
+    dmLogRegisterListener(CaptureDeprecatedEngineContextWarning);
+    bool contexts_valid = true;
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        contexts_valid &= dmEngine::GetConfigFile(&params) == (dmConfigFile::HConfig)&contexts[0];
+        contexts_valid &= dmEngine::GetWebServer(&params) == (dmWebServer::HServer)&contexts[1];
+        contexts_valid &= dmEngine::GetGameObjectRegister(&params) == (dmGameObject::HRegister)&contexts[2];
+        contexts_valid &= dmEngine::GetHIDContext(&params) == (dmHID::HContext)&contexts[3];
+    }
+    dmLog::LogFinalize();
+    dmLogUnregisterListener(CaptureDeprecatedEngineContextWarning);
+    dmLogSetLevel(level);
+    dmExtension::AppParamsFinalize(&params);
+    ContextRegistryDestroy(registry);
+
+    ASSERT_TRUE(contexts_valid);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(g_DeprecatedEngineContextWarnings); ++i)
+    {
+        ASSERT_EQ(1u, g_DeprecatedEngineContextWarnings[i]);
+    }
+}
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif
+
+// App and update parameters share the engine registry before initialization; standalone and missing entries are supported.
+TEST_F(EngineTest, ExtensionEngineContext)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    dmExtension::Params params;
+    dmExtension::ParamsInitialize(&params);
+    dmExtension::AppParams app_params;
+    dmExtension::AppParamsInitialize(&app_params);
+    bool standalone = dmExtension::ParamsGetContextRegistry(&params) == 0 &&
+                      dmExtension::AppParamsGetContextRegistry(&app_params) == 0;
+    HContextRegistry empty = ContextRegistryCreate();
+    ExtensionParamsSetContextRegistry(&params, empty);
+    ExtensionAppParamsSetContextRegistry(&app_params, empty);
+    bool missing = dmExtension::ParamsGetContextRegistry(&params) == empty &&
+                   dmExtension::AppParamsGetContextRegistry(&app_params) == empty &&
+                   ContextRegistryGet(empty, ENGINE_CONTEXT_NAME) == 0;
+    ExtensionParamsSetContextRegistry(&params, engine->m_ContextRegistry);
+    ExtensionAppParamsSetContextRegistry(&app_params, engine->m_ContextRegistry);
+    HContextRegistry registry = dmExtension::ParamsGetContextRegistry(&params);
+    bool source = registry == engine->m_ContextRegistry && dmExtension::AppParamsGetContextRegistry(&app_params) == registry &&
+                  ContextRegistryGet(registry, ENGINE_CONTEXT_NAME) == engine &&
+                  ContextRegistryGetByHash(registry, dmHashString64(ENGINE_CONTEXT_NAME)) == engine;
+    dmExtension::AppParamsFinalize(&app_params);
+    dmExtension::ParamsFinalize(&params);
+    ContextRegistryDestroy(empty);
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+    ASSERT_TRUE(standalone);
+    ASSERT_TRUE(missing);
+    ASSERT_TRUE(source);
+}
+
+static EngineEventObservations RunEngineEventCycle(bool fail_initialization)
+{
+    dmEngineInitialize();
+    memset(&g_EngineEvents, 0, sizeof(g_EngineEvents));
+    g_EngineEvents.m_PayloadValid = true;
+    g_EngineEvents.m_WindowStateApplied = true;
+    g_EngineEvents.m_Engine = dmEngine::New(0);
+    g_EngineEvents.m_WindowAccessorValid = dmEngine::GetWindow(g_EngineEvents.m_Engine) == 0;
+    g_ObserveEngineEvents = true;
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine", "--config=dmengine.unload_builtins=0", project_path, "--config=bootstrap.main_collection=/missing_event_test.collectionc"
+    };
+    g_EngineEvents.m_InitSucceeded = dmEngine::Init(g_EngineEvents.m_Engine, fail_initialization ? DM_ARRAY_SIZE(argv) : DM_ARRAY_SIZE(argv) - 1, (char**)argv);
+    if (g_EngineEvents.m_InitSucceeded)
+    {
+        g_EngineEvents.m_Resized = 0;
+        dmEngine::OnWindowResize(g_EngineEvents.m_Engine, 321, 123);
+    }
+    dmEngine::Delete(g_EngineEvents.m_Engine);
+    dmEngineFinalize();
+    g_ObserveEngineEvents = false;
+    g_EngineEvents.m_Engine = 0;
+    return g_EngineEvents;
+}
+
+// Lifecycle handles expose the engine-owned window across startup, events and restarts.
+TEST_F(EngineTest, GenericLifecycleEventsBeforeTeardown)
+{
+    for (uint32_t run = 0; run < 2; ++run)
+    {
+        EngineEventObservations events = RunEngineEventCycle(false);
+        ASSERT_TRUE(events.m_InitSucceeded);
+        ASSERT_EQ(1u, events.m_Initialized);
+        ASSERT_EQ(1u, events.m_Deleted);
+        ASSERT_EQ(1u, events.m_Finalized);
+        ASSERT_TRUE(events.m_InitializedContexts);
+        ASSERT_TRUE(events.m_DeletedContexts);
+        ASSERT_TRUE(events.m_DeletedBeforeFinalize);
+        ASSERT_TRUE(events.m_CollectionAliveAtDelete);
+        ASSERT_TRUE(events.m_WindowStateApplied);
+        ASSERT_TRUE(events.m_PayloadValid);
+        ASSERT_TRUE(events.m_WindowAccessorValid);
+        ASSERT_TRUE(events.m_WindowClearedAtAppFinalize);
+        ASSERT_EQ(1u, events.m_Resized);
+        ASSERT_EQ(321u, events.m_Width);
+        ASSERT_EQ(123u, events.m_Height);
+    }
+}
+
+// Failed bootstrap initialization still emits generic engine-delete while the initialized systems remain alive.
+TEST_F(EngineTest, GenericEngineDeleteAfterInitializationFailure)
+{
+    EngineEventObservations events = RunEngineEventCycle(true);
+    ASSERT_FALSE(events.m_InitSucceeded);
+    ASSERT_EQ(0u, events.m_Initialized);
+    ASSERT_EQ(1u, events.m_Deleted);
+    ASSERT_TRUE(events.m_DeletedBeforeFinalize);
+    ASSERT_TRUE(events.m_DeletedContexts);
+    ASSERT_TRUE(events.m_PayloadValid);
+    ASSERT_TRUE(events.m_WindowAccessorValid);
+    ASSERT_TRUE(events.m_WindowClearedAtAppFinalize);
 }
 
 // Extension and engine time must agree after every update, including when delta time is zero.

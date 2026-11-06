@@ -13,29 +13,34 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dmsdk/engine/extension.hpp>
+#include <dlib/log.h>
 
 namespace dmEngine
 {
     dmConfigFile::HConfig GetConfigFile(dmExtension::AppParams* app_params)
     {
+        dmLogOnceWarning("%s", "dmEngine::GetConfigFile is deprecated. Use dmExtension::AppParamsGetContextRegistry and ContextRegistryGet with CONFIGFILE_CONTEXT_NAME instead.");
         HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(app_params);
         return (HConfigFile)ContextRegistryGet(context_registry, CONFIGFILE_CONTEXT_NAME);
     }
 
     dmWebServer::HServer GetWebServer(dmExtension::AppParams* app_params)
     {
+        dmLogOnceWarning("%s", "dmEngine::GetWebServer is deprecated. Use dmExtension::AppParamsGetContextRegistry and ContextRegistryGet with WEBSERVER_CONTEXT_NAME instead.");
         HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(app_params);
         return (dmWebServer::HServer)ContextRegistryGet(context_registry, WEBSERVER_CONTEXT_NAME);
     }
 
     dmGameObject::HRegister GetGameObjectRegister(dmExtension::AppParams* app_params)
     {
+        dmLogOnceWarning("%s", "dmEngine::GetGameObjectRegister is deprecated. Use dmExtension::AppParamsGetContextRegistry and ContextRegistryGet with GAMEOBJECT_CONTEXT_NAME instead.");
         HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(app_params);
         return (dmGameObject::HRegister)ContextRegistryGet(context_registry, GAMEOBJECT_CONTEXT_NAME);
     }
 
     dmHID::HContext GetHIDContext(dmExtension::AppParams* app_params)
     {
+        dmLogOnceWarning("%s", "dmEngine::GetHIDContext is deprecated. Use dmExtension::AppParamsGetContextRegistry and ContextRegistryGet with HID_CONTEXT_NAME instead.");
         HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(app_params);
         return (dmHID::HContext)ContextRegistryGet(context_registry, HID_CONTEXT_NAME);
     }

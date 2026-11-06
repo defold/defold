@@ -1101,4 +1101,14 @@ static dmExtension::Result AppFinalizeProfiler(dmExtension::AppParams* params)
 
 } // dmProfiler
 
-DM_DECLARE_EXTENSION(ProfilerExt, "Profiler", dmProfiler::AppInitializeProfiler, dmProfiler::AppFinalizeProfiler, dmProfiler::InitializeProfiler, dmProfiler::UpdateProfiler, 0, dmProfiler::FinalizeProfiler)
+static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+{
+    dmExtension::SetAppInitializeFn(extension, dmProfiler::AppInitializeProfiler);
+    dmExtension::SetAppFinalizeFn(extension, dmProfiler::AppFinalizeProfiler);
+    dmExtension::SetInitializeFn(extension, dmProfiler::InitializeProfiler);
+    dmExtension::SetUpdateFn(extension, dmProfiler::UpdateProfiler);
+    dmExtension::SetFinalizeFn(extension, dmProfiler::FinalizeProfiler);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(ProfilerExt, RegisterExtension, 0)

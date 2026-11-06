@@ -26,6 +26,13 @@ namespace dmCrash
         return dmExtension::RESULT_OK;
     }
 
-    DM_DECLARE_EXTENSION(CrashExt, "Crash", 0, 0, InitializeCrash, 0, 0, FinalizeCrash)
+    static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+    {
+        dmExtension::SetInitializeFn(extension, InitializeCrash);
+        dmExtension::SetFinalizeFn(extension, FinalizeCrash);
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(CrashExt, RegisterExtension, 0)
 }
 
