@@ -31,7 +31,7 @@ struct PhysicsEventProbe
     HContextRegistry        m_Registry;
     const void*             m_World;
     dmGameObject::HInstance m_Instance;
-    dmPhysics::EventType    m_Type;
+    bool                    m_Is3D;
     uint32_t                m_Count[2];
     uint32_t                m_Bodies[2];
     uint32_t                m_Contacts[2];
@@ -67,16 +67,14 @@ static void ObservePhysicsStep(dmExtension::Params* params, dmhash_t event_id, c
     ASSERT_TRUE(listener == &g_PhysicsListener[0] || listener == &g_PhysicsListener[1]);
     uint32_t index = *listener;
     ++g_PhysicsProbe->m_Count[index];
-    g_PhysicsProbe->m_Type = event->m_Type;
     g_PhysicsProbe->m_Dt = event->m_Dt;
-    if (event->m_Type == dmPhysics::EVENT_TYPE_BULLET3D)
+    if (g_PhysicsProbe->m_Is3D)
     {
         const btDiscreteDynamicsWorld* world = (const btDiscreteDynamicsWorld*)event->m_World;
         g_PhysicsProbe->m_Bodies[index] = world->getNumCollisionObjects();
         return;
     }
 #if defined(DM_PHYSICS_BOX2D_V3)
-    ASSERT_EQ(dmPhysics::EVENT_TYPE_BOX2D_V3, event->m_Type);
     b2WorldId world = *(const b2WorldId*)event->m_World;
     ASSERT_TRUE(b2World_IsValid(world));
     g_PhysicsProbe->m_Bodies[index] = b2World_GetCounters(world).bodyCount;
@@ -84,7 +82,6 @@ static void ObservePhysicsStep(dmExtension::Params* params, dmhash_t event_id, c
     g_PhysicsProbe->m_Contacts[index] = contacts.beginCount;
     ASSERT_EQ(contacts.beginCount, b2World_GetContactEvents(world).beginCount);
 #else
-    ASSERT_EQ(dmPhysics::EVENT_TYPE_BOX2D, event->m_Type);
     const b2World* world = (const b2World*)event->m_World;
     ASSERT_FALSE(world->IsLocked());
     g_PhysicsProbe->m_Bodies[index] = world->GetBodyCount();
@@ -121,6 +118,13 @@ static void RegisterPhysicsListeners()
         TestPhysicsListener1();
         registered = true;
     }
+}
+
+// The C and C++ event IDs remain constant expressions matching the reserved event name.
+TEST(PhysicsPostStep, BuiltinEventHash)
+{
+    DM_STATIC_ASSERT(PHYSICS_EVENT_POST_STEP == dmPhysics::EVENT_POST_STEP, Physics_Post_Step_Event_Mismatch);
+    ASSERT_EQ(dmHashString64("_dm_event_physics_post_step"), dmPhysics::EVENT_POST_STEP);
 }
 
 class PhysicsPostStepTest : public ComponentTest
@@ -204,6 +208,7 @@ class PhysicsPostStep3DTest : public Bullet3DComponentTest
         m_Probe.m_Registry = m_ContextRegistry;
         uint32_t type = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("collisionobjectc"));
         m_Probe.m_World = dmGameSystem::CompCollisionObjectGetBullet3DWorld(dmGameObject::GetWorld(m_Collection, type));
+        m_Probe.m_Is3D = true;
         g_PhysicsProbe = &m_Probe;
         ASSERT_TRUE(dmGameObject::Init(m_Collection));
         m_Probe.m_Instance = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/physics_event_3d"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
@@ -226,7 +231,6 @@ TEST_F(PhysicsPostStep3DTest, NativeWorld)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ(1u, m_Probe.m_Count[0]);
     ASSERT_EQ(1u, m_Probe.m_Count[1]);
-    ASSERT_EQ(dmPhysics::EVENT_TYPE_BULLET3D, m_Probe.m_Type);
     ASSERT_EQ(1u, m_Probe.m_Bodies[0]);
     ASSERT_EQ(m_Probe.m_Bodies[0], m_Probe.m_Bodies[1]);
     ASSERT_EQ(m_UpdateContext.m_DT, m_Probe.m_Dt);

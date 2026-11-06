@@ -39,26 +39,13 @@
  */
 #define PHYSICS_EVENT_POST_STEP ((dmhash_t)0x314bbdd060083848ULL) // DM_HASH: dmHashString64("_dm_event_physics_post_step")
 
-/*# native physics backend
- * Identifies the native type of PhysicsEvent.m_World. Ignore unrecognized values.
- * Native headers and libraries must match the backend bundled with this SDK.
- * @enum
- * @name PhysicsEventType
- * @member PHYSICS_EVENT_TYPE_BOX2D Legacy Defold Box2D; m_World is a b2World pointer.
- * @member PHYSICS_EVENT_TYPE_BOX2D_V3 Box2D 3; m_World points to a b2WorldId value.
- * @member PHYSICS_EVENT_TYPE_BULLET3D Bullet; m_World is a btDiscreteDynamicsWorld pointer.
- */
-typedef enum PhysicsEventType
-{
-    PHYSICS_EVENT_TYPE_BOX2D    = 0,
-    PHYSICS_EVENT_TYPE_BOX2D_V3 = 1,
-    PHYSICS_EVENT_TYPE_BULLET3D = 2,
-} PhysicsEventType;
-
 /*# native physics world event
  * Payload for PHYSICS_EVENT_POST_STEP with data_size equal to sizeof(PhysicsEvent).
- * Check m_Type before casting m_World. For Box2D 3, copy the b2WorldId value from
- * the supplied pointer; do not interpret its bits as an object pointer.
+ * Interpret m_World using the physics backend configured for the project and build.
+ * Legacy Defold Box2D supplies a b2World pointer, Box2D 3 a pointer to a b2WorldId
+ * value, and Bullet a btDiscreteDynamicsWorld pointer. For Box2D 3, copy the
+ * b2WorldId value from the supplied pointer. Native headers and libraries must
+ * match the backend bundled with this SDK.
  *
  * The payload and native world access are borrowed only during the callback.
  * Read native event buffers and perform queries using that backend's own API.
@@ -69,15 +56,13 @@ typedef enum PhysicsEventType
  * for the completed step; that requires the backend's own pre-solve mechanism.
  * @struct
  * @name PhysicsEvent
- * @member m_World [type:const void*] borrowed native world access; interpretation depends on m_Type
- * @member m_Type [type:PhysicsEventType] native backend identifying the world representation
+ * @member m_World [type:const void*] borrowed native world access for the configured physics backend
  * @member m_Dt [type:float] time-scaled world update interval in seconds; native simulated time can differ
  */
 typedef struct PhysicsEvent
 {
-    const void*           m_World;
-    enum PhysicsEventType m_Type;
-    float                 m_Dt;
+    const void* m_World;
+    float       m_Dt;
 } PhysicsEvent;
 
 #endif // DMSDK_PHYSICS_EVENT_H

@@ -17,7 +17,6 @@
 
 #include <stdint.h>
 #include <dmsdk/physics/physics.h>
-#include <dmsdk/physics/physics_event.hpp>
 #include <dmsdk/dlib/vmath.h>
 
 #include <dlib/configfile.h>
@@ -354,8 +353,6 @@ namespace dmPhysics
     void* GetWorldContext3D(HWorld3D world);
     void* GetCollisionObjectContext3D(HCollisionObject3D collision_object);
     void* GetWorldContext2D(HWorld2D world);
-    // The backend type describes the returned native world; it is only meaningful for a non-null result.
-    void* GetWorldContext2D(HWorld2D world, EventType* type);
     void* GetCollisionObjectContext2D(HCollisionObject2D collision_object);
 
     /**

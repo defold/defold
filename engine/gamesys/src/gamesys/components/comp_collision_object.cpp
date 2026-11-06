@@ -25,17 +25,18 @@
 #include <gameobject/gameobject.h>
 #include <extension/extension.hpp>
 #include <dmsdk/gameobject/script.h>
+#include <dmsdk/physics/physics_event.hpp>
 
 namespace dmGameSystem
 {
-    void BroadcastPhysicsPostStepEvent(dmGameObject::HCollection collection, const void* world, dmPhysics::EventType type, float dt)
+    void BroadcastPhysicsPostStepEvent(dmGameObject::HCollection collection, const void* world, float dt)
     {
         if (!world || dt <= 0.0f)
         {
             return;
         }
         HContextRegistry registry = dmGameObject::GetContextRegistry(dmGameObject::GetRegister(collection));
-        dmPhysics::Event event = { world, type, dt };
+        dmPhysics::Event event = { world, dt };
         dmExtension::BroadcastEvent(registry, dmPhysics::EVENT_POST_STEP, &event, sizeof(event));
     }
 

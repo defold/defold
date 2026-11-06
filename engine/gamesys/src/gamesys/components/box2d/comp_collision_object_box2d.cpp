@@ -597,9 +597,7 @@ namespace dmGameSystem
             dmGameObject::UpdateTransforms(collection);
         }
 
-        dmPhysics::EventType event_type;
-        const void* native_world = dmPhysics::GetWorldContext2D(world->m_World2D, &event_type);
-        BroadcastPhysicsPostStepEvent(collection, native_world, event_type, step_ctx->m_DT);
+        BroadcastPhysicsPostStepEvent(collection, dmPhysics::GetWorldContext2D(world->m_World2D), step_ctx->m_DT);
 
         if (collision_user_data->m_Count >= physics_context->m_BaseContext.m_MaxCollisionCount && physics_context->m_BaseContext.m_MaxCollisionCount > 0)
         {
