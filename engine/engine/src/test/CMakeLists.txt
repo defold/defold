@@ -115,6 +115,7 @@ add_custom_command(
     --stage-root "${ENGINE_TEST_RUNTIME_ROOT}"
     --stamp "${ENGINE_TEST_CONTENT_STAMP}"
     --platform "${TARGET_PLATFORM}"
+    ${ENGINE_SHADER_OUTPUT_ARGS}
     --java "${Java_JAVA_EXECUTABLE}"
     --builtins-root "${ENGINE_BUILTINS_COMPILED_DIR}"
     ${ENGINE_TEST_CLASSPATH_ARGS}
