@@ -398,6 +398,13 @@ namespace dmGameSystem
         world->m_IsStepping = 1;
         dmPhysics::StepWorld3D(world->m_World3D, *step_ctx);
         world->m_IsStepping = 0;
+
+        if (g_NumPhysicsTransformsUpdated > 0)
+        {
+            dmGameObject::UpdateTransforms(collection);
+        }
+
+        BroadcastPhysicsPostStepEvent(collection, dmPhysics::GetWorldContext3D(world->m_World3D), step_ctx->m_DT);
         if (g_ScriptBullet3DProcessWorldQueriesCallback)
         {
             g_ScriptBullet3DProcessWorldQueriesCallback(dmPhysics::GetWorldContext3D(world->m_World3D));
@@ -430,11 +437,6 @@ namespace dmGameSystem
 
         dmMessage::HSocket socket = dmGameObject::GetMessageSocket(collection);
         dmGameObject::DispatchMessages(collection, &socket, 1);
-
-        if (g_NumPhysicsTransformsUpdated > 0)
-        {
-            dmGameObject::UpdateTransforms(collection);
-        }
     }
 
     static dmGameObject::UpdateResult CompCollisionObjectUpdateInternal(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
