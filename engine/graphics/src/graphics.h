@@ -112,7 +112,9 @@ namespace dmGraphics
         CONTEXT_FEATURE_BC_ARRAY_TEXTURES      = 9,
         // Availability for the current surface; query after BeginFrame.
         CONTEXT_FEATURE_BACKBUFFER_READBACK    = 10,
-        MAX_CONTEXT_FEATURE_COUNT              = 11,
+        // Compute-written indexed draw arguments and vertex/storage-buffer aliasing.
+        CONTEXT_FEATURE_INDIRECT_DRAW          = 11,
+        MAX_CONTEXT_FEATURE_COUNT              = 12,
     };
 
     // Binding family for shader resources in a program.
@@ -444,6 +446,27 @@ namespace dmGraphics
 
     void     DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
     void     DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
+    // Borrows the storage allocation as a vertex buffer. The storage owner retains
+    // lifetime; do not delete or update this borrowed handle as a vertex buffer.
+    HVertexBuffer GetStorageBufferVertexBuffer(HContext context, HStorageBuffer buffer);
+    // Arguments are five 32-bit words: index count, instance count, first index,
+    // signed base vertex, base instance. Requires CONTEXT_FEATURE_INDIRECT_DRAW.
+    void DrawElementsIndirect(HContext context, PrimitiveType primitive, Type index_type, HIndexBuffer indices, HStorageBuffer arguments, uint32_t offset);
+
+    // Returns a borrowed GPU vertex-fetch companion when its matrix input matches
+    // the material's world-matrix attribute, or zero for the instancing fallback.
+    // Compiles it on first use. The original program owns it; reload/delete
+    // invalidate the returned handle. Unused companions allocate no GPU program.
+    HProgram GetVisibleInstanceProgram(HContext context, HProgram program, dmhash_t world_attribute);
+
+    typedef struct AsyncBufferReadback* HAsyncBufferReadback;
+    // Encodes a snapshot copy in the current frame without submitting or waiting.
+    // Caller owns the request and must delete it, including after a failed read.
+    HAsyncBufferReadback RequestStorageBufferReadback(HContext context, HStorageBuffer buffer, uint32_t offset, uint32_t size);
+    // Returns true only once the snapshot is ready. Never waits; data must have
+    // room for the request's byte count and stays owned by the caller.
+    bool PollStorageBufferReadback(HAsyncBufferReadback request, void* data);
+    void DeleteStorageBufferReadback(HAsyncBufferReadback request);
 
     bool                 IsShaderLanguageSupported(HContext _context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type);
     ShaderDesc::Language GetProgramLanguage(HProgram program);

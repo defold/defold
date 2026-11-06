@@ -73,6 +73,7 @@ namespace dmGraphics
     {
         StorageBuffer m_Base;
         WGPUBuffer    m_Buffer;
+        WebGPUBuffer  m_VertexBuffer = WebGPUBuffer(WGPUBufferUsage_Vertex);
         uint64_t      m_LastRenderPass = 0;
         uint8_t       m_RenderPassAccess = 0;
     };
@@ -243,6 +244,7 @@ namespace dmGraphics
         WGPUCommandEncoder                 m_CommandEncoder;
         uint32_t                           m_RenderPasses;
         uint32_t                           m_LastSubmittedRenderPass;
+        uint64_t                           m_Submissions = 0;
 
         // Current state
         PipelineState                      m_CurrentPipelineState;
