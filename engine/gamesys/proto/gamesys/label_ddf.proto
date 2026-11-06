@@ -70,6 +70,8 @@ message LabelDesc
     optional string         style       = 14 [default = "default"];
     optional uint64         style_hash  = 15; // Compiled from style; zero means no base style.
     optional float          font_size   = 16 [default = 16.0];
+    optional float          arc_radius  = 17 [default = 100.0]; // First baseline radius about the component origin in local units.
+    optional float          arc_angle   = 18 [default = 0.0]; // Sweep [0, 360]; zero selects ordinary textbox layout.
 }
 
 
