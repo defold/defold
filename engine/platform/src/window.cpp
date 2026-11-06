@@ -14,6 +14,7 @@
 
 #include "window.hpp"
 
+#include <dlib/log.h>
 #include <math.h>
 #include <string.h>
 
@@ -66,6 +67,15 @@ namespace dmPlatform
         // One inch is 25.4 millimetres, so the density is the number of pixels in an inch of panel.
         return pixel_width * 25.4f / (float) physical_width_mm;
     }
+
+#if !defined(ANDROID)
+    void SetAndroidInputMethod(bool use_hidden_inputfield)
+    {
+        // Android only. Defined here so that the script bindings can expose the setting on every
+        // platform; Android builds use the implementation in platform_window_android.cpp.
+        (void) use_hidden_inputfield;
+    }
+#endif
 }
 
 extern "C"
