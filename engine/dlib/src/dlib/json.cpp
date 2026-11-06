@@ -27,11 +27,41 @@ namespace dmJson
 {
     static double ReadNumber(char* begin, char* end)
     {
+        bool negative = *begin == '-';
+        char* digits = begin + negative;
+        char* point = 0;
+        // All integers of at most 15 decimal digits fit exactly in a double.
+        // Longer tokens keep strtod's rounding and range handling.
+        if (end - digits <= 15)
+        {
+            uint64_t integer = 0;
+            while (digits != end)
+            {
+                uint32_t digit = (uint32_t)(*digits - '0');
+                if (digit > 9)
+                {
+                    break;
+                }
+                integer = integer * 10 + digit;
+                ++digits;
+            }
+            if (digits == end)
+            {
+                double value = (double)integer;
+                return negative ? -value : value;
+            }
+            // The token scan has already checked number syntax. Its first
+            // nondigit is the decimal point or the start of the exponent.
+            point = *digits == '.' ? digits : 0;
+        }
+        else
+        {
+            point = (char*)memchr(begin, '.', end - begin);
+        }
         // Isolate the JSON token so a comma cannot become a decimal separator.
         // Translate its decimal point for strtod without changing the game's locale.
         char next = *end;
         *end = 0;
-        char* point = strchr(begin, '.');
         const char* decimal = point ? localeconv()->decimal_point : ".";
         double value;
         if (point && decimal[1])

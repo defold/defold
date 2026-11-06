@@ -242,6 +242,53 @@ TEST(dmJson, NodeLimit)
     ASSERT_TRUE(json.Boolean(json.Field(0, "valid")));
 }
 
+// Integer conversion and its floating-point fallback preserve double precision,
+// signed zero and source spans, including values beyond the integer accumulator's range.
+TEST(dmJson, NumberConversion)
+{
+    const struct
+    {
+        const char* m_Text;
+        double      m_Value;
+    } cases[] = {
+        { "0", 0.0 },
+        { "-0", -0.0 },
+        { "1", 1.0 },
+        { "-1", -1.0 },
+        { "2147483647", 2147483647.0 },
+        { "-2147483648", -2147483648.0 },
+        { "4294967295", 4294967295.0 },
+        { "999999999999999", 999999999999999.0 },
+        { "-999999999999999", -999999999999999.0 },
+        { "1000000000000000", 1000000000000000.0 },
+        { "9007199254740991", 9007199254740991.0 },
+        { "9007199254740992", 9007199254740992.0 },
+        { "9007199254740993", 9007199254740992.0 },
+        { "9007199254740995", 9007199254740996.0 },
+        { "18446744073709551615", 18446744073709551616.0 },
+        { "18446744073709551616", 18446744073709551616.0 },
+        { "18446744073709551617", 18446744073709551616.0 },
+        { "-18446744073709551617", -18446744073709551616.0 },
+        { "-0.0", -0.0 },
+        { "-0e10", -0.0 },
+        { "999999999999999.5", 999999999999999.5 },
+        { "999999999999999e-1", 99999999999999.9 },
+    };
+    dmJson::Document json;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        uint32_t size = (uint32_t)strlen(cases[i].m_Text);
+        uint32_t offset;
+        ASSERT_TRUE(json.Parse(cases[i].m_Text, size, &offset));
+        ASSERT_EQ(size, offset);
+        ASSERT_EQ(dmJson::TYPE_NUMBER, json.Get(0).m_Type);
+        ASSERT_EQ(cases[i].m_Value, json.Get(0).m_Number);
+        ASSERT_EQ(0, memcmp(&cases[i].m_Value, &json.Get(0).m_Number, sizeof(double)));
+        ASSERT_EQ(0u, json.Get(0).m_Offset);
+        ASSERT_EQ(size, json.Get(0).m_Length);
+    }
+}
+
 // JSON decimals and exponents retain full precision, and commas remain token boundaries, after a locale change.
 TEST(dmJson, NumericLocale)
 {
