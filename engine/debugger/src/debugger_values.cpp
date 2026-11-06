@@ -216,7 +216,7 @@ namespace dmDebugger
                 value.Add("\\t");
             else
             {
-                uint32_t bytes = c >= 32 && c != 127 ? Utf8Bytes(text + i, size - i) : 0;
+                uint32_t bytes = c >= 32 && c != 127 ? dmJson::Utf8Bytes(text + i, size - i) : 0;
                 if (bytes)
                 {
                     value.Add(text + i, bytes);
@@ -1064,7 +1064,7 @@ namespace dmDebugger
         return found;
     }
 
-    bool ValueRequest(Debugger* d, const Json& request, const char* command, int seq, int args)
+    bool ValueRequest(Debugger* d, const dmJson::Document& request, const char* command, int seq, int args)
     {
         if (!dmStrEq(command, "stackTrace") && !dmStrEq(command, "scopes") && !dmStrEq(command, "variables") &&
             !dmStrEq(command, "evaluate") && !dmStrEq(command, "setVariable") && !dmStrEq(command, "exceptionInfo") &&

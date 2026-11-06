@@ -124,6 +124,7 @@ dlib_add_test(test_endian C)
 dlib_add_test(test_hash C TARGET_NAME test_hash_c)
 dlib_add_test(test_context_registry C)
 dlib_add_test(test_time)
+dlib_add_test(test_json)
 
 set(_dlib_test_socket_defines)
 if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")

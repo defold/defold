@@ -252,6 +252,22 @@ TEST_F(WebServerOpenAPITest, PreserveJSONValues)
     ASSERT_STREQ(json, paths.Begin());
 }
 
+// Decoding escaped path names must preserve their original spans for conflict diagnostics and aggregation.
+TEST_F(WebServerOpenAPITest, EncodedPathLocations)
+{
+    const char encoded_path[] = "\\/items\\/\\u0061";
+    const char members[] = "\"\\/items\\/\\u0061\":{" GET_OPERATION "} ";
+    const char json[] = " \n{ \"\\/items\\/\\u0061\":{" GET_OPERATION "} } \r\n";
+    dmWebServer::OpenAPI parsed;
+    ASSERT_TRUE(dmWebServer::ParseOpenAPI("/items", json, &parsed));
+    ASSERT_EQ(sizeof(members) - 1, parsed.m_Length);
+    ASSERT_EQ(0, memcmp(members, parsed.m_Json, parsed.m_Length));
+    const dmWebServer::OpenAPIPath* path = dmWebServer::FindOpenAPIPath(&parsed, dmHashString64("/items/a"));
+    ASSERT_NE((const dmWebServer::OpenAPIPath*)0, path);
+    ASSERT_EQ(sizeof(encoded_path) - 1, path->m_Length);
+    ASSERT_EQ(0, memcmp(encoded_path, parsed.m_Json + path->m_Offset, path->m_Length));
+}
+
 // Excessively nested metadata must be rejected before recursive parsing exhausts the stack.
 TEST_F(WebServerOpenAPITest, LimitNesting)
 {

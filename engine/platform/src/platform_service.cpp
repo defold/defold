@@ -15,10 +15,10 @@
 #include "platform_service.h"
 #include "platform_service_openapi.h"
 #include <dlib/dstrings.h>
+#include <dlib/json.h>
 #include <dlib/time.h>
 #include "window.hpp"
 #include <dlib/webserver.h>
-#include <limits.h>
 #include <string.h>
 
 namespace dmPlatformService
@@ -318,143 +318,43 @@ namespace dmPlatformService
         return *start != '0' || *p == start + 1;
     }
 
-    static void SkipWhitespace(const char** p)
-    {
-        while (**p == ' ' || **p == '\t' || **p == '\r' || **p == '\n')
-        {
-            ++*p;
-        }
-    }
-
-    // Resize field names and service-issued revisions contain only ASCII characters.
-    static bool ParseString(const char** p, char* output, uint32_t size)
-    {
-        if (*(*p)++ != '"')
-        {
-            return false;
-        }
-        uint32_t length = 0;
-        while (**p && **p != '"')
-        {
-            unsigned char c = (unsigned char)*(*p)++;
-            if (c == '\\')
-            {
-                if (*(*p)++ != 'u')
-                {
-                    return false;
-                }
-                uint32_t value = 0;
-                for (uint32_t i = 0; i < 4; ++i)
-                {
-                    c = (unsigned char)**p;
-                    uint32_t digit = c >= '0' && c <= '9' ? c - '0' : (c >= 'a' && c <= 'f' ? c - 'a' + 10 : (c >= 'A' && c <= 'F' ? c - 'A' + 10 : 16));
-                    if (digit == 16)
-                    {
-                        return false;
-                    }
-                    ++*p;
-                    value = value * 16 + digit;
-                }
-                if (value > 127)
-                {
-                    return false;
-                }
-                c = (unsigned char)value;
-            }
-            if (c < 32 || c > 127 || length + 1 >= size)
-            {
-                return false;
-            }
-            output[length++] = c;
-        }
-        if (**p != '"')
-        {
-            return false;
-        }
-        ++*p;
-        output[length] = 0;
-        return true;
-    }
-
     static bool ParseResize(const char* body, uint32_t size, Resize* resize)
     {
-        if (strlen(body) != size)
+        dmJson::Document json;
+        if (!json.Parse(body, size) || json.Get(0).m_Type != dmJson::TYPE_OBJECT)
         {
             return false;
         }
-        const char* p = body;
-        SkipWhitespace(&p);
-        if (*p++ != '{')
+        for (int field = json.Get(0).m_First; field >= 0; field = json.Get(field).m_Next)
+        {
+            const char* name = json.Get(field).m_Name;
+            if (strcmp(name, "width") && strcmp(name, "height") && strcmp(name, "timeout_ms") && strcmp(name, "expected_window_revision"))
+            {
+                return false;
+            }
+        }
+        int width = json.Integer(json.Field(0, "width"));
+        int height = json.Integer(json.Field(0, "height"));
+        int timeout_field = json.Field(0, "timeout_ms");
+        int timeout = timeout_field < 0 ? 30000 : json.Integer(timeout_field);
+        if (width <= 0 || height <= 0 || timeout <= 0 || timeout > 60000)
         {
             return false;
         }
-        SkipWhitespace(&p);
-        resize->m_Timeout = 30000;
-        uint32_t seen = 0;
-        while (*p != '}')
+        int revision_field = json.Field(0, "expected_window_revision");
+        if (revision_field >= 0)
         {
-            char name[32];
-            if (!ParseString(&p, name, sizeof(name)))
+            const char* revision = json.String(revision_field);
+            if (!revision || !revision[0] || strlen(revision) >= sizeof(resize->m_ExpectedRevision))
             {
                 return false;
             }
-            uint32_t field = !strcmp(name, "width") ? 1 : (!strcmp(name, "height") ? 2 : (!strcmp(name, "timeout_ms") ? 4 : (!strcmp(name, "expected_window_revision") ? 8 : 0)));
-            if (!field || (seen & field))
-            {
-                return false;
-            }
-            seen |= field;
-            SkipWhitespace(&p);
-            if (*p++ != ':')
-            {
-                return false;
-            }
-            SkipWhitespace(&p);
-            if (field == 8)
-            {
-                if (!ParseString(&p, resize->m_ExpectedRevision, sizeof(resize->m_ExpectedRevision)) || !resize->m_ExpectedRevision[0])
-                {
-                    return false;
-                }
-            }
-            else
-            {
-                uint64_t value;
-                if (!ParseUInt(&p, &value) || !value || value > (field == 4 ? 60000U : INT_MAX))
-                {
-                    return false;
-                }
-                if (field == 1)
-                {
-                    resize->m_Width = (uint32_t)value;
-                }
-                else if (field == 2)
-                {
-                    resize->m_Height = (uint32_t)value;
-                }
-                else
-                {
-                    resize->m_Timeout = (uint32_t)value;
-                }
-            }
-            SkipWhitespace(&p);
-            if (*p == '}')
-            {
-                break;
-            }
-            if (*p++ != ',')
-            {
-                return false;
-            }
-            SkipWhitespace(&p);
-            if (*p == '}')
-            {
-                return false;
-            }
+            dmStrlCpy(resize->m_ExpectedRevision, revision, sizeof(resize->m_ExpectedRevision));
         }
-        ++p;
-        SkipWhitespace(&p);
-        return *p == 0 && (seen & 3) == 3;
+        resize->m_Width = (uint32_t)width;
+        resize->m_Height = (uint32_t)height;
+        resize->m_Timeout = (uint32_t)timeout;
+        return true;
     }
 
     static void Handler(void* context, dmWebServer::Request* request)
