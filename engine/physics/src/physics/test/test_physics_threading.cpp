@@ -467,6 +467,68 @@ static void CheckBufferedContacts(BufferedEventScene* scene, dmPhysics::StepWorl
     ASSERT_NEAR(step.m_ContactPointCallback ? applied_impulse : 0.0f, scene->m_Callbacks.m_AppliedImpulse, 0.00001f);
 }
 
+// Fresh contact IDs must spread across hash buckets so enabling a listener avoids quadratic insertion.
+TEST(Box2DThreading, BufferedContactKeysDistributeAcrossBuckets)
+{
+    const uint32_t contact_count = 128;
+    for (int workers = 0; workers <= 3; workers += 3)
+    {
+        Callbacks callbacks = {};
+        callbacks.m_Key = dmThread::AllocTls();
+        dmThread::SetTlsValue(callbacks.m_Key, &callbacks);
+        dmPhysics::HContext2D context = 0;
+        CreateContext(workers, &context);
+        dmPhysics::NewWorldParams params;
+        params.m_GetWorldTransformCallback = GetTransform;
+        dmPhysics::HWorld2D world = dmPhysics::NewWorld2D(context, params);
+        dmPhysics::SetGravity2D(world, dmVMath::Vector3(0.0f));
+        dmPhysics::HCollisionShape2D shape = dmPhysics::NewCircleShape2D(context, 0.5f);
+        Body bodies[contact_count * 2];
+        dmPhysics::HCollisionObject2D objects[contact_count * 2];
+        for (uint32_t i = 0; i < contact_count * 2; ++i)
+        {
+            Body* body = &bodies[i];
+            body->m_Id = i;
+            body->m_Position = dmVMath::Point3((i / 2) * 4.0f + (i % 2) * 0.9f, 0.0f, 0.0f);
+            body->m_Rotation = dmVMath::Quat::identity();
+            body->m_Callbacks = &callbacks;
+            dmPhysics::CollisionObjectData data;
+            data.m_Type = i % 2 ? dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC : dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+            data.m_Mass = i % 2 ? 1.0f : 0.0f;
+            data.m_UserData = body;
+            objects[i] = dmPhysics::NewCollisionObject2D(world, data, &shape, 1);
+        }
+        dmPhysics::StepWorldContext step;
+        step.m_DT = 0.0f;
+        step.m_Box2DSubStepCount = 4;
+        dmPhysics::StepWorld2D(world, step);
+        step.m_ContactCallbacksReadOnly = true;
+        step.m_CollisionCallback = Collision;
+        step.m_CollisionUserData = &callbacks;
+        dmPhysics::StepWorld2D(world, step);
+        ASSERT_EQ(contact_count, callbacks.m_Collisions);
+        ASSERT_EQ(contact_count, world->m_TouchingContactIndices.Size());
+        uint32_t bucket_counts[16] = {};
+        dmHashTable64<uint32_t>::Iterator iter = world->m_TouchingContactIndices.GetIterator();
+        while (iter.Next())
+        {
+            ++bucket_counts[iter.GetKey() % 16];
+        }
+        for (uint32_t i = 0; i < 16; ++i)
+        {
+            ASSERT_LE(bucket_counts[i], contact_count / 4);
+        }
+        for (uint32_t i = 0; i < contact_count * 2; ++i)
+        {
+            dmPhysics::DeleteCollisionObject2D(world, objects[i]);
+        }
+        dmPhysics::DeleteCollisionShape2D(shape);
+        dmPhysics::DeleteWorld2D(context, world);
+        dmPhysics::DeleteContext2D(context);
+        dmThread::FreeTls(callbacks.m_Key);
+    }
+}
+
 // Begin/end buffers must preserve ongoing contacts, late listeners, deletion and reused contact IDs.
 TEST(Box2DThreading, BufferedContactsSurviveWorldChanges)
 {

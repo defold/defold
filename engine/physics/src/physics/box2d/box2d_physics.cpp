@@ -325,7 +325,8 @@ namespace dmPhysics
         uint32_t values[3];
         b2StoreContactId(contact_id, values);
         // All contacts in this table belong to the same world.
-        return ((uint64_t)values[0] << 32) | values[2];
+        // Keep the index in the low bits to spread fresh IDs across power-of-two hash buckets.
+        return ((uint64_t)values[2] << 32) | values[0];
     }
 
     static void AddTouchingContact(World2D* world, b2ContactId contact_id)
