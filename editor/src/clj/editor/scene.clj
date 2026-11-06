@@ -645,9 +645,10 @@
         world-translation (math/transform parent-world-transform local-translation)
         world-rotation (doto (Quat4d. parent-world-rotation) (.mul local-rotation))
         world-scale (math/multiply-vector parent-world-scale local-scale)
-        picking-node-id (or (:picking-node-id scene) node-id)
+        selection-id (:selection-id scene node-id)
+        picking-node-id (or (:picking-node-id scene) selection-id)
         selection-state (cond
-                          (contains? selection-set node-id) :self-selected ; This node is selected.
+                          (contains? selection-set selection-id) :self-selected ; This node is selected.
                           (some selection-set node-id-path) :parent-selected) ; Child nodes appear dimly selected if their parent is selected.
         has-hidden-outline-key-path (scene-visibility/hidden-outline-key-path? hidden-node-outline-key-paths node-outline-key-path)
         has-hidden-tag (coll/any? #(contains? hidden-renderable-tags %) (:tags renderable))
@@ -979,9 +980,11 @@
     (scene-fn scene)))
 
 (defn claim-child-scene [child-scene old-node-id new-node-id new-node-outline-key]
-  (if (= old-node-id (:node-id child-scene))
-    (assoc child-scene :node-id new-node-id :node-outline-key new-node-outline-key)
-    (assoc child-scene :picking-node-id new-node-id)))
+  (cond-> (if (= old-node-id (:node-id child-scene))
+            (assoc child-scene :node-id new-node-id :node-outline-key new-node-outline-key)
+            (assoc child-scene :picking-node-id new-node-id))
+    (= old-node-id (:selection-id child-scene))
+    (assoc :selection-id new-node-id)))
 
 (defn claim-scene [scene new-node-id new-node-outline-key]
   ;; When scenes reference other resources in the project, we want to treat the

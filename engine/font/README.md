@@ -1,5 +1,28 @@
 # Font library image tests
 
+## Text curves
+
+Arc mapping preserves the laid-out advances on each line's own circular baseline.
+Short text is not spread across the available angle. Inner lines keep the same
+spacing and can cover a larger angle; wrapping still uses the first-baseline arc
+length for the whole text block. A zero-radius baseline follows a straight tangent
+through the origin.
+
+`FontTextCurveCreate` copies and samples a cubic Bezier chain at 64 uniform
+parameter steps per segment. Distance and frame lookups interpolate those samples;
+they have no fixed geometric error guarantee. `FontTextCurve.SamplingAccuracy`
+compares a tight bend and a long segment against an 8192-step reference.
+
+Each `label.set_curve` or `gui.set_curve` call parses the knots and allocates a new
+baked curve and distance index. Set the curve again when its control points change.
+Animating the component/node transform reuses the existing curve. The
+`benchmark_text_layout` executable reports `curve_update` for changing and rebuilding
+4- and 32-knot paths, separately from cached `vertices_curve` generation.
+These update timings include native baking, allocation and release; Lua argument
+parsing and text vertex generation are excluded.
+
+## Font image matrix
+
 Start `./scripts/build.py shell` at the repository root, then run from `engine/font`:
 
 ```sh
@@ -27,6 +50,13 @@ markup overrides, and wrapped English/Arabic. Glyph-bank snapshots exercise
 prebaked layout/fallback; they do not test the font compiler. Compiler tests
 remain in the existing Java/Bob test suites. Labels and GUI are not font-library
 objects and are not included here.
+
+Arc/path coverage adds 44 captures across bitmap and distance-field rendering:
+multiline arcs and circles, planar and spatial Bezier paths, rich-text decorations
+and sizes, and shaped RTL lines. The fixed capture rectangles are the `arc` and
+`path` entries in `capture_geometry.json`. Native geometry tests compare
+layout-object positions with emitted corners, and GUI/label component tests
+check the Lua `x`, `y`, `z` results.
 
 Images and per-configuration logs go into `build/font-test-images/`. The HTML,
 JSON and Markdown report goes into `build/font-render-report/`, with one child
@@ -66,7 +96,7 @@ This writes `build/font-manual/legacy-rich/manual.png`. Use `--help` for all
 options. Manual options cannot be combined with `--case`. Layout/parser support
 is chosen by executable: `test_font_bitmap_gen_skribidi`,
 `test_font_bitmap_gen_plain`, or `test_font_bitmap_gen_skribidi_plain`.
-The CMake target runs all four (344 images) and then generates the report.
+The CMake target runs all four (474 images) and then generates the report.
 
 Rendered reference PNGs belong under
 `src/test/data/reference/<configuration>/`. They require visual

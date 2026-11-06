@@ -293,7 +293,9 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_BOX]"]
    {:default
-    {"custom_properties" :unused
+    {"arc_radius" :unused
+     "arc_angle" :unused
+     "custom_properties" :unused
      "custom_type" :unused
      "font" :unused
      "innerRadius" :unused
@@ -320,7 +322,9 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_CUSTOM]"]
    {:default
-    {"custom_type" :deprecated ; Project files use custom_type_name. Runtime numeric custom_type coverage is tested in GUI build tests.
+    {"arc_radius" :unused
+     "arc_angle" :unused
+     "custom_type" :deprecated ; Project files use custom_type_name. Runtime numeric custom_type coverage is tested in GUI build tests.
      "custom_properties" :non-overridable ; Custom property entries signal overrides individually; the field itself is not listed among overridden_fields.
      "custom_type_name" :non-overridable
      "font" :unused
@@ -352,7 +356,9 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_PARTICLEFX]"]
    {:default
-    {"blend_mode" :unused
+    {"arc_radius" :unused
+     "arc_angle" :unused
+     "blend_mode" :unused
      "clipping_inverted" :unused
      "clipping_mode" :unused
      "clipping_visible" :unused
@@ -386,7 +392,9 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_PIE]"]
    {:default
-    {"custom_properties" :unused
+    {"arc_radius" :unused
+     "arc_angle" :unused
+     "custom_properties" :unused
      "custom_type" :unused
      "font" :unused
      "line_break" :unused
@@ -409,7 +417,9 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_TEMPLATE]"]
    {:default
-    {"adjust_mode" :unused
+    {"arc_radius" :unused
+     "arc_angle" :unused
+     "adjust_mode" :unused
      "blend_mode" :unused
      "clipping_inverted" :unused
      "clipping_mode" :unused

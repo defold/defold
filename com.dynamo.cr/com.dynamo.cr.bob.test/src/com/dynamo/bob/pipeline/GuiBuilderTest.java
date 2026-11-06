@@ -685,6 +685,77 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         return src;
     }
 
+    // GUI text arcs retain defaults and authored/layout/template values, including full circles.
+    @Test
+    public void testTextArcProperties() throws Exception {
+        StringBuilder defaults = createGui();
+        addTextNode(defaults, "text", "", "Arc");
+        NodeDesc defaultNode = findNode(buildGui(defaults, "/defaultArc.gui"), "", "text");
+        Assert.assertEquals(100.0f, defaultNode.getArcRadius(), EPSILON);
+        Assert.assertEquals(0.0f, defaultNode.getArcAngle(), EPSILON);
+
+        StringBuilder src = createGui();
+        src.append("nodes { type: TYPE_TEXT id: \"text\" text: \"Arc\" arc_radius: -200 arc_angle: 120 }\n");
+        startLayout(src, "Portrait");
+        startOverriddenNode(src, NodeDesc.Type.TYPE_TEXT, "text", "", false, List.of(NodeDesc.ARC_ANGLE_FIELD_NUMBER));
+        src.append("arc_angle: 360\n");
+        finishNode(src);
+        finishLayout(src);
+        Gui.SceneDesc built = buildGui(src, "/arc.gui");
+        Assert.assertEquals(-200.0f, findNode(built, "", "text").getArcRadius(), EPSILON);
+        Assert.assertEquals(120.0f, findNode(built, "", "text").getArcAngle(), EPSILON);
+        Assert.assertEquals(-200.0f, findNode(built, "Portrait", "text").getArcRadius(), EPSILON);
+        Assert.assertEquals(360.0f, findNode(built, "Portrait", "text").getArcAngle(), EPSILON);
+
+        addFile("/arcTemplate.gui", src.toString());
+        StringBuilder referencing = createGui();
+        addTemplateNode(referencing, "template", "", "/arcTemplate.gui");
+        NodeDesc templateText = findNode(buildGui(referencing, "/referencingArc.gui"), "", "template/text");
+        Assert.assertEquals(-200.0f, templateText.getArcRadius(), EPSILON);
+        Assert.assertEquals(120.0f, templateText.getArcAngle(), EPSILON);
+        for (String invalid : new String[] {"arc_angle: -1", "arc_angle: 361", "arc_radius: nan"}) {
+            try {
+                buildGui(new StringBuilder("material: \"\"\nnodes { type: TYPE_TEXT id: \"text\" " + invalid + " }"), "/invalidArc.gui");
+                Assert.fail("Accepted invalid GUI arc parameters");
+            } catch (CompileExceptionError expected) {
+                Assert.assertTrue(expected.getMessage().contains("arc"));
+            }
+        }
+    }
+
+    // Template child overrides, including layout overrides, must validate the final arc values.
+    @Test
+    public void testInvalidTextArcTemplateOverrides() throws Exception {
+        StringBuilder template = createGui();
+        template.append("nodes { type: TYPE_TEXT id: \"text\" text: \"Arc\" arc_radius: -200 arc_angle: 120 }\n");
+        addFile("/arcTemplate.gui", template.toString());
+        Map<Integer, String> invalidOverrides = Map.of(
+                NodeDesc.ARC_ANGLE_FIELD_NUMBER, "arc_angle: 361\n",
+                NodeDesc.ARC_RADIUS_FIELD_NUMBER, "arc_radius: nan\n");
+        for (Map.Entry<Integer, String> invalid : invalidOverrides.entrySet()) {
+            for (boolean layoutOverride : new boolean[] {false, true}) {
+                StringBuilder src = createGui();
+                addTemplateNode(src, "template", "", "/arcTemplate.gui");
+                if (layoutOverride) {
+                    addOverriddenNode(src, NodeDesc.Type.TYPE_TEXT, "template/text", "template", true);
+                    startLayout(src, "Portrait");
+                }
+                startOverriddenNode(src, NodeDesc.Type.TYPE_TEXT, "template/text", "template", true, List.of(invalid.getKey()));
+                src.append(invalid.getValue());
+                finishNode(src);
+                if (layoutOverride) {
+                    finishLayout(src);
+                }
+                try {
+                    buildGui(src, "/invalidArcOverride" + invalid.getKey() + layoutOverride + ".gui");
+                    Assert.fail("Accepted invalid template arc override: " + invalid.getValue() + "layout=" + layoutOverride);
+                } catch (CompileExceptionError expected) {
+                    Assert.assertTrue(expected.getMessage().contains("arc"));
+                }
+            }
+        }
+    }
+
     @Test
     public void testSparseLayoutOverrides() throws Exception {
         StringBuilder src = createSparseTemplateGui();

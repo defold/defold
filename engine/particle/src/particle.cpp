@@ -53,9 +53,6 @@ namespace dmParticle
     /// Config key to use for tweaking the total maximum number of particles in a context in CPU buffer.
     const char* MAX_PARTICLE_CPU_COUNT_KEY = "particle_fx.max_particle_buffer_count";
 
-    /// Used for degree to radian conversion
-    const float DEG_RAD = (float) (M_PI / 180.0);
-
     /// Simulate motion blur at 60 fps with a 180 deg shutter
     const static float STRETCH_SCALING = (1.0f/60.0f) * 0.5f;
 
@@ -1101,9 +1098,9 @@ namespace dmParticle
         transform = dmTransform::Mul(emitter_transform, transform);
         particle->SetPosition(Point3(transform.GetTranslation()));
         if (ddf->m_ParticleOrientation == PARTICLE_ORIENTATION_MOVEMENT_DIRECTION) {
-            particle->SetSourceRotation(dmVMath::QuatFromAngle(2, DEG_RAD * emitter_properties[EMITTER_KEY_PARTICLE_ROTATION]));
+            particle->SetSourceRotation(dmVMath::QuatFromAngle(2, dmMath::DegToRad(emitter_properties[EMITTER_KEY_PARTICLE_ROTATION])));
         } else {
-            particle->SetSourceRotation(transform.GetRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * emitter_properties[EMITTER_KEY_PARTICLE_ROTATION]));
+            particle->SetSourceRotation(transform.GetRotation() * dmVMath::QuatFromAngle(2, dmMath::DegToRad(emitter_properties[EMITTER_KEY_PARTICLE_ROTATION])));
         }
         particle->SetRotation(particle->GetSourceRotation());
         particle->SetVelocity(dmTransform::Apply(emitter_transform, velocity) + emitter_velocity);
@@ -1401,7 +1398,7 @@ namespace dmParticle
                 float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
                 uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
                 SAMPLE_PROP(particle_properties[PARTICLE_KEY_ROTATION].m_Segments[segment_index], x, properties[PARTICLE_KEY_ROTATION])
-                particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * properties[PARTICLE_KEY_ROTATION]));
+                particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, dmMath::DegToRad(properties[PARTICLE_KEY_ROTATION])));
                 if (lengthSqr(particle->m_Velocity) > EPSILON)
                 {
                     Vector3 vel_norm = normalize(particle->m_Velocity);
@@ -1420,7 +1417,7 @@ namespace dmParticle
                 float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
                 uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
                 SAMPLE_PROP(particle_properties[PARTICLE_KEY_ANGULAR_VELOCITY].m_Segments[segment_index], x, properties[PARTICLE_KEY_ANGULAR_VELOCITY])
-                particle->SetRotation(particle->GetRotation() * Quat::rotationZ(DEG_RAD * (particle->m_SourceAngularVelocity * (properties[PARTICLE_KEY_ANGULAR_VELOCITY])) * dt));
+                particle->SetRotation(particle->GetRotation() * Quat::rotationZ(dmMath::DegToRad(particle->m_SourceAngularVelocity * properties[PARTICLE_KEY_ANGULAR_VELOCITY]) * dt));
             }
 
         } else {
@@ -1430,7 +1427,7 @@ namespace dmParticle
                 float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
                 uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
                 SAMPLE_PROP(particle_properties[PARTICLE_KEY_ROTATION].m_Segments[segment_index], x, properties[PARTICLE_KEY_ROTATION])
-                particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * properties[PARTICLE_KEY_ROTATION]));
+                particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, dmMath::DegToRad(properties[PARTICLE_KEY_ROTATION])));
             }
         }
 

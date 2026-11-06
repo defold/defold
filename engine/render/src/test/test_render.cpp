@@ -27,6 +27,7 @@
 #include <font/fontcollection.h>
 #include <font/glyphbank_ddf.h>
 #include <font/render/glyph_vertex.h>
+#include <font/render/text_arc.h>
 #include <font/text_layout.h>
 #include <platform/window.hpp>
 

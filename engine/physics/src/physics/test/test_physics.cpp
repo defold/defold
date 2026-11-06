@@ -2683,7 +2683,7 @@ TYPED_TEST(PhysicsTest, KinematicSleep)
     ASSERT_TRUE((*TestFixture::m_Test.m_IsSleepingFunc)(box0_co));
 
     // 1 degree rotation
-    box0_vo.m_Rotation = Quat::rotationZ(1.0f * M_PI / 180.0f);
+    box0_vo.m_Rotation = Quat::rotationZ(dmMath::DegToRad(1.0f));
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_FALSE((*TestFixture::m_Test.m_IsSleepingFunc)(box0_co));

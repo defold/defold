@@ -272,6 +272,8 @@ nodes {
   visible: false
   material: "first_material"
   style: "notice"
+  arc_radius: 200.0
+  arc_angle: 120.0
 }
 nodes {
   position {
@@ -686,11 +688,15 @@ nodes {
   overridden_fields: 46
   overridden_fields: 47
   overridden_fields: 51
+  overridden_fields: 53
+  overridden_fields: 54
   template_node_child: true
   text_leading: 1.11
   text_tracking: 0.11
   material: "second_material"
   style: "notice"
+  arc_radius: 220.0
+  arc_angle: 90.0
 }
 nodes {
   position {
@@ -1077,10 +1083,14 @@ layouts {
     overridden_fields: 46
     overridden_fields: 47
     overridden_fields: 51
+    overridden_fields: 53
+    overridden_fields: 54
     text_leading: 1.11
     text_tracking: 0.11
     material: "second_material"
     style: ""
+    arc_radius: 300.0
+    arc_angle: 360.0
   }
   nodes {
     position {

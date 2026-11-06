@@ -508,7 +508,7 @@
           (is (= (inc offset) (get-in error [:user-data :column])))
           (is (s/includes? (test-util/localization (g/error-message error))
                            "gradient radius must be greater than zero"))))
-      (is (pos? (:width (font/layout-text font-map text false 0 0 1 nil))))
+      (is (pos? (:width (font/layout-text font-map text false 0 0 1))))
       (let [style-node (:node-id (second (g/node-value font-node :style-infos)))]
         (test-util/with-prop [style-node :markup markup]
           (let [error (test-util/prop-error style-node :markup)]
