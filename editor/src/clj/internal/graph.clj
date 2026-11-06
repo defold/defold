@@ -21,10 +21,10 @@
             [util.defonce :as defonce]
             [util.eduction :as e]
             [util.pkid-vector :as pkid-vector])
-  (:import [clojure.lang IPersistentSet Indexed]
+  (:import [clojure.lang IPersistentSet Indexed RT]
            [com.github.benmanes.caffeine.cache Cache Caffeine LoadingCache]
            [internal.graph.types Arc Endpoint]
-           [java.util ArrayList HashMap Objects]
+           [java.util ArrayDeque ArrayList HashMap Iterator Objects]
            [java.util.concurrent ConcurrentHashMap ForkJoinPool]))
 
 ;; A brief braindump on Overrides.
@@ -709,83 +709,135 @@
   ([basis target-id target-label]
    (arc-table-arcs (-> basis gt/tarcs (get target-id) (get target-label)))))
 
+(defn- push-source-arc-frame!
+  [^ArrayDeque pending ^Iterator targets source-override-chain source-override-node-chain source-index-chain next-override-id source-ids]
+  (if-not (.hasNext targets)
+    pending
+    (doto (or pending (ArrayDeque.))
+      (.push [source-override-chain source-override-node-chain source-index-chain next-override-id source-ids targets]))))
+
 (defn- lift-source-arc
   "Used by arcs-by-source/lift-source-arcs to infer all implicit arcs
   the explicit arc `arc` gives rise to if we follow the
   `source-override-node-chain` upwards from the source-id of
   `arc`.
-  Returns a list of arcs where:
+  Appends to and returns the transient result vector with arcs where:
   * source-id is the final node in source-override-node-chain
   * target-id is an override node in the final override in
   source-override-chain - whose chain of originals passes through the
   original target of `arc` - for which `source-override-chain` is the
   first and longest subsequence of its own chain of overrides.
   * the `arc` has not been shadowed by an intermediate explicit arc"
-  [basis source-override-chain source-override-node-chain source-index-chain arc]
-  (let [target (gt/target-id arc)
-        target-label (gt/target-label arc)]
-    (if (coll/empty? source-override-chain)
-      [arc]
-      (let [source-index (first source-index-chain)
-            next-override-id (first source-override-chain)
-            ^IPersistentSet source-ids (or (:ids source-index) (int-map/int-set))
-            nodes (gt/nodes basis)
-            target-override-node-ids (target-overrides-for-source basis target source-index next-override-id)]
-        (into []
-              (comp
-                ;; only follow what could make the source override chain
-                ;; a subsequence of this target chain - don't traverse
-                ;; up the wrong branch
-                (remove (fn [target-override-node-id]
-                          (let [override-id (-> target-override-node-id nodes gt/override-id)]
-                            (and (not= next-override-id override-id)
-                                 ;; measurably faster than contains?
-                                 (.contains source-ids override-id)))))
-                ;; An explicit arc shadows/blocks implicit arcs
-                (filter (fn [target-override-node-id]
-                          (coll/not-any?
-                            (fn [arc]
-                              (node-by-id-at basis (gt/source-id arc)))
-                            (explicit-arcs-by-target basis target-override-node-id target-label))))
-                ;; Keep lifting, with different remaining chains
-                ;; depending on if the current target override matches
-                ;; the (current) source.
-                (mapcat (fn [target-override-node-id]
-                          (let [target-override-id (gt/override-id (nodes target-override-node-id))]
-                            (if (= target-override-id (first source-override-chain))
-                              (lift-source-arc basis
-                                               (rest source-override-chain)
-                                               (rest source-override-node-chain)
-                                               (rest source-index-chain)
-                                               (assoc arc
-                                                 :source-id (first source-override-node-chain)
-                                                 :target-id target-override-node-id))
-                              (lift-source-arc basis
-                                               source-override-chain
-                                               source-override-node-chain
-                                               source-index-chain
-                                               (assoc arc :target-id target-override-node-id)))))))
-              target-override-node-ids)))))
+  [basis source-override-chain source-override-node-chain source-index-chain arc result]
+  (if (coll/empty? source-override-chain)
+    (conj! result arc)
+    (let [nodes (gt/nodes basis)
+          target-label (gt/target-label arc)]
+      ;; This is an iterative version of a recursive traversal of target
+      ;; overrides. `pending` takes the place of the recursive call stack.
+      (loop [source-override-chain source-override-chain
+             source-override-node-chain source-override-node-chain
+             source-index-chain source-index-chain
+             next-override-id (first source-override-chain)
+             source-ids (or (:ids (first source-index-chain)) (int-map/int-set))
+             targets (RT/iter (target-overrides-for-source
+                                basis
+                                (gt/target-id arc)
+                                (first source-index-chain)
+                                (first source-override-chain)))
+             ^ArrayDeque pending nil
+             result result]
+        (if-not (.hasNext targets)
+          (if-let [[source-override-chain source-override-node-chain source-index-chain next-override-id source-ids targets]
+                   (when pending (.poll pending))]
+            (recur source-override-chain source-override-node-chain source-index-chain
+                   next-override-id source-ids targets pending result)
+            result)
+          (let [target-override-node-id (.next targets)
+                target-override-id (gt/override-id (nodes target-override-node-id))]
+            (if-not (and
+                      ;; only follow what could make the source override chain
+                      ;; a subsequence of this target chain - don't traverse
+                      ;; up the wrong branch
+                      (or (= next-override-id target-override-id)
+                          ;; measurably faster than contains?
+                          (not (.contains ^IPersistentSet source-ids target-override-id)))
+                      ;; An explicit arc shadows/blocks implicit arcs
+                      (coll/not-any?
+                        (fn [arc]
+                          (node-by-id-at basis (gt/source-id arc)))
+                        (explicit-arcs-by-target basis target-override-node-id target-label)))
+              (recur source-override-chain source-override-node-chain source-index-chain
+                     next-override-id source-ids targets pending result)
+              ;; Keep lifting, with different remaining chains
+              ;; depending on if the current target override matches
+              ;; the (current) source.
+              (if (= target-override-id next-override-id)
+                (let [remaining-source-override-chain (rest source-override-chain)]
+                  (if (coll/empty? remaining-source-override-chain)
+                    (recur source-override-chain source-override-node-chain source-index-chain
+                           next-override-id source-ids targets pending
+                           (conj! result
+                                  (assoc arc
+                                    :source-id (first source-override-node-chain)
+                                    :target-id target-override-node-id)))
+                    (let [remaining-source-override-node-chain (rest source-override-node-chain)
+                          remaining-source-index-chain (rest source-index-chain)
+                          remaining-next-override-id (first remaining-source-override-chain)
+                          source-index (first remaining-source-index-chain)
+                          child-targets (target-overrides-for-source basis target-override-node-id source-index remaining-next-override-id)]
+                      (if (coll/empty? child-targets)
+                        (recur source-override-chain source-override-node-chain source-index-chain
+                               next-override-id source-ids targets pending result)
+                        (recur remaining-source-override-chain remaining-source-override-node-chain remaining-source-index-chain
+                               remaining-next-override-id (or (:ids source-index) (int-map/int-set))
+                               (RT/iter child-targets)
+                               (push-source-arc-frame!
+                                 pending
+                                 targets
+                                 source-override-chain
+                                 source-override-node-chain
+                                 source-index-chain
+                                 next-override-id
+                                 source-ids)
+                               result)))))
+                (let [child-targets (target-overrides-for-source basis target-override-node-id (first source-index-chain) next-override-id)]
+                  (if (coll/empty? child-targets)
+                    (recur source-override-chain source-override-node-chain source-index-chain
+                           next-override-id source-ids targets pending result)
+                    (recur source-override-chain source-override-node-chain source-index-chain
+                           next-override-id source-ids (RT/iter child-targets)
+                           (push-source-arc-frame!
+                             pending
+                             targets
+                             source-override-chain
+                             source-override-node-chain
+                             source-index-chain
+                             next-override-id
+                             source-ids)
+                           result)))))))))))
 
 (defn- lift-source-arcs
   [basis override-chains+explicit-arcs]
-  (into []
-        (comp
-          (filter (fn [[_ _ explicit-arcs]] (seq explicit-arcs)))
-          (keep (fn [[override-chain override-node-chain explicit-arcs]]
-                  ;; Here we can (assert (every? #(= (:source-id %) (:source-id (first explicit-arcs))) explicit-arcs))
-                  (let [source (gt/source-id (first explicit-arcs))
-                        ;; The source index prevents following target
-                        ;; overrides along the wrong "branches" (for which there may be another
-                        ;; better -earlier- matching source node).
-                        source-index-chain (coll/into-> (conj override-node-chain source) []
-                                             (take (count override-chain))
-                                             (map #(override-index basis %)))]
-                    (coll/not-empty
-                      (coll/into-> explicit-arcs []
-                        (mapcat #(lift-source-arc basis override-chain override-node-chain source-index-chain %)))))))
-          cat)
-        override-chains+explicit-arcs))
+  (persistent!
+    (reduce
+      (fn [result [override-chain override-node-chain explicit-arcs]]
+        ;; Here we can (assert (every? #(= (:source-id %)
+        ;;                                 (:source-id (first explicit-arcs)))
+        ;;                             explicit-arcs))
+        (let [source (gt/source-id (first explicit-arcs))
+              ;; The source index prevents following target
+              ;; overrides along the wrong "branches" (for which there may
+              ;; be another better -earlier- matching source node).
+              source-index-chain (coll/into-> (conj override-node-chain source) []
+                                   (take (count override-chain))
+                                   (map #(override-index basis %)))]
+          (reduce (fn [result arc]
+                    (lift-source-arc basis override-chain override-node-chain source-index-chain arc result))
+                  result
+                  explicit-arcs)))
+      (transient [])
+      override-chains+explicit-arcs)))
 
 (defn- propagate-source-arcs
   "Used by arcs-by-source. After having found a set of arcs from a
@@ -847,7 +899,7 @@
   of the start node.
   Returns a list of 3-tuples [override-chain override-node-chain
   explicit-arcs] where:
-  * explicit-arcs is the explicit arcs found at the current node
+  * explicit-arcs contains at least one explicit arc from the current node
   * override-node-chain is the sequence of override node ids to follow
   from the current node to reach the start node
   * override-chain is the sequence of override ids to follow from the
