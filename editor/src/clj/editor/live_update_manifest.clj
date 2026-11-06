@@ -36,7 +36,7 @@
             [util.fn :as fn])
   (:import [com.dynamo.bob ClassLoaderScanner Progress]
            [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Selection PackageResolver$Severity]
-           [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc]
+           [com.dynamo.liveupdate.proto LiveUpdateManifest$ContainerPreset LiveUpdateManifest$FileCompressionPreset LiveUpdateManifest$ManifestDesc]
            [java.nio.file Path]
            [java.util.function Function]))
 
@@ -148,10 +148,27 @@
                     (= old-name (g/node-value % :package evaluation-context))))
       (map #(g/set-property % :package new-name)))))
 
+(g/defnode FileCompressionSelection
+  (input read-only g/Bool)
+  (input file-preset-options g/Any)
+  (property file-compression-preset g/Str (default "")
+            (dynamic read-only? (g/fnk [read-only] read-only))
+            (dynamic label (properties/label-dynamic :liveupdate-package :file-compression-preset))
+            (dynamic edit-type (g/fnk [file-preset-options]
+                                 {:type :choicebox :options file-preset-options}))
+            (dynamic error (g/fnk [file-compression-error] file-compression-error)))
+  (output file-compression-error g/Any
+          (g/fnk [_node-id file-compression-preset file-preset-options]
+            (when (coll/not-any? #(= file-compression-preset (first %)) file-preset-options)
+              (g/->error _node-id :file-compression-preset :fatal file-compression-preset
+                         (localization/message "liveupdate.compression.unknown-file" {"name" file-compression-preset}))))))
+
 (g/defnode PackageNode
   (inherits core/Scope)
   (inherits outline/OutlineNode)
-  (input read-only g/Bool)
+  (inherits FileCompressionSelection)
+  (display-order [:id :container-preset :file-compression-preset])
+  (input container-preset-options g/Any)
   (input package-references g/Any)
   (input diagnostics g/Any)
   (output read-only g/Bool (g/fnk [read-only] (boolean read-only)))
@@ -168,17 +185,17 @@
             (dynamic label (properties/label-dynamic :liveupdate-package :id))
             (dynamic error (g/fnk [name-error] name-error)))
   (property order g/Int (default 0) (dynamic visible (g/constantly false)))
-  (property provider g/Keyword (default :zip)
+  (property container-preset g/Str (default "")
             (dynamic read-only? (g/fnk [read-only] read-only))
-            (dynamic label (properties/label-dynamic :liveupdate-package :provider))
-            (dynamic edit-type (g/constantly {:type :choicebox
-                                              :options [[:zip "ZIP"]
-                                                        [:folder (localization/message "liveupdate.folder")]
-                                                        [:custom (localization/message "liveupdate.custom")]]})))
-  (property custom-provider g/Str (default "")
-            (dynamic read-only? (g/fnk [read-only] read-only))
-            (dynamic label (properties/label-dynamic :liveupdate-package :custom-provider))
-            (dynamic visible (g/fnk [provider] (= :custom provider))))
+            (dynamic label (properties/label-dynamic :liveupdate-package :container-preset))
+            (dynamic edit-type (g/fnk [container-preset-options]
+                                 {:type :choicebox :options container-preset-options}))
+            (dynamic error (g/fnk [container-error] container-error)))
+  (output container-error g/Any
+          (g/fnk [_node-id container-preset container-preset-options]
+            (when (coll/not-any? #(= container-preset (first %)) container-preset-options)
+              (g/->error _node-id :container-preset :fatal container-preset
+                         (localization/message "liveupdate.compression.unknown-container" {"name" container-preset})))))
   (input rule-data g/Any :array)
   (output package-targets g/Any
           (g/fnk [id package-references]
@@ -192,38 +209,43 @@
                           (when-let [rule (get rules (.rule diagnostic))]
                             [(:node-id rule) diagnostic]))))))))
   (output data g/Any :cached
-          (g/fnk [_node-id id order provider custom-provider rule-data]
+          (g/fnk [_node-id id order container-preset file-compression-preset rule-data]
             (let [rules (vec (sort-by :order rule-data))]
               {:node-id _node-id
                :order order
                :rules rules
                :value (cond-> {:name id}
+                        (not (string/blank? file-compression-preset)) (assoc :file-compression-preset file-compression-preset)
                         (coll/not-empty rules) (assoc :rules (mapv :value rules))
-                        (not= :zip provider) (assoc :provider (if (= :custom provider) custom-provider (name provider))))})))
+                        (not (string/blank? container-preset)) (assoc :container-preset container-preset))})))
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id id order child-outlines read-only ^:try name-error]
+          (g/fnk [_node-id id order child-outlines read-only ^:try name-error ^:try file-compression-error ^:try container-error]
             {:node-id _node-id
              :node-outline-key id
              :label id
              :order order
              :icon package-icon
              :read-only (boolean read-only)
-             :outline-error? (g/error-fatal? name-error)
+             :outline-error? (or (g/error-fatal? name-error) (g/error-fatal? file-compression-error) (g/error-fatal? container-error))
              :children (vec (sort-by :order child-outlines))
              :child-reqs [{:node-type RuleNode :tx-attach-fn attach-rule}]})))
 
 (g/defnode BasePackageNode
   (inherits outline/OutlineNode)
+  (inherits FileCompressionSelection)
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id]
+          (g/fnk [_node-id ^:try file-compression-error]
             {:node-id _node-id
              :node-outline-key "base"
              :label (localization/message "liveupdate.base")
              :icon "icons/32/Icons_S_15_lock.png"
-             :read-only true})))
+             :read-only true
+             :outline-error? (g/error-fatal? file-compression-error)})))
 
 (defn- attach-package [parent child]
   [(g/connect parent :read-only child :read-only)
+   (g/connect parent :file-preset-options child :file-preset-options)
+   (g/connect parent :container-preset-options child :container-preset-options)
    (g/connect parent :package-references child :package-references)
    (g/connect parent :diagnostics child :diagnostics)
    (g/connect child :_node-id parent :nodes)
@@ -238,6 +260,145 @@
                           (mapv #(get-in % [:value :name])
                                 (g/node-value parent :package-data evaluation-context)))))
    (attach-package parent child)])
+
+(defn- rename-preset [evaluation-context self old-name new-name]
+  ;; Empty selections mean the built-in defaults, not an unnamed preset.
+  (when-not (or (string/blank? old-name) (string/blank? new-name))
+    (when-let [group (core/scope (:basis evaluation-context) self)]
+      ;; Duplicate old or new names cannot identify a selection's preset.
+      (when (coll/not-any? (fn [node-id]
+                             (let [name (g/node-value node-id :id evaluation-context)]
+                               (and (not= self node-id)
+                                    (or (= old-name name) (= new-name name)))))
+                           (g/node-value group :nodes evaluation-context))
+        (when-let [manifest (core/scope (:basis evaluation-context) group)]
+          (let [container (= :container (g/node-value group :kind evaluation-context))
+                node-type (if container PackageNode FileCompressionSelection)
+                property (if container :container-preset :file-compression-preset)]
+            (coll/into-> (g/node-value manifest :nodes evaluation-context) []
+              (filter #(g/node-instance? (:basis evaluation-context) node-type %))
+              (filter #(= old-name (g/node-value % property evaluation-context)))
+              (map #(g/set-property % property new-name)))))))))
+
+(defn- preset-property-error [node-id id preset-errors property value]
+  (when-let [message (get-in preset-errors [id property])]
+    (g/->error node-id (if (= "name" property) :id (keyword property)) :fatal value message)))
+
+(g/defnode PresetNode
+  (inherits outline/OutlineNode)
+  (input read-only g/Bool)
+  (input preset-errors g/Any)
+  (property id g/Str
+            (set rename-preset)
+            (dynamic label (properties/label-dynamic :liveupdate-preset :id))
+            (dynamic read-only? (g/fnk [read-only] read-only))
+            (dynamic error (g/fnk [_node-id id preset-errors]
+                             (preset-property-error _node-id id preset-errors "name" id))))
+  (property order g/Int (default 0) (dynamic visible (g/constantly false)))
+  (output node-outline outline/OutlineData :cached
+          (g/fnk [_node-id id order read-only preset-errors]
+            {:node-id _node-id :node-outline-key (str order) :label id :order order :icon icon
+             :read-only (boolean read-only) :outline-error? (contains? preset-errors id)})))
+
+(g/defnode FileCompressionPresetNode
+  (inherits PresetNode)
+  (display-order [:id :file-compression :lz4-level])
+  (property file-compression g/Keyword (default (protobuf/default LiveUpdateManifest$FileCompressionPreset :file-compression))
+            (dynamic read-only? (g/fnk [read-only] read-only))
+            (dynamic label (properties/label-dynamic :liveupdate-preset :file-compression))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options [[:lz4 "LZ4"]
+                                                        [:none (localization/message "liveupdate.compression.none")]]})))
+  (property lz4-level g/Int (default (protobuf/default LiveUpdateManifest$FileCompressionPreset :lz4-level))
+            (dynamic read-only? (g/fnk [read-only] read-only))
+            (dynamic label (properties/label-dynamic :liveupdate-preset :lz4-level))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options (mapv (fn [level] [level (str level)]) (range 1 13))}))
+            (dynamic visible (g/fnk [file-compression] (= :lz4 file-compression)))
+            (dynamic error (g/fnk [_node-id id lz4-level preset-errors]
+                             (preset-property-error _node-id id preset-errors "lz4-level" lz4-level))))
+  (output data g/Any :cached
+          (g/fnk [_node-id id order file-compression lz4-level]
+            {:node-id _node-id :order order
+             :value (protobuf/make-map-without-defaults LiveUpdateManifest$FileCompressionPreset
+                      :name id :file-compression file-compression :lz4-level lz4-level)})))
+
+(g/defnode ContainerPresetNode
+  (inherits PresetNode)
+  (display-order [:id :provider :zip-level])
+  (property provider g/Keyword (default :zip)
+            (dynamic read-only? (g/fnk [read-only] read-only))
+            (dynamic label (properties/label-dynamic :liveupdate-preset :provider))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options [[:zip "ZIP"]
+                                                        [:folder (localization/message "liveupdate.folder")]]})))
+  (property custom-provider g/Str (default "")
+            (dynamic read-only? (g/fnk [read-only] read-only))
+            (dynamic label (properties/label-dynamic :liveupdate-preset :custom-provider))
+            (dynamic visible (g/constantly false))
+            (dynamic error (g/fnk [_node-id id custom-provider preset-errors]
+                             (preset-property-error _node-id id preset-errors "provider" custom-provider))))
+  (property zip-level g/Int (default (protobuf/default LiveUpdateManifest$ContainerPreset :zip-level))
+            (dynamic read-only? (g/fnk [read-only] read-only))
+            (dynamic label (properties/label-dynamic :liveupdate-preset :zip-level))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options (mapv (fn [level] [level (str level)]) (range -1 10))}))
+            (dynamic visible (g/fnk [provider] (= :zip provider)))
+            (dynamic error (g/fnk [_node-id id zip-level preset-errors]
+                             (preset-property-error _node-id id preset-errors "zip-level" zip-level))))
+  (output data g/Any :cached
+          (g/fnk [_node-id id order provider custom-provider zip-level]
+            {:node-id _node-id :order order
+             :value (protobuf/make-map-without-defaults LiveUpdateManifest$ContainerPreset
+                      :name id :provider (if (= :custom provider) custom-provider (name provider)) :zip-level zip-level)})))
+
+(defn- attach-preset [parent child]
+  [(g/connect parent :read-only child :read-only)
+   (g/connect parent :preset-errors child :preset-errors)
+   (g/connect child :_node-id parent :nodes)
+   (g/connect child :data parent :preset-data)
+   (g/connect child :node-outline parent :child-outlines)])
+
+(defn- attach-pasted-preset [parent child]
+  [(g/expand-ec
+     (fn resolve-preset-id [evaluation-context]
+       (g/update-property child :id id/resolve
+                          (mapv #(get-in % [:value :name])
+                                (g/node-value parent :preset-data evaluation-context)))))
+   (attach-preset parent child)])
+
+(g/defnode CompressionPresetsNode
+  (inherits core/Scope)
+  (inherits outline/OutlineNode)
+  (property kind g/Keyword (dynamic visible (g/constantly false)))
+  (input read-only g/Bool)
+  (output read-only g/Bool (g/fnk [read-only] (boolean read-only)))
+  (input preset-errors g/Any)
+  (output preset-errors g/Any (g/fnk [preset-errors] preset-errors))
+  (input preset-data g/Any :array)
+  (output presets g/Any :cached (g/fnk [preset-data] (vec (sort-by :order preset-data))))
+  (output node-outline outline/OutlineData :cached
+          (g/fnk [_node-id kind child-outlines]
+            {:node-id _node-id :node-outline-key (name kind)
+             :label (localization/message (str "liveupdate.compression." (name kind))) :icon icon :read-only true
+             :children (vec (sort-by :order child-outlines))
+             :child-reqs [{:node-type (case kind :container ContainerPresetNode :file FileCompressionPresetNode)
+                           :tx-attach-fn attach-pasted-preset}]})))
+
+(defn- make-preset [parent kind order preset]
+  (case kind
+    :container
+    (let [provider (:provider preset "zip")]
+      (g/make-nodes [child [ContainerPresetNode :id (:name preset) :order order
+                            :provider (case provider "zip" :zip "folder" :folder :custom)
+                            :custom-provider (if (#{"zip" "folder"} provider) "" provider)
+                            :zip-level (:zip-level preset (protobuf/default LiveUpdateManifest$ContainerPreset :zip-level))]]
+        (attach-preset parent child)))
+    :file
+    (g/make-nodes [child [FileCompressionPresetNode :id (:name preset) :order order
+                          :file-compression (:file-compression preset (protobuf/default LiveUpdateManifest$FileCompressionPreset :file-compression))
+                          :lz4-level (:lz4-level preset (protobuf/default LiveUpdateManifest$FileCompressionPreset :lz4-level))]]
+      (attach-preset parent child))))
 
 (defn- set-provider-value [settings provider property value]
   (let [provider-index (coll/first-index-where #(= provider (:provider %)) settings)
@@ -295,7 +456,7 @@
                   (assoc :type :choicebox
                          :options (mapv (fn [choice] [(.parse description choice) choice]) choices)))}))
 
-(defn- produce-properties [node-id declared-properties provider-settings packages read-only schemas]
+(defn- produce-properties [node-id declared-properties provider-settings packages container-presets read-only schemas]
   (if (g/error? schemas)
     (-> declared-properties
         (assoc-in [:properties :provider-error] {:node-id node-id
@@ -329,7 +490,9 @@
                               (into [(localization/message (str "liveupdate.provider." provider ".label") {} (if schema (.label schema) provider))]
                                     property-keys))))))
             declared-properties
-            (coll/into-> packages [] (map #(get-in % [:value :provider] "zip")) (distinct)))))
+            (let [providers (coll/into-> container-presets {"" "zip"}
+                              (map (fn [{:keys [value]}] [(:name value) (:provider value "zip")])))]
+              (coll/into-> packages [] (keep #(get providers (get-in % [:value :container-preset] ""))) (distinct))))))
 
 (g/defnode LiveUpdateManifestNode
   (inherits resource-node/ResourceNode)
@@ -360,14 +523,36 @@
   (input package-nodes g/NodeID :array)
   (input package-data g/Any :array)
   (input base-outline outline/OutlineData)
+  (input base-file-compression-preset g/Str)
+  (input container-presets g/Any)
+  (input file-presets g/Any)
+  (input container-presets-outline outline/OutlineData)
+  (input file-presets-outline outline/OutlineData)
+  (output container-preset-options g/Any :cached
+          (g/fnk [container-presets]
+            (coll/into-> container-presets [["" (localization/message "liveupdate.compression.default-container")]]
+              (map #(let [name (get-in % [:value :name])] [name name])))))
+  (output file-preset-options g/Any :cached
+          (g/fnk [file-presets]
+            (coll/into-> file-presets [["" (localization/message "liveupdate.compression.default-file")]]
+              (map #(let [name (get-in % [:value :name])] [name name])))))
+  (output container-preset-errors g/Any :cached
+          (g/fnk [save-value]
+            (PackageResolver/containerPresetErrors (protobuf/map->pb LiveUpdateManifest$ManifestDesc save-value))))
+  (output file-preset-errors g/Any :cached
+          (g/fnk [save-value]
+            (PackageResolver/fileCompressionPresetErrors (protobuf/map->pb LiveUpdateManifest$ManifestDesc save-value))))
   (output packages g/Any :cached (g/fnk [package-data] (vec (sort-by :order package-data))))
   (output _properties g/Properties :cached
-          (g/fnk [_node-id _declared-properties provider-settings packages read-only ^:try provider-schemas]
-            (produce-properties _node-id _declared-properties provider-settings packages read-only provider-schemas)))
+          (g/fnk [_node-id _declared-properties provider-settings packages container-presets read-only ^:try provider-schemas]
+            (produce-properties _node-id _declared-properties provider-settings packages container-presets read-only provider-schemas)))
   (output save-value g/Any :cached
-          (g/fnk [packages output-directory provider-settings]
+          (g/fnk [packages output-directory provider-settings base-file-compression-preset container-presets file-presets]
             (protobuf/make-map-without-defaults LiveUpdateManifest$ManifestDesc
               :output-directory output-directory
+              :base-file-compression-preset base-file-compression-preset
+              :file-compression-presets (mapv :value file-presets)
+              :container-presets (mapv :value container-presets)
               :providers provider-settings
               :packages (mapv :value packages))))
   (output package-references g/Any :cached
@@ -403,12 +588,20 @@
                               (g/->error _node-id :selected-paths :fatal nil (.message diagnostic)))))))
                 (coll/into-> (.values (.matches ^PackageResolver$Selection selection)) (sorted-set) cat))))
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id child-outlines base-outline]
+          (g/fnk [_node-id child-outlines base-outline container-presets-outline file-presets-outline]
             {:node-id _node-id
              :node-outline-key "Live Update Manifest"
-             :label (localization/message "resource.type.lumanifest")
+             :label (localization/message "resource.type.archivemanifest")
              :icon icon
-             :children (into [base-outline] (sort-by :order child-outlines))
+             :children (into [base-outline
+                              {:node-id _node-id
+                               :node-outline-key "compression-types"
+                               :label (localization/message "liveupdate.compression.types")
+                               :icon icon
+                               :read-only true
+                               :properties {:properties {}}
+                               :children [container-presets-outline file-presets-outline]}]
+                             (sort-by :order child-outlines))
              :child-reqs [{:node-type PackageNode :tx-attach-fn attach-pasted-package}]}))
   (output build-targets g/Any (g/constantly [])))
 
@@ -426,14 +619,13 @@
     (attach-rule parent child)))
 
 (defn- make-package [parent order package]
-  (let [provider (:provider package "zip")]
-    (g/make-nodes [child [PackageNode :id (:name package)
-                          :order order
-                          :provider (case provider "zip" :zip "folder" :folder :custom)
-                          :custom-provider (if (#{"zip" "folder"} provider) "" provider)]]
-      (attach-package parent child)
-      (coll/into-> (:rules package) []
-        (map-indexed (fn [index rule] (make-rule child index rule)))))))
+  (g/make-nodes [child [PackageNode :id (:name package)
+                        :order order
+                        :container-preset (:container-preset package "")
+                        :file-compression-preset (:file-compression-preset package "")]]
+    (attach-package parent child)
+    (coll/into-> (:rules package) []
+      (map-indexed (fn [index rule] (make-rule child index rule))))))
 
 (defn- load-environment [workspace nodes]
   (let [schemas (try
@@ -470,17 +662,43 @@
    (load-environment workspace [self])
    (g/connect workspace :root self :project-root)
    (g/connect workspace :resource-map self :resource-map)
-   (g/make-nodes [base BasePackageNode]
+   (g/make-nodes [base [BasePackageNode :file-compression-preset (:base-file-compression-preset source-value "")]]
+     (g/connect self :read-only base :read-only)
+     (g/connect self :file-preset-options base :file-preset-options)
      (g/connect base :_node-id self :nodes)
+     (g/connect base :file-compression-preset self :base-file-compression-preset)
      (g/connect base :node-outline self :base-outline))
+   (mapv (fn [kind presets-key errors-output data-input outline-input]
+           (g/make-nodes [group [CompressionPresetsNode :kind kind]]
+             (g/connect self :read-only group :read-only)
+             (g/connect self errors-output group :preset-errors)
+             (g/connect group :_node-id self :nodes)
+             (g/connect group :presets self data-input)
+             (g/connect group :node-outline self outline-input)
+             (coll/into-> (get source-value presets-key) []
+               (map-indexed (fn [index preset] (make-preset group kind index preset))))))
+         [:container :file]
+         [:container-presets :file-compression-presets]
+         [:container-preset-errors :file-preset-errors]
+         [:container-presets :file-presets]
+         [:container-presets-outline :file-presets-outline])
    (coll/into-> (:packages source-value) []
      (map-indexed (fn [index package] (make-package self index package))))])
 
 (defn- selection->add-parent [selection evaluation-context]
   (or (handler/adapt-single selection LiveUpdateManifestNode evaluation-context)
       (handler/adapt-single selection PackageNode evaluation-context)
+      (handler/adapt-single selection CompressionPresetsNode evaluation-context)
+      (when-let [preset (handler/adapt-single selection PresetNode evaluation-context)]
+        (core/scope (:basis evaluation-context) preset))
       (when-let [rule (handler/adapt-single selection RuleNode evaluation-context)]
         (core/scope (:basis evaluation-context) rule))))
+
+(defn- add-kind [parent evaluation-context]
+  (cond
+    (g/node-instance? (:basis evaluation-context) LiveUpdateManifestNode parent) :package
+    (g/node-instance? (:basis evaluation-context) CompressionPresetsNode parent) :preset
+    :else :rule))
 
 (handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection evaluation-context]
@@ -488,25 +706,23 @@
   (enabled? [selection evaluation-context]
     (not (g/node-value (selection->add-parent selection evaluation-context) :read-only evaluation-context)))
   (label [selection evaluation-context]
-    (localization/message
-      (if (handler/adapt-single selection LiveUpdateManifestNode evaluation-context)
-        "liveupdate.add-package"
-        "liveupdate.add-rule")))
+    (localization/message (str "liveupdate.add-" (name (add-kind (selection->add-parent selection evaluation-context) evaluation-context)))))
   (run [app-view selection]
     (g/let-ec [parent (selection->add-parent selection evaluation-context)
-               add-package (g/node-instance? (:basis evaluation-context) LiveUpdateManifestNode parent)
-               root (if add-package parent (core/scope (:basis evaluation-context) parent))
-               children (g/node-value parent (if add-package :package-data :rule-data) evaluation-context)
+               kind (add-kind parent evaluation-context)
+               root (if (= :package kind) parent (core/scope (:basis evaluation-context) parent))
+               children (g/node-value parent (case kind :package :package-data :preset :preset-data :rule-data) evaluation-context)
                order (inc (transduce (map :order) max -1 children))
-               tx-data (if add-package
-                         (make-package parent order {:name (id/gen "package" (mapv #(get-in % [:value :name]) children))})
+               tx-data (case kind
+                         :package (make-package parent order {:name (id/gen "package" (mapv #(get-in % [:value :name]) children))})
+                         :preset (make-preset parent (g/node-value parent :kind evaluation-context) order {:name (id/gen "preset" (mapv #(get-in % [:value :name]) children))})
                          (make-rule parent order {:name "Rule" :path "/.*"}))]
       (let [op-seq (gensym)
             nodes (g/tx-nodes-added
                     (g/transact
                       (concat
                         (g/operation-sequence op-seq)
-                        (g/operation-label (localization/message (if add-package "liveupdate.add-package" "liveupdate.add-rule")))
+                        (g/operation-label (localization/message (str "liveupdate.add-" (name kind))))
                         tx-data)))]
         (g/let-ec [project (g/node-value app-view :project-id evaluation-context)
                    open-resource-nodes (g/node-value app-view :open-resource-nodes evaluation-context)
@@ -594,8 +810,8 @@
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
-    :ext "lumanifest"
-    :label (localization/message "resource.type.lumanifest")
+    :ext "archivemanifest"
+    :label (localization/message "resource.type.archivemanifest")
     :node-type LiveUpdateManifestNode
     :ddf-type LiveUpdateManifest$ManifestDesc
     :load-fn load-manifest

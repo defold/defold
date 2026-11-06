@@ -1,4 +1,0 @@
-output_directory: "build/packages"
-packages {
-  name: "package1"
-}

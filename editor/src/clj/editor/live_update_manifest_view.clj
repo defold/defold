@@ -145,7 +145,7 @@
             paths (coll/into-> (.getPackagesList manifest) {}
                     (map (fn [^LiveUpdateManifest$PackageDesc package]
                            [(.getName package)
-                            [(str (case (.getProvider package)
+                            [(str (case (.getProvider (PackageResolver/containerPreset manifest (.getContainerPreset package)))
                                     "zip" (.resolve ^Path directory (str (.getName package) ".zip"))
                                     "folder" (.resolve ^Path directory (.getName package))
                                     ;; Custom names need final payloads.
@@ -522,5 +522,5 @@
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
     :id :live-update-manifest
-    :label (localization/message "resource.view.lumanifest")
+    :label (localization/message "resource.view.archivemanifest")
     :make-view-fn #'make-view))

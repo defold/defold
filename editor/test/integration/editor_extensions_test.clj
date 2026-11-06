@@ -451,26 +451,35 @@
                    "zip-filename" "episodes.zip"
                    "zip-compression-level" 7}
             {:output-directory "${HOME}/Live \"Update\""
-             :packages [{:name "episodes"}]
-             :providers [{:provider "zip" :properties [{:name "compression-level" :value "7"}]}]}]
+             :base-file-compression-preset "legacy"
+             :packages [{:name "episodes" :container-preset "legacy" :file-compression-preset "legacy"}]
+             :container-presets [{:name "legacy" :zip-level 7}]
+             :file-compression-presets [{:name "legacy"}]}]
            ["Folder" {"output-directory" "bundle/packages"
                       "output-folder-name" "episodes"}
             {:output-directory "bundle/packages"
-             :packages [{:name "episodes" :provider "folder"}]}]
+             :base-file-compression-preset "legacy"
+             :file-compression-presets [{:name "legacy" :file-compression :none}]
+             :container-presets [{:name "legacy" :provider "folder"}]
+             :packages [{:name "episodes" :container-preset "legacy" :file-compression-preset "legacy"}]}]
            [nil {}
             {:output-directory "."
-             :packages [{:name "liveupdate"}]
-             :providers [{:provider "zip" :properties [{:name "compression-level" :value "1"}]}]}]]]
+             :base-file-compression-preset "legacy"
+             :container-presets [{:name "legacy"}]
+             :packages [{:name "liveupdate" :container-preset "legacy" :file-compression-preset "legacy"}]
+             :file-compression-presets [{:name "legacy"}]}]]]
     (testing (or mode "default publisher")
       (test-util/with-scratch-project "test/resources/live_update_packages_project"
+        (when (= "Folder" mode)
+          (test-util/set-setting! (test-util/resource-node project "/game.project") ["project" "compress_archive"] false))
         (when-not mode
           (spit (workspace/find-resource workspace "/liveupdate.settings") "[liveupdate]\n")
           (workspace/resource-sync! workspace))
         (let [settings-node (test-util/resource-node project "/liveupdate.settings")
               original-settings (slurp (workspace/find-resource workspace "/liveupdate.settings"))
-              original-manifest (slurp (workspace/find-resource workspace "/liveupdate.lumanifest"))
+              original-manifest (slurp (workspace/find-resource workspace "/liveupdate.archivemanifest"))
               original-project (g/node-value (test-util/resource-node project "/game.project") :save-value)
-              unseen-collision (io/file (workspace/project-directory workspace) "liveupdate2.lumanifest")
+              unseen-collision (io/file (workspace/project-directory workspace) "liveupdate2.archivemanifest")
               opened (atom [])
               form-ops (:form-ops (g/node-value settings-node :form-data))]
           (g/transact
@@ -487,13 +496,13 @@
             (is (nil? (handler/active command (eval-handler-contexts :asset-browser [settings-node settings-node]) {})))
             (is (nil? (try @(handler/run handler-context) nil (catch Throwable error error))))
             (spit unseen-collision original-manifest)
-            (is (nil? (workspace/find-resource workspace "/liveupdate2.lumanifest")))
+            (is (nil? (workspace/find-resource workspace "/liveupdate2.archivemanifest")))
             (is (nil? (try @(handler/run handler-context) nil (catch Throwable error error))))
-            (is (= ["/liveupdate1.lumanifest" "/liveupdate3.lumanifest"] @opened))
+            (is (= ["/liveupdate1.archivemanifest" "/liveupdate3.archivemanifest"] @opened))
             (doseq [path @opened]
               (is (= expected (g/node-value (test-util/resource-node project path) :save-value))))
             (is (= original-settings (slurp (workspace/find-resource workspace "/liveupdate.settings"))))
-            (is (= original-manifest (slurp (workspace/find-resource workspace "/liveupdate.lumanifest"))))
+            (is (= original-manifest (slurp (workspace/find-resource workspace "/liveupdate.archivemanifest"))))
             (is (= original-manifest (slurp unseen-collision)))
             (is (= original-project (g/node-value (test-util/resource-node project "/game.project") :save-value)))))))))
 
@@ -542,8 +551,8 @@
                        (and (= :err stream)
                             (string/includes? text "Amazon")))
                      @output))
-      (is (nil? (workspace/find-resource workspace "/liveupdate1.lumanifest")))
-      (is (not (.exists (io/file (workspace/project-directory workspace) "liveupdate1.lumanifest")))))))
+      (is (nil? (workspace/find-resource workspace "/liveupdate1.archivemanifest")))
+      (is (not (.exists (io/file (workspace/project-directory workspace) "liveupdate1.archivemanifest")))))))
 
 ;; Conversion includes unsaved Exclude edits, while shared and mixed-route
 ;; resources retain the same base/package membership as legacy bundling.
@@ -555,7 +564,7 @@
           "components { id: \"episode\" component: \"/episode.collectionproxy\" }\ncomponents { id: \"included\" component: \"/included.collectionproxy\" }\ncomponents { id: \"mixed\" component: \"/mixed.collectionproxy\" }\n")
     (spit (workspace/find-resource workspace "/game.project")
           (string/replace (slurp (workspace/find-resource workspace "/game.project"))
-                          "settings = /liveupdate.lumanifest" "settings = /liveupdate.settings"))
+                          "[archive]\nmanifest = /liveupdate.archivemanifest" "[liveupdate]\nsettings = /liveupdate.settings"))
     (workspace/resource-sync! workspace)
     (let [proxy-node (test-util/resource-node project "/episode.collectionproxy")
           settings-node (test-util/resource-node project "/liveupdate.settings")
@@ -566,14 +575,14 @@
       (let [context (handler/active :defold.liveupdate.convert-settings (eval-handler-contexts :asset-browser [settings-node]) {})]
         (is (some? context))
         (is (nil? (try @(handler/run context) nil (catch Throwable error error)))))
-      (is (coll/not-empty (get-in (g/node-value (test-util/resource-node project "/liveupdate1.lumanifest") :save-value) [:packages 0 :rules])))
+      (is (coll/not-empty (get-in (g/node-value (test-util/resource-node project "/liveupdate1.archivemanifest") :save-value) [:packages 0 :rules])))
       (test-util/with-temp-dir! snapshot
         (fs/copy-directory! (workspace/project-directory workspace) snapshot)
         (spit (io/file snapshot "episode.collectionproxy") "collection: \"/episodes/00/episode.collection\"\nexclude: true\n")
         (let [build! (fn build! [manifest-path]
                        (PackageBuilder/buildPlan (.toPath snapshot) manifest-path {} (.getContextClassLoader (Thread/currentThread)) (Progress/discarding)))
               ^PackageResolver$Plan legacy (build! "")
-              ^PackageResolver$Plan converted (build! "/liveupdate1.lumanifest")
+              ^PackageResolver$Plan converted (build! "/liveupdate1.archivemanifest")
               excluded #{"/episodes/00/episode.collectionc" "/episodes/00/episode.goc" "/episodes/00/episode.scriptc"}]
           (is (= excluded (.resources ^PackageResolver$Package (get (.packages legacy) "liveupdate"))))
           (is (= excluded (.resources ^PackageResolver$Package (get (.packages converted) "liveupdate"))))

@@ -25,6 +25,7 @@
             [editor.live-update-manifest :as manifest]
             [editor.live-update-manifest-view :as manifest-view]
             [editor.live-update-settings :as live-update-settings]
+            [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.properties-view :as properties-view]
             [editor.protobuf :as protobuf]
@@ -195,32 +196,35 @@
               (io/copy input destination)))))
       (PackageBuilder/buildPlan (.toPath snapshot) manifest-path {} java/class-loader (Progress/discarding)))))
 
-;; The existing Settings picker accepts both workflows and saves the selected
-;; manifest without requiring a second Package Manifest setting.
-(deftest live-update-settings-selection
+;; Archive Manifest selects manifests independently of the legacy Live Update
+;; Settings picker and preserves the resource path when saving.
+(deftest archive-manifest-setting
   (test-util/with-scratch-project "test/resources/live_update_packages_project"
     (let [node (project/get-resource-node project "/game.project")
           fields (coll/into-> (:sections (g/node-value node :form-data)) {}
                    (mapcat :fields)
                    (map (juxt :path identity)))
-          setting-path ["liveupdate" "settings"]]
-      (is (= ["settings" "lumanifest"] (:filter (get fields setting-path))))
-      (is (not (contains? fields ["liveupdate" "manifest"])))
-      (doseq [path ["/liveupdate.settings" "/liveupdate.lumanifest"]]
-        (test-util/set-setting! node setting-path (workspace/find-resource workspace path))
-        (is (= path (live-update-settings/get-live-update-settings-path project)))
-        (is (= path (:value (coll/first-where #(= setting-path (:path %)) (g/node-value node :save-value)))))))))
+          setting-path ["archive" "manifest"]
+          manifest (workspace/find-resource workspace "/liveupdate.archivemanifest")]
+      (is (= "archivemanifest" (:filter (get fields setting-path))))
+      (is (= "settings" (:filter (get fields ["liveupdate" "settings"]))))
+      (test-util/set-setting! node setting-path nil)
+      (is (nil? (get (project/settings project) setting-path)))
+      (test-util/set-setting! node setting-path manifest)
+      (is (= manifest (get (project/settings project) setting-path)))
+      (is (= "/liveupdate.archivemanifest" (:value (coll/first-where #(= setting-path (:path %)) (g/node-value node :save-value)))))
+      (is (= "/liveupdate.settings" (live-update-settings/get-live-update-settings-path project))))))
 
 ;; Package/rule edits must use graph history and preserve the authoring format
 ;; on reload.
 (deftest authoring-and-history
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (let [node (project/get-resource-node project "/packages.lumanifest")
+    (let [node (project/get-resource-node project "/packages.archivemanifest")
           original (g/node-value node :save-value)
           [levels copy] (g/node-value node :packages)
           package-node (:node-id levels)
           [episode data] (:rules levels)]
-      (is (= "folder" (get-in copy [:value :provider])))
+      (is (= "folder" (get-in copy [:value :container-preset])))
       (is (:read-only (first (:children (g/node-value node :node-outline)))))
       (is (= #{"/episode.collection" "/extra.json"} (g/node-value node :selected-paths)))
       (test-util/handler-run :edit.reorder-up
@@ -233,24 +237,176 @@
       (is (= "renamed" (get-in (g/node-value node :save-value) [:packages 1 :rules 0 :package])))
       (is (= "+ Package: renamed"
              (@test-util/localization (:label (g/node-value (get-in copy [:rules 0 :node-id]) :node-outline)))))
-      (g/transact [(g/set-property package-node :provider :custom)
-                   (g/set-property package-node :custom-provider "studio-package")])
-      (is (= "studio-package" (get-in (g/node-value node :save-value) [:packages 0 :provider])))
+      (test-util/prop! package-node :container-preset "folder")
+      (is (= "folder" (get-in (g/node-value node :save-value) [:packages 0 :container-preset])))
       (g/transact (g/set-property (:node-id episode) :no-match :error))
       (is (= :error (get-in (g/node-value node :save-value) [:packages 0 :rules 1 :no-match])))
       (let [value (g/node-value node :save-value)
             text (resource-node/save-data-content (g/node-value node :save-data))]
         (is (= value (protobuf/read-map-without-defaults LiveUpdateManifest$ManifestDesc (java.io.StringReader. text))))
-        (test-util/make-resource! workspace "/reloaded.lumanifest" value)
+        (test-util/make-resource! workspace "/reloaded.archivemanifest" value)
         (workspace/resource-sync! workspace)
-        (is (= value (g/node-value (project/get-resource-node project "/reloaded.lumanifest") :save-value)))))))
+        (is (= value (g/node-value (project/get-resource-node project "/reloaded.archivemanifest") :save-value)))))))
+
+;; New manifests group compression types without exposing manifest properties
+;; or package commands when the display-only heading is selected.
+(deftest archive-compression-outline
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (test-util/make-resource! workspace "/new.archivemanifest")
+    (workspace/resource-sync! workspace)
+    (let [node (test-util/open-tab! project app-view "/new.archivemanifest")
+          compression-types (get-in (g/node-value node :node-outline) [:children 1])
+          [container file] (:children compression-types)
+          selection (outline/selection-id (outline/selection-path [node] compression-types))]
+      (is (= "Compression Types" (@test-util/localization (:label compression-types))))
+      (is (= ["Container" "File"] (mapv #(@test-util/localization (:label %)) [container file])))
+      (is (= ["Zip" "Folder"] (mapv :label (:children container))))
+      (is (= ["None" "LZ4 hc9"] (mapv :label (:children file))))
+      (is (:read-only compression-types))
+      (g/transact (app-view/select app-view node [selection]))
+      (is (= {} (get-in (g/node-value project :selected-node-properties-by-resource-node) [node 0 :properties])))
+      (is (not (test-util/handler-enabled? :edit.add-embedded-component
+                                           [{:name :workbench :env {:selection [selection] :app-view app-view}}] nil)))
+      (is (coll/empty? (g/node-value node :diagnostics))))))
+
+;; Preset creation, selection, rename, validation and deletion use ordinary
+;; outline/property transactions, including undo and protobuf save/reload.
+(deftest archive-file-compression-presets
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (let [node (test-util/open-tab! project app-view "/packages.archivemanifest")
+          base (get-in (g/node-value node :node-outline) [:children 0 :node-id])
+          group (get-in (g/node-value node :node-outline) [:children 1 :children 1 :node-id])
+          package (:node-id (first (g/node-value node :packages)))
+          contexts [{:name :workbench :env {:selection [group] :app-view app-view}}]]
+      (is (= "" (g/node-value base :file-compression-preset)))
+      (is (test-util/handler-enabled? :edit.add-embedded-component contexts nil))
+      (test-util/handler-run :edit.add-embedded-component contexts nil)
+      (let [preset (:node-id (first (g/node-value node :file-presets)))
+            property (fn [node-id key] (get-in (properties/coalesce [(g/node-value node-id :_properties)]) [:properties key]))]
+        (is (= [{:name "preset"}] (:file-compression-presets (g/node-value node :save-value))))
+        (is (= [preset] (get (g/node-value project :selected-node-ids-by-resource-node) node)))
+        (is (= ["" "preset"] (mapv first (get-in (property package :file-compression-preset) [:edit-type :options]))))
+        (test-util/prop! base :file-compression-preset "preset")
+        (test-util/prop! package :file-compression-preset "preset")
+        (ui/run-now
+          (let [control (:desc (properties-view/make-control-view (property preset :lz4-level) {} @test-util/localization))]
+            (is (= (vec (range 1 13)) (:items control)))
+            ((:on-value-changed control) 12)))
+        (test-util/prop! preset :id "small")
+        (is (= "small" (:base-file-compression-preset (g/node-value node :save-value))))
+        (is (= "small" (get-in (g/node-value node :save-value) [:packages 0 :file-compression-preset])))
+        (g/undo! :undo/global)
+        (is (= "preset" (g/node-value package :file-compression-preset)))
+        (g/redo! :undo/global)
+        (test-util/prop! preset :id "")
+        (is (= "small" (g/node-value package :file-compression-preset)))
+        (is (= :fatal (:severity (properties/validation-message (property preset :id)))))
+        (g/undo! :undo/global)
+        (test-util/prop! preset :lz4-level 13)
+        (is (= :fatal (:severity (properties/validation-message (property preset :lz4-level)))))
+        (is (:outline-error? (g/node-value preset :node-outline)))
+        (test-util/prop! preset :lz4-level 12)
+        (test-util/prop! preset :file-compression :none)
+        (is (not (contains? (:properties (properties/coalesce [(g/node-value preset :_properties)])) :lz4-level)))
+        (let [value (g/node-value node :save-value)]
+          (is (= [{:name "small" :file-compression :none :lz4-level 12}] (:file-compression-presets value)))
+          (test-util/make-resource! workspace "/compression.archivemanifest" value)
+          (workspace/resource-sync! workspace)
+          (is (= value (g/node-value (project/get-resource-node project "/compression.archivemanifest") :save-value))))
+        (g/transact (g/delete-node preset))
+        (is (:outline-error? (g/node-value base :node-outline)))
+        (is (:outline-error? (g/node-value package :node-outline)))
+        (is (= :fatal (:severity (properties/validation-message (property base :file-compression-preset)))))
+        (is (= :fatal (:severity (properties/validation-message (property package :file-compression-preset)))))
+        (g/undo! :undo/global)
+        (is (nil? (properties/validation-message (property package :file-compression-preset))))))))
+
+;; Container presets have their own selection, settings and name scope; edits
+;; never rename or invalidate Base's independently selected file preset.
+(deftest archive-container-presets
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (let [node (test-util/open-tab! project app-view "/packages.archivemanifest")
+          base (get-in (g/node-value node :node-outline) [:children 0 :node-id])
+          package (:node-id (first (g/node-value node :packages)))
+          property (fn [node-id key] (get-in (properties/coalesce [(g/node-value node-id :_properties)]) [:properties key]))]
+      (doseq [index [1 0]]
+        (test-util/handler-run :edit.add-embedded-component
+                               [{:name :workbench :env {:selection [(get-in (g/node-value node :node-outline) [:children 1 :children index :node-id])]
+                                                        :app-view app-view}}] nil))
+      (let [file (:node-id (first (g/node-value node :file-presets)))
+            container (:node-id (last (g/node-value node :container-presets)))]
+        (test-util/prop! base :file-compression-preset "preset")
+        (test-util/prop! package :file-compression-preset "preset")
+        (test-util/prop! package :container-preset "preset")
+        (is (nil? (property base :container-preset)))
+        (is (nil? (property file :zip-level)))
+        (is (nil? (property container :lz4-level)))
+        (is (= "Type" (@test-util/localization (:label (property container :provider)))))
+        (is (= [:zip :folder] (mapv first (get-in (property container :provider) [:edit-type :options]))))
+        (is (nil? (property container :custom-provider)))
+        (test-util/prop! container :zip-level 10)
+        (is (= :fatal (:severity (properties/validation-message (property container :zip-level)))))
+        (is (:outline-error? (g/node-value container :node-outline)))
+        (ui/run-now
+          (let [control (:desc (properties-view/make-control-view (property container :zip-level) {} @test-util/localization))]
+            (is (= (vec (range -1 10)) (:items control)))
+            (is (= 10 (:value control)))
+            ((:on-value-changed control) 9)))
+        (test-util/prop! container :id "packed")
+        (is (= "packed" (g/node-value package :container-preset)))
+        (is (= "preset" (g/node-value package :file-compression-preset)))
+        (is (= "preset" (g/node-value base :file-compression-preset)))
+        (g/undo! :undo/global)
+        (is (= "preset" (g/node-value package :container-preset)))
+        (g/redo! :undo/global)
+        (test-util/prop! container :provider :folder)
+        (is (nil? (property container :zip-level)))
+        (let [value (g/node-value node :save-value)]
+          (is (= [{:name "folder" :provider "folder"} {:name "packed" :provider "folder" :zip-level 9}]
+                 (:container-presets value)))
+          (is (= [{:name "preset"}] (:file-compression-presets value)))
+          (test-util/make-resource! workspace "/containers.archivemanifest" value)
+          (workspace/resource-sync! workspace)
+          (is (= value (g/node-value (project/get-resource-node project "/containers.archivemanifest") :save-value))))
+        (g/transact (g/delete-node container))
+        (is (:outline-error? (g/node-value package :node-outline)))
+        (is (= :fatal (:severity (properties/validation-message (property package :container-preset)))))
+        (is (nil? (properties/validation-message (property base :file-compression-preset))))
+        (g/undo! :undo/global)
+        (is (nil? (properties/validation-message (property package :container-preset))))))))
+
+;; Correcting duplicate names in either compression group must preserve
+;; Base and package selections.
+(deftest preset-rename-name-conflicts
+  (doseq [presets-output [:container-presets :file-presets]]
+    (test-util/with-scratch-project "test/resources/live_update_project"
+      (test-util/make-resource! workspace "/presets.archivemanifest"
+                                {:base-file-compression-preset "a"
+                                 :container-presets [{:name "a"} {:name "b" :provider "folder"}]
+                                 :file-compression-presets [{:name "a"} {:name "b" :file-compression :none}]
+                                 :packages [{:name "one" :container-preset "a" :file-compression-preset "a"}
+                                            {:name "two" :container-preset "b" :file-compression-preset "b"}]})
+      (workspace/resource-sync! workspace)
+      (let [node (project/get-resource-node project "/presets.archivemanifest")
+            original (g/node-value node :save-value)
+            preset (get-in (g/node-value node presets-output) [1 :node-id])]
+        (test-util/prop! preset :id "a")
+        (is (coll/not-empty (g/node-value node :diagnostics)))
+        (is (= (:packages original) (:packages (g/node-value node :save-value))))
+        (test-util/prop! preset :id "b")
+        (is (= original (g/node-value node :save-value)))
+        (is (coll/empty? (g/node-value node :diagnostics)))
+        (g/undo! :undo/global)
+        (is (= (:packages original) (:packages (g/node-value node :save-value))))
+        (g/redo! :undo/global)
+        (is (= original (g/node-value node :save-value)))))))
 
 ;; Output directories preserve authored variables through property edits, undo
 ;; and reload. Previews resolve unsaved values against the real project without
 ;; creating output folders.
 (deftest output-directory-property
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (let [node (project/get-resource-node project "/packages.lumanifest")
+    (let [node (project/get-resource-node project "/packages.archivemanifest")
           root (workspace/project-directory workspace)
           original (g/node-value node :save-value)
           property #(get-in (properties/coalesce [(g/node-value node :_properties)]) [:properties :output-directory])]
@@ -268,85 +424,46 @@
           (is (= :fatal (:severity (properties/validation-message (property)))))
           (change! "exported packages")))
       (is (not (.exists (io/file root "exported packages"))))
-      (test-util/make-resource! workspace "/reloaded.lumanifest" (g/node-value node :save-value))
+      (test-util/make-resource! workspace "/reloaded.archivemanifest" (g/node-value node :save-value))
       (workspace/resource-sync! workspace)
-      (is (= "exported packages" (g/node-value (project/get-resource-node project "/reloaded.lumanifest") :output-directory))))))
-
-;; Provider defaults ignore legacy settings. Explicit overrides use normal
-;; property editing, history and reload.
-(deftest provider-properties
-  (test-util/with-scratch-project "test/resources/live_update_project"
-    (let [node (project/get-resource-node project "/packages.lumanifest")
-          key :live-update-provider.zip/compression-level
-          property #(get-in (properties/coalesce [(g/node-value node :_properties)]) [:properties key])]
-      (is (= [1] (properties/values (property))))
-      (is (not (properties/overridden? (property))))
-      (is (= (mapv (fn [n] [n (str n)]) (range -1 10)) (get-in (property) [:edit-type :options])))
-      (spit (workspace/file-resource workspace "/liveupdate.settings") "[liveupdate]\nzip-compression-level = 6\n")
-      (workspace/resource-sync! workspace)
-      (test-util/set-setting! (project/get-resource-node project "/game.project") ["liveupdate" "settings"]
-                              (workspace/file-resource workspace "/liveupdate.settings"))
-      (is (= [1] (properties/values (property))))
-      (test-util/set-setting! (project/get-resource-node project "/liveupdate.settings") ["liveupdate" "zip-compression-level"] 7)
-      (is (= [1] (properties/values (property))))
-      (ui/run-now
-        (let [control (:desc (properties-view/make-control-view (property) {} @test-util/localization))]
-          ((:on-value-changed control) 9)))
-      (is (= [{:provider "zip" :properties [{:name "compression-level" :value "9"}]}]
-             (:providers (g/node-value node :save-value))))
-      (is (= [9] (properties/values (property))))
-      (is (properties/overridden? (property)))
-      (g/undo! :undo/global)
-      (is (= [1] (properties/values (property))))
-      (g/redo! :undo/global)
-      (test-util/make-resource! workspace "/provider-reloaded.lumanifest" (g/node-value node :save-value))
-      (workspace/resource-sync! workspace)
-      (is (= (g/node-value node :save-value) (g/node-value (project/get-resource-node project "/provider-reloaded.lumanifest") :save-value)))
-      (properties/clear-override! (property))
-      (is (= [1] (properties/values (property))))
-      (is (not (contains? (g/node-value node :save-value) :providers)))
-      (g/undo! :undo/global)
-      (is (= [9] (properties/values (property))))
-      (properties/set-values! (property) ["wrong"])
-      (is (= :fatal (:severity (properties/validation-message (property)))))
-      (is (re-find #"compression-level.*wrong" (@test-util/localization (:message (properties/validation-message (property))))))
-      (properties/set-values! (property) [3])
-      (is (nil? (properties/validation-message (property)))))))
+      (is (= "exported packages" (g/node-value (project/get-resource-node project "/reloaded.archivemanifest") :output-directory))))))
 
 ;; Unused and unavailable provider settings survive form edits and reload, so
 ;; changing providers does not silently erase authored configuration.
 (deftest preserve-provider-settings
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (test-util/make-resource! workspace "/provider-settings.lumanifest"
-                              {:packages [{:name "custom" :provider "unavailable"}]
-                               :providers [{:provider "zip" :properties [{:name "compression-level" :value "4"}]}
+    (test-util/make-resource! workspace "/provider-settings.archivemanifest"
+                              {:container-presets [{:name "custom" :provider "unavailable"} {:name "folder" :provider "folder"}]
+                               :packages [{:name "custom" :container-preset "custom"}]
+                               :providers [{:provider "another-provider" :properties [{:name "quality" :value "4"}]}
                                            {:provider "unavailable" :properties [{:name "format" :value "a"}]}]})
     (workspace/resource-sync! workspace)
-    (let [node (project/get-resource-node project "/provider-settings.lumanifest")
+    (let [node (project/get-resource-node project "/provider-settings.archivemanifest")
           package (:node-id (first (g/node-value node :packages)))
           property #(get-in (properties/coalesce [(g/node-value node :_properties)]) [:properties :live-update-provider.unavailable/format])]
       (is (= ["a"] (properties/values (property))))
       (properties/set-values! (property) ["b"])
       (is (= "4" (get-in (g/node-value node :save-value) [:providers 0 :properties 0 :value])))
       (is (= "b" (get-in (g/node-value node :save-value) [:providers 1 :properties 0 :value])))
-      (g/transact (g/set-property package :provider :folder))
+      (g/transact (g/set-property package :container-preset "folder"))
       (is (nil? (property)))
-      (g/transact (g/set-property package :provider :custom))
+      (g/transact (g/set-property package :container-preset "custom"))
       (is (= ["b"] (properties/values (property))))
-      (test-util/make-resource! workspace "/provider-reloaded.lumanifest" (g/node-value node :save-value))
+      (test-util/make-resource! workspace "/provider-reloaded.archivemanifest" (g/node-value node :save-value))
       (workspace/resource-sync! workspace)
-      (is (= (g/node-value node :save-value) (g/node-value (project/get-resource-node project "/provider-reloaded.lumanifest") :save-value))))))
+      (is (= (g/node-value node :save-value) (g/node-value (project/get-resource-node project "/provider-reloaded.archivemanifest") :save-value))))))
 
 ;; Adding a pipeline JAR refreshes an existing manifest's cached properties.
 ;; Unsaved provider settings are captured by the manifest's save value.
 (deftest custom-provider-properties
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (test-util/make-resource! workspace "/provider.lumanifest"
-                              {:packages [{:name "custom" :provider "manifest-test"
+    (test-util/make-resource! workspace "/provider.archivemanifest"
+                              {:container-presets [{:name "custom" :provider "manifest-test"}]
+                               :packages [{:name "custom" :container-preset "custom"
                                            :rules [{:name "Data" :path "/extra[.]json"}]}]})
     (workspace/resource-sync! workspace)
     (let [root (workspace/project-directory workspace)
-          node (project/get-resource-node project "/provider.lumanifest")
+          node (project/get-resource-node project "/provider.archivemanifest")
           classes (io/file root "build/provider-test-classes")
           jar (workspace/file-resource workspace "/provider/plugins/share/provider.jar")
           class-path "com/defold/extension/pipeline/ManifestTestProvider.class"]
@@ -383,7 +500,7 @@
 (deftest manifest-resource-listener-lifecycle
   (test-util/with-scratch-project "test/resources/empty_project"
     (let [listeners (g/node-value workspace :resource-listeners)
-          path "/packages.lumanifest"]
+          path "/packages.archivemanifest"]
       (is (= 1 (count @listeners)))
       (doseq [output-directory ["first" "second"]]
         (test-util/make-resource! workspace path
@@ -392,9 +509,7 @@
         (workspace/resource-sync! workspace)
         (let [node (project/get-resource-node project path)]
           (is (= output-directory (g/node-value node :output-directory)))
-          (is (= [1] (properties/values
-                       (get-in (properties/coalesce [(g/node-value node :_properties)])
-                               [:properties :live-update-provider.zip/compression-level])))))
+          (is (contains? (g/node-value node :provider-schemas) "zip")))
         (is (= 2 (count @listeners))))
       (fs/delete-file! (io/as-file (workspace/file-resource workspace path)))
       (workspace/resource-sync! workspace)
@@ -410,7 +525,7 @@
 ;; references use their target as the outline label instead of an editable name.
 (deftest rule-radio-properties
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (let [node (project/get-resource-node project "/packages.lumanifest")
+    (let [node (project/get-resource-node project "/packages.archivemanifest")
           packages (g/node-value node :packages)
           path-rule (get-in packages [0 :rules 0 :node-id])
           package-rule (get-in packages [1 :rules 0 :node-id])
@@ -470,13 +585,13 @@
 ;; and renames without offering self-references or indirect cycles.
 (deftest package-reference-properties
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (test-util/make-resource! workspace "/references.lumanifest"
+    (test-util/make-resource! workspace "/references.archivemanifest"
                               {:packages [{:name "a" :rules [{:name "Include b" :package "b"}]}
                                           {:name "b" :rules [{:name "Subtract c" :operation :remove :package "c"}]}
                                           {:name "c" :rules [{:name "Include independent" :package "independent"}]}
                                           {:name "independent"}]})
     (workspace/resource-sync! workspace)
-    (let [node (project/get-resource-node project "/references.lumanifest")
+    (let [node (project/get-resource-node project "/references.archivemanifest")
           [a b c] (g/node-value node :packages)
           rule (get-in b [:rules 0 :node-id])
           property (fn [rule]
@@ -511,9 +626,9 @@
                             {:name "b" :rules [{:name "Include c" :package "c"}]}
                             {:name "c" :rules [{:name "Subtract a" :operation :remove :package "a"}]}
                             {:name "independent"}]}]
-      (test-util/make-resource! workspace "/references.lumanifest" value)
+      (test-util/make-resource! workspace "/references.archivemanifest" value)
       (workspace/resource-sync! workspace)
-      (let [node (project/get-resource-node project "/references.lumanifest")
+      (let [node (project/get-resource-node project "/references.archivemanifest")
             packages (g/node-value node :packages)
             rule (get-in packages [2 :rules 0 :node-id])
             error-message "Package reference cycle in rule 'Subtract a' of package 'c': c -> a -> b -> c"]
@@ -542,7 +657,7 @@
 ;; choice if unsaved edits made it cyclic while the rule was in Path mode.
 (deftest package-target-mode-restoration
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (let [node (project/get-resource-node project "/packages.lumanifest")
+    (let [node (project/get-resource-node project "/packages.archivemanifest")
           packages (g/node-value node :packages)
           levels-rule (get-in packages [0 :rules 0 :node-id])
           copy-rule (get-in packages [1 :rules 0 :node-id])]
@@ -567,7 +682,7 @@
 ;; the base or a mixed selection.
 (deftest outline-commands
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (let [node (test-util/open-tab! project app-view "/packages.lumanifest")
+    (let [node (test-util/open-tab! project app-view "/packages.archivemanifest")
           base (get-in (g/node-value node :node-outline) [:children 0 :node-id])
           contexts (fn [selection] [{:name :workbench :env {:selection selection :app-view app-view}}])]
       (is (test-util/handler-enabled? :edit.add-embedded-component (contexts [node]) nil))
@@ -605,9 +720,9 @@
 ;; when files appear or disappear; regex errors expose one-based columns.
 (deftest validation-and-inventory
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (with-manifest-view! project app-view "/packages.lumanifest"
+    (with-manifest-view! project app-view "/packages.archivemanifest"
       (fn [_]
-        (let [node (project/get-resource-node project "/packages.lumanifest")
+        (let [node (project/get-resource-node project "/packages.archivemanifest")
               rule (get-in (g/node-value node :packages) [0 :rules 0 :node-id])]
           (doseq [[path column reason] [["[" 1 "Unclosed character class"]
                                         ["/episodes/[" 11 "Unclosed character class"]
@@ -659,7 +774,7 @@
 ;; reserved filenames and duplicates. Repairing the name clears both errors.
 (deftest package-name-validation
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (let [manifest (project/get-resource-node project "/packages.lumanifest")
+    (let [manifest (project/get-resource-node project "/packages.archivemanifest")
           [levels copy] (g/node-value manifest :packages)
           node (:node-id copy)]
       (doseq [[name message] [["CON" "Invalid or reserved package name: CON"]
@@ -680,7 +795,7 @@
   (test-util/with-scratch-project "test/resources/live_update_project"
     (let [game-project (project/get-resource-node project "/game.project")
           raw (project/get-resource-node project "/extra.json")
-          manifest-node (project/get-resource-node project "/packages.lumanifest")
+          manifest-node (project/get-resource-node project "/packages.archivemanifest")
           rule (get-in (g/node-value manifest-node :packages) [0 :rules 1 :node-id])
           opaque-file (workspace/file-resource workspace "/opaque/data.script")
           opaque "This is custom data, not Lua."]
@@ -689,7 +804,7 @@
       (workspace/resource-sync! workspace)
       (test-util/set-setting! game-project ["project" "custom_resources"] "/extra.json,/opaque")
       (g/transact (g/set-property rule :path "/(extra[.]json|opaque/.*)"))
-      (with-manifest-view! project app-view "/packages.lumanifest"
+      (with-manifest-view! project app-view "/packages.archivemanifest"
         (fn [{:keys [state]}]
           (doseq [index (range 2)]
             (let [previous (:result @state)]
@@ -705,7 +820,7 @@
                        (keep (fn [save-data]
                                (when-let [content (resource-node/save-data-content save-data)]
                                  [(resource/proj-path (:resource save-data)) content]))))
-            plan (build-bob-plan! project contents "/packages.lumanifest")]
+            plan (build-bob-plan! project contents "/packages.archivemanifest")]
         (is (contains? (.resources ^PackageResolver$Package (get (.packages plan) "levels")) "/opaque/data.script"))
         (is (not (contains? (.resources plan) "/opaque/data.scriptc")))))))
 
@@ -713,20 +828,20 @@
 ;; Resource synchronization captures ownership so graph evaluation stays pure.
 (deftest exported-artifacts-are-not-sources
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (test-util/make-resource! workspace "/packages.lumanifest"
+    (test-util/make-resource! workspace "/packages.archivemanifest"
                               {:output-directory "."
                                :packages [{:name "episode" :rules [{:name "Files" :path "/.*[.](json|zip)"}]}]})
     (workspace/resource-sync! workspace)
-    (is (= #{"/extra.json"} (g/node-value (project/get-resource-node project "/packages.lumanifest") :selected-paths)))
-    (let [node (project/get-resource-node project "/packages.lumanifest")
+    (is (= #{"/extra.json"} (g/node-value (project/get-resource-node project "/packages.archivemanifest") :selected-paths)))
+    (let [node (project/get-resource-node project "/packages.archivemanifest")
           ^PackageResolver$Plan packaged
           (with-open [bob (Project. (.getContextClassLoader (Thread/currentThread))
                                     (DefaultFileSystem.) (str (workspace/project-directory workspace)) "build")]
             (doseq [[k v] {"platform" (.getPair (Platform/getHostPlatform))
-                           "variant" "debug" "archive" "true" "liveupdate" "true"}]
+                           "variant" "debug" "package" "episode"}]
               (.setOption bob k v))
             (.mount bob (ClassLoaderResourceScanner.) [])
-            (doseq [^TaskResult result (.build bob (Progress/discarding) (into-array String ["build"]))]
+            (doseq [^TaskResult result (.build bob (Progress/discarding) (into-array String ["build" "bundle"]))]
               (is (.isOk result) (str result)))
             (.getLiveUpdatePlan bob))]
       (workspace/resource-sync! workspace)
@@ -734,12 +849,12 @@
       (is (= #{"/episode.zip"} (g/node-value node :generated-paths)))
       (is (= #{"/extra.json"} (g/node-value node :selected-paths)))
       (let [sources (set (g/node-value node :source-paths))
-            refreshed (build-bob-plan! project {} "/packages.lumanifest")]
+            refreshed (build-bob-plan! project {} "/packages.archivemanifest")]
         (is (not (contains? sources "/episode.zip")))
         (is (= (.base packaged) (.base refreshed)))
         (is (= (.resources ^PackageResolver$Package (get (.packages packaged) "episode"))
                (.resources ^PackageResolver$Package (get (.packages refreshed) "episode")))))
-      (with-manifest-view! project app-view "/packages.lumanifest"
+      (with-manifest-view! project app-view "/packages.archivemanifest"
         (fn [{:keys [state]}]
           (let [plan ^PackageResolver$Plan (get-in @state [:result :compiled :plan])
                 paths (.resources ^PackageResolver$Package (get (.packages plan) "episode"))]
@@ -763,8 +878,8 @@
                        (keep (fn [data]
                                (when-let [content (resource-node/save-data-content data)]
                                  [(resource/proj-path (:resource data)) content]))))
-            plan (build-bob-plan! project contents "/liveupdate.lumanifest")]
-        (with-manifest-view! project app-view "/liveupdate.lumanifest"
+            plan (build-bob-plan! project contents "/liveupdate.archivemanifest")]
+        (with-manifest-view! project app-view "/liveupdate.archivemanifest"
           (fn [{:keys [state]}]
             (let [graph-plan ^PackageResolver$Plan (:plan (get-in @state [:result :compiled]))]
               (is (= (set (coll/keys expected)) (set (.keySet (.packages plan)))))
@@ -787,9 +902,9 @@
 (deftest preserve-invalid-rule-target
   (test-util/with-scratch-project "test/resources/live_update_project"
     (let [value {:packages [{:name "invalid" :rules [{:name "Both" :path "/extra[.]json" :package "missing"}]}]}]
-      (test-util/make-resource! workspace "/invalid.lumanifest" value)
+      (test-util/make-resource! workspace "/invalid.archivemanifest" value)
       (workspace/resource-sync! workspace)
-      (let [node (project/get-resource-node project "/invalid.lumanifest")
+      (let [node (project/get-resource-node project "/invalid.archivemanifest")
             rule (get-in (g/node-value node :packages) [0 :rules 0 :node-id])]
         (is (= value (g/node-value node :save-value)))
         (is (g/error-value? (g/node-value node :selected-paths)))
@@ -821,12 +936,12 @@
                                                    {:id "dynamic" :component "/dynamic.factory"}
                                                    {:id "collection" :component "/dynamic.collectionfactory"}]}
                           "/main.collection" {:name "main" :instances [{:id "main" :prototype "/main.go"}]}
-                          "/packages.lumanifest" {:packages [{:name "content" :rules [{:name "Content" :path "/(regular|dynamic|child)[.]go|/payload[.]collection"}]}]}}]
+                          "/packages.archivemanifest" {:packages [{:name "content" :rules [{:name "Content" :path "/(regular|dynamic|child)[.]go|/payload[.]collection"}]}]}}]
       (test-util/make-resource! workspace path value))
     (spit (workspace/file-resource workspace "/shared.script") "function init(self) end\n")
     (spit (workspace/file-resource workspace "/extra.lua") "return {}\n")
     (workspace/resource-sync! workspace)
-    (with-manifest-view! project app-view "/packages.lumanifest"
+    (with-manifest-view! project app-view "/packages.archivemanifest"
       (fn [{:keys [state]}]
         (let [initial ^PackageResolver$Plan (:plan (get-in @state [:result :compiled]))]
           (is (contains? (.locks initial) "/regular.goc"))
@@ -847,9 +962,9 @@
 ;; Syntax errors remain available immediately, before the preview worker runs.
 (deftest validation-does-not-scan-inventory
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (with-manifest-view! project app-view "/packages.lumanifest"
+    (with-manifest-view! project app-view "/packages.archivemanifest"
       (fn [{:keys [view]}]
-        (let [manifest (project/get-resource-node project "/packages.lumanifest")
+        (let [manifest (project/get-resource-node project "/packages.archivemanifest")
               rule (get-in (g/node-value manifest :packages) [0 :rules 0 :node-id])
               evaluated (atom #{})
               _ (test-util/prop! rule :path "[")
@@ -869,12 +984,12 @@
 ;; reopening disposes the old view and creates a fresh preview.
 (deftest graph-preview
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (let [node (project/get-resource-node project "/packages.lumanifest")
+    (let [node (project/get-resource-node project "/packages.archivemanifest")
           raw (project/get-resource-node project "/extra.json")
           packages (g/node-value node :packages)
           episode (get-in packages [0 :rules 0 :node-id])
           old-state (atom nil)]
-      (with-manifest-view! project app-view "/packages.lumanifest"
+      (with-manifest-view! project app-view "/packages.archivemanifest"
         (fn [{:keys [state parent]}]
           (reset! old-state state)
           (let [initial (:result @state)
@@ -929,7 +1044,7 @@
               (is (= #{"/nothing.collectionc" "/extra.json"}
                      (set (.resources ^PackageResolver$Package (get (.packages ^PackageResolver$Plan (:plan result)) "levels")))))))))
       (is (= {} @@old-state))
-      (with-manifest-view! project app-view "/packages.lumanifest"
+      (with-manifest-view! project app-view "/packages.archivemanifest"
         (fn [{:keys [state]}]
           (is (not (identical? @old-state state)))
           (is (instance? PackageResolver$Plan (get-in @state [:result :compiled :plan]))))))))
@@ -971,14 +1086,14 @@
   (test-util/with-scratch-project "test/resources/live_update_project"
     (test-util/make-resource! workspace "/bonus.collection" {:name "bonus"})
     (workspace/resource-sync! workspace)
-    (with-manifest-view! project app-view "/packages.lumanifest"
+    (with-manifest-view! project app-view "/packages.archivemanifest"
       (fn [{:keys [state parent]}]
-        (let [node (project/get-resource-node project "/packages.lumanifest")
+        (let [node (project/get-resource-node project "/packages.archivemanifest")
               rule (get-in (g/node-value node :packages) [0 :rules 0 :node-id])
               table (resource-table parent)
               filter-control ^TextField (.lookup ^Pane parent "#liveupdate-filter")
               previous (:result @state)
-              work (pause-preview! project "/packages.lumanifest")]
+              work (pause-preview! project "/packages.archivemanifest")]
           (try
             (await-ui! #(realized? (:started work)))
             (is (true? @(:started work)))
@@ -1018,14 +1133,14 @@
   (test-util/with-scratch-project "test/resources/live_update_project"
     (let [active (atom nil)]
       (try
-        (with-manifest-view! project app-view "/packages.lumanifest"
+        (with-manifest-view! project app-view "/packages.archivemanifest"
           (fn [_]
-            (let [work (pause-preview! project "/packages.lumanifest")]
+            (let [work (pause-preview! project "/packages.archivemanifest")]
               (reset! active work)
               (await-ui! #(realized? (:started work))))))
         (is (= true (deref (:finished @active) 30000 :timeout)))
         (g/set-property! (:node @active) :gate nil)
-        (with-manifest-view! project app-view "/packages.lumanifest"
+        (with-manifest-view! project app-view "/packages.archivemanifest"
           (fn [{:keys [state]}]
             (is (instance? PackageResolver$Plan (get-in @state [:result :compiled :plan])))))
         (finally
@@ -1037,15 +1152,15 @@
 ;; result. Finishing another view must not dismiss the active task's progress.
 (deftest delayed-preview-progress
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (test-util/make-resource! workspace "/other.lumanifest"
+    (test-util/make-resource! workspace "/other.archivemanifest"
                               {:packages [{:name "other" :rules [{:name "Data" :path "/extra[.]json"}]}]})
     (workspace/resource-sync! workspace)
-    (with-manifest-view! project app-view "/packages.lumanifest"
+    (with-manifest-view! project app-view "/packages.archivemanifest"
       (fn [{:keys [state preferences]}]
         (let [previous (:result @state)
-              work (pause-preview! project "/packages.lumanifest")
+              work (pause-preview! project "/packages.archivemanifest")
               _ (await-ui! #(realized? (:started work)))
-              second-view (open-manifest-view! project app-view "/other.lumanifest" preferences)
+              second-view (open-manifest-view! project app-view "/other.archivemanifest" preferences)
               {:keys [^Button progress-cancel-button ^Label status-label ^Pane progress-hbox]}
               (ui/collect-controls (.getRoot (.getScene (ui/main-stage)))
                                    ["progress-cancel-button" "status-label" "progress-hbox"])]
@@ -1076,18 +1191,19 @@
     (doseq [name ["episode" "bonus" "main"]]
       (test-util/make-resource! workspace (str "/" name ".collection")
                                 {:name name :instances [{:id "shared" :prototype "/shared.go"}]}))
-    (test-util/make-resource! workspace "/packages.lumanifest"
+    (test-util/make-resource! workspace "/packages.archivemanifest"
                               {:packages [{:name "levels"
                                            :rules [{:name "Episodes" :path "/(episode|bonus)[.]collection"}
                                                    {:name "Data" :path "/extra[.]json"}
                                                    {:name "Script" :path "/shared[.]script"}]}
-                                          {:name "copy" :provider "folder" :rules [{:name "Levels" :package "levels"}]}]})
+                                          {:name "copy" :container-preset "folder" :rules [{:name "Levels" :package "levels"}]}]
+                               :container-presets [{:name "folder" :provider "folder"}]})
     (workspace/resource-sync! workspace)
     (test-util/set-setting! (project/get-resource-node project "/game.project")
                             ["project" "custom_resources"] "/extra.json")
-    (with-manifest-view! project app-view "/packages.lumanifest"
+    (with-manifest-view! project app-view "/packages.archivemanifest"
       (fn [{:keys [parent ^Tab tab]}]
-        (let [node (project/get-resource-node project "/packages.lumanifest")
+        (let [node (project/get-resource-node project "/packages.archivemanifest")
               packages (g/node-value node :packages)
               table (resource-table parent)
               filter-control ^TextField (.lookup ^Pane parent "#liveupdate-filter")
@@ -1165,9 +1281,9 @@
 ;; selected resource clears its source link without leaving stale trace text.
 (deftest graph-preview-selection-details
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (with-manifest-view! project app-view "/packages.lumanifest"
+    (with-manifest-view! project app-view "/packages.archivemanifest"
       (fn [{:keys [state parent]}]
-        (let [node (project/get-resource-node project "/packages.lumanifest")
+        (let [node (project/get-resource-node project "/packages.archivemanifest")
               package (first (g/node-value node :packages))
               rule (get-in package [:rules 1 :node-id])
               table (resource-table parent)]
@@ -1199,12 +1315,12 @@
                               {:components [{:id "sprite" :component "/atlas.sprite"}]})
     (test-util/make-resource! workspace "/main.collection"
                               {:name "main" :instances [{:id "main" :prototype "/main.go"}]})
-    (test-util/make-resource! workspace "/packages.lumanifest"
+    (test-util/make-resource! workspace "/packages.archivemanifest"
                               {:packages [{:name "episode" :rules [{:name "Atlas" :path "/atlas[.]atlas"}]}]})
     (workspace/resource-sync! workspace)
-    (with-manifest-view! project app-view "/packages.lumanifest"
+    (with-manifest-view! project app-view "/packages.archivemanifest"
       (fn [{:keys [parent]}]
-        (let [node (project/get-resource-node project "/packages.lumanifest")
+        (let [node (project/get-resource-node project "/packages.archivemanifest")
               package-node (get-in (g/node-value node :packages) [0 :node-id])
               table (resource-table parent)
               ^TextField filter-control (.lookup ^Pane parent "#liveupdate-filter")]
@@ -1240,16 +1356,16 @@
                                             {:id "resident" :component "/resident.collectionproxy"}]})
     (test-util/make-resource! workspace "/main.collection"
                               {:name "main" :instances [{:id "main" :prototype "/main.go"}]})
-    (test-util/make-resource! workspace "/packages.lumanifest"
+    (test-util/make-resource! workspace "/packages.archivemanifest"
                               {:packages [{:name "levels"
                                            :rules [{:name "Episode" :path "/episode[.]collection"}
                                                    {:name "Keep in base" :operation :remove :path "/z[.]go"}]}]})
     (workspace/resource-sync! workspace)
     (test-util/set-setting! (project/get-resource-node project "/game.project")
                             ["project" "custom_resources"] "/custom.json")
-    (with-manifest-view! project app-view "/packages.lumanifest"
+    (with-manifest-view! project app-view "/packages.archivemanifest"
       (fn [{:keys [parent]}]
-        (let [node (project/get-resource-node project "/packages.lumanifest")
+        (let [node (project/get-resource-node project "/packages.archivemanifest")
               table (resource-table parent)]
           (g/transact {:undoable false} (app-view/select app-view node [node]))
           (await-ui! #(= "Package: Base" (.getText ^Label (.lookup ^Pane parent "#liveupdate-package-heading"))))
@@ -1269,22 +1385,29 @@
         (io/make-parents library)
         (with-open [output (ZipOutputStream. (io/output-stream library))]
           (doseq [[path content] [["game.project" "[library]\ninclude_dirs = packages\n"]
-                                  ["packages/library.lumanifest" "packages { name: \"library\" rules { name: \"Data\" path: \"/packages/data[.]json\" } }"]
+                                  ["packages/library.archivemanifest" "packages { name: \"library\" rules { name: \"Data\" path: \"/packages/data[.]json\" } } file_compression_presets { name: \"preset\" } container_presets { name: \"zip\" }"]
                                   ["packages/data.json" "{}"]]]
             (.putNextEntry output (ZipEntry. ^String path))
             (.write output (.getBytes ^String content StandardCharsets/UTF_8))
             (.closeEntry output)))
         (test-util/set-cached-project-dependencies! workspace [uri])
         (workspace/resource-sync! workspace)
-        (let [node (project/get-resource-node project "/packages/library.lumanifest")
+        (let [node (project/get-resource-node project "/packages/library.archivemanifest")
+              base (:node-id (first (:children (g/node-value node :node-outline))))
               package (first (g/node-value node :packages))
-              rule (first (:rules package))]
+              rule (first (:rules package))
+              preset (:node-id (first (g/node-value node :file-presets)))
+              container (:node-id (first (g/node-value node :container-presets)))]
+          (is (get-in (g/node-value container :_properties) [:properties :zip-level :read-only?]))
+          (is (get-in (g/node-value preset :_properties) [:properties :lz4-level :read-only?]))
           (is (= #{"/packages/data.json"} (g/node-value node :selected-paths)))
           (is (g/node-value node :read-only))
-          (is (get-in (g/node-value node :_properties) [:properties :live-update-provider.zip/compression-level :read-only?]))
+          (is (get-in (g/node-value node :_properties) [:properties :output-directory :read-only?]))
           (is (:read-only (g/node-value (:node-id package) :node-outline)))
           (is (:read-only (g/node-value (:node-id rule) :node-outline)))
-          (is (get-in (g/node-value (:node-id package) :_properties) [:properties :provider :read-only?]))
+          (is (get-in (g/node-value (:node-id package) :_properties) [:properties :container-preset :read-only?]))
+          (is (get-in (g/node-value (:node-id package) :_properties) [:properties :file-compression-preset :read-only?]))
+          (is (get-in (g/node-value base :_properties) [:properties :file-compression-preset :read-only?]))
           (is (get-in (g/node-value (:node-id rule) :_properties) [:properties :path :read-only?]))
           (ui/run-now
             (doseq [prop-kw [:operation :target :no-match]]

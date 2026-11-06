@@ -1,0 +1,24 @@
+base_file_compression_preset: "plain"
+output_directory: "build/liveupdate"
+packages {
+  name: "assets"
+  container_preset: "folder"
+  file_compression_preset: "plain"
+  rules { name: "Sources" operation: REMOVE path: "/unused/.*" no_match: IGNORE }
+}
+packages {
+  name: "extra"
+  container_preset: "custom"
+  rules { name: "Package" operation: REMOVE package: "assets" }
+}
+providers {
+  provider: "custom-provider"
+  properties { name: "format" value: "custom" }
+}
+file_compression_presets {
+  name: "plain"
+  file_compression: NONE
+  lz4_level: 12
+}
+container_presets { name: "folder" provider: "folder" }
+container_presets { name: "custom" provider: "custom-provider" zip_level: 9 }

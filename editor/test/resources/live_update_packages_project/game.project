@@ -7,5 +7,5 @@ main_collection = /main.collectionc
 [input]
 game_binding = /game.input_bindingc
 
-[liveupdate]
-settings = /liveupdate.lumanifest
+[archive]
+manifest = /liveupdate.archivemanifest

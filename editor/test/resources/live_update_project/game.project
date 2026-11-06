@@ -4,8 +4,8 @@ title = Live Update packages
 [bootstrap]
 main_collection = /main.collectionc
 
-[liveupdate]
-settings = /packages.lumanifest
+[archive]
+manifest = /packages.archivemanifest
 
 [input]
 game_binding = /game.input_bindingc

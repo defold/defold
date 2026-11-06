@@ -46,25 +46,28 @@ local function convert(selection)
         name = "liveupdate_" .. name
     end
 
+    local compression = editor.get("/game.project", "project.compress_archive") and "LZ4" or "NONE"
     local content = {
         "# Publisher settings and excluded content converted from " .. source,
-        "# Select this manifest in game.project > Live Update > Settings to activate it.",
+        "# Clear game.project > Live Update > Settings, then select this file in Archive > Manifest.",
         "output_directory: " .. quoted(directory),
+        'base_file_compression_preset: "legacy"',
+        'file_compression_presets { name: "legacy" file_compression: ' .. compression .. ' }',
+        'container_presets { name: "legacy" provider: ' .. quoted(provider)
+            .. ' zip_level: ' .. (mode == "Zip" and (settings["zip-compression-level"] or "1") or "1") .. ' }',
         "packages {",
         "  name: " .. quoted(name),
-        "  provider: " .. quoted(provider),
+        '  container_preset: "legacy"',
+        '  file_compression_preset: "legacy"',
         editor.liveupdate.legacy_rules(),
         "}"
     }
-    if mode == "Zip" then
-        content[#content + 1] = 'providers { provider: "zip" properties { name: "compression-level" value: ' .. quoted(settings["zip-compression-level"] or "1") .. ' } }'
-    end
 
-    local destination = "/liveupdate.lumanifest"
+    local destination = "/liveupdate.archivemanifest"
     local suffix = 0
     while editor.resource_attributes(destination).exists or editor.external_file_attributes(destination:sub(2)).exists do
         suffix = suffix + 1
-        destination = "/liveupdate" .. suffix .. ".lumanifest"
+        destination = "/liveupdate" .. suffix .. ".archivemanifest"
     end
     editor.create_resources({{destination, table.concat(content, "\n") .. "\n"}})
     editor.ui.open_resource(destination)

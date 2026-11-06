@@ -465,15 +465,15 @@
 ;; preserves references to the original package through undo and redo.
 (deftest copy-paste-live-update-package
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (let [root (test-util/resource-node project "/packages.lumanifest")
+    (let [root (test-util/resource-node project "/packages.archivemanifest")
           original (g/node-value root :save-value)
           [levels copy] (:packages original)
           pasted (assoc original :packages [levels (assoc levels :name "levels1") copy])
           renamed (assoc-in pasted [:packages 1 :name] "renamed")]
-      (copy-paste! project app-view root [1])
+      (copy-paste! project app-view root [2])
       (is (= pasted (g/node-value root :save-value)))
       (is (coll/empty? (g/node-value root :diagnostics)))
-      (g/transact (g/set-property (:node-id (outline root [2])) :id "renamed"))
+      (g/transact (g/set-property (:node-id (outline root [3])) :id "renamed"))
       (is (= renamed (g/node-value root :save-value)))
       (g/undo! :undo/global)
       (is (= pasted (g/node-value root :save-value)))

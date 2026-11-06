@@ -1797,7 +1797,7 @@
 (defmethod edit-resource-node "spot_light" [resource-node-id]
   (edit-light-resource-node resource-node-id))
 
-(defmethod edit-resource-node "lumanifest" [resource-node-id]
+(defmethod edit-resource-node "archivemanifest" [resource-node-id]
   (g/update-property (first (g/node-value resource-node-id :package-nodes)) :id str "_edited"))
 
 (defmethod edit-resource-node "material" [resource-node-id]
