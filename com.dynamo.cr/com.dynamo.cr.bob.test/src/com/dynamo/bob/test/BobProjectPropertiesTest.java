@@ -14,7 +14,9 @@
 
 package com.dynamo.bob.test;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
@@ -29,6 +31,7 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.After;
@@ -41,6 +44,8 @@ import org.apache.commons.io.FileUtils;
 public class BobProjectPropertiesTest {
 
     private String contentRoot;
+
+    static final String BASE_DEPENDENCIES = "[project]\ndependencies#0 = a\ndependencies#1 = b\ndependencies#2 = c\n";
 
     @Before
     public void setUp() throws Exception {
@@ -60,6 +65,14 @@ public class BobProjectPropertiesTest {
 
     void load(BobProjectProperties properties, String load) throws IOException, ParseException {
         properties.load(new ByteArrayInputStream(load.getBytes()));
+    }
+
+    String[] loadDependencies(String... files) throws IOException, ParseException {
+        BobProjectProperties properties = createProperties();
+        for (String file : files) {
+            load(properties, file);
+        }
+        return properties.getStringArrayValue("project", "dependencies");
     }
 
     void testValue(String p, String c, String k, Object expected) throws IOException, ParseException {
@@ -135,6 +148,45 @@ public class BobProjectPropertiesTest {
             String[] customResources = properties.getStringArrayValueMerged("project", "custom_resources", new String[0]);
             assertEquals(new HashSet<>(Arrays.asList("/extension1_resource", "/extension2_resource", "/project_resource")),
                          new HashSet<>(Arrays.asList(customResources)));
+        }
+    }
+
+    // Verifies that "+=" and "-=" edit a list from earlier files by value and in order, and that indexed entries still replace the whole list
+    @Test
+    public void testArrayOperations() throws IOException, ParseException {
+        assertArrayEquals(new String[] {"a", "c", "b2", "d"},
+                          loadDependencies(BASE_DEPENDENCIES, "[project]\ndependencies -= b\ndependencies += b2\ndependencies += a", "[project]\ndependencies += d"));
+        assertArrayEquals(new String[] {"x"}, loadDependencies(BASE_DEPENDENCIES, "[project]\ndependencies += d", "[project]\ndependencies#0 = x"));
+        assertArrayEquals(new String[] {"a"}, loadDependencies("[project]\ndependencies += a"));
+    }
+
+    // Verifies that whitespace around "+=" and "-=" is optional, values may be comma separated, and values may contain "="
+    @Test
+    public void testArrayOperationSyntax() throws IOException, ParseException {
+        assertArrayEquals(new String[] {"a", "c", "d", "e", "https://host/f.zip?token=1"},
+                          loadDependencies(BASE_DEPENDENCIES, "[project]\ndependencies+=d\ndependencies -=b\n  dependencies   +=   e , https://host/f.zip?token=1  "));
+    }
+
+    // Verifies that malformed lines, mixing a full value with "+=" or "-=" in one file, removing a missing value, and editing a non-list setting are errors,
+    // so a stale override (e.g. after a version bump in the base) fails instead of building with the wrong dependencies
+    @Test
+    public void testInvalidArrayOperations() {
+        for (String file : List.of("dependencies + = a", "dependencies ++= a", "dependencies#1 += a", "dependencies.value += a", "dependencies +=", "+= a",
+                                   "dependencies#0 = a\ndependencies += b", "dependencies = a\ndependencies -= a", "dependencies -= x", "write_log += 1")) {
+            assertThrows(file, ParseException.class, () -> loadDependencies(BASE_DEPENDENCIES, "[project]\n" + file));
+        }
+    }
+
+    // Verifies that "+=" and "-=" in a --settings file are applied on top of game.project when Bob loads the project
+    @Test
+    public void testArrayOperationsInSettingsFile() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
+        createFile(contentRoot, "game.project", BASE_DEPENDENCIES);
+        String settings = createFile(contentRoot, "game.project.mobile", "[project]\ndependencies -= a\ndependencies += d");
+
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.addPropertyFile(settings);
+            project.loadProjectFile(false);
+            assertArrayEquals(new String[] {"b", "c", "d"}, project.getProjectProperties().getStringArrayValue("project", "dependencies"));
         }
     }
 
