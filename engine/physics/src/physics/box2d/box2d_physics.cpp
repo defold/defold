@@ -908,6 +908,8 @@ namespace dmPhysics
         float scale = context->m_Scale;
         CollisionCallback collision_callback = step_context.m_CollisionCallback;
         ContactPointCallback contact_point_callback = step_context.m_ContactPointCallback;
+        bool read_only = step_context.m_ContactCallbacksReadOnly || (!collision_callback && !contact_point_callback);
+        bool use_body_events = world->m_GetWorldTransformCallback && world->m_SetWorldTransformCallback && world->m_AllowDynamicTransforms && !world->m_ExternalBox2DAccess && read_only && dt > 0.0f;
         // Epsilon defining what transforms are considered noise and not
         // Values are picked by inspection, current rot value is roughly equivalent to 1 degree
         const float POS_EPSILON = 0.00005f * scale;
@@ -953,6 +955,14 @@ namespace dmPhysics
                         b2Rot b2_rot = b2MakeRot(angle);
                         b2Body_SetTransform(body_id, b2_position, b2_rot);
                         b2Body_SetAwake(body_id, true);
+                    }
+                    else if (use_body_events && body_type == b2_dynamicBody && !b2Body_IsAwake(body_id))
+                    {
+                        // Ignored edits to sleeping bodies still need the post-step correction.
+                        Quat body_rotation = Quat::rotationZ(old_angle);
+                        use_body_events = position.getX() == old_position.getX() && position.getY() == old_position.getY() &&
+                                          rotation.getX() == body_rotation.getX() && rotation.getY() == body_rotation.getY() &&
+                                          rotation.getZ() == body_rotation.getZ() && rotation.getW() == body_rotation.getW();
                     }
                 }
 
@@ -1004,9 +1014,8 @@ namespace dmPhysics
             {
                 // Immediate callbacks can change transforms after stepping. Raw Box2D callers can
                 // also move sleeping bodies, which do not appear in the move events.
-                // With dynamic transforms disabled, sleeping objects must also be restored from physics.
-                bool read_only = step_context.m_ContactCallbacksReadOnly || (!step_context.m_CollisionCallback && !step_context.m_ContactPointCallback);
-                if (world->m_AllowDynamicTransforms && !world->m_ExternalBox2DAccess && read_only && dt > 0.0f)
+                // Disabled dynamic transforms or ignored sleeping edits require the scan's correction.
+                if (use_body_events && !world->m_ExternalBox2DAccess)
                 {
                     b2BodyEvents events = b2World_GetBodyEvents(world->m_WorldId);
                     for (int i = 0; i < events.moveCount; ++i)

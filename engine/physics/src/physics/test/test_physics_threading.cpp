@@ -628,6 +628,7 @@ TEST(Box2DThreading, BufferedTransformsIncludeSleepTransition)
         scene.m_Callbacks.m_Transforms = 0;
         dmPhysics::StepWorld2D(scene.m_World, step);
         ASSERT_EQ(1U, scene.m_Callbacks.m_Transforms);
+        ASSERT_GT(scene.m_Bodies[1].m_Position.getX(), 4.0f);
         ASSERT_EQ(dmPhysics::GetWorldPosition2D(scene.m_Context, scene.m_Objects[1]).getX(), scene.m_Bodies[1].m_Position.getX());
         b2Body_SetSleepThreshold(scene.m_Bodies[1].m_PhysicsBody, 10.0f);
         for (int tick = 0; tick < 120 && !dmPhysics::IsSleeping2D(scene.m_Objects[1]); ++tick)
@@ -645,41 +646,52 @@ TEST(Box2DThreading, BufferedTransformsIncludeSleepTransition)
     }
 }
 
-// Disabled dynamic transforms must restore externally changed sleeping objects from physics, even without move events.
+// Ignored edits to sleeping transforms must be restored for both dynamic-transform settings without waking bodies.
 TEST(Box2DThreading, SleepingTransformsRemainSynchronized)
 {
     for (int workers = 0; workers <= 3; workers += 3)
     {
-        for (int listener = 0; listener < 2; ++listener)
+        for (int allow_dynamic_transforms = 0; allow_dynamic_transforms < 2; ++allow_dynamic_transforms)
         {
-            BufferedEventScene scene;
-            CreateBufferedEventScene(&scene, workers, false);
-            ASSERT_FALSE(scene.m_World->m_AllowDynamicTransforms);
-            dmPhysics::StepWorldContext step;
-            step.m_DT = 1.0f / 60.0f;
-            step.m_Box2DSubStepCount = 4;
-            step.m_ContactCallbacksReadOnly = listener != 0;
-            step.m_CollisionCallback = listener ? Collision : 0;
-            step.m_CollisionUserData = &scene.m_Callbacks;
-            step.m_ContactPointCallback = listener ? Contact : 0;
-            step.m_ContactPointUserData = &scene.m_Callbacks;
-            for (int tick = 0; tick < 120 && !dmPhysics::IsSleeping2D(scene.m_Objects[2]); ++tick)
+            for (int listener = 0; listener < 2; ++listener)
             {
-                dmPhysics::StepWorld2D(scene.m_World, step);
-            }
-            ASSERT_TRUE(dmPhysics::IsSleeping2D(scene.m_Objects[2]));
-            scene.m_Bodies[2].m_Position = dmVMath::Point3(12.0f, 0.0f, 0.0f);
-            scene.m_Bodies[2].m_Rotation = dmVMath::Quat::rotationZ(0.5f);
-            for (int tick = 0; tick < 2; ++tick)
-            {
-                dmPhysics::StepWorld2D(scene.m_World, step);
+                BufferedEventScene scene;
+                CreateBufferedEventScene(&scene, workers, allow_dynamic_transforms != 0);
+                dmPhysics::StepWorldContext step;
+                step.m_DT = 1.0f / 60.0f;
+                step.m_Box2DSubStepCount = 4;
+                step.m_ContactCallbacksReadOnly = listener != 0;
+                step.m_CollisionCallback = listener ? Collision : 0;
+                step.m_CollisionUserData = &scene.m_Callbacks;
+                step.m_ContactPointCallback = listener ? Contact : 0;
+                step.m_ContactPointUserData = &scene.m_Callbacks;
+                for (int tick = 0; tick < 120 && !dmPhysics::IsSleeping2D(scene.m_Objects[2]); ++tick)
+                {
+                    dmPhysics::StepWorld2D(scene.m_World, step);
+                }
                 ASSERT_TRUE(dmPhysics::IsSleeping2D(scene.m_Objects[2]));
-                ASSERT_EQ(8.0f, dmPhysics::GetWorldPosition2D(scene.m_Context, scene.m_Objects[2]).getX());
-                ASSERT_EQ(8.0f, scene.m_Bodies[2].m_Position.getX());
-                ASSERT_EQ(0.0f, scene.m_Bodies[2].m_Rotation.getZ());
-                ASSERT_EQ(1.0f, scene.m_Bodies[2].m_Rotation.getW());
+                for (int edit = 0; edit < 2; ++edit)
+                {
+                    if (edit == 0)
+                    {
+                        scene.m_Bodies[2].m_Position = dmVMath::Point3(allow_dynamic_transforms ? 8.005f : 12.0f, 0.0f, 0.0f);
+                    }
+                    else
+                    {
+                        scene.m_Bodies[2].m_Rotation = dmVMath::Quat::rotationZ(allow_dynamic_transforms ? 0.00001f : 0.5f);
+                    }
+                    for (int tick = 0; tick < 2; ++tick)
+                    {
+                        dmPhysics::StepWorld2D(scene.m_World, step);
+                        ASSERT_TRUE(dmPhysics::IsSleeping2D(scene.m_Objects[2]));
+                        ASSERT_EQ(8.0f, dmPhysics::GetWorldPosition2D(scene.m_Context, scene.m_Objects[2]).getX());
+                        ASSERT_EQ(8.0f, scene.m_Bodies[2].m_Position.getX());
+                        ASSERT_EQ(0.0f, scene.m_Bodies[2].m_Rotation.getZ());
+                        ASSERT_EQ(1.0f, scene.m_Bodies[2].m_Rotation.getW());
+                    }
+                }
+                DeleteBufferedEventScene(&scene);
             }
-            DeleteBufferedEventScene(&scene);
         }
     }
 }
