@@ -24,7 +24,7 @@
   (:import [clojure.lang IPersistentSet Indexed RT]
            [com.github.benmanes.caffeine.cache Cache Caffeine LoadingCache]
            [internal.graph.types Arc Endpoint]
-           [java.util ArrayDeque ArrayList HashMap Objects]
+           [java.util ArrayDeque ArrayList HashMap Iterator Objects]
            [java.util.concurrent ConcurrentHashMap ForkJoinPool]))
 
 ;; A brief braindump on Overrides.
@@ -709,39 +709,50 @@
   ([basis target-id target-label]
    (arc-table-arcs (-> basis gt/tarcs (get target-id) (get target-label)))))
 
+(defn- push-source-arc-frame!
+  [^ArrayDeque pending ^Iterator targets source-override-chain source-override-node-chain source-index-chain next-override-id source-ids]
+  (if-not (.hasNext targets)
+    pending
+    (doto (or pending (ArrayDeque.))
+      (.push [source-override-chain source-override-node-chain source-index-chain next-override-id source-ids targets]))))
+
 (defn- lift-source-arc
   "Used by arcs-by-source/lift-source-arcs to infer all implicit arcs
   the explicit arc `arc` gives rise to if we follow the
   `source-override-node-chain` upwards from the source-id of
   `arc`.
-  Returns a list of arcs where:
+  Appends to and returns the transient result vector with arcs where:
   * source-id is the final node in source-override-node-chain
   * target-id is an override node in the final override in
   source-override-chain - whose chain of originals passes through the
   original target of `arc` - for which `source-override-chain` is the
   first and longest subsequence of its own chain of overrides.
   * the `arc` has not been shadowed by an intermediate explicit arc"
-  [basis source-override-chain source-override-node-chain source-index-chain arc]
+  [basis source-override-chain source-override-node-chain source-index-chain arc result]
   (if (coll/empty? source-override-chain)
-    [arc]
+    (conj! result arc)
     (let [nodes (gt/nodes basis)
           target-label (gt/target-label arc)]
+      ;; This is an iterative version of a recursive traversal of target
+      ;; overrides. `pending` takes the place of the recursive call stack.
       (loop [source-override-chain source-override-chain
              source-override-node-chain source-override-node-chain
              source-index-chain source-index-chain
              next-override-id (first source-override-chain)
              source-ids (or (:ids (first source-index-chain)) (int-map/int-set))
-             targets (RT/iter (target-overrides-for-source basis (gt/target-id arc)
-                                                           (first source-index-chain)
-                                                           (first source-override-chain)))
+             targets (RT/iter (target-overrides-for-source
+                                basis
+                                (gt/target-id arc)
+                                (first source-index-chain)
+                                (first source-override-chain)))
              ^ArrayDeque pending nil
-             result (transient [])]
+             result result]
         (if-not (.hasNext targets)
           (if-let [[source-override-chain source-override-node-chain source-index-chain next-override-id source-ids targets]
                    (when pending (.poll pending))]
             (recur source-override-chain source-override-node-chain source-index-chain
                    next-override-id source-ids targets pending result)
-            (persistent! result))
+            result)
           (let [target-override-node-id (.next targets)
                 target-override-id (gt/override-id (nodes target-override-node-id))]
             (if-not (and
@@ -766,8 +777,10 @@
                   (if (coll/empty? remaining-source-override-chain)
                     (recur source-override-chain source-override-node-chain source-index-chain
                            next-override-id source-ids targets pending
-                           (conj! result (assoc arc :source-id (first source-override-node-chain)
-                                                :target-id target-override-node-id)))
+                           (conj! result
+                                  (assoc arc
+                                    :source-id (first source-override-node-chain)
+                                    :target-id target-override-node-id)))
                     (let [remaining-source-override-node-chain (rest source-override-node-chain)
                           remaining-source-index-chain (rest source-index-chain)
                           remaining-next-override-id (first remaining-source-override-chain)
@@ -779,11 +792,14 @@
                         (recur remaining-source-override-chain remaining-source-override-node-chain remaining-source-index-chain
                                remaining-next-override-id (or (:ids source-index) (int-map/int-set))
                                (RT/iter child-targets)
-                               (if (.hasNext targets)
-                                 (doto (or pending (ArrayDeque.))
-                                   (.push [source-override-chain source-override-node-chain source-index-chain
-                                           next-override-id source-ids targets]))
-                                 pending)
+                               (push-source-arc-frame!
+                                 pending
+                                 targets
+                                 source-override-chain
+                                 source-override-node-chain
+                                 source-index-chain
+                                 next-override-id
+                                 source-ids)
                                result)))))
                 (let [child-targets (target-overrides-for-source basis target-override-node-id (first source-index-chain) next-override-id)]
                   (if (coll/empty? child-targets)
@@ -791,11 +807,14 @@
                            next-override-id source-ids targets pending result)
                     (recur source-override-chain source-override-node-chain source-index-chain
                            next-override-id source-ids (RT/iter child-targets)
-                           (if (.hasNext targets)
-                             (doto (or pending (ArrayDeque.))
-                               (.push [source-override-chain source-override-node-chain source-index-chain
-                                       next-override-id source-ids targets]))
-                             pending)
+                           (push-source-arc-frame!
+                             pending
+                             targets
+                             source-override-chain
+                             source-override-node-chain
+                             source-index-chain
+                             next-override-id
+                             source-ids)
                            result)))))))))))
 
 (defn- lift-source-arcs
@@ -814,8 +833,7 @@
                                    (take (count override-chain))
                                    (map #(override-index basis %)))]
           (reduce (fn [result arc]
-                    (reduce conj! result
-                            (lift-source-arc basis override-chain override-node-chain source-index-chain arc)))
+                    (lift-source-arc basis override-chain override-node-chain source-index-chain arc result))
                   result
                   explicit-arcs)))
       (transient [])
