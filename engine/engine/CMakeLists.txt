@@ -453,7 +453,7 @@ function(engine_configure_executable target variant engine_lib engine_service_li
   if(variant STREQUAL "release")
     target_compile_definitions(${target} PRIVATE DM_RELEASE=1)
   else()
-    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_DEBUGGER_LIBS})
+    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_DEBUGGER_LIBS} platform_service)
     if(NOT graphics_mode STREQUAL "null" AND TARGET record)
       defold_target_link_libraries(${target} "${TARGET_PLATFORM}" record_script record_service)
     endif()
@@ -520,6 +520,7 @@ endfunction()
 # Extensions are prepended during registration. Register ScriptRecord first so
 # Linux captures after the other extensions' post-render callbacks.
 set(ENGINE_DMENGINE_SYMBOLS
+  EnginePlatform
   ${ENGINE_RECORD_SYMBOLS}
   ${ENGINE_DEBUGGER_SYMBOLS}
   ${ENGINE_EXPORTED_SYMBOLS}
@@ -554,6 +555,7 @@ endif()
 defold_codesign_target(dmengine_release darwin/entitlements-macos-release.plist)
 
 set(ENGINE_HEADLESS_SYMBOLS
+  EnginePlatform
   ${ENGINE_DEBUGGER_SYMBOLS}
   LiveUpdateExt
   ScriptTypesExt

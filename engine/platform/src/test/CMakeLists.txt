@@ -6,6 +6,15 @@ include(defold)
 
 project(defold_platform_tests LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 
+if(NOT TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web")
+    # The fake window backend keeps service tests independent of engine and graphics.
+    defold_add_executable(test_platform_service "${CMAKE_CURRENT_LIST_DIR}/test_platform_service.cpp")
+    target_include_directories(test_platform_service PRIVATE "${DEFOLD_HOME}/engine/dlib/src")
+    defold_target_link_libraries(test_platform_service "${TARGET_PLATFORM}" platform_service dlib profile_null testmain)
+    defold_target_link_socket(test_platform_service "${TARGET_PLATFORM}" PRIVATE)
+    defold_register_test_target(test_platform_service ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+endif()
+
 # test_platform (unit tests using null backend)
 defold_add_executable(test_platform
     "${CMAKE_CURRENT_LIST_DIR}/test_platform.cpp"
@@ -27,7 +36,7 @@ defold_target_link_socket(test_platform "${TARGET_PLATFORM}" PRIVATE)
 
 add_dependencies(test_platform platform_null)
 
-# Exercise the vendor fallback with a backend that supplies no density query.
+# Exercise the vendor fallbacks with a backend that supplies no density or client-size queries.
 defold_add_executable(test_platform_vendor
     "${CMAKE_CURRENT_LIST_DIR}/test_platform.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/../window.cpp"

@@ -65,6 +65,16 @@ struct dmWindow
 
 namespace dmPlatform
 {
+    bool GetWindowClientSize(HWindow, uint32_t*, uint32_t*)
+    {
+        return false;
+    }
+
+    bool IsWindowResizeSupported(HWindow)
+    {
+        return false;
+    }
+
     // Mobile and web backends own one application window.
     static dmWindow* g_Window = 0;
 

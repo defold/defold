@@ -54,6 +54,19 @@ namespace dmPlatform
     }
 #endif
 
+#if defined(DM_PLATFORM_VENDOR) && !defined(DM_PLATFORM_NULL)
+    // Vendor backends do not expose client-unit metrics or support window resizing.
+    bool GetWindowClientSize(HWindow, uint32_t*, uint32_t*)
+    {
+        return false;
+    }
+
+    bool IsWindowResizeSupported(HWindow)
+    {
+        return false;
+    }
+#endif
+
     float CalculateDisplayDensity(int32_t physical_width_mm, float pixel_width)
     {
         // A driver that reports no physical size leaves nothing to divide by, and the CSS reference

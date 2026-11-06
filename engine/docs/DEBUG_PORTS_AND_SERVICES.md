@@ -35,6 +35,12 @@ without waiting for the upload. Invalid or unsupported body framing, including
 chunked uploads, is rejected by the HTTP server. Observation errors use
 `{"error":{"code":"...","message":"..."}}`; routing and framing errors can be plain text.
 
+Header values share a 1024-byte storage budget, including one terminating byte
+per value. Requests that exceed this budget return `431 headers_too_large` and
+close the connection without waiting for the body. Rejection happens before
+instance validation or handler dispatch, so oversized headers cannot bypass an
+instance precondition.
+
 Handlers run on the engine thread and response bytes are copied into an
 asynchronous sender. Slow readers do not retain engine contexts. Observation
 requests continue to be polled when the application loop skips simulation,
@@ -143,7 +149,6 @@ This endpoint will accept a POST request containing a protobuf command. One such
 * `/post/@system/reboot` - Reboot the engine. `com.dynamo.system.proto.System$Reboot`
 * `/post/@system/exit` - Exit the engine. `com.dynamo.system.proto.System$Exit`
 * `/post/@system/run_script` - Run a Lua script. `com.dynamo.engine.proto.Engine$RunScript`
-* `/post/@render/resize` - Resize the engine window. `com.dynamo.render.proto.Render$Resize`
 * `/post/@resource/reload` - Reload a resource (ie hot-reload). `com.dynamo.resource.proto.Resource$Reload`
 
 Requests contain binary protobuf data and are limited to 1,024 bytes. Delivery
@@ -158,13 +163,13 @@ Returns `PONG\n` as `text/plain` to check that the engine is responding.
 This endpoint will accept a GET request and reply with a JSON formatted string containing information about the engine:
 
 ```json
-{"version": "1.14.2", "platform": "arm64-macos", "sha1": "<build-sha>", "log_port": "7001", "service_api_version": 1}
+{"version": "1.14.2", "platform": "arm64-macos", "sha1": "<build-sha>", "log_port": "7001", "service_api_version": 2}
 ```
 
 The build values are illustrative. The existing four fields remain strings.
 `service_api_version` is an integer identifying the common observation contract;
-version 1 includes the state fields below. Compatible additions retain this
-version. Its absence means the engine does not expose this contract. Engine
+version 1 introduced the state fields below. Version 2 adds `/window/resize`
+receipts. Compatible additions retain the version. Its absence means the engine does not expose this contract. Engine
 release versions and OpenAPI's `info.version` identify the build separately.
 Both `/info` and `/state` return `application/json` with `Cache-Control: no-store`.
 
@@ -189,6 +194,120 @@ value or unsigned modular comparison: the counter wraps at 32 bits without
 changing the instance identity. Already queued responses keep the identity and
 state sampled before teardown. Intermediate startup/teardown states need not be
 observable; the service provides no event history.
+
+### Window metrics and resizing
+
+The debug-only `platform_service` library registers the `EnginePlatform` native
+extension. It borrows the engine service's HTTP server, registers routes in
+`AppInitialize`, and attaches the window in `Initialize`. It owns only window
+metrics and resize operations. Its internal typed observation API exposes the
+same geometry revision as HTTP. Engine identity, readiness, and frame count
+remain in `/state`.
+
+The extension advances resizing through its ordinary `Update` callback, before a
+graphics frame begins. `Finalize` detaches the window and retires receipts
+before native teardown; `AppFinalize` unregisters the routes and frees the service. Reboot
+registers a new service on the same HTTP server. Release engines omit the library
+and extension; headless debug engines retain the observation routes.
+
+`GET /window` reads the surface metrics on demand. All window routes return JSON with
+`Cache-Control: no-store` and accept only their documented exact paths/methods.
+
+```json
+{
+  "revision": "w3",
+  "window": {"width": 960, "height": 640},
+  "drawable": {"width": 1920, "height": 1280},
+  "display_scale": 2,
+  "resize": {"supported": true, "unavailable_reason": null, "max_operations": 64, "retention_ms": 60000}
+}
+```
+
+The values above are illustrative. `window` is the client area in native setter
+units, excluding decorations; `drawable` is the presentable image in pixels.
+Unavailable dimensions are `null`, including window/drawable on headless engines.
+Native mobile backends currently report drawable dimensions but no client metrics or resize support.
+Desktop windowed modes support resize; fullscreen modes do not.
+
+The service advances the geometry revision when it observes changed window/drawable
+dimensions or availability, or when a window is attached or detached. Changes away
+and back between observations are not tracked.
+Camera, viewport, render target and image-content changes do not change it.
+Coordinates have a top-left origin, X right and Y down. Pixel `(i,j)` has center
+`(i+0.5,j+0.5)`. Convert client coordinates with
+`(x * drawable.width / window.width, y * drawable.height / window.height)` using
+one observation. Reject missing/zero dimensions; display scale is diagnostic
+metadata, not the transform. These metrics do not establish a world/GUI projection
+or prove that a frame has rendered at the observed dimensions.
+
+`POST /window/resize` requires `Content-Type: application/json` and
+`X-Engine-Instance` from live `/state`. The engine service checks this header
+before routing any request and rejects a mismatched instance with `410 stale_instance`.
+Existing routes that do not require the header continue to accept requests without it.
+The platform service requires it for resize submission and receipt polling, but
+does not store engine identity. The resize body accepts at most 1024 bytes:
+
+```json
+{"width": 640, "height": 360, "expected_window_revision": "w3", "timeout_ms": 30000}
+```
+
+Width and height are positive signed 32-bit integers in client units. The native
+window system can constrain the requested size; receipts report the observed
+result. Resizing preserves the graphics reference resolution used by
+`render.get_width()` and `render.get_height()`. Optional `timeout_ms` is 1–60000, default
+30000. Optional `expected_window_revision` is checked at acceptance and again
+before the setter runs. Unknown/duplicate fields are rejected.
+
+A `202` response contains a queued receipt and a `Location` URL. Poll
+`GET /window/resize/{id}` with the same `X-Engine-Instance` to observe
+`queued -> awaiting_window -> complete | failed`. IDs are local to the service;
+keep the original instance header even if the engine reboots during polling.
+The setter runs once during the extension update, before a graphics frame begins.
+Resizes wait while simulation is skipped, including throttled, paused, or
+zero-step iterations. Deadlines continue to use elapsed monotonic time and are
+checked when updates resume. Reads never advance a frame or dispatch a resize.
+
+```json
+{
+  "operation_id": "r1",
+  "state": "complete", "expires_in_ms": 59980,
+  "requested": {"width": 640, "height": 360},
+  "observed": {"window": {"width": 640, "height": 360}, "drawable": {"width": 1280, "height": 720}},
+  "window_revision": "w4", "already_matches": false, "error": null
+}
+```
+
+Completion means an actual client-size observation matched the request. It does
+not promise a rendered frame. `already_matches` is true when no setter was needed.
+OS clamping/refusal or a missed deadline produces `resize_not_observed` with the
+last observed dimensions. Post-acceptance conflicts fail the receipt. Terminal
+observations are immutable, and retained for up to 60 seconds using monotonic time;
+later manual/application resizes do not rewrite them. Pending expiry is `null`.
+HTTP disconnect does not cancel accepted work; retries create new operations.
+
+One resize can be active, with at most 64 receipts in a bounded ring. A new
+request evicts the oldest completed receipt when the ring is full; completed
+history never blocks a resize. Expired and evicted receipts return `410`. Errors use
+`{"error":{"code":"...","message":"..."}}`: `400` for invalid requests,
+`409` for busy/revision conflicts, `410` for stale instances or
+expired receipts, `413` for oversized bodies, and `501` for unavailable resizing.
+Unknown current-instance operation IDs return `404`. Receipt reads return `200`
+even when the operation failed. Unsupported methods return `405` and `Allow`.
+Unexpected/oversized bodies are rejected by closing before responding; partial
+valid uploads yield without admitting an operation. Release builds expose no
+window service. Screenshot capture and image endpoints are a separate delivery.
+
+**Compatibility / release note:** The debug engine now uses service API version 2.
+The editor queues simulator changes per target and sends width/height JSON to
+`/window/resize` with the live instance ID from `/state`. Network requests and
+receipt polling run off the UI thread. Each target has one active request and
+one unsent choice; newer choices replace older unsent ones. Busy responses are
+retried, terminal failures are logged, and a batch remains pinned to its original
+engine instance across reboots. The project design resolution remains
+unchanged (#11025).
+Presets specify window client units, so high-DPI hosts may have more drawable
+pixels. Generic DDF HTTP dispatch remains unchanged, including `/post/@render/resize`.
+The updated editor requires an engine that supports `/window/resize`.
 
 ### Profiler endpoints
 

@@ -37,6 +37,24 @@ struct dmWindow
 
 namespace dmPlatform
 {
+#if !defined(DM_PLATFORM_VENDOR) || defined(DM_PLATFORM_NULL)
+    bool GetWindowClientSize(HWindow window, uint32_t* width, uint32_t* height)
+    {
+        if (!window->m_WindowOpened)
+        {
+            return false;
+        }
+        *width = window->m_WindowWidth;
+        *height = window->m_WindowHeight;
+        return true;
+    }
+
+    bool IsWindowResizeSupported(HWindow window)
+    {
+        return window->m_WindowOpened && !window->m_CreateParams.m_Fullscreen;
+    }
+#endif
+
     HWindow NewWindow()
     {
         dmWindow* wnd = new dmWindow();

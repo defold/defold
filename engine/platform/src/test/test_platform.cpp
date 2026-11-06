@@ -148,6 +148,29 @@ TEST_F(dmPlatformTest, DisplayDensityFallback)
     ASSERT_EQ(96.0f, WindowGetDisplayDensity(m_Window));
 }
 
+// Vendor backends can omit the new queries; the null backend must retain client-size and resize support.
+TEST_F(dmPlatformTest, WindowClientMetrics)
+{
+    uint32_t width = 0;
+    uint32_t height = 0;
+#if defined(DM_PLATFORM_VENDOR) && !defined(DM_PLATFORM_NULL)
+    ASSERT_FALSE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+    ASSERT_FALSE(dmPlatform::IsWindowResizeSupported(m_Window));
+#else
+    ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+    ASSERT_EQ(WIDTH, width);
+    ASSERT_EQ(HEIGHT, height);
+    ASSERT_TRUE(dmPlatform::IsWindowResizeSupported(m_Window));
+    WindowSetSize(m_Window, WIDTH * 2, HEIGHT * 2);
+    ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+    ASSERT_EQ(WIDTH * 2, width);
+    ASSERT_EQ(HEIGHT * 2, height);
+    WindowClose(m_Window);
+    ASSERT_FALSE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+    ASSERT_FALSE(dmPlatform::IsWindowResizeSupported(m_Window));
+#endif
+}
+
 // Verifies unsupported backends clear both cached and native areas rather than inferring safe-area strips.
 TEST_F(dmPlatformTest, ReservedAreasUnsupported)
 {
