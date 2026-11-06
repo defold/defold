@@ -29,6 +29,9 @@ add_custom_target(font_test_data DEPENDS "${_alignment_bank}")
 defold_test_run_settings(_font_test_runner _font_test_run_options font)
 
 function(font_configure_test target font_target)
+  if(target MATCHES "^test_font_bitmap_gen|^test_font_effects$")
+    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" graphics_test)
+  endif()
   set(_font_test_data)
   if(target MATCHES "^test_font(_skribidi)?$|^test_font_bitmap_gen")
     add_dependencies(${target} font_test_data)
@@ -380,9 +383,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
     "${FONT_SRC_DIR}"
     "${FONT_RENDER_SRC_DIR}"
     "${FONT_ROOT}"
-    "${FONTVIEWER_GENERATED_DIR}"
-    "${GRAPHICS_SRC_DIR}"
-    "${GRAPHICS_PROTO_ROOT}")
+    "${FONTVIEWER_GENERATED_DIR}")
   target_compile_definitions(fontviewer PRIVATE FONT_USE_HARFBUZZ FONT_USE_SKRIBIDI)
   defold_target_link_libraries(fontviewer "${TARGET_PLATFORM}"
     testmain
@@ -391,7 +392,8 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
     profile_null
     font_skribidi
     font_richtext
-    font_render)
+    font_render
+    graphics_test)
   set(WITH_OPENGL ON)
   defold_target_link_graphics(fontviewer "${TARGET_PLATFORM}" SCOPE PRIVATE)
   defold_target_link_platform(fontviewer "${TARGET_PLATFORM}" SCOPE PRIVATE)
@@ -464,7 +466,7 @@ if(FONT_RENDERER_IS_DESKTOP AND NOT CMAKE_CROSSCOMPILING)
   font_configure_test(test_font_effects font)
   foreach(target IN ITEMS test_font_effects test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
     target_sources(${target} PRIVATE "${_font_image_generated}/exports.cpp" "${_font_image_generated}/font_image_cases.inc")
-    target_include_directories(${target} PRIVATE "${_font_image_generated}" "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
+    target_include_directories(${target} PRIVATE "${_font_image_generated}")
     set(WITH_OPENGL ON)
     defold_target_link_graphics(${target} "${TARGET_PLATFORM}" SCOPE PRIVATE)
     if(TARGET_PLATFORM STREQUAL "arm64-linux")

@@ -36,9 +36,8 @@
 #include <graphics/graphics.h>
 #include <platform/window.hpp>
 
-#include <graphics_private.h>
 #include <test/graphics_test_sanitizers.h>
-#include <test/test_graphics_util.h>
+#include <graphics/test_graphics_util.h>
 
 #if defined(__clang__)
 #pragma clang diagnostic push

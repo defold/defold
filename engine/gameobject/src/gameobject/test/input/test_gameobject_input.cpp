@@ -20,6 +20,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/path.h>
 #include <dlib/testutil.h>
+#include <input/input.h>
 
 #include "../gameobject.h"
 #include "../component.h"
@@ -104,6 +105,7 @@ protected:
 public:
 
     uint32_t m_InputCounter;
+    dmGameObject::InputAction m_LastInputAction;
 
     dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
@@ -148,6 +150,7 @@ dmGameObject::CreateResult InputTest::CompInputTargetDestroy(const dmGameObject:
 dmGameObject::InputResult InputTest::CompInputTargetOnInput(const dmGameObject::ComponentOnInputParams& params)
 {
     InputTest* self = (InputTest*) params.m_Context;
+    self->m_LastInputAction = *params.m_InputAction;
 
     if (params.m_InputAction->m_ActionId == dmHashString64("test_action")
             || params.m_InputAction->m_ActionId == 0)
@@ -195,6 +198,86 @@ TEST_F(InputTest, TestComponentInput)
 
     ASSERT_EQ(2U, m_InputCounter);
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
+}
+
+// Context dispatch uses input's iterator, preserves observation values and does not redeliver consumed actions.
+TEST_F(InputTest, InputContextDispatch)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_input.goc");
+    ASSERT_NE(0, go);
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+    dmHID::HContext hid = dmHID::NewContext(dmHID::NewContextParams());
+    ASSERT_TRUE(dmHID::Init(hid));
+    dmInput::NewContextParams params = {};
+    params.m_HidContext = hid;
+    params.m_RepeatDelay = 0.5f;
+    params.m_RepeatInterval = 0.2f;
+    dmInput::HContext input = dmInput::NewContext(params);
+    dmInput::HBinding binding = dmInput::NewBinding(input);
+    dmInputDDF::KeyTrigger key = { dmInputDDF::KEY_SPACE, "test_action" };
+    dmInputDDF::InputBinding ddf = {};
+    ddf.m_KeyTrigger.m_Data = &key;
+    ddf.m_KeyTrigger.m_Count = 1;
+    dmInput::SetBinding(binding, &ddf);
+    dmHID::SetKey(dmHID::GetKeyboard(hid, 0), dmHID::KEY_SPACE, true);
+    dmHID::Update(hid);
+    dmInput::UpdateBinding(binding, 1.0f / 60.0f);
+    dmInput::ActionIterator iterator = dmInput::IterateActions(input);
+    ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
+    ASSERT_FALSE(dmInput::GetInputAction(&iterator)->m_Consumed);
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR, dmGameObject::DispatchInput((dmGameObject::HCollection)0, input));
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, input));
+    ASSERT_EQ(1u, m_InputCounter);
+    ASSERT_TRUE(dmInput::GetInputAction(&iterator)->m_Consumed);
+    ASSERT_EQ(dmHashString64("test_action"), dmInput::ActionGetId(&iterator));
+    ASSERT_EQ(1.0f, dmInput::ActionGetValue(&iterator));
+    ASSERT_TRUE(dmInput::ActionIsPressed(&iterator));
+    ASSERT_EQ(dmHashString64("test_action"), m_LastInputAction.m_ActionId);
+    ASSERT_EQ(1.0f, m_LastInputAction.m_Value);
+    ASSERT_TRUE(m_LastInputAction.m_Pressed);
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, input));
+    ASSERT_EQ(1u, m_InputCounter);
+
+    // The component API still receives complete text and transformed touch payloads.
+    dmInputDDF::TextTrigger text = { dmInputDDF::TEXT, "test_action" };
+    ddf = dmInputDDF::InputBinding();
+    ddf.m_TextTrigger.m_Data = &text;
+    ddf.m_TextTrigger.m_Count = 1;
+    dmInput::SetBinding(binding, &ddf);
+    dmHID::AddKeyboardChar(hid, 'A');
+    dmInput::UpdateBinding(binding, 1.0f / 60.0f);
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, input));
+    ASSERT_EQ(2u, m_InputCounter);
+    ASSERT_TRUE(m_LastInputAction.m_HasText);
+    ASSERT_EQ(1, m_LastInputAction.m_Count);
+    ASSERT_EQ('A', m_LastInputAction.m_Text[0]);
+
+    dmInputDDF::TouchTrigger touch = { dmInputDDF::TOUCH_MULTI, "test_action" };
+    ddf = dmInputDDF::InputBinding();
+    ddf.m_TouchTrigger.m_Data = &touch;
+    ddf.m_TouchTrigger.m_Count = 1;
+    dmInput::SetBinding(binding, &ddf);
+    dmHID::AddTouch(dmHID::GetTouchDevice(hid, 0), 15, 25, 7, dmHID::PHASE_BEGAN);
+    dmInput::WindowMetrics metrics = { 200, 200, 100, 100 };
+    dmInput::UpdateBinding(binding, 1.0f / 60.0f, &metrics);
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, input));
+    ASSERT_EQ(3u, m_InputCounter);
+    ASSERT_EQ(1, m_LastInputAction.m_Count);
+    ASSERT_TRUE(m_LastInputAction.m_PositionSet);
+    ASSERT_EQ(31.0f, m_LastInputAction.m_X);
+    ASSERT_EQ(149.0f, m_LastInputAction.m_Y);
+    ASSERT_EQ(15.0f, m_LastInputAction.m_ScreenX);
+    ASSERT_EQ(74.0f, m_LastInputAction.m_ScreenY);
+    ASSERT_EQ(7, m_LastInputAction.m_Touch[0].m_Id);
+    ASSERT_EQ(dmHID::PHASE_BEGAN, m_LastInputAction.m_Touch[0].m_Phase);
+    ASSERT_EQ(31, m_LastInputAction.m_Touch[0].m_X);
+    ASSERT_EQ(149, m_LastInputAction.m_Touch[0].m_Y);
+    ASSERT_EQ(15, m_LastInputAction.m_Touch[0].m_ScreenX);
+    ASSERT_EQ(74, m_LastInputAction.m_Touch[0].m_ScreenY);
+    dmInput::DeleteBinding(binding);
+    dmInput::DeleteContext(input);
+    dmHID::Final(hid);
+    dmHID::DeleteContext(hid);
 }
 
 TEST_F(InputTest, TestComponentInput2)

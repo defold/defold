@@ -224,6 +224,10 @@ function(gameobject_add_test dir)
   if(TARGET gameobject_proto_headers)
     add_dependencies(${_target} gameobject_proto_headers)
   endif()
+  set(_hid_library hid)
+  if(dir STREQUAL "input")
+    set(_hid_library hid_null)
+  endif()
   defold_target_link_libraries(${_target} "${TARGET_PLATFORM}"
     testmain
     ddf
@@ -238,7 +242,7 @@ function(gameobject_add_test dir)
     extension
     profile_null
     rig
-    hid
+    ${_hid_library}
     gameobject)
   defold_target_link_socket(${_target} "${TARGET_PLATFORM}" PRIVATE)
   defold_target_link_app(${_target} "${TARGET_PLATFORM}" SCOPE PRIVATE)

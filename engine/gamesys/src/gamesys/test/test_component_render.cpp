@@ -26,8 +26,8 @@
 #include <dlib/thread.h>
 #include <gameobject/comp_anim.h>
 #include <gameobject/component.h>
-#include <gameobject/gameobject_private.h>
 #include <gameobject/gameobject.h>
+#include <gameobject/gameobject_test.hpp>
 #include <render/render_execution.h>
 #include <render/render_frame_queue.h>
 #include <resource/resource.h>
@@ -1082,10 +1082,11 @@ TEST(ComponentRender, CollectionAssociationsSurviveGrowthAndReuse)
     ASSERT_EQ(11u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DELETE));
     ASSERT_TRUE(dmGameSystem::Finalize(fixture.m_Context));
     fixture.m_Render = 0;
-    ASSERT_TRUE(fixture.m_Register->m_ComponentWorldCallbacks.m_Context == 0);
-    ASSERT_TRUE(fixture.m_Register->m_ComponentWorldCallbacks.m_OnWorldCreated == 0);
-    ASSERT_TRUE(fixture.m_Register->m_ComponentWorldCallbacks.m_OnWorldDeleted == 0);
-    ASSERT_TRUE(fixture.m_Register->m_ComponentWorldCallbacks.m_Render == 0);
+    dmGameObject::ComponentWorldCallbacks callbacks = dmGameObject::TestGetComponentWorldCallbacks(fixture.m_Register);
+    ASSERT_TRUE(callbacks.m_Context == 0);
+    ASSERT_TRUE(callbacks.m_OnWorldCreated == 0);
+    ASSERT_TRUE(callbacks.m_OnWorldDeleted == 0);
+    ASSERT_TRUE(callbacks.m_Render == 0);
     DeleteComponentRenderFixture(&fixture);
 }
 
@@ -1268,7 +1269,7 @@ TEST(ComponentRender, WorldNotificationFailureRollsBack)
     ASSERT_EQ(dmGameObject::RESULT_OK, RegisterRenderer(&fixture, 1));
 
     WorldObserverProbe probe = {};
-    probe.m_Next = fixture.m_Register->m_ComponentWorldCallbacks;
+    probe.m_Next = dmGameObject::TestGetComponentWorldCallbacks(fixture.m_Register);
     dmGameObject::ComponentWorldCallbacks callbacks = {};
     ASSERT_EQ(dmGameObject::RESULT_INVALID_OPERATION, dmGameObject::SetComponentWorldCallbacks(fixture.m_Register, callbacks));
     callbacks.m_Context = &probe;

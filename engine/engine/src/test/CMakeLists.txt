@@ -75,6 +75,7 @@ set(ENGINE_TEST_CONTENT_SETTINGS
   "issue-12703.ini"
   "render_script.ini"
   "camera_acquire_input_focus.ini"
+  "input_observer.ini"
   "text_input.ini")
 
 set(ENGINE_TEST_CLASSPATH "${ENGINE_BOB_ENGINE_JAR}")
@@ -204,7 +205,7 @@ target_include_directories(test_engine PRIVATE
   "${ENGINE_PROTO_DIR}"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(test_engine PRIVATE CONTENT_ROOT="${ENGINE_TEST_CONTENT_ROOT}")
-defold_target_link_libraries(test_engine "${TARGET_PLATFORM}" testmain)
+defold_target_link_libraries(test_engine "${TARGET_PLATFORM}" testmain resource_test graphics_test)
 engine_configure_executable(test_engine test engine engine_service null "profile_null;profilerext_null" "ProfilerExt")
 defold_register_test_target(test_engine ON "${ENGINE_TEST_ENGINE_ROOT}"
   STAGE_FILES

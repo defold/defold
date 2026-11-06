@@ -25,19 +25,19 @@
 
 /*# Engine event definitions
  *
- * Built-in event hashes and payloads published through the generic extension
+ * Built-in event identifiers and payloads published through the generic extension
  * event transport in `<dmsdk/extension/extension.h>`. Custom events may use
  * arbitrary name hashes and payloads without central registration.
  *
- * Built-in IDs are precomputed dmHashString64 values and integer constant
- * expressions in C and C++.
+ * Built-in IDs are integer constant expressions in C and C++.
  *
- * Built-in event hashes and their names:
+ * Built-in events:
  *
- * | Constant | Name | Payload and delivery |
- * | -------- | ---- | -------------------- |
- * | `EVENT_STATE` | `_dm_event_engine_state` | StateEvent. Successful initialization and engine deletion. |
- * | `EVENT_WINDOW` | `_dm_event_engine_window` | WindowEvent. Resize, minimize/restore and focus notifications from the window callbacks. May precede engine Initialize. |
+ * | Constant | Payload and delivery |
+ * | -------- | -------------------- |
+ * | `EVENT_STATE` | StateEvent. Successful initialization and engine deletion. |
+ * | `EVENT_WINDOW` | WindowEvent. Resize, minimize/restore and focus notifications from the window callbacks. May precede engine Initialize. |
+ * | `EVENT_INPUT_ACTIONS` | InputActionsEvent. One action batch per completed input update, after binding resolution and text-last ordering, before focused collection dispatch. Includes empty updates. |
  *
  * Payloads and their handles are borrowed for the synchronous callback. Obtain
  * the source engine from the callback registry using ENGINE_CONTEXT_NAME.
@@ -59,6 +59,7 @@ extern "C" {
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/engine/engine.h>
 #include <dmsdk/platform/window.h>
+#include <dmsdk/input/input.h>
 
 #include <dmsdk/engine/engine_event.h>
 }
@@ -66,8 +67,7 @@ extern "C" {
 namespace dmEngine
 {
     /*# engine state notification
-     * Hash of `_dm_event_engine_state` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
-     * Precomputed dmHashString64 value; no runtime hashing.
+     * Event identifier for StateEvent notifications.
      * @constant
      * @name EVENT_STATE
      * @language C++
@@ -75,13 +75,20 @@ namespace dmEngine
     static const dmhash_t EVENT_STATE = ENGINE_STATE_EVENT;
 
     /*# engine window notification
-     * Hash of `_dm_event_engine_window` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
-     * Precomputed dmHashString64 value; no runtime hashing.
+     * Event identifier for WindowEvent notifications.
      * @constant
      * @name EVENT_WINDOW
      * @language C++
      */
     static const dmhash_t EVENT_WINDOW = ENGINE_WINDOW_EVENT;
+
+    /*# input actions have been resolved
+     * Event identifier for InputActionsEvent notifications.
+     * @constant
+     * @name EVENT_INPUT_ACTIONS
+     * @language C++
+     */
+    static const dmhash_t EVENT_INPUT_ACTIONS = ENGINE_EVENT_INPUT_ACTIONS;
 
     /*# engine state notification kind
      * Identifies the initialization or deletion notification in StateEvent.
@@ -112,6 +119,26 @@ namespace dmEngine
     static const WindowEventType WINDOW_EVENT_RESTORED = ::ENGINE_WINDOW_EVENT_RESTORED;
     static const WindowEventType WINDOW_EVENT_FOCUS_GAINED = ::ENGINE_WINDOW_EVENT_FOCUS_GAINED;
     static const WindowEventType WINDOW_EVENT_FOCUS_LOST = ::ENGINE_WINDOW_EVENT_FOCUS_LOST;
+
+    /*# resolved input actions
+     * Published once per completed input update after application bindings are
+     * resolved, coordinates converted and text/marked-text ordered last, before
+     * focused game-object dispatch. Empty updates are published; skipped input
+     * updates are not. This is independent of extension Update and rendered-frame
+     * count. Input events use the generic handler's application lifetime.
+     *
+     * Iterate the current resolved batch through dmInput::IterateActions and the iterator
+     * getters. The batch belongs to input and remains valid until the next binding
+     * update starts or the context is destroyed. Iteration cannot consume input or
+     * change focused dispatch. Obtain the source engine from the extension context
+     * registry using ENGINE_CONTEXT_NAME. Focused gameplay should use native
+     * component input/update callbacks.
+     * @struct
+     * @name InputActionsEvent
+     * @language C++
+     * @member m_Input [type:dmInput::HContext] valid borrowed input context, including empty updates
+     */
+    typedef EngineInputActionsEvent InputActionsEvent;
 
     /*# engine state event payload
      * Payload for EVENT_STATE with data_size equal to sizeof(StateEvent).
@@ -148,8 +175,7 @@ namespace dmEngine
 
 #endif // #define DMSDK_ENGINE_EVENT_GEN_HPP
 /*# engine state notification
- * Hash of `_dm_event_engine_state` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Precomputed dmHashString64 value; no runtime hashing.
+ * Event identifier for EngineStateEvent notifications.
  * @constant
  * @name ENGINE_STATE_EVENT
  * @language C
@@ -165,8 +191,7 @@ namespace dmEngine
  */
 
 /*# engine window notification
- * Hash of `_dm_event_engine_window` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Precomputed dmHashString64 value; no runtime hashing.
+ * Event identifier for EngineWindowEvent notifications.
  * @constant
  * @name ENGINE_WINDOW_EVENT
  * @language C
@@ -182,6 +207,32 @@ namespace dmEngine
  * @member  ENGINE_WINDOW_EVENT_RESTORED The window was restored from minimization; not a show notification.
  * @member  ENGINE_WINDOW_EVENT_FOCUS_GAINED The window or app screen gained focus.
  * @member  ENGINE_WINDOW_EVENT_FOCUS_LOST The window or app screen lost focus.
+ */
+
+/*# input actions have been resolved
+ * Event identifier for EngineInputActionsEvent notifications.
+ * @constant
+ * @name ENGINE_EVENT_INPUT_ACTIONS
+ * @language C
+ */
+
+/*# resolved input actions
+ * Published once per completed input update after application bindings are
+ * resolved, coordinates converted and text/marked-text ordered last, before
+ * focused game-object dispatch. Empty updates are published; skipped input
+ * updates are not. This is independent of extension Update and rendered-frame
+ * count. Input events use the generic handler's application lifetime.
+ *
+ * Iterate the current resolved batch through InputIterateActions and the iterator
+ * getters. The batch belongs to input and remains valid until the next binding
+ * update starts or the context is destroyed. Iteration cannot consume input or
+ * change focused dispatch. Obtain the source engine from the extension context
+ * registry using ENGINE_CONTEXT_NAME. Focused gameplay should use native
+ * component input/update callbacks.
+ * @struct
+ * @name EngineInputActionsEvent
+ * @language C
+ * @member m_Input [type:HInputContext] valid borrowed input context, including empty updates
  */
 
 /*# engine state event payload

@@ -15,6 +15,7 @@
 #ifndef DM_TEST_GAMESYS_H
 #define DM_TEST_GAMESYS_H
 
+#include <graphics/graphics_test.hpp>
 #include <resource/resource.h>
 
 #include <dlib/buffer.h>
@@ -35,7 +36,6 @@
 #include "gamesys/gamesys.h"
 #include "gamesys/scripts/script_buffer.h"
 #include "../components/comp_gui_private.h" // BoxVertex
-#include "../../../../graphics/src/graphics_private.h" // for unit test functions
 
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/jobsystem.h>
