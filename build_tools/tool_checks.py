@@ -112,16 +112,17 @@ class ToolChecks:
         return self._check('Tar', self._setup_tar, silent=silent)
 
     def _setup_tar(self):
-        path = shutil.which('tar')
+        path = None
+        if os.name == 'nt' and os.environ.get('SystemRoot'):
+            # Match Windows executable lookup: the system tar precedes PATH tools such as Git's GNU tar.
+            path = shutil.which(join(os.environ['SystemRoot'], 'System32', 'tar.exe'))
+        if not path:
+            path = shutil.which('tar')
         if not path:
             raise sdk.SDKException('Tar was not found in PATH. Install tar and ensure it is available on PATH.')
         path = os.path.abspath(path)
-        version = run.env_command(os.environ, [path, '--version'], silent=True)
-        command = [path]
-        # GNU tar treats drive-letter paths as remote archives unless local mode is forced.
-        if 'GNU tar' in version:
-            command.append('--force-local')
-        return _Result(command, 'Found', path)
+        run.env_command(os.environ, [path, '--version'], silent=True)
+        return _Result(path, 'Found', path)
 
     def check_cmake(self, silent=False):
         return self._check('CMake', self._setup_cmake, silent=silent)

@@ -882,7 +882,7 @@ class Configuration(object):
         self._mkdirs(path)
         suffix = os.path.splitext(file)[1]
         fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
-        cmd = self.get_tar() + ['-x%sf' % fmts.get(suffix, 'z'), file]
+        cmd = [self.get_tar(), 'xf%s' % fmts.get(suffix, 'z'), file]
         if os.name == 'nt':
             cmd.append('--unlink-first')
         run.env_command(self._form_env(), cmd, cwd=path, **options)
@@ -890,6 +890,10 @@ class Configuration(object):
     def _extract_tgz_rename_folder(self, src, target_folder, strip_components=1, format=None):
         tar = self.get_tar()
         src = src.replace('\\', '/')
+
+        force_local = ''
+        if os.environ.get('GITHUB_SHA', None) is not None and os.environ.get('TERM', '') == 'cygwin':
+            force_local = '--force-local' # to make tar not try to "connect" because it found a colon in the source file
 
         self._log('Extracting %s to %s/' % (src, target_folder))
         parentdir, dirname = os.path.split(target_folder)
@@ -901,11 +905,14 @@ class Configuration(object):
             suffix = os.path.splitext(src)[1]
             fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
             format = fmts.get(suffix, 'z')
-        cmd = tar + ['-x%sf' % format, src, '-C', dirname]
+        cmd = [tar, 'xf%s' % format, src, '-C', dirname]
         if strip_components:
             cmd.extend(['--strip-components', '%d' % strip_components])
         if os.name == 'nt':
             cmd.append('--unlink-first')
+        if force_local:
+            cmd.append(force_local)
+
         run.env_command(self._form_env(), cmd)
         os.chdir(old_dir)
 
