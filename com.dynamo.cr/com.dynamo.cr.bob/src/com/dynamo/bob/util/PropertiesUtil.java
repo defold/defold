@@ -126,14 +126,14 @@ public class PropertiesUtil {
     public static boolean isResourceProperty(Project project, PropertyType type, String value) {
         if (type == PropertyType.PROPERTY_TYPE_HASH) {
             IResource resource = project.getResource(value);
-            return resource.exists();
+            return resource.exists() && resource.isFile();
         }
         return false;
     }
     public static IResource getResourceProperty(Project project, PropertyType type, String value) {
         if (type == PropertyType.PROPERTY_TYPE_HASH) {
             IResource resource = project.getResource(value);
-            if (resource.exists())
+            if (resource.exists() && resource.isFile())
                 return resource;
         }
         return null;

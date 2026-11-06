@@ -96,6 +96,17 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         assertSubElementsV4(properties.getQuatEntries(0));
     }
 
+    // Verifies directory-valued script hashes stay hashes and are not included as resources (#11091).
+    @Test
+    public void testHashPropertyMatchingDirectory() throws Exception {
+        getFileSystem().addDirectory("/operator/operator");
+        String src = "go.property(\"hash\", hash(\"/operator/operator\"))";
+
+        LuaModule luaModule = getMessage(build("/test.script", src), LuaModule.class);
+        PropertiesTestUtil.assertHash(luaModule.getProperties(), MurmurHash.hash64("/operator/operator"), 0);
+        assertEquals(0, luaModule.getPropertyResourcesCount());
+    }
+
     // DEF-7341 - using resource.xxx(path) for resources that doesn't exist should raise an error
     @Test
     public void testPropResourceNotFound() throws Exception {
