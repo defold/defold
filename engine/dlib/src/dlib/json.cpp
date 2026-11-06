@@ -623,6 +623,18 @@ namespace dmJson
         }
         for (uint32_t i = 0; i < size;)
         {
+            // Check four blocks together to amortize the ASCII reduction.
+            if (size - i >= 64)
+            {
+                dsimd_uint4_t a = SimdOrUint(SimdLoadUint(text + i), SimdLoadUint(text + i + 16));
+                dsimd_uint4_t b = SimdOrUint(SimdLoadUint(text + i + 32), SimdLoadUint(text + i + 48));
+                dsimd_uint4_t high = SimdAndUint(SimdOrUint(a, b), SimdSplatUint(0x80808080));
+                if (SimdAll(SimdEqualUint(high, SimdSplatUint(0))))
+                {
+                    i += 64;
+                    continue;
+                }
+            }
             uint32_t end = i + 16 < size ? i + 16 : size;
             if (size - i >= 16)
             {

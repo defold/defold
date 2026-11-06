@@ -379,12 +379,13 @@ TEST(dmJson, ErrorOffsets)
     ASSERT_EQ(2u, offset);
 }
 
-// UTF-8 validation must handle unaligned blocks, every tail length and sequences crossing SIMD boundaries.
+// UTF-8 validation must handle unaligned blocks, every tail length and sequences
+// crossing 16-byte and 64-byte boundaries without overreads or changed error offsets.
 TEST(dmJson, Utf8BlockBoundaries)
 {
     const char* sequences[] = { "\xc3\xa9", "\xe2\x82\xac", "\xf0\x9f\x98\x80", "\xc0\x80", "\xed\xa0\x80", "\xf4\x90\x80\x80", "\x80", "\xc3" };
     dmJson::Document json;
-    for (uint32_t prefix = 0; prefix < 32; ++prefix)
+    for (uint32_t prefix = 0; prefix < 128; ++prefix)
     {
         for (uint32_t suffix = 0; suffix < 16; ++suffix)
         {
@@ -408,7 +409,7 @@ TEST(dmJson, Utf8BlockBoundaries)
             }
         }
     }
-    for (uint32_t length = 0; length < 64; ++length)
+    for (uint32_t length = 0; length < 192; ++length)
     {
         char* storage = (char*)malloc(length + 3);
         char* text = storage + 1;
