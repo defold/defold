@@ -528,13 +528,32 @@ namespace dmScript
     /**
      * Add (load) module
      * @param context script context
-     * @param source lua script to load
+     * @param source lua script to load; its executable bytes are copied
      * @param script_name script-name. Should be in lua require-format, i.e. syntax use for the require statement. e.g. x.y.z without any extension
      * @param resource the resource will be released throught the resource system at finalization
      * @param path_hash hashed path of the originating resource
      * @return RESULT_OK on success
      */
     Result AddModule(HContext context, dmLuaDDF::LuaSource *source, const char *script_name, void* resource, dmhash_t path_hash);
+
+    /**
+     * Prepare a compiled module chunk on L during registration, returning zero on success, or an error message and a nonzero Lua status on failure.
+     * Syntax errors are retained until require; other failures abort registration.
+     * The module registry retains the resource until the context is finalized.
+     */
+    typedef int (*ModuleLoader)(HContext context, lua_State* L, void* resource);
+
+    /**
+     * Register and prepare a module. Its body executes when required.
+     * @param context script context
+     * @param source executable bytes and diagnostic filename when loader is null; otherwise unused
+     * @param script_name module name in require format
+     * @param resource resource passed to loader and released at finalization
+     * @param path_hash hashed path of the originating resource
+     * @param loader prepares a compiled chunk or an error message during registration without executing the chunk
+     * @return RESULT_OK on success
+     */
+    Result AddModule(HContext context, dmLuaDDF::LuaSource* source, const char* script_name, void* resource, dmhash_t path_hash, ModuleLoader loader);
 
     /**
      * Reload loaded module
