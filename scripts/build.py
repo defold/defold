@@ -4,7 +4,7 @@ import sys, os, platform
 from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath, splitext
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
-import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
+import shutil, zipfile, re, json, platform, math, mimetypes, hashlib
 import optparse, pprint, subprocess, urllib, urllib.parse, tempfile, time
 import github
 import build_android
@@ -37,6 +37,7 @@ from threading import Thread, Event
 from queue import Queue
 from configparser import ConfigParser
 from BuildTimeTracker import BuildTimeTracker
+from log import log
 
 BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'x86_64-macos', 'arm64-macos',
@@ -872,15 +873,19 @@ class Configuration(object):
             self._remove_tree(join(self.ext, directory, platform))
         self._log('clean_ext done for %s.' % platform)
 
-    def _extract_tgz(self, file, path):
-        self._log('Extracting %s to %s' % (file, path))
+    def _extract_tgz(self, file, path, *, on_diagnostic=None):
+        options = {}
+        if on_diagnostic is None:
+            self._log('Extracting %s to %s' % (file, path))
+        else:
+            options = {'silent': True, 'on_output': on_diagnostic, 'capture_output': False}
         self._mkdirs(path)
         suffix = os.path.splitext(file)[1]
         fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
         cmd = [self.get_tar(), 'xf%s' % fmts.get(suffix, 'z'), file]
         if os.name == 'nt':
             cmd.append('--unlink-first')
-        run.env_command(self._form_env(), cmd, cwd = path)
+        run.env_command(self._form_env(), cmd, cwd=path, **options)
 
     def _extract_tgz_rename_folder(self, src, target_folder, strip_components=1, format=None):
         tar = self.get_tar()
@@ -930,8 +935,9 @@ class Configuration(object):
         else:
             self._extract_tgz(file, path)
 
-    def _copy(self, src, dst):
-        self._log('Copying %s -> %s' % (src, dst))
+    def _copy(self, src, dst, *, quiet=False):
+        if not quiet:
+            self._log('Copying %s -> %s' % (src, dst))
         shutil.copy(src, dst)
 
     def _copy_tree(self, src, dst):
@@ -983,6 +989,40 @@ class Configuration(object):
         self.install_ext_packages()
         self.build_ext()
 
+    def _install_files(self, title, files, *, extract=False):
+        total = len(files)
+        action = 'extract' if extract else 'copy'
+        progress = None
+        if not self.verbose:
+            env = {'NOCOLOR': '1'} if self.no_colors else None
+            progress = build_output.ProgressOutput(title, env=env)
+            progress.progress(0, total)
+
+        def log_diagnostic(message):
+            if progress is not None:
+                progress.end_line()
+            log(message)
+
+        on_diagnostic = log_diagnostic if progress is not None else None
+        try:
+            for completed, (source, destination) in enumerate(files, 1):
+                try:
+                    if extract:
+                        self._extract_tgz(source, destination, on_diagnostic=on_diagnostic)
+                    else:
+                        self._copy(source, destination, quiet=progress is not None)
+                except run.ExecException as error:
+                    log_diagnostic(f'Could not {action} {source} to {destination} (tar exited with code {error.retcode}).')
+                    sys.exit(error.retcode)
+                except OSError as error:
+                    log_diagnostic(f'Could not {action} {source} to {destination}\n{error}')
+                    sys.exit(1)
+                if progress is not None:
+                    progress.progress(completed, total)
+        finally:
+            if progress is not None:
+                progress.end_line()
+
     def install_ext_packages(self):
         self.check_python()
         self.check_tar()
@@ -1005,12 +1045,8 @@ class Configuration(object):
         def make_private_package_paths(platform, packages):
             return [make_private_package_path(platform, package) for package in packages]
 
-        print("Installing common packages")
-        for p in PACKAGES_ALL:
-            self._extract_tgz(make_package_path(self.defold_root, 'common', p), self.ext)
-
-        for p in DMSDK_PACKAGES_ALL:
-            self._extract_tgz(make_package_path(self.defold_root, 'common', p), self.dmsdk)
+        archives = [(path, self.ext) for path in make_package_paths(self.defold_root, 'common', PACKAGES_ALL)]
+        archives.extend((path, self.dmsdk) for path in make_package_paths(self.defold_root, 'common', DMSDK_PACKAGES_ALL))
 
         # TODO: Make sure the order of install does not affect the outcome!
 
@@ -1023,18 +1059,16 @@ class Configuration(object):
             for package in PACKAGES_NODE_MODULES:
                 path = join(self.defold_root, 'packages', package + '.tar.gz')
                 name = package.split('-')[0]
-                self._extract_tgz(path, join(node_modules_dir, name))
+                archives.append((path, join(node_modules_dir, name)))
 
-        installed_packages = set()
+        scheduled_packages = set()
 
         for platform in other_platforms:
             packages = [package for package in PLATFORM_PACKAGES.get(platform, [])
                         if package not in PACKAGES_HOST]
             package_paths = make_package_paths(self.defold_root, platform, packages)
-            print("Installing %s packages " % platform)
-            for path in package_paths:
-                self._extract_tgz(path, self.ext)
-            installed_packages.update(package_paths)
+            archives.extend((path, self.ext) for path in package_paths)
+            scheduled_packages.update(package_paths)
 
         for base_platform in base_platforms:
             packages = list(PACKAGES_HOST)
@@ -1042,23 +1076,15 @@ class Configuration(object):
             packages = list(dict.fromkeys(packages))
             package_paths = make_package_paths(self.defold_root, base_platform, packages)
             package_paths.extend(make_private_package_paths(base_platform, build_private.get_install_host_packages(base_platform)))
-            package_paths = [path for path in package_paths if path not in installed_packages]
-            if len(package_paths) != 0:
-                print("Installing %s packages" % base_platform)
-                for path in package_paths:
-                    self._extract_tgz(path, self.ext)
-                installed_packages.update(package_paths)
+            archives.extend((path, self.ext) for path in package_paths if path not in scheduled_packages)
+            scheduled_packages.update(package_paths)
 
         target_packages = PLATFORM_PACKAGES.get(self.target_platform, [])
         target_package_paths = make_package_paths(self.defold_root, self.target_platform, target_packages)
         target_package_paths.extend(make_private_package_paths(self.target_platform, build_private.get_install_target_packages(self.target_platform)))
-        target_package_paths = [path for path in target_package_paths if path not in installed_packages]
+        archives.extend((path, self.ext) for path in target_package_paths if path not in scheduled_packages)
 
-        if len(target_package_paths) != 0:
-            print("Installing %s packages" % self.target_platform)
-            for path in target_package_paths:
-                self._extract_tgz(path, self.ext)
-            installed_packages.update(target_package_paths)
+        self._install_files('Installing packages', archives, extract=True)
 
         print("Installing python wheels")
         self._install_python_packages([
@@ -1073,16 +1099,19 @@ class Configuration(object):
             'requests==2.34.2',
         ])
 
-        print("Installing javascripts")
-        for n in 'web-pre.js'.split():
-            self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
+        share_dir = join(self.dynamo_home, 'share')
+        javascript_files = [
+            (join(self.defold_root, 'share', name), share_dir)
+            for name in ('web-pre.js', 'web-pre-engine.js')
+        ]
+        self._install_files('Installing JavaScript files', javascript_files)
 
-        for n in 'web-pre-engine.js'.split():
-            self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
-
-        print("Installing profiles etc")
-        for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
-            self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
+        profile_files = [
+            (join(self.defold_root, name), share_dir)
+            for ext in ('.mobileprovision', '.xcent', '.supp')
+            for name in glob('share/*%s' % ext)
+        ]
+        self._install_files('Installing profiles', profile_files)
 
         # Simple way to reduce number of warnings in the build
         proto_path = os.path.join(self.dynamo_home, 'share', 'proto')
