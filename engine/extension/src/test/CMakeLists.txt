@@ -31,7 +31,6 @@ defold_target_link_libraries(test_extension "${TARGET_PLATFORM}"
   lua
   extension
   test_extension_lib)
-add_dependencies(test_extension physics_sdk_headers)
 defold_target_link_socket(test_extension "${TARGET_PLATFORM}" PRIVATE)
 if(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")
   target_sources(test_extension PRIVATE "${EXTENSION_TEST_ROOT}/test_extension_ios.mm")

@@ -21,7 +21,6 @@
 // for scripting
 #include <stdint.h>
 #include <physics/physics.h>
-#include <dmsdk/physics/physics_event.hpp>
 #include <gamesys.h>
 
 #include <gamesys/physics_ddf.h>
@@ -45,7 +44,7 @@ namespace dmGameSystem
     void                         CompCollisionIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
     dmGameObject::HInstance      CompCollisionObjectGetInstance(void* user_data);
 
-    void BroadcastPhysicsPostStepEvent(dmGameObject::HCollection collection, const void* world, dmPhysics::EventType type, float dt);
+    void BroadcastPhysicsPostStepEvent(dmGameObject::HCollection collection, const void* world, float dt);
 
     dmScript::LuaCallbackInfo* GetCollisionWorldCallback(CollisionWorld* world);
     void SetCollisionWorldCallback(CollisionWorld* world, dmScript::LuaCallbackInfo* callback_info, bool use_batching);
