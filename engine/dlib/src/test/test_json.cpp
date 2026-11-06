@@ -343,6 +343,47 @@ TEST(dmJson, ErrorOffsets)
     ASSERT_EQ(2u, offset);
 }
 
+// UTF-8 validation must handle unaligned blocks, every tail length and sequences crossing SIMD boundaries.
+TEST(dmJson, Utf8BlockBoundaries)
+{
+    const char* sequences[] = { "\xc3\xa9", "\xe2\x82\xac", "\xf0\x9f\x98\x80", "\xc0\x80", "\xed\xa0\x80", "\xf4\x90\x80\x80", "\x80", "\xc3" };
+    dmJson::Document json;
+    for (uint32_t prefix = 0; prefix < 32; ++prefix)
+    {
+        for (uint32_t suffix = 0; suffix < 16; ++suffix)
+        {
+            for (uint32_t s = 0; s < DM_ARRAY_SIZE(sequences); ++s)
+            {
+                uint32_t length = (uint32_t)strlen(sequences[s]);
+                uint32_t size = prefix + length + suffix + 2;
+                // No terminating NUL or padding: full loads must stay within size.
+                char* text = (char*)malloc(size);
+                memset(text, 'a', size);
+                text[0] = text[size - 1] = '"';
+                memcpy(text + prefix + 1, sequences[s], length);
+                uint32_t offset;
+                bool valid = json.Parse(text, size, &offset);
+                free(text);
+                ASSERT_EQ(s < 3, valid);
+                if (!valid)
+                {
+                    ASSERT_EQ(prefix + 1, offset);
+                }
+            }
+        }
+    }
+    for (uint32_t length = 0; length < 64; ++length)
+    {
+        char* storage = (char*)malloc(length + 3);
+        char* text = storage + 1;
+        memset(text, 'a', length + 2);
+        text[0] = text[length + 1] = '"';
+        ASSERT_TRUE(json.Parse(text, length + 2));
+        ASSERT_EQ(length, strlen(json.String(0)));
+        free(storage);
+    }
+}
+
 // Escape control characters, embedded NUL and invalid bytes while preserving valid UTF-8 sequences.
 TEST(dmJson, WriteStrings)
 {

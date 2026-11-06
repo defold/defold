@@ -16,6 +16,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
+#include <simd/simd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -538,16 +539,32 @@ namespace dmJson
         }
         for (uint32_t i = 0; i < size;)
         {
-            uint32_t bytes = Utf8Bytes(text + i, size - i);
-            if (!bytes)
+            uint32_t end = i + 16 < size ? i + 16 : size;
+            if (size - i >= 16)
             {
-                if (error_offset)
+                dsimd_uint4_t bytes = SimdLoadUint(text + i);
+                dsimd_uint4_t high = SimdAndUint(bytes, SimdSplatUint(0x80808080));
+                if (SimdAll(SimdEqualUint(high, SimdSplatUint(0))))
                 {
-                    *error_offset = i;
+                    i += 16;
+                    continue;
                 }
-                return false;
             }
-            i += bytes;
+            // Validate a mixed block once instead of reloading it for every
+            // byte. A UTF-8 sequence may extend beyond the block boundary.
+            do
+            {
+                uint32_t bytes = Utf8Bytes(text + i, size - i);
+                if (!bytes)
+                {
+                    if (error_offset)
+                    {
+                        *error_offset = i;
+                    }
+                    return false;
+                }
+                i += bytes;
+            } while (i < end);
         }
         free(m_Text);
         m_Nodes.SetSize(0);
