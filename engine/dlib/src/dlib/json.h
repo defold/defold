@@ -51,9 +51,13 @@ namespace dmJson
     {
         Type        m_Type;
         const char* m_Name;
-        const char* m_String;
-        double      m_Number;
-        int         m_First;
+        // Only the member selected by m_Type is valid. Containers use m_First.
+        union
+        {
+            int         m_First;
+            const char* m_String;
+            double      m_Number;
+        };
         int         m_Next;
         // Encoded value span in the original input, before string decoding.
         uint32_t    m_Offset;
@@ -72,7 +76,8 @@ namespace dmJson
         char*             m_End;
         bool              m_Valid;
         bool              m_DecodeValues;
-        Document();
+        // Zero capacity defers node allocation until parsing the first value.
+        Document(uint32_t initial_capacity = 32);
         ~Document();
         bool            Parse(const char* text, uint32_t size, uint32_t* error_offset = 0, ParseMode mode = PARSE_DECODE_VALUES);
         int             Field(int object, const char* name) const;

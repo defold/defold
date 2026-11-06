@@ -62,17 +62,18 @@ static void Array(dmArray<char>& text, uint32_t count)
     Append(text, "]");
 }
 
-// Preallocate 512 nodes and preserve every value when an array grows beyond
-// that capacity; subsequent parses must discard the previous document.
+// Preserve every value when an array grows beyond its initial capacity;
+// subsequent parses must discard the previous document.
 TEST(dmJson, InitialCapacityAndGrowingArray)
 {
     dmJson::Document json;
-    ASSERT_EQ(512u, json.m_Nodes.Capacity());
+    uint32_t initial_capacity = json.m_Nodes.Capacity();
+    ASSERT_LT(initial_capacity, 1024u);
     dmArray<char> text;
     Array(text, 1024);
     ASSERT_TRUE(json.Parse(text.Begin(), text.Size()));
     ASSERT_EQ(1025u, json.m_Nodes.Size());
-    ASSERT_GT(json.m_Nodes.Capacity(), 512u);
+    ASSERT_GT(json.m_Nodes.Capacity(), initial_capacity);
     int value = json.Get(0).m_First;
     for (int i = 0; i < 1024; ++i)
     {
@@ -85,6 +86,41 @@ TEST(dmJson, InitialCapacityAndGrowingArray)
     ASSERT_TRUE(json.Parse(small_json, (uint32_t)strlen(small_json)));
     ASSERT_EQ(2u, json.m_Nodes.Size());
     ASSERT_EQ(42, json.Integer(json.Field(0, "value")));
+}
+
+// Explicit reserves, including a zero reserve, must grow safely while mixed node types retain their values.
+TEST(dmJson, ReservedCapacityAndMixedValues)
+{
+    const uint32_t capacities[] = { 0, 1, 16, 512 };
+    const char text[] = "{\"array\":[42,\"value\",true,false,null,{},[]],\"empty\":\"\"}";
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(capacities); ++i)
+    {
+        dmJson::Document json(capacities[i]);
+        ASSERT_EQ(capacities[i], json.m_Nodes.Capacity());
+        ASSERT_TRUE(json.Parse(text, sizeof(text) - 1));
+        int value = json.Get(json.Field(0, "array")).m_First;
+        ASSERT_EQ(42, json.Integer(value));
+        value = json.Get(value).m_Next;
+        ASSERT_STREQ("value", json.String(value));
+        ASSERT_EQ(-7, json.Integer(value, -7));
+        value = json.Get(value).m_Next;
+        ASSERT_TRUE(json.Boolean(value));
+        value = json.Get(value).m_Next;
+        ASSERT_FALSE(json.Boolean(value, true));
+        value = json.Get(value).m_Next;
+        ASSERT_EQ(dmJson::TYPE_NULL, json.Get(value).m_Type);
+        ASSERT_EQ(-7, json.Integer(value, -7));
+        value = json.Get(value).m_Next;
+        ASSERT_EQ(dmJson::TYPE_OBJECT, json.Get(value).m_Type);
+        ASSERT_EQ(-1, json.Get(value).m_First);
+        value = json.Get(value).m_Next;
+        ASSERT_EQ(dmJson::TYPE_ARRAY, json.Get(value).m_Type);
+        ASSERT_EQ(-1, json.Get(value).m_First);
+        ASSERT_EQ(-1, json.Get(value).m_Next);
+        ASSERT_STREQ("", json.String(json.Field(0, "empty")));
+        ASSERT_EQ(-1, json.Get(-1).m_First);
+        ASSERT_EQ(-7, json.Integer(-1, -7));
+    }
 }
 
 // Field links and lookup results must survive both the small-object/index

@@ -128,14 +128,14 @@ namespace dmJson
         write(context, "\"", 1);
     }
 
-    Document::Document()
+    Document::Document(uint32_t initial_capacity)
     : m_Text(0)
     , m_Cursor(0)
     , m_End(0)
     , m_Valid(true)
     , m_DecodeValues(true)
     {
-        m_Nodes.SetCapacity(512);
+        m_Nodes.SetCapacity(initial_capacity);
     }
     Document::~Document()
     {
@@ -318,7 +318,7 @@ namespace dmJson
         node.m_Offset = (uint32_t)(m_Cursor - m_Text);
         if (m_Nodes.Full())
         {
-            m_Nodes.SetCapacity(m_Nodes.Capacity() * 2);
+            m_Nodes.SetCapacity(m_Nodes.Capacity() ? m_Nodes.Capacity() * 2 : 32);
         }
         int id = m_Nodes.Size();
         m_Nodes.Push(node);
@@ -584,7 +584,7 @@ namespace dmJson
     }
     const Node& Document::Get(int node) const
     {
-        static const Node missing = { TYPE_NULL, 0, 0, 0, -1, -1, 0, 0, 0 };
+        static const Node missing = { TYPE_NULL, 0, { -1 }, -1, 0, 0, 0 };
         return node >= 0 && node < (int)m_Nodes.Size() ? m_Nodes[node] : missing;
     }
     int Document::Field(int object, const char* name) const
@@ -608,8 +608,13 @@ namespace dmJson
     }
     int Document::Integer(int node, int fallback) const
     {
-        double n = Get(node).m_Number;
-        return m_DecodeValues && Get(node).m_Type == TYPE_NUMBER && n >= INT_MIN && n <= INT_MAX && floor(n) == n ? (int)n : fallback;
+        const Node& value = Get(node);
+        if (!m_DecodeValues || value.m_Type != TYPE_NUMBER)
+        {
+            return fallback;
+        }
+        double n = value.m_Number;
+        return n >= INT_MIN && n <= INT_MAX && floor(n) == n ? (int)n : fallback;
     }
     bool Document::UnsignedInteger(int node, uint32_t* value) const
     {
