@@ -43,6 +43,36 @@ import static org.junit.Assert.assertTrue;
 
 public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
+    // Source output must bypass DXC while preserving compute workgroup reflection through JNI.
+    @Test
+    public void testSM6HLSLSourceOutput() throws Exception {
+        ShaderCompilePipeline.ShaderModuleDesc module = new ShaderCompilePipeline.ShaderModuleDesc();
+        module.type = ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
+        module.resourcePath = "source-output.cp";
+        module.source = "#version 450\nlayout(local_size_x=1) in;\n"
+            + "layout(rgba32f, binding=0) uniform writeonly image2D output_image;\n"
+            + "void main() { imageStore(output_image, ivec2(gl_GlobalInvocationID.xy), vec4(gl_NumWorkGroups, 1)); }\n";
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
+        modules.add(module);
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.outputMode = Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_SOURCE;
+        ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline("source-output", modules, options);
+        try {
+            Shaderc.ShaderCompileResult result = pipeline.crossCompile(module.type, ShaderDesc.Language.LANGUAGE_HLSL_60);
+            String source = new String(result.data, StandardCharsets.UTF_8);
+            assertTrue(source.contains("numthreads"));
+            assertTrue(source.contains("SPIRV_Cross_NumWorkgroups"));
+            assertFalse(source.startsWith("DXBC"));
+            assertFalse(source.contains("RootSignature"));
+            assertEquals(0, result.hLSLRootSignature.length);
+            assertTrue(pipeline.getReflectionData(module.type).getUBOs().stream()
+                .anyMatch(resource -> resource.name.equals("SPIRV_Cross_NumWorkgroups")
+                    && resource.binding == result.hLSLNumWorkGroupsId));
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
+    }
+
     // SM6 shader output must contain DXIL bytecode and a root signature.
     @Test
     public void testSM6ShaderLanguageAndBytecode() throws Exception {
