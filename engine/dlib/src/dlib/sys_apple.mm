@@ -28,9 +28,6 @@
 #if defined(DM_PLATFORM_IOS)
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIKit.h>
-#import <SystemConfiguration/SystemConfiguration.h>
-#include <netinet/in.h>
-#include <string.h>
 #else
 #import <AppKit/NSWorkspace.h>
 #import <Foundation/NSLocale.h>
@@ -227,100 +224,50 @@ namespace dmSys
         }
     }
 
-#if defined(DM_PLATFORM_IOS)
-
-    static NetworkConnectivity g_HostConnectivity = NETWORK_DISCONNECTED;
-    static bool g_HostConnectivityValid = false;
-    static SCNetworkReachabilityRef reachability_ref = 0;
-    static SCNetworkReachabilityRef g_DefaultRouteReachability = 0;
-
-    static NetworkConnectivity FlagsToConnectivity(SCNetworkReachabilityFlags flags)
+    NetworkConnectivity NetworkPathStateToConnectivity(nw_path_status_t status, bool uses_cellular)
     {
-        if ((flags & kSCNetworkReachabilityFlagsReachable) == 0)
+        switch (status)
         {
-            return NETWORK_DISCONNECTED;
-        }
-
-        bool connected = (flags & kSCNetworkReachabilityFlagsConnectionRequired) == 0;
-        if (!connected
-            && (flags & (kSCNetworkReachabilityFlagsConnectionOnDemand | kSCNetworkReachabilityFlagsConnectionOnTraffic)) != 0
-            && (flags & kSCNetworkReachabilityFlagsInterventionRequired) == 0)
-        {
-            connected = true;
-        }
-
-        if (!connected)
-        {
-            return NETWORK_DISCONNECTED;
-        }
-
-        return (flags & kSCNetworkReachabilityFlagsIsWWAN) != 0 ? NETWORK_CONNECTED_CELLULAR : NETWORK_CONNECTED;
-    }
-
-    static void ReachabilityCallback(SCNetworkReachabilityRef target, SCNetworkReachabilityFlags flags, void* info)
-    {
-        g_HostConnectivity = FlagsToConnectivity(flags);
-        g_HostConnectivityValid = true;
-    }
-
-    static NetworkConnectivity GetDefaultRouteConnectivity()
-    {
-        if (!g_DefaultRouteReachability)
-        {
-            struct sockaddr_in zero_address;
-            memset(&zero_address, 0, sizeof(zero_address));
-            zero_address.sin_len = sizeof(zero_address);
-            zero_address.sin_family = AF_INET;
-            g_DefaultRouteReachability = SCNetworkReachabilityCreateWithAddress(NULL, (const struct sockaddr*)&zero_address);
-            if (!g_DefaultRouteReachability)
+            case nw_path_status_satisfied:
+            case nw_path_status_satisfiable:
             {
-                dmLogError("Could not create default route reachability reference (NULL).");
+                return uses_cellular ? NETWORK_CONNECTED_CELLULAR : NETWORK_CONNECTED;
+            }
+            case nw_path_status_unsatisfied:
+            {
                 return NETWORK_DISCONNECTED;
             }
+            default:
+            {
+                return NETWORK_UNKNOWN;
+            }
         }
+    }
 
-        SCNetworkReachabilityFlags flags;
-        if (!SCNetworkReachabilityGetFlags(g_DefaultRouteReachability, &flags))
-        {
-            return NETWORK_DISCONNECTED;
-        }
-        return FlagsToConnectivity(flags);
+#if defined(DM_PLATFORM_IOS)
+
+    NetworkConnectivity NetworkPathToConnectivity(void* path)
+    {
+        nw_path_t network_path = (nw_path_t)path;
+        return NetworkPathStateToConnectivity(nw_path_get_status(network_path), nw_path_uses_interface_type(network_path, nw_interface_type_cellular));
+    }
+
+    void StartNetworkConnectivityMonitor()
+    {
+        static dispatch_once_t once;
+        dispatch_once(&once, ^{
+            // Lives for the rest of the process, and is therefore never cancelled or released
+            nw_path_monitor_t monitor = nw_path_monitor_create();
+            nw_path_monitor_set_queue(monitor, dispatch_queue_create("com.defold.sys.connectivity", DISPATCH_QUEUE_SERIAL));
+            nw_path_monitor_set_update_handler(monitor, ^(nw_path_t path) {
+                PublishNetworkConnectivity(NetworkPathToConnectivity(path));
+            });
+            nw_path_monitor_start(monitor);
+        });
     }
 
     void SetNetworkConnectivityHost(const char* host)
     {
-        assert(host != 0);
-
-        if (reachability_ref)
-        {
-            SCNetworkReachabilityUnscheduleFromRunLoop(reachability_ref, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
-            CFRelease(reachability_ref);
-        }
-        g_HostConnectivityValid = false;
-        reachability_ref = SCNetworkReachabilityCreateWithName(NULL, host);
-
-        if (reachability_ref == NULL)
-        {
-            dmLogError("Could not create reachability reference (NULL).");
-            return;
-        }
-
-        SCNetworkReachabilityContext context = {0, (void*) 0, NULL, NULL, NULL};
-        if(!SCNetworkReachabilitySetCallback(reachability_ref, dmSys::ReachabilityCallback, &context))
-        {
-            dmLogError("Could not set reachability callback.");
-            CFRelease(reachability_ref);
-            reachability_ref = 0;
-            return;
-        }
-
-        if(!SCNetworkReachabilityScheduleWithRunLoop(reachability_ref, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode))
-        {
-            dmLogError("Could not schedule reachability callback.");
-            CFRelease(reachability_ref);
-            reachability_ref = 0;
-            return;
-        }
     }
 
     Result GetLogPath(char* path, uint32_t path_len)
@@ -398,12 +345,8 @@ namespace dmSys
 
     NetworkConnectivity GetNetworkConnectivity()
     {
-        // Until the host callback has reported, fall back to the default route status
-        if (reachability_ref && g_HostConnectivityValid)
-        {
-            return g_HostConnectivity;
-        }
-        return GetDefaultRouteConnectivity();
+        StartNetworkConnectivityMonitor();
+        return GetPublishedNetworkConnectivity();
     }
 
 #else // macos

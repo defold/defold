@@ -17,6 +17,7 @@
 #include <errno.h>
 #include <string.h>
 
+#include <dlib/atomic.h>
 #include <dlib/sys.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -35,6 +36,42 @@ extern "C" void dmSysPumpMessageQueue();
 namespace dmSys
 {
     EngineInfo g_EngineInfo;
+
+    static const int32_t NETWORK_CONNECTIVITY_STATUS_MASK  = 0xFF;
+    static const int32_t NETWORK_CONNECTIVITY_CHANGED_FLAG = 1 << 8;
+
+    static int32_atomic_t g_NetworkConnectivity = NETWORK_UNKNOWN;
+
+    void PublishNetworkConnectivity(NetworkConnectivity status)
+    {
+        int32_t current = dmAtomicGet32(&g_NetworkConnectivity);
+        if ((current & NETWORK_CONNECTIVITY_STATUS_MASK) == status)
+        {
+            return;
+        }
+        dmAtomicStore32(&g_NetworkConnectivity, status | NETWORK_CONNECTIVITY_CHANGED_FLAG);
+    }
+
+    NetworkConnectivity GetPublishedNetworkConnectivity()
+    {
+        return (NetworkConnectivity)(dmAtomicGet32(&g_NetworkConnectivity) & NETWORK_CONNECTIVITY_STATUS_MASK);
+    }
+
+    bool ConsumeNetworkConnectivityChange(NetworkConnectivity* status)
+    {
+        int32_t value = dmAtomicGet32(&g_NetworkConnectivity);
+        if ((value & NETWORK_CONNECTIVITY_CHANGED_FLAG) == 0)
+        {
+            return false;
+        }
+        // A status published after the read keeps its flag, and is reported by the next call
+        if (dmAtomicCompareStore32(&g_NetworkConnectivity, value & ~NETWORK_CONNECTIVITY_CHANGED_FLAG, value) != value)
+        {
+            return false;
+        }
+        *status = (NetworkConnectivity)(value & NETWORK_CONNECTIVITY_STATUS_MASK);
+        return true;
+    }
 
     #define DM_SYS_ERRNO_TO_RESULT_CASE(x) case E##x: return RESULT_##x
 

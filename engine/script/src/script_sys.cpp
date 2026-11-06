@@ -83,6 +83,7 @@ union SaveLoadBuffer
      * @member sys.NETWORK_CONNECTED Connected through Wi-Fi or another non-cellular network.
      * @member sys.NETWORK_CONNECTED_CELLULAR Connected through a cellular network.
      * @member sys.NETWORK_DISCONNECTED No network connection was found.
+     * @member sys.NETWORK_UNKNOWN [icon:ios] The status isn't known yet.
      */
 
     /*# URL opening attributes
@@ -1146,11 +1147,9 @@ union SaveLoadBuffer
 
     /*# set host to check for network connectivity against
      *
-     * Sets the host that is used to check for network connectivity against.
-     *
-     * [icon:ios] Setting a host is optional. Without one, `sys.get_connectivity()`
-     * reports the status of the default internet route. With a host set, the status
-     * reflects whether that host is reachable, once it has been resolved.
+     * [icon:attention] This function is deprecated and has no effect.
+     * [ref:sys.get_connectivity] and [ref:sys.set_connectivity_listener] report the
+     * status of the device's network path, without checking against a specific host.
      *
      * @name sys.set_connectivity_host
      * @param host [type:string] hostname to check against
@@ -1163,6 +1162,7 @@ union SaveLoadBuffer
     static int Sys_SetConnectivityHost(lua_State* L)
     {
         int top = lua_gettop(L);
+        dmLogOnceWarning("Function 'sys.set_connectivity_host' is deprecated and has no effect.");
         dmSys::SetNetworkConnectivityHost( luaL_checkstring(L, 1) );
         assert(top == lua_gettop(L));
         return 0;
@@ -1174,6 +1174,13 @@ union SaveLoadBuffer
      * on mobile platforms.
      *
      * On desktop, this function always return `sys.NETWORK_CONNECTED`.
+     *
+     * [icon:ios] The status is updated in the background, and this function returns
+     * `sys.NETWORK_UNKNOWN` until the first update has arrived. Use
+     * [ref:sys.set_connectivity_listener] to find out when the status changes.
+     *
+     * The status is a hint. A connection can still fail when the status is connected, and
+     * succeed when it is disconnected, so don't use it to decide whether to attempt a connection.
      *
      * @name sys.get_connectivity
      * @return status [type:sys.NETWORK] network connectivity status
@@ -1194,6 +1201,116 @@ union SaveLoadBuffer
         lua_pushnumber(L, dmSys::GetNetworkConnectivity());
         assert(top + 1 == lua_gettop(L));
         return 1;
+    }
+
+    static LuaCallbackInfo* g_ConnectivityListener = 0;
+    static LuaCallbackInfo* g_InvokingConnectivityListener = 0;
+
+    static void ReplaceConnectivityListener(LuaCallbackInfo* listener)
+    {
+        // A listener that replaces itself is destroyed once it has returned
+        if (g_ConnectivityListener && g_ConnectivityListener != g_InvokingConnectivityListener)
+        {
+            DestroyCallback(g_ConnectivityListener);
+        }
+        g_ConnectivityListener = listener;
+    }
+
+    /*# set a listener for network connectivity changes
+     *
+     * [icon:ios] Sets a function that is called on the frame after the network connectivity
+     * status has changed, including the change from `sys.NETWORK_UNKNOWN` to the first known status.
+     *
+     * Only one listener can be set at a time, and setting a new one replaces the previous one.
+     * The listener isn't called when it is set, so call [ref:sys.get_connectivity]
+     * after setting it to get the current status.
+     *
+     * If the status changes more than once between two frames, the listener is called once with
+     * the latest status, which can be the same status it was called with the last time.
+     *
+     * @name sys.set_connectivity_listener
+     * @param listener [type:fun(self:script_instance, status:sys.NETWORK)|nil] A function which receives the new status. Pass `nil` to remove the current listener.
+     *
+     * @examples
+     *
+     * ```lua
+     * local function on_connectivity(self, status)
+     *     self.online = status == sys.NETWORK_CONNECTED or status == sys.NETWORK_CONNECTED_CELLULAR
+     * end
+     *
+     * function init(self)
+     *     sys.set_connectivity_listener(on_connectivity)
+     *     on_connectivity(self, sys.get_connectivity())
+     * end
+     * ```
+     */
+    static int Sys_SetConnectivityListener(lua_State* L)
+    {
+        luaL_checkany(L, 1);
+
+        if (lua_isnil(L, 1))
+        {
+            ReplaceConnectivityListener(0);
+            return 0;
+        }
+
+        LuaCallbackInfo* listener = CreateCallback(L, 1);
+        if (!IsCallbackValid(listener))
+        {
+            return luaL_error(L, "Failed to create callback");
+        }
+        ReplaceConnectivityListener(listener);
+
+        // A change from before the listener was set isn't reported to it
+        dmSys::NetworkConnectivity status;
+        dmSys::ConsumeNetworkConnectivityChange(&status);
+        return 0;
+    }
+
+    static void SysExtensionUpdate(HContext context)
+    {
+        lua_State* L = context->m_LuaState;
+        LuaCallbackInfo* listener = g_ConnectivityListener;
+        if (listener == 0 || GetCallbackLuaContext(listener) != L)
+        {
+            return;
+        }
+
+        dmSys::NetworkConnectivity status;
+        if (!dmSys::ConsumeNetworkConnectivityChange(&status))
+        {
+            return;
+        }
+
+        if (!IsCallbackValid(listener))
+        {
+            ReplaceConnectivityListener(0);
+            return;
+        }
+
+        DM_LUA_STACK_CHECK(L, 0);
+        if (!SetupCallback(listener))
+        {
+            return;
+        }
+        lua_pushnumber(L, status);
+        g_InvokingConnectivityListener = listener;
+        PCall(L, 2, 0);
+        g_InvokingConnectivityListener = 0;
+        TeardownCallback(listener);
+
+        if (g_ConnectivityListener != listener)
+        {
+            DestroyCallback(listener);
+        }
+    }
+
+    static void SysExtensionFinalize(HContext context)
+    {
+        if (GetCallbackLuaContext(g_ConnectivityListener) == context->m_LuaState)
+        {
+            ReplaceConnectivityListener(0);
+        }
     }
 
     #define SYSTEM_SOCKET_NAME "@system"
@@ -1478,6 +1595,7 @@ union SaveLoadBuffer
         {"set_error_handler", Sys_SetErrorHandler},
         {"set_connectivity_host", Sys_SetConnectivityHost},
         {"get_connectivity", Sys_GetConnectivity},
+        {"set_connectivity_listener", Sys_SetConnectivityListener},
         {"exit", Sys_Exit},
         {"reboot", Sys_Reboot},
         {"set_update_frequency", Sys_SetUpdateFrequency},
@@ -1505,11 +1623,20 @@ union SaveLoadBuffer
         SETCONSTANT(NETWORK_CONNECTED, dmSys::NETWORK_CONNECTED);
         SETCONSTANT(NETWORK_CONNECTED_CELLULAR, dmSys::NETWORK_CONNECTED_CELLULAR);
         SETCONSTANT(NETWORK_DISCONNECTED, dmSys::NETWORK_DISCONNECTED);
+        SETCONSTANT(NETWORK_UNKNOWN, dmSys::NETWORK_UNKNOWN);
 
 #undef SETCONSTANT
 
         lua_pop(L, 2);
 
         assert(top == lua_gettop(L));
+    }
+
+    void InitializeSysExtension(HContext context)
+    {
+        static ScriptExtension extension;
+        extension.Update = SysExtensionUpdate;
+        extension.Finalize = SysExtensionFinalize;
+        RegisterScriptExtension(context, &extension);
     }
 }

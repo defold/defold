@@ -64,7 +64,7 @@ target_link_options(defold_sdk INTERFACE
   -dead_strip
   # Frameworks
   -Wl,-framework,UIKit
-  -Wl,-framework,SystemConfiguration
+  -Wl,-framework,Network
   -Wl,-framework,AVFoundation
   -Wl,-weak_framework,Foundation
   # Ensure Objective-C runtime is linked on host builds

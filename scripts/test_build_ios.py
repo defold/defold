@@ -1,5 +1,6 @@
 import contextlib
 import io
+import json
 import plistlib
 import subprocess
 import sys
@@ -116,6 +117,35 @@ class IOSSimulatorResultTests(unittest.TestCase):
     def test_launcher_error_is_preserved(self):
         result, _ = self.launch(b'4 tests PASSED and 0 skipped\n', returncode=9)
         self.assertEqual(9, result)
+
+
+class IOSTestEnvironmentTests(unittest.TestCase):
+    # The opt-in network requirement of the connectivity test must reach the application on a device.
+    def test_require_network_is_forwarded_to_device_app(self):
+        command_runner = mock.Mock(return_value=subprocess.CompletedProcess([], 0))
+        runner = build_ios.IOSTestRunner(env={build_ios.IOS_TEST_REQUIRE_NETWORK_ENV: '1'}, command_runner=command_runner)
+        runner._launch_app(mock.Mock(device_id='device-id'), 'com.defold.tests.fixture', 'dlib', None)
+        args = command_runner.call_args.args[0]
+        app_env = json.loads(args[args.index('--environment-variables') + 1])
+        self.assertEqual('1', app_env[build_ios.IOS_TEST_REQUIRE_NETWORK_ENV])
+
+    # The opt-in network requirement of the connectivity test must reach the application on a simulator.
+    def test_require_network_is_forwarded_to_simulator_app(self):
+        command_runner = mock.Mock(return_value=subprocess.CompletedProcess([], 0, stdout=b'1 tests PASSED and 0 skipped\n'))
+        runner = build_ios.IOSSimulatorTestRunner(env={build_ios.IOS_TEST_REQUIRE_NETWORK_ENV: '1'}, command_runner=command_runner)
+        simulator = build_ios.IOSSimulator('simulator-id', 'Test Simulator', 'runtime', 'Booted', {})
+        with contextlib.redirect_stdout(io.StringIO()):
+            runner._launch_app(simulator, 'com.defold.tests.fixture', 'dlib', None)
+        self.assertEqual('1', command_runner.call_args.kwargs['env']['SIMCTL_CHILD_%s' % build_ios.IOS_TEST_REQUIRE_NETWORK_ENV])
+
+    # Without the opt-in variable, the application runs without requiring a network.
+    def test_require_network_is_not_set_by_default(self):
+        command_runner = mock.Mock(return_value=subprocess.CompletedProcess([], 0))
+        runner = build_ios.IOSTestRunner(env={}, command_runner=command_runner)
+        runner._launch_app(mock.Mock(device_id='device-id'), 'com.defold.tests.fixture', 'dlib', None)
+        args = command_runner.call_args.args[0]
+        app_env = json.loads(args[args.index('--environment-variables') + 1])
+        self.assertNotIn(build_ios.IOS_TEST_REQUIRE_NETWORK_ENV, app_env)
 
 
 if __name__ == '__main__':

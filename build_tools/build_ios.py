@@ -19,6 +19,7 @@ IOS_TEST_CONTAINER_ROOT = 'Documents/defold-tests'
 IOS_DEFAULT_BUNDLE_ID_PREFIX = 'com.defold.tests'
 IOS_TEST_AUTO_EXIT_ENV = 'DEFOLD_TEST_AUTO_EXIT'
 IOS_TEST_READY_PATHS_ENV = 'DEFOLD_TEST_READY_PATHS'
+IOS_TEST_REQUIRE_NETWORK_ENV = 'DEFOLD_TEST_REQUIRE_NETWORK'
 IOS_DEVICECTL_TIMEOUT_ENV = 'IOS_DEVICECTL_TIMEOUT'
 IOS_DEVICECTL_RETRIES_ENV = 'IOS_DEVICECTL_RETRIES'
 IOS_DEFAULT_DEVICECTL_TIMEOUT = 60
@@ -1358,6 +1359,8 @@ class IOSTestRunner(object):
         env = {
             IOS_TEST_AUTO_EXIT_ENV: '1',
         }
+        if IOS_TEST_REQUIRE_NETWORK_ENV in self._env:
+            env[IOS_TEST_REQUIRE_NETWORK_ENV] = self._env[IOS_TEST_REQUIRE_NETWORK_ENV]
         if stage_workdir:
             env['DEFOLD_TEST_WORKDIR'] = '%s/%s' % (IOS_TEST_CONTAINER_ROOT, library_name)
             ready_paths = _launch_ready_paths(configfile, folders or {}, copied_targets=copied_targets)
@@ -1556,6 +1559,8 @@ class IOSSimulatorTestRunner(object):
         app_env = {
             IOS_TEST_AUTO_EXIT_ENV: '1',
         }
+        if IOS_TEST_REQUIRE_NETWORK_ENV in self._env:
+            app_env[IOS_TEST_REQUIRE_NETWORK_ENV] = self._env[IOS_TEST_REQUIRE_NETWORK_ENV]
         if stage_workdir:
             app_env['DEFOLD_TEST_WORKDIR'] = '%s/%s' % (IOS_TEST_CONTAINER_ROOT, library_name)
             ready_paths = _launch_ready_paths(configfile, folders or {}, copied_targets=copied_targets)
