@@ -987,7 +987,8 @@ class Configuration(object):
 
     def install_ext(self):
         self.install_ext_packages()
-        self.build_ext()
+        with self.build_tracker.measure_step('Source dependencies'):
+            self.build_ext()
 
     def _install_files(self, title, files, *, extract=False):
         total = len(files)
@@ -1084,34 +1085,38 @@ class Configuration(object):
         target_package_paths.extend(make_private_package_paths(self.target_platform, build_private.get_install_target_packages(self.target_platform)))
         archives.extend((path, self.ext) for path in target_package_paths if path not in scheduled_packages)
 
-        self._install_files('Installing packages', archives, extract=True)
+        with self.build_tracker.measure_step('Package extraction'):
+            self._install_files('Installing packages', archives, extract=True)
 
         print("Installing python wheels")
-        self._install_python_packages([
-            'Markdown==3.3.7',
-            'Pygments==2.12.0',
-            'Pillow==11.3.0',
-            'boto3==1.36.3',
-            'protobuf==7.35.1',
-            'PyYAML==6.0.3',
-            'pystache==0.6.8',
-            'rangehttpserver==1.4.0',
-            'requests==2.34.2',
-        ])
+        with self.build_tracker.measure_step('Python wheels'):
+            self._install_python_packages([
+                'Markdown==3.3.7',
+                'Pygments==2.12.0',
+                'Pillow==11.3.0',
+                'boto3==1.36.3',
+                'protobuf==7.35.1',
+                'PyYAML==6.0.3',
+                'pystache==0.6.8',
+                'rangehttpserver==1.4.0',
+                'requests==2.34.2',
+            ])
 
         share_dir = join(self.dynamo_home, 'share')
         javascript_files = [
             (join(self.defold_root, 'share', name), share_dir)
             for name in ('web-pre.js', 'web-pre-engine.js')
         ]
-        self._install_files('Installing JavaScript files', javascript_files)
+        with self.build_tracker.measure_step('JavaScript files'):
+            self._install_files('Installing JavaScript files', javascript_files)
 
         profile_files = [
             (join(self.defold_root, name), share_dir)
             for ext in ('.mobileprovision', '.xcent', '.supp')
             for name in glob('share/*%s' % ext)
         ]
-        self._install_files('Installing profiles', profile_files)
+        with self.build_tracker.measure_step('Profiles'):
+            self._install_files('Installing profiles', profile_files)
 
         # Simple way to reduce number of warnings in the build
         proto_path = os.path.join(self.dynamo_home, 'share', 'proto')
