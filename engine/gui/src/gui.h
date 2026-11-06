@@ -1242,24 +1242,28 @@ namespace dmGui
     /** reorders the given node relative the reference
      * Move the given node to be positioned above the reference node.
      * If the reference node is INVALID_HANDLE, the node is moved to the top.
+     * The node adopts the reference node's parent, or becomes a root node if the reference is INVALID_HANDLE.
      *
      * @note This function might alter the indices of any number of nodes in the scene.
      * @param scene Scene the node exists in
      * @param node Node to be moved
      * @param reference Node the first node should be moved in relation to, might be INVALID_HANDLE
+     * @return RESULT_OK on success, or RESULT_INF_RECURSION if the reference is a descendant of the node.
      */
-    void MoveNodeAbove(HScene scene, HNode node, HNode reference);
+    Result MoveNodeAbove(HScene scene, HNode node, HNode reference);
 
     /** reorders the given node relative the reference
      * Move the given node to be positioned below the reference node.
      * If the reference node is INVALID_HANDLE, the node is moved to the bottom.
+     * The node adopts the reference node's parent, or becomes a root node if the reference is INVALID_HANDLE.
      *
      * @note This function might alter the indices of any number of nodes in the scene.
      * @param scene Scene the node exists in
      * @param node Node to be moved
      * @param reference Node the first node should be moved in relation to, might be INVALID_HANDLE
+     * @return RESULT_OK on success, or RESULT_INF_RECURSION if the reference is a descendant of the node.
      */
-    void MoveNodeBelow(HScene scene, HNode node, HNode reference);
+    Result MoveNodeBelow(HScene scene, HNode node, HNode reference);
 
     HScript NewScript(HContext context);
     void DeleteScript(HScript script);
