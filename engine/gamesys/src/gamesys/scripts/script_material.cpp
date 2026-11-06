@@ -844,6 +844,7 @@ namespace dmGameSystem
                 dmGraphics::GetTextureTypeLiteral(normalized_sampler_type));
         }
 
+        MarkMaterialResourceDirty(material_res);
         material_res->m_TextureResourcePaths[unit] = texture_path;
         material_res->m_SamplerNames[unit]         = name_hash;
 
