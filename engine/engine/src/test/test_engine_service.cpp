@@ -17,8 +17,12 @@
 #include "../../../resource/src/resource_private.h"
 #include <dlib/atomic.h>
 #include <dlib/http/http_client.h>
+#include <dlib/math.h>
+#include <dlib/mutex.h>
 #include <dlib/socket.h>
 #include <dlib/thread.h>
+#include <dlib/time.h>
+#include <dlib/testutil.h>
 #include <dlib/uri.h>
 #include <dlib/webserver.h>
 #include <resource/resource_ddf.h>
@@ -107,6 +111,9 @@ TEST_F(EngineTest, DiscoveryRetryDelayBackoffCapsAtThirtySeconds)
 
 #if !defined(__EMSCRIPTEN__)
 
+// Deadlock guards only; tests wait for responses or explicit state changes.
+static const uint64_t SERVICE_TEST_TIMEOUT = 60000000;
+
 class EngineServiceOpenAPITest : public jc_test_params_class<bool>
 {
 public:
@@ -115,6 +122,7 @@ public:
     char m_ContentType[64];
     char m_Allow[32];
     char m_Connection[16];
+    char m_CacheControl[32];
     int m_Status;
     int32_atomic_t m_Done;
     const char* m_Method;
@@ -126,22 +134,54 @@ public:
     int m_ProbeStatus;
     dmHttpClient::Result m_ProbeResult;
     dmHttpClient::Result m_Result;
+    dmEngine::HEngine m_PollEngine;
+    uint32_t m_PollStepCount;
+    uint64_t m_PollTime;
+    uint64_t m_MaxPollTime;
+    uint32_t m_PollCount;
+    dmArray<dmSocket::Socket> m_RawClients;
+    dmMutex::HMutex m_ClientMutex;
+    dmThread::Thread m_Watchdog;
+    int32_atomic_t m_StopWatchdog;
+    int32_atomic_t m_WatchdogFired;
+    uint64_t m_ClientDeadline;
 
     void SetUp()
     {
         m_RequestPrefixSize = -1;
+        m_PollEngine = 0;
+        m_PollStepCount = UINT32_MAX;
+        m_PollTime = 0;
+        m_MaxPollTime = 0;
+        m_PollCount = 0;
+        m_ClientMutex = dmMutex::New();
+        m_Watchdog = 0;
+        dmAtomicStore32(&m_StopWatchdog, 0);
+        dmAtomicStore32(&m_WatchdogFired, 0);
         dmSocket::Initialize();
         m_Service = dmEngineService::New(0);
         ASSERT_NE((dmEngineService::HEngineService)0, m_Service);
-        dmEngineService::EngineState state;
+        dmEngineService::OnEngineInit(m_Service);
+        dmEngineService::EngineState state = {};
         state.m_ConnectionAppMode = true;
-        dmEngineService::InitState(m_Service, &state);
+        dmEngineService::SetState(m_Service, &state);
     }
 
     void TearDown()
     {
+        dmAtomicStore32(&m_StopWatchdog, 1);
+        if (m_Watchdog)
+        {
+            dmThread::Join(m_Watchdog);
+        }
+        for (uint32_t i = 0; i < m_RawClients.Size(); ++i)
+        {
+            dmSocket::Delete(m_RawClients[i]);
+        }
+        dmMutex::Delete(m_ClientMutex);
         dmEngineService::Delete(m_Service);
         dmSocket::Finalize();
+        ASSERT_EQ(0, dmAtomicGet32(&m_WatchdogFired));
     }
 
     static void Header(dmHttpClient::HResponse, void* context, int status, const char* key, const char* value)
@@ -149,11 +189,21 @@ public:
         EngineServiceOpenAPITest* self = (EngineServiceOpenAPITest*)context;
         self->m_Status = status;
         if (dmStrCaseCmp(key, "Content-Type") == 0)
+        {
             dmStrlCpy(self->m_ContentType, value, sizeof(self->m_ContentType));
+        }
         if (dmStrCaseCmp(key, "Allow") == 0)
+        {
             dmStrlCpy(self->m_Allow, value, sizeof(self->m_Allow));
+        }
         if (dmStrCaseCmp(key, "Connection") == 0)
+        {
             dmStrlCpy(self->m_Connection, value, sizeof(self->m_Connection));
+        }
+        if (dmStrCaseCmp(key, "Cache-Control") == 0)
+        {
+            dmStrlCpy(self->m_CacheControl, value, sizeof(self->m_CacheControl));
+        }
     }
 
     static void Content(dmHttpClient::HResponse, void* context, int status, const void* data, uint32_t size,
@@ -181,7 +231,7 @@ public:
         params.m_Userdata = self;
         params.m_HttpHeader = Header;
         params.m_HttpContent = Content;
-        params.m_RequestTimeout = 5000000;
+        params.m_RequestTimeout = SERVICE_TEST_TIMEOUT;
         params.m_MaxGetRetries = 1;
         params.m_HttpSendContentLength = ContentLength;
         params.m_HttpWrite = self->m_RequestPrefixSize < 0 ? Write : WritePartialBody;
@@ -225,7 +275,7 @@ public:
         dmHttpClient::NewParams params;
         params.m_Userdata = &self->m_ProbeStatus;
         params.m_HttpContent = ProbeContent;
-        params.m_RequestTimeout = 5000000;
+        params.m_RequestTimeout = SERVICE_TEST_TIMEOUT;
         params.m_MaxGetRetries = 1;
         dmHttpClient::HClient client = dmHttpClient::New(&params, &uri);
         self->m_ProbeResult = dmHttpClient::Request(client, "GET", "/ping");
@@ -248,15 +298,169 @@ public:
         m_ContentType[0] = 0;
         m_Allow[0] = 0;
         m_Connection[0] = 0;
+        m_CacheControl[0] = 0;
         m_Body.SetSize(0);
+        m_PollTime = 0;
+        m_MaxPollTime = 0;
+        m_PollCount = 0;
         dmAtomicStore32(&m_Done, 0);
         dmThread::Thread client = dmThread::New(Request, 0x80000, this, "openapi-client");
         while (!dmAtomicGet32(&m_Done))
-            dmWebServer::Update(dmEngineService::GetWebServer(m_Service));
+        {
+            Poll();
+        }
         dmThread::Join(client);
         if (m_Body.Full())
+        {
             m_Body.OffsetCapacity(1);
+        }
         m_Body.Push(0);
+    }
+
+    void Poll()
+    {
+        uint64_t start = dmTime::GetMonotonicTime();
+        if (m_PollEngine)
+        {
+            if (m_PollStepCount == UINT32_MAX)
+            {
+                dmEngine::Step(m_PollEngine);
+            }
+            else
+            {
+                dmEngine::StepFrames(m_PollEngine, 1.0f / 60.0f, m_PollStepCount);
+            }
+        }
+        else
+        {
+            dmEngineService::Update(m_Service, 0);
+        }
+        uint64_t elapsed = dmTime::GetMonotonicTime() - start;
+        m_PollTime += elapsed;
+        if (elapsed > m_MaxPollTime)
+        {
+            m_MaxPollTime = elapsed;
+        }
+        ++m_PollCount;
+    }
+
+    dmSocket::Socket OpenRequest(const char* request)
+    {
+        dmSocket::Address address;
+        dmSocket::GetHostByName("127.0.0.1", &address);
+        dmSocket::Socket socket;
+        if (dmSocket::New(dmSocket::DOMAIN_IPV4, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket) != dmSocket::RESULT_OK)
+        {
+            return dmSocket::INVALID_SOCKET_HANDLE;
+        }
+        if (dmSocket::Connect(socket, address, dmEngineService::GetPort(m_Service)) != dmSocket::RESULT_OK)
+        {
+            dmSocket::Delete(socket);
+            return dmSocket::INVALID_SOCKET_HANDLE;
+        }
+        int sent;
+        dmSocket::Send(socket, request, strlen(request), &sent);
+        dmSocket::SetBlocking(socket, false);
+        {
+            DM_MUTEX_SCOPED_LOCK(m_ClientMutex);
+            if (m_RawClients.Full())
+            {
+                m_RawClients.OffsetCapacity(16);
+            }
+            m_RawClients.Push(socket);
+            m_ClientDeadline = dmTime::GetMonotonicTime() + SERVICE_TEST_TIMEOUT;
+        }
+        if (!m_Watchdog)
+        {
+            m_Watchdog = dmThread::New(Watchdog, 0x80000, this, "service-watchdog");
+        }
+        return socket;
+    }
+
+    static void Watchdog(void* context)
+    {
+        EngineServiceOpenAPITest* self = (EngineServiceOpenAPITest*)context;
+        while (!dmAtomicGet32(&self->m_StopWatchdog))
+        {
+            {
+                DM_MUTEX_SCOPED_LOCK(self->m_ClientMutex);
+                if (!self->m_RawClients.Empty() && dmTime::GetMonotonicTime() >= self->m_ClientDeadline)
+                {
+                    // Only a regression watchdog: releasing withheld uploads lets
+                    // a blocking handler return so the ordinary assertions fail.
+                    dmAtomicStore32(&self->m_WatchdogFired, 1);
+                    for (uint32_t i = 0; i < self->m_RawClients.Size(); ++i)
+                    {
+                        dmSocket::Shutdown(self->m_RawClients[i], dmSocket::SHUTDOWNTYPE_READWRITE);
+                    }
+                    return;
+                }
+            }
+            dmTime::Sleep(1000);
+        }
+    }
+
+    void CloseRequest(dmSocket::Socket socket)
+    {
+        DM_MUTEX_SCOPED_LOCK(m_ClientMutex);
+        for (uint32_t i = 0; i < m_RawClients.Size(); ++i)
+        {
+            if (m_RawClients[i] == socket)
+            {
+                m_RawClients.EraseSwap(i);
+                break;
+            }
+        }
+        dmSocket::Shutdown(socket, dmSocket::SHUTDOWNTYPE_READWRITE);
+        dmSocket::Delete(socket);
+    }
+
+    void ReadResponse(dmSocket::Socket socket)
+    {
+        m_Body.SetSize(0);
+        m_Body.SetCapacity(65536);
+        m_Body.Push(0);
+        uint64_t deadline = dmTime::GetMonotonicTime() + SERVICE_TEST_TIMEOUT;
+        while (!strstr(m_Body.Begin(), "\r\n0\r\n\r\n") && dmTime::GetMonotonicTime() < deadline)
+        {
+            Poll();
+            char buffer[4096];
+            int received = 0;
+            dmSocket::Result result = dmSocket::Receive(socket, buffer, sizeof(buffer), &received);
+            if (result == dmSocket::RESULT_TRY_AGAIN || result == dmSocket::RESULT_WOULDBLOCK)
+            {
+                continue;
+            }
+            if (result != dmSocket::RESULT_OK || !received)
+            {
+                break;
+            }
+            uint32_t offset = m_Body.Size() - 1;
+            if (offset + received + 1 > m_Body.Capacity())
+            {
+                m_Body.OffsetCapacity(65536);
+            }
+            m_Body.SetSize(offset + received + 1);
+            memcpy(m_Body.Begin() + offset, buffer, received);
+            m_Body[m_Body.Size() - 1] = 0;
+        }
+        CloseRequest(socket);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\r\n0\r\n\r\n"));
+    }
+
+    void WaitForResponse(dmSocket::Socket socket)
+    {
+        uint64_t deadline = dmTime::GetMonotonicTime() + SERVICE_TEST_TIMEOUT;
+        bool ready = false;
+        while (!ready && dmTime::GetMonotonicTime() < deadline)
+        {
+            Poll();
+            dmSocket::Selector selector;
+            dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_READ, socket);
+            ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::Select(&selector, 0));
+            ready = dmSocket::SelectorIsSet(&selector, dmSocket::SELECTOR_KIND_READ, socket);
+        }
+        ASSERT_TRUE(ready);
     }
 
     static void ExtensionHandler(void* context, dmWebServer::Request* request)
@@ -266,7 +470,498 @@ public:
         dmWebServer::SendAttribute(request, "Content-Type", "text/plain");
         dmWebServer::Send(request, body, strlen(body));
     }
+
+    static void EchoHeader(void*, dmWebServer::Request* request)
+    {
+        const char* value = dmWebServer::GetHeader(request, "X-Observation-Test");
+        const char* body = value ? value : "absent";
+        dmWebServer::Send(request, body, strlen(body));
+    }
+
+    static void EchoRequest(void* context, dmWebServer::Request* request)
+    {
+        ++*(uint32_t*)context;
+        char response[256];
+        dmSnPrintf(response, sizeof(response), "%s %s\n", request->m_Method, request->m_Resource);
+        dmWebServer::Send(request, response, strlen(response));
+        uint32_t remaining = request->m_ContentLength;
+        while (remaining)
+        {
+            uint32_t received;
+            ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::Receive(request, response, dmMath::Min(remaining, (uint32_t)sizeof(response)), &received));
+            ASSERT_GT(received, 0U);
+            dmWebServer::Send(request, response, received);
+            remaining -= received;
+        }
+    }
 };
+
+// Existing flat response fields keep their types; clients can explicitly detect the observation contract.
+TEST_F(EngineServiceOpenAPITest, ObservationContract)
+{
+    Fetch("GET", "/info");
+    ASSERT_EQ(200, m_Status);
+    ASSERT_STREQ("no-store", m_CacheControl);
+    const char* fields[] = { "\"version\": \"", "\"platform\": \"", "\"sha1\": \"", "\"log_port\": \"", "\"service_api_version\": 1" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(fields); ++i)
+    {
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), fields[i]));
+    }
+    Fetch("GET", "/state");
+    ASSERT_EQ(200, m_Status);
+    ASSERT_STREQ("no-store", m_CacheControl);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"connection_mode\": true"));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"ready\": false"));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"frame\": 0"));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"engine_instance_id\": \""));
+    ASSERT_EQ((const char*)0, strstr(m_Body.Begin(), "\"data\""));
+    Fetch("GET", "/openapi.json");
+    const char* schema_fields[] = { "\"service_api_version\"", "\"engine_instance_id\"", "\"ready\"", "\"frame\"", "4294967295", "\"nullable\": true" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(schema_fields); ++i)
+    {
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), schema_fields[i]));
+    }
+}
+
+// Observation registrations match paths independently of queries and reject methods and incomplete uploads before dispatch.
+TEST_F(EngineServiceOpenAPITest, ObservationValidation)
+{
+    dmEngineService::InitProfiler(m_Service, 0, 0);
+    const char* paths[] = { "/ping", "/info", "/state", "/openapi.json", "/" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
+    {
+        char path[64];
+        dmSnPrintf(path, sizeof(path), "%s/other", paths[i]);
+        Fetch("GET", path);
+        ASSERT_EQ(404, m_Status);
+        dmSnPrintf(path, sizeof(path), "%sXYZ", paths[i]);
+        Fetch("GET", path);
+        ASSERT_EQ(404, m_Status);
+        dmSnPrintf(path, sizeof(path), "%s?wait=1", paths[i]);
+        Fetch("GET", path);
+        ASSERT_EQ(200, m_Status);
+        Fetch("DELETE", paths[i]);
+        ASSERT_EQ(405, m_Status);
+        ASSERT_STREQ("GET", m_Allow);
+        char request[256];
+        dmSnPrintf(request, sizeof(request), "GET %s HTTP/1.1\r\nHost: localhost\r\nContent-Length: 10\r\n\r\n", paths[i]);
+        dmSocket::Socket stalled = OpenRequest(request);
+        ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, stalled);
+        Fetch("GET", "/state"); // Must complete before the upload is released.
+        ASSERT_EQ(200, m_Status);
+        ReadResponse(stalled);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "400 Bad Request"));
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "Connection: close"));
+    }
+    Fetch("GET", "/unknown");
+    ASSERT_EQ(404, m_Status);
+}
+
+// Each registration flag is independent; exact matching preserves queries and allows a shorter prefix fallback.
+TEST_F(EngineServiceOpenAPITest, IndependentHandlerFlags)
+{
+    dmWebServer::HServer server = dmEngineService::GetWebServer(m_Service);
+    uint32_t calls = 0;
+    dmWebServer::HandlerParams params;
+    params.m_Handler = EchoRequest;
+    params.m_Userdata = &calls;
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/test/exact", &params, 0, dmWebServer::MATCH_EXACT_PATH));
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/test/get", &params, 0, dmWebServer::GET_ONLY));
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/test/empty", &params, 0, dmWebServer::NO_REQUEST_BODY));
+    params.m_Handler = ExtensionHandler;
+    params.m_Userdata = (void*)"Fallback";
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/test", &params));
+
+    Fetch("POST", "/test/exact?value=/child", "body");
+    ASSERT_EQ(200, m_Status);
+    ASSERT_STREQ("POST /test/exact?value=/child\nbody", m_Body.Begin());
+    Fetch("GET", "/test/exact/child");
+    ASSERT_STREQ("Fallback", m_Body.Begin());
+    Fetch("GET", "/test/exactly");
+    ASSERT_STREQ("Fallback", m_Body.Begin());
+    ASSERT_EQ(1U, calls);
+
+    Fetch("GET", "/test/get/child?value=1");
+    ASSERT_EQ(200, m_Status);
+    ASSERT_STREQ("GET /test/get/child?value=1\n", m_Body.Begin());
+    Fetch("DELETE", "/test/get/child");
+    ASSERT_EQ(405, m_Status);
+    ASSERT_STREQ("GET", m_Allow);
+    ASSERT_STREQ("application/json", m_ContentType);
+    ASSERT_EQ(2U, calls);
+    dmSocket::Socket socket = OpenRequest("GET /test/get HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\r\nbody");
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, socket);
+    ReadResponse(socket);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "200 OK"));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "body"));
+    ASSERT_EQ(3U, calls);
+
+    Fetch("DELETE", "/test/empty/child?value=1");
+    ASSERT_EQ(200, m_Status);
+    ASSERT_STREQ("DELETE /test/empty/child?value=1\n", m_Body.Begin());
+    ASSERT_EQ(4U, calls);
+}
+
+// Registration overloads without flags keep prefix routing, arbitrary methods, request bodies, and the root fallback.
+TEST_F(EngineServiceOpenAPITest, UnconstrainedHandlerRegistration)
+{
+    dmWebServer::HServer server = dmEngineService::GetWebServer(m_Service);
+    uint32_t calls = 0;
+    dmWebServer::HandlerParams params;
+    params.m_Handler = EchoRequest;
+    params.m_Userdata = &calls;
+    for (uint32_t registration = 0; registration < 3; ++registration)
+    {
+        dmWebServer::Result result;
+        if (registration == 0)
+        {
+            result = dmWebServer::AddHandler(server, "/", &params);
+        }
+        else if (registration == 1)
+        {
+            result = dmWebServer::AddHandler(server, "/", &params, 0);
+        }
+        else
+        {
+            result = dmWebServer::AddHandler(server, "/", &params, 0, 0);
+        }
+        ASSERT_EQ(dmWebServer::RESULT_OK, result);
+        Fetch("POST", "/legacy/child?value=1", "body");
+        ASSERT_EQ(200, m_Status);
+        ASSERT_STREQ("POST /legacy/child?value=1\nbody", m_Body.Begin());
+        ASSERT_EQ(registration + 1, calls);
+        ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::RemoveHandler(server, "/"));
+    }
+}
+
+// Router errors must complete with an upload withheld, skip callbacks, and clear headers before the next request.
+TEST_F(EngineServiceOpenAPITest, RejectedHandlerRequests)
+{
+    dmWebServer::HServer server = dmEngineService::GetWebServer(m_Service);
+    uint32_t calls = 0;
+    dmWebServer::HandlerParams params;
+    params.m_Handler = EchoRequest;
+    params.m_Userdata = &calls;
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/test/get", &params, 0, dmWebServer::GET_ONLY));
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/test/empty", &params, 0, dmWebServer::NO_REQUEST_BODY));
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/test/both", &params, 0, dmWebServer::GET_ONLY | dmWebServer::NO_REQUEST_BODY));
+    params.m_Handler = EchoHeader;
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/test/header", &params));
+    const char* paths[] = { "/test/get", "/test/empty", "/test/both", "/unknown" };
+    const char* statuses[] = { "405 Method Not Allowed", "400 Bad Request", "400 Bad Request", "404 Not Found" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
+    {
+        char request[256];
+        dmSnPrintf(request, sizeof(request), "DELETE %s HTTP/1.1\r\nHost: localhost\r\nX-Observation-Test: rejected\r\nContent-Length: 10\r\n\r\n", paths[i]);
+        dmSocket::Socket socket = OpenRequest(request);
+        ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, socket);
+        ReadResponse(socket);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), statuses[i]));
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "Connection: close"));
+        ASSERT_EQ(0U, calls);
+        Fetch("GET", "/test/header");
+        ASSERT_EQ(200, m_Status);
+        ASSERT_STREQ("absent", m_Body.Begin());
+    }
+}
+
+// Partial headers must yield to another client, then finish normally once explicitly released.
+TEST_F(EngineServiceOpenAPITest, PartialObservationHeaders)
+{
+    dmSocket::Socket stalled = OpenRequest("GET /openapi.json HTTP/1.1\r\nHost:");
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, stalled);
+    Fetch("GET", "/state");
+    ASSERT_EQ(200, m_Status);
+    const char suffix[] = " localhost\r\n\r\n";
+    int sent;
+    ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::Send(stalled, suffix, sizeof(suffix) - 1, &sent));
+    ReadResponse(stalled);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "200 OK"));
+}
+
+// Malformed framing must close with 400 without waiting for a body or leaking headers to the next client.
+TEST_F(EngineServiceOpenAPITest, MalformedObservationFraming)
+{
+    dmWebServer::HandlerParams handler;
+    handler.m_Handler = EchoHeader;
+    handler.m_Userdata = 0;
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(dmEngineService::GetWebServer(m_Service), "/test/header", &handler));
+    const char* headers[] = { "Content-Length: -1", "Content-Length: 4294967296", "Content-Length: 0garbage",
+                              "Content-Length:", "Content-Length: 0\r\nContent-Length: 10", "Transfer-Encoding: chunked",
+                              "Content-Length: 0\r\nTransfer-Encoding: chunked", "Content-Length : 10", " Content-Length: 10" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(headers); ++i)
+    {
+        char request[256];
+        dmSnPrintf(request, sizeof(request), "GET /state HTTP/1.1\r\nX-Observation-Test: rejected\r\n%s\r\n\r\n", headers[i]);
+        dmSocket::Socket socket = OpenRequest(request);
+        ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, socket);
+        ReadResponse(socket);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "400 Bad Request"));
+        Fetch("GET", "/test/header");
+        ASSERT_STREQ("absent", m_Body.Begin());
+    }
+    dmSocket::Socket socket = OpenRequest("GET /test/header HTTP/1.1\r\nContent-Length:0\t \r\nX-Observation-Test: accepted\r\n\r\n");
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, socket);
+    ReadResponse(socket);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "200 OK"));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "accepted"));
+}
+
+// Wrap retains the instance, while replacement and teardown clear readiness and consume new identities.
+TEST_F(EngineServiceOpenAPITest, ObservationLifetime)
+{
+    dmEngineService::EngineState state = { false, true, UINT32_MAX };
+    dmEngineService::SetState(m_Service, &state);
+    Fetch("GET", "/state");
+    char previous[256];
+    dmStrlCpy(previous, m_Body.Begin(), sizeof(previous));
+    ASSERT_NE((const char*)0, strstr(previous, "\"frame\": 4294967295"));
+    state.m_FrameCount = 0;
+    dmEngineService::SetState(m_Service, &state);
+    Fetch("GET", "/state");
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"frame\": 0"));
+    dmEngineService::OnEngineDelete(m_Service);
+    Fetch("GET", "/state");
+    ASSERT_STREQ("{\"connection_mode\": false, \"engine_instance_id\": null, \"ready\": false, \"frame\": null}", m_Body.Begin());
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        dmEngineService::OnEngineInit(m_Service);
+        Fetch("GET", "/state");
+        ASSERT_NE(0, strcmp(previous, m_Body.Begin()));
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"ready\": false"));
+        dmStrlCpy(previous, m_Body.Begin(), sizeof(previous));
+    }
+}
+
+// Measure owning-thread idle/first-request/saturated polling without treating host-dependent timings as assertions.
+TEST_F(EngineServiceOpenAPITest, ObservationPollingCost)
+{
+    for (uint32_t i = 0; i < 1000; ++i)
+    {
+        Poll();
+    }
+    double idle = (double)m_PollTime / m_PollCount;
+    Fetch("GET", "/state");
+    ASSERT_EQ(200, m_Status);
+    uint64_t first = m_MaxPollTime;
+    dmSocket::Socket stalled[15];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(stalled); ++i)
+    {
+        stalled[i] = OpenRequest("GET /state HTTP/1.1\r\nHost:");
+        ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, stalled[i]);
+    }
+    Fetch("GET", "/state");
+    ASSERT_EQ(200, m_Status);
+    printf("M0 service poll (us): idle mean %.2f, first request max %llu, 15 stalled clients mean %.2f / max %llu\n",
+           idle, (unsigned long long)first, (double)m_PollTime / m_PollCount, (unsigned long long)m_MaxPollTime);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(stalled); ++i)
+    {
+        CloseRequest(stalled[i]);
+    }
+}
+
+class EngineServiceRuntimeTest : public EngineServiceOpenAPITest
+{
+    public:
+    dmEngine::HEngine m_Engine;
+    char              m_Snapshot[256];
+    uint32_t          m_SlowRequests;
+
+    void SetUp()
+    {
+        dmEngineInitialize();
+        EngineServiceOpenAPITest::SetUp();
+        m_Engine = dmEngine::New(m_Service);
+        m_SlowRequests = 0;
+    }
+
+    void TearDown()
+    {
+        m_PollEngine = 0;
+        dmEngine::SetRenderEnabled(true);
+        dmEngine::SetUpdateEnabled(true);
+        dmEngine::Delete(m_Engine);
+        EngineServiceOpenAPITest::TearDown();
+        dmEngineFinalize();
+    }
+
+    bool InitProject(bool fail_bootstrap = false)
+    {
+        char project[512];
+        dmTestUtil::MakeHostPathf(project, sizeof(project), "%s/game.projectc", CONTENT_ROOT);
+        const char* argv[] = { "test_engine", "--config=dmengine.unload_builtins=0",
+                               "--config=bootstrap.main_collection=/service/runtime.collectionc",
+                               fail_bootstrap ? "--config=test.fail_bootstrap=1" : "--config=test.fail_bootstrap=0", project };
+        return dmEngine::Init(m_Engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    }
+
+    void ExpectState(bool ready, uint32_t frame)
+    {
+        Fetch("GET", "/state");
+        ASSERT_EQ(200, m_Status);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), ready ? "\"ready\": true" : "\"ready\": false"));
+        char expected[48];
+        dmSnPrintf(expected, sizeof(expected), "\"frame\": %u}", frame);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), expected));
+    }
+
+    static void SlowResponse(void* context, dmWebServer::Request* request)
+    {
+        EngineServiceRuntimeTest* self = (EngineServiceRuntimeTest*)context;
+        dmWebServer::Send(request, self->m_Snapshot, strlen(self->m_Snapshot));
+        char padding[65536];
+        memset(padding, 'x', sizeof(padding));
+        for (uint32_t i = 0; i < 64; ++i)
+        {
+            dmWebServer::Send(request, padding, sizeof(padding));
+        }
+        ++self->m_SlowRequests;
+    }
+};
+
+// An unread large response must allow engine frames, observations and reboot to complete.
+TEST_F(EngineServiceRuntimeTest, SlowReaderAcrossReboot)
+{
+    ASSERT_TRUE(InitProject());
+    ExpectState(true, 0);
+    dmStrlCpy(m_Snapshot, m_Body.Begin(), sizeof(m_Snapshot));
+    dmWebServer::HandlerParams handler;
+    handler.m_Handler = SlowResponse;
+    handler.m_Userdata = this;
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(dmEngineService::GetWebServer(m_Service), "/test/slow", &handler));
+    dmSocket::Socket slow = OpenRequest("GET /test/slow HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, slow);
+    m_PollEngine = m_Engine;
+    uint64_t deadline = dmTime::GetMonotonicTime() + SERVICE_TEST_TIMEOUT;
+    while (!m_SlowRequests && dmTime::GetMonotonicTime() < deadline)
+    {
+        Poll();
+    }
+    ASSERT_EQ(1U, m_SlowRequests);
+    uint32_t frame = m_Engine->m_Stats.m_FrameCount;
+    Fetch("GET", "/state");
+    ASSERT_EQ(200, m_Status);
+    ASSERT_GT(m_Engine->m_Stats.m_FrameCount, frame);
+    m_PollEngine = 0;
+    dmEngine::Delete(m_Engine);
+    m_Engine = dmEngine::New(m_Service);
+    ASSERT_TRUE(InitProject());
+    ReadResponse(slow);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), m_Snapshot));
+    ExpectState(true, 0);
+    ASSERT_NE(0, strcmp(m_Snapshot, m_Body.Begin()));
+}
+
+// Publish actual bootstrap success, preserve it through hot reload, and reset identity across engine replacement.
+TEST_F(EngineServiceRuntimeTest, ProjectLifecycle)
+{
+    ASSERT_TRUE(InitProject());
+    ExpectState(true, 0);
+    char previous[256];
+    dmStrlCpy(previous, m_Body.Begin(), sizeof(previous));
+    ResourceDescriptor* descriptor;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Engine->m_Factory, "/service/runtime.scriptc", &descriptor));
+    ExpectState(true, 0);
+    ASSERT_STREQ(previous, m_Body.Begin());
+
+    dmSocket::Socket pending = OpenRequest("GET /state HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, pending);
+    WaitForResponse(pending); // Serialization completed before replacement; the response remains unread.
+    dmEngine::Delete(m_Engine);
+    m_Engine = dmEngine::New(m_Service);
+    ASSERT_TRUE(InitProject());
+    ReadResponse(pending);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), previous));
+    ExpectState(true, 0);
+    ASSERT_NE(0, strcmp(previous, m_Body.Begin()));
+}
+
+// A bootstrap script error keeps readiness false without changing the engine's existing startup policy.
+TEST_F(EngineServiceRuntimeTest, BootstrapFailure)
+{
+    ASSERT_TRUE(InitProject(true));
+    ExpectState(false, 0);
+    dmEngine::Step(m_Engine);
+    ExpectState(false, 0);
+    ASSERT_EQ(1U, m_Engine->m_Stats.m_FrameCount);
+}
+
+// Connection mode and failed initialization attempts never claim project readiness.
+TEST_F(EngineServiceRuntimeTest, ConnectionAndInitializationFailure)
+{
+    const char* connect[] = { "test_engine", "--config=dmengine.unload_builtins=0" };
+    ASSERT_TRUE(dmEngine::Init(m_Engine, DM_ARRAY_SIZE(connect), (char**)connect));
+    ExpectState(false, 0);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"connection_mode\": true"));
+    dmEngine::Delete(m_Engine);
+    m_Engine = dmEngine::New(m_Service);
+    const char* invalid[] = { "test_engine", "missing-m0-project.projectc" };
+    ASSERT_FALSE(dmEngine::Init(m_Engine, DM_ARRAY_SIZE(invalid), (char**)invalid));
+    ExpectState(false, 0);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"engine_instance_id\": \""));
+}
+
+// Samples exclude the in-flight frame, retain 32-bit wrap, and advance for complete render-disabled updates.
+TEST_F(EngineServiceRuntimeTest, AuthoritativeFrames)
+{
+    ASSERT_TRUE(InitProject());
+    dmEngine::SetRenderEnabled(false);
+    m_Engine->m_Stats.m_FrameCount = UINT32_MAX;
+    dmEngine::Step(m_Engine);
+    ASSERT_EQ(0U, m_Engine->m_Stats.m_FrameCount);
+    ExpectState(true, UINT32_MAX);
+    dmEngine::Step(m_Engine);
+    ASSERT_EQ(1U, m_Engine->m_Stats.m_FrameCount);
+    ExpectState(true, 0);
+    ExpectState(true, 0); // Observation alone does not advance the counter.
+    ASSERT_EQ(1U, m_Engine->m_Stats.m_FrameCount);
+}
+
+// Throttled and externally skipped iterations still service requests, including a stalled discovery upload.
+TEST_F(EngineServiceRuntimeTest, SkippedSimulationPolling)
+{
+    ASSERT_TRUE(InitProject());
+    // Consume the null HID backend's initial connection/input notifications.
+    dmEngine::Step(m_Engine);
+    dmEngine::Step(m_Engine);
+    dmEngine::SetEngineThrottle(m_Engine, true, 0);
+    m_Engine->m_ThrottleCooldown = 1;
+    m_PollEngine = m_Engine;
+    ExpectState(true, 2);
+    dmSocket::Socket stalled = OpenRequest("GET /openapi.json HTTP/1.1\r\nContent-Length: 1024\r\n\r\n");
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, stalled);
+    ExpectState(true, 2);
+    ReadResponse(stalled);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "400 Bad Request"));
+    ASSERT_EQ(2U, m_Engine->m_Stats.m_FrameCount);
+    Fetch("GET", "/resources_data");
+    ASSERT_EQ(200, m_Status);
+#if defined(DM_PLATFORM_MACOS)
+    Fetch("POST", "/profiler/gputrace", "{\"path\":\"/tmp/m0-unused.gputrace\"}");
+    ASSERT_EQ(501, m_Status); // Null graphics retains its rejection outside a render phase.
+#endif
+    dmEngine::SetEngineThrottle(m_Engine, false, 0);
+    dmEngine::SetUpdateEnabled(false);
+    ExpectState(true, 2);
+    dmEngine::SetUpdateEnabled(true);
+    m_PollEngine = 0;
+    dmEngine::Step(m_Engine);
+    ASSERT_EQ(3U, m_Engine->m_Stats.m_FrameCount);
+}
+
+// Explicit step counts exercise zero-step polling and multi-step publication on every platform without a clock race.
+TEST_F(EngineServiceRuntimeTest, ScheduledStepsPolling)
+{
+    ASSERT_TRUE(InitProject());
+    m_PollEngine = m_Engine;
+    m_PollStepCount = 0;
+    ExpectState(true, 0);
+    ASSERT_EQ(0U, m_Engine->m_Stats.m_FrameCount);
+    m_PollEngine = 0;
+    dmEngine::StepFrames(m_Engine, 1.0f / 60.0f, 2);
+    ASSERT_EQ(2U, m_Engine->m_Stats.m_FrameCount);
+    ExpectState(true, 1);
+}
 
 class EngineServiceReloadTest : public EngineServiceOpenAPITest
 {
@@ -533,11 +1228,10 @@ TEST_P(EngineServiceOpenAPITest, ExtensionLifecycle)
         ASSERT_EQ((const char*)0, strstr(m_Body.Begin(), "\"/extension/test\""));
 
         Fetch("GET", "/extension/test");
-        ASSERT_EQ(dmHttpClient::RESULT_OK, m_Result);
-        ASSERT_EQ(200, m_Status);
-        ASSERT_STREQ("text/html", m_ContentType);
+        ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, m_Result);
+        ASSERT_EQ(404, m_Status);
 
-        // Removing an extension may move the root fallback ahead of the other profiler handlers.
+        // Removing an extension may move the root handler ahead of the other profiler handlers.
         Fetch("GET", "/scene_graph");
         ASSERT_EQ(500, m_Status);
         ASSERT_STREQ("text/plain", m_ContentType);
@@ -586,8 +1280,7 @@ TEST_F(EngineServiceOpenAPITest, UndocumentedExtensionLifecycle)
 
         ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::RemoveHandler(server, "/undocumented"));
         Fetch("GET", "/undocumented");
-        ASSERT_EQ(200, m_Status);
-        ASSERT_STREQ("text/html", m_ContentType);
+        ASSERT_EQ(404, m_Status);
         Fetch("GET", "/openapi.json");
         ASSERT_EQ(200, m_Status);
         ASSERT_STREQ(original.Begin(), m_Body.Begin());

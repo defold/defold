@@ -131,6 +131,8 @@ namespace dmHttpServer
         uint16_t m_HeaderSent : 1;
         uint16_t m_AttributesSent : 1;
         uint16_t m_DeferResponse : 1;
+        uint16_t m_HasContentLength : 1;
+        uint16_t m_InvalidRequest : 1;
 
         InternalRequest()
         {
@@ -210,6 +212,13 @@ namespace dmHttpServer
 
         r = dmSocket::Listen(socket, 32);
         if (r != dmSocket::RESULT_OK)
+        {
+            dmSocket::Delete(socket);
+            return RESULT_SOCKET_ERROR;
+        }
+
+        // Readiness may be stale by the time Accept runs.
+        if (dmSocket::SetBlocking(socket, false) != dmSocket::RESULT_OK)
         {
             dmSocket::Delete(socket);
             return RESULT_SOCKET_ERROR;
@@ -304,6 +313,10 @@ namespace dmHttpServer
         req->m_Request.m_Major = major;
         req->m_Request.m_Minor = minor;
 
+        if (strlen(request_method) >= sizeof(req->m_Method) || strlen(resource) >= sizeof(req->m_Resource))
+        {
+            req->m_InvalidRequest = 1;
+        }
         dmStrlCpy(req->m_Method, request_method, sizeof(req->m_Method));
         dmStrlCpy(req->m_Resource, resource, sizeof(req->m_Resource));
 
@@ -318,19 +331,63 @@ namespace dmHttpServer
     {
         InternalRequest* req = (InternalRequest*) user_data;
 
+        // Whitespace in a field name (including an obsolete folded header) must
+        // not hide Content-Length or Transfer-Encoding from framing validation.
+        if (!*key)
+        {
+            req->m_InvalidRequest = 1;
+        }
+        for (const char* p = key; *p; ++p)
+        {
+            if ((unsigned char)*p <= ' ' || (unsigned char)*p >= 127)
+            {
+                req->m_InvalidRequest = 1;
+            }
+        }
         if (dmStrCaseCmp(key, "Content-Length") == 0)
         {
-            req->m_Request.m_ContentLength = strtol(value, 0, 10);
+            // The body readers support one unsigned, bounded Content-Length.
+            // Reject ambiguous framing before invoking a handler or reading a body.
+            if (req->m_HasContentLength || !*value)
+            {
+                req->m_InvalidRequest = 1;
+            }
+            req->m_HasContentLength = 1;
+            uint32_t length = 0;
+            for (const char* p = value; *p; ++p)
+            {
+                if (*p < '0' || *p > '9' || length > (UINT32_MAX - (uint32_t)(*p - '0')) / 10)
+                {
+                    req->m_InvalidRequest = 1;
+                    break;
+                }
+                length = length * 10 + (*p - '0');
+            }
+            req->m_Request.m_ContentLength = length;
+        }
+        else if (dmStrCaseCmp(key, "Transfer-Encoding") == 0)
+        {
+            req->m_InvalidRequest = 1; // Chunked request bodies are not supported.
         }
         else if (dmStrCaseCmp(key, "Connection") == 0 && dmStrCaseCmp(value, "close") == 0)
         {
             req->m_CloseConnection = 1;
         }
+    }
 
-        Server* server = req->m_Server;
+    static void ForwardHeader(void* user_data, const char* key, const char* value)
+    {
+        Server* server = ((InternalRequest*)user_data)->m_Server;
 
         if (server->m_HttpHeader)
+        {
             server->m_HttpHeader(server->m_Userdata, key, value);
+        }
+    }
+
+    static void HandleContentOffset(void* user_data, int offset)
+    {
+        ((InternalRequest*)user_data)->m_ContentOffset = offset;
     }
 
     static void SendResponseData(InternalRequest* internal_req, const void* buffer, uint32_t length)
@@ -456,7 +513,18 @@ namespace dmHttpServer
         request->m_Method = internal_req->m_Method;
         request->m_Resource = internal_req->m_Resource;
         request->m_Internal = internal_req;
-        server->m_HttpResponse(server->m_Userdata, request);
+        if (internal_req->m_InvalidRequest)
+        {
+            CloseConnection(request);
+            SetStatusCode(request, 400);
+            SendAttribute(request, "Content-Type", "text/plain");
+            const char message[] = "Invalid request framing";
+            Send(request, message, sizeof(message) - 1);
+        }
+        else
+        {
+            server->m_HttpResponse(server->m_Userdata, request);
+        }
 
         if (internal_req->m_DeferResponse)
         {
@@ -641,7 +709,14 @@ namespace dmHttpServer
             total += to_copy;
         }
 
-        while (total < buffer_size)
+        // Preserve the legacy synchronous body reader. Header reads and handlers
+        // using ReceiveBuffered never switch the socket to blocking mode.
+        bool blocking = total < buffer_size;
+        if (blocking && dmSocket::SetBlocking(internal_req->m_Socket, true) != dmSocket::RESULT_OK)
+        {
+            internal_req->m_Result = RESULT_SOCKET_ERROR;
+        }
+        while (total < buffer_size && internal_req->m_Result == RESULT_OK)
         {
             void* p = (void*) (((uintptr_t) buffer) + total);
             int to_recv = buffer_size - total;
@@ -660,6 +735,10 @@ namespace dmHttpServer
                 internal_req->m_Result = RESULT_SOCKET_ERROR;
                 break;
             }
+        }
+        if (blocking && dmSocket::SetBlocking(internal_req->m_Socket, false) != dmSocket::RESULT_OK)
+        {
+            internal_req->m_Result = RESULT_SOCKET_ERROR;
         }
         internal_req->m_TotalContentReceived += total;
         *received_bytes = total;
@@ -718,7 +797,7 @@ namespace dmHttpServer
                                                connection->m_RequestBuffer + connection->m_RequestBufferSize,
                                                connection->m_RequestBufferCapacity - 1 - connection->m_RequestBufferSize,
                                                &received_bytes);
-        if (r == dmSocket::RESULT_TRY_AGAIN)
+        if (r == dmSocket::RESULT_TRY_AGAIN || r == dmSocket::RESULT_WOULDBLOCK)
         {
             return true;
         }
@@ -743,7 +822,7 @@ namespace dmHttpServer
                                                                                          &internal_req,
                                                                                          &HandleRequest,
                                                                                          &HandleHeader,
-                                                                                         &HandleReponse);
+                                                                                         &HandleContentOffset);
 
         switch (parse_result)
         {
@@ -768,14 +847,29 @@ namespace dmHttpServer
                 break;
         }
 
+        if (internal_req.m_InvalidRequest)
+        {
+            HandleReponse(&internal_req, internal_req.m_ContentOffset);
+        }
+        else
+        {
+            // Publish headers only after the entire header block and framing have
+            // passed validation. Otherwise consumers that reset per-request header
+            // state in their response callback would retain a rejected client's data.
+            memcpy(server->m_Buffer, connection->m_RequestBuffer, connection->m_RequestBufferSize);
+            server->m_Buffer[connection->m_RequestBufferSize] = '\0';
+            parse_result = dmHttpServerPrivate::ParseHeader(server->m_Buffer, &internal_req,
+                                                            &HandleRequest, &ForwardHeader, &HandleReponse);
+            assert(parse_result == dmHttpServerPrivate::PARSE_RESULT_OK);
+        }
+
         if (internal_req.m_DeferResponse)
         {
             return true;
         }
 
         connection->m_RequestBufferSize = 0;
-        if (internal_req.m_Result != RESULT_OK ||
-            dmSocket::SetBlocking(connection->m_Socket, false) != dmSocket::RESULT_OK)
+        if (internal_req.m_Result != RESULT_OK)
         {
             return false;
         }
@@ -1008,8 +1102,7 @@ namespace dmHttpServer
                 {
                     continue;
                 }
-                keep_connection = connection->m_Response->m_Succeeded && !connection->m_Response->m_CloseConnection &&
-                    dmSocket::SetBlocking(connection->m_Socket, true) == dmSocket::RESULT_OK;
+                keep_connection = connection->m_Response->m_Succeeded && !connection->m_Response->m_CloseConnection;
                 connection->m_Deadline = connection->m_Response->m_Deadline;
                 DeleteResponse(connection->m_Response);
                 connection->m_Response = 0;
@@ -1049,6 +1142,10 @@ namespace dmHttpServer
                 {
                     dmLogWarning("Out of client connections in http server (max: %d)", server->m_Connections.Capacity());
                     dmSocket::Shutdown(client_socket, dmSocket::SHUTDOWNTYPE_READWRITE);
+                    dmSocket::Delete(client_socket);
+                }
+                else if (dmSocket::SetBlocking(client_socket, false) != dmSocket::RESULT_OK)
+                {
                     dmSocket::Delete(client_socket);
                 }
                 else
