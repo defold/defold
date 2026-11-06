@@ -116,8 +116,12 @@ class ToolChecks:
         if not path:
             raise sdk.SDKException('Tar was not found in PATH. Install tar and ensure it is available on PATH.')
         path = os.path.abspath(path)
-        run.env_command(os.environ, [path, '--version'], silent=True)
-        return _Result(path, 'Found', path)
+        version = run.env_command(os.environ, [path, '--version'], silent=True)
+        command = [path]
+        # GNU tar treats drive-letter paths as remote archives unless local mode is forced.
+        if 'GNU tar' in version:
+            command.append('--force-local')
+        return _Result(command, 'Found', path)
 
     def check_cmake(self, silent=False):
         return self._check('CMake', self._setup_cmake, silent=silent)
