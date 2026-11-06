@@ -706,6 +706,61 @@ TEST(Box2DThreading, SleepingTransformsRemainSynchronized)
     }
 }
 
+// Ignored edits to disabled bodies must not trigger synchronization of enabled sleeping bodies.
+TEST(Box2DThreading, DisabledBodiesKeepMoveEvents)
+{
+    for (int workers = 0; workers <= 3; workers += 3)
+    {
+        for (int listener = 0; listener < 2; ++listener)
+        {
+            BufferedEventScene scene;
+            CreateBufferedEventScene(&scene, workers, true);
+            scene.m_Bodies[1].m_Position = dmVMath::Point3(4.0f, 0.0f, 0.0f);
+            dmPhysics::StepWorldContext step;
+            step.m_DT = 1.0f / 60.0f;
+            step.m_Box2DSubStepCount = 4;
+            step.m_ContactCallbacksReadOnly = listener != 0;
+            step.m_CollisionCallback = listener ? Collision : 0;
+            step.m_CollisionUserData = &scene.m_Callbacks;
+            step.m_ContactPointCallback = listener ? Contact : 0;
+            step.m_ContactPointUserData = &scene.m_Callbacks;
+            for (int tick = 0; tick < 120 && (!dmPhysics::IsSleeping2D(scene.m_Objects[1]) || !dmPhysics::IsSleeping2D(scene.m_Objects[2])); ++tick)
+            {
+                dmPhysics::StepWorld2D(scene.m_World, step);
+            }
+            ASSERT_TRUE(dmPhysics::IsSleeping2D(scene.m_Objects[1]));
+            ASSERT_TRUE(dmPhysics::IsSleeping2D(scene.m_Objects[2]));
+            dmPhysics::SetEnabled2D(scene.m_World, scene.m_Objects[2], false);
+            for (int edit = 0; edit < 2; ++edit)
+            {
+                scene.m_Bodies[2].m_Position = dmVMath::Point3(edit == 0 ? 8.005f : 8.0f, 0.0f, 0.0f);
+                dmVMath::Quat rotation = dmVMath::Quat::rotationZ(edit == 0 ? 0.0f : 0.00001f);
+                scene.m_Bodies[2].m_Rotation = rotation;
+                for (int tick = 0; tick < 2; ++tick)
+                {
+                    scene.m_Callbacks.m_Transforms = 0;
+                    dmPhysics::StepWorld2D(scene.m_World, step);
+                    ASSERT_EQ(0U, scene.m_Callbacks.m_Transforms);
+                    ASSERT_TRUE(dmPhysics::IsSleeping2D(scene.m_Objects[1]));
+                    ASSERT_EQ(edit == 0 ? 8.005f : 8.0f, scene.m_Bodies[2].m_Position.getX());
+                    ASSERT_EQ(rotation.getZ(), scene.m_Bodies[2].m_Rotation.getZ());
+                    ASSERT_EQ(rotation.getW(), scene.m_Bodies[2].m_Rotation.getW());
+                }
+            }
+            dmPhysics::SetEnabled2D(scene.m_World, scene.m_Objects[2], true);
+            scene.m_Callbacks.m_Transforms = 0;
+            dmPhysics::StepWorld2D(scene.m_World, step);
+            ASSERT_EQ(1U, scene.m_Callbacks.m_Transforms);
+            ASSERT_EQ(8.0f, scene.m_Bodies[2].m_Position.getX());
+            dmVMath::Quat rotation = dmPhysics::GetWorldRotation2D(scene.m_Context, scene.m_Objects[2]);
+            ASSERT_GT(rotation.getZ(), 0.0f);
+            ASSERT_EQ(rotation.getZ(), scene.m_Bodies[2].m_Rotation.getZ());
+            ASSERT_EQ(rotation.getW(), scene.m_Bodies[2].m_Rotation.getW());
+            DeleteBufferedEventScene(&scene);
+        }
+    }
+}
+
 // Matrix/quaternion round-off must not force sleeping bodies through the full transform scan.
 TEST(Box2DThreading, SleepingTransformRoundoffUsesMoveEvents)
 {

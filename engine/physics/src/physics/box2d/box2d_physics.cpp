@@ -961,10 +961,11 @@ namespace dmPhysics
                     }
                     else if (use_body_events && body_type == b2_dynamicBody && !b2Body_IsAwake(body_id))
                     {
-                        // Ignored edits to sleeping bodies still need the post-step correction.
+                        // Ignored edits to enabled sleeping bodies still need the post-step correction.
                         // Allow for quaternion/matrix round-off in the game world rotation.
-                        use_body_events = position.getX() == old_position.getX() && position.getY() == old_position.getY() &&
-                                          rotation.getX() == 0.0f && rotation.getY() == 0.0f && fabsf(da) <= 4.0f * FLT_EPSILON;
+                        bool same_transform = position.getX() == old_position.getX() && position.getY() == old_position.getY() &&
+                                              rotation.getX() == 0.0f && rotation.getY() == 0.0f && fabsf(da) <= 4.0f * FLT_EPSILON;
+                        use_body_events = same_transform || !b2Body_IsEnabled(body_id);
                     }
                 }
 
