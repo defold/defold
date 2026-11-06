@@ -108,6 +108,12 @@ static void GetTransform(void* user_data, dmTransform::Transform& transform)
     transform.SetRotation(body->m_Rotation);
 }
 
+static void GetMatrixTransform(void* user_data, dmTransform::Transform& transform)
+{
+    GetTransform(user_data, transform);
+    transform = dmTransform::ToTransform(dmTransform::ToMatrix4(transform));
+}
+
 static void SetTransform(void* user_data, const dmVMath::Point3& position, const dmVMath::Quat& rotation)
 {
     Body* body = (Body*)user_data;
@@ -697,6 +703,46 @@ TEST(Box2DThreading, SleepingTransformsRemainSynchronized)
                 DeleteBufferedEventScene(&scene);
             }
         }
+    }
+}
+
+// Matrix/quaternion round-off must not force sleeping bodies through the full transform scan.
+TEST(Box2DThreading, SleepingTransformRoundoffUsesMoveEvents)
+{
+    const float angles[] = { -3.0f, -1.575066f, -0.01f, 0.01f, 1.575066f, 3.0f };
+    for (int workers = 0; workers <= 3; workers += 3)
+    {
+        BufferedEventScene scene;
+        CreateBufferedEventScene(&scene, workers, true);
+        scene.m_World->m_GetWorldTransformCallback = GetMatrixTransform;
+        scene.m_Bodies[1].m_Position = dmVMath::Point3(4.0f, 0.0f, 0.0f);
+        dmPhysics::StepWorldContext step;
+        step.m_DT = 1.0f / 60.0f;
+        step.m_Box2DSubStepCount = 4;
+        for (uint32_t i = 0; i < sizeof(angles) / sizeof(angles[0]); ++i)
+        {
+            scene.m_Bodies[1].m_Rotation = dmVMath::Quat::rotationZ(angles[i]);
+            scene.m_Bodies[2].m_Rotation = dmVMath::Quat::rotationZ(angles[i]);
+            dmPhysics::StepWorld2D(scene.m_World, step);
+            for (int tick = 0; tick < 120 && (!dmPhysics::IsSleeping2D(scene.m_Objects[1]) || !dmPhysics::IsSleeping2D(scene.m_Objects[2])); ++tick)
+            {
+                dmPhysics::StepWorld2D(scene.m_World, step);
+            }
+            ASSERT_TRUE(dmPhysics::IsSleeping2D(scene.m_Objects[1]));
+            ASSERT_TRUE(dmPhysics::IsSleeping2D(scene.m_Objects[2]));
+            scene.m_Callbacks.m_Transforms = 0;
+            dmPhysics::StepWorld2D(scene.m_World, step);
+            ASSERT_EQ(0U, scene.m_Callbacks.m_Transforms);
+
+            // A small edit still requires correction when the body is already rotated.
+            dmVMath::Quat expected = scene.m_Bodies[2].m_Rotation;
+            scene.m_Bodies[2].m_Rotation = expected * dmVMath::Quat::rotationZ(0.00001f);
+            dmPhysics::StepWorld2D(scene.m_World, step);
+            ASSERT_TRUE(dmPhysics::IsSleeping2D(scene.m_Objects[2]));
+            ASSERT_EQ(expected.getZ(), scene.m_Bodies[2].m_Rotation.getZ());
+            ASSERT_EQ(expected.getW(), scene.m_Bodies[2].m_Rotation.getW());
+        }
+        DeleteBufferedEventScene(&scene);
     }
 }
 
