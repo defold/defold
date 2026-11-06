@@ -127,6 +127,36 @@ protected:
     }
 };
 
+// Client metrics must use native setter units, independently of high-DPI drawable dimensions.
+TEST_F(WindowPlacementTest, ClientAndDrawableMetrics)
+{
+    m_Params.m_HighDPI = true;
+    OpenAndShow();
+    ASSERT_TRUE(dmPlatform::IsWindowResizeSupported(m_Window));
+    dmPlatform::SetWindowSize(m_Window, 501, 351);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    int client_width, client_height, drawable_width, drawable_height;
+    for (;;)
+    {
+        dmPlatform::PollEvents(m_Window);
+        glfwGetWindowSize(m_Window->m_Window, &client_width, &client_height);
+        if ((client_width == 501 && client_height == 351) || dmTime::GetMonotonicTime() >= deadline)
+        {
+            break;
+        }
+        glfwWaitEventsTimeout(0.01);
+    }
+    uint32_t width, height;
+    ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+    glfwGetFramebufferSize(m_Window->m_Window, &drawable_width, &drawable_height);
+    ASSERT_EQ((uint32_t)client_width, width);
+    ASSERT_EQ((uint32_t)client_height, height);
+    ASSERT_EQ(501U, width);
+    ASSERT_EQ(351U, height);
+    ASSERT_EQ((uint32_t)drawable_width, dmPlatform::GetWindowWidth(m_Window));
+    ASSERT_EQ((uint32_t)drawable_height, dmPlatform::GetWindowHeight(m_Window));
+}
+
 // Verifies close captures the actual geometry and X11 restoration preserves the requested position.
 TEST_F(WindowPlacementTest, RecreateRestoresActualGeometry)
 {

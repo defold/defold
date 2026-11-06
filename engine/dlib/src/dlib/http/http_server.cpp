@@ -454,6 +454,10 @@ namespace dmHttpServer
                 return "Unsupported Media Type";
             case 416:
                 return "Range Not Satisfiable";
+            case 431:
+            {
+                return "Request Header Fields Too Large";
+            }
             case 501:
                 return "Not Implemented";
             case 507:

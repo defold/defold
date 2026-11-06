@@ -51,7 +51,7 @@ extern uint32_t PROFILER_HTML_SIZE;
 namespace dmEngineService
 {
     static const char INFO_TEMPLATE[] =
-        "{\"version\": \"${ENGINE_VERSION}\", \"platform\": \"${ENGINE_PLATFORM}\", \"sha1\": \"${ENGINE_SHA1}\", \"log_port\": \"${DEFOLD_LOG_PORT}\", \"service_api_version\": 1}";
+        "{\"version\": \"${ENGINE_VERSION}\", \"platform\": \"${ENGINE_PLATFORM}\", \"sha1\": \"${ENGINE_SHA1}\", \"log_port\": \"${DEFOLD_LOG_PORT}\", \"service_api_version\": 2}";
     static const char STATE_TEMPLATE[] =
         "{\"connection_mode\": %s, \"engine_instance_id\": %s, \"ready\": %s, \"frame\": %s}";
     static const char MDNS_SCHEMA_VERSION[] = "1";
@@ -249,6 +249,19 @@ namespace dmEngineService
             }
         }
 
+        static bool FilterRequest(void* user_data, dmWebServer::Request* request)
+        {
+            EngineService* service = (EngineService*)user_data;
+            const char* instance = dmWebServer::GetHeader(request, "X-Engine-Instance");
+            if (instance && (!instance[0] || strcmp(instance, service->m_InstanceId)))
+            {
+                dmWebServer::CloseConnection(request);
+                ObservationError(request, 410, "stale_instance", "Engine instance changed; reacquire /state");
+                return false;
+            }
+            return true;
+        }
+
         static void PingHandler(void* user_data, dmWebServer::Request* request)
         {
             dmWebServer::SetStatusCode(request, 200);
@@ -405,6 +418,7 @@ namespace dmEngineService
                 return false;
             }
 
+            dmWebServer::SetRequestFilter(web_server, FilterRequest, this);
             dmSocket::Address address;
             dmWebServer::GetName(web_server, &address, &m_Port);
             dmSnPrintf(m_PortText, sizeof(m_PortText), "%d", (int) m_Port);
@@ -1061,4 +1075,5 @@ namespace dmEngineService
     {
         engine_service->m_State = *state;
     }
+
 }
