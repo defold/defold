@@ -22,6 +22,7 @@
 #include <dlib/webserver.h>
 #include <resource/resource_ddf.h>
 #include <graphics/graphics.h>
+#include <dlib/json.h>
 
 TEST_F(EngineTest, ServiceInstanceNameSanitizesAddress)
 {
@@ -170,15 +171,11 @@ class EngineServiceOpenAPITest : public HttpServiceTest
         m_RequestInstance = 0;
         Fetch("GET", "/state");
         ASSERT_EQ(200, m_Status);
-        const char* field = "\"engine_instance_id\": \"";
-        const char* value = strstr(m_Body.Begin(), field);
+        dmJson::Document json;
+        ASSERT_TRUE(json.Parse(m_Body.Begin(), m_Body.Size() - 1));
+        const char* value = json.String(json.Field(0, "engine_instance_id"));
         ASSERT_NE((const char*)0, value);
-        value += strlen(field);
-        const char* end = strchr(value, '"');
-        ASSERT_NE((const char*)0, end);
-        ASSERT_LT((uint32_t)(end - value), size);
-        memcpy(instance, value, end - value);
-        instance[end - value] = 0;
+        dmStrlCpy(instance, value, size);
     }
 
     static void ExtensionHandler(void* context, dmWebServer::Request* request)
@@ -1487,6 +1484,20 @@ public:
         ASSERT_EQ(offset + 1, m_Body.Size()); // Fetch appends a trailing zero outside the HTTP body.
     }
 };
+
+// Scene graph identifiers must round-trip through JSON even when reverse hashes contain quotes and control characters.
+TEST_F(EngineServiceResourceTest, SceneGraphEscapesIdentifiers)
+{
+    const char identifier[] = "json\"\\\b\f\n";
+    dmGameObject::HCollection collection = dmGameObject::NewCollection(identifier, m_Factory, m_Register, 1, 0);
+    ASSERT_NE((dmGameObject::HCollection)0, collection);
+    Fetch("GET", "/scene_graph");
+    dmGameObject::DeleteCollection(collection);
+    ASSERT_EQ(200, m_Status);
+    dmJson::Document json;
+    ASSERT_TRUE(json.Parse(m_Body.Begin(), m_Body.Size() - 1));
+    ASSERT_STREQ(identifier, json.String(json.Field(0, "id")));
+}
 
 // Existing clients must receive the unchanged RESS layout even when timing data is available.
 TEST_F(EngineServiceResourceTest, LegacyResources)

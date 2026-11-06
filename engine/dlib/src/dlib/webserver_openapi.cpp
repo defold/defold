@@ -14,142 +14,11 @@
 
 #include <string.h>
 #include "dstrings.h"
+#include "json.h"
 #include "webserver_openapi.h"
 
 namespace dmWebServer
 {
-    enum ObjectType
-    {
-        OBJECT_ANY,
-        OBJECT_PATH_ITEM,
-        OBJECT_OPERATION,
-        OBJECT_RESPONSES
-    };
-
-    static void SkipSpace(const char*& p)
-    {
-        while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')
-            ++p;
-    }
-
-    static bool Consume(const char*& p, char c)
-    {
-        SkipSpace(p);
-        if (*p != c)
-            return false;
-        ++p;
-        SkipSpace(p);
-        return true;
-    }
-
-    static void AppendChar(dmArray<char>* out, char c)
-    {
-        if (out)
-        {
-            if (out->Full())
-                out->OffsetCapacity(64);
-            out->Push(c);
-        }
-    }
-
-    static bool ReadHex(const char*& p, uint32_t* value)
-    {
-        *value = 0;
-        for (uint32_t i = 0; i < 4; ++i)
-        {
-            uint32_t digit;
-            if (*p >= '0' && *p <= '9') digit = *p - '0';
-            else if (*p >= 'a' && *p <= 'f') digit = *p - 'a' + 10;
-            else if (*p >= 'A' && *p <= 'F') digit = *p - 'A' + 10;
-            else return false;
-            *value = (*value << 4) | digit;
-            ++p;
-        }
-        return true;
-    }
-
-    static void AppendCodepoint(dmArray<char>* out, uint32_t c)
-    {
-        if (c >= 0x10000) AppendChar(out, (char)(0xf0 | (c >> 18)));
-        else if (c >= 0x800) AppendChar(out, (char)(0xe0 | (c >> 12)));
-        else if (c >= 0x80) AppendChar(out, (char)(0xc0 | (c >> 6)));
-        if (c >= 0x10000) AppendChar(out, (char)(0x80 | ((c >> 12) & 63)));
-        if (c >= 0x800) AppendChar(out, (char)(0x80 | ((c >> 6) & 63)));
-        AppendChar(out, c >= 0x80 ? (char)(0x80 | (c & 63)) : (char)c);
-    }
-
-    static bool ReadString(const char*& p, dmArray<char>* out)
-    {
-        if (*p != '"')
-            return false;
-        ++p;
-        if (out)
-            out->SetSize(0);
-        while (*p && *p != '"')
-        {
-            uint32_t c = (uint8_t)*p++;
-            if (c < 32)
-                return false;
-            if (c == '\\')
-            {
-                if (!*p)
-                    return false;
-                c = (uint8_t)*p++;
-                switch (c)
-                {
-                    case '"': case '\\': case '/': break;
-                    case 'b': c = '\b'; break;
-                    case 'f': c = '\f'; break;
-                    case 'n': c = '\n'; break;
-                    case 'r': c = '\r'; break;
-                    case 't': c = '\t'; break;
-                    case 'u':
-                    {
-                        if (!ReadHex(p, &c))
-                            return false;
-                        if (c >= 0xd800 && c <= 0xdbff)
-                        {
-                            uint32_t low;
-                            if (strncmp(p, "\\u", 2) != 0)
-                                return false;
-                            p += 2;
-                            if (!ReadHex(p, &low) || low < 0xdc00 || low > 0xdfff)
-                                return false;
-                            c = 0x10000 + ((c - 0xd800) << 10) + low - 0xdc00;
-                        }
-                        else if (c >= 0xdc00 && c <= 0xdfff)
-                            return false;
-                        break;
-                    }
-                    default: return false;
-                }
-            }
-            else if (c >= 0x80)
-            {
-                uint32_t count;
-                uint32_t minimum;
-                if (c >= 0xc2 && c <= 0xdf) { count = 1; minimum = 0x80; c &= 0x1f; }
-                else if (c >= 0xe0 && c <= 0xef) { count = 2; minimum = 0x800; c &= 0x0f; }
-                else if (c >= 0xf0 && c <= 0xf4) { count = 3; minimum = 0x10000; c &= 7; }
-                else return false;
-                for (uint32_t i = 0; i < count; ++i)
-                {
-                    if (((uint8_t)*p & 0xc0) != 0x80)
-                        return false;
-                    c = (c << 6) | ((uint8_t)*p++ & 63);
-                }
-                if (c < minimum || c > 0x10ffff || (c >= 0xd800 && c <= 0xdfff))
-                    return false;
-            }
-            AppendCodepoint(out, c);
-        }
-        if (*p != '"')
-            return false;
-        ++p;
-        AppendChar(out, 0);
-        return true;
-    }
-
     static bool AddUniqueHash(dmSet<dmhash_t>* hashes, dmhash_t hash)
     {
         if (hashes->Full())
@@ -164,113 +33,41 @@ namespace dmWebServer
             || dmStrEq(key, "patch") || dmStrEq(key, "trace");
     }
 
-    static bool ReadValue(const char*& p, uint32_t depth, ObjectType type);
-
-    static bool ReadObject(const char*& p, uint32_t depth, ObjectType type)
+    static bool ValidatePathItem(const dmJson::Document& json, int path)
     {
-        if (!Consume(p, '{'))
+        if (json.Get(path).m_Type != dmJson::TYPE_OBJECT)
+        {
             return false;
-        dmArray<char> key;
-        dmSet<dmhash_t> keys;
+        }
         bool has_operation = false;
-        bool has_responses = false;
-        while (*p != '}')
+        for (int field = json.Get(path).m_First; field >= 0; field = json.Get(field).m_Next)
         {
-            if (!ReadString(p, &key) || !AddUniqueHash(&keys, dmHashBufferNoReverse64(key.Begin(), key.Size() - 1)) || !Consume(p, ':'))
-                return false;
-            // Embedded zero characters must not change how a field name is interpreted.
-            if (strlen(key.Begin()) != key.Size() - 1)
-                return false;
-            ObjectType child_type = OBJECT_ANY;
-            if (type == OBJECT_PATH_ITEM)
+            const dmJson::Node& node = json.Get(field);
+            if (IsMethod(node.m_Name))
             {
-                if (IsMethod(key.Begin()))
+                const dmJson::Node& responses = json.Get(json.Field(field, "responses"));
+                if (responses.m_Type != dmJson::TYPE_OBJECT || responses.m_First < 0)
                 {
-                    has_operation = true;
-                    child_type = OBJECT_OPERATION;
+                    return false;
                 }
-                else if (dmStrEq(key.Begin(), "$ref"))
-                    has_operation = *p == '"';
-                else if (!dmStrEq(key.Begin(), "summary") && !dmStrEq(key.Begin(), "description")
-                    && !dmStrEq(key.Begin(), "parameters") && !dmStrEq(key.Begin(), "servers")
-                    && strncmp(key.Begin(), "x-", 2) != 0)
+                has_operation = true;
+            }
+            else if (dmStrEq(node.m_Name, "$ref"))
+            {
+                if (node.m_Type != dmJson::TYPE_STRING)
+                {
                     return false;
+                }
+                has_operation = true;
             }
-            else if (type == OBJECT_OPERATION && dmStrEq(key.Begin(), "responses"))
+            else if (!dmStrEq(node.m_Name, "summary") && !dmStrEq(node.m_Name, "description")
+                     && !dmStrEq(node.m_Name, "parameters") && !dmStrEq(node.m_Name, "servers")
+                     && strncmp(node.m_Name, "x-", 2) != 0)
             {
-                has_responses = true;
-                child_type = OBJECT_RESPONSES;
-            }
-            if (!ReadValue(p, depth + 1, child_type))
                 return false;
-            SkipSpace(p);
-            if (*p == '}')
-                break;
-            if (!Consume(p, ',') || *p == '}')
-                return false;
-        }
-        if (!Consume(p, '}'))
-            return false;
-        return (type != OBJECT_PATH_ITEM || has_operation)
-            && (type != OBJECT_OPERATION || has_responses)
-            && (type != OBJECT_RESPONSES || !keys.Empty());
-    }
-
-    static bool ReadValue(const char*& p, uint32_t depth, ObjectType type)
-    {
-        if (depth > 64)
-            return false;
-        SkipSpace(p);
-        if (type != OBJECT_ANY || *p == '{')
-            return ReadObject(p, depth, type);
-        if (*p == '"')
-            return ReadString(p, 0);
-        if (Consume(p, '['))
-        {
-            if (*p == ']')
-                return Consume(p, ']');
-            do
-            {
-                if (!ReadValue(p, depth + 1, OBJECT_ANY))
-                    return false;
-                SkipSpace(p);
-                if (*p == ']')
-                    return Consume(p, ']');
-            } while (Consume(p, ','));
-            return false;
-        }
-        const char* literals[] = {"true", "false", "null"};
-        for (uint32_t i = 0; i < 3; ++i)
-        {
-            uint32_t length = (uint32_t)strlen(literals[i]);
-            if (strncmp(p, literals[i], length) == 0)
-            {
-                p += length;
-                return true;
             }
         }
-        if (*p == '-') ++p;
-        if (*p == '0') ++p;
-        else
-        {
-            if (*p < '1' || *p > '9')
-                return false;
-            while (*p >= '0' && *p <= '9') ++p;
-        }
-        if (*p == '.')
-        {
-            ++p;
-            if (*p < '0' || *p > '9') return false;
-            while (*p >= '0' && *p <= '9') ++p;
-        }
-        if (*p == 'e' || *p == 'E')
-        {
-            ++p;
-            if (*p == '+' || *p == '-') ++p;
-            if (*p < '0' || *p > '9') return false;
-            while (*p >= '0' && *p <= '9') ++p;
-        }
-        return true;
+        return has_operation;
     }
 
     static bool NormalizePath(dmArray<char>* path)
@@ -303,12 +100,12 @@ namespace dmWebServer
         return !parameter;
     }
 
-    static bool ParseError(const char* json, const char* p, const char* message, OpenAPIError* error)
+    static bool ParseError(uint32_t offset, const char* message, OpenAPIError* error)
     {
         if (error)
         {
             error->m_Message = message;
-            error->m_Offset = json ? (uint32_t)(p - json) : 0;
+            error->m_Offset = offset;
         }
         return false;
     }
@@ -316,46 +113,64 @@ namespace dmWebServer
     bool ParseOpenAPI(const char* prefix, const char* json, OpenAPI* openapi, OpenAPIError* error)
     {
         if (!json)
-            return ParseError(0, 0, "Expected a non-empty Paths Object", error);
-        const char* p = json;
-        if (!Consume(p, '{') || *p == '}')
-            return ParseError(json, p, "Expected a non-empty Paths Object", error);
-        openapi->m_Json = p;
-        dmArray<char> path;
-        do
         {
-            const char* key = p;
-            if (!ReadString(p, &path))
-                return ParseError(json, p, "Expected a JSON path string", error);
-            if (path[0] != '/' || strncmp(path.Begin(), prefix, strlen(prefix)) != 0)
-                return ParseError(json, key, "Path must start with the handler prefix", error);
+            return ParseError(0, "Expected a non-empty Paths Object", error);
+        }
+        dmJson::Document document;
+        uint32_t offset;
+        if (!document.Parse(json, (uint32_t)strlen(json), &offset, dmJson::PARSE_PRESERVE_VALUES))
+        {
+            return ParseError(offset, document.m_Valid ? "Unexpected data after Paths Object" : "Invalid JSON", error);
+        }
+        const dmJson::Node& root = document.Get(0);
+        if (root.m_Type != dmJson::TYPE_OBJECT || root.m_First < 0)
+        {
+            return ParseError(root.m_Offset + (root.m_Type == dmJson::TYPE_OBJECT), "Expected a non-empty Paths Object", error);
+        }
+        // Retain the original encoded members for aggregation and conflict diagnostics.
+        uint32_t start = (uint32_t)(document.Get(root.m_First).m_Name - document.m_Text - 1);
+        openapi->m_Json = json + start;
+        openapi->m_Length = root.m_Offset + root.m_Length - 1 - start;
+        dmArray<char> path;
+        for (int field = root.m_First; field >= 0; field = document.Get(field).m_Next)
+        {
+            const dmJson::Node& node = document.Get(field);
+            uint32_t key_offset = (uint32_t)(node.m_Name - document.m_Text - 1);
+            if (node.m_Name[0] != '/' || strncmp(node.m_Name, prefix, strlen(prefix)) != 0)
+            {
+                return ParseError(key_offset, "Path must start with the handler prefix", error);
+            }
+            uint32_t length = (uint32_t)strlen(node.m_Name) + 1;
+            if (path.Capacity() < length)
+            {
+                path.SetCapacity(length);
+            }
+            path.SetSize(length);
+            memcpy(path.Begin(), node.m_Name, length);
             if (!NormalizePath(&path))
-                return ParseError(json, key, "Invalid path or path parameter", error);
+            {
+                return ParseError(key_offset, "Invalid path or path parameter", error);
+            }
             dmhash_t hash = dmHashString64(path.Begin());
             if (!AddUniqueHash(&openapi->m_Paths, hash))
-                return ParseError(json, key, "Duplicate path (including renamed path parameters)", error);
+            {
+                return ParseError(key_offset, "Duplicate path (including renamed path parameters)", error);
+            }
+            if (!ValidatePathItem(document, field))
+            {
+                return ParseError(node.m_Offset, "Invalid Path Item; operations require non-empty responses", error);
+            }
             OpenAPIPath info;
             info.m_Hash = hash;
-            info.m_Offset = (uint32_t)(key + 1 - openapi->m_Json);
-            info.m_Length = (uint32_t)(p - key - 2);
+            info.m_Offset = key_offset + 1 - start;
+            info.m_Length = node.m_NameLength;
             if (openapi->m_PathInfo.Full())
-                openapi->m_PathInfo.OffsetCapacity(8);
-            openapi->m_PathInfo.Push(info);
-            if (!Consume(p, ':'))
-                return ParseError(json, p, "Expected ':' after path", error);
-            if (!ReadValue(p, 1, OBJECT_PATH_ITEM))
-                return ParseError(json, p, "Invalid JSON or Path Item; operations require non-empty responses", error);
-            SkipSpace(p);
-            if (*p == '}')
             {
-                openapi->m_Length = (uint32_t)(p - openapi->m_Json);
-                Consume(p, '}');
-                if (*p != 0)
-                    return ParseError(json, p, "Unexpected data after Paths Object", error);
-                return true;
+                openapi->m_PathInfo.OffsetCapacity(8);
             }
-        } while (Consume(p, ','));
-        return ParseError(json, p, "Expected ',' or '}' after Path Item", error);
+            openapi->m_PathInfo.Push(info);
+        }
+        return true;
     }
 
     const OpenAPIPath* FindOpenAPIPath(const OpenAPI* openapi, dmhash_t hash)

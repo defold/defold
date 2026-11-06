@@ -363,7 +363,7 @@ namespace dmDebugger
         return column == 0 ? p : 0;
     }
 
-    bool Completions(Debugger* d, lua_State* L, int level, const Json& request, int args, Buffer& body)
+    bool Completions(Debugger* d, lua_State* L, int level, const dmJson::Document& request, int args, Buffer& body)
     {
         const char* text = request.String(request.Field(args, "text"));
         int         line = request.Integer(request.Field(args, "line"), d->m_LinesStartAt1 ? 1 : 0);
