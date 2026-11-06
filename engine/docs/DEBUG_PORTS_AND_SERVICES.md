@@ -240,12 +240,13 @@ one observation. Reject missing/zero dimensions; display scale is diagnostic
 metadata, not the transform. These metrics do not establish a world/GUI projection
 or prove that a frame has rendered at the observed dimensions.
 
-`POST /window/resize` requires `Content-Type: application/json` and
-`X-Engine-Instance` from live `/state`. The engine service checks this header
-before routing any request and rejects a mismatched instance with `410 stale_instance`.
-Existing routes that do not require the header continue to accept requests without it.
-The platform service requires it for resize submission and receipt polling, but
-does not store engine identity. The resize body accepts at most 1024 bytes:
+`POST /window/resize` requires `Content-Type: application/json`. Clients that
+need to pin the request to an engine instance can supply `X-Engine-Instance`
+from live `/state`. The engine service checks supplied headers before routing
+any request and rejects a mismatched instance with `410 stale_instance`.
+Receipt polling requires the header, so clients that need completion should
+acquire and retain it before submission. The platform service does not store
+engine identity. The resize body accepts at most 1024 bytes:
 
 ```json
 {"width": 640, "height": 360, "expected_window_revision": "w3", "timeout_ms": 30000}
@@ -258,8 +259,8 @@ result. Resizing preserves the graphics reference resolution used by
 30000. Optional `expected_window_revision` is checked at acceptance and again
 before the setter runs. Unknown/duplicate fields are rejected.
 
-A `202` response contains a queued receipt and a `Location` URL. Poll
-`GET /window/resize/{id}` with the same `X-Engine-Instance` to observe
+A `202` response contains a queued receipt and a `Location` URL. To confirm
+completion, poll `GET /window/resize/{id}` with the same `X-Engine-Instance` to observe
 `queued -> awaiting_window -> complete | failed`. IDs are local to the service;
 keep the original instance header even if the engine reboots during polling.
 The setter runs once during the extension update, before a graphics frame begins.
@@ -298,13 +299,11 @@ valid uploads yield without admitting an operation. Release builds expose no
 window service. Screenshot capture and image endpoints are a separate delivery.
 
 **Compatibility / release note:** The debug engine now uses service API version 2.
-The editor queues simulator changes per target and sends width/height JSON to
-`/window/resize` with the live instance ID from `/state`. Network requests and
-receipt polling run off the UI thread. Each target has one active request and
-one unsent choice; newer choices replace older unsent ones. Busy responses are
-retried, terminal failures are logged, and a batch remains pinned to its original
-engine instance across reboots. The project design resolution remains
-unchanged (#11025).
+The editor sends one width/height JSON request to `/window/resize` for each
+simulator change, without an instance preflight or receipt polling. It retains
+the existing request timeout and HTTP error behavior, including reporting busy
+responses without retrying. Acceptance does not confirm completion. The project
+design resolution remains unchanged (#11025).
 Presets specify window client units, so high-DPI hosts may have more drawable
 pixels. Generic DDF HTTP dispatch remains unchanged, including `/post/@render/resize`.
 The updated editor requires an engine that supports `/window/resize`.

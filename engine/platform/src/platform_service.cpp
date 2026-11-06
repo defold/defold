@@ -486,10 +486,10 @@ namespace dmPlatformService
             SendWindowMetrics(service, request);
             return;
         }
-        // The engine service validates the value before dispatch. Both submission
-        // and polling must be pinned because receipt IDs are local to this service.
+        // The engine service validates supplied instance headers before dispatch.
+        // Receipt reads require one because IDs are local to this service.
         const char* instance = dmWebServer::GetHeader(request, "X-Engine-Instance");
-        if (!instance || !instance[0])
+        if (receipt && (!instance || !instance[0]))
         {
             Reject(request, 400, "missing_instance", "X-Engine-Instance from /state is required");
             return;

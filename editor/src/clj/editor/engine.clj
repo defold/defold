@@ -19,7 +19,6 @@
             [editor.code.util :refer [split-lines]]
             [editor.engine.native-extensions :as native-extensions]
             [editor.fs :as fs]
-            [editor.future :as future]
             [editor.prefs :as prefs]
             [editor.process :as process]
             [editor.protobuf :as protobuf]
@@ -74,103 +73,30 @@
       (finally
         (.disconnect conn)))))
 
-(defn- request-engine-json! [target path body instance]
-  (let [uri (URI. (str (:url target) path))
-        conn ^HttpURLConnection (doto ^HttpURLConnection (get-connection uri)
-                                  (.setDoOutput (boolean body))
-                                  (.setRequestMethod (if body "POST" "GET")))]
+(defn change-resolution! [target width height rotate]
+  (let [uri (URI. (str (:url target) "/window/resize"))
+        conn ^HttpURLConnection (get-connection uri)]
     (try
-      (when instance
-        (.setRequestProperty conn "X-Engine-Instance" instance))
-      (when body
-        (.setRequestProperty conn "Content-Type" "application/json")
-        (with-open [os (.getOutputStream conn)]
-          (.write os (.getBytes ^String (json/write-str body) StandardCharsets/UTF_8))))
-      (let [status (.getResponseCode conn)
-            response (with-open [is (if (< status 400) (.getInputStream conn) (.getErrorStream conn))]
-                       (when is
-                         (json/read-str (slurp is :encoding "UTF-8") :key-fn keyword)))]
-        (if (< status 400)
-          {:body response :location (.getHeaderField conn "Location")}
-          (throw (ex-info (or (get-in response [:error :message]) (str "Engine request failed: " status))
-                          {:status status :error (get-in response [:error :code])}))))
+      (.setRequestProperty conn "Content-Type" "application/json")
+      (with-open [os (.getOutputStream conn)]
+        (.write os (.getBytes ^String (json/write-str {:width (if rotate height width)
+                                                       :height (if rotate width height)})
+                              StandardCharsets/UTF_8)))
+      (with-open [is (.getInputStream conn)]
+        (ignore-all-output is))
       (finally
         (.disconnect conn)))))
 
 (defn get-engine-state! [target]
-  (:body (request-engine-json! target "/state" nil nil)))
-
-(defn- resize-window! [target instance width height]
-  (let [deadline (+ (System/nanoTime) 35000000000)]
-    (loop [location nil]
-      (when (>= (System/nanoTime) deadline)
-        (throw (ex-info "Timed out waiting for the engine window to resize" {:error "resize_timeout"})))
-      (let [response (try
-                       (if location
-                         (request-engine-json! target location nil instance)
-                         (request-engine-json! target "/window/resize" {:width width :height height} instance))
-                       (catch clojure.lang.ExceptionInfo error
-                         (when-not (and (nil? location)
-                                        (= 409 (:status (ex-data error)))
-                                        (= "resize_busy" (:error (ex-data error))))
-                           (throw error))))
-            receipt (:body response)]
-        (case (:state receipt)
-          "complete" receipt
-          "failed" (throw (ex-info (get-in receipt [:error :message])
-                                   {:error (get-in receipt [:error :code]) :receipt receipt}))
-          (nil "queued" "awaiting_window")
-          (let [location (or location (:location response))]
-            (when (and receipt (not= location (str "/window/resize/" (:operation_id receipt))))
-              (throw (ex-info "Invalid resize receipt location" {:receipt receipt})))
-            (Thread/sleep 50)
-            (recur location))
-          (throw (ex-info "Invalid resize receipt state" {:receipt receipt})))))))
-
-;; An entry remains present while its worker runs, even without a queued choice.
-;; Each target has at most one in-flight request and one unsent choice.
-(defonce ^:private resize-requests (atom {}))
-
-(defn- run-resize-requests! [target-key]
-  (let [instance (volatile! nil)]
-    (loop []
-      (let [[before _] (swap-vals! resize-requests
-                                   (fn take-resize-request [requests]
-                                     (if (get-in requests [target-key :pending])
-                                       (assoc-in requests [target-key :pending] nil)
-                                       (dissoc requests target-key))))]
-        (when-let [{:keys [target width height result]} (get-in before [target-key :pending])]
-          (try
-            ;; Pin the batch to its first live instance. Do not retry queued
-            ;; choices against a replacement engine after a stale response.
-            (when-not @instance
-              (let [state (get-engine-state! target)]
-                (if-let [live-instance (:engine_instance_id state)]
-                  (vreset! instance live-instance)
-                  (throw (ex-info "Engine does not expose a resize instance" {:error "engine_not_ready"})))))
-            (future/complete! result (resize-window! target @instance width height))
-            (catch Exception error
-              (log/warn :message "Unable to resize the engine window" :target (:url target) :exception error)
-              (future/fail! result error)))
-          (recur))))))
-
-(defn change-resolution!
-  "Queue a window resize without blocking the caller. The future contains
-  the completed receipt, fails with the engine error, or resolves to superseded
-  when a newer unsent choice replaces it. Failures are also logged."
-  [target width height rotate]
-  (let [target-key [(:id target) (:url target)]
-        result (future/make)
-        request {:target target
-                 :width (if rotate height width)
-                 :height (if rotate width height)
-                 :result result}
-        [before _] (swap-vals! resize-requests assoc-in [target-key :pending] request)]
-    (when-let [superseded (get-in before [target-key :pending :result])]
-      (future/complete! superseded {:state "superseded"}))
-    (when-not (contains? before target-key)
-      (future/io (run-resize-requests! target-key)))
-    result))
+  (let [uri (URI. (str (:url target) "/state"))
+        conn ^HttpURLConnection (doto ^HttpURLConnection (get-connection uri)
+                                  (.setDoOutput false)
+                                  (.setRequestMethod "GET"))]
+    (try
+      (with-open [is (.getInputStream conn)]
+        (json/read-str (slurp is :encoding "UTF-8") :key-fn keyword))
+      (finally
+        (.disconnect conn)))))
 
 (defn apply-simulated-resolution! [prefs target]
   (let [data (prefs/get prefs [:run :simulated-resolution])]

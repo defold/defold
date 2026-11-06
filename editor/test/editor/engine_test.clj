@@ -19,151 +19,51 @@
             [clojure.test :refer :all]
             [editor.engine :as engine]
             [editor.fs :as fs]
-            [editor.future :as future]
             [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.process :as process]
             [editor.protobuf :as protobuf]
-            [service.log :as log]
             [util.http-server :as http-server])
   (:import [com.dynamo.system.proto System$Reboot]
            [com.sun.net.httpserver HttpExchange HttpHandler HttpServer]
-           [java.io InputStream]
+           [java.io IOException InputStream]
            [java.net InetSocketAddress]
-           [java.util.concurrent CompletableFuture ExecutionException LinkedBlockingQueue TimeUnit]))
+           [java.util.concurrent LinkedBlockingQueue]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn- await-resize [^CompletableFuture result]
-  (.get result 5 TimeUnit/SECONDS))
-
-;; A delayed receipt must not block the caller; only the latest unsent choice is
-;; submitted, with rotation applied, after the active request completes.
-(deftest window-resize-coalescing-test
-  (let [posted (promise)
-        release (promise)
-        requests (atom [])
-        states (atom 0)]
+;; Resizing sends one JSON request with rotation applied, without a state lookup
+;; or receipt polling.
+(deftest window-resize-test
+  (let [requests (atom [])]
     (with-open [server (http-server/start!
                          (fn handle-resize [{:keys [method path body headers]}]
-                           (case path
-                             "/state"
-                             (do
-                               (is (= "GET" method))
-                               (swap! states inc)
-                               (http-server/json-response {:engine_instance_id "resize-test" :ready true}))
-
-                             "/window/resize"
-                             (let [request (json/read-str (slurp body) :key-fn keyword)
-                                   id (count (swap! requests conj request))
-                                   location (str "/window/resize/r" id)]
-                               (is (= "POST" method))
-                               (is (= "application/json" (get headers "content-type")))
-                               (is (= "resize-test" (get headers "x-engine-instance")))
-                               (deliver posted request)
-                               (http-server/json-response {:operation_id (str "r" id)
-                                                           :state "queued"}
-                                                          202 {"location" location}))
-
-                             (do
-                               (is (= "GET" method))
-                               (is (= "resize-test" (get headers "x-engine-instance")))
-                               (is (= true (deref release 5000 ::timeout)))
-                               (http-server/json-response {:state "complete"}))))
+                           (is (= "POST" method))
+                           (is (= "/window/resize" path))
+                           (is (= "application/json" (get headers "content-type")))
+                           (is (nil? (get headers "x-engine-instance")))
+                           (swap! requests conj (json/read-str (slurp body) :key-fn keyword))
+                           (http-server/json-response {:operation_id "r1" :state "queued"}
+                                                      202 {"location" "/window/resize/r1"}))
                          :host "127.0.0.1")]
-      (let [target {:url (http-server/local-url server)}
-            first-result (engine/change-resolution! target 640 360 false)]
-        (try
-          (is (= {:width 640 :height 360} (deref posted 5000 ::timeout)))
-          (is (not (future/done? first-result)))
-          (let [superseded (engine/change-resolution! target 800 600 false)
-                final-result (engine/change-resolution! target 501 351 true)]
-            (is (= {:state "superseded"} (await-resize superseded)))
-            (deliver release true)
-            (is (= "complete" (:state (await-resize first-result))))
-            (is (= "complete" (:state (await-resize final-result))))
-            (is (= [{:width 640 :height 360} {:width 351 :height 501}] @requests))
-            (is (= 1 @states)))
-          (finally
-            (deliver release true)))))))
+      (let [target {:url (http-server/local-url server)}]
+        (engine/change-resolution! target 640 360 false)
+        (engine/change-resolution! target 501 351 true))
+      (is (= [{:width 640 :height 360} {:width 351 :height 501}] @requests)))))
 
-;; A busy engine is retried, and a failed terminal receipt must fail the
-;; returned future instead of being treated as a successful resize.
+;; Rejected resize requests retain the existing HTTP error behavior without
+;; retrying.
 (deftest window-resize-failure-test
-  (let [posts (atom 0)]
+  (let [requests (atom 0)]
     (with-open [server (http-server/start!
-                         (fn handle-resize [{:keys [path]}]
-                           (case path
-                             "/state"
-                             (http-server/json-response {:engine_instance_id "failure-test" :ready true})
-
-                             "/window/resize"
-                             (if (= 1 (swap! posts inc))
-                               (http-server/json-response {:error {:code "resize_busy" :message "Busy"}} 409)
-                               (http-server/json-response {:operation_id "r1"
-                                                           :state "queued"}
-                                                          202 {"location" "/window/resize/r1"}))
-
-                             "/window/resize/r1"
-                             (http-server/json-response {:state "failed"
-                                                         :error {:code "resize_not_observed" :message "Window refused the size"}})))
+                         (fn reject-resize [_request]
+                           (swap! requests inc)
+                           (http-server/json-response {:error {:code "resize_busy" :message "Busy"}} 409))
                          :host "127.0.0.1")]
-      (log/without-logging
-        (let [result (engine/change-resolution! {:url (http-server/local-url server)} 640 360 false)]
-          (try
-            (await-resize result)
-            (is false "A failed receipt must fail the future")
-            (catch ExecutionException error
-              (is (= "resize_not_observed" (:error (ex-data (.getCause error)))))))))
-      (is (= 2 @posts)))))
-
-;; A reboot while observing an operation must not cause already queued choices
-;; to acquire the replacement instance and mutate its window.
-(deftest window-resize-stale-instance-test
-  (let [posted (promise)
-        release (promise)
-        states (atom 0)
-        posts (atom [])]
-    (with-open [server (http-server/start!
-                         (fn handle-resize [{:keys [path headers]}]
-                           (case path
-                             "/state"
-                             (http-server/json-response {:engine_instance_id (if (= 1 (swap! states inc)) "old" "new")
-                                                         :ready true})
-
-                             "/window/resize"
-                             (let [instances (swap! posts conj (get headers "x-engine-instance"))]
-                               (if (= 1 (count instances))
-                                 (do
-                                   (deliver posted true)
-                                   (http-server/json-response {:operation_id "r1" :state "queued"}
-                                                              202 {"location" "/window/resize/r1"}))
-                                 (http-server/json-response {:error {:code "stale_instance" :message "Rebooted"}} 410)))
-
-                             "/window/resize/r1"
-                             (do
-                               (is (= "old" (get headers "x-engine-instance")))
-                               (is (= true (deref release 5000 ::timeout)))
-                               (http-server/json-response {:error {:code "stale_instance" :message "Rebooted"}} 410))))
-                         :host "127.0.0.1")]
-      (log/without-logging
-        (let [target {:url (http-server/local-url server)}
-              active (engine/change-resolution! target 640 360 false)]
-          (try
-            (is (= true (deref posted 5000 ::timeout)))
-            (let [queued (engine/change-resolution! target 800 600 false)]
-              (deliver release true)
-              (doseq [result [active queued]]
-                (try
-                  (await-resize result)
-                  (is false "A stale instance must fail the future")
-                  (catch ExecutionException error
-                    (is (= "stale_instance" (:error (ex-data (.getCause error)))))))))
-            (is (= ["old" "old"] @posts))
-            (is (= 1 @states))
-            (finally
-              (deliver release true))))))))
+      (is (thrown? IOException
+                   (engine/change-resolution! {:url (http-server/local-url server)} 640 360 false))))
+    (is (= 1 @requests))))
 
 ;; Verify valid DAP listener ports are discovered and invalid ports are ignored,
 ;; guarding against losing service metadata while updating the debugger address.

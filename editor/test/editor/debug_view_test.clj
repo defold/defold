@@ -40,7 +40,7 @@
   (:import [java.io ByteArrayOutputStream]
            [java.nio.charset StandardCharsets]
            [java.util Collection]
-           [java.util.concurrent CompletableFuture LinkedBlockingQueue TimeUnit]
+           [java.util.concurrent LinkedBlockingQueue]
            [javafx.scene Scene]
            [javafx.scene.control ListView TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
@@ -342,23 +342,11 @@
         (prefs/set! settings [:run :simulated-resolution] {:width 501 :height 351})
         (prefs/set! settings [:run :simulate-rotated-device] true)
         (with-open [server (http-server/start!
-                             (fn handle-resize [{:keys [body method path headers]}]
-                               (case path
-                                 "/state"
-                                 (do
-                                   (is (= "GET" method))
-                                   (http-server/json-response {:engine_instance_id "reset-test" :ready true}))
-
-                                 "/window/resize"
-                                 (let [resize (json/read-str (slurp body) :key-fn keyword)]
-                                   (is (= "reset-test" (get headers "x-engine-instance")))
-                                   (is (= "application/json" (get headers "content-type")))
-                                   (reset! resized [method path (:width resize) (:height resize)])
-                                   (http-server/json-response {:engine_instance_id "reset-test" :operation_id "reset-test-r1" :state "queued"}
-                                                              202 {"location" "/window/resize/reset-test-r1"}))
-
-                                 "/window/resize/reset-test-r1"
-                                 (http-server/json-response {:engine_instance_id "reset-test" :state "complete"})))
+                             (fn handle-resize [{:keys [body method path]}]
+                               (let [resize (json/read-str (slurp body) :key-fn keyword)]
+                                 (reset! resized [method path (:width resize) (:height resize)]))
+                               (http-server/json-response {:operation_id "r1" :state "queued"}
+                                                          202 {"location" "/window/resize/r1"}))
                              :host "127.0.0.1")]
           (targets/select-target! settings {:id "reset-resolution-test"
                                             :url (http-server/local-url server)})
@@ -370,8 +358,7 @@
                                                :prefs settings})])]
             (is command)
             (log/without-logging
-              (let [result (handler/run command)]
-                (is (= "complete" (:state (.get ^CompletableFuture result 5 TimeUnit/SECONDS))))))))
+              (handler/run command))))
         (is (nil? (prefs/get settings [:run :simulated-resolution])))
         (is (false? (prefs/get settings [:run :simulate-rotated-device])))
         (is (= ["POST" "/window/resize"

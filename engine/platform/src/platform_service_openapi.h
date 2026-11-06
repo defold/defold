@@ -46,7 +46,7 @@ namespace dmPlatformService
     "post": {
       "summary": "Resize the window in client units",
       "description": "Preserves project reference resolution. Resizing waits for simulation updates.",
-      "parameters": [{"name": "X-Engine-Instance", "in": "header", "required": true, "schema": {"type": "string"}, "description": "engine_instance_id from /state; retain for receipt polling."}],
+      "parameters": [{"name": "X-Engine-Instance", "in": "header", "required": false, "schema": {"type": "string"}, "description": "Optional engine_instance_id from /state. Supply and retain it when polling the receipt."}],
       "requestBody": {
         "required": true,
         "content": {"application/json": {"schema": {
@@ -61,11 +61,11 @@ namespace dmPlatformService
       },
       "responses": {
         "202": {
-          "description": "Accepted; poll Location until complete or failed.",
+          "description": "Accepted. Clients that require completion can poll Location with the original engine instance header.",
           "headers": {"Location": {"schema": {"type": "string"}}},
           "content": {"application/json": {"schema": {"$ref": "#/paths/~1window~1resize~1{id}/get/responses/200/content/application~1json/schema"}}}
         },
-        "400": {"description": "Invalid request or missing instance"},
+        "400": {"description": "Invalid request"},
         "405": {"description": "Method not allowed"},
         "409": {"description": "Resize pending or window revision changed"},
         "410": {"description": "Engine instance changed"},
@@ -79,7 +79,7 @@ namespace dmPlatformService
       "summary": "Get a resize receipt",
       "parameters": [
         {"name": "id", "in": "path", "required": true, "schema": {"type": "string"}},
-        {"$ref": "#/paths/~1window~1resize/post/parameters/0"}
+        {"name": "X-Engine-Instance", "in": "header", "required": true, "schema": {"type": "string"}, "description": "engine_instance_id retained from before resize submission."}
       ],
       "responses": {
         "200": {

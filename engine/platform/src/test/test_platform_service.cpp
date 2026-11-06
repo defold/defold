@@ -211,11 +211,12 @@ class PlatformServiceTest : public HttpServiceTest
     }
 };
 
-// Pending resizes complete through the window API without HTTP polling, and idle updates never issue a setter.
+// Unpinned resizes complete without HTTP polling, and idle updates never issue a setter.
 TEST_F(PlatformServiceTest, ResizeCompletesWithoutPolling)
 {
     dmPlatformService::Update(m_Service);
     ASSERT_EQ(0U, m_ResizeCount);
+    m_RequestInstance = 0;
     Queue("{\"width\":640,\"height\":360}");
     dmPlatformService::Update(m_Service);
     ASSERT_EQ(1U, m_ResizeCount);
@@ -224,6 +225,7 @@ TEST_F(PlatformServiceTest, ResizeCompletesWithoutPolling)
     dmPlatform::SetWindowSize(m_Window, 800, 450);
     dmPlatformService::Update(m_Service);
     ASSERT_EQ(2U, m_ResizeCount);
+    m_RequestInstance = "platform-test-instance";
     Fetch("GET", m_Receipt);
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"complete\""));
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"window\":{\"width\":640,\"height\":360}"));
@@ -474,8 +476,6 @@ TEST_F(PlatformServiceTest, WindowRequestValidation)
     ASSERT_EQ(413, m_Status);
     ASSERT_STREQ("close", m_Connection);
     m_RequestInstance = 0;
-    Fetch("POST", "/window/resize", "", false, 10);
-    ASSERT_EQ(400, m_Status);
     Fetch("GET", "/window/resize/r1");
     ASSERT_EQ(400, m_Status);
     m_RequestInstance = "platform-test-instance";
