@@ -287,6 +287,30 @@ public class ModelUtilTest {
         }
     }
 
+    // Native packing must survive JNI metadata projection without copying GPU streams to Java.
+    @Test
+    public void testNativeModelBufferMetadata() throws Exception {
+        Modelimporter.Options options = new Modelimporter.Options();
+        options.packModelBuffers = true;
+        options.onlyModelMetadata = true;
+        options.skipImageData = true;
+        Modelimporter.Scene scene = ModelUtil.loadScene(getClass().getResourceAsStream("draco_shared.gltf"),
+                "draco_shared.gltf", options, null);
+        Modelimporter.Mesh mesh = scene.models[0].meshes[0];
+        assertNull(mesh.positions);
+        assertNull(mesh.indices);
+        assertTrue(mesh.vertexCount > 0);
+
+        Modelimporter.Scene raw = loadScene("draco_shared.gltf");
+        org.junit.Assert.assertArrayEquals(ModelBuffers.compileScene(raw), scene.modelBuffers);
+        Rig.MeshSet.Builder metadata = Rig.MeshSet.newBuilder();
+        ModelUtil.loadModelMetadata(scene, metadata, 1024, 1024);
+        Rig.Mesh compiled = metadata.getModels(0).getMeshes(0);
+        assertEquals(mesh.vertexCount, compiled.getVertexCount());
+        assertEquals(mesh.bufferIndex, compiled.getBufferIndex());
+        assertEquals(0, compiled.getPositionsCount());
+    }
+
     @Test
     public void testLoadDracoSharedAccessors() throws Exception {
         Modelimporter.Scene scene = loadScene("draco_shared.gltf");
@@ -406,6 +430,27 @@ public class ModelUtilTest {
         assertEquals(texture.data.length, image.getDataSize());
         assertEquals(2, mesh.getMorphTargetCount());
         assertEquals(2, mesh.getMorphBaseWeightsCount());
+    }
+
+    // Geometry snapshots must retain morph metadata without packing or validating texture atlases.
+    @Test
+    public void testLoadMeshWithoutMorphTextures() throws Exception {
+        Modelimporter.Mesh source = createMorphTextureTestMesh();
+        Rig.Mesh geometry = ModelUtil.loadMesh(source, 1, 1, null);
+        assertFalse(geometry.hasMorphTargetTexture());
+        assertEquals(2, geometry.getMorphTargetCount());
+        assertEquals(List.of(0.25f, 0.75f), geometry.getMorphBaseWeightsList());
+
+        ModelUtil.MorphTargetTextureCollector textures = new ModelUtil.MorphTargetTextureCollector();
+        Rig.Mesh textured = ModelUtil.loadMesh(source, 4, 4, textures);
+        assertEquals(textured.toBuilder().clearMorphTargetTexture().build(), geometry);
+        assertEquals(1, textures.getTextures().size());
+        try {
+            ModelUtil.loadMesh(source, 1, 1, new ModelUtil.MorphTargetTextureCollector());
+            fail("Morph texture packing must still enforce atlas limits when collecting textures");
+        } catch (LoaderException expected) {
+            assertTrue(expected.getMessage().contains("atlas"));
+        }
     }
 
     @Test
