@@ -246,11 +246,13 @@
               (is (= 2 @dialog-call-count))
               (is (= "ChromeMesh" (test-util/prop model-node-id :mesh-name)))
               (is (= [{:index 0
+                       :mesh-ids ["PaintNode"]
                        :name "PaintMesh"
                        :name-generated false
                        :primitive-count 1
                        :vertex-count 3}
                       {:index 1
+                       :mesh-ids ["ChromeNode"]
                        :name "ChromeMesh"
                        :name-generated false
                        :primitive-count 1

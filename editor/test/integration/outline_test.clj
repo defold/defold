@@ -282,6 +282,21 @@
         (is (not (cut? root path)))
         (is (not (drag? root path)))))))
 
+;; Verifies that the mesh and bone rows of a Model component cannot be deleted,
+;; cut or dragged. Guards against editing away rows that are shown for
+;; reference only.
+(deftest read-only-model-items
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/model/treasure_chest.model")]
+      (doseq [path [[0] ; Meshes
+                    [0 0] ; The "Cube" mesh
+                    [1] ; Skeleton
+                    [1 0] ; The "root" bone
+                    [1 0 0]]] ; The "Middle" bone
+        (is (not (delete? root path)) (str path))
+        (is (not (cut? root path)) (str path))
+        (is (not (drag? root path)) (str path))))))
+
 (deftest dnd-gui
   (test-util/with-loaded-project
     (let [root (test-util/resource-node project "/logic/main.gui")]

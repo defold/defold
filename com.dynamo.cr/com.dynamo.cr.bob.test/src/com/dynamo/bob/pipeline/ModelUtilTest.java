@@ -45,6 +45,7 @@ import javax.vecmath.Vector4f;
 
 import org.junit.Test;
 
+import com.dynamo.bob.fs.GltfContainer;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 
@@ -880,5 +881,49 @@ public class ModelUtilTest {
 
         // Validate we have a reasonable number of models (not duplicated)
         assertFalse("Should have at least 1 model", models.isEmpty());
+    }
+
+    private void assertInspectedIdsMatchBuild(String path) throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Modelimporter.Scene scene = loadBuiltScene(path, meshSetBuilder);
+        assertNotNull(path + " should load", scene);
+
+        GltfContainer.Extraction extraction;
+        try (InputStream stream = getClass().getResourceAsStream(path)) {
+            extraction = GltfContainer.inspect(stream, path);
+        }
+
+        List<Rig.Model> models = meshSetBuilder.getModelsList();
+        List<GltfContainer.MeshInstance> instances = extraction.meshInstances();
+        assertEquals(path + ": one instance per model", models.size(), instances.size());
+        for (int i = 0; i < models.size(); ++i) {
+            GltfContainer.MeshInstance instance = instances.get(i);
+            assertEquals(String.format("%s: mesh id '%s' at index %d", path, instance.name(), i),
+                         models.get(i).getId(), MurmurHash.hash64(instance.name()));
+            assertEquals(path + ": mesh index of " + instance.name(), models.get(i).getMeshIndex(), instance.meshIndex());
+        }
+
+        List<Long> boneIds = meshSetBuilder.getBoneListList();
+        List<GltfContainer.BoneMetadata> bones = extraction.bones();
+        assertEquals(path + ": one entry per bone", boneIds.size(), bones.size());
+        for (int i = 0; i < bones.size(); ++i) {
+            GltfContainer.BoneMetadata bone = bones.get(i);
+            assertEquals(String.format("%s: bone id '%s' at index %d", path, bone.name(), i),
+                         (long) boneIds.get(i), MurmurHash.hash64(bone.name()));
+            assertEquals(path + ": index of " + bone.name(), i, bone.index());
+            assertTrue(path + ": parent of " + bone.name() + " comes first", bone.parentIndex() < i);
+        }
+    }
+
+    // Verifies that the mesh and bone ids the editor reads with the lightweight
+    // inspect load are the ids a full build hashes into the MeshSet. Guards
+    // against the editor showing ids that model.set_mesh_enabled() and
+    // model.get_go() do not accept.
+    @Test
+    public void testInspectedIdsMatchBuiltMeshSet() throws Exception {
+        assertInspectedIdsMatchBuild("quad_mesh.gltf");
+        assertInspectedIdsMatchBuild("bend2bones.gltf");
+        assertInspectedIdsMatchBuild("vehicle.glb"); // nested nodes, several models
+        assertInspectedIdsMatchBuild("no_mesh_animated_skeleton.gltf"); // bones without models
     }
 }

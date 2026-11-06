@@ -315,6 +315,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(loadMaterialsOnly, "Z");
         GET_FLD_TYPESTR(loadMeshMetadata, "Z");
         GET_FLD_TYPESTR(skipImageData, "Z");
+        GET_FLD_TYPESTR(loadNodeMetadata, "Z");
     }
     #undef GET_FLD
     #undef GET_FLD_ARRAY
@@ -728,6 +729,7 @@ jobject C2J_CreateOptions(JNIEnv* env, TypeInfos* types, const Options* src) {
     dmJNI::SetBoolean(env, obj, types->m_OptionsJNI.loadMaterialsOnly, src->m_LoadMaterialsOnly);
     dmJNI::SetBoolean(env, obj, types->m_OptionsJNI.loadMeshMetadata, src->m_LoadMeshMetadata);
     dmJNI::SetBoolean(env, obj, types->m_OptionsJNI.skipImageData, src->m_SkipImageData);
+    dmJNI::SetBoolean(env, obj, types->m_OptionsJNI.loadNodeMetadata, src->m_LoadNodeMetadata);
     return obj;
 }
 
@@ -2393,6 +2395,7 @@ bool J2C_CreateOptions(JNIEnv* env, TypeInfos* types, jobject obj, Options* out)
     out->m_LoadMaterialsOnly = dmJNI::GetBoolean(env, obj, types->m_OptionsJNI.loadMaterialsOnly);
     out->m_LoadMeshMetadata = dmJNI::GetBoolean(env, obj, types->m_OptionsJNI.loadMeshMetadata);
     out->m_SkipImageData = dmJNI::GetBoolean(env, obj, types->m_OptionsJNI.skipImageData);
+    out->m_LoadNodeMetadata = dmJNI::GetBoolean(env, obj, types->m_OptionsJNI.loadNodeMetadata);
     return true;
 }
 

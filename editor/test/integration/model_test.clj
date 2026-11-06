@@ -18,8 +18,10 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.outline-view :as outline-view]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
+            [editor.scene-visibility :as scene-visibility]
             [editor.types :as types]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -262,3 +264,75 @@
           (test-util/with-prop [node-id :default-animation "gurka"]
             (is (g/error? (test-util/prop-error node-id :default-animation)))
             (is (g/error-value? (g/node-value node-id :build-targets)))))))))
+
+(defn- outline-group [node-outline group-key]
+  (coll/first-where #(= group-key (:node-outline-key %)) (:children node-outline)))
+
+;; Verifies that a Model component lists the mesh ids of its mesh resource and
+;; the bone ids of its skeleton resource. Guards against the ids being hard to
+;; discover without opening the model file in an external tool.
+(deftest model-outline-shows-mesh-and-bone-ids
+  (test-util/with-loaded-project
+    (testing "the mesh ids come from the mesh resource"
+      (let [node-id (test-util/resource-node project "/model/test.model") ; No skeleton.
+            node-outline (g/node-value node-id :node-outline)]
+        (is (= ["Cube.001 (Cube)"] (mapv :label (:children (first (:children node-outline))))))
+        (is (= 1 (count (:children node-outline))))))
+
+    (testing "the bone ids come from the skeleton resource"
+      (let [node-id (test-util/resource-node project "/model/test.model")
+            skeleton-resource (workspace/resolve-workspace-resource workspace "/mesh/treasure_chest.gltf")]
+        (test-util/with-prop [node-id :skeleton skeleton-resource]
+          (let [node-outline (g/node-value node-id :node-outline)]
+            (is (= ["Cube.001 (Cube)"] (mapv :label (:children (first (:children node-outline))))))
+            (is (= ["root"] (mapv :label (:children (outline-group node-outline "gltf-skeleton")))))))
+        (is (nil? (outline-group (g/node-value node-id :node-outline) "gltf-skeleton")))))
+
+    (testing "a model that renders a single mesh lists it under the mesh name"
+      (let [node-id (test-util/resource-node project "/model/mesh_selection.model")]
+        (is (= ["LooseMesh"] (mapv :label (:children (first (:children (g/node-value node-id :node-outline)))))))
+        (test-util/with-prop [node-id :mesh-name "LeftMesh"]
+          (test-util/with-prop [node-id :mesh-index 0]
+            (is (= ["LeftMesh"] (mapv :label (:children (first (:children (g/node-value node-id :node-outline)))))))))
+        (test-util/with-prop [node-id :mesh-name "RightMesh"]
+          (test-util/with-prop [node-id :mesh-index 0] ; Stale index, the name selects the mesh.
+            (is (= ["RightMesh"] (mapv :label (:children (first (:children (g/node-value node-id :node-outline)))))))))
+        (test-util/with-prop [node-id :mesh-name ""]
+          (test-util/with-prop [node-id :mesh-index -1]
+            (is (= ["LeftMesh (LeftNode)" "RightMesh (RightNode)" "LooseMesh"]
+                   (mapv :label (:children (first (:children (g/node-value node-id :node-outline)))))))))))
+
+    (testing "an unusable mesh resource leaves the outline without groups"
+      (let [node-id (test-util/resource-node project "/model/test.model")]
+        (doseq [mesh [nil
+                      (workspace/resolve-workspace-resource workspace "/not_found.gltf")
+                      (workspace/resolve-workspace-resource workspace "/model/unsupported.dae")]]
+          (test-util/with-prop [node-id :mesh mesh]
+            (let [node-outline (g/node-value node-id :node-outline)]
+              (is (not (g/error? node-outline)))
+              (is (coll/empty? (:children node-outline))))))))
+
+    (testing "a model component shows the ids in the game object outline"
+      (let [go-node-id (test-util/resource-node project "/graphics/box.go")
+            model-outline (test-util/outline-node-info go-node-id "model")]
+        (is (= ["Cube.001 (Cube)"] (mapv :label (:children (first (:children model-outline))))))))))
+
+;; Verifies that a mesh row of a Model component can hide its mesh in the scene.
+;; Guards against the outline key path of the row not matching the scene, which
+;; has no level for the Meshes group.
+(deftest model-outline-mesh-is-hideable
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/model/treasure_chest.model")
+          app-view (test-util/setup-app-view! project)
+          scene-visibility (scene-visibility/make-scene-visibility-node! nil app-view)
+          _ (g/transact (g/connect node-id :scene scene-visibility :active-scene))
+          outline-name-paths (g/node-value scene-visibility :outline-name-paths)
+
+          decorated-outline
+          (:outline (outline-view/decorate-outline
+                      (g/node-value node-id :node-outline)
+                      #{} outline-name-paths @test-util/localization []))
+
+          [meshes-outline skeleton-outline] (:children decorated-outline)]
+      (is (true? (:hideable (first (:children meshes-outline)))))
+      (is (false? (:hideable (first (:children skeleton-outline))))))))

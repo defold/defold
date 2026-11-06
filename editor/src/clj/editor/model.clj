@@ -30,6 +30,7 @@
             [editor.material :as material]
             [editor.model-loader :as model-loader]
             [editor.model-scene :as model-scene]
+            [editor.outline :as outline]
             [editor.pipeline :as pipeline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -364,12 +365,18 @@
             dep-build-targets (into [rig-scene-build-target] (flatten dep-build-targets))]
         [(pipeline/make-protobuf-build-target _node-id resource ModelProto$Model rt-pb-msg dep-build-targets)])))
 
+(defn- selected-mesh-index
+  "Returns -1 when the Model renders all meshes, otherwise the index of the
+  rendered mesh, or nil when it cannot be resolved."
+  [mesh-name mesh-index collision-meshes]
+  (if (str/blank? mesh-name)
+    -1
+    (when-not (g/error-value? collision-meshes)
+      (:index (model-loader/resolve-named-mesh collision-meshes mesh-name mesh-index)))))
+
 (g/defnk produce-scene [_node-id scene mesh-name mesh-index ^:try collision-meshes material-name->material-scene-info skeleton-resource]
   (if scene
-    (let [selected-mesh-index (if (str/blank? mesh-name)
-                                -1
-                                (when-not (g/error-value? collision-meshes)
-                                  (:index (model-loader/resolve-named-mesh collision-meshes mesh-name mesh-index))))]
+    (let [selected-mesh-index (selected-mesh-index mesh-name mesh-index collision-meshes)]
       (model-scene/augment-scene scene
                                  _node-id
                                  "model"
@@ -381,6 +388,37 @@
 
 (g/defnk produce-bones [skeleton-bones animations-bones]
   (or animations-bones skeleton-bones))
+
+(defn- model-mesh-group-outline
+  "Adapts the Meshes group of the mesh resource to a Model. The group has no
+  key here, since the Model scene has no such level and the mesh rows must match
+  it to be hideable. A Model that renders a single mesh lists only that mesh,
+  under the mesh name that is its runtime id."
+  [mesh-group-outline selected-mesh-index]
+  (cond-> (assoc mesh-group-outline :node-outline-key nil)
+    (not= -1 selected-mesh-index)
+    (update :children
+            (fn [mesh-outlines]
+              (coll/into-> mesh-outlines []
+                (filter #(= selected-mesh-index (:mesh-index %)))
+                (map #(assoc % :label (:mesh-name %))))))))
+
+(g/defnk produce-node-outline
+  [_node-id _overridden-properties mesh-index mesh-name own-build-errors resource
+   ^:try collision-meshes ^:try mesh-group-outline ^:try skeleton-group-outline]
+  (let [resource-type (resource/resource-type resource)]
+    {:node-id _node-id
+     :node-outline-key (or (:ext resource-type) "unknown")
+     :label (or (:label resource-type) (:ext resource-type) (localization/message "outline.unknown"))
+     :icon model-icon
+     :children (cond-> []
+                 (and mesh-group-outline (not (g/error-value? mesh-group-outline)))
+                 (conj (model-mesh-group-outline mesh-group-outline (selected-mesh-index mesh-name mesh-index collision-meshes)))
+
+                 (and skeleton-group-outline (not (g/error-value? skeleton-group-outline)))
+                 (conj skeleton-group-outline))
+     :outline-error? (g/error-fatal? own-build-errors)
+     :outline-overridden? (not (coll/empty? _overridden-properties))}))
 
 (def TTexture
   {:sampler s/Str
@@ -562,6 +600,7 @@
                [:content :mesh-content]
                [:material-ids :mesh-material-ids]
                [:collision-meshes :collision-meshes]
+               [:mesh-group-outline :mesh-group-outline]
                [:source-scene :scene]))
 
         tx-data
@@ -798,7 +837,8 @@
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :skeleton-resource]
                                             [:bones :skeleton-bones]
-                                            [:skeleton-build-target :skeleton-build-target])))
+                                            [:skeleton-build-target :skeleton-build-target]
+                                            [:skeleton-group-outline :skeleton-group-outline])))
             (dynamic error (g/fnk [_node-id skeleton ^:try skeleton-bones]
                              (if (g/error-value? skeleton-bones)
                                skeleton-bones
@@ -850,6 +890,10 @@
   (input skeleton-bones g/Any)
   (input animations-bones g/Any)
 
+  ;; Both may be nil, so they are not outline/OutlineData.
+  (input mesh-group-outline g/Any)
+  (input skeleton-group-outline g/Any)
+
   (input animation-infos g/Any :array)
   (input animation-ids g/Any)
 
@@ -867,6 +911,7 @@
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
+  (output node-outline outline/OutlineData :cached produce-node-outline)
   (output _properties g/Properties :cached produce-model-properties))
 
 (defn- migrated? [model-node-id model-desc evaluation-context]

@@ -56,6 +56,7 @@ Options::Options()
 , m_LoadMaterialsOnly(false)
 , m_LoadMeshMetadata(false)
 , m_SkipImageData(false)
+, m_LoadNodeMetadata(false)
 {
 }
 
