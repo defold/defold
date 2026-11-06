@@ -382,13 +382,14 @@ struct BufferedEventScene
     Callbacks                     m_Callbacks;
 };
 
-static void CreateBufferedEventScene(BufferedEventScene* scene, int workers)
+static void CreateBufferedEventScene(BufferedEventScene* scene, int workers, bool allow_dynamic_transforms)
 {
     memset(&scene->m_Callbacks, 0, sizeof(scene->m_Callbacks));
     scene->m_Callbacks.m_Key = dmThread::AllocTls();
     scene->m_Callbacks.m_OnCallingThread = true;
     dmThread::SetTlsValue(scene->m_Callbacks.m_Key, &scene->m_Callbacks);
     CreateContext(workers, &scene->m_Context);
+    scene->m_Context->m_AllowDynamicTransforms = allow_dynamic_transforms;
     dmPhysics::NewWorldParams params;
     params.m_GetWorldTransformCallback = GetTransform;
     params.m_SetWorldTransformCallback = SetTransform;
@@ -535,7 +536,7 @@ TEST(Box2DThreading, BufferedContactsSurviveWorldChanges)
     for (int workers = 0; workers <= 3; workers += 3)
     {
         BufferedEventScene scene;
-        CreateBufferedEventScene(&scene, workers);
+        CreateBufferedEventScene(&scene, workers, false);
         dmPhysics::StepWorldContext step;
         step.m_DT = 0.0f;
         step.m_Box2DSubStepCount = 4;
@@ -583,7 +584,7 @@ TEST(Box2DThreading, BufferedContactManifoldsStayCurrent)
     for (int workers = 0; workers <= 3; workers += 3)
     {
         BufferedEventScene scene;
-        CreateBufferedEventScene(&scene, workers);
+        CreateBufferedEventScene(&scene, workers, false);
         dmPhysics::SetGravity2D(scene.m_World, dmVMath::Vector3(-10.0f, 0.0f, 0.0f));
         dmPhysics::StepWorldContext step;
         step.m_DT = 1.0f / 60.0f;
@@ -612,17 +613,19 @@ TEST(Box2DThreading, BufferedTransformsIncludeSleepTransition)
     for (int workers = 0; workers <= 3; workers += 3)
     {
         BufferedEventScene scene;
-        CreateBufferedEventScene(&scene, workers);
-        b2Vec2 position = { 4.0f, 0.0f };
-        b2Body_SetTransform(scene.m_Bodies[1].m_PhysicsBody, position, b2Rot_identity);
+        CreateBufferedEventScene(&scene, workers, true);
+        dmPhysics::StepWorldContext step;
+        step.m_DT = 1.0f / 60.0f;
+        step.m_Box2DSubStepCount = 4;
+        // Apply initial scale synchronization before putting the idle body to sleep.
+        dmPhysics::StepWorld2D(scene.m_World, step);
+        scene.m_Bodies[1].m_Position = dmVMath::Point3(4.0f, 0.0f, 0.0f);
         b2Body_SetType(scene.m_Bodies[0].m_PhysicsBody, b2_kinematicBody);
         b2Vec2 velocity = { 1.0f, 0.0f };
         b2Body_SetLinearVelocity(scene.m_Bodies[0].m_PhysicsBody, velocity);
         b2Body_SetLinearVelocity(scene.m_Bodies[1].m_PhysicsBody, velocity);
         b2Body_SetAwake(scene.m_Bodies[2].m_PhysicsBody, false);
-        dmPhysics::StepWorldContext step;
-        step.m_DT = 1.0f / 60.0f;
-        step.m_Box2DSubStepCount = 4;
+        scene.m_Callbacks.m_Transforms = 0;
         dmPhysics::StepWorld2D(scene.m_World, step);
         ASSERT_EQ(1U, scene.m_Callbacks.m_Transforms);
         ASSERT_EQ(dmPhysics::GetWorldPosition2D(scene.m_Context, scene.m_Objects[1]).getX(), scene.m_Bodies[1].m_Position.getX());
@@ -642,6 +645,45 @@ TEST(Box2DThreading, BufferedTransformsIncludeSleepTransition)
     }
 }
 
+// Disabled dynamic transforms must restore externally changed sleeping objects from physics, even without move events.
+TEST(Box2DThreading, SleepingTransformsRemainSynchronized)
+{
+    for (int workers = 0; workers <= 3; workers += 3)
+    {
+        for (int listener = 0; listener < 2; ++listener)
+        {
+            BufferedEventScene scene;
+            CreateBufferedEventScene(&scene, workers, false);
+            ASSERT_FALSE(scene.m_World->m_AllowDynamicTransforms);
+            dmPhysics::StepWorldContext step;
+            step.m_DT = 1.0f / 60.0f;
+            step.m_Box2DSubStepCount = 4;
+            step.m_ContactCallbacksReadOnly = listener != 0;
+            step.m_CollisionCallback = listener ? Collision : 0;
+            step.m_CollisionUserData = &scene.m_Callbacks;
+            step.m_ContactPointCallback = listener ? Contact : 0;
+            step.m_ContactPointUserData = &scene.m_Callbacks;
+            for (int tick = 0; tick < 120 && !dmPhysics::IsSleeping2D(scene.m_Objects[2]); ++tick)
+            {
+                dmPhysics::StepWorld2D(scene.m_World, step);
+            }
+            ASSERT_TRUE(dmPhysics::IsSleeping2D(scene.m_Objects[2]));
+            scene.m_Bodies[2].m_Position = dmVMath::Point3(12.0f, 0.0f, 0.0f);
+            scene.m_Bodies[2].m_Rotation = dmVMath::Quat::rotationZ(0.5f);
+            for (int tick = 0; tick < 2; ++tick)
+            {
+                dmPhysics::StepWorld2D(scene.m_World, step);
+                ASSERT_TRUE(dmPhysics::IsSleeping2D(scene.m_Objects[2]));
+                ASSERT_EQ(8.0f, dmPhysics::GetWorldPosition2D(scene.m_Context, scene.m_Objects[2]).getX());
+                ASSERT_EQ(8.0f, scene.m_Bodies[2].m_Position.getX());
+                ASSERT_EQ(0.0f, scene.m_Bodies[2].m_Rotation.getZ());
+                ASSERT_EQ(1.0f, scene.m_Bodies[2].m_Rotation.getW());
+            }
+            DeleteBufferedEventScene(&scene);
+        }
+    }
+}
+
 // Exposing either raw handle must preserve contacts with events disabled and sleeping-body teleports.
 TEST(Box2DThreading, RawBox2DAccessPreservesScanBehavior)
 {
@@ -650,7 +692,7 @@ TEST(Box2DThreading, RawBox2DAccessPreservesScanBehavior)
         for (int world_access = 0; world_access < 2; ++world_access)
         {
             BufferedEventScene scene;
-            CreateBufferedEventScene(&scene, workers);
+            CreateBufferedEventScene(&scene, workers, false);
             dmPhysics::StepWorldContext step;
             step.m_DT = 0.0f;
             step.m_Box2DSubStepCount = 4;

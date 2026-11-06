@@ -1004,8 +1004,9 @@ namespace dmPhysics
             {
                 // Immediate callbacks can change transforms after stepping. Raw Box2D callers can
                 // also move sleeping bodies, which do not appear in the move events.
+                // With dynamic transforms disabled, sleeping objects must also be restored from physics.
                 bool read_only = step_context.m_ContactCallbacksReadOnly || (!step_context.m_CollisionCallback && !step_context.m_ContactPointCallback);
-                if (!world->m_ExternalBox2DAccess && read_only && dt > 0.0f)
+                if (world->m_AllowDynamicTransforms && !world->m_ExternalBox2DAccess && read_only && dt > 0.0f)
                 {
                     b2BodyEvents events = b2World_GetBodyEvents(world->m_WorldId);
                     for (int i = 0; i < events.moveCount; ++i)
