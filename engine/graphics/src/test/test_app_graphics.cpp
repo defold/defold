@@ -345,6 +345,74 @@ struct WebGPURenderingTest : ClearBackbufferTest
 };
 #endif
 
+// Verifies live render-target handles survive eviction/replacement while OpenGL
+// deletes attachment textures asynchronously (issue #13581). Run with
+// "opengl render-target-eviction"; omit DEFOLD_TEST_AUTO_EXIT for a longer stress run.
+struct RenderTargetEvictionTest : ClearBackbufferTest
+{
+    dmGraphics::HRenderTarget m_Targets[128];
+    uint32_t                  m_NextTarget;
+    uint32_t                  m_Created;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        memset(m_Targets, 0, sizeof(m_Targets));
+        m_NextTarget = 0;
+        m_Created = 0;
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        for (uint32_t i = 0; i < 64; ++i)
+        {
+            dmGraphics::HRenderTarget& target = m_Targets[m_NextTarget];
+            if (target)
+            {
+                ASSERT_TRUE(dmGraphics::IsAssetHandleValid(context, target));
+                dmGraphics::DeleteRenderTarget(context, target);
+            }
+
+            uint32_t size = 32 << (m_Created % 3);
+            dmGraphics::RenderTargetCreationParams params = {};
+            params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+            params.m_ColorBufferParams[0].m_Width = size;
+            params.m_ColorBufferParams[0].m_Height = size;
+            params.m_ColorBufferCreationParams[0].m_Width = size;
+            params.m_ColorBufferCreationParams[0].m_Height = size;
+            target = dmGraphics::NewRenderTarget(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params);
+            ASSERT_NE((dmGraphics::HRenderTarget) 0, target);
+            ++m_Created;
+            m_NextTarget = (m_NextTarget + 1) % 128;
+        }
+
+        for (uint32_t i = 0; i < 128; ++i)
+        {
+            if (m_Targets[i])
+            {
+                ASSERT_TRUE(dmGraphics::IsAssetHandleValid(context, m_Targets[i]));
+                dmGraphics::SetRenderTarget(context, m_Targets[i], dmGraphics::RenderTargetBindingParams());
+                dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 32, 64, 96, 255, 1.0f, 0);
+            }
+        }
+        dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
+        ClearBackbufferTest::Execute(engine);
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        for (uint32_t i = 0; i < 128; ++i)
+        {
+            if (m_Targets[i])
+            {
+                ASSERT_TRUE(dmGraphics::IsAssetHandleValid(engine->m_GraphicsContext, m_Targets[i]));
+                dmGraphics::DeleteRenderTarget(engine->m_GraphicsContext, m_Targets[i]);
+            }
+        }
+        dmLogInfo("Render-target eviction: validated %u creations", m_Created);
+    }
+};
+
 // Run with "opengl packed-depth-stencil-texture" to verify depth sampling with
 // unsampled stencil and packed depth/stencil allocation/resize without misleading warnings.
 struct PackedDepthStencilTextureTest : ClearBackbufferTest
@@ -2343,6 +2411,11 @@ static void* EngineCreate(int argc, char** argv)
     {
         dmLogInfo("test_app_graphics: running BufferReplacementTest");
         engine->m_Test = new BufferReplacementTest();
+    }
+    else if (HasArgument("render-target-eviction"))
+    {
+        dmLogInfo("test_app_graphics: running RenderTargetEvictionTest");
+        engine->m_Test = new RenderTargetEvictionTest();
     }
     else if (HasArgument("depth-only-render-target"))
     {
