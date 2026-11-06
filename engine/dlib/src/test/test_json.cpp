@@ -420,6 +420,72 @@ TEST(dmJson, Utf8BlockBoundaries)
     }
 }
 
+// String scans must stop at every special byte position and compact long runs safely after decoding an escape.
+TEST(dmJson, StringBlockBoundaries)
+{
+    const struct
+    {
+        const char* m_Text;
+        uint32_t    m_Size;
+        const char* m_Encoded;
+        const char* m_Decoded;
+    } cases[] = {
+        { "\0", 1, "\\u0000", 0 },
+        { "\1", 1, "\\u0001", "\1" },
+        { "\x1f", 1, "\\u001f", "\x1f" },
+        { "\b", 1, "\\b", "\b" },
+        { "\f", 1, "\\f", "\f" },
+        { "\n", 1, "\\n", "\n" },
+        { "\r", 1, "\\r", "\r" },
+        { "\t", 1, "\\t", "\t" },
+        { " ", 1, " ", " " },
+        { "!", 1, "!", "!" },
+        { "\"", 1, "\\\"", "\"" },
+        { "#", 1, "#", "#" },
+        { "[", 1, "[", "[" },
+        { "\\", 1, "\\\\", "\\" },
+        { "]", 1, "]", "]" },
+        { "\x7f", 1, "\x7f", "\x7f" },
+        { "\x80", 1, "\\u0080", "\xc2\x80" },
+        { "\xc0", 1, "\\u00c0", "\xc3\x80" },
+        { "\xff", 1, "\\u00ff", "\xc3\xbf" },
+        { "\xc3(", 2, "\\u00c3(", "\xc3\x83(" },
+        { "\xc3\xa9", 2, "\xc3\xa9", "\xc3\xa9" },
+        { "\xf0\x9f\x98\x80", 4, "\xf0\x9f\x98\x80", "\xf0\x9f\x98\x80" },
+    };
+    dmJson::Document json;
+    for (uint32_t prefix = 0; prefix < 48; ++prefix)
+    {
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+        {
+            char text[128];
+            memset(text, 'a', prefix);
+            memcpy(text + prefix, cases[i].m_Text, cases[i].m_Size);
+            memset(text + prefix + cases[i].m_Size, 'b', 65);
+            dmArray<char> output;
+            dmJson::WriteString(text, prefix + cases[i].m_Size + 65, WriteJson, &output);
+            dmArray<char> expected;
+            Append(expected, "\"");
+            WriteJson(&expected, text, prefix);
+            Append(expected, cases[i].m_Encoded);
+            WriteJson(&expected, text + prefix + cases[i].m_Size, 65);
+            Append(expected, "\"");
+            ASSERT_EQ(expected.Size(), output.Size());
+            ASSERT_EQ(0, memcmp(expected.Begin(), output.Begin(), output.Size()));
+            if (cases[i].m_Decoded)
+            {
+                ASSERT_TRUE(json.Parse(expected.Begin(), expected.Size()));
+                expected.SetSize(0);
+                WriteJson(&expected, text, prefix);
+                Append(expected, cases[i].m_Decoded);
+                WriteJson(&expected, text + prefix + cases[i].m_Size, 65);
+                WriteJson(&expected, "", 1);
+                ASSERT_STREQ(expected.Begin(), json.String(0));
+            }
+        }
+    }
+}
+
 // Escape control characters, embedded NUL and invalid bytes while preserving valid UTF-8 sequences.
 TEST(dmJson, WriteStrings)
 {

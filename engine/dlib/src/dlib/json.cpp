@@ -90,6 +90,56 @@ namespace dmJson
         }
         return count;
     }
+
+    static bool PlainStringBlock(const char* text, bool ascii_only)
+    {
+        dsimd_uint4_t bytes = SimdLoadUint(text);
+        dsimd_uint4_t ones = SimdSplatUint(0x01010101);
+        dsimd_uint4_t quotes = SimdXorUint(bytes, SimdSplatUint(0x22222222));
+        dsimd_uint4_t slashes = SimdXorUint(bytes, SimdSplatUint(0x5c5c5c5c));
+        // A zero byte in x sets a high bit in (x - 0x01010101) & ~x.
+        // Borrow may also mark a neighboring byte, but cannot hide a match.
+        dsimd_uint4_t special = SimdOrUint(SimdAndUint(SimdSubUint(quotes, ones), SimdNotUint(quotes)),
+                                           SimdAndUint(SimdSubUint(slashes, ones), SimdNotUint(slashes)));
+        // The same test with 0x20 detects control bytes. Reading strings can
+        // skip UTF-8 bytes already validated by Parse; writing must check them.
+        special = SimdOrUint(special, SimdAndUint(SimdSubUint(bytes, SimdSplatUint(0x20202020)), SimdNotUint(bytes)));
+        if (ascii_only)
+        {
+            special = SimdOrUint(special, bytes);
+        }
+        special = SimdAndUint(special, SimdSplatUint(0x80808080));
+        return SimdAll(SimdEqualUint(special, SimdSplatUint(0)));
+    }
+
+    // The first byte is known to be ordinary text. Probe a short scalar prefix
+    // so escape-heavy strings do not repeatedly test overlapping SIMD blocks.
+    static uint32_t PlainStringBytes(const char* text, uint32_t size, bool ascii_only)
+    {
+        uint32_t i = 1;
+        for (; i < size && i < 8; ++i)
+        {
+            unsigned char c = (unsigned char)text[i];
+            if (c < 32 || c == '"' || c == '\\' || (ascii_only && c >= 0x80))
+            {
+                return i;
+            }
+        }
+        while (size - i >= 16 && PlainStringBlock(text + i, ascii_only))
+        {
+            i += 16;
+        }
+        for (; i < size; ++i)
+        {
+            unsigned char c = (unsigned char)text[i];
+            if (c < 32 || c == '"' || c == '\\' || (ascii_only && c >= 0x80))
+            {
+                break;
+            }
+        }
+        return i;
+    }
+
     void WriteString(const char* text, uint32_t size, FWrite write, void* context)
     {
         write(context, "\"", 1);
@@ -97,7 +147,16 @@ namespace dmJson
         for (uint32_t i = 0; i < size;)
         {
             unsigned char c = (unsigned char)text[i];
-            uint32_t bytes = c >= 32 && c != '"' && c != '\\' ? Utf8Bytes(text + i, size - i) : 0;
+            uint32_t bytes = 0;
+            if (c >= 0x80)
+            {
+                bytes = Utf8Bytes(text + i, size - i);
+            }
+            else if (c >= 32 && c != '"' && c != '\\')
+            {
+                i += PlainStringBytes(text + i, size - i, true);
+                continue;
+            }
             if (bytes)
             {
                 i += bytes;
@@ -189,6 +248,43 @@ namespace dmJson
         char* out = begin;
         while (m_Cursor < m_End)
         {
+            uint32_t plain_bytes = 0;
+            while (plain_bytes < 8 && m_Cursor < m_End)
+            {
+                unsigned char c = (unsigned char)*m_Cursor;
+                if (c < 32 || c == '"' || c == '\\')
+                {
+                    break;
+                }
+                ++m_Cursor;
+                ++plain_bytes;
+                if (decode)
+                {
+                    *out++ = c;
+                }
+            }
+            if (plain_bytes == 8)
+            {
+                char* run = m_Cursor;
+                while (m_End - m_Cursor >= 16 && PlainStringBlock(m_Cursor, false))
+                {
+                    m_Cursor += 16;
+                }
+                uint32_t length = (uint32_t)(m_Cursor - run);
+                if (decode && length)
+                {
+                    if (out != run)
+                    {
+                        memmove(out, run, length);
+                    }
+                    out += length;
+                }
+                continue;
+            }
+            if (m_Cursor == m_End)
+            {
+                break;
+            }
             unsigned char c = *m_Cursor++;
             if (c == '"')
             {
@@ -198,19 +294,7 @@ namespace dmJson
                 }
                 return decode ? begin : 0;
             }
-            if (c < 32)
-            {
-                break;
-            }
-            if (c != '\\')
-            {
-                if (decode)
-                {
-                    *out++ = c;
-                }
-                continue;
-            }
-            if (m_Cursor == m_End)
+            if (c < 32 || m_Cursor == m_End)
             {
                 break;
             }
