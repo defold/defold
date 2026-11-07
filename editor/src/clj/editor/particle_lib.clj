@@ -233,7 +233,8 @@
   (or (get (:raw-vbufs sim) emitter-index)
       (make-raw-vbuf max-particle-count (:size vertex-description))))
 
-(defn gen-emitter-vertex-data [sim emitter-index color max-particle-count vertex-description vertex-attribute-bytes]
+(defn gen-emitter-vertex-data
+  ^ByteBuffer [sim emitter-index color max-particle-count vertex-description vertex-attribute-bytes]
   (when-let [raw-vbuf ^ByteBuffer (emitter-vertex-data sim emitter-index max-particle-count vertex-description)]
     (let [context (:context sim)
           out-size (IntByReference. 0)

@@ -24,8 +24,7 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.graph.types :as gt])
-  (:import [java.nio ByteBuffer]
-           [javax.vecmath Matrix4d]))
+  (:import [javax.vecmath Matrix4d]))
 
 (defn- dump-outline [outline]
   {:_self (type (:_self outline)) :children (map dump-outline (:children outline))})
@@ -75,7 +74,7 @@
         (let [sim (-> sim
                       (plib/simulate 1/60 fetch-anim-fn transforms)
                       (plib/simulate 1/60 fetch-anim-fn transforms))
-              ^ByteBuffer vertex-data (plib/gen-emitter-vertex-data sim 0 [1.0 1.0 1.0 1.0] 32 vertex-description {})]
+              vertex-data (plib/gen-emitter-vertex-data sim 0 [1.0 1.0 1.0 1.0] 32 vertex-description {})]
           (is (< 0 (:particles (plib/stats sim))))
           (is (= (* (:size vertex-description) (:v-count (plib/render-emitter sim 0)))
                  (.remaining vertex-data)))))
