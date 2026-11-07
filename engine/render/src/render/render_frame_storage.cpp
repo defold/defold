@@ -70,8 +70,8 @@ namespace dmRender
     uint64_t GetRenderFrameStorageSize(const RenderFrameLimits& limits)
     {
         return sizeof(RenderFrameStorage) + (uint64_t)limits.m_PayloadBytes
-            + (uint64_t)limits.m_MaxTables * sizeof(RenderFrameTable)
-            + (uint64_t)limits.m_MaxReferences * sizeof(RenderFrameReference);
+               + (uint64_t)limits.m_MaxTables * sizeof(RenderFrameTable)
+               + (uint64_t)limits.m_MaxReferences * sizeof(RenderFrameReference);
     }
 
     HRenderFrameStorage NewRenderFrame(const RenderFrameLimits& limits)
@@ -81,7 +81,9 @@ namespace dmRender
         // All individual allocations fit the unsigned size accepted by dmMemory,
         // including on 32-bit targets. Never truncate an oversized capacity.
         if (table_bytes > UINT32_MAX || reference_bytes > UINT32_MAX)
+        {
             return 0;
+        }
 
         RenderFrameStorage* frame = (RenderFrameStorage*)calloc(1, sizeof(RenderFrameStorage));
         frame->m_Limits = limits;
@@ -128,9 +130,13 @@ namespace dmRender
     static RenderFrameResult CheckCapture(HRenderFrameStorage frame)
     {
         if (frame->m_Error != RENDER_FRAME_OK)
+        {
             return frame->m_Error;
+        }
         else if (frame->m_State != RENDER_FRAME_STORAGE_BUILDING)
+        {
             return FailCapture(frame, RENDER_FRAME_INVALID_STATE);
+        }
         return RENDER_FRAME_OK;
     }
 
@@ -231,10 +237,21 @@ namespace dmRender
         {
             // Size classes avoid retaining a new near-identical block whenever a
             // snapshot grows slightly between frames. Old table pointers stay valid.
-            uint32_t capacity = 64 * 1024;
-            while (capacity < bytes)
+            uint32_t capacity = (uint32_t)bytes - 1;
+            capacity |= capacity >> 1;
+            capacity |= capacity >> 2;
+            capacity |= capacity >> 4;
+            capacity |= capacity >> 8;
+            capacity |= capacity >> 16;
+            ++capacity;
+            if (capacity < 64u * 1024u)
             {
-                capacity = capacity > UINT32_MAX / 2 ? UINT32_MAX : capacity * 2;
+                capacity = 64u * 1024u;
+            }
+            // A valid uint32_t request above 2 GiB overflows power-of-two rounding.
+            if (capacity < bytes)
+            {
+                capacity = UINT32_MAX;
             }
             if (statistics.m_DynamicPayloadCapacity > UINT64_MAX - capacity)
             {
@@ -327,13 +344,32 @@ namespace dmRender
         return RENDER_FRAME_OK;
     }
 
+    RenderFrameResult TrimRenderFrameTable(HRenderFrameStorage frame, uint32_t table_index, uint32_t count)
+    {
+        RenderFrameResult result = CheckCapture(frame);
+        if (result != RENDER_FRAME_OK)
+        {
+            return result;
+        }
+        if (table_index >= frame->m_View.m_Statistics.m_TableCount || count > frame->m_Tables[table_index].m_Count)
+        {
+            return FailCapture(frame, RENDER_FRAME_INVALID_ARGUMENT);
+        }
+        frame->m_Tables[table_index].m_Count = count;
+        return RENDER_FRAME_OK;
+    }
+
     RenderFrameResult AddRenderFrameReference(HRenderFrameStorage frame, void* resource, FRenderFrameRelease release, void* context)
     {
         RenderFrameResult result = CheckCapture(frame);
         if (result != RENDER_FRAME_OK)
+        {
             return result;
+        }
         else if (!resource || !release)
+        {
             return FailCapture(frame, RENDER_FRAME_INVALID_ARGUMENT);
+        }
 
         RenderFrameStatistics& statistics = frame->m_View.m_Statistics;
         if (statistics.m_ReferenceCount == frame->m_Limits.m_MaxReferences)
@@ -352,7 +388,9 @@ namespace dmRender
     {
         RenderFrameResult result = CheckCapture(frame);
         if (result != RENDER_FRAME_OK)
+        {
             return result;
+        }
         frame->m_State = RENDER_FRAME_STORAGE_SEALED;
         return RENDER_FRAME_OK;
     }
@@ -398,7 +436,9 @@ namespace dmRender
     void DeleteRenderFrame(HRenderFrameStorage frame)
     {
         if (!frame)
+        {
             return;
+        }
         ResetRenderFrame(frame);
         while (frame->m_DynamicBlocks)
         {

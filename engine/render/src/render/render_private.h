@@ -424,18 +424,15 @@ namespace dmRender
         uint32_t : 4;
     };
 
-    // Game-owner state. Lua, camera edits and synchronous compatibility command
-    // clones never belong to the consumer. Owned commands snapshot their inputs
-    // into frame storage before publication.
+    // Game-owner state. Lua and camera edits never belong to the consumer.
+    // All render-script commands snapshot their inputs into frame storage.
     struct RenderRecordingContext
     {
         dmOpaqueHandleContainer<RenderCamera>  m_RenderCameras;
-        dmArray<HNamedConstantBuffer>          m_ConstantBufferClones;
         RenderScriptContext                    m_RenderScriptContext;
         dmScript::HContext                     m_ScriptContext;
         dmScript::ScriptWorld*                 m_ScriptWorld;
         dmScript::LuaCallbackInfo*             m_CallbackInfo;
-        uint32_t                               m_ConstantBufferCloneCursor;
         float                                  m_Time;
         float                                  m_Dt;
     };
@@ -557,7 +554,6 @@ namespace dmRender
 
     // Render constants
     void                 CopyNamedConstantBuffer(HNamedConstantBuffer destination, HNamedConstantBuffer source);
-    HNamedConstantBuffer PushRenderConstants(HRenderContext render_context, HNamedConstantBuffer constant_buffer);
 
     // Render camera
     RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url);

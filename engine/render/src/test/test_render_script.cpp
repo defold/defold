@@ -55,7 +55,7 @@ namespace
         return &tmp;
     }
 
-    dmLuaDDF::LuaSource *LuaSourceFromString(const char *source)
+    dmLuaDDF::LuaSource*LuaSourceFromString(const char* source)
     {
         return LuaSourceFromStringAndFilename(source, "render-dummy");
     }
@@ -83,6 +83,20 @@ namespace
             }
         }
         return 0;
+    }
+
+    // Inspect/replay lifecycle commands through their owning frame, never the legacy
+    // parser that deletes heap operands. Production discards these before update.
+    static void ConsumeScriptCommands(dmRender::HRenderScriptInstance instance)
+    {
+        dmRender::HRenderFrameStorage frame = instance->m_ScratchFrame;
+        if (!dmRender::GetRenderFrameView(frame))
+        {
+            ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::TrimRenderFrameTable(frame, instance->m_CommandTable, instance->m_CommandBuffer.Size()));
+            ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::SealRenderFrame(frame));
+        }
+        instance->m_RecordingFrame = 0;
+        dmRender::ConsumeRenderCommands(instance->m_RenderContext, *dmRender::GetRenderFrameView(frame));
     }
 
     static void ReleaseRecordedScriptReference(void*, void* resource)
@@ -393,7 +407,7 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMaterial)
     dmRender::ClearRenderScriptInstanceRenderResources(render_script_instance);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
 
-    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+    ConsumeScriptCommands(render_script_instance);
 
     dmRender::DeleteMaterial(m_Context, material);
     dmRender::DeleteRenderScriptInstance(render_script_instance);
@@ -549,7 +563,7 @@ TEST_F(dmRenderScriptTest, TestLuaState)
     ASSERT_EQ(1u, command->m_Operands[0]);
     ASSERT_EQ(2u, command->m_Operands[1]);
 
-    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+    ConsumeScriptCommands(render_script_instance);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
@@ -580,7 +594,7 @@ TEST_F(dmRenderScriptTest, TestSetBlendFuncSeparate)
     ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE,                    (int32_t)command->m_Operands[2]);
     ASSERT_EQ(dmGraphics::BLEND_FACTOR_ZERO,                   (int32_t)command->m_Operands[3]);
 
-    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+    ConsumeScriptCommands(render_script_instance);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
@@ -607,7 +621,7 @@ TEST_F(dmRenderScriptTest, TestSetBlendEquationSeparate)
     ASSERT_EQ(dmGraphics::BLEND_EQUATION_ADD,              (int32_t)command->m_Operands[0]);
     ASSERT_EQ(dmGraphics::BLEND_EQUATION_REVERSE_SUBTRACT, (int32_t)command->m_Operands[1]);
 
-    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+    ConsumeScriptCommands(render_script_instance);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
@@ -645,7 +659,7 @@ TEST_F(dmRenderScriptTest, TestSetBlendFuncAndEquationSeparate)
     ASSERT_EQ(dmGraphics::BLEND_EQUATION_SUBTRACT, (int32_t)cmd_eq->m_Operands[0]);
     ASSERT_EQ(dmGraphics::BLEND_EQUATION_ADD,      (int32_t)cmd_eq->m_Operands[1]);
 
-    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+    ConsumeScriptCommands(render_script_instance);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
@@ -826,7 +840,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
         ASSERT_EQ(0, (uint32_t)command->m_Operands[1]);
     }
 
-    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+    ConsumeScriptCommands(render_script_instance);
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
@@ -1093,7 +1107,7 @@ TEST_F(dmRenderScriptTest, TestLuaClear)
     ASSERT_EQ(f_to_i.i, command->m_Operands[2]);
     ASSERT_EQ(0u, command->m_Operands[3]);
 
-    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+    ConsumeScriptCommands(render_script_instance);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
@@ -1167,10 +1181,14 @@ TEST_F(dmRenderScriptTest, TestLuaTransform)
     m = (Matrix4*)command->m_Operands[0];
     ASSERT_NE((void*)0, m);
     for (int i = 0; i < 4; ++i)
+    {
         for (int j = 0; j < 4; ++j)
+        {
             ASSERT_EQ(m->getElem(i, j), identity.getElem(i, j));
+        }
+    }
 
-    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+    ConsumeScriptCommands(render_script_instance);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
@@ -1199,7 +1217,7 @@ TEST_F(dmRenderScriptTest, TestLuaDraw_StringPredicate)
     command = &commands[1];
     ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW_DEBUG3D, command->m_Type);
 
-    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+    ConsumeScriptCommands(render_script_instance);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
@@ -1228,7 +1246,7 @@ TEST_F(dmRenderScriptTest, TestLuaDraw_HashPredicate)
     command = &commands[1];
     ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW_DEBUG3D, command->m_Type);
 
-    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+    ConsumeScriptCommands(render_script_instance);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
@@ -1647,13 +1665,12 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_GCBeforeCommandParse)
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
-    // init() creates the draw commands but does NOT call ParseCommands.
+    // init() records owned draw commands without executing them.
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
     ASSERT_EQ(20u, commands.Size());
-    ASSERT_EQ(20u, m_Context->m_Recording.m_ConstantBufferCloneCursor);
-    ASSERT_EQ(20u, m_Context->m_Recording.m_ConstantBufferClones.Size());
+    ASSERT_GT(dmRender::GetRenderFrameStatistics(render_script_instance->m_ScratchFrame).m_DynamicPayloadBytes, (uint64_t)0);
 
     // Force a full garbage collection cycle from C++
     lua_State* L = m_Context->m_Recording.m_RenderScriptContext.m_LuaState;
@@ -1673,13 +1690,13 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_GCBeforeCommandParse)
         ASSERT_EQ((float)i + 1.0f, values[0].getX());
     }
 
-    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+    ConsumeScriptCommands(render_script_instance);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
-TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_CloneOnDraw)
+TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_SnapshotOnDraw)
 {
     const char* script =
         "function init(self)\n"
@@ -1719,25 +1736,18 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_CloneOnDraw)
     ASSERT_EQ(0.0f, values[0].getZ());
     ASSERT_EQ(1.0f, values[0].getW());
 
-    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+    ConsumeScriptCommands(render_script_instance);
 
-    dmRender::RenderListBegin(m_Context);
-    ASSERT_EQ(0u, m_Context->m_Recording.m_ConstantBufferCloneCursor);
-
-    dmRender::HNamedConstantBuffer source = dmRender::NewNamedConstantBuffer();
-    dmVMath::Vector4 blue(0.0f, 0.0f, 1.0f, 1.0f);
-    dmRender::SetNamedConstant(source, dmHashString64("tint"), &blue, 1);
-    dmRender::HNamedConstantBuffer reused_clone = dmRender::PushRenderConstants(m_Context, source);
-    ASSERT_EQ(red_clone, reused_clone);
-    ASSERT_EQ(1u, m_Context->m_Recording.m_ConstantBufferCloneCursor);
-    ASSERT_EQ(2u, m_Context->m_Recording.m_ConstantBufferClones.Size());
-    dmRender::DeleteNamedConstantBuffer(source);
+    // A new lifecycle recording reuses the frame's retained storage.
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(red_clone, (dmRender::HNamedConstantBuffer)commands[0].m_Operands[1]);
+    ASSERT_EQ(0u, dmRender::GetRenderFrameStatistics(render_script_instance->m_ScratchFrame).m_DynamicAllocationCount);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
-TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_RejectedCommandsDoNotCreateClones)
+TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_RejectedCommandsDoNotAllocateSnapshots)
 {
     const char* script =
         "function init(self)\n"
@@ -1758,15 +1768,108 @@ TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_RejectedCommandsDoNotCreateClo
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
-    commands.SetCapacity(1);
+    render_script_instance->m_CommandCapacity = 1;
 
-    uint32_t clone_cursor = m_Context->m_Recording.m_ConstantBufferCloneCursor;
-    uint32_t clone_count = m_Context->m_Recording.m_ConstantBufferClones.Size();
-    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
-    ASSERT_EQ(clone_cursor, m_Context->m_Recording.m_ConstantBufferCloneCursor);
-    ASSERT_EQ(clone_count, m_Context->m_Recording.m_ConstantBufferClones.Size());
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+    ASSERT_EQ((uint64_t)0, dmRender::GetRenderFrameStatistics(render_script_instance->m_ScratchFrame).m_DynamicPayloadCapacity);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+// Synchronous updates snapshot Lua operands, reuse frame storage, and expose only initialized commands.
+TEST_F(dmRenderScriptTest, SynchronousCommandsUseFrameStorage)
+{
+    const char* script =
+        "function init(self) self.frame = 0 end\n"
+        "function update(self)\n"
+        "    self.frame = self.frame + 1\n"
+        "    if self.frame == 2 then return end\n"
+        "    local matrix = vmath.matrix4_translation(vmath.vector3(self.frame, 0, 0))\n"
+        "    render.set_view(matrix)\n"
+        "    matrix.m03 = 99\n"
+        "    matrix = nil\n"
+        "    collectgarbage('collect')\n"
+        "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(instance));
+    ASSERT_EQ((dmRender::HRenderFrameStorage)0, instance->m_ScratchFrame);
+    const void* first_commands = 0;
+    for (uint32_t frame = 1; frame <= 3; ++frame)
+    {
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(instance, 0.0f));
+        const dmRender::RenderFrameView& view = *dmRender::GetRenderFrameView(instance->m_ScratchFrame);
+        ASSERT_EQ(frame == 2 ? 1.0f : (float)frame, dmRender::GetViewMatrix(m_Context).getTranslation().getX());
+        if (frame == 2)
+        {
+            ASSERT_EQ(0u, view.m_Statistics.m_TableCount);
+            ASSERT_EQ(0u, instance->m_CommandBuffer.Size());
+        }
+        else
+        {
+            ASSERT_EQ(2u, view.m_Statistics.m_TableCount);
+            ASSERT_EQ(1u, view.m_Tables[0].m_Count);
+            ASSERT_EQ((const void*)instance->m_CommandBuffer.Begin(), view.m_Tables[0].m_Data);
+            ASSERT_EQ((uint64_t)sizeof(Matrix4), view.m_Statistics.m_CopiedBytes);
+            if (frame == 1)
+            {
+                first_commands = view.m_Tables[0].m_Data;
+            }
+            else
+            {
+                ASSERT_EQ(first_commands, view.m_Tables[0].m_Data);
+            }
+        }
+    }
+    dmRender::DeleteRenderScriptInstance(instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+// The synchronous wrapper must reject partial commands on Lua failure and recover on the next update.
+TEST_F(dmRenderScriptTest, SynchronousFailureCancelsPartialFrame)
+{
+    const char* script =
+        "function update(self)\n"
+        "    self.attempt = (self.attempt or 0) + 1\n"
+        "    render.set_view(vmath.matrix4_translation(vmath.vector3(9, 0, 0)))\n"
+        "    if self.attempt == 1 then error('cancel synchronous frame') end\n"
+        "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(instance, 0.0f));
+    ASSERT_EQ(0.0f, dmRender::GetViewMatrix(m_Context).getTranslation().getX());
+    ASSERT_EQ(0u, instance->m_CommandBuffer.Size());
+    ASSERT_EQ((const dmRender::RenderFrameView*)0, dmRender::GetRenderFrameView(instance->m_ScratchFrame));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(instance, 0.0f));
+    ASSERT_EQ(9.0f, dmRender::GetViewMatrix(m_Context).getTranslation().getX());
+    dmRender::DeleteRenderScriptInstance(instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+// Unifying command recording must not replay init, message, or reload commands at the update boundary.
+TEST_F(dmRenderScriptTest, LifecycleCommandsAreDiscardedBeforeUpdate)
+{
+    const char* script =
+        "function init(self) render.set_view(vmath.matrix4_translation(vmath.vector3(9, 0, 0))) end\n"
+        "function on_message(self) render.set_view(vmath.matrix4_translation(vmath.vector3(8, 0, 0))) end\n"
+        "function on_reload(self) render.set_view(vmath.matrix4_translation(vmath.vector3(7, 0, 0))) end\n"
+        "function update(self) end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(instance));
+    dmMessage::URL receiver;
+    dmMessage::ResetURL(&receiver);
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmHashString64("discard"), 0, 0, 0, 0, 0));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(instance));
+    dmRender::OnReloadRenderScriptInstance(instance);
+    ASSERT_EQ(3u, instance->m_CommandBuffer.Size());
+    ASSERT_EQ(0.0f, dmRender::GetViewMatrix(m_Context).getTranslation().getX());
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(instance, 0.0f));
+    ASSERT_EQ(0u, instance->m_CommandBuffer.Size());
+    ASSERT_EQ(0.0f, dmRender::GetViewMatrix(m_Context).getTranslation().getX());
+    dmRender::DeleteRenderScriptInstance(instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
@@ -1786,7 +1889,7 @@ TEST_F(dmRenderScriptTest, DerivedLimitsRecordFullCommandCapacity)
                    "end\n", command_capacity);
         dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
         dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
-        ASSERT_EQ(command_capacity, instance->m_CommandBuffer.Capacity());
+        ASSERT_EQ(command_capacity, instance->m_CommandCapacity);
 
         // An odd-sized component payload also exercises alignment between producer inputs.
         const char component_data[37] = {};
@@ -1852,7 +1955,7 @@ TEST_F(dmRenderScriptTest, DerivedLimitsRecordFullOperandCapacity)
                "end\n", command_capacity - 1);
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
-    ASSERT_EQ(command_capacity, instance->m_CommandBuffer.Capacity());
+    ASSERT_EQ(command_capacity, instance->m_CommandCapacity);
     const dmRender::RenderFrameLimits component_limits = {};
     dmRender::RenderFrameLimits limits;
     ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::CalculateRenderFrameLimits(m_Context, component_limits, &limits));
@@ -1862,7 +1965,6 @@ TEST_F(dmRenderScriptTest, DerivedLimitsRecordFullOperandCapacity)
     ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::RecordRenderFrameInfo(frame, dmRender::GetRenderFrameInfo(m_Context)));
     ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::RecordRenderScriptInstance(instance, 0.0f, frame));
     ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::SealRenderFrame(frame));
-    ASSERT_EQ(0u, m_Context->m_Recording.m_ConstantBufferClones.Size());
 
     camera_data->m_View = Matrix4::identity();
     dmRender::DeleteRenderCamera(m_Context, camera);
@@ -1920,7 +2022,7 @@ TEST_F(dmRenderScriptTest, CaughtTableOverflowCancelsAndReusesFrame)
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
     // Metadata, view, predicate, constants and commands fit; a second draw exceeds the table limit.
-    const dmRender::RenderFrameLimits limits = { 4096, 5, 1 };
+    const dmRender::RenderFrameLimits limits = { 4096 + instance->m_CommandCapacity * (uint32_t)sizeof(dmRender::Command), 5, 1 };
     dmRender::HRenderFrameStorage frame = dmRender::NewRenderFrame(limits);
     dmRender::BeginRenderFrame(frame, 1);
     uint32_t released = 0;
@@ -1979,13 +2081,12 @@ TEST_F(dmRenderScriptTest, RecordedInputsSurviveMutationAndGC)
 
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
-    const dmRender::RenderFrameLimits limits = { 8192, 64, 8 };
+    const dmRender::RenderFrameLimits limits = { 8192 + instance->m_CommandCapacity * (uint32_t)sizeof(dmRender::Command), 64, 8 };
     dmRender::HRenderFrameStorage frame = dmRender::NewRenderFrame(limits);
     dmRender::BeginRenderFrame(frame, 1);
 
     ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::RecordRenderScriptInstance(instance, 0.0f, frame));
     ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::SealRenderFrame(frame));
-    ASSERT_EQ(0u, m_Context->m_Recording.m_ConstantBufferClones.Size());
     ASSERT_EQ(0.0f, dmRender::GetViewMatrix(m_Context).getTranslation().getX());
 
     dmRender::DeleteRenderScriptInstance(instance);
@@ -2035,7 +2136,7 @@ TEST_F(dmRenderScriptTest, RecordedFramesSurviveSubsequentUpdates)
 
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
-    const dmRender::RenderFrameLimits limits = { 8192, 64, 8 };
+    const dmRender::RenderFrameLimits limits = { 8192 + instance->m_CommandCapacity * (uint32_t)sizeof(dmRender::Command), 64, 8 };
     dmRender::HRenderFrameStorage frames[2];
     for (uint32_t i = 0; i < 2; ++i)
     {
@@ -2093,7 +2194,7 @@ TEST_F(dmRenderScriptTest, RecordedCameraSelectionPersistsWithOwnedValues)
         "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
-    const dmRender::RenderFrameLimits limits = { 8192, 64, 8 };
+    const dmRender::RenderFrameLimits limits = { 8192 + instance->m_CommandCapacity * (uint32_t)sizeof(dmRender::Command), 64, 8 };
     dmRender::HRenderFrameStorage frames[2];
     for (uint32_t i = 0; i < 2; ++i)
     {
@@ -2146,7 +2247,7 @@ TEST_F(dmRenderScriptTest, RecordedDrawSnapshotsCameraAfterLuaEdits)
         "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
-    const dmRender::RenderFrameLimits limits = { 8192, 64, 8 };
+    const dmRender::RenderFrameLimits limits = { 8192 + instance->m_CommandCapacity * (uint32_t)sizeof(dmRender::Command), 64, 8 };
     dmRender::HRenderFrameStorage frames[2];
     for (uint32_t i = 0; i < 2; ++i)
     {
@@ -2212,7 +2313,7 @@ TEST_F(dmRenderScriptTest, CameraSelectionCommitsOnlySuccessfulRecording)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(instance));
     ASSERT_EQ((dmRender::HRenderCamera)0, instance->m_SelectedRenderCamera);
 
-    const dmRender::RenderFrameLimits limits = { 8192, 64, 8 };
+    const dmRender::RenderFrameLimits limits = { 8192 + instance->m_CommandCapacity * (uint32_t)sizeof(dmRender::Command), 64, 8 };
     dmRender::HRenderFrameStorage frame = dmRender::NewRenderFrame(limits);
     for (uint32_t attempt = 1; attempt <= 5; ++attempt)
     {
@@ -2261,7 +2362,7 @@ TEST_F(dmRenderScriptTest, RecordingFailureCancelsPartialFrame)
 
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
-    const dmRender::RenderFrameLimits limits = { 4096, 16, 1 };
+    const dmRender::RenderFrameLimits limits = { 4096 + instance->m_CommandCapacity * (uint32_t)sizeof(dmRender::Command), 16, 1 };
     dmRender::HRenderFrameStorage frame = dmRender::NewRenderFrame(limits);
     dmRender::BeginRenderFrame(frame, 1);
     uint32_t released = 0;
@@ -2294,8 +2395,8 @@ TEST_F(dmRenderScriptTest, CaughtRecordingOverflowStillRejectsFrame)
 
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
-    instance->m_CommandBuffer.SetCapacity(1);
-    const dmRender::RenderFrameLimits limits = { 4096, 16, 0 };
+    instance->m_CommandCapacity = 1;
+    const dmRender::RenderFrameLimits limits = { 4096 + instance->m_CommandCapacity * (uint32_t)sizeof(dmRender::Command), 16, 0 };
     dmRender::HRenderFrameStorage frame = dmRender::NewRenderFrame(limits);
     dmRender::BeginRenderFrame(frame, 1);
 
@@ -2377,7 +2478,7 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesValidTexture)
     ASSERT_EQ(unit,    command->m_Operands[1]);
     ASSERT_EQ(texture, command->m_Operands[2]);
 
-    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+    ConsumeScriptCommands(render_script_instance);
     ASSERT_EQ(m_Context->m_TextureBindTable[unit].m_Texture, texture);
 
     dmGraphics::DeleteTexture(m_GraphicsContext, texture);
@@ -2576,14 +2677,14 @@ TEST_F(dmRenderScriptTest, TestRenderCameraGetSetInfo)
     ASSERT_EQ(2u, commands.Size());
 
     // set_camera(camera)
-    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_CAMERA, commands[0].m_Type);
-    ASSERT_EQ(camera, (dmRender::HRenderCamera) commands[0].m_Operands[0]);
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_CAMERA_SNAPSHOT, commands[0].m_Type);
+    ASSERT_NE(dmRender::RENDER_COMMAND_CAMERA_NONE, commands[0].m_Operands[0]);
 
     // draw
-    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_CAMERA, commands[1].m_Type);
-    ASSERT_EQ(0, commands[1].m_Operands[0]);
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_CAMERA_SNAPSHOT, commands[1].m_Type);
+    ASSERT_EQ(dmRender::RENDER_COMMAND_CAMERA_NONE, commands[1].m_Operands[0]);
 
-    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+    ConsumeScriptCommands(render_script_instance);
 
     ClearRenderScriptInstanceRenderResources(render_script_instance);
 
@@ -2666,7 +2767,7 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
     // Update 1 - enable texture + set render target from render resource
     {
         ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
-        dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+        ConsumeScriptCommands(render_script_instance);
 
         dmGraphics::NullRenderTarget* rt_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::NullRenderTarget>(null_context->m_BaseContext.m_AssetHandleContainer, rt);
         ASSERT_EQ(&rt_ptr->m_FrameBuffer, null_context->m_CurrentFrameBuffer);
@@ -2678,7 +2779,7 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
     // Update 2 - unbind both
     {
         ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
-        dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+        ConsumeScriptCommands(render_script_instance);
 
         ASSERT_EQ(&null_context->m_MainFrameBuffer, null_context->m_CurrentFrameBuffer);
         ASSERT_EQ(0, m_Context->m_TextureBindTable[0].m_Texture);
@@ -2695,7 +2796,7 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
         m_Context->m_TextureBindTable.SetSize(0);
 
         ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
-        dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+        ConsumeScriptCommands(render_script_instance);
 
         ASSERT_EQ(m_Context->m_Material, material);
         ASSERT_EQ(tex, m_Context->m_TextureBindTable[0].m_Texture);
@@ -3129,7 +3230,7 @@ TEST_F(dmRenderScriptTest, TestDispatch)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
-    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+    ConsumeScriptCommands(render_script_instance);
 
     ASSERT_EQ(dmRender::COMMAND_TYPE_SET_COMPUTE, commands[0].m_Type);
     ASSERT_EQ(m_Compute, (dmRender::HComputeProgram) commands[0].m_Operands[0]);
@@ -3158,9 +3259,9 @@ TEST_F(dmRenderScriptTest, TestDispatch)
 }
 
 extern "C" void dmExportedSymbols();
-int RunRenderScriptBenchmark(int argc, char** argv);
+int             RunRenderScriptBenchmark(int argc, char** argv);
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
     dmExportedSymbols();
     TestMainPlatformInit();

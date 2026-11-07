@@ -194,6 +194,16 @@ namespace dmRender
     RenderFrameResult CopyRenderFrameData(HRenderFrameStorage frame, void* destination, const void* source, uint32_t bytes);
 
     /**
+     * Publish only the initialized prefix of a reserved table, without moving payloads.
+     * Does not reclaim reserved bytes or a table slot. Count may be zero.
+     * @param frame Building storage
+     * @param table_index Previously allocated table
+     * @param count Element count no greater than the table's current count
+     * @return RENDER_FRAME_OK, or a sticky argument/state error
+     */
+    RenderFrameResult TrimRenderFrameTable(HRenderFrameStorage frame, uint32_t table_index, uint32_t count);
+
+    /**
      * Adopt an already-retained reference, released on game-owner cancellation/retirement.
      * Ownership transfers only on success; the caller releases rejected references.
      * @param frame Building storage

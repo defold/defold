@@ -24,7 +24,7 @@
 #include <dlib/thread.h>
 #include <testmain/testmain.h>
 
-#include "render/render_frame_queue.h"
+#include "render/render_frame_queue_private.h"
 #include "render_frame_benchmark.h"
 
 using namespace dmRender;
@@ -1232,34 +1232,57 @@ TEST(RenderFrameQueue, CopiedUploadOutlivesSlotReuse)
 }
 
 
-// Verify both CPU slots remain unavailable after consumption until explicit game-owner
-// retirement, and frame IDs never wrap into identifiers used by earlier tickets.
+// Inline allocates one slot, retains it until game-owner retirement, and never wraps
+// frame IDs into identifiers used by earlier tickets.
 TEST(RenderFrameQueue, SlotBudgetAndFrameIdExhaustion)
 {
     QueueFixture fixture;
     CreateFixture(&fixture, EXECUTION_MODE_INLINE);
-    RenderFrameTicket tickets[2], extra;
-    for (uint32_t i = 0; i < 2; ++i)
-    {
-        ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &tickets[i]));
-        ASSERT_EQ(RENDER_FRAME_OK, CaptureSample(tickets[i], i));
-        ASSERT_EQ(RENDER_FRAME_OK, PublishRenderFrame(fixture.m_Queue, tickets[i]));
-    }
-    ASSERT_NE(tickets[0].m_Frame, tickets[1].m_Frame);
+    ASSERT_EQ(1u, fixture.m_Queue->m_SlotCount);
+    ASSERT_EQ((HRenderFrameStorage)0, fixture.m_Queue->m_Slots[1].m_Frame);
+    RenderFrameTicket ticket, extra;
+    ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &ticket));
+    ASSERT_EQ(RENDER_FRAME_OK, CaptureSample(ticket, 1));
+    ASSERT_EQ(RENDER_FRAME_OK, PublishRenderFrame(fixture.m_Queue, ticket));
     ASSERT_EQ(RENDER_FRAME_WOULD_BLOCK, BeginRenderFrameCapture(fixture.m_Queue, &extra));
     RenderFrameQueueStatus status = GetRenderFrameQueueStatus(fixture.m_Queue);
+    ASSERT_EQ(1u, status.m_SlotCount);
     ASSERT_EQ(RENDER_FRAME_RETIRED, status.m_States[0]);
-    ASSERT_EQ(RENDER_FRAME_RETIRED, status.m_States[1]);
-    ASSERT_EQ(2u, RetireRenderFrames(fixture.m_Queue));
-    ASSERT_EQ(sizeof(RenderFrameQueue) + 2 * GetRenderFrameStorageSize(fixture.m_Queue->m_Params.m_Limits),
-        GetRenderFrameQueueStorageSize(fixture.m_Queue->m_Params.m_Limits));
+    ASSERT_EQ(RENDER_FRAME_FREE, status.m_States[1]);
+    ASSERT_EQ((RenderFrameId)0, status.m_FrameIds[1]);
+    ASSERT_EQ(1u, RetireRenderFrames(fixture.m_Queue));
+    ASSERT_EQ(sizeof(RenderFrameQueue) + GetRenderFrameStorageSize(fixture.m_Queue->m_Params.m_Limits),
+              GetRenderFrameQueueStorageSize(fixture.m_Queue->m_Params));
     fixture.m_Queue->m_NextFrameId = UINT64_MAX;
     ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &extra));
+    ASSERT_EQ(ticket.m_Frame, extra.m_Frame);
     ASSERT_EQ((RenderFrameId)UINT64_MAX, extra.m_FrameId);
     ASSERT_EQ(RENDER_FRAME_OK, CancelRenderFrameCapture(fixture.m_Queue, extra));
     ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, BeginRenderFrameCapture(fixture.m_Queue, &extra));
     StopRenderFrameQueue(fixture.m_Queue);
     ASSERT_EQ(RENDER_FRAME_PUMP_DRAINED, PumpRenderFrameQueue(fixture.m_Queue, true));
+    DeleteFixture(&fixture);
+}
+
+// Threaded execution still allocates two independent slots after the inline memory reduction.
+TEST(RenderFrameQueue, ThreadedStorageBudget)
+{
+    if (!HasThreadedExecution())
+    {
+        return;
+    }
+    QueueFixture fixture;
+    CreateFixture(&fixture, EXECUTION_MODE_THREADED);
+    ASSERT_EQ(2u, GetRenderFrameQueueStatus(fixture.m_Queue).m_SlotCount);
+    ASSERT_NE((HRenderFrameStorage)0, fixture.m_Queue->m_Slots[0].m_Frame);
+    ASSERT_NE((HRenderFrameStorage)0, fixture.m_Queue->m_Slots[1].m_Frame);
+    ASSERT_NE(fixture.m_Queue->m_Slots[0].m_Frame, fixture.m_Queue->m_Slots[1].m_Frame);
+    ASSERT_EQ(sizeof(RenderFrameQueue) + 2 * GetRenderFrameStorageSize(fixture.m_Queue->m_Params.m_Limits),
+              GetRenderFrameQueueStorageSize(fixture.m_Queue->m_Params));
+    TestExecutor executor;
+    StartExecutor(&executor, &fixture, true);
+    StopRenderFrameQueue(fixture.m_Queue);
+    JoinExecutor(&executor);
     DeleteFixture(&fixture);
 }
 

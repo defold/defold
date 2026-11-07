@@ -131,8 +131,9 @@ runtime selector yet. Enabled builds currently reject startup because the thread
 executor and component/resource migration are not available. This option
 does not enable Emscripten pthreads or select a different web binary.
 
-Complete CPU frames use two slots. Each slot preallocates the component capture
-reserve and fixed render-pass command, operand, and table storage derived from
+Complete CPU frames use one slot for inline execution and two for threaded
+execution. Each slot preallocates the component capture reserve and fixed
+render-pass command, operand, and table storage derived from
 the command capacity. Variable constant-buffer snapshots use separate blocks
 owned by each slot. Capture allocates blocks on demand without moving earlier
 snapshots, so recorded pointers remain stable. Every draw and compute dispatch

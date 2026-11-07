@@ -34,6 +34,7 @@ enum FrameAllocationFailure
 };
 
 static FrameAllocationFailure g_FrameAllocationFailure = FRAME_ALLOCATION_FAILURE_NONE;
+static uint32_t g_LastPayloadAllocationSize = 0;
 
 // Only the test's separately compiled storage implementation uses these wrappers.
 extern "C" void* RenderFrameTestMalloc(size_t size)
@@ -50,6 +51,7 @@ namespace dmMemory
 {
     Result RenderFrameTestAlignedMalloc(void** memory, unsigned int alignment, unsigned int size)
     {
+        g_LastPayloadAllocationSize = size;
         if (g_FrameAllocationFailure == FRAME_ALLOCATION_FAILURE_PAYLOAD)
         {
             g_FrameAllocationFailure = FRAME_ALLOCATION_FAILURE_NONE;
@@ -144,7 +146,9 @@ TEST(RenderFrame, CopiedAndDirectTables)
     const uint32_t* direct = (const uint32_t*)GetRenderFrameTableData(*view, direct_index);
     ASSERT_EQ((const void*)direct_data, (const void*)direct);
     for (uint32_t i = 0; i < 4; ++i)
+    {
         ASSERT_EQ(i + 40, direct[i]);
+    }
     ASSERT_EQ(101u, view->m_Tables[0].m_Type);
     ASSERT_EQ(0u, (uint32_t)((const uint8_t*)view->m_Tables[0].m_Data - view->m_Payload));
     ASSERT_EQ(3u, view->m_Tables[0].m_Count);
@@ -339,6 +343,61 @@ TEST(RenderFrame, DynamicSizeClassesReuseSmallGrowth)
         ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(frame));
         ResetRenderFrame(frame);
     }
+    DeleteRenderFrame(frame);
+}
+
+// Verify size-class rounding saturates above 2 GiB without wrapping to a smaller allocation.
+TEST(RenderFrame, DynamicSizeClassBoundaries)
+{
+    const uint32_t requested[] = { 1, 65536, 65537, 0x7fffffffu, 0x80000000u, 0x80000001u, UINT32_MAX };
+    const uint32_t expected[] = { 65536, 65536, 131072, 0x80000000u, 0x80000000u, UINT32_MAX, UINT32_MAX };
+    const RenderFrameLimits limits = { 0, 1, 0 };
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    for (uint32_t i = 0; i < sizeof(requested) / sizeof(requested[0]); ++i)
+    {
+        BeginRenderFrame(frame, i);
+        uint32_t index = 42;
+        void* data = &index;
+        // Inspect the requested size without making multi-gigabyte allocations.
+        g_FrameAllocationFailure = FRAME_ALLOCATION_FAILURE_PAYLOAD;
+        ASSERT_EQ(RENDER_FRAME_OUT_OF_MEMORY, AllocateRenderFrameDynamicTable(frame, 0, 1, requested[i], 16, &index, &data));
+        ASSERT_EQ(expected[i], g_LastPayloadAllocationSize);
+        ASSERT_EQ(42u, index);
+        ASSERT_EQ((void*)&index, data);
+        ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_TableCount);
+        ResetRenderFrame(frame);
+    }
+    DeleteRenderFrame(frame);
+}
+
+// Reserved command capacity must expose only the initialized prefix, without moving later operands.
+TEST(RenderFrame, TrimReservedTable)
+{
+    const RenderFrameLimits limits = { 64, 2, 0 };
+    HRenderFrameStorage frame = NewRenderFrame(limits);
+    BeginRenderFrame(frame, 1);
+    uint32_t table, operand;
+    void* commands;
+    void* data;
+    ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameTable(frame, 1, 8, sizeof(uint32_t), 4, &table, &commands));
+    ((uint32_t*)commands)[0] = 7;
+    ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameTable(frame, 2, 1, sizeof(uint32_t), 4, &operand, &data));
+    *(uint32_t*)data = 9;
+    ASSERT_EQ(RENDER_FRAME_OK, TrimRenderFrameTable(frame, table, 1));
+    ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(frame));
+    const RenderFrameView& view = *GetRenderFrameView(frame);
+    ASSERT_EQ(1u, view.m_Tables[table].m_Count);
+    ASSERT_EQ(commands, view.m_Tables[table].m_Data);
+    ASSERT_EQ(data, view.m_Tables[operand].m_Data);
+    ASSERT_EQ(9u, *(const uint32_t*)view.m_Tables[operand].m_Data);
+    ASSERT_EQ(36u, view.m_Statistics.m_PayloadBytes);
+    ASSERT_EQ(RENDER_FRAME_INVALID_STATE, TrimRenderFrameTable(frame, table, 0));
+    ResetRenderFrame(frame);
+    BeginRenderFrame(frame, 2);
+    ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameTable(frame, 1, 8, sizeof(uint32_t), 4, &table, &commands));
+    ASSERT_EQ(RENDER_FRAME_OK, TrimRenderFrameTable(frame, table, 0));
+    ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, TrimRenderFrameTable(frame, table, 1));
+    ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, SealRenderFrame(frame));
     DeleteRenderFrame(frame);
 }
 

@@ -61,7 +61,6 @@ namespace dmRender
     }
 
     Command::Command(CommandType type, uint64_t op0, uint64_t op1, uint64_t op2, uint64_t op3, uint64_t op4)
-    : m_Operands()
     {
         m_Type = type;
         m_Operands[0] = op0;
@@ -80,6 +79,9 @@ namespace dmRender
             return RENDER_FRAME_OK;
         }
 
+        // TODO: Allocate operands as raw frame payloads and reserve typed tables for
+        // dispatch ranges. Migrate camera table indices/inheritance at the same time
+        // and measure metadata/scanning costs before changing that contract.
         uint32_t table_index;
         void* copy;
         RenderFrameResult result = CopyRenderFrameTable(frame, RENDER_COMMAND_PAYLOAD_TABLE_TYPE, 1, size, alignment, (const void*)source, &table_index, &copy);
@@ -118,6 +120,8 @@ namespace dmRender
         {
             UpdateRenderCamera(context, handle, &camera->m_LastPosition, &camera->m_LastRotation);
         }
+        // TODO: Reuse identical snapshots within a frame using semantic values or a
+        // reliable version, preserving camera edits between draws and handle reuse.
         RenderCommandCamera snapshot;
         snapshot.m_View = camera->m_View;
         snapshot.m_Projection = camera->m_Projection;
@@ -155,6 +159,8 @@ namespace dmRender
             }
             case COMMAND_TYPE_DRAW:
             {
+                // TODO: Deduplicate predicate values per frame; pointer-only caching is
+                // unsafe when Lua GC frees a predicate and its address is reused.
                 RenderFrameResult result = CopyOperand(frame, source.m_Operands[0], sizeof(Predicate), 8, &destination->m_Operands[0]);
                 if (result != RENDER_FRAME_OK)
                 {

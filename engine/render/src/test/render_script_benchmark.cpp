@@ -220,7 +220,7 @@ namespace
             if (i == 0 || growth)
             {
                 printf("MEMORY,%s,%u,%llu,%llu,%llu,%u,%llu\n", workload.m_Name, i + 1,
-                       (unsigned long long)GetRenderFrameQueueStorageSize(params.m_Limits),
+                       (unsigned long long)GetRenderFrameQueueStorageSize(params),
                        (unsigned long long)bench.m_Statistics.m_DynamicPayloadBytes,
                        (unsigned long long)bench.m_Statistics.m_DynamicPayloadCapacity,
                        bench.m_Statistics.m_DynamicAllocationCount,

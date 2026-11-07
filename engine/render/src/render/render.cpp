@@ -157,7 +157,6 @@ namespace dmRender
         context->m_RenderObjects.SetSize(0);
 
         context->m_GraphicsContext = graphics_context;
-        context->m_Recording.m_ConstantBufferCloneCursor = 0;
 
         context->m_SystemFontMap = params.m_SystemFontMap;
 
@@ -178,7 +177,8 @@ namespace dmRender
         context->m_Recording.m_CallbackInfo = 0x0;
 
         context->m_DebugRenderer.m_RenderContext = 0;
-        if (params.m_ShaderProgramDesc != 0 && params.m_ShaderProgramDescSize != 0) {
+        if (params.m_ShaderProgramDesc != 0 && params.m_ShaderProgramDescSize != 0)
+        {
             InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_ShaderProgramDesc, params.m_ShaderProgramDescSize);
         }
 
@@ -228,7 +228,10 @@ namespace dmRender
 
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context)
     {
-        if (render_context == 0x0) return RESULT_INVALID_CONTEXT;
+        if (render_context == 0x0)
+        {
+            return RESULT_INVALID_CONTEXT;
+        }
 
         if (render_context->m_Recording.m_CallbackInfo != 0x0)
         {
@@ -241,10 +244,10 @@ namespace dmRender
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
         FinalizeLightData(render_context);
-        for (uint32_t i = 0; i < render_context->m_Recording.m_ConstantBufferClones.Size(); ++i)
-            DeleteNamedConstantBuffer(render_context->m_Recording.m_ConstantBufferClones[i]);
         for (uint32_t i = 0; i < render_context->m_RenderItemDispatches.Size(); ++i)
+        {
             delete render_context->m_RenderItemDispatches[i];
+        }
         dmMessage::DeleteSocket(render_context->m_Socket);
         DeleteRenderExecution(render_context->m_Execution);
         delete render_context;
@@ -264,7 +267,6 @@ namespace dmRender
 
     void RenderListBegin(HRenderContext render_context)
     {
-        render_context->m_Recording.m_ConstantBufferCloneCursor = 0;
         render_context->m_RenderList.SetSize(render_context->m_PersistentRenderItems.Size());
         render_context->m_TransientRenderList.SetSize(0);
         render_context->m_TransientRenderListIndices.SetSize(0);
@@ -278,24 +280,6 @@ namespace dmRender
         render_context->m_SubmittedRenderItemDispatches.SetSize(0);
         render_context->m_RenderListDispatch.SetSize(0);
         render_context->m_RenderListRanges.SetSize(0);
-    }
-
-    HNamedConstantBuffer PushRenderConstants(HRenderContext render_context, HNamedConstantBuffer constant_buffer)
-    {
-        if (!constant_buffer)
-            return 0;
-
-        uint32_t clone_index = render_context->m_Recording.m_ConstantBufferCloneCursor++;
-        if (clone_index == render_context->m_Recording.m_ConstantBufferClones.Size())
-        {
-            if (render_context->m_Recording.m_ConstantBufferClones.Full())
-                render_context->m_Recording.m_ConstantBufferClones.OffsetCapacity(16);
-            render_context->m_Recording.m_ConstantBufferClones.Push(NewNamedConstantBuffer());
-        }
-
-        HNamedConstantBuffer clone = render_context->m_Recording.m_ConstantBufferClones[clone_index];
-        CopyNamedConstantBuffer(clone, constant_buffer);
-        return clone;
     }
 
     // Allocate a buffer (from the array) with room for 'entries' entries.

@@ -57,14 +57,19 @@ namespace dmRender
     static const uint32_t MAX_PREDICATE_COUNT = 64;
     struct RenderScriptInstance
     {
+        // Borrowed view into the active frame; never owns command or operand memory.
         dmArray<Command>              m_CommandBuffer;
         dmHashTable64<RenderResource> m_RenderResources;
         Predicate*                    m_Predicates[MAX_PREDICATE_COUNT];
         RenderContext*                m_RenderContext;
         HRenderScript                 m_RenderScript;
         dmScript::ScriptWorld*        m_ScriptWorld;
-        // Set only while Lua records immutable operands into the current frame.
+        // Lifecycle commands use lazy scratch storage and are discarded before update.
+        // Synchronous updates record and replay through the same frame-owned path.
+        HRenderFrameStorage           m_ScratchFrame;
         HRenderFrameStorage           m_RecordingFrame;
+        uint32_t                      m_CommandCapacity;
+        uint32_t                      m_CommandTable;
         HRenderCamera                 m_SelectedRenderCamera;
         RenderFrameResult             m_RecordingResult;
         uint32_t                      m_PredicateCount;

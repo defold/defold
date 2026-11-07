@@ -232,12 +232,12 @@ namespace
 
         const double iterations = ITERATION_COUNT;
         printf("%s: startup=%llu us, fixed_frame_storage=%llu B, source=%u B\n", name,
-            (unsigned long long)(allocated - started),
-            (unsigned long long)(mode == DIRECT_CONTROL ? 0 : GetRenderFrameQueueStorageSize(params.m_Limits)),
-            mode == INLINE_ARENA ? 0u : (uint32_t)(ITEM_COUNT * sizeof(BenchmarkItem)));
+               (unsigned long long)(allocated - started),
+               (unsigned long long)(mode == DIRECT_CONTROL ? 0 : GetRenderFrameQueueStorageSize(params)),
+               mode == INLINE_ARENA ? 0u : (uint32_t)(ITEM_COUNT * sizeof(BenchmarkItem)));
         printf("  mean us/frame: capture=%.3f copy=%.3f publish_consume=%.3f retire=%.3f total=%.3f\n",
-            result->m_Capture / iterations, result->m_Copy / iterations, result->m_Consume / iterations,
-            result->m_Retire / iterations, (result->m_Capture + result->m_Copy + result->m_Consume + result->m_Retire) / iterations);
+               result->m_Capture / iterations, result->m_Copy / iterations, result->m_Consume / iterations,
+               result->m_Retire / iterations, (result->m_Capture + result->m_Copy + result->m_Consume + result->m_Retire) / iterations);
         printf("  mean/frame: copied_bytes=%.0f arena_reservations=%.1f; checksum=%llu releases=%llu\n",
             result->m_CopiedBytes / iterations, result->m_Reservations / iterations,
             (unsigned long long)result->m_Consumer.m_Checksum, (unsigned long long)result->m_Consumer.m_Released);

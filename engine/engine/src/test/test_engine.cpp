@@ -32,8 +32,8 @@
 #include <gameobject/component.h>
 #include <dmsdk/extension/extension.hpp>
 #include "test_engine.h"
-#include "../../../graphics/src/graphics_private.h"
-#include "../../../graphics/src/null/graphics_null_private.h"
+#include <graphics_private.h>
+#include <null/graphics_null_private.h>
 #include "../engine.h"
 #include "../engine_private.h"
 
@@ -519,7 +519,7 @@ TEST_F(EngineTest, RenderScript)
     uint32_t frame_count = 0;
     char project_path[256];
     // see render_script.ini and look for render_script.ini in wscript
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/render_script/main.collectionc", "--config=bootstrap.render=/render_script/default.renderc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv[] = { "test_engine", "--config=bootstrap.main_collection=/render_script/main.collectionc", "--config=bootstrap.render=/render_script/default.renderc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc") };
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunFrameCount, &frame_count));
     ASSERT_EQ(frame_count, 1u);
 }

@@ -42,7 +42,7 @@
 #include "gamesys/gamesys.h"
 #include "gamesys/gamesys_context_private.h"
 
-#include "../../../../graphics/src/null/graphics_null_private.h"
+#include <null/graphics_null_private.h>
 
 namespace
 {

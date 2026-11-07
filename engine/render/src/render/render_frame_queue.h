@@ -15,9 +15,6 @@
 #ifndef DM_RENDER_FRAME_QUEUE_H
 #define DM_RENDER_FRAME_QUEUE_H
 
-#include <dlib/condition_variable.h>
-#include <dlib/mutex.h>
-
 #include "render_execution.h"
 #include "render_frame_storage.h"
 
@@ -82,60 +79,12 @@ namespace dmRender
         void*               m_ServiceContext;
     };
 
-    /** Fixed slot metadata protected by the queue mutex in threaded mode. */
-    struct RenderFrameSlot
-    {
-        RenderFrameId       m_FrameId;
-        HRenderFrameStorage m_Frame;
-        RenderFrameState    m_State;
-    };
-
-    /**
-     * One accepted Ready/Reading frame and one game-owned Building frame. No queue of
-     * replaceable snapshots: accepted frames may carry side effects and must be consumed.
-     */
-    struct RenderFrameQueue
-    {
-        RenderFrameQueueParams                  m_Params;
-        RenderFrameSlot                         m_Slots[2];
-        RenderFrameId                           m_NextFrameId;
-        uint64_t                                m_Revision;
-        uint64_t                                m_Published;
-        uint64_t                                m_Consumed;
-        uint64_t                                m_Cancelled;
-        uint64_t                                m_Retired;
-        // Requested/completed service generations are protected by the handoff mutex.
-        uint64_t                                m_ServiceRequested;
-        uint64_t                                m_ServiceAcknowledged;
-        // Render-owner-only completion, published when TryLock next succeeds.
-        uint64_t                                m_CompletedService;
-        // Registered and invoked only by the game owner; the executor never reads these.
-        FRenderFrameExecutorShutdown            m_ExecutorShutdown;
-        void*                                   m_ExecutorShutdownContext;
-        dmMutex::HMutex                         m_Mutex;
-        dmConditionVariable::HConditionVariable m_Changed;
-        int32_t                                 m_Building;
-        int32_t                                 m_Active;
-        // Render-owner-only acknowledgement, kept until TryLock succeeds on a later pump.
-        int32_t                                 m_Completed;
-        // Use full bytes, not bitfields: the shared flags and owner-local guards have
-        // different synchronization and must not read/modify/write the same byte.
-        // Shared flags are protected by the handoff mutex in threaded mode.
-        // Cancellation does not restore an update credit while the previous reader is active.
-        uint8_t                                 m_LeadReserved;
-        uint8_t                                 m_Stopping;
-        uint8_t                                 m_ServicePending;
-        uint8_t                                 m_ServiceCompletionPending; // Render owner only.
-        // These guards are updated by their respective owners outside the handoff lock.
-        uint8_t                                 m_InPump; // Render owner only.
-        uint8_t                                 m_InRetire; // Game owner only.
-        uint8_t                                 m_ExecutorShutdownComplete; // Game owner only.
-    };
-
     /** Game-owner diagnostic snapshot; revision supports event-driven waits without lost wakes. */
     struct RenderFrameQueueStatus
     {
+        // Entries beyond SlotCount are zeroed (Free, with no frame ID).
         RenderFrameId    m_FrameIds[2];
+        uint32_t         m_SlotCount;
         uint64_t         m_Revision;
         uint64_t         m_Published;
         uint64_t         m_Consumed;
@@ -158,7 +107,7 @@ namespace dmRender
     };
 
     /**
-     * Create two CPU slots with preallocated fixed storage on the game owner. Variable
+     * Create one inline or two threaded CPU slots with preallocated fixed storage. Variable
      * payload blocks grow on demand during capture and remain allocated for slot reuse.
      * Inline creates no queue mutex, condition variable or thread. Platform executors
      * own thread binding and scheduling.
@@ -176,13 +125,13 @@ namespace dmRender
     void DeleteRenderFrameQueue(HRenderFrameQueue queue);
 
     /**
-     * Calculate queue metadata and two slots' initial fixed storage without allocating.
+     * Calculate queue metadata and active slots' initial fixed storage without allocating.
      * Excludes dynamic payload blocks allocated during capture, the execution context,
      * synchronization object allocations and allocator overhead.
-     * @param limits Requested fixed per-slot capacities
+     * @param params Requested capacities and execution mode
      * @return Initial fixed storage size in bytes; not a runtime memory upper bound
      */
-    uint64_t GetRenderFrameQueueStorageSize(const RenderFrameLimits& limits);
+    uint64_t GetRenderFrameQueueStorageSize(const RenderFrameQueueParams& params);
 
     /**
      * Acquire capture storage before simulation using the same call in either mode. Retires
