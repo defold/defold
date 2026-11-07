@@ -37,7 +37,8 @@ namespace dmSys
     {
         NETWORK_DISCONNECTED       = 0,
         NETWORK_CONNECTED          = 1,
-        NETWORK_CONNECTED_CELLULAR = 2
+        NETWORK_CONNECTED_CELLULAR = 2,
+        NETWORK_UNKNOWN            = 3
     };
 
     /**
@@ -348,16 +349,44 @@ namespace dmSys
 
 
     /**
-     * Set host to check for connectivity against.
+     * Deprecated. Connectivity is no longer checked against a specific host.
      * @param host host to check against
      */
     void SetNetworkConnectivityHost(const char* host);
 
     /**
      * Get current network connectivity status
-     * @return NETWORK_DISCONNECTED if no network connection is found, NETWORK_CONNECTED_CELLULAR if the only network connection is through mobile cellular, otherwise NETWORK_CONNECTED.
+     * @return NETWORK_DISCONNECTED if no network connection is found, NETWORK_CONNECTED_CELLULAR if the only network connection is through mobile cellular, NETWORK_UNKNOWN if the status isn't known yet, otherwise NETWORK_CONNECTED.
      */
     NetworkConnectivity GetNetworkConnectivity();
+
+#if defined(DM_PLATFORM_IOS)
+    /**
+     * Start monitoring the network connectivity status in the background.
+     * Returns without waiting for the first status. Safe to call more than once.
+     */
+    void StartNetworkConnectivityMonitor();
+#endif
+
+    /**
+     * Store a new network connectivity status, and mark it as changed if it differs from the current one.
+     * Must only be called from one thread at a time.
+     * @param status the new status
+     */
+    void PublishNetworkConnectivity(NetworkConnectivity status);
+
+    /**
+     * Get the most recently published network connectivity status
+     * @return the status, NETWORK_UNKNOWN if none has been published
+     */
+    NetworkConnectivity GetPublishedNetworkConnectivity();
+
+    /**
+     * Check if the network connectivity status has changed since the last successful call, and clear the change.
+     * @param status set to the changed status when the function returns true
+     * @return true if there was a change to report
+     */
+    bool ConsumeNetworkConnectivityChange(NetworkConnectivity* status);
 
     /**
      * Causes message events to be dispatched, on platforms that require it (currently only node/headless)

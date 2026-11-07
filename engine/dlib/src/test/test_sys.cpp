@@ -14,6 +14,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <string>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -31,12 +32,15 @@
     #endif
 #endif
 
+#include <dlib/atomic.h>
 #include <dlib/dstrings.h>
 #include <dlib/sys.h>
 #include <dlib/sys_private.h>
 #include <dlib/path.h>
 #include <dlib/log.h>
 #include <dlib/testutil.h>
+#include <dlib/thread.h>
+#include <dlib/time.h>
 
 #if !defined(DM_HOSTFS)
     #define DM_HOSTFS ""
@@ -524,6 +528,166 @@ TEST(dmSys, GetSystemInfo)
 #undef CHECK_LANG_TERR
 
 }
+
+// Verifies that a published status is reported once as a change and stays readable afterwards.
+// Guards against a connectivity listener being called repeatedly, or not at all, for one change.
+TEST(dmSys, NetworkConnectivityPublishAndConsume)
+{
+    dmSys::NetworkConnectivity status;
+
+    dmSys::PublishNetworkConnectivity(dmSys::NETWORK_UNKNOWN);
+    dmSys::ConsumeNetworkConnectivityChange(&status);
+    ASSERT_EQ(dmSys::NETWORK_UNKNOWN, dmSys::GetPublishedNetworkConnectivity());
+    ASSERT_FALSE(dmSys::ConsumeNetworkConnectivityChange(&status));
+
+    dmSys::PublishNetworkConnectivity(dmSys::NETWORK_CONNECTED);
+    ASSERT_EQ(dmSys::NETWORK_CONNECTED, dmSys::GetPublishedNetworkConnectivity());
+    ASSERT_TRUE(dmSys::ConsumeNetworkConnectivityChange(&status));
+    ASSERT_EQ(dmSys::NETWORK_CONNECTED, status);
+    ASSERT_FALSE(dmSys::ConsumeNetworkConnectivityChange(&status));
+    ASSERT_EQ(dmSys::NETWORK_CONNECTED, dmSys::GetPublishedNetworkConnectivity());
+
+    dmSys::PublishNetworkConnectivity(dmSys::NETWORK_CONNECTED);
+    ASSERT_FALSE(dmSys::ConsumeNetworkConnectivityChange(&status));
+
+    dmSys::PublishNetworkConnectivity(dmSys::NETWORK_CONNECTED_CELLULAR);
+    dmSys::PublishNetworkConnectivity(dmSys::NETWORK_DISCONNECTED);
+    ASSERT_EQ(dmSys::NETWORK_DISCONNECTED, dmSys::GetPublishedNetworkConnectivity());
+    ASSERT_TRUE(dmSys::ConsumeNetworkConnectivityChange(&status));
+    ASSERT_EQ(dmSys::NETWORK_DISCONNECTED, status);
+    ASSERT_FALSE(dmSys::ConsumeNetworkConnectivityChange(&status));
+}
+
+#if defined(DM_HAS_THREADS)
+struct NetworkConnectivityPublisher
+{
+    int32_atomic_t m_Done;
+    int32_atomic_t m_LostStatuses;
+};
+
+static const uint32_t NETWORK_CONNECTIVITY_PUBLISH_COUNT = 200000;
+static const dmSys::NetworkConnectivity NETWORK_CONNECTIVITY_PUBLISHED[] = { dmSys::NETWORK_CONNECTED, dmSys::NETWORK_CONNECTED_CELLULAR, dmSys::NETWORK_DISCONNECTED };
+static const uint32_t NETWORK_CONNECTIVITY_PUBLISHED_COUNT = sizeof(NETWORK_CONNECTIVITY_PUBLISHED) / sizeof(NETWORK_CONNECTIVITY_PUBLISHED[0]);
+
+static void NetworkConnectivityPublishThread(void* arg)
+{
+    NetworkConnectivityPublisher* publisher = (NetworkConnectivityPublisher*)arg;
+    for (uint32_t i = 0; i < NETWORK_CONNECTIVITY_PUBLISH_COUNT; ++i)
+    {
+        dmSys::NetworkConnectivity status = NETWORK_CONNECTIVITY_PUBLISHED[i % NETWORK_CONNECTIVITY_PUBLISHED_COUNT];
+        dmSys::PublishNetworkConnectivity(status);
+        if (dmSys::GetPublishedNetworkConnectivity() != status)
+        {
+            dmAtomicIncrement32(&publisher->m_LostStatuses);
+        }
+    }
+    dmAtomicStore32(&publisher->m_Done, 1);
+}
+
+// Verifies that clearing the changed flag never overwrites a status published at the same time.
+// Guards against losing a status published between the engine thread reading the value and clearing the flag.
+TEST(dmSys, NetworkConnectivityPublishWhileConsuming)
+{
+    dmSys::NetworkConnectivity status = dmSys::NETWORK_UNKNOWN;
+    dmSys::NetworkConnectivity last_consumed = dmSys::NETWORK_UNKNOWN;
+
+    dmSys::PublishNetworkConnectivity(dmSys::NETWORK_UNKNOWN);
+    dmSys::ConsumeNetworkConnectivityChange(&status);
+
+    NetworkConnectivityPublisher publisher = {};
+    dmThread::Thread thread = dmThread::New(NetworkConnectivityPublishThread, 0x10000, &publisher, "connectivity");
+    while (dmAtomicGet32(&publisher.m_Done) == 0)
+    {
+        if (dmSys::ConsumeNetworkConnectivityChange(&status))
+        {
+            last_consumed = status;
+        }
+    }
+    dmThread::Join(thread);
+
+    if (dmSys::ConsumeNetworkConnectivityChange(&status))
+    {
+        last_consumed = status;
+    }
+    ASSERT_FALSE(dmSys::ConsumeNetworkConnectivityChange(&status));
+
+    ASSERT_EQ(0, dmAtomicGet32(&publisher.m_LostStatuses));
+    dmSys::NetworkConnectivity last_published = NETWORK_CONNECTIVITY_PUBLISHED[(NETWORK_CONNECTIVITY_PUBLISH_COUNT - 1) % NETWORK_CONNECTIVITY_PUBLISHED_COUNT];
+    ASSERT_EQ(last_published, dmSys::GetPublishedNetworkConnectivity());
+    ASSERT_EQ(last_published, last_consumed);
+}
+#endif
+
+#if defined(__APPLE__)
+// Verifies the status reported for each network path state, including paths that connect on demand
+// and paths whose status isn't known. Guards against #8431, where connected devices were reported as disconnected.
+TEST(dmSys, NetworkPathStateToConnectivity)
+{
+    ASSERT_EQ(dmSys::NETWORK_CONNECTED, dmSys::NetworkPathStateToConnectivity(nw_path_status_satisfied, false));
+    ASSERT_EQ(dmSys::NETWORK_CONNECTED_CELLULAR, dmSys::NetworkPathStateToConnectivity(nw_path_status_satisfied, true));
+    ASSERT_EQ(dmSys::NETWORK_CONNECTED, dmSys::NetworkPathStateToConnectivity(nw_path_status_satisfiable, false));
+    ASSERT_EQ(dmSys::NETWORK_CONNECTED_CELLULAR, dmSys::NetworkPathStateToConnectivity(nw_path_status_satisfiable, true));
+    ASSERT_EQ(dmSys::NETWORK_DISCONNECTED, dmSys::NetworkPathStateToConnectivity(nw_path_status_unsatisfied, false));
+    ASSERT_EQ(dmSys::NETWORK_DISCONNECTED, dmSys::NetworkPathStateToConnectivity(nw_path_status_unsatisfied, true));
+    ASSERT_EQ(dmSys::NETWORK_UNKNOWN, dmSys::NetworkPathStateToConnectivity(nw_path_status_invalid, false));
+    ASSERT_EQ(dmSys::NETWORK_UNKNOWN, dmSys::NetworkPathStateToConnectivity(nw_path_status_invalid, true));
+}
+#endif
+
+#if defined(DM_PLATFORM_IOS)
+// Verifies that a real network path without any usable interface is reported as disconnected, without touching
+// the network. Guards against a satisfied or cellular result on a path that has no connection.
+TEST(dmSys, NetworkPathWithoutInterfaceIsDisconnected)
+{
+    dispatch_semaphore_t updated = dispatch_semaphore_create(0);
+    __block dmSys::NetworkConnectivity connectivity = dmSys::NETWORK_UNKNOWN;
+
+    nw_path_monitor_t monitor = nw_path_monitor_create();
+    nw_path_monitor_prohibit_interface_type(monitor, nw_interface_type_wifi);
+    nw_path_monitor_prohibit_interface_type(monitor, nw_interface_type_cellular);
+    nw_path_monitor_prohibit_interface_type(monitor, nw_interface_type_wired);
+    nw_path_monitor_prohibit_interface_type(monitor, nw_interface_type_loopback);
+    nw_path_monitor_prohibit_interface_type(monitor, nw_interface_type_other);
+    nw_path_monitor_set_queue(monitor, dispatch_queue_create("com.defold.test.connectivity", DISPATCH_QUEUE_SERIAL));
+    nw_path_monitor_set_update_handler(monitor, ^(nw_path_t path) {
+        connectivity = dmSys::NetworkPathToConnectivity(path);
+        dispatch_semaphore_signal(updated);
+    });
+    nw_path_monitor_start(monitor);
+
+    long timed_out = dispatch_semaphore_wait(updated, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+    // The handler can still run after this, so the objects it uses are kept alive
+    nw_path_monitor_cancel(monitor);
+
+    ASSERT_EQ(0, timed_out);
+    ASSERT_EQ(dmSys::NETWORK_DISCONNECTED, connectivity);
+}
+
+// Verifies that the monitor reports a status shortly after being started, and with DEFOLD_TEST_REQUIRE_NETWORK=1 that
+// a networked device is reported as connected. Guards against #8431, where such a device was reported as disconnected.
+// This starts the real monitor, so it has to stay after the tests that publish a status themselves.
+TEST(dmSys, NetworkConnectivityMonitor)
+{
+    dmSys::PublishNetworkConnectivity(dmSys::NETWORK_UNKNOWN);
+
+    const uint64_t timeout_us = 5 * 1000000;
+    uint64_t start_time = dmTime::GetMonotonicTime();
+    dmSys::NetworkConnectivity connectivity = dmSys::GetNetworkConnectivity();
+    while (connectivity == dmSys::NETWORK_UNKNOWN && dmTime::GetMonotonicTime() - start_time < timeout_us)
+    {
+        dmTime::Sleep(1000);
+        connectivity = dmSys::GetNetworkConnectivity();
+    }
+    dmLogInfo("Network connectivity: %d", (int)connectivity);
+    ASSERT_NE(dmSys::NETWORK_UNKNOWN, connectivity);
+
+    const char* require_network = dmSys::GetEnv("DEFOLD_TEST_REQUIRE_NETWORK");
+    if (require_network && strcmp(require_network, "1") == 0)
+    {
+        ASSERT_NE(dmSys::NETWORK_DISCONNECTED, connectivity);
+    }
+}
+#endif
 
 TEST(dmSys, EngineInfo)
 {

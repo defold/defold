@@ -28,7 +28,6 @@
 #if defined(DM_PLATFORM_IOS)
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIKit.h>
-#import <SystemConfiguration/SystemConfiguration.h>
 #else
 #import <AppKit/NSWorkspace.h>
 #import <Foundation/NSLocale.h>
@@ -225,61 +224,50 @@ namespace dmSys
         }
     }
 
-#if defined(DM_PLATFORM_IOS)
-
-    static NetworkConnectivity g_NetworkConnectivity = NETWORK_DISCONNECTED;
-    static SCNetworkReachabilityRef reachability_ref = 0;
-
-    static void ReachabilityCallback(SCNetworkReachabilityRef target, SCNetworkReachabilityFlags flags, void* info)
+    NetworkConnectivity NetworkPathStateToConnectivity(nw_path_status_t status, bool uses_cellular)
     {
-        if ((flags & kSCNetworkFlagsReachable) != 0 && (flags & kSCNetworkFlagsConnectionRequired) == 0)
+        switch (status)
         {
-            g_NetworkConnectivity = NETWORK_CONNECTED;
-
-            if ((flags & kSCNetworkReachabilityFlagsIsWWAN) != 0)
+            case nw_path_status_satisfied:
+            case nw_path_status_satisfiable:
             {
-                g_NetworkConnectivity = NETWORK_CONNECTED_CELLULAR;
+                return uses_cellular ? NETWORK_CONNECTED_CELLULAR : NETWORK_CONNECTED;
+            }
+            case nw_path_status_unsatisfied:
+            {
+                return NETWORK_DISCONNECTED;
+            }
+            default:
+            {
+                return NETWORK_UNKNOWN;
             }
         }
-        else
-        {
-            g_NetworkConnectivity = NETWORK_DISCONNECTED;
-        }
+    }
+
+#if defined(DM_PLATFORM_IOS)
+
+    NetworkConnectivity NetworkPathToConnectivity(void* path)
+    {
+        nw_path_t network_path = (nw_path_t)path;
+        return NetworkPathStateToConnectivity(nw_path_get_status(network_path), nw_path_uses_interface_type(network_path, nw_interface_type_cellular));
+    }
+
+    void StartNetworkConnectivityMonitor()
+    {
+        static dispatch_once_t once;
+        dispatch_once(&once, ^{
+            // Lives for the rest of the process, and is therefore never cancelled or released
+            nw_path_monitor_t monitor = nw_path_monitor_create();
+            nw_path_monitor_set_queue(monitor, dispatch_queue_create("com.defold.sys.connectivity", DISPATCH_QUEUE_SERIAL));
+            nw_path_monitor_set_update_handler(monitor, ^(nw_path_t path) {
+                PublishNetworkConnectivity(NetworkPathToConnectivity(path));
+            });
+            nw_path_monitor_start(monitor);
+        });
     }
 
     void SetNetworkConnectivityHost(const char* host)
     {
-        assert(host != 0);
-
-        if (reachability_ref)
-        {
-            SCNetworkReachabilityUnscheduleFromRunLoop(reachability_ref, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
-            CFRelease(reachability_ref);
-        }
-        reachability_ref = SCNetworkReachabilityCreateWithName(NULL, host);
-
-        if (reachability_ref == NULL)
-        {
-            dmLogError("Could not create reachability reference (NULL).");
-            return;
-        }
-
-        SCNetworkReachabilityContext context = {0, (void*) 0, NULL, NULL, NULL};
-        if(!SCNetworkReachabilitySetCallback(reachability_ref, dmSys::ReachabilityCallback, &context))
-        {
-            dmLogError("Could not set reachability callback.");
-            CFRelease(reachability_ref);
-            reachability_ref = 0;
-            return;
-        }
-
-        if(!SCNetworkReachabilityScheduleWithRunLoop(reachability_ref, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode))
-        {
-            dmLogError("Could not schedule reachability callback.");
-            CFRelease(reachability_ref);
-            reachability_ref = 0;
-            return;
-        }
     }
 
     Result GetLogPath(char* path, uint32_t path_len)
@@ -357,12 +345,8 @@ namespace dmSys
 
     NetworkConnectivity GetNetworkConnectivity()
     {
-        if (!reachability_ref)
-        {
-            dmLogError("No connectivity host set, required on iOS.");
-            return dmSys::NETWORK_DISCONNECTED;
-        }
-        return g_NetworkConnectivity;
+        StartNetworkConnectivityMonitor();
+        return GetPublishedNetworkConnectivity();
     }
 
 #else // macos

@@ -343,7 +343,7 @@ platforms:
 
     context:
         weakFrameworks: ["Foundation"]
-        frameworks: ["OpenGLES", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "AVFoundation", "CFNetwork", "Security", "GameController", "CoreMotion"]
+        frameworks: ["OpenGLES", "QuartzCore", "CoreGraphics", "AudioToolbox", "Network", "CoreVideo", "UIKit", "AVFoundation", "CFNetwork", "Security", "GameController", "CoreMotion"]
         engineLibs: ["debugger", "engine", "engine_service", "zip", "profile", "profilerext", "profiler_remotery", "gameobject", "ddf", "font", "font_richtext", "font_render", "resource", "gamesys", "font_gen", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "script_bullet3d", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "lz4", "image", "gui", "crashext", "sound", "tremolo", "liveupdate", "resolv", "decoder_wav", "decoder_ogg"]
         systemIncludes:    ["{{env.SYSROOT}}/usr/include/c++/v1"]
         dynamicLibs: []
