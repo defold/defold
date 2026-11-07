@@ -21,11 +21,13 @@
             [util.defonce :as defonce]
             [util.eduction :as e]
             [util.pkid-vector :as pkid-vector])
-  (:import [clojure.lang IPersistentSet Indexed RT]
+  (:import [clojure.lang Counted IPersistentSet IReduceInit Indexed RT]
+           [com.defold.util DependencyTask]
            [com.github.benmanes.caffeine.cache Cache Caffeine LoadingCache]
            [internal.graph.types Arc Endpoint]
            [java.util ArrayDeque ArrayList HashMap Iterator Objects]
-           [java.util.concurrent ConcurrentHashMap ForkJoinPool]))
+           [java.util.concurrent ConcurrentHashMap ForkJoinPool]
+           [java.util.concurrent.atomic AtomicReference]))
 
 ;; A brief braindump on Overrides.
 ;;
@@ -1085,7 +1087,7 @@
      the internal input-dependencies, i.e. outputs consuming the given output
      the closest override-nodes, i.e. override-node-a + output-x, as they can be potential dependents
      all connected nodes, where node-id-a + output-x => [[node-id-b + input-y] ...] => [[node-id-b + output+z] ...]"
-  [^Successors successors basis node-id label]
+  [^Successors successors basis node-id label ^ArrayList cache-writes]
   (let [cache (.-cache successors)]
     (if-let [cached-value (-> @cache (get node-id) (get label))]
       cached-value
@@ -1119,17 +1121,32 @@
             (let [result (if (.isEmpty deps)
                            empty-endpoints-array
                            (.toArray deps ^Endpoint/1 empty-endpoints-array))]
-              (swap! cache update node-id assoc label result)
+              (doto cache-writes (.add node-id) (.add label) (.add result))
               result)))))))
+
+;; The trace claims each endpoint once, so it need not read pending rows.
+(defn- cache-successor-rows! [^Successors successors ^ArrayList writes]
+  (when-not (.isEmpty writes)
+    (swap! (.-cache successors)
+           (fn cache-rows [current-state]
+             (let [n (.size writes)]
+               (loop [i 0 result (transient current-state)]
+                 (if (= i n)
+                   (persistent! result)
+                   (let [node-id (.get writes i)
+                         label (.get writes (inc i))
+                         endpoints (.get writes (+ i 2))]
+                     (recur (+ i 3)
+                            (assoc! result node-id (assoc (get result node-id) label endpoints)))))))))))
 
 (defn successors
   "Public only for tests and introspection tooling. Implementation detail."
   ^Object/1 [basis node-id label]
-  (query-successors
-    (gt/successors basis)
-    basis
-    node-id
-    label))
+  (let [node-successors (gt/successors basis)
+        cache-writes (ArrayList.)
+        result (query-successors node-successors basis node-id label cache-writes)]
+    (cache-successor-rows! node-successors cache-writes)
+    result))
 
 (def ^:private ^LoadingCache basis-dependencies-cache
   ;; Reuse results while the graph has the same Successors object.
@@ -1141,6 +1158,52 @@
       (.maximumSize 4)
       (.build (fn make-dependencies-cache [_]
                 (-> (Caffeine/newBuilder) (.maximumSize 4) .build)))))
+
+;; Keep successor arrays intact; a batch describes a range through them.
+(defonce/type EndpointArrayBatch [^objects arrays ^long start-array ^long start-offset ^long size]
+  Counted
+  (count [_] (int size))
+
+  IReduceInit
+  (reduce [_ f init]
+    (loop [array-index start-array offset start-offset remaining size result init]
+      (if (zero? remaining)
+        result
+        (let [^objects endpoints (aget arrays array-index)
+              n (min remaining (- (alength endpoints) offset))
+              limit (+ offset n)
+              result (loop [i offset result result]
+                       (if (= i limit)
+                         result
+                         (let [result (f result (aget endpoints i))]
+                           (if (reduced? result)
+                             result
+                             (recur (inc i) result)))))]
+          (if (reduced? result)
+            @result
+            (recur (inc array-index) 0 (- remaining n) result)))))))
+
+(defn- endpoint-array-batches [endpoint-arrays]
+  (let [arrays (object-array endpoint-arrays)
+        length (alength arrays)]
+    (loop [array-index 0
+           offset 0
+           start-array 0
+           start-offset 0
+           size 0
+           result (transient [])]
+      (if (= array-index length)
+        (persistent! (if (zero? size) result (conj! result (->EndpointArrayBatch arrays start-array start-offset size))))
+        (let [^objects endpoints (aget arrays array-index)
+              available (- (alength endpoints) offset)
+              needed (- 512 size)]
+          (if (< available needed)
+            (recur (inc array-index) 0 start-array start-offset (+ size available) result)
+            (let [next-offset (+ offset needed)
+                  next-array (if (= next-offset (alength endpoints)) (inc array-index) array-index)
+                  next-offset (if (= next-offset (alength endpoints)) 0 next-offset)]
+              (recur next-array next-offset next-array next-offset 0
+                     (conj! result (->EndpointArrayBatch arrays start-array start-offset 512))))))))))
 
 (defmacro ^:private dependencies-impl [basis endpoints initial-nodes]
   ;; Generate separate runtime walkers for performance. On a project with ~1M
@@ -1157,29 +1220,43 @@
                node-successors# (gt/successors basis#)
                pool# (ForkJoinPool/commonPool)
                all-endpoints# (ConcurrentHashMap.)
+               failure# (AtomicReference.)
 
-               make-task!#
-               (fn make-task!# [endpoints#]
-                 (fn trace-dependency-batch# []
-                   (coll/into-> endpoints# []
-                     (mapcat
-                       (fn trace-endpoint# [endpoint#]
-                         (let [~node-id-sym (gt/endpoint-node-id endpoint#)]
-                           (when (and ~@(when initial-nodes
-                                          [`(contains? ~initial-nodes-sym ~node-id-sym)])
-                                      (nil? (.putIfAbsent all-endpoints# endpoint# true)))
-                             (query-successors node-successors# basis#
-                                               ~node-id-sym (gt/endpoint-label endpoint#)))))))))
+               trace-batch#
+               (fn trace-dependency-batch# [endpoints#]
+                 (let [cache-writes# (ArrayList.)
+                       endpoint-arrays#
+                       (coll/into-> endpoints# []
+                         (keep
+                           (fn trace-endpoint# [endpoint#]
+                             (let [~node-id-sym (gt/endpoint-node-id endpoint#)]
+                               (when (and ~@(when initial-nodes
+                                              [`(contains? ~initial-nodes-sym ~node-id-sym)])
+                                          (nil? (.putIfAbsent all-endpoints# endpoint# true)))
+                                 (let [successors# (query-successors node-successors# basis#
+                                                                     ~node-id-sym (gt/endpoint-label endpoint#) cache-writes#)]
+                                   (when (pos? (alength ^Object/1 successors#))
+                                     successors#)))))))]
+                   (cache-successor-rows! node-successors# cache-writes#)
+                   (endpoint-array-batches endpoint-arrays#)))
 
-               endpoints->tasks-xf# (comp (partition-all 512) (map make-task!#))
-               future->tasks-xf# (comp (mapcat deref) endpoints->tasks-xf#)]
-           (loop [tasks# (coll/into-> ~endpoints [] endpoints->tasks-xf#)]
-             (let [next-tasks#
-                   (if (= 1 (count tasks#))
-                     (coll/into-> ((nth tasks# 0)) [] endpoints->tasks-xf#)
-                     (coll/into-> (.invokeAll pool# tasks#) [] future->tasks-xf#))]
-               (when (pos? (count next-tasks#))
-                 (recur next-tasks#))))
+               trace-task#
+               (fn trace-dependency-task# [^DependencyTask task# endpoints#]
+                 (loop [endpoints# endpoints#]
+                   (when (nil? (.get failure#))
+                     (if (> (count endpoints#) 512)
+                       (transduce
+                         (partition-all 512)
+                         (completing (fn [_# batch#] (.forkChild task# batch#)))
+                         nil endpoints#)
+                       (let [batches# (trace-batch# endpoints#)]
+                         (if (= 1 (count batches#))
+                           (recur (nth batches# 0))
+                           (doseq [batch# batches#]
+                             (.forkChild task# batch#))))))))]
+           (.invoke pool# (DependencyTask. trace-task# failure# ~endpoints))
+           (when-let [error# (.get failure#)]
+             (throw error#))
            (array/reducible (.toArray (.keySet all-endpoints#))))))))
 
 (defn dependencies
