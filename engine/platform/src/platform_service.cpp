@@ -258,15 +258,24 @@ namespace dmPlatformService
         Revision(service, revision, sizeof(revision));
         const char* unavailable = UnavailableReason(service);
         dmSnPrintf(reason, sizeof(reason), "\"%s\"", unavailable ? unavailable : "");
+        char native_window[96] = "null";
+        dmPlatform::NativeWindowId identity = dmPlatform::GetNativeWindowId(service->m_Window);
+        if (identity.m_Type != dmPlatform::NATIVE_WINDOW_TYPE_NONE)
+        {
+            static const char* types[] = { "none", "win32", "cocoa", "x11" };
+            // A decimal string preserves all handle bits in clients with double-precision JSON numbers.
+            dmSnPrintf(native_window, sizeof(native_window), "{\"type\":\"%s\",\"id\":\"%llu\"}",
+                       types[identity.m_Type], (unsigned long long)identity.m_Id);
+        }
         // Format fixed-point components so the game's numeric locale cannot change the JSON decimal point.
         uint64_t display_scale = (uint64_t)(state->m_DisplayScale * 1000000.0 + 0.5);
         char body[1024];
         int length = dmSnPrintf(body, sizeof(body),
                                 "{\"revision\":\"%s\",\"window\":%s,\"drawable\":%s,\"display_scale\":%llu.%06llu,"
-                                "\"resize\":{\"supported\":%s,\"unavailable_reason\":%s,\"max_operations\":64,\"retention_ms\":60000}}",
+                                "\"native_window\":%s,\"resize\":{\"supported\":%s,\"unavailable_reason\":%s,\"max_operations\":64,\"retention_ms\":60000}}",
                                 revision, window, drawable,
                                 (unsigned long long)(display_scale / 1000000), (unsigned long long)(display_scale % 1000000),
-                                unavailable ? "false" : "true", unavailable ? reason : "null");
+                                native_window, unavailable ? "false" : "true", unavailable ? reason : "null");
         SendJson(request, 200, body, length, sizeof(body));
     }
 

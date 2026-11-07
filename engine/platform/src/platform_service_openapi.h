@@ -21,18 +21,26 @@ namespace dmPlatformService
 {
   "/window": {
     "get": {
-      "summary": "Get window client dimensions and drawable pixels",
+      "summary": "Get window client dimensions, drawable pixels, and native identity",
       "responses": {
         "200": {
           "description": "OK",
           "content": {"application/json": {"schema": {
             "type": "object",
-            "required": ["revision", "window", "drawable", "display_scale", "resize"],
+            "required": ["revision", "window", "drawable", "display_scale", "native_window", "resize"],
             "properties": {
               "revision": {"type": "string", "description": "Observed geometry revision."},
               "window": {"type": "object", "nullable": true, "required": ["width", "height"], "properties": {"width": {"type": "integer"}, "height": {"type": "integer"}}},
               "drawable": {"$ref": "#/paths/~1window/get/responses/200/content/application~1json/schema/properties/window"},
               "display_scale": {"type": "number"},
+              "native_window": {
+                "type": "object", "nullable": true, "required": ["type", "id"],
+                "description": "Borrowed OS window identity in the same desktop session. Null for closed, headless, mobile, vendor, and Wayland windows. Valid only while the native window exists; IDs may be reused. Read again after window recreation or engine restart. This field does not participate in the geometry revision.",
+                "properties": {
+                  "type": {"type": "string", "enum": ["win32", "cocoa", "x11"], "description": "win32: HWND; cocoa: NSWindow.windowNumber (CGWindowID); x11: Window on the same X server."},
+                  "id": {"type": "string", "pattern": "^[1-9][0-9]*$", "description": "Unsigned decimal identifier, encoded as a string to preserve integer precision."}
+                }
+              },
               "resize": {"type": "object", "required": ["supported", "unavailable_reason", "max_operations", "retention_ms"], "properties": {"supported": {"type": "boolean"}, "unavailable_reason": {"type": "string", "nullable": true}, "max_operations": {"type": "integer"}, "retention_ms": {"type": "integer"}}}
             }
           }}}

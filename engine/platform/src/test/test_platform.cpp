@@ -164,6 +164,21 @@ TEST_F(dmPlatformTest, WindowClientMetrics)
     ASSERT_FALSE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
 }
 
+// Backends without native windows return an empty identity through the same platform API.
+TEST_F(dmPlatformTest, NativeWindowUnavailable)
+{
+    dmPlatform::NativeWindowId identity = dmPlatform::GetNativeWindowId(m_Window);
+    ASSERT_EQ(dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Type);
+    ASSERT_EQ(0U, identity.m_Id);
+    WindowClose(m_Window);
+    identity = dmPlatform::GetNativeWindowId(m_Window);
+    ASSERT_EQ(dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Type);
+    ASSERT_EQ(0U, identity.m_Id);
+    identity = dmPlatform::GetNativeWindowId(0);
+    ASSERT_EQ(dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Type);
+    ASSERT_EQ(0U, identity.m_Id);
+}
+
 // Reporting dimensions does not imply resize support; closed windows never support resizing.
 TEST_F(dmPlatformTest, WindowResizeSupport)
 {

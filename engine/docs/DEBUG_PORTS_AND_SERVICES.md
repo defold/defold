@@ -219,6 +219,7 @@ and extension; headless debug engines retain the observation routes.
   "window": {"width": 960, "height": 640},
   "drawable": {"width": 1920, "height": 1280},
   "display_scale": 2,
+  "native_window": {"type": "cocoa", "id": "123456"},
   "resize": {"supported": true, "unavailable_reason": null, "max_operations": 64, "retention_ms": 60000}
 }
 ```
@@ -230,6 +231,16 @@ Native mobile and vendor backends fall back to their existing window width/heigh
 for client metrics and do not advertise resize support. Desktop backends report
 client dimensions separately from drawable pixels, including on high-DPI displays.
 Desktop windowed modes support resize; fullscreen modes do not.
+
+`native_window` is an optional OS identity obtained through
+`dmPlatform::GetNativeWindowId()`. Its `type` is `win32` for an HWND, `cocoa` for
+an NSWindow window number (CGWindowID), or `x11` for an X11 Window on the same
+X server. The `id` is an unsigned decimal string so JSON clients preserve every
+bit. It is `null` for closed, headless, mobile, vendor, and Wayland windows.
+An identity is borrowed and usable only in the same desktop session while the
+native window exists. IDs may be reused: read it again after window recreation
+or engine restart, and retain the engine instance from `/state` when using it.
+Native identity changes do not advance the geometry revision.
 
 The service advances the geometry revision when it observes changed window/drawable
 dimensions or availability, or when a window is attached or detached. Changes away

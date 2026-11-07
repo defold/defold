@@ -34,6 +34,8 @@ struct dmWindow
     bool                  m_ResizeSupported;
     FWindowResizeCallback m_ResizeCallback;
     void*                 m_Userdata;
+
+    dmPlatform::NativeWindowId m_NativeWindowId;
 };
 
 namespace dmPlatform
@@ -63,6 +65,11 @@ namespace dmPlatform
         *width = window->m_Width;
         *height = window->m_Height;
         return window->m_ClientAvailable;
+    }
+    NativeWindowId GetNativeWindowId(HWindow window)
+    {
+        NativeWindowId identity = {};
+        return window && window->m_Opened ? window->m_NativeWindowId : identity;
     }
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
     {
@@ -148,6 +155,8 @@ class PlatformServiceTest : public HttpServiceTest
         m_Window->m_DisplayScale = 1.0f;
         m_Window->m_ClientAvailable = true;
         m_Window->m_ResizeSupported = true;
+        m_Window->m_NativeWindowId.m_Type = dmPlatform::NATIVE_WINDOW_TYPE_NONE;
+        m_Window->m_NativeWindowId.m_Id = 0;
         m_Window->m_ResizeCallback = OnResize;
         m_Window->m_Userdata = this;
     }
@@ -256,6 +265,52 @@ TEST_F(PlatformServiceTest, WindowGeometry)
     dmPlatformService::Detach(m_Service);
     Fetch("GET", "/window");
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"window\":null,\"drawable\":null"));
+}
+
+// Native identities retain their OS type and all integer bits without depending on client metrics or resize support.
+TEST_F(PlatformServiceTest, NativeWindowIdentity)
+{
+    struct Case
+    {
+        dmPlatform::NativeWindowId m_Identity;
+        const char*                m_Expected;
+    } cases[] = {
+        { { dmPlatform::NATIVE_WINDOW_TYPE_WIN32, UINT64_MAX }, "\"native_window\":{\"type\":\"win32\",\"id\":\"18446744073709551615\"}" },
+        { { dmPlatform::NATIVE_WINDOW_TYPE_COCOA, 123456 }, "\"native_window\":{\"type\":\"cocoa\",\"id\":\"123456\"}" },
+        { { dmPlatform::NATIVE_WINDOW_TYPE_X11, 0x12345678 }, "\"native_window\":{\"type\":\"x11\",\"id\":\"305419896\"}" },
+    };
+    m_Window->m_ClientAvailable = m_Window->m_ResizeSupported = false;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        m_Window->m_NativeWindowId = cases[i].m_Identity;
+        Fetch("GET", "/window");
+        ASSERT_EQ(200, m_Status);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), cases[i].m_Expected));
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"revision\":\"w1\""));
+    }
+}
+
+// Missing or closed windows expose no identity, and reattachment reads the new window's ID instead of a stale handle.
+TEST_F(PlatformServiceTest, NativeWindowIdentityLifetime)
+{
+    Fetch("GET", "/window");
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"native_window\":null"));
+    m_Window->m_NativeWindowId.m_Type = dmPlatform::NATIVE_WINDOW_TYPE_COCOA;
+    m_Window->m_NativeWindowId.m_Id = 42;
+    Fetch("GET", "/window");
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"native_window\":{\"type\":\"cocoa\",\"id\":\"42\"}"));
+    CloseWindow();
+    Fetch("GET", "/window");
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"native_window\":null"));
+    OpenWindow();
+    m_Window->m_NativeWindowId.m_Type = dmPlatform::NATIVE_WINDOW_TYPE_COCOA;
+    m_Window->m_NativeWindowId.m_Id = 43;
+    dmPlatformService::Detach(m_Service);
+    Fetch("GET", "/window");
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"native_window\":null"));
+    dmPlatformService::Attach(m_Service, m_Window);
+    Fetch("GET", "/window");
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"native_window\":{\"type\":\"cocoa\",\"id\":\"43\"}"));
 }
 
 // A refused resize is issued once; receipts retain the eventual observed size across later window changes.

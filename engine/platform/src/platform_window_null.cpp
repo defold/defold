@@ -53,6 +53,12 @@ namespace dmPlatform
     {
         return window->m_WindowOpened && !window->m_CreateParams.m_Fullscreen;
     }
+
+    NativeWindowId GetNativeWindowId(HWindow)
+    {
+        NativeWindowId identity = {};
+        return identity;
+    }
 #endif
 
     HWindow NewWindow()

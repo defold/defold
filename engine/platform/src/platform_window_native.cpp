@@ -82,6 +82,12 @@ namespace dmPlatform
         return false;
     }
 
+    NativeWindowId GetNativeWindowId(HWindow)
+    {
+        NativeWindowId identity = {};
+        return identity;
+    }
+
     // Mobile and web backends own one application window.
     static dmWindow* g_Window = 0;
 

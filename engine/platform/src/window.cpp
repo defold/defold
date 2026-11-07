@@ -69,6 +69,12 @@ namespace dmPlatform
     {
         return false;
     }
+
+    NativeWindowId GetNativeWindowId(HWindow)
+    {
+        NativeWindowId identity = {};
+        return identity;
+    }
 #endif
 
     float CalculateDisplayDensity(int32_t physical_width_mm, float pixel_width)
