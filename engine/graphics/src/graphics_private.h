@@ -383,6 +383,7 @@ namespace dmGraphics
 
     struct Program
     {
+        uint64_t                     m_Version;
         ProgramResourceBinding       m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         ShaderMeta                   m_ShaderMeta;
         dmArray<Uniform>             m_Uniforms;

@@ -78,6 +78,7 @@ namespace dmRender
      * @name HMaterial
      */
     typedef struct Material* HMaterial;
+    struct UniformBufferBinding;
 
     /*#
      * Font map handle
@@ -227,6 +228,9 @@ namespace dmRender
         static const uint32_t MAX_VERTEX_BUFFER_COUNT = 3;
 
         HNamedConstantBuffer            m_ConstantBuffer;
+        // Caller-owned bindings must remain alive until the render object has been drawn.
+        const UniformBufferBinding*     m_UniformBuffers;
+        uint32_t                        m_UniformBufferCount;
         dmVMath::Matrix4                m_WorldTransform;
         dmVMath::Matrix4                m_TextureTransform;
         union
