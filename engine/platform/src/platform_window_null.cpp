@@ -37,7 +37,7 @@ struct dmWindow
 
 namespace dmPlatform
 {
-#if !defined(DM_PLATFORM_VENDOR) || defined(DM_PLATFORM_NULL)
+#if !defined(DM_PLATFORM_VENDOR)
     bool GetWindowClientSize(HWindow window, uint32_t* width, uint32_t* height)
     {
         if (!window->m_WindowOpened)

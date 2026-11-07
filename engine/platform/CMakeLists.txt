@@ -149,7 +149,6 @@ defold_add_library(platform_null STATIC
     "${PLAT_SRC_DIR}/window.cpp"
     "${PLAT_SRC_DIR}/platform_window_null.cpp")
 target_include_directories(platform_null PUBLIC "${PLAT_SRC_DIR}" "${PLATFORM_GENERATED_INCLUDE_DIR}")
-target_compile_definitions(platform_null PUBLIC DM_PLATFORM_NULL)
 target_compile_definitions(platform_null PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 defold_target_link_libraries(platform_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${PLATFORM_DEPENDENCIES})
 

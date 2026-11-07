@@ -167,7 +167,7 @@ TEST_F(dmPlatformTest, WindowClientMetrics)
 // Reporting dimensions does not imply resize support; closed windows never support resizing.
 TEST_F(dmPlatformTest, WindowResizeSupport)
 {
-#if defined(DM_PLATFORM_VENDOR) && !defined(DM_PLATFORM_NULL)
+#if defined(DM_PLATFORM_VENDOR)
     const bool resize_supported = false;
 #else
     const bool resize_supported = true;
