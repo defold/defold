@@ -2521,7 +2521,7 @@ bail:
     {
         VulkanContext* context = (VulkanContext*) _context;
         DeviceBuffer*  buffer = new DeviceBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-                                                VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
+                                                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
         VkResult       result = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device, size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, buffer);
         if (result != VK_SUCCESS)
         {
@@ -2530,7 +2530,9 @@ bail:
             return 0;
         }
         if (data)
+        {
             DeviceBufferUploadHelper(context, data, size, 0, buffer);
+        }
         return (HStorageBuffer) buffer;
     }
 
@@ -3399,7 +3401,9 @@ bail:
         {
             DeviceBuffer* buffer = context->m_CurrentVertexBuffer[i];
             if (buffer && context->m_CurrentVertexDeclaration[i] && (buffer->m_Usage & VK_BUFFER_USAGE_STORAGE_BUFFER_BIT))
+            {
                 PrepareStorageBufferAccess(context, vk_command_buffer, buffer, VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+            }
         }
         VulkanRenderTarget* current_rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
         BeginRenderPass(context, context->m_CurrentRenderTarget);
@@ -3596,7 +3600,9 @@ bail:
         // reset fence therefore cannot make an older completed snapshot pending.
         if (frame.m_SubmitSerial == request->m_SubmitSerial &&
             vkGetFenceStatus(request->m_Context->m_LogicalDevice.m_Device, frame.m_SubmitFence) != VK_SUCCESS)
+        {
             return false;
+        }
         memcpy(data, request->m_Buffer.m_MappedDataPtr, request->m_Size);
         return true;
     }
@@ -3625,7 +3631,9 @@ bail:
         PrepareStorageBufferAccess(context, commands, buffer, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT);
         context->m_PipelineState.m_PrimtiveType = primitive;
         if (!DrawSetup(context, commands, &context->m_MainScratchBuffers[frame], (DeviceBuffer*)indices, index_type))
+        {
             return;
+        }
         TouchResource(context, buffer);
         vkCmdDrawIndexedIndirect(commands, buffer->m_Handle.m_Buffer, offset, 1, sizeof(VkDrawIndexedIndirectCommand));
     }

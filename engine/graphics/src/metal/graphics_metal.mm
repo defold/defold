@@ -602,13 +602,17 @@ namespace dmGraphics
     static bool DeviceBufferUploadHelper(MetalContext* context, const void* data, uint32_t size, uint32_t offset, MetalDeviceBuffer* device_buffer)
     {
         if (size == 0)
+        {
             return true;
+        }
 
         if (device_buffer->m_Destroyed || device_buffer->m_Buffer == 0x0)
         {
             device_buffer->m_Buffer = context->m_Device->newBuffer(size, GetResourceOptions(device_buffer->m_StorageMode));
             if (!device_buffer->m_Buffer)
+            {
                 return false;
+            }
             device_buffer->m_Base.m_Size = size;
             device_buffer->m_Destroyed = 0;
         }
@@ -2440,7 +2444,9 @@ namespace dmGraphics
         MetalDeviceBuffer   replacement = {};
         replacement.m_StorageMode = buffer->m_DeviceBuffer.m_StorageMode;
         if (!DeviceBufferUploadHelper(context, data, size, 0, &replacement))
+        {
             return;
+        }
         // Even a same-size replacement must leave recorded/in-flight reads of
         // the old allocation intact. Retire it with the frame's GPU resources.
         DestroyResourceDeferred(context, &buffer->m_DeviceBuffer);
@@ -3757,7 +3763,7 @@ namespace dmGraphics
         MetalStorageBuffer* argument_buffer = (MetalStorageBuffer*)arguments;
         MTL::IndexType      type = index_type == TYPE_UNSIGNED_INT ? MTL::IndexTypeUInt32 : MTL::IndexTypeUInt16;
         GetCurrentFrameResource(context).m_RenderCommandEncoder->drawIndexedPrimitives(
-        ConvertPrimitiveType(primitive), type, index_buffer->m_Buffer, 0, argument_buffer->m_DeviceBuffer.m_Buffer, offset);
+            ConvertPrimitiveType(primitive), type, index_buffer->m_Buffer, 0, argument_buffer->m_DeviceBuffer.m_Buffer, offset);
     }
 
     static void MetalDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
@@ -5941,7 +5947,9 @@ namespace dmGraphics
     {
         MetalAsyncBufferReadback* request = (MetalAsyncBufferReadback*)handle;
         if (request->m_CommandBuffer->status() != MTL::CommandBufferStatusCompleted)
+        {
             return false;
+        }
         memcpy(data, request->m_Buffer->contents(), request->m_Size);
         return true;
     }

@@ -45,13 +45,19 @@ bool visible(uint offset, uint type, mat4 world)
         if (type == BOUNDING_VOLUME_SPHERE)
         {
             float radius_squared = uintBitsToFloat(bounds_words[offset + 4]);
-            if (distance < 0.0 && distance * distance > radius_squared) return false;
+            if (distance < 0.0 && distance * distance > radius_squared)
+            {
+                return false;
+            }
         }
         else
         {
             float radius = type == BOUNDING_VOLUME_AABB ? dot(abs(plane.xyz), extents)
                 : abs(dot(plane.xyz, edge0)) + abs(dot(plane.xyz, edge1)) + abs(dot(plane.xyz, edge2));
-            if (distance + radius < 0.0) return false;
+            if (distance + radius < 0.0)
+            {
+                return false;
+            }
         }
     }
     return true;
@@ -59,17 +65,30 @@ bool visible(uint offset, uint type, mat4 world)
 void main()
 {
     uint index = gl_GlobalInvocationID.x;
-    if (index >= uint(culling_params.x)) return;
+    if (index >= uint(culling_params.x))
+    {
+        return;
+    }
     uint slot = slots[index];
     uint offset = slot * 8;
     uint type = bounds_words[offset];
-    if (type == BOUNDING_VOLUME_NONE) return;
+    if (type == BOUNDING_VOLUME_NONE)
+    {
+        return;
+    }
     // The same persistent transform supplies OBB culling and instance output.
     mat4 world;
     for (uint column = 0; column < 4; ++column)
+    {
         for (uint row = 0; row < 4; ++row)
+        {
             world[column][row] = world_words[slot * 16 + column * 4 + row];
-    if (!visible(offset, type, world)) return;
+        }
+    }
+    if (!visible(offset, type, world))
+    {
+        return;
+    }
     // Opaque batches may compact in any order; blending uses the CPU path.
     uint destination = atomicAdd(arguments[1], 1) * uint(culling_params.z);
     if (instance_params.y > 0.0)
@@ -78,12 +97,18 @@ void main()
         return;
     }
     if (culling_params.w >= 0.0)
+    {
         for (uint i = 0; i < 16; ++i)
+        {
             instance_words[destination + uint(culling_params.w) + i] = floatBitsToUint(world[i / 4][i % 4]);
+        }
+    }
     if (instance_params.x >= 0.0)
     {
         mat4 normal = transpose(inverse(view * world));
         for (uint i = 0; i < 16; ++i)
+        {
             instance_words[destination + uint(instance_params.x) + i] = floatBitsToUint(normal[i / 4][i % 4]);
+        }
     }
 }

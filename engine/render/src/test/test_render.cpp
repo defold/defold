@@ -7128,7 +7128,9 @@ TEST(Render, BatchIterator)
     ASSERT_FALSE(iterator1.Next());
 }
 
-static void GpuFallbackDispatch(const dmRender::RenderListDispatchParams&) {}
+static void GpuFallbackDispatch(const dmRender::RenderListDispatchParams&)
+{
+}
 
 // Verifies GPU culling requires all three context capabilities and enough storage
 // bindings. Unsupported devices must leave CPU visibility and batching active.
@@ -7144,7 +7146,9 @@ TEST_F(dmRenderTest, GpuContextCapabilityFallback)
     };
     uint32_t required_mask = 0;
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(required); ++i)
+    {
         required_mask |= 1u << required[i];
+    }
 
     dmGraphics::ShaderDescBuilder shader;
     shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, "", 0);
@@ -7181,9 +7185,13 @@ TEST_F(dmRenderTest, GpuContextCapabilityFallback)
         graphics->m_ContextFeatureSupport = previous_features | required_mask;
         graphics->m_Limits.m_MaxStorageBuffersPerStage = mode >= 5 ? mode - 1 : previous_limit;
         if (mode >= 1 && mode <= 3)
+        {
             graphics->m_ContextFeatureSupport &= ~(1u << required[mode - 1]);
+        }
         if (mode == 4)
+        {
             graphics->m_ContextFeatureSupport &= ~required_mask;
+        }
         dmRender::RenderContextParams params;
         if (mode != 0)
         {
@@ -7231,7 +7239,9 @@ TEST_F(dmRenderTest, GpuContextCapabilityFallback)
             ASSERT_EQ((dmGraphics::HStorageBuffer)0, context->m_GpuCulling.m_BoundsBuffer);
         }
         for (uint32_t i = 0; i < 2; ++i)
+        {
             dmRender::DeleteRenderItem(context, items[i]);
+        }
         dmRender::UnregisterRenderListDispatch(context, dispatch);
         if (context->m_GpuIndirect.m_Program)
         {
@@ -7294,7 +7304,9 @@ TEST_F(dmRenderTest, GpuBatchOwnershipAndReuse)
     ASSERT_EQ(0, memcmp(reused->m_Buffer, &worlds[1], sizeof(Matrix4)));
     ASSERT_EQ(2u, m_Context->m_GpuIndirect.m_Batches.Size());
     for (uint32_t i = 0; i < 2; ++i)
+    {
         dmRender::DeleteRenderItem(m_Context, items[i]);
+    }
     dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
     graphics->m_Limits.m_MaxStorageBufferRange = previous_limit;
     m_Context->m_GpuIndirect.m_Program = 0;
@@ -7347,7 +7359,9 @@ TEST_F(dmRenderTest, GpuBufferLimitFallback)
             ASSERT_EQ((dmRender::HGpuRenderBatch)0, m_Context->m_GpuIndirect.m_RenderBatches.Back());
             ASSERT_EQ(batch->m_FallbackBuffer, object.m_VertexBuffers[1]);
             if (stage == 0)
+            {
                 ASSERT_EQ(old_membership, batch->m_SlotBuffer);
+            }
             if (stage != 2)
             {
                 dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*)object.m_VertexBuffers[1];
@@ -7374,7 +7388,9 @@ TEST_F(dmRenderTest, GpuBufferLimitFallback)
     ASSERT_EQ(cached_batches, m_Context->m_GpuIndirect.m_Batches.Size());
     graphics->m_Limits.m_MaxStorageBufferRange = previous_limit;
     for (uint32_t i = 0; i < 2; ++i)
+    {
         dmRender::DeleteRenderItem(m_Context, items[i]);
+    }
     dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
     m_Context->m_GpuIndirect.m_Program = 0;
 }
@@ -7406,15 +7422,25 @@ TEST_F(dmRenderTest, GpuDrawOrderFallback)
         dmGraphics::DisableState(m_GraphicsContext, dmGraphics::STATE_BLEND);
         dmGraphics::DisableState(m_GraphicsContext, dmGraphics::STATE_STENCIL_TEST);
         if (state == 1)
+        {
             dmGraphics::DisableState(m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
+        }
         if (state == 2)
+        {
             dmGraphics::SetDepthMask(m_GraphicsContext, false);
+        }
         if (state == 3)
+        {
             dmGraphics::EnableState(m_GraphicsContext, dmGraphics::STATE_STENCIL_TEST);
+        }
         if (state == 4)
+        {
             dmGraphics::SetDepthFunc(m_GraphicsContext, dmGraphics::COMPARE_FUNC_ALWAYS);
+        }
         if (state == 5)
+        {
             dmGraphics::EnableState(m_GraphicsContext, dmGraphics::STATE_BLEND);
+        }
         dmRender::RenderListBegin(m_Context);
         dmRender::SubmitRenderListDispatch(m_Context, dispatch);
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));

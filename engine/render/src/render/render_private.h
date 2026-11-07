@@ -447,7 +447,7 @@ namespace dmRender
         dmGraphics::HStorageBuffer m_BoundsBuffer;
         dmArray<GpuCullingBounds>  m_Bounds;
         // Dirty queues retain renderer slots until upload so moves/reuse resolve current ownership.
-        dmArray<uint32_t> m_DirtySlots;
+        dmArray<uint32_t>          m_DirtySlots;
     };
 
     struct GpuRenderListSource
@@ -502,16 +502,16 @@ namespace dmRender
         uint64_t                         m_Revision;
         uint64_t                         m_SlotRevision;
         // Borrows the renderer's immutable candidate list during this draw.
-        const GpuRenderListCache* m_ListCache;
-        const uint32_t*           m_CachedSlots;
-        uint64_t                  m_ListGeneration;
-        uint32_t                  m_Stride;
-        int32_t                   m_WorldOffset;
-        int32_t                   m_NormalOffset;
-        uint32_t                  m_IndexCount;
-        uint32_t                  m_FirstIndex;
-        uint8_t                   m_Computed;
-        uint8_t                   m_StatisticsDirty;
+        const GpuRenderListCache*        m_ListCache;
+        const uint32_t*                  m_CachedSlots;
+        uint64_t                         m_ListGeneration;
+        uint32_t                         m_Stride;
+        int32_t                          m_WorldOffset;
+        int32_t                          m_NormalOffset;
+        uint32_t                         m_IndexCount;
+        uint32_t                         m_FirstIndex;
+        uint8_t                          m_Computed;
+        uint8_t                          m_StatisticsDirty;
     };
 
     struct GpuIndirectContext

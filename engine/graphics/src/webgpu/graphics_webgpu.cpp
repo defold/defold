@@ -3265,7 +3265,9 @@ static void WebGPUDrawElementsIndirect(HContext _context, PrimitiveType primitiv
     WebGPUStorageBuffer* buffer = (WebGPUStorageBuffer*)arguments;
     if (context->m_CurrentRenderPass.m_Encoder && buffer->m_LastRenderPass == context->m_RenderPasses &&
         (buffer->m_RenderPassAccess & SHADER_RESOURCE_ACCESS_WRITE))
+    {
         WebGPUEndRenderPass(context);
+    }
     context->m_CurrentPipelineState.m_PrimtiveType = primitive;
     WebGPUSetupRenderPipeline(context, (WebGPUBuffer*)indices, index_type);
     buffer->m_LastRenderPass = context->m_RenderPasses;
@@ -4203,7 +4205,9 @@ static bool WebGPUPollStorageBufferReadback(HAsyncBufferReadback handle, void* d
     // Mapping before this copy is submitted would make its destination unusable
     // by the GPU. Polling must not submit or wait for pending draw commands.
     if (request->m_Submission == request->m_Context->m_Submissions)
+    {
         return false;
+    }
     if (!request->m_MapStarted)
     {
         request->m_MapStarted = true;
@@ -4222,7 +4226,9 @@ static bool WebGPUPollStorageBufferReadback(HAsyncBufferReadback handle, void* d
     wgpuInstanceProcessEvents(request->m_Context->m_Instance);
 #endif
     if (!dmAtomicGet32(&request->m_Done) || !request->m_Success)
+    {
         return false;
+    }
     memcpy(data, wgpuBufferGetConstMappedRange(request->m_Buffer, 0, request->m_Size), request->m_Size);
     return true;
 }
@@ -4231,7 +4237,9 @@ static void WebGPUDeleteStorageBufferReadback(HAsyncBufferReadback handle)
 {
     WebGPUAsyncBufferReadback* request = (WebGPUAsyncBufferReadback*)handle;
     if (request->m_MapStarted)
+    {
         wgpuBufferUnmap(request->m_Buffer);
+    }
     // A pending mapping callback retains the request even if its owner deletes it.
     WebGPUReleaseReadback(request);
 }

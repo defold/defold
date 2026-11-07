@@ -2380,12 +2380,18 @@ namespace dmGraphics
         {
             uint32_t count = 0;
             for (uint32_t i = 0; i < ddf->m_Reflection.m_StorageBuffers.m_Count; ++i)
+            {
                 if (ddf->m_Reflection.m_StorageBuffers[i].m_StageFlags & stages[stage])
+                {
                     ++count;
+                }
+            }
             if (count > limits.m_MaxStorageBuffersPerStage)
             {
                 if (error_buffer && error_buffer_size)
+                {
                     dmSnPrintf(error_buffer, error_buffer_size, "%s shader requires %u storage buffers; device limit is %u.", stage_names[stage], count, limits.m_MaxStorageBuffersPerStage);
+                }
                 return 0;
             }
         }
@@ -2407,7 +2413,9 @@ namespace dmGraphics
         AdapterFamily family = GetInstalledAdapterFamily();
         if (!ddf->m_VisibleInstanceProgram.m_Count ||
             (family != ADAPTER_FAMILY_METAL && family != ADAPTER_FAMILY_VULKAN && family != ADAPTER_FAMILY_WEBGPU))
+        {
             return;
+        }
         VisibleInstanceProgram* companion = new VisibleInstanceProgram;
         companion->m_Program = 0;
         companion->m_Attribute = ddf->m_VisibleInstanceAttribute;
@@ -2420,9 +2428,13 @@ namespace dmGraphics
     static void DeleteVisibleInstanceProgram(HContext context, VisibleInstanceProgram* companion)
     {
         if (!companion)
+        {
             return;
+        }
         if (companion->m_Program)
+        {
             DeleteProgram(context, companion->m_Program);
+        }
         delete[] companion->m_Bytes;
         delete companion;
     }
@@ -2431,7 +2443,9 @@ namespace dmGraphics
     {
         VisibleInstanceProgram* companion = ((Program*)program)->m_VisibleInstanceProgram;
         if (!companion || companion->m_Attribute != world_attribute)
+        {
             return 0;
+        }
         if (companion->m_Bytes)
         {
             ShaderDesc* variant = 0;
@@ -2440,9 +2454,13 @@ namespace dmGraphics
                 char error[512] = {};
                 companion->m_Program = NewProgramWithStorageBufferLimits(context, variant, error, sizeof(error));
                 if (companion->m_Program)
+                {
                     ((Program*)companion->m_Program)->m_VisibleInstanceProgram = 0;
+                }
                 else
+                {
                     dmLogWarning("Visible-instance shader unavailable; using matrix compaction: %s", error);
+                }
                 dmDDF::FreeMessage(variant);
             }
             delete[] companion->m_Bytes;
@@ -2455,7 +2473,9 @@ namespace dmGraphics
     {
         HProgram program = g_functions.m_NewProgram(context, ddf, error_buffer, error_buffer_size);
         if (program)
+        {
             CreateVisibleInstanceProgram(program, ddf);
+        }
         return program;
     }
     void DeleteProgram(HContext context, HProgram program)
@@ -2485,7 +2505,9 @@ namespace dmGraphics
         VisibleInstanceProgram* visible_program = ((Program*)program)->m_VisibleInstanceProgram;
         // DX12 constructs a replacement first, preserving the active program on a failed reload.
         if (GetInstalledAdapterFamily() != ADAPTER_FAMILY_DIRECTX)
+        {
             DestroyProgram((Program*)program);
+        }
         bool result = g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);
         if (result)
         {
@@ -2879,10 +2901,14 @@ namespace dmGraphics
     HAsyncBufferReadback RequestStorageBufferReadback(HContext context, HStorageBuffer buffer, uint32_t offset, uint32_t size)
     {
         if (!g_functions.m_RequestStorageBufferReadback)
+        {
             return 0;
+        }
         uint32_t buffer_size = GetStorageBufferSize(context, buffer);
         if (offset > buffer_size || size > buffer_size - offset)
+        {
             return 0;
+        }
         return g_functions.m_RequestStorageBufferReadback(context, buffer, offset, size);
     }
 

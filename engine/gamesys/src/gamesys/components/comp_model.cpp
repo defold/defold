@@ -385,7 +385,9 @@ namespace dmGameSystem
         delete [] world->m_VertexBuffers;
 
         for (uint32_t i = 0; i < world->m_ComponentChunks.Size(); ++i)
+        {
             dmMemory::AlignedFree(world->m_ComponentChunks[i]);
+        }
 
         delete world;
 
@@ -676,7 +678,9 @@ namespace dmGameSystem
         bool instanced = dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
         dmRender::SetOrder(world->m_RenderContext, render_item->m_RenderItem, instanced ? dmRender::RENDER_ORDER_BEFORE_WORLD : dmRender::RENDER_ORDER_WORLD, 0);
         if (dmRender::IsGpuIndirectSupported(world->m_RenderContext))
+        {
             dmRender::SetRenderItemGpuDriven(world->m_RenderContext, render_item->m_RenderItem, CanRenderGpuIndirect(world, render_item->m_Component, render_item, material));
+        }
     }
 
     static void ReHash(ModelWorld* world, ModelComponent* component)
@@ -1669,10 +1673,14 @@ namespace dmGameSystem
             item->m_MorphTargetTexture || IsRenderItemSkinned(component, item) ||
             item->m_DynamicVertexAttributeIndex != INVALID_DYNAMIC_ATTRIBUTE_INDEX ||
             dmRender::GetMaterialVertexSpace(material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
+        {
             return false;
+        }
         dmGraphics::HVertexDeclaration instance_declaration = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
         if (!instance_declaration)
+        {
             return false;
+        }
         dmGraphics::VertexAttributeInfos infos;
         FillMaterialAttributeInfos(material, instance_declaration, &infos);
         InstanceTransformLayout layout;
@@ -1859,7 +1867,9 @@ namespace dmGameSystem
                 shared_attributes_bound = share_vertex_data;
 
                 if (gpu_driven)
+                {
                     continue;
+                }
                 if (use_transform_layout)
                 {
                     if (transform_layout.m_WorldOffset >= 0)
@@ -3056,7 +3066,9 @@ namespace dmGameSystem
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
                 if (render_item)
+                {
                     dmRender::SetRenderItemGpuDriven(world->m_RenderContext, render_item->m_RenderItem, false);
+                }
                 // Mark the render item as dirty if the overridden attribute is not an instanced attribute
                 // For instanced attributes, we will copy the data anyway so this just makes sure we don't
                 // copy the base vertex data when we don't need to.

@@ -165,10 +165,12 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(2, variant.getReflection().getStorageBuffersCount());
         assertEquals(0, desc.getReflection().getStorageBuffersCount());
         assertFalse(variant.hasVisibleInstanceProgram());
-        for (ShaderDesc.ResourceBinding input : variant.getReflection().getInputsList())
+        for (ShaderDesc.ResourceBinding input : variant.getReflection().getInputsList()) {
             assertFalse(input.getName().equals("custom_world"));
-        for (ShaderDesc.Shader shader : variant.getShadersList())
+        }
+        for (ShaderDesc.Shader shader : variant.getShadersList()) {
             assertEquals(ShaderDesc.Language.LANGUAGE_MSL_22, shader.getLanguage());
+        }
         String twoMatrices = vertex.replace("in mat4 custom_world;", "in mat4 custom_world; in mat4 custom_normal;").replace("tint = vec4(1.0)", "tint = custom_normal * vec4(1.0)");
         ShaderDesc fallback = addAndBuildShaderDescs(new String[]{"/normal.vp", "/normal.fp"}, new String[]{twoMatrices, fragment}, "/normal.shbundle");
         assertFalse(fallback.hasVisibleInstanceProgram());
@@ -197,7 +199,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                 modules.add(module);
             }
             IShaderCompiler compiler = getProject().getShaderCompiler(Platform.get("arm64-macos"));
-            ShaderDesc desc = ShaderProgramBuilder.buildResultsToShaderDescBuildResults(compiler.compile(modules, path+".spc", options)).shaderDesc;
+            ShaderDesc desc = ShaderProgramBuilder.buildResultsToShaderDescBuildResults(compiler.compile(modules, path + ".spc", options)).shaderDesc;
             assertTrue(desc.hasVisibleInstanceProgram());
             ShaderDesc companion = ShaderDesc.parseFrom(desc.getVisibleInstanceProgram());
             assertEquals(2, companion.getShadersCount());

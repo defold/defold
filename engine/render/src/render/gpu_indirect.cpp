@@ -70,12 +70,16 @@ namespace dmRender
             !dmGraphics::IsContextFeatureSupported(context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER) ||
             !dmGraphics::IsContextFeatureSupported(context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_STORAGE_BUFFER) ||
             !dmGraphics::IsContextFeatureSupported(context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_INDIRECT_DRAW))
+        {
             return;
+        }
         // The built-in culling program has only a compute stage.
         dmGraphics::GraphicsContextLimits limits;
         dmGraphics::GetGraphicsContextLimits(context->m_GraphicsContext, limits);
         if (params.m_InstanceCullingShaderProgramDesc->m_Reflection.m_StorageBuffers.m_Count > limits.m_MaxStorageBuffersPerStage)
+        {
             return;
+        }
         char error[512] = {};
         gpu.m_Program = dmGraphics::NewProgram(context->m_GraphicsContext, params.m_InstanceCullingShaderProgramDesc, error, sizeof(error));
         if (!gpu.m_Program)
@@ -88,13 +92,21 @@ namespace dmRender
             dmGraphics::Uniform uniform;
             dmGraphics::GetUniform(gpu.m_Program, i, &uniform);
             if (uniform.m_NameHash == dmHashString64("frustum_planes"))
+            {
                 gpu.m_PlanesLocation = uniform.m_Location;
+            }
             else if (uniform.m_NameHash == dmHashString64("culling_params"))
+            {
                 gpu.m_ParamsLocation = uniform.m_Location;
+            }
             else if (uniform.m_NameHash == dmHashString64("instance_params"))
+            {
                 gpu.m_InstanceParamsLocation = uniform.m_Location;
+            }
             else if (uniform.m_NameHash == dmHashString64("view"))
+            {
                 gpu.m_ViewLocation = uniform.m_Location;
+            }
         }
         assert(gpu.m_PlanesLocation != dmGraphics::INVALID_UNIFORM_LOCATION);
         assert(gpu.m_ParamsLocation != dmGraphics::INVALID_UNIFORM_LOCATION);
@@ -109,15 +121,25 @@ namespace dmRender
     {
         GpuIndirectContext& gpu = context->m_GpuIndirect;
         for (uint32_t i = 0; i < gpu.m_Batches.Size(); ++i)
+        {
             DeleteGpuRenderBatch(context, gpu.m_Batches[i]);
+        }
         for (uint32_t i = 0; i < gpu.m_DrawCaches.Size(); ++i)
+        {
             delete gpu.m_DrawCaches[i];
+        }
         if (context->m_GpuCulling.m_BoundsBuffer)
+        {
             dmGraphics::DeleteStorageBuffer(context->m_GraphicsContext, context->m_GpuCulling.m_BoundsBuffer);
+        }
         if (gpu.m_WorldBuffer)
+        {
             dmGraphics::DeleteStorageBuffer(context->m_GraphicsContext, gpu.m_WorldBuffer);
+        }
         if (gpu.m_Program)
+        {
             dmGraphics::DeleteProgram(context->m_GraphicsContext, gpu.m_Program);
+        }
     }
 
     bool IsGpuIndirectSupported(HRenderContext context)
@@ -129,10 +151,14 @@ namespace dmRender
     {
         PersistentRenderItem& item = context->m_PersistentRenderItems[slot];
         if (!context->m_GpuIndirect.m_Program || !item.m_GpuDriven || item.m_GpuWorldDirty)
+        {
             return;
+        }
         dmArray<uint32_t>& dirty = context->m_GpuIndirect.m_DirtyWorldSlots;
         if (dirty.Full())
+        {
             dirty.OffsetCapacity(dmMath::Max(256u, dirty.Capacity() / 2));
+        }
         dirty.Push(slot);
         item.m_GpuWorldDirty = 1;
         ++context->m_GpuIndirect.m_Revision;
@@ -145,12 +171,16 @@ namespace dmRender
         assert(item.m_Alive && item.m_Generation == (uint32_t)(handle >> 32));
         eligible &= IsGpuIndirectSupported(context);
         if (item.m_GpuDriven == eligible)
+        {
             return;
+        }
         GpuIndirectContext& gpu = context->m_GpuIndirect;
         if (eligible)
         {
             if (gpu.m_RenderSlots.Full())
+            {
                 gpu.m_RenderSlots.OffsetCapacity(dmMath::Max(256u, gpu.m_RenderSlots.Capacity() / 2));
+            }
             item.m_GpuSlot = gpu.m_RenderSlots.Size();
             gpu.m_RenderSlots.Push(slot);
         }
@@ -209,15 +239,25 @@ namespace dmRender
     static void DeleteGpuRenderBatch(HRenderContext context, HGpuRenderBatch batch)
     {
         if (batch->m_FallbackBuffer)
+        {
             dmGraphics::DeleteVertexBuffer(batch->m_FallbackBuffer);
+        }
         if (batch->m_SlotBuffer)
+        {
             dmGraphics::DeleteStorageBuffer(context->m_GraphicsContext, batch->m_SlotBuffer);
+        }
         if (batch->m_InstanceBuffer)
+        {
             dmGraphics::DeleteStorageBuffer(context->m_GraphicsContext, batch->m_InstanceBuffer);
+        }
         if (batch->m_ArgumentBuffer)
+        {
             dmGraphics::DeleteStorageBuffer(context->m_GraphicsContext, batch->m_ArgumentBuffer);
+        }
         if (batch->m_Readback)
+        {
             dmGraphics::DeleteStorageBufferReadback(batch->m_Readback);
+        }
         delete batch;
     }
 
@@ -225,10 +265,14 @@ namespace dmRender
     {
         PersistentRenderItem& item = context->m_PersistentRenderItems[slot];
         if (!context->m_GpuIndirect.m_Program || !item.m_GpuDriven || item.m_GpuBoundsDirty)
+        {
             return;
+        }
         dmArray<uint32_t>& dirty = context->m_GpuCulling.m_DirtySlots;
         if (dirty.Full())
+        {
             dirty.OffsetCapacity(dmMath::Max(256u, dirty.Capacity() / 2));
+        }
         dirty.Push(slot);
         item.m_GpuBoundsDirty = 1;
         ++context->m_GpuIndirect.m_Revision;
@@ -238,7 +282,9 @@ namespace dmRender
     {
         memset(bounds, 0, sizeof(*bounds));
         if (!item.m_Alive || !item.m_Enabled || !item.m_GpuDriven)
+        {
             return;
+        }
         bounds->m_Type = item.m_BoundingVolumeType;
         if (item.m_BoundingVolumeType == BOUNDING_VOLUME_SPHERE)
         {
@@ -246,7 +292,9 @@ namespace dmRender
             return;
         }
         if (item.m_BoundingVolumeType == BOUNDING_VOLUME_NONE)
+        {
             return;
+        }
         const float* b = item.m_Bounds;
         Vector3      min(b[0], b[1], b[2]);
         Vector3      max(b[3], b[4], b[5]);
@@ -267,7 +315,9 @@ namespace dmRender
         for (uint32_t i = 1; i < dirty.Size(); ++i)
         {
             if (dirty[i] > dirty[i - 1] + 2 && ++ranges > 64)
+            {
                 return true;
+            }
         }
         return false;
     }
@@ -282,18 +332,26 @@ namespace dmRender
     }
 
     // Keep the previous allocation usable until its replacement succeeds.
-    static bool ResizeStorageBuffer(HRenderContext context, dmGraphics::HStorageBuffer* buffer, uint64_t size, bool replace = false)
+    static bool ResizeStorageBuffer(HRenderContext context, dmGraphics::HStorageBuffer* buffer, uint64_t size, bool replace)
     {
         if (size > UINT32_MAX)
+        {
             return false;
+        }
         dmGraphics::HContext graphics = context->m_GraphicsContext;
         if (*buffer && !replace && dmGraphics::GetStorageBufferSize(graphics, *buffer) >= size)
+        {
             return true;
+        }
         dmGraphics::HStorageBuffer replacement = dmGraphics::NewStorageBuffer(graphics, (uint32_t)size, 0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         if (!replacement)
+        {
             return false;
+        }
         if (*buffer)
+        {
             dmGraphics::DeleteStorageBuffer(graphics, *buffer);
+        }
         *buffer = replacement;
         DM_PROPERTY_ADD_U32(rmtp_GpuBufferResizes, 1);
         return true;
@@ -307,7 +365,9 @@ namespace dmRender
         batch->m_SlotRevision = 0;
         batch->m_VisibleInstanceProgram = 0;
         if ((uint64_t)count * stride > UINT32_MAX)
+        {
             return RESULT_OUT_OF_RESOURCES;
+        }
         dmArray<uint8_t> instances;
         instances.SetCapacity(count * stride);
         instances.SetSize(count * stride);
@@ -316,11 +376,15 @@ namespace dmRender
         {
             const PersistentRenderItem& item = context->m_PersistentRenderItems[slots[i]];
             if (context->m_GpuIndirect.m_Frustum.m_NumPlanes && !TestRenderItemBoundingVolume(context->m_GpuIndirect.m_Frustum, item))
+            {
                 continue;
+            }
             uint8_t* instance = instances.Begin() + visible++ * stride;
             memset(instance, 0, stride);
             if (world_offset >= 0)
+            {
                 memcpy(instance + world_offset, &item.m_WorldTransform, sizeof(Matrix4));
+            }
             if (normal_offset >= 0)
             {
                 Matrix4 normal = GetNormalMatrix(context, item.m_WorldTransform);
@@ -328,13 +392,21 @@ namespace dmRender
             }
         }
         if (!visible)
+        {
             return RESULT_OK;
+        }
         if (!batch->m_FallbackBuffer)
+        {
             batch->m_FallbackBuffer = dmGraphics::NewVertexBuffer(context->m_GraphicsContext, visible * stride, instances.Begin(), dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        }
         else
+        {
             dmGraphics::SetVertexBufferData(batch->m_FallbackBuffer, visible * stride, instances.Begin(), dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        }
         if (!batch->m_FallbackBuffer)
+        {
             return RESULT_OUT_OF_RESOURCES;
+        }
         object->m_VertexBuffers[1] = batch->m_FallbackBuffer;
         object->m_VertexBufferOffsets[1] = 0;
         object->m_InstanceCount = visible;
@@ -346,30 +418,40 @@ namespace dmRender
         GpuCullingContext& gpu = context->m_GpuCulling;
         uint32_t           slots = context->m_GpuIndirect.m_RenderSlots.Size();
         if (gpu.m_Bounds.Capacity() < context->m_GpuIndirect.m_RenderSlots.Capacity())
+        {
             gpu.m_Bounds.SetCapacity(context->m_GpuIndirect.m_RenderSlots.Capacity());
+        }
         gpu.m_Bounds.SetSize(slots);
         dmGraphics::HContext graphics = context->m_GraphicsContext;
         uint64_t             capacity = (uint64_t)gpu.m_Bounds.Capacity() * sizeof(GpuCullingBounds);
         bool                 resized = !gpu.m_BoundsBuffer || dmGraphics::GetStorageBufferSize(graphics, gpu.m_BoundsBuffer) < capacity;
-        if (!ResizeStorageBuffer(context, &gpu.m_BoundsBuffer, capacity))
+        if (!ResizeStorageBuffer(context, &gpu.m_BoundsBuffer, capacity, false))
+        {
             return false;
+        }
         uint32_t dirty_count = 0;
         for (uint32_t i = 0; i < gpu.m_DirtySlots.Size(); ++i)
         {
             PersistentRenderItem& item = context->m_PersistentRenderItems[gpu.m_DirtySlots[i]];
             item.m_GpuBoundsDirty = 0;
             if (item.m_GpuSlot == ~0u)
+            {
                 continue;
+            }
             PackBounds(item, &gpu.m_Bounds[item.m_GpuSlot]);
             gpu.m_DirtySlots[dirty_count++] = item.m_GpuSlot;
         }
         gpu.m_DirtySlots.SetSize(dirty_count);
         if (resized || gpu.m_DirtySlots.Size() > slots / 2)
+        {
             UploadBoundsRange(context, 0, slots);
+        }
         else
         {
             if (gpu.m_DirtySlots.Size() > 1)
+            {
                 std::sort(gpu.m_DirtySlots.Begin(), gpu.m_DirtySlots.End());
+            }
             if (UseDirtySpan(gpu.m_DirtySlots))
             {
                 uint32_t first = gpu.m_DirtySlots[0];
@@ -383,7 +465,9 @@ namespace dmRender
                     uint32_t end = first + 1;
                     // Merge a one-record gap to bound small-upload overhead.
                     while (i < gpu.m_DirtySlots.Size() && gpu.m_DirtySlots[i] <= end + 1)
+                    {
                         end = gpu.m_DirtySlots[i++] + 1;
+                    }
                     UploadBoundsRange(context, first, end - first);
                 }
             }
@@ -399,19 +483,25 @@ namespace dmRender
         dmGraphics::HContext graphics = context->m_GraphicsContext;
         uint32_t             slots = gpu.m_RenderSlots.Size();
         if (gpu.m_Worlds.Capacity() < gpu.m_RenderSlots.Capacity())
+        {
             gpu.m_Worlds.SetCapacity(gpu.m_RenderSlots.Capacity());
+        }
         gpu.m_Worlds.SetSize(slots);
         uint64_t capacity = (uint64_t)gpu.m_Worlds.Capacity() * sizeof(Matrix4);
         bool     resized = !gpu.m_WorldBuffer || dmGraphics::GetStorageBufferSize(graphics, gpu.m_WorldBuffer) < capacity;
-        if (!ResizeStorageBuffer(context, &gpu.m_WorldBuffer, capacity))
+        if (!ResizeStorageBuffer(context, &gpu.m_WorldBuffer, capacity, false))
+        {
             return false;
+        }
         uint32_t dirty_count = 0;
         for (uint32_t i = 0; i < gpu.m_DirtyWorldSlots.Size(); ++i)
         {
             PersistentRenderItem& item = context->m_PersistentRenderItems[gpu.m_DirtyWorldSlots[i]];
             item.m_GpuWorldDirty = 0;
             if (item.m_GpuSlot == ~0u)
+            {
                 continue;
+            }
             gpu.m_Worlds[item.m_GpuSlot] = item.m_WorldTransform;
             gpu.m_DirtyWorldSlots[dirty_count++] = item.m_GpuSlot;
         }
@@ -426,7 +516,9 @@ namespace dmRender
         else
         {
             if (dirty.Size() > 1)
+            {
                 std::sort(dirty.Begin(), dirty.End());
+            }
             if (UseDirtySpan(dirty))
             {
                 uint32_t first = dirty[0];
@@ -441,7 +533,9 @@ namespace dmRender
                     uint32_t end = first + 1;
                     // Merge a one-record gap to bound small-upload overhead.
                     while (i < dirty.Size() && dirty[i] <= end + 1)
+                    {
                         end = dirty[i++] + 1;
+                    }
                     uint32_t size = (end - first) * sizeof(Matrix4);
                     dmGraphics::SetStorageBufferSubData(graphics, gpu.m_WorldBuffer, first * sizeof(Matrix4), size, gpu.m_Worlds.Begin() + first);
                     bytes += size;
@@ -457,12 +551,18 @@ namespace dmRender
     {
         DM_PROFILE("GpuModelBatch");
         if (!context)
+        {
             return RESULT_INVALID_CONTEXT;
+        }
         assert(stride && stride % sizeof(float) == 0);
         if (count == 0)
+        {
             return RESULT_OK;
+        }
         if (context->m_RenderObjects.Full())
+        {
             return RESULT_OUT_OF_RESOURCES;
+        }
         GpuIndirectContext& gpu = context->m_GpuIndirect;
         // Each queued instance draw needs distinct outputs. Ordinary draws do
         // not advance this cursor, so CPU batching does not churn GPU caches.
@@ -470,7 +570,9 @@ namespace dmRender
         if (index == gpu.m_Batches.Size())
         {
             if (gpu.m_Batches.Full())
+            {
                 gpu.m_Batches.OffsetCapacity(16);
+            }
             gpu.m_Batches.Push(NewGpuRenderBatch());
         }
         HGpuRenderBatch batch = gpu.m_Batches[index];
@@ -479,7 +581,9 @@ namespace dmRender
         int32_t              instance_world_offset = world_offset;
         batch->m_VisibleInstanceProgram = 0;
         if (object->m_Material && world_offset >= 0 && normal_offset < 0)
+        {
             batch->m_VisibleInstanceProgram = GetMaterialVisibleInstanceProgram(object->m_Material);
+        }
         if (batch->m_VisibleInstanceProgram)
         {
             stride = sizeof(uint32_t);
@@ -498,35 +602,41 @@ namespace dmRender
             }
         }
         bool cached_membership = gpu.m_DrawCache && batch->m_ListCache == gpu.m_DrawCache &&
-        batch->m_ListGeneration == gpu.m_DrawCache->m_Generation && batch->m_CachedSlots == slots;
+                                 batch->m_ListGeneration == gpu.m_DrawCache->m_Generation && batch->m_CachedSlots == slots;
         bool membership_changed = batch->m_SlotRevision != gpu.m_SlotRevision || batch->m_Slots.Size() != count ||
-        (!cached_membership && memcmp(batch->m_Slots.Begin(), slots, count * sizeof(uint32_t)));
+                                  (!cached_membership && memcmp(batch->m_Slots.Begin(), slots, count * sizeof(uint32_t)));
         batch->m_ListCache = gpu.m_DrawCache;
         batch->m_ListGeneration = gpu.m_DrawCache ? gpu.m_DrawCache->m_Generation : 0;
         batch->m_CachedSlots = slots;
         bool layout_changed = !batch->m_Computed || batch->m_Stride != stride || batch->m_WorldOffset != world_offset || batch->m_NormalOffset != normal_offset;
         bool output_resized = !batch->m_InstanceBuffer || layout_changed || dmGraphics::GetStorageBufferSize(graphics, batch->m_InstanceBuffer) < (uint64_t)count * stride;
-        if (!ResizeStorageBuffer(context, &batch->m_SlotBuffer, (uint64_t)count * sizeof(uint32_t)) ||
+        if (!ResizeStorageBuffer(context, &batch->m_SlotBuffer, (uint64_t)count * sizeof(uint32_t), false) ||
             !ResizeStorageBuffer(context, &batch->m_InstanceBuffer, (uint64_t)count * stride, layout_changed) ||
-            !ResizeStorageBuffer(context, &batch->m_ArgumentBuffer, 5 * sizeof(uint32_t)) ||
+            !ResizeStorageBuffer(context, &batch->m_ArgumentBuffer, 5 * sizeof(uint32_t), false) ||
             !UploadGpuCullingBounds(context) || !UploadWorlds(context))
         {
             uint32_t previous_count = context->m_RenderObjects.Size();
             Result result = AddToRenderCpuBatch(context, object, batch, slots, count, instance_stride, instance_world_offset, normal_offset);
             // An entirely culled or failed fallback has no queued buffer user.
             if (context->m_RenderObjects.Size() != previous_count)
+            {
                 ++gpu.m_BatchCursor;
+            }
             return result;
         }
         layout_changed |= output_resized;
         if (membership_changed)
         {
             if (batch->m_Slots.Capacity() < count)
+            {
                 batch->m_Slots.SetCapacity(count);
+            }
             batch->m_Slots.SetSize(count);
             memcpy(batch->m_Slots.Begin(), slots, count * sizeof(uint32_t));
             if (gpu.m_UploadSlots.Capacity() < count)
+            {
                 gpu.m_UploadSlots.SetCapacity(count);
+            }
             gpu.m_UploadSlots.SetSize(count);
             for (uint32_t i = 0; i < count; ++i)
             {
@@ -540,8 +650,8 @@ namespace dmRender
         }
         uint32_t first_index = object->m_VertexStart / (object->m_IndexType == dmGraphics::TYPE_UNSIGNED_INT ? 4u : 2u);
         bool     recompute = !batch->m_Computed || membership_changed || layout_changed || batch->m_Revision != gpu.m_Revision ||
-        batch->m_Frustum.m_NumPlanes != gpu.m_Frustum.m_NumPlanes ||
-        memcmp(batch->m_Frustum.m_Planes, gpu.m_Frustum.m_Planes, gpu.m_Frustum.m_NumPlanes * sizeof(Vector4)) != 0 || (normal_offset >= 0 && memcmp(&batch->m_View, &context->m_View, sizeof(Matrix4)) != 0) || batch->m_IndexCount != object->m_VertexCount || batch->m_FirstIndex != first_index;
+                             batch->m_Frustum.m_NumPlanes != gpu.m_Frustum.m_NumPlanes ||
+                             memcmp(batch->m_Frustum.m_Planes, gpu.m_Frustum.m_Planes, gpu.m_Frustum.m_NumPlanes * sizeof(Vector4)) != 0 || (normal_offset >= 0 && memcmp(&batch->m_View, &context->m_View, sizeof(Matrix4)) != 0) || batch->m_IndexCount != object->m_VertexCount || batch->m_FirstIndex != first_index;
         if (recompute)
         {
             DM_PROFILE("GpuModelCompaction");
@@ -549,7 +659,9 @@ namespace dmRender
             dmGraphics::SetStorageBufferSubData(graphics, batch->m_ArgumentBuffer, 0, sizeof(arguments), arguments);
             dmGraphics::EnableProgram(graphics, gpu.m_Program);
             if (gpu.m_Frustum.m_NumPlanes)
+            {
                 dmGraphics::SetConstantV4(graphics, gpu.m_Frustum.m_Planes, gpu.m_Frustum.m_NumPlanes, gpu.m_PlanesLocation);
+            }
             Vector4 params((float)count, (float)gpu.m_Frustum.m_NumPlanes, stride / 4.0f, world_offset / 4.0f);
             Vector4 instance_params(normal_offset / 4.0f, batch->m_VisibleInstanceProgram ? 1.0f : 0.0f, 0, 0);
             dmGraphics::SetConstantV4(graphics, &params, 1, gpu.m_ParamsLocation);
@@ -557,10 +669,14 @@ namespace dmRender
             dmGraphics::SetConstantM4(graphics, (const Vector4*)&context->m_View, 1, gpu.m_ViewLocation);
             dmGraphics::HStorageBuffer buffers[] = { context->m_GpuCulling.m_BoundsBuffer, gpu.m_WorldBuffer, batch->m_SlotBuffer, batch->m_InstanceBuffer, batch->m_ArgumentBuffer };
             for (uint32_t i = 0; i < 5; ++i)
+            {
                 dmGraphics::EnableStorageBuffer(graphics, buffers[i], 0, i);
+            }
             dmGraphics::DispatchCompute(graphics, (count + 127) / 128, 1, 1);
             for (uint32_t i = 0; i < 5; ++i)
+            {
                 dmGraphics::DisableStorageBuffer(graphics, buffers[i]);
+            }
             dmGraphics::DisableProgram(graphics);
             batch->m_Frustum = gpu.m_Frustum;
             batch->m_View = context->m_View;
@@ -587,7 +703,9 @@ namespace dmRender
         }
         object->m_VertexBuffers[1] = batch->m_VisibleInstanceProgram ? 0 : dmGraphics::GetStorageBufferVertexBuffer(graphics, batch->m_InstanceBuffer);
         if (batch->m_VisibleInstanceProgram)
+        {
             object->m_VertexDeclarations[1] = 0;
+        }
         DM_PROPERTY_ADD_U32(rmtp_GpuInstanceOutputCapacityBytes, dmGraphics::GetStorageBufferSize(graphics, batch->m_InstanceBuffer));
         object->m_VertexBufferOffsets[1] = 0;
         Result result = AddToRender(context, object);
@@ -603,7 +721,9 @@ namespace dmRender
         DM_PROPERTY_ADD_U32(rmtp_GpuIndirectStatsReady, batch->m_StatisticsCandidates != 0);
         DM_PROPERTY_ADD_U32(rmtp_GpuIndirectStatsCandidates, batch->m_StatisticsCandidates);
         if (batch->m_StatisticsCandidates)
+        {
             DM_PROPERTY_SET_U32(rmtp_GpuIndirectStatsAge, gpu.m_Frame - batch->m_StatisticsFrame);
+        }
         return result;
     }
 } // namespace dmRender

@@ -278,7 +278,9 @@ struct DX12Test : public jc_test_base_class
         m_Context->m_CommandList->Close();
         m_Context->m_CommandList->Release();
         if (m_Context->m_DrawIndexedSignature)
+        {
             m_Context->m_DrawIndexedSignature->Release();
+        }
         m_Context->m_CommandQueue->Release();
         m_Allocator.Reset();
         m_Fence.Reset();
@@ -1721,35 +1723,37 @@ TEST_F(DX12Test, ComputeToIndirectInstancedDraw)
 {
     TestProgram compute;
     compute.AddShaderStage(
-    "RWByteAddressBuffer arguments:register(u0);"
-    "RWByteAddressBuffer instances:register(u1);"
-    "[numthreads(1,1,1)] void main(){"
-    "arguments.Store4(16,uint4(3,arguments.Load(0),3,0xfffffffd));"
-    "arguments.Store(32,1);"
-    "instances.Store4(0,asuint(float4(100,0,0,0)));"
-    "instances.Store4(16,asuint(float4(-0.5,0.25,0,0)));"
-    "instances.Store4(32,asuint(float4(0.5,0.75,0,0)));"
-    "}",
-    ShaderDesc::SHADER_TYPE_COMPUTE);
+        "RWByteAddressBuffer arguments:register(u0);"
+        "RWByteAddressBuffer instances:register(u1);"
+        "[numthreads(1,1,1)] void main(){"
+        "arguments.Store4(16,uint4(3,arguments.Load(0),3,0xfffffffd));"
+        "arguments.Store(32,1);"
+        "instances.Store4(0,asuint(float4(100,0,0,0)));"
+        "instances.Store4(16,asuint(float4(-0.5,0.25,0,0)));"
+        "instances.Store4(32,asuint(float4(0.5,0.75,0,0)));"
+        "}",
+        ShaderDesc::SHADER_TYPE_COMPUTE);
     compute.SetRootSignature("DescriptorTable(UAV(u0)), DescriptorTable(UAV(u1))");
     compute.AddBinding("arguments", 0, 0, ShaderDesc::SHADER_TYPE_UINT, BINDING_TYPE_STORAGE_BUFFER);
     compute.AddBinding("instances", 1, 1, ShaderDesc::SHADER_TYPE_UINT, BINDING_TYPE_STORAGE_BUFFER);
     for (uint32_t i = 0; i < 2; ++i)
+    {
         compute.m_Desc.m_Reflection.m_StorageBuffers.m_Data[i].m_ResourceAccessFlags = SHADER_RESOURCE_ACCESS_READ | SHADER_RESOURCE_ACCESS_WRITE;
+    }
     HProgram compute_program = compute.CreateProgram(GetContext());
     ASSERT_NE((HProgram)0, compute_program);
 
     TestProgram draw;
     draw.AddShaderStage(
-    "struct Output {float4 position:SV_Position;float green:TEXCOORD0;};"
-    "Output main(uint id:SV_VertexID,float4 instance:TEXCOORD0){"
-    "float2 p[3]={float2(-0.4,-0.8),float2(-0.4,0.8),float2(0.4,0)};"
-    "Output o;o.position=float4(p[id]+float2(instance.x,0),0.5,1);"
-    "o.green=instance.y;return o;}",
-    ShaderDesc::SHADER_TYPE_VERTEX);
+        "struct Output {float4 position:SV_Position;float green:TEXCOORD0;};"
+        "Output main(uint id:SV_VertexID,float4 instance:TEXCOORD0){"
+        "float2 p[3]={float2(-0.4,-0.8),float2(-0.4,0.8),float2(0.4,0)};"
+        "Output o;o.position=float4(p[id]+float2(instance.x,0),0.5,1);"
+        "o.green=instance.y;return o;}",
+        ShaderDesc::SHADER_TYPE_VERTEX);
     draw.AddShaderStage(
-    "float4 main(float4 p:SV_Position,float green:TEXCOORD0):SV_Target{return float4(0,green,0,1);}",
-    ShaderDesc::SHADER_TYPE_FRAGMENT);
+        "float4 main(float4 p:SV_Position,float green:TEXCOORD0):SV_Target{return float4(0,green,0,1);}",
+        ShaderDesc::SHADER_TYPE_FRAGMENT);
     draw.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
     AddShaderResource(&draw.m_Desc, "instance", ShaderDesc::SHADER_TYPE_VEC4, 0, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
     HProgram draw_program = draw.CreateProgram(GetContext());

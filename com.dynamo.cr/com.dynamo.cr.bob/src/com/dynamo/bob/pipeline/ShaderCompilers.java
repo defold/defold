@@ -412,9 +412,11 @@ public class ShaderCompilers {
             }
 
             ArrayList<ShaderDesc.Language> visibleLanguages = new ArrayList<>();
-            for (ShaderDesc.Language language : shaderLanguages)
-                if (language == ShaderDesc.Language.LANGUAGE_MSL_22 || language == ShaderDesc.Language.LANGUAGE_SPIRV || language == ShaderDesc.Language.LANGUAGE_WGSL)
+            for (ShaderDesc.Language language : shaderLanguages) {
+                if (language == ShaderDesc.Language.LANGUAGE_MSL_22 || language == ShaderDesc.Language.LANGUAGE_SPIRV || language == ShaderDesc.Language.LANGUAGE_WGSL) {
                     visibleLanguages.add(language);
+                }
+            }
             if (!isComputeType && !visibleLanguages.isEmpty()) {
                 ShaderCompilePipeline variant = pipeline.createVisibleInstancePipeline("visible-instance");
                 if (variant != null) {
@@ -428,11 +430,15 @@ public class ShaderCompilers {
                             }
                         }
                         // Keep sampler units and reflection ordering aligned with the parent program.
-                        for (ShaderDesc.ShaderType type : shaderTypeKeys.keySet())
+                        for (ShaderDesc.ShaderType type : shaderTypeKeys.keySet()) {
                             result.reflectors.add(variant.getReflectionData(type));
+                        }
                         compileResult.visibleInstanceProgram = ShaderProgramBuilder.buildResultsToShaderDescBuildResults(result).shaderDesc;
-                        for (Shaderc.ShaderResource resource : pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX).getInputs())
-                            if (resource.type.columnCount == 4) compileResult.visibleInstanceAttribute = resource.nameHash;
+                        for (Shaderc.ShaderResource resource : pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX).getInputs()) {
+                            if (resource.type.columnCount == 4) {
+                                compileResult.visibleInstanceAttribute = resource.nameHash;
+                            }
+                        }
                     } finally {
                         ShaderCompilePipeline.destroyShaderPipeline(variant);
                     }

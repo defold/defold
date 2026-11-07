@@ -1766,7 +1766,9 @@ namespace dmGraphics
         }
         WaitForDX12Idle(context);
         if (context->m_DrawIndexedSignature)
+        {
             context->m_DrawIndexedSignature->Release();
+        }
         // Release all cached pipeline state objects
         context->m_PipelineCache.Iterate(ReleasePipelineCacheEntry, context);
 
@@ -2236,7 +2238,9 @@ namespace dmGraphics
             NULL,                                              // optimized clear value must be null for this type of resource. used for render targets and depth/stencil buffers
             DM_IID_PPV_ARGS(&device_buffer->m_Resource));
         if (FAILED(hr))
+        {
             return hr;
+        }
 
         device_buffer->m_Resource->SetName(L"Vertex Buffer Resource Heap");
         device_buffer->m_Destroyed = 0;
@@ -2542,13 +2546,13 @@ namespace dmGraphics
     static void DX12UploadStorageBuffer(DX12Context* context, DX12StorageBuffer* buffer, uint32_t offset, uint32_t size, const void* data)
     {
         DeviceBufferUploadRangeHelper(context,
-            &buffer->m_DeviceBuffer,
-            offset,
-            size,
-            buffer->m_DeviceBuffer.m_Capacity,
-            data,
-            buffer->m_DeviceBuffer.m_ResourceState,
-            D3D12_RESOURCE_STATE_COMMON);
+                                      &buffer->m_DeviceBuffer,
+                                      offset,
+                                      size,
+                                      buffer->m_DeviceBuffer.m_Capacity,
+                                      data,
+                                      buffer->m_DeviceBuffer.m_ResourceState,
+                                      D3D12_RESOURCE_STATE_COMMON);
     }
 
     static HStorageBuffer DX12NewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -2607,7 +2611,9 @@ namespace dmGraphics
         {
             DX12DeviceBuffer replacement = {};
             if (FAILED(CreateDeviceBuffer(context, &replacement, size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)))
+            {
                 return;
+            }
             DestroyResourceDeferred(context->m_FrameResources[context->m_CurrentFrameIndex], &buffer->m_DeviceBuffer);
             buffer->m_DeviceBuffer = replacement;
         }
@@ -3545,9 +3551,13 @@ namespace dmGraphics
     {
         // Read usages can coexist when storage is borrowed as a vertex or argument buffer.
         if (!(state & ~D3D12_RESOURCE_STATE_GENERIC_READ) && !(buffer->m_ResourceState & ~D3D12_RESOURCE_STATE_GENERIC_READ))
+        {
             state |= buffer->m_ResourceState;
+        }
         if (buffer->m_ResourceState == state)
+        {
             return;
+        }
         context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(buffer->m_Resource, buffer->m_ResourceState, state));
         buffer->m_ResourceState = state;
     }
@@ -3612,7 +3622,9 @@ namespace dmGraphics
                         ? (D3D12_RESOURCE_STATES) (D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
                         : D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
                     if (!read_only && buffer->m_DeviceBuffer.m_ResourceState == target_state)
+                    {
                         context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::UAV(buffer->m_DeviceBuffer.m_Resource));
+                    }
                     TransitionDeviceBuffer(context, &buffer->m_DeviceBuffer, target_state);
 
                     frame_resources.m_ScratchBuffer.AllocateStorageBuffer(context, pipeline_type, buffer, read_only, root_index);
@@ -3839,7 +3851,9 @@ namespace dmGraphics
 
         DX12Context* context = (DX12Context*)_context;
         if (!ValidateStorageBufferAliases(context))
+        {
             return;
+        }
 
         if (!context->m_DrawIndexedSignature)
         {
@@ -3852,14 +3866,18 @@ namespace dmGraphics
             HRESULT hr = context->m_Device->CreateCommandSignature(&signature, NULL, DM_IID_PPV_ARGS(&context->m_DrawIndexedSignature));
             CHECK_HR_ERROR(hr);
             if (FAILED(hr))
+            {
                 return;
+            }
         }
 
         DX12DeviceBuffer& argument_buffer = ((DX12StorageBuffer*)arguments)->m_DeviceBuffer;
         TransitionDeviceBuffer(context, &argument_buffer, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
 
         if (!DrawSetup(context, primitive))
+        {
             return;
+        }
 
         DX12IndexBuffer*        index_buffer = (DX12IndexBuffer*)indices;
         D3D12_INDEX_BUFFER_VIEW view = {};
@@ -3886,12 +3904,12 @@ namespace dmGraphics
         assert(context->m_FrameBegun);
         DX12AsyncBufferReadback* request = new DX12AsyncBufferReadback();
         HRESULT                  hr = context->m_Device->CreateCommittedResource(
-        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
-        D3D12_HEAP_FLAG_NONE,
-        &CD3DX12_RESOURCE_DESC::Buffer(size),
-        D3D12_RESOURCE_STATE_COPY_DEST,
-        NULL,
-        DM_IID_PPV_ARGS(&request->m_Buffer.m_Resource));
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Buffer(size),
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            NULL,
+            DM_IID_PPV_ARGS(&request->m_Buffer.m_Resource));
         if (FAILED(hr))
         {
             delete request;
@@ -3913,11 +3931,15 @@ namespace dmGraphics
     {
         DX12AsyncBufferReadback* request = (DX12AsyncBufferReadback*)handle;
         if (request->m_Fence->GetCompletedValue() < request->m_FenceValue)
+        {
             return false;
+        }
         void*       mapped = 0;
         D3D12_RANGE read_range = { 0, request->m_Size };
         if (FAILED(request->m_Buffer.m_Resource->Map(0, &read_range, &mapped)))
+        {
             return false;
+        }
         memcpy(data, mapped, request->m_Size);
         D3D12_RANGE written_range = { 0, 0 };
         request->m_Buffer.m_Resource->Unmap(0, &written_range);

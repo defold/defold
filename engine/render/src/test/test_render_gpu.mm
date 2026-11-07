@@ -82,13 +82,15 @@ static id         FailMetalBufferAllocation(id device, SEL selector, NSUInteger 
         ++g_FailedBufferAllocations;
         return nil;
     }
-    return ((id(*)(id, SEL, NSUInteger, NSUInteger))g_BufferAllocationImplementation)(device, selector, length, options);
+    return ((id (*)(id, SEL, NSUInteger, NSUInteger)) g_BufferAllocationImplementation)(device, selector, length, options);
 }
 
 static void RestoreMetalBufferAllocation()
 {
     if (g_BufferAllocationMethod)
+    {
         method_setImplementation(g_BufferAllocationMethod, g_BufferAllocationImplementation);
+    }
     g_BufferAllocationMethod = 0;
 }
 
@@ -104,13 +106,17 @@ static void FailMetalBufferLength(MTL::Device* device, NSUInteger length)
 }
 #endif
 
-static void NoopDispatch(const dmRender::RenderListDispatchParams& params) {}
+static void NoopDispatch(const dmRender::RenderListDispatchParams& params)
+{
+}
 static void LegacyVisibility(const dmRender::RenderListVisibilityParams& params)
 {
     uint32_t* calls = (uint32_t*)params.m_UserData;
     *calls += params.m_NumEntries;
     for (uint32_t i = 0; i < params.m_NumEntries; ++i)
+    {
         params.m_Entries[i].m_Visibility = dmRender::VISIBILITY_FULL;
+    }
 }
 
 struct GpuBatchCapture
@@ -126,7 +132,9 @@ struct GpuBatchCapture
 static void CaptureGpuBatches(const dmRender::RenderListDispatchParams& params)
 {
     if (params.m_Operation != dmRender::RENDER_LIST_OPERATION_BATCH)
+    {
         return;
+    }
     GpuBatchCapture* capture = (GpuBatchCapture*)params.m_UserData;
     bool             gpu = dmRender::IsRenderItemGpuDriven(params.m_Context, capture->m_Items[params.m_Buf[*params.m_Begin].m_UserData]);
     ++capture->m_Batches;
@@ -135,9 +143,13 @@ static void CaptureGpuBatches(const dmRender::RenderListDispatchParams& params)
         bool current = dmRender::IsRenderItemGpuDriven(params.m_Context, capture->m_Items[params.m_Buf[*i].m_UserData]);
         capture->m_MixedBatch |= current != gpu;
         if (current)
+        {
             ++capture->m_GpuItems;
+        }
         else
+        {
             ++capture->m_CpuItems;
+        }
     }
 }
 
@@ -146,7 +158,9 @@ static void CaptureGpuVisibility(const dmRender::RenderListVisibilityParams& par
     GpuBatchCapture* capture = (GpuBatchCapture*)params.m_UserData;
     capture->m_VisibilityCalls += params.m_NumEntries;
     for (uint32_t i = 0; i < params.m_NumEntries; ++i)
+    {
         params.m_Entries[i].m_Visibility = dmRender::VISIBILITY_FULL;
+    }
 }
 
 struct PreparedBatchCapture
@@ -162,9 +176,13 @@ static void CapturePreparedBatches(const dmRender::RenderListDispatchParams& par
 {
     PreparedBatchCapture* capture = (PreparedBatchCapture*)params.m_UserData;
     if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BEGIN)
+    {
         memset(capture, 0, sizeof(*capture));
+    }
     if (params.m_Operation != dmRender::RENDER_LIST_OPERATION_BATCH)
+    {
         return;
+    }
     ++capture->m_Batches;
     for (const uint32_t* i = params.m_Begin; i != params.m_End; ++i)
     {
@@ -175,11 +193,13 @@ static void CapturePreparedBatches(const dmRender::RenderListDispatchParams& par
     }
 }
 
-static void BeginPreparedFrame(dmRender::HRenderContext context, dmRender::HRenderItemDispatch dispatch, dmRender::HRenderItemDispatch first = 0)
+static void BeginPreparedFrame(dmRender::HRenderContext context, dmRender::HRenderItemDispatch dispatch, dmRender::HRenderItemDispatch first)
 {
     dmRender::RenderListBegin(context);
     if (first)
+    {
         dmRender::SubmitRenderListDispatch(context, first);
+    }
     dmRender::SubmitRenderListDispatch(context, dispatch);
 }
 
@@ -200,16 +220,22 @@ struct OrderedPixelBatch
 static void DrawOrderedPixelBatch(const dmRender::RenderListDispatchParams& params)
 {
     if (params.m_Operation != dmRender::RENDER_LIST_OPERATION_BATCH)
+    {
         return;
+    }
     OrderedPixelBatch* batch = (OrderedPixelBatch*)params.m_UserData;
     batch->m_Gpu = params.m_Buf[*params.m_Begin].m_FrustumHash == dmRender::FRUSTUM_HASH_GPU_CULLING;
     if (batch->m_Gpu)
+    {
         return;
+    }
     Matrix4  worlds[2];
     uint32_t count = params.m_End - params.m_Begin;
     ASSERT_EQ(2u, count);
     for (uint32_t i = 0; i < count; ++i)
+    {
         worlds[i] = params.m_Context->m_PersistentRenderItems[params.m_Begin[i]].m_WorldTransform;
+    }
     dmGraphics::SetVertexBufferData(batch->m_Instances, sizeof(worlds), worlds, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     batch->m_Object.m_InstanceCount = count;
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(params.m_Context, &batch->m_Object));
@@ -224,7 +250,7 @@ class GpuIndirectTest : public jc_test_base_class
     dmScript::HContext       m_Script;
     dmRender::HRenderContext m_Render;
 
-    void                     SetUp() override
+    void SetUp() override
     {
 #if defined(DM_TEST_GPU_VULKAN)
         ASSERT_TRUE(dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_VULKAN));
@@ -325,7 +351,9 @@ class GpuIndirectTest : public jc_test_base_class
         while (!dmGraphics::PollStorageBufferReadback(snapshot, data))
         {
             if (dmTime::GetMonotonicTime() > deadline)
+            {
                 return false;
+            }
             wgpuInstanceProcessEvents(dmGraphics::WebGPUGetInstance(m_Graphics));
         }
         return true;
@@ -407,7 +435,9 @@ TEST_F(GpuIndirectTest, PredicateRangesAndMixedBatches)
         capture.m_Items[i] = dmRender::NewRenderItem(m_Render, dispatch, i);
         dmRender::SetMaterial(m_Render, capture.m_Items[i], i < 4 ? &models : &sprites);
         if (i != 3 && i != 4)
+        {
             dmRender::SetBoundingSphere(m_Render, capture.m_Items[i], Point3(i == 0 ? 100 : 0, 0, 0), 0.1f);
+        }
         dmRender::SetRenderItemGpuDriven(m_Render, capture.m_Items[i], i == 0 || i == 2 || i == 3);
         dmRender::Enable(m_Render, capture.m_Items[i], true);
     }
@@ -489,7 +519,9 @@ TEST_F(GpuIndirectTest, PredicateRangesAndMixedBatches)
     ASSERT_EQ(3u, capture.m_CpuItems);
     m_Render->m_GpuIndirect.m_Program = program;
     for (uint32_t i = 0; i < 6; ++i)
+    {
         dmRender::DeleteRenderItem(m_Render, capture.m_Items[i]);
+    }
     dmRender::UnregisterRenderListDispatch(m_Render, dispatch);
     dmRender::DeletePredicate(model_predicate);
     dmRender::DeletePredicate(sprite_predicate);
@@ -517,7 +549,7 @@ TEST_F(GpuIndirectTest, PersistentCandidateBatches)
     dmRender::FrustumOptions options;
     options.m_Matrix = Matrix4::orthographic(-1, 1, -1, 1, -1, 1);
     options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
-    BeginPreparedFrame(m_Render, dispatch);
+    BeginPreparedFrame(m_Render, dispatch, 0);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
     ASSERT_EQ(6u, capture.m_Count);
     ASSERT_EQ(6u, capture.m_GpuItems);
@@ -526,7 +558,7 @@ TEST_F(GpuIndirectTest, PersistentCandidateBatches)
     ASSERT_TRUE(cache->m_Prepared);
     uint64_t generation = cache->m_Generation;
 
-    BeginPreparedFrame(m_Render, dispatch);
+    BeginPreparedFrame(m_Render, dispatch, 0);
     options.m_Matrix = Matrix4::orthographic(-2, 2, -2, 2, -1, 1);
     dmRender::SetWorldTransform(m_Render, items[1], Matrix4::translation(Vector3(2, 0, 0)));
     dmRender::SetBoundingSphere(m_Render, items[2], Point3(1, 0, 0), 0.2f);
@@ -536,13 +568,17 @@ TEST_F(GpuIndirectTest, PersistentCandidateBatches)
     ASSERT_EQ(6u, capture.m_GpuItems);
     ASSERT_EQ(3u, capture.m_Batches);
     for (uint32_t i = 0; i < 6; ++i)
+    {
         ASSERT_EQ((uint64_t)i, capture.m_Ids[i]);
+    }
 
     BeginPreparedFrame(m_Render, dispatch, other);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
     ASSERT_GT(cache->m_Generation, generation);
     for (uint32_t i = 0; i < 6; ++i)
+    {
         ASSERT_EQ(1u, capture.m_Dispatches[i]);
+    }
 
     dmRender::Enable(m_Render, items[1], false);
     dmRender::DeleteRenderItem(m_Render, items[2]);
@@ -553,52 +589,56 @@ TEST_F(GpuIndirectTest, PersistentCandidateBatches)
     dmRender::SetRenderItemGpuDriven(m_Render, items[2], true);
     dmRender::Enable(m_Render, items[2], true);
     dmRender::SetBatchKey(m_Render, items[0], 2);
-    BeginPreparedFrame(m_Render, dispatch);
+    BeginPreparedFrame(m_Render, dispatch, 0);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
     ASSERT_EQ(5u, capture.m_Count);
     ASSERT_EQ(3u, capture.m_Batches);
     const uint64_t expected[] = { 3, 0, 4, 5, 42 };
     for (uint32_t i = 0; i < 5; ++i)
+    {
         ASSERT_EQ(expected[i], capture.m_Ids[i]);
+    }
     generation = cache->m_Generation;
 
     dmRender::SetOrder(m_Render, items[0], dmRender::RENDER_ORDER_BEFORE_WORLD, 1);
-    BeginPreparedFrame(m_Render, dispatch);
+    BeginPreparedFrame(m_Render, dispatch, 0);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
     ASSERT_GT(cache->m_Generation, generation);
     ASSERT_EQ(0u, capture.m_Ids[4]);
     dmRender::SetOrder(m_Render, items[0], dmRender::RENDER_ORDER_WORLD, 0);
-    BeginPreparedFrame(m_Render, dispatch);
+    BeginPreparedFrame(m_Render, dispatch, 0);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
     ASSERT_FALSE(cache->m_Eligible);
     ASSERT_EQ(5u, capture.m_Count);
 
     dmRender::SetOrder(m_Render, items[0], dmRender::RENDER_ORDER_BEFORE_WORLD, 0);
     dmRender::SetBoundingAABB(m_Render, items[3], Vector3(1), Vector3(-1));
-    BeginPreparedFrame(m_Render, dispatch);
+    BeginPreparedFrame(m_Render, dispatch, 0);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
     ASSERT_FALSE(cache->m_Eligible);
     ASSERT_EQ(4u, capture.m_GpuItems);
     dmRender::SetBoundingSphere(m_Render, items[3], Point3(0), 0.1f);
-    BeginPreparedFrame(m_Render, dispatch);
+    BeginPreparedFrame(m_Render, dispatch, 0);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
     ASSERT_TRUE(cache->m_Eligible);
     ASSERT_EQ(5u, capture.m_GpuItems);
 
     dmGraphics::EnableState(m_Graphics, dmGraphics::STATE_BLEND);
-    BeginPreparedFrame(m_Render, dispatch);
+    BeginPreparedFrame(m_Render, dispatch, 0);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
     ASSERT_EQ(4u, capture.m_Count);
     ASSERT_EQ(0u, capture.m_GpuItems);
     ASSERT_FALSE(cache->m_Prepared);
     dmGraphics::DisableState(m_Graphics, dmGraphics::STATE_BLEND);
-    BeginPreparedFrame(m_Render, dispatch);
+    BeginPreparedFrame(m_Render, dispatch, 0);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
     ASSERT_EQ(5u, capture.m_Count);
     ASSERT_EQ(5u, capture.m_GpuItems);
 
     for (uint32_t i = 0; i < 6; ++i)
+    {
         dmRender::DeleteRenderItem(m_Render, items[i]);
+    }
     dmRender::UnregisterRenderListDispatch(m_Render, other);
     dmRender::UnregisterRenderListDispatch(m_Render, dispatch);
 }
@@ -649,23 +689,23 @@ TEST_F(GpuIndirectTest, CachedPredicatesAndFallback)
     dmRender::FrustumOptions options;
     options.m_Matrix = Matrix4::orthographic(-1, 1, -1, 1, -1, 1);
     options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
-    BeginPreparedFrame(m_Render, dispatch);
+    BeginPreparedFrame(m_Render, dispatch, 0);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, model_predicate, 0, &options, dmRender::SORT_NONE));
     ASSERT_EQ(4u, capture.m_GpuItems);
     dmRender::GpuRenderListCache* cache = m_Render->m_GpuIndirect.m_DrawCaches[0];
     uint64_t                      generation = cache->m_Generation;
 
-    BeginPreparedFrame(m_Render, dispatch);
+    BeginPreparedFrame(m_Render, dispatch, 0);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, other_predicate, 0, &options, dmRender::SORT_NONE));
     ASSERT_EQ(2u, capture.m_GpuItems);
     ASSERT_EQ(4u, capture.m_Ids[0]);
     ASSERT_EQ(5u, capture.m_Ids[1]);
     ASSERT_GT(cache->m_Generation, generation);
-    BeginPreparedFrame(m_Render, dispatch);
+    BeginPreparedFrame(m_Render, dispatch, 0);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, model_predicate, 0, &options, dmRender::SORT_NONE));
     ASSERT_EQ(4u, capture.m_GpuItems);
     dmRender::SetMaterial(m_Render, items[3], &others);
-    BeginPreparedFrame(m_Render, dispatch);
+    BeginPreparedFrame(m_Render, dispatch, 0);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, model_predicate, 0, &options, dmRender::SORT_NONE));
     ASSERT_EQ(3u, capture.m_GpuItems);
 
@@ -682,7 +722,7 @@ TEST_F(GpuIndirectTest, CachedPredicatesAndFallback)
     ASSERT_EQ(generation, cache->m_Generation);
     ASSERT_EQ(3u, capture.m_GpuItems);
 
-    BeginPreparedFrame(m_Render, dispatch);
+    BeginPreparedFrame(m_Render, dispatch, 0);
     m_Render->m_Material = &models;
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, model_predicate, 0, &options, dmRender::SORT_NONE));
     ASSERT_EQ(2u, capture.m_Count);
@@ -693,11 +733,11 @@ TEST_F(GpuIndirectTest, CachedPredicatesAndFallback)
     ASSERT_EQ(3u, capture.m_Count);
     ASSERT_EQ(3u, capture.m_GpuItems);
     generation = cache->m_Generation;
-    BeginPreparedFrame(m_Render, dispatch);
+    BeginPreparedFrame(m_Render, dispatch, 0);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, model_predicate, 0, &options, dmRender::SORT_NONE));
     ASSERT_EQ(generation, cache->m_Generation);
 
-    BeginPreparedFrame(m_Render, dispatch);
+    BeginPreparedFrame(m_Render, dispatch, 0);
     dmRender::HRenderListDispatch legacy = dmRender::RenderListMakeDispatch(m_Render, CapturePreparedBatches, &capture);
     dmRender::RenderListEntry*    entry = dmRender::RenderListAlloc(m_Render, 1);
     memset(entry, 0, sizeof(*entry));
@@ -710,14 +750,16 @@ TEST_F(GpuIndirectTest, CachedPredicatesAndFallback)
     ASSERT_FALSE(cache->m_Eligible);
     ASSERT_EQ(4u, capture.m_Count);
     ASSERT_EQ(3u, capture.m_GpuItems);
-    BeginPreparedFrame(m_Render, dispatch);
+    BeginPreparedFrame(m_Render, dispatch, 0);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, model_predicate, 0, &options, dmRender::SORT_NONE));
     ASSERT_TRUE(cache->m_Eligible);
     ASSERT_EQ(3u, capture.m_Count);
     ASSERT_EQ(3u, capture.m_GpuItems);
 
     for (uint32_t i = 0; i < 6; ++i)
+    {
         dmRender::DeleteRenderItem(m_Render, items[i]);
+    }
     dmRender::DeleteRenderItem(m_Render, unrelated_item);
     dmRender::UnregisterRenderListDispatch(m_Render, unrelated);
     dmRender::UnregisterRenderListDispatch(m_Render, dispatch);
@@ -771,7 +813,9 @@ TEST_F(GpuIndirectTest, RendererOwnedBatchBuffers)
     }
     ASSERT_EQ(2u, m_Render->m_GpuIndirect.m_Batches.Size());
     for (uint32_t i = 0; i < 2; ++i)
+    {
         dmRender::DeleteRenderItem(m_Render, items[i]);
+    }
     dmRender::UnregisterRenderListDispatch(m_Render, dispatch);
 }
 
@@ -796,11 +840,17 @@ TEST_F(GpuIndirectTest, CompactionAndInstanceMatrices)
         worlds[i].setCol(1, worlds[i].getCol(1) + worlds[i].getCol(0) * 0.3f);
         dmRender::SetMaterial(m_Render, items[i], 0);
         if (i % 3 == 0)
+        {
             dmRender::SetBoundingSphere(m_Render, items[i], Point3(center), 0.5f);
+        }
         else if (i % 3 == 1)
+        {
             dmRender::SetBoundingAABB(m_Render, items[i], center - Vector3(0.2f), center + Vector3(0.2f));
+        }
         else
+        {
             dmRender::SetBoundingOBB(m_Render, items[i], Vector3(-0.2f), Vector3(0.2f));
+        }
         dmRender::SetRenderItemGpuDriven(m_Render, items[i], true);
         ASSERT_TRUE(dmRender::SetWorldTransform(m_Render, items[i], worlds[i]));
         ASSERT_TRUE(dmRender::Enable(m_Render, items[i], true));
@@ -855,7 +905,9 @@ TEST_F(GpuIndirectTest, CompactionAndInstanceMatrices)
         dmGraphics::HProgram program = m_Render->m_GpuIndirect.m_Program;
         m_Render->m_GpuIndirect.m_Program = 0;
         for (uint32_t i = 0; i < count; ++i)
+        {
             m_Render->m_RenderList[slots[i]].m_FrustumHash = dmRender::FRUSTUM_HASH_UNINITIALIZED;
+        }
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, 0, 0, frustum_options, dmRender::SORT_NONE));
         bool     expected[count];
         uint32_t expected_count = 0;
@@ -883,19 +935,25 @@ TEST_F(GpuIndirectTest, CompactionAndInstanceMatrices)
         {
             uint32_t match = count;
             for (uint32_t i = 0; i < count; ++i)
+            {
                 if (memcmp(&worlds[i], &instances[j * 2], sizeof(Matrix4)) == 0)
                 {
                     match = i;
                     break;
                 }
+            }
             ASSERT_NE(count, match);
             ASSERT_TRUE(expected[match]);
             ASSERT_FALSE(seen[match]);
             seen[match] = true;
             Matrix4 normal = transpose(inverse(view * worlds[match]));
             for (uint32_t c = 0; c < 4; ++c)
+            {
                 for (uint32_t r = 0; r < 4; ++r)
+                {
                     ASSERT_NEAR(normal.getElem(c, r), instances[j * 2 + 1].getElem(c, r), 0.0001f);
+                }
+            }
         }
         dmRender::ClearRenderObjects(m_Render);
         dmGraphics::HStorageBuffer instances_buffer = batch->m_InstanceBuffer;
@@ -923,15 +981,21 @@ TEST_F(GpuIndirectTest, CompactionAndInstanceMatrices)
     ASSERT_TRUE(ReadBuffer(m_Graphics, batch->m_InstanceBuffer, 0, sizeof(instance), instance));
     Matrix4 normal = transpose(inverse(view * instance[0]));
     for (uint32_t c = 0; c < 4; ++c)
+    {
         for (uint32_t r = 0; r < 4; ++r)
+        {
             ASSERT_NEAR(normal.getElem(c, r), instance[1].getElem(c, r), 0.0001f);
+        }
+    }
     dmRender::ClearRenderObjects(m_Render);
     dmGraphics::EnableState(m_Graphics, dmGraphics::STATE_BLEND);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, 0, 0, &options, dmRender::SORT_NONE));
     ASSERT_FALSE(dmRender::IsRenderItemGpuDriven(m_Render, items[0]));
     dmGraphics::DisableState(m_Graphics, dmGraphics::STATE_BLEND);
     for (uint32_t i = 0; i < count; ++i)
+    {
         ASSERT_TRUE(dmRender::DeleteRenderItem(m_Render, items[i]));
+    }
     dmRender::UnregisterRenderListDispatch(m_Render, dispatch);
 }
 
@@ -1034,9 +1098,13 @@ TEST_F(GpuIndirectTest, ReadbackLifetimeAndFrameReuse)
     {
         uint32_t values[10] = { 12, frame, 1, 0, 0 };
         if (frame == 2)
+        {
             dmGraphics::SetStorageBufferData(m_Graphics, buffer, sizeof(values), values, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        }
         else
+        {
             dmGraphics::SetStorageBufferSubData(m_Graphics, buffer, 0, sizeof(after), values);
+        }
         frames[frame] = dmGraphics::RequestStorageBufferReadback(m_Graphics, buffer, 0, sizeof(after));
         dmGraphics::Flip(m_Graphics);
         dmGraphics::BeginFrame(m_Graphics);
@@ -1120,7 +1188,9 @@ TEST_F(GpuIndirectTest, NativeAllocationFailureFallback)
     ASSERT_TRUE(ReadBuffer(m_Graphics, batch->m_ArgumentBuffer, 0, sizeof(arguments), arguments));
     ASSERT_EQ(1u, arguments[1]);
     for (uint32_t i = 0; i < 2; ++i)
+    {
         dmRender::DeleteRenderItem(m_Render, items[i]);
+    }
     dmRender::UnregisterRenderListDispatch(m_Render, dispatch);
 }
 #elif !defined(DM_TEST_GPU_WEBGPU)
@@ -1178,7 +1248,9 @@ TEST_F(GpuIndirectTest, NativeAllocationFailureFallback)
     ASSERT_EQ(1u, arguments[1]);
     dmGraphics::DeleteStorageBufferReadback(snapshot);
     for (uint32_t i = 0; i < 2; ++i)
+    {
         dmRender::DeleteRenderItem(m_Render, items[i]);
+    }
     dmRender::UnregisterRenderListDispatch(m_Render, dispatch);
 }
 #endif
@@ -1208,7 +1280,9 @@ TEST_F(GpuIndirectTest, IndirectDrawPixels)
         dmGraphics::Uniform uniform;
         dmGraphics::GetUniform(program, i, &uniform);
         if (uniform.m_NameHash == dmHashString64("view_proj"))
+        {
             location = uniform.m_Location;
+        }
     }
     float                      vertices[] = { -0.8f, -0.8f, 0, 1, 1, 0, 0, 1, 0.8f, -0.8f, 0, 1, 1, 0, 0, 1, 0, 0.8f, 0, 1, 1, 0, 0, 1 };
     uint16_t                   indices[] = { 99, 99, 0, 1, 2 };
@@ -1400,7 +1474,9 @@ TEST_F(GpuIndirectTest, LifecycleAndFallback)
     ASSERT_EQ(1u, args[1]);
     dmGraphics::DeleteStorageBufferReadback(before);
     for (uint32_t i = 0; i < 300; ++i)
+    {
         dmRender::DeleteRenderItem(m_Render, grown[i]);
+    }
     dmRender::UnregisterRenderListDispatch(m_Render, dispatch);
 }
 
@@ -1465,7 +1541,9 @@ TEST_F(GpuIndirectTest, ScatteredBoundsAndTransforms)
         }
     }
     for (uint32_t i = 0; i < count; ++i)
+    {
         dmRender::DeleteRenderItem(m_Render, items[i]);
+    }
     dmRender::UnregisterRenderListDispatch(m_Render, dispatch);
 }
 
@@ -1535,7 +1613,9 @@ TEST_F(GpuIndirectTest, LocalBoundsReuseWorldTransforms)
             ASSERT_EQ(1.0f, bounds.m_Data[5]);
         }
         else
+        {
             ASSERT_EQ(0, memcmp(&initial, &bounds, sizeof(bounds)));
+        }
         if (expected[phase])
         {
             Matrix4 instance;
@@ -1607,7 +1687,9 @@ TEST_F(GpuIndirectTest, DenseModelSlotsAndRecycling)
     uint32_t mapping[count];
     ASSERT_TRUE(ReadBuffer(m_Graphics, batch->m_SlotBuffer, 0, sizeof(mapping), mapping));
     for (uint32_t i = 0; i < count; ++i)
+    {
         ASSERT_EQ(i, mapping[i]);
+    }
     uint32_t args[5];
     ASSERT_TRUE(ReadBuffer(m_Graphics, batch->m_ArgumentBuffer, 0, sizeof(args), args));
     ASSERT_EQ(count, args[1]);
@@ -1674,9 +1756,13 @@ TEST_F(GpuIndirectTest, DenseModelSlotsAndRecycling)
     ASSERT_TRUE(ReadBuffer(m_Graphics, single->m_ArgumentBuffer, 0, sizeof(args), args));
     ASSERT_EQ(1u, args[1]);
     for (uint32_t i = 1; i < count; ++i)
+    {
         dmRender::DeleteRenderItem(m_Render, items[i]);
+    }
     for (uint32_t i = 0; i <= count * gap; ++i)
+    {
         dmRender::DeleteRenderItem(m_Render, cpu[i]);
+    }
     ASSERT_TRUE(m_Render->m_GpuIndirect.m_RenderSlots.Empty());
     dmRender::UnregisterRenderListDispatch(m_Render, dispatch);
 }
@@ -1760,7 +1846,9 @@ TEST_F(GpuIndirectTest, VisibleInstanceIdsAndPixels)
     target_params.m_ColorBufferStoreOps[0] = dmGraphics::ATTACHMENT_OP_STORE;
     dmGraphics::HRenderTarget targets[3];
     for (uint32_t i = 0; i < 3; ++i)
+    {
         targets[i] = dmGraphics::NewRenderTarget(m_Graphics, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_params);
+    }
     dmRender::RenderListBegin(m_Render);
     dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Render, NoopDispatch, 0, 0);
     dmRender::HRenderItem         items[3];
@@ -1853,7 +1941,9 @@ TEST_F(GpuIndirectTest, VisibleInstanceIdsAndPixels)
         ASSERT_EQ(0, memcmp(actual, expected, sizeof(actual)));
         uint32_t colored = 0;
         for (uint32_t i = 0; i < sizeof(actual); i += 4)
+        {
             colored += actual[i + 2] != 0;
+        }
         ASSERT_GT(colored, 0u);
         dmGraphics::DeleteStorageBuffer(m_Graphics, instances);
         dmGraphics::DeleteStorageBufferReadback(snapshots[phase]);
@@ -1892,9 +1982,13 @@ TEST_F(GpuIndirectTest, VisibleInstanceIdsAndPixels)
         dmGraphics::SetDepthMask(m_Graphics, true);
         dmGraphics::DisableState(m_Graphics, dmGraphics::STATE_STENCIL_TEST);
         if (state == 0)
+        {
             dmGraphics::DisableState(m_Graphics, dmGraphics::STATE_DEPTH_TEST);
+        }
         if (state == 1)
+        {
             dmGraphics::SetDepthMask(m_Graphics, false);
+        }
         if (state == 2)
         {
             dmGraphics::EnableState(m_Graphics, dmGraphics::STATE_STENCIL_TEST);
@@ -1924,7 +2018,9 @@ TEST_F(GpuIndirectTest, VisibleInstanceIdsAndPixels)
     dmGraphics::SetRenderTarget(m_Graphics, 0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::DeleteRenderTarget(m_Graphics, ordered_target);
     for (uint32_t i = 0; i < 2; ++i)
+    {
         dmRender::DeleteRenderItem(m_Render, ordered_items[i]);
+    }
     dmRender::UnregisterRenderListDispatch(m_Render, ordered_dispatch);
     dmGraphics::DeleteVertexBuffer(ordered.m_Instances);
 
@@ -1953,11 +2049,13 @@ TEST_F(GpuIndirectTest, VisibleInstanceIdsAndPixels)
     dmGraphics::DeleteIndexBuffer(index_buffer);
     dmGraphics::DeleteStorageBuffer(m_Graphics, vertex_storage);
     for (uint32_t i = 0; i < 3; ++i)
+    {
         dmGraphics::DeleteRenderTarget(m_Graphics, targets[i]);
+    }
 }
 
 extern "C" void dmExportedSymbols();
-int             main(int argc, char** argv)
+int main(int argc, char** argv)
 {
     dmExportedSymbols();
     TestMainPlatformInit();

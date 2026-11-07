@@ -2202,7 +2202,9 @@ TEST_F(ModelTest, ComponentPoolGrowthAndReuse)
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instances[i], dmHashString64(i == 0 ? "fox" : "model"), &type, &components[i], &world));
     }
     for (uint32_t i = 1; i < population; i += 2)
+    {
         dmGameObject::Delete(collection, instances[i], false);
+    }
     ASSERT_TRUE(dmGameObject::PostUpdate(collection));
     for (uint32_t i = 1; i < population; i += 2)
     {
@@ -2216,7 +2218,9 @@ TEST_F(ModelTest, ComponentPoolGrowthAndReuse)
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instances[i], dmHashString64("model"), &type, &component, &world));
         bool reused = false;
         for (uint32_t j = 1; j < population; j += 2)
+        {
             reused |= component == components[j];
+        }
         ASSERT_TRUE(reused);
     }
     for (uint32_t i = 0; i < population; i += 2)

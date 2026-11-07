@@ -29,7 +29,7 @@ class ModelGpuTest : public ModelTest
     dmGraphics::HProgram            m_Program;
     dmGraphics::HRenderTarget       m_Target;
 
-    void                            LoadShaderBytes(const char* path, dmArray<uint8_t>& bytes)
+    void LoadShaderBytes(const char* path, dmArray<uint8_t>& bytes)
     {
         FILE* file = fopen(path, "rb");
         ASSERT_NE((FILE*)0, file);
@@ -104,7 +104,9 @@ class ModelGpuTest : public ModelTest
     void TearDown() override
     {
         if (m_Target)
+        {
             dmGraphics::DeleteRenderTarget(m_GraphicsContext, m_Target);
+        }
         for (uint32_t i = 0; i < 2; ++i)
         {
             if (m_Resources[i])
@@ -113,10 +115,14 @@ class ModelGpuTest : public ModelTest
                 dmResource::Release(m_Factory, m_Resources[i]);
             }
             if (m_Materials[i])
+            {
                 dmRender::DeleteMaterial(m_RenderContext, m_Materials[i]);
+            }
         }
         if (m_Program)
+        {
             dmGraphics::DeleteProgram(m_GraphicsContext, m_Program);
+        }
         ModelTest::TearDown();
     }
 
@@ -141,7 +147,9 @@ class ModelGpuTest : public ModelTest
         dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
         dmGraphics::HProgram     culling = context->m_GpuIndirect.m_Program;
         if (!gpu)
+        {
             context->m_GpuIndirect.m_Program = 0;
+        }
         dmRender::FrustumOptions frustum;
         frustum.m_Matrix = Matrix4::orthographic(-2, 2, -2, 2, -10, 10);
         frustum.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
@@ -161,7 +169,9 @@ class ModelGpuTest : public ModelTest
                 snapshots.Push(dmGraphics::RequestStorageBufferReadback(m_GraphicsContext, batch->m_ArgumentBuffer, 0, 5 * sizeof(uint32_t)));
             }
             else
+            {
                 cpu_instances += dmMath::Max(1u, context->m_RenderObjects[i]->m_InstanceCount);
+            }
         }
         dmGraphics::ReadPixels(m_GraphicsContext, 0, 0, 64, 64, pixels, 64 * 64 * 4);
         dmGraphics::SetRenderTarget(m_GraphicsContext, 0, dmGraphics::RenderTargetBindingParams());
@@ -206,13 +216,14 @@ TEST_F(ModelGpuTest, MaterialChangesAndCpuFallback)
         uint8_t cpu[64 * 64 * 4];
         uint8_t gpu[sizeof(cpu)];
         DrawModels(false, phase != 3, 0, 2, cpu);
-        uint32_t gpu_visible = phase == 3 ? 0 : phase == 1 ? 1 :
-                                                             2;
+        uint32_t gpu_visible = phase == 3 ? 0 : phase == 1 ? 1 : 2;
         DrawModels(true, phase != 3, gpu_visible, 2 - gpu_visible, gpu);
         ASSERT_EQ(0, memcmp(cpu, gpu, sizeof(cpu)));
         uint32_t colored = 0;
         for (uint32_t i = 0; i < sizeof(gpu); i += 4)
+        {
             colored += gpu[i + 2] != 0;
+        }
         ASSERT_GT(colored, 0u);
     }
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -220,7 +231,7 @@ TEST_F(ModelGpuTest, MaterialChangesAndCpuFallback)
 
 extern "C" void dmExportedSymbols();
 
-int             main(int argc, char** argv)
+int main(int argc, char** argv)
 {
     dmExportedSymbols();
     TestMainPlatformInit();

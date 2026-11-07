@@ -324,14 +324,18 @@ namespace dmRender
     dmGraphics::HProgram GetMaterialVisibleInstanceProgram(HMaterial material)
     {
         if (!IsGpuIndirectSupported(material->m_RenderContext))
+        {
             return 0;
+        }
         const dmArray<dmGraphics::VertexAttributeInfo>& attributes = material->m_VertexAttributeInfos;
         for (uint32_t i = 0; i < attributes.Size(); ++i)
         {
             const dmGraphics::VertexAttributeInfo& attribute = attributes[i];
             if (attribute.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE &&
                 attribute.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX)
+            {
                 return dmGraphics::GetVisibleInstanceProgram(GetGraphicsContext(material->m_RenderContext), material->m_Program, attribute.m_NameHash);
+            }
         }
         return 0;
     }

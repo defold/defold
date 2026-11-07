@@ -458,7 +458,9 @@ namespace dmRender
         }
         context->m_RenderObjects.Push(ro);
         if (context->m_GpuIndirect.m_RenderBatches.Capacity() < context->m_RenderObjects.Size())
+        {
             context->m_GpuIndirect.m_RenderBatches.SetCapacity(context->m_RenderObjects.Capacity());
+        }
         context->m_GpuIndirect.m_RenderBatches.SetSize(context->m_RenderObjects.Size());
         context->m_GpuIndirect.m_RenderBatches.Back() = 0;
 
@@ -1122,7 +1124,9 @@ namespace dmRender
     static bool IsGpuRenderItem(HRenderContext context, uint32_t index)
     {
         if (!context->m_GpuIndirect.m_DrawEnabled || index >= context->m_PersistentRenderItems.Size())
+        {
             return false;
+        }
         const PersistentRenderItem& item = context->m_PersistentRenderItems[index];
         return item.m_GpuDriven && item.m_BoundingVolumeType != BOUNDING_VOLUME_NONE;
     }
@@ -1141,7 +1145,9 @@ namespace dmRender
             if (gpu_culling)
             {
                 if (entry.m_FrustumHash == FRUSTUM_HASH_GPU_CULLING)
+                {
                     continue;
+                }
                 if (IsGpuRenderItem(context, index))
                 {
                     entry.m_Visibility = VISIBILITY_FULL;
@@ -1150,7 +1156,9 @@ namespace dmRender
                 }
             }
             if (entry.m_FrustumHash == frustum_hash)
+            {
                 continue;
+            }
             const PersistentRenderItem& item = context->m_PersistentRenderItems[index];
             if (item.m_BoundingVolumeType != BOUNDING_VOLUME_NONE)
             {
@@ -1190,14 +1198,20 @@ namespace dmRender
                     MaterialTagList tags;
                     GetMaterialTagList(context, dispatch.m_Ranges[r].m_TagListKey, &tags);
                     if (!MatchMaterialTags(tags.m_Count, tags.m_Tags, predicate->m_TagCount, predicate->m_Tags))
+                    {
                         continue;
+                    }
                 }
                 uint32_t start = filter ? dispatch.m_Ranges[r].m_Start : 0;
                 uint32_t end = filter ? start + dispatch.m_Ranges[r].m_Count : persistent.Size();
                 if (context->m_GpuIndirect.m_DrawEnabled)
+                {
                     CullPersistentRenderItems<true>(context, dispatch, persistent.Begin() + start, end - start, frustum, frustum_hash);
+                }
                 else
+                {
                     CullPersistentRenderItems<false>(context, dispatch, persistent.Begin() + start, end - start, frustum, frustum_hash);
+                }
             }
         }
 
@@ -1229,7 +1243,9 @@ namespace dmRender
                     MaterialTagList tags;
                     GetMaterialTagList(context, dispatch.m_Ranges[r].m_TagListKey, &tags);
                     if (!MatchMaterialTags(tags.m_Count, tags.m_Tags, predicate->m_TagCount, predicate->m_Tags))
+                    {
                         continue;
+                    }
                 }
                 uint32_t start = filter ? dispatch.m_Ranges[r].m_Start : 0;
                 uint32_t end = filter ? start + dispatch.m_Ranges[r].m_Count : dispatch.m_SortIndices.Size();
@@ -1396,7 +1412,9 @@ namespace dmRender
     static bool MatchGpuDrawTags(HRenderContext context, uint32_t key, HPredicate predicate)
     {
         if (!predicate || !predicate->m_TagCount)
+        {
             return true;
+        }
         MaterialTagList tags;
         GetMaterialTagList(context, key, &tags);
         return MatchMaterialTags(tags.m_Count, tags.m_Tags, predicate->m_TagCount, predicate->m_Tags);
@@ -1413,11 +1431,13 @@ namespace dmRender
             {
                 GpuRenderListCache& cache = *gpu.m_DrawCaches[i];
                 for (uint32_t s = 0; s < cache.m_Sources.Size(); ++s)
+                {
                     if (MatchGpuDrawTags(context, cache.m_Sources[s].m_TagListKey, predicate))
                     {
                         cache.m_Prepared = false;
                         break;
                     }
+                }
             }
             return 0;
         }
@@ -1426,7 +1446,9 @@ namespace dmRender
         if (cursor == gpu.m_DrawCaches.Size())
         {
             if (gpu.m_DrawCaches.Full())
+            {
                 gpu.m_DrawCaches.OffsetCapacity(8);
+            }
             gpu.m_DrawCaches.Push(new GpuRenderListCache());
         }
         GpuRenderListCache&           cache = *gpu.m_DrawCaches[cursor];
@@ -1436,7 +1458,9 @@ namespace dmRender
         {
             const RenderListRange& range = context->m_RenderListRanges[r];
             if (!MatchGpuDrawTags(context, range.m_TagListKey, predicate))
+            {
                 continue;
+            }
             for (uint32_t s = range.m_SpanStart; s < range.m_SpanStart + range.m_SpanCount; ++s)
             {
                 const RenderListSpan& span = context->m_RenderListSpans[s];
@@ -1448,7 +1472,9 @@ namespace dmRender
                 source.m_FrameDispatch = span.m_Dispatch ? context->m_RenderItemDispatches[span.m_Dispatch]->m_FrameDispatch : RENDERLIST_INVALID_DISPATCH;
                 source.m_Revision = span.m_Dispatch ? context->m_RenderItemDispatches[span.m_Dispatch]->m_GpuBatchRevision : 0;
                 if (sources.Full())
+                {
                     sources.OffsetCapacity(8);
+                }
                 sources.Push(source);
             }
         }
@@ -1459,13 +1485,15 @@ namespace dmRender
             const GpuRenderListSource& a = cache.m_Sources[i];
             const GpuRenderListSource& b = sources[i];
             changed = a.m_Indices != b.m_Indices || a.m_Count != b.m_Count || a.m_TagListKey != b.m_TagListKey ||
-            a.m_Dispatch != b.m_Dispatch || a.m_FrameDispatch != b.m_FrameDispatch || a.m_Revision != b.m_Revision;
+                      a.m_Dispatch != b.m_Dispatch || a.m_FrameDispatch != b.m_FrameDispatch || a.m_Revision != b.m_Revision;
         }
         if (changed)
         {
             cache.m_Sources.SetSize(0);
             if (cache.m_Sources.Capacity() < sources.Size())
+            {
                 cache.m_Sources.SetCapacity(sources.Size());
+            }
             cache.m_Sources.PushArray(sources.Begin(), sources.Size());
             cache.m_SortOrder = sort_order;
             cache.m_Prepared = false;
@@ -1497,7 +1525,9 @@ namespace dmRender
         uint32_t count = context->m_RenderListSortBuffer.Size();
         cache.m_Indices.SetSize(0);
         if (cache.m_Indices.Capacity() < count)
+        {
             cache.m_Indices.SetCapacity(count);
+        }
         cache.m_Indices.PushArray(context->m_RenderListSortBuffer.Begin(), count);
         cache.m_Batches.SetSize(0);
         for (uint32_t start = 0; start < count;)
@@ -1508,12 +1538,16 @@ namespace dmRender
             {
                 const RenderListEntry& next = context->m_RenderList[cache.m_Indices[end]];
                 if (entry.m_Dispatch != next.m_Dispatch || entry.m_BatchKey != next.m_BatchKey || entry.m_MinorOrder != next.m_MinorOrder)
+                {
                     break;
+                }
                 ++end;
             }
             GpuRenderListBatch batch = { start, end, (HRenderListDispatch)entry.m_Dispatch };
             if (cache.m_Batches.Full())
+            {
                 cache.m_Batches.OffsetCapacity(16);
+            }
             cache.m_Batches.Push(batch);
             start = end;
         }
@@ -1571,11 +1605,11 @@ namespace dmRender
         // Atomic compaction does not preserve instance order. Keep ordered draws
         // on the CPU, including passes without depth writes or with stencil tests.
         bool depth_ordered = pipeline.m_DepthTestFunc == dmGraphics::COMPARE_FUNC_LESS ||
-        pipeline.m_DepthTestFunc == dmGraphics::COMPARE_FUNC_LEQUAL ||
-        pipeline.m_DepthTestFunc == dmGraphics::COMPARE_FUNC_GREATER ||
-        pipeline.m_DepthTestFunc == dmGraphics::COMPARE_FUNC_GEQUAL;
+                             pipeline.m_DepthTestFunc == dmGraphics::COMPARE_FUNC_LEQUAL ||
+                             pipeline.m_DepthTestFunc == dmGraphics::COMPARE_FUNC_GREATER ||
+                             pipeline.m_DepthTestFunc == dmGraphics::COMPARE_FUNC_GEQUAL;
         indirect.m_DrawEnabled = indirect.m_Program && !context->m_Material && !pipeline.m_BlendEnabled &&
-        pipeline.m_DepthTestEnabled && pipeline.m_WriteDepth && depth_ordered && !pipeline.m_StencilEnabled;
+                                 pipeline.m_DepthTestEnabled && pipeline.m_WriteDepth && depth_ordered && !pipeline.m_StencilEnabled;
         memset(&indirect.m_Frustum, 0, sizeof(indirect.m_Frustum));
         uint32_t frustum_hash = 0;
         SortOrder           effective_sort_order = (sort_order == SORT_UNSPECIFIED) ? SORT_BACK_TO_FRONT : sort_order;
@@ -1589,20 +1623,26 @@ namespace dmRender
             memcpy(frustum_key_buffer + sizeof(Matrix4), &frustum_num_planes, sizeof(frustum_num_planes));
             frustum_hash = dmHashBuffer32(frustum_key_buffer, (uint32_t)sizeof(frustum_key_buffer));
             if (frustum_hash == FRUSTUM_HASH_GPU_CULLING)
+            {
                 --frustum_hash;
+            }
 
             dmIntersection::Frustum frustum;
             dmIntersection::CreateFrustumFromMatrix(*frustum_matrix, true, (int) frustum_num_planes, frustum);
             indirect.m_Frustum.m_NumPlanes = frustum.m_NumPlanes;
             memcpy(indirect.m_Frustum.m_Planes, frustum.m_Planes, frustum.m_NumPlanes * sizeof(Vector4));
             if (!cached)
+            {
                 FrustumCulling(context, frustum, frustum_hash, predicate);
+            }
         }
         else
         {
             // Reset the visibility
             if (!cached)
+            {
                 ResetRenderListVisibility(context, predicate);
+            }
         }
 
         if (!cached)
@@ -1610,7 +1650,9 @@ namespace dmRender
             PrepareRenderList(context);
             MakeSortBuffer(context, predicate ? predicate->m_TagCount : 0, predicate ? predicate->m_Tags : 0, effective_sort_order);
             if (context->m_RenderListSortBuffer.Empty())
+            {
                 return RESULT_OK;
+            }
             if (effective_sort_order != SORT_NONE)
             {
                 DM_PROFILE("DrawRenderList_SORT");
@@ -1619,10 +1661,14 @@ namespace dmRender
                 StableSortRenderListIndices(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.Size(), sort);
             }
             if (cache)
+            {
                 BuildGpuRenderListCache(context, *cache);
+            }
         }
         else
+        {
             DM_PROPERTY_ADD_U32(rmtp_GpuBatchCacheHits, 1);
+        }
         indirect.m_DrawCache = cache;
 
         // Construct render objects
@@ -1683,7 +1729,9 @@ namespace dmRender
                         const RenderListEntry* current_entry = &base[*idx];
                         if (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder &&
                             gpu_batch == (current_entry->m_FrustumHash == FRUSTUM_HASH_GPU_CULLING))
+                        {
                             continue;
+                        }
                     }
                     if (last_entry->m_Dispatch != RENDERLIST_INVALID_DISPATCH)
                     {
@@ -1697,7 +1745,9 @@ namespace dmRender
 
                     last = idx;
                     if (i < count)
+                    {
                         gpu_batch = base[*last].m_FrustumHash == FRUSTUM_HASH_GPU_CULLING;
+                    }
                 }
             }
 
@@ -1910,9 +1960,13 @@ namespace dmRender
                 }
             }
             else if (ro->m_IndexBuffer)
+            {
                 dmGraphics::DrawElements(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer, ro->m_InstanceCount);
+            }
             else
+            {
                 dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_InstanceCount);
+            }
 
             for (int i = 0; i < RenderObject::MAX_VERTEX_BUFFER_COUNT; ++i)
             {

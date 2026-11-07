@@ -1188,7 +1188,9 @@ TEST_F(dmGraphicsTest, OrdinaryReadOnlyStorageBuffers)
         ASSERT_EQ(9u, ((dmGraphics::Program*)program)->m_ShaderMeta.m_StorageBuffers.Size());
         dmGraphics::DeleteProgram(m_Context, program);
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(storage); ++i)
+        {
             storage[i].m_StageFlags |= dmGraphics::SHADER_STAGE_FLAG_FRAGMENT;
+        }
     }
     graphics->m_Limits.m_MaxStorageBuffersPerStage = previous_limit;
 }

@@ -185,7 +185,9 @@ namespace dmRender
     {
         PersistentRenderItem* item = GetPersistentRenderItem(context, handle);
         if (!item)
+        {
             return false;
+        }
         bool changed = item->m_GpuDriven && memcmp(&item->m_WorldTransform, &world_transform, sizeof(world_transform)) != 0;
         item->m_WorldTransform = world_transform;
         if (changed)
@@ -195,7 +197,9 @@ namespace dmRender
         RenderListEntry& entry = context->m_RenderList[(uint32_t)handle];
         entry.m_WorldPosition = Point3(world_transform.getTranslation());
         if (entry.m_FrustumHash != FRUSTUM_HASH_GPU_CULLING)
+        {
             entry.m_FrustumHash = FRUSTUM_HASH_UNINITIALIZED;
+        }
         return true;
     }
 
@@ -207,13 +211,17 @@ namespace dmRender
         if (item->m_BoundingVolumeType != type || memcmp(item->m_Bounds, bounds, sizeof(item->m_Bounds)) != 0)
         {
             if ((item->m_BoundingVolumeType == BOUNDING_VOLUME_NONE) != (type == BOUNDING_VOLUME_NONE))
+            {
                 context->m_RenderItemDispatches[item->m_Dispatch]->m_GpuBatchRevision = ++context->m_GpuIndirect.m_BatchRevision;
+            }
             item->m_BoundingVolumeType = type;
             memcpy(item->m_Bounds, bounds, sizeof(item->m_Bounds));
             MarkGpuBoundsDirty(context, (uint32_t)handle);
             RenderListEntry& entry = context->m_RenderList[(uint32_t)handle];
             if (type == BOUNDING_VOLUME_NONE || entry.m_FrustumHash != FRUSTUM_HASH_GPU_CULLING)
+            {
                 entry.m_FrustumHash = FRUSTUM_HASH_UNINITIALIZED;
+            }
         }
         return true;
     }
@@ -245,7 +253,9 @@ namespace dmRender
     {
         PersistentRenderItem* item = GetPersistentRenderItem(context, handle);
         if (!item)
+        {
             return false;
+        }
         RenderListEntry& entry = context->m_RenderList[(uint32_t)handle];
         if (entry.m_BatchKey != key)
         {
@@ -327,9 +337,13 @@ namespace dmRender
         if (!item)
             return false;
         if (item->m_Enabled)
+        {
             Enable(context, handle, false);
+        }
         if (item->m_GpuDriven)
+        {
             SetRenderItemGpuDriven(context, handle, false);
+        }
         item->m_Alive = 0;
         MarkGpuBoundsDirty(context, (uint32_t)handle);
         if (++item->m_Generation == 0)
