@@ -207,6 +207,21 @@ TEST_F(ProfilerRemoteryLifecycleTest, RebootAfterFailedInitialization)
     ASSERT_EQ(PROFILE_RESULT_OK, ProfileSetThreadName("RebootWithRemotery"));
 }
 
+// Verifies that app finalization releases Remotery before the profiler frontend,
+// guarding against leaked samples and a live worker after listener removal.
+TEST_F(ProfilerRemoteryLifecycleTest, AppFinalizeBeforeProfileFinalize)
+{
+    const char config[] = "[profiler]\n";
+    ASSERT_EQ(dmConfigFile::RESULT_OK, dmConfigFile::LoadFromBuffer(config, sizeof(config) - 1, 0, 0, &m_Params.m_ConfigFile));
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&m_Params));
+    ASSERT_NE((Remotery*)0, rmt_GetGlobalInstance());
+
+    m_Params.m_ExitStatus = EXTENSION_APP_EXIT_CODE_EXIT;
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppFinalize(&m_Params));
+    ASSERT_EQ((Remotery*)0, rmt_GetGlobalInstance());
+    ASSERT_EQ(0, dmAtomicGet32(&m_AllocationCount));
+}
+
 int main(int argc, char **argv)
 {
     ProfilerRemotery();
