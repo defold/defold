@@ -22,6 +22,7 @@
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.fxui :as fxui]
+            [editor.live-update-manifest :as manifest]
             [editor.localization :as localization]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
@@ -32,7 +33,7 @@
             [editor.workspace :as workspace]
             [util.coll :as coll])
   (:import [clojure.lang PersistentQueue]
-           [com.dynamo.bob.archive.liveupdate PackageResolver PackageResolver$Loading PackageResolver$Contribution PackageResolver$Diagnostic PackageResolver$Package PackageResolver$Plan PackageResolver$Resource PackageResolver$RuleId PackageResolver$Selection]
+           [com.dynamo.bob.archive.liveupdate PackageResolver PackageResolver$Loading PackageResolver$Contribution PackageResolver$Package PackageResolver$Plan PackageResolver$Resource PackageResolver$RuleId PackageResolver$Selection]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc LiveUpdateManifest$PackageDesc]
            [java.io File]
            [java.nio.file Path]
@@ -383,7 +384,7 @@
         diagnostics (if compiled (.diagnostics ^PackageResolver$Plan (:plan compiled)) (:diagnostics model))
         messages (coll/into-> [diagnostics (:diagnostics model)] []
                    cat
-                   (map #(.message ^PackageResolver$Diagnostic %)))
+                   (map #(localization-state (manifest/diagnostic-message %))))
         error (:error preview-state)
         diagnostic-text (coll/join-to-string "\n"
                                              (coll/into-> (cond-> messages error (conj (or (ex-message error) (str error)))) []

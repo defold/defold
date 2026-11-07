@@ -55,7 +55,18 @@ public final class PackageResolver {
     public record RuleId(String packageName, int index) {}
 
     /** A validation message; rule is -1 and packageName or resource may be empty when no specific location applies. */
-    public record Diagnostic(Severity severity, String packageName, int rule, String resource, String message) {}
+    public record Diagnostic(Severity severity, String packageName, int rule, String resource, String message, PresetError presetError) {
+        public Diagnostic(Severity severity, String packageName, int rule, String resource, String message) {
+            this(severity, packageName, rule, resource, message, null);
+        }
+    }
+
+    /** Preset property validation with localization arguments for the editor and a message for Bob. */
+    public record PresetError(String code, Map<String, Object> arguments, String message) {
+        public PresetError {
+            arguments = Map.copyOf(arguments);
+        }
+    }
 
     public record PackageReferences(Map<String, List<String>> targets, List<Diagnostic> diagnostics) {
         public PackageReferences {
@@ -262,19 +273,21 @@ public final class PackageResolver {
     }
 
     /** Returns property errors keyed by preset name for the editor and build validation. */
-    public static Map<String, Map<String, String>> fileCompressionPresetErrors(ManifestDesc manifest) {
-        Map<String, Map<String, String>> errors = new LinkedHashMap<>();
+    public static Map<String, Map<String, PresetError>> fileCompressionPresetErrors(ManifestDesc manifest) {
+        Map<String, Map<String, PresetError>> errors = new LinkedHashMap<>();
         Set<String> names = new LinkedHashSet<>();
         for (FileCompressionPreset preset : manifest.getFileCompressionPresetsList()) {
-            Map<String, String> properties = new LinkedHashMap<>();
+            Map<String, PresetError> properties = new LinkedHashMap<>();
             if (preset.getName().isBlank()) {
-                properties.put("name", "A compression preset name is required");
+                properties.put("name", new PresetError("file-name-required", Map.of("name", preset.getName()), "A compression preset name is required"));
             } else if (!names.add(preset.getName())) {
-                properties.put("name", "Duplicate compression preset: " + preset.getName());
+                properties.put("name", new PresetError("file-name-duplicate", Map.of("name", preset.getName()),
+                        "Duplicate compression preset: " + preset.getName()));
             }
             if (preset.getFileCompression() == FileCompression.LZ4
                     && (preset.getLz4Level() < 1 || preset.getLz4Level() > 12)) {
-                properties.put("lz4-level", "LZ4 compression level must be between 1 and 12");
+                properties.put("lz4-level", new PresetError("level-range", Map.of("name", preset.getName(), "type", "LZ4", "min", 1, "max", 12),
+                        "LZ4 compression level must be between 1 and 12"));
             }
             if (!properties.isEmpty()) {
                 errors.put(preset.getName(), Map.copyOf(properties));
@@ -297,21 +310,23 @@ public final class PackageResolver {
     }
 
     /** Returns container property errors shared by editor properties and build validation. */
-    public static Map<String, Map<String, String>> containerPresetErrors(ManifestDesc manifest) {
-        Map<String, Map<String, String>> errors = new LinkedHashMap<>();
+    public static Map<String, Map<String, PresetError>> containerPresetErrors(ManifestDesc manifest) {
+        Map<String, Map<String, PresetError>> errors = new LinkedHashMap<>();
         Set<String> names = new LinkedHashSet<>();
         for (ContainerPreset preset : manifest.getContainerPresetsList()) {
-            Map<String, String> properties = new LinkedHashMap<>();
+            Map<String, PresetError> properties = new LinkedHashMap<>();
             if (preset.getName().isBlank()) {
-                properties.put("name", "A container preset name is required");
+                properties.put("name", new PresetError("container-name-required", Map.of("name", preset.getName()), "A container preset name is required"));
             } else if (!names.add(preset.getName())) {
-                properties.put("name", "Duplicate container preset: " + preset.getName());
+                properties.put("name", new PresetError("container-name-duplicate", Map.of("name", preset.getName()),
+                        "Duplicate container preset: " + preset.getName()));
             }
             if (preset.getProvider().isBlank()) {
-                properties.put("provider", "A container provider is required");
+                properties.put("provider", new PresetError("provider-required", Map.of("name", preset.getName()), "A container provider is required"));
             }
             if (preset.getProvider().equals("zip") && (preset.getZipLevel() < -1 || preset.getZipLevel() > 9)) {
-                properties.put("zip-level", "ZIP compression level must be between -1 and 9");
+                properties.put("zip-level", new PresetError("level-range", Map.of("name", preset.getName(), "type", "ZIP", "min", -1, "max", 9),
+                        "ZIP compression level must be between -1 and 9"));
             }
             if (!properties.isEmpty()) {
                 errors.put(preset.getName(), Map.copyOf(properties));
@@ -325,8 +340,8 @@ public final class PackageResolver {
         List<Diagnostic> diagnostics = new ArrayList<>();
         for (var errors : List.of(containerPresetErrors(manifest), fileCompressionPresetErrors(manifest))) {
             for (var preset : errors.entrySet()) {
-                for (String message : preset.getValue().values()) {
-                    diagnostics.add(new Diagnostic(Severity.ERROR, "", -1, "", "Compression preset '" + preset.getKey() + "': " + message));
+                for (PresetError error : preset.getValue().values()) {
+                    diagnostics.add(new Diagnostic(Severity.ERROR, "", -1, "", "Compression preset '" + preset.getKey() + "': " + error.message(), error));
                 }
             }
         }

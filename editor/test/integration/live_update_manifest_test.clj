@@ -25,6 +25,7 @@
             [editor.live-update-manifest :as manifest]
             [editor.live-update-manifest-view :as manifest-view]
             [editor.live-update-settings :as live-update-settings]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.properties-view :as properties-view]
@@ -301,9 +302,17 @@
         (test-util/prop! preset :id "")
         (is (= "small" (g/node-value package :file-compression-preset)))
         (is (= :fatal (:severity (properties/validation-message (property preset :id)))))
+        (let [message (g/error-message (test-util/prop-error preset :id))]
+          (is (localization/message-pattern? message))
+          (is (= "A compression preset name is required" (test-util/localization message))))
         (g/undo! :undo/global)
         (test-util/prop! preset :lz4-level 13)
         (is (= :fatal (:severity (properties/validation-message (property preset :lz4-level)))))
+        (let [message (g/error-message (test-util/prop-error preset :lz4-level))]
+          (is (localization/message-pattern? message))
+          (is (= "LZ4 compression level must be between 1 and 12" (test-util/localization message))))
+        (is (= ["Compression preset 'small': LZ4 compression level must be between 1 and 12"]
+               (mapv (comp test-util/localization manifest/diagnostic-message) (g/node-value node :diagnostics))))
         (is (:outline-error? (g/node-value preset :node-outline)))
         (test-util/prop! preset :lz4-level 12)
         (test-util/prop! preset :file-compression :none)
@@ -346,6 +355,9 @@
         (is (nil? (property container :custom-provider)))
         (test-util/prop! container :zip-level 10)
         (is (= :fatal (:severity (properties/validation-message (property container :zip-level)))))
+        (let [message (g/error-message (test-util/prop-error container :zip-level))]
+          (is (localization/message-pattern? message))
+          (is (= "ZIP compression level must be between -1 and 9" (test-util/localization message))))
         (is (:outline-error? (g/node-value container :node-outline)))
         (ui/run-now
           (let [control (:desc (properties-view/make-control-view (property container :zip-level) {} @test-util/localization))]
@@ -392,6 +404,12 @@
             preset (get-in (g/node-value node presets-output) [1 :node-id])]
         (test-util/prop! preset :id "a")
         (is (coll/not-empty (g/node-value node :diagnostics)))
+        (let [message (g/error-message (test-util/prop-error preset :id))]
+          (is (localization/message-pattern? message))
+          (is (= (if (= :container-presets presets-output)
+                   "Duplicate container preset: a"
+                   "Duplicate compression preset: a")
+                 (test-util/localization message))))
         (is (= (:packages original) (:packages (g/node-value node :save-value))))
         (test-util/prop! preset :id "b")
         (is (= original (g/node-value node :save-value)))

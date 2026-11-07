@@ -35,7 +35,7 @@
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [com.dynamo.bob ClassLoaderScanner Progress]
-           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Selection PackageResolver$Severity]
+           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$PresetError PackageResolver$Selection PackageResolver$Severity]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ContainerPreset LiveUpdateManifest$FileCompressionPreset LiveUpdateManifest$ManifestDesc]
            [java.nio.file Path]
            [java.util.function Function]))
@@ -44,6 +44,19 @@
 
 (def ^:private icon "icons/32/Icons_04-Project-file.png")
 (def ^:private package-icon "icons/32/Icons_42-Layers.png")
+
+(defn- preset-error-message [^PackageResolver$PresetError error]
+  (localization/message (str "liveupdate.compression.error." (.code error))
+                        (into {} (.arguments error))))
+
+(defn diagnostic-message
+  "Retains structured preset validation for localization in the manifest view."
+  [^PackageResolver$Diagnostic diagnostic]
+  (if-let [error (.presetError diagnostic)]
+    (localization/message "liveupdate.compression.error.preset"
+                          {"name" (get (.arguments error) "name")
+                           "error" (preset-error-message error)})
+    (.message diagnostic)))
 
 (defn- set-target [evaluation-context self old-target new-target]
   ;; Preserve authored references during loading, but do not restore a stale
@@ -288,8 +301,9 @@
               (map #(g/set-property % property new-name)))))))))
 
 (defn- preset-property-error [node-id id preset-errors property value]
-  (when-let [message (get-in preset-errors [id property])]
-    (g/->error node-id (if (= "name" property) :id (keyword property)) :fatal value message)))
+  (when-let [^PackageResolver$PresetError error (get-in preset-errors [id property])]
+    (g/->error node-id (if (= "name" property) :id (keyword property)) :fatal value
+               (preset-error-message error))))
 
 (g/defnode PresetNode
   (inherits outline/OutlineNode)
@@ -592,7 +606,7 @@
                   (coll/into-> (.diagnostics ^PackageResolver$Selection selection) []
                     (keep (fn [^PackageResolver$Diagnostic diagnostic]
                             (when (= PackageResolver$Severity/ERROR (.severity diagnostic))
-                              (g/->error _node-id :selected-paths :fatal nil (.message diagnostic)))))))
+                              (g/->error _node-id :selected-paths :fatal nil (diagnostic-message diagnostic)))))))
                 (coll/into-> (.values (.matches ^PackageResolver$Selection selection)) (sorted-set) cat))))
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id child-outlines base-outline container-presets-outline file-presets-outline]
