@@ -66,6 +66,10 @@ namespace dmConditionVariable
 
     void Broadcast(HConditionVariable condition)
     {
-        assert(false);
+        assert(condition);
+#if !defined(DM_NO_THREAD_SUPPORT)
+        int ret = pthread_cond_broadcast(&condition->m_NativeHandle);
+        assert(ret == 0);
+#endif
     }
 } // namespace dmConditionVariable
