@@ -21,28 +21,35 @@
 
 namespace dmRig
 {
-    /// One slot per MeshSet model that has morph targets. Maps a model id to a slice of
-    /// RigInstance::m_MorphWeightsBuffer (m_BufferOffset .. +m_MorphCount floats) where
-    /// animation and sampling read/write blend-shape weights for that model.
-    ///
-    /// m_MorphCount is the maximum morph-target count among meshes on that model (one shared
-    /// weight vector for the whole model, matching morph animation tracks). Reset clears this
-    /// slice to zero; glTF/rest defaults live on mesh DDF (m_MorphBaseWeights) for render fallback.
+    /*
+    * Morph animation weights shared by all meshes of a MeshSet model.
+    * Reset clears the weights to zero; rendering falls back to the mesh DDF's
+    * m_MorphBaseWeights for glTF/rest defaults.
+    */
     struct MorphWeightSlot
     {
+        /// Model that owns the morph weights
         uint64_t m_ModelId;
+        /// Maximum morph-target count among the model's meshes
         uint32_t m_MorphCount;
+        /// Offset in floats into RigInstance::m_MorphWeightsBuffer, spanning m_MorphCount weights
         uint32_t m_BufferOffset;
     };
 
+    /*
+    * Playback of a single animation clip, including its cursor, speed and direction.
+    * Two players are used by RigPlaybackState to crossfade between clips.
+    */
     struct RigPlayer
     {
-        RigPlayer() : m_Animation(0x0),
-                      m_AnimationId(0x0),
-                      m_Cursor(0.0f),
-                      m_Playback(dmRig::PLAYBACK_ONCE_FORWARD),
-                      m_Playing(0x0),
-                      m_Backwards(0x0) {};
+        RigPlayer()
+        : m_Animation(0x0)
+        , m_AnimationId(0x0)
+        , m_Cursor(0.0f)
+        , m_Playback(dmRig::PLAYBACK_ONCE_FORWARD)
+        , m_Playing(0x0)
+        , m_Backwards(0x0) {};
+
         /// Currently playing animation
         const dmRigDDF::RigAnimation* m_Animation;
         dmhash_t                      m_AnimationId;
@@ -59,15 +66,87 @@ namespace dmRig
         uint8_t                       : 6;
     };
 
+    /*
+    * Animated settings for an IK constraint: its influence and bend direction.
+    * These are evaluated alongside the bone animation and combined with user IK targets.
+    */
     struct IKAnimation
     {
         float m_Mix;
-        bool m_Positive;
+        bool  m_Positive;
     };
 
+    /*
+    * Immutable layer definition shared by rig instances through reference counting.
+    * Defines evaluation order, blend weight and bone selection; playback state lives in RigLayer.
+    * m_AllBones distinguishes an omitted bone selection from an explicitly empty one.
+    */
+    struct AnimationLayer
+    {
+        dmhash_t          m_Name;
+        dmArray<dmhash_t> m_Bones;
+        uint32_t          m_RefCount;
+        int32_t           m_Order;
+        float             m_Weight;
+        bool              m_AllBones;
+    };
+
+    /*
+    * Playback and crossfade state for the base animation or one additional layer.
+    * Tracks incoming and outgoing clips, with a generation used to reject stale events.
+    */
+    struct RigPlaybackState
+    {
+        RigPlayer m_Players[2];
+        float     m_BlendDuration;
+        float     m_BlendTimer;
+        uint64_t  m_Generation;
+        uint8_t   m_CurrentPlayer;
+        uint8_t   m_Blending;
+    };
+
+    /*
+    * One rig instance's playback of a shared animation layer definition.
+    * Resolves the definition's bone selection into a skeleton mask and stores the layer pose.
+    */
+    struct RigLayer
+    {
+        HAnimationLayer      m_Definition;
+        RigPlaybackState     m_Playback;
+        dmArray<uint8_t>     m_Mask;
+        dmArray<BonePose>    m_Pose;
+    };
+
+    /*
+    * Animation event queued until pose updates have finished.
+    * The layer and playback generation identify its source so cancelled or replaced
+    * playback cannot deliver stale events.
+    */
+    struct PendingRigEvent
+    {
+        RigEventType          m_Type;
+        HAnimationLayer       m_Layer;
+        uint64_t              m_Generation;
+        union
+        {
+            RigCompletedEventData m_Completed;
+            RigKeyframeEventData  m_Keyframe;
+        };
+    };
+
+    /*
+    * Runtime state for one rig, referencing its skeleton, meshes and animation data.
+    * Owns base and layered playback, evaluated poses, IK and morph weights, and queued events.
+    * Callbacks expose pose updates and animation events to the owning component.
+    */
     struct RigInstance
     {
-        RigPlayer                     m_Players[2];
+        RigPlaybackState              m_BasePlayback;
+        dmArray<RigLayer*>             m_Layers;
+        // Allocated only for layered playback. Never reuse the composite as a base pose.
+        dmArray<BonePose>              m_BasePose;
+        dmArray<PendingRigEvent>       m_PendingEvents;
+        uint64_t                      m_PlayGeneration;
         uint32_t                      m_Index;
         /// Rig input data
         const dmArray<RigBone>*         m_BindPose;
@@ -100,27 +179,22 @@ namespace dmRig
         uint32_t                      m_NumModels;
 
         dmhash_t                      m_ModelId;
-        float                         m_BlendDuration;
-        float                         m_BlendTimer;
         // Max bone count used by skeleton (if it is used) and meshset
         uint16_t                      m_MaxBoneCount;
         uint16_t                      m_PoseMatrixCacheIndex;
-        /// Current player index
-        uint8_t                       m_CurrentPlayer : 1;
-        /// Whether we are currently X-fading or not
-        uint8_t                       m_Blending : 1;
         uint8_t                       m_Enabled : 1;
         uint8_t                       m_DoRender : 1;
         uint8_t                       m_HasPoseMatrixCacheAnimatedPose : 1;
         uint8_t                       m_RequiresUpdate : 1;
-        uint8_t : 2;
+        /// Recompose held poses after removing a layer, even when no animation is playing
+        uint8_t                       m_LayerPoseDirty : 1;
+        uint8_t : 3;
     };
 
-    /** Pose matrix cache
-     * A pose matrix cache stores a buffer of pose matrices for any given number of rig instances.
-     * The cache will keep growing as more rig instances are added, until it is explicitly reset.
-     * Resetting the cache will not release memory.
-     */
+    /*
+    * Pose matrices shared by the rig instances that acquire cache slots.
+    * The cache grows as slots are added until it is reset; resetting retains allocated memory.
+    */
     struct PoseMatrixCache
     {
         /// The array of pose matrices for all rig instances

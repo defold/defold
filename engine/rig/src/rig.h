@@ -31,6 +31,26 @@ namespace dmRig
         float          m_BoneIndices[4];
     };
 
+    // Immutable definitions own bone names; instances resolve their own skeleton masks.
+    struct AnimationLayerParams
+    {
+        dmhash_t        m_Name;
+        int32_t         m_Order;
+        float           m_Weight;
+        const dmhash_t* m_Bones;
+        uint32_t        m_BoneCount;
+        uint8_t         m_AllBones : 1;
+        uint8_t : 7;
+    };
+
+    HAnimationLayer NewAnimationLayer(const AnimationLayerParams& params);
+    void ReleaseAnimationLayer(HAnimationLayer layer);
+    // A successful play retains the definition until cancellation or instance destruction.
+    Result PlayAnimation(HRigInstance instance, HAnimationLayer layer, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate);
+
+    // Remove one layer without stopping base playback or other layers.
+    Result CancelAnimation(HRigInstance instance, HAnimationLayer layer);
+
     /**
      * Gets the pose matrix cache data pointer and number of matrices in the cache
      * @param context The rig context

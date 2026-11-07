@@ -118,18 +118,27 @@ namespace dmGameSystem
         uint8_t                     m_Enabled                      : 1;
     };
 
+    struct ModelAnimationCallbacks
+    {
+        dmRig::HAnimationLayer         m_Layer;
+        // Invoked for keyframe and completion events on this animation layer.
+        FModelAnimationCallback        m_Callback;
+        // Invoked after completion, or when replaced, cancelled, reloaded, or destroyed.
+        FModelAnimationCallbackDestroy m_DestroyCallback;
+        void*                          m_Context;
+    };
+
     struct ModelComponent
     {
-        dmGameObject::HInstance     m_Instance;
-        dmTransform::Transform      m_Transform;
-        ModelResource*              m_Resource;
-        dmRig::HRigInstance         m_RigInstance;
-        FModelAnimationCallback     m_Callback;
-        void*                       m_CallbackContext;
-        HComponentRenderConstants   m_RenderConstants;
-        TextureResource*            m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        MaterialResource*           m_Material; // Override material
-
+        dmGameObject::HInstance          m_Instance;
+        dmTransform::Transform           m_Transform;
+        ModelResource*                   m_Resource;
+        dmRig::HRigInstance              m_RigInstance;
+        dmArray<ModelAnimationCallbacks> m_AnimationCallbacks;
+        HComponentRenderConstants        m_RenderConstants;
+        TextureResource*                 m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        /// Override material
+        MaterialResource*                m_Material;
         /// Node instances corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;
         dmArray<MeshRenderItem>          m_RenderItems;
@@ -384,13 +393,37 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    static void ClearAnimationCallbacks(ModelComponent* component)
+    {
+        for (uint32_t i = 0; i < component->m_AnimationCallbacks.Size(); ++i)
+        {
+            ModelAnimationCallbacks& callback = component->m_AnimationCallbacks[i];
+            if (callback.m_DestroyCallback)
+                callback.m_DestroyCallback(callback.m_Context);
+        }
+        component->m_AnimationCallbacks.SetSize(0);
+    }
+
     static void CompModelEventCallback(dmRig::RigEventType event_type, void* event_data, void* user_data1, void* user_data2)
     {
         ModelComponent* component = (ModelComponent*)user_data1;
+        dmRig::HAnimationLayer layer = event_type == dmRig::RIG_EVENT_TYPE_COMPLETED ?
+            ((dmRig::RigCompletedEventData*)event_data)->m_Layer :
+            ((dmRig::RigKeyframeEventData*)event_data)->m_Layer;
 
-        if (component->m_Callback)
+        for (uint32_t i = 0; i < component->m_AnimationCallbacks.Size(); ++i)
         {
-            component->m_Callback(component->m_CallbackContext, event_type, event_data);
+            ModelAnimationCallbacks callback = component->m_AnimationCallbacks[i];
+            if (callback.m_Layer != layer)
+                continue;
+            // Detach before invoking Lua: it may start another animation on this layer.
+            if (event_type == dmRig::RIG_EVENT_TYPE_COMPLETED)
+                component->m_AnimationCallbacks.EraseSwap(i);
+            if (callback.m_Callback)
+                callback.m_Callback(callback.m_Context, event_type, event_data);
+            if (event_type == dmRig::RIG_EVENT_TYPE_COMPLETED && callback.m_DestroyCallback)
+                callback.m_DestroyCallback(callback.m_Context);
+            return;
         }
     }
 
@@ -1301,8 +1334,6 @@ namespace dmGameSystem
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_DoRender = 0;
-        component->m_Callback = 0;
-        component->m_CallbackContext = 0;
         component->m_RenderConstants = 0;
 
         // Create GO<->bone representation
@@ -1353,6 +1384,7 @@ namespace dmGameSystem
     static void DestroyComponent(ModelWorld* world, uint32_t index)
     {
         ModelComponent* component = world->m_Components.Get(index);
+        ClearAnimationCallbacks(component);
         dmGameObject::DeleteBones(component->m_Instance);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         component->m_NodeInstances.SetCapacity(0);
@@ -2757,15 +2789,60 @@ namespace dmGameSystem
         component->m_ReHash = 1;
     }
 
-    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, FModelAnimationCallback callback, void* callback_ctx)
+    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, FModelAnimationCallback callback, void* callback_ctx, dmRig::HAnimationLayer layer, FModelAnimationCallbackDestroy destroy_callback)
     {
-        dmRig::Result result = dmRig::PlayAnimation(component->m_RigInstance, anim_id, playback, blend_duration, offset, playback_rate);
-        if (dmRig::RESULT_OK == result)
+        dmRig::Result result = dmRig::PlayAnimation(component->m_RigInstance, layer, anim_id, playback, blend_duration, offset, playback_rate);
+        if (result != dmRig::RESULT_OK)
+            return result;
+        for (uint32_t i = 0; i < component->m_AnimationCallbacks.Size(); ++i)
         {
-            component->m_Callback = callback;
-            component->m_CallbackContext = callback_ctx;
+            ModelAnimationCallbacks& previous = component->m_AnimationCallbacks[i];
+            if (previous.m_Layer == layer)
+            {
+                if (previous.m_DestroyCallback)
+                    previous.m_DestroyCallback(previous.m_Context);
+                component->m_AnimationCallbacks.EraseSwap(i);
+                break;
+            }
+        }
+        if (callback || destroy_callback)
+        {
+            ModelAnimationCallbacks entry;
+            entry.m_Layer = layer;
+            entry.m_Callback = callback;
+            entry.m_DestroyCallback = destroy_callback;
+            entry.m_Context = callback_ctx;
+
+            if (component->m_AnimationCallbacks.Full())
+                component->m_AnimationCallbacks.OffsetCapacity(dmMath::Max(1u, component->m_AnimationCallbacks.Capacity()));
+            component->m_AnimationCallbacks.Push(entry);
         }
         return result;
+    }
+
+    void CompModelCancelAnimation(HModelComponent component, dmRig::HAnimationLayer layer)
+    {
+        dmRig::CancelAnimation(component->m_RigInstance, layer);
+        for (uint32_t i = 0; i < component->m_AnimationCallbacks.Size(); ++i)
+        {
+            ModelAnimationCallbacks callbacks = component->m_AnimationCallbacks[i];
+            if (callbacks.m_Layer != layer)
+            {
+                continue;
+            }
+            component->m_AnimationCallbacks.EraseSwap(i);
+            if (callbacks.m_DestroyCallback)
+            {
+                callbacks.m_DestroyCallback(callbacks.m_Context);
+            }
+            break;
+        }
+    }
+
+    // Preserve the public SDK signature and binary symbol for existing native extensions.
+    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, FModelAnimationCallback callback, void* callback_ctx)
+    {
+        return CompModelPlayAnimation(world, component, anim_id, playback, blend_duration, offset, playback_rate, callback, callback_ctx, 0, 0);
     }
 
     dmGameObject::UpdateResult CompModelOnMessage(const dmGameObject::ComponentOnMessageParams& params)
@@ -2787,6 +2864,7 @@ namespace dmGameSystem
             if (params.m_Message->m_Id == dmModelDDF::ModelCancelAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmRig::CancelAnimation(component->m_RigInstance);
+                ClearAnimationCallbacks(component);
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
@@ -2802,10 +2880,12 @@ namespace dmGameSystem
 
     static bool OnResourceReloaded(ModelWorld* world, ModelComponent* component, int index)
     {
+        ClearAnimationCallbacks(component);
         // Destroy old rig
         if (component->m_RigInstance != 0)
         {
             dmRig::InstanceDestroy(world->m_RigContext, component->m_RigInstance);
+            component->m_RigInstance = 0;
         }
 
         // Delete old bones, recreate with new data.

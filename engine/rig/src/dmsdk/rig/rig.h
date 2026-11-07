@@ -39,16 +39,19 @@ namespace dmRig
 {
     static const uint32_t INVALID_BONE_INDEX = 0xFFFFFFFF;
 
-    typedef struct RigContext*  HRigContext;
-    typedef struct RigInstance* HRigInstance;
+    typedef struct RigContext*     HRigContext;
+    typedef struct RigInstance*    HRigInstance;
+    typedef struct AnimationLayer* HAnimationLayer;
 
     enum Result
     {
-        RESULT_OK             = 0,
-        RESULT_ERROR          = 1,
+        RESULT_OK                = 0,
+        RESULT_ERROR             = 1,
         RESULT_ERROR_BUFFER_FULL = 2,
-        RESULT_ANIM_NOT_FOUND = 3,
-        RESULT_UPDATED_POSE   = 4
+        RESULT_ANIM_NOT_FOUND    = 3,
+        RESULT_UPDATED_POSE      = 4,
+        RESULT_BONE_NOT_FOUND    = 5,
+        RESULT_LAYER_CONFLICT    = 6
     };
 
     enum RigPlayback
@@ -60,7 +63,7 @@ namespace dmRig
         PLAYBACK_LOOP_FORWARD  = 4,
         PLAYBACK_LOOP_BACKWARD = 5,
         PLAYBACK_LOOP_PINGPONG = 6,
-        PLAYBACK_COUNT = 7,
+        PLAYBACK_COUNT         = 7,
     };
 
     typedef struct IKTarget IKTarget;
@@ -72,7 +75,8 @@ namespace dmRig
     // becomes invalid (for example the GO is removed in the collection,
     // or a GUI node in the GUI scene) it is up the callback to reset the
     // struct fields.
-    struct IKTarget {
+    struct IKTarget
+    {
         float               m_Mix;
         /// Static IK target position
         dmVMath::Vector3    m_Position;
@@ -90,29 +94,32 @@ namespace dmRig
 
     struct RigCompletedEventData
     {
-        uint64_t  m_AnimationId;
-        uint32_t  m_Playback;
+        uint64_t        m_AnimationId;
+        uint32_t        m_Playback;
+        HAnimationLayer m_Layer; // Null for base playback.
     };
 
+    // Keep existing field offsets stable for native animation event callbacks.
     struct RigKeyframeEventData
     {
-        uint64_t  m_EventId;
-        uint64_t  m_AnimationId;
-        float     m_T;
-        float     m_BlendWeight;
-        int32_t   m_Integer;
-        float     m_Float;
-        uint64_t  m_String;
+        uint64_t        m_EventId;
+        uint64_t        m_AnimationId;
+        float           m_T;
+        float           m_BlendWeight;
+        int32_t         m_Integer;
+        float           m_Float;
+        uint64_t        m_String;
+        HAnimationLayer m_Layer; // Null for base playback.
     };
 
     struct RigModelVertex
     {
-        float pos[3];
-        float normal[3];
-        float tangent[4];
-        float color[4];
-        float uv0[2];
-        float uv1[2];
+        float m_Position[3];
+        float m_Normal[3];
+        float m_Tangent[4];
+        float m_Color[4];
+        float m_UV0[2];
+        float m_UV1[2];
     };
 
     // Can we not use the skeleton directly?
@@ -120,11 +127,10 @@ namespace dmRig
     {
         /// Inv model space transform
         dmVMath::Matrix4 m_ModelToLocal;
-
         /// Index of parent bone
-        uint32_t m_ParentIndex;
+        uint32_t         m_ParentIndex;
         /// Length of the bone
-        float m_Length;
+        float            m_Length;
     };
 
     struct BonePose
@@ -132,12 +138,13 @@ namespace dmRig
         dmTransform::Transform  m_Local; // Local space transform
         dmTransform::Transform  m_World; // Model space transform (local to model space)
         dmVMath::Matrix4        m_Final; // m_World * InvBindPose
-        uint32_t m_ParentIndex;          // Index of parent bone
-        float m_Length;
+        uint32_t                m_ParentIndex; // Index of parent bone
+        float                   m_Length;
     };
 
-    struct NewContextParams {
-        uint32_t     m_MaxRigInstanceCount;
+    struct NewContextParams
+    {
+        uint32_t m_MaxRigInstanceCount;
     };
 
     typedef void (*RigEventCallback)(RigEventType, void*, void* userdata1, void* userdata2);
@@ -145,23 +152,21 @@ namespace dmRig
 
     struct InstanceCreateParams
     {
-        dmhash_t                      m_ModelId;
-        dmhash_t                      m_DefaultAnimation;
-
+        dmhash_t                        m_ModelId;
+        dmhash_t                        m_DefaultAnimation;
         const dmArray<struct RigBone>*  m_BindPose;
         const dmHashTable64<uint32_t>*  m_BoneIndices;   // Map of bone name hash -> bone index
         const dmRigDDF::Skeleton*       m_Skeleton;
         const dmRigDDF::MeshSet*        m_MeshSet;
         const dmRigDDF::AnimationSet*   m_AnimationSet;
-
-        RigPoseCallback               m_PoseCallback;
-        void*                         m_PoseCBUserData1;
-        void*                         m_PoseCBUserData2;
-        RigEventCallback              m_EventCallback;
-        void*                         m_EventCBUserData1;
-        void*                         m_EventCBUserData2;
-
-        bool                          m_ForceAnimatePose;
+        RigPoseCallback                 m_PoseCallback;
+        void*                           m_PoseCBUserData1;
+        void*                           m_PoseCBUserData2;
+        RigEventCallback                m_EventCallback;
+        void*                           m_EventCBUserData1;
+        void*                           m_EventCBUserData2;
+        uint8_t                         m_ForceAnimatePose : 1;
+        uint8_t : 7;
     };
 
     Result NewContext(const NewContextParams& params, HRigContext* context);
