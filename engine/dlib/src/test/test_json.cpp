@@ -103,8 +103,8 @@ TEST(dmJson, ReusedDocumentStorage)
     uint32_t capacity = json.m_TextCapacity;
     uint32_t node_capacity = json.m_Nodes.Capacity();
 
-    const char small[] = "{\"value\":\"a\\nb\"}";
-    ASSERT_TRUE(json.Parse(small, sizeof(small) - 1));
+    const char small_json[] = "{\"value\":\"a\\nb\"}";
+    ASSERT_TRUE(json.Parse(small_json, sizeof(small_json) - 1));
     ASSERT_EQ(2u, json.m_Nodes.Size());
     ASSERT_STREQ("a\nb", json.String(json.Field(0, "value")));
     const char metadata[] = "{\"value\":\"a\\u0000b\",\"number\":1e400}";
