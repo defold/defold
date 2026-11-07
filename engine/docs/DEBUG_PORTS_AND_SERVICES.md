@@ -26,6 +26,30 @@ dns-sd -B _defold._tcp local
 ## Engine service
 The engine service is implemented as a small web server running within the engine. The server provides a number of endpoints which can be used to query for data or issue commands:
 
+The observation URLs are unversioned. `/ping`, `/info`, `/state`, and
+`/openapi.json` accept only `GET` at the exact path, without a request body.
+Query strings are accepted and ignored by these handlers.
+Unsupported methods return `405` with `Allow: GET`. Unmatched paths return
+`404` before profiler initialization; afterward, the existing `/` prefix
+fallback serves profiler HTML. The profiler handler retains its existing method
+and body handling. Unexpected bodies on observation endpoints return `400` and
+close the connection without waiting for the upload. Invalid or unsupported body
+framing, including chunked uploads, is rejected by the HTTP server. Observation errors use
+`{"error":{"code":"...","message":"..."}}`; routing and framing errors can be plain text.
+
+Handlers run on the engine thread and response bytes are copied into an
+asynchronous sender. Slow readers do not retain engine contexts. Observation
+requests continue to be polled when the application loop skips simulation,
+including throttling, iconification, and an iteration with zero simulation
+steps. They do not advance simulation or rendering. Responsiveness follows the
+application loop's pacing: OS suspension, a debugger stop, or a blocked callback
+can prevent polling. Other existing service handlers can perform synchronous
+work; a responsive observation does not confirm that a queued command executed.
+
+Graphical and headless debug engines expose these endpoints where socket-server
+support is available. Release engines link the null service. The current web
+engine has no HTTP engine service.
+
 ### /openapi.json
 
 `GET http://<engine-address>:<engine-service-port>/openapi.json` returns an
@@ -47,6 +71,14 @@ available at `/`.
 The original three-argument overload remains available and registers a handler
 without metadata, as does passing `0` as the fourth argument. These handlers
 serve requests normally but do not contribute to `/openapi.json`.
+
+An optional fifth argument combines routing constraints:
+`dmWebServer::MATCH_EXACT_PATH | dmWebServer::GET_ONLY | dmWebServer::NO_REQUEST_BODY`.
+Exact-path matching ignores the query string while preserving it in
+`request->m_Resource`. Method and body constraints are checked before invoking
+the selected handler. Omitting the flags or passing `0` keeps prefix matching
+and leaves method and body handling to the callback. OpenAPI metadata describes
+the handler; it does not impose these constraints.
 
 A non-null string contains a non-empty OpenAPI **Paths Object**, including the endpoint
 paths and their methods. One routing prefix can describe several endpoint paths.
@@ -122,19 +154,43 @@ the binary payloads and links to their protobuf definitions. It does not add JSO
 request support.
 
 ### /ping
-This endpoint will accept a GET request and reply with a "pong". This can be used to check that the server is running and responding to requests.
+Returns `PONG\n` as `text/plain` to check that the engine is responding.
 
 ### /info
 This endpoint will accept a GET request and reply with a JSON formatted string containing information about the engine:
 
 ```json
-{"version": "1.4.1", "platform": "x86_64-macos", "sha1": "8f96e450ddfb006a99aa134fdd373cace3760571", "log_port": "7001"}
+{"version": "1.14.2", "platform": "arm64-macos", "sha1": "<build-sha>", "log_port": "7001", "service_api_version": 1}
 ```
+
+The build values are illustrative. The existing four fields remain strings.
+`service_api_version` is an integer identifying the common observation contract;
+version 1 includes the state fields below. Compatible additions retain this
+version. Its absence means the engine does not expose this contract. Engine
+release versions and OpenAPI's `info.version` identify the build separately.
+Both `/info` and `/state` return `application/json` with `Cache-Control: no-store`.
 
 ### /state
 
-Returns JSON with a boolean `connection_mode` indicating whether the engine is
-waiting for a project connection.
+Returns one consistent observation, with HTTP `200` even when not ready:
+
+```json
+{"connection_mode": false, "engine_instance_id": "<opaque-token>", "ready": true, "frame": 42}
+```
+
+* `connection_mode` retains its boolean meaning: the engine is running the built-in connection app.
+* `engine_instance_id` identifies the current initialization attempt. It changes on restart or reboot, including rebooting the same project, and is retained by hot reload. It is `null` without an attached engine. Treat it as an opaque correlation token, not authentication or a project identifier.
+* `ready` is true only after engine initialization and bootstrap collection initialization succeed for a real project. It is false during initialization, in connection mode, after failure, and after teardown. It does not promise completion of application loading, collection proxy loading, or frame presentation. Bootstrap failure retains the existing engine startup policy.
+* `frame` is the authoritative unsigned 32-bit engine frame counter, sampled immediately before service polling. It starts at zero and is `null` without an attached engine. The normal poll excludes the frame still being processed: the counter increments at the end of the frame, after `Flip()` when rendering is enabled. Complete render-disabled iterations count; skipped simulation iterations do not. This is not a GPU-completion or scene-snapshot sequence.
+
+Discover the existing service port, check `/info` and `/openapi.json`, then poll
+`/state` with a client-side monotonic timeout. Reads do not wait for a condition
+and accept no wait/timeout parameter. On an instance change, discard old
+observations and reacquire subsystem state. Detect frame progress by a changed
+value or unsigned modular comparison: the counter wraps at 32 bits without
+changing the instance identity. Already queued responses keep the identity and
+state sampled before teardown. Intermediate startup/teardown states need not be
+observable; the service provides no event history.
 
 ### Profiler endpoints
 
