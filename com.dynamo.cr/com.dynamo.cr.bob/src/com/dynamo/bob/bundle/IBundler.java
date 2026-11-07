@@ -14,15 +14,15 @@
 
 package com.dynamo.bob.bundle;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.Map;
-
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.Map;
 
 public interface IBundler {
 

@@ -22,16 +22,26 @@ artifacts from their build or archive locations without staging them in the Bob
 source tree's `lib` and `libexec` directories. Console shader compiler plugins,
 where needed, are built separately from Bob.
 
+Before packaging, Bob copies its Linux compiler libraries, LuaJIT executables,
+Ogg tools, Linux `zipalign`, and Linux and macOS `lipo` tools to `tmp` and removes
+their debug information; the original binaries remain available for debugging.
+Windows `lipo.exe` is left unchanged: stripping its debug sections with LLVM
+produces a binary that Windows cannot load.
+The build uses the installed `strip_android` tool, or `llvm-strip` on `PATH` if
+that tool is not packaged for the build host (such as ARM64 Linux).
+
 `scripts/update-editor-binaries.sh` installs Bob with `-Pprefer-local-engines` so
 local engine binaries and `classes.dex` take precedence over a synced archive.
 Platforms without a local engine still use the archive. The local preference also
 includes available headless engines and local platforms omitted from
 `archive-artifacts.json`.
 
-`./scripts/build.py sync_archive` downloads Bob's engine inputs from S3. The public
-paths in `archive-artifacts.json` are shared with Gradle's artifact selection;
-update that list when adding an archived input. Private-platform archive folders
-retain their existing download filters.
+`./scripts/build.py sync_archive` downloads Bob's public engine inputs through
+CloudFront at `https://d.defold.com`. S3 is used to list available files, and private
+archive buckets retain authenticated S3 downloads. The public paths in
+`archive-artifacts.json` are shared with Gradle's artifact selection; update that
+list when adding an archived input. Private-platform archive folders retain their
+existing download filters.
 
 Tool packaging is defined by two additional manifests:
 
@@ -46,7 +56,9 @@ Compiler libraries resolve from local engine builds or archive paths listed in
 into their usual `$DYNAMO_HOME/ext/bin/<platform>` and `ext/lib/<platform>` paths,
 preserving locally built tools for the current host and selected target.
 Full Bob requires them for all desktop hosts; Bob Light requires the current
-host's LuaJIT executable and Ogg libraries.
+host's LuaJIT executable, Ogg libraries, and DXC compiler library. CMake stages
+DXC alongside the shader compiler before building Bob Light, without requiring
+an engine install first.
 The LuaJIT modules installed in `$DYNAMO_HOME/ext` are assembled into
 `tmp/luajit-share.zip` and packaged inside each JAR as `lib/luajit-share.zip`.
 Both JAR tasks track the manifests as inputs, so changing a list updates the
@@ -85,6 +97,9 @@ Resource keep XML is separate from the Java `.keep` configuration. Projects with
 Bob builds content for the editor and engine tests. `build_engine` builds host
 tools and `bob-light.jar` before CMake uses Bob Light to compile engine test
 content and built-in resources.
+
+DX12 is still a work in progress. When switching to the SM6/DXC shader compiler,
+clear the project's build caches and rebuild its content.
 
 ### GUI custom node callbacks
 

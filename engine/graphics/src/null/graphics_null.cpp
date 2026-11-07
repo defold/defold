@@ -1318,6 +1318,8 @@ namespace dmGraphics
         uint32_t supported_sample_counts = params.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? 1 : 255;
         rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, supported_sample_counts, "Null");
         rt->m_Base.m_TextureType = params.m_TextureType;
+        memcpy(rt->m_ColorBufferLoadOps, params.m_ColorBufferLoadOps, sizeof(rt->m_ColorBufferLoadOps));
+        memcpy(rt->m_ColorBufferStoreOps, params.m_ColorBufferStoreOps, sizeof(rt->m_ColorBufferStoreOps));
 
         BufferType color_buffer_flags[] = {
             BUFFER_TYPE_COLOR0_BIT,

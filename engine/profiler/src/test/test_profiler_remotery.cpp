@@ -21,6 +21,7 @@
 
 #include <string.h>
 
+#include <dlib/atomic.h>
 #include <dlib/configfile.h>
 #include <dlib/dstrings.h>
 #include <dlib/profile.h>
@@ -87,11 +88,49 @@ public:
     dmSocket::Socket m_BlockingSocket;
     dmExtension::AppParams m_Params;
     rmtSettings m_Settings;
+    int32_atomic_t m_AllocationCount;
+
+    static void* Allocate(void* context, rmtU32 size)
+    {
+        ProfilerRemoteryLifecycleTest* self = (ProfilerRemoteryLifecycleTest*)context;
+        void* ptr = self->m_Settings.malloc(self->m_Settings.mm_context, size);
+        if (ptr)
+        {
+            dmAtomicIncrement32(&self->m_AllocationCount);
+        }
+        return ptr;
+    }
+
+    static void* Reallocate(void* context, void* ptr, rmtU32 size)
+    {
+        ProfilerRemoteryLifecycleTest* self = (ProfilerRemoteryLifecycleTest*)context;
+        void* new_ptr = self->m_Settings.realloc(self->m_Settings.mm_context, ptr, size);
+        if (!ptr && new_ptr)
+        {
+            dmAtomicIncrement32(&self->m_AllocationCount);
+        }
+        return new_ptr;
+    }
+
+    static void Free(void* context, void* ptr)
+    {
+        ProfilerRemoteryLifecycleTest* self = (ProfilerRemoteryLifecycleTest*)context;
+        if (ptr)
+        {
+            dmAtomicDecrement32(&self->m_AllocationCount);
+        }
+        self->m_Settings.free(self->m_Settings.mm_context, ptr);
+    }
 
     void SetUp()
     {
         m_BlockingSocket = dmSocket::INVALID_SOCKET_HANDLE;
         m_Settings = *rmt_Settings();
+        m_AllocationCount = 0;
+        rmt_Settings()->malloc = Allocate;
+        rmt_Settings()->realloc = Reallocate;
+        rmt_Settings()->free = Free;
+        rmt_Settings()->mm_context = this;
         ExtensionAppParamsInitialize(&m_Params);
         ProfileInitialize();
     }
@@ -108,11 +147,12 @@ public:
         if (m_BlockingSocket != dmSocket::INVALID_SOCKET_HANDLE)
             dmSocket::Delete(m_BlockingSocket);
         *rmt_Settings() = m_Settings;
+        ASSERT_EQ(0, dmAtomicGet32(&m_AllocationCount));
     }
 };
 
 // Verifies that a port conflict leaves Remotery disabled across reboots without
-// corrupting the registry, and that a new app lifecycle can start it (#13602).
+// leaking allocations or corrupting the registry, and that a new app lifecycle can start it (#13602).
 TEST_F(ProfilerRemoteryLifecycleTest, RebootAfterFailedInitialization)
 {
     ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::New(dmSocket::DOMAIN_IPV4, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &m_BlockingSocket));
@@ -132,6 +172,7 @@ TEST_F(ProfilerRemoteryLifecycleTest, RebootAfterFailedInitialization)
     ASSERT_EQ(dmConfigFile::RESULT_OK, dmConfigFile::LoadFromBuffer(config, strlen(config), 0, 0, &m_Params.m_ConfigFile));
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&m_Params));
     ASSERT_EQ((Remotery*)0, rmt_GetGlobalInstance());
+    ASSERT_EQ(0, dmAtomicGet32(&m_AllocationCount));
 
     for (uint32_t i = 0; i < 2; ++i)
     {

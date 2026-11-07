@@ -19,6 +19,7 @@
 #include <dlib/time.h>
 #include <wrl/client.h>
 #include "graphics_adapter.h"
+#include "shaderc_dxc.h"
 #include "test_app_graphics.h"
 #include "read_pixels_tests.h"
 #include "dx12/graphics_dx12_private.h"
@@ -46,12 +47,23 @@ static void RequireHR(HRESULT hr)
     ASSERT_EQ(S_OK, hr);
 }
 
-// Build real DXBC and serialized signatures, then load via the public program API.
+static HRESULT CompileShaderSM6(const char* source, const char* profile, IDxcBlob** shader, ID3D12ShaderReflection** reflection = 0)
+{
+    ComPtr<IDxcBlobUtf8> errors;
+    HRESULT hr = dmShaderc::CompileDXC(source, strlen(source), "main", profile, shader, &errors, reflection);
+    if (FAILED(hr) && errors)
+    {
+        printf("%s\n", errors->GetStringPointer());
+    }
+    return hr;
+}
+
+// Build real DXIL and serialized signatures, then load via the public program API.
 struct TestProgram
 {
-    ShaderDesc m_Desc;
+    ShaderDesc         m_Desc;
     // Own the compiled blobs referenced by the descriptor until the test finishes.
-    dmArray<ID3DBlob*> m_Blobs;
+    dmArray<IUnknown*> m_Blobs;
 
     TestProgram()
     {
@@ -62,27 +74,63 @@ struct TestProgram
     ~TestProgram()
     {
         for (uint32_t i = 0; i < m_Desc.m_Shaders.m_Count; ++i)
+        {
             free(m_Desc.m_Shaders[i].m_HlslResourceMapping.m_Data);
+            free(m_Desc.m_Shaders[i].m_HlslShaderOutputs.m_Data);
+        }
         DeleteShaderDesc(&m_Desc);
         for (uint32_t i = 0; i < m_Blobs.Size(); ++i)
+        {
             m_Blobs[i]->Release();
+        }
     }
 
     void AddShaderStage(const char* source, ShaderDesc::ShaderType stage)
     {
-        ComPtr<ID3DBlob> code, errors;
-        const char* profile = "ps_5_1";
+        ComPtr<IDxcBlob> code;
+        const char* profile = "ps_6_0";
         if (stage == ShaderDesc::SHADER_TYPE_COMPUTE)
-            profile = "cs_5_1";
+        {
+            profile = "cs_6_0";
+        }
         else if (stage == ShaderDesc::SHADER_TYPE_VERTEX)
-            profile = "vs_5_1";
-        HRESULT hr = D3DCompile(source, strlen(source), 0, 0, 0, "main", profile, 0, 0, &code, &errors);
-        if (FAILED(hr) && errors)
-            printf("%s\n", (const char*)errors->GetBufferPointer());
+        {
+            profile = "vs_6_0";
+        }
+        ComPtr<ID3D12ShaderReflection> reflection;
+        HRESULT hr = CompileShaderSM6(source, profile, &code, &reflection);
         RequireHR(hr);
-        AddShader(&m_Desc, ShaderDesc::LANGUAGE_HLSL_51, stage, (uint8_t*)code->GetBufferPointer(), (uint32_t)code->GetBufferSize());
+        AddShader(&m_Desc, ShaderDesc::LANGUAGE_HLSL_60, stage, (uint8_t*)code->GetBufferPointer(), (uint32_t)code->GetBufferSize());
+        if (stage == ShaderDesc::SHADER_TYPE_FRAGMENT)
+        {
+            dmArray<dmShaderc::HLSLShaderOutput> outputs;
+            RequireHR(dmShaderc::GetHLSLShaderOutputs(reflection.Get(), outputs));
+            ShaderDesc::Shader& shader = m_Desc.m_Shaders[m_Desc.m_Shaders.m_Count - 1];
+            shader.m_HlslShaderOutputs.m_Count = outputs.Size();
+            shader.m_HlslShaderOutputs.m_Data = (ShaderDesc::HLSLShaderOutput*)calloc(outputs.Size(), sizeof(ShaderDesc::HLSLShaderOutput));
+            for (uint32_t i = 0; i < outputs.Size(); ++i)
+            {
+                ShaderDesc::HLSLShaderOutput& output = shader.m_HlslShaderOutputs[i];
+                output.m_Location = outputs[i].m_Location;
+                output.m_ComponentCount = outputs[i].m_ComponentCount;
+                switch (outputs[i].m_Type)
+                {
+                    case dmShaderc::BASE_TYPE_UINT32:
+                        output.m_ComponentType = ShaderDesc::HLSLShaderOutput::COMPONENT_TYPE_UINT32;
+                        break;
+                    case dmShaderc::BASE_TYPE_INT32:
+                        output.m_ComponentType = ShaderDesc::HLSLShaderOutput::COMPONENT_TYPE_SINT32;
+                        break;
+                    default:
+                        output.m_ComponentType = ShaderDesc::HLSLShaderOutput::COMPONENT_TYPE_FLOAT32;
+                        break;
+                }
+            }
+        }
         if (m_Blobs.Full())
+        {
             m_Blobs.OffsetCapacity(4);
+        }
         m_Blobs.Push(code.Detach());
     }
 
@@ -99,7 +147,9 @@ struct TestProgram
         m_Desc.m_HlslRootSignature.m_Data = (uint8_t*)root->GetBufferPointer();
         m_Desc.m_HlslRootSignature.m_Count = (uint32_t)root->GetBufferSize();
         if (m_Blobs.Full())
+        {
             m_Blobs.OffsetCapacity(4);
+        }
         m_Blobs.Push(root.Detach());
     }
 
@@ -121,7 +171,9 @@ struct TestProgram
         char error[1024] = {};
         HProgram program = NewProgram(context, &m_Desc, error, sizeof(error));
         if (!program)
+        {
             printf("Program load: %s\n", error);
+        }
         return program;
     }
 };
@@ -501,8 +553,9 @@ TEST_F(DX12Test, DescriptorPagesAndUniformOverflowPreserveDrawData)
         "Texture2D<float4> tex:register(t0); SamplerState smp:register(s0);"
         "cbuffer Values:register(b0){uint index;float value;} RWStructuredBuffer<float4> output:register(u0);"
         "[numthreads(1,1,1)] void main(){output[index]=tex.SampleLevel(smp,float2(0.5,0.5),0)+value;}";
-    ComPtr<ID3DBlob> shader, errors, signature;
-    RequireHR(D3DCompile(source, strlen(source), 0, 0, 0, "main", "cs_5_1", 0, 0, &shader, &errors));
+    ComPtr<IDxcBlob> shader;
+    ComPtr<ID3DBlob> errors, signature;
+    RequireHR(CompileShaderSM6(source, "cs_6_0", &shader));
     D3D12_DESCRIPTOR_RANGE ranges[2] = {};
     ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     ranges[0].NumDescriptors = 1;
@@ -624,9 +677,10 @@ TEST_F(DX12Test, StencilClipsPixelsWithMaskedReference)
     Clear(GetContext(), BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1, 0);
     const char* vs = FULLSCREEN_VS;
     const char* ps = "float4 main():SV_Target {return float4(1,0,0,1);}";
-    ComPtr<ID3DBlob> vertex, fragment, errors, signature;
-    RequireHR(D3DCompile(vs, strlen(vs), 0, 0, 0, "main", "vs_5_1", 0, 0, &vertex, &errors));
-    RequireHR(D3DCompile(ps, strlen(ps), 0, 0, 0, "main", "ps_5_1", 0, 0, &fragment, &errors));
+    ComPtr<IDxcBlob> vertex, fragment;
+    ComPtr<ID3DBlob> errors, signature;
+    RequireHR(CompileShaderSM6(vs, "vs_6_0", &vertex));
+    RequireHR(CompileShaderSM6(ps, "ps_6_0", &fragment));
     D3D12_ROOT_SIGNATURE_DESC desc = {};
     desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
     RequireHR(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &errors));
@@ -749,7 +803,7 @@ TEST_F(DX12Test, BoundTargetResizeRestoresClearAttachments)
     DeleteRenderTarget(GetContext(), other);
 }
 
-// Verifies MRT shaders can draw to a single color attachment without DX12 validation errors.
+// Verifies sparse, typed MRT outputs use compiler metadata with no DX12 validation warnings.
 TEST_F(DX12Test, MRTShaderWithSingleBoundAttachment)
 {
     HRenderTarget target = CreateTestRenderTarget(4, 4);
@@ -761,16 +815,21 @@ TEST_F(DX12Test, MRTShaderWithSingleBoundAttachment)
     shader.AddShaderStage(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
     shader.AddShaderStage(
         "struct Out {float4 color:SV_Target0;"
-        "float4 extra:SV_Target1;"
+        "uint2 extra:SV_Target3;"
         "};"
         " Out main(){Out o;"
         "o.color=float4(1,0,0,1);"
-        "o.extra=float4(0,1,0,1);"
+        "o.extra=uint2(1,2);"
         "return o;"
         "}", ShaderDesc::SHADER_TYPE_FRAGMENT);
     shader.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
     HProgram program = shader.CreateProgram(GetContext());
     ASSERT_NE((HProgram)0, program);
+    DX12ShaderProgram* dx12_program = (DX12ShaderProgram*)program;
+    ASSERT_EQ(4u, dx12_program->m_PixelShaderOutputCount);
+    ASSERT_EQ(DXGI_FORMAT_R32G32B32A32_FLOAT, dx12_program->m_PixelShaderOutputFormats[0]);
+    ASSERT_EQ(DXGI_FORMAT_UNKNOWN, dx12_program->m_PixelShaderOutputFormats[1]);
+    ASSERT_EQ(DXGI_FORMAT_R32G32_UINT, dx12_program->m_PixelShaderOutputFormats[3]);
     EnableProgram(GetContext(), program);
     Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
     uint8_t pixel[4] = {};
@@ -1615,6 +1674,194 @@ TEST_F(DX12Test, PackedMatrixVertexInputs)
         DeleteProgram(GetContext(), program);
     }
 
+    DeleteRenderTarget(GetContext(), target);
+}
+
+// Verifies original handles unbind every matching copy without clearing a replacement binding.
+TEST_F(DX12Test, DisableCopiedVertexDeclarations)
+{
+    TestProgram shader;
+    shader.AddShaderStage(FULLSCREEN_VS, ShaderDesc::SHADER_TYPE_VERTEX);
+    shader.AddShaderStage("float4 main():SV_Target {return float4(0,1,0,1);}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    shader.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    HProgram program = shader.CreateProgram(GetContext());
+    HVertexStreamDeclaration streams = NewVertexStreamDeclaration(GetContext());
+    AddVertexStream(streams, "bar_value", 4, TYPE_FLOAT, false);
+    HVertexDeclaration a = NewVertexDeclaration(GetContext(), streams);
+    HVertexDeclaration b = NewVertexDeclaration(GetContext(), streams);
+
+    EnableVertexDeclaration(GetContext(), a, 0, 16, program);
+    EnableVertexDeclaration(GetContext(), a, 1, 32, program);
+    EnableVertexDeclaration(GetContext(), b, 0, 48, program);
+    DisableVertexDeclaration(GetContext(), a);
+    ASSERT_EQ((VertexDeclaration*)0, m_Context->m_CurrentVertexDeclaration[1]);
+    ASSERT_EQ(0u, m_Context->m_CurrentVertexBufferOffset[1]);
+    ASSERT_NE((VertexDeclaration*)0, m_Context->m_CurrentVertexDeclaration[0]);
+    ASSERT_EQ(48u, m_Context->m_CurrentVertexBufferOffset[0]);
+
+    EnableVertexDeclaration(GetContext(), b, 1, 32, program);
+    DisableVertexDeclaration(GetContext(), b);
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        ASSERT_EQ((VertexDeclaration*)0, m_Context->m_CurrentVertexDeclaration[i]);
+        ASSERT_EQ((HVertexDeclaration)0, m_Context->m_EnabledVertexDeclarations[i]);
+        ASSERT_EQ(0u, m_Context->m_CurrentVertexBufferOffset[i]);
+    }
+    DeleteVertexDeclaration(a);
+    DeleteVertexDeclaration(b);
+    DeleteVertexStreamDeclaration(streams);
+    DeleteProgram(GetContext(), program);
+}
+
+// Verifies a fresh per-vertex pipeline after an instanced draw does not inherit duplicate bar_value inputs (#13609).
+TEST_F(DX12Test, InstancedThenPerVertexDeclaration)
+{
+    HRenderTarget target = CreateTestRenderTarget(4, 4);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+    SetViewport(GetContext(), 0, 0, 4, 4);
+    DisableState(GetContext(), STATE_CULL_FACE);
+    DisableState(GetContext(), STATE_DEPTH_TEST);
+    TestProgram shader;
+    shader.AddShaderStage(
+        "struct Output {float4 position:SV_Position; float4 value:TEXCOORD0;};"
+        "Output main(float4 position:TEXCOORD1, float4 value:TEXCOORD0) {"
+
+        "Output o; o.position=position; o.value=value; return o;}", ShaderDesc::SHADER_TYPE_VERTEX);
+    shader.AddShaderStage("float4 main(float4 position:SV_Position, float4 value:TEXCOORD0):SV_Target {return value;}", ShaderDesc::SHADER_TYPE_FRAGMENT);
+    shader.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+    AddShaderResource(&shader.m_Desc, "bar_value", ShaderDesc::SHADER_TYPE_VEC4, 0, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
+    AddShaderResource(&shader.m_Desc, "position", ShaderDesc::SHADER_TYPE_VEC4, 1, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
+    HProgram program = shader.CreateProgram(GetContext());
+    EnableProgram(GetContext(), program);
+    float data[] = {0,1,0,1, -1,-1,0.5f,1, 0,1,0,1, -1,3,0.5f,1, 0,1,0,1, 3,-1,0.5f,1};
+    HVertexBuffer buffer = NewVertexBuffer(GetContext(), sizeof(data), data, BUFFER_USAGE_STATIC_DRAW);
+    HVertexStreamDeclaration streams = NewVertexStreamDeclaration(GetContext());
+    AddVertexStream(streams, "bar_value", 4, TYPE_FLOAT, false);
+    HVertexDeclaration instance = NewVertexDeclaration(GetContext(), streams);
+    AddVertexStream(streams, "position", 4, TYPE_FLOAT, false);
+    HVertexDeclaration vertex = NewVertexDeclaration(GetContext(), streams);
+    instance->m_StepFunction = VERTEX_STEP_FUNCTION_INSTANCE;
+    HVertexStreamDeclaration position_streams = NewVertexStreamDeclaration(GetContext());
+    AddVertexStream(position_streams, "position", 4, TYPE_FLOAT, false);
+    HVertexDeclaration position = NewVertexDeclaration(GetContext(), position_streams, 32);
+    EnableVertexBuffer(GetContext(), buffer, 0);
+    EnableVertexBuffer(GetContext(), buffer, 1);
+    EnableVertexDeclaration(GetContext(), position, 0, 16, program);
+    EnableVertexDeclaration(GetContext(), instance, 1, 0, program);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    DisableVertexBuffer(GetContext(), buffer);
+    DisableVertexDeclaration(GetContext(), position);
+    DisableVertexDeclaration(GetContext(), instance);
+    EnableVertexBuffer(GetContext(), buffer, 0);
+    EnableVertexDeclaration(GetContext(), vertex, 0, 0, program);
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+    uint8_t pixel[4] = {};
+    ReadPixels(GetContext(), 1, 1, 1, 1, pixel, sizeof(pixel));
+    ASSERT_EQ(255, pixel[1]);
+    SubmitAndWait();
+    DisableVertexBuffer(GetContext(), buffer);
+    DisableVertexDeclaration(GetContext(), vertex);
+    DeleteVertexBuffer(buffer);
+    DeleteVertexDeclaration(position);
+    DeleteVertexDeclaration(instance);
+    DeleteVertexDeclaration(vertex);
+    DeleteVertexStreamDeclaration(position_streams);
+    DeleteVertexStreamDeclaration(streams);
+    DeleteProgram(GetContext(), program);
+    DeleteRenderTarget(GetContext(), target);
+}
+
+// Verifies instance color overrides mesh color without duplicate DX12 input semantics.
+TEST_F(DX12Test, InstanceAttributeOverridesMeshAttribute)
+{
+    HRenderTarget target = CreateTestRenderTarget(4, 4);
+    SetRenderTarget(GetContext(), target, RenderTargetBindingParams());
+    SetViewport(GetContext(), 0, 0, 4, 4);
+    DisableState(GetContext(), STATE_CULL_FACE);
+    DisableState(GetContext(), STATE_DEPTH_TEST);
+
+    const char* vertex_shader =
+        "struct Output\n"
+        "{\n"
+        "    float4 position : SV_Position;\n"
+        "    float4 value : TEXCOORD0;\n"
+        "};\n"
+        "\n"
+        "Output main(float4 position : TEXCOORD1, float4 value : TEXCOORD0)\n"
+        "{\n"
+        "    Output output;\n"
+        "    output.position = position;\n"
+        "    output.value = value;\n"
+        "    return output;\n"
+        "}\n";
+
+    const char* fragment_shader =
+        "float4 main(float4 position : SV_Position, float4 value : TEXCOORD0) : SV_Target\n"
+        "{\n"
+        "    return value;\n"
+        "}\n";
+
+    TestProgram shader;
+    shader.AddShaderStage(vertex_shader, ShaderDesc::SHADER_TYPE_VERTEX);
+    shader.AddShaderStage(fragment_shader, ShaderDesc::SHADER_TYPE_FRAGMENT);
+    shader.SetRootSignature("RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)");
+
+    AddShaderResource(
+        &shader.m_Desc, "bar_value", ShaderDesc::SHADER_TYPE_VEC4,
+        0, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
+    AddShaderResource(
+        &shader.m_Desc, "position", ShaderDesc::SHADER_TYPE_VEC4,
+        1, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
+
+    HProgram program = shader.CreateProgram(GetContext());
+    EnableProgram(GetContext(), program);
+
+    // Each mesh vertex has a red color followed by its position.
+    float data[] = {
+        1, 0, 0, 1,    -1, -1, 0.5f, 1,
+        1, 0, 0, 1,    -1,  3, 0.5f, 1,
+        1, 0, 0, 1,     3, -1, 0.5f, 1,
+    };
+    float instance_data[] = {0, 1, 0, 1};
+
+    HVertexBuffer instance_buffer = NewVertexBuffer(
+        GetContext(), sizeof(instance_data), instance_data, BUFFER_USAGE_STATIC_DRAW);
+    HVertexBuffer buffer = NewVertexBuffer(
+        GetContext(), sizeof(data), data, BUFFER_USAGE_STATIC_DRAW);
+
+    HVertexStreamDeclaration streams = NewVertexStreamDeclaration(GetContext());
+    AddVertexStream(streams, "bar_value", 4, TYPE_FLOAT, false);
+    HVertexDeclaration instance = NewVertexDeclaration(GetContext(), streams);
+
+    AddVertexStream(streams, "position", 4, TYPE_FLOAT, false);
+    HVertexDeclaration vertex = NewVertexDeclaration(GetContext(), streams);
+    instance->m_StepFunction = VERTEX_STEP_FUNCTION_INSTANCE;
+
+    EnableVertexBuffer(GetContext(), buffer, 0);
+    EnableVertexBuffer(GetContext(), instance_buffer, 1);
+    EnableVertexDeclaration(GetContext(), vertex, 0, 0, program);
+    EnableVertexDeclaration(GetContext(), instance, 1, 0, program);
+
+    Draw(GetContext(), PRIMITIVE_TRIANGLES, 0, 3, 1);
+
+    // The green instance color must override the red mesh color.
+    uint8_t instance_pixel[4] = {};
+    ReadPixels(GetContext(), 1, 1, 1, 1, instance_pixel, sizeof(instance_pixel));
+    ASSERT_EQ(0, instance_pixel[0]);
+    ASSERT_EQ(255, instance_pixel[1]);
+
+    DisableVertexBuffer(GetContext(), instance_buffer);
+    DisableVertexBuffer(GetContext(), buffer);
+    DisableVertexDeclaration(GetContext(), vertex);
+    DisableVertexDeclaration(GetContext(), instance);
+    SubmitAndWait();
+
+    DeleteVertexBuffer(instance_buffer);
+    DeleteVertexBuffer(buffer);
+    DeleteVertexDeclaration(instance);
+    DeleteVertexDeclaration(vertex);
+    DeleteVertexStreamDeclaration(streams);
+    DeleteProgram(GetContext(), program);
     DeleteRenderTarget(GetContext(), target);
 }
 

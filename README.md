@@ -11,15 +11,13 @@ Repository for the Defold engine, editor and command line tools.
 ## Supported by
 [![](https://defold.com/images/logo/others/moonactive-github.png)](https://www.moonactive.com/)
 ![](https://defold.com/images/spacer32.png)
-
 [![](https://defold.com/images/logo/others/heroiclabs-github.png)](https://www.heroiclabs.com)
 ![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/poki-github.png)](https://www.poki.com)
 ![](https://defold.com/images/spacer32.png)
-
 [![](https://defold.com/images/logo/others/denda-github.png)](https://denda-corporate.com/)
 ![](https://defold.com/images/spacer32.png)
-[![](https://defold.com/images/logo/others/minit_logo_black.png)](https://minit.games/)
+[![](https://defold.com/images/logo/others/minit_logo_black-github.png)](https://minit.games/)
 ![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/8bitskull-github.png)](https://www.8bitskull.com)
 ![](https://defold.com/images/spacer32.png)

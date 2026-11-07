@@ -1184,7 +1184,8 @@ namespace dmRender
                 p  = &params.m_ColorBufferParams[color_index];
                 cp = &params.m_ColorBufferCreationParams[color_index];
 
-                params.m_ColorBufferLoadOps[color_index]  = dmGraphics::ATTACHMENT_OP_DONT_CARE;
+                // Preserve color contents across target switches and frames, as OpenGL does.
+                params.m_ColorBufferLoadOps[color_index]  = dmGraphics::ATTACHMENT_OP_LOAD;
                 params.m_ColorBufferStoreOps[color_index] = dmGraphics::ATTACHMENT_OP_STORE;
             }
             else if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)

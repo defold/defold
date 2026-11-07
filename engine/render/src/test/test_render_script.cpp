@@ -831,6 +831,41 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+// Preserve every Lua-created color attachment between passes, matching OpenGL (#13603).
+TEST_F(dmRenderScriptTest, TestLuaRenderTargetPreservesColorAttachments)
+{
+    const char* script =
+        "function update(self)\n"
+        "    local color = { format = graphics.TEXTURE_FORMAT_RGBA, width = 4, height = 4 }\n"
+        "    self.rt = render.render_target({\n"
+        "        [graphics.BUFFER_TYPE_COLOR0_BIT] = color,\n"
+        "        [graphics.BUFFER_TYPE_COLOR1_BIT] = color,\n"
+        "        [graphics.BUFFER_TYPE_COLOR2_BIT] = color,\n"
+        "        [graphics.BUFFER_TYPE_COLOR3_BIT] = color })\n"
+        "    render.set_render_target(self.rt)\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(1u, commands.Size());
+    dmGraphics::HRenderTarget rt = (dmGraphics::HRenderTarget) commands[0].m_Operands[0];
+    dmGraphics::NullContext* context = (dmGraphics::NullContext*) m_GraphicsContext;
+    dmGraphics::NullRenderTarget* target = dmGraphics::GetAssetFromContainer<dmGraphics::NullRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, rt);
+    for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+    {
+        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_LOAD, target->m_ColorBufferLoadOps[i]);
+        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_STORE, target->m_ColorBufferStoreOps[i]);
+    }
+
+    dmGraphics::DeleteRenderTarget(m_GraphicsContext, rt);
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestLuaRenderTargetSampleCount)
 {
     const char* script =

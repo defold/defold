@@ -61,6 +61,7 @@ namespace dmPlatform
     void InitWindowPlacement(HWindow window, const WindowCreateParams& params);
     bool RestoreWindowPlacement(HWindow window);
     void WindowPlacementChanged(HWindow window);
+    void WindowPlacementMonitorsChanged();
     void WindowPlacementSizeRequested(HWindow window);
     void WindowPlacementShown(HWindow window);
     void UpdateWindowPlacement(HWindow window, bool flush);

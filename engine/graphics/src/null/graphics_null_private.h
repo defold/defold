@@ -90,6 +90,9 @@ namespace dmGraphics
         RenderTarget m_Base;
         FrameBuffer  m_FrameBuffer;
         FrameBuffer  m_CubeMapFrameBuffers[CUBEMAP_FACE_COUNT];
+        // Retain attachment operations for render target creation tests.
+        AttachmentOp m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        AttachmentOp m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
     };
 
     struct NullShaderModule
