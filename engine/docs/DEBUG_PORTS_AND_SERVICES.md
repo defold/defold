@@ -259,6 +259,11 @@ result. Resizing preserves the graphics reference resolution used by
 30000. Optional `expected_window_revision` is checked at acceptance and again
 before the setter runs. Unknown/duplicate fields are rejected.
 
+Optional `supersede` defaults to `false`. With `true`, an accepted request replaces
+any pending resize, including one awaiting an OS size change. The replaced receipt
+becomes `failed` with `resize_superseded` and retains its observed dimensions.
+Invalid, stale-instance, or revision-conflicting requests never replace pending work.
+
 A `202` response contains a queued receipt and a `Location` URL. To confirm
 completion, poll `GET /window/resize/{id}` with the same `X-Engine-Instance` to observe
 `queued -> awaiting_window -> complete | failed`. IDs are local to the service;
@@ -266,7 +271,8 @@ keep the original instance header even if the engine reboots during polling.
 The setter runs once during the extension update, before a graphics frame begins.
 Resizes wait while simulation is skipped, including throttled, paused, or
 zero-step iterations. Deadlines continue to use elapsed monotonic time and are
-checked when updates resume. Reads never advance a frame or dispatch a resize.
+checked when updates resume or a new resize is admitted, so expired work cannot
+block a new selection while paused. Reads never advance a frame or dispatch a resize.
 
 ```json
 {
@@ -299,10 +305,11 @@ valid uploads yield without admitting an operation. Release builds expose no
 window service. Screenshot capture and image endpoints are a separate delivery.
 
 **Compatibility / release note:** The debug engine now uses service API version 2.
-The editor sends one width/height JSON request to `/window/resize` for each
-simulator change, without an instance preflight or receipt polling. It retains
-the existing request timeout and HTTP error behavior, including reporting busy
-responses without retrying. Acceptance does not confirm completion. The project
+The editor sends one width/height JSON request with `supersede: true` to
+`/window/resize` for each simulator change, without an instance preflight or receipt
+polling. The latest selection replaces pending work, including while paused or
+awaiting a refused resize. It retains the existing request timeout and HTTP error
+behavior. Acceptance does not confirm completion. The project
 design resolution remains unchanged (#11025).
 Presets specify window client units, so high-DPI hosts may have more drawable
 pixels. Generic DDF HTTP dispatch remains unchanged, including `/post/@render/resize`.

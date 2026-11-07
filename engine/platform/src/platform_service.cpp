@@ -46,6 +46,7 @@ namespace dmPlatformService
         const char*   m_Error;
         const char*   m_Message;
         bool          m_AlreadyMatches;
+        bool          m_Supersede;
     };
 
     struct Service
@@ -399,6 +400,10 @@ namespace dmPlatformService
                 return false;
             }
             uint32_t field = !strcmp(name, "width") ? 1 : (!strcmp(name, "height") ? 2 : (!strcmp(name, "timeout_ms") ? 4 : (!strcmp(name, "expected_window_revision") ? 8 : 0)));
+            if (!strcmp(name, "supersede"))
+            {
+                field = 16;
+            }
             if (!field || (seen & field))
             {
                 return false;
@@ -413,6 +418,23 @@ namespace dmPlatformService
             if (field == 8)
             {
                 if (!ParseString(&p, resize->m_ExpectedRevision, sizeof(resize->m_ExpectedRevision)) || !resize->m_ExpectedRevision[0])
+                {
+                    return false;
+                }
+            }
+            else if (field == 16)
+            {
+                if (!strncmp(p, "true", 4))
+                {
+                    resize->m_Supersede = true;
+                    p += 4;
+                }
+                else if (!strncmp(p, "false", 5))
+                {
+                    resize->m_Supersede = false;
+                    p += 5;
+                }
+                else
                 {
                     return false;
                 }
@@ -556,12 +578,24 @@ namespace dmPlatformService
             Error(request, 409, "window_revision_changed", "Window geometry changed; reacquire /window");
             return;
         }
+        uint64_t now = service->m_GetTime();
         if (service->m_Active >= 0)
         {
-            Error(request, 409, "resize_busy", "Another resize is pending");
-            return;
+            Resize* active = &service->m_Resizes[service->m_Active];
+            if (now >= active->m_Deadline)
+            {
+                Finish(service, active, now, "resize_not_observed", "Requested client size was not observed before the deadline");
+            }
+            else if (operation.m_Supersede)
+            {
+                Finish(service, active, now, "resize_superseded", "Resize was superseded by a newer request");
+            }
+            else
+            {
+                Error(request, 409, "resize_busy", "Another resize is pending");
+                return;
+            }
         }
-        uint64_t now = service->m_GetTime();
         operation.m_Id = ++service->m_Sequence;
         operation.m_Deadline = now + (uint64_t)operation.m_Timeout * 1000;
         service->m_Active = (int32_t)((operation.m_Id - 1) % MAX_RESIZES);

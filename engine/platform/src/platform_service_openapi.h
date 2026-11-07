@@ -55,6 +55,7 @@ namespace dmPlatformService
             "width": {"type": "integer", "minimum": 1, "maximum": 2147483647},
             "height": {"type": "integer", "minimum": 1, "maximum": 2147483647},
             "expected_window_revision": {"type": "string", "minLength": 1, "maxLength": 31, "description": "Revision from /window."},
+            "supersede": {"type": "boolean", "default": false, "description": "Replace a pending resize after request validation. The replaced receipt fails with resize_superseded. Expired pending resizes fail with resize_not_observed before admitting a new request."},
             "timeout_ms": {"type": "integer", "minimum": 1, "maximum": 60000, "default": 30000}
           }
         }}}
@@ -67,7 +68,7 @@ namespace dmPlatformService
         },
         "400": {"description": "Invalid request"},
         "405": {"description": "Method not allowed"},
-        "409": {"description": "Resize pending or window revision changed"},
+        "409": {"description": "Resize pending without supersede, or window revision changed"},
         "410": {"description": "Engine instance changed"},
         "413": {"description": "Body exceeds 1024 bytes"},
         "501": {"description": "Resizing unavailable; inspect /window"}

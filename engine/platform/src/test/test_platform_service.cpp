@@ -289,6 +289,107 @@ TEST_F(PlatformServiceTest, ResizeObservation)
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"already_matches\":true"));
 }
 
+// Consecutive simulator selections replace queued work without dispatching the old size or losing its receipt.
+TEST_F(PlatformServiceTest, SupersedeQueuedResize)
+{
+    Queue("{\"width\":640,\"height\":360}");
+    char previous[192];
+    dmStrlCpy(previous, m_Receipt, sizeof(previous));
+    Fetch("POST", "/window/resize", "{\"width\":360,\"height\":640,\"supersede\":false}");
+    ASSERT_EQ(409, m_Status);
+    Queue("{\"width\":360,\"height\":640,\"supersede\":true}");
+    ASSERT_EQ(0U, m_ResizeCount);
+    ASSERT_EQ(960U, dmPlatform::GetWindowWidth(m_Window));
+    Fetch("GET", previous);
+    ASSERT_EQ(200, m_Status);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"failed\""));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "resize_superseded"));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"requested\":{\"width\":640,\"height\":360}"));
+
+    dmPlatformService::Update(m_Service);
+    ASSERT_EQ(1U, m_ResizeCount);
+    ASSERT_EQ(360U, dmPlatform::GetWindowWidth(m_Window));
+    ASSERT_EQ(640U, dmPlatform::GetWindowHeight(m_Window));
+    Fetch("GET", m_Receipt);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"complete\""));
+    Fetch("GET", previous);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "resize_superseded"));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"window\":{\"width\":960,\"height\":640}"));
+}
+
+// A selection can recover immediately from an OS-refused resize instead of waiting for its deadline.
+TEST_F(PlatformServiceTest, SupersedeAwaitingResize)
+{
+    m_ClampResize = true;
+    Queue("{\"width\":640,\"height\":360}");
+    char previous[192];
+    dmStrlCpy(previous, m_Receipt, sizeof(previous));
+    dmPlatformService::Update(m_Service);
+    ASSERT_EQ(1U, m_ResizeCount);
+    Fetch("GET", previous);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"awaiting_window\""));
+
+    Queue("{\"width\":360,\"height\":640,\"supersede\":true}");
+    m_ClampResize = false;
+    dmPlatformService::Update(m_Service);
+    ASSERT_EQ(2U, m_ResizeCount);
+    ASSERT_EQ(360U, dmPlatform::GetWindowWidth(m_Window));
+    ASSERT_EQ(640U, dmPlatform::GetWindowHeight(m_Window));
+    Fetch("GET", previous);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"failed\""));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "resize_superseded"));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"window\":{\"width\":960,\"height\":640}"));
+    Fetch("GET", m_Receipt);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"complete\""));
+}
+
+// Invalid or conflicting replacement requests must leave the accepted resize intact.
+TEST_F(PlatformServiceTest, RejectedSupersedePreservesResize)
+{
+    Queue("{\"width\":640,\"height\":360}");
+    Fetch("POST", "/window/resize", "{\"width\":0,\"height\":640,\"supersede\":true}");
+    ASSERT_EQ(400, m_Status);
+    Fetch("POST", "/window/resize", "{\"width\":360,\"height\":640,\"supersede\":true,\"expected_window_revision\":\"old\"}");
+    ASSERT_EQ(409, m_Status);
+    m_Window->m_ResizeSupported = false;
+    Fetch("POST", "/window/resize", "{\"width\":360,\"height\":640,\"supersede\":true}");
+    ASSERT_EQ(501, m_Status);
+    m_Window->m_ResizeSupported = true;
+    Fetch("GET", m_Receipt);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"queued\""));
+    dmPlatformService::Update(m_Service);
+    ASSERT_EQ(1U, m_ResizeCount);
+    ASSERT_EQ(640U, dmPlatform::GetWindowWidth(m_Window));
+    ASSERT_EQ(360U, dmPlatform::GetWindowHeight(m_Window));
+}
+
+// Expired queued and awaiting resizes cannot block new requests when extension updates are paused.
+TEST_F(PlatformServiceTest, ExpiredResizeDoesNotBlockAdmission)
+{
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        Queue("{\"width\":640,\"height\":360,\"timeout_ms\":1}");
+        char previous[192];
+        dmStrlCpy(previous, m_Receipt, sizeof(previous));
+        if (i == 1)
+        {
+            m_ClampResize = true;
+            dmPlatformService::Update(m_Service);
+        }
+        g_ServiceTime += 2000;
+        Queue("{\"width\":360,\"height\":640}");
+        Fetch("GET", previous);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"failed\""));
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "resize_not_observed"));
+        m_ClampResize = false;
+        dmPlatformService::Update(m_Service);
+        ASSERT_EQ(360U, dmPlatform::GetWindowWidth(m_Window));
+        ASSERT_EQ(640U, dmPlatform::GetWindowHeight(m_Window));
+        Fetch("GET", m_Receipt);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"complete\""));
+    }
+}
+
 // Admission and dispatch both reject stale geometry and unavailable surfaces before issuing a setter.
 TEST_F(PlatformServiceTest, ResizeConflicts)
 {
@@ -439,7 +540,10 @@ TEST_F(PlatformServiceTest, WindowRequestValidation)
         "{\"width\":1,\"height\":1} {}", "{\"width\":1,\"height\":1,\"timeout_ms\":60001}",
         "{\"width\":1,\"height\":1,\"timeout_ms\":0}", "{\"width\":1,\"height\":1,\"expected_window_revision\":null}",
         "{\"width\":2147483648,\"height\":1}", "{\"width\":18446744073709551616,\"height\":1}",
-        "{\"width\":1,\"height\":1,\"timeout_ms\":false}"
+        "{\"width\":1,\"height\":1,\"timeout_ms\":false}",
+        "{\"width\":1,\"height\":1,\"supersede\":1}", "{\"width\":1,\"height\":1,\"supersede\":null}",
+        "{\"width\":1,\"height\":1,\"supersede\":\"true\"}", "{\"width\":1,\"height\":1,\"supersede\":truex}",
+        "{\"width\":1,\"height\":1,\"supersede\":true,\"supersede\":false}"
     };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(invalid); ++i)
     {

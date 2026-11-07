@@ -33,8 +33,8 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-;; Resizing sends one JSON request with rotation applied, without a state lookup
-;; or receipt polling.
+;; Each simulator selection supersedes pending resizes with rotation applied,
+;; without a state lookup or receipt polling.
 (deftest window-resize-test
   (let [requests (atom [])]
     (with-open [server (http-server/start!
@@ -50,7 +50,9 @@
       (let [target {:url (http-server/local-url server)}]
         (engine/change-resolution! target 640 360 false)
         (engine/change-resolution! target 501 351 true))
-      (is (= [{:width 640 :height 360} {:width 351 :height 501}] @requests)))))
+      (is (= [{:width 640 :height 360 :supersede true}
+              {:width 351 :height 501 :supersede true}]
+             @requests)))))
 
 ;; Rejected resize requests retain the existing HTTP error behavior without
 ;; retrying.

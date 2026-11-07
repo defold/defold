@@ -825,7 +825,7 @@ TEST_F(EngineServiceRuntimeTest, WindowServiceAcrossReboot)
     ASSERT_EQ((const char*)0, strstr(path + 1, "\"/window\""));
 }
 
-// Zero-step, throttled, and disabled simulation leave resizes queued until the ordinary extension update resumes.
+// Consecutive selections during zero-step, throttled, and disabled simulation apply only the latest size on resume.
 TEST_F(EngineServiceRuntimeTest, WindowResizeWaitsForSimulation)
 {
     ASSERT_TRUE(InitProject());
@@ -848,11 +848,18 @@ TEST_F(EngineServiceRuntimeTest, WindowResizeWaitsForSimulation)
         dmEngine::SetEngineThrottle(m_Engine, i == 1, 0);
         m_Engine->m_ThrottleCooldown = 1;
         dmEngine::SetUpdateEnabled(i != 2);
-        char request[64], receipt[192];
-        dmSnPrintf(request, sizeof(request), "{\"width\":%u,\"height\":%u}", sizes[i][0], sizes[i][1]);
+        char request[96], receipt[192], previous[192];
+        dmSnPrintf(request, sizeof(request), "{\"width\":%u,\"height\":%u,\"supersede\":true}", sizes[i][1], sizes[i][0]);
+        Fetch("POST", "/window/resize", request);
+        ASSERT_EQ(202, m_Status);
+        dmStrlCpy(previous, m_Location, sizeof(previous));
+        dmSnPrintf(request, sizeof(request), "{\"width\":%u,\"height\":%u,\"supersede\":true}", sizes[i][0], sizes[i][1]);
         Fetch("POST", "/window/resize", request);
         ASSERT_EQ(202, m_Status);
         dmStrlCpy(receipt, m_Location, sizeof(receipt));
+        Fetch("GET", previous);
+        ASSERT_EQ(200, m_Status);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "resize_superseded"));
         ExpectState(true, frame);
         Fetch("GET", receipt);
         ASSERT_EQ(200, m_Status);
