@@ -11,4 +11,3 @@ For a separate `-B` directory, also set `-DDEFOLD_BUILD_HOME=<absolute-build-roo
 ## Tests
 
 - Add focused tests for behavior changes. Put a comment immediately above each new test declaration, outside the test body, stating what it verifies and the regression it guards against, if any.
-- Also, test using AddressSanitizer and ThreadSanitizer.
