@@ -24,6 +24,7 @@
 
 #include "render.h"
 #include "render_command.h"
+#include "render_frame.h"
 #include "render_private.h"
 
 namespace dmRender
@@ -62,11 +63,16 @@ namespace dmRender
         RenderContext*                m_RenderContext;
         HRenderScript                 m_RenderScript;
         dmScript::ScriptWorld*        m_ScriptWorld;
+        // Set only while Lua records immutable operands into the current frame.
+        HRenderFrameStorage           m_RecordingFrame;
+        HRenderCamera                 m_SelectedRenderCamera;
+        RenderFrameResult             m_RecordingResult;
         uint32_t                      m_PredicateCount;
         uint32_t                      m_UniqueScriptId;
         int                           m_InstanceReference;
         int                           m_RenderScriptDataReference;
         int                           m_ContextTableReference;
+        uint8_t                       m_SelectedCameraUseFrustum : 1;
     };
 
     void InitializeRenderScriptContext(RenderScriptContext& context, dmGraphics::HContext graphics_context, dmScript::HContext script_context, uint32_t command_buffer_size);

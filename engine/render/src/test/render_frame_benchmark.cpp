@@ -96,7 +96,7 @@ namespace
         uint64_t begin = dmTime::GetMonotonicTime();
         RenderFrameTicket ticket = {};
         RenderFrameStatistics statistics = {};
-        RenderFrameTable table = { 1, 0, ITEM_COUNT, sizeof(BenchmarkItem) };
+        RenderFrameTable table = { source, 1, ITEM_COUNT, sizeof(BenchmarkItem) };
         RenderFrameView direct_view = {};
         direct_view.m_Payload = (const uint8_t*)source;
         direct_view.m_Tables = &table;

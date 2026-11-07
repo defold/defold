@@ -15,13 +15,16 @@
 #ifndef DM_RENDER_FRAME_QUEUE_H
 #define DM_RENDER_FRAME_QUEUE_H
 
+#include <dlib/condition_variable.h>
+#include <dlib/mutex.h>
+
 #include "render_execution.h"
-#include "render_frame.h"
+#include "render_frame_storage.h"
 
 namespace dmRender
 {
-    struct RenderFrameQueueContext;
-    typedef RenderFrameQueueContext* HRenderFrameQueue;
+    struct RenderFrameQueue;
+    typedef RenderFrameQueue* HRenderFrameQueue;
 
     /** CPU slot ownership. Retirement permits CPU storage reuse, not GPU resource deletion. */
     enum RenderFrameState
@@ -39,8 +42,8 @@ namespace dmRender
      */
     struct RenderFrameTicket
     {
-        RenderFrameId m_FrameId;
-        HRenderFrame  m_Frame;
+        RenderFrameId       m_FrameId;
+        HRenderFrameStorage m_Frame;
     };
 
     /**
@@ -79,6 +82,56 @@ namespace dmRender
         void*               m_ServiceContext;
     };
 
+    /** Fixed slot metadata protected by the queue mutex in threaded mode. */
+    struct RenderFrameSlot
+    {
+        RenderFrameId       m_FrameId;
+        HRenderFrameStorage m_Frame;
+        RenderFrameState    m_State;
+    };
+
+    /**
+     * One accepted Ready/Reading frame and one game-owned Building frame. No queue of
+     * replaceable snapshots: accepted frames may carry side effects and must be consumed.
+     */
+    struct RenderFrameQueue
+    {
+        RenderFrameQueueParams                  m_Params;
+        RenderFrameSlot                         m_Slots[2];
+        RenderFrameId                           m_NextFrameId;
+        uint64_t                                m_Revision;
+        uint64_t                                m_Published;
+        uint64_t                                m_Consumed;
+        uint64_t                                m_Cancelled;
+        uint64_t                                m_Retired;
+        // Requested/completed service generations are protected by the handoff mutex.
+        uint64_t                                m_ServiceRequested;
+        uint64_t                                m_ServiceAcknowledged;
+        // Render-owner-only completion, published when TryLock next succeeds.
+        uint64_t                                m_CompletedService;
+        // Registered and invoked only by the game owner; the executor never reads these.
+        FRenderFrameExecutorShutdown            m_ExecutorShutdown;
+        void*                                   m_ExecutorShutdownContext;
+        dmMutex::HMutex                         m_Mutex;
+        dmConditionVariable::HConditionVariable m_Changed;
+        int32_t                                 m_Building;
+        int32_t                                 m_Active;
+        // Render-owner-only acknowledgement, kept until TryLock succeeds on a later pump.
+        int32_t                                 m_Completed;
+        // Use full bytes, not bitfields: the shared flags and owner-local guards have
+        // different synchronization and must not read/modify/write the same byte.
+        // Shared flags are protected by the handoff mutex in threaded mode.
+        // Cancellation does not restore an update credit while the previous reader is active.
+        uint8_t                                 m_LeadReserved;
+        uint8_t                                 m_Stopping;
+        uint8_t                                 m_ServicePending;
+        uint8_t                                 m_ServiceCompletionPending; // Render owner only.
+        // These guards are updated by their respective owners outside the handoff lock.
+        uint8_t                                 m_InPump; // Render owner only.
+        uint8_t                                 m_InRetire; // Game owner only.
+        uint8_t                                 m_ExecutorShutdownComplete; // Game owner only.
+    };
+
     /** Game-owner diagnostic snapshot; revision supports event-driven waits without lost wakes. */
     struct RenderFrameQueueStatus
     {
@@ -105,9 +158,11 @@ namespace dmRender
     };
 
     /**
-     * Create two preallocated CPU slots on the game owner. Inline creates no queue mutex,
-     * condition variable or thread. Platform executors own thread binding and scheduling.
-     * @param params Capacities, execution and callbacks; copied at creation
+     * Create two CPU slots with preallocated fixed storage on the game owner. Variable
+     * payload blocks grow on demand during capture and remain allocated for slot reuse.
+     * Inline creates no queue mutex, condition variable or thread. Platform executors
+     * own thread binding and scheduling.
+     * @param params Fixed capacities, execution and callbacks; copied at creation
      * @return Queue, or null for a missing consumer, invalid capacity or allocation failure
      */
     HRenderFrameQueue NewRenderFrameQueue(const RenderFrameQueueParams& params);
@@ -121,10 +176,11 @@ namespace dmRender
     void DeleteRenderFrameQueue(HRenderFrameQueue queue);
 
     /**
-     * Calculate queue metadata and two slots' storage without allocating. Excludes the
-     * execution context, synchronization object allocations and allocator overhead.
-     * @param limits Requested per-slot capacities
-     * @return Fixed storage budget in bytes
+     * Calculate queue metadata and two slots' initial fixed storage without allocating.
+     * Excludes dynamic payload blocks allocated during capture, the execution context,
+     * synchronization object allocations and allocator overhead.
+     * @param limits Requested fixed per-slot capacities
+     * @return Initial fixed storage size in bytes; not a runtime memory upper bound
      */
     uint64_t GetRenderFrameQueueStorageSize(const RenderFrameLimits& limits);
 
@@ -214,7 +270,8 @@ namespace dmRender
 
     /**
      * Cancel unpublished Building work and release partial capture on the game owner.
-     * Published work cannot be cancelled, including during shutdown.
+     * Published work cannot be cancelled, including during shutdown. Dynamic payload
+     * blocks remain allocated for reuse after cancellation.
      * @param queue Queue containing the capture
      * @param ticket Current unpublished capture
      * @return OK, or INVALID_STATE for a stale/non-building ticket
@@ -223,8 +280,9 @@ namespace dmRender
 
     /**
      * Release retained references on the game owner, outside the handoff lock, then reuse
-     * storage. Release callbacks must not reenter capture, publication or retirement.
-     * CPU retirement does not establish GPU completion.
+     * storage, retaining dynamic payload blocks for later capture. Release callbacks
+     * must not reenter capture, publication or retirement. CPU retirement does not
+     * establish GPU completion.
      * @param queue Queue with completed or cancelled slots
      * @return Number of slots reset to Free
      */

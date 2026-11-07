@@ -2162,8 +2162,8 @@ bail:
                     if (engine->m_EngineService)
                         dmEngineService::BeginFrame(engine->m_EngineService);
 
-                    // Begin the renderer frame with current time since engine start and frame delta-time.
-                    // Use the same dt that is passed into script updates and the accumulated engine time.
+                    // Begin recording and prepare legacy list/light state before inline
+                    // component callbacks.
                     dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
 
                     // Call pre render functions for extensions, if available.
@@ -2173,8 +2173,10 @@ bail:
                     dmExtension::PreRender(ext_params);
 
                     // Make the render list that will be used later.
+                    // Legacy component/list writes and extension hooks are inline-only
+                    // until their later migration. Do not admit this path to overlap yet.
                     dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmGameSystem::Render(engine->m_GameSystem, GetMainCollection(engine));
+                    bool captured = dmGameSystem::Render(engine->m_GameSystem, GetMainCollection(engine));
 
                     // Make sure we dispatch messages to the render script
                     // since it could have some "draw_text" messages waiting.
@@ -2183,24 +2185,14 @@ bail:
                         dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
                     }
 
-                    dmRender::RenderListEnd(engine->m_RenderContext);
-
+                    dmRender::HRenderScriptInstance script = engine->m_RenderScriptPrototype ? engine->m_RenderScriptPrototype->m_Instance : 0;
+                    // Inline extensions can issue graphics calls from render-script update.
+                    // Begin before recording, even on failure, to keep BeginFrame/Flip balanced.
+                    // The threaded executor begins graphics on its consumer instead.
                     dmGraphics::BeginFrame(engine->m_GraphicsContext);
-
-                    if (engine->m_RenderScriptPrototype)
+                    if (captured)
                     {
-                        dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);
-                    }
-                    else
-                    {
-                        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
-                                            (float)((engine->m_ClearColor>> 0)&0xFF),
-                                            (float)((engine->m_ClearColor>> 8)&0xFF),
-                                            (float)((engine->m_ClearColor>>16)&0xFF),
-                                            (float)((engine->m_ClearColor>>24)&0xFF),
-                                            1.0f, 0);
-                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+                        dmGameSystem::SubmitRender(engine->m_GameSystem, script, dt, engine->m_ClearColor);
                     }
                 }
 

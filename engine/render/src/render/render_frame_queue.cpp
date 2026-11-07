@@ -18,7 +18,7 @@
 #include <dlib/condition_variable.h>
 #include <dlib/mutex.h>
 
-#include "render_frame_queue_private.h"
+#include "render_frame_queue.h"
 
 namespace dmRender
 {
@@ -55,10 +55,7 @@ namespace dmRender
         if (!params.m_Consume)
             return 0;
 
-        RenderFrameQueueContext* queue = (RenderFrameQueueContext*)calloc(1, sizeof(RenderFrameQueueContext));
-        if (!queue)
-            return 0;
-
+        RenderFrameQueue* queue = (RenderFrameQueue*)calloc(1, sizeof(RenderFrameQueue));
         queue->m_Params = params;
         queue->m_NextFrameId = 1;
         queue->m_Revision = 1;
@@ -93,7 +90,7 @@ namespace dmRender
     uint64_t GetRenderFrameQueueStorageSize(const RenderFrameLimits& limits)
     {
         // Synchronization handles and the execution context are not frame-storage allocations.
-        return sizeof(RenderFrameQueueContext) + 2 * GetRenderFrameStorageSize(limits);
+        return sizeof(RenderFrameQueue) + 2 * GetRenderFrameStorageSize(limits);
     }
 
     static uint64_t GetProgressRevision(HRenderFrameQueue queue)
