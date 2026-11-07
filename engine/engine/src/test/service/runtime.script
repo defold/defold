@@ -1,0 +1,5 @@
+function init(self)
+    if sys.get_config_int("test.fail_bootstrap", 0) == 1 then
+        error("intentional M0 bootstrap failure")
+    end
+end

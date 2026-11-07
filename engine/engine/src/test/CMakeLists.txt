@@ -76,6 +76,7 @@ set(ENGINE_TEST_CONTENT_SETTINGS
   "render_script.ini"
   "script_modules.ini"
   "camera_acquire_input_focus.ini"
+  "service/runtime.ini"
   "text_input.ini")
 
 set(ENGINE_TEST_CLASSPATH "${ENGINE_BOB_ENGINE_JAR}")
