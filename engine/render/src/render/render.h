@@ -64,7 +64,6 @@ namespace dmRender
     typedef struct BufferedRenderBuffer*    HBufferedRenderBuffer;
     typedef HOpaqueHandle                   HRenderCamera;
     typedef HOpaqueHandle                   HLightPrototype;
-    typedef HOpaqueHandle                   HLightInstance;
 
     static const uint8_t RENDERLIST_MAX_DISPATCHES         = 255;
     static const uint8_t RENDERLIST_INVALID_DISPATCH       = RENDERLIST_MAX_DISPATCHES;
@@ -124,14 +123,6 @@ namespace dmRender
         SORT_BACK_TO_FRONT = 1,
         SORT_FRONT_TO_BACK = 2,
         SORT_NONE          = 3
-    };
-
-    enum LightType
-    {
-        LIGHT_TYPE_DIRECTIONAL = 0,
-        LIGHT_TYPE_POINT       = 1,
-        LIGHT_TYPE_SPOT        = 2,
-        LIGHT_TYPE_AMBIENT     = 3,
     };
 
     // NOTE: These enum values are duplicated in gamesys camera DDF (camera_ddf.proto)
