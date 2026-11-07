@@ -148,27 +148,33 @@ TEST_F(dmPlatformTest, DisplayDensityFallback)
     ASSERT_EQ(96.0f, WindowGetDisplayDensity(m_Window));
 }
 
-// Vendor backends can omit the new queries; the null backend must retain client-size and resize support.
+// Client metrics work through the platform API even when a backend relies on the width/height fallback.
 TEST_F(dmPlatformTest, WindowClientMetrics)
 {
     uint32_t width = 0;
     uint32_t height = 0;
-#if defined(DM_PLATFORM_VENDOR) && !defined(DM_PLATFORM_NULL)
-    ASSERT_FALSE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
-    ASSERT_FALSE(dmPlatform::IsWindowResizeSupported(m_Window));
-#else
     ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
     ASSERT_EQ(WIDTH, width);
     ASSERT_EQ(HEIGHT, height);
-    ASSERT_TRUE(dmPlatform::IsWindowResizeSupported(m_Window));
     WindowSetSize(m_Window, WIDTH * 2, HEIGHT * 2);
     ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
     ASSERT_EQ(WIDTH * 2, width);
     ASSERT_EQ(HEIGHT * 2, height);
     WindowClose(m_Window);
     ASSERT_FALSE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
-    ASSERT_FALSE(dmPlatform::IsWindowResizeSupported(m_Window));
+}
+
+// Reporting dimensions does not imply resize support; closed windows never support resizing.
+TEST_F(dmPlatformTest, WindowResizeSupport)
+{
+#if defined(DM_PLATFORM_VENDOR) && !defined(DM_PLATFORM_NULL)
+    const bool resize_supported = false;
+#else
+    const bool resize_supported = true;
 #endif
+    ASSERT_EQ(resize_supported, dmPlatform::IsWindowResizeSupported(m_Window));
+    WindowClose(m_Window);
+    ASSERT_FALSE(dmPlatform::IsWindowResizeSupported(m_Window));
 }
 
 // Verifies unsupported backends clear both cached and native areas rather than inferring safe-area strips.

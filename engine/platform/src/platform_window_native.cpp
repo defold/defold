@@ -65,9 +65,16 @@ struct dmWindow
 
 namespace dmPlatform
 {
-    bool GetWindowClientSize(HWindow, uint32_t*, uint32_t*)
+    bool GetWindowClientSize(HWindow window, uint32_t* width, uint32_t* height)
     {
-        return false;
+        if (!GetWindowStateParam(window, WINDOW_STATE_OPENED))
+        {
+            return false;
+        }
+        // The native setter and size query use the same units on these backends.
+        *width = GetWindowWidth(window);
+        *height = GetWindowHeight(window);
+        return true;
     }
 
     bool IsWindowResizeSupported(HWindow)

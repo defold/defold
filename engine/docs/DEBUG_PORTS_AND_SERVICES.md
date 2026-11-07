@@ -226,7 +226,9 @@ and extension; headless debug engines retain the observation routes.
 The values above are illustrative. `window` is the client area in native setter
 units, excluding decorations; `drawable` is the presentable image in pixels.
 Unavailable dimensions are `null`, including window/drawable on headless engines.
-Native mobile backends currently report drawable dimensions but no client metrics or resize support.
+Native mobile and vendor backends fall back to their existing window width/height
+for client metrics and do not advertise resize support. Desktop backends report
+client dimensions separately from drawable pixels, including on high-DPI displays.
 Desktop windowed modes support resize; fullscreen modes do not.
 
 The service advances the geometry revision when it observes changed window/drawable

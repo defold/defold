@@ -33,6 +33,7 @@ namespace dmPlatform
     uint32_t       GetWindowWidth(HWindow window);
     uint32_t       GetWindowHeight(HWindow window);
     // Actual client dimensions in SetWindowSize units; never inferred from display scale.
+    // Backends without separate client metrics fall back to their existing window width/height.
     bool           GetWindowClientSize(HWindow window, uint32_t* width, uint32_t* height);
     bool           IsWindowResizeSupported(HWindow window);
     uint32_t       GetWindowStateParam(HWindow window, WindowState state);
