@@ -112,8 +112,9 @@ public final class PackageBuilder {
     private final List<String> inventory;
     private List<Task> resourceTasks;
     private BuildGraph previousGraph;
+    private Set<String> matchedSources = Set.of();
     private Set<String> buildSources = Set.of();
-    private final Map<String, Task> selectedTasks = new LinkedHashMap<>();
+    private final Map<String, Task> packageTasks = new LinkedHashMap<>();
 
     /** Explicit package selection enables external placement; legacy callers retain their existing yes/no setting. */
     public static boolean splitPackages(Project project) {
@@ -336,6 +337,7 @@ public final class PackageBuilder {
         for (List<String> matches : selection.matches().values()) {
             sources.addAll(matches);
         }
+        matchedSources = sources;
         buildSources = sources;
         if (!project.hasOption("package")) {
             return true;
@@ -389,6 +391,21 @@ public final class PackageBuilder {
                     selected.addAll(matches.getValue());
                 }
             }
+            // A selected input can share its outputs with another producer, such as an atlas and its image.
+            // Recreate that producer so task reuse preserves the same output ownership as a full build.
+            Map<String, List<String>> sourceOutputs = previous.sources();
+            Map<String, String> primarySources = previous.primarySources();
+            for (String source : List.copyOf(selected)) {
+                for (String output : sourceOutputs.getOrDefault(source, List.of())) {
+                    String producer = primarySources.get(output);
+                    if (producer != null) {
+                        if (!project.getResource(producer).exists()) {
+                            return true;
+                        }
+                        selected.add(producer);
+                    }
+                }
+            }
         }
         previousGraph = previous;
         buildSources = selected;
@@ -418,18 +435,67 @@ public final class PackageBuilder {
                 selectedTask = project.createTask(source);
             }
             if (selectedTask != null && !selectedTask.getOutputs().isEmpty()) {
-                selectedTasks.put(path, selectedTask);
+                packageTasks.put(path, selectedTask);
             }
         }
 
         reuseInputTasks(project, existingTasks);
         // Project clears its task-creation map before execution. Retain the declarations, including generated tasks.
         resourceTasks = List.copyOf(project.getTasks());
+        validateOutputOwners(project);
+        // A dependency can also be the root of an unselected package. Retain all of its runtime outputs.
+        for (Task task : resourceTasks) {
+            if (task.getBuilder() instanceof CopyCustomResourcesBuilder) {
+                continue;
+            }
+            String source = PackageResolver.normalize(task.firstInput().getPath());
+            if (matchedSources.contains(source)) {
+                packageTasks.putIfAbsent(source, task);
+            }
+        }
     }
 
     /** Retains compiler flags for untouched resources during a selective build. */
     public Map<String, Set<Task.OutputFlags>> previousOutputFlags(Project project) {
         return previousGraph == null ? Map.of() : previousGraph.outputFlags(project);
+    }
+
+    /** Returns the manifest roots whose complete output mappings are established or retained by this build. */
+    public List<String> packageRoots() {
+        return List.copyOf(matchedSources);
+    }
+
+    /** Rejects new compiler dependencies that would overwrite outputs retained from an unselected producer. */
+    private void validateOutputOwners(Project project) throws CompileExceptionError {
+        if (previousGraph == null) {
+            return;
+        }
+        Set<String> rebuiltSources = new LinkedHashSet<>();
+        for (Task task : resourceTasks) {
+            if (task.getBuilder() instanceof CopyCustomResourcesBuilder) {
+                for (IResource input : task.getInputs()) {
+                    rebuiltSources.add(PackageResolver.normalize(input.getPath()));
+                }
+            } else {
+                rebuiltSources.add(PackageResolver.normalize(sourceResource(task).getPath()));
+            }
+        }
+        Map<String, String> primarySources = previousGraph.primarySources();
+        for (Task task : resourceTasks) {
+            for (IResource output : task.getOutputs()) {
+                String path = outputPath(project, output);
+                String producer = primarySources.get(path);
+                // Generated task outputs can be shared even when minification removes their filename marker.
+                boolean isGenerated = task.getProductOf() != null || path.contains("_generated_");
+                if (producer != null && !rebuiltSources.contains(producer) && !isGenerated) {
+                    String source = PackageResolver.normalize(sourceResource(task).getPath());
+                    throw new CompileExceptionError(task.firstInput(), 0,
+                            "Conflicting output resource '" + path + "' generated by '" + source
+                                    + "' and saved producer '" + producer
+                                    + "'; run build without --package to re-evaluate output ownership");
+                }
+            }
+        }
     }
 
     /**
@@ -449,7 +515,7 @@ public final class PackageBuilder {
             }
         }
 
-        for (Map.Entry<String, Task> entry : selectedTasks.entrySet()) {
+        for (Map.Entry<String, Task> entry : packageTasks.entrySet()) {
             Task task = entry.getValue();
             // A folder rule may select both an atlas and its input image. Reuse the
             // atlas's declared outputs, but keep independently needed runtime tasks.
@@ -473,6 +539,14 @@ public final class PackageBuilder {
         String path = resource.getPath().replace('\\', '/');
         String build = project.getBuildDirectory().replace('\\', '/') + "/";
         return PackageResolver.normalize(path.startsWith(build) ? path.substring(build.length()) : path);
+    }
+
+    /** Finds the authored input that owns a task, following embedded-resource producers. */
+    private static IResource sourceResource(Task task) {
+        while (task.firstInput().isOutput() && task.getProductOf() != null) {
+            task = task.getProductOf();
+        }
+        return task.firstInput();
     }
 
     /**
@@ -502,8 +576,11 @@ public final class PackageBuilder {
                 for (IResource input : task.getInputs()) {
                     refreshedSources.add(PackageResolver.normalize(input.getPath()));
                 }
-            } else if (!task.firstInput().isOutput()) {
-                refreshedSources.add(PackageResolver.normalize(task.firstInput().getPath()));
+            } else {
+                IResource source = sourceResource(task);
+                if (!source.isOutput()) {
+                    refreshedSources.add(PackageResolver.normalize(source.getPath()));
+                }
             }
             for (IResource output : task.getOutputs()) {
                 refreshedOutputs.add(outputPath(project, output));
@@ -516,10 +593,12 @@ public final class PackageBuilder {
             }
         }
         if (!manifestPath(project).isEmpty()) {
-            for (Task task : selectedTasks.values()) {
-                // Runtime references discover generated outputs, excluding build-only intermediates.
-                if (!task.getOutputFlags(0).contains(Task.OutputFlags.BUILD_ONLY)) {
-                    graph.add(project.getResource(outputPath(project, task.output(0))));
+            for (Task task : packageTasks.values()) {
+                // Package roots can produce independent runtime outputs with no references between them.
+                for (int i = 0; i < task.getOutputs().size(); ++i) {
+                    if (!task.getOutputFlags(i).contains(Task.OutputFlags.BUILD_ONLY)) {
+                        graph.add(project.getResource(outputPath(project, task.output(i))));
+                    }
                 }
             }
             if (previousGraph != null) {
@@ -564,11 +643,14 @@ public final class PackageBuilder {
                         .map(output -> outputPath(project, output))
                         .filter(resources::containsKey)
                         .toList();
-                IResource primary = task.firstInput();
+                IResource primary = sourceResource(task);
                 if (!primary.isOutput()) {
                     String source = PackageResolver.normalize(primary.getPath());
                     for (String output : outputs) {
                         primarySources.put(output, source);
+                    }
+                    if (task.firstInput().isOutput()) {
+                        sourceOutputs.computeIfAbsent(source, key -> new ArrayList<>()).addAll(outputs);
                     }
                 }
                 for (IResource input : task.getInputs()) {
@@ -578,6 +660,26 @@ public final class PackageBuilder {
                     List<String> mapped = sourceOutputs.get(PackageResolver.normalize(input.getPath()));
                     if (mapped != null) {
                         mapped.addAll(outputs);
+                    }
+                }
+            }
+        }
+
+        // Shared generated outputs can outlive their original producer. Recover their source from a surviving parent.
+        if (previousGraph != null) {
+            List<String> mappedOutputs = new ArrayList<>(primarySources.keySet());
+            for (int i = 0; i < mappedOutputs.size(); ++i) {
+                String output = mappedOutputs.get(i);
+                PackageResolver.Resource resource = resources.get(output);
+                if (resource == null) {
+                    continue;
+                }
+                for (String dependency : resource.dependencies().keySet()) {
+                    if (refreshedOutputs.contains(dependency) && !primarySources.containsKey(dependency)) {
+                        String source = primarySources.get(output);
+                        primarySources.put(dependency, source);
+                        sourceOutputs.computeIfAbsent(source, key -> new ArrayList<>()).add(dependency);
+                        mappedOutputs.add(dependency);
                     }
                 }
             }
@@ -593,11 +695,12 @@ public final class PackageBuilder {
     public PackageResolver.Plan resolve(Project project, BuildGraph buildGraph, ResourceGraph graph) throws CompileExceptionError {
         Map<String, List<String>> sources = buildGraph.sources();
         if (!manifestPath(project).isEmpty()) {
+            Set<String> packageRoots = new TreeSet<>(buildGraph.packageRoots());
             PackageResolver.Selection selection = PackageResolver.select(manifest, inventory);
             validate(selection.diagnostics());
             for (List<String> matches : selection.matches().values()) {
                 for (String source : matches) {
-                    if (!sources.containsKey(source)) {
+                    if (!sources.containsKey(source) || !packageRoots.contains(source)) {
                         throw new CompileExceptionError(manifestResource, 0,
                                 "Resource has not been built: " + source + "; run build before bundle");
                     }

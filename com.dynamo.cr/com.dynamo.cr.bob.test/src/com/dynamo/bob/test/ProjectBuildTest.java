@@ -93,6 +93,7 @@ import com.dynamo.bob.bundle.LinuxBundler;
 import com.dynamo.bob.bundle.IBundler;
 import com.dynamo.bob.bundle.ICanceled;
 import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.input.proto.Input.GamepadMapsRuntime;
@@ -3666,7 +3667,250 @@ public class ProjectBuildTest {
         assertFalse(plan.sourceOutputs().containsKey("/extra/ignored.json"));
     }
 
-    // A folder rule reuses the atlas task when it also matches a same-stem input image.
+    // Independent model outputs survive a selective build that only uses the mesh, including later source edits.
+    @Test
+    public void testPackageIndependentRuntimeOutputs() throws Exception {
+        createPackageProject();
+        try (var input = getClass().getResourceAsStream("/com/dynamo/bob/pipeline/bend2bones.gltf")) {
+            Files.copy(input, Path.of(contentRoot, "extra/model.gltf"));
+        }
+        createFile(contentRoot, "extra/display.model", "mesh: \"/extra/model.gltf\"\n");
+        savePackages(livePackage("episode", "zip", addPath("Model", "/extra/model[.]gltf")),
+                livePackage("display", "zip", addPath("Display", "/extra/display[.]model")));
+        buildPackageProject(true, true, "build");
+        var plan = buildPackageProject(true, false, "bundle");
+        Set<String> outputs = Set.of("/extra/model.meshsetc", "/extra/model.skeletonc", "/extra/model_generated_0.animationsetc");
+        assertEquals(outputs, manifestPaths(zipManifest("episode")));
+        assertEquals(outputs, Set.copyOf(plan.sourceOutputs().get("/extra/model.gltf")));
+        for (String output : outputs) {
+            assertEquals("/extra/model.gltf", plan.primarySources().get(output));
+        }
+        for (boolean editSource : List.of(false, true)) {
+            if (editSource) {
+                Path source = Path.of(contentRoot, "extra/model.gltf");
+                var json = new com.fasterxml.jackson.databind.ObjectMapper();
+                var model = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(Files.readString(source));
+                model.remove("animations");
+                Files.writeString(source, json.writeValueAsString(model));
+            }
+            try (Project project = packageReportProject(false)) {
+                project.setOption("variant", "debug");
+                project.setOption("package", "display");
+                for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                    assertTrue(result.toString(), result.isOk());
+                }
+            }
+            var updated = buildPackageProject(true, false, "bundle");
+            assertEquals(outputs, Set.copyOf(updated.sourceOutputs().get("/extra/model.gltf")));
+            assertEquals(outputs, manifestPaths(zipManifest("episode")));
+            try (ZipFile zip = new ZipFile(Path.of(contentRoot, "packages/episode.zip").toFile())) {
+                assertEquals(outputs.size() + 1, zip.size());
+                for (Manifest.ResourceEntry entry : zipManifest("episode").getResourcesList()) {
+                    String hash = ManifestBuilder.CryptographicOperations.hexdigest(entry.getHash().getData().toByteArray());
+                    assertPackagePayload(entry, zip.getInputStream(zip.getEntry(hash)).readAllBytes());
+                }
+            }
+        }
+    }
+
+    // Newly selecting a dependency requires complete root outputs, even when the next build selects an unrelated package.
+    @Test
+    public void testPackageNewRootRequiresCompleteOutputs() throws Exception {
+        createPackageProject();
+        try (var input = getClass().getResourceAsStream("/com/dynamo/bob/pipeline/bend2bones.gltf")) {
+            Files.copy(input, Path.of(contentRoot, "extra/model.gltf"));
+        }
+        createFile(contentRoot, "extra/display.model", "mesh: \"/extra/model.gltf\"\n");
+        var display = livePackage("display", "zip", addPath("Display", "/extra/display[.]model"));
+        var data = livePackage("data", "zip", addPath("Data", "/extra/data[.]json"));
+        savePackages(display, data);
+        var initial = buildPackageProject(true, true, "build");
+        assertEquals(List.of("/extra/model.meshsetc"), initial.sourceOutputs().get("/extra/model.gltf"));
+
+        savePackages(display, data, livePackage("model", "zip", addPath("Model", "/extra/model[.]gltf")));
+        try (Project project = packageReportProject(false)) {
+            project.setOption("variant", "debug");
+            project.setOption("package", "model");
+            try {
+                project.build(Progress.discarding(), "bundle");
+                org.junit.Assert.fail("Dependency mappings must not silently omit a new package root's outputs");
+            } catch (CompileExceptionError expected) {
+                assertTrue(expected.getMessage(), expected.getMessage().contains("/extra/model.gltf"));
+                assertTrue(expected.getMessage(), expected.getMessage().contains("run build before bundle"));
+            }
+        }
+        assertFalse(Files.exists(Path.of(contentRoot, "packages/model.zip")));
+
+        try (Project project = packageReportProject(false)) {
+            project.setOption("variant", "debug");
+            project.setOption("package", "data");
+            for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+        }
+        try (Project project = packageReportProject(false)) {
+            project.setOption("variant", "debug");
+            project.setOption("package", "model");
+            project.build(Progress.discarding(), "bundle");
+        }
+        Set<String> outputs = Set.of("/extra/model.meshsetc", "/extra/model.skeletonc", "/extra/model_generated_0.animationsetc");
+        assertEquals(outputs, manifestPaths(zipManifest("model")));
+        try (ZipFile zip = new ZipFile(Path.of(contentRoot, "packages/model.zip").toFile())) {
+            assertEquals(outputs.size() + 1, zip.size());
+            for (Manifest.ResourceEntry entry : zipManifest("model").getResourcesList()) {
+                String hash = ManifestBuilder.CryptographicOperations.hexdigest(entry.getHash().getData().toByteArray());
+                assertPackagePayload(entry, zip.getInputStream(zip.getEntry(hash)).readAllBytes());
+            }
+        }
+    }
+
+    // Embedded outputs retain their authored source across bundling and replace obsolete generated mappings after edits.
+    @Test
+    public void testPackageEmbeddedOutputSources() throws Exception {
+        createPackageProject();
+        String collection = "name: \"embedded\"\nembedded_instances { id: \"object\" data: \"components { id: \\\"script\\\" component: \\\"/logic/level.script\\\" }\" }\n";
+        createFile(contentRoot, "extra/embedded.collection", collection);
+        savePackages(livePackage("episode", "zip", addPath("Collection", "/extra/embedded[.]collection")));
+        buildPackageProject(true, true, "build");
+        PackageResolver.Plan plan;
+        try (Project project = packageReportProject(false)) {
+            project.setOption("variant", "debug");
+            project.setOption("package", "episode");
+            project.build(Progress.discarding(), "bundle");
+            plan = project.getLiveUpdatePlan();
+        }
+        String generated = plan.packages().get("episode").resources().stream()
+                .filter(path -> path.startsWith("/_generated") && path.endsWith(".goc")).findFirst().orElseThrow();
+        assertEquals("/extra/embedded.collection", plan.primarySources().get(generated));
+        assertEquals(Set.of("/extra/embedded.collectionc", generated), Set.copyOf(plan.sourceOutputs().get("/extra/embedded.collection")));
+        Map<String, String> reportedSources = new LinkedHashMap<>();
+        for (var row : packageReport().get("package_resources")) {
+            reportedSources.put(row.get("file").asText(), row.get("source").asText());
+        }
+        assertEquals("/extra/embedded.collection", reportedSources.get(generated));
+
+        createFile(contentRoot, "extra/embedded.collection", collection.replace("id: \\\"script\\\"", "id: \\\"changed\\\""));
+        try (Project project = packageReportProject(false)) {
+            project.setOption("variant", "debug");
+            project.setOption("package", "episode");
+            for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+        }
+        var updated = buildPackageProject(true, false, "bundle");
+        assertFalse(updated.resources().containsKey(generated));
+        assertFalse(updated.primarySources().containsKey(generated));
+        List<String> outputs = updated.sourceOutputs().get("/extra/embedded.collection");
+        assertEquals(2, outputs.size());
+        assertFalse(outputs.contains(generated));
+        for (String output : outputs) {
+            assertEquals("/extra/embedded.collection", updated.primarySources().get(output));
+        }
+    }
+
+    // Shared embedded outputs retain their payload and source attribution when either producer is rebuilt or edited.
+    @Test
+    public void testSelectiveBuildSharesGeneratedOutputs() throws Exception {
+        assertSelectiveBuildSharesGeneratedOutputs(false);
+    }
+
+    // Minification must not make shared generated outputs look like conflicting outputs from another producer.
+    @Test
+    public void testSelectiveBuildSharesMinifiedGeneratedOutputs() throws Exception {
+        boolean oldMinification = ResourceUtil.isMinificationEnabled();
+        try {
+            assertSelectiveBuildSharesGeneratedOutputs(true);
+        } finally {
+            ResourceUtil.enableMinification(oldMinification);
+        }
+    }
+
+    private void assertSelectiveBuildSharesGeneratedOutputs(boolean minify) throws Exception {
+        createPackageProject();
+        createFile(contentRoot, "extra/shared.script", "function init(self) end\n");
+        for (String name : List.of("first", "second")) {
+            createFile(contentRoot, "extra/" + name + ".collection", "name: \"" + name + "\"\n"
+                    + "embedded_instances { id: \"object\" data: \"components { id: \\\"script\\\" component: \\\"/extra/shared.script\\\" }\" }\n");
+        }
+        savePackages(livePackage("first", "zip", addPath("First", "/extra/first[.]collection")),
+                livePackage("second", "zip", addPath("Second", "/extra/second[.]collection")));
+        Map<String, String> options = minify
+                ? Map.of("variant", "debug", "experimental-path-minification", "true")
+                : Map.of("variant", "debug");
+        PackageResolver.Plan initial;
+        try (Project project = packageReportProject(true)) {
+            options.forEach(project::setOption);
+            for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+            initial = project.getLiveUpdatePlan();
+        }
+        String generated = initial.packages().get("first").resources().stream()
+                .filter(path -> path.endsWith(".goc")).findFirst().orElseThrow();
+        assertEquals(!minify, generated.contains("_generated_"));
+        assertTrue(initial.packages().get("second").resources().contains(generated));
+        Map<String, String> collections = new LinkedHashMap<>();
+        for (String name : List.of("first", "second")) {
+            collections.put(name, initial.packages().get(name).resources().stream()
+                    .filter(path -> path.endsWith(".collectionc")).findFirst().orElseThrow());
+        }
+        Path compiled = Path.of(contentRoot, "build", generated.substring(1));
+        byte[] original = Files.readAllBytes(compiled);
+        PackageResolver.Plan plan = initial;
+        for (String name : List.of("first", "second", "first")) {
+            try (Project project = packageReportProject(false)) {
+                options.forEach(project::setOption);
+                project.setOption("package", name);
+                for (TaskResult result : project.build(Progress.discarding(), "build", "bundle")) {
+                    assertTrue(result.toString(), result.isOk());
+                }
+                plan = project.getLiveUpdatePlan();
+            }
+            assertArrayEquals(original, Files.readAllBytes(compiled));
+            assertEquals(Set.of(collections.get(name), generated, "/extra/shared.scriptc"),
+                    manifestPaths(zipManifest(name)));
+            try (ZipFile zip = new ZipFile(Path.of(contentRoot, "packages/" + name + ".zip").toFile())) {
+                assertEquals(4, zip.size());
+                for (Manifest.ResourceEntry entry : zipManifest(name).getResourcesList()) {
+                    String hash = ManifestBuilder.CryptographicOperations.hexdigest(entry.getHash().getData().toByteArray());
+                    assertPackagePayload(entry, zip.getInputStream(zip.getEntry(hash)).readAllBytes());
+                }
+            }
+        }
+
+        String source = plan.primarySources().get(generated);
+        String editedPackage = source.equals("/extra/first.collection") ? "first" : "second";
+        String remainingPackage = editedPackage.equals("first") ? "second" : "first";
+        String remainingSource = "/extra/" + remainingPackage + ".collection";
+        Path collection = Path.of(contentRoot, source.substring(1));
+        Files.writeString(collection, Files.readString(collection).replace("id: \\\"script\\\"", "id: \\\"changed\\\""));
+        try (Project project = packageReportProject(false)) {
+            options.forEach(project::setOption);
+            project.setOption("package", editedPackage);
+            for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+        }
+        try (Project project = packageReportProject(false)) {
+            options.forEach(project::setOption);
+            project.setOption("package", remainingPackage);
+            project.build(Progress.discarding(), "bundle");
+            plan = project.getLiveUpdatePlan();
+        }
+        assertEquals(remainingSource, plan.primarySources().get(generated));
+        assertEquals(Set.of(collections.get(remainingPackage), generated), Set.copyOf(plan.sourceOutputs().get(remainingSource)));
+        assertFalse(plan.sourceOutputs().get(source).contains(generated));
+        assertArrayEquals(original, Files.readAllBytes(compiled));
+        assertEquals(Set.of(collections.get(remainingPackage), generated, "/extra/shared.scriptc"),
+                manifestPaths(zipManifest(remainingPackage)));
+        Map<String, String> reportedSources = new LinkedHashMap<>();
+        for (var row : packageReport().get("package_resources")) {
+            reportedSources.put(row.get("file").asText(), row.get("source").asText());
+        }
+        assertEquals(remainingSource, reportedSources.get(generated));
+    }
+
+    // Folder and selective image builds retain the atlas producer for shared outputs, including after atlas edits.
     @Test
     public void testPackageFolderRuleWithAtlasInputs() throws Exception {
         createPackageProject();
@@ -3677,6 +3921,46 @@ public class ProjectBuildTest {
         assertEquals(Set.of("/extra/art.a.texturesetc", "/extra/art.texturec", "/extra/data.json"), manifestPaths(zipManifest("episode")));
         assertEquals(plan.sourceOutputs().get("/extra/art.atlas"), plan.sourceOutputs().get("/extra/art.png"));
         assertEquals("/extra/art.atlas", plan.primarySources().get("/extra/art.texturec"));
+
+        savePackages(livePackage("episode", "zip", addPath("Folder", "/extra/.*")),
+                livePackage("image", "zip", addPath("Image", "/extra/art[.]png")));
+        Path texture = Path.of(contentRoot, "build/extra/art.texturec");
+        Path textureSet = Path.of(contentRoot, "build/extra/art.a.texturesetc");
+        byte[] originalTexture = Files.readAllBytes(texture);
+        byte[] originalTextureSet = Files.readAllBytes(textureSet);
+        for (boolean editAtlas : List.of(false, true)) {
+            if (editAtlas) {
+                createFile(contentRoot, "extra/art.atlas", "images { image: \"/extra/art.png\" }\nextrude_borders: 4\n");
+            }
+            try (Project project = packageReportProject(false)) {
+                project.setOption("variant", "debug");
+                project.setOption("package", "image");
+                for (TaskResult result : project.build(Progress.discarding(), "build", "bundle")) {
+                    assertTrue(result.toString(), result.isOk());
+                }
+                var updated = project.getLiveUpdatePlan();
+                assertEquals(plan.sourceOutputs().get("/extra/art.atlas"), updated.sourceOutputs().get("/extra/art.atlas"));
+                assertEquals(updated.sourceOutputs().get("/extra/art.atlas"), updated.sourceOutputs().get("/extra/art.png"));
+                assertEquals("/extra/art.atlas", updated.primarySources().get("/extra/art.texturec"));
+            }
+            byte[] selectedTexture = Files.readAllBytes(texture);
+            byte[] selectedTextureSet = Files.readAllBytes(textureSet);
+            if (!editAtlas) {
+                assertArrayEquals(originalTexture, selectedTexture);
+                assertArrayEquals(originalTextureSet, selectedTextureSet);
+            }
+            assertEquals(Set.of("/extra/art.a.texturesetc", "/extra/art.texturec"), manifestPaths(zipManifest("image")));
+            try (ZipFile zip = new ZipFile(Path.of(contentRoot, "packages/image.zip").toFile())) {
+                assertEquals(3, zip.size());
+                for (Manifest.ResourceEntry entry : zipManifest("image").getResourcesList()) {
+                    String hash = ManifestBuilder.CryptographicOperations.hexdigest(entry.getHash().getData().toByteArray());
+                    assertPackagePayload(entry, zip.getInputStream(zip.getEntry(hash)).readAllBytes());
+                }
+            }
+            buildPackageProject(true, true, "build");
+            assertArrayEquals(Files.readAllBytes(texture), selectedTexture);
+            assertArrayEquals(Files.readAllBytes(textureSet), selectedTextureSet);
+        }
         // A PNG needed independently at runtime still conflicts with the atlas's texture output.
         createFile(contentRoot, "extra/texture.script", "go.property(\"texture\", resource.texture(\"/extra/art.png\"))\n");
         try {
@@ -3687,21 +3971,102 @@ public class ProjectBuildTest {
         }
     }
 
+    // A new dependency must not overwrite an unselected producer's output or invalidate the last successful build.
+    @Test
+    public void testSelectiveBuildRejectsNewOutputConflict() throws Exception {
+        createPackageProject();
+        Files.copy(Path.of(contentRoot, "test.png"), Path.of(contentRoot, "extra/art.png"));
+        createFile(contentRoot, "extra/art.atlas", "images { image: \"/extra/art.png\" }\nextrude_borders: 4\n");
+        createFile(contentRoot, "extra/texture.script", "function init(self) end\n");
+        savePackages(livePackage("atlas", "zip", addPath("Atlas", "/extra/art[.]atlas")),
+                livePackage("logic", "zip", addPath("Script", "/extra/texture[.]script")));
+        buildPackageProject(true, true, "build");
+        Map<Path, byte[]> previous = new LinkedHashMap<>();
+        for (String path : List.of("extra/art.texturec", "extra/art.a.texturesetc", "extra/texture.scriptc", "game.graph.json")) {
+            Path output = Path.of(contentRoot, "build", path);
+            previous.put(output, Files.readAllBytes(output));
+        }
+        createFile(contentRoot, "extra/texture.script", "go.property(\"texture\", resource.texture(\"/extra/art.png\"))\n");
+        try (Project project = packageReportProject(false)) {
+            project.setOption("variant", "debug");
+            project.setOption("package", "logic");
+            try {
+                project.build(Progress.discarding(), "build");
+                org.junit.Assert.fail("A new dependency must not overwrite the unselected atlas texture");
+            } catch (CompileExceptionError expected) {
+                assertTrue(expected.getMessage(), expected.getMessage().contains("Conflicting output resource"));
+                assertTrue(expected.getMessage(), expected.getMessage().contains("extra/art.texturec"));
+                assertTrue(expected.getMessage(), expected.getMessage().contains("extra/art.atlas"));
+                assertTrue(expected.getMessage(), expected.getMessage().contains("extra/art.png"));
+            }
+        }
+        for (var entry : previous.entrySet()) {
+            assertArrayEquals(entry.getKey().toString(), entry.getValue(), Files.readAllBytes(entry.getKey()));
+        }
+        try (Project project = packageReportProject(false)) {
+            project.setOption("variant", "debug");
+            project.setOption("package", "atlas");
+            project.build(Progress.discarding(), "bundle");
+        }
+        assertEquals(Set.of("/extra/art.a.texturesetc", "/extra/art.texturec"), manifestPaths(zipManifest("atlas")));
+    }
+
+    // Removing an old producer establishes a new graph instead of trying to rebuild the deleted source.
+    @Test
+    public void testSelectiveBuildReplacesRemovedOutputProducer() throws Exception {
+        createPackageProject();
+        Files.copy(Path.of(contentRoot, "test.png"), Path.of(contentRoot, "extra/art.png"));
+        createFile(contentRoot, "extra/art.atlas", "images { image: \"/extra/art.png\" }\nextrude_borders: 4\n");
+        var image = livePackage("image", "zip", addPath("Image", "/extra/art[.]png"));
+        savePackages(livePackage("atlas", "zip", addPath("Atlas", "/extra/art[.]atlas")), image);
+        buildPackageProject(true, true, "build");
+        Files.delete(Path.of(contentRoot, "extra/art.atlas"));
+        savePackages(image);
+        try (Project project = packageReportProject(false)) {
+            project.setOption("variant", "debug");
+            project.setOption("package", "image");
+            for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+            var plan = project.getLiveUpdatePlan();
+            assertEquals(List.of("/extra/art.texturec"), plan.sourceOutputs().get("/extra/art.png"));
+            assertEquals("/extra/art.png", plan.primarySources().get("/extra/art.texturec"));
+            assertFalse(plan.sourceOutputs().containsKey("/extra/art.atlas"));
+            assertFalse(plan.resources().containsKey("/extra/art.a.texturesetc"));
+        }
+        try (Project project = packageReportProject(false)) {
+            project.setOption("variant", "debug");
+            project.setOption("package", "image");
+            project.build(Progress.discarding(), "bundle");
+        }
+        assertEquals(Set.of("/extra/art.texturec"), manifestPaths(zipManifest("image")));
+        try (ZipFile zip = new ZipFile(Path.of(contentRoot, "packages/image.zip").toFile())) {
+            assertEquals(2, zip.size());
+            Manifest.ResourceEntry entry = zipManifest("image").getResources(0);
+            String hash = ManifestBuilder.CryptographicOperations.hexdigest(entry.getHash().getData().toByteArray());
+            assertPackagePayload(entry, zip.getInputStream(zip.getEntry(hash)).readAllBytes());
+        }
+    }
+
     // Broad rules export custom files but omit compiler-only texture profiles and shader includes, also without export.
     @Test
     public void testPackageSkipsBuildOnlyOutputs() throws Exception {
         createPackageProject();
         createFile(contentRoot, "extra/local.texture_profiles", "");
         createFile(contentRoot, "extra/include.glsl", "#define VALUE 1\n");
+        createFile(contentRoot, "extra/object.go", "");
+        createFile(contentRoot, "extra/scene.collection", "name: \"scene\"\n");
         savePackages(livePackage("episode", "zip", addPath("Folder", "/extra/.*")));
         var plan = buildPackageProject(true, false);
-        assertEquals(Set.of("/extra/data.json"), manifestPaths(zipManifest("episode")));
+        assertEquals(Set.of("/extra/data.json", "/extra/object.goc", "/extra/scene.collectionc"), manifestPaths(zipManifest("episode")));
         assertEquals(List.of(), plan.sourceOutputs().get("/extra/local.texture_profiles"));
         assertEquals(List.of(), plan.sourceOutputs().get("/extra/include.glsl"));
         var disabled = buildPackageProject(false, false);
         assertTrue(disabled.base().contains("/extra/data.json"));
         assertFalse(disabled.base().contains("/extra/local.texture_profilesc"));
         assertFalse(disabled.base().contains("/extra/include.glslc"));
+        assertFalse(disabled.base().contains("/extra/object.compcount_go"));
+        assertFalse(disabled.base().contains("/extra/scene.compcount_col"));
     }
 
     // Cancelling during a provider write prevents finalization and removes staging without timing-dependent sleeps.

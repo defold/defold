@@ -382,7 +382,8 @@ public class GameProjectBuilder extends Builder {
             logger.warning("%s", diagnostic.message());
         }
         BuildGraph.capture(project, graph, plan, bootstrap,
-                custom.stream().map(resource -> PackageBuilder.outputPath(project, resource)).toList()).save(project);
+                custom.stream().map(resource -> PackageBuilder.outputPath(project, resource)).toList(),
+                packages.packageRoots()).save(project);
     }
 
     /** Packages prebuilt resources and returns whether the application bundle was selected. */

@@ -44,7 +44,7 @@ import com.dynamo.bob.fs.IResource;
 
 /** Compiled resource dependencies and output metadata retained between build and bundle invocations. */
 public final class BuildGraph {
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
     private static final ObjectMapper JSON = new ObjectMapper();
     private final ObjectNode data;
 
@@ -72,13 +72,14 @@ public final class BuildGraph {
 
     /** Records the graph and byte identity of compiled outputs, before archive preparation changes their representation. */
     public static BuildGraph capture(Project project, ResourceGraph graph, PackageResolver.Plan plan,
-            Collection<String> bootstrap, Collection<String> custom) throws IOException, CompileExceptionError {
+            Collection<String> bootstrap, Collection<String> custom, Collection<String> packageRoots) throws IOException, CompileExceptionError {
         ObjectNode data = JSON.createObjectNode();
         data.put("version", VERSION);
         data.put("bob", EngineVersion.sha1);
         data.put("configuration", JSON.valueToTree(project.getCompilationOptions()));
         data.put("bootstrap", JSON.valueToTree(bootstrap));
         data.put("custom", JSON.valueToTree(custom));
+        data.put("package_roots", JSON.valueToTree(packageRoots));
         data.put("sources", JSON.valueToTree(plan.sourceOutputs()));
         data.put("primary_sources", JSON.valueToTree(plan.primarySources()));
         data.put("nodes", JSON.readTree(graph.toJSON()));
@@ -150,7 +151,7 @@ public final class BuildGraph {
     public boolean covers(Collection<String> bootstrap, Collection<String> custom, Collection<String> sources) {
         return new TreeSet<>(bootstrap()).equals(new TreeSet<>(bootstrap))
                 && new TreeSet<>(custom()).equals(new TreeSet<>(custom))
-                && sources().keySet().containsAll(sources);
+                && new TreeSet<>(packageRoots()).containsAll(sources);
     }
 
     /** Restores dependency edges and loading boundaries without parsing compiled protobufs again. */
@@ -166,6 +167,11 @@ public final class BuildGraph {
     /** Returns the opaque custom-resource roots used by the successful build. */
     public List<String> custom() {
         return JSON.convertValue(data.get("custom"), new TypeReference<List<String>>() {});
+    }
+
+    /** Returns manifest source roots with complete output mappings, excluding sources built only as dependencies. */
+    public List<String> packageRoots() {
+        return JSON.convertValue(data.get("package_roots"), new TypeReference<List<String>>() {});
     }
 
     /** Returns actual runtime outputs for each source, including sources with only build-time outputs. */
