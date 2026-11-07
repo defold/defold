@@ -51,7 +51,9 @@ namespace dmGameObject
     static const dmhash_t PROP_EULER_Y = dmHashString64("euler.y");
     static const dmhash_t PROP_EULER_Z = dmHashString64("euler.z");
 
-    // Built-in curves without completion callbacks need no separately owned state.
+    // Optional payload owned by one Animation through m_ExtrasIndex. The pool
+    // allocates this only for custom curves, release callbacks or stop callbacks;
+    // ordinary built-in curves need only m_EasingType in the animation record.
     struct AnimationExtras
     {
         dmEasing::Curve  m_Easing;
@@ -62,6 +64,17 @@ namespace dmGameObject
         uint32_t         m_NextListener;
     };
 
+    // All records in a collection live in one dense AoS array, m_Animations.
+    // Animate() appends a scalar property track, or a composite parent followed
+    // by its scalar component tracks. The parent advances time and owns the
+    // shared callback/curve lifetime; only the component tracks write properties.
+    // For a Vector3 this initially gives [parent, x, y, z], which can fill one
+    // four-lane batch. SIMD batching never reorders records.
+    //
+    // Array growth can relocate records; swap-erasure changes their positions.
+    // Lifecycle lists use stable IDs: m_AnimMap[m_Index] resolves an ID to its
+    // current array position. m_Next links tracks on the same instance; listener
+    // lists in AnimationExtras use the same IDs. SIMD runs use physical positions.
     struct Animation
     {
         HInstance           m_Instance;
@@ -81,6 +94,7 @@ namespace dmGameObject
         float               m_Delay;
         uint32_t            m_Index;
         uint32_t            m_Next;
+        // Independent pool slot, or INVALID_INDEX when no optional data is owned.
         uint32_t            m_ExtrasIndex;
         uint16_t            m_Playback : 3;
         uint16_t            m_Playing : 1;
@@ -91,7 +105,11 @@ namespace dmGameObject
         uint16_t            m_IsGameObjectTransformProperty : 1;
         uint16_t            m_IsGameObjectEulerProperty : 1;
         uint16_t            m_EulerChannel : 2;
-        // Ready also requires captured from-value, consumed delay and a live track.
+        // Eligible tracks have built-in easing, looping playback, positive
+        // duration and direct property writes (or are Vector3 parents). Euler
+        // tracks are excluded. Eligibility is fixed at creation; readiness also
+        // requires a playing, activated track with no delay. RebuildAnimationRuns
+        // sets readiness; StopAnimation clears it immediately, even from a setter.
         uint16_t            m_SimdEligible : 1;
         uint16_t            m_SimdReady : 1;
         uint8_t             m_EasingType;
@@ -102,6 +120,16 @@ namespace dmGameObject
     DM_STATIC_ASSERT(offsetof(Animation, m_Cursor) == offsetof(Animation, m_From) + 2 * sizeof(float), Animation_Cursor_Layout);
     DM_STATIC_ASSERT(offsetof(Animation, m_Duration) == offsetof(Animation, m_From) + 3 * sizeof(float), Animation_Duration_Layout);
 
+    // A half-open [m_Begin, m_End) range of physical indices in m_Animations.
+    // Each run contains a multiple of four consecutive ready tracks. Batches
+    // may mix instances, targets, durations, playback and built-in easing curves.
+    // Runs are a cached view of the array, not separate animation storage.
+    //
+    // Example: [6 ready tracks][1 scalar track][4 ready tracks] produces runs
+    // [0, 4) and [7, 11). Indices 4..6 are evaluated individually in array order.
+    // Euler tracks, custom easing curves (TYPE_FLOAT_VECTOR), once playback and
+    // other ineligible tracks stay in the same array and use scalar evaluation,
+    // as do short tails.
     struct AnimationRun
     {
         uint32_t m_Begin;
@@ -117,11 +145,15 @@ namespace dmGameObject
         dmObjectPool<AnimationExtras>        m_AnimationExtras;
         dmArray<uint32_t>                    m_AnimMap;
         dmIndexPool<uint32_t>                m_AnimMapIndexPool;
+        // Per-instance and per-listener list heads are stable animation IDs.
         dmHashTable<HGameObject, uint32_t>   m_InstanceToIndex;
         dmHashTable<uintptr_t, uint32_t>     m_ListenerInstanceToIndex;
         uint32_t                             m_InUpdate : 1;
-        // Lower bounds on records needing lifecycle work. Swap-erasure keeps
-        // them conservative; scan order and callback order remain unchanged.
+        // Lower bounds on physical indices needing activation or pruning;
+        // INVALID_INDEX means there is no pending work for that pass. These
+        // bounds may include records needing no work, so each pass still checks
+        // record state. Swap-erasure keeps them conservative without reordering
+        // the scans or callbacks.
         uint32_t                             m_FirstPendingAnimation;
         uint32_t                             m_FirstStoppedAnimation;
     };
@@ -172,6 +204,7 @@ namespace dmGameObject
                     continue;
                 }
             }
+            // Keep complete batches; the remaining zero to three tracks stay scalar.
             const uint32_t count = (i - begin) & ~3u;
             if (count != 0)
             {
@@ -454,12 +487,15 @@ namespace dmGameObject
         bool m_Euler;
     };
 
-    // Dispatch once per collection. UseSimd requires an executable four-track
-    // batch, not merely eligible records.
+    // Walk the array in physical order, interleaving scalar work and SIMD runs.
+    // UseSimd is selected once per collection/frame and requires an executable
+    // four-track batch and nonnegative dt. Without one, compile out batch dispatch.
     template <bool UseSimd>
     static AnimationUpdateChanges EvaluateAnimations(AnimWorld* world, Collection* collection, uint32_t size, float frame_dt)
     {
         AnimationUpdateChanges changes = { false, false };
+        // A setter may cancel a later track during this walk. In that case check
+        // all four records just before each batch, rather than trusting a run.
         const bool cached_runs = !world->m_HasAnimationSetters;
         uint32_t run_index = 0;
         uint32_t next_run = cached_runs && world->m_SimdRuns.Size() != 0 ? world->m_SimdRuns[0].m_Begin : size;
@@ -593,14 +629,19 @@ namespace dmGameObject
         /*
          * The update has three stages: activation, evaluation and finalization.
          *
-         * The first pass updates the delay and starts animations. Newly started
-         * animations should automatically cancel others of the same property,
-         * which is why this is done in a separate pass. Otherwise an ongoing
-         * animation could have already animated the property and it would then
-         * have an incorrect value when read by the newly started animation to
-         * retrieve the from-value.
+         * The first pass activates tracks whose delay expires this frame and
+         * captures their from-values. Delay is consumed in evaluation, so a track
+         * with a partial-frame delay stays scalar until the next run rebuild.
+         * Newly started animations should automatically cancel others of the
+         * same property, which is why this is done in a separate pass. Otherwise
+         * an ongoing animation could already have changed the property's value
+         * before the newly started animation captures it as its from-value.
          *
-         * The second pass advances and evaluates the animations.
+         * After activation, rebuild dirty SIMD runs before the second pass
+         * advances and evaluates the array. Unchanged runs are reused across
+         * frames. Activation, stopping and swap-erasure invalidate the cache when
+         * readiness or physical positions change. The arithmetic loop does not
+         * reschedule tracks.
          *
          * Euler writes are committed after evaluation, once per touched instance,
          * before finalization prunes stopped animations and calls callbacks.
