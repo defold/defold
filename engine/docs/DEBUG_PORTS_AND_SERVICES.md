@@ -29,10 +29,12 @@ The engine service is implemented as a small web server running within the engin
 The observation URLs are unversioned. `/ping`, `/info`, `/state`, and
 `/openapi.json` accept only `GET` at the exact path, without a request body.
 Query strings are accepted and ignored by these handlers.
-Unsupported methods return `405` with `Allow: GET`; unknown
-paths return `404`. Unexpected bodies return `400` and close the connection
-without waiting for the upload. Invalid or unsupported body framing, including
-chunked uploads, is rejected by the HTTP server. Observation errors use
+Unsupported methods return `405` with `Allow: GET`. Unmatched paths return
+`404` before profiler initialization; afterward, the existing `/` prefix
+fallback serves profiler HTML. The profiler handler retains its existing method
+and body handling. Unexpected bodies on observation endpoints return `400` and
+close the connection without waiting for the upload. Invalid or unsupported body
+framing, including chunked uploads, is rejected by the HTTP server. Observation errors use
 `{"error":{"code":"...","message":"..."}}`; routing and framing errors can be plain text.
 
 Handlers run on the engine thread and response bytes are copied into an

@@ -218,6 +218,7 @@ if(NOT DLIB_TEST_SKIP_HTTP)
   dlib_add_test(test_httpserver_async)
   dlib_add_test(test_webserver SKIP_RUN)
   dlib_add_test(test_webserver_openapi)
+  dlib_add_test(test_webserver_routing)
   dlib_add_test(test_connection_pool SKIP_RUN)
 endif()
 
