@@ -210,10 +210,13 @@
           infos (ParticleLibrary$VertexAttributeInfos.)
           ^ints semantic-flags (.semanticFlags infos)]
       (doseq [i (range num-attribute-infos)]
-        (let [particle-attribute-info (attribute-info->particle-attribute-info context
-                                                                               (aget ^objects particle-attribute-info-array i)
-                                                                               (get attribute-infos i)
-                                                                               vertex-attribute-bytes)
+        (let [particle-attribute-info
+              (attribute-info->particle-attribute-info
+                context
+                (aget ^objects particle-attribute-info-array i)
+                (get attribute-infos i)
+                vertex-attribute-bytes)
+
               step-function (.stepFunction particle-attribute-info)]
           (aset-int semantic-flags step-function
                     (bit-or (aget semantic-flags step-function)
