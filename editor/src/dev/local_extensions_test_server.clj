@@ -12,7 +12,7 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns local-extensions.server
+(ns local-extensions-test-server
   (:require [clojure.java.io :as io]
             [editor.fs :as fs]
             [editor.resource :as resource]

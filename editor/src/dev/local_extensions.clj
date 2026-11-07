@@ -35,4 +35,4 @@
           value
           ;; URL defaults are parsed during parallel namespace loading. Keep
           ;; the server's graph dependencies out of ordinary substitution.
-          ((requiring-resolve 'local-extensions.server/url) jvm-property-key))))))
+          ((requiring-resolve 'local-extensions-test-server/url) jvm-property-key))))))

@@ -41,7 +41,7 @@
                                      (ex-data exception)))
                :loaded (into #{}
                              (filter (loaded-libs))
-                             '[dynamo.graph editor.resource schema.core util.http-server local-extensions.server])}))) []
+                             '[dynamo.graph editor.resource schema.core util.http-server local-extensions-test-server])}))) []
     (is (= {:plain "https://example.com/plain.zip"
             :substituted "https://example.com/extension.zip"
             :missing-property {:jvm-property-key "defold.extension.missing-test.url"
