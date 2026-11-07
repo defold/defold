@@ -1,10 +1,10 @@
 # Build Engine
 
-Defold uses CMake and Ninja. The `scripts/build.py` script handles dependency installation and full engine builds; you can use CMake directly for incremental builds and individual tests.
+Defold uses CMake and Ninja. The `scripts/build.py` script handles dependency installation and full engine builds; you can use CMake directly for incremental builds and individual tests. See the [CMake guide](scripts/cmake/README.md) for more build options, sanitizers, and IDE project generation.
 
 ## IMPORTANT PREREQUISITE - SETUP
 
-Make sure you have followed the [setup guide](/README_SETUP.md) to install the tools and sdk's you want before attempting to build the engine. If you do not install all of the required software from the setup guide your attempts to build the engine will likely fail.
+Follow the [setup guide](/README_SETUP.md) before building. Packaged SDK and toolchain versions are defined in [build_tools/sdk.py](build_tools/sdk.py); the minimum CMake version is specified in [CMakeLists.txt](CMakeLists.txt).
 
 ## Standard workflow
 
@@ -17,16 +17,15 @@ The standard workflow when building the engine is the following:
 
 When working on a new feature or fixing a bug you start by first building the engine once as described above. You then proceed to develop your feature or fix the bug and rebuild and test changes until satisfied. When you do a rebuild you can speed things up by only building the parts that have changed.
 
-*NOTE: Make sure you also have read our [Contribution Guide](https://github.com/defold/defold/blob/build-doc-update/CONTRIBUTING.md). Especially before undertaking larger tasks.*
+*NOTE: Read our [Contribution Guide](CONTRIBUTING.md), especially before undertaking larger tasks.*
 
-**NOTE for Linux users**: To avoid any problems with version of shared dependencies engine will link with - use Docker container to build the engine. More information [here](/scripts/docker/README.md).
+**NOTE for Linux users**: Use the [Docker build environment](/scripts/docker/README.md) for consistent versions of shared dependencies.
 
 ## Build examples
 
-To give an quick overview of the steps required.
-(The following paragraphs will explain in more detail what each step does.)
+The following examples give a quick overview; each step is explained below.
 
-The `--platform=` is implied in these examples, as it defaults to the host platform (x86_64-win32, x86_64-linux, arm64-linux, x86_64-macos or arm64-macos)
+The `--platform` argument defaults to the host platform (`x86_64-win32`, `x86_64-linux`, `arm64-linux`, `x86_64-macos` or `arm64-macos`). CMake examples use `arm64-macos`; replace it with your configured platform.
 
 Once per session:
 ```
@@ -39,24 +38,27 @@ $ ./scripts/build.py install_ext    # extracts packages, checks the SDK, then bu
 ```
 
 Set up the platform SDK before running `install_ext`. Repeat the installation
-after `distclean`. Re-run `install_ext` when the external
+after `distclean`, which also removes SDKs installed under `DYNAMO_HOME`.
+Re-run `install_ext` when the external
 sources or toolchain change; ordinary engine rebuilds use the installed libraries.
 
-Build full engine, docs, bob light, tests + running the tests
+Build and install the full engine, docs, Bob Light, and builtins; build the tests and run them when the host supports the target:
 
     $ ./scripts/build.py build_engine
 
-Build Android tests against a specific connected device serial
+Build the Android engine and tests, and run the tests on a specific connected device:
 
     $ ./scripts/build.py build_engine --platform=arm64-android --test-device <serial>
 
-Build full engine, but without: docs, bob light, tests, skipping the tests (for a significant speedup)
+After a successful full build, skip rebuilding docs and Bob Light, and skip building and running tests:
 
     $ ./scripts/build.py build_engine --skip-docs --skip-bob-light --skip-tests -- --skip-build-tests
 
+`--skip-bob-light` uses the existing `${DYNAMO_HOME}/share/java/bob-light.jar` to build engine content. Rebuild Bob Light after changing Bob or its native compiler libraries.
+
 Rebuild changed dependencies and relink the dmengine executable. No tests are run.
 
-    $ cmake --build engine/build/x86_64-win32 --target dmengine
+    $ cmake --build engine/build/arm64-macos --target dmengine
 
 
 You can also specify the platform explicitly:
@@ -69,9 +71,10 @@ $ ./scripts/build.py build_engine --platform=arm64-android
 
 *In the instructions below, the `--platform` argument to `build.py` will default to the host platform if not specified.*
 
-The following platforms are supported:
+The public build targets in `scripts/build.py` are:
 
 * `x86_64-linux`
+* `arm64-linux`
 * `x86_64-macos`
 * `arm64-macos`
 * `x86_64-win32`
@@ -79,8 +82,11 @@ The following platforms are supported:
 * `arm64_sim-ios`
 * `armv7-android`
 * `arm64-android`
+* `x86_64-android`
 * `wasm-web`
 * `wasm_pthread-web`
+
+See [supported hosts and targets](README_SETUP.md#supported-hosts--targets) for host/target combinations. Private console platforms require their separate platform repositories and SDKs.
 
 ### STEP 1 - Setup environment
 
@@ -90,23 +96,19 @@ Start by setting up the build environment:
 $ ./scripts/build.py shell
 ```
 
-This will start a new shell with all of the required environment variables set (`DYNAMO_HOME` etc).
+This starts a new shell with the build environment set, including `DEFOLD_HOME`, `DYNAMO_HOME`, `JAVA_HOME`, `PYTHONPATH`, `PATH`, and `CMAKE_GENERATOR=Ninja`. By default, `DYNAMO_HOME` is `<repository>/tmp/dynamo_home`.
 
 ### STEP 2 - Install SDKs (when needed)
 
-NOTE: As mentioned above, you may skip this step if your host OS and target OS is in the supported list of platforms that can use the local (host) installations of sdks.
-(Most likely, it is)
-See [Supported Hosts + Targets](./README_SETUP.md#supported-hosts-targets)
+You can skip `install_sdk` when the build system can find suitable local SDKs for your host and target platforms. Follow the [platform SDK setup](README_SETUP.md#required-software---platform-sdks) before running `install_ext`.
 
-<details><summary>Install sdk</summary><p>
+Building `armv7-android` from macOS also requires Emscripten and Node.js for LuaJIT's 32-bit generators, even though the target is Android. Set up a local Emscripten SDK using `EMSDK`, or use `install_sdk --platform=armv7-android` to install the packaged SDKs.
 
-See [./README_SETUP.md]()
+<details><summary>Install packaged SDKs</summary>
 
-The `install_sdk`command will install SDKs (build tools etc) such as the Android SDK when building for Android or the Emscripten SDK for HTML5.
+The `install_sdk` command installs packaged SDKs such as the Android SDK/NDK and Emscripten SDK into the build environment. For SDKs that cannot be distributed with Defold, provide your own package location as described in the [setup guide](README_SETUP.md).
 
-If you wish to build for any other platform, you will need to install an sdk package where the build system can find it.
-
-Install the SDK before running `install_ext`, which needs it to build source dependencies:
+Install the SDK before running `install_ext`, which needs it to build source dependencies. Use `--package-path` to override the default package location:
 
 ```sh
 $ ./scripts/build.py install_sdk --platform=... --package-path=...
@@ -118,7 +120,7 @@ You could also set the package path in an environment variable `DM_PACKAGES_URL`
 $ DM_PACKAGES_URL=https://my.url ./scripts/build.py install_sdk --platform=...
 ```
 
-</p></details>
+</details>
 
 
 ### STEP 3 - Install dependencies
@@ -140,7 +142,9 @@ The `install_ext` command first installs the remaining prepackaged dependencies
 from `./packages` and support files, then calls `build_ext` to check the SDK and
 build and install source dependencies with CMake. These include Bullet, Basis
 Universal, LZ4, both Box2D versions, HarfBuzz, libunibreak, Opus, SheenBidi,
-Skribidi and desktop Protobuf.
+Skribidi, and LuaJIT on non-web targets. Desktop builds also include
+meshoptimizer, Draco, Ogg, and Protobuf; Linux builds include OpenH264.
+See [external/CMakeLists.txt](external/CMakeLists.txt) for the current platform conditions.
 The DXC shader tools for all five desktop host platforms are installed from
 versioned archives in `packages`; normal builds do not compile LLVM/DXC.
 Explicit DXC package rebuilds use pinned, checksum-verified source archives and
@@ -167,19 +171,18 @@ the selected platform (the host platform when `--platform` is omitted). It retai
 other platforms, shared dependency files, platform SDKs, engine outputs, and
 package archives outside the build directories.
 
-This step also installs some Python dependencies:
+This step also installs pinned Python dependencies into `${DYNAMO_HOME}/ext/lib/python`:
 
-* `boto` - For interacting with AWS. Installed from wheel package in `packages/`.
-* `markdown` - Used when generating script API docs. Installed from wheel package in `packages/`.
-* `protobuf` - Installed from the pinned wheel in `packages/python`.
-* `Pygments` - For use by the `CodeHilite` extension used by `markdown` in `script_doc.py`. Installed from wheel package in `packages/`.
-* `requests` - Installed using pip
-* `pyaml` - Installed using pip
+* `Markdown` and `Pygments` for script API documentation.
+* `protobuf` for DDF generation.
+* `Pillow`, `boto3`, `PyYAML`, `pystache`, `rangehttpserver`, and `requests` for build tools, tests, and release scripts.
+
+All of these are installed with pip from bundled wheels in `packages/python`, using `--no-index`; this step does not download Python packages from PyPI. The pinned versions are listed in `install_ext_packages` in [scripts/build.py](scripts/build.py).
 
 DDF generators use these bundled Python dependencies without loading host
 site-packages. `install_ext` checks that the bundled Python Protobuf runtime loads,
 and `check_sdk` checks both the runtime and Protoc. CMake first searches
-`tmp/dynamo_home/ext/bin/<host-platform>/` for Protoc and falls back to `PATH`
+`${DYNAMO_HOME}/ext/bin/<host-platform>/` for Protoc and falls back to `PATH`
 when the host compiler is absent. Reconfiguring an existing build replaces any
 previously cached local compiler with the SDK compiler.
 
@@ -194,15 +197,21 @@ With the setup and installation done you're ready to build the engine:
 $ ./scripts/build.py build_engine --platform=...
 ```
 
-This will build the engine and run all unit tests. In order to speed up the process you can skip running the tests:
+This builds and installs the engine, builds the test binaries, and runs the enabled unit tests when the host can run the target. To skip running tests while still building them:
+
+```sh
+$ ./scripts/build.py build_engine --platform=... --skip-tests
+```
+
+To skip both building and running tests:
 
 ```sh
 $ ./scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests
 ```
 
-When running Android tests, you can target a specific connected device either with `--test-device <serial>` or by setting `ANDROID_SERIAL` in the environment.
+Android tests require a connected device or emulator with a compatible ABI. Select it with `--test-device <serial>` or `ANDROID_SERIAL`. iOS tests run from macOS and also accept `--test-device` for a device or simulator; physical devices require code signing and provisioning. Web tests require Bun or Node.js on a supported host. Use `--skip-tests` when only building for these platforms.
 
-Options after `--`, such as `--opt-level=0` and `--with-asan`, are translated into CMake settings. The built engine ends up in `./tmp/dynamo_home/bin/%platform%`.
+Options after `--`, such as `--opt-level=0`, `--with-asan` and `--with-ubsan`, are translated into CMake settings. The default build type is `RelWithDebInfo`; `--opt-level=0` selects `Debug`. Installed engine binaries are written to `${DYNAMO_HOME}/bin/<platform>`.
 
 ---
 
@@ -217,9 +226,11 @@ $ cmake --build engine/build/arm64-macos --target dlib
 # Rebuild changed dependencies and relink the engine
 $ cmake --build engine/build/arm64-macos --target dmengine
 
-# Install the updated artifacts into DYNAMO_HOME
+# Install the built artifacts into DYNAMO_HOME (does not rebuild them)
 $ cmake --install engine/build/arm64-macos
 ```
+
+The `dmengine` target builds the engine in `engine/engine/build/<platform>`; it does not update the installed copy in `DYNAMO_HOME`. Before a full install, build any other targets whose installed artifacts also need to be refreshed, or rerun `build_engine` to build and install everything.
 
 To change build options, run `build.py` again. For example, to enable AddressSanitizer:
 
@@ -231,16 +242,24 @@ $ ./scripts/build.py build_engine --platform=arm64-macos -- --with-asan
 
 ## Unit tests
 
-`build_engine` runs unit tests unless `--skip-tests` is specified. After configuring with tests enabled, you can build and run a single test through CMake:
+`build_engine` runs the enabled unit tests when the target is runnable, unless `--skip-tests` is specified. If the build was configured with `--skip-build-tests`, rerun `build_engine` without that flag to restore the test targets.
+
+After configuring with tests enabled, build and run all enabled tests through CMake:
+
+```sh
+$ cmake --build engine/build/arm64-macos --target run_tests
+```
+
+To build and run just the `test_dlib` executable:
 
 ```sh
 $ cmake --build engine/build/arm64-macos --target run_test_dlib
 ```
 
-To build the test without running it, use the `test_dlib` target. You can then run the executable from its module directory and use `--test-filter` to select tests (see the [jctest documentation](https://jcash.github.io/jctest/api/03-runtime/#command-line-options)):
+To build the test without running it, use the `test_dlib` target. On a native desktop build, run the executable from its module directory and use `--test-filter` to select tests by a substring of the test name (see the [jctest documentation](https://jcash.github.io/jctest/api/03-runtime/#command-line-options)):
 
 ```sh
 $ cmake --build engine/build/arm64-macos --target test_dlib
 $ cd engine/dlib
-$ ./build/arm64-macos/src/test/test_dlib --test-filter SomeTestPattern
+$ ./build/arm64-macos/src/test/test_dlib --test-filter HashToString32
 ```
