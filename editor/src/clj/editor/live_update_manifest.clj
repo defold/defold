@@ -142,11 +142,18 @@
 
 (defn- rename-package [evaluation-context self old-name new-name]
   (when-let [manifest (core/scope (:basis evaluation-context) self)]
-    (coll/into-> (g/node-value manifest :package-nodes evaluation-context) []
-      (mapcat #(g/node-value % :nodes evaluation-context))
-      (filter #(and (g/node-instance? (:basis evaluation-context) RuleNode %)
-                    (= old-name (g/node-value % :package evaluation-context))))
-      (map #(g/set-property % :package new-name)))))
+    (let [packages (g/node-value manifest :package-nodes evaluation-context)]
+      ;; Duplicate old or new names cannot identify a rule's target package.
+      (when (coll/not-any? (fn [node-id]
+                             (let [name (g/node-value node-id :id evaluation-context)]
+                               (and (not= self node-id)
+                                    (or (= old-name name) (= new-name name)))))
+                           packages)
+        (coll/into-> packages []
+          (mapcat #(g/node-value % :nodes evaluation-context))
+          (filter #(and (g/node-instance? (:basis evaluation-context) RuleNode %)
+                        (= old-name (g/node-value % :package evaluation-context))))
+          (map #(g/set-property % :package new-name)))))))
 
 (g/defnode FileCompressionSelection
   (input read-only g/Bool)

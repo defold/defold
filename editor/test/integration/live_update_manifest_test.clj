@@ -789,6 +789,32 @@
         (is (nil? (test-util/prop-error node :id)))
         (is (false? (:outline-error? (g/node-value node :node-outline))))))))
 
+;; Correcting a duplicate package name must preserve rule targets
+;; and undo history.
+(deftest package-rename-name-conflicts
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (test-util/make-resource! workspace "/rename.archivemanifest"
+                              {:packages [{:name "a" :rules [{:name "Data" :path "/extra[.]json"}]}
+                                          {:name "b" :rules [{:name "Scene" :path "/episode[.]collection"}]}
+                                          {:name "copies" :rules [{:name "First" :package "a"}
+                                                                  {:name "Second" :package "b"}]}]})
+    (workspace/resource-sync! workspace)
+    (let [node (project/get-resource-node project "/rename.archivemanifest")
+          original (g/node-value node :save-value)
+          package (get-in (g/node-value node :packages) [1 :node-id])]
+      (test-util/prop! package :id "a")
+      (is (g/error-fatal? (test-util/prop-error package :id)))
+      (is (= (get-in original [:packages 2 :rules])
+             (get-in (g/node-value node :save-value) [:packages 2 :rules])))
+      (test-util/prop! package :id "b")
+      (is (= original (g/node-value node :save-value)))
+      (is (coll/empty? (g/node-value node :diagnostics)))
+      (g/undo! :undo/global)
+      (is (= (get-in original [:packages 2 :rules])
+             (get-in (g/node-value node :save-value) [:packages 2 :rules])))
+      (g/redo! :undo/global)
+      (is (= original (g/node-value node :save-value))))))
+
 ;; Preview lists custom files by their source paths, including known extensions,
 ;; and agrees with Bob without producing compiled files.
 (deftest custom-resources-preview
