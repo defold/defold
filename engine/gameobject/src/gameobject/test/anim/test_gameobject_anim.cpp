@@ -153,6 +153,554 @@ TEST_F(AnimTest, CallbackFreeCurveLifetime)
     }
 }
 
+// Switch between scalar-only and SIMD-eligible collections without losing starts,
+// final values, or one-shot completion notifications.
+TEST_F(AnimTest, EvaluationPassSwitchesBetweenScalarAndSimd)
+{
+    dmGameObject::HInstance objects[4];
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+    }
+    m_UpdateContext.m_DT = 0.25f;
+    for (uint32_t pass = 0; pass < 3; ++pass)
+    {
+        const bool loop = pass == 1;
+        const dmGameObject::Playback playback = loop ? dmGameObject::PLAYBACK_LOOP_FORWARD : dmGameObject::PLAYBACK_ONCE_FORWARD;
+        const float from = pass * 10.0f;
+        dmGameObject::PropertyVar target(from + 10.0f);
+        for (uint32_t i = 0; i < 4; ++i)
+        {
+            // Capture the new start value after the previous pass has stopped.
+            dmGameObject::SetPosition(objects[i], dmVMath::Point3(from, 0, 0));
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0, hash("position.x"),
+                                                                playback, target, dmEasing::Curve(dmEasing::TYPE_LINEAR),
+                                                                1.0f, 0, AnimationStopped, this, 0));
+        }
+        for (uint32_t frame = 0; frame < 4; ++frame)
+        {
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            const float expected = loop && frame == 3 ? from : from + (frame + 1) * 2.5f;
+            for (uint32_t i = 0; i < 4; ++i)
+            {
+                ASSERT_NEAR(expected, X(objects[i]), EPSILON);
+            }
+        }
+        if (loop)
+        {
+            for (uint32_t i = 0; i < 4; ++i)
+            {
+                ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(m_Collection, objects[i], 0, hash("position.x")));
+            }
+        }
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_EQ(pass == 2 ? 8u : 4u, m_FinishCount);
+        ASSERT_EQ(pass == 0 ? 0u : 4u, m_CancelCount);
+    }
+}
+
+// Compare dense batching with isolated scalar collections across wraps, delays,
+// cancellations, replacements and deletion, including every built-in curve and tails.
+TEST_F(AnimTest, BatchedLoopPropertiesMatchScalar)
+{
+    const uint32_t count = 43;
+    dmGameObject::HCollection references[count];
+    dmGameObject::HInstance objects[3][count];
+    dmGameObject::HInstance controls[3][count];
+    dmVMath::FloatVector samples(2);
+    samples.values[0] = 0.0f;
+    samples.values[1] = 1.0f;
+    dmEasing::Curve custom(dmEasing::TYPE_FLOAT_VECTOR);
+    custom.vector = &samples;
+    dmGameObject::PropertyVar zero(0.0f);
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        dmGameObject::Playback playback = (dmGameObject::Playback)(dmGameObject::PLAYBACK_LOOP_FORWARD + mode);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            objects[mode][i] = dmGameObject::New(m_Collection, "/dummy.goc");
+            if (mode == 0)
+            {
+                char name[64];
+                dmSnPrintf(name, sizeof(name), "scalar-reference-%u", i);
+                references[i] = dmGameObject::NewCollection(name, m_Factory, m_Register, 8, 0);
+                ASSERT_NE((dmGameObject::HCollection)0, references[i]);
+            }
+            controls[mode][i] = dmGameObject::New(references[i], "/dummy.goc");
+            ASSERT_NE((dmGameObject::HInstance)0, objects[mode][i]);
+            ASSERT_NE((dmGameObject::HInstance)0, controls[mode][i]);
+            dmVMath::Point3 position((float)i * -0.125f, 0.0f, 0.0f);
+            dmGameObject::SetPosition(objects[mode][i], position);
+            dmGameObject::SetPosition(controls[mode][i], position);
+            dmGameObject::PropertyVar target(20.0f + i);
+            dmEasing::Curve curve((dmEasing::Type)(i % dmEasing::TYPE_FLOAT_VECTOR));
+            float duration = i == 17 ? 0.0f : (1 + i % 19) * 0.015625f;
+            float delay = i % 13 == 12 ? 0.375f : 0.0f;
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[mode][i], 0, hash("position.x"),
+                                                                playback, target, curve, duration, delay, AnimationStopped, this, 0));
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(references[i], controls[mode][i], 0, hash("position.x"),
+                                                                playback, target, curve, duration, delay, 0, 0, 0));
+            // Each reference has at most three SIMD-eligible tracks, so evaluation cannot form a four-track batch.
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(references[i], controls[mode][i], 0, hash("position.z"),
+                                                                playback, zero, custom, 1.0f, 0, 0, 0, 0));
+        }
+    }
+    const float steps[] = { 0.0f, 0.01f, 0.75f, 1.0f / 60.0f, -0.125f, 0.25f };
+    for (uint32_t frame = 0; frame < 120; ++frame)
+    {
+        if (frame == 24)
+        {
+            for (uint32_t mode = 0; mode < 3; ++mode)
+            {
+                for (uint32_t i = 0; i < count; i += 5)
+                {
+                    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(m_Collection, objects[mode][i], 0, hash("position.x")));
+                    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(references[i], controls[mode][i], 0, hash("position.x")));
+                }
+            }
+        }
+        if (frame == 48)
+        {
+            dmGameObject::PropertyVar target(-5.0f);
+            for (uint32_t mode = 0; mode < 3; ++mode)
+            {
+                for (uint32_t i = 0; i < count; i += 7)
+                {
+                    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[mode][i], 0, hash("position.x"),
+                                                                        dmGameObject::PLAYBACK_ONCE_FORWARD, target, dmEasing::Curve(dmEasing::TYPE_LINEAR), 0.125f, 0.075f, AnimationStopped, this, 0));
+                    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(references[i], controls[mode][i], 0, hash("position.x"),
+                                                                        dmGameObject::PLAYBACK_ONCE_FORWARD, target, dmEasing::Curve(dmEasing::TYPE_LINEAR), 0.125f, 0.075f, 0, 0, 0));
+                }
+            }
+        }
+        if (frame == 72)
+        {
+            for (uint32_t mode = 0; mode < 3; ++mode)
+            {
+                dmGameObject::Delete(m_Collection, objects[mode][5], false);
+                dmGameObject::Delete(references[5], controls[mode][5], false);
+                ASSERT_TRUE(dmGameObject::PostUpdate(references[5]));
+            }
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        }
+        m_UpdateContext.m_DT = steps[frame % DM_ARRAY_SIZE(steps)];
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            ASSERT_TRUE(dmGameObject::Update(references[i], &m_UpdateContext));
+        }
+        for (uint32_t mode = 0; mode < 3; ++mode)
+        {
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                if (i != 5 || frame < 72)
+                {
+                    ASSERT_EQ(X(controls[mode][i]), X(objects[mode][i]));
+                }
+            }
+        }
+    }
+    ASSERT_EQ(21u, m_FinishCount);
+    ASSERT_EQ(42u, m_CancelCount);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        dmGameObject::DeleteCollection(references[i]);
+    }
+    dmGameObject::PostUpdate(m_Register);
+}
+
+// Whole Vector3 batches include their parent lane. Compare against isolated scalar
+// axes through mixed curves, delays, wraps, negative dt and channel replacement.
+TEST_F(AnimTest, BatchedVector3MatchesScalarAxes)
+{
+    const uint32_t count = dmEasing::TYPE_FLOAT_VECTOR * 3;
+    dmGameObject::HCollection references[count];
+    dmGameObject::HInstance objects[count];
+    dmGameObject::HInstance controls[count];
+    const char* channels[] = { "position.x", "position.y", "position.z" };
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        char name[64];
+        dmSnPrintf(name, sizeof(name), "vector-reference-%u", i);
+        references[i] = dmGameObject::NewCollection(name, m_Factory, m_Register, 8, 0);
+        objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        controls[i] = dmGameObject::New(references[i], "/dummy.goc");
+        dmVMath::Point3 from((float)i, -20.0f, 3.0f);
+        dmGameObject::SetPosition(objects[i], from);
+        dmGameObject::SetPosition(controls[i], from);
+        dmGameObject::Playback playback = (dmGameObject::Playback)(dmGameObject::PLAYBACK_LOOP_FORWARD + i % 3);
+        dmEasing::Curve curve((dmEasing::Type)(i / 3));
+        float duration = (1 + i % 19) * 0.015625f;
+        float delay = i % 13 == 12 ? 0.375f : 0.0f;
+        dmVMath::Vector3 to(30.0f, -5.0f, 11.0f);
+        dmGameObject::PropertyVar vector_target(to);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0, hash("position"),
+                                                            playback, vector_target, curve, duration, delay, AnimationStopped, this, 0));
+        // Three scalar tracks per collection cannot form a SIMD batch.
+        for (uint32_t axis = 0; axis < 3; ++axis)
+        {
+            dmGameObject::PropertyVar axis_target(to.getElem(axis));
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(references[i], controls[i], 0, hash(channels[axis]),
+                                                                playback, axis_target, curve, duration, delay, 0, 0, 0));
+        }
+    }
+    const float steps[] = { 0.0f, 0.01f, 0.75f, 1.0f / 60.0f, -0.125f, 0.25f };
+    for (uint32_t frame = 0; frame < 96; ++frame)
+    {
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            if (frame == 24)
+            {
+                CancelAnimations(m_Collection, objects[i], 0, hash("position.y"));
+                CancelAnimations(references[i], controls[i], 0, hash("position.y"));
+            }
+            if (frame == 48)
+            {
+                dmGameObject::PropertyVar target(4.0f);
+                ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0, hash("position.y"),
+                                                                    dmGameObject::PLAYBACK_ONCE_FORWARD, target, dmEasing::Curve(dmEasing::TYPE_LINEAR), 0.125f, 0.075f, 0, 0, 0));
+                ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(references[i], controls[i], 0, hash("position.y"),
+                                                                    dmGameObject::PLAYBACK_ONCE_FORWARD, target, dmEasing::Curve(dmEasing::TYPE_LINEAR), 0.125f, 0.075f, 0, 0, 0));
+            }
+            if (frame == 72)
+            {
+                CancelAnimations(m_Collection, objects[i], 0, hash("position"));
+                CancelAnimations(references[i], controls[i], 0, 0);
+            }
+        }
+        m_UpdateContext.m_DT = steps[frame % DM_ARRAY_SIZE(steps)];
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            ASSERT_TRUE(dmGameObject::Update(references[i], &m_UpdateContext));
+            dmVMath::Point3 expected = dmGameObject::GetPosition(controls[i]);
+            dmVMath::Point3 actual = dmGameObject::GetPosition(objects[i]);
+            for (uint32_t axis = 0; axis < 3; ++axis)
+            {
+                ASSERT_EQ(expected.getElem(axis), actual.getElem(axis));
+            }
+        }
+    }
+    ASSERT_EQ(0u, m_FinishCount);
+    ASSERT_EQ(count, m_CancelCount);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        dmGameObject::DeleteCollection(references[i]);
+    }
+    dmGameObject::PostUpdate(m_Register);
+}
+
+// Pruning can move a delayed tail below the old activation bound; deleting an
+// instance can similarly move a stopped tail below the old pruning bound.
+TEST_F(AnimTest, LifecycleBoundsFollowSwapErasure)
+{
+    dmGameObject::HInstance objects[9];
+    dmGameObject::PropertyVar target(20.0f);
+    for (uint32_t i = 0; i < 9; ++i)
+    {
+        objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0, hash("position.x"),
+                                                            dmGameObject::PLAYBACK_LOOP_FORWARD, target, dmEasing::Curve(dmEasing::TYPE_LINEAR),
+                                                            1.0f, i == 8 ? 0.5f : 0.0f, AnimationStopped, this, 0));
+    }
+    m_UpdateContext.m_DT = 0.125f;
+    CancelAnimations(m_Collection, objects[0], 0, hash("position.x"));
+    for (uint32_t frame = 0; frame < 6; ++frame)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_EQ(frame < 4 ? 0.0f : (frame - 3) * 2.5f, X(objects[8]));
+    }
+    ASSERT_EQ(1u, m_CancelCount);
+    // Index 7 is now the tail; removing index 1 moves that stopped tail down.
+    CancelAnimations(m_Collection, objects[7], 0, hash("position.x"));
+    dmGameObject::Delete(m_Collection, objects[1], false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(2u, m_CancelCount);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(3u, m_CancelCount);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(3u, m_CancelCount);
+    ASSERT_EQ(0u, m_FinishCount);
+}
+
+// Delayed loops must become batchable after a scalar-only pass. Negative steps,
+// cancellation and scalar completion must keep values equal to isolated tracks.
+TEST_F(AnimTest, AnimationRunsBecomeReadyAfterScalarEvaluation)
+{
+    const uint32_t count = 13;
+    dmGameObject::HCollection references[count];
+    dmGameObject::HInstance objects[count];
+    dmGameObject::HInstance controls[count];
+    dmGameObject::PropertyVar target(16.0f);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        char name[64];
+        dmSnPrintf(name, sizeof(name), "delayed-reference-%u", i);
+        references[i] = dmGameObject::NewCollection(name, m_Factory, m_Register, 8, 0);
+        objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        controls[i] = dmGameObject::New(references[i], "/dummy.goc");
+        ASSERT_NE((dmGameObject::HInstance)0, objects[i]);
+        ASSERT_NE((dmGameObject::HInstance)0, controls[i]);
+        float delay = i < 8 ? 0.1875f : 0.4375f;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0, hash("position.x"),
+                                                            dmGameObject::PLAYBACK_LOOP_PINGPONG, target, dmEasing::Curve(dmEasing::TYPE_INOUTSINE), 1, delay, 0, 0, 0));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(references[i], controls[i], 0, hash("position.x"),
+                                                            dmGameObject::PLAYBACK_LOOP_PINGPONG, target, dmEasing::Curve(dmEasing::TYPE_INOUTSINE), 1, delay, 0, 0, 0));
+    }
+    for (uint32_t frame = 0; frame < 24; ++frame)
+    {
+        // Scalar tails start and finish alongside the unchanged loop spans.
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[0], 0, hash("position.z"),
+                                                            dmGameObject::PLAYBACK_ONCE_FORWARD, target, dmEasing::Curve(dmEasing::TYPE_LINEAR), 0, 0, AnimationStopped, this, 0));
+        if (frame == 12)
+        {
+            dmGameObject::CancelAnimations(m_Collection, objects[5], 0, hash("position.x"));
+            dmGameObject::CancelAnimations(references[5], controls[5], 0, hash("position.x"));
+        }
+        m_UpdateContext.m_DT = frame == 8 ? -0.125f : 0.125f;
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            ASSERT_TRUE(dmGameObject::Update(references[i], &m_UpdateContext));
+            ASSERT_EQ(X(controls[i]), X(objects[i]));
+        }
+    }
+    ASSERT_EQ(24u, m_FinishCount);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        dmGameObject::DeleteCollection(references[i]);
+    }
+    dmGameObject::PostUpdate(m_Register);
+}
+
+struct AnimationGroupCallbackState
+{
+    uint32_t m_Ids[12];
+    uint32_t m_Count;
+    uint32_t m_Canceled;
+};
+
+static void AnimationGroupStopped(dmGameObject::HInstance, dmhash_t, dmhash_t, bool finished, void* userdata1, void* userdata2)
+{
+    AnimationGroupCallbackState* state = (AnimationGroupCallbackState*)userdata1;
+    if (finished)
+    {
+        state->m_Ids[state->m_Count++] = (uint32_t)(uintptr_t)userdata2;
+    }
+    else
+    {
+        ++state->m_Canceled;
+    }
+}
+
+// Evaluating mixed SIMD, Euler and custom tracks must preserve the original
+// swap-erasure callback order, including custom curves on Euler properties.
+TEST_F(AnimTest, MixedAnimationsPreserveCallbackOrder)
+{
+    AnimationGroupCallbackState state = {};
+    dmGameObject::HInstance objects[12];
+    dmVMath::FloatVector samples(2);
+    samples.values[0] = 0;
+    samples.values[1] = 1;
+    dmGameObject::PropertyVar target(8.0f);
+    // Keep a full SIMD batch active while the mixed tracks below complete.
+    dmGameObject::HInstance loop_objects[4];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(loop_objects); ++i)
+    {
+        loop_objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, loop_objects[i], 0, hash("position.x"),
+                                                            dmGameObject::PLAYBACK_LOOP_FORWARD, target, dmEasing::Curve(dmEasing::TYPE_LINEAR), 1.0f, 0,
+                                                            AnimationGroupStopped, &state, 0));
+    }
+    for (uint32_t i = 0; i < 12; ++i)
+    {
+        objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        const bool loop = i == 0 || i == 4 || i == 8 || i == 9;
+        const bool euler = i == 1 || i == 5;
+        dmEasing::Curve curve(dmEasing::TYPE_LINEAR);
+        if (i == 2 || i == 5 || i == 6 || i == 10)
+        {
+            curve.type = dmEasing::TYPE_FLOAT_VECTOR;
+            curve.vector = &samples;
+        }
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0,
+                                                            euler ? hash("euler.z") : hash("position.x"),
+                                                            loop ? dmGameObject::PLAYBACK_LOOP_FORWARD : dmGameObject::PLAYBACK_ONCE_FORWARD,
+                                                            target, curve, 0.125f, 0, AnimationGroupStopped, &state, (void*)(uintptr_t)i));
+    }
+    m_UpdateContext.m_DT = 0.0625f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(0u, state.m_Count);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(loop_objects); ++i)
+    {
+        ASSERT_EQ(1.0f, X(loop_objects[i]));
+    }
+    const uint32_t expected[] = { 1, 11, 10, 2, 3, 7, 6, 5 };
+    ASSERT_EQ((uint32_t)DM_ARRAY_SIZE(expected), state.m_Count);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(expected); ++i)
+    {
+        ASSERT_EQ(expected[i], state.m_Ids[i]);
+    }
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ((uint32_t)DM_ARRAY_SIZE(expected), state.m_Count);
+    for (uint32_t i = 0; i < 12; ++i)
+    {
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(m_Collection, objects[i], 0, 0));
+    }
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(4u, state.m_Canceled);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(loop_objects); ++i)
+    {
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(m_Collection, loop_objects[i], 0, 0));
+    }
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(8u, state.m_Canceled);
+    ASSERT_EQ((uint32_t)DM_ARRAY_SIZE(expected), state.m_Count);
+}
+
+struct ExtrasPoolTestState
+{
+    dmGameObject::HInstance m_Objects[129];
+    uint32_t                m_Finished[129];
+    uint32_t                m_Canceled[129];
+    uint32_t                m_Released[129];
+};
+
+static void ExtrasPoolStopped(dmGameObject::HInstance instance, dmhash_t, dmhash_t, bool finished, void* userdata1, void* userdata2)
+{
+    ExtrasPoolTestState* state = (ExtrasPoolTestState*)userdata1;
+    uint32_t index = (uint32_t)(uintptr_t)userdata2;
+    ASSERT_EQ(state->m_Objects[index], instance);
+    if (finished)
+    {
+        ++state->m_Finished[index];
+    }
+    else
+    {
+        ++state->m_Canceled[index];
+    }
+}
+
+static void ExtrasPoolReleased(dmEasing::Curve* curve)
+{
+    ExtrasPoolTestState* state = (ExtrasPoolTestState*)curve->userdata1;
+    ++state->m_Released[(uint32_t)(uintptr_t)curve->userdata2];
+}
+
+// Sparse extras must stay attached to their owners after compaction and slot reuse.
+TEST_F(AnimTest, AnimationExtrasPoolCompactionAndReuse)
+{
+    ExtrasPoolTestState state = {};
+    dmVMath::FloatVector samples(2);
+    samples.values[0] = 0.0f;
+    samples.values[1] = 1.0f;
+    dmGameObject::PropertyVar target(8.0f);
+    m_UpdateContext.m_DT = 0.25f;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(state.m_Objects); ++i)
+    {
+        state.m_Objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        ASSERT_NE((dmGameObject::HInstance)0, state.m_Objects[i]);
+        dmEasing::Curve curve(i % 3 == 2 ? dmEasing::TYPE_FLOAT_VECTOR : dmEasing::TYPE_LINEAR);
+        if (i % 3 == 2)
+        {
+            curve.vector = &samples;
+            curve.release_callback = ExtrasPoolReleased;
+            curve.userdata1 = &state;
+            curve.userdata2 = (void*)(uintptr_t)i;
+        }
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, state.m_Objects[i], 0, hash("position.x"),
+                                                            dmGameObject::PLAYBACK_ONCE_FORWARD, target, curve, 1.0f, 0, i % 3 ? ExtrasPoolStopped : 0, &state, (void*)(uintptr_t)i));
+    }
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(state.m_Objects); i += 2)
+    {
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(m_Collection, state.m_Objects[i], 0, hash("position.x")));
+    }
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    target = dmGameObject::PropertyVar(6.0f);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(state.m_Objects); i += 2)
+    {
+        ASSERT_EQ(i % 3 ? 1u : 0u, state.m_Canceled[i]);
+        ASSERT_EQ(i % 3 == 2 ? 1u : 0u, state.m_Released[i]);
+        dmEasing::Curve curve(dmEasing::TYPE_FLOAT_VECTOR);
+        curve.vector = &samples;
+        curve.release_callback = ExtrasPoolReleased;
+        curve.userdata1 = &state;
+        curve.userdata2 = (void*)(uintptr_t)i;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, state.m_Objects[i], 0, hash("position.x"),
+                                                            dmGameObject::PLAYBACK_ONCE_FORWARD, target, curve, 0.5f, 0, ExtrasPoolStopped, &state, (void*)(uintptr_t)i));
+    }
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(state.m_Objects); ++i)
+    {
+        ASSERT_EQ((i & 1) ? 8.0f : 6.0f, X(state.m_Objects[i]));
+        ASSERT_EQ((i & 1) && i % 3 == 0 ? 0u : 1u, state.m_Finished[i]);
+        ASSERT_EQ(((i & 1) == 0 && i % 3) ? 1u : 0u, state.m_Canceled[i]);
+        ASSERT_EQ((i % 3 == 2 ? 1u : 0u) + ((i & 1) ? 0u : 1u), state.m_Released[i]);
+    }
+}
+
+struct ExtrasReleaseGrowthState
+{
+    AnimTest*               m_Test;
+    dmGameObject::HInstance m_Objects[700];
+    uint32_t                m_Released;
+};
+
+static void GrowExtrasDuringCurveRelease(dmEasing::Curve* curve)
+{
+    ExtrasReleaseGrowthState* state = (ExtrasReleaseGrowthState*)curve->userdata1;
+    ++state->m_Released;
+    dmGameObject::PropertyVar target(4.0f);
+    dmEasing::Curve owned(dmEasing::TYPE_LINEAR);
+    owned.release_callback = CountReleasedCurve;
+    owned.userdata1 = &state->m_Released;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(state->m_Objects); ++i)
+    {
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(state->m_Test->m_Collection, state->m_Objects[i], 0, hash("position.x"),
+                                                            dmGameObject::PLAYBACK_ONCE_FORWARD, target, owned, 1.0f, 0, AnimationStopped, state->m_Test, 0));
+    }
+    // The argument must remain valid even after the pooled storage has moved.
+    ASSERT_EQ((void*)state, curve->userdata1);
+    ASSERT_EQ((void*)(uintptr_t)123, curve->userdata2);
+    curve->release_callback = 0;
+    curve->userdata1 = 0;
+    curve->userdata2 = 0;
+}
+
+// Curve release may grow both pools; its argument and the owning animation must survive relocation.
+TEST_F(AnimTest, AnimationExtrasGrowthDuringCurveRelease)
+{
+    ExtrasReleaseGrowthState state = {};
+    state.m_Test = this;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(state.m_Objects); ++i)
+    {
+        state.m_Objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        ASSERT_NE((dmGameObject::HInstance)0, state.m_Objects[i]);
+    }
+    dmGameObject::PropertyVar target(1.0f);
+    dmEasing::Curve curve(dmEasing::TYPE_LINEAR);
+    curve.release_callback = GrowExtrasDuringCurveRelease;
+    curve.userdata1 = &state;
+    curve.userdata2 = (void*)(uintptr_t)123;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, state.m_Objects[0], 0, hash("position.y"),
+                                                        dmGameObject::PLAYBACK_ONCE_FORWARD, target, curve, 0.25f, 0, 0, 0, 0));
+    m_UpdateContext.m_DT = 0.25f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(1u, state.m_Released);
+    ASSERT_EQ(0u, m_FinishCount);
+    m_UpdateContext.m_DT = 1.0f;
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(701u, state.m_Released);
+    ASSERT_EQ(700u, m_FinishCount);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(state.m_Objects); ++i)
+    {
+        ASSERT_EQ(4.0f, X(state.m_Objects[i]));
+    }
+}
+
 TEST_F(AnimTest, AnimateAndStop)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
@@ -462,6 +1010,13 @@ protected:
         AnimTest::TearDown();
     }
 
+    static dmGameObject::PropertyResult CancelLaterAnimation(const dmGameObject::ComponentSetPropertyParams& params)
+    {
+        EulerRefreshAnimTest* test = (EulerRefreshAnimTest*)params.m_Context;
+        ++test->m_SetterCount;
+        return dmGameObject::CancelAnimations(test->m_Collection, test->m_Objects[1], 0, hash("position.x"));
+    }
+
     static dmGameObject::PropertyResult GetRefreshProperty(const dmGameObject::ComponentGetPropertyParams& params,
                                                           dmGameObject::PropertyDesc& out_value)
     {
@@ -556,6 +1111,35 @@ protected:
     dmVMath::Quat m_RefreshedRotations[3];
     dmVMath::Matrix4 m_RefreshedMatrices[3];
 };
+
+// An earlier setter can cancel a ready lane; the later batch must not write that stopped animation.
+TEST_F(EulerRefreshAnimTest, SetterCancelsLaterSimdLane)
+{
+    m_Type.m_SetPropertyFunction = CancelLaterAnimation;
+    dmGameObject::PropertyVar target(8.0f);
+    dmEasing::Curve curve(dmEasing::TYPE_LINEAR);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, m_PropertyObject, hash("refresh"), hash("value"),
+                                                        dmGameObject::PLAYBACK_LOOP_FORWARD, target, curve, 1.0f, 0, 0, 0, 0));
+    dmGameObject::HInstance objects[4] = { m_Objects[0], m_Objects[1], m_Objects[2], m_PropertyObject };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(objects); ++i)
+    {
+        dmGameObject::SetPosition(objects[i], dmVMath::Point3(0, 0, 0));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0, hash("position.x"),
+                                                            dmGameObject::PLAYBACK_LOOP_FORWARD, target, curve, 1.0f, 0, AnimationStopped, this, 0));
+    }
+    m_UpdateContext.m_DT = 0.25f;
+    for (uint32_t frame = 1; frame <= 2; ++frame)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_EQ(frame, m_SetterCount);
+        ASSERT_EQ(0.0f, X(m_Objects[1]));
+        ASSERT_EQ(2.0f * frame, X(m_Objects[0]));
+        ASSERT_EQ(2.0f * frame, X(m_Objects[2]));
+        ASSERT_EQ(2.0f * frame, X(m_PropertyObject));
+        ASSERT_EQ(1u, m_CancelCount);
+        ASSERT_EQ(0u, m_FinishCount);
+    }
+}
 
 // A setter refresh must commit pending rotations on the requested ancestor chain, leaving other branches cached.
 TEST_F(EulerRefreshAnimTest, EulerInstanceRefreshDuringEvaluation)
@@ -1133,6 +1717,53 @@ TEST_F(AnimTest, LinkedList)
 
 #undef ANIM
 #undef ASSERT_FRAME
+}
+
+// Introducing and deleting a component property track must safely switch between
+// cached spans and checked batches without losing built-in or custom tracks.
+TEST_F(AnimTest, AnimationRunsSwitchToCheckedBatches)
+{
+    dmGameObject::HInstance objects[6];
+    dmGameObject::HInstance scripted = 0;
+    dmVMath::FloatVector samples(2);
+    samples.values[0] = 0;
+    samples.values[1] = 1;
+    dmEasing::Curve custom(dmEasing::TYPE_FLOAT_VECTOR);
+    custom.vector = &samples;
+    dmGameObject::PropertyVar target(16.0f);
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        objects[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0, hash("position.z"),
+                                                            dmGameObject::PLAYBACK_LOOP_FORWARD, target, custom, 1, 0, 0, 0, 0));
+    }
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[i], 0, hash("position.x"),
+                                                            dmGameObject::PLAYBACK_LOOP_FORWARD, target, dmEasing::Curve(dmEasing::TYPE_LINEAR), 1, 0, 0, 0, 0));
+    }
+    m_UpdateContext.m_DT = 0.0625f;
+    for (uint32_t frame = 0; frame < 8; ++frame)
+    {
+        if (frame == 2)
+        {
+            scripted = Spawn(m_Factory, m_Collection, "/demo_box.goc", hash("ordered-component"), 0,
+                             dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+            ASSERT_NE((dmGameObject::HInstance)0, scripted);
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, scripted, hash("script"), hash("tint.x"),
+                                                                dmGameObject::PLAYBACK_LOOP_FORWARD, target, dmEasing::Curve(dmEasing::TYPE_LINEAR), 1, 0, 0, 0, 0));
+        }
+        if (frame == 5)
+        {
+            dmGameObject::Delete(m_Collection, scripted, false);
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        }
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        for (uint32_t i = 0; i < 6; ++i)
+        {
+            ASSERT_NEAR((float)(frame + 1), X(objects[i]), 0.00001f);
+        }
+    }
 }
 
 TEST_F(AnimTest, ScriptedRestart)

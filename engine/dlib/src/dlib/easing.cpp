@@ -19,7 +19,9 @@
 
 namespace dmEasing
 {
+    #define DM_EASING_LOOKUP_IMPLEMENTATION
     #include "easing_lookup.h"
+    #undef DM_EASING_LOOKUP_IMPLEMENTATION
 
     static float SampleCurve(const float* lookup, int sample_count, float t)
     {
