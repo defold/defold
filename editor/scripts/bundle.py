@@ -158,7 +158,7 @@ def download(label, url):
 def ziptree(path, outfile, directory = None):
     # Directory is similar to -C in tar
 
-    zip = zipfile.ZipFile(outfile, 'w')
+    zip = zipfile.ZipFile(outfile, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6)
     for root, dirs, files in os.walk(path):
         for f in files:
             p = os.path.join(root, f)
@@ -595,7 +595,8 @@ def create_dmg(bundle_dir, options, platform):
     dmg_file = os.path.join("target/editor", "Defold-%s.dmg" % platform)
     if os.path.exists(dmg_file):
         os.remove(dmg_file)
-    run.command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
+    run.command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-format', 'UDZO',
+                 '-imagekey', 'zlib-level=9', '-srcfolder', dmg_dir, dmg_file])
 
     # sign the dmg
     if options.codesign:
