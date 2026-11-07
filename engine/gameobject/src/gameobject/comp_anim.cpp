@@ -488,9 +488,12 @@ namespace dmGameObject
     };
 
     // Walk the array in physical order, interleaving scalar work and SIMD runs.
-    // UseSimd is selected once per collection/frame and requires an executable
+    // UseBatches is selected once per collection/frame and requires an executable
     // four-track batch and nonnegative dt. Without one, compile out batch dispatch.
-    template <bool UseSimd>
+    // This does not select a hardware backend: UpdateAnimationSimd4 uses the same
+    // Simd* operations with native vectors or scalar primitives. Individual-track
+    // evaluation below handles unsupported tracks and tails in either case.
+    template <bool UseBatches>
     static AnimationUpdateChanges EvaluateAnimations(AnimWorld* world, Collection* collection, uint32_t size, float frame_dt)
     {
         AnimationUpdateChanges changes = { false, false };
@@ -503,7 +506,7 @@ namespace dmGameObject
         {
             Animation& anim = world->m_Animations[i];
             Animation* batch = &anim;
-            if (UseSimd && anim.m_SimdReady &&
+            if (UseBatches && anim.m_SimdReady &&
                 ((cached_runs && i == next_run) || (!cached_runs && i + 4 <= size &&
                                                     (batch[1].m_SimdReady & batch[2].m_SimdReady & batch[3].m_SimdReady))))
             {
