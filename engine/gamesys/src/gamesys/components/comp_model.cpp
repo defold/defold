@@ -2689,6 +2689,7 @@ namespace dmGameSystem
             }
             case dmRender::RENDER_LIST_OPERATION_END:
             {
+                // A draw can leave either the instance buffer or world-space buffers unused.
                 if (!world->m_InstanceBufferDataLocalSpace.Empty())
                 {
                     dmRender::SetBufferData(params.m_Context, world->m_InstanceBufferLocalSpace, world->m_InstanceBufferDataLocalSpace.Size(), world->m_InstanceBufferDataLocalSpace.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
