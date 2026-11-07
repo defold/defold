@@ -214,6 +214,34 @@ TEST_F(TileGrid3DResourceTest, LoadTileGrid)
     dmResource::Release(m_Factory, resource);
 }
 
+// Preserve every resource-created color attachment between passes, matching OpenGL (#13603).
+TEST_F(RenderTargetResourceTest, PreservesColorAttachments)
+{
+    dmRenderDDF::RenderTargetDesc desc = {};
+    desc.m_Type = dmGraphics::TextureImage::TYPE_2D;
+    dmRenderDDF::RenderTargetDesc::ColorAttachment attachments[dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS] = {};
+    desc.m_ColorAttachments.m_Data = attachments;
+    desc.m_ColorAttachments.m_Count = dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS;
+    for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+    {
+        attachments[i].m_Width = 4;
+        attachments[i].m_Height = 4;
+        attachments[i].m_Format = dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA;
+    }
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&desc, dmRenderDDF::RenderTargetDesc::m_DDFDescriptor, buffer));
+    dmGameSystem::RenderTargetResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, "/preserve.render_targetc", buffer.Begin(), buffer.Size(), (void**) &resource));
+    dmGraphics::NullContext* context = (dmGraphics::NullContext*) m_GraphicsContext;
+    dmGraphics::NullRenderTarget* target = dmGraphics::GetAssetFromContainer<dmGraphics::NullRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, resource->m_RenderTarget);
+    for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+    {
+        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_LOAD, target->m_ColorBufferLoadOps[i]);
+        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_STORE, target->m_ColorBufferStoreOps[i]);
+    }
+    dmResource::Release(m_Factory, resource);
+}
+
 // Reject empty and zero-sized serialized attachments before creating a framebuffer.
 TEST_F(RenderTargetResourceTest, InvalidAttachmentsFailToCreate)
 {
@@ -559,8 +587,8 @@ TEST_F(LightResourceTest, LightResourcePrototype)
     ASSERT_VEC4(dmVMath::Vector4(0.2f, 0.8f, 0.1f, 1.0f), proto->m_Color);
     ASSERT_NEAR(4.0f, proto->m_Intensity, EPSILON);
     ASSERT_NEAR(20.0f, proto->m_Range, EPSILON);
-    ASSERT_NEAR(15.0f * 3.14159265f / 180.0f, proto->m_InnerConeAngle, EPSILON);
-    ASSERT_NEAR(30.0f * 3.14159265f / 180.0f, proto->m_OuterConeAngle, EPSILON);
+    ASSERT_NEAR(dmMath::DegToRad(15.0f), proto->m_InnerConeAngle, EPSILON);
+    ASSERT_NEAR(dmMath::DegToRad(30.0f), proto->m_OuterConeAngle, EPSILON);
 
     dmResource::Release(m_Factory, (void*)res);
 }
@@ -617,7 +645,7 @@ TEST_F(LightResourceTest, LightComponentUpdatesLightBuffer)
     ASSERT_VEC3(pos_spot, L_spot.m_Position);
     ASSERT_VEC4(dmVMath::Vector4(0.2f, 0.8f, 0.1f, 1.0f), L_spot.m_Color);
     ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, -1.0f, 20.0f), L_spot.m_DirectionRange);
-    ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_SPOT, 4.0f, 15.0f * 3.14159265f / 180.0f, 30.0f * 3.14159265f / 180.0f), L_spot.m_Params);
+    ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_SPOT, 4.0f, dmMath::DegToRad(15.0f), dmMath::DegToRad(30.0f)), L_spot.m_Params);
 
     const Point3 pos_point_moved(7.0f, 8.0f, 9.0f);
     dmGameObject::SetPosition(go_point, pos_point_moved);

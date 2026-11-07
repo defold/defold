@@ -16,6 +16,7 @@
 
 #include <dlib/math.h>
 #include <dlib/array.h>
+#include <dlib/atomic.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -5833,7 +5834,8 @@ bail:
     static int AsyncStopBarrierCallback(HJobContext, HJob, void*, void* data)
     {
         int32_atomic_t* barrier_pending = (int32_atomic_t*) data;
-        dmAtomicStore32(barrier_pending, 0);
+        // The caller may return and release this stack flag after publication.
+        dmAtomicStoreRelease32(barrier_pending, 0);
         return 0;
     }
 
@@ -5877,7 +5879,7 @@ bail:
             JobSystemPushJob(context->m_JobContext, hjob);
         }
 
-        while (dmAtomicGet32(&barrier_pending))
+        while (dmAtomicLoadAcquire32(&barrier_pending))
         {
             dmTime::Sleep(100);
         }

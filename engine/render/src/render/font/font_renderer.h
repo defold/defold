@@ -24,6 +24,7 @@
 
 #include "../render.h"
 #include "fontmap.h"
+#include <font/text_curve.hpp>
 
 namespace dmRender
 {
@@ -58,6 +59,8 @@ namespace dmRender
         const char* m_Text;
         /// Optional prepared text layout. The render queue retains it until queued text entries are cleared.
         HTextLayout m_TextLayout;
+        /// Optional curve mapping. The render queue retains it until text entries are cleared.
+        HFontTextCurve m_Curve;
         /// Render constants
         dmRender::HConstant m_RenderConstants[MAX_FONT_RENDER_CONSTANTS];
         /// The source blend factor
@@ -78,6 +81,10 @@ namespace dmRender
         float       m_Tracking;
         /// Per-instance font size. Zero uses the font map size.
         float       m_FontSize;
+        /// Signed arc radius in local font units.
+        float       m_ArcRadius;
+        /// Angular span in degrees, from 0 to 360. Zero disables arc mapping.
+        float       m_ArcAngle;
         /// True for linebreak
         bool        m_LineBreak;
         /// Horizontal alignment

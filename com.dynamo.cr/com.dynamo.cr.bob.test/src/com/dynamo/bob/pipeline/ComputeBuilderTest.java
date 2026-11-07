@@ -14,16 +14,16 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import java.util.List;
-
+import com.dynamo.render.proto.Compute.ComputeDesc;
+import com.dynamo.render.proto.Material.MaterialDesc;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.render.proto.Material.MaterialDesc;
-import com.dynamo.render.proto.Compute.ComputeDesc;
+import java.util.List;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class ComputeBuilderTest extends AbstractProtoBuilderTest {
 

@@ -14,11 +14,24 @@
 
 package com.dynamo.bob.archive.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.ArchiveEntry;
+import com.dynamo.bob.archive.ArchiveReader;
+import com.dynamo.bob.archive.ManifestBuilder;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.pipeline.graph.ResourceGraph;
+import com.dynamo.bob.pipeline.graph.ResourceNode;
+import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
+import com.sun.jna.Library;
+import com.sun.jna.Native;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -33,26 +46,11 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Bob;
-import com.dynamo.bob.archive.ArchiveEntry;
-import com.dynamo.bob.archive.ArchiveBuilder;
-import com.dynamo.bob.archive.ArchiveReader;
-import com.dynamo.bob.archive.ManifestBuilder;
-import com.dynamo.bob.Project;
-import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.pipeline.graph.ResourceNode;
-import com.dynamo.bob.pipeline.graph.ResourceGraph;
-
-import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
-import com.sun.jna.Library;
-import com.sun.jna.Native;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class ArchiveTest {
 

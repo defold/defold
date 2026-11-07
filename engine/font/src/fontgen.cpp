@@ -128,7 +128,7 @@ void FontGenDestroyJobData(FontGenJobData* jobdata)
         return;
     }
 
-    if (jobdata->m_Job && !dmAtomicGet32(&jobdata->m_Ready))
+    if (jobdata->m_Job && !dmAtomicLoadAcquire32(&jobdata->m_Ready))
     {
         while (JobSystemCancelJob(jobdata->m_Jobs, jobdata->m_Job) == JOBSYSTEM_RESULT_PENDING)
         {
@@ -254,7 +254,7 @@ static int JobProcessSentinelGlyph(HJobContext job_thread, HJob hjob, void* cont
     // and free the batch after this publication, so do not access it again.
     if (jobdata->m_UpdateFromCaller)
     {
-        dmAtomicStore32(&jobdata->m_Ready, 1);
+        dmAtomicStoreRelease32(&jobdata->m_Ready, 1);
     }
     return 1;
 }
@@ -587,7 +587,7 @@ bool FontGenUpdateGlyphs(FontGenJobData* jobdata, uint64_t time_limit)
     {
         FontGenJobItem* item = &jobdata->m_Items[jobdata->m_NextGlyph];
         bool generate = !jobdata->m_Job;
-        if (jobdata->m_Job && !dmAtomicGet32(&jobdata->m_Ready))
+        if (jobdata->m_Job && !dmAtomicLoadAcquire32(&jobdata->m_Ready))
         {
             // The caller may occupy the last worker. Take over only this batch's
             // queued glyph; a running job keeps ownership until it retires.
@@ -608,7 +608,7 @@ bool FontGenUpdateGlyphs(FontGenJobData* jobdata, uint64_t time_limit)
     }
     // Canceled glyph jobs may still be queued behind this caller. Stop their
     // sentinel before completion can free the batch it would otherwise access.
-    if (jobdata->m_Job && !dmAtomicGet32(&jobdata->m_Ready) && JobSystemCancelJob(jobdata->m_Jobs, jobdata->m_Job) == JOBSYSTEM_RESULT_PENDING)
+    if (jobdata->m_Job && !dmAtomicLoadAcquire32(&jobdata->m_Ready) && JobSystemCancelJob(jobdata->m_Jobs, jobdata->m_Job) == JOBSYSTEM_RESULT_PENDING)
     {
         return false;
     }

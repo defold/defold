@@ -17,6 +17,7 @@
 #include <jc_test/jc_test.h>
 
 #include <dlib/log.h>
+#include <dlib/atomic.h>
 #include <dlib/time.h>
 #include <ddf/ddf.h>
 #include <platform/window.hpp>
@@ -2120,6 +2121,124 @@ TEST_F(dmGraphicsTest, TestTexture)
     dmGraphics::DisableTexture(m_Context, 0, texture);
     dmGraphics::DeleteTexture(m_Context, texture);
 }
+
+// Batched metadata preserves texture properties and observes subsequent uploads.
+TEST_F(dmGraphicsTest, TextureInfo)
+{
+    dmGraphics::TextureCreationParams creation_params;
+    creation_params.m_Type = dmGraphics::TEXTURE_TYPE_2D_ARRAY;
+    creation_params.m_Width = 16;
+    creation_params.m_Height = 8;
+    creation_params.m_Depth = 3;
+    creation_params.m_LayerCount = 5;
+    creation_params.m_UsageHintBits = dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE | dmGraphics::TEXTURE_USAGE_FLAG_COLOR;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+
+    dmGraphics::TextureInfo info = dmGraphics::GetTextureInfo(m_Context, texture);
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D_ARRAY, info.m_Type);
+    ASSERT_EQ((uint32_t)creation_params.m_UsageHintBits, info.m_UsageHintFlags);
+    ASSERT_EQ(16u, info.m_Width);
+    ASSERT_EQ(8u, info.m_Height);
+    ASSERT_EQ(3u, info.m_Depth);
+    ASSERT_EQ(0u, info.m_MipMapCount);
+    ASSERT_EQ(5u, info.m_PageCount);
+
+    dmGraphics::TextureParams params;
+    params.m_Width = 4;
+    params.m_Height = 2;
+    params.m_Depth = 3;
+    dmGraphics::SetTexture(m_Context, texture, params);
+    info = dmGraphics::GetTextureInfo(m_Context, texture);
+    ASSERT_EQ(4u, info.m_Width);
+    ASSERT_EQ(2u, info.m_Height);
+    ASSERT_EQ(3u, info.m_Depth);
+    ASSERT_EQ(1u, info.m_MipMapCount);
+    ASSERT_EQ(5u, info.m_PageCount);
+    dmGraphics::DeleteTexture(m_Context, texture);
+}
+
+// The batched query also works when the synchronous context has no asset mutex.
+TEST_F(dmGraphicsSynchronousTest, TextureInfoWithoutMutex)
+{
+    dmGraphics::TextureCreationParams params;
+    params.m_Width = 9;
+    params.m_Height = 5;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, params);
+    dmGraphics::TextureInfo info = dmGraphics::GetTextureInfo(m_Context, texture);
+    ASSERT_EQ(9u, info.m_Width);
+    ASSERT_EQ(5u, info.m_Height);
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, info.m_Type);
+    dmGraphics::DeleteTexture(m_Context, texture);
+}
+
+// Missing and released handles return the same defaults as individual getters.
+TEST_F(dmGraphicsTest, TextureInfoInvalidHandle)
+{
+    dmGraphics::TextureCreationParams params;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, params);
+    dmGraphics::DeleteTexture(m_Context, texture);
+    dmGraphics::HTexture handles[] = { 0, texture };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(handles); ++i)
+    {
+        dmGraphics::TextureInfo info = dmGraphics::GetTextureInfo(m_Context, handles[i]);
+        ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, info.m_Type);
+        ASSERT_EQ(0u, info.m_UsageHintFlags);
+        ASSERT_EQ(0u, info.m_Width);
+        ASSERT_EQ(0u, info.m_Height);
+        ASSERT_EQ(0u, info.m_Depth);
+        ASSERT_EQ(0u, info.m_MipMapCount);
+        ASSERT_EQ(0u, info.m_PageCount);
+    }
+}
+
+#if defined(DM_HAS_THREADS)
+struct TextureInfoWriter
+{
+    dmGraphics::Texture* m_Texture;
+    dmMutex::HMutex      m_Mutex;
+    int32_atomic_t       m_Go;
+};
+
+static void UpdateTextureInfo(void* data)
+{
+    TextureInfoWriter* writer = (TextureInfoWriter*)data;
+    while (!dmAtomicLoadAcquire32(&writer->m_Go))
+    {
+    }
+    for (uint32_t i = 0; i < 20000; ++i)
+    {
+        DM_MUTEX_SCOPED_LOCK(writer->m_Mutex);
+        writer->m_Texture->m_Width = 1 + i % 64;
+        writer->m_Texture->m_Height = writer->m_Texture->m_Width + 64;
+    }
+}
+
+// One query must copy related fields within the same protected metadata update.
+TEST_F(dmGraphicsTest, TextureInfoDuringMetadataUpdates)
+{
+    dmGraphics::TextureCreationParams params;
+    params.m_Width = 1;
+    params.m_Height = 65;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, params);
+    TextureInfoWriter writer = {};
+    writer.m_Texture = dmGraphics::GetAssetFromContainer<dmGraphics::Texture>(m_NullContext->m_BaseContext.m_AssetHandleContainer, texture);
+    writer.m_Mutex = m_NullContext->m_BaseContext.m_AssetHandleContainerMutex;
+    dmThread::Thread thread = dmThread::New(UpdateTextureInfo, 0x20000, &writer, "texture-info");
+    dmAtomicStoreRelease32(&writer.m_Go, 1);
+    uint32_t failures = 0;
+    for (uint32_t i = 0; i < 20000; ++i)
+    {
+        dmGraphics::TextureInfo info = dmGraphics::GetTextureInfo(m_Context, texture);
+        if (info.m_Height != info.m_Width + 64)
+        {
+            ++failures;
+        }
+    }
+    dmThread::Join(thread);
+    ASSERT_EQ(0u, failures);
+    dmGraphics::DeleteTexture(m_Context, texture);
+}
+#endif
 
 static void TestTextureAsyncCallback(dmGraphics::HTexture texture, void* user_data)
 {
