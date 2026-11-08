@@ -25,9 +25,6 @@ extern "C"
 {
     #include <lua/lua.h>
     #include <lua/lauxlib.h>
-
-    // Defined in luacjson/lua_cjson.c
-    int lua_cjson_encode(lua_State* L, int index, int options_index, char** json_str, size_t* json_length);
 }
 
 #include "script_json.h"
@@ -93,12 +90,12 @@ namespace dmScript
 
     int LuaToJson(lua_State* L, char** json, size_t* json_len)
     {
-        return lua_cjson_encode(L, 1, 2, json, json_len);
+        return EncodeJson(L, 1, 2, json, json_len);
     }
 
     int LuaToJson(lua_State* L, int index, int options_index, char** json, size_t* json_len)
     {
-        return lua_cjson_encode(L, index, options_index, json, json_len);
+        return EncodeJson(L, index, options_index, json, json_len);
     }
 
     /*# decode JSON from a string to a lua-table

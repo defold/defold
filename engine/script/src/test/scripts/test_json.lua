@@ -209,11 +209,43 @@ function test_json_decoder_compatibility()
     end
 end
 
+-- Preserve encoder byte escaping, fourteen-digit numbers, table classification, and error recovery.
+function test_json_encoder_compatibility()
+    assert(json.encode(-1 / math.huge) == "-0")
+    assert(json.encode(99999999999999) == "99999999999999")
+    assert(json.encode(-99999999999999) == "-99999999999999")
+    assert(json.encode(100000000000000) == "1e+14")
+    assert(json.encode(math.pi) == "3.1415926535898")
+    assert(json.encode(0.00001) == "1e-05")
+    assert(json.encode("\0\31/" .. string.char(127, 255)) == '"\\u0000\\u001f\\/\\u007f' .. string.char(255) .. '"')
+    local short = { [8] = "b", [9] = "t", [10] = "n", [12] = "f", [13] = "r", [34] = '"', [47] = "/", [92] = "\\" }
+    for byte = 0, 255 do
+        local value = string.char(byte)
+        local expected = short[byte] and "\\" .. short[byte] or
+                         (byte < 32 or byte == 127) and string.format("\\u%04x", byte) or value
+        assert(json.encode(value) == '"' .. expected .. '"')
+    end
+    local escaped = "\0\n\t/\\\"" .. string.char(127, 255)
+    for prefix = 0, 530 do
+        local value = string.rep("a", prefix) .. escaped .. string.rep("z", 700)
+        assert(json.decode(json.encode(value)) == value)
+    end
+    assert(json.encode({[0] = 7}) == '{"0":7}')
+    assert(json.encode({[1] = 1, [10] = 2}) == "[1,null,null,null,null,null,null,null,null,2]")
+    assert(json.encode(setmetatable({1,2}, {__index=function() error("must not call") end})) == "[1,2]")
+    local cycle = {}; cycle.self = cycle
+    for _, value in ipairs({cycle, {[11]=1}, {[false]=1}, math.huge, -math.huge, 0/0}) do
+        assert(not pcall(json.encode, value))
+        assert(json.encode({1,2,3}) == "[1,2,3]")
+    end
+end
+
 function test_json()
     test_json_decode()
     test_json_encode()
     test_json_decode_encode()
     test_json_decoder_compatibility()
+    test_json_encoder_compatibility()
 end
 
 functions = { test_json = test_json }

@@ -239,6 +239,31 @@ TEST_F(ScriptJsonTest, TestLuaToJsonWithOptionsIndex)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+// Encoding must preserve negative stack indices and return an owned, terminated buffer even for empty output.
+TEST_F(ScriptJsonTest, TestLuaToJsonNegativeIndexAndEmptyOutput)
+{
+    int top = lua_gettop(L);
+    lua_pushstring(L, "x\ny");
+    lua_newtable(L);
+    char* json = 0;
+    size_t length = 0;
+    ASSERT_EQ(1, dmScript::LuaToJson(L, -2, -1, &json, &length));
+    ASSERT_STREQ("\"x\\ny\"", json);
+    ASSERT_EQ(6u, length);
+    ASSERT_EQ(top + 2, lua_gettop(L));
+    free(json);
+    lua_settop(L, top);
+
+    int token;
+    lua_pushlightuserdata(L, &token);
+    ASSERT_EQ(1, dmScript::LuaToJson(L, -1, 0, &json, &length));
+    ASSERT_EQ(0u, length);
+    ASSERT_EQ('\0', json[0]);
+    ASSERT_EQ(top + 1, lua_gettop(L));
+    free(json);
+    lua_settop(L, top);
+}
+
 extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)
