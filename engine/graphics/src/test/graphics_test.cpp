@@ -78,6 +78,13 @@ namespace dmGraphics
         return expected == null_context->m_CurrentFrameBuffer;
     }
 
+    void TestGetRenderTargetColorAttachmentOps(HContext context, HRenderTarget target, uint32_t index, AttachmentOp* load_op, AttachmentOp* store_op)
+    {
+        NullRenderTarget* native = GetAssetFromContainer<NullRenderTarget>(context->m_AssetHandleContainer, target);
+        *load_op = native->m_ColorBufferLoadOps[index];
+        *store_op = native->m_ColorBufferStoreOps[index];
+    }
+
     TextureFormat TestGetTextureFormat(HContext context, HTexture texture)
     {
         return GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture)->m_Format;

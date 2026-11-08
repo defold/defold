@@ -45,6 +45,7 @@ namespace dmGraphics
     void                          TestSetTextureFormats(HContext context, uint64_t formats);
     void                          TestSetAsyncTextureLoad(HContext context, bool enabled);
     bool                          TestIsRenderTargetBound(HContext context, HRenderTarget target);
+    void                          TestGetRenderTargetColorAttachmentOps(HContext context, HRenderTarget target, uint32_t index, AttachmentOp* load_op, AttachmentOp* store_op);
     TextureFormat                 TestGetTextureFormat(HContext context, HTexture texture);
     const uint8_t*                TestGetTextureData(HContext context, HTexture texture);
     int32_t                       TestGetTextureLastBoundUnit(HContext context, HTexture texture, uint32_t index);

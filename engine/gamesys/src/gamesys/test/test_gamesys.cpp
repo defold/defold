@@ -232,12 +232,12 @@ TEST_F(RenderTargetResourceTest, PreservesColorAttachments)
     ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&desc, dmRenderDDF::RenderTargetDesc::m_DDFDescriptor, buffer));
     dmGameSystem::RenderTargetResource* resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, "/preserve.render_targetc", buffer.Begin(), buffer.Size(), (void**) &resource));
-    dmGraphics::NullContext* context = (dmGraphics::NullContext*) m_GraphicsContext;
-    dmGraphics::NullRenderTarget* target = dmGraphics::GetAssetFromContainer<dmGraphics::NullRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, resource->m_RenderTarget);
     for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
     {
-        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_LOAD, target->m_ColorBufferLoadOps[i]);
-        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_STORE, target->m_ColorBufferStoreOps[i]);
+        dmGraphics::AttachmentOp load_op, store_op;
+        dmGraphics::TestGetRenderTargetColorAttachmentOps(m_GraphicsContext, resource->m_RenderTarget, i, &load_op, &store_op);
+        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_LOAD, load_op);
+        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_STORE, store_op);
     }
     dmResource::Release(m_Factory, resource);
 }

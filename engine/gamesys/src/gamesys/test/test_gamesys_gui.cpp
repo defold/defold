@@ -183,6 +183,12 @@ public:
     const char* GetContentFolder() const override { return "label"; }
 };
 
+static int CompareLastQueuedTextTransform(dmRender::HRenderContext context, const Matrix4& transform)
+{
+    const dmRender::TestTextEntry entry = dmRender::TestGetQueuedText(context, dmRender::TestGetQueuedTextCount(context) - 1);
+    return memcmp(&transform, &entry.m_Transform, sizeof(transform));
+}
+
 static void CheckLayoutObjectRenderPosition(lua_State* L, dmRender::HRenderContext render_context, const Point3& origin, bool north_west)
 {
     DM_LUA_STACK_CHECK(L, 0);
@@ -2066,7 +2072,7 @@ TEST_F(LabelComponentTest, LabelScriptedCurve)
     HTextLayout layout = QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_NE((HTextLayout)0, layout);
     ASSERT_EQ(3u, TextLayoutGetLineCount(layout));
-    const dmRender::TextEntry& entry = ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries[0];
+    const dmRender::TestTextEntry entry = dmRender::TestGetQueuedText(m_RenderContext, 0);
     HFontTextCurve curve = entry.m_Curve;
     ASSERT_NE((HFontTextCurve)0, curve);
     ASSERT_GT(FontTextCurveGetLength(curve), 680.0f);
@@ -2091,7 +2097,7 @@ TEST_F(LabelComponentTest, LabelScriptedCurve)
               dmGameObject::SetProperty(go, dmHashString64("label"), dmHashString64("size"), options, dmGameObject::PropertyVar(Vector3(1, 1, 0))));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
     QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
-    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    ASSERT_EQ(0, CompareLastQueuedTextTransform(m_RenderContext, transform));
     FontTextCurveRetain(curve);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
     dmGameSystem::CompLabelSetCurve(GetLabelComponent(go, label_id), 0);
@@ -2130,7 +2136,7 @@ TEST_F(GuiTest, GuiTextCurveLayout)
     dmGui::SetNodeText(scene, node, "Alpha\nBeta\nGamma");
     GuiTextSubmitResult curved = QueueGuiAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_EQ(3u, TextLayoutGetLineCount(curved.m_TextLayout));
-    const dmRender::TextEntry& entry = ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries[0];
+    const dmRender::TestTextEntry entry = dmRender::TestGetQueuedText(m_RenderContext, 0);
     ASSERT_EQ(curve, entry.m_Curve);
     ASSERT_EQ(FontTextCurveGetLength(curve), entry.m_Width);
     ASSERT_EQ(0.0f, entry.m_Height);
@@ -2161,7 +2167,7 @@ TEST_F(GuiTest, GuiTextArcLayout)
     dmGui::SetNodeLineBreak(scene, node, false);
     GuiTextSubmitResult curved = QueueGuiAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_EQ(2u, TextLayoutGetLineCount(curved.m_TextLayout));
-    const dmRender::TextEntry& entry = ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries[0];
+    const dmRender::TestTextEntry entry = dmRender::TestGetQueuedText(m_RenderContext, 0);
     ASSERT_EQ(200.0f, entry.m_ArcRadius);
     ASSERT_EQ(90.0f, entry.m_ArcAngle);
     ASSERT_EQ(0.0f, entry.m_Width);
@@ -2170,22 +2176,22 @@ TEST_F(GuiTest, GuiTextArcLayout)
     dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_SIZE, Vector4(800.0f, 1000.0f, 0.0f, 0.0f));
     GuiTextSubmitResult resized = QueueGuiAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_EQ(curved.m_TextLayout, resized.m_TextLayout);
-    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    ASSERT_EQ(0, CompareLastQueuedTextTransform(m_RenderContext, transform));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
     dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_SIZE, Vector4(40.0f, 200.0f, 0.0f, 0.0f));
     dmGui::SetNodeLineBreak(scene, node, true);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcRadius(scene, node, 30.0f));
     ASSERT_GT(TextLayoutGetLineCount(QueueGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout), 2u);
-    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    ASSERT_EQ(0, CompareLastQueuedTextTransform(m_RenderContext, transform));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcRadius(scene, node, 300.0f));
     ASSERT_EQ(2u, TextLayoutGetLineCount(QueueGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout));
-    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    ASSERT_EQ(0, CompareLastQueuedTextTransform(m_RenderContext, transform));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcRadius(scene, node, -300.0f));
     ASSERT_EQ(2u, TextLayoutGetLineCount(QueueGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout));
     ASSERT_NEAR(300.0f * 1.5707963267948966f, dmGui::GetNodeTextSize(scene, node).getX(), 0.001f);
-    ASSERT_EQ(-300.0f, ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_ArcRadius);
+    ASSERT_EQ(-300.0f, dmRender::TestGetQueuedText(m_RenderContext, dmRender::TestGetQueuedTextCount(m_RenderContext) - 1).m_ArcRadius);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcAngle(scene, node, 10.0f));
     ASSERT_GT(TextLayoutGetLineCount(PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout), 2u);
@@ -2858,7 +2864,7 @@ TEST_F(LabelComponentTest, LabelArcProperties)
         ASSERT_EQ(authored[i], desc.m_Variant.m_Number);
     }
     ASSERT_EQ(straight, QueueLabelAndGetTextLayout(m_RenderContext, m_Collection));
-    const dmRender::TextEntry& entry = ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries[0];
+    const dmRender::TestTextEntry entry = dmRender::TestGetQueuedText(m_RenderContext, 0);
     ASSERT_EQ(authored[0], entry.m_ArcRadius);
     ASSERT_EQ(authored[1], entry.m_ArcAngle);
     const Matrix4 transform = entry.m_Transform;
@@ -2881,7 +2887,7 @@ TEST_F(LabelComponentTest, LabelArcProperties)
               dmGameObject::SetProperty(go, label_id, dmHashString64("arc_radius"), options, dmGameObject::PropertyVar(30.0f)));
     HTextLayout curved = QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_GT(TextLayoutGetLineCount(curved), 2u);
-    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    ASSERT_EQ(0, CompareLastQueuedTextTransform(m_RenderContext, transform));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
               dmGameObject::SetProperty(go, label_id, dmHashString64("line_break"), options, dmGameObject::PropertyVar(false)));
@@ -2892,7 +2898,7 @@ TEST_F(LabelComponentTest, LabelArcProperties)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
               dmGameObject::SetProperty(go, label_id, dmHashString64("arc_radius"), options, dmGameObject::PropertyVar(200.0f)));
     ASSERT_EQ(2u, TextLayoutGetLineCount(QueueLabelAndGetTextLayout(m_RenderContext, m_Collection)));
-    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    ASSERT_EQ(0, CompareLastQueuedTextTransform(m_RenderContext, transform));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
               dmGameObject::SetProperty(go, label_id, dmHashString64("arc_radius"), options, dmGameObject::PropertyVar(-200.0f)));
@@ -3522,7 +3528,7 @@ TEST_F(LabelComponentTest, LabelRichTextLinkHover)
     dmGameSystem::CompLabelSetCurve(label_component, curve);
     FontTextCurveRelease(curve);
     layout = QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
-    const dmRender::TextEntry& entry = ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back();
+    const dmRender::TestTextEntry entry = dmRender::TestGetQueuedText(m_RenderContext, dmRender::TestGetQueuedTextCount(m_RenderContext) - 1);
     const TextLine&            line = TextLayoutGetLines(layout)[0];
     const TextGlyph&           glyph = TextLayoutGetGlyphs(layout)[line.m_Index];
     float                      layout_width, layout_height;

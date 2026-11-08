@@ -230,8 +230,9 @@ namespace dmRender
     TestTextEntry TestGetQueuedText(HRenderContext context, uint32_t index)
     {
         const TextEntry& entry = context->m_TextContext.m_TextEntries[index];
-        TestTextEntry result = { entry.m_Transform, entry.m_FontMap, entry.m_TextLayout,
-                                 entry.m_Width, entry.m_Height, entry.m_Align, entry.m_VAlign };
+        TestTextEntry result = { entry.m_Transform, entry.m_FontMap, entry.m_TextLayout, entry.m_Curve,
+                                 entry.m_Width, entry.m_Height, entry.m_ArcRadius, entry.m_ArcAngle,
+                                 entry.m_FrustumCullingRadiusSq, entry.m_Align, entry.m_VAlign };
         return result;
     }
 

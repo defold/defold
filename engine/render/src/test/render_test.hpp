@@ -17,6 +17,7 @@
 
 #include <render/render.h>
 #include <render/font/fontmap.h>
+#include <font/text_curve.hpp>
 
 // Integration-test inspection and fault injection owned by the renderer.
 // Handles are borrowed. Returned objects/data remain borrowed until the next
@@ -49,8 +50,12 @@ namespace dmRender
         dmVMath::Matrix4 m_Transform;
         HFontMap         m_FontMap;
         HTextLayout      m_TextLayout;
+        HFontTextCurve   m_Curve;
         float            m_Width;
         float            m_Height;
+        float            m_ArcRadius;
+        float            m_ArcAngle;
+        float            m_FrustumCullingRadiusSq;
         uint32_t         m_Align;
         uint32_t         m_VAlign;
     };
