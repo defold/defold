@@ -37,7 +37,6 @@ The following software has licenses which require inclusion of their respective 
     * [SIMDe](/licenses/NOTICE-simde) - A portable scalar subset is used as a reference in SIMD and texture-processing unit tests. The vendored subset is test-only.
     * [Nuklear](https://github.com/Immediate-Mode-UI/Nuklear) - Micha Mettke and contributors. Used by the desktop-only fontviewer development and test application. Not included in the Defold engine or games built with Defold. The license text is included with the vendored library in `engine/font/src/test/fontviewer/LICENSE.nuklear`.
     * [Lua](/licenses/NOTICE-lua) - Used in HTML5 builds.
-    * [LuaCJson](/licenses/NOTICE-luacjson) - Used for encoding lua tables to JSON. Used on all platforms.
     * [LuaJIT](/licenses/NOTICE-luajit) - Used on all platforms except HTML5.
     * [LuaSocket](/licenses/NOTICE-luasocket) - Used for socket communication from Lua. Included on all platforms.
     * [microsoft_craziness.h](/licenses/NOTICE-microsoft_craziness) - Used when running unit tests in the engine. Not included in any builds.

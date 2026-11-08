@@ -116,8 +116,9 @@ namespace dmJson
         bool     m_Valid;
         bool     m_Escaped;
         bool     m_AllowNul;
+        bool     m_AllowControl;
         bool     m_RejectOverflow;
-        Lexer(char* cursor, char* end) : m_Cursor(cursor), m_End(end), m_StringLength(0), m_Valid(true), m_Escaped(false), m_AllowNul(false), m_RejectOverflow(true)
+        Lexer(char* cursor, char* end) : m_Cursor(cursor), m_End(end), m_StringLength(0), m_Valid(true), m_Escaped(false), m_AllowNul(false), m_AllowControl(false), m_RejectOverflow(true)
         {
         }
         void Space()
@@ -212,6 +213,20 @@ namespace dmJson
                 }
                 if (c < 32 || m_Cursor == m_End)
                 {
+                    if (c && c < 32 && m_AllowControl)
+                    {
+                        if (decode)
+                        {
+                            // Escaped strings have four spare output bytes;
+                            // otherwise this byte is already in the input.
+                            if (out != m_Cursor - 1)
+                            {
+                                *out = c;
+                            }
+                            ++out;
+                        }
+                        continue;
+                    }
                     break;
                 }
                 if (decode && buffer && !m_Escaped)
@@ -315,21 +330,23 @@ namespace dmJson
             m_Valid = false;
             return 0;
         }
-        double ReadNumber(bool decode)
+        // Lua retains leading zeros, a leading plus, and incomplete fractions.
+        // Document callers use the strict grammar by default.
+        double ReadNumber(bool decode, bool relaxed = false)
         {
             double value = 0;
             char* begin = m_Cursor;
             uint64_t coefficient = 0;
-            if (*m_Cursor == '-')
+            if (*m_Cursor == '-' || (relaxed && *m_Cursor == '+'))
             {
                 ++m_Cursor;
             }
             char* integer_begin = m_Cursor;
-            if (m_Cursor < m_End && *m_Cursor == '0')
+            if (!relaxed && m_Cursor < m_End && *m_Cursor == '0')
             {
                 ++m_Cursor;
             }
-            else if (m_Cursor < m_End && *m_Cursor >= '1' && *m_Cursor <= '9')
+            else if (m_Cursor < m_End && *m_Cursor >= (relaxed ? '0' : '1') && *m_Cursor <= '9')
             {
                 while (m_Cursor < m_End && *m_Cursor >= '0' && *m_Cursor <= '9')
                 {
@@ -338,7 +355,7 @@ namespace dmJson
                     ++m_Cursor;
                 }
             }
-            else
+            else if (!relaxed || m_Cursor == m_End || *m_Cursor != '.')
             {
                 m_Valid = false;
             }
@@ -352,7 +369,7 @@ namespace dmJson
                     coefficient = coefficient * 10 + (uint32_t)(*m_Cursor - '0');
                     ++m_Cursor;
                 }
-                if (fraction == m_Cursor)
+                if (fraction == m_Cursor && (!relaxed || !digits))
                 {
                     m_Valid = false;
                 }
@@ -362,6 +379,7 @@ namespace dmJson
             }
             if (m_Cursor < m_End && (*m_Cursor == 'e' || *m_Cursor == 'E'))
             {
+                char* marker = m_Cursor;
                 ++m_Cursor;
                 bool negative_exponent = m_Cursor < m_End && *m_Cursor == '-';
                 if (m_Cursor < m_End && (*m_Cursor == '+' || *m_Cursor == '-'))
@@ -381,7 +399,14 @@ namespace dmJson
                 }
                 if (exponent_begin == m_Cursor)
                 {
-                    m_Valid = false;
+                    if (relaxed)
+                    {
+                        m_Cursor = marker;
+                    }
+                    else
+                    {
+                        m_Valid = false;
+                    }
                 }
                 exponent += negative_exponent ? -explicit_exponent : explicit_exponent;
             }
@@ -394,7 +419,7 @@ namespace dmJson
                 }
                 else
                 {
-                    value = ReadDecimal(begin, m_Cursor, coefficient, digits, exponent);
+                    value = ReadDecimal(*begin == '+' ? begin + 1 : begin, m_Cursor, coefficient, digits, exponent);
                 }
                 if (m_RejectOverflow && !isfinite(value))
                 {

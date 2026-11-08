@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <string.h> // memcpy
+#include <locale.h>
 
 #include "script.h"
 #include "test_script.h"
@@ -262,6 +263,116 @@ TEST_F(ScriptJsonTest, TestLuaToJsonNegativeIndexAndEmptyOutput)
     ASSERT_EQ(top + 1, lua_gettop(L));
     free(json);
     lua_settop(L, top);
+}
+
+// Legacy hexadecimal inputs must round correctly and never read beyond the supplied byte range.
+TEST_F(ScriptJsonTest, TestJsonLegacyNumbersBounded)
+{
+    const struct
+    {
+        const char* m_Text;
+        uint64_t    m_Bits;
+    } cases[] = {
+        { "0x1p-1074", UINT64_C(1) },
+        { "-0x1p-1075", UINT64_C(0x8000000000000000) },
+        { "0x1.00000000000008p0", UINT64_C(0x3ff0000000000000) },
+        { "0x1.00000000000008001p0", UINT64_C(0x3ff0000000000001) },
+        { "0x1.fffffffffffff8p1023", UINT64_C(0x7ff0000000000000) },
+        { "0x1.fffffffffffff7fffffffffp1023", UINT64_C(0x7fefffffffffffff) },
+        { "0x0.fffffffffffff8p-1022", UINT64_C(0x0010000000000000) },
+        { "0x0.fffffffffffff80001p-1022", UINT64_C(0x0010000000000000) },
+    };
+    int top = lua_gettop(L);
+    for (uint32_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+    {
+        size_t size = strlen(cases[i].m_Text);
+        char* text = (char*)malloc(size);
+        memcpy(text, cases[i].m_Text, size);
+        int accepted = dmScript::JsonToLua(L, text, size);
+        free(text);
+        EXPECT_EQ(1, accepted);
+        if (accepted)
+        {
+            double value = lua_tonumber(L, -1);
+            uint64_t bits;
+            memcpy(&bits, &value, sizeof(bits));
+            EXPECT_EQ(cases[i].m_Bits, bits);
+        }
+        lua_settop(L, top);
+    }
+}
+
+// Locale changes must not change JSON's decimal point or consume value separators (issue #10130).
+TEST_F(ScriptJsonTest, TestJsonLocaleChanges)
+{
+    char* previous = strdup(setlocale(LC_NUMERIC, 0));
+    const char* locales[] = { "C", "sv_SE.UTF-8", "C", "de_DE.UTF-8", "nl_NL.UTF-8", "Dutch_Netherlands.1252", "NL", "C" };
+    int top = lua_gettop(L);
+    for (uint32_t i = 0; i < sizeof(locales) / sizeof(locales[0]); ++i)
+    {
+        if (!setlocale(LC_NUMERIC, locales[i]))
+        {
+            continue;
+        }
+        lua_pushnumber(L, -1.25e-100);
+        char* text = 0;
+        size_t size = 0;
+        EXPECT_EQ(1, dmScript::LuaToJson(L, -1, 0, &text, &size));
+        EXPECT_STREQ("-1.25e-100", text);
+        free(text);
+        lua_settop(L, top);
+        const char* input = "[1.25,0x1.8p2]";
+        int accepted = dmScript::JsonToLua(L, input, strlen(input));
+        EXPECT_EQ(1, accepted);
+        if (accepted)
+        {
+            lua_rawgeti(L, -1, 1);
+            EXPECT_EQ(1.25, lua_tonumber(L, -1));
+            lua_pop(L, 1);
+            lua_rawgeti(L, -1, 2);
+            EXPECT_EQ(6.0, lua_tonumber(L, -1));
+        }
+        lua_settop(L, top);
+        lua_newtable(L);
+        lua_pushnumber(L, 1.2);
+        lua_rawseti(L, -2, 1);
+        text = 0;
+        EXPECT_EQ(1, dmScript::LuaToJson(L, -1, 0, &text, &size));
+        EXPECT_STREQ("[1.2]", text);
+        free(text);
+        lua_settop(L, top);
+        input = "{\"number\":1,\"foo\":\"hello_world\",\"fraction\":1.2}";
+        accepted = dmScript::JsonToLua(L, input, strlen(input));
+        EXPECT_EQ(1, accepted);
+        if (accepted)
+        {
+            lua_getfield(L, -1, "number");
+            EXPECT_EQ(1.0, lua_tonumber(L, -1));
+            lua_pop(L, 1);
+            lua_getfield(L, -1, "foo");
+            EXPECT_STREQ("hello_world", lua_tostring(L, -1));
+            lua_pop(L, 1);
+            lua_getfield(L, -1, "fraction");
+            EXPECT_EQ(1.2, lua_tonumber(L, -1));
+        }
+        lua_settop(L, top);
+    }
+    setlocale(LC_NUMERIC, previous);
+    free(previous);
+}
+
+// Preserve the platform's existing acceptance of punctuation in NaN payloads.
+TEST_F(ScriptJsonTest, TestJsonNaNPayload)
+{
+    const char* input = "nan(a-b)";
+    int accepted = dmScript::JsonToLua(L, input, strlen(input));
+#if defined(__APPLE__)
+    ASSERT_EQ(1, accepted);
+    double value = lua_tonumber(L, -1);
+    ASSERT_TRUE(value != value);
+#else
+    ASSERT_EQ(0, accepted);
+#endif
 }
 
 extern "C" void dmExportedSymbols();

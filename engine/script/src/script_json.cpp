@@ -223,7 +223,7 @@ namespace dmScript
         lua_pushvalue(L, LUA_GLOBALSINDEX);
         luaL_register(L, "json", ScriptJson_methods);
 
-        // From lua_cjson.c in order to do comparisons with the json null character
+        // Use a distinct null sentinel that can be retained in Lua tables.
         lua_pushlightuserdata(L, NULL);
         lua_setfield(L, -2, "null");
 

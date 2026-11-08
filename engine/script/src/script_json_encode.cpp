@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <dlib/dstrings.h>
 #include <dlib/json_lexer.h>
 #include "script_json.h"
 #include <limits.h>
@@ -20,7 +21,6 @@ extern "C"
 {
 #include <lua/lua.h>
 #include <lua/lauxlib.h>
-#include "luacjson/fpconv.h"
 }
 
 namespace dmScript
@@ -170,8 +170,33 @@ namespace dmScript
                 Append(out, (uint32_t)(digits + sizeof(digits) - out));
                 return;
             }
-            Reserve(FPCONV_G_FMT_BUFSIZE);
-            m_Size += fpconv_g_fmt(m_Buffer.m_Data + m_Size, value, 14);
+            Reserve(64);
+            char* text = m_Buffer.m_Data + m_Size;
+            int length = dmSnPrintf(text, 64, "%.14g", value);
+            if (length < 0)
+            {
+                luaL_error(m_Lua, "Unable to format JSON number");
+            }
+            // printf supplies the existing precision and rounding. Normalize
+            // its decimal separator without changing the process locale or
+            // retaining locale state that can become stale between calls.
+            int point = text[0] == '-' ? 1 : 0;
+            while (point < length && text[point] >= '0' && text[point] <= '9')
+            {
+                ++point;
+            }
+            if (point < length && text[point] != '.' && text[point] != 'e')
+            {
+                int fraction = point + 1;
+                while (fraction < length && (text[fraction] < '0' || text[fraction] > '9'))
+                {
+                    ++fraction;
+                }
+                text[point] = '.';
+                memmove(text + point + 1, text + fraction, length - fraction);
+                length -= fraction - point - 1;
+            }
+            m_Size += length;
         }
         void Value(int index, uint32_t depth)
         {
