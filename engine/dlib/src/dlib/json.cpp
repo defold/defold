@@ -16,6 +16,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
+#include <dlib/utf8.h>
 #include <simd/simd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -99,35 +100,6 @@ namespace dmJson
         return value;
     }
 
-    uint32_t Utf8Bytes(const char* text, uint32_t size)
-    {
-        unsigned char first = (unsigned char)text[0];
-        if (first < 0x80)
-        {
-            return 1;
-        }
-        uint32_t count = first >= 0xf0 ? 4 : first >= 0xe0 ? 3 : 2;
-        if (first < 0xc2 || first > 0xf4 || size < count)
-        {
-            return 0;
-        }
-        uint32_t cp = first & (0x7f >> count);
-        for (uint32_t i = 1; i < count; ++i)
-        {
-            unsigned char c = text[i];
-            if ((c & 0xc0) != 0x80)
-            {
-                return 0;
-            }
-            cp = (cp << 6) | (c & 63);
-        }
-        if ((count == 3 && cp < 0x800) || (count == 4 && cp < 0x10000) || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))
-        {
-            return 0;
-        }
-        return count;
-    }
-
     static bool PlainStringBlock(const char* text, bool ascii_only)
     {
         dsimd_uint4_t bytes = SimdLoadUint(text);
@@ -187,7 +159,7 @@ namespace dmJson
             uint32_t bytes = 0;
             if (c >= 0x80)
             {
-                bytes = Utf8Bytes(text + i, size - i);
+                bytes = dmUtf8::ValidateSequence(text + i, size - i);
             }
             else if (c >= 32 && c != '"' && c != '\\')
             {
@@ -693,7 +665,7 @@ namespace dmJson
             // byte. A UTF-8 sequence may extend beyond the block boundary.
             do
             {
-                uint32_t bytes = Utf8Bytes(text + i, size - i);
+                uint32_t bytes = dmUtf8::ValidateSequence(text + i, size - i);
                 if (!bytes)
                 {
                     if (error_offset)

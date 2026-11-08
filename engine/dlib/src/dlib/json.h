@@ -20,9 +20,6 @@
 
 namespace dmJson
 {
-    // Length of the next valid UTF-8 sequence, or zero. Input must be nonempty.
-    uint32_t Utf8Bytes(const char* text, uint32_t size);
-
     typedef void (*FWrite)(void* context, const char* text, uint32_t size);
     // Emit a quoted JSON string. Invalid UTF-8 bytes are escaped as U+00xx.
     void WriteString(const char* text, uint32_t size, FWrite write, void* context);

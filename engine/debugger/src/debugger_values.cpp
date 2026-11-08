@@ -16,6 +16,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/json.h>
 #include <dlib/time.h>
+#include <dlib/utf8.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -217,7 +218,7 @@ namespace dmDebugger
                 value.Add("\\t");
             else
             {
-                uint32_t bytes = c >= 32 && c != 127 ? dmJson::Utf8Bytes(text + i, size - i) : 0;
+                uint32_t bytes = c >= 32 && c != 127 ? dmUtf8::ValidateSequence(text + i, size - i) : 0;
                 if (bytes)
                 {
                     value.Add(text + i, bytes);

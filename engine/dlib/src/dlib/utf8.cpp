@@ -17,13 +17,46 @@
 /**
  * utf-8 support
  *
- * It's assumed that the supplied utf-8 sequences are well-formed and
+ * Except for ValidateSequence, supplied utf-8 sequences must be well-formed;
  * invalid sequences are not detected. It's however guaranteed that
  * the library function will not read outside the buffer and the terminating
  * '\0' character is always respected.
  */
 namespace dmUtf8
 {
+    uint32_t ValidateSequence(const char* text, uint32_t size)
+    {
+        if (size == 0)
+        {
+            return 0;
+        }
+        unsigned char first = (unsigned char)text[0];
+        if (first < 0x80)
+        {
+            return 1;
+        }
+        uint32_t count = first >= 0xf0 ? 4 : first >= 0xe0 ? 3 : 2;
+        if (first < 0xc2 || first > 0xf4 || size < count)
+        {
+            return 0;
+        }
+        uint32_t cp = first & (0x7f >> count);
+        for (uint32_t i = 1; i < count; ++i)
+        {
+            unsigned char c = text[i];
+            if ((c & 0xc0) != 0x80)
+            {
+                return 0;
+            }
+            cp = (cp << 6) | (c & 63);
+        }
+        if ((count == 3 && cp < 0x800) || (count == 4 && cp < 0x10000) || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))
+        {
+            return 0;
+        }
+        return count;
+    }
+
     static const uint32_t offsets[6] = {
         0x00000000UL,
         0x00003080UL,
