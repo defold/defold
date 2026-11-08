@@ -901,11 +901,11 @@ TEST(dmJson, SimpleEscapeBytes)
     }
 }
 
-// Buffered string decoding must grow at escape boundaries without changing bounded input or losing embedded NULs.
+// Consecutive Unicode escapes must grow buffered output safely, preserve input and reject every truncation.
 TEST(dmJson, BufferedStringBoundaries)
 {
-    const char suffix[] = "\\n\\u0000\\ud83d\\ude00abcdefghijklmnopqrstuvwxyz0123456789\\t\"";
-    const char decoded[] = "\n\0\xf0\x9f\x98\x80" "abcdefghijklmnopqrstuvwxyz0123456789\t";
+    const char suffix[] = "\\n\\u0041\\u041f\\u4e2d\\u0000\\ud83d\\ude00abcdefghijklmnopqrstuvwxyz0123456789\\t\"";
+    const char decoded[] = "\nA\xd0\x9f\xe4\xb8\xad\0\xf0\x9f\x98\x80" "abcdefghijklmnopqrstuvwxyz0123456789\t";
     dmJson::StringBuffer buffer;
     for (uint32_t prefix = 0; prefix < 530; ++prefix)
     {

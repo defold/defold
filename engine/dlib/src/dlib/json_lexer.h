@@ -128,7 +128,10 @@ namespace dmJson
                 ++m_Cursor;
             }
         }
-        char* ReadString(bool decode, StringBuffer* buffer = 0)
+        // Specialize validation, in-place decoding and read-only buffered
+        // decoding so their mode checks stay outside the string loop.
+        template <bool decode, bool buffered>
+        char* ReadStringInternal(StringBuffer* buffer)
         {
             if (m_Cursor == m_End || *m_Cursor++ != '"')
             {
@@ -162,7 +165,7 @@ namespace dmJson
                 uint32_t length = (uint32_t)(m_Cursor - run);
                 if (decode)
                 {
-                    if (buffer && m_Escaped)
+                    if (buffered && m_Escaped)
                     {
                         uint32_t used = (uint32_t)(out - buffer->m_Data);
                         if (length > UINT32_MAX - used - 4 || !buffer->Reserve(used + length + 4))
@@ -203,9 +206,9 @@ namespace dmJson
                 unsigned char c = *m_Cursor++;
                 if (c == '"')
                 {
-                    char* result = decode && buffer && m_Escaped ? buffer->m_Data : begin;
+                    char* result = decode && buffered && m_Escaped ? buffer->m_Data : begin;
                     m_StringLength = (uint32_t)((decode ? out : m_Cursor - 1) - result);
-                    if (decode && !buffer)
+                    if (decode && !buffered)
                     {
                         *out = 0;
                     }
@@ -229,7 +232,7 @@ namespace dmJson
                     }
                     break;
                 }
-                if (decode && buffer && !m_Escaped)
+                if (decode && buffered && !m_Escaped)
                 {
                     uint32_t prefix = (uint32_t)(out - begin);
                     if (prefix > UINT32_MAX - 4 || !buffer->Reserve(prefix + 4))
@@ -243,6 +246,7 @@ namespace dmJson
                 c = *m_Cursor++;
                 if (c == 'u')
                 {
+                decode_unicode:
                     if (m_End - m_Cursor < 4)
                     {
                         break;
@@ -297,6 +301,21 @@ namespace dmJson
                         }
                         *out++ = 0x80 | (cp & 63);
                     }
+                    // Consecutive Unicode escapes need no ordinary-text scan.
+                    if (m_End - m_Cursor >= 2 && m_Cursor[0] == '\\' && m_Cursor[1] == 'u')
+                    {
+                        if (buffered)
+                        {
+                            uint32_t used = (uint32_t)(out - buffer->m_Data);
+                            if (used > UINT32_MAX - 4 || !buffer->Reserve(used + 4))
+                            {
+                                break;
+                            }
+                            out = buffer->m_Data + used;
+                        }
+                        m_Cursor += 2;
+                        goto decode_unicode;
+                    }
                     continue;
                 }
                 static const unsigned char simple[256] = {
@@ -329,6 +348,18 @@ namespace dmJson
             }
             m_Valid = false;
             return 0;
+        }
+        char* ReadString(bool decode, StringBuffer* buffer = 0)
+        {
+            if (!decode)
+            {
+                return ReadStringInternal<false, false>(0);
+            }
+            if (buffer)
+            {
+                return ReadStringInternal<true, true>(buffer);
+            }
+            return ReadStringInternal<true, false>(0);
         }
         // Lua retains leading zeros, a leading plus, and incomplete fractions.
         // Document callers use the strict grammar by default.
