@@ -69,6 +69,39 @@ TEST_F(ScriptJsonTest, TestJsonToLua)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+// Decoding must respect the caller's byte range and leave its input unchanged.
+TEST_F(ScriptJsonTest, TestJsonReadOnlyBoundedStrings)
+{
+    const char source[] = "[\"plain\",\"a\\u0000b\",\"\\ud83d\\ude00\"]";
+    size_t size = sizeof(source) - 1;
+    char* text = (char*)malloc(size);
+    memcpy(text, source, size);
+    int top = lua_gettop(L);
+    ASSERT_EQ(1, dmScript::JsonToLua(L, text, size));
+    ASSERT_EQ(0, memcmp(text, source, size));
+    lua_rawgeti(L, -1, 2);
+    size_t length;
+    const char* value = lua_tolstring(L, -1, &length);
+    ASSERT_EQ(3u, length);
+    ASSERT_EQ(0, memcmp(value, "a\0b", length));
+    lua_settop(L, top);
+    free(text);
+}
+
+// Legacy fallback must reject malformed arrays without double-freeing its scratch buffer.
+TEST_F(ScriptJsonTest, TestJsonMalformedBoundedArray)
+{
+    const char source[] = "[\"\\ud800\"]";
+    size_t size = sizeof(source) - 1;
+    char* text = (char*)malloc(size);
+    memcpy(text, source, size);
+    int top = lua_gettop(L);
+    ASSERT_EQ(0, dmScript::JsonToLua(L, text, size));
+    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(0, memcmp(text, source, size));
+    free(text);
+}
+
 TEST_F(ScriptJsonTest, TestJsonToLua_Issue10304)
 {
     int top = lua_gettop(L);

@@ -22,33 +22,12 @@
 #include <string.h>
 #include <math.h>
 #include <limits.h>
-#include "json_number.h"
+#include "json_lexer.h"
 
 namespace dmJson
 {
     // dmArray allocates with a uint32_t byte count. Node indices also fit in int.
     static const uint32_t MAX_NODE_CAPACITY = UINT32_MAX / sizeof(Node);
-
-    static bool PlainStringBlock(const char* text, bool ascii_only)
-    {
-        dsimd_uint4_t bytes = SimdLoadUint(text);
-        dsimd_uint4_t ones = SimdSplatUint(0x01010101);
-        dsimd_uint4_t quotes = SimdXorUint(bytes, SimdSplatUint(0x22222222));
-        dsimd_uint4_t slashes = SimdXorUint(bytes, SimdSplatUint(0x5c5c5c5c));
-        // A zero byte in x sets a high bit in (x - 0x01010101) & ~x.
-        // Borrow may also mark a neighboring byte, but cannot hide a match.
-        dsimd_uint4_t special = SimdOrUint(SimdAndUint(SimdSubUint(quotes, ones), SimdNotUint(quotes)),
-                                           SimdAndUint(SimdSubUint(slashes, ones), SimdNotUint(slashes)));
-        // The same test with 0x20 detects control bytes. Reading strings can
-        // skip UTF-8 bytes already validated by Parse; writing must check them.
-        special = SimdOrUint(special, SimdAndUint(SimdSubUint(bytes, SimdSplatUint(0x20202020)), SimdNotUint(bytes)));
-        if (ascii_only)
-        {
-            special = SimdOrUint(special, bytes);
-        }
-        special = SimdAndUint(special, SimdSplatUint(0x80808080));
-        return SimdAll(SimdEqualUint(special, SimdSplatUint(0)));
-    }
 
     // The first byte is known to be ordinary text. Probe a short scalar prefix
     // so escape-heavy strings do not repeatedly test overlapping SIMD blocks.
@@ -147,206 +126,13 @@ namespace dmJson
             ++m_Cursor;
         }
     }
-    static int Hex(char c)
-    {
-        if (c >= '0' && c <= '9')
-        {
-            return c - '0';
-        }
-        if (c >= 'a' && c <= 'f')
-        {
-            return c - 'a' + 10;
-        }
-        if (c >= 'A' && c <= 'F')
-        {
-            return c - 'A' + 10;
-        }
-        return -1;
-    }
-    static int Unicode(char* text)
-    {
-        int value = 0;
-        for (int i = 0; i < 4; ++i)
-        {
-            int n = Hex(text[i]);
-            if (n < 0)
-            {
-                return -1;
-            }
-            value = value * 16 + n;
-        }
-        return value;
-    }
     char* Document::ReadString(bool decode)
     {
-        if (m_Cursor == m_End || *m_Cursor++ != '"')
-        {
-            m_Valid = false;
-            return 0;
-        }
-        char* begin = m_Cursor;
-        char* out = begin;
-        while (m_Cursor < m_End)
-        {
-            uint32_t plain_bytes = 0;
-            if (!decode || out == m_Cursor)
-            {
-                // Before the first escape, decoded bytes already occupy their
-                // final positions. Scan without writing them onto themselves.
-                while (plain_bytes < 8 && m_Cursor < m_End)
-                {
-                    unsigned char c = (unsigned char)*m_Cursor;
-                    if (c < 32 || c == '"' || c == '\\')
-                    {
-                        break;
-                    }
-                    ++m_Cursor;
-                    ++plain_bytes;
-                }
-                if (decode)
-                {
-                    out = m_Cursor;
-                }
-            }
-            else
-            {
-                while (plain_bytes < 8 && m_Cursor < m_End)
-                {
-                    unsigned char c = (unsigned char)*m_Cursor;
-                    if (c < 32 || c == '"' || c == '\\')
-                    {
-                        break;
-                    }
-                    ++m_Cursor;
-                    ++plain_bytes;
-                    *out++ = c;
-                }
-            }
-            if (plain_bytes == 8)
-            {
-                char* run = m_Cursor;
-                while (m_End - m_Cursor >= 16 && PlainStringBlock(m_Cursor, false))
-                {
-                    m_Cursor += 16;
-                }
-                uint32_t length = (uint32_t)(m_Cursor - run);
-                if (decode && length)
-                {
-                    if (out != run)
-                    {
-                        memmove(out, run, length);
-                    }
-                    out += length;
-                }
-                continue;
-            }
-            if (m_Cursor == m_End)
-            {
-                break;
-            }
-            unsigned char c = *m_Cursor++;
-            if (c == '"')
-            {
-                if (decode)
-                {
-                    *out = 0;
-                }
-                return decode ? begin : 0;
-            }
-            if (c < 32 || m_Cursor == m_End)
-            {
-                break;
-            }
-            c = *m_Cursor++;
-            if (c == 'b')
-            {
-                c = '\b';
-            }
-            else if (c == 'f')
-            {
-                c = '\f';
-            }
-            else if (c == 'n')
-            {
-                c = '\n';
-            }
-            else if (c == 'r')
-            {
-                c = '\r';
-            }
-            else if (c == 't')
-            {
-                c = '\t';
-            }
-            else if (c == 'u')
-            {
-                if (m_End - m_Cursor < 4)
-                {
-                    break;
-                }
-                int cp = Unicode(m_Cursor);
-                m_Cursor += 4;
-                // Decoded JSON values are C strings. Reject embedded NUL.
-                if (cp < 0 || (decode && cp == 0) || (cp >= 0xdc00 && cp <= 0xdfff))
-                {
-                    break;
-                }
-                if (cp >= 0xd800 && cp <= 0xdbff)
-                {
-                    if (m_End - m_Cursor < 6 || m_Cursor[0] != '\\' || m_Cursor[1] != 'u')
-                    {
-                        break;
-                    }
-                    int low = Unicode(m_Cursor + 2);
-                    if (low < 0xdc00 || low > 0xdfff)
-                    {
-                        break;
-                    }
-                    m_Cursor += 6;
-                    cp = 0x10000 + ((cp - 0xd800) << 10) + low - 0xdc00;
-                }
-                if (!decode)
-                {
-                    continue;
-                }
-                if (cp < 0x80)
-                {
-                    *out++ = cp;
-                }
-                else
-                {
-                    if (cp >= 0x10000)
-                    {
-                        *out++ = 0xf0 | (cp >> 18);
-                        *out++ = 0x80 | ((cp >> 12) & 63);
-                    }
-                    else if (cp >= 0x800)
-                    {
-                        *out++ = 0xe0 | (cp >> 12);
-                    }
-                    else
-                    {
-                        *out++ = 0xc0 | (cp >> 6);
-                    }
-                    if (cp >= 0x800)
-                    {
-                        *out++ = 0x80 | ((cp >> 6) & 63);
-                    }
-                    *out++ = 0x80 | (cp & 63);
-                }
-                continue;
-            }
-            else if (c != '"' && c != '\\' && c != '/')
-            {
-                break;
-            }
-            if (decode)
-            {
-                *out++ = c;
-            }
-        }
-        m_Valid = false;
-        return 0;
+        Lexer lexer(m_Cursor, m_End);
+        char* result = lexer.ReadString(decode);
+        m_Cursor = lexer.m_Cursor;
+        m_Valid = lexer.m_Valid;
+        return decode ? result : 0;
     }
     int Document::Value(int depth)
     {
@@ -494,90 +280,11 @@ namespace dmJson
         }
         else if (c == '-' || (c >= '0' && c <= '9'))
         {
-            char* begin = m_Cursor;
-            uint64_t coefficient = 0;
-            if (*m_Cursor == '-')
-            {
-                ++m_Cursor;
-            }
-            char* integer_begin = m_Cursor;
-            if (m_Cursor < m_End && *m_Cursor == '0')
-            {
-                ++m_Cursor;
-            }
-            else if (m_Cursor < m_End && *m_Cursor >= '1' && *m_Cursor <= '9')
-            {
-                while (m_Cursor < m_End && *m_Cursor >= '0' && *m_Cursor <= '9')
-                {
-                    // Unsigned wrap is defined; only <=19 digits use this accumulator.
-                    coefficient = coefficient * 10 + (uint32_t)(*m_Cursor - '0');
-                    ++m_Cursor;
-                }
-            }
-            else
-            {
-                m_Valid = false;
-            }
-            uint32_t digits = (uint32_t)(m_Cursor - integer_begin);
-            int64_t exponent = 0;
-            if (m_Cursor < m_End && *m_Cursor == '.')
-            {
-                char* fraction = ++m_Cursor;
-                while (m_Cursor < m_End && *m_Cursor >= '0' && *m_Cursor <= '9')
-                {
-                    coefficient = coefficient * 10 + (uint32_t)(*m_Cursor - '0');
-                    ++m_Cursor;
-                }
-                if (fraction == m_Cursor)
-                {
-                    m_Valid = false;
-                }
-                uint32_t fraction_digits = (uint32_t)(m_Cursor - fraction);
-                digits += fraction_digits;
-                exponent = -(int64_t)fraction_digits;
-            }
-            if (m_Cursor < m_End && (*m_Cursor == 'e' || *m_Cursor == 'E'))
-            {
-                ++m_Cursor;
-                bool negative_exponent = m_Cursor < m_End && *m_Cursor == '-';
-                if (m_Cursor < m_End && (*m_Cursor == '+' || *m_Cursor == '-'))
-                {
-                    ++m_Cursor;
-                }
-                char* exponent_begin = m_Cursor;
-                int64_t explicit_exponent = 0;
-                while (m_Cursor < m_End && *m_Cursor >= '0' && *m_Cursor <= '9')
-                {
-                    // Larger than any possible mantissa length, without signed overflow.
-                    if (explicit_exponent < INT64_C(10000000000))
-                    {
-                        explicit_exponent = explicit_exponent * 10 + (*m_Cursor - '0');
-                    }
-                    ++m_Cursor;
-                }
-                if (exponent_begin == m_Cursor)
-                {
-                    m_Valid = false;
-                }
-                exponent += negative_exponent ? -explicit_exponent : explicit_exponent;
-            }
+            Lexer lexer(m_Cursor, m_End);
             m_Nodes[id].m_Type = TYPE_NUMBER;
-            if (m_DecodeValues && m_Valid)
-            {
-                if (digits <= 19 && exponent == 0)
-                {
-                    double value = (double)coefficient;
-                    m_Nodes[id].m_Number = *begin == '-' ? -value : value;
-                }
-                else
-                {
-                    m_Nodes[id].m_Number = ReadDecimal(begin, m_Cursor, coefficient, digits, exponent);
-                }
-                if (!isfinite(m_Nodes[id].m_Number))
-                {
-                    m_Valid = false;
-                }
-            }
+            m_Nodes[id].m_Number = lexer.ReadNumber(m_DecodeValues);
+            m_Cursor = lexer.m_Cursor;
+            m_Valid = lexer.m_Valid;
         }
         else
         {

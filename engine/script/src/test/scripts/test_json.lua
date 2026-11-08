@@ -189,10 +189,31 @@ function test_json_decode_encode()
     assert(tbl.sub.w == tbl_lua.sub.w)
 end
 
+-- Preserve CJSON compatibility while decoding strings into a reusable buffer.
+function test_json_decoder_compatibility()
+    assert(json.decode('{"key":1,"\\u006bey":2}').key == 2)
+    assert(json.decode('{"a\\u0000b":"x\\u0000y"}')["a\0b"] == "x\0y")
+    assert(json.decode('"' .. string.char(255) .. '"') == string.char(255))
+    assert(json.decode("0x10") == 16)
+    assert(json.decode("1e309") == math.huge)
+    assert(1 / json.decode("-0") == -math.huge)
+    local deep = json.decode(string.rep("[", 65) .. "1" .. string.rep("]", 65))
+    for i = 1, 65 do deep = deep[1] end
+    assert(deep == 1)
+    local escaped = string.rep("long prefix ", 30) .. string.rep('\\n\\u0000\\ud83d\\ude00', 1024)
+    local expected = string.rep("long prefix ", 30) .. string.rep("\n\0" .. string.char(240,159,152,128), 1024)
+    local values = json.decode('["' .. escaped .. '","plain","\\t","","\\u0061"]')
+    assert(values[1] == expected and values[2] == "plain" and values[3] == "\t" and values[4] == "" and values[5] == "a")
+    for _, invalid in ipairs({'"\\u"', '"\\ud800"', '"\\udc00"', '"\\x"', '["ok",', '{"x":1,}'}) do
+        assert(not pcall(json.decode, invalid))
+    end
+end
+
 function test_json()
     test_json_decode()
     test_json_encode()
     test_json_decode_encode()
+    test_json_decoder_compatibility()
 end
 
 functions = { test_json = test_json }

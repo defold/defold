@@ -22,6 +22,7 @@ extern "C"
 
 namespace dmScript
 {
+    int DecodeJson(lua_State* L, const char* text, size_t size, int options, int protected_mode, char* error, size_t error_size);
     void InitializeJson(lua_State* L);
 }
 

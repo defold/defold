@@ -27,7 +27,6 @@ extern "C"
     #include <lua/lauxlib.h>
 
     // Defined in luacjson/lua_cjson.c
-    int lua_cjson_decode(lua_State* L, const char* json_string, size_t json_len, int options_index, int protected_mode, char* errbuf, size_t errbuf_len);
     int lua_cjson_encode(lua_State* L, int index, int options_index, char** json_str, size_t* json_length);
 }
 
@@ -62,7 +61,7 @@ namespace dmScript
     {
         int top = lua_gettop(L);
         char buffer[256] = {0};
-        int ret = lua_cjson_decode(L, json, json_len, options_index, protected_mode, buffer, sizeof(buffer));
+        int ret = DecodeJson(L, json, json_len, options_index, protected_mode, buffer, sizeof(buffer));
         if (ret != 1)
         {
             lua_pop(L, lua_gettop(L) - top);
