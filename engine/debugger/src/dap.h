@@ -16,7 +16,6 @@
 #define DM_DEBUGGER_DAP_H
 
 #include <dlib/array.h>
-#include <dlib/json.h>
 #include <stdint.h>
 
 namespace dmDebugger

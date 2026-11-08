@@ -14,6 +14,7 @@
 
 #include "debugger_private.h"
 #include <dlib/dstrings.h>
+#include <dlib/json.h>
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>

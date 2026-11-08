@@ -14,6 +14,7 @@
 
 #include "dap.h"
 #include <dlib/dstrings.h>
+#include <dlib/json.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>

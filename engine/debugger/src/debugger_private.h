@@ -25,6 +25,11 @@ extern "C"
 #include <lua/lauxlib.h>
 }
 
+namespace dmJson
+{
+    struct Document;
+}
+
 namespace dmDebugger
 {
     struct State;
