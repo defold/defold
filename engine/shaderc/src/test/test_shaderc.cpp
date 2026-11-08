@@ -970,6 +970,45 @@ TEST(Shaderc, HLSLStorageBufferRootParameterIndicesWithOverride)
 #endif
 }
 
+// Verifies HLSL result names survive later compilations and compiler teardown,
+// guarding against borrowing names from the released DXC reflection object.
+TEST(Shaderc, HLSLResourceMappingNamesOutliveReflection)
+{
+#if defined(_WIN32)
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/storage_buffers.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    const uint32_t result_count = 8;
+    dmShaderc::ShaderCompileResult* results[result_count];
+    for (uint32_t i = 0; i < result_count; ++i)
+    {
+        dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_COMPUTE, data, data_size);
+        dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+        dmShaderc::ShaderCompilerOptions options;
+        options.m_Version = 60;
+        results[i] = dmShaderc::Compile(context, compiler, options);
+        ASSERT_NE((void*) 0, results[i]);
+        ASSERT_STREQ("", results[i]->m_LastError);
+        ASSERT_EQ(2u, results[i]->m_HLSLResourceMappings.Size());
+        dmShaderc::DeleteShaderCompiler(compiler);
+        dmShaderc::DeleteShaderContext(context);
+    }
+    free(data);
+
+    for (uint32_t i = 0; i < result_count; ++i)
+    {
+        for (uint32_t j = 0; j < results[i]->m_HLSLResourceMappings.Size(); ++j)
+        {
+            const dmShaderc::HLSLResourceMapping& mapping = results[i]->m_HLSLResourceMappings[j];
+            ASSERT_NE((const char*) 0, mapping.m_Name);
+            ASSERT_EQ(mapping.m_NameHash, dmHashString64(mapping.m_Name));
+        }
+        dmShaderc::FreeShaderCompileResult(results[i]);
+    }
+#endif
+}
+
 static bool BufferContains(const uint8_t* data, uint32_t data_size, const char* text)
 {
     const uint32_t text_size = (uint32_t) strlen(text);

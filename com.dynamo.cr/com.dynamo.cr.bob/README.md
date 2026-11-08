@@ -22,16 +22,26 @@ artifacts from their build or archive locations without staging them in the Bob
 source tree's `lib` and `libexec` directories. Console shader compiler plugins,
 where needed, are built separately from Bob.
 
+Before packaging, Bob copies its Linux compiler libraries, LuaJIT executables,
+Ogg tools, Linux `zipalign`, and Linux and macOS `lipo` tools to `tmp` and removes
+their debug information; the original binaries remain available for debugging.
+Windows `lipo.exe` is left unchanged: stripping its debug sections with LLVM
+produces a binary that Windows cannot load.
+The build uses the installed `strip_android` tool, or `llvm-strip` on `PATH` if
+that tool is not packaged for the build host (such as ARM64 Linux).
+
 `scripts/update-editor-binaries.sh` installs Bob with `-Pprefer-local-engines` so
 local engine binaries and `classes.dex` take precedence over a synced archive.
 Platforms without a local engine still use the archive. The local preference also
 includes available headless engines and local platforms omitted from
 `archive-artifacts.json`.
 
-`./scripts/build.py sync_archive` downloads Bob's engine inputs from S3. The public
-paths in `archive-artifacts.json` are shared with Gradle's artifact selection;
-update that list when adding an archived input. Private-platform archive folders
-retain their existing download filters.
+`./scripts/build.py sync_archive` downloads Bob's public engine inputs through
+CloudFront at `https://d.defold.com`. S3 is used to list available files, and private
+archive buckets retain authenticated S3 downloads. The public paths in
+`archive-artifacts.json` are shared with Gradle's artifact selection; update that
+list when adding an archived input. Private-platform archive folders retain their
+existing download filters.
 
 Tool packaging is defined by two additional manifests:
 

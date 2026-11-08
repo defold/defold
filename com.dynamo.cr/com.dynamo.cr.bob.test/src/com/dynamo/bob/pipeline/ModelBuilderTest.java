@@ -14,11 +14,22 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import com.dynamo.bob.ClassLoaderResourceScanner;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Progress;
+import com.dynamo.bob.Task;
+import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.gamesys.proto.ModelProto.Material;
+import com.dynamo.gamesys.proto.ModelProto.Model;
+import com.dynamo.rig.proto.Rig.MeshSet;
+import com.google.protobuf.Message;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.node.ArrayNode;
+import org.codehaus.jackson.node.ObjectNode;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -26,24 +37,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.node.ArrayNode;
-import org.codehaus.jackson.node.ObjectNode;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.dynamo.bob.ClassLoaderResourceScanner;
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Progress;
-import com.dynamo.bob.Task;
-import com.dynamo.bob.TaskResult;
-import com.dynamo.bob.fs.GltfMountPoint;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.fs.ResourceUtil;
-import com.dynamo.gamesys.proto.ModelProto.Model;
-import com.dynamo.gamesys.proto.ModelProto.Material;
-import com.dynamo.rig.proto.Rig.MeshSet;
-import com.google.protobuf.Message;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class ModelBuilderTest extends AbstractProtoBuilderTest {
 

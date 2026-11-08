@@ -19,7 +19,6 @@ import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.liveupdate.proto.Manifest;
 
-import javax.xml.bind.DatatypeConverter;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -27,6 +26,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,7 +55,7 @@ public class ZipPublisherTest {
         Manifest.ManifestData data = Manifest.ManifestData.parseFrom(manifestFile2.getData());
         HashMap<String, Manifest.ResourceEntry> resources = new HashMap<String, Manifest.ResourceEntry>();
         for (Manifest.ResourceEntry entry : data.getResourcesList()) {
-            resources.put(DatatypeConverter.printHexBinary(entry.getHash().getData().toByteArray()).toLowerCase(), entry);
+            resources.put(HexFormat.of().formatHex(entry.getHash().getData().toByteArray()), entry);
         }
 
         ZipPublisher zipPublisher = new ZipPublisher(projectRoot, settings);

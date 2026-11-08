@@ -3,3 +3,9 @@ function init(self)
     go.set("#label", "text", layout_object_text)
     layout_objects = label.get_layout_objects("#label")
 end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("sample") then
+        layout_objects = label.get_layout_objects("#label")
+    end
+end

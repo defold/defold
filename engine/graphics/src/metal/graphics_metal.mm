@@ -4602,9 +4602,6 @@ namespace dmGraphics
         MetalContext* context = (MetalContext*)_context;
         MetalRenderTarget* rt = new MetalRenderTarget(GetNextRenderTargetId());
 
-        memcpy(rt->m_ColorBufferLoadOps, params.m_ColorBufferLoadOps, sizeof(AttachmentOp) * MAX_BUFFER_COLOR_ATTACHMENTS);
-        memcpy(rt->m_ColorBufferStoreOps, params.m_ColorBufferStoreOps, sizeof(AttachmentOp) * MAX_BUFFER_COLOR_ATTACHMENTS);
-        memcpy(rt->m_ColorAttachmentClearValue, params.m_ColorBufferClearValue, sizeof(float) * MAX_BUFFER_COLOR_ATTACHMENTS * 4);
         memcpy(rt->m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
         memcpy(rt->m_Base.m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
         rt->m_Base.m_DepthBufferParams   = params.m_DepthBufferParams;
@@ -4695,6 +4692,11 @@ namespace dmGraphics
 
             rt->m_TextureColor[color_index]        = new_texture_color_handle;
             rt->m_Base.m_TextureColor[color_index] = new_texture_color_handle;
+
+            // Render-pass metadata uses the same packed indices as the textures.
+            rt->m_ColorBufferLoadOps[color_index]  = params.m_ColorBufferLoadOps[i];
+            rt->m_ColorBufferStoreOps[color_index] = params.m_ColorBufferStoreOps[i];
+            memcpy(rt->m_ColorAttachmentClearValue[color_index], params.m_ColorBufferClearValue[i], sizeof(params.m_ColorBufferClearValue[i]));
 
             uint8_t color_usage_hints = color_creation_params.m_UsageHintBits;
             if (has_msaa)

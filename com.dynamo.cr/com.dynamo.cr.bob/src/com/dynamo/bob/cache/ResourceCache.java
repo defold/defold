@@ -14,15 +14,15 @@
 
 package com.dynamo.bob.cache;
 
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.util.HttpUtil;
+
 import java.io.File;
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
-import java.net.MalformedURLException;
 import java.nio.file.Files;
-
-import com.dynamo.bob.util.HttpUtil;
-import com.dynamo.bob.logging.Logger;
 
 public class ResourceCache {
 

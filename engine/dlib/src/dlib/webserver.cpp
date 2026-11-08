@@ -32,6 +32,7 @@ namespace dmWebServer
         Handler m_Handler;
         char    m_Prefix[64];
         OpenAPI* m_OpenAPI;
+        uint32_t m_Flags;
     };
 
     struct Server;
@@ -133,6 +134,25 @@ namespace dmWebServer
         AddHeader(server, key, value);
     }
 
+    static void SendHandlerError(const dmHttpServer::Request* request, int status, const char* code, const char* message)
+    {
+        // The rejected upload may be incomplete. Never wait for its remaining bytes.
+        if (request->m_ContentLength)
+        {
+            dmHttpServer::CloseConnection(request);
+        }
+        dmHttpServer::SetStatusCode(request, status);
+        dmHttpServer::SendAttribute(request, "Content-Type", "application/json");
+        dmHttpServer::SendAttribute(request, "Cache-Control", "no-store");
+        if (status == 405)
+        {
+            dmHttpServer::SendAttribute(request, "Allow", "GET");
+        }
+        char body[256];
+        dmSnPrintf(body, sizeof(body), "{\"error\":{\"code\":\"%s\",\"message\":\"%s\"}}", code, message);
+        dmHttpServer::Send(request, body, strlen(body));
+    }
+
     void HttpResponse(void* user_data, const dmHttpServer::Request* request)
     {
         Server* server = (Server*) user_data;
@@ -141,10 +161,15 @@ namespace dmWebServer
         uint32_t n = handlers.Size();
         HandlerData* handler = 0;
         size_t longest_prefix_length = 0;
+        size_t path_length = strcspn(request->m_Resource, "?");
         for (uint32_t i = 0; i < n; ++i)
         {
             HandlerData* h = &handlers[i];
             size_t prefix_length = strlen(h->m_Prefix);
+            if ((h->m_Flags & MATCH_EXACT_PATH) && prefix_length != path_length)
+            {
+                continue;
+            }
 
             // Registration and removal order must not let a fallback shadow a more specific handler.
             if (prefix_length > longest_prefix_length && strncmp(request->m_Resource, h->m_Prefix, prefix_length) == 0)
@@ -154,7 +179,15 @@ namespace dmWebServer
             }
         }
 
-        if (handler)
+        if (handler && (handler->m_Flags & NO_REQUEST_BODY) && request->m_ContentLength)
+        {
+            SendHandlerError(request, 400, "unexpected_body", "Request bodies are not supported");
+        }
+        else if (handler && (handler->m_Flags & GET_ONLY) && !dmStrEq(request->m_Method, "GET"))
+        {
+            SendHandlerError(request, 405, "method_not_allowed", "Only GET is supported");
+        }
+        else if (handler)
         {
             InternalRequest internal_request;
             internal_request.m_Server = server;
@@ -170,6 +203,10 @@ namespace dmWebServer
         }
         else
         {
+            if (request->m_ContentLength)
+            {
+                dmHttpServer::CloseConnection(request);
+            }
             dmHttpServer::SetStatusCode(request, 404);
             char not_found[256];
             dmSnPrintf(not_found, sizeof(not_found), "Resource '%s' not found", request->m_Resource);
@@ -240,6 +277,15 @@ namespace dmWebServer
                       const HandlerParams* handler_params,
                       const char* openapi_json)
     {
+        return AddHandler(server, prefix, handler_params, openapi_json, 0);
+    }
+
+    Result AddHandler(HServer server,
+                      const char* prefix,
+                      const HandlerParams* handler_params,
+                      const char* openapi_json,
+                      uint32_t flags)
+    {
         HandlerData handler;
         if (!prefix || prefix[0] != '/' || strlen(prefix) >= sizeof(handler.m_Prefix))
         {
@@ -290,6 +336,7 @@ namespace dmWebServer
         handler.m_Userdata = handler_params->m_Userdata;
         handler.m_Handler = handler_params->m_Handler;
         handler.m_OpenAPI = openapi;
+        handler.m_Flags = flags;
         dmStrlCpy(handler.m_Prefix, prefix, sizeof(handler.m_Prefix));
         server->m_Handlers.Push(handler);
         return RESULT_OK;

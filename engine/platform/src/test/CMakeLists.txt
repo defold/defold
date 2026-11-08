@@ -27,6 +27,16 @@ defold_target_link_socket(test_platform "${TARGET_PLATFORM}" PRIVATE)
 
 add_dependencies(test_platform platform_null)
 
+# Exercise the vendor fallback with a backend that supplies no density query.
+defold_add_executable(test_platform_vendor
+    "${CMAKE_CURRENT_LIST_DIR}/test_platform.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../window.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../platform_window_null.cpp")
+target_compile_definitions(test_platform_vendor PRIVATE DM_PLATFORM_VENDOR)
+defold_target_link_libraries(test_platform_vendor "${TARGET_PLATFORM}" dlib profile_null testmain)
+defold_target_link_socket(test_platform_vendor "${TARGET_PLATFORM}" PRIVATE)
+defold_register_test_target(test_platform_vendor ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+
 if(PLATFORM_USE_GLFW3)
     target_sources(test_platform PRIVATE
         "${CMAKE_CURRENT_LIST_DIR}/test_window_state.cpp"
