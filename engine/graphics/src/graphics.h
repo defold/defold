@@ -461,6 +461,8 @@ namespace dmGraphics
 
     typedef struct AsyncBufferReadback* HAsyncBufferReadback;
     // Encodes a snapshot copy in the current frame without submitting or waiting.
+    // Offset and size must be multiples of four bytes, and size must be nonzero.
+    // Returns zero for unsupported requests, invalid ranges or allocation failure.
     // Caller owns the request and must delete it, including after a failed read.
     HAsyncBufferReadback RequestStorageBufferReadback(HContext context, HStorageBuffer buffer, uint32_t offset, uint32_t size);
     // Returns true only once the snapshot is ready. Never waits; data must have

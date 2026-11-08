@@ -5928,11 +5928,17 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*)_context;
         assert(context->m_FrameBegun);
-        SuspendRenderPass(context);
         NS::AutoreleasePool*      pool = NS::AutoreleasePool::alloc()->init();
         MetalAsyncBufferReadback* request = new MetalAsyncBufferReadback;
         request->m_Size = size;
         request->m_Buffer = context->m_Device->newBuffer(size, MTL::ResourceStorageModeShared);
+        if (!request->m_Buffer)
+        {
+            delete request;
+            pool->release();
+            return 0;
+        }
+        SuspendRenderPass(context);
         request->m_CommandBuffer = GetCurrentFrameResource(context).m_CommandBuffer;
         request->m_CommandBuffer->retain();
         MTL::BlitCommandEncoder* encoder = request->m_CommandBuffer->blitCommandEncoder();

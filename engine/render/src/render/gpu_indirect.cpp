@@ -696,10 +696,13 @@ namespace dmRender
         if (gpu.m_StatisticsEnabled && batch->m_StatisticsDirty && !batch->m_Readback)
         {
             batch->m_Readback = dmGraphics::RequestStorageBufferReadback(graphics, batch->m_ArgumentBuffer, 0, 5 * sizeof(uint32_t));
-            batch->m_ReadbackCandidates = count;
-            batch->m_ReadbackFrame = gpu.m_Frame;
-            batch->m_StatisticsDirty = 0;
-            DM_PROPERTY_ADD_U32(rmtp_GpuIndirectStatsRequests, 1);
+            if (batch->m_Readback)
+            {
+                batch->m_ReadbackCandidates = count;
+                batch->m_ReadbackFrame = gpu.m_Frame;
+                batch->m_StatisticsDirty = 0;
+                DM_PROPERTY_ADD_U32(rmtp_GpuIndirectStatsRequests, 1);
+            }
         }
         object->m_VertexBuffers[1] = batch->m_VisibleInstanceProgram ? 0 : dmGraphics::GetStorageBufferVertexBuffer(graphics, batch->m_InstanceBuffer);
         if (batch->m_VisibleInstanceProgram)

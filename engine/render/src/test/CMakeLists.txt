@@ -112,11 +112,11 @@ if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)-macos$" AND "engine" IN_LIST DEFOLD_
       DEBUG_SHADER_FILE="${DEFOLD_BUILD_HOME}/engine/engine/build/${TARGET_PLATFORM}/content/materials/debug.spc")
     if(_gpu_backend STREQUAL "vulkan")
       target_compile_definitions(${_gpu_target} PRIVATE DM_TEST_GPU_VULKAN=1)
-      # Inject allocation errors at native calls without production testing hooks.
+      # Inject allocation and mapping errors without production testing hooks.
       set(_vulkan_device_source "${CMAKE_CURRENT_SOURCE_DIR}/../../../graphics/src/vulkan/graphics_vulkan_device.cpp")
       target_sources(${_gpu_target} PRIVATE "${_vulkan_device_source}")
       set_source_files_properties("${_vulkan_device_source}" PROPERTIES
-        COMPILE_DEFINITIONS "vkCreateBuffer=TestVkCreateBuffer;vkAllocateMemory=TestVkAllocateMemory")
+        COMPILE_DEFINITIONS "vkCreateBuffer=TestVkCreateBuffer;vkAllocateMemory=TestVkAllocateMemory;vkMapMemory=TestVkMapMemory")
     elseif(_gpu_backend STREQUAL "webgpu")
       target_compile_definitions(${_gpu_target} PRIVATE DM_TEST_GPU_WEBGPU=1)
     endif()

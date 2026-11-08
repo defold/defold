@@ -3563,15 +3563,22 @@ bail:
     {
         VulkanContext* context = (VulkanContext*)_context;
         assert(context->m_FrameBegun);
-        SuspendRenderPass(context);
         VulkanAsyncBufferReadback* request = new VulkanAsyncBufferReadback;
         request->m_Context = context;
         request->m_Size = size;
         VkDevice device = context->m_LogicalDevice.m_Device;
         VkResult result = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, device, size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &request->m_Buffer);
-        CHECK_VK_ERROR(result);
-        result = request->m_Buffer.MapMemory(device);
-        CHECK_VK_ERROR(result);
+        if (result == VK_SUCCESS)
+        {
+            result = request->m_Buffer.MapMemory(device);
+        }
+        if (result != VK_SUCCESS)
+        {
+            DestroyDeviceBuffer(device, &request->m_Buffer.m_Handle);
+            delete request;
+            return 0;
+        }
+        SuspendRenderPass(context);
         request->m_Frame = context->m_CurrentFrameInFlight;
         request->m_SubmitSerial = context->m_FrameResources[request->m_Frame].m_SubmitSerial;
         TouchResource(context, &request->m_Buffer);

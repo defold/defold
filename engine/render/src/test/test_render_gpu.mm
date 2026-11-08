@@ -43,8 +43,10 @@ static uint32_t g_FailedBufferLength;
 static uint32_t g_FailedBufferAllocations;
 static bool     g_FailVulkanMemoryAllocation;
 static bool     g_NextVulkanMemoryAllocation;
+static bool     g_FailVulkanMemoryMapping;
+static uint32_t g_FailedMemoryMappings;
 
-// The Vulkan device implementation is linked into this test with these two
+// The Vulkan device implementation is linked into this test with these three
 // native calls redirected. All other calls still use the real Vulkan driver.
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL TestVkCreateBuffer(VkDevice device, const VkBufferCreateInfo* info, const VkAllocationCallbacks* allocator, VkBuffer* buffer)
 {
@@ -68,6 +70,17 @@ extern "C" VKAPI_ATTR VkResult VKAPI_CALL TestVkAllocateMemory(VkDevice device, 
         return VK_ERROR_OUT_OF_DEVICE_MEMORY;
     }
     return vkAllocateMemory(device, info, allocator, memory);
+}
+
+extern "C" VKAPI_ATTR VkResult VKAPI_CALL TestVkMapMemory(VkDevice device, VkDeviceMemory memory, VkDeviceSize offset, VkDeviceSize size, VkMemoryMapFlags flags, void** data)
+{
+    if (g_FailVulkanMemoryMapping)
+    {
+        g_FailVulkanMemoryMapping = false;
+        ++g_FailedMemoryMappings;
+        return VK_ERROR_MEMORY_MAP_FAILED;
+    }
+    return vkMapMemory(device, memory, offset, size, flags, data);
 }
 #elif !defined(DM_TEST_GPU_WEBGPU)
 static Method     g_BufferAllocationMethod;
@@ -377,6 +390,7 @@ class GpuIndirectTest : public jc_test_base_class
 #if defined(DM_TEST_GPU_VULKAN)
         g_FailedBufferLength = 0;
         g_NextVulkanMemoryAllocation = false;
+        g_FailVulkanMemoryMapping = false;
 #elif !defined(DM_TEST_GPU_WEBGPU)
         RestoreMetalBufferAllocation();
 #endif
@@ -1056,6 +1070,94 @@ TEST_F(GpuIndirectTest, OptionalVisibilityStatistics)
     dmRender::DeleteRenderItem(m_Render, item);
     dmRender::UnregisterRenderListDispatch(m_Render, dispatch);
 }
+
+// Invalid byte ranges must be rejected before backend dispatch, leaving later
+// valid partial snapshots and the frame's command encoder usable.
+TEST_F(GpuIndirectTest, ReadbackRequestValidation)
+{
+    uint32_t values[] = { 36, 7, 2, 0, 0 };
+    dmGraphics::HStorageBuffer buffer = dmGraphics::NewStorageBuffer(m_Graphics, sizeof(values), values, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+    ASSERT_NE((dmGraphics::HStorageBuffer)0, buffer);
+    const uint32_t requests[][2] = { { 1, 4 }, { 0, 1 }, { 0, 0 }, { sizeof(values), 4 } };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(requests); ++i)
+    {
+        ASSERT_EQ((dmGraphics::HAsyncBufferReadback)0, dmGraphics::RequestStorageBufferReadback(m_Graphics, buffer, requests[i][0], requests[i][1]));
+    }
+    uint32_t result[2];
+    ASSERT_TRUE(ReadBuffer(m_Graphics, buffer, sizeof(uint32_t), sizeof(result), result));
+    ASSERT_EQ(7u, result[0]);
+    ASSERT_EQ(2u, result[1]);
+    dmGraphics::DeleteStorageBuffer(m_Graphics, buffer);
+}
+
+#if !defined(DM_TEST_GPU_WEBGPU)
+// Failed optional snapshots must leave indirect rendering usable and retry the
+// same cached visibility after native allocation or mapping recovers.
+TEST_F(GpuIndirectTest, OptionalStatisticsAllocationFailure)
+{
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Render, NoopDispatch, 0, 0);
+    dmRender::HRenderItem item = dmRender::NewRenderItem(m_Render, dispatch, 0);
+    dmRender::SetBoundingOBB(m_Render, item, Vector3(-0.5f), Vector3(0.5f));
+    dmRender::SetRenderItemGpuDriven(m_Render, item, true);
+    dmRender::Enable(m_Render, item, true);
+    uint32_t slot = (uint32_t)item;
+    dmRender::RenderObject object;
+    object.m_VertexCount = 36;
+    uint32_t failure_count = 1;
+#if defined(DM_TEST_GPU_VULKAN)
+    failure_count = 3;
+#endif
+    for (uint32_t failure = 0; failure < failure_count; ++failure)
+    {
+        m_Render->m_GpuIndirect.m_StatisticsEnabled = 0;
+        dmRender::SetWorldTransform(m_Render, item, Matrix4::translation(Vector3(0.1f * (failure + 1), 0, 0)));
+        dmRender::ClearRenderObjects(m_Render);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Render, &object, &slot, 1, 64, 0, -1));
+        dmRender::HGpuRenderBatch batch = m_Render->m_GpuIndirect.m_Batches[0];
+        ASSERT_TRUE(batch->m_StatisticsDirty);
+        ASSERT_EQ((dmGraphics::HAsyncBufferReadback)0, batch->m_Readback);
+
+#if defined(DM_TEST_GPU_VULKAN)
+        g_FailedBufferLength = failure < 2 ? 5 * sizeof(uint32_t) : 0;
+        g_FailVulkanMemoryAllocation = failure == 1;
+        g_FailVulkanMemoryMapping = failure == 2;
+        g_FailedBufferAllocations = 0;
+        g_FailedMemoryMappings = 0;
+#else
+        dmGraphics::MetalContext* metal = (dmGraphics::MetalContext*)m_Graphics;
+        FailMetalBufferLength(metal->m_Device, 5 * sizeof(uint32_t));
+#endif
+        m_Render->m_GpuIndirect.m_StatisticsEnabled = 1;
+        dmRender::ClearRenderObjects(m_Render);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Render, &object, &slot, 1, 64, 0, -1));
+        ASSERT_EQ(batch, m_Render->m_GpuIndirect.m_RenderBatches.Back());
+        ASSERT_EQ((dmGraphics::HAsyncBufferReadback)0, batch->m_Readback);
+        ASSERT_TRUE(batch->m_StatisticsDirty);
+#if defined(DM_TEST_GPU_VULKAN)
+        ASSERT_EQ(failure < 2 ? 1u : 0u, g_FailedBufferAllocations);
+        ASSERT_EQ(failure == 2 ? 1u : 0u, g_FailedMemoryMappings);
+        g_FailedBufferLength = 0;
+#else
+        ASSERT_EQ(1u, g_FailedBufferAllocations);
+        RestoreMetalBufferAllocation();
+#endif
+
+        dmRender::ClearRenderObjects(m_Render);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Render, &object, &slot, 1, 64, 0, -1));
+        ASSERT_EQ(batch, m_Render->m_GpuIndirect.m_RenderBatches.Back());
+        ASSERT_NE((dmGraphics::HAsyncBufferReadback)0, batch->m_Readback);
+        ASSERT_FALSE(batch->m_StatisticsDirty);
+        CompleteFrame();
+        dmGraphics::BeginFrame(m_Graphics);
+        uint32_t arguments[5];
+        ASSERT_TRUE(ReadSnapshot(batch->m_Readback, arguments));
+        ASSERT_EQ(36u, arguments[0]);
+        ASSERT_EQ(1u, arguments[1]);
+    }
+    dmRender::DeleteRenderItem(m_Render, item);
+    dmRender::UnregisterRenderListDispatch(m_Render, dispatch);
+}
+#endif
 
 // Checks that asynchronous readback captures the requested GPU ordering point,
 // rather than reading a source buffer subsequently overwritten by another draw.

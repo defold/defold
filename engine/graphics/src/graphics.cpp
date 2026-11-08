@@ -2900,7 +2900,7 @@ namespace dmGraphics
 
     HAsyncBufferReadback RequestStorageBufferReadback(HContext context, HStorageBuffer buffer, uint32_t offset, uint32_t size)
     {
-        if (!g_functions.m_RequestStorageBufferReadback)
+        if (!g_functions.m_RequestStorageBufferReadback || size == 0 || ((offset | size) & 3) != 0)
         {
             return 0;
         }
