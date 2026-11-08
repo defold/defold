@@ -57,7 +57,7 @@ namespace dmEngineService
     static bool            g_TraceEnergy;
     static char            g_XcTrace[PATH_MAX];
 
-    static bool            IsBusy()
+    static bool IsBusy()
     {
         return g_TraceStatus.m_State >= XCTRACE_SCHEDULED && g_TraceStatus.m_State <= XCTRACE_STOPPING;
     }

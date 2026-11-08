@@ -57,7 +57,7 @@ namespace dmEngineService
     static ProfileListener g_NativeListener;
     static bool            g_NativeRegistered = false;
 
-    static NativeThread*   GetThread(XcTraceProfiler* xctrace)
+    static NativeThread* GetThread(XcTraceProfiler* xctrace)
     {
         NativeThread* thread = (NativeThread*)dmThread::GetTlsValue(xctrace->m_ThreadKey);
         if (!thread)

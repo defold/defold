@@ -110,7 +110,7 @@ class NativeProfilerTest : public jc_test_base_class
     public:
     char* m_PreviousEnable;
 
-    void  SetUp()
+    void SetUp()
     {
         const char* enable = getenv("DM_PROFILE_NATIVE_ENABLE");
         m_PreviousEnable = enable ? strdup(enable) : 0;

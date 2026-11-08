@@ -24,16 +24,20 @@ namespace dmEngineService
         InitializeXcTraceProfiler();
 #endif
     }
-    void          Finalize()
+
+    void Finalize()
     {
     }
+
     XcTraceResult StartXcTrace(const XcTraceParams&)
     {
         return XCTRACE_UNAVAILABLE;
     }
+
     void StopXcTrace()
     {
     }
+
     void GetXcTraceStatus(XcTraceStatus* status)
     {
         memset(status, 0, sizeof(*status));

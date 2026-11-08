@@ -38,11 +38,13 @@ class XcTraceTest : public jc_test_base_class
     char        m_Directory[128];
     char        m_Path[256];
     char*       m_Environment[5];
+
     const char* Variable(uint32_t i)
     {
         static const char* names[] = { "DM_PROFILE_NATIVE_XCTRACE", "DM_PROFILE_NATIVE_TRACE", "DM_PROFILE_NATIVE_TRACE_DELAY_MS", "DM_PROFILE_NATIVE_TRACE_DURATION_MS", "DM_PROFILE_NATIVE_TRACE_ENERGY" };
         return names[i];
     }
+
     void SetUp()
     {
         for (uint32_t i = 0; i < 5; ++i)
@@ -57,6 +59,7 @@ class XcTraceTest : public jc_test_base_class
         ProfileInitialize();
         dmEngineService::Initialize();
     }
+
     void TearDown()
     {
         dmEngineService::Finalize();
@@ -76,6 +79,7 @@ class XcTraceTest : public jc_test_base_class
             }
         }
     }
+
     void WaitForCompletion()
     {
         pthread_mutex_lock(&dmEngineService::g_TraceMutex);
