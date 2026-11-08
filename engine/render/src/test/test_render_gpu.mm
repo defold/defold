@@ -1096,10 +1096,13 @@ TEST_F(GpuIndirectTest, ReadbackRequestValidation)
 TEST_F(GpuIndirectTest, OptionalStatisticsAllocationFailure)
 {
     dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Render, NoopDispatch, 0, 0);
+    dmRender::RenderListBegin(m_Render);
     dmRender::HRenderItem item = dmRender::NewRenderItem(m_Render, dispatch, 0);
     dmRender::SetBoundingOBB(m_Render, item, Vector3(-0.5f), Vector3(0.5f));
     dmRender::SetRenderItemGpuDriven(m_Render, item, true);
     dmRender::Enable(m_Render, item, true);
+    dmRender::SubmitRenderListDispatch(m_Render, dispatch);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, 0, 0, 0, dmRender::SORT_NONE));
     uint32_t slot = (uint32_t)item;
     dmRender::RenderObject object;
     object.m_VertexCount = 36;
