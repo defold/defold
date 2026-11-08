@@ -80,7 +80,7 @@ ready so initialization runs with the recorder attached. A positive delay lets t
 while waiting and attaching. Recording stops and saves without stopping the game.
 Normal engine shutdown also stops and saves a running recording.
 After a successful recording, the Console prints an `open -a Instruments` command
-with the saved trace path. The Python runner prints the same command after saving.
+with the saved trace path. Command-line captures print the same command after saving.
 Check **Open in Instruments when finished** to have the editor open completed
 local traces automatically. This defaults to off and applies to both startup and
 Debug-menu recordings, independently of the **Run on start** checkbox.
@@ -152,17 +152,19 @@ python3 scripts/profile_native.py --bundle-id com.example.game --duration 5 -- \
     /absolute/path/dmengine --config=resource.profile=1 /absolute/path/game.projectc
 ```
 
-The script compiles the resource instrument, creates the application suspended,
-attaches `xctrace`, and waits for its recording-ready notification before resuming
-the application. It enables native profiling through the environment and stops
-the application at the runtime limit, including if it is still initializing.
-Both the recording limit and application runtime default to five seconds.
+The script launches a debug engine with the startup recording environment variables
+listed above. The engine service compiles the instrument package, attaches
+`xctrace`, and waits for recording readiness before continuing initialization.
+`--duration` limits the recording to five seconds by default; the application
+keeps running, as it does for editor-started captures. Close the game normally to
+exit. The launcher exits with the engine's exit status. The engine must include
+`/profiler/trace` support.
 
-Captures and companion stdout, recorder log, metadata, and compiled instrument
-package are saved under `~/Library/Logs/<bundle-id>/Profiling/`. The capture,
-stdout, and package paths are printed to stdout. Keep the `.instrdst` package
-alongside a shared trace: the recipient needs it installed in Instruments to
-display the custom table.
+Captures, recorder logs and compiled instrument packages are saved under
+`~/Library/Logs/<bundle-id>/Profiling/`. Engine output goes to the terminal,
+including recording errors and the command to open a completed trace. Keep the
+`.instrdst` package alongside a shared trace: the recipient needs it installed in
+Instruments to display the custom table.
 
 `xctrace` requires Xcode; Apple's standalone Command Line Tools package does not
 include it. See
@@ -218,7 +220,7 @@ xcrun instrumentbuilder engine/engine/instruments/DefoldResources.instrpkg \
     -o /tmp/DefoldResources.instrdst
 ```
 
-The capture script loads this package for its recording without installing it.
+The engine service and command-line launcher load this package without installing it.
 For the Instruments UI, install the compiled `.instrdst` once on each developer
 machine. It can also be copied into
 `~/Library/Application Support/Instruments/Packages/`; reopen Instruments afterward
@@ -240,22 +242,19 @@ the **Sample Window** column shows the actual interval, which can be longer.
 Unsupported hardware or missing measurements produce an error, rather than a
 successful recording without energy data.
 
-The standalone Python runner requires `--energy` to include these measurements:
+The command-line launcher requires `--energy` to include these measurements:
 
 ```sh
-sudo -v
 python3 scripts/profile_native.py --bundle-id com.example.game --duration 5 --energy -- \
     /absolute/path/dmengine --config=resource.profile=1 /absolute/path/game.projectc
 ```
 
-Run both commands in the same terminal. Apple's `powermetrics` sampler and its
-small Python supervisor need administrator access; the engine, recorder and
-signpost helper run as your user. The supervisor uses the system Python in
-isolated mode, with user packages disabled. It stops and reaps its sampler when
-the capture closes or fails, without needing to renew sudo authorization.
-The sampler has a finite sample count and requests a 500 ms sampling interval;
-the supervisor also enforces a deadline if the sampler stalls.
-Missing administrator authorization is reported before the application launches.
+The engine uses the same macOS authorization dialog and energy collector as an
+editor-started recording. Apple's `powermetrics` sampler and its small Python
+supervisor need administrator access; the engine and recorder run as your user.
+The supervisor uses the system Python in isolated mode, with user packages
+disabled. It stops and reaps its sampler when the engine closes the capture's
+control pipe, including after an engine crash.
 This collector uses the Apple silicon CPU/GPU/ANE power counters; unsupported
 hardware or output formats are reported as errors.
 
@@ -268,17 +267,11 @@ score, not watts or joules. Do not interpret either measurement as per-resource
 energy use, or compare scores across different hardware.
 
 Power rows include the actual **Sample Window**. **Reported** is when the engine
-or helper published the sample, which summarizes the preceding window. The Python
-runner's companion
-`.energy.jsonl` stores the normalized samples and original sample timestamps;
-it contains only system power and the selected process's impact. A final sample
-can arrive after recording has stopped. Use the trace timeline when correlating
-samples with resource loading and CPU/GPU work. The `.energy.log` contains sampler
-diagnostics. Unknown or absent measurements are not filled in with zeros.
-The runner waits for the signpost helper to initialize before starting the game.
-Before reporting success, it exports the saved energy tables and requires both
-system power rows and impact rows for the selected PID. The `.json` metadata
-records these retained row counts separately from the sidecar's sample counts.
+published the sample, which summarizes the preceding window. Use the trace
+timeline when correlating samples with resource loading and CPU/GPU work. The
+`.xctrace.log` contains recorder and sampler diagnostics. Unknown or absent
+measurements are not filled in with zeros. The engine requires at least one
+application energy-impact sample before reporting a successful energy capture.
 
 For iPhone/iPad, use Apple's **Power Profiler** on a physical device running
 iOS/iPadOS 26 or later. Pair and unlock the device in Xcode and enable Developer
