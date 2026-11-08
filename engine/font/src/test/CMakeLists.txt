@@ -73,6 +73,7 @@ endfunction()
 
 defold_add_executable(test_font
   "${FONT_TEST_ROOT}/test_font.cpp"
+  "${FONT_TEST_ROOT}/test_text_arc.c"
   "${FONT_TEST_ROOT}/test_font_glyphbank.cpp"
   "${FONT_SRC_DIR}/render/glyph_vertex.cpp"
   "${FONT_SRC_DIR}/render/layout_vertex.cpp")
@@ -80,6 +81,7 @@ font_configure_test(test_font font)
 
 defold_add_executable(test_font_skribidi
   "${FONT_TEST_ROOT}/test_font.cpp"
+  "${FONT_TEST_ROOT}/test_text_arc.c"
   "${FONT_TEST_ROOT}/test_font_glyphbank.cpp"
   "${FONT_SRC_DIR}/render/glyph_vertex.cpp"
   "${FONT_SRC_DIR}/render/layout_vertex.cpp")

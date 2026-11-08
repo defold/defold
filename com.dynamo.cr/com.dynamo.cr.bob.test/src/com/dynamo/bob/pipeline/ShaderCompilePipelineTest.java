@@ -14,19 +14,23 @@
 
 package com.dynamo.bob.pipeline;
 
-import static com.dynamo.bob.pipeline.ShaderProgramBuilder.resourceTypeToShaderDataType;
-import static org.junit.Assert.*;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.pipeline.shader.SPIRVReflector;
+import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
+import com.dynamo.bob.pipeline.shader.ShaderCompilePipelineLegacy;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
 
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.pipeline.shader.ShaderCompilePipelineLegacy;
-import org.junit.Test;
-
-import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
-import com.dynamo.bob.pipeline.shader.SPIRVReflector;
-import com.dynamo.graphics.proto.Graphics.ShaderDesc;
+import static com.dynamo.bob.pipeline.ShaderProgramBuilder.resourceTypeToShaderDataType;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class ShaderCompilePipelineTest {
 

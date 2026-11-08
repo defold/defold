@@ -15,6 +15,7 @@ set(SCRIPT_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/script")
 set(SCRIPT_DEPENDENCIES
   ddf
   dlib
+  font
   zip
   mbedtls
   resource
@@ -28,7 +29,8 @@ set(SCRIPT_PROTO_FILES
   "${SCRIPT_SRC_DIR}/script/sys_ddf.proto")
 set(SCRIPT_PUBLIC_HEADERS
   "${SCRIPT_SRC_DIR}/script_extension.h"
-  "${SCRIPT_SRC_DIR}/script.h")
+  "${SCRIPT_SRC_DIR}/script.h"
+  "${SCRIPT_SRC_DIR}/text_curve.hpp")
 file(GLOB_RECURSE SCRIPT_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${SCRIPT_SRC_DIR}/dmsdk/*.h"
   "${SCRIPT_SRC_DIR}/dmsdk/*.hpp")
@@ -120,6 +122,7 @@ if(TARGET graphics_proto)
 endif()
 add_dependencies(script
   script_package_proto_files
+  font_sdk_headers
   graphics_sdk_headers)
 defold_target_link_libraries(script "${TARGET_PLATFORM}" SCOPE PUBLIC
   ${SCRIPT_DEPENDENCIES})
@@ -162,6 +165,7 @@ add_custom_target(script_sdk_headers
 install(FILES
   "${SCRIPT_SRC_DIR}/script_extension.h"
   "${SCRIPT_SRC_DIR}/script.h"
+  "${SCRIPT_SRC_DIR}/text_curve.hpp"
   ${SCRIPT_PROTO_HEADERS}
   DESTINATION include/script)
 install(DIRECTORY "${SCRIPT_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")

@@ -29,12 +29,10 @@ _GRADLE_SKIPPED = 'DEFOLD_TEST_SKIPPED '
 _GRADLE_TEST_TASK = 'DEFOLD_TEST_TASK '
 
 
-class BuildOutput:
-    def __init__(self, title, log_file, stream=None, verbose=False, clock=None, env=None):
+class ProgressOutput:
+    def __init__(self, title, stream=None, clock=None, env=None):
         self.title = title
-        self.log_file = log_file
         self.stream = stream if stream is not None else sys.stdout
-        self.verbose = verbose
         self.clock = clock if clock is not None else time.monotonic
         self.terminal = self.stream.isatty()
         self.color_enabled = build_console.use_colors(self.stream, env)
@@ -45,15 +43,6 @@ class BuildOutput:
         self.completed = 0
         self.total = 0
         self.progress_detail = None
-        self.ninja = False
-        self.tests = False
-        self.no_work = False
-        self.in_error = False
-        self.errors = []
-        self.edge_output = deque(maxlen=100)
-        self.tail = deque(maxlen=100)
-        if not self.verbose:
-            self._write_progress(f'{self.title}: running...')
 
     def _write_progress(self, message, color=None):
         message = self._printable(message)
@@ -72,7 +61,7 @@ class BuildOutput:
         encoding = self.stream.encoding or 'utf-8'
         return message.encode(encoding, errors='backslashreplace').decode(encoding)
 
-    def _progress(self, completed, total, detail=None):
+    def progress(self, completed, total, detail=None):
         if total != self.total or completed < self.completed:
             self.last_bucket = -1
         self.completed, self.total = completed, total
@@ -90,6 +79,29 @@ class BuildOutput:
         filled = percent * 20 // 100
         suffix = detail if detail else f'({completed}/{total})'
         self._write_progress(f'{self.title} [{"#" * filled}{"-" * (20 - filled)}] {percent:3d}% {suffix}')
+
+    def end_line(self):
+        if self.line_width:
+            self.stream.write('\n')
+            self.stream.flush()
+            self.line_width = 0
+            self.last_bucket = -1
+
+
+class BuildOutput(ProgressOutput):
+    def __init__(self, title, log_file, stream=None, verbose=False, clock=None, env=None):
+        super().__init__(title, stream=stream, clock=clock, env=env)
+        self.log_file = log_file
+        self.verbose = verbose
+        self.ninja = False
+        self.tests = False
+        self.no_work = False
+        self.in_error = False
+        self.errors = []
+        self.edge_output = deque(maxlen=100)
+        self.tail = deque(maxlen=100)
+        if not self.verbose:
+            self._write_progress(f'{self.title}: running...')
 
     def _start_error(self, line, context=False):
         if not self.in_error:
@@ -116,7 +128,7 @@ class BuildOutput:
             self.edge_output.clear()
             if not self.errors:
                 match = progress if progress else test
-                self._progress(int(match[1]), int(match[2]))
+                self.progress(int(match[1]), int(match[2]))
             if test and test[3] == 'FAILED':
                 self._start_error(line)
             return
@@ -150,13 +162,12 @@ class BuildOutput:
         elapsed = self.clock() - self.started
         if success:
             if self.total and self.completed != self.total:
-                self._progress(self.total, self.total, self.progress_detail)
+                self.progress(self.total, self.total, self.progress_detail)
             status = 'up to date' if self.no_work else 'done'
         else:
             status = 'FAILED'
         self._write_progress(f'{self.title}: {status} [{elapsed:.2f} s]', Style.SUCCESS if success else Style.ERROR)
-        if self.terminal:
-            self.stream.write('\n')
+        self.end_line()
         if not success:
             diagnostic = self.failure_output()
             if diagnostic:
@@ -238,7 +249,7 @@ class GradleOutput(BuildOutput):
                 if phase != self.phase:
                     self.phase = phase
                     self.last_bucket = -1
-                self._progress(int(progress[1]), 100, phase)
+                self.progress(int(progress[1]), 100, phase)
             return
         # Worker rows are transient status, rather than task diagnostics.
         if plain == '> IDLE' or plain.startswith('> :'):
@@ -258,7 +269,7 @@ class GradleOutput(BuildOutput):
             if self.phase != 'executing' and not self.errors and not self.summary:
                 self.phase = 'executing'
                 self.last_bucket = -1
-                self._progress(0, 100, self.phase)
+                self.progress(0, 100, self.phase)
             if task[2] == 'FAILED':
                 if not same_task:
                     self.in_error = False
@@ -379,9 +390,7 @@ def command(env, args, title, log_path, cwd=None, verbose=False, stream=None, gr
             error.output = output.failure_output()
             raise
         except BaseException:
-            if output.terminal and not verbose:
-                output.stream.write('\n')
-                output.stream.flush()
+            output.end_line()
             raise
         else:
             output.finish(True)

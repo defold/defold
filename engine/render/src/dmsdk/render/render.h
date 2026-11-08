@@ -419,6 +419,9 @@ namespace dmRender
 
     /*#
      * Render dispatch function callback.
+     * Each draw calls BEGIN once before any batches and END once after all batches
+     * for dispatches with entries matching the predicate and frustum. Dispatches
+     * with no selected entries receive no operations.
      * @typedef
      * @name RenderListDispatchFn
      * @param params [type: dmRender::RenderListDispatchParams] the params

@@ -49,7 +49,7 @@ extern "C" void dmExportedSymbols();
 extern "C" void TestTypeCpp();
 extern "C"
 {
-    void TestTypeCBroadcastBuiltinEvent(ExtensionParams* params, uint32_t index, HWindow window);
+    void TestTypeCBroadcastBuiltinEvent(HContextRegistry context_registry, uint32_t index, HWindow window);
     extern int g_TypeCRegisterCount;
     extern int g_TypeCUnregisterCount;
     extern int g_TypeCUpdateCount;
@@ -92,10 +92,30 @@ static dmExtension::Result SecondAppInitialize(dmExtension::AppParams* params)
     return dmExtension::RESULT_OK;
 }
 
-static void SecondOnEvent(dmExtension::Params* params, dmhash_t, const void*, uint32_t)
+struct RegistryEventContext
+{
+    HContextRegistry m_Registry;
+    void*            m_ConfigFile;
+    void*            m_Factory;
+    void*            m_L;
+};
+
+static void SecondOnEvent(dmExtension::Params* params, dmhash_t event_id, const void* data, uint32_t data_size)
 {
     g_UserDataValid &= dmExtension::ParamsGetUserData(params) == 0;
     ++g_SecondEventCalls;
+    if (event_id == dmHashString64("test.registry_context"))
+    {
+        ASSERT_EQ(sizeof(RegistryEventContext), data_size);
+        const RegistryEventContext* expected = (const RegistryEventContext*)data;
+        ASSERT_EQ(expected->m_Registry, dmExtension::ParamsGetContextRegistry(params));
+        ASSERT_EQ(expected->m_ConfigFile, params->m_ConfigFile);
+        ASSERT_EQ(expected->m_Factory, params->m_ResourceFactory);
+        ASSERT_EQ(expected->m_L, params->m_L);
+        float dt = -1.0f;
+        ASSERT_TRUE(dmExtension::ParamsGetFloat(params, dmExtension::PARAM_DT, &dt));
+        ASSERT_EQ(0.0f, dt);
+    }
 }
 
 static dmExtension::Result RegisterObserver(dmExtension::HExtension extension)
@@ -147,7 +167,7 @@ struct EventTestState
     uint32_t                  m_Height;
     uint32_t                  m_CustomValue;
     dmhash_t                  m_LastId;
-    const void*              m_LastData;
+    const void*               m_LastData;
     uint32_t                  m_LastDataSize;
     bool                      m_DispatchNested;
     dmEngine::State           m_State;
@@ -158,16 +178,16 @@ static EventTestState g_EventTest = {};
 static bool g_OmitEventCallback = false;
 static const uint8_t g_NestedPayload[] = { 1, 2, 3 };
 
-static void BroadcastStateEvent(dmExtension::Params* params, dmEngine::State state)
+static void BroadcastStateEvent(HContextRegistry context_registry, dmEngine::State state)
 {
     dmEngine::StateEvent event = { state };
-    dmExtension::BroadcastEvent(params, dmEngine::EVENT_STATE, &event, sizeof(event));
+    dmExtension::BroadcastEvent(context_registry, dmEngine::EVENT_STATE, &event, sizeof(event));
 }
 
-static void BroadcastWindowEvent(dmExtension::Params* params, dmEngine::WindowEventType type)
+static void BroadcastWindowEvent(HContextRegistry context_registry, dmEngine::WindowEventType type)
 {
     dmEngine::WindowEvent event = { 0, type, { { 0, 0 } } };
-    dmExtension::BroadcastEvent(params, dmEngine::EVENT_WINDOW, &event, sizeof(event));
+    dmExtension::BroadcastEvent(context_registry, dmEngine::EVENT_WINDOW, &event, sizeof(event));
 }
 
 static void TypeEvent(dmExtension::Params* params, dmhash_t event_id, const void* data, uint32_t data_size)
@@ -200,7 +220,7 @@ static void TypeEvent(dmExtension::Params* params, dmhash_t event_id, const void
             if (g_EventTest.m_DispatchNested)
             {
                 g_EventTest.m_DispatchNested = false;
-                dmExtension::BroadcastEvent(params, dmHashString64("nested_event"), g_NestedPayload, sizeof(g_NestedPayload));
+                dmExtension::BroadcastEvent(dmExtension::ParamsGetContextRegistry(params), dmHashString64("nested_event"), g_NestedPayload, sizeof(g_NestedPayload));
                 CheckTypeUserData(dmExtension::ParamsGetUserData(params));
             }
         }
@@ -268,7 +288,7 @@ static dmExtension::Result TypeUpdate(dmExtension::Params* params)
     CheckTypeUserData(dmExtension::ParamsGetUserData(params));
     if (g_DispatchDuringUpdate)
     {
-        dmExtension::BroadcastEvent(params, dmHashString64("update_event"), 0, 0);
+        dmExtension::BroadcastEvent(dmExtension::ParamsGetContextRegistry(params), dmHashString64("update_event"), 0, 0);
         CheckTypeUserData(dmExtension::ParamsGetUserData(params));
     }
     ++g_TypeTest.m_Update;
@@ -439,9 +459,9 @@ TEST(dmExtension, Basic)
     dmLog::LogInitialize(&log_params);
     dmLogRegisterListener(CaptureDeprecation);
 
-    BroadcastWindowEvent(&params, dmEngine::WINDOW_EVENT_FOCUS_GAINED);
+    BroadcastWindowEvent(context_registry, dmEngine::WINDOW_EVENT_FOCUS_GAINED);
     ASSERT_EQ(1, g_TestAppEventCount);
-    BroadcastWindowEvent(&params, dmEngine::WINDOW_EVENT_FOCUS_LOST);
+    BroadcastWindowEvent(context_registry, dmEngine::WINDOW_EVENT_FOCUS_LOST);
     ASSERT_EQ(0, g_TestAppEventCount);
     ASSERT_EQ(2, g_TestEventCount);
     ASSERT_EQ(2, g_TestNewEventCount);
@@ -611,7 +631,7 @@ TEST(dmExtension, BuiltinEventHashes)
     HWindow window = (HWindow) & context;
     for (uint32_t i = 0; i < 7; ++i)
     {
-        TestTypeCBroadcastBuiltinEvent(&context.m_Params, i, window);
+        TestTypeCBroadcastBuiltinEvent(context.m_Registry, i, window);
         bool window_event = i < 4 || i == 6;
         EXPECT_EQ(window_event ? dmEngine::EVENT_WINDOW : dmEngine::EVENT_STATE, g_EventTest.m_LastId);
         HWindow expected_window = window_event ? window : 0;
@@ -649,12 +669,12 @@ TEST(dmExtension, StateEventLegacyValidation)
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));
     int legacy_count = g_TestEventCount;
     dmEngine::StateEvent event = { (dmEngine::State)7 };
-    dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_STATE, &event, sizeof(event));
+    dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_STATE, &event, sizeof(event));
     event.m_State = (dmEngine::State)0;
-    dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_STATE, &event, sizeof(event));
+    dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_STATE, &event, sizeof(event));
     uint8_t short_payload = 0;
-    dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_STATE, &short_payload, sizeof(short_payload));
-    dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_STATE, 0, 0);
+    dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_STATE, &short_payload, sizeof(short_payload));
+    dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_STATE, 0, 0);
     EXPECT_EQ(4u, g_EventTest.m_Count);
     EXPECT_EQ(4, g_TypeCEventCount);
     EXPECT_EQ(legacy_count, g_TestEventCount);
@@ -669,10 +689,10 @@ TEST(dmExtension, WindowEventLegacyValidation)
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));
     int legacy_count = g_TestEventCount;
     dmEngine::WindowEvent event = { 0, (dmEngine::WindowEventType)7, { { 0, 0 } } };
-    dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &event, sizeof(event));
+    dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_WINDOW, &event, sizeof(event));
     uint8_t short_payload = 0;
-    dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &short_payload, sizeof(short_payload));
-    dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, 0, 0);
+    dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_WINDOW, &short_payload, sizeof(short_payload));
+    dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_WINDOW, 0, 0);
     EXPECT_EQ(3u, g_EventTest.m_Count);
     EXPECT_EQ(3, g_TypeCEventCount);
     EXPECT_EQ(legacy_count, g_TestEventCount);
@@ -687,7 +707,7 @@ TEST(dmExtension, WindowEventSizeUnion)
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));
     int legacy_count = g_TestEventCount;
     dmEngine::WindowEvent event = { 0, dmEngine::WINDOW_EVENT_RESIZED, { { 123, 456 } } };
-    dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &event, sizeof(event));
+    dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_WINDOW, &event, sizeof(event));
     EXPECT_EQ(legacy_count, g_TestEventCount);
     EXPECT_EQ(123u, g_EventTest.m_Width);
     EXPECT_EQ(456u, g_EventTest.m_Height);
@@ -695,7 +715,7 @@ TEST(dmExtension, WindowEventSizeUnion)
     EXPECT_EQ(456u, g_TypeCWindowHeight);
     event.m_Type = dmEngine::WINDOW_EVENT_MINIMIZED;
     memset(&event.m_Data, 0xa5, sizeof(event.m_Data));
-    dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &event, sizeof(event));
+    dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_WINDOW, &event, sizeof(event));
     EXPECT_EQ(dmEngine::WINDOW_EVENT_MINIMIZED, g_EventTest.m_WindowType);
     EXPECT_EQ(ENGINE_WINDOW_EVENT_MINIMIZED, g_TypeCWindowType);
     EXPECT_EQ(1u, g_EventTest.m_WindowCount);
@@ -716,12 +736,12 @@ TEST(dmExtension, PublicCustomEventBroadcast)
     InitializeEventTest(&context);
     const uint8_t bytes[] = { 1, 2, 3 };
     dmhash_t event_id = dmHashString64("test.custom_event");
-    dmExtension::BroadcastEvent(&context.m_Params, event_id, bytes, sizeof(bytes));
+    dmExtension::BroadcastEvent(context.m_Registry, event_id, bytes, sizeof(bytes));
     EXPECT_EQ(0u, g_EventTest.m_Count);
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));
     int fixture_count = g_TestEventCount;
     int new_fixture_count = g_TestNewEventCount;
-    dmExtension::BroadcastEvent(&context.m_Params, event_id, bytes, sizeof(bytes));
+    dmExtension::BroadcastEvent(context.m_Registry, event_id, bytes, sizeof(bytes));
     EXPECT_EQ(1u, g_EventTest.m_Count);
     EXPECT_EQ(1, g_TypeCEventCount);
     EXPECT_EQ(event_id, g_EventTest.m_LastId);
@@ -729,14 +749,14 @@ TEST(dmExtension, PublicCustomEventBroadcast)
     EXPECT_EQ((uint32_t)sizeof(bytes), g_EventTest.m_LastDataSize);
     EXPECT_EQ(0u, g_EventTest.m_CustomValue);
     uint32_t value = 0x12345678;
-    dmExtension::BroadcastEvent(&context.m_Params, event_id, &value, sizeof(value));
+    dmExtension::BroadcastEvent(context.m_Registry, event_id, &value, sizeof(value));
     EXPECT_EQ(2u, g_EventTest.m_Count);
     EXPECT_EQ(2, g_TypeCEventCount);
     EXPECT_EQ(value, g_EventTest.m_CustomValue);
     EXPECT_EQ(fixture_count, g_TestEventCount);
     EXPECT_EQ(new_fixture_count + 2, g_TestNewEventCount);
     dmExtension::AppFinalize(&context.m_AppParams);
-    dmExtension::BroadcastEvent(&context.m_Params, event_id, &value, sizeof(value));
+    dmExtension::BroadcastEvent(context.m_Registry, event_id, &value, sizeof(value));
     EXPECT_EQ(2u, g_EventTest.m_Count);
     EXPECT_EQ(2, g_TypeCEventCount);
     EXPECT_EQ(new_fixture_count + 2, g_TestNewEventCount);
@@ -762,11 +782,11 @@ TEST(dmExtension, GenericBroadcastDelivery)
     };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(legacy_ids); ++i)
     {
-        TestTypeCBroadcastBuiltinEvent(&context.m_Params, i, 0);
+        TestTypeCBroadcastBuiltinEvent(context.m_Registry, i, 0);
         EXPECT_EQ((int)legacy_ids[i], g_TestLastEvent);
     }
     dmEngine::WindowEvent window = { 0, dmEngine::WINDOW_EVENT_RESIZED, { { 321, 123 } } };
-    dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &window, sizeof(window));
+    dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_WINDOW, &window, sizeof(window));
     EXPECT_EQ(7u, g_EventTest.m_Count);
     EXPECT_EQ(7, g_TypeCEventCount);
     EXPECT_EQ(observer_count + 7, g_SecondEventCalls);
@@ -800,8 +820,8 @@ TEST(dmExtension, UserDataLifecycle)
         dmExtension::PostRender(&context.m_Params);
         g_EventTest.m_DispatchNested = true;
         dmEngine::WindowEvent window = { 0, dmEngine::WINDOW_EVENT_RESIZED, { { 100, 50 } } };
-        dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &window, sizeof(window));
-        BroadcastStateEvent(&context.m_Params, dmEngine::STATE_DELETE);
+        dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_WINDOW, &window, sizeof(window));
+        BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE);
         EXPECT_EQ((void*)0, dmExtension::AppParamsGetUserData(&context.m_AppParams));
         EXPECT_EQ((void*)0, dmExtension::ParamsGetUserData(&context.m_Params));
         dmExtension::Finalize(&context.m_Params);
@@ -822,7 +842,7 @@ TEST(dmExtension, UserDataLifecycle)
         {
             dmExtension::Initialize(&context.m_Params);
         }
-        BroadcastStateEvent(&context.m_Params, dmEngine::STATE_DELETE);
+        BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE);
         FinalizeEventTest(&context);
         EXPECT_EQ((int*)0, g_TypeTest.m_UserData);
     }
@@ -837,18 +857,51 @@ TEST(dmExtension, GenericEventCallbackArguments)
     InitializeEventTest(&context);
     EXPECT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));
     dmEngine::WindowEvent data = { 0, dmEngine::WINDOW_EVENT_RESIZED, { { 320, 200 } } };
-    dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &data, sizeof(data));
+    dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_WINDOW, &data, sizeof(data));
     EXPECT_EQ(dmEngine::EVENT_WINDOW, g_EventTest.m_LastId);
     EXPECT_EQ((const void*)&data, g_EventTest.m_LastData);
     EXPECT_EQ((uint32_t)sizeof(data), g_EventTest.m_LastDataSize);
 
     g_EventTest.m_DispatchNested = true;
-    dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &data, sizeof(data));
+    dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_WINDOW, &data, sizeof(data));
     EXPECT_EQ(dmHashString64("nested_event"), g_EventTest.m_LastId);
     EXPECT_EQ((const void*)g_NestedPayload, g_EventTest.m_LastData);
     EXPECT_EQ((uint32_t)sizeof(g_NestedPayload), g_EventTest.m_LastDataSize);
     EXPECT_EQ(2u, g_EventTest.m_WindowCount);
     EXPECT_EQ(2, g_TypeCWindowCount);
+    FinalizeEventTest(&context);
+}
+
+// Registry broadcasts refresh callback contexts, retain compatible fields, and support hosts without contexts.
+TEST(dmExtension, RegistryEventParameters)
+{
+    EventTestContext context;
+    InitializeEventTest(&context);
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));
+    // Opaque context sentinels are compared only by identity.
+    int config = 0;
+    int factory = 0;
+    int lua = 0;
+    RegistryEventContext expected = { context.m_Registry, &config, &factory, &lua };
+    ContextRegistrySet(context.m_Registry, CONFIGFILE_CONTEXT_NAME, expected.m_ConfigFile);
+    ContextRegistrySet(context.m_Registry, RESOURCE_FACTORY_CONTEXT_NAME, expected.m_Factory);
+    ContextRegistrySet(context.m_Registry, "lua", expected.m_L);
+    int count = g_SecondEventCalls;
+    dmhash_t event_id = dmHashString64("test.registry_context");
+    dmExtension::BroadcastEvent(context.m_Registry, event_id, &expected, sizeof(expected));
+    EXPECT_EQ(count + 1, g_SecondEventCalls);
+
+    expected.m_L = &context.m_Engine;
+    ContextRegistrySet(context.m_Registry, "lua", expected.m_L);
+    ExtensionBroadcastEvent(context.m_Registry, event_id, &expected, sizeof(expected));
+    EXPECT_EQ(count + 2, g_SecondEventCalls);
+
+    expected.m_Registry = 0;
+    expected.m_ConfigFile = 0;
+    expected.m_Factory = 0;
+    expected.m_L = 0;
+    dmExtension::BroadcastEvent(0, event_id, &expected, sizeof(expected));
+    EXPECT_EQ(count + 3, g_SecondEventCalls);
     FinalizeEventTest(&context);
 }
 
@@ -858,10 +911,10 @@ TEST(dmExtension, GenericEventLifecycle)
     EventTestContext context;
     InitializeEventTest(&context);
     dmEngine::WindowEvent window = { 0, dmEngine::WINDOW_EVENT_RESIZED, { { 123, 45 } } };
-    dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &window, sizeof(window));
+    dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_WINDOW, &window, sizeof(window));
     EXPECT_EQ(0u, g_EventTest.m_Count);
     EXPECT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));
-    dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &window, sizeof(window));
+    dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_WINDOW, &window, sizeof(window));
     EXPECT_EQ(1u, g_EventTest.m_WindowCount);
     EXPECT_EQ(1, g_TypeCWindowCount);
 
@@ -877,7 +930,7 @@ TEST(dmExtension, GenericEventLifecycle)
     };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(legacy_ids); ++i)
     {
-        TestTypeCBroadcastBuiltinEvent(&context.m_Params, i, 0);
+        TestTypeCBroadcastBuiltinEvent(context.m_Registry, i, 0);
         EXPECT_EQ((int)legacy_ids[i], g_TestLastEvent);
         EXPECT_EQ(i < 4 ? dmEngine::EVENT_WINDOW : dmEngine::EVENT_STATE, g_EventTest.m_LastId);
         EXPECT_NE((const void*)0, g_EventTest.m_LastData);
@@ -889,16 +942,16 @@ TEST(dmExtension, GenericEventLifecycle)
     EXPECT_EQ(1, g_TypeCDeleteCount);
     EXPECT_EQ(dmExtension::RESULT_OK, dmExtension::Initialize(&context.m_Params));
     dmExtension::Finalize(&context.m_Params);
-    dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &window, sizeof(window));
+    dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_WINDOW, &window, sizeof(window));
     EXPECT_EQ(2u, g_EventTest.m_WindowCount);
     dmExtension::AppFinalize(&context.m_AppParams);
     uint32_t count = g_EventTest.m_Count;
-    BroadcastStateEvent(&context.m_Params, dmEngine::STATE_DELETE);
+    BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE);
     EXPECT_EQ(count, g_EventTest.m_Count);
 
     g_OmitEventCallback = true;
     EXPECT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&context.m_AppParams));
-    dmExtension::BroadcastEvent(&context.m_Params, dmEngine::EVENT_WINDOW, &window, sizeof(window));
+    dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_WINDOW, &window, sizeof(window));
     EXPECT_EQ(count, g_EventTest.m_Count);
     EXPECT_EQ(3, g_TypeCWindowCount);
     FinalizeEventTest(&context);
@@ -918,7 +971,7 @@ TEST(dmExtension, GenericEventInitializationFailure)
         {
             dmExtension::Initialize(&context.m_Params);
         }
-        BroadcastStateEvent(&context.m_Params, dmEngine::STATE_DELETE);
+        BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE);
         FinalizeEventTest(&context);
         ASSERT_EQ(mode == TYPE_TEST_INITIALIZE_FAIL ? 1u : 0u, g_EventTest.m_DeleteCount);
         ASSERT_TRUE(g_TypeTest.m_OrderValid);

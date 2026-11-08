@@ -14,19 +14,18 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import com.dynamo.input.proto.Input.GamepadMapRuntime;
+import com.dynamo.input.proto.Input.GamepadMapsRuntime;
+import org.junit.Test;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
-import org.junit.Test;
-
-import com.dynamo.input.proto.Input.GamepadMapRuntime;
-import com.dynamo.input.proto.Input.GamepadMapsRuntime;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class GamepadBuilderTest {
 

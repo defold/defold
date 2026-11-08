@@ -2211,6 +2211,22 @@ namespace dmGraphics
         return t ? (uint32_t)t->m_UsageHintFlags : 0;
     }
 
+    TextureInfo GetTextureInfo(HContext context, HTexture texture)
+    {
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        TextureInfo info;
+        info.m_Type = t ? t->m_Type : TEXTURE_TYPE_2D;
+        info.m_UsageHintFlags = t ? (uint32_t)t->m_UsageHintFlags : 0;
+        info.m_Width = t ? t->m_Width : 0;
+        info.m_Height = t ? t->m_Height : 0;
+        info.m_Depth = t ? t->m_Depth : 0;
+        info.m_MipMapCount = t ? t->m_MipMapCount : 0;
+        info.m_PageCount = t ? t->m_PageCount : 0;
+        return info;
+    }
+
     // SDK-friendly overload that preserves the Vector4-based adapter API.
     void SetConstantM4(HContext context, const dmVMath::Matrix4* data, int count, HUniformLocation base_location)
     {

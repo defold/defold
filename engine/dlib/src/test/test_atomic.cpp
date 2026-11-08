@@ -69,6 +69,67 @@ TEST(atomic, CompareStore)
     ASSERT_EQ(123, x);
 }
 
+// Internal publication helpers load and store arbitrary signed flag values.
+TEST(atomic, LoadAcquireStoreRelease)
+{
+    int32_atomic_t value = 42;
+    ASSERT_EQ(42, dmAtomicLoadAcquire32(&value));
+    dmAtomicStoreRelease32(&value, 0);
+    ASSERT_EQ(0, dmAtomicLoadAcquire32(&value));
+    dmAtomicStoreRelease32(&value, -7);
+    ASSERT_EQ(-7, dmAtomicLoadAcquire32(&value));
+    dmAtomicStoreRelease32(&value, INT32_MAX);
+    ASSERT_EQ(INT32_MAX, dmAtomicLoadAcquire32(&value));
+}
+
+struct AtomicPublicationContext
+{
+    int32_atomic_t m_Ready;
+    uint32_t       m_Values[16];
+};
+
+static const uint32_t ATOMIC_PUBLICATION_ITERATIONS = 10000;
+
+static void PublishAtomicValues(void* data)
+{
+    AtomicPublicationContext* context = (AtomicPublicationContext*)data;
+    for (uint32_t i = 1; i <= ATOMIC_PUBLICATION_ITERATIONS; ++i)
+    {
+        while (dmAtomicLoadAcquire32(&context->m_Ready))
+        {
+        }
+        for (uint32_t j = 0; j < 16; ++j)
+        {
+            context->m_Values[j] = i * (j + 1);
+        }
+        dmAtomicStoreRelease32(&context->m_Ready, 1);
+    }
+}
+
+// Release/acquire publishes ordinary data and acknowledges reads before the next write.
+TEST(atomic, ReleaseAcquirePublication)
+{
+    AtomicPublicationContext context = {};
+    dmThread::Thread thread = dmThread::New(PublishAtomicValues, 0x20000, &context, "atomic-publish");
+    uint32_t failures = 0;
+    for (uint32_t i = 1; i <= ATOMIC_PUBLICATION_ITERATIONS; ++i)
+    {
+        while (!dmAtomicLoadAcquire32(&context.m_Ready))
+        {
+        }
+        for (uint32_t j = 0; j < 16; ++j)
+        {
+            if (context.m_Values[j] != i * (j + 1))
+            {
+                ++failures;
+            }
+        }
+        dmAtomicStoreRelease32(&context.m_Ready, 0);
+    }
+    dmThread::Join(thread);
+    ASSERT_EQ(0u, failures);
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);

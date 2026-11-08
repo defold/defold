@@ -14,12 +14,12 @@
 
 package com.dynamo.bob.util;
 
+import org.apache.commons.io.FilenameUtils;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
-
-import org.apache.commons.io.FilenameUtils;
 
 public class PathUtil {
 

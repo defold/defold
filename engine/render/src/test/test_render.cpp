@@ -28,6 +28,7 @@
 #include <font/fontcollection.h>
 #include <font/glyphbank_ddf.h>
 #include <font/render/glyph_vertex.h>
+#include <font/render/text_arc.h>
 #include <font/text_layout.h>
 #include <platform/window.hpp>
 
@@ -2468,6 +2469,169 @@ static void TestDrawVisibility(dmRender::RenderListVisibilityParams const &param
     }
 }
 
+struct TestDispatchOperationsCtx
+{
+    uint32_t                       m_Operations[3];
+    uint32_t                       m_EntriesRendered;
+    dmRender::RenderListOperation* m_LastOperation;
+};
+
+static void TestDispatchOperations(const dmRender::RenderListDispatchParams& params)
+{
+    TestDispatchOperationsCtx* ctx = (TestDispatchOperationsCtx*)params.m_UserData;
+    ASSERT_LE(*ctx->m_LastOperation, params.m_Operation);
+    *ctx->m_LastOperation = params.m_Operation;
+    ++ctx->m_Operations[params.m_Operation];
+
+    if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+    {
+        ASSERT_EQ(1u, ctx->m_Operations[dmRender::RENDER_LIST_OPERATION_BEGIN]);
+        ASSERT_NE((dmRender::RenderListEntry*)0, params.m_Buf);
+        ASSERT_LT(params.m_Begin, params.m_End);
+        ctx->m_EntriesRendered += params.m_End - params.m_Begin;
+    }
+    else
+    {
+        ASSERT_EQ((dmRender::RenderListEntry*)0, params.m_Buf);
+        ASSERT_EQ((uint32_t*)0, params.m_Begin);
+        ASSERT_EQ((uint32_t*)0, params.m_End);
+    }
+}
+
+// Verifies only dispatches with selected entries receive begin/end, including
+// predicate and frustum changes between draws for legacy and retained entries.
+// All begins must still precede interleaved batches, and all ends follow them.
+TEST_F(dmRenderTest, RenderListSkipsEmptyDispatches)
+{
+    dmGraphics::ShaderDescBuilder shader;
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+    dmhash_t tags[] = { dmHashString64("dispatch_a"), dmHashString64("dispatch_b"), dmHashString64("unmatched") };
+    dmRender::HMaterial materials[2];
+    dmRender::Predicate predicates[3] = {};
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(tags); ++i)
+    {
+        predicates[i].m_Tags[0] = tags[i];
+        predicates[i].m_TagCount = 1;
+        if (i < DM_ARRAY_SIZE(materials))
+        {
+            materials[i] = dmRender::NewMaterial(m_Context, program);
+            dmRender::SetMaterialTags(materials[i], 1, &tags[i]);
+        }
+    }
+
+    dmRender::FrustumOptions frustum;
+    frustum.m_Matrix = Matrix4::identity();
+    frustum.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    dmRender::FrustumOptions empty_frustum = frustum;
+    empty_frustum.m_Matrix = Matrix4::orthographic(200, 210, 200, 210, -1, 1);
+
+    struct DrawCase
+    {
+        dmRender::HPredicate            m_Predicate;
+        const dmRender::FrustumOptions* m_Frustum;
+        uint32_t                        m_Entries[4];
+        uint32_t                        m_Batches[4];
+    };
+    const DrawCase draws[] = {
+        { 0,              0,              { 2, 1, 1, 0 }, { 2, 1, 1, 0 } },
+        { &predicates[0], 0,              { 2, 0, 1, 0 }, { 1, 0, 1, 0 } },
+        { &predicates[1], 0,              { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+        { &predicates[0], &frustum,       { 2, 0, 0, 0 }, { 1, 0, 0, 0 } },
+        { 0,              &frustum,       { 2, 1, 0, 0 }, { 2, 1, 0, 0 } },
+        { 0,              0,              { 2, 1, 1, 0 }, { 2, 1, 1, 0 } },
+        { &predicates[2], 0,              { 0, 0, 0, 0 }, { 0, 0, 0, 0 } },
+        { 0,              &empty_frustum, { 0, 0, 0, 0 }, { 0, 0, 0, 0 } },
+    };
+
+    for (uint32_t retained = 0; retained < 2; ++retained)
+    {
+        TestDispatchOperationsCtx contexts[4];
+        dmRender::HRenderItemDispatch dispatches[4];
+        dmRender::HRenderItem items[4];
+        dmRender::RenderListBegin(m_Context);
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(dispatches); ++i)
+        {
+            if (retained)
+            {
+                dispatches[i] = dmRender::RegisterRenderListDispatch(m_Context, TestDispatchOperations, TestDrawVisibility, &contexts[i]);
+                dmRender::SubmitRenderListDispatch(m_Context, dispatches[i]);
+            }
+            else
+            {
+                dispatches[i] = dmRender::RenderListMakeDispatch(m_Context, TestDispatchOperations, TestDrawVisibility, &contexts[i]);
+            }
+        }
+
+        dmRender::RenderListEntry* entries = retained ? 0 : dmRender::RenderListAlloc(m_Context, DM_ARRAY_SIZE(items));
+        const uint32_t entry_dispatches[] = { 0, 1, 0, 2 };
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+        {
+            uint32_t dispatch = entry_dispatches[i];
+            dmRender::HMaterial material = materials[i == 1 ? 1 : 0];
+            Point3 position(i == 3 ? 100.0f : 0.0f, 0, 0);
+            if (retained)
+            {
+                items[i] = dmRender::NewRenderItem(m_Context, dispatches[dispatch], i);
+                ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[i], material));
+                ASSERT_TRUE(dmRender::SetOrder(m_Context, items[i], dmRender::RENDER_ORDER_BEFORE_WORLD, i));
+                ASSERT_TRUE(dmRender::SetBoundingSphere(m_Context, items[i], position, 0.1f));
+                ASSERT_TRUE(dmRender::Enable(m_Context, items[i], true));
+            }
+            else
+            {
+                entries[i].m_Dispatch = dispatches[dispatch];
+                entries[i].m_TagListKey = dmRender::GetMaterialTagListKey(material);
+                entries[i].m_MajorOrder = dmRender::RENDER_ORDER_BEFORE_WORLD;
+                entries[i].m_Order = i;
+                entries[i].m_WorldPosition = position;
+            }
+        }
+        if (!retained)
+        {
+            dmRender::RenderListSubmit(m_Context, entries, entries + DM_ARRAY_SIZE(items));
+        }
+        dmRender::RenderListEnd(m_Context);
+
+        for (uint32_t pass = 0; pass < DM_ARRAY_SIZE(draws); ++pass)
+        {
+            const DrawCase& draw = draws[pass];
+            dmRender::RenderListOperation last_operation = dmRender::RENDER_LIST_OPERATION_BEGIN;
+            memset(contexts, 0, sizeof(contexts));
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(contexts); ++i)
+            {
+                contexts[i].m_LastOperation = &last_operation;
+            }
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, draw.m_Predicate, 0, draw.m_Frustum, dmRender::SORT_BACK_TO_FRONT));
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(contexts); ++i)
+            {
+                uint32_t expected_calls = draw.m_Entries[i] ? 1 : 0;
+                ASSERT_EQ(expected_calls, contexts[i].m_Operations[dmRender::RENDER_LIST_OPERATION_BEGIN]);
+                ASSERT_EQ(draw.m_Batches[i], contexts[i].m_Operations[dmRender::RENDER_LIST_OPERATION_BATCH]);
+                ASSERT_EQ(expected_calls, contexts[i].m_Operations[dmRender::RENDER_LIST_OPERATION_END]);
+                ASSERT_EQ(draw.m_Entries[i], contexts[i].m_EntriesRendered);
+            }
+        }
+        if (retained)
+        {
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+            {
+                ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
+            }
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(dispatches); ++i)
+            {
+                dmRender::UnregisterRenderListDispatch(m_Context, dispatches[i]);
+            }
+        }
+    }
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+    {
+        dmRender::DeleteMaterial(m_Context, materials[i]);
+    }
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
 TEST_F(dmRenderTest, TestRenderListCulling)
 {
     dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
@@ -4848,6 +5012,80 @@ TEST_F(VectorFontTest, ColorRequiresDrawMaterialPaintSampler)
     FontDestroy(font);
     dmRender::DeleteMaterial(m_Context, material);
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// Color glyphs use the same rigid cluster frame as ordinary glyphs on arcs and 3D paths.
+TEST_F(VectorFontTest, ColorFollowsArcAndCurve)
+{
+    HFont font = FontLoadFromPath("../font/src/test/data/color-test.ttf");
+    ASSERT_NE((HFont)0, font);
+    HFontCollection collection = dmRender::GetFontCollection(m_SystemFontMap);
+    FontCollectionRemoveFont(collection, m_Font);
+    FontCollectionAddFont(collection, font);
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32;
+    settings.m_Width = 128;
+    settings.m_Leading = 1;
+    HTextLayout layout = CreateTextLayout(m_SystemFontMap, "J", settings);
+    ASSERT_NE((HTextLayout)0, layout);
+    dmRender::TextEntry entry = {};
+    entry.m_Transform = Matrix4::identity();
+    entry.m_TextLayout = layout;
+    entry.m_Material = m_Material;
+    entry.m_FontSize = settings.m_Size;
+    entry.m_Width = settings.m_Width;
+    entry.m_FaceColor = COLOR_WHITE_RGBA;
+    entry.m_Align = dmRender::TEXT_ALIGN_LEFT;
+    entry.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+    FontTextCurveKnot knots[2] = {};
+    knots[0].m_Position = Vector3(0, 40, 20);
+    knots[1].m_Position = Vector3(128, 40, 20);
+    knots[0].m_OutHandle = Vector3(128.0f / 3, 0, 0);
+    knots[1].m_InHandle = -knots[0].m_OutHandle;
+    knots[0].m_RollDegrees = knots[1].m_RollDegrees = 30;
+    knots[0].m_Scale = knots[1].m_Scale = 1.5f;
+    HFontTextCurve curve = FontTextCurveCreate(knots, 2, false, Vector3(0, 1, 0));
+    ASSERT_NE((HFontTextCurve)0, curve);
+    const TextLine& line = TextLayoutGetLines(layout)[0];
+    float layout_width, layout_height;
+    TextLayoutGetBounds(layout, &layout_width, &layout_height);
+    const float baseline = dmRender::OffsetLayoutY(entry.m_VAlign, entry.m_Height, layout_height) + line.m_Baseline;
+    const float padding = m_SystemFontMap->m_IsMonospaced ? m_SystemFontMap->m_Padding : 0;
+    const float x = -padding * 0.5f;
+    const float pivot = FontGetTextClusterPivot(TextLayoutGetGlyphs(layout), &line, 0, x, TextLayoutGetLineOriginX(layout, 0), 0);
+    const float scale = FontGetScaleFromSize(font, settings.m_Size);
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        entry.m_ArcRadius = 100;
+        entry.m_ArcAngle = mode == 1 ? 90 : 0;
+        entry.m_Curve = mode == 2 ? curve : 0;
+        Matrix4 frame = Matrix4::identity();
+        if (entry.m_Curve)
+        {
+            frame = FontTextCurveGetTransform(curve, pivot, baseline);
+        }
+        else if (entry.m_ArcAngle)
+        {
+            FontTextArc arc;
+            ASSERT_TRUE(FontPrepareTextArc(layout, entry.m_Width, 0, entry.m_Align, entry.m_VAlign, padding, entry.m_ArcRadius, entry.m_ArcAngle, &arc));
+            FontGetTextArcTransform(&arc, pivot, baseline, (float*)&frame);
+        }
+        dmRender::FontDefaultVertex vertices[6];
+        ASSERT_EQ(6u, dmRender::CreateFontVertexData(m_SystemFontMap, 1, "", entry, 1, 1, 1, (uint8_t*)vertices, 6));
+        for (uint32_t i = 0; i < 6; ++i)
+        {
+            const Vector4 expected = frame * Point3(x + vertices[i].m_UV[0] * scale, baseline + vertices[i].m_UV[1] * scale, 0);
+            EXPECT_EQ(4.0f, vertices[i].m_VectorTexcoord[3]);
+            EXPECT_NEAR(expected.getX(), vertices[i].m_Position[0], EPSILON);
+            EXPECT_NEAR(expected.getY(), vertices[i].m_Position[1], EPSILON);
+            EXPECT_NEAR(expected.getZ(), vertices[i].m_Position[3], EPSILON);
+        }
+    }
+    FontTextCurveRelease(curve);
+    TextLayoutRelease(layout);
+    FontCollectionRemoveFont(collection, font);
+    FontCollectionAddFont(collection, m_Font);
+    FontDestroy(font);
 }
 
 // Color paint must honor spatial gradient opacity when the material uses the CPU fallback.
