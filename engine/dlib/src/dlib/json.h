@@ -43,20 +43,31 @@ namespace dmJson
     };
     struct Node
     {
+        struct Container
+        {
+            int      m_First;
+            uint32_t m_Count;
+        };
         Type        m_Type;
-        const char* m_Name;
-        // Only the member selected by m_Type is valid. Containers use m_First.
+        uint32_t    m_NameOffset; // Zero means this node has no object key.
+        // Only the member selected by m_Type is valid. Containers retain their
+        // first child and direct child count without increasing the union size.
         union
         {
-            int         m_First;
+            Container   m_Container;
             const char* m_String;
             double      m_Number;
         };
         int         m_Next;
+        // Resolve the decoded key in the owning Document's text buffer.
+        const char* Name(const char* text) const
+        {
+            return m_NameOffset ? text + m_NameOffset : 0;
+        }
         // Encoded value span in the original input, before string decoding.
         uint32_t    m_Offset;
         uint32_t    m_Length;
-        // Encoded field-name length, excluding quotes. m_Name retains its source offset.
+        // Encoded field-name length, excluding quotes. m_NameOffset retains its source position.
         uint32_t    m_NameLength;
     };
 

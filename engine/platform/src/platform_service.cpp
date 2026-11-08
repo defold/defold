@@ -325,9 +325,9 @@ namespace dmPlatformService
         {
             return false;
         }
-        for (int field = json.Get(0).m_First; field >= 0; field = json.Get(field).m_Next)
+        for (int field = json.Get(0).m_Container.m_First; field >= 0; field = json.Get(field).m_Next)
         {
-            const char* name = json.Get(field).m_Name;
+            const char* name = json.Get(field).Name(json.m_Text);
             if (strcmp(name, "width") && strcmp(name, "height") && strcmp(name, "timeout_ms") && strcmp(name, "expected_window_revision"))
             {
                 return false;

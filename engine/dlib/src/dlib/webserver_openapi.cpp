@@ -40,19 +40,20 @@ namespace dmWebServer
             return false;
         }
         bool has_operation = false;
-        for (int field = json.Get(path).m_First; field >= 0; field = json.Get(field).m_Next)
+        for (int field = json.Get(path).m_Container.m_First; field >= 0; field = json.Get(field).m_Next)
         {
             const dmJson::Node& node = json.Get(field);
-            if (IsMethod(node.m_Name))
+            const char* name = node.Name(json.m_Text);
+            if (IsMethod(name))
             {
                 const dmJson::Node& responses = json.Get(json.Field(field, "responses"));
-                if (responses.m_Type != dmJson::TYPE_OBJECT || responses.m_First < 0)
+                if (responses.m_Type != dmJson::TYPE_OBJECT || responses.m_Container.m_First < 0)
                 {
                     return false;
                 }
                 has_operation = true;
             }
-            else if (dmStrEq(node.m_Name, "$ref"))
+            else if (dmStrEq(name, "$ref"))
             {
                 if (node.m_Type != dmJson::TYPE_STRING)
                 {
@@ -60,9 +61,9 @@ namespace dmWebServer
                 }
                 has_operation = true;
             }
-            else if (!dmStrEq(node.m_Name, "summary") && !dmStrEq(node.m_Name, "description")
-                     && !dmStrEq(node.m_Name, "parameters") && !dmStrEq(node.m_Name, "servers")
-                     && strncmp(node.m_Name, "x-", 2) != 0)
+            else if (!dmStrEq(name, "summary") && !dmStrEq(name, "description")
+                     && !dmStrEq(name, "parameters") && !dmStrEq(name, "servers")
+                     && strncmp(name, "x-", 2) != 0)
             {
                 return false;
             }
@@ -123,30 +124,31 @@ namespace dmWebServer
             return ParseError(offset, document.m_Valid ? "Unexpected data after Paths Object" : "Invalid JSON", error);
         }
         const dmJson::Node& root = document.Get(0);
-        if (root.m_Type != dmJson::TYPE_OBJECT || root.m_First < 0)
+        if (root.m_Type != dmJson::TYPE_OBJECT || root.m_Container.m_First < 0)
         {
             return ParseError(root.m_Offset + (root.m_Type == dmJson::TYPE_OBJECT), "Expected a non-empty Paths Object", error);
         }
         // Retain the original encoded members for aggregation and conflict diagnostics.
-        uint32_t start = (uint32_t)(document.Get(root.m_First).m_Name - document.m_Text - 1);
+        uint32_t start = document.Get(root.m_Container.m_First).m_NameOffset - 1;
         openapi->m_Json = json + start;
         openapi->m_Length = root.m_Offset + root.m_Length - 1 - start;
         dmArray<char> path;
-        for (int field = root.m_First; field >= 0; field = document.Get(field).m_Next)
+        for (int field = root.m_Container.m_First; field >= 0; field = document.Get(field).m_Next)
         {
             const dmJson::Node& node = document.Get(field);
-            uint32_t key_offset = (uint32_t)(node.m_Name - document.m_Text - 1);
-            if (node.m_Name[0] != '/' || strncmp(node.m_Name, prefix, strlen(prefix)) != 0)
+            const char* name = node.Name(document.m_Text);
+            uint32_t key_offset = node.m_NameOffset - 1;
+            if (name[0] != '/' || strncmp(name, prefix, strlen(prefix)) != 0)
             {
                 return ParseError(key_offset, "Path must start with the handler prefix", error);
             }
-            uint32_t length = (uint32_t)strlen(node.m_Name) + 1;
+            uint32_t length = (uint32_t)strlen(name) + 1;
             if (path.Capacity() < length)
             {
                 path.SetCapacity(length);
             }
             path.SetSize(length);
-            memcpy(path.Begin(), node.m_Name, length);
+            memcpy(path.Begin(), name, length);
             if (!NormalizePath(&path))
             {
                 return ParseError(key_offset, "Invalid path or path parameter", error);

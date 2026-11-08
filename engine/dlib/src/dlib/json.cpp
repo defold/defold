@@ -22,83 +22,12 @@
 #include <string.h>
 #include <math.h>
 #include <limits.h>
-#include <locale.h>
+#include "json_number.h"
 
 namespace dmJson
 {
     // dmArray allocates with a uint32_t byte count. Node indices also fit in int.
     static const uint32_t MAX_NODE_CAPACITY = UINT32_MAX / sizeof(Node);
-
-    static double ReadNumber(char* begin, char* end)
-    {
-        bool negative = *begin == '-';
-        char* digits = begin + negative;
-        char* point = 0;
-        // All integers of at most 15 decimal digits fit exactly in a double.
-        // Longer tokens keep strtod's rounding and range handling.
-        if (end - digits <= 15)
-        {
-            uint64_t integer = 0;
-            while (digits != end)
-            {
-                uint32_t digit = (uint32_t)(*digits - '0');
-                if (digit > 9)
-                {
-                    break;
-                }
-                integer = integer * 10 + digit;
-                ++digits;
-            }
-            if (digits == end)
-            {
-                double value = (double)integer;
-                return negative ? -value : value;
-            }
-            // The token scan has already checked number syntax. Its first
-            // nondigit is the decimal point or the start of the exponent.
-            point = *digits == '.' ? digits : 0;
-        }
-        else
-        {
-            point = (char*)memchr(begin, '.', end - begin);
-        }
-        // Isolate the JSON token so a comma cannot become a decimal separator.
-        // Translate its decimal point for strtod without changing the game's locale.
-        char next = *end;
-        *end = 0;
-        const char* decimal = point ? localeconv()->decimal_point : ".";
-        double value;
-        if (point && decimal[1])
-        {
-            uint32_t prefix_size = (uint32_t)(point - begin);
-            uint32_t decimal_size = (uint32_t)strlen(decimal);
-            if (decimal_size > UINT32_MAX - (uint32_t)(end - begin))
-            {
-                *end = next;
-                return HUGE_VAL;
-            }
-            dmArray<char> localized;
-            localized.SetCapacity((uint32_t)(end - begin) + decimal_size);
-            memcpy(localized.Begin(), begin, prefix_size);
-            memcpy(localized.Begin() + prefix_size, decimal, decimal_size);
-            memcpy(localized.Begin() + prefix_size + decimal_size, point + 1, end - point);
-            value = strtod(localized.Begin(), 0);
-        }
-        else
-        {
-            if (point)
-            {
-                *point = decimal[0];
-            }
-            value = strtod(begin, 0);
-            if (point)
-            {
-                *point = '.';
-            }
-        }
-        *end = next;
-        return value;
-    }
 
     static bool PlainStringBlock(const char* text, bool ascii_only)
     {
@@ -260,17 +189,36 @@ namespace dmJson
         while (m_Cursor < m_End)
         {
             uint32_t plain_bytes = 0;
-            while (plain_bytes < 8 && m_Cursor < m_End)
+            if (!decode || out == m_Cursor)
             {
-                unsigned char c = (unsigned char)*m_Cursor;
-                if (c < 32 || c == '"' || c == '\\')
+                // Before the first escape, decoded bytes already occupy their
+                // final positions. Scan without writing them onto themselves.
+                while (plain_bytes < 8 && m_Cursor < m_End)
                 {
-                    break;
+                    unsigned char c = (unsigned char)*m_Cursor;
+                    if (c < 32 || c == '"' || c == '\\')
+                    {
+                        break;
+                    }
+                    ++m_Cursor;
+                    ++plain_bytes;
                 }
-                ++m_Cursor;
-                ++plain_bytes;
                 if (decode)
                 {
+                    out = m_Cursor;
+                }
+            }
+            else
+            {
+                while (plain_bytes < 8 && m_Cursor < m_End)
+                {
+                    unsigned char c = (unsigned char)*m_Cursor;
+                    if (c < 32 || c == '"' || c == '\\')
+                    {
+                        break;
+                    }
+                    ++m_Cursor;
+                    ++plain_bytes;
                     *out++ = c;
                 }
             }
@@ -409,7 +357,7 @@ namespace dmJson
             return -1;
         }
         Node node = {};
-        node.m_First = node.m_Next = -1;
+        node.m_Container.m_First = node.m_Next = -1;
         node.m_Offset = (uint32_t)(m_Cursor - m_Text);
         if (m_Nodes.Full())
         {
@@ -458,9 +406,9 @@ namespace dmJson
                     if (field_count == 16)
                     {
                         fields.SetCapacity(32);
-                        for (int field = m_Nodes[id].m_First; field >= 0; field = m_Nodes[field].m_Next)
+                        for (int field = m_Nodes[id].m_Container.m_First; field >= 0; field = m_Nodes[field].m_Next)
                         {
-                            const char* key = m_Nodes[field].m_Name;
+                            const char* key = m_Nodes[field].Name(m_Text);
                             uint64_t    hash = dmHashBufferNoReverse64(key, (uint32_t)strlen(key));
                             if (!fields.Get(hash))
                             {
@@ -477,7 +425,7 @@ namespace dmJson
                         // with that hash in this object's sibling list.
                         for (int field = first ? *first : -1; field >= 0; field = m_Nodes[field].m_Next)
                         {
-                            if (dmStrEq(m_Nodes[field].m_Name, name))
+                            if (dmStrEq(m_Nodes[field].Name(m_Text), name))
                             {
                                 m_Valid = false;
                                 break;
@@ -498,11 +446,11 @@ namespace dmJson
                 {
                     break;
                 }
-                m_Nodes[child].m_Name = name;
+                m_Nodes[child].m_NameOffset = name ? (uint32_t)(name - m_Text) : 0;
                 m_Nodes[child].m_NameLength = name_length;
                 if (previous < 0)
                 {
-                    m_Nodes[id].m_First = child;
+                    m_Nodes[id].m_Container.m_First = child;
                 }
                 else
                 {
@@ -526,6 +474,7 @@ namespace dmJson
                 }
                 if (*m_Cursor == end)
                 {
+                    m_Nodes[id].m_Container.m_Count = field_count;
                     ++m_Cursor;
                     m_Nodes[id].m_Length = (uint32_t)(m_Cursor - m_Text) - node.m_Offset;
                     return id;
@@ -546,10 +495,12 @@ namespace dmJson
         else if (c == '-' || (c >= '0' && c <= '9'))
         {
             char* begin = m_Cursor;
+            uint64_t coefficient = 0;
             if (*m_Cursor == '-')
             {
                 ++m_Cursor;
             }
+            char* integer_begin = m_Cursor;
             if (m_Cursor < m_End && *m_Cursor == '0')
             {
                 ++m_Cursor;
@@ -558,6 +509,8 @@ namespace dmJson
             {
                 while (m_Cursor < m_End && *m_Cursor >= '0' && *m_Cursor <= '9')
                 {
+                    // Unsigned wrap is defined; only <=19 digits use this accumulator.
+                    coefficient = coefficient * 10 + (uint32_t)(*m_Cursor - '0');
                     ++m_Cursor;
                 }
             }
@@ -565,39 +518,61 @@ namespace dmJson
             {
                 m_Valid = false;
             }
+            uint32_t digits = (uint32_t)(m_Cursor - integer_begin);
+            int64_t exponent = 0;
             if (m_Cursor < m_End && *m_Cursor == '.')
             {
-                char* digits = ++m_Cursor;
+                char* fraction = ++m_Cursor;
                 while (m_Cursor < m_End && *m_Cursor >= '0' && *m_Cursor <= '9')
                 {
+                    coefficient = coefficient * 10 + (uint32_t)(*m_Cursor - '0');
                     ++m_Cursor;
                 }
-                if (digits == m_Cursor)
+                if (fraction == m_Cursor)
                 {
                     m_Valid = false;
                 }
+                uint32_t fraction_digits = (uint32_t)(m_Cursor - fraction);
+                digits += fraction_digits;
+                exponent = -(int64_t)fraction_digits;
             }
             if (m_Cursor < m_End && (*m_Cursor == 'e' || *m_Cursor == 'E'))
             {
                 ++m_Cursor;
+                bool negative_exponent = m_Cursor < m_End && *m_Cursor == '-';
                 if (m_Cursor < m_End && (*m_Cursor == '+' || *m_Cursor == '-'))
                 {
                     ++m_Cursor;
                 }
-                char* digits = m_Cursor;
+                char* exponent_begin = m_Cursor;
+                int64_t explicit_exponent = 0;
                 while (m_Cursor < m_End && *m_Cursor >= '0' && *m_Cursor <= '9')
                 {
+                    // Larger than any possible mantissa length, without signed overflow.
+                    if (explicit_exponent < INT64_C(10000000000))
+                    {
+                        explicit_exponent = explicit_exponent * 10 + (*m_Cursor - '0');
+                    }
                     ++m_Cursor;
                 }
-                if (digits == m_Cursor)
+                if (exponent_begin == m_Cursor)
                 {
                     m_Valid = false;
                 }
+                exponent += negative_exponent ? -explicit_exponent : explicit_exponent;
             }
             m_Nodes[id].m_Type = TYPE_NUMBER;
-            if (m_DecodeValues)
+            if (m_DecodeValues && m_Valid)
             {
-                m_Nodes[id].m_Number = ReadNumber(begin, m_Cursor);
+                if (digits <= 19 && exponent == 0)
+                {
+                    double value = (double)coefficient;
+                    m_Nodes[id].m_Number = *begin == '-' ? -value : value;
+                }
+                else
+                {
+                    m_Nodes[id].m_Number = ReadDecimal(begin, m_Cursor, coefficient, digits, exponent);
+                }
                 if (!isfinite(m_Nodes[id].m_Number))
                 {
                     m_Valid = false;
@@ -636,46 +611,14 @@ namespace dmJson
         {
             return false;
         }
-        for (uint32_t i = 0; i < size;)
+        uint32_t valid_bytes = dmUtf8::Validate(text, size);
+        if (valid_bytes != size)
         {
-            // Check four blocks together to amortize the ASCII reduction.
-            if (size - i >= 64)
+            if (error_offset)
             {
-                dsimd_uint4_t a = SimdOrUint(SimdLoadUint(text + i), SimdLoadUint(text + i + 16));
-                dsimd_uint4_t b = SimdOrUint(SimdLoadUint(text + i + 32), SimdLoadUint(text + i + 48));
-                dsimd_uint4_t high = SimdAndUint(SimdOrUint(a, b), SimdSplatUint(0x80808080));
-                if (SimdAll(SimdEqualUint(high, SimdSplatUint(0))))
-                {
-                    i += 64;
-                    continue;
-                }
+                *error_offset = valid_bytes;
             }
-            uint32_t end = size - i > 16 ? i + 16 : size;
-            if (size - i >= 16)
-            {
-                dsimd_uint4_t bytes = SimdLoadUint(text + i);
-                dsimd_uint4_t high = SimdAndUint(bytes, SimdSplatUint(0x80808080));
-                if (SimdAll(SimdEqualUint(high, SimdSplatUint(0))))
-                {
-                    i += 16;
-                    continue;
-                }
-            }
-            // Validate a mixed block once instead of reloading it for every
-            // byte. A UTF-8 sequence may extend beyond the block boundary.
-            do
-            {
-                uint32_t bytes = dmUtf8::ValidateSequence(text + i, size - i);
-                if (!bytes)
-                {
-                    if (error_offset)
-                    {
-                        *error_offset = i;
-                    }
-                    return false;
-                }
-                i += bytes;
-            } while (i < end);
+            return false;
         }
         m_Nodes.SetSize(0);
         if (size + 1 > m_TextCapacity)
@@ -708,7 +651,7 @@ namespace dmJson
     }
     const Node& Document::Get(int node) const
     {
-        static const Node missing = { TYPE_NULL, 0, { -1 }, -1, 0, 0, 0 };
+        static const Node missing = { TYPE_NULL, 0, { { -1, 0 } }, -1, 0, 0, 0 };
         return node >= 0 && node < (int)m_Nodes.Size() ? m_Nodes[node] : missing;
     }
     int Document::Field(int object, const char* name) const
@@ -717,9 +660,9 @@ namespace dmJson
         {
             return -1;
         }
-        for (int i = Get(object).m_First; i >= 0; i = Get(i).m_Next)
+        for (int i = Get(object).m_Container.m_First; i >= 0; i = Get(i).m_Next)
         {
-            if (Get(i).m_Name && dmStrEq(Get(i).m_Name, name))
+            if (Get(i).Name(m_Text) && dmStrEq(Get(i).Name(m_Text), name))
             {
                 return i;
             }
