@@ -673,8 +673,47 @@ TEST(dmJson, WriteStrings)
     ASSERT_STREQ(roundtrip, json.String(0));
 }
 
+// The corpus runner starts a fresh process per fixture so crashes and hangs
+// identify the offending input. Reuse the document between both parse modes.
+static int ParseCorpusFile(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    if (!file)
+    {
+        return 2;
+    }
+    if (fseek(file, 0, SEEK_END))
+    {
+        fclose(file);
+        return 2;
+    }
+    long size = ftell(file);
+    if (size < 0 || (uint64_t)size >= UINT32_MAX || fseek(file, 0, SEEK_SET))
+    {
+        fclose(file);
+        return 2;
+    }
+    dmArray<char> text;
+    text.SetCapacity((uint32_t)size + 1);
+    size_t read = fread(text.Begin(), 1, (size_t)size, file);
+    fclose(file);
+    if (read != (size_t)size)
+    {
+        return 2;
+    }
+    dmJson::Document json;
+    bool decoded = json.Parse(text.Begin(), (uint32_t)size);
+    bool preserved = json.Parse(text.Begin(), (uint32_t)size, 0, dmJson::PARSE_PRESERVE_VALUES);
+    printf("%d %d\n", (int)decoded, (int)preserved);
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
+    if (argc == 3 && !strcmp(argv[1], "--corpus"))
+    {
+        return ParseCorpusFile(argv[2]);
+    }
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
