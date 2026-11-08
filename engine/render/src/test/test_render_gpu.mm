@@ -327,6 +327,9 @@ class GpuIndirectTest : public jc_test_base_class
         dmGraphics::EnableState(m_Graphics, dmGraphics::STATE_DEPTH_TEST);
         dmGraphics::SetDepthMask(m_Graphics, true);
         dmGraphics::SetDepthFunc(m_Graphics, dmGraphics::COMPARE_FUNC_LEQUAL);
+        // Direct batch tests need the same initialized pass state as render-list callbacks.
+        dmRender::RenderListBegin(m_Render);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Render, 0, 0, 0, dmRender::SORT_NONE));
     }
     void CompleteFrame()
     {
