@@ -32,7 +32,20 @@ GPU frustum culling and indexed indirect drawing are enabled by default for elig
 
 Eligible models use indexed geometry, local vertex space and an instance layout containing world and/or normal matrices. Skinned models, morph targets and dynamic vertex attributes retain CPU culling. The renderer also uses the CPU path for material overrides, blending, stencil tests, disabled depth testing or depth writes, and depth comparisons other than less/less-equal/greater/greater-equal. These passes require instance order, which GPU compaction does not preserve. Storage-buffer allocation failures or device limits fall back to CPU culling and conventional instancing.
 
-GPU batches retain bounds and world matrices between frames and upload changed values. Compute compacts visible instances, and indirect drawing consumes their count without CPU readback. Compatible shaders fetch world matrices through compacted instance IDs; other supported layouts use compacted matrices.
+GPU batches retain bounds and world matrices between frames and upload changed values. Compute compacts visible instances, and indirect drawing consumes their count without CPU readback. Shaders explicitly opt in to fetching matrices through visible IDs by including `/builtins/materials/instance_transforms.glsl` and calling `dm_instance_world()`:
+
+```glsl
+#version 430
+#include "/builtins/materials/instance_transforms.glsl"
+in highp vec4 position;
+uniform Constants { mat4 view_proj; };
+void main()
+{
+    gl_Position = view_proj * dm_instance_world() * position;
+}
+```
+
+The include declares an ordinary `mtx_world` instance attribute for conventional drawing. Bob compiles a second variant with `DM_GPU_VISIBLE_INSTANCES` defined, which fetches the persistent matrix using the compacted visible ID. The material must mark `mtx_world` as an instanced world matrix. Define `DM_INSTANCE_WORLD_ATTRIBUTE` before the include to use a custom attribute name. Other instanced shaders and layouts continue to use matrix compaction; their SPIR-V is not rewritten.
 
 Set `render.gpu_culling_stats = 1` to collect optional asynchronous visibility statistics in the profiler. This requires GPU culling and is disabled by default. Counts can describe an earlier completed frame; rendering does not wait for or depend on them.
 

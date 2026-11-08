@@ -40,6 +40,8 @@ import org.apache.commons.io.FileUtils;
 import com.dynamo.bob.pipeline.Shaderc;
 
 public class ShaderCompilePipeline {
+    public static final String VISIBLE_INSTANCE_SHADER_INCLUDE = "builtins/materials/instance_transforms.glsl";
+    private static final int VISIBLE_INSTANCE_DESCRIPTOR_SET = 3;
 
     public static class Options {
         // Editor previews bind individual uniforms instead of uniform buffers.
@@ -58,6 +60,7 @@ public class ShaderCompilePipeline {
         public String source;
         public String resourcePath;
         public ShaderDesc.ShaderType type;
+        public boolean useVisibleInstances;
     }
 
     protected static class ShaderModule {
@@ -814,23 +817,24 @@ public class ShaderCompilePipeline {
         return result;
     }
 
-    // Build a companion only for a single non-array mat4 input. Material semantics
-    // are checked by the renderer before selecting it; other layouts keep instancing.
+    // The shader must explicitly include instance_transforms.glsl. Material
+    // semantics are checked by the renderer; other layouts keep matrix compaction.
     public ShaderCompilePipeline createVisibleInstancePipeline(String name) throws IOException, CompileExceptionError {
-        ShaderModule vertex = getShaderModule(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
-        if (vertex == null) {
+        ShaderModule vertexModule = getShaderModule(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
+        if (vertexModule == null || !vertexModule.desc.useVisibleInstances) {
             return null;
         }
-        Shaderc.ShaderResource matrix = null;
-        for (Shaderc.ShaderResource resource : vertex.spirvReflector.getInputs()) {
+        Shaderc.ShaderResource matrixInput = null;
+        for (Shaderc.ShaderResource resource : vertexModule.spirvReflector.getInputs()) {
             if (resource.type.columnCount > 1) {
-                if (matrix != null || resource.type.columnCount != 4 || resource.type.vectorSize != 4 || resource.type.baseType != Shaderc.BaseType.BASE_TYPE_FP32) {
+                if (matrixInput != null || resource.type.columnCount != 4 ||
+                    resource.type.vectorSize != 4 || resource.type.baseType != Shaderc.BaseType.BASE_TYPE_FP32) {
                     return null;
                 }
-                matrix = resource;
+                matrixInput = resource;
             }
         }
-        if (matrix == null) {
+        if (matrixInput == null) {
             return null;
         }
         for (ShaderModule module : shaderModules) {
@@ -838,41 +842,37 @@ public class ShaderCompilePipeline {
             resources.addAll(module.spirvReflector.getSsbos());
             resources.addAll(module.spirvReflector.getTextures());
             for (Shaderc.ShaderResource resource : resources) {
-                if (resource.set == 3 || "_dm_visible_worlds".equals(resource.name) || "_dm_visible_ids".equals(resource.name)) {
+                if (resource.set == VISIBLE_INSTANCE_DESCRIPTOR_SET) {
                     return null;
                 }
             }
         }
-        byte[] vertexBytes = SPIRVVisibleInstances.transform(FileUtils.readFileToByteArray(vertex.spirvFile), matrix.id);
-        if (vertexBytes == null) {
-            return null;
-        }
-        ShaderCompilePipeline variant = new ShaderCompilePipeline(name);
-        variant.options = options;
+
+        Options visibleInstanceOptions = new Options();
+        visibleInstanceOptions.glslEmitUboAsPlainUniforms = options.glslEmitUboAsPlainUniforms;
+        visibleInstanceOptions.splitTextureSamplers = options.splitTextureSamplers;
+        visibleInstanceOptions.remapVertexFragmentIOForHLSL = options.remapVertexFragmentIOForHLSL;
+        visibleInstanceOptions.externalToolPath = options.externalToolPath;
+        visibleInstanceOptions.externalToolArgs = options.externalToolArgs;
+        visibleInstanceOptions.targetPlatform = options.targetPlatform;
+        visibleInstanceOptions.glslEsDefaultFloatPrecision = options.glslEsDefaultFloatPrecision;
+        visibleInstanceOptions.glslEsDefaultIntPrecision = options.glslEsDefaultIntPrecision;
+        visibleInstanceOptions.defines.addAll(options.defines);
+        visibleInstanceOptions.defines.add("DM_GPU_VISIBLE_INSTANCES=1");
+
+        ShaderCompilePipeline visibleInstancePipeline = new ShaderCompilePipeline(name);
+        visibleInstancePipeline.options = visibleInstanceOptions;
         boolean ready = false;
         try {
             for (ShaderModule module : shaderModules) {
-                ShaderModule copy = new ShaderModule(module.desc);
-                variant.shaderModules.add(copy);
-                copy.spirvFile = variant.createTempFile("visible-instance", ".spv");
-                byte[] bytes = module == vertex ? vertexBytes : FileUtils.readFileToByteArray(module.spirvFile);
-                FileUtils.writeByteArrayToFile(copy.spirvFile, bytes);
-                if (module == vertex) {
-                    File optimized = variant.createTempFile("visible-instance", ".optimized.spv");
-                    generateSPIRvOptimized(module.desc.resourcePath, copy.spirvFile.getAbsolutePath(), optimized.getAbsolutePath());
-                    copy.spirvFile = optimized;
-                    bytes = FileUtils.readFileToByteArray(optimized);
-                }
-                copy.spirvContext = ShadercJni.NewShaderContext(ToShadercShaderStageValue(module.desc.type), bytes);
-                copy.spirvReflector = new SPIRVReflector(copy.spirvContext, module.desc.type);
-                copy.shaderInfo = module.shaderInfo;
+                visibleInstancePipeline.addShaderModule(module.desc);
             }
-            variant.postProcessGraphicsStages(true);
+            visibleInstancePipeline.prepare();
             ready = true;
-            return variant;
+            return visibleInstancePipeline;
         } finally {
             if (!ready) {
-                destroyShaderPipeline(variant);
+                destroyShaderPipeline(visibleInstancePipeline);
             }
         }
     }

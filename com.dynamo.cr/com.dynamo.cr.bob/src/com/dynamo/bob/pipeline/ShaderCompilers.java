@@ -411,36 +411,37 @@ public class ShaderCompilers {
                 compileResult.reflectors.add(pipeline.getReflectionData(type));
             }
 
-            ArrayList<ShaderDesc.Language> visibleLanguages = new ArrayList<>();
+            ArrayList<ShaderDesc.Language> visibleInstanceLanguages = new ArrayList<>();
             for (ShaderDesc.Language language : shaderLanguages) {
                 if (language == ShaderDesc.Language.LANGUAGE_MSL_22 || language == ShaderDesc.Language.LANGUAGE_SPIRV || language == ShaderDesc.Language.LANGUAGE_WGSL) {
-                    visibleLanguages.add(language);
+                    visibleInstanceLanguages.add(language);
                 }
             }
-            if (!isComputeType && !visibleLanguages.isEmpty()) {
-                ShaderCompilePipeline variant = pipeline.createVisibleInstancePipeline("visible-instance");
-                if (variant != null) {
+            if (!isComputeType && !visibleInstanceLanguages.isEmpty()) {
+                ShaderCompilePipeline visibleInstancePipeline = pipeline.createVisibleInstancePipeline("visible-instance");
+                if (visibleInstancePipeline != null) {
                     try {
-                        ShaderProgramBuilder.ShaderCompileResult result = new ShaderProgramBuilder.ShaderCompileResult();
-                        result.shaderBuildResults = new ArrayList<>();
-                        for (ShaderDesc.Language language : visibleLanguages) {
+                        ShaderProgramBuilder.ShaderCompileResult visibleInstanceResult = new ShaderProgramBuilder.ShaderCompileResult();
+                        visibleInstanceResult.shaderBuildResults = new ArrayList<>();
+                        for (ShaderDesc.Language language : visibleInstanceLanguages) {
                             for (ShaderCompilePipeline.ShaderModuleDesc module : shaderModules) {
-                                Shaderc.ShaderCompileResult compiled = variant.crossCompile(module.type, language);
-                                result.shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(ShaderProgramBuilder.makeShaderBuilder(compiled, language, module.type)));
+                                Shaderc.ShaderCompileResult compiledShader = visibleInstancePipeline.crossCompile(module.type, language);
+                                ShaderDesc.Shader.Builder shaderBuilder = ShaderProgramBuilder.makeShaderBuilder(compiledShader, language, module.type);
+                                visibleInstanceResult.shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(shaderBuilder));
                             }
                         }
                         // Keep sampler units and reflection ordering aligned with the parent program.
                         for (ShaderDesc.ShaderType type : shaderTypeKeys.keySet()) {
-                            result.reflectors.add(variant.getReflectionData(type));
+                            visibleInstanceResult.reflectors.add(visibleInstancePipeline.getReflectionData(type));
                         }
-                        compileResult.visibleInstanceProgram = ShaderProgramBuilder.buildResultsToShaderDescBuildResults(result).shaderDesc;
+                        compileResult.visibleInstanceProgram = ShaderProgramBuilder.buildResultsToShaderDescBuildResults(visibleInstanceResult).shaderDesc;
                         for (Shaderc.ShaderResource resource : pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX).getInputs()) {
                             if (resource.type.columnCount == 4) {
                                 compileResult.visibleInstanceAttribute = resource.nameHash;
                             }
                         }
                     } finally {
-                        ShaderCompilePipeline.destroyShaderPipeline(variant);
+                        ShaderCompilePipeline.destroyShaderPipeline(visibleInstancePipeline);
                     }
                 }
             }

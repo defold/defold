@@ -67,14 +67,18 @@ endforeach()
 
 # Native GPU tests share culling/count/pixel coverage across enabled backends.
 if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)-macos$" AND "engine" IN_LIST DEFOLD_SELECTED_ENGINE_LIBS)
+  # Bob Light omits builtins; make the shader includes available to its classloader.
+  cmake_path(CONVERT "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar;${DEFOLD_HOME}/engine/engine/content"
+    TO_NATIVE_PATH_LIST _render_gpu_bob_classpath)
   add_custom_command(
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/test_visible_instances.spc"
     COMMAND "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST}
-      -cp "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar"
+      -cp "${_render_gpu_bob_classpath}"
       com.dynamo.bob.pipeline.ShaderProgramBuilder
       "${RENDER_TEST_ROOT}/test_visible_instances.vp" "${RENDER_TEST_ROOT}/test_visible_instances.fp"
       "${CMAKE_CURRENT_BINARY_DIR}/test_visible_instances.spc" "${TARGET_PLATFORM}" "${RENDER_TEST_ROOT}"
     DEPENDS "${RENDER_TEST_ROOT}/test_visible_instances.vp" "${RENDER_TEST_ROOT}/test_visible_instances.fp"
+      "${DEFOLD_HOME}/engine/engine/content/builtins/materials/instance_transforms.glsl"
       "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar"
     VERBATIM)
   add_custom_target(render_gpu_test_shaders

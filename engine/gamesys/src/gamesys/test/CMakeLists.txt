@@ -318,13 +318,16 @@ gamesys_configure_common_test(test_gamesys_profile PROFILE)
 
 if(TARGET graphics_metal AND "engine" IN_LIST DEFOLD_SELECTED_ENGINE_LIBS AND TARGET_PLATFORM MATCHES "^(arm64|x86_64)-macos$")
   set(_model_gpu_shader "${CMAKE_CURRENT_BINARY_DIR}/model_gpu.spc")
+  cmake_path(CONVERT "${_GS_BOB_CLASSPATH_LIST};${DEFOLD_HOME}/engine/engine/content"
+    TO_NATIVE_PATH_LIST _model_gpu_bob_classpath)
   add_custom_command(
     OUTPUT "${_model_gpu_shader}"
-    COMMAND "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST} -cp "${_GS_BOB_CLASSPATH}"
+    COMMAND "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST} -cp "${_model_gpu_bob_classpath}"
       com.dynamo.bob.pipeline.ShaderProgramBuilder
       "${GS_TEST_ROOT}/model/gpu_culling.vp" "${GS_TEST_ROOT}/model/gpu_culling.fp"
       "${_model_gpu_shader}" "${TARGET_PLATFORM}" "${GS_TEST_ROOT}"
     DEPENDS "${GS_TEST_ROOT}/model/gpu_culling.vp" "${GS_TEST_ROOT}/model/gpu_culling.fp"
+      "${DEFOLD_HOME}/engine/engine/content/builtins/materials/instance_transforms.glsl"
       "${_GS_BOB_LIGHT}" ${_GS_BOB_PLUGIN_JARS}
     VERBATIM)
   add_custom_target(gamesys_model_gpu_shader DEPENDS "${_model_gpu_shader}")
