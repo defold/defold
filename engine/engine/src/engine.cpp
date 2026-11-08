@@ -183,8 +183,10 @@ namespace dmEngine
 
     static void SetScriptContextInContextRegistry(HContextRegistry context_registry, dmScript::HContext script_context)
     {
-        ContextRegistrySet(context_registry, SCRIPT_CONTEXT_NAME, script_context);
-        ContextRegistrySet(context_registry, LUA_CONTEXT_NAME, script_context ? dmScript::GetLuaState(script_context) : 0);
+        static const dmhash_t script_context_hash = dmHashString64(SCRIPT_CONTEXT_NAME);
+        static const dmhash_t lua_context_hash = dmHashString64(LUA_CONTEXT_NAME);
+        ContextRegistrySetByHash(context_registry, script_context_hash, script_context);
+        ContextRegistrySetByHash(context_registry, lua_context_hash, script_context ? dmScript::GetLuaState(script_context) : 0);
     }
 
     static void PopulateContextRegistry(HEngine engine)
@@ -471,6 +473,7 @@ namespace dmEngine
     , m_WasIconified(true)
     , m_QuitOnEsc(false)
     , m_ConnectionAppMode(false)
+    , m_Ready(false)
     , m_RunWhileIconified(false)
     , m_UseHighRefreshRate(false)
     , m_SwapInterval(0)
@@ -996,6 +999,18 @@ namespace dmEngine
         physics->m_Debug = (bool) dmConfigFile::GetInt(config, "physics.debug", 0);
     }
 
+    static void PublishEngineState(HEngine engine)
+    {
+        if (engine->m_EngineService)
+        {
+            dmEngineService::EngineState state;
+            state.m_ConnectionAppMode = engine->m_ConnectionAppMode;
+            state.m_Ready = engine->m_Ready;
+            state.m_FrameCount = engine->m_Stats.m_FrameCount;
+            dmEngineService::SetState(engine->m_EngineService, &state);
+        }
+    }
+
     /*
      The game.projectc is located using the following scheme:
 
@@ -1012,8 +1027,14 @@ namespace dmEngine
       the project if not overridden in project-file
       (resource.uri)
     */
-    bool Init(HEngine engine, int argc, char *argv[])
+    bool Init(HEngine engine, int argc, char* argv[])
     {
+        engine->m_Ready = false;
+        if (engine->m_EngineService)
+        {
+            dmEngineService::OnEngineInit(engine->m_EngineService);
+        }
+        bool bootstrap_initialized = false;
 #if defined(DM_PLATFORM_VENDOR)
         dmLogInfo("Defold Engine %s (%.7s, %.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1, dmEngineVersion::PRIVATE_VERSION_SHA1);
 #else
@@ -1091,6 +1112,8 @@ namespace dmEngine
             engine->m_ConnectionAppMode = true;
 #endif
         }
+
+        PublishEngineState(engine);
 
         // Set minimum log level
         int32_t minimum_log_level = dmConfigFile::GetInt(engine->m_Config, "project.minimum_log_level", LOG_SEVERITY_INFO);
@@ -1762,8 +1785,10 @@ namespace dmEngine
 
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**)&engine->m_MainCollectionResource);
         if (fact_result != dmResource::RESULT_OK)
+        {
             goto bail;
-        dmGameObject::Init(GetMainCollection(engine));
+        }
+        bootstrap_initialized = dmGameObject::Init(GetMainCollection(engine));
 
         engine->m_LastReloadMTime = 0;
 
@@ -1836,10 +1861,6 @@ namespace dmEngine
         if (engine->m_EngineService)
         {
             dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
-
-            dmEngineService::EngineState state;
-            state.m_ConnectionAppMode = engine->m_ConnectionAppMode;
-            dmEngineService::InitState(engine->m_EngineService, &state);
         }
 
         {
@@ -1856,6 +1877,8 @@ namespace dmEngine
         engine->m_PreviousFrameTime = dmTime::GetMonotonicTime();
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0));
 
+        engine->m_Ready = bootstrap_initialized && !engine->m_ConnectionAppMode;
+        PublishEngineState(engine);
         return true;
 
 bail:
@@ -2017,7 +2040,7 @@ bail:
         return skip;
     }
 
-    static void StepFrame(HEngine engine, float dt)
+    static void StepFrame(HEngine engine, float dt, bool& service_updated)
     {
         dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
 
@@ -2242,7 +2265,9 @@ bail:
 
             if (engine->m_EngineService)
             {
+                PublishEngineState(engine);
                 dmEngineService::Update(engine->m_EngineService, profile);
+                service_updated = true;
             }
 
             if (do_render)
@@ -2511,17 +2536,33 @@ bail:
         }
         CalcTimeStep(engine, frame_was_paced, step_dt, num_steps);
 
+        StepFrames(engine, step_dt, num_steps);
+    }
+
+    void StepFrames(HEngine engine, float step_dt, uint32_t num_steps)
+    {
+        bool service_updated = false;
         for (uint32_t i = 0; i < num_steps; ++i)
         {
             DM_PROFILE("Step");
             // We currently cannot separate the update from the render,
             // since some of the update is done in the render updates (e.g. sprite transforms)
-            StepFrame(engine, step_dt);
+            StepFrame(engine, step_dt, service_updated);
 
             if (!engine->m_Alive)
+            {
                 break;
+            }
         }
 
+        // Throttling, iconification and callback pacing can skip every simulation
+        // step. Keep the owning-thread service responsive without rendering or a profile.
+        if (!service_updated && engine->m_EngineService && engine->m_Alive &&
+            engine->m_RunResult.m_Action == dmEngine::RunResult::NONE)
+        {
+            PublishEngineState(engine);
+            dmEngineService::Update(engine->m_EngineService, 0);
+        }
     }
 
     static int IsRunning(void* context)

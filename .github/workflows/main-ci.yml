@@ -412,6 +412,11 @@ jobs:
             export ANDROID_SERIAL
             echo "Running ${{ matrix.platform }} tests on $ANDROID_SERIAL"
             ci/ci.sh engine --skip-install-ext --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} --sdk-artifacts-dir=tmp/sdk-artifacts --skip-builtins --skip-docs
+      - name: "Enable Windows JVM crash reports"
+        if: runner.os == 'Windows'
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tmp/java-crash"
+          printf 'JDK_JAVA_OPTIONS=%s "-XX:ErrorFile=%s/tmp/java-crash/hs_err_pid%%p.log"\n' "${JDK_JAVA_OPTIONS:-}" "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
       # matrix.engine_args carries the per-platform flags; codesign and the gcloud key
       # come from env, which a matrix cannot reference, so they are appended here.
       - name: "Build engine"
@@ -451,6 +456,20 @@ jobs:
           path: |
             engine/**/logs/*.log
             external/**/logs/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: "Upload Windows native crash diagnostics"
+        if: failure() && runner.os == 'Windows'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-crash-${{ matrix.platform }}
+          # Memory dumps can contain the CI credentials inherited by build tools.
+          path: |
+            tmp/java-crash/hs_err_pid*.log
+            engine/**/hs_err_pid*.log
+            engine/**/*_shared.dll
+            engine/**/*_shared.pdb
+            com.dynamo.cr/**/hs_err_pid*.log
           if-no-files-found: ignore
           retention-days: 7
       - &step_upload_gradle_logs

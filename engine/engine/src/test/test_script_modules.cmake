@@ -4,6 +4,11 @@ else()
   set(_supports_compute 0)
 endif()
 
+if(WITH_ASAN AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+  # Match the graphics tests' Xlib suppression while keeping engine leak checks.
+  set(ENV{LSAN_OPTIONS} "suppressions=${CMAKE_CURRENT_LIST_DIR}/test_script_modules.lsan.supp:$ENV{LSAN_OPTIONS}")
+endif()
+
 execute_process(
   COMMAND "${ENGINE}"
     "--config=resource.uri=${CONTENT_ROOT}"

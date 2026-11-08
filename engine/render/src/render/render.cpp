@@ -211,10 +211,10 @@ namespace dmRender
                                     installed_adapter_family == dmGraphics::ADAPTER_FAMILY_METAL ||
                                     installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VENDOR;
 
-        context->m_RenderListDispatch.SetCapacity(255);
+        context->m_RenderListDispatch.SetCapacity(RENDERLIST_MAX_DISPATCHES);
         context->m_RenderItemDispatches.SetCapacity(8);
         context->m_RenderItemDispatches.Push(0); // Reserve the invalid handle.
-        context->m_SubmittedRenderItemDispatches.SetCapacity(255);
+        context->m_SubmittedRenderItemDispatches.SetCapacity(RENDERLIST_MAX_DISPATCHES);
         context->m_FirstFreeRenderItem = ~0u;
         context->m_TransientRenderListDirty = false;
 
@@ -636,7 +636,7 @@ namespace dmRender
     }
 
     // Compute new sort values for everything that matches tag_mask
-    static void MakeSortBuffer(HRenderContext context, uint32_t tag_count, dmhash_t* tags, SortOrder sort_order)
+    static void MakeSortBuffer(HRenderContext context, uint32_t tag_count, dmhash_t* tags, SortOrder sort_order, bool (& dispatch_used)[RENDERLIST_MAX_DISPATCHES])
     {
         DM_PROFILE("MakeSortBuffer");
 
@@ -763,6 +763,7 @@ namespace dmRender
                     sort_values[idx].m_BatchKey = entry->m_BatchKey & 0x00ffffff;
                     sort_values[idx].m_Dispatch = entry->m_Dispatch;
                     context->m_RenderListSortBuffer.Push(idx);
+                    dispatch_used[entry->m_Dispatch] = true;
                 }
             }
         }
@@ -1645,10 +1646,18 @@ namespace dmRender
             }
         }
 
+        bool dispatch_used[RENDERLIST_MAX_DISPATCHES] = {};
         if (!cached)
         {
             PrepareRenderList(context);
-            MakeSortBuffer(context, predicate ? predicate->m_TagCount : 0, predicate ? predicate->m_Tags : 0, effective_sort_order);
+            uint32_t tag_count = 0;
+            dmhash_t* tags = 0;
+            if (predicate)
+            {
+                tag_count = predicate->m_TagCount;
+                tags = predicate->m_Tags;
+            }
+            MakeSortBuffer(context, tag_count, tags, effective_sort_order, dispatch_used);
             if (context->m_RenderListSortBuffer.Empty())
             {
                 return RESULT_OK;
@@ -1667,6 +1676,11 @@ namespace dmRender
         }
         else
         {
+            // Cached draws skip MakeSortBuffer; recover dispatch use from their batches.
+            for (uint32_t i = 0; i < cache->m_Batches.Size(); ++i)
+            {
+                dispatch_used[cache->m_Batches[i].m_Dispatch] = true;
+            }
             DM_PROPERTY_ADD_U32(rmtp_GpuBatchCacheHits, 1);
         }
         indirect.m_DrawCache = cache;
@@ -1683,9 +1697,13 @@ namespace dmRender
         {
             DM_PROFILE("Dispatch_Begin");
 
-            // All get begin operation first
+            // Begin all dispatches with selected entries before processing any batches.
             for (uint32_t i=0;i!=context->m_RenderListDispatch.Size();i++)
             {
+                if (!dispatch_used[i])
+                {
+                    continue;
+                }
                 const RenderListDispatch& d = context->m_RenderListDispatch[i];
                 params.m_UserData = d.m_UserData;
                 d.m_DispatchFn(params);
@@ -1763,6 +1781,10 @@ namespace dmRender
 
             for (uint32_t i=0;i!=context->m_RenderListDispatch.Size();i++)
             {
+                if (!dispatch_used[i])
+                {
+                    continue;
+                }
                 const RenderListDispatch& d = context->m_RenderListDispatch[i];
                 params.m_UserData = d.m_UserData;
                 d.m_DispatchFn(params);

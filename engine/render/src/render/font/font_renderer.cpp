@@ -51,6 +51,9 @@ namespace dmRender
 
     static const uint32_t FALLBACK_CODEPOINT = 126U; // '~'
     static const dmhash_t FONT_EFFECTS_HASH = dmHashString64("font_effects");
+    static const dmhash_t BAND_TEXTURE_HASH = dmHashString64("band_texture");
+    static const dmhash_t PAINT_TEXTURE_HASH = dmHashString64("paint_texture");
+    static const dmhash_t EFFECT_BITMAP_HASH = dmHashString64("effect_bitmap");
 
     static CacheGlyph* GetDecorationCacheGlyph(HFontMap font_map, uint32_t frame)
     {
@@ -655,13 +658,13 @@ namespace dmRender
         ro->m_Material = material;
         memset(ro->m_Textures, 0, sizeof(ro->m_Textures));
         uint32_t curve_unit = dmRender::GetMaterialSamplerUnit(material, g_CurveTextureHash);
-        uint32_t band_unit = dmRender::GetMaterialSamplerUnit(material, dmHashString64("band_texture"));
+        uint32_t band_unit = dmRender::GetMaterialSamplerUnit(material, BAND_TEXTURE_HASH);
         if (band_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_IsVector)
             ro->m_Textures[band_unit] = font_map->m_VectorBandTexture;
-        uint32_t paint_unit = dmRender::GetMaterialSamplerUnit(material, dmHashString64("paint_texture"));
+        uint32_t paint_unit = dmRender::GetMaterialSamplerUnit(material, PAINT_TEXTURE_HASH);
         if (paint_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_IsVector)
             ro->m_Textures[paint_unit] = font_map->m_VectorPaintTexture;
-        uint32_t bitmap_unit = dmRender::GetMaterialSamplerUnit(material, dmHashString64("effect_bitmap"));
+        uint32_t bitmap_unit = dmRender::GetMaterialSamplerUnit(material, EFFECT_BITMAP_HASH);
         if (bitmap_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_VectorBitmapEffects)
             ro->m_Textures[bitmap_unit] = font_map->m_VectorSdfTexture;
         uint32_t texture_unit = dmRender::GetMaterialSamplerUnit(material, g_TextureSamplerHash);
@@ -789,6 +792,7 @@ namespace dmRender
                 }
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
+                // A selected text batch can produce no glyph vertices.
                 if (text_context.m_VerticesFlushed != text_context.m_VertexIndex)
                 {
                     const uint32_t vertex_size = sizeof(FontDefaultVertex);

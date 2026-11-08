@@ -1,0 +1,5 @@
+name: "service"
+instances {
+  id: "runtime"
+  prototype: "/service/runtime.go"
+}

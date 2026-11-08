@@ -76,6 +76,7 @@ set(ENGINE_TEST_CONTENT_SETTINGS
   "render_script.ini"
   "script_modules.ini"
   "camera_acquire_input_focus.ini"
+  "service/runtime.ini"
   "text_input.ini")
 
 set(ENGINE_TEST_CLASSPATH "${ENGINE_BOB_ENGINE_JAR}")
@@ -147,6 +148,7 @@ if(TARGET_PLATFORM STREQUAL HOST_PLATFORM)
       "-DENGINE=$<TARGET_FILE:${_engine_variant}>"
       "-DCONTENT_ROOT=${ENGINE_TEST_RUNTIME_ROOT}/build/default"
       "-DSUPPORTS_COMPUTE=${DEFOLD_PLATFORM_SUPPORTS_COMPUTE}"
+      "-DWITH_ASAN=${WITH_ASAN}"
       -P "${ENGINE_TEST_ROOT}/test_script_modules.cmake")
     defold_test_run_settings(_script_modules_runner _script_modules_options shared)
     # Verify Lua module registration in the shipped engine variants (#13681).
