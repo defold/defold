@@ -29,8 +29,8 @@ namespace dmWebServer
     static bool IsMethod(const char* key)
     {
         return dmStrEq(key, "get") || dmStrEq(key, "put") || dmStrEq(key, "post")
-            || dmStrEq(key, "delete") || dmStrEq(key, "options") || dmStrEq(key, "head")
-            || dmStrEq(key, "patch") || dmStrEq(key, "trace");
+               || dmStrEq(key, "delete") || dmStrEq(key, "options") || dmStrEq(key, "head")
+               || dmStrEq(key, "patch") || dmStrEq(key, "trace");
     }
 
     static bool ValidatePathItem(const dmJson::Document& json, int path)

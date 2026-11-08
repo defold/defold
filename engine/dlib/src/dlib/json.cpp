@@ -98,8 +98,7 @@ namespace dmJson
         {
             return 1;
         }
-        uint32_t count = first >= 0xf0 ? 4 : first >= 0xe0 ? 3 :
-                         2;
+        uint32_t count = first >= 0xf0 ? 4 : first >= 0xe0 ? 3 : 2;
         if (first < 0xc2 || first > 0xf4 || size < count)
         {
             return 0;
