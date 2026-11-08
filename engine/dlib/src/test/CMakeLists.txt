@@ -255,8 +255,8 @@ dlib_add_test(test_embed
 if(NOT DLIB_TEST_SKIP_THREADS)
   dlib_add_test(test_atomic)
   dlib_add_test(test_spinlock)
-  dlib_add_test(test_condition_variable)
 endif()
+dlib_add_test(test_condition_variable)
 dlib_add_test(test_job_system)
 
 if(DLIB_TEST_SKIP_RUN)
