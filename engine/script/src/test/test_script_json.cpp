@@ -14,12 +14,15 @@
 
 #include <string.h> // memcpy
 #include <locale.h>
+#include <fenv.h>
+#include <math.h>
 
 #include "script.h"
 #include "test_script.h"
 
 #include <testmain/testmain.h>
 #include <dlib/log.h>
+#include <dlib/dstrings.h>
 
 class ScriptJsonTest : public dmScriptTest::ScriptTest
 {
@@ -300,6 +303,51 @@ TEST_F(ScriptJsonTest, TestJsonLegacyNumbersBounded)
         }
         lua_settop(L, top);
     }
+}
+
+// Decimal fast paths must preserve fourteen-digit rounding at ties, carries and format boundaries.
+TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
+{
+    int top = lua_gettop(L);
+    int previous_rounding = fegetround();
+    char* previous_locale = strdup(setlocale(LC_NUMERIC, 0));
+    setlocale(LC_NUMERIC, "C");
+    const int modes[] = { FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO };
+    const double boundaries[] = {
+        0.0, 1e-5, 1e-4, 0.001, 0.1, 1.0, 9.99999999999995,
+        99.9999999999995, 99999999999999.5, 1e14, 1e300
+    };
+    for (uint32_t mode = 0; mode < sizeof(modes) / sizeof(modes[0]); ++mode)
+    {
+        if (fesetround(modes[mode]))
+        {
+            continue;
+        }
+        for (uint32_t i = 0; i < 18 * 10 + sizeof(boundaries) / sizeof(boundaries[0]); ++i)
+        {
+            double value = i < 180 ? (10000000000000.5 + (i % 10) * 9999999999999.0) / pow(10.0, i / 10) : boundaries[i - 180];
+            const double neighbors[] = { nextafter(value, 0.0), value, nextafter(value, HUGE_VAL) };
+            for (uint32_t neighbor = 0; neighbor < 3; ++neighbor)
+            {
+                for (uint32_t negative = 0; negative < 2; ++negative)
+                {
+                    double number = negative ? -neighbors[neighbor] : neighbors[neighbor];
+                    char expected[64];
+                    dmSnPrintf(expected, sizeof(expected), "%.14g", number);
+                    lua_pushnumber(L, number);
+                    char* text = 0;
+                    size_t size = 0;
+                    EXPECT_EQ(1, dmScript::LuaToJson(L, -1, 0, &text, &size));
+                    EXPECT_STREQ(expected, text);
+                    free(text);
+                    lua_settop(L, top);
+                }
+            }
+        }
+    }
+    fesetround(previous_rounding);
+    setlocale(LC_NUMERIC, previous_locale);
+    free(previous_locale);
 }
 
 // Locale changes must not change JSON's decimal point or consume value separators (issue #10130).

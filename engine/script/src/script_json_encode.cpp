@@ -15,6 +15,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/json_lexer.h>
 #include "script_json.h"
+#include <fenv.h>
 #include <limits.h>
 #include <string.h>
 extern "C"
@@ -144,6 +145,91 @@ namespace dmScript
             }
             Byte('"');
         }
+        bool Decimal(double value)
+        {
+            bool negative = value < 0;
+            double magnitude = negative ? -value : value;
+            if (magnitude < 1e-4 || magnitude >= 1e14 || fegetround() != FE_TONEAREST)
+            {
+                return false;
+            }
+            static const double powers[] = {
+                1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3, 1e4,
+                1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14,
+                1e15, 1e16, 1e17
+            };
+            uint64_t bits;
+            memcpy(&bits, &magnitude, sizeof(bits));
+            int binary_exponent = (int)(bits >> 52) - 1023;
+            // In this range, floor(e2 * log10(2)) needs at most one correction.
+            // The bias keeps the integer shift nonnegative and portable.
+            int exponent = ((binary_exponent * 1233 + 65536) >> 12) - 16;
+            if (magnitude >= powers[exponent + 6])
+            {
+                ++exponent;
+            }
+            // These integer powers of ten are exact doubles, and the product
+            // has at most 47 integer bits. Rounding cannot cross a half
+            // integer unless it lands on one; printf resolves that ambiguity.
+            double scaled = magnitude * powers[18 - exponent];
+            uint64_t coefficient = (uint64_t)scaled;
+            double fraction = scaled - (double)coefficient;
+            if (fraction == 0.5)
+            {
+                return false;
+            }
+            coefficient += fraction > 0.5;
+            if (coefficient == UINT64_C(100000000000000))
+            {
+                coefficient /= 10;
+                if (++exponent == 14)
+                {
+                    return false;
+                }
+            }
+            char digits[14];
+            for (int i = 13; i >= 0; --i)
+            {
+                digits[i] = '0' + coefficient % 10;
+                coefficient /= 10;
+            }
+            int length = 14;
+            while (length > 1 && digits[length - 1] == '0')
+            {
+                --length;
+            }
+            Reserve(20);
+            char* out = m_Buffer.m_Data + m_Size;
+            if (negative)
+            {
+                *out++ = '-';
+            }
+            int point = exponent + 1;
+            if (point <= 0)
+            {
+                *out++ = '0';
+                *out++ = '.';
+                while (point++ < 0)
+                {
+                    *out++ = '0';
+                }
+                memcpy(out, digits, length);
+                out += length;
+            }
+            else
+            {
+                for (int i = 0; i < length || i < point; ++i)
+                {
+                    if (i == point)
+                    {
+                        *out++ = '.';
+                    }
+                    *out++ = i < length ? digits[i] : '0';
+                }
+            }
+            m_Size = (uint32_t)(out - m_Buffer.m_Data);
+            return true;
+        }
         void Number(int index)
         {
             double value = lua_tonumber(m_Lua, index);
@@ -168,6 +254,10 @@ namespace dmScript
                     *--out = '-';
                 }
                 Append(out, (uint32_t)(digits + sizeof(digits) - out));
+                return;
+            }
+            if (Decimal(value))
+            {
                 return;
             }
             Reserve(64);
