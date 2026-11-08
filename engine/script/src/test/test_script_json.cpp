@@ -23,6 +23,7 @@
 #include <testmain/testmain.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
+#include <dlib/json.h>
 
 class ScriptJsonTest : public dmScriptTest::ScriptTest
 {
@@ -305,10 +306,11 @@ TEST_F(ScriptJsonTest, TestJsonLegacyNumbersBounded)
     }
 }
 
-// Decimal fast paths must preserve fourteen-digit rounding at ties, carries and format boundaries.
+// Encoding must use fourteen-digit nearest rounding and valid JSON in every supported rounding mode.
 TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
 {
     int top = lua_gettop(L);
+    dmJson::Document document(1);
     int previous_rounding = fegetround();
     char* previous_locale = strdup(setlocale(LC_NUMERIC, 0));
     setlocale(LC_NUMERIC, "C");
@@ -333,12 +335,16 @@ TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
                 {
                     double number = negative ? -neighbors[neighbor] : neighbors[neighbor];
                     char expected[64];
+                    fesetround(FE_TONEAREST);
                     dmSnPrintf(expected, sizeof(expected), "%.14g", number);
+                    fesetround(modes[mode]);
                     lua_pushnumber(L, number);
                     char* text = 0;
                     size_t size = 0;
                     EXPECT_EQ(1, dmScript::LuaToJson(L, -1, 0, &text, &size));
+                    EXPECT_EQ(modes[mode], fegetround());
                     EXPECT_STREQ(expected, text);
+                    EXPECT_TRUE(document.Parse(text, (uint32_t)size, 0, dmJson::PARSE_PRESERVE_VALUES));
                     free(text);
                     lua_settop(L, top);
                 }
@@ -348,6 +354,52 @@ TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
     fesetround(previous_rounding);
     setlocale(LC_NUMERIC, previous_locale);
     free(previous_locale);
+}
+
+// Android's printf emitted ':' at these boundaries; encoding must use fixed expected results and restore rounding after errors.
+TEST_F(ScriptJsonTest, TestJsonEncodeRoundingMode)
+{
+    const struct
+    {
+        uint64_t    m_Bits;
+        const char* m_Expected;
+    } cases[] = {
+        { UINT64_C(0x3f50624dd2f1a9fb), "0.001" },
+        { UINT64_C(0xbf50624dd2f1a9fb), "-0.001" },
+        { UINT64_C(0x3fefffffffffffff), "1" },
+        { UINT64_C(0xbfefffffffffffff), "-1" },
+        { UINT64_C(0x42d6bcc41e8fffff), "1e+14" },
+        { UINT64_C(0xc2d6bcc41e8fffff), "-1e+14" },
+        { UINT64_C(0x7e37e43c8800759b), "1e+300" },
+        { UINT64_C(0xfe37e43c8800759b), "-1e+300" },
+    };
+    int top = lua_gettop(L);
+    int previous_rounding = fegetround();
+    const int modes[] = { FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO };
+    for (uint32_t mode = 0; mode < sizeof(modes) / sizeof(modes[0]); ++mode)
+    {
+        if (fesetround(modes[mode]))
+        {
+            continue;
+        }
+        for (uint32_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+        {
+            double number;
+            memcpy(&number, &cases[i].m_Bits, sizeof(number));
+            lua_pushnumber(L, number);
+            char* text = 0;
+            size_t size = 0;
+            EXPECT_EQ(1, dmScript::LuaToJson(L, -1, 0, &text, &size));
+            EXPECT_EQ(modes[mode], fegetround());
+            EXPECT_STREQ(cases[i].m_Expected, text);
+            free(text);
+            lua_settop(L, top);
+        }
+        EXPECT_TRUE(RunString(L, "assert(not pcall(json.encode, {1.25e100, math.huge}))"));
+        EXPECT_EQ(modes[mode], fegetround());
+        lua_settop(L, top);
+    }
+    fesetround(previous_rounding);
 }
 
 // Locale changes must not change JSON's decimal point or consume value separators (issue #10130).

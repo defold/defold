@@ -262,12 +262,24 @@ namespace dmScript
             }
             Reserve(64);
             char* text = m_Buffer.m_Data + m_Size;
+            // Use round-to-nearest even if the caller changed the thread's mode.
+            // Android's printf can emit non-digits in other rounding modes.
+            // Restore before a Lua error, which bypasses C++ destructors.
+            int previous_rounding = fegetround();
+            if (previous_rounding != FE_TONEAREST)
+            {
+                fesetround(FE_TONEAREST);
+            }
             int length = dmSnPrintf(text, 64, "%.14g", value);
+            if (previous_rounding != FE_TONEAREST)
+            {
+                fesetround(previous_rounding);
+            }
             if (length < 0)
             {
                 luaL_error(m_Lua, "Unable to format JSON number");
             }
-            // printf supplies the existing precision and rounding. Normalize
+            // printf supplies the existing fourteen-digit precision. Normalize
             // its decimal separator without changing the process locale or
             // retaining locale state that can become stale between calls.
             int point = text[0] == '-' ? 1 : 0;
