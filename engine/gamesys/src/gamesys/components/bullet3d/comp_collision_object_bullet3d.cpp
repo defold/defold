@@ -404,7 +404,7 @@ namespace dmGameSystem
             dmGameObject::UpdateTransforms(collection);
         }
 
-        BroadcastPhysicsPostStepEvent(collection, dmPhysics::GetWorldContext3D(world->m_World3D), step_ctx->m_DT);
+        BroadcastPhysicsPostStepEvent(physics_context->m_BaseContext.m_ContextRegistry, dmPhysics::GetWorldContext3D(world->m_World3D), step_ctx->m_DT);
         if (g_ScriptBullet3DProcessWorldQueriesCallback)
         {
             g_ScriptBullet3DProcessWorldQueriesCallback(dmPhysics::GetWorldContext3D(world->m_World3D));

@@ -597,7 +597,7 @@ namespace dmGameSystem
             dmGameObject::UpdateTransforms(collection);
         }
 
-        BroadcastPhysicsPostStepEvent(collection, dmPhysics::GetWorldContext2D(world->m_World2D), step_ctx->m_DT);
+        BroadcastPhysicsPostStepEvent(physics_context->m_BaseContext.m_ContextRegistry, dmPhysics::GetWorldContext2D(world->m_World2D), step_ctx->m_DT);
 
         if (collision_user_data->m_Count >= physics_context->m_BaseContext.m_MaxCollisionCount && physics_context->m_BaseContext.m_MaxCollisionCount > 0)
         {
