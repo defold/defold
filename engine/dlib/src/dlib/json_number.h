@@ -125,6 +125,26 @@ namespace dmJson
             return false;
         }
         const DecimalPower& power = DECIMAL_POWERS[exponent + 342];
+        // Normalize the coefficient so the high-word product has 63 or 64
+        // significant bits. Omitting the low table word bounds the exact
+        // product between P and P + normalized, so its high word can change
+        // by at most one. Away from the two positions adjacent to a rounding
+        // midpoint, both bounds therefore round to the same binary64.
+        uint32_t leading = 64 - BitLength(significand);
+        uint64_t normalized = significand << leading;
+        uint64_t ignored, high;
+        Multiply64(normalized, power.m_High, &ignored, &high);
+        uint32_t high_bits = BitLength(high);
+        int binary_exponent = (int)high_bits + 127 + power.m_Exponent - (int)leading;
+        uint32_t shift = high_bits - 53;
+        uint64_t remainder = high & ((UINT64_C(1) << shift) - 1);
+        uint64_t halfway = UINT64_C(1) << (shift - 1);
+        if (binary_exponent >= -1022 && binary_exponent <= 1023 &&
+            remainder != halfway && remainder != halfway - 1)
+        {
+            *bits = BinaryBits((high >> shift) + (remainder > halfway), binary_exponent);
+            return true;
+        }
         uint64_t words[3];
         uint64_t carry;
         Multiply64(significand, power.m_Low, &words[0], &carry);
