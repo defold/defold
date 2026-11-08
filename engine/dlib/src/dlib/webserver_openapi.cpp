@@ -116,7 +116,7 @@ namespace dmWebServer
         {
             return ParseError(0, "Expected a non-empty Paths Object", error);
         }
-        dmJson::Document document;
+        dmJson::Document document(32);
         uint32_t offset;
         if (!document.Parse(json, (uint32_t)strlen(json), &offset, dmJson::PARSE_PRESERVE_VALUES))
         {

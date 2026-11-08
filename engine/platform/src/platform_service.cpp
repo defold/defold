@@ -320,8 +320,8 @@ namespace dmPlatformService
 
     static bool ParseResize(const char* body, uint32_t size, Resize* resize)
     {
-        dmJson::Document json;
-        if (!json.Parse(body, size) || json.Get(0).m_Type != dmJson::TYPE_OBJECT)
+        dmJson::Document json(32);
+        if (!json.Parse(body, size, 0, dmJson::PARSE_DECODE_VALUES) || json.Get(0).m_Type != dmJson::TYPE_OBJECT)
         {
             return false;
         }
@@ -333,10 +333,10 @@ namespace dmPlatformService
                 return false;
             }
         }
-        int width = json.Integer(json.Field(0, "width"));
-        int height = json.Integer(json.Field(0, "height"));
+        int width = json.Integer(json.Field(0, "width"), -1);
+        int height = json.Integer(json.Field(0, "height"), -1);
         int timeout_field = json.Field(0, "timeout_ms");
-        int timeout = timeout_field < 0 ? 30000 : json.Integer(timeout_field);
+        int timeout = timeout_field < 0 ? 30000 : json.Integer(timeout_field, -1);
         if (width <= 0 || height <= 0 || timeout <= 0 || timeout > 60000)
         {
             return false;
@@ -344,7 +344,7 @@ namespace dmPlatformService
         int revision_field = json.Field(0, "expected_window_revision");
         if (revision_field >= 0)
         {
-            const char* revision = json.String(revision_field);
+            const char* revision = json.String(revision_field, 0);
             if (!revision || !revision[0] || strlen(revision) >= sizeof(resize->m_ExpectedRevision))
             {
                 return false;

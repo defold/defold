@@ -171,9 +171,9 @@ class EngineServiceOpenAPITest : public HttpServiceTest
         m_RequestInstance = 0;
         Fetch("GET", "/state");
         ASSERT_EQ(200, m_Status);
-        dmJson::Document json;
-        ASSERT_TRUE(json.Parse(m_Body.Begin(), m_Body.Size() - 1));
-        const char* value = json.String(json.Field(0, "engine_instance_id"));
+        dmJson::Document json(32);
+        ASSERT_TRUE(json.Parse(m_Body.Begin(), m_Body.Size() - 1, 0, dmJson::PARSE_DECODE_VALUES));
+        const char* value = json.String(json.Field(0, "engine_instance_id"), 0);
         ASSERT_NE((const char*)0, value);
         dmStrlCpy(instance, value, size);
     }
@@ -1502,9 +1502,9 @@ TEST_F(EngineServiceResourceTest, SceneGraphEscapesIdentifiers)
     Fetch("GET", "/scene_graph");
     dmGameObject::DeleteCollection(collection);
     ASSERT_EQ(200, m_Status);
-    dmJson::Document json;
-    ASSERT_TRUE(json.Parse(m_Body.Begin(), m_Body.Size() - 1));
-    ASSERT_STREQ(identifier, json.String(json.Field(0, "id")));
+    dmJson::Document json(32);
+    ASSERT_TRUE(json.Parse(m_Body.Begin(), m_Body.Size() - 1, 0, dmJson::PARSE_DECODE_VALUES));
+    ASSERT_STREQ(identifier, json.String(json.Field(0, "id"), 0));
 }
 
 // Existing clients must receive the unchanged RESS layout even when timing data is available.

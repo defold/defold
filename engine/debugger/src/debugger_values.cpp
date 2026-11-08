@@ -1083,7 +1083,7 @@ namespace dmDebugger
         bool        invalidate = false;
         if (dmStrEq(command, "stackTrace"))
         {
-            int thread = request.Integer(request.Field(args, "threadId"));
+            int thread = request.Integer(request.Field(args, "threadId"), -1);
             int start = request.Integer(request.Field(args, "startFrame"), 0);
             int count = request.Integer(request.Field(args, "levels"), 0);
             if (thread <= 0 || !FindThread(d, (uint32_t)thread) || start < 0 || count < 0)
@@ -1126,7 +1126,7 @@ namespace dmDebugger
         }
         else if (dmStrEq(command, "scopes"))
         {
-            Frame* frame = FindFrame(d, request.Integer(request.Field(args, "frameId")));
+            Frame* frame = FindFrame(d, request.Integer(request.Field(args, "frameId"), -1));
             if (!frame)
                 error = "Invalid frameId";
             else
@@ -1144,15 +1144,15 @@ namespace dmDebugger
         }
         else if (dmStrEq(command, "evaluate") || dmStrEq(command, "setExpression") || dmStrEq(command, "completions"))
         {
-            Frame*      frame = FindFrame(d, request.Integer(request.Field(args, "frameId")));
+            Frame*      frame = FindFrame(d, request.Integer(request.Field(args, "frameId"), -1));
             Thread*     thread = FindThread(d, d->m_StoppedThread);
             bool        global = request.Field(args, "frameId") < 0;
             lua_State*  L = global ? (thread ? GetThread(thread) : 0) : (frame ? frame->m_L : 0);
             int         level = global ? -1 : (frame ? frame->m_Level : -1);
             uint32_t    frame_id = frame ? frame->m_Id : 0;
             bool        assignment = dmStrEq(command, "setExpression");
-            const char* expression = request.String(request.Field(args, "expression"));
-            const char* value = assignment ? request.String(request.Field(args, "value")) : expression;
+            const char* expression = request.String(request.Field(args, "expression"), 0);
+            const char* value = assignment ? request.String(request.Field(args, "value"), 0) : expression;
             if (!L)
                 error = "Invalid frameId";
             else if (dmStrEq(command, "completions"))
@@ -1195,7 +1195,7 @@ namespace dmDebugger
         }
         else if (dmStrEq(command, "exceptionInfo"))
         {
-            int thread = request.Integer(request.Field(args, "threadId"));
+            int thread = request.Integer(request.Field(args, "threadId"), -1);
             if (thread <= 0 || (uint32_t)thread != d->m_StoppedThread || !d->m_Exception.Size())
                 error = "No exception on this thread";
             else
@@ -1207,7 +1207,7 @@ namespace dmDebugger
         }
         else
         {
-            int id = request.Integer(request.Field(args, "variablesReference"));
+            int id = request.Integer(request.Field(args, "variablesReference"), -1);
             // Copy: rendering nested tables can grow and relocate the reference array.
             Reference r = {};
             bool      found = false;
@@ -1234,8 +1234,8 @@ namespace dmDebugger
                 error = "Evaluation results are read-only";
             else
             {
-                const char* name = request.String(request.Field(args, "name"));
-                const char* value = request.String(request.Field(args, "value"));
+                const char* name = request.String(request.Field(args, "name"), 0);
+                const char* value = request.String(request.Field(args, "value"), 0);
                 if (!name || !value)
                     error = "Missing variable name or value";
                 else

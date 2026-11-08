@@ -433,8 +433,8 @@ TEST_F(PlatformServiceTest, WindowJsonWithNumericLocale)
     m_Window->m_DisplayScale = 1.5f;
     Fetch("GET", "/window");
     ASSERT_EQ(200, m_Status);
-    dmJson::Document json;
-    ASSERT_TRUE(json.Parse(m_Body.Begin(), m_Body.Size() - 1));
+    dmJson::Document json(32);
+    ASSERT_TRUE(json.Parse(m_Body.Begin(), m_Body.Size() - 1, 0, dmJson::PARSE_DECODE_VALUES));
     ASSERT_EQ(1.5, json.Get(json.Field(0, "display_scale")).m_Number);
     ASSERT_STREQ(",", localeconv()->decimal_point);
 }

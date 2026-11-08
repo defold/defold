@@ -276,8 +276,8 @@ namespace dmRecord
 
     static bool ParseOptions(const char* body, uint32_t size, bool stopping, StartParams* params, uint32_t* id)
     {
-        dmJson::Document json;
-        if (!json.Parse(body, size) || json.Get(0).m_Type != dmJson::TYPE_OBJECT)
+        dmJson::Document json(32);
+        if (!json.Parse(body, size, 0, dmJson::PARSE_DECODE_VALUES) || json.Get(0).m_Type != dmJson::TYPE_OBJECT)
         {
             return false;
         }
@@ -297,7 +297,7 @@ namespace dmRecord
                 {
                     return false;
                 }
-                params->m_Audio = json.Boolean(field);
+                params->m_Audio = json.Boolean(field, false);
             }
             else if (stopping && !strcmp(node.m_Name, "operation_id"))
             {

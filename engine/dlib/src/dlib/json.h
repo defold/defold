@@ -73,16 +73,16 @@ namespace dmJson
         bool              m_Valid;
         bool              m_DecodeValues;
         // Zero capacity defers node allocation until parsing the first value.
-        Document(uint32_t initial_capacity = 32);
+        Document(uint32_t initial_capacity);
         ~Document();
         // Parsing a new document invalidates previous node indices and string pointers.
-        bool            Parse(const char* text, uint32_t size, uint32_t* error_offset = 0, ParseMode mode = PARSE_DECODE_VALUES);
+        bool            Parse(const char* text, uint32_t size, uint32_t* error_offset, ParseMode mode);
         int             Field(int object, const char* name) const;
         const Node&     Get(int node) const;
-        const char*     String(int node, const char* fallback = 0) const;
-        int             Integer(int node, int fallback = -1) const;
+        const char*     String(int node, const char* fallback) const;
+        int             Integer(int node, int fallback) const;
         bool            UnsignedInteger(int node, uint32_t* value) const;
-        bool            Boolean(int node, bool fallback = false) const;
+        bool            Boolean(int node, bool fallback) const;
 
         private:
         void  Space();
