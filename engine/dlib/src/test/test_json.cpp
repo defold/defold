@@ -960,6 +960,45 @@ TEST(dmJson, BufferedStringBoundaries)
     }
 }
 
+// Buffered spans must safely grow across plain text, raw controls and escapes producing up to four bytes.
+TEST(dmJson, BufferedStringSpans)
+{
+    const char escaped[] = "\\t\\u0041\\u041f\\u4e2d\\u0000\\ud83d\\ude00\\\\\1";
+    const char decoded[] = "\tA\xd0\x9f\xe4\xb8\xad\0\xf0\x9f\x98\x80\\\1";
+    dmArray<char> input;
+    dmArray<char> expected;
+    Append(input, "\"\\n");
+    Append(expected, "\n");
+    for (uint32_t length = 0; length < 64; ++length)
+    {
+        for (uint32_t i = 0; i < length; ++i)
+        {
+            Append(input, "a");
+            Append(expected, "a");
+        }
+        Append(input, escaped);
+        WriteJson(&expected, decoded, sizeof(decoded) - 1);
+    }
+    Append(input, "\"");
+    dmArray<char> original;
+    WriteJson(&original, input.Begin(), input.Size());
+    for (uint32_t capacity = 4; capacity < 530; ++capacity)
+    {
+        dmJson::StringBuffer buffer;
+        buffer.m_Data = (char*)malloc(capacity);
+        buffer.m_Capacity = capacity;
+        dmJson::Lexer lexer(input.Begin(), input.End());
+        lexer.m_AllowNul = true;
+        lexer.m_AllowControl = true;
+        char* result = lexer.ReadString(true, &buffer);
+        ASSERT_TRUE(lexer.m_Valid);
+        ASSERT_EQ(expected.Size(), lexer.m_StringLength);
+        ASSERT_EQ(0, memcmp(result, expected.Begin(), expected.Size()));
+        ASSERT_EQ(input.End(), lexer.m_Cursor);
+        ASSERT_EQ(0, memcmp(input.Begin(), original.Begin(), input.Size()));
+    }
+}
+
 // String scans must stop at every special byte position and compact long runs safely after decoding an escape.
 TEST(dmJson, StringBlockBoundaries)
 {

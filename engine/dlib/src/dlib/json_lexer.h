@@ -133,60 +133,83 @@ namespace dmJson
         template <bool decode, bool buffered>
         char* ReadStringInternal(StringBuffer* buffer)
         {
-            if (m_Cursor == m_End || *m_Cursor++ != '"')
+            char* cursor = m_Cursor;
+            if (cursor == m_End || *cursor++ != '"')
             {
+                m_Cursor = cursor;
                 m_Valid = false;
                 return 0;
             }
             m_Escaped = false;
-            char* begin = m_Cursor;
+            char* begin = cursor;
             char* out = begin;
-            while (m_Cursor < m_End)
+            char* limit = m_End;
+            while (cursor < m_End)
             {
-                char* run = m_Cursor;
                 uint32_t plain_bytes = 0;
-                while (plain_bytes < 8 && m_Cursor < m_End)
+                if (decode && buffered && m_Escaped)
                 {
-                    unsigned char c = (unsigned char)*m_Cursor;
-                    if (c < 32 || c == '"' || c == '\\')
-                    {
-                        break;
-                    }
-                    ++m_Cursor;
-                    ++plain_bytes;
-                }
-                if (plain_bytes == 8)
-                {
-                    while (m_End - m_Cursor >= 16 && PlainStringBlock(m_Cursor, false))
-                    {
-                        m_Cursor += 16;
-                    }
-                }
-                uint32_t length = (uint32_t)(m_Cursor - run);
-                if (decode)
-                {
-                    if (buffered && m_Escaped)
+                    if (cursor >= limit)
                     {
                         uint32_t used = (uint32_t)(out - buffer->m_Data);
-                        if (length > UINT32_MAX - used - 4 || !buffer->Reserve(used + length + 4))
+                        if (used > UINT32_MAX - 4 || !buffer->Reserve(used + 4))
                         {
                             break;
                         }
                         out = buffer->m_Data + used;
-                        if (length < 8)
+                        // Decoding never expands the input. Three spare bytes
+                        // cover a four-byte escape beginning just before limit.
+                        uint32_t available = buffer->m_Capacity - used - 3;
+                        uint32_t remaining = (uint32_t)(m_End - cursor);
+                        limit = cursor + (available < remaining ? available : remaining);
+                    }
+                    while (plain_bytes < 8 && cursor < limit)
+                    {
+                        unsigned char c = (unsigned char)*cursor;
+                        if (c < 32 || c == '"' || c == '\\')
                         {
-                            while (run != m_Cursor)
-                            {
-                                *out++ = *run++;
-                            }
+                            break;
                         }
-                        else
+                        *out++ = c;
+                        ++cursor;
+                        ++plain_bytes;
+                    }
+                    if (plain_bytes == 8)
+                    {
+                        while (limit - cursor >= 16 && PlainStringBlock(cursor, false))
                         {
-                            memcpy(out, run, length);
-                            out += length;
+                            memcpy(out, cursor, 16);
+                            out += 16;
+                            cursor += 16;
                         }
                     }
-                    else
+                    if (cursor == limit)
+                    {
+                        continue;
+                    }
+                }
+                else
+                {
+                    char* run = cursor;
+                    while (plain_bytes < 8 && cursor < m_End)
+                    {
+                        unsigned char c = (unsigned char)*cursor;
+                        if (c < 32 || c == '"' || c == '\\')
+                        {
+                            break;
+                        }
+                        ++cursor;
+                        ++plain_bytes;
+                    }
+                    if (plain_bytes == 8)
+                    {
+                        while (m_End - cursor >= 16 && PlainStringBlock(cursor, false))
+                        {
+                            cursor += 16;
+                        }
+                    }
+                    uint32_t length = (uint32_t)(cursor - run);
+                    if (decode)
                     {
                         if (out != run && length)
                         {
@@ -199,22 +222,23 @@ namespace dmJson
                 {
                     continue;
                 }
-                if (m_Cursor == m_End)
+                if (cursor == m_End)
                 {
                     break;
                 }
-                unsigned char c = *m_Cursor++;
+                unsigned char c = *cursor++;
                 if (c == '"')
                 {
                     char* result = decode && buffered && m_Escaped ? buffer->m_Data : begin;
-                    m_StringLength = (uint32_t)((decode ? out : m_Cursor - 1) - result);
+                    m_StringLength = (uint32_t)((decode ? out : cursor - 1) - result);
                     if (decode && !buffered)
                     {
                         *out = 0;
                     }
+                    m_Cursor = cursor;
                     return result;
                 }
-                if (c < 32 || m_Cursor == m_End)
+                if (c < 32 || cursor == m_End)
                 {
                     if (c && c < 32 && m_AllowControl)
                     {
@@ -222,7 +246,7 @@ namespace dmJson
                         {
                             // Escaped strings have four spare output bytes;
                             // otherwise this byte is already in the input.
-                            if (out != m_Cursor - 1)
+                            if (out != cursor - 1)
                             {
                                 *out = c;
                             }
@@ -241,18 +265,19 @@ namespace dmJson
                     }
                     memcpy(buffer->m_Data, begin, prefix);
                     out = buffer->m_Data + prefix;
+                    limit = cursor;
                 }
                 m_Escaped = true;
-                c = *m_Cursor++;
+                c = *cursor++;
                 if (c == 'u')
                 {
                 decode_unicode:
-                    if (m_End - m_Cursor < 4)
+                    if (m_End - cursor < 4)
                     {
                         break;
                     }
-                    int cp = Unicode(m_Cursor);
-                    m_Cursor += 4;
+                    int cp = Unicode(cursor);
+                    cursor += 4;
                     // Decoded JSON values are C strings. Reject embedded NUL.
                     if (cp < 0 || (decode && !m_AllowNul && cp == 0) || (cp >= 0xdc00 && cp <= 0xdfff))
                     {
@@ -260,16 +285,16 @@ namespace dmJson
                     }
                     if (cp >= 0xd800 && cp <= 0xdbff)
                     {
-                        if (m_End - m_Cursor < 6 || m_Cursor[0] != '\\' || m_Cursor[1] != 'u')
+                        if (m_End - cursor < 6 || cursor[0] != '\\' || cursor[1] != 'u')
                         {
                             break;
                         }
-                        int low = Unicode(m_Cursor + 2);
+                        int low = Unicode(cursor + 2);
                         if (low < 0xdc00 || low > 0xdfff)
                         {
                             break;
                         }
-                        m_Cursor += 6;
+                        cursor += 6;
                         cp = 0x10000 + ((cp - 0xd800) << 10) + low - 0xdc00;
                     }
                     if (!decode)
@@ -302,18 +327,13 @@ namespace dmJson
                         *out++ = 0x80 | (cp & 63);
                     }
                     // Consecutive Unicode escapes need no ordinary-text scan.
-                    if (m_End - m_Cursor >= 2 && m_Cursor[0] == '\\' && m_Cursor[1] == 'u')
+                    if (m_End - cursor >= 2 && cursor[0] == '\\' && cursor[1] == 'u')
                     {
-                        if (buffered)
+                        if (buffered && cursor >= limit)
                         {
-                            uint32_t used = (uint32_t)(out - buffer->m_Data);
-                            if (used > UINT32_MAX - 4 || !buffer->Reserve(used + 4))
-                            {
-                                break;
-                            }
-                            out = buffer->m_Data + used;
+                            continue;
                         }
-                        m_Cursor += 2;
+                        cursor += 2;
                         goto decode_unicode;
                     }
                     continue;
@@ -346,6 +366,7 @@ namespace dmJson
                     *out++ = c;
                 }
             }
+            m_Cursor = cursor;
             m_Valid = false;
             return 0;
         }
