@@ -31,7 +31,7 @@ EngineWindowEventType g_TypeCWindowType;
 HWindow g_TypeCEventWindow;
 static int* g_UserData;
 
-void TestTypeCBroadcastBuiltinEvent(ExtensionParams* params, uint32_t index, HWindow window)
+void TestTypeCBroadcastBuiltinEvent(HContextRegistry context_registry, uint32_t index, HWindow window)
 {
     const EngineWindowEventType types[] = {
         ENGINE_WINDOW_EVENT_FOCUS_GAINED,
@@ -50,14 +50,14 @@ void TestTypeCBroadcastBuiltinEvent(ExtensionParams* params, uint32_t index, HWi
                 }
             }
         };
-        ExtensionBroadcastEvent(params, ENGINE_WINDOW_EVENT, &data, sizeof(data));
+        ExtensionBroadcastEvent(context_registry, ENGINE_WINDOW_EVENT, &data, sizeof(data));
     }
     else
     {
         EngineStateEvent data = {
             index == 4 ? ENGINE_STATE_INITIALIZED : ENGINE_STATE_DELETE
         };
-        ExtensionBroadcastEvent(params, ENGINE_STATE_EVENT, &data, sizeof(data));
+        ExtensionBroadcastEvent(context_registry, ENGINE_STATE_EVENT, &data, sizeof(data));
     }
 }
 

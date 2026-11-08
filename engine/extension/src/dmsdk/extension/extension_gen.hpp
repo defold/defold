@@ -513,27 +513,29 @@ namespace dmExtension
      * Use extension-specific names for custom events; names beginning with `_dm_event_`
      * are reserved for engine events.
      *
-     * This function is not thread-safe. Call only on the engine thread with the
-     * parameters received from an engine callback. Callbacks run on the calling
-     * thread; no queuing or worker-thread marshalling occurs. Nested dispatch is
-     * supported. Delivery order is unspecified; events cannot be consumed.
-     * Parameters and payload are borrowed until return.
+     * This function is not thread-safe. Call only on the engine thread. Callbacks run
+     * on the calling thread; no queuing or worker-thread marshalling occurs. Nested
+     * dispatch is supported. Delivery order is unspecified; events cannot be consumed.
+     * The context registry and payload are borrowed until return. Each broadcast
+     * supplies callback parameters using the registry's contexts and each receiver's
+     * user data. Event parameters have a delta time of zero.
      * The sender retains ownership. Data is read-only to receivers. Passing null
      * data with data_size zero sends a payload-free event. The engine forwards
      * the payload without interpreting its contents.
      * @name BroadcastEvent
      * @language C++
-     * @param params [type:Params*] valid current engine callback parameters
+     * @param context_registry [type:HContextRegistry] borrowed engine context registry, or null for no contexts
      * @param event_id [type:dmhash_t] hash of the event name
      * @param data [type:const void*] borrowed payload, or null for a payload-free event
      * @param data_size [type:uint32_t] payload size in bytes; zero for a payload-free event
      * @examples
      * ```c
+     * HContextRegistry context_registry = ParamsGetContextRegistry(params);
      * uint32_t value = 42;
-     * BroadcastEvent(params, dmHashString64("my_extension.changed"), &value, sizeof(value));
+     * BroadcastEvent(context_registry, dmHashString64("my_extension.changed"), &value, sizeof(value));
      * ```
      */
-    void BroadcastEvent(Params* params, dmhash_t event_id, const void* data, uint32_t data_size);
+    void BroadcastEvent(HContextRegistry context_registry, dmhash_t event_id, const void* data, uint32_t data_size);
 
     /*# Register application delegate
      * Register an iOS application delegate for process-level callbacks such as launch
@@ -847,24 +849,26 @@ namespace dmExtension
  * Use extension-specific names for custom events; names beginning with `_dm_event_`
  * are reserved for engine events.
  *
- * This function is not thread-safe. Call only on the engine thread with the
- * parameters received from an engine callback. Callbacks run on the calling
- * thread; no queuing or worker-thread marshalling occurs. Nested dispatch is
- * supported. Delivery order is unspecified; events cannot be consumed.
- * Parameters and payload are borrowed until return.
+ * This function is not thread-safe. Call only on the engine thread. Callbacks run
+ * on the calling thread; no queuing or worker-thread marshalling occurs. Nested
+ * dispatch is supported. Delivery order is unspecified; events cannot be consumed.
+ * The context registry and payload are borrowed until return. Each broadcast
+ * supplies callback parameters using the registry's contexts and each receiver's
+ * user data. Event parameters have a delta time of zero.
  * The sender retains ownership. Data is read-only to receivers. Passing null
  * data with data_size zero sends a payload-free event. The engine forwards
  * the payload without interpreting its contents.
  * @name ExtensionBroadcastEvent
  * @language C
- * @param params [type:ExtensionParams*] valid current engine callback parameters
+ * @param context_registry [type:HContextRegistry] borrowed engine context registry, or null for no contexts
  * @param event_id [type:dmhash_t] hash of the event name
  * @param data [type:const void*] borrowed payload, or null for a payload-free event
  * @param data_size [type:uint32_t] payload size in bytes; zero for a payload-free event
  * @examples
  * ```c
+ * HContextRegistry context_registry = ExtensionParamsGetContextRegistry(params);
  * uint32_t value = 42;
- * ExtensionBroadcastEvent(params, dmHashString64("my_extension.changed"), &value, sizeof(value));
+ * ExtensionBroadcastEvent(context_registry, dmHashString64("my_extension.changed"), &value, sizeof(value));
  * ```
  */
 

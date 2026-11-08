@@ -50,7 +50,7 @@ dmExtension::Result UpdateTest(dmExtension::Params* params)
     float before = -1.0f;
     g_TestCustomEventDTValid &= dmExtension::ParamsGetFloat(params, dmExtension::PARAM_DT, &before);
     uint32_t value = 42;
-    dmExtension::BroadcastEvent(params, dmHashString64("sdk.custom_event"), &value, sizeof(value));
+    dmExtension::BroadcastEvent(dmExtension::ParamsGetContextRegistry(params), dmHashString64("sdk.custom_event"), &value, sizeof(value));
     float after = -1.0f;
     g_TestCustomEventDTValid &= dmExtension::ParamsGetFloat(params, dmExtension::PARAM_DT, &after) && after == before;
     return dmExtension::RESULT_OK;

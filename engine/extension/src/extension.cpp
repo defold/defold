@@ -188,9 +188,9 @@ void ExtensionSetEventFn(HExtension extension, FExtensionEventCallback fn)
     extension->m_EventCallback = fn;
 }
 
-void ExtensionBroadcastEvent(ExtensionParams* params, dmhash_t event_id, const void* data, uint32_t data_size)
+void ExtensionBroadcastEvent(HContextRegistry context_registry, dmhash_t event_id, const void* data, uint32_t data_size)
 {
-    dmExtension::BroadcastEvent(params, event_id, data, data_size);
+    dmExtension::BroadcastEvent(context_registry, event_id, data, data_size);
 }
 
 void ExtensionAppParamsInitialize(ExtensionAppParams* app_params)
@@ -698,10 +698,18 @@ namespace dmExtension
         return false;
     }
 
-    void BroadcastEvent(Params* params, dmhash_t event_id, const void* data, uint32_t data_size)
+    void BroadcastEvent(HContextRegistry context_registry, dmhash_t event_id, const void* data, uint32_t data_size)
     {
-        float previous_dt = params->m_Impl->m_DT;
-        params->m_Impl->m_DT = 0.0f;
+        ExtensionParamsImpl impl;
+        impl.m_ContextRegistry = context_registry;
+        Params params = {};
+        params.m_Impl = &impl;
+        if (context_registry)
+        {
+            params.m_ConfigFile = (HConfigFile)ContextRegistryGet(context_registry, CONFIGFILE_CONTEXT_NAME);
+            params.m_ResourceFactory = (HResourceFactory)ContextRegistryGet(context_registry, RESOURCE_FACTORY_CONTEXT_NAME);
+            params.m_L = (lua_State*)ContextRegistryGet(context_registry, "lua");
+        }
         Event legacy_event;
         bool has_legacy_event = GetLegacyEvent(event_id, data, data_size, &legacy_event);
 
@@ -712,10 +720,10 @@ namespace dmExtension
                 ed = dmExtension::GetNextExtension(ed);
                 continue;
             }
-            ScopedUserData user_data(params->m_Impl, ed);
+            ScopedUserData user_data(&impl, ed);
             if (ed->m_EventCallback)
             {
-                ed->m_EventCallback(params, event_id, data, data_size);
+                ed->m_EventCallback(&params, event_id, data, data_size);
             }
 
             if (ed->m_OnEvent && has_legacy_event)
@@ -725,11 +733,10 @@ namespace dmExtension
                     ((ExtensionDesc*)ed)->m_EventDeprecationLogged = true;
                     dmLogWarning("Extension '%s' uses deprecated FExtensionOnEvent and ExtensionEvent.", GetExtensionName(ed));
                 }
-                ed->m_OnEvent(params, &legacy_event);
+                ed->m_OnEvent(&params, &legacy_event);
             }
             ed = dmExtension::GetNextExtension(ed);
         }
-        params->m_Impl->m_DT = previous_dt;
     }
 
     AppExitCode AppParamsGetAppExitCode(AppParams * app_params)

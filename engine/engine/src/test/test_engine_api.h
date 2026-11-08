@@ -26,10 +26,10 @@ extern "C" {
 #endif
 
 // Test-only bridge for native engine setup. Registry and window handles are borrowed.
-HEngine TestEngineNew(HContextRegistry* registry);
-bool    TestEngineInit(HEngine engine, HWindow* window);
-void    TestEngineDelete(HEngine engine);
-int     TestEngineApiRunTests(int argc, char** argv);
+    HEngine TestEngineNew(HContextRegistry* registry);
+    bool    TestEngineInit(HEngine engine, HWindow* window);
+    void    TestEngineDelete(HEngine engine);
+    int     TestEngineApiRunTests(int argc, char** argv);
 
 #if defined(__cplusplus)
 }

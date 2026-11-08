@@ -332,9 +332,8 @@ namespace dmEngine
 
         dmGameSystem::OnWindowResized(width, height);
 
-        ScopedExtensionParams params(engine);
         dmEngine::WindowEvent event = { engine->m_Window, dmEngine::WINDOW_EVENT_RESIZED, { { width, height } } };
-        dmExtension::BroadcastEvent(params, dmEngine::EVENT_WINDOW, &event, sizeof(event));
+        dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_WINDOW, &event, sizeof(event));
     }
 
     static int OnWindowClose(void* user_data)
@@ -350,10 +349,8 @@ namespace dmEngine
     static void OnWindowFocus(void* user_data, uint32_t focus)
     {
         Engine* engine = (Engine*)user_data;
-        ScopedExtensionParams params(engine);
-
         dmEngine::WindowEvent event = { engine->m_Window, focus ? dmEngine::WINDOW_EVENT_FOCUS_GAINED : dmEngine::WINDOW_EVENT_FOCUS_LOST, { { 0, 0 } } };
-        dmExtension::BroadcastEvent(params, dmEngine::EVENT_WINDOW, &event, sizeof(event));
+        dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_WINDOW, &event, sizeof(event));
 
         dmGameSystem::OnWindowFocus(focus != 0);
     }
@@ -366,10 +363,8 @@ namespace dmEngine
         // on some platforms both events will arrive when regaining focus
         engine->m_PreviousFrameTime = dmTime::GetMonotonicTime(); // we might have stalled for a long time
 
-        ScopedExtensionParams params(engine);
-
         dmEngine::WindowEvent event = { engine->m_Window, iconify ? dmEngine::WINDOW_EVENT_MINIMIZED : dmEngine::WINDOW_EVENT_RESTORED, { { 0, 0 } } };
-        dmExtension::BroadcastEvent(params, dmEngine::EVENT_WINDOW, &event, sizeof(event));
+        dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_WINDOW, &event, sizeof(event));
 
         dmGameSystem::OnWindowIconify(iconify != 0);
     }
@@ -536,10 +531,8 @@ namespace dmEngine
             dmEngineService::OnEngineDelete(engine->m_EngineService);
 
         {
-            ScopedExtensionParams params(engine);
-
             dmEngine::StateEvent event = { dmEngine::STATE_DELETE };
-            dmExtension::BroadcastEvent(params, dmEngine::EVENT_STATE, &event, sizeof(event));
+            dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_STATE, &event, sizeof(event));
         }
 
         if (engine->m_MainCollectionResource)
@@ -1858,10 +1851,8 @@ namespace dmEngine
         }
 
         {
-            ScopedExtensionParams params(engine);
-
             dmEngine::StateEvent event = { dmEngine::STATE_INITIALIZED };
-            dmExtension::BroadcastEvent(params, dmEngine::EVENT_STATE, &event, sizeof(event));
+            dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_STATE, &event, sizeof(event));
         }
 
         // Establish the elapsed-time origin and first pacing deadline only after
