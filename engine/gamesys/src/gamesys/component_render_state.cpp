@@ -224,7 +224,7 @@ namespace dmGameSystem
 
         uint32_t dispatch_index;
         void* data;
-        dmRender::RenderFrameResult result = dmRender::AllocateRenderFrameTable(frame, COMPONENT_RENDER_DISPATCH_TABLE_TYPE, 1, sizeof(ComponentRenderDispatch), 16, &dispatch_index, &data);
+        dmRender::RenderFrameResult result = dmRender::AllocateRenderFrameTable(frame, COMPONENT_RENDER_DISPATCH_TABLE_TYPE, 1, sizeof(ComponentRenderDispatch), alignof(ComponentRenderDispatch), &dispatch_index, &data);
         if (result != dmRender::RENDER_FRAME_OK)
         {
             return result;

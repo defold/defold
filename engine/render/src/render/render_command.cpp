@@ -104,7 +104,7 @@ namespace dmRender
         uint32_t table_index;
         // Record which GPU resources the command uses. These descriptors do not keep resources
         // alive or protect against handle reuse; that requires separate lifetime management.
-        return CopyRenderFrameTable(frame, RENDER_COMMAND_DEPENDENCY_TABLE_TYPE, 1, sizeof(dependency), 8, &dependency, &table_index);
+        return CopyRenderFrameTable(frame, RENDER_COMMAND_DEPENDENCY_TABLE_TYPE, 1, sizeof(dependency), alignof(RenderCommandDependency), &dependency, &table_index);
     }
 
     static RenderFrameResult CopyCameraSnapshot(HRenderContext context, HRenderFrameStorage frame, HRenderCamera handle,
@@ -128,7 +128,7 @@ namespace dmRender
         snapshot.m_ViewProjection = camera->m_ViewProjection;
         snapshot.m_UseFrustum = use_frustum;
         uint32_t table_index;
-        RenderFrameResult result = CopyRenderFrameTable(frame, RENDER_COMMAND_PAYLOAD_TABLE_TYPE, 1, sizeof(snapshot), 16, &snapshot, &table_index, 0);
+        RenderFrameResult result = CopyRenderFrameTable(frame, RENDER_COMMAND_PAYLOAD_TABLE_TYPE, 1, sizeof(snapshot), alignof(RenderCommandCamera), &snapshot, &table_index, 0);
         if (result == RENDER_FRAME_OK)
         {
             // Reserve zero for inherited selection, keeping table index zero usable.
@@ -155,18 +155,18 @@ namespace dmRender
             case COMMAND_TYPE_SET_VIEW:
             case COMMAND_TYPE_SET_PROJECTION:
             {
-                return CopyOperand(frame, source.m_Operands[0], sizeof(dmVMath::Matrix4), 16, &destination->m_Operands[0]);
+                return CopyOperand(frame, source.m_Operands[0], sizeof(dmVMath::Matrix4), alignof(dmVMath::Matrix4), &destination->m_Operands[0]);
             }
             case COMMAND_TYPE_DRAW:
             {
                 // TODO: Deduplicate predicate values per frame; pointer-only caching is
                 // unsafe when Lua GC frees a predicate and its address is reused.
-                RenderFrameResult result = CopyOperand(frame, source.m_Operands[0], sizeof(Predicate), 8, &destination->m_Operands[0]);
+                RenderFrameResult result = CopyOperand(frame, source.m_Operands[0], sizeof(Predicate), alignof(Predicate), &destination->m_Operands[0]);
                 if (result != RENDER_FRAME_OK)
                 {
                     return result;
                 }
-                result = CopyOperand(frame, source.m_Operands[2], sizeof(FrustumOptions), 16, &destination->m_Operands[2]);
+                result = CopyOperand(frame, source.m_Operands[2], sizeof(FrustumOptions), alignof(FrustumOptions), &destination->m_Operands[2]);
                 if (result != RENDER_FRAME_OK)
                 {
                     return result;
@@ -178,7 +178,7 @@ namespace dmRender
             }
             case COMMAND_TYPE_DRAW_DEBUG3D:
             {
-                return CopyOperand(frame, source.m_Operands[0], sizeof(FrustumOptions), 16, &destination->m_Operands[0]);
+                return CopyOperand(frame, source.m_Operands[0], sizeof(FrustumOptions), alignof(FrustumOptions), &destination->m_Operands[0]);
             }
             case COMMAND_TYPE_DISPATCH_COMPUTE:
             {
@@ -222,7 +222,7 @@ namespace dmRender
             return RENDER_FRAME_OK;
         }
         uint32_t table_index;
-        return CopyRenderFrameTable(frame, RENDER_COMMAND_TABLE_TYPE, count, sizeof(Command), 8, commands, &table_index);
+        return CopyRenderFrameTable(frame, RENDER_COMMAND_TABLE_TYPE, count, sizeof(Command), alignof(Command), commands, &table_index);
     }
 
     static const RenderCommandCamera* ResolveCameraSnapshot(const RenderFrameView* frame, uint64_t operand)

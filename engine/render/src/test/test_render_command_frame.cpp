@@ -96,12 +96,15 @@ TEST(RenderCommandFrame, GenericOperandsDefaultToCameraInheritance)
     }
 }
 
-// Verifies every pointer operand owns its bytes before producer mutation or deletion.
+// Verifies pointer operands own aligned bytes after an odd-sized prefix and producer mutation/deletion.
 TEST(RenderCommandFrame, OwnsOperandData)
 {
     RenderFrameLimits limits = { 4096, 16, 0 };
     HRenderFrameStorage frame = NewRenderFrame(limits);
     BeginRenderFrame(frame, 31);
+    const uint8_t prefix = 0;
+    uint32_t prefix_table;
+    ASSERT_EQ(RENDER_FRAME_OK, CopyRenderFrameTable(frame, 1, 1, sizeof(prefix), alignof(uint8_t), &prefix, &prefix_table));
 
     dmVMath::Matrix4 matrix = dmVMath::Matrix4::translation(dmVMath::Vector3(1, 2, 3));
     dmVMath::Matrix4 expected_matrix = matrix;
@@ -131,6 +134,11 @@ TEST(RenderCommandFrame, OwnsOperandData)
     uint32_t count;
     const Command* recorded = GetCommands(*GetRenderFrameView(frame), &count);
     ASSERT_EQ(3u, count);
+    ASSERT_EQ((uintptr_t)0, (uintptr_t)recorded % alignof(Command));
+    ASSERT_EQ((uintptr_t)0, (uintptr_t)recorded[0].m_Operands[0] % alignof(dmVMath::Matrix4));
+    ASSERT_EQ((uintptr_t)0, (uintptr_t)recorded[1].m_Operands[0] % alignof(Predicate));
+    ASSERT_EQ((uintptr_t)0, (uintptr_t)recorded[1].m_Operands[2] % alignof(FrustumOptions));
+    ASSERT_EQ((uintptr_t)0, (uintptr_t)recorded[2].m_Operands[0] % alignof(FrustumOptions));
     AssertMatrix(expected_matrix, *(const dmVMath::Matrix4*)recorded[0].m_Operands[0]);
     ASSERT_EQ(1u, ((const Predicate*)recorded[1].m_Operands[0])->m_TagCount);
     ASSERT_EQ(dmHashString64("world"), ((const Predicate*)recorded[1].m_Operands[0])->m_Tags[0]);

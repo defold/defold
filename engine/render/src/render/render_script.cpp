@@ -894,7 +894,7 @@ namespace dmRender
             // Finalization trims the visible table to the initialized prefix.
             void* commands;
             i->m_RecordingResult = AllocateRenderFrameTable(i->m_RecordingFrame, RENDER_COMMAND_TABLE_TYPE,
-                                                            i->m_CommandCapacity, sizeof(Command), 8, &i->m_CommandTable, &commands);
+                                                            i->m_CommandCapacity, sizeof(Command), alignof(Command), &i->m_CommandTable, &commands);
             if (i->m_RecordingResult != RENDER_FRAME_OK)
             {
                 return false;

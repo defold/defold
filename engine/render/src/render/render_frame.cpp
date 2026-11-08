@@ -35,11 +35,11 @@ namespace dmRender
         // A draw is the largest fixed operand set. Allow each allocation's worst-case
         // alignment padding, including when component inputs end at an unaligned offset.
         // Constant snapshots use separate growable storage, including their headers.
-        const uint64_t operand_bytes = sizeof(RenderCommandCamera) + 15
-                                       + sizeof(Predicate) + 7
-                                       + sizeof(FrustumOptions) + 15;
-        const uint64_t fixed_bytes = sizeof(RenderFrameInfo) + 7
-                                     + command_count * sizeof(Command) + 7
+        const uint64_t operand_bytes = sizeof(RenderCommandCamera) + alignof(RenderCommandCamera) - 1
+                                       + sizeof(Predicate) + alignof(Predicate) - 1
+                                       + sizeof(FrustumOptions) + alignof(FrustumOptions) - 1;
+        const uint64_t fixed_bytes = sizeof(RenderFrameInfo) + alignof(RenderFrameInfo) - 1
+                                     + command_count * sizeof(Command) + alignof(Command) - 1
                                      + command_count * operand_bytes;
         const uint64_t payload_bytes = component_limits.m_PayloadBytes + fixed_bytes;
         // Camera, predicate, frustum and constants per draw, plus metadata/command array.
@@ -76,7 +76,7 @@ namespace dmRender
     RenderFrameResult RecordRenderFrameInfo(HRenderFrameStorage frame, const RenderFrameInfo& info)
     {
         uint32_t table;
-        return CopyRenderFrameTable(frame, RENDER_FRAME_INFO_TABLE_TYPE, 1, sizeof(info), 8, &info, &table);
+        return CopyRenderFrameTable(frame, RENDER_FRAME_INFO_TABLE_TYPE, 1, sizeof(info), alignof(RenderFrameInfo), &info, &table);
     }
 
     void BeginRenderFrameConsumption(HRenderContext context, const RenderFrameView& frame)

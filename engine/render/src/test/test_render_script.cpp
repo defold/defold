@@ -1922,6 +1922,7 @@ TEST_F(dmRenderScriptTest, DerivedLimitsRecordFullCommandCapacity)
 }
 
 // A full pass grows constants beyond 512 KiB while preserving all earlier camera and operand copies.
+// An odd-sized component prefix exercises alignment and the derived fixed-storage padding budget.
 TEST_F(dmRenderScriptTest, DerivedLimitsRecordFullOperandCapacity)
 {
     const uint32_t command_capacity = 1024;
@@ -1956,12 +1957,15 @@ TEST_F(dmRenderScriptTest, DerivedLimitsRecordFullOperandCapacity)
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
     ASSERT_EQ(command_capacity, instance->m_CommandCapacity);
-    const dmRender::RenderFrameLimits component_limits = {};
+    const char component_data[37] = {};
+    const dmRender::RenderFrameLimits component_limits = { sizeof(component_data), 1, 0 };
     dmRender::RenderFrameLimits limits;
     ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::CalculateRenderFrameLimits(m_Context, component_limits, &limits));
     dmRender::HRenderFrameStorage frame = dmRender::NewRenderFrame(limits);
     ASSERT_NE((dmRender::HRenderFrameStorage)0, frame);
     dmRender::BeginRenderFrame(frame, 1);
+    uint32_t component_table;
+    ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::CopyRenderFrameTable(frame, 1, sizeof(component_data), 1, 1, component_data, &component_table));
     ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::RecordRenderFrameInfo(frame, dmRender::GetRenderFrameInfo(m_Context)));
     ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::RecordRenderScriptInstance(instance, 0.0f, frame));
     ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::SealRenderFrame(frame));
@@ -1973,7 +1977,7 @@ TEST_F(dmRenderScriptTest, DerivedLimitsRecordFullOperandCapacity)
     lua_gc(m_Context->m_Recording.m_RenderScriptContext.m_LuaState, LUA_GCCOLLECT, 0);
 
     const dmRender::RenderFrameView& view = *dmRender::GetRenderFrameView(frame);
-    ASSERT_EQ(4 * (command_capacity - 1) + 3, view.m_Statistics.m_TableCount);
+    ASSERT_EQ(4 * (command_capacity - 1) + 4, view.m_Statistics.m_TableCount);
     ASSERT_GT(view.m_Statistics.m_DynamicPayloadBytes, (uint64_t)512 * 1024);
     ASSERT_GT(view.m_Statistics.m_DynamicAllocationCount, 1u);
     ASSERT_EQ((const dmRender::Command*)0, FindRecordedCommand(view, dmRender::COMMAND_TYPE_DRAW, command_capacity - 1));
@@ -1981,14 +1985,19 @@ TEST_F(dmRenderScriptTest, DerivedLimitsRecordFullOperandCapacity)
     ASSERT_NE((const dmRender::Command*)0, set_camera);
     const dmRender::RenderCommandCamera* selected_camera = GetRecordedCamera(view, set_camera->m_Operands[0]);
     ASSERT_NE((const dmRender::RenderCommandCamera*)0, selected_camera);
+    ASSERT_EQ((uintptr_t)0, (uintptr_t)selected_camera % alignof(dmRender::RenderCommandCamera));
     ASSERT_EQ(7.0f, selected_camera->m_View.getTranslation().getX());
     ASSERT_TRUE(selected_camera->m_UseFrustum);
     for (uint32_t i = 0; i < command_capacity - 1; ++i)
     {
         const dmRender::Command* draw = FindRecordedCommand(view, dmRender::COMMAND_TYPE_DRAW, i);
         ASSERT_NE((const dmRender::Command*)0, draw);
+        ASSERT_EQ((uintptr_t)0, (uintptr_t)draw % alignof(dmRender::Command));
+        ASSERT_EQ((uintptr_t)0, (uintptr_t)draw->m_Operands[0] % alignof(dmRender::Predicate));
+        ASSERT_EQ((uintptr_t)0, (uintptr_t)draw->m_Operands[2] % alignof(dmRender::FrustumOptions));
         const dmRender::RenderCommandCamera* draw_camera = GetRecordedCamera(view, draw->m_Operands[4]);
         ASSERT_NE((const dmRender::RenderCommandCamera*)0, draw_camera);
+        ASSERT_EQ((uintptr_t)0, (uintptr_t)draw_camera % alignof(dmRender::RenderCommandCamera));
         ASSERT_EQ(7.0f, draw_camera->m_View.getTranslation().getX());
         ASSERT_TRUE(draw_camera->m_UseFrustum);
         ASSERT_EQ(1u, ((const dmRender::Predicate*)draw->m_Operands[0])->m_TagCount);

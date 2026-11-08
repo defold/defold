@@ -92,6 +92,7 @@ namespace dmRender
 
         if (limits.m_PayloadBytes)
         {
+            // Mixed payload arena: support every alignment accepted by the table allocator.
             dmMemory::Result allocation_result = dmMemory::AlignedMalloc((void**)&frame->m_Payload, 16, limits.m_PayloadBytes);
             if (allocation_result != dmMemory::RESULT_OK)
             {
@@ -268,6 +269,7 @@ namespace dmRender
             }
             block->m_Payload = 0;
 
+            // Reused blocks can contain mixed payload types with alignments up to 16 bytes.
             dmMemory::Result allocation_result = dmMemory::AlignedMalloc((void**)&block->m_Payload, 16, capacity);
             if (allocation_result != dmMemory::RESULT_OK || !block->m_Payload)
             {
