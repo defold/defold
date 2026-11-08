@@ -40,9 +40,6 @@ import org.apache.commons.io.FileUtils;
 import com.dynamo.bob.pipeline.Shaderc;
 
 public class ShaderCompilePipeline {
-    private static final String VISIBLE_INSTANCE_USE_DEFINE = "DM_USE_VISIBLE_INSTANCES";
-    private static final String VISIBLE_INSTANCE_VARIANT_DEFINE = "DM_GPU_VISIBLE_INSTANCES";
-    private static final int VISIBLE_INSTANCE_DESCRIPTOR_SET = 3;
 
     public static class Options {
         // Editor previews bind individual uniforms instead of uniform buffers.
@@ -815,95 +812,6 @@ public class ShaderCompilePipeline {
         Shaderc.ShaderCompileResult[] shaders_array = shaders.toArray(new Shaderc.ShaderCompileResult[0]);
         Shaderc.HLSLRootSignature result = ShadercJni.HLSLMergeRootSignatures(shaders_array);
         return result;
-    }
-
-    private boolean usesVisibleInstances(ShaderModule module) throws IOException, CompileExceptionError {
-        if (!module.desc.source.contains(VISIBLE_INSTANCE_USE_DEFINE)) {
-            return false;
-        }
-
-        // Let GLSL evaluate conditional defines and #undef instead of matching source text.
-        String enabled = "_DM_VISIBLE_INSTANCE_USE_ENABLED";
-        String probe = "\n\n#ifdef " + VISIBLE_INSTANCE_USE_DEFINE + "\n" + enabled +
-            "\n#else\n_DM_VISIBLE_INSTANCE_USE_DISABLED\n#endif\n";
-        File source = createTempFile(this.pipelineName, ".visible-instance.vert");
-        FileUtils.writeStringToFile(source, module.desc.source + probe, StandardCharsets.UTF_8);
-
-        ArrayList<String> args = new ArrayList<>();
-        args.add(glslangExe);
-        args.add("-E");
-        args.add("-S");
-        args.add("vert");
-        // Match the Vulkan input semantics used by generateSPIRv's -V option.
-        args.add("-DVULKAN=100");
-        for (String define : this.options.defines) {
-            args.add("-D" + define);
-        }
-        args.add(source.getAbsolutePath());
-
-        Result result = Exec.execResult(args.toArray(new String[0]));
-        checkResult(module.desc.resourcePath, result);
-        return new String(result.stdOutErr, StandardCharsets.UTF_8).stripTrailing().endsWith(enabled);
-    }
-
-    // The shader must define DM_USE_VISIBLE_INSTANCES. Material
-    // semantics are checked by the renderer; other layouts keep matrix compaction.
-    public ShaderCompilePipeline createVisibleInstancePipeline(String name) throws IOException, CompileExceptionError {
-        ShaderModule vertexModule = getShaderModule(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
-        if (vertexModule == null || !usesVisibleInstances(vertexModule)) {
-            return null;
-        }
-        Shaderc.ShaderResource matrixInput = null;
-        for (Shaderc.ShaderResource resource : vertexModule.spirvReflector.getInputs()) {
-            if (resource.type.columnCount > 1) {
-                if (matrixInput != null || resource.type.columnCount != 4 ||
-                    resource.type.vectorSize != 4 || resource.type.baseType != Shaderc.BaseType.BASE_TYPE_FP32) {
-                    return null;
-                }
-                matrixInput = resource;
-            }
-        }
-        if (matrixInput == null) {
-            return null;
-        }
-        for (ShaderModule module : shaderModules) {
-            ArrayList<Shaderc.ShaderResource> resources = new ArrayList<>(module.spirvReflector.getUBOs());
-            resources.addAll(module.spirvReflector.getSsbos());
-            resources.addAll(module.spirvReflector.getTextures());
-            for (Shaderc.ShaderResource resource : resources) {
-                if (resource.set == VISIBLE_INSTANCE_DESCRIPTOR_SET) {
-                    return null;
-                }
-            }
-        }
-
-        Options visibleInstanceOptions = new Options();
-        visibleInstanceOptions.glslEmitUboAsPlainUniforms = options.glslEmitUboAsPlainUniforms;
-        visibleInstanceOptions.splitTextureSamplers = options.splitTextureSamplers;
-        visibleInstanceOptions.remapVertexFragmentIOForHLSL = options.remapVertexFragmentIOForHLSL;
-        visibleInstanceOptions.externalToolPath = options.externalToolPath;
-        visibleInstanceOptions.externalToolArgs = options.externalToolArgs;
-        visibleInstanceOptions.targetPlatform = options.targetPlatform;
-        visibleInstanceOptions.glslEsDefaultFloatPrecision = options.glslEsDefaultFloatPrecision;
-        visibleInstanceOptions.glslEsDefaultIntPrecision = options.glslEsDefaultIntPrecision;
-        visibleInstanceOptions.defines.addAll(options.defines);
-        visibleInstanceOptions.defines.add(VISIBLE_INSTANCE_VARIANT_DEFINE + "=1");
-
-        ShaderCompilePipeline visibleInstancePipeline = new ShaderCompilePipeline(name);
-        visibleInstancePipeline.options = visibleInstanceOptions;
-        boolean ready = false;
-        try {
-            for (ShaderModule module : shaderModules) {
-                visibleInstancePipeline.addShaderModule(module.desc);
-            }
-            visibleInstancePipeline.prepare();
-            ready = true;
-            return visibleInstancePipeline;
-        } finally {
-            if (!ready) {
-                destroyShaderPipeline(visibleInstancePipeline);
-            }
-        }
     }
 
     public SPIRVReflector getReflectionData(ShaderDesc.ShaderType shaderStage) {

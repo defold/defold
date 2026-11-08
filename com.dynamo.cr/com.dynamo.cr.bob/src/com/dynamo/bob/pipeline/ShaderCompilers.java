@@ -418,32 +418,8 @@ public class ShaderCompilers {
                 }
             }
             if (!isComputeType && !visibleInstanceLanguages.isEmpty()) {
-                ShaderCompilePipeline visibleInstancePipeline = pipeline.createVisibleInstancePipeline("visible-instance");
-                if (visibleInstancePipeline != null) {
-                    try {
-                        ShaderProgramBuilder.ShaderCompileResult visibleInstanceResult = new ShaderProgramBuilder.ShaderCompileResult();
-                        visibleInstanceResult.shaderBuildResults = new ArrayList<>();
-                        for (ShaderDesc.Language language : visibleInstanceLanguages) {
-                            for (ShaderCompilePipeline.ShaderModuleDesc module : shaderModules) {
-                                Shaderc.ShaderCompileResult compiledShader = visibleInstancePipeline.crossCompile(module.type, language);
-                                ShaderDesc.Shader.Builder shaderBuilder = ShaderProgramBuilder.makeShaderBuilder(compiledShader, language, module.type);
-                                visibleInstanceResult.shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(shaderBuilder));
-                            }
-                        }
-                        // Keep sampler units and reflection ordering aligned with the parent program.
-                        for (ShaderDesc.ShaderType type : shaderTypeKeys.keySet()) {
-                            visibleInstanceResult.reflectors.add(visibleInstancePipeline.getReflectionData(type));
-                        }
-                        compileResult.visibleInstanceProgram = ShaderProgramBuilder.buildResultsToShaderDescBuildResults(visibleInstanceResult).shaderDesc;
-                        for (Shaderc.ShaderResource resource : pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX).getInputs()) {
-                            if (resource.type.columnCount == 4) {
-                                compileResult.visibleInstanceAttribute = resource.nameHash;
-                            }
-                        }
-                    } finally {
-                        ShaderCompilePipeline.destroyShaderPipeline(visibleInstancePipeline);
-                    }
-                }
+                ShaderProgramBuilder.buildVisibleInstanceProgram(resourceOutputPath, shaderModules, opts,
+                    pipeline, visibleInstanceLanguages, shaderTypeKeys.keySet(), compileResult);
             }
 
             compileResult.hlslRootSignature = hlslRootSignature != null ? hlslRootSignature.hLSLRootSignature : null;

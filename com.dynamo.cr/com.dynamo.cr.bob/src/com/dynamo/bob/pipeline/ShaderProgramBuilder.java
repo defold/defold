@@ -24,6 +24,8 @@ import java.nio.charset.StandardCharsets;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 import com.dynamo.bob.*;
 import com.dynamo.bob.fs.DefaultFileSystem;
@@ -48,6 +50,10 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
             "output-glsl430", "exclude-gles-sm100"
         })
 public class ShaderProgramBuilder extends Builder {
+
+    private static final Pattern VISIBLE_INSTANCE_DEFINE = Pattern.compile("(?m)^\\h*#\\h*define\\h+DM_USE_VISIBLE_INSTANCES(?:\\h|$)");
+    private static final String VISIBLE_INSTANCE_VARIANT_DEFINE = "DM_GPU_VISIBLE_INSTANCES=1";
+    private static final int VISIBLE_INSTANCE_DESCRIPTOR_SET = 3;
 
     static public class ShaderBuildResult {
         public ShaderDesc.Shader.Builder shaderBuilder;
@@ -520,6 +526,90 @@ public class ShaderProgramBuilder extends Builder {
             }
 
             builder.addTypes(resourceTypeInfoBuilder);
+        }
+    }
+
+    private static Shaderc.ShaderResource getVisibleInstanceAttribute(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules, ShaderCompilePipeline pipeline) {
+        boolean declared = false;
+        for (ShaderCompilePipeline.ShaderModuleDesc module : modules) {
+            if (module.type == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX) {
+                declared = VISIBLE_INSTANCE_DEFINE.matcher(Common.stripComments(module.source)).find();
+                break;
+            }
+        }
+        if (!declared) {
+            return null;
+        }
+
+        Shaderc.ShaderResource matrixInput = null;
+        for (Shaderc.ShaderResource input : pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX).getInputs()) {
+            if (input.type.columnCount > 1) {
+                if (matrixInput != null || input.type.columnCount != 4 ||
+                    input.type.vectorSize != 4 || input.type.baseType != Shaderc.BaseType.BASE_TYPE_FP32) {
+                    return null;
+                }
+                matrixInput = input;
+            }
+        }
+        if (matrixInput == null) {
+            return null;
+        }
+        for (ShaderCompilePipeline.ShaderModuleDesc module : modules) {
+            SPIRVReflector reflector = pipeline.getReflectionData(module.type);
+            ArrayList<Shaderc.ShaderResource> resources = new ArrayList<>(reflector.getUBOs());
+            resources.addAll(reflector.getSsbos());
+            resources.addAll(reflector.getTextures());
+            for (Shaderc.ShaderResource resource : resources) {
+                if (resource.set == VISIBLE_INSTANCE_DESCRIPTOR_SET) {
+                    return null;
+                }
+            }
+        }
+        return matrixInput;
+    }
+
+    static void buildVisibleInstanceProgram(String resourcePath, ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules,
+        ShaderCompilePipeline.Options options, ShaderCompilePipeline pipeline, ArrayList<ShaderDesc.Language> languages,
+        Set<ShaderDesc.ShaderType> shaderTypes, ShaderCompileResult result) throws IOException, CompileExceptionError {
+        Shaderc.ShaderResource matrixInput = getVisibleInstanceAttribute(modules, pipeline);
+        if (matrixInput == null) {
+            return;
+        }
+
+        // The parent targets are already compiled. Restore the local options when the variant is complete.
+        int defineIndex = options.defines.size();
+        options.defines.add(VISIBLE_INSTANCE_VARIANT_DEFINE);
+        ShaderCompilePipeline variant = null;
+        try {
+            variant = newShaderPipeline(resourcePath + ".visible-instance", modules, options);
+            // GLSL evaluates the opt-in normally. An inactive define or a shader
+            // that still reads the instance matrix cannot use visible-ID rendering.
+            for (Shaderc.ShaderResource input : variant.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX).getInputs()) {
+                if (input.nameHash == matrixInput.nameHash) {
+                    return;
+                }
+            }
+
+            ShaderCompileResult variantResult = new ShaderCompileResult();
+            variantResult.shaderBuildResults = new ArrayList<>();
+            for (ShaderDesc.Language language : languages) {
+                for (ShaderCompilePipeline.ShaderModuleDesc module : modules) {
+                    Shaderc.ShaderCompileResult compiled = variant.crossCompile(module.type, language);
+                    ShaderDesc.Shader.Builder shader = makeShaderBuilder(compiled, language, module.type);
+                    variantResult.shaderBuildResults.add(new ShaderBuildResult(shader));
+                }
+            }
+            // Keep sampler units and reflection ordering aligned with the parent program.
+            for (ShaderDesc.ShaderType type : shaderTypes) {
+                variantResult.reflectors.add(variant.getReflectionData(type));
+            }
+            result.visibleInstanceProgram = buildResultsToShaderDescBuildResults(variantResult).shaderDesc;
+            result.visibleInstanceAttribute = matrixInput.nameHash;
+        } finally {
+            options.defines.remove(defineIndex);
+            if (variant != null) {
+                ShaderCompilePipeline.destroyShaderPipeline(variant);
+            }
         }
     }
 

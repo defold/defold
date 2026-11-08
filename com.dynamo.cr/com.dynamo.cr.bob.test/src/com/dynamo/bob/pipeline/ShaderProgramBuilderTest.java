@@ -228,6 +228,12 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertFalse(desc.hasVisibleInstanceProgram());
         assertEquals(0, desc.getReflection().getStorageBuffersCount());
         assertTrue(desc.getReflection().getInputsList().stream().anyMatch(input -> input.getName().equals("world")));
+
+        String declared = vertex.replace("#version 140\n", "#version 140\n#define DM_USE_VISIBLE_INSTANCES\n");
+        ShaderDesc unchanged = addAndBuildShaderDescs(
+            new String[] {"/unchanged.vp", "/unchanged.fp"}, new String[] {declared, fragment}, "/unchanged.shbundle");
+        assertFalse(unchanged.hasVisibleInstanceProgram());
+        assertTrue(unchanged.getReflection().getInputsList().stream().anyMatch(input -> input.getName().equals("world")));
     }
 
     // The opt-in define works with a renamed helper or inline code; no

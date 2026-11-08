@@ -8,7 +8,7 @@
 #define DM_INSTANCE_WORLD_ATTRIBUTE mtx_world
 #endif
 
-#ifdef DM_GPU_VISIBLE_INSTANCES
+#if defined(DM_USE_VISIBLE_INSTANCES) && defined(DM_GPU_VISIBLE_INSTANCES)
 // Descriptor set 3 is reserved for the renderer's persistent instance inputs.
 layout(std430, set = 3, binding = 0) readonly buffer _dm_visible_worlds
 {
@@ -24,7 +24,7 @@ in highp mat4 DM_INSTANCE_WORLD_ATTRIBUTE;
 
 mat4 dm_instance_world()
 {
-#ifdef DM_GPU_VISIBLE_INSTANCES
+#if defined(DM_USE_VISIBLE_INSTANCES) && defined(DM_GPU_VISIBLE_INSTANCES)
     uint visible_id = _dm_instance_ids[gl_InstanceIndex];
     return _dm_instance_worlds[visible_id];
 #else
