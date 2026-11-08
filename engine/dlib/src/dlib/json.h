@@ -20,9 +20,6 @@
 
 namespace dmJson
 {
-    const uint32_t MAX_DOCUMENT_SIZE = 1024 * 1024;
-    const uint32_t MAX_NODES = 65536;
-
     // Length of the next valid UTF-8 sequence, or zero. Input must be nonempty.
     uint32_t Utf8Bytes(const char* text, uint32_t size);
 
@@ -66,9 +63,9 @@ namespace dmJson
         uint32_t    m_NameLength;
     };
 
-    // A small, bounded JSON document. Strings are decoded in the owned buffer;
-    // text and node storage are reused between parses. Node indices stay valid
-    // when the node array grows.
+    // Strings are decoded in the owned buffer. Text and node storage grow on
+    // demand and are reused between parses; node indices survive array growth.
+    // Callers enforce input-size budgets. Recursive parsing supports 64 levels.
     struct Document
     {
         dmArray<Node>     m_Nodes;

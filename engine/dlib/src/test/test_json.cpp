@@ -148,15 +148,15 @@ TEST(dmJson, ReusedDocumentStorage)
     ASSERT_EQ(0, json.m_Text[2]);
 }
 
-// Geometric text-buffer growth stays within the document limit plus its NUL,
-// rejects oversized input and permits a smaller document after rejection.
-TEST(dmJson, ReusedTextStorageLimit)
+// Grow beyond the former 1 MiB limit, reuse the allocation for smaller inputs,
+// and reject a size whose terminating NUL would overflow before reading input.
+TEST(dmJson, ReusedTextStorageGrowth)
 {
     dmJson::Document json(0);
     dmArray<char> text;
-    text.SetCapacity(dmJson::MAX_DOCUMENT_SIZE + 1);
+    text.SetCapacity(2 * 1024 * 1024 + 17);
     text.SetSize(text.Capacity());
-    const uint32_t sizes[] = { dmJson::MAX_DOCUMENT_SIZE / 4 * 3, dmJson::MAX_DOCUMENT_SIZE };
+    const uint32_t sizes[] = { 768 * 1024, 1024 * 1024, 1024 * 1024 + 1, text.Size() };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
     {
         uint32_t size = sizes[i];
@@ -165,13 +165,11 @@ TEST(dmJson, ReusedTextStorageLimit)
         ASSERT_TRUE(json.Parse(text.Begin(), size));
         ASSERT_EQ(size - 2, strlen(json.String(0)));
         ASSERT_GE(json.m_TextCapacity, size + 1);
-        ASSERT_LE(json.m_TextCapacity, dmJson::MAX_DOCUMENT_SIZE + 1);
     }
     char* storage = json.m_Text;
     uint32_t capacity = json.m_TextCapacity;
-    text[dmJson::MAX_DOCUMENT_SIZE] = ' ';
     uint32_t offset;
-    ASSERT_FALSE(json.Parse(text.Begin(), text.Size(), &offset));
+    ASSERT_FALSE(json.Parse("", UINT32_MAX, &offset));
     ASSERT_EQ(0u, offset);
     ASSERT_TRUE(json.Parse("null", 4));
     ASSERT_EQ(dmJson::TYPE_NULL, json.Get(0).m_Type);
@@ -315,22 +313,52 @@ TEST(dmJson, NestedObjectKeyScope)
     }
 }
 
-// Growth must stop at the existing 65,536-node bound, reject the next node,
-// and allow the same parser to process a valid document after rejection.
-TEST(dmJson, NodeLimit)
+// Node storage grows beyond the former 65,536-node limit without losing links
+// or values, then remains reusable after invalid and smaller documents.
+TEST(dmJson, LargeNodeStorage)
 {
     dmJson::Document json;
     dmArray<char>    text;
-    Array(text, dmJson::MAX_NODES - 1);
+    Array(text, 65536 * 2);
     ASSERT_TRUE(json.Parse(text.Begin(), text.Size()));
-    ASSERT_EQ(dmJson::MAX_NODES, json.m_Nodes.Size());
-    ASSERT_LE(json.m_Nodes.Capacity(), dmJson::MAX_NODES);
-    Array(text, dmJson::MAX_NODES);
-    ASSERT_FALSE(json.Parse(text.Begin(), text.Size()));
-    ASSERT_EQ(dmJson::MAX_NODES, json.m_Nodes.Size());
+    ASSERT_EQ(65536u * 2 + 1, json.m_Nodes.Size());
+    int value = json.Get(0).m_First;
+    for (int i = 0; i < 65536 * 2; ++i)
+    {
+        ASSERT_GE(value, 0);
+        ASSERT_EQ(i, json.Integer(value));
+        value = json.Get(value).m_Next;
+    }
+    ASSERT_EQ(-1, value);
+    uint32_t capacity = json.m_Nodes.Capacity();
+    ASSERT_FALSE(json.Parse("[", 1));
     const char* small_json = "{\"valid\":true}";
     ASSERT_TRUE(json.Parse(small_json, (uint32_t)strlen(small_json)));
     ASSERT_TRUE(json.Boolean(json.Field(0, "valid")));
+    ASSERT_EQ(capacity, json.m_Nodes.Capacity());
+}
+
+// Dynamic document growth must retain the recursive parser's stack guard and
+// allow reuse after a document exceeds the supported nesting depth.
+TEST(dmJson, NestingDepth)
+{
+    dmJson::Document json;
+    dmArray<char> text;
+    for (uint32_t depth = 64; depth <= 65; ++depth)
+    {
+        text.SetSize(0);
+        for (uint32_t i = 0; i < depth; ++i)
+        {
+            Append(text, "[");
+        }
+        Append(text, "0");
+        for (uint32_t i = 0; i < depth; ++i)
+        {
+            Append(text, "]");
+        }
+        ASSERT_EQ(depth == 64, json.Parse(text.Begin(), text.Size()));
+    }
+    ASSERT_TRUE(json.Parse("null", 4));
 }
 
 // Integer conversion and its floating-point fallback preserve double precision,

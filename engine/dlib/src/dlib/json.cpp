@@ -25,6 +25,9 @@
 
 namespace dmJson
 {
+    // dmArray allocates with a uint32_t byte count. Node indices also fit in int.
+    static const uint32_t MAX_NODE_CAPACITY = UINT32_MAX / sizeof(Node);
+
     static double ReadNumber(char* begin, char* end)
     {
         bool negative = *begin == '-';
@@ -68,6 +71,11 @@ namespace dmJson
         {
             uint32_t prefix_size = (uint32_t)(point - begin);
             uint32_t decimal_size = (uint32_t)strlen(decimal);
+            if (decimal_size > UINT32_MAX - (uint32_t)(end - begin))
+            {
+                *end = next;
+                return HUGE_VAL;
+            }
             dmArray<char> localized;
             localized.SetCapacity((uint32_t)(end - begin) + decimal_size);
             memcpy(localized.Begin(), begin, prefix_size);
@@ -224,6 +232,7 @@ namespace dmJson
     , m_Valid(true)
     , m_DecodeValues(true)
     {
+        assert(initial_capacity <= MAX_NODE_CAPACITY);
         m_Nodes.SetCapacity(initial_capacity);
     }
     Document::~Document()
@@ -422,7 +431,7 @@ namespace dmJson
     int Document::Value(int depth)
     {
         Space();
-        if (depth > 64 || m_Cursor == m_End || m_Nodes.Size() >= MAX_NODES)
+        if (depth > 64 || m_Cursor == m_End || m_Nodes.Size() == MAX_NODE_CAPACITY)
         {
             m_Valid = false;
             return -1;
@@ -432,7 +441,9 @@ namespace dmJson
         node.m_Offset = (uint32_t)(m_Cursor - m_Text);
         if (m_Nodes.Full())
         {
-            m_Nodes.SetCapacity(m_Nodes.Capacity() ? m_Nodes.Capacity() * 2 : 32);
+            uint32_t capacity = m_Nodes.Capacity();
+            capacity = capacity > MAX_NODE_CAPACITY / 2 ? MAX_NODE_CAPACITY : capacity * 2;
+            m_Nodes.SetCapacity(capacity ? capacity : 32);
         }
         int id = m_Nodes.Size();
         m_Nodes.Push(node);
@@ -530,7 +541,8 @@ namespace dmJson
                 {
                     if (fields.Full())
                     {
-                        fields.SetCapacity(fields.Capacity() * 2);
+                        uint32_t capacity = fields.Capacity();
+                        fields.SetCapacity(capacity > MAX_NODE_CAPACITY / 2 ? MAX_NODE_CAPACITY : capacity * 2);
                     }
                     fields.Put(name_hash, child);
                 }
@@ -647,7 +659,8 @@ namespace dmJson
         {
             *error_offset = 0;
         }
-        if (size > MAX_DOCUMENT_SIZE)
+        // The owned buffer needs one extra byte for its terminating NUL.
+        if (size == UINT32_MAX)
         {
             return false;
         }
@@ -665,7 +678,7 @@ namespace dmJson
                     continue;
                 }
             }
-            uint32_t end = i + 16 < size ? i + 16 : size;
+            uint32_t end = size - i > 16 ? i + 16 : size;
             if (size - i >= 16)
             {
                 dsimd_uint4_t bytes = SimdLoadUint(text + i);
@@ -695,16 +708,17 @@ namespace dmJson
         m_Nodes.SetSize(0);
         if (size + 1 > m_TextCapacity)
         {
-            uint32_t capacity = m_TextCapacity * 2;
+            uint32_t capacity = m_TextCapacity <= UINT32_MAX / 2 ? m_TextCapacity * 2 : size + 1;
             if (capacity < size + 1)
             {
                 capacity = size + 1;
             }
-            if (capacity > MAX_DOCUMENT_SIZE + 1)
+            char* text_buffer = (char*)realloc(m_Text, capacity);
+            if (!text_buffer)
             {
-                capacity = MAX_DOCUMENT_SIZE + 1;
+                return false;
             }
-            m_Text = (char*)realloc(m_Text, capacity);
+            m_Text = text_buffer;
             m_TextCapacity = capacity;
         }
         memcpy(m_Text, text, size);

@@ -23,7 +23,7 @@ namespace dmDebugger
 {
     // DAP messages and queues have explicit bounds, including while the client
     // stops reading. No unbounded allocations are driven by Content-Length.
-    const uint32_t MAX_MESSAGE_SIZE = dmJson::MAX_DOCUMENT_SIZE;
+    const uint32_t MAX_MESSAGE_SIZE = 1024 * 1024;
     const uint32_t MAX_QUEUE_SIZE = 4 * MAX_MESSAGE_SIZE;
 
     struct Buffer
