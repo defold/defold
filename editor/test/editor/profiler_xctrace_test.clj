@@ -28,11 +28,10 @@
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [support.test-support :refer [with-clean-system]])
-  (:import [com.sun.net.httpserver HttpExchange HttpHandler HttpServer]
-           [java.io InputStream]
-           [java.net InetSocketAddress]
-           [java.util.concurrent CompletableFuture LinkedBlockingQueue TimeUnit]))
+            [support.test-support :refer [with-clean-system]]
+            [util.http-server :as http-server])
+  (:import [java.io InputStream]
+           [java.util.concurrent CompletableFuture TimeUnit]))
 
 (set! *warn-on-reflection* true)
 
@@ -89,49 +88,40 @@
             workspace (workspace/make-workspace directory {} {} nil)
             notifications (workspace/notifications workspace)
             context (handler/->context :global {:prefs settings :workspace workspace})
-            requests (LinkedBlockingQueue.)
-            response (atom nil)
-            server (HttpServer/create (InetSocketAddress. "127.0.0.1" 0) 0)]
-        (.createContext server "/profiler/trace"
-                        (reify HttpHandler
-                          (handle [_ exchange]
-                            (with-open [^HttpExchange exchange exchange]
-                              (.add requests {:method (.getRequestMethod exchange)
-                                              :query (.getRawQuery (.getRequestURI exchange))
-                                              :content-type (.getFirst (.getRequestHeaders exchange) "Content-Type")
-                                              :body (slurp (.getRequestBody exchange) :encoding "UTF-8")})
-                              (let [{:keys [status body]} @response
-                                    bytes (.getBytes ^String body "UTF-8")]
-                                (.sendResponseHeaders exchange status (alength bytes))
-                                (with-open [out (.getResponseBody exchange)]
-                                  (.write out bytes)))))))
-        (.start server)
+            request (atom nil)
+            response (atom nil)]
         (try
-          (targets/select-target! settings {:id "trace-test" :url (str "http://127.0.0.1:" (.getPort (.getAddress server)))})
-          (doseq [[delay duration energy output-directory encoded-path status body type message]
-                  [[0 5000 true "/tmp/Traces + å&.trace" "&path=%2Ftmp%2FTraces+%2B+%C3%A5%26.trace%2F"
-                    202 "{\"path\":\"/tmp/game trace.trace\"}" :info
-                    (localization/message "notification.engine-profiler.trace-requested" {"path" "/tmp/game trace.trace"})]
-                   [123 0 false "" "" 409 "Busy" :warning (localization/message "notification.engine-profiler.trace-busy")]
-                   [0 5000 false "" "" 501 "Unsupported" :error (localization/message "notification.engine-profiler.trace-unsupported")]
-                   [0 5000 false "" "" 404 "Not Found" :error (localization/message "notification.engine-profiler.trace-unsupported")]]]
-            (prefs/set! settings [:profile :xctrace :delay-ms] delay)
-            (prefs/set! settings [:profile :xctrace :duration-ms] duration)
-            (prefs/set! settings [:profile :xctrace :include-energy] energy)
-            (prefs/set! settings [:profile :xctrace :output-directory] output-directory)
-            (reset! response {:status status :body body})
-            (let [completion (ui/run-now
-                               (g/with-auto-evaluation-context evaluation-context
-                                 (let [active (handler/active :run.start-native-trace [context] nil evaluation-context)]
-                                   (is (handler/enabled? active evaluation-context))
-                                   (handler/run active))))]
-              (.get ^CompletableFuture completion 5 TimeUnit/SECONDS))
-            (is (= {:method "POST" :query nil :content-type "application/x-www-form-urlencoded"
-                    :body (str "delay_ms=" delay "&duration_ms=" duration "&energy=" (if energy "1" "0") encoded-path)}
-                   (.poll requests 5 TimeUnit/SECONDS)))
-            (is (= {:type type :message message :id ::profiler-xctrace/trace}
-                   (get-in (g/node-value notifications :notifications) [:id->notification ::profiler-xctrace/trace]))))
+          (with-open [server (http-server/start!
+                               (fn respond-to-trace! [{:keys [method path query headers body]}]
+                                 (reset! request {:method method :path path :query query
+                                                  :content-type (get headers "content-type")
+                                                  :body (slurp body :encoding "UTF-8")})
+                                 @response)
+                               :host "127.0.0.1")]
+            (targets/select-target! settings {:id "trace-test" :url (http-server/url server)})
+            (doseq [[delay duration energy output-directory encoded-path status body type message]
+                    [[0 5000 true "/tmp/Traces + å&.trace" "&path=%2Ftmp%2FTraces+%2B+%C3%A5%26.trace%2F"
+                      202 "{\"path\":\"/tmp/game trace.trace\"}" :info
+                      (localization/message "notification.engine-profiler.trace-requested" {"path" "/tmp/game trace.trace"})]
+                     [123 0 false "" "" 409 "Busy" :warning (localization/message "notification.engine-profiler.trace-busy")]
+                     [0 5000 false "" "" 501 "Unsupported" :error (localization/message "notification.engine-profiler.trace-unsupported")]
+                     [0 5000 false "" "" 404 "Not Found" :error (localization/message "notification.engine-profiler.trace-unsupported")]]]
+              (prefs/set! settings [:profile :xctrace :delay-ms] delay)
+              (prefs/set! settings [:profile :xctrace :duration-ms] duration)
+              (prefs/set! settings [:profile :xctrace :include-energy] energy)
+              (prefs/set! settings [:profile :xctrace :output-directory] output-directory)
+              (reset! response (http-server/response status body))
+              (let [completion (ui/run-now
+                                 (g/with-auto-evaluation-context evaluation-context
+                                   (let [active (handler/active :run.start-native-trace [context] nil evaluation-context)]
+                                     (is (handler/enabled? active evaluation-context))
+                                     (handler/run active))))]
+                (.get ^CompletableFuture completion 5 TimeUnit/SECONDS))
+              (is (= {:method "POST" :path "/profiler/trace" :query nil :content-type "application/x-www-form-urlencoded"
+                      :body (str "delay_ms=" delay "&duration_ms=" duration "&energy=" (if energy "1" "0") encoded-path)}
+                     @request))
+              (is (= {:type type :message message :id ::profiler-xctrace/trace}
+                     (get-in (g/node-value notifications :notifications) [:id->notification ::profiler-xctrace/trace])))))
           (finally
-            (.stop server 0)
             (targets/select-target! settings previous-target)
             (fs/delete-directory! directory)))))))
