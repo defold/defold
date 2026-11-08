@@ -1077,7 +1077,9 @@ static bool GenerateClearcoatTangents(Mesh* mesh, const cgltf_primitive* primiti
     const cgltf_material* material = primitive->material;
     if (!material || !material->clearcoat.clearcoat_normal_texture.texture ||
         material->normal_texture.texture || !mesh->m_Tangents.Empty())
+    {
         return true;
+    }
 
     const cgltf_texture_view* view = &material->clearcoat.clearcoat_normal_texture;
     int                       texcoord = view->has_transform && view->transform.has_texcoord ? view->transform.texcoord : view->texcoord;
@@ -1085,14 +1087,18 @@ static bool GenerateClearcoatTangents(Mesh* mesh, const cgltf_primitive* primiti
     if (!accessor || texcoord < 0 || texcoord > 1 || !mesh->m_VertexCount ||
         mesh->m_Normals.Size() != mesh->m_VertexCount * 3 ||
         mesh->m_Positions.Size() != mesh->m_VertexCount * 3)
+    {
         return false;
+    }
 
     // Use the original glTF UV orientation; the importer separately flips V for
     // Defold's texture storage. Texture transforms belong to the normal map's UVs.
     uint32_t count;
     float*   texcoords = ReadAccessorFloat(accessor, 2, 0.0f, &count);
     if (!texcoords)
+    {
         return false;
+    }
     if (view->has_transform)
     {
         UvTransform transform;
@@ -1101,7 +1107,7 @@ static bool GenerateClearcoatTangents(Mesh* mesh, const cgltf_primitive* primiti
         transform.m_Rotation = view->transform.rotation;
         TransformTexCoords(texcoords, mesh->m_VertexCount, 2, &transform);
     }
-    bool result = GenerateTangents(mesh, texcoords);
+    bool result = GenerateTangents(mesh, texcoords, count);
     delete[] texcoords;
     return result;
 }

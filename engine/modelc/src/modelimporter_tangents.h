@@ -15,16 +15,20 @@
 #ifndef DM_MODELIMPORTER_TANGENTS_H
 #define DM_MODELIMPORTER_TANGENTS_H
 
+#include <stdint.h>
+
 namespace dmModelImporter
 {
     struct Mesh;
 
     // Private modelc adapter. Generates tangents from vertex-count float2 UVs.
     // Splits vertices at tangent seams, copying every attribute and morph stream.
+    // Generates missing morph tangent deltas from the deformed positions/normals.
     // The mesh owns the result; texcoords are borrowed only during this call.
+    // texcoord_count is the number of floats, with two components per vertex.
     // Requires validated vertex streams and unit normals. Returns false when a
     // valid tangent stream cannot be produced within the importer storage limit.
-    bool GenerateTangents(Mesh* mesh, const float* texcoords);
+    bool GenerateTangents(Mesh* mesh, const float* texcoords, uint32_t texcoord_count);
 } // namespace dmModelImporter
 
 #endif
