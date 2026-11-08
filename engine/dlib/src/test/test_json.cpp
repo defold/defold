@@ -566,6 +566,32 @@ TEST(dmJson, DecimalRoundingBoundaries)
     }
 }
 
+// Every cached decimal power must preserve libc rounding, including derived metadata at the range endpoints.
+TEST(dmJson, DecimalPowerRange)
+{
+    char* previous = strdup(setlocale(LC_NUMERIC, 0));
+    setlocale(LC_NUMERIC, "C");
+    const char* coefficients[] = { "1", "9007199254740993", "9999999999999999999", "18446744073709551615" };
+    dmJson::Document json(0);
+    for (int exponent = -342; exponent <= 308; ++exponent)
+    {
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(coefficients); ++i)
+        {
+            char text[64];
+            uint32_t size = dmSnPrintf(text, sizeof(text), "%se%d", coefficients[i], exponent);
+            double expected = strtod(text, 0);
+            bool accepted = json.Parse(text, size, 0, dmJson::PARSE_DECODE_VALUES);
+            EXPECT_EQ(!isinf(expected), accepted);
+            if (accepted)
+            {
+                EXPECT_EQ(0, memcmp(&expected, &json.Get(0).m_Number, sizeof(double)));
+            }
+        }
+    }
+    setlocale(LC_NUMERIC, previous);
+    free(previous);
+}
+
 // Digits beyond the exact fallback's retained prefix must distinguish an exact
 // halfway value from a value just above it, for both positive and negative input.
 TEST(dmJson, LongDecimalRounding)

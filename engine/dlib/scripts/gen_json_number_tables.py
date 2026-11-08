@@ -42,8 +42,6 @@ namespace dmJson
     {
         uint64_t m_Low;
         uint64_t m_High;
-        int16_t  m_Exponent;
-        bool     m_Exact;
     };
 
     static const DecimalPower DECIMAL_POWERS[] = {
@@ -59,8 +57,11 @@ namespace dmJson
         assert 1 << 127 <= coefficient < 1 << 128
         low = coefficient & ((1 << 64) - 1)
         high = coefficient >> 64
-        exact = "true" if remainder == 0 else "false"
-        lines.append(f"        {{ UINT64_C(0x{low:016x}), UINT64_C(0x{high:016x}), {binary}, {exact} }},     // 10^{exponent}\n")
+        # The runtime derives this metadata instead of storing it (and padding)
+        # beside every coefficient. Verify the identities over the full range.
+        assert ((exponent * 217706 + 134217728) >> 16) - 2175 == binary
+        assert (remainder == 0) == (0 <= exponent <= 55)
+        lines.append(f"        {{ UINT64_C(0x{low:016x}), UINT64_C(0x{high:016x}) }},     // 10^{exponent}\n")
     lines.append("    };\n}\n\n#endif // DM_JSON_NUMBER_TABLES_H\n")
     return "".join(lines)
 

@@ -125,6 +125,10 @@ namespace dmJson
             return false;
         }
         const DecimalPower& power = DECIMAL_POWERS[exponent + 342];
+        // floor(q * log2(10)) - 127 over the checked table range. The generator
+        // verifies this fixed-point formula and exactness for all 651 powers.
+        // The bias keeps the shift nonnegative on every supported compiler.
+        int power_exponent = (((int)exponent * 217706 + 134217728) >> 16) - 2175;
         // Normalize the coefficient so the high-word product has 63 or 64
         // significant bits. Omitting the low table word bounds the exact
         // product between P and P + normalized, so its high word can change
@@ -135,7 +139,7 @@ namespace dmJson
         uint64_t ignored, high;
         Multiply64(normalized, power.m_High, &ignored, &high);
         uint32_t high_bits = BitLength(high);
-        int binary_exponent = (int)high_bits + 127 + power.m_Exponent - (int)leading;
+        int binary_exponent = (int)high_bits + 127 + power_exponent - (int)leading;
         uint32_t shift = high_bits - 53;
         uint64_t remainder = high & ((UINT64_C(1) << shift) - 1);
         uint64_t halfway = UINT64_C(1) << (shift - 1);
@@ -151,8 +155,8 @@ namespace dmJson
         Multiply64(significand, power.m_High, &words[1], &words[2]);
         words[1] += carry;
         words[2] += words[1] < carry;
-        *bits = RoundProduct(words, power.m_Exponent);
-        if (power.m_Exact)
+        *bits = RoundProduct(words, power_exponent);
+        if (exponent >= 0 && exponent <= 55)
         {
             return true;
         }
@@ -162,7 +166,7 @@ namespace dmJson
         {
             ++words[2];
         }
-        return *bits == RoundProduct(words, power.m_Exponent);
+        return *bits == RoundProduct(words, power_exponent);
     }
 
     // The exact fallback keeps 800 significant decimal digits plus a sticky bit.
