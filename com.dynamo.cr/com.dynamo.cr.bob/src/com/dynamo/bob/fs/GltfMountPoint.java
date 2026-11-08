@@ -14,6 +14,9 @@
 
 package com.dynamo.bob.fs;
 
+import com.dynamo.bob.fs.IFileSystem.IWalker;
+import org.apache.commons.io.FilenameUtils;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -25,10 +28,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-
-import org.apache.commons.io.FilenameUtils;
-
-import com.dynamo.bob.fs.IFileSystem.IWalker;
 
 /**
  * Mount point that projects materials, images, and meshes from glTF files into Bob's

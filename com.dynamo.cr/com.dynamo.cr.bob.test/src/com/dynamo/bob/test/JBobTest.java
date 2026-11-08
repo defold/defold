@@ -14,15 +14,27 @@
 
 package com.dynamo.bob.test;
 
-import static org.hamcrest.CoreMatchers.hasItem;
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.Builder;
+import com.dynamo.bob.BuilderParams;
+import com.dynamo.bob.ClassLoaderScanner;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.CopyBuilder;
+import com.dynamo.bob.MultipleCompileException;
+import com.dynamo.bob.Progress;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.Task;
+import com.dynamo.bob.Task.TaskBuilder;
+import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.test.util.MockFileSystem;
+import com.dynamo.bob.test.util.MockResource;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
@@ -40,28 +52,15 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.dynamo.bob.Bob;
-import com.dynamo.bob.Builder;
-import com.dynamo.bob.BuilderParams;
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.CopyBuilder;
-import com.dynamo.bob.MultipleCompileException;
-import com.dynamo.bob.Progress;
-import com.dynamo.bob.ClassLoaderScanner;
-import com.dynamo.bob.Project;
-import com.dynamo.bob.Task;
-import com.dynamo.bob.Task.TaskBuilder;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.fs.ResourceUtil;
-import com.dynamo.bob.test.util.MockFileSystem;
-import com.dynamo.bob.test.util.MockResource;
-import com.dynamo.bob.TaskResult;
+import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class JBobTest {
     @BuilderParams(name = "InCopyBuilder", inExts = ".in", outExt = ".out")

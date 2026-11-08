@@ -250,11 +250,48 @@ dependencies {
     implementation files("${dynamoHome}/ext/share/java/android.jar")
 }
 
+def strippedBobNativeToolsDir = file("${bobDir}/tmp/stripped-bob-native-tools")
+def bobStrippableArtifacts = { ->
+    bobArtifacts.entries.findAll { path, artifact ->
+        (path ==~ /lib\/(arm64|x86_64)-linux\/lib(dlib|fontc|modelc|shaderc|texc)_shared\.so/ ||
+                path ==~ /libexec\/(arm64|x86_64)-linux\/(luajit-64|libogg\.so|liboggz\.so|oggz-validate)/ ||
+                path ==~ /libexec\/(arm64|x86_64)-(linux|macos)\/lipo/ ||
+                path == "libexec/x86_64-linux/zipalign") && artifact.source.isFile()
+    }.collectEntries { path, artifact -> [(path): artifact.source] }
+}
+def stripToolName = hostPlatform.endsWith('win32') ? 'strip_android.exe' : 'strip_android'
+def packagedStripTool = file("${dynamoHome}/ext/bin/${hostPlatform}/${stripToolName}")
+def stripTool = packagedStripTool.isFile() ? packagedStripTool.absolutePath : 'llvm-strip'
+
+tasks.register('stripBobNativeTools') {
+    dependsOn 'prepareBobBuildContext'
+    inputs.files { bobStrippableArtifacts().values() }
+    inputs.property('libraryPaths', { bobStrippableArtifacts().keySet().sort() })
+    inputs.property('stripTool', stripTool)
+    if (packagedStripTool.isFile()) {
+        inputs.file(packagedStripTool)
+    }
+    outputs.dir(strippedBobNativeToolsDir)
+
+    doLast {
+        delete strippedBobNativeToolsDir
+        bobStrippableArtifacts().each { path, source ->
+            def destination = new File(strippedBobNativeToolsDir, path)
+            destination.parentFile.mkdirs()
+            Files.copy(source.toPath(), destination.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            services.get(ExecOperations).exec {
+                commandLine stripTool, '--strip-debug', destination.absolutePath
+            }
+        }
+    }
+}
+
 def artifactFiles = { boolean light ->
     Map<String, File> result = [:]
+    def strippedLibraries = bobStrippableArtifacts()
     bobArtifacts.entries.each { path, artifact ->
         if ((!light || artifact.light) && artifact.source.isFile()) {
-            result[path] = artifact.source
+            result[path] = strippedLibraries.containsKey(path) ? new File(strippedBobNativeToolsDir, path) : artifact.source
         }
     }
     result
@@ -662,7 +699,7 @@ def writeBobArchive = { File outputFile, Collection<File> dependencyJars, Map<St
 
 [createBobJar: false, createBobLightJar: true].each { taskName, light ->
     tasks.register(taskName) {
-        dependsOn 'compileBobLight', 'createLuaJitShareZip'
+        dependsOn 'compileBobLight', 'createLuaJitShareZip', 'stripBobNativeTools'
         dependsOn privateBobPluginJarTasks
 
         // Keep each former packager's dependency order and duplicate precedence.

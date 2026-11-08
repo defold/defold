@@ -47,7 +47,7 @@ public:
     }
 };
 
-// Registration and removal must keep the generated paths synchronized with live handlers.
+// Registration and removal must keep discovery synchronized, including handlers with routing flags.
 TEST_F(WebServerOpenAPITest, RegisterAndRemovePaths)
 {
     static const char first[] = "{\"/first\":{" GET_OPERATION "}}";
@@ -56,7 +56,8 @@ TEST_F(WebServerOpenAPITest, RegisterAndRemovePaths)
     dmWebServer::GetOpenAPIPaths(m_Server, &paths);
     ASSERT_STREQ("{}", paths.Begin());
     ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/first", &m_Params, first));
-    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/second", &m_Params, second));
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/second", &m_Params, second,
+                                                              dmWebServer::MATCH_EXACT_PATH | dmWebServer::GET_ONLY | dmWebServer::NO_REQUEST_BODY));
     dmWebServer::GetOpenAPIPaths(m_Server, &paths);
     ASSERT_STREQ("{\"/first\":{" GET_OPERATION "},\"/second\":{" GET_OPERATION "}}", paths.Begin());
     ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::RemoveHandler(m_Server, "/first"));

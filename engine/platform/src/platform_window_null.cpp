@@ -126,6 +126,7 @@ namespace dmPlatform
         return 1.0f;
     }
 
+#if !defined(DM_PLATFORM_VENDOR)
     float GetDisplayDensity(HWindow window)
     {
         // There is no display to query in the headless backend, so report the CSS reference density.
@@ -134,6 +135,7 @@ namespace dmPlatform
         // reports no physical size also produces.
         return 96.0f;
     }
+#endif
 
     uintptr_t GetProcAddress(HWindow window, const char* proc_name)
     {
