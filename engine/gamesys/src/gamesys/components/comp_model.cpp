@@ -122,8 +122,23 @@ namespace dmGameSystem
 
     struct ModelComponent
     {
-        // Keep the state read by the component and transform update passes together.
+        TextureResource*                     m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmTransform::Transform               m_Transform;
+        dmArray<MeshAttributeRenderData>     m_MeshAttributeRenderDatas;
+        dmArray<MeshRenderItem>              m_RenderItems;
+        /// Node instances corresponding to the bones
+        dmArray<dmGameObject::HInstance>     m_NodeInstances;
+        /// Script morph weights - applied in ApplyMorphToRenderObject.
+        dmArray<float>                       m_BlendWeightsOverride;
+
         dmGameObject::HInstance              m_Instance;
+        HComponentRenderConstants            m_RenderConstants;
+        ModelResource*                       m_Resource;
+        dmRig::HRigInstance                  m_RigInstance;
+        FModelAnimationCallback              m_Callback;
+        void*                                m_CallbackContext;
+        MaterialResource*                    m_Material; // Override material
+
         uint8_t                              m_Enabled : 1;
         uint8_t                              m_DoRender : 1;
         uint8_t                              m_AddedToUpdate : 1;
@@ -132,21 +147,6 @@ namespace dmGameSystem
         uint8_t                              m_BlendWeightsOverrideActive : 1;
         uint8_t                              m_TransformIsIdentity : 1;
         uint8_t                              m_RenderItemsDirty : 1;
-        HComponentRenderConstants            m_RenderConstants;
-        dmArray<MeshAttributeRenderData>     m_MeshAttributeRenderDatas;
-        dmArray<MeshRenderItem>              m_RenderItems;
-        ModelResource*                       m_Resource;
-        dmRig::HRigInstance                  m_RigInstance;
-
-        FModelAnimationCallback              m_Callback;
-        void*                                m_CallbackContext;
-        MaterialResource*                    m_Material; // Override material
-        dmTransform::Transform               m_Transform;
-        TextureResource*                     m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        /// Node instances corresponding to the bones
-        dmArray<dmGameObject::HInstance>     m_NodeInstances;
-        /// Script morph weights - applied in ApplyMorphToRenderObject.
-        dmArray<float>                       m_BlendWeightsOverride;
     };
 
     struct ModelSkinnedAnimationData
