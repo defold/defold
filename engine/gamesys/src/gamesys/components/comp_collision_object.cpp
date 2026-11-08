@@ -23,7 +23,7 @@
 #include <dlib/profile.h>
 #include <gameobject/gameobject_ddf.h>
 #include <gameobject/gameobject.h>
-#include <extension/extension.hpp>
+#include <dmsdk/extension/extension.hpp>
 #include <dmsdk/gameobject/script.h>
 #include <dmsdk/physics/physics_event.hpp>
 
