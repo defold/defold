@@ -1426,12 +1426,20 @@ public:
     void TearDown()
     {
         EngineServiceOpenAPITest::TearDown();
-        if (m_Resource)
-            dmResource::Release(m_Factory, m_Resource);
-        if (m_Factory)
-            dmResource::DeleteFactory(m_Factory);
+        // Collection deletion is deferred; destroy collections while their
+        // resource factory can still unregister callbacks and release resources.
         if (m_Register)
+        {
             dmGameObject::DeleteRegister(m_Register);
+        }
+        if (m_Resource)
+        {
+            dmResource::Release(m_Factory, m_Resource);
+        }
+        if (m_Factory)
+        {
+            dmResource::DeleteFactory(m_Factory);
+        }
     }
 
     static dmResource::Result Create(const dmResource::ResourceCreateParams* params)
