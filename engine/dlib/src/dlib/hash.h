@@ -49,6 +49,11 @@ DM_DLLEXPORT uint32_t dmHashBufferNoReverse32(const void* buffer, uint32_t buffe
  */
 DM_DLLEXPORT void dmHashEnableReverseHash(bool enable);
 
+/**
+ * Query whether reverse hash lookup is enabled.
+ * @return true if reverse hash lookup is enabled
+ */
+DM_DLLEXPORT bool dmHashIsReverseHashEnabled();
 
 /**
  * Reverse hash key entry removal.

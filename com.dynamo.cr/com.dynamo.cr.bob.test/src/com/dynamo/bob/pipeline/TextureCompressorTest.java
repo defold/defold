@@ -14,7 +14,11 @@
 
 package com.dynamo.bob.pipeline;
 
-import com.defold.extension.pipeline.texture.*;
+import com.defold.extension.pipeline.texture.ITextureCompressor;
+import com.defold.extension.pipeline.texture.TestTextureCompressor;
+import com.defold.extension.pipeline.texture.TextureCompression;
+import com.defold.extension.pipeline.texture.TextureCompressorPreset;
+import com.defold.extension.pipeline.texture.TextureCompressorUncompressed;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.graphics.proto.Graphics;
 import org.junit.Before;
@@ -30,7 +34,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 public class TextureCompressorTest extends AbstractProtoBuilderTest {
 

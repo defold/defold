@@ -139,7 +139,7 @@ struct ProfileContext
 
 static bool IsProfileInitialized()
 {
-    return dmAtomicGet32(&g_ProfileInitialized) != 0;
+    return dmAtomicLoadAcquire32(&g_ProfileInitialized) != 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////

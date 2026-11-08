@@ -4,9 +4,8 @@ import sys, os, platform
 from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath, splitext
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
-import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
+import shutil, zipfile, re, json, platform, math, mimetypes, hashlib
 import optparse, pprint, subprocess, urllib, urllib.parse, tempfile, time
-import contextlib, io
 import github
 import build_android
 import build_ios
@@ -14,6 +13,7 @@ import codesigning
 import run
 import build_output
 import build_console
+import tool_checks
 from build_console import Style
 import s3
 import sdk
@@ -37,6 +37,7 @@ from threading import Thread, Event
 from queue import Queue
 from configparser import ConfigParser
 from BuildTimeTracker import BuildTimeTracker
+from log import log
 
 BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'x86_64-macos', 'arm64-macos',
@@ -73,7 +74,6 @@ _CMAKE_FEATURE_LIST_OPTIONS = {
 }
 
 JAVA_RUNTIME_FLAGS = '--sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED'
-MINIMUM_PYTHON_VERSION = (3, 12)
 
 EDITOR_RELEASE_BUNDLES = (
     'Defold-arm64-macos.dmg',
@@ -310,6 +310,29 @@ SDK_PIPELINE_TOOL_PLATFORMS = (
     'arm64-linux',
     'x86_64-win32'
 )
+
+# Build-time libraries that Extender does not need in either SDK library directory.
+# The protoc executable is packaged separately and must remain available for DDF generation.
+SDK_EXCLUDED_LIBS = {
+    'astcenc',
+    'basis_encoder',
+    'draco_decoder',
+    'dxcompiler',
+    'jni',
+    'launcherutil',
+    'meshoptimizer',
+    'model',
+    'ogg',
+    'oggz',
+    'protobuf',
+    'protoc',
+    'shaderc',
+    'test_script',
+    'testmain',
+    'texc',
+    'utf8_range',
+    'utf8_validity',
+}
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
@@ -552,6 +575,7 @@ class Configuration(object):
         self.verbose = verbose
         self.build_tracker = BuildTimeTracker(logger=self._log, colorize=self._colorize)
         self._cmake_configure_inputs_mtime_cache = {}
+        self.tool_checks = tool_checks.ToolChecks(self)
 
         if self.github_token is None:
             self.github_token = os.environ.get("GITHUB_TOKEN")
@@ -747,6 +771,9 @@ class Configuration(object):
         self.check_python()
         return [sys.executable]
 
+    def get_tar(self):
+        return self.check_tar()
+
     def _create_common_dirs(self):
         for p in ['ext/lib/python', 'share', 'lib/wasm-web/js', 'lib/wasm_pthread-web/js']:
             self._mkdirs(join(self.dynamo_home, p))
@@ -779,6 +806,7 @@ class Configuration(object):
             shutil.rmtree(path)
 
     def distclean(self):
+        self.tool_checks.invalidate_sdk()
         self._remove_tree(self.dynamo_home)
 
         for directory in ('engine', 'external'):
@@ -832,6 +860,7 @@ class Configuration(object):
 
     def clean_ext(self):
         """Remove external builds and installed dependencies for the selected platform."""
+        self.tool_checks.invalidate_sdk()
         platform = self.target_platform
         for builddir in glob(join(self.defold_root, 'external', '*', 'build', platform)):
             self._remove_tree(builddir)
@@ -844,17 +873,22 @@ class Configuration(object):
             self._remove_tree(join(self.ext, directory, platform))
         self._log('clean_ext done for %s.' % platform)
 
-    def _extract_tgz(self, file, path):
-        self._log('Extracting %s to %s' % (file, path))
+    def _extract_tgz(self, file, path, *, on_diagnostic=None):
+        options = {}
+        if on_diagnostic is None:
+            self._log('Extracting %s to %s' % (file, path))
+        else:
+            options = {'silent': True, 'on_output': on_diagnostic, 'capture_output': False}
         self._mkdirs(path)
         suffix = os.path.splitext(file)[1]
         fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
-        cmd = ['tar', 'xf%s' % fmts.get(suffix, 'z'), file]
+        cmd = [self.get_tar(), 'xf%s' % fmts.get(suffix, 'z'), file]
         if os.name == 'nt':
             cmd.append('--unlink-first')
-        run.env_command(self._form_env(), cmd, cwd = path)
+        run.env_command(self._form_env(), cmd, cwd=path, **options)
 
     def _extract_tgz_rename_folder(self, src, target_folder, strip_components=1, format=None):
+        tar = self.get_tar()
         src = src.replace('\\', '/')
 
         force_local = ''
@@ -871,7 +905,7 @@ class Configuration(object):
             suffix = os.path.splitext(src)[1]
             fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
             format = fmts.get(suffix, 'z')
-        cmd = ['tar', 'xf%s' % format, src, '-C', dirname]
+        cmd = [tar, 'xf%s' % format, src, '-C', dirname]
         if strip_components:
             cmd.extend(['--strip-components', '%d' % strip_components])
         if os.name == 'nt':
@@ -901,8 +935,9 @@ class Configuration(object):
         else:
             self._extract_tgz(file, path)
 
-    def _copy(self, src, dst):
-        self._log('Copying %s -> %s' % (src, dst))
+    def _copy(self, src, dst, *, quiet=False):
+        if not quiet:
+            self._log('Copying %s -> %s' % (src, dst))
         shutil.copy(src, dst)
 
     def _copy_tree(self, src, dst):
@@ -927,6 +962,8 @@ class Configuration(object):
         self._mkdirs(target)
 
         if packages:
+            if any(package.split('==', 1)[0].lower() == 'protobuf' for package in packages):
+                self.tool_checks.invalidate('Python Protobuf')
             run.env_command(self._form_env(), self.get_python() + [
                 '-m', 'pip',
                 '-q', '-q',
@@ -938,8 +975,6 @@ class Configuration(object):
                 '--no-compile',
                 '-t', target,
             ] + packages)
-            if any(package.split('==', 1)[0].lower() == 'protobuf' for package in packages):
-                self._check_python_protobuf()
 
     def install_release_dependencies(self):
         print("Installing release python dependencies")
@@ -952,9 +987,47 @@ class Configuration(object):
 
     def install_ext(self):
         self.install_ext_packages()
-        self.build_ext()
+        with self.build_tracker.measure_step('Source dependencies'):
+            self.build_ext()
+
+    def _install_files(self, title, files, *, extract=False):
+        total = len(files)
+        action = 'extract' if extract else 'copy'
+        progress = None
+        if not self.verbose:
+            env = {'NOCOLOR': '1'} if self.no_colors else None
+            progress = build_output.ProgressOutput(title, env=env)
+            progress.progress(0, total)
+
+        def log_diagnostic(message):
+            if progress is not None:
+                progress.end_line()
+            log(message)
+
+        on_diagnostic = log_diagnostic if progress is not None else None
+        try:
+            for completed, (source, destination) in enumerate(files, 1):
+                try:
+                    if extract:
+                        self._extract_tgz(source, destination, on_diagnostic=on_diagnostic)
+                    else:
+                        self._copy(source, destination, quiet=progress is not None)
+                except run.ExecException as error:
+                    log_diagnostic(f'Could not {action} {source} to {destination} (tar exited with code {error.retcode}).')
+                    sys.exit(error.retcode)
+                except OSError as error:
+                    log_diagnostic(f'Could not {action} {source} to {destination}\n{error}')
+                    sys.exit(1)
+                if progress is not None:
+                    progress.progress(completed, total)
+        finally:
+            if progress is not None:
+                progress.end_line()
 
     def install_ext_packages(self):
+        self.check_python()
+        self.check_tar()
+
         def make_package_path(root, platform, package):
             return join(root, 'packages', package) + '-%s.tar.gz' % platform
 
@@ -973,12 +1046,8 @@ class Configuration(object):
         def make_private_package_paths(platform, packages):
             return [make_private_package_path(platform, package) for package in packages]
 
-        print("Installing common packages")
-        for p in PACKAGES_ALL:
-            self._extract_tgz(make_package_path(self.defold_root, 'common', p), self.ext)
-
-        for p in DMSDK_PACKAGES_ALL:
-            self._extract_tgz(make_package_path(self.defold_root, 'common', p), self.dmsdk)
+        archives = [(path, self.ext) for path in make_package_paths(self.defold_root, 'common', PACKAGES_ALL)]
+        archives.extend((path, self.dmsdk) for path in make_package_paths(self.defold_root, 'common', DMSDK_PACKAGES_ALL))
 
         # TODO: Make sure the order of install does not affect the outcome!
 
@@ -991,18 +1060,16 @@ class Configuration(object):
             for package in PACKAGES_NODE_MODULES:
                 path = join(self.defold_root, 'packages', package + '.tar.gz')
                 name = package.split('-')[0]
-                self._extract_tgz(path, join(node_modules_dir, name))
+                archives.append((path, join(node_modules_dir, name)))
 
-        installed_packages = set()
+        scheduled_packages = set()
 
         for platform in other_platforms:
             packages = [package for package in PLATFORM_PACKAGES.get(platform, [])
                         if package not in PACKAGES_HOST]
             package_paths = make_package_paths(self.defold_root, platform, packages)
-            print("Installing %s packages " % platform)
-            for path in package_paths:
-                self._extract_tgz(path, self.ext)
-            installed_packages.update(package_paths)
+            archives.extend((path, self.ext) for path in package_paths)
+            scheduled_packages.update(package_paths)
 
         for base_platform in base_platforms:
             packages = list(PACKAGES_HOST)
@@ -1010,47 +1077,46 @@ class Configuration(object):
             packages = list(dict.fromkeys(packages))
             package_paths = make_package_paths(self.defold_root, base_platform, packages)
             package_paths.extend(make_private_package_paths(base_platform, build_private.get_install_host_packages(base_platform)))
-            package_paths = [path for path in package_paths if path not in installed_packages]
-            if len(package_paths) != 0:
-                print("Installing %s packages" % base_platform)
-                for path in package_paths:
-                    self._extract_tgz(path, self.ext)
-                installed_packages.update(package_paths)
+            archives.extend((path, self.ext) for path in package_paths if path not in scheduled_packages)
+            scheduled_packages.update(package_paths)
 
         target_packages = PLATFORM_PACKAGES.get(self.target_platform, [])
         target_package_paths = make_package_paths(self.defold_root, self.target_platform, target_packages)
         target_package_paths.extend(make_private_package_paths(self.target_platform, build_private.get_install_target_packages(self.target_platform)))
-        target_package_paths = [path for path in target_package_paths if path not in installed_packages]
+        archives.extend((path, self.ext) for path in target_package_paths if path not in scheduled_packages)
 
-        if len(target_package_paths) != 0:
-            print("Installing %s packages" % self.target_platform)
-            for path in target_package_paths:
-                self._extract_tgz(path, self.ext)
-            installed_packages.update(target_package_paths)
+        with self.build_tracker.measure_step('Package extraction'):
+            self._install_files('Installing packages', archives, extract=True)
 
         print("Installing python wheels")
-        self._install_python_packages([
-            'Markdown==3.3.7',
-            'Pygments==2.12.0',
-            'Pillow==11.3.0',
-            'boto3==1.36.3',
-            'protobuf==7.35.1',
-            'PyYAML==6.0.3',
-            'pystache==0.6.8',
-            'rangehttpserver==1.4.0',
-            'requests==2.34.2',
-        ])
+        with self.build_tracker.measure_step('Python wheels'):
+            self._install_python_packages([
+                'Markdown==3.3.7',
+                'Pygments==2.12.0',
+                'Pillow==11.3.0',
+                'boto3==1.36.3',
+                'protobuf==7.35.1',
+                'PyYAML==6.0.3',
+                'pystache==0.6.8',
+                'rangehttpserver==1.4.0',
+                'requests==2.34.2',
+            ])
 
-        print("Installing javascripts")
-        for n in 'web-pre.js'.split():
-            self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
+        share_dir = join(self.dynamo_home, 'share')
+        javascript_files = [
+            (join(self.defold_root, 'share', name), share_dir)
+            for name in ('web-pre.js', 'web-pre-engine.js')
+        ]
+        with self.build_tracker.measure_step('JavaScript files'):
+            self._install_files('Installing JavaScript files', javascript_files)
 
-        for n in 'web-pre-engine.js'.split():
-            self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
-
-        print("Installing profiles etc")
-        for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
-            self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
+        profile_files = [
+            (join(self.defold_root, name), share_dir)
+            for ext in ('.mobileprovision', '.xcent', '.supp')
+            for name in glob('share/*%s' % ext)
+        ]
+        with self.build_tracker.measure_step('Profiles'):
+            self._install_files('Installing profiles', profile_files)
 
         # Simple way to reduce number of warnings in the build
         proto_path = os.path.join(self.dynamo_home, 'share', 'proto')
@@ -1071,16 +1137,11 @@ class Configuration(object):
             sys.exit(1)
         return path
 
-    def _get_python_version(self):
-        return ".".join([str(v) for v in sys.version_info[:3]])
+    def check_python(self, silent=False):
+        return self.tool_checks.check_python(silent=silent)
 
-    def check_python(self, print_check = False):
-        python_version = self._get_python_version()
-        required_version = ".".join([str(v) for v in MINIMUM_PYTHON_VERSION])
-        if sys.version_info[:2] < MINIMUM_PYTHON_VERSION:
-            self.fatal("The build scripts require Python %s+! Found Python %s: %s" % (required_version, python_version, sys.executable))
-        if print_check:
-            self._log("Found Python: %s (%s)" % (sys.executable, python_version))
+    def check_tar(self, silent=False):
+        return self.tool_checks.check_tar(silent=silent)
 
     def has_sdk(self, sdkfolder, target_platform):
         return None != sdk.get_sdk_info(sdkfolder, target_platform, False)
@@ -1118,173 +1179,11 @@ class Configuration(object):
             message += "\nChecked runners:\n  " + "\n  ".join(errors)
         return message
 
-    def _check_python_protobuf(self):
-        env = self._form_env()
-        env['PYTHONPATH'] = join(self.ext, 'lib', 'python')
-        probe = ('import json; import google.protobuf; '
-                 'from google.protobuf.compiler import plugin_pb2; '
-                 'print(json.dumps({"version": google.protobuf.__version__, "path": google.protobuf.__file__}))')
-        try:
-            output = run.env_command(env, self.get_python() + ['-S', '-c', probe], silent=True)
-        except run.ExecException as error:
-            raise sdk.SDKException(
-                'Could not load the bundled Python Protobuf runtime. Run ./scripts/build.py install_ext.\n' + error.output) from error
-        return json.loads(output)
-
-    def _log_sdk_check(self, name, status, passed=True, path=None, elapsed=None):
-        message = f"{name}: {status}"
-        if self.verbose and path:
-            message += f" ({path})"
-        if elapsed is not None:
-            if self.verbose:
-                message += f" [{elapsed:.2f} s]"
-            self.build_tracker.record_check_time(name, elapsed)
-        mark = '✓' if passed else '✗'
-        if sys.stdout.isatty() and 'NO_COLOR' not in os.environ:
-            mark = self._colorize(mark, Style.SUCCESS if passed else Style.ERROR)
-            message = self._colorize(message, Style.SUCCESS if passed else Style.FAILED_CHECK)
-        encoding = sys.stdout.encoding or 'utf-8'
-        try:
-            mark.encode(encoding)
-        except UnicodeEncodeError:
-            mark = '+' if passed else 'x'
-        self._log(f"  {mark} {message}")
-
-    def _run_sdk_check(self, name, check):
-        started = time.perf_counter()
-        output = io.StringIO()
-        try:
-            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
-                result = check()
-                if result is False:
-                    raise sdk.SDKException("SDK validation failed")
-            return result, time.perf_counter() - started
-        except (Exception, SystemExit) as error:
-            self._log_sdk_check(name, 'Failed', passed=False, elapsed=time.perf_counter() - started)
-            diagnostic = output.getvalue().strip()
-            if diagnostic:
-                self._log(diagnostic)
-            if isinstance(error, SystemExit):
-                raise
-            self._log(getattr(error, 'output', '') or str(error))
-            sys.exit(getattr(error, 'retcode', 1))
-
-    def _check_sdk_cmake(self, args):
-        current_check = 'CMake environment'
-        diagnostics = []
-        started = time.perf_counter()
-
-        def on_output(line):
-            nonlocal current_check, started
-            if line.startswith('DEFOLD_SDK_CHECK\t'):
-                now = time.perf_counter()
-                diagnostics.clear()
-                fields = line.split('\t', 3)
-                current_check = fields[1]
-                if len(fields) >= 3:
-                    self._log_sdk_check(current_check, fields[2], path=fields[3] if len(fields) == 4 else None,
-                                        elapsed=now - started)
-                    current_check = 'CMake environment'
-                started = now
-            else:
-                diagnostics.append(line)
-
-        try:
-            # These records are parsed; build.py applies the report's terminal colors itself.
-            env = dict(os.environ, CLICOLOR_FORCE='0', CLICOLOR='0')
-            run.env_command(env, args, silent=True, on_output=on_output)
-        except run.ExecException as error:
-            self._log_sdk_check(current_check, self._format_sdk_cmake_error(diagnostics), passed=False,
-                                elapsed=time.perf_counter() - started)
-            if self.verbose:
-                self._log('\n'.join(diagnostics).strip())
-            sys.exit(error.retcode)
-
-    def _format_sdk_cmake_error(self, diagnostics):
-        for index, line in enumerate(diagnostics):
-            if line.startswith('CMake Error:'):
-                return line.partition(':')[2].strip()
-            if line.startswith('CMake Error'):
-                message = []
-                for line in diagnostics[index + 1:]:
-                    if not line.strip():
-                        if message:
-                            break
-                        continue
-                    if not line.startswith((' ', '\t')):
-                        break
-                    message.extend(line.split())
-                if message:
-                    return ' '.join(message)
-        return 'Failed (use --verbose for details)'
-
-    def check_sdk(self, require_protoc=True):
-        _, elapsed = self._run_sdk_check('Python', self.check_python)
-        self._log_sdk_check('Python', f"Python {self._get_python_version()}", path=sys.executable, elapsed=elapsed)
-
-        sdkfolder = join(self.ext, 'SDKs')
-
-        def find_sdk():
-            info = sdk.get_sdk_info(sdkfolder, self.target_platform, True)
-            if not info:
-                raise sdk.SDKException(
-                    f"No SDK found for {self.target_platform}. Check the local SDK setup or run install_sdk.\n"
-                    "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks")
-            return info
-
-        self.sdk_info, elapsed = self._run_sdk_check('SDK', find_sdk)
-        target_info = self.sdk_info.get(self.target_platform, {})
-        sdk_version = target_info.get('version', self.sdk_info.get('version', ''))
-        sdk_path = target_info.get('path') or self.sdk_info.get('sdk') or self.sdk_info.get('emsdk', {}).get('path')
-        self._log_sdk_check('SDK', f"{self.target_platform} {sdk_version}".strip(), path=sdk_path, elapsed=elapsed)
-
-        _, elapsed = self._run_sdk_check('Compiler', lambda: sdk.test_sdk(self.target_platform, self.sdk_info, verbose=self.verbose))
-        clang_version = self.sdk_info.get('clang-version')
-        compiler_path = self.sdk_info.get('clang')
-        if not compiler_path and self.sdk_info.get('clangname'):
-            compiler_path = join(self.sdk_info['bintools'], self.sdk_info['clangname'])
-        self._log_sdk_check('Compiler', f"Clang {clang_version}" if clang_version else 'OK', path=compiler_path, elapsed=elapsed)
-
-        if wasm_runner.is_web_platform(self.target_platform):
-            (runner, errors), elapsed = self._run_sdk_check('Wasm test runner', self._find_wasm_test_runner)
-            if runner:
-                self._log_sdk_check('Wasm test runner', runner.name, path=runner.path, elapsed=elapsed)
-            elif self.skip_tests:
-                self._log_sdk_check('Wasm test runner', 'Not required (--skip-tests)', elapsed=elapsed)
-            else:
-                self._log_sdk_check('Wasm test runner', 'Not found', passed=False, elapsed=elapsed)
-                self._log(self._format_wasm_runner_error(errors))
-                sys.exit(1)
-
-        started = time.perf_counter()
-        cmake = shutil.which('cmake')
-        if not cmake:
-            self._log_sdk_check('CMake', 'Not found in PATH', passed=False, elapsed=time.perf_counter() - started)
-            sys.exit(1)
-        cmake_version, elapsed = self._run_sdk_check('CMake', lambda: run.env_command(os.environ, [cmake, '--version'], silent=True))
-        self._log_sdk_check('CMake', cmake_version.splitlines()[0].replace('cmake version', 'CMake'), path=cmake, elapsed=elapsed)
-
-        args = [cmake, '-DDEFOLD_SDK_CHECK=ON', f"-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}",
-                f"-DTARGET_PLATFORM={self.target_platform}", "-P", join(self.defold_root, "scripts/cmake/check_install.cmake")]
-        if not require_protoc:
-            args.insert(1, '-DDEFOLD_REQUIRE_PROTOC=OFF')
-        if self.verbose:
-            args.insert(1, '-DDEFOLD_VERBOSE=ON')
-        self._check_sdk_cmake(args)
-
-        if require_protoc:
-            info, elapsed = self._run_sdk_check('Python Protobuf', self._check_python_protobuf)
-            self._log_sdk_check('Python Protobuf', f"Protobuf {info['version']}", path=info['path'], elapsed=elapsed)
-
-        if self.target_platform == 'armv7-android' and self.host.endswith('-macos'):
-            args = [cmake, f"-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}", "-DLUAJIT_CHECK_SDK=ON",
-                    "-P", join(self.defold_root, "external/luajit/host/emscripten.cmake")]
-            _, elapsed = self._run_sdk_check('LuaJIT generator', lambda: run.env_command(os.environ, args, silent=True))
-            self._log_sdk_check('LuaJIT generator', 'OK', elapsed=elapsed)
-
-        self._log(self._colorize(f"All checks passed: {self.target_platform}", Style.SUCCESS))
+    def check_sdk(self, require_protoc=True, silent=False):
+        return self.tool_checks.check_sdk(require_protoc=require_protoc, silent=silent)
 
     def install_sdk(self):
+        self.tool_checks.invalidate_sdk()
         sdkfolder = join(self.ext, 'SDKs')
         target_platform = self.target_platform
 
@@ -1403,6 +1302,19 @@ class Configuration(object):
             self._log("Path is not a file: '%s'" % src)
         zip.write(src, dst)
 
+    def _create_sdk_bob_jar(self, source_path, output_path):
+        # Extender needs Bob's Java API for plugin compilation; native asset tools
+        # are only needed by the Bob distribution used to build game content.
+        with zipfile.ZipFile(source_path) as source, zipfile.ZipFile(output_path, 'w') as output:
+            output.comment = source.comment
+            for entry in source.infolist():
+                if entry.filename.startswith(('lib/', 'libexec/')):
+                    continue
+                if (entry.filename.startswith('com/sun/jna/')
+                        and entry.filename.endswith(('.so', '.dll', '.dylib', '.jnilib', '.a'))):
+                    continue
+                output.writestr(entry, source.read(entry))
+
     def is_cross_platform(self):
         return self.host != self.target_platform
 
@@ -1516,11 +1428,6 @@ class Configuration(object):
                     raise FileNotFoundError("No library directory found: %s" % ", ".join(tried))
                 return paths
 
-            def _findjars(jardir, ends_with):
-                paths = os.listdir(jardir)
-                paths = [os.path.join(jardir, x) for x in paths if x.endswith(ends_with)]
-                return paths
-
             def _findjslibs(libdir):
                 paths = os.listdir(libdir)
                 paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.js',)]
@@ -1537,8 +1444,11 @@ class Configuration(object):
             def _sdk_lib_path_filter(path):
                 basename = os.path.basename(path)
                 root, _ = os.path.splitext(basename)
-                shared_name = root[3:] if root.startswith('lib') else root
-                if shared_name.endswith('_shared') and not (shared_name == 'dlib_shared' and platform in SDK_PIPELINE_TOOL_PLATFORMS):
+                lib_name = root[3:] if root.startswith('lib') else root
+                if lib_name.endswith(('_noasan', '_shared')):
+                    return False
+                # These dependency families belong to the protobuf and shader compilers.
+                if lib_name.startswith(('absl_', 'spirv-cross-')) or lib_name in SDK_EXCLUDED_LIBS:
                     return False
                 return True
 
@@ -1554,7 +1464,8 @@ class Configuration(object):
             if platform in ['armv7-android', 'arm64-android', 'x86_64-android']:
                 # Android Jars (Dynamo)
                 jardir = os.path.join(self.dynamo_home, 'share/java')
-                paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.jar'))
+                paths = [os.path.join(jardir, name) for name in
+                         ('platform_android.jar', 'gamesys_android.jar', 'sound_android.jar')]
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # Win32 resource files
@@ -1629,7 +1540,7 @@ class Configuration(object):
                 ddfc_cxx_bat = os.path.join(self.dynamo_home, 'bin/ddfc_cxx.bat')
                 ddfc_java = os.path.join(self.dynamo_home, 'bin/ddfc_java')
 
-                # protoc plugin (ddfc.py) needs our dlib_shared too
+                # DDF generation uses the bundled Python modules, including the hashing fallback.
                 plugin_pb2 = os.path.join(self.dynamo_home, 'lib/python/plugin_pb2.py')
                 ddf_init = os.path.join(self.dynamo_home, 'lib/python/ddf/__init__.py')
                 ddf_extensions_pb2 = os.path.join(self.dynamo_home, 'lib/python/ddf/ddf_extensions_pb2.py')
@@ -1637,12 +1548,6 @@ class Configuration(object):
                 dlib_init = os.path.join(self.dynamo_home, 'lib/python/dlib/__init__.py')
 
                 self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat, plugin_pb2, ddf_init, ddf_extensions_pb2, ddf_math_pb2, dlib_init], self.dynamo_home, topfolder)
-
-                # workaround for extender running on x86_64-darwin still:
-                if platform == 'x86_64-macos':
-                    protoc_src = os.path.join(self.dynamo_home, 'ext/bin/%s/protoc' % platform)
-                    protoc_dst = '%s/ext/bin/%s/protoc' % (topfolder, "x86_64-darwin")
-                    self._add_file_to_zip(zip, protoc_src, protoc_dst)
 
                 # we don't want to run "pip install" on individual sdk files, so we copy the python files as-is
                 protobuf_files = []
@@ -1661,9 +1566,12 @@ class Configuration(object):
                 self._add_files_to_zip(zip, protobuf_files, self.dynamo_home, topfolder)
 
                 # bob pipeline classes include only in one sdk
-                if platform in ('x86_64-linux'):
+                if platform == 'x86_64-linux':
                     bob_light = os.path.join(self.dynamo_home, 'share/java/bob-light.jar')
-                    self._add_files_to_zip(zip, [bob_light], self.dynamo_home, topfolder)
+                    with tempfile.TemporaryDirectory(prefix='defold-sdk-bob-') as directory:
+                        sdk_bob = os.path.join(directory, 'bob-light.jar')
+                        self._create_sdk_bob_jar(bob_light, sdk_bob)
+                        self._add_file_to_zip(zip, sdk_bob, '%s/share/java/bob-light.jar' % topfolder)
 
 
             # For logging, print all paths in zip:
@@ -2579,6 +2487,7 @@ class Configuration(object):
 
         # Cross-builds also need host dependencies for tools such as texc.
         self._build_ext_platform(self.host)
+        self.tool_checks.invalidate('Protoc')
         if self.target_platform != self.host:
             self._build_ext_platform(self.target_platform)
         if with_msan:

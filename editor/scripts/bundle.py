@@ -325,10 +325,16 @@ def remove_platform_files_from_archive(platform, jar, jdk=None):
     files = zin.namelist()
     files_to_remove = set()
 
+    # Compiler libraries run on the editor host, including when building for other targets.
+    other_platform_lib_pattern = re.compile(
+        r"^lib/(?!%s/)(?:x86_64|arm64)-(?:linux|macos|win32)/" % re.escape(platform))
+
     # find files to remove from libexec/*
     libexec_platform = "libexec/" + platform
     _unpack_platform = "_unpack/" + platform
     for file in files:
+        if other_platform_lib_pattern.match(file):
+            files_to_remove.add(file)
         if file.startswith("libexec"):
             # don't remove any folders
             if file.endswith("/"):

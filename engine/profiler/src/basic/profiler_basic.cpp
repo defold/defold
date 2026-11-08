@@ -162,9 +162,20 @@ static void DeleteStringFn(void* context, const uint32_t* key, const char** str)
     free((void*)*str);
 }
 
+struct ProfileName
+{
+    const char* m_Name;
+    uint32_t    m_LabelHash;
+};
+
+static void DeleteProfileNameFn(void* context, const uint32_t* key, ProfileName* name)
+{
+    free((void*)name->m_Name);
+}
+
 struct ProfileContext
 {
-    dmHashTable32<const char*> m_Names;
+    dmHashTable32<ProfileName>  m_Names;
     dmHashTable32<const char*> m_ThreadNames;
     dmHashTable32<ThreadData*> m_ThreadData;
 
@@ -177,7 +188,7 @@ struct ProfileContext
         m_ThreadData.Iterate(DeleteThreadDataFn, (void*)0);
         m_ThreadData.Clear();
 
-        m_Names.Iterate(DeleteStringFn, (void*)0);
+        m_Names.Iterate(DeleteProfileNameFn, (void*)0);
         m_Names.Clear();
 
         m_ThreadNames.Iterate(DeleteStringFn, (void*)0);
@@ -187,7 +198,7 @@ struct ProfileContext
 
 static bool IsProfileInitialized()
 {
-    return dmAtomicGet32(&g_ProfileInitialized) != 0;
+    return dmAtomicLoadAcquire32(&g_ProfileInitialized) != 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -206,8 +217,8 @@ static const char* GetNameFromHash(uint32_t name_hash)
 {
     CHECK_INITIALIZED_RETVAL("null");
     DM_MUTEX_SCOPED_LOCK(g_Lock);
-    const char** pname = g_ProfileContext->m_Names.Get(name_hash);
-    return pname != 0 ? *pname : "null";
+    const ProfileName* name = g_ProfileContext->m_Names.Get(name_hash);
+    return name != 0 ? name->m_Name : "null";
 }
 
 static uint32_t GetOrCacheNameHash(const char* name, uint32_t* pname_hash)
@@ -234,13 +245,16 @@ static uint32_t InternalizeName(const char* original, uint32_t* pname_hash)
         g_ProfileContext->m_Names.SetCapacity((cap * 2) / 3, cap);
     }
 
-    const char** existing = g_ProfileContext->m_Names.Get(name_hash);
+    const ProfileName* existing = g_ProfileContext->m_Names.Get(name_hash);
     if (existing)
     {
         return name_hash;
     }
 
-    const char* name = strdup(original);
+    ProfileName name;
+    name.m_Name = strdup(original);
+    // Scope IDs may contain the low bits of a cached 64-bit hash.
+    name.m_LabelHash = HashString32(original);
     g_ProfileContext->m_Names.Put(name_hash, name);
     return name_hash;
 }
@@ -338,10 +352,9 @@ static int32_t GetThreadId()
     return (int32_t)thread_id;
 }
 
-static const char* GetThreadName(int32_t thread_id)
+// The caller holds g_Lock.
+static const char* GetThreadNameNoLock(int32_t thread_id)
 {
-    CHECK_INITIALIZED_RETVAL("null");
-    DM_MUTEX_SCOPED_LOCK(g_Lock);
     const char** pname = g_ProfileContext->m_ThreadNames.Get(thread_id);
     return pname != 0 ? *pname : "null";
 }
@@ -460,8 +473,12 @@ namespace dmProfiler
 
     uint32_t SampleGetNameHash(HSample hsample)
     {
+        CHECK_INITIALIZED_RETVAL(0);
+        DM_MUTEX_SCOPED_LOCK(g_Lock);
         Sample* sample = (Sample*)hsample;
-        return sample->m_NameHash;
+        const ProfileName* name = g_ProfileContext->m_Names.Get(sample->m_NameHash);
+        static const uint32_t null_name_hash = HashString32("null");
+        return name != 0 ? name->m_LabelHash : null_name_hash;
     }
 
     const char* SampleGetName(HSample hsample)
@@ -730,7 +747,7 @@ static ProfileResult ScopeEnd(void* ctx, const char* name, uint64_t name_hash)
             Sample* sibling = td->m_Root.m_FirstChild;
             while (sibling)
             {
-                g_SampleTreeCallback(g_SampleTreeCallbackCtx, GetThreadName(thread_id), sibling);
+                g_SampleTreeCallback(g_SampleTreeCallbackCtx, GetThreadNameNoLock(thread_id), sibling);
                 sibling = sibling->m_Sibling;
             }
         }
