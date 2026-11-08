@@ -124,6 +124,9 @@ endif()
 #**************************************************************************
 # Common flags
 
+# Host tools can omit debug information without changing engine build settings.
+set(_DEFOLD_DEBUG_INFO_FLAG "$<IF:$<BOOL:$<TARGET_PROPERTY:DEFOLD_NO_DEBUG_INFO>>,-g0,-g>")
+
 if(MSVC_CL)
     target_compile_definitions(defold_sdk INTERFACE _HAS_EXCEPTIONS=0)
 
@@ -147,7 +150,7 @@ else()
         -fno-exceptions
         $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>)
     if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
-        list(APPEND _DEFOLD_NON_MSVC_OPTIONS -g)
+        list(APPEND _DEFOLD_NON_MSVC_OPTIONS "${_DEFOLD_DEBUG_INFO_FLAG}")
     endif()
     if(NOT DEFINED DEFOLD_PLATFORM_SUPPORTS_FPIC)
         set(DEFOLD_PLATFORM_SUPPORTS_FPIC ON)
@@ -182,8 +185,8 @@ else()
         "$<$<CONFIG:RelWithDebInfo>:${_DEFOLD_RELWITHDEBINFO_OPT}>"
         "$<$<NOT:${_DEFOLD_OPT_CONFIG_EXPR}>:-O0>")
     if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
-        target_compile_options(defold_sdk INTERFACE -g)
-        target_link_options(defold_sdk INTERFACE -g)
+        target_compile_options(defold_sdk INTERFACE "${_DEFOLD_DEBUG_INFO_FLAG}")
+        target_link_options(defold_sdk INTERFACE "${_DEFOLD_DEBUG_INFO_FLAG}")
     endif()
     if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
         target_link_options(defold_sdk INTERFACE "$<$<CONFIG:RelWithDebInfo>:-O3>")

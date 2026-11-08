@@ -92,7 +92,8 @@ namespace dmEngineService
                   "version",
                   "platform",
                   "sha1",
-                  "log_port"
+                  "log_port",
+                  "service_api_version"
                 ],
                 "properties": {
                   "version": {
@@ -107,6 +108,11 @@ namespace dmEngineService
                   "log_port": {
                     "type": "string",
                     "description": "Port used by the TCP log service."
+                  },
+                  "service_api_version": {
+                    "type": "integer",
+                    "enum": [1],
+                    "description": "Common engine-service observation contract revision. Compatible additions retain this version."
                   }
                 }
               }
@@ -123,7 +129,7 @@ namespace dmEngineService
 {
   "/state": {
     "get": {
-      "summary": "Get engine connection state",
+      "summary": "Observe engine identity, readiness and completed frames",
       "responses": {
         "200": {
           "description": "OK",
@@ -132,12 +138,31 @@ namespace dmEngineService
               "schema": {
                 "type": "object",
                 "required": [
-                  "connection_mode"
+                  "connection_mode",
+                  "engine_instance_id",
+                  "ready",
+                  "frame"
                 ],
                 "properties": {
                   "connection_mode": {
                     "type": "boolean",
                     "description": "True when the engine is waiting for a project connection."
+                  },
+                  "engine_instance_id": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Opaque instance token, changed on each initialization attempt including reboot. Null without an attached engine."
+                  },
+                  "ready": {
+                    "type": "boolean",
+                    "description": "Engine and bootstrap collection initialization succeeded for a real project. Does not imply application-specific loading or presentation completed."
+                  },
+                  "frame": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "nullable": true,
+                    "description": "Authoritative completed engine frame count sampled before service polling. Zero before the first completed frame; null without an engine. Wraps at 32 bits. Skipped simulation iterations do not advance it."
                   }
                 }
               }
@@ -167,11 +192,11 @@ namespace dmEngineService
           }
         },
         "405": {
-          "description": "Method Not Allowed",
+          "description": "Method Not Allowed; Allow: GET",
           "content": {
-            "text/plain": {
+            "application/json": {
               "schema": {
-                "type": "string"
+                "type": "object"
               }
             }
           }

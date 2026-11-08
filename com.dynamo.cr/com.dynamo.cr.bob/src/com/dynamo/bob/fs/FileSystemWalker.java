@@ -14,9 +14,9 @@
 
 package com.dynamo.bob.fs;
 
-import java.util.Collection;
-
 import com.dynamo.bob.fs.IFileSystem.IWalker;
+
+import java.util.Collection;
 
 public class FileSystemWalker implements IWalker{
 

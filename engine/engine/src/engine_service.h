@@ -60,6 +60,8 @@ namespace dmEngineService
     // Notify the service before rendering and after command submission in Flip().
     void BeginFrame(HEngineService engine_service);
     void EndFrame(HEngineService engine_service);
+    // Attach a new instance before each initialization attempt, including reboot.
+    void OnEngineInit(HEngineService engine_service);
     // Finish service operations that depend on the engine before its contexts are destroyed.
     // Called on shutdown and reboot; the service itself remains alive across reboots.
     void OnEngineDelete(HEngineService engine_service);
@@ -72,10 +74,12 @@ namespace dmEngineService
 
     struct EngineState
     {
-        bool   m_ConnectionAppMode;
+        bool     m_ConnectionAppMode;
+        bool     m_Ready;
+        uint32_t m_FrameCount;
     };
 
-    void InitState(HEngineService engine_service, EngineState* state);
+    void SetState(HEngineService engine_service, const EngineState* state);
 }
 
 #endif // DM_ENGINE_SERVICE

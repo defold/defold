@@ -747,6 +747,126 @@ TEST(Shaderc, TestHLSLSimple)
     free(data);
 }
 
+// Verifies SPIRV-Cross errors survive the HLSL path instead of being replaced by binary compiler errors.
+TEST(Shaderc, HLSLPreservesCrossCompilationError)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/hlsl_unsupported_pack_double.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 60;
+    options.m_EntryPoint = "main";
+
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_NE((void*) 0, strstr(result->m_LastError, "packDouble2x32/unpackDouble2x32 not supported in HLSL"));
+    ASSERT_EQ(0u, result->m_Data.Size());
+
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(context);
+    free(data);
+}
+
+// Verifies DXC compiles dynamic texture-sampling loops without the FXC loop-unrolling workaround.
+TEST(Shaderc, HLSLCompilesDynamicSampleLoops)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/hlsl_dynamic_sample_loops.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 60;
+
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_STREQ("", result->m_LastError);
+    ASSERT_TRUE(dmShaderc::HasDXBCHeader(result->m_Data.Begin(), result->m_Data.Size()));
+    ASSERT_GT(result->m_HLSLRootSignature.Size(), 0u);
+
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(context);
+    free(data);
+}
+
+// Verifies binary compilation returns its diagnostic through the public API instead of null.
+TEST(Shaderc, HLSLPreservesBinaryCompilationError)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/reflection.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 60;
+    options.m_EntryPoint = "missing_shader_entry_point";
+
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(context);
+    free(data);
+
+    ASSERT_NE((void*) 0, strstr(result->m_LastError, "missing entry point definition"));
+    ASSERT_EQ(0u, result->m_Data.Size());
+    ASSERT_EQ(0u, result->m_HLSLRootSignature.Size());
+    dmShaderc::FreeShaderCompileResult(result);
+}
+
+// Verifies full compiler diagnostics remain readable after blob cleanup, even beyond the log message limit.
+TEST(Shaderc, HLSLPreservesLongCompilerDiagnostic)
+{
+    char source[8192];
+    uint32_t offset = dmSnPrintf(source, sizeof(source), "float4 main() : SV_Target {\n");
+    for (uint32_t i = 0; i < 64; ++i)
+    {
+        offset += dmSnPrintf(source + offset, sizeof(source) - offset, "float value_%u = float4(1, 2, 3, 4);\n", i);
+    }
+    offset += dmSnPrintf(source + offset, sizeof(source) - offset, "return diagnostic_end_marker;\n}\n");
+
+    dmShaderc::ShaderContext context = {};
+    context.m_Stage = dmShaderc::SHADER_STAGE_FRAGMENT;
+    dmShaderc::ShaderCompileResult raw_hlsl = {};
+    raw_hlsl.m_Data.SetCapacity(offset);
+    raw_hlsl.m_Data.SetSize(offset);
+    memcpy(raw_hlsl.m_Data.Begin(), source, raw_hlsl.m_Data.Size());
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 60;
+    options.m_EntryPoint = "main";
+
+    dmShaderc::ShaderCompileResult* result = dmShaderc::CompileRawHLSLToBinary(&context, 0, &options, &raw_hlsl);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_GT(strlen(result->m_LastError), 4096u);
+    ASSERT_NE((void*) 0, strstr(result->m_LastError, "diagnostic_end_marker"));
+    ASSERT_EQ(0u, result->m_Data.Size());
+    dmShaderc::FreeShaderCompileResult(result);
+}
+
+// Verifies unsupported shader models return an actionable error without invoking DXC or returning null.
+TEST(Shaderc, HLSLRejectsUnsupportedShaderModel)
+{
+    const char source[] = "float4 main() : SV_Target { return 0; }";
+    dmShaderc::ShaderContext context = {};
+    context.m_Stage = dmShaderc::SHADER_STAGE_FRAGMENT;
+    dmShaderc::ShaderCompileResult raw_hlsl = {};
+    raw_hlsl.m_Data.SetCapacity(sizeof(source) - 1);
+    raw_hlsl.m_Data.SetSize(sizeof(source) - 1);
+    memcpy(raw_hlsl.m_Data.Begin(), source, raw_hlsl.m_Data.Size());
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 51;
+
+    dmShaderc::ShaderCompileResult* result = dmShaderc::CompileRawHLSLToBinary(&context, 0, &options, &raw_hlsl);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_NE((void*) 0, strstr(result->m_LastError, "requires shader model 6.0 or newer"));
+    ASSERT_EQ(0u, result->m_Data.Size());
+    ASSERT_EQ(0u, result->m_HLSLRootSignature.Size());
+    dmShaderc::FreeShaderCompileResult(result);
+}
+
 // Verifies storage-buffer bytecode and SRV/UAV root parameters preserve register spaces
 // and bindings, guarding against omitted buffers and malformed root signatures.
 TEST(Shaderc, HLSLStorageBufferRootSignature)
@@ -847,6 +967,45 @@ TEST(Shaderc, HLSLStorageBufferRootParameterIndicesWithOverride)
     dmShaderc::DeleteShaderCompiler(compiler);
     dmShaderc::DeleteShaderContext(context);
     free(data);
+#endif
+}
+
+// Verifies HLSL result names survive later compilations and compiler teardown,
+// guarding against borrowing names from the released DXC reflection object.
+TEST(Shaderc, HLSLResourceMappingNamesOutliveReflection)
+{
+#if defined(_WIN32)
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/storage_buffers.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    const uint32_t result_count = 8;
+    dmShaderc::ShaderCompileResult* results[result_count];
+    for (uint32_t i = 0; i < result_count; ++i)
+    {
+        dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_COMPUTE, data, data_size);
+        dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+        dmShaderc::ShaderCompilerOptions options;
+        options.m_Version = 60;
+        results[i] = dmShaderc::Compile(context, compiler, options);
+        ASSERT_NE((void*) 0, results[i]);
+        ASSERT_STREQ("", results[i]->m_LastError);
+        ASSERT_EQ(2u, results[i]->m_HLSLResourceMappings.Size());
+        dmShaderc::DeleteShaderCompiler(compiler);
+        dmShaderc::DeleteShaderContext(context);
+    }
+    free(data);
+
+    for (uint32_t i = 0; i < result_count; ++i)
+    {
+        for (uint32_t j = 0; j < results[i]->m_HLSLResourceMappings.Size(); ++j)
+        {
+            const dmShaderc::HLSLResourceMapping& mapping = results[i]->m_HLSLResourceMappings[j];
+            ASSERT_NE((const char*) 0, mapping.m_Name);
+            ASSERT_EQ(mapping.m_NameHash, dmHashString64(mapping.m_Name));
+        }
+        dmShaderc::FreeShaderCompileResult(results[i]);
+    }
 #endif
 }
 

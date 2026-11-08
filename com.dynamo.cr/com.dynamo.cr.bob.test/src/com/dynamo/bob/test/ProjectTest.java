@@ -14,12 +14,37 @@
 
 package com.dynamo.bob.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import com.dynamo.bob.ClassLoaderResourceScanner;
+import com.dynamo.bob.ClassLoaderScanner;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.IProgress;
+import com.dynamo.bob.LibraryException;
+import com.dynamo.bob.MultipleCompileException;
+import com.dynamo.bob.Progress;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.fs.IFileSystem;
+import com.dynamo.bob.test.util.MockFileSystem;
+import com.dynamo.bob.util.BuildInputDataCollector;
+import com.dynamo.bob.util.DependencyMetadata;
+import com.dynamo.bob.util.Library;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
+import org.eclipse.jetty.server.Request;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.bio.SocketConnector;
+import org.eclipse.jetty.server.handler.HandlerList;
+import org.eclipse.jetty.server.handler.ResourceHandler;
+import org.eclipse.jetty.util.resource.Resource;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -27,47 +52,18 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipFile;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
-import com.dynamo.bob.LibraryException;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.codec.binary.Base64;
-
-import org.eclipse.jetty.server.Request;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.bio.SocketConnector;
-import org.eclipse.jetty.server.handler.HandlerList;
-import org.eclipse.jetty.server.handler.ResourceHandler;
-import org.eclipse.jetty.util.resource.Resource;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.ClassLoaderScanner;
-import com.dynamo.bob.ClassLoaderResourceScanner;
-import com.dynamo.bob.IProgress;
-import com.dynamo.bob.MultipleCompileException;
-import com.dynamo.bob.Progress;
-import com.dynamo.bob.Project;
-import com.dynamo.bob.TaskResult;
-import com.dynamo.bob.fs.IFileSystem;
-import com.dynamo.bob.util.BuildInputDataCollector;
-import com.dynamo.bob.util.DependencyMetadata;
-import com.dynamo.bob.util.Library;
-import com.dynamo.bob.test.util.MockFileSystem;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class ProjectTest {
     private static final class RecordingReporter implements Progress.Reporter {

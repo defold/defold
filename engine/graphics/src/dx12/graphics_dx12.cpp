@@ -3223,7 +3223,22 @@ namespace dmGraphics
                         {
                             input_layout.OffsetCapacity(32);
                         }
-                        input_layout.Push(desc);
+                        // Later bindings override mesh attributes with instance attributes.
+                        // D3D12 requires unique semantic/index pairs in the input layout.
+                        uint32_t element = 0;
+                        for (; element < input_layout.Size(); ++element)
+                        {
+                            if (input_layout[element].SemanticIndex == desc.SemanticIndex &&
+                                strcmp(input_layout[element].SemanticName, desc.SemanticName) == 0)
+                            {
+                                input_layout[element] = desc;
+                                break;
+                            }
+                        }
+                        if (element == input_layout.Size())
+                        {
+                            input_layout.Push(desc);
+                        }
                     }
                 }
             }
