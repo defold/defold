@@ -2062,7 +2062,7 @@ bail:
                 dmInput::UpdateBinding(engine->m_GameInputBinding, dt, &window_metrics);
 
                 dmEngine::InputActionsEvent event = { engine->m_InputContext };
-                dmExtension::BroadcastEvent(extension_params, dmEngine::EVENT_INPUT_ACTIONS, &event, sizeof(event));
+                dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_INPUT_ACTIONS, &event, sizeof(event));
                 dmGameObject::DispatchInput(GetMainCollection(engine), engine->m_InputContext);
 
                 dmGameObject::UpdateContext update_context;
