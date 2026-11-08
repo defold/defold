@@ -15,6 +15,7 @@
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <dlib/json.h>
+#include <dlib/json_lexer.h>
 #include <dlib/math.h>
 #include <locale.h>
 #include <math.h>
@@ -873,6 +874,63 @@ TEST(dmJson, Utf8BlockBoundaries)
         ASSERT_TRUE(json.Parse(text, length + 2, 0, dmJson::PARSE_DECODE_VALUES));
         ASSERT_EQ(length, strlen(json.String(0, 0)));
         free(storage);
+    }
+}
+
+// Every escape byte must retain the same validity in decoded, buffered, and preserved strings.
+TEST(dmJson, SimpleEscapeBytes)
+{
+    const char encoded[] = "\"\\/bfnrt";
+    const char decoded[] = "\"\\/\b\f\n\r\t";
+    dmJson::StringBuffer buffer;
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        for (uint32_t byte = 0; byte < 256; ++byte)
+        {
+            char input[] = { '"', '\\', (char)byte, '"' };
+            const char* escape = byte ? strchr(encoded, byte) : 0;
+            dmJson::Lexer lexer(input, input + sizeof(input));
+            char* value = lexer.ReadString(mode != 0, mode == 2 ? &buffer : 0);
+            ASSERT_EQ(escape != 0, lexer.m_Valid);
+            if (escape)
+            {
+                ASSERT_EQ(mode ? 1u : 2u, lexer.m_StringLength);
+                ASSERT_EQ(mode ? decoded[escape - encoded] : '\\', value[0]);
+            }
+        }
+    }
+}
+
+// Buffered string decoding must grow at escape boundaries without changing bounded input or losing embedded NULs.
+TEST(dmJson, BufferedStringBoundaries)
+{
+    const char suffix[] = "\\n\\u0000\\ud83d\\ude00abcdefghijklmnopqrstuvwxyz0123456789\\t\"";
+    const char decoded[] = "\n\0\xf0\x9f\x98\x80" "abcdefghijklmnopqrstuvwxyz0123456789\t";
+    dmJson::StringBuffer buffer;
+    for (uint32_t prefix = 0; prefix < 530; ++prefix)
+    {
+        uint32_t size = prefix + sizeof(suffix);
+        char* input = (char*)malloc(size);
+        input[0] = '"';
+        memset(input + 1, 'a', prefix);
+        memcpy(input + prefix + 1, suffix, sizeof(suffix) - 1);
+        dmJson::Lexer lexer(input, input + size);
+        lexer.m_AllowNul = true;
+        char* result = lexer.ReadString(true, &buffer);
+        ASSERT_TRUE(lexer.m_Valid);
+        ASSERT_EQ(prefix + sizeof(decoded) - 1, lexer.m_StringLength);
+        ASSERT_EQ(0, memcmp(result, input + 1, prefix));
+        ASSERT_EQ(0, memcmp(result + prefix, decoded, sizeof(decoded) - 1));
+        ASSERT_EQ(0, memcmp(input + prefix + 1, suffix, sizeof(suffix) - 1));
+        ASSERT_EQ(input + size, lexer.m_Cursor);
+        for (uint32_t length = 1; length < sizeof(suffix) - 1; ++length)
+        {
+            dmJson::Lexer truncated(input, input + prefix + 1 + length);
+            truncated.m_AllowNul = true;
+            ASSERT_EQ((char*)0, truncated.ReadString(true, &buffer));
+            ASSERT_FALSE(truncated.m_Valid);
+        }
+        free(input);
     }
 }
 
