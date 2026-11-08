@@ -1,6 +1,7 @@
 #ifndef DEFOLD_INSTANCE_TRANSFORMS
 #define DEFOLD_INSTANCE_TRANSFORMS
 
+// Define DM_USE_VISIBLE_INSTANCES to opt in to the visible-ID variant.
 // Include after #version 430 or later. The material must mark this attribute as
 // an instanced world matrix. Override its name before including this file.
 #ifndef DM_INSTANCE_WORLD_ATTRIBUTE

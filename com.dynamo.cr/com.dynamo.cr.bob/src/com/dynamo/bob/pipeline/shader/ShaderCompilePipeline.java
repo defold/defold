@@ -40,7 +40,8 @@ import org.apache.commons.io.FileUtils;
 import com.dynamo.bob.pipeline.Shaderc;
 
 public class ShaderCompilePipeline {
-    public static final String VISIBLE_INSTANCE_SHADER_INCLUDE = "builtins/materials/instance_transforms.glsl";
+    private static final String VISIBLE_INSTANCE_USE_DEFINE = "DM_USE_VISIBLE_INSTANCES";
+    private static final String VISIBLE_INSTANCE_VARIANT_DEFINE = "DM_GPU_VISIBLE_INSTANCES";
     private static final int VISIBLE_INSTANCE_DESCRIPTOR_SET = 3;
 
     public static class Options {
@@ -60,7 +61,6 @@ public class ShaderCompilePipeline {
         public String source;
         public String resourcePath;
         public ShaderDesc.ShaderType type;
-        public boolean useVisibleInstances;
     }
 
     protected static class ShaderModule {
@@ -817,11 +817,40 @@ public class ShaderCompilePipeline {
         return result;
     }
 
-    // The shader must explicitly include instance_transforms.glsl. Material
+    private boolean usesVisibleInstances(ShaderModule module) throws IOException, CompileExceptionError {
+        if (!module.desc.source.contains(VISIBLE_INSTANCE_USE_DEFINE)) {
+            return false;
+        }
+
+        // Let GLSL evaluate conditional defines and #undef instead of matching source text.
+        String enabled = "_DM_VISIBLE_INSTANCE_USE_ENABLED";
+        String probe = "\n\n#ifdef " + VISIBLE_INSTANCE_USE_DEFINE + "\n" + enabled +
+            "\n#else\n_DM_VISIBLE_INSTANCE_USE_DISABLED\n#endif\n";
+        File source = createTempFile(this.pipelineName, ".visible-instance.vert");
+        FileUtils.writeStringToFile(source, module.desc.source + probe, StandardCharsets.UTF_8);
+
+        ArrayList<String> args = new ArrayList<>();
+        args.add(glslangExe);
+        args.add("-E");
+        args.add("-S");
+        args.add("vert");
+        // Match the Vulkan input semantics used by generateSPIRv's -V option.
+        args.add("-DVULKAN=100");
+        for (String define : this.options.defines) {
+            args.add("-D" + define);
+        }
+        args.add(source.getAbsolutePath());
+
+        Result result = Exec.execResult(args.toArray(new String[0]));
+        checkResult(module.desc.resourcePath, result);
+        return new String(result.stdOutErr, StandardCharsets.UTF_8).stripTrailing().endsWith(enabled);
+    }
+
+    // The shader must define DM_USE_VISIBLE_INSTANCES. Material
     // semantics are checked by the renderer; other layouts keep matrix compaction.
     public ShaderCompilePipeline createVisibleInstancePipeline(String name) throws IOException, CompileExceptionError {
         ShaderModule vertexModule = getShaderModule(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
-        if (vertexModule == null || !vertexModule.desc.useVisibleInstances) {
+        if (vertexModule == null || !usesVisibleInstances(vertexModule)) {
             return null;
         }
         Shaderc.ShaderResource matrixInput = null;
@@ -858,7 +887,7 @@ public class ShaderCompilePipeline {
         visibleInstanceOptions.glslEsDefaultFloatPrecision = options.glslEsDefaultFloatPrecision;
         visibleInstanceOptions.glslEsDefaultIntPrecision = options.glslEsDefaultIntPrecision;
         visibleInstanceOptions.defines.addAll(options.defines);
-        visibleInstanceOptions.defines.add("DM_GPU_VISIBLE_INSTANCES=1");
+        visibleInstanceOptions.defines.add(VISIBLE_INSTANCE_VARIANT_DEFINE + "=1");
 
         ShaderCompilePipeline visibleInstancePipeline = new ShaderCompilePipeline(name);
         visibleInstancePipeline.options = visibleInstanceOptions;

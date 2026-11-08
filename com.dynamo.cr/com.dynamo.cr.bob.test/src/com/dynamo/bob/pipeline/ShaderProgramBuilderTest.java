@@ -149,6 +149,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         getProject().setOption("platform", "arm64-macos");
         String vertex = """
             #version 430
+            #define DM_USE_VISIBLE_INSTANCES
             #define DM_INSTANCE_WORLD_ATTRIBUTE custom_world
             #include "/builtins/materials/instance_transforms.glsl"
             in vec4 position;
@@ -206,10 +207,10 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertFalse(fallback.hasVisibleInstanceProgram());
     }
 
-    // Ordinary instanced shaders must keep their matrix input without opting in
-    // to the visible-ID shader include.
+    // Ordinary instanced shaders retain their matrix input unless
+    // DM_USE_VISIBLE_INSTANCES explicitly opts them in.
     @Test
-    public void testVisibleInstanceRequiresShaderInclude() throws Exception {
+    public void testVisibleInstanceRequiresShaderDefine() throws Exception {
         getProject().setOption("platform", "arm64-macos");
         String vertex = """
             #version 140
@@ -229,6 +230,75 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(desc.getReflection().getInputsList().stream().anyMatch(input -> input.getName().equals("world")));
     }
 
+    // The opt-in define works with a renamed helper or inline code; no
+    // particular include path is required to generate the visible-ID variant.
+    @Test
+    public void testVisibleInstanceDefineWithoutBuiltinInclude() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        getProject().setOption("platform", "arm64-macos");
+        String helper = "#define DM_USE_VISIBLE_INSTANCES\n" + new String(
+            getProject().getResource("/builtins/materials/instance_transforms.glsl").getContent(), StandardCharsets.UTF_8);
+        addFile("/custom_instance_transforms.glsl", helper);
+        String vertex = """
+            #version 430
+            #include "/custom_instance_transforms.glsl"
+            in vec4 position;
+            void main() { gl_Position = dm_instance_world() * position; }
+            """;
+        String fragment = """
+            #version 140
+            out vec4 color;
+            void main() { color = vec4(1.0); }
+            """;
+        ShaderDesc included = addAndBuildShaderDescs(
+            new String[] {"/custom.vp", "/custom.fp"}, new String[] {vertex, fragment}, "/custom.shbundle");
+        assertTrue(included.hasVisibleInstanceProgram());
+        assertEquals(MurmurHash.hash64("mtx_world"), included.getVisibleInstanceAttribute());
+
+        String inline = vertex.replace("#include \"/custom_instance_transforms.glsl\"", helper);
+        ShaderDesc inlined = addAndBuildShaderDescs(
+            new String[] {"/inline.vp", "/inline.fp"}, new String[] {inline, fragment}, "/inline.shbundle");
+        assertTrue(inlined.hasVisibleInstanceProgram());
+        assertEquals(included.getVisibleInstanceAttribute(), inlined.getVisibleInstanceAttribute());
+        ShaderDesc variant = ShaderDesc.parseFrom(inlined.getVisibleInstanceProgram());
+        assertEquals(2, variant.getReflection().getStorageBuffersCount());
+    }
+
+    // Including the helper is insufficient: absent, commented, inactive and
+    // undefined opt-in macros must retain conventional matrix instancing.
+    @Test
+    public void testVisibleInstanceDefineMustBeActive() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        getProject().setOption("platform", "arm64-macos");
+        String vertex = """
+            #version 430
+            #include "/builtins/materials/instance_transforms.glsl"
+            in vec4 position;
+            void main() { gl_Position = dm_instance_world() * position; }
+            """;
+        String fragment = """
+            #version 140
+            out vec4 color;
+            void main() { color = vec4(1.0); }
+            """;
+        String[] directives = {
+            "",
+            "// #define DM_USE_VISIBLE_INSTANCES\n",
+            "#if 0\n#define DM_USE_VISIBLE_INSTANCES\n#endif\n",
+            "#define DM_USE_VISIBLE_INSTANCES\n#undef DM_USE_VISIBLE_INSTANCES\n",
+            "#define DM_USE_VISIBLE_INSTANCES_OTHER\n"
+        };
+        for (int i = 0; i < directives.length; ++i) {
+            String name = "/inactive_" + i;
+            String source = vertex.replace("#version 430\n", "#version 430\n" + directives[i]);
+            ShaderDesc desc = addAndBuildShaderDescs(
+                new String[] {name + ".vp", name + ".fp"}, new String[] {source, fragment}, name + ".shbundle");
+            assertFalse(desc.hasVisibleInstanceProgram());
+            assertEquals(0, desc.getReflection().getStorageBuffersCount());
+            assertTrue(desc.getReflection().getInputsList().stream().anyMatch(input -> input.getName().equals("mtx_world")));
+        }
+    }
+
     // Opted-in Vulkan and WebGPU shaders use their native shader formats; Vulkan
     // companions must remain valid for the supported Vulkan 1.0 target.
     @Test
@@ -237,6 +307,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         getProject().setOption("platform", "arm64-macos");
         String vertex = """
             #version 430
+            #define DM_USE_VISIBLE_INSTANCES
             #include "/builtins/materials/instance_transforms.glsl"
             in vec4 position;
             uniform Matrices { mat4 view_proj; };
@@ -286,6 +357,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         getProject().setOption("platform", "arm64-macos");
         String vertex = """
             #version 450
+            #define DM_USE_VISIBLE_INSTANCES
             #include "/builtins/materials/instance_transforms.glsl"
             layout(location = 0) in vec4 position;
             layout(set = 2, binding = 7) uniform Common { mat4 view_proj; vec4 tint; };

@@ -158,7 +158,7 @@ public class ShaderProgramBuilder extends Builder {
         }
 
         for (int i = 0; i < this.modulesDescs.size(); i++) {
-            setShaderSource(this.modulesDescs.get(i), this.modulePreprocessors.get(i));
+            this.modulesDescs.get(i).source = this.modulePreprocessors.get(i).getCompiledSource();
         }
 
         compileOptions.excludeGlesSm100 = compileOptions.excludeGlesSm100 || getExcludeGlesSm100Flag();
@@ -569,7 +569,6 @@ public class ShaderProgramBuilder extends Builder {
                 transformedDesc.type = old.type;
                 transformedDesc.source = transformResult.output;
                 transformedDesc.resourcePath = old.resourcePath;
-                transformedDesc.useVisibleInstances = old.useVisibleInstances;
                 newDescs.add(transformedDesc);
             }
             shaderDescs = newDescs;
@@ -637,17 +636,6 @@ public class ShaderProgramBuilder extends Builder {
         return builder;
     }
 
-    private static void setShaderSource(ShaderCompilePipeline.ShaderModuleDesc desc, ShaderPreprocessor preprocessor) {
-        desc.source = preprocessor.getCompiledSource();
-        desc.useVisibleInstances = false;
-        for (String include : preprocessor.getIncludes()) {
-            if (include.equals(ShaderCompilePipeline.VISIBLE_INSTANCE_SHADER_INCLUDE)) {
-                desc.useVisibleInstances = true;
-                break;
-            }
-        }
-    }
-
     private static ShaderCompilePipeline.ShaderModuleDesc GetShaderDesc(Project project, String path, String contentRoot) throws IOException, CompileExceptionError {
         ShaderDesc.ShaderType shaderType = parseShaderTypeFromPath(path);
         ShaderCompilePipeline.ShaderModuleDesc desc = new ShaderCompilePipeline.ShaderModuleDesc();
@@ -661,7 +649,7 @@ public class ShaderProgramBuilder extends Builder {
             source = source.replace("\r", "");
 
             ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(project, path, source, contentRoot);
-            setShaderSource(desc, shaderPreprocessor);
+            desc.source = shaderPreprocessor.getCompiledSource();
         }
 
         return desc;
