@@ -445,6 +445,11 @@ static dmExtension::Result ProfilerRemotery_AppFinalize(dmExtension::AppParams* 
 {
     if (dmExtension::AppParamsGetAppExitCode(params) == dmExtension::APP_EXIT_CODE_EXIT)
     {
+        // This extension can finalize before ProfilerExt calls ProfileFinalize().
+        if (dmProfilerRemotery::IsInitialized())
+        {
+            dmProfilerRemotery::DestroyListener(g_Listener.m_Ctx);
+        }
         ProfileUnregisterProfiler(g_ProfilerName);
         dmProfilerRemotery::g_ProfilerRegistered = false;
     }

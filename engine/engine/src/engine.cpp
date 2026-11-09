@@ -180,8 +180,10 @@ namespace dmEngine
 
     static void SetScriptContextInContextRegistry(HContextRegistry context_registry, dmScript::HContext script_context)
     {
-        ContextRegistrySet(context_registry, SCRIPT_CONTEXT_NAME, script_context);
-        ContextRegistrySet(context_registry, LUA_CONTEXT_NAME, script_context ? dmScript::GetLuaState(script_context) : 0);
+        static const dmhash_t script_context_hash = dmHashString64(SCRIPT_CONTEXT_NAME);
+        static const dmhash_t lua_context_hash = dmHashString64(LUA_CONTEXT_NAME);
+        ContextRegistrySetByHash(context_registry, script_context_hash, script_context);
+        ContextRegistrySetByHash(context_registry, lua_context_hash, script_context ? dmScript::GetLuaState(script_context) : 0);
     }
 
     static void PopulateContextRegistry(HEngine engine)
