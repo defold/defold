@@ -265,9 +265,11 @@ static void WebGPUTestErrorCallback(WGPUPopErrorScopeStatus status, WGPUErrorTyp
     }
 }
 
+// Verifies rendering with cached bind groups and guards against releasing them twice at shutdown.
 struct WebGPURenderingTest : ClearBackbufferTest
 {
-    dmGraphics::HProgram m_Program;
+    dmGraphics::HProgram         m_Program;
+    dmGraphics::HUniformLocation m_Color;
 
     void Initialize(EngineCtx* engine) override
     {
@@ -280,12 +282,17 @@ struct WebGPURenderingTest : ClearBackbufferTest
             "    return vec4f(positions[index], 0.5, 1.0);\n"
             "}\n";
         const char* fragment_source =
-            "@fragment fn main() -> @location(0) vec4f { return vec4f(1.0, 0.5, 0.0, 1.0); }\n";
+            "struct Constants { color: vec4f, };\n"
+            "@group(0) @binding(0) var<uniform> constants: Constants;\n"
+            "@fragment fn main() -> @location(0) vec4f { return constants.color; }\n";
         dmGraphics::ShaderDesc shader_desc = {};
         AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
                          (uint8_t*)vertex_source, strlen(vertex_source));
         AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
                          (uint8_t*)fragment_source, strlen(fragment_source));
+        dmGraphics::ShaderDesc::ResourceTypeInfo* constants = AddShaderType(&shader_desc, "Constants");
+        AddShaderTypeMember(&shader_desc, constants, "color", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+        AddShaderResourceUniformBuffer(&shader_desc, "Constants", 0, 0, 0, sizeof(dmVMath::Vector4));
         char error_buffer[512] = {};
         m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &shader_desc, error_buffer, sizeof(error_buffer));
         DeleteShaderDesc(&shader_desc);
@@ -293,7 +300,9 @@ struct WebGPURenderingTest : ClearBackbufferTest
         {
             dmLogError("WebGPU rendering test could not create program: %s", error_buffer);
             engine->m_Failed = true;
+            return;
         }
+        m_Color = GetUniformLocation(m_Program, "color");
     }
 
     void Execute(EngineCtx* engine) override
@@ -313,6 +322,8 @@ struct WebGPURenderingTest : ClearBackbufferTest
             dmGraphics::EnableState(context, dmGraphics::STATE_DEPTH_TEST);
         }
         dmGraphics::SetDepthMask(context, engine->m_WasRun % 2 == 0);
+        dmVMath::Vector4 color(1.0f, 0.5f, 0.0f, 1.0f);
+        dmGraphics::SetConstantV4(context, &color, 1, m_Color);
         dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
         dmGraphics::DisableProgram(context);
 #if defined(DM_PLATFORM_MACOS)
@@ -341,6 +352,12 @@ struct WebGPURenderingTest : ClearBackbufferTest
         engine->m_Failed |= context->m_HasValidationError != 0;
         ASSERT_EQ(WGPUWaitStatus_Success, status);
         ASSERT_TRUE(wait_info.completed);
+    }
+
+    void OnGraphicsClosed(EngineCtx* engine) override
+    {
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        ASSERT_EQ(0u, context->m_BindGroupCache.Size());
     }
 };
 #endif

@@ -5108,7 +5108,7 @@ static void WebGPUCloseWindow(HContext _context)
     {
         context->m_RenderPipelineCache.Iterate(WebGPUCleanupRenderPipelineCache, context);
         context->m_ComputePipelineCache.Iterate(WebGPUCleanupComputePipelineCache, context);
-        context->m_BindGroupCache.Iterate(WebGPUCleanupBindGroupCache, context);
+        WebGPUInvalidateBindGroups(context);
         context->m_SamplerCache.Iterate(WebGPUCleanupSamplerCache, context);
 
         if (context->m_MainRenderTarget)
