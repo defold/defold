@@ -629,9 +629,11 @@ namespace dmGameObject
                     ++run_index;
                     next_run = run_index < world->m_SimdRuns.Size() ? world->m_SimdRuns[run_index].m_Begin : size;
                 }
-                continue;
             }
-            UpdateAnimationScalar(world, collection, anim, frame_dt, changes);
+            else
+            {
+                UpdateAnimationScalar(world, collection, anim, frame_dt, changes);
+            }
         }
         return changes;
     }
