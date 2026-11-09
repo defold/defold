@@ -1219,7 +1219,7 @@ union SaveLoadBuffer
     /*# set a listener for network connectivity changes
      *
      * [icon:ios] Sets a function that is called on the frame after the network connectivity
-     * status has changed, including the change from `sys.NETWORK_UNKNOWN` to the first known status.
+     * status has changed. On other platforms the listener is accepted but never called.
      *
      * Only one listener can be set at a time, and setting a new one replaces the previous one.
      * The listener isn't called when it is set, so call [ref:sys.get_connectivity]
