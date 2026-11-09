@@ -16,6 +16,7 @@
 #include <jc_test/jc_test.h>
 #include <testmain/testmain.h>
 #include <dlib/dstrings.h>
+#include <dlib/log.h>
 #include <dmsdk/dlib/vmath.h>
 #include <platform/window.hpp>
 
@@ -789,6 +790,176 @@ TEST_F(dmGuiScriptTest, TestSizeMode)
     dmGui::DeleteScript(script);
 }
 
+static dmArray<char> g_SizeWarnings;
+
+static void CaptureSizeWarning(LogSeverity severity, const char* domain, const char* message)
+{
+    if (severity == LOG_SEVERITY_WARNING && strcmp(domain, "GUI") == 0)
+    {
+        uint32_t length = (uint32_t)strlen(message);
+        g_SizeWarnings.SetCapacity(g_SizeWarnings.Size() + length);
+        g_SizeWarnings.PushArray(message, length);
+    }
+}
+
+class dmGuiSetSizeTest : public dmGuiScriptTest
+{
+public:
+    dmMessage::HSocket m_Socket;
+    dmGui::HScript m_Script;
+    dmGui::HScene m_Scene;
+    dmGui::HNode m_Node;
+
+    static void GetURL(dmGui::HScene scene, dmMessage::URL* url)
+    {
+        dmGuiSetSizeTest* test = (dmGuiSetSizeTest*)dmGui::GetSceneUserData(scene);
+        url->m_Socket = test->m_Socket;
+        url->m_Path = dmHashString64("/ui");
+        url->m_Fragment = dmHashString64("gui");
+    }
+
+    void SetUp() override
+    {
+        dmGuiScriptTest::SetUp();
+        dmHashEnableReverseHash(true);
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("gui_size_warning", &m_Socket));
+        dmGui::SetContextCallbacks(m_Context, GetURL, GetSceneUserDataCallback, 0, GetTextMetricsCallback);
+
+        m_Script = dmGui::NewScript(m_Context);
+        dmGui::NewSceneParams params;
+        params.m_MaxNodes = 4;
+        params.m_UserData = this;
+        m_Scene = dmGui::NewScene(m_Context, &params);
+        dmGui::SetSceneScript(m_Scene, m_Script);
+        m_Node = dmGui::NewNode(m_Scene, Point3(), Vector3(10, 20, 0), dmGui::NODE_TYPE_BOX, 0);
+        dmGui::SetNodeId(m_Scene, m_Node, "button");
+        dmGui::SetNodeSizeMode(m_Scene, m_Node, dmGui::SIZE_MODE_AUTO);
+
+        dmLuaDDF::LuaSource* source = LuaSourceFromStr(
+            "function init(self)\n"
+            "    gui.set_size(size_warning_node, vmath.vector3(99, 77, 0))\n"
+            "end\n");
+        source->m_Filename = "@/main/size_warning.gui_script";
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetScript(m_Script, source));
+
+        g_SizeWarnings.SetSize(0);
+        LogParams log_params;
+        dmLogInitialize(&log_params);
+        dmLogRegisterListener(CaptureSizeWarning);
+    }
+
+    void TearDown() override
+    {
+        dmLogFinalize();
+        dmLogUnregisterListener(CaptureSizeWarning);
+        dmGui::DeleteScene(m_Scene);
+        dmGui::DeleteScript(m_Script);
+        dmMessage::DeleteSocket(m_Socket);
+        dmHashEnableReverseHash(false);
+        dmGuiScriptTest::TearDown();
+    }
+
+    void ResizeNode(dmGui::HNode node, const Vector3& expected_size = Vector3(10, 20, 0))
+    {
+        lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+        int top = lua_gettop(L);
+        dmGui::LuaPushNode(L, m_Scene, node);
+        lua_setglobal(L, "size_warning_node");
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
+        ASSERT_EQ(top, lua_gettop(L));
+        Vector4 size = dmGui::GetNodeProperty(m_Scene, node, dmGui::PROPERTY_SIZE);
+        ASSERT_EQ(expected_size.getX(), size.getX());
+        ASSERT_EQ(expected_size.getY(), size.getY());
+        ASSERT_EQ(expected_size.getZ(), size.getZ());
+    }
+
+    const char* GetWarnings()
+    {
+        // Join the log thread before inspecting its output, without timing assumptions.
+        dmLogFinalize();
+        g_SizeWarnings.SetCapacity(g_SizeWarnings.Size() + 1);
+        g_SizeWarnings.Push('\0');
+        return g_SizeWarnings.Begin();
+    }
+
+    void CheckWarning(const char* node_id, const char* gui_url = "gui_size_warning:/ui#gui")
+    {
+        char expected[1024];
+        dmSnPrintf(expected, sizeof(expected),
+                   "WARNING:GUI: /main/size_warning.gui_script:2: Can not set size on auto-sized node '%s' in GUI '%s'.\n",
+                   node_id, gui_url);
+        ASSERT_STREQ(expected, GetWarnings());
+    }
+};
+
+// Identifies the node, GUI component, and Lua call site without resizing an auto-sized node (#13184).
+TEST_F(dmGuiSetSizeTest, NamedNodeWarning)
+{
+    ResizeNode(m_Node);
+    CheckWarning("button");
+}
+
+// Preserves long node IDs instead of falling back to a hash because of a small formatting buffer (#13184).
+TEST_F(dmGuiSetSizeTest, LongNodeIdWarning)
+{
+    char id[256];
+    memset(id, 'n', sizeof(id) - 1);
+    id[sizeof(id) - 1] = '\0';
+    dmGui::SetNodeId(m_Scene, m_Node, id);
+    ResizeNode(m_Node);
+    CheckWarning(id);
+}
+
+// Uses the node handle to distinguish unnamed runtime nodes in size warnings (#13184).
+TEST_F(dmGuiSetSizeTest, UnnamedNodeWarning)
+{
+    dmGui::SetNodeId(m_Scene, m_Node, (dmhash_t)0);
+    ResizeNode(m_Node);
+    char expected_id[32];
+    dmSnPrintf(expected_id, sizeof(expected_id), "<unnamed:%u>", m_Node);
+    CheckWarning(expected_id);
+}
+
+// Keeps a clone identifiable when its generated ID has no reverse-hash entry (#13184).
+TEST_F(dmGuiSetSizeTest, ClonedNodeWarning)
+{
+    dmGui::HNode clone;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::CloneNode(m_Scene, m_Node, &clone));
+    ResizeNode(clone);
+    char expected_id[64];
+    dmSnPrintf(expected_id, sizeof(expected_id), "<unknown:%" PRIu64 ">", dmGui::GetNodeId(m_Scene, clone));
+    CheckWarning(expected_id);
+}
+
+// Retains numeric node and component identifiers when reverse hashing is disabled (#13184).
+TEST_F(dmGuiSetSizeTest, WarningWithoutReverseHashes)
+{
+    dmHashEnableReverseHash(false);
+    ResizeNode(m_Node);
+    char expected_id[64];
+    dmSnPrintf(expected_id, sizeof(expected_id), "<unknown:%" PRIu64 ">", dmGui::GetNodeId(m_Scene, m_Node));
+    char expected_url[128];
+    dmSnPrintf(expected_url, sizeof(expected_url), "gui_size_warning:<unknown:%" PRIu64 ">#<unknown:%" PRIu64 ">",
+               dmHashString64("/ui"), dmHashString64("gui"));
+    CheckWarning(expected_id, expected_url);
+}
+
+// A GUI context without a URL callback still reports the node and call site safely (#13184).
+TEST_F(dmGuiSetSizeTest, WarningWithoutURLCallback)
+{
+    dmGui::SetContextCallbacks(m_Context, 0, GetSceneUserDataCallback, 0, GetTextMetricsCallback);
+    ResizeNode(m_Node);
+    CheckWarning("button", "<unknown>");
+}
+
+// Manual resizing continues to change the size without emitting a warning (#13184).
+TEST_F(dmGuiSetSizeTest, ManualSizeWithoutWarning)
+{
+    dmGui::SetNodeSizeMode(m_Scene, m_Node, dmGui::SIZE_MODE_MANUAL);
+    ResizeNode(m_Node, Vector3(99, 77, 0));
+    ASSERT_STREQ("", GetWarnings());
+}
+
 
 void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
@@ -1350,6 +1521,118 @@ TEST_F(dmGuiScriptTest, TestVisibilityApi)
 
     dmGui::DeleteScene(scene);
 
+    dmGui::DeleteScript(script);
+}
+
+// Runtime curves are copied from Lua, retained by cloned/reset nodes, reject
+// invalid inputs without replacing the mapping, and restore arc mode when cleared.
+TEST_F(dmGuiScriptTest, TextCurve)
+{
+    dmGui::HScript script = NewScript(m_Context);
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 8;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+    const char* source =
+        "function init(self)\n"
+        "  local n = gui.new_text_node(vmath.vector3(), 'One\\nTwo\\nThree')\n"
+        "  local knots = {{position=vmath.vector3(), out_handle={30,0,0}, up={0,7,0}}, {position={100,0,0}, in_handle={-30,0,0}, scale=2, roll_degrees=30}}\n"
+        "  gui.set(n, 'arc_angle', 120)\n"
+        "  gui.set_curve(n, knots)\n"
+        "  local reads = 0\n"
+        "  local first = setmetatable({}, {__index=function(t, key) if key == 'position' then reads=reads+1 return {0,0,0} end end})\n"
+        "  gui.set_curve(n, {first, knots[2]})\n"
+        "  assert(reads == 1)\n"
+        "  knots[2].position[1] = 1000\n"
+        "  assert(not pcall(gui.set_curve, n, {}))\n"
+        "  assert(not pcall(gui.set_curve, n, {{position={0,0,0}}, {position={100,0,0}, up={0,1,0}}}))\n"
+        "  assert(not pcall(gui.set_curve, n, {{position={0,0,0}, up={0,0,0}}, {position={100,0,0}}}))\n"
+        "  for _, scale in ipairs({0, -1, math.huge, 'invalid'}) do\n"
+        "    assert(not pcall(gui.set_curve, n, {{position={0,0,0}}, {position={100,0,0}, scale=scale}}))\n"
+        "  end\n"
+        "  assert(not pcall(gui.set_curve, n, {{position='bad'}, {position={100,0,0}}}))\n"
+        "  assert(not pcall(gui.set_curve, n, knots, {closed=1}))\n"
+        "  local box = gui.new_box_node(vmath.vector3(), vmath.vector3(10))\n"
+        "  assert(not pcall(gui.set_curve, box, knots))\n"
+        "  local clone = gui.clone(n)\n"
+        "  gui.set_id(clone, 'curve')\n"
+        "  gui.set_curve(n, nil)\n"
+        "  assert(gui.get(n, 'arc_angle') == 120)\n"
+        "  gui.delete_node(n)\n"
+        "end\n";
+    ASSERT_EQ(dmGui::RESULT_OK, SetScript(script, LuaSourceFromStr(source)));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(scene));
+    dmGui::HNode node = dmGui::GetNodeById(scene, "curve");
+    HFontTextCurve curve = dmGui::GetNodeTextCurve(scene, node);
+    ASSERT_NE((HFontTextCurve)0, curve);
+    ASSERT_NEAR(100.0f, dmGui::GetNodeTextSize(scene, node).getX(), 0.001f);
+    dmGui::SetNodeResetPoint(scene, node);
+    dmGui::SetNodeTextCurve(scene, node, 0);
+    ASSERT_EQ((HFontTextCurve)0, dmGui::GetNodeTextCurve(scene, node));
+    dmGui::ResetNodes(scene);
+    ASSERT_EQ(curve, dmGui::GetNodeTextCurve(scene, node));
+    ASSERT_NEAR(100.0f, FontTextCurveGetLength(curve), 0.001f);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(scene, 0));
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+}
+
+// GUI text arc properties support generic Lua access, clone/reset,
+// animation, inclusive circle endpoints, and invalid value rejection.
+TEST_F(dmGuiScriptTest, TextArcProperties)
+{
+    dmGui::HScript script = NewScript(m_Context);
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 8;
+    params.m_MaxAnimations = 8;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+    const char* source =
+        "function init(self)\n"
+        "  local n = gui.new_text_node(vmath.vector3(), 'Arc')\n"
+        "  gui.set_id(n, 'arc')\n"
+        "  assert(gui.get(n, 'arc_radius') == 100 and gui.get(n, 'arc_angle') == 0)\n"
+        "  gui.set(n, gui.PROP_ARC_RADIUS, 200)\n"
+        "  assert(gui.get(n, gui.PROP_ARC_RADIUS) == 200)\n"
+        "  for _, angle in ipairs({360, 0, 120}) do\n"
+        "    gui.set(n, 'arc_angle', angle)\n"
+        "    assert(gui.get(n, 'arc_angle') == angle)\n"
+        "    gui.set(n, gui.PROP_ARC_ANGLE, angle)\n"
+        "    assert(gui.get(n, gui.PROP_ARC_ANGLE) == angle)\n"
+        "  end\n"
+        "  gui.set(n, gui.PROP_ARC_RADIUS, -100)\n"
+        "  assert(gui.get(n, 'arc_radius') == -100)\n"
+        "  gui.set(n, 'arc_radius', -200)\n"
+        "  assert(gui.get(n, 'arc_radius') == -200)\n"
+        "  assert(not pcall(gui.set, n, 'arc_radius', math.huge))\n"
+        "  assert(not pcall(gui.set, n, 'arc_angle', 361))\n"
+        "  assert(not pcall(gui.set, n, 'arc_angle', -1))\n"
+        "  assert(not pcall(gui.set, n, 'arc_angle', 'invalid'))\n"
+        "  assert(not pcall(gui.animate, n, 'arc_angle', 361, gui.EASING_LINEAR, 1))\n"
+        "  assert(not pcall(gui.animate, n, 'arc_angle', -1, gui.EASING_LINEAR, 1))\n"
+        "  assert(not pcall(gui.animate, n, 'arc_radius', math.huge, gui.EASING_LINEAR, 1))\n"
+        "  local clone = gui.clone(n)\n"
+        "  assert(gui.get(clone, 'arc_radius') == -200 and gui.get(clone, 'arc_angle') == 120)\n"
+        "  gui.animate(n, 'arc_radius', -240, gui.EASING_LINEAR, 1)\n"
+        "  gui.animate(n, 'arc_angle', 360, gui.EASING_LINEAR, 1)\n"
+        "end\n";
+    ASSERT_EQ(dmGui::RESULT_OK, SetScript(script, LuaSourceFromStr(source)));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(scene));
+    dmGui::HNode node = dmGui::GetNodeById(scene, "arc");
+    ASSERT_NE((dmGui::HNode)0, node);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(scene, 0.5f));
+    ASSERT_NEAR(-220.0f, dmGui::GetNodeTextArcRadius(scene, node), 0.001f);
+    ASSERT_NEAR(240.0f, dmGui::GetNodeTextArcAngle(scene, node), 0.001f);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(scene, 0.5f));
+    ASSERT_EQ(-240.0f, dmGui::GetNodeTextArcRadius(scene, node));
+    ASSERT_EQ(360.0f, dmGui::GetNodeTextArcAngle(scene, node));
+    dmGui::SetNodeResetPoint(scene, node);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcRadius(scene, node, 300.0f));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcAngle(scene, node, 0.0f));
+    dmGui::ResetNodes(scene);
+    ASSERT_EQ(-240.0f, dmGui::GetNodeTextArcRadius(scene, node));
+    ASSERT_EQ(360.0f, dmGui::GetNodeTextArcAngle(scene, node));
+    dmGui::DeleteScene(scene);
     dmGui::DeleteScript(script);
 }
 

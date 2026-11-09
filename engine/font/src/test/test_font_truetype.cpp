@@ -22,6 +22,7 @@
 #include <dlib/array.h>
 #include <dlib/memory.h>
 #include <dlib/testutil.h>
+#include <dmsdk/dlib/math.h>
 
 #include <harfbuzz/hb-ot.h>
 
@@ -628,7 +629,7 @@ TEST(FontTrueTypeReference, DefaultVariationStyle)
     ASSERT_EQ(575.0f, hb_style_get_value(font, HB_STYLE_TAG_WEIGHT));
     ASSERT_EQ(87.5f, hb_style_get_value(font, HB_STYLE_TAG_WIDTH));
     ASSERT_EQ(-12.5f, hb_style_get_value(font, HB_STYLE_TAG_SLANT_ANGLE));
-    ASSERT_NEAR(tanf(12.5f * 3.14159265358979323846f / 180.0f), hb_style_get_value(font, HB_STYLE_TAG_SLANT_RATIO), 0.000001f);
+    ASSERT_NEAR(tanf(dmMath::DegToRad(12.5f)), hb_style_get_value(font, HB_STYLE_TAG_SLANT_RATIO), 0.000001f);
     ASSERT_EQ(0.0f, hb_style_get_value(font, HB_STYLE_TAG_ITALIC));
     hb_font_destroy(font);
     hb_face_destroy(face);

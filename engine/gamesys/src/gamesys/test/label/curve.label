@@ -1,0 +1,8 @@
+size {
+  x: 720.0
+  y: 160.0
+}
+leading: 1.2
+text: "Lorem ipsum dolor sit amet\nConsectetur adipiscing elit\nSed do eiusmod tempor"
+font: "/label/font_valid_font.font"
+material: "/label/material_valid.material"

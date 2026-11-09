@@ -14,10 +14,10 @@
 
 package com.dynamo.bob.test.util;
 
-import javax.vecmath.Point3d;
-
 import com.dynamo.bob.util.RigUtil.PositionBuilder;
 import com.dynamo.rig.proto.Rig.AnimationTrack.Builder;
+
+import javax.vecmath.Point3d;
 
 public class MockPositionBuilder extends PositionBuilder {
 

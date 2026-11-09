@@ -14,7 +14,11 @@ build directory. LLVM is configured in a separate Release build with its own C++
 exception, and RTTI settings. These settings do not propagate into the engine.
 Only `dxc`, `dxcompiler`, and the Windows validator are built; SPIR-V generation
 and upstream tests are disabled. `patch.cmake` makes upstream honor its SPIR-V
-option on Unix. Version stamping uses the source archive's fixed version.
+option on Unix and fixes deallocation of variable-sized `CGFunctionInfo`,
+`AttributeSetImpl`, and `AttributeSetNode` objects. The latter pairs the raw
+allocation with explicit destruction and unsized deletion, avoiding ASAN's
+`new-delete-type-mismatch` error when DXC finishes compiling a shader. Version
+stamping uses the source archive's fixed version.
 Windows uses the static CRT, matching the other Defold tools.
 
 Installed files under the SDK's `ext` directory:
@@ -167,6 +171,42 @@ the installed binaries' ELF dependencies and symbol versions before publishing
 packages. A compiler may require a newer C++ language version without requiring
 a newer runtime; the source build and runtime checks establish that separately.
 
+## Windows ASAN package update (2026-11-04)
+
+- Rebuilt `dxc-1.9.2609-x86_64-win32.tar.gz` with MSVC 19.51.36246,
+  Release configuration, and the static CRT, applying the same three
+  variable-sized allocation fixes as the Linux update below.
+- The archive is 9,210,989 bytes and contains the same 38 files. Clean extraction
+  matched the staged installation byte-for-byte. Only `dxc.exe`, `dxcompiler.dll`,
+  and `dxil.dll` changed; headers, licenses, and the import library are unchanged.
+  All three binaries are x64 and import only Windows system libraries.
+- Standalone SM6 vertex, pixel (including sparse output slots and mixed numeric
+  types), and compute compilation passed using the extracted package.
+- All 33 shaderc tests passed with the rebuilt compiler DLL, including pixel
+  output metadata and Windows root-signature validation, along with all four
+  standalone CLI tests. These were ordinary Windows tests, not an ASAN run.
+
+## Linux ASAN package update (2026-11-04)
+
+- Rebuilt both Linux archives with Clang 20.1.8 in the documented Ubuntu 22.04
+  images, applying the three variable-sized allocation fixes in `patch.cmake`.
+  The macOS archives were not rebuilt; the Windows rebuild is recorded above.
+- Before the fix, an ASAN-enabled DXC API harness using the shader and arguments
+  from `Shaderc.HLSLPixelOutputMetadata` reproduced the 64/32-byte mismatch on
+  both Linux architectures. Fixing `CGFunctionInfo` exposed a second mismatch
+  in LLVM's attribute sets, which the patch also addresses.
+- After extracting the rebuilt archives, the harness passed with
+  `ASAN_OPTIONS=new_delete_type_mismatch=1` on both architectures. Additional
+  ASAN checks verified sparse pixel output slots, component masks and numeric
+  types through reflection, plus vertex and compute shader compilation.
+  ARM ran in the native Linux VM; x86_64 ran through Docker emulation on macOS.
+  These were focused DXC checks, not a full engine test run.
+- Standalone vertex and compute compilation passed without `LD_LIBRARY_PATH`.
+  Archive paths, headers and licenses match the previous packages; only `dxc`
+  and `libdxcompiler.so` changed. ELF architecture, relative runtime paths and
+  SONAME were verified. Both executables and libraries retain the previous
+  maximum symbol versions: `GLIBC_2.34`, `GLIBCXX_3.4.29`, and `CXXABI_1.3.9`.
+
 ## Linux package validation (2026-10-29)
 
 - Built both archives from the pinned sources with Clang 20.1.8 and Release
@@ -189,6 +229,26 @@ a newer runtime; the source build and runtime checks establish that separately.
   arm64 results for both versions.
 - `install_ext_packages --platform=arm64-macos` successfully installed all five
   desktop DXC archives exactly once, including both Linux packages.
+
+## macOS allocation-fix package update (2026-11-05)
+
+- Rebuilt both macOS archives from the pinned source with the same three
+  variable-sized allocation fixes as the Linux packages. Used Apple Clang
+  21.0.0, Release configuration, and a macOS 12.0 deployment target.
+- Extracted each candidate archive and ran ASAN-enabled DXC API checks with
+  `ASAN_OPTIONS=new_delete_type_mismatch=1`: the
+  `Shaderc.HLSLPixelOutputMetadata` shader and arguments, sparse output
+  reflection (slots, masks and numeric types), and vertex and compute shaders
+  all passed. Tests ran on macOS 26.5.2, natively for arm64 and through Rosetta
+  for x86_64. These were focused DXC checks, not a full engine test run.
+- Standalone vertex and compute compilation passed with `DYLD_LIBRARY_PATH`
+  and `DYLD_FALLBACK_LIBRARY_PATH` unset. Verified both Mach-O architectures,
+  relative install names and runtime paths, system-only dependencies, and the
+  macOS 12.0 minimum in all four binaries. Runtime testing on macOS 12.0 remains
+  separate.
+- Both archives retain the same 36 files. Headers and licenses are unchanged;
+  only `dxc` and `libdxcompiler.dylib` changed. The Windows archive has not yet
+  been rebuilt with these fixes.
 
 ## macOS package validation (2026-10-28)
 
