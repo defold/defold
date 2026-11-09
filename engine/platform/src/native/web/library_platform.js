@@ -269,7 +269,9 @@ var LibraryDefoldPlatform = {
        */
       var lastX = Browser.mouseX;
       var lastY = Browser.mouseY;
-      Browser.calculateMouseEvent(event);
+      if (DefoldPlatform.getCanvasRect()) {
+        Browser.calculateMouseEvent(event);
+      }
       DefoldPlatform.mousePositionFromTouch = false;
       var newX = Browser.mouseX;
       var newY = Browser.mouseY;
@@ -287,7 +289,9 @@ var LibraryDefoldPlatform = {
         return;
       }
 
-      Browser.calculateMouseEvent(event);
+      if (DefoldPlatform.getCanvasRect()) {
+        Browser.calculateMouseEvent(event);
+      }
       DefoldPlatform.mousePositionFromTouch = false;
 
       if (event.target != Module["canvas"]) {
@@ -353,8 +357,22 @@ var LibraryDefoldPlatform = {
       DefoldPlatform.touchWasFinished(event, DefoldPlatform.NATIVE_PHASE_CANCELLED);
     },
 
-    convertCoordinatesFromMonitorToWebGLPixels: function(x,y) {
+    getCanvasRect: function() {
         var rect = Module['canvas'].getBoundingClientRect();
+        var width = rect.right - rect.left;
+        var height = rect.bottom - rect.top;
+        if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 ||
+            Module['canvas'].width <= 0 || Module['canvas'].height <= 0) {
+          return null;
+        }
+        return rect;
+    },
+
+    convertCoordinatesFromMonitorToWebGLPixels: function(x,y) {
+        var rect = DefoldPlatform.getCanvasRect();
+        if (!rect) {
+          return [0, 0];
+        }
         var canvasWidth = rect.right - rect.left;
         var canvasHeight = rect.bottom - rect.top;
 
@@ -952,8 +970,11 @@ var LibraryDefoldPlatform = {
 
     if (DefoldPlatform.isFullscreen) {
       var dpi = Module['getPixelRatio'](DefoldPlatform.params[21]); // WINDOW_STATE_HIGH_DPI
-      width = Math.max(1, Math.floor(window.innerWidth * dpi));
-      height = Math.max(1, Math.floor(window.innerHeight * dpi));
+      width = Math.floor(window.innerWidth * dpi);
+      height = Math.floor(window.innerHeight * dpi);
+      if (!Number.isFinite(width) || !Number.isFinite(height) || width < 0 || height < 0) {
+        return;
+      }
     }
 
     if (DefoldPlatform.prevWidth != width || DefoldPlatform.prevHeight != height ||
@@ -987,7 +1008,11 @@ var LibraryDefoldPlatform = {
   },
 
   /* Video mode functions */
-  dmNativePollEvents: function() {},
+  dmNativePollEvents__deps: ['dmNativeSwapBuffers'],
+  dmNativePollEvents: function() {
+    // Resize detection must also run when a zero-size surface prevents rendering.
+    _dmNativeSwapBuffers();
+  },
 
   dmNativeGetKey: function(key) {
     return DefoldPlatform.keys[key];

@@ -473,6 +473,54 @@ function testLoaderResizeCanvas() {
     }
 }
 
+// Transient invalid browser geometry must retain the last valid canvas and allow subsequent resizes (#9196).
+function testLoaderInvalidResize() {
+    for (const scaleMode of ["stretch", "fit", "downscale_fit", "no_scale"]) {
+        const context = loadResizeEnvironment({}, scaleMode);
+        context.resize();
+        const previous = [context.Module.canvas.width, context.Module.canvas.height];
+        const resizeCount = context.resizes.length;
+        for (const [width, height] of [[0, 0], [900, 0], [0, 700], [-1, 700], [NaN, 700], [900, Infinity]]) {
+            Object.assign(context.window, { innerWidth: width, innerHeight: height });
+            context.resize();
+            assert.deepStrictEqual([context.Module.canvas.width, context.Module.canvas.height], previous);
+            assert.strictEqual(context.resizes.length, resizeCount);
+        }
+        Object.assign(context.window, { innerWidth: 300, innerHeight: 200 });
+        const getPixelRatio = context.Module.getPixelRatio;
+        for (const dpi of [0, -1, NaN, Infinity]) {
+            context.Module.getPixelRatio = () => dpi;
+            context.resize();
+            assert.deepStrictEqual([context.Module.canvas.width, context.Module.canvas.height], previous);
+            assert.strictEqual(context.resizes.length, resizeCount);
+        }
+        context.Module.getPixelRatio = getPixelRatio;
+        context.resize();
+        if (scaleMode !== "no_scale") assert.strictEqual(context.resizes.length, resizeCount + 1);
+        assert.ok(context.Module.canvas.width > 0 && context.Module.canvas.height > 0);
+    }
+}
+
+// Custom canvases must report zero through resize events, then recover during event polling without buffer swaps.
+function testZeroSizeCanvasPolling() {
+    for (const fullscreen of [false, true]) {
+        const context = loadResizeEnvironment();
+        const library = context.LibraryDefoldPlatform;
+        context._dmNativeSwapBuffers = () => library.dmNativeSwapBuffers();
+        context.resize();
+        context.DefoldPlatform.isFullscreen = fullscreen;
+        for (const [width, height] of [[0, 0], [400, 0], [0, 300], [400, 300]]) {
+            if (fullscreen) Object.assign(context.window, { innerWidth: width / 3, innerHeight: height / 3 });
+            else Object.assign(context.Module.canvas, { width, height });
+            library.dmNativePollEvents();
+            assert.deepStrictEqual(context.resizes.at(-1), [width, height]);
+            const count = context.resizes.length;
+            library.dmNativePollEvents();
+            assert.strictEqual(context.resizes.length, count);
+        }
+    }
+}
+
 // Preserve valid progress markup (#8730), cap its width (#8075), and clear the Safari splash without forcing an opaque background (#2188/#10093).
 function testLoaderProgressView() {
     const context = loadLoaderEnvironment();
@@ -2659,6 +2707,33 @@ function mouseEvent(context, button = 0) {
     return { target: context.Module.canvas, button, clientX: 70, clientY: 80, preventDefault() {} };
 }
 
+// Collapsed canvas bounds must not create invalid mouse/touch coordinates or prevent release events (#9196).
+function testZeroSizePointerCoordinates() {
+    for (const [width, height] of [[0, 0], [100, 0], [0, 100], [NaN, 100], [100, Infinity]]) {
+        const context = loadPointerEnvironment();
+        const platform = context.DefoldPlatform;
+        context.Browser.mouseX = 70;
+        context.Browser.mouseY = 80;
+        context.Browser.calculateMouseEvent = () => assert.fail("invalid canvas must not scale mouse coordinates");
+        context.Module.canvas.getBoundingClientRect = () => ({ left: 0, top: 0, right: width, bottom: height });
+        assert.deepStrictEqual(Array.from(platform.convertCoordinatesFromMonitorToWebGLPixels(70, 80)), [0, 0]);
+        const buttons = [];
+        platform.mouseButtonFunc = (button, status) => buttons.push(status);
+        platform.onMousemove(mouseEvent(context));
+        platform.onMouseButtonChanged(mouseEvent(context), 0);
+        assert.strictEqual(context.Browser.mouseX, 70);
+        assert.strictEqual(context.Browser.mouseY, 80);
+        assert.deepStrictEqual(buttons, [0]);
+        const touches = [];
+        platform.touchFunc = (id, x, y, phase) => touches.push([x, y, phase]);
+        const touch = { identifier: 1, clientX: 70, clientY: 80 };
+        platform.onTouchMove(touchEvent(context, [touch]));
+        platform.onTouchEnd(touchEvent(context, [touch], []));
+        assert.strictEqual(touches.length, 2);
+        for (const [x, y] of touches) assert.ok(Number.isFinite(x) && Number.isFinite(y));
+    }
+}
+
 // Verifies primary-touch emulation tracks its origin, ignores secondary touches, and clears the held marker on end and cancellation.
 function testTouchMouseSources() {
     for (const finish of ["onTouchEnd", "onTouchCancel"]) {
@@ -2738,7 +2813,7 @@ function testMixedTouchAndMouseSources() {
 
 async function runTests() {
     for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
-                       testLoaderResizeCanvas, testLoaderProgressView,
+                       testLoaderResizeCanvas, testLoaderInvalidResize, testZeroSizeCanvasPolling, testLoaderProgressView,
                        testLoaderWebGLDetection, testLoaderErrorHandlerReadiness, testLoaderContextMenu,
                        testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderWebGPUCancelledStartup,
                        testLoaderArchiveConcurrency, testLoaderArchiveRetryReleasesSlot, testLoaderArchiveQueuedCancellation,
@@ -2772,7 +2847,7 @@ async function runTests() {
                        testLoaderInitialSyncRetryBudget, testLoaderPersistentSyncRetryBudget,
                        testLoaderPixelRatioBounds, testLoaderPixelRatioScaleModes,
                        testLoaderPixelRatioChanges, testLoaderFullscreenPixelRatio,
-                       testTouchMouseSources, testMixedTouchAndMouseSources]) {
+                       testTouchMouseSources, testMixedTouchAndMouseSources, testZeroSizePointerCoordinates]) {
         // Pending promises alone do not keep Node alive. Treat a missing completion
         // signal as a failure rather than silently exiting before the suite finishes.
         const unfinished = () => {
