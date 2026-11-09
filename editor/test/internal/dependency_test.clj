@@ -181,26 +181,37 @@
   (output input-counter g/Int (g/fnk [input-1 input-2 input-3 input-4 input-5]
                                 (count (keep identity [input-1 input-2 input-3 input-4 input-5])))))
 
-;; A dependency frontier must keep every endpoint when successor rows span
-;; several batches, cross row boundaries, or are empty.
+;; Dependency walks must keep every endpoint when fresh or cached successor rows
+;; span several batches, cross row boundaries, or are empty.
 (deftest wide-successor-frontier-test
   (ts/with-clean-system
     (let [[source other-source empty-source]
           (ts/tx-nodes (g/make-nodes [_source SingleOutput
                                       _other-source SingleOutput
                                       _empty-source SingleOutput]))
-          targets (vec (ts/tx-nodes (mapv (fn [_] (g/make-node InputUsedByOutput)) (range 1025))))
+          targets (vec (ts/tx-nodes
+                         (mapv (fn [_] (g/make-node InputUsedByOutput))
+                               (range (inc (* 2 ig/dependency-batch-size))))))
           _ (g/transact
-              (mapv (fn [i target]
-                      (g/connect (if (< i 513) source other-source) :out-from-inline target :string-input))
-                    (range 1025) targets))
+              (mapv (fn [^long i target]
+                      (g/connect (if (< i (inc ig/dependency-batch-size)) source other-source) :out-from-inline target :string-input))
+                    (range (count targets))
+                    targets))
           roots (mapv #(gt/endpoint % :out-from-inline) [source other-source empty-source])
           basis (ig/invalidate-all-successors (g/now))
           expected (coll/into-> targets (set roots) (map #(gt/endpoint % :out-from-input)))
           actual (g/dependencies basis roots)]
       (is (= expected (set actual)))
       (is (= (count expected) (count actual)))
-      (is (= expected (set (g/dependencies basis roots)))))))
+      (is (= expected (set (g/dependencies basis roots))))
+      (testing "different roots reuse cached successor rows"
+        (let [roots [(gt/endpoint source :out-from-inline)]
+              expected (coll/into-> (subvec targets 0 (inc ig/dependency-batch-size))
+                         (set roots)
+                         (map #(gt/endpoint % :out-from-input)))
+              actual (g/dependencies basis roots)]
+          (is (= expected (set actual)))
+          (is (= (count expected) (count actual))))))))
 
 ;; Dependency walks must finish short and long converging branches across task
 ;; batches, including after disconnection and undo.
@@ -209,7 +220,9 @@
     (let [[source sink] (ts/tx-nodes (g/make-node SingleOutput)
                                      (g/make-node MultipleInputsIntoOneOutput))
           branches (vec (g/tx-nodes-added
-                          (g/transact (mapv (fn [_] (g/make-node InputUsedByOutput)) (range 600)))))
+                          (g/transact
+                            (mapv (fn [_] (g/make-node InputUsedByOutput))
+                                  (range (inc ig/dependency-batch-size))))))
           chain (vec (g/tx-nodes-added
                        (g/transact (mapv (fn [_] (g/make-node InputUsedByOutput)) (range 40)))))
           path (into [(branches 0)] chain)
@@ -264,6 +277,51 @@
              (deref (results 0) 10000 ::timed-out)))
       (is (= (conj (set roots) (gt/endpoint new-target :out-from-input))
              (deref (results 1) 10000 ::timed-out))))))
+
+;; Concurrent walks with different roots must preserve dependency results when
+;; caching different labels of one node in a shared cache, including a later
+;; walk that reuses those rows with another root collection.
+(deftest concurrent-successor-cache-writes-test
+  (ts/with-clean-system
+    (let [[source] (ts/tx-nodes (g/make-node MultipleOutputs))
+          target-groups (mapv (fn [_]
+                                (vec (ts/tx-nodes
+                                       (mapv (fn [_] (g/make-node InputUsedByOutput))
+                                             (range (inc ig/dependency-batch-size))))))
+                              (range 2))
+          _ (g/transact
+              (mapv (fn [label targets]
+                      (mapv #(g/connect source label % :string-input) targets))
+                    [:output-1 :output-2]
+                    target-groups))
+          basis (ig/invalidate-all-successors (g/now))
+          root-groups [[(gt/endpoint source :output-1)]
+                       [(gt/endpoint source :output-2)
+                        (gt/endpoint source :output-3)]]
+          expected-results (mapv (fn [roots targets]
+                                   (coll/into-> targets (set roots)
+                                     (map #(gt/endpoint % :out-from-input))))
+                                 root-groups
+                                 target-groups)
+          ready (CountDownLatch. 2)
+          start (CountDownLatch. 1)
+          results (mapv (fn [roots]
+                          (future
+                            (.countDown ready)
+                            (.await start)
+                            (set (g/dependencies basis roots))))
+                        root-groups)]
+      (try
+        (is (.await ready 10 TimeUnit/SECONDS))
+        (finally (.countDown start)))
+      (doseq [[expected result] (mapv vector expected-results results)]
+        (is (= expected (deref result 10000 ::timed-out))))
+      (let [roots (into (root-groups 0) (root-groups 1))
+            expected (coll/into-> target-groups (set roots)
+                       (comp cat (map #(gt/endpoint % :out-from-input))))
+            actual (g/dependencies basis roots)]
+        (is (= expected (set actual)))
+        (is (= (count expected) (count actual)))))))
 
 (deftest one-step-multipath
   (testing "one output to several inputs"
