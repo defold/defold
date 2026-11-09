@@ -206,6 +206,7 @@ if(TARGET debugger AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
 endif()
 
 set(ENGINE_TEST_SYMBOLS
+  EnginePlatform
   ProfilerExt
   GraphicsAdapterNull
   ScriptModelExt
@@ -233,6 +234,8 @@ target_include_directories(test_engine PRIVATE
   "${ENGINE_SRC_DIR}"
   "${ENGINE_ROOT}"
   "${ENGINE_PROTO_DIR}"
+  "${DEFOLD_HOME}/engine/dlib/src"
+  "${DEFOLD_HOME}/engine/resource/src"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(test_engine PRIVATE CONTENT_ROOT="${ENGINE_TEST_CONTENT_ROOT}")
 defold_target_link_libraries(test_engine "${TARGET_PLATFORM}" testmain)
