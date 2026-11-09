@@ -81,14 +81,9 @@ static dmProfiler::FPropertyTreeCallback g_PropertyTreeCallback = 0;
 static void*                             g_PropertyTreeCallbackCtx = 0;
 
 // Synchronization
-static void DM_THREAD_TLS_CALLBACK OnThreadExit(void* data);
-
-static dmThread::TlsKey       g_TlsKey = dmThread::AllocTls(OnThreadExit);
+static dmThread::TlsKey       g_TlsKey = dmThread::AllocTls();
 static int32_atomic_t         g_ThreadCount = 0;
 static int32_atomic_t         g_ProfileInitialized = 0;
-
-// Keep the mutex and TLS key until process termination. Removing the key does
-// not wait for exit callbacks already using the mutex during static destruction.
 static dmMutex::HMutex        g_Lock = 0;
 
 static struct ProfileContext* g_ProfileContext = 0;
@@ -340,27 +335,6 @@ static void ResetProperties(ProfileContext* ctx)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 // Threads
-
-static void DM_THREAD_TLS_CALLBACK OnThreadExit(void* data)
-{
-    DM_MUTEX_SCOPED_LOCK(g_Lock);
-    CHECK_INITIALIZED();
-
-    int32_t thread_id = (int32_t)((uintptr_t)data - 1);
-    ThreadData** td = g_ProfileContext->m_ThreadData.Get(thread_id);
-    if (td)
-    {
-        delete *td;
-        g_ProfileContext->m_ThreadData.Erase(thread_id);
-    }
-
-    const char** name = g_ProfileContext->m_ThreadNames.Get(thread_id);
-    if (name)
-    {
-        free((void*)*name);
-        g_ProfileContext->m_ThreadNames.Erase(thread_id);
-    }
-}
 
 static int32_t GetThreadId()
 {
@@ -642,6 +616,34 @@ static ProfileResult SetThreadName(void* ctx, const char* name)
         g_ProfileContext->m_ThreadNames.SetCapacity((cap * 2) / 3, cap);
     }
     g_ProfileContext->m_ThreadNames.Put(thread_id, strdup(name));
+    return PROFILE_RESULT_OK;
+}
+
+static ProfileResult ThreadExited(void* ctx)
+{
+    (void)ctx;
+    void* data = dmThread::GetTlsValue(g_TlsKey);
+    if (!data)
+    {
+        return PROFILE_RESULT_OK;
+    }
+    dmThread::SetTlsValue(g_TlsKey, 0);
+
+    DM_MUTEX_SCOPED_LOCK(g_Lock);
+    int32_t thread_id = (int32_t)((uintptr_t)data - 1);
+    ThreadData** td = g_ProfileContext->m_ThreadData.Get(thread_id);
+    if (td)
+    {
+        delete *td;
+        g_ProfileContext->m_ThreadData.Erase(thread_id);
+    }
+
+    const char** name = g_ProfileContext->m_ThreadNames.Get(thread_id);
+    if (name)
+    {
+        free((void*)*name);
+        g_ProfileContext->m_ThreadNames.Erase(thread_id);
+    }
     return PROFILE_RESULT_OK;
 }
 
@@ -1028,6 +1030,7 @@ struct ProfileListenerInitializer
         g_Listener.m_Create = CreateListener;
         g_Listener.m_Destroy = DestroyListener;
         g_Listener.m_SetThreadName = SetThreadName;
+        g_Listener.m_ThreadExited = ThreadExited;
 
         g_Listener.m_FrameBegin = FrameBegin;
         g_Listener.m_FrameEnd = FrameEnd;

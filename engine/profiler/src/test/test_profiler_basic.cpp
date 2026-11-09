@@ -23,20 +23,6 @@
 #include <pthread.h>
 #endif
 
-static void FinishProcessExitRegression();
-
-// Run after the profiler's static initializer is destroyed, so an exit callback
-// remains active throughout any profiler cleanup performed by static destructors.
-struct ProcessExitRegression
-{
-    ~ProcessExitRegression()
-    {
-        FinishProcessExitRegression();
-    }
-};
-
-static ProcessExitRegression g_ProcessExitRegression;
-
 // Inspect retained allocations without adding a production API for the tests.
 #include "../basic/profiler_basic.cpp"
 
@@ -53,19 +39,24 @@ static void CaptureSample(void* ctx, const char* thread_name, dmProfiler::HSampl
     captured->m_Valid = captured->m_Valid && strcmp(thread_name, "ShortLived") == 0 && strcmp(dmProfiler::SampleGetName(sample), "thread_scope") == 0;
 }
 
-static void ProfileThread(void* arg)
+static void ProfileScopes(void* arg)
 {
     ProfileResult* result = (ProfileResult*)arg;
-    *result = ProfileSetThreadName("ShortLived");
-    if (*result != PROFILE_RESULT_OK)
-    {
-        return;
-    }
     uint64_t name_hash = 0;
     *result = ProfileScopeBegin("thread_scope", &name_hash);
     if (*result == PROFILE_RESULT_OK)
     {
         *result = ProfileScopeEnd("thread_scope", name_hash);
+    }
+}
+
+static void ProfileThread(void* arg)
+{
+    ProfileResult* result = (ProfileResult*)arg;
+    *result = ProfileThreadEntered("ShortLived");
+    if (*result == PROFILE_RESULT_OK)
+    {
+        ProfileScopes(arg);
     }
 }
 
@@ -99,8 +90,8 @@ class ProfilerBasicTest : public jc_test_base_class
     CapturedSamples m_Samples;
 };
 
-// Verifies that completed samples are delivered before each worker's pool and
-// name are reclaimed, guarding against the per-load growth reported in #13704.
+// Verifies automatic thread names and completed sample delivery before each
+// worker's pool and name are reclaimed, guarding against the growth in #13704.
 TEST_F(ProfilerBasicTest, ReclaimsExitedThreads)
 {
     uint64_t main_name_hash = 0;
@@ -110,7 +101,7 @@ TEST_F(ProfilerBasicTest, ReclaimsExitedThreads)
     for (uint32_t i = 0; i < 32; ++i)
     {
         ProfileResult result = PROFILE_RESULT_NOT_INITIALIZED;
-        dmThread::Thread thread = dmThread::New(ProfileThread, 0x80000, &result, "profiler_test");
+        dmThread::Thread thread = dmThread::New(ProfileScopes, 0x80000, &result, "ShortLived");
         dmThread::Join(thread);
 
         ASSERT_EQ(PROFILE_RESULT_OK, result);
@@ -143,19 +134,21 @@ TEST_F(ProfilerBasicTest, ReclaimsNamedThreadsWithoutSamples)
 static DWORD WINAPI NativeProfileThread(void* arg)
 {
     ProfileThread(arg);
+    ProfileThreadExited();
     return 0;
 }
 #else
 static void* NativeProfileThread(void* arg)
 {
     ProfileThread(arg);
+    ProfileThreadExited();
     return 0;
 }
 #endif
 
-// Verifies exit cleanup for threads created outside dmThread, guarding against
-// native extension threads retaining profiler pools and names indefinitely.
-TEST_F(ProfilerBasicTest, ReclaimsNativeThreads)
+// Verifies explicit cleanup for threads created outside dmThread, guarding
+// against native extension threads retaining profiler pools and names.
+TEST_F(ProfilerBasicTest, ExternalThreadsUseExplicitLifecycle)
 {
     uint32_t thread_count = g_ProfileContext->m_ThreadData.Size();
     uint32_t name_count = g_ProfileContext->m_ThreadNames.Size();
@@ -206,8 +199,8 @@ static void WaitingThread(void* arg)
     }
 }
 
-// Verifies that an exit callback after profiler shutdown can safely skip the
-// already-released data, guarding against use of the destroyed profiler mutex.
+// Verifies that the proxy's exit notification after profiler shutdown safely
+// skips already-released data, guarding against access to the destroyed context.
 TEST_F(ProfilerBasicTest, ThreadExitsAfterProfilerShutdown)
 {
     WaitingThreadContext context = {};
@@ -275,116 +268,38 @@ TEST_F(ProfilerBasicTest, ThreadSurvivesProfilerRestart)
     ASSERT_TRUE(m_Samples.m_Valid);
 }
 
-enum ProcessExitPhase
+// Verifies lazy entry, repeated exit and re-entry on an existing thread,
+// guarding against eager sample pools, stale tokens and double cleanup.
+TEST_F(ProfilerBasicTest, ExplicitThreadLifecycle)
 {
-    PROCESS_EXIT_INITIAL,
-    PROCESS_EXIT_READY,
-    PROCESS_EXIT_RELEASED,
-    PROCESS_EXIT_CALLBACK,
-    PROCESS_EXIT_COMPLETE
-};
+    dmProfiler::SetSampleTreeCallback(0, 0);
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileThreadEntered("ExplicitThread"));
+    int32_t thread_id = GetThreadId();
+    ASSERT_STREQ("ExplicitThread", GetThreadNameNoLock(thread_id));
+    ASSERT_EQ(0u, g_ProfileContext->m_ThreadData.Size());
 
-struct ProcessExitContext
-{
-    dmMutex::HMutex                         m_Mutex;
-    dmConditionVariable::HConditionVariable m_Changed;
-    dmThread::Thread                        m_Thread;
-    dmThread::TlsKey                        m_Key;
-    void*                                   m_ProfilerThreadId;
-    ProcessExitPhase                        m_Phase;
-};
+    uint64_t name_hash = 0;
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("explicit_scope", &name_hash));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("explicit_scope", name_hash));
+    ASSERT_EQ(1u, g_ProfileContext->m_ThreadData.Size());
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileThreadExited());
+    ASSERT_EQ((void*)0, dmThread::GetTlsValue(g_TlsKey));
+    ASSERT_EQ(0u, g_ProfileContext->m_ThreadData.Size());
+    ASSERT_EQ(0u, g_ProfileContext->m_ThreadNames.Size());
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileThreadExited());
 
-static ProcessExitContext g_ProcessExitContext = {};
-
-static void DM_THREAD_TLS_CALLBACK ProcessExitCallback(void* data)
-{
-    ProcessExitContext* context = (ProcessExitContext*)data;
-    // Hold the same lock as OnThreadExit while process-static destruction runs.
-    DM_MUTEX_SCOPED_LOCK(g_Lock);
-    DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-    context->m_Phase = PROCESS_EXIT_CALLBACK;
-    dmConditionVariable::Signal(context->m_Changed);
-    while (context->m_Phase != PROCESS_EXIT_COMPLETE)
-    {
-        dmConditionVariable::Wait(context->m_Changed, context->m_Mutex);
-    }
-    OnThreadExit(context->m_ProfilerThreadId);
-}
-
-static void ProcessExitWorker(void* arg)
-{
-    ProcessExitContext* context = (ProcessExitContext*)arg;
-    ProfileResult result = PROFILE_RESULT_NOT_INITIALIZED;
-    ProfileThread(&result);
-    assert(result == PROFILE_RESULT_OK);
-    context->m_ProfilerThreadId = dmThread::GetTlsValue(g_TlsKey);
-    dmThread::SetTlsValue(g_TlsKey, 0);
-    dmThread::SetTlsValue(context->m_Key, context);
-
-    DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-    context->m_Phase = PROCESS_EXIT_READY;
-    dmConditionVariable::Signal(context->m_Changed);
-    while (context->m_Phase != PROCESS_EXIT_RELEASED)
-    {
-        dmConditionVariable::Wait(context->m_Changed, context->m_Mutex);
-    }
-}
-
-// Verify that process-static destruction preserves the cleanup lock while a TLS
-// callback is active. Joining happens in the earlier-declared static destructor.
-static void StartProcessExitRegression()
-{
-    ProfileInitialize();
-    ProfileRegisterProfiler(g_ProfilerName, &g_Listener);
-    ProcessExitContext* context = &g_ProcessExitContext;
-    context->m_Mutex = dmMutex::New();
-    context->m_Changed = dmConditionVariable::New();
-    context->m_Key = dmThread::AllocTls(ProcessExitCallback);
-    context->m_Thread = dmThread::New(ProcessExitWorker, 0x80000, context, "process_exit_profiler");
-    {
-        DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-        while (context->m_Phase != PROCESS_EXIT_READY)
-        {
-            dmConditionVariable::Wait(context->m_Changed, context->m_Mutex);
-        }
-    }
-
-    ProfileFinalize();
-    ProfileUnregisterProfiler(g_ProfilerName);
-    DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-    context->m_Phase = PROCESS_EXIT_RELEASED;
-    dmConditionVariable::Signal(context->m_Changed);
-    while (context->m_Phase != PROCESS_EXIT_CALLBACK)
-    {
-        dmConditionVariable::Wait(context->m_Changed, context->m_Mutex);
-    }
-}
-
-static void FinishProcessExitRegression()
-{
-    ProcessExitContext* context = &g_ProcessExitContext;
-    if (!context->m_Mutex)
-    {
-        return;
-    }
-    {
-        DM_MUTEX_SCOPED_LOCK(context->m_Mutex);
-        context->m_Phase = PROCESS_EXIT_COMPLETE;
-        dmConditionVariable::Signal(context->m_Changed);
-    }
-    dmThread::Join(context->m_Thread);
-    dmThread::FreeTls(context->m_Key);
-    dmConditionVariable::Delete(context->m_Changed);
-    dmMutex::Delete(context->m_Mutex);
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileThreadEntered("ReenteredThread"));
+    ASSERT_STREQ("ReenteredThread", GetThreadNameNoLock(GetThreadId()));
+    ASSERT_EQ(0u, g_ProfileContext->m_ThreadData.Size());
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("explicit_scope", &name_hash));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("explicit_scope", name_hash));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileThreadExited());
+    ASSERT_EQ(0u, g_ProfileContext->m_ThreadData.Size());
+    ASSERT_EQ(0u, g_ProfileContext->m_ThreadNames.Size());
 }
 
 int main(int argc, char** argv)
 {
     jc_test_init(&argc, argv);
-    int result = jc_test_run_all();
-    if (result == 0)
-    {
-        StartProcessExitRegression();
-    }
-    return result;
+    return jc_test_run_all();
 }

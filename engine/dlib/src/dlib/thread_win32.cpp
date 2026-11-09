@@ -15,9 +15,10 @@
 #include <assert.h>
 #include <dlib/profile/profile.h>
 #include <dmsdk/dlib/safe_windows.h>
-#include "thread.h"
+#include <dmsdk/dlib/thread.h>
 
 #include <stdlib.h>
+#include <string.h>
 #include <wchar.h>
 
 namespace dmThread
@@ -32,15 +33,14 @@ namespace dmThread
         return (HANDLE)(uintptr_t)thread;
     }
 
-    static TlsKey ToTlsKey(DWORD key, bool has_destructor)
+    static TlsKey ToTlsKey(DWORD key)
     {
-        // Keep ordinary TLS keys on TlsAlloc; only destructor keys use FLS.
-        return ((TlsKey)key << 1) | (has_destructor ? 1 : 0);
+        return (TlsKey)key;
     }
 
     static DWORD ToNativeTlsKey(TlsKey key)
     {
-        return (DWORD)(key >> 1);
+        return (DWORD)key;
     }
 
     static void* GetFunctionPtr(const char* dllname, const char* fnname)
@@ -69,15 +69,38 @@ namespace dmThread
     #endif
     }
 
+    struct ThreadData
+    {
+        ThreadStart m_Start;
+        char*       m_Name;
+        void*       m_Arg;
+    };
+
+    static DWORD WINAPI ThreadStartProxy(void* arg)
+    {
+        ThreadData* data = (ThreadData*)arg;
+        SetThreadName(GetCurrentThread(), data->m_Name);
+        ProfileThreadEntered(data->m_Name);
+
+        data->m_Start(data->m_Arg);
+        ProfileThreadExited();
+        free(data->m_Name);
+        delete data;
+        return 0;
+    }
+
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name)
     {
+        ThreadData* data = new ThreadData;
+        data->m_Start = thread_start;
+        data->m_Name = _strdup(name);
+        data->m_Arg = arg;
+
         DWORD thread_id;
         HANDLE thread = CreateThread(NULL, stack_size,
-                                     (LPTHREAD_START_ROUTINE) thread_start,
-                                     arg, 0, &thread_id);
+                                     ThreadStartProxy,
+                                     data, 0, &thread_id);
         assert(thread);
-
-        SetThreadName(ToThread(thread), name);
 
         return ToThread(thread);
     }
@@ -95,35 +118,24 @@ namespace dmThread
 
     TlsKey AllocTls()
     {
-        return ToTlsKey(TlsAlloc(), false);
-    }
-
-    TlsKey AllocTls(TlsDestructor destructor)
-    {
-        if (!destructor)
-        {
-            return AllocTls();
-        }
-        DWORD key = FlsAlloc(destructor);
-        assert(key != FLS_OUT_OF_INDEXES);
-        return ToTlsKey(key, true);
+        return ToTlsKey(TlsAlloc());
     }
 
     void FreeTls(TlsKey key)
     {
-        BOOL ret = (key & 1) ? FlsFree(ToNativeTlsKey(key)) : TlsFree(ToNativeTlsKey(key));
+        BOOL ret = TlsFree(ToNativeTlsKey(key));
         assert(ret);
     }
 
     void SetTlsValue(TlsKey key, void* value)
     {
-        BOOL ret = (key & 1) ? FlsSetValue(ToNativeTlsKey(key), value) : TlsSetValue(ToNativeTlsKey(key), value);
+        BOOL ret = TlsSetValue(ToNativeTlsKey(key), value);
         assert(ret);
     }
 
     void* GetTlsValue(TlsKey key)
     {
-        return (key & 1) ? FlsGetValue(ToNativeTlsKey(key)) : TlsGetValue(ToNativeTlsKey(key));
+        return TlsGetValue(ToNativeTlsKey(key));
     }
 
     Thread GetCurrentThread()

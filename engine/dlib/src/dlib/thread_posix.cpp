@@ -20,7 +20,7 @@
 #include <unistd.h>
 #include <dlib/profile/profile.h>
 #include <dmsdk/dlib/static_assert.h>
-#include "thread.h"
+#include <dmsdk/dlib/thread.h>
 
 #if defined(_WIN32)
 #include <wchar.h>
@@ -71,9 +71,10 @@ namespace dmThread
     {
         ThreadData* data = (ThreadData*) arg;
         SetThreadName(GetCurrentThread(), data->m_Name);
-        ProfileSetThreadName(data->m_Name);
+        ProfileThreadEntered(data->m_Name);
 
         data->m_Start(data->m_Arg);
+        ProfileThreadExited();
         free(data->m_Name);
         delete data;
         return nullptr;
@@ -133,13 +134,8 @@ namespace dmThread
 
     TlsKey AllocTls()
     {
-        return AllocTls(0);
-    }
-
-    TlsKey AllocTls(TlsDestructor destructor)
-    {
         pthread_key_t key;
-        int ret = pthread_key_create(&key, destructor);
+        int ret = pthread_key_create(&key, 0);
         assert(ret == 0);
         return ToTlsKey(key);
     }
