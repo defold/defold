@@ -16,6 +16,7 @@
 #define DM_FONTMAP_PRIVATE_H
 
 #include "font_renderer.h"
+#include <font_render.h>
 #include "../render_private.h"
 
 namespace dmRender
@@ -38,6 +39,8 @@ namespace dmRender
             free(m_CellTempData);
             m_CellTempData = 0;
 
+            FontDeleteEffectCache(m_EffectCache);
+
             if (m_Texture)
                 dmGraphics::DeleteTexture(m_GraphicsContext, m_Texture);
 
@@ -56,6 +59,7 @@ namespace dmRender
         void*                   m_UserData; // The font map resources (see res_font.cpp)
         dmGraphics::HContext    m_GraphicsContext; // Used to recreate textures
         dmGraphics::HTexture    m_Texture;
+        FontEffectCache*        m_EffectCache;
         HMaterial               m_Material;
         dmhash_t                m_NameHash;
 

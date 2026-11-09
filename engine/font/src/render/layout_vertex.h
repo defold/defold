@@ -24,6 +24,10 @@ struct FontLayoutCachedGlyph
     uint32_t   m_CellY;
 };
 
+struct FontEffectRecord;
+// Optional GPU effect resolver. Return UINT32_MAX to retain CPU color evaluation.
+typedef uint32_t (*FontLayoutResolveEffect)(void* context, const FontEffectRecord& effect);
+
 typedef bool (*FontLayoutResolveGlyph)(void* context, const TextGlyph& text_glyph, FontLayoutCachedGlyph* cached_glyph);
 
 struct FontLayoutVertexConfig
@@ -66,6 +70,9 @@ struct FontLayoutVertexConfig
     bool                   m_RenderDecorations;
     bool                   m_RenderObjectOutlines;
     bool                   m_ResolveGlyphsForMetrics;
+
+    FontLayoutResolveEffect m_ResolveEffect;
+    void*                   m_ResolveEffectContext;
 };
 
 struct FontLayoutVertexMetrics

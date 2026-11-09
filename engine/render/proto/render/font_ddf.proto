@@ -51,7 +51,11 @@ message StyleEffect
     optional float amplitude = 4;
     optional float wavelength = 5;
     optional uint32 gradient_mode = 6;
-    repeated float colors = 7; // BL, BR, TL, TR RGBA
+    repeated float colors = 7; // Legacy BL, BR, TL, TR or spatial stop RGBA.
+    repeated float positions = 8;
+    repeated float parameters = 9; // Authored linear angle, or radial pivot x/y, radius x/y, angle, and unused.
+    optional uint32 color_type = 10;
+    optional uint32 stop_count = 11;
 }
 
 // Typed, platform-independent render data. Flags identify explicitly authored

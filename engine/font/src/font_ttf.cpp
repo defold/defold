@@ -165,7 +165,7 @@ FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOpt
         FontImplGetGlyphBox(font->m_Font, glyph_index, &x0, &y0, &x1, &y1);
 
     float scale = options->m_Scale;
-    float padding = options->m_StbttSDFPadding;
+    float padding = options->m_UseUnpaddedBounds && !options->m_GenerateImage ? 0.0f : options->m_StbttSDFPadding;
     int on_edge_value = options->m_StbttSDFOnEdgeValue;
 
     int ascent = 0;
@@ -230,8 +230,8 @@ FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOpt
     glyph->m_Height = (y1 - y0) * scale;
     glyph->m_Advance = advx*scale;
     glyph->m_LeftBearing = lsb*scale;
-    glyph->m_Ascent = ascent;
-    glyph->m_Descent = descent;
+    glyph->m_Ascent = options->m_GenerateImage ? ascent : y1 * scale;
+    glyph->m_Descent = options->m_GenerateImage ? descent : -y0 * scale;
 
     // Bitmap coverage is sampled on the rasterizer's pixel grid. Preserve its
     // exact origin instead of centering the padded image around outline metrics.
