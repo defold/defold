@@ -40,7 +40,9 @@
             [editor.keymap :as keymap]
             [editor.localization :as localization]
             [editor.mouse-binding :as mouse-binding]
+            [editor.os :as os]
             [editor.prefs :as prefs]
+            [editor.profiler-xctrace :as profiler-xctrace]
             [editor.system :as system]
             [editor.ui :as ui]
             [util.coll :as coll]
@@ -867,7 +869,7 @@
     :root
     {:fx/type fx.tab-pane/lifecycle
      :tab-closing-policy :unavailable
-     :tabs (vec
+     :tabs (coll/into->
              (e/conj
                (e/map
                  (fn [{:keys [pattern paths]}]
@@ -913,7 +915,15 @@
                           :keymap (keymap/from-prefs prefs-state prefs)
                           :update-keymap (fn/partial prefs/update! prefs [:window :keymap])
                           :mouse-bindings (prefs/get prefs-state prefs [:window :mouse-bindings])
-                          :update-mouse-bindings (fn/partial prefs/update! prefs [:window :mouse-bindings])}}))}}})
+                          :update-mouse-bindings (fn/partial prefs/update! prefs [:window :mouse-bindings])}}
+               (when (os/is-mac-os?)
+                 {:fx/type fx.tab/lifecycle
+                  :text (localization-state (localization/message "prefs.tab.profile"))
+                  :content {:fx/type profiler-xctrace/prefs-view
+                            :prefs prefs
+                            :prefs-state prefs-state
+                            :localization-state localization-state}}))
+             [] (remove nil?))}}})
 
 (defn open!
   "Show the prefs dialog and block the thread until the dialog is closed"

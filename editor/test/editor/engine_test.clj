@@ -74,7 +74,7 @@
                [false 0 true []]
                [true 0 false ["--config=debugger.enabled=1" "--config=debugger.port=0"
                               "--config=debugger.wait=1" "--config=display.focus_on_show=0"]]]]
-        (let [{:keys [process log-stream]} (engine/launch! binary directory settings debug instance-index focus)]
+        (let [{:keys [process log-stream]} (engine/launch! binary directory settings debug instance-index focus nil)]
           (try
             (.waitFor ^Process process)
             (is (zero? (.exitValue ^Process process)))
@@ -146,7 +146,7 @@
       (let [prefixes
             (mapv (fn [index]
                     (let [{:keys [process log-stream]}
-                          (engine/launch! binary directory settings false index false)]
+                          (engine/launch! binary directory settings false index false nil)]
                       (try
                         (with-open [^InputStream stream log-stream]
                           (let [prefix (string/trim (process/capture! stream))]
