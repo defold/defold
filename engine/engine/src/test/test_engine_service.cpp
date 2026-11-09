@@ -22,6 +22,7 @@
 #include <dlib/webserver.h>
 #include <resource/resource_ddf.h>
 #include <graphics/graphics.h>
+#include <dlib/json.h>
 
 TEST_F(EngineTest, ServiceInstanceNameSanitizesAddress)
 {
@@ -170,15 +171,11 @@ class EngineServiceOpenAPITest : public HttpServiceTest
         m_RequestInstance = 0;
         Fetch("GET", "/state");
         ASSERT_EQ(200, m_Status);
-        const char* field = "\"engine_instance_id\": \"";
-        const char* value = strstr(m_Body.Begin(), field);
+        dmJson::Document json(32);
+        ASSERT_TRUE(json.Parse(m_Body.Begin(), m_Body.Size() - 1, 0, dmJson::PARSE_DECODE_VALUES));
+        const char* value = json.String(json.Field(0, "engine_instance_id"), 0);
         ASSERT_NE((const char*)0, value);
-        value += strlen(field);
-        const char* end = strchr(value, '"');
-        ASSERT_NE((const char*)0, end);
-        ASSERT_LT((uint32_t)(end - value), size);
-        memcpy(instance, value, end - value);
-        instance[end - value] = 0;
+        dmStrlCpy(instance, value, size);
     }
 
     static void ExtensionHandler(void* context, dmWebServer::Request* request)
@@ -186,6 +183,13 @@ class EngineServiceOpenAPITest : public HttpServiceTest
         const char* body = (const char*)context;
         dmWebServer::SetStatusCode(request, 200);
         dmWebServer::SendAttribute(request, "Content-Type", "text/plain");
+        dmWebServer::Send(request, body, strlen(body));
+    }
+
+    static void EchoHeader(void*, dmWebServer::Request* request)
+    {
+        const char* value = dmWebServer::GetHeader(request, "X-Observation-Test");
+        const char* body = value ? value : "absent";
         dmWebServer::Send(request, body, strlen(body));
     }
 
@@ -327,6 +331,156 @@ TEST_F(EngineServiceOpenAPITest, ProfilerFallbackCompatibility)
             ASSERT_STREQ(html.Begin(), m_Body.Begin());
         }
     }
+}
+
+// Each registration flag is independent; exact matching preserves queries and allows a shorter prefix fallback.
+TEST_F(EngineServiceOpenAPITest, IndependentHandlerFlags)
+{
+    dmWebServer::HServer server = dmEngineService::GetWebServer(m_Service);
+    uint32_t calls = 0;
+    dmWebServer::HandlerParams params;
+    params.m_Handler = EchoRequest;
+    params.m_Userdata = &calls;
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/test/exact", &params, 0, dmWebServer::MATCH_EXACT_PATH));
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/test/get", &params, 0, dmWebServer::GET_ONLY));
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/test/empty", &params, 0, dmWebServer::NO_REQUEST_BODY));
+    params.m_Handler = ExtensionHandler;
+    params.m_Userdata = (void*)"Fallback";
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/test", &params));
+
+    Fetch("POST", "/test/exact?value=/child", "body");
+    ASSERT_EQ(200, m_Status);
+    ASSERT_STREQ("POST /test/exact?value=/child\nbody", m_Body.Begin());
+    Fetch("GET", "/test/exact/child");
+    ASSERT_STREQ("Fallback", m_Body.Begin());
+    Fetch("GET", "/test/exactly");
+    ASSERT_STREQ("Fallback", m_Body.Begin());
+    ASSERT_EQ(1U, calls);
+
+    Fetch("GET", "/test/get/child?value=1");
+    ASSERT_EQ(200, m_Status);
+    ASSERT_STREQ("GET /test/get/child?value=1\n", m_Body.Begin());
+    Fetch("DELETE", "/test/get/child");
+    ASSERT_EQ(405, m_Status);
+    ASSERT_STREQ("GET", m_Allow);
+    ASSERT_STREQ("application/json", m_ContentType);
+    ASSERT_EQ(2U, calls);
+    dmSocket::Socket socket = OpenRequest("GET /test/get HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\r\nbody");
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, socket);
+    ReadResponse(socket);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "200 OK"));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "body"));
+    ASSERT_EQ(3U, calls);
+
+    Fetch("DELETE", "/test/empty/child?value=1");
+    ASSERT_EQ(200, m_Status);
+    ASSERT_STREQ("DELETE /test/empty/child?value=1\n", m_Body.Begin());
+    ASSERT_EQ(4U, calls);
+}
+
+// Registration overloads without flags keep prefix routing, arbitrary methods, request bodies, and the root fallback.
+TEST_F(EngineServiceOpenAPITest, UnconstrainedHandlerRegistration)
+{
+    dmWebServer::HServer server = dmEngineService::GetWebServer(m_Service);
+    uint32_t calls = 0;
+    dmWebServer::HandlerParams params;
+    params.m_Handler = EchoRequest;
+    params.m_Userdata = &calls;
+    for (uint32_t registration = 0; registration < 3; ++registration)
+    {
+        dmWebServer::Result result;
+        if (registration == 0)
+        {
+            result = dmWebServer::AddHandler(server, "/", &params);
+        }
+        else if (registration == 1)
+        {
+            result = dmWebServer::AddHandler(server, "/", &params, 0);
+        }
+        else
+        {
+            result = dmWebServer::AddHandler(server, "/", &params, 0, 0);
+        }
+        ASSERT_EQ(dmWebServer::RESULT_OK, result);
+        Fetch("POST", "/legacy/child?value=1", "body");
+        ASSERT_EQ(200, m_Status);
+        ASSERT_STREQ("POST /legacy/child?value=1\nbody", m_Body.Begin());
+        ASSERT_EQ(registration + 1, calls);
+        ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::RemoveHandler(server, "/"));
+    }
+}
+
+// Router errors must complete with an upload withheld, skip callbacks, and clear headers before the next request.
+TEST_F(EngineServiceOpenAPITest, RejectedHandlerRequests)
+{
+    dmWebServer::HServer server = dmEngineService::GetWebServer(m_Service);
+    uint32_t calls = 0;
+    dmWebServer::HandlerParams params;
+    params.m_Handler = EchoRequest;
+    params.m_Userdata = &calls;
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/test/get", &params, 0, dmWebServer::GET_ONLY));
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/test/empty", &params, 0, dmWebServer::NO_REQUEST_BODY));
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/test/both", &params, 0, dmWebServer::GET_ONLY | dmWebServer::NO_REQUEST_BODY));
+    params.m_Handler = EchoHeader;
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(server, "/test/header", &params));
+    const char* paths[] = { "/test/get", "/test/empty", "/test/both", "/unknown" };
+    const char* statuses[] = { "405 Method Not Allowed", "400 Bad Request", "400 Bad Request", "404 Not Found" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
+    {
+        char request[256];
+        dmSnPrintf(request, sizeof(request), "DELETE %s HTTP/1.1\r\nHost: localhost\r\nX-Observation-Test: rejected\r\nContent-Length: 10\r\n\r\n", paths[i]);
+        dmSocket::Socket socket = OpenRequest(request);
+        ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, socket);
+        ReadResponse(socket);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), statuses[i]));
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "Connection: close"));
+        ASSERT_EQ(0U, calls);
+        Fetch("GET", "/test/header");
+        ASSERT_EQ(200, m_Status);
+        ASSERT_STREQ("absent", m_Body.Begin());
+    }
+}
+
+// Partial headers must yield to another client, then finish normally once explicitly released.
+TEST_F(EngineServiceOpenAPITest, PartialObservationHeaders)
+{
+    dmSocket::Socket stalled = OpenRequest("GET /openapi.json HTTP/1.1\r\nHost:");
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, stalled);
+    Fetch("GET", "/state");
+    ASSERT_EQ(200, m_Status);
+    const char suffix[] = " localhost\r\n\r\n";
+    int sent;
+    ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::Send(stalled, suffix, sizeof(suffix) - 1, &sent));
+    ReadResponse(stalled);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "200 OK"));
+}
+
+// Malformed framing must close with 400 without waiting for a body or leaking headers to the next client.
+TEST_F(EngineServiceOpenAPITest, MalformedObservationFraming)
+{
+    dmWebServer::HandlerParams handler;
+    handler.m_Handler = EchoHeader;
+    handler.m_Userdata = 0;
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(dmEngineService::GetWebServer(m_Service), "/test/header", &handler));
+    const char* headers[] = { "Content-Length: -1", "Content-Length: 4294967296", "Content-Length: 0garbage",
+                              "Content-Length:", "Content-Length: 0\r\nContent-Length: 10", "Transfer-Encoding: chunked",
+                              "Content-Length: 0\r\nTransfer-Encoding: chunked", "Content-Length : 10", " Content-Length: 10" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(headers); ++i)
+    {
+        char request[256];
+        dmSnPrintf(request, sizeof(request), "GET /state HTTP/1.1\r\nX-Observation-Test: rejected\r\n%s\r\n\r\n", headers[i]);
+        dmSocket::Socket socket = OpenRequest(request);
+        ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, socket);
+        ReadResponse(socket);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "400 Bad Request"));
+        Fetch("GET", "/test/header");
+        ASSERT_STREQ("absent", m_Body.Begin());
+    }
+    dmSocket::Socket socket = OpenRequest("GET /test/header HTTP/1.1\r\nContent-Length:0\t \r\nX-Observation-Test: accepted\r\n\r\n");
+    ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, socket);
+    ReadResponse(socket);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "200 OK"));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "accepted"));
 }
 
 // Wrap retains the instance, while replacement and teardown clear readiness and consume new identities.
@@ -1322,12 +1476,20 @@ public:
     void TearDown()
     {
         EngineServiceOpenAPITest::TearDown();
-        if (m_Resource)
-            dmResource::Release(m_Factory, m_Resource);
-        if (m_Factory)
-            dmResource::DeleteFactory(m_Factory);
+        // Collection deletion is deferred; destroy collections while their
+        // resource factory can still unregister callbacks and release resources.
         if (m_Register)
+        {
             dmGameObject::DeleteRegister(m_Register);
+        }
+        if (m_Resource)
+        {
+            dmResource::Release(m_Factory, m_Resource);
+        }
+        if (m_Factory)
+        {
+            dmResource::DeleteFactory(m_Factory);
+        }
     }
 
     static dmResource::Result Create(const dmResource::ResourceCreateParams* params)
@@ -1380,6 +1542,20 @@ public:
         ASSERT_EQ(offset + 1, m_Body.Size()); // Fetch appends a trailing zero outside the HTTP body.
     }
 };
+
+// Scene graph identifiers must round-trip through JSON even when reverse hashes contain quotes and control characters.
+TEST_F(EngineServiceResourceTest, SceneGraphEscapesIdentifiers)
+{
+    const char identifier[] = "json\"\\\b\f\n";
+    dmGameObject::HCollection collection = dmGameObject::NewCollection(identifier, m_Factory, m_Register, 1, 0);
+    ASSERT_NE((dmGameObject::HCollection)0, collection);
+    Fetch("GET", "/scene_graph");
+    dmGameObject::DeleteCollection(collection);
+    ASSERT_EQ(200, m_Status);
+    dmJson::Document json(32);
+    ASSERT_TRUE(json.Parse(m_Body.Begin(), m_Body.Size() - 1, 0, dmJson::PARSE_DECODE_VALUES));
+    ASSERT_STREQ(identifier, json.String(json.Field(0, "id"), 0));
+}
 
 // Existing clients must receive the unchanged RESS layout even when timing data is available.
 TEST_F(EngineServiceResourceTest, LegacyResources)

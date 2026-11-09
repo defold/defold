@@ -17,6 +17,7 @@
 #include <test/http_service_test.h>
 #include "../platform_service.h"
 #include "../window.hpp"
+#include <dlib/json.h>
 #include <dlib/math.h>
 #include <dlib/webserver.h>
 #include <locale.h>
@@ -568,6 +569,15 @@ TEST_F(PlatformServiceTest, WindowReadsDoNotAdvanceResize)
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"complete\""));
 }
 
+// JSON number spellings with an integral value use the same validation as integer literals.
+TEST_F(PlatformServiceTest, ResizeJsonNumbers)
+{
+    Queue("{\"width\":640.0,\"height\":3.6e2}");
+    dmPlatformService::Update(m_Service);
+    ASSERT_EQ(640U, dmPlatform::GetWindowWidth(m_Window));
+    ASSERT_EQ(360U, dmPlatform::GetWindowHeight(m_Window));
+}
+
 // A game's numeric locale must not corrupt window JSON or change its fractional display scale.
 TEST_F(PlatformServiceTest, WindowJsonWithNumericLocale)
 {
@@ -579,7 +589,30 @@ TEST_F(PlatformServiceTest, WindowJsonWithNumericLocale)
     m_Window->m_DisplayScale = 1.5f;
     Fetch("GET", "/window");
     ASSERT_EQ(200, m_Status);
-    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"display_scale\":1.500000,"));
+    dmJson::Document json(32);
+    ASSERT_TRUE(json.Parse(m_Body.Begin(), m_Body.Size() - 1, 0, dmJson::PARSE_DECODE_VALUES));
+    ASSERT_EQ(1.5, json.Get(json.Field(0, "display_scale")).m_Number);
+    ASSERT_STREQ(",", localeconv()->decimal_point);
+}
+
+// Decimal and exponent dimensions retain their values, and fractional options remain invalid, in a comma locale.
+TEST_F(PlatformServiceTest, ResizeJsonNumbersWithNumericLocale)
+{
+    NumericLocale locale;
+    if (!locale.UseCommaDecimalLocale())
+    {
+        SKIP();
+    }
+    Queue("{\"width\":640.0,\"height\":3.6e2,\"timeout_ms\":1.5e3}");
+    dmPlatformService::Update(m_Service);
+    ASSERT_EQ(640U, dmPlatform::GetWindowWidth(m_Window));
+    ASSERT_EQ(360U, dmPlatform::GetWindowHeight(m_Window));
+    Fetch("GET", m_Receipt);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"complete\""));
+    Fetch("POST", "/window/resize", "{\"width\":1.2,\"height\":360}");
+    ASSERT_EQ(400, m_Status);
+    Fetch("POST", "/window/resize", "{\"width\":640,\"height\":360,\"timeout_ms\":1.5}");
+    ASSERT_EQ(400, m_Status);
     ASSERT_STREQ(",", localeconv()->decimal_point);
 }
 
