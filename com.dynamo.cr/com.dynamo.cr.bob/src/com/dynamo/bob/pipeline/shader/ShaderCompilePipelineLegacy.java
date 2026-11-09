@@ -230,10 +230,11 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
     }
 
     @Override
-    public Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride, boolean hLSLMoveSVPositionToFront) throws CompileExceptionError, IOException {
+    public Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride, boolean hLSLMoveSVPositionToFront, Shaderc.ShaderOutputMode outputMode) throws CompileExceptionError, IOException {
+        outputMode = resolveOutputMode(shaderLanguage, outputMode);
         // HLSL recompilation uses the shared SPIR-V path, as the specialized entry points did.
         if (rootSignatureOverride != null || hLSLMoveSVPositionToFront) {
-            return super.crossCompile(shaderType, shaderLanguage, rootSignatureOverride, hLSLMoveSVPositionToFront);
+            return super.crossCompile(shaderType, shaderLanguage, rootSignatureOverride, hLSLMoveSVPositionToFront, outputMode);
         }
 
         ShaderModuleLegacy module = getShaderModule(shaderType);
@@ -253,7 +254,9 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             return result;
         } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60 ||
                   shaderLanguage == ShaderDesc.Language.LANGUAGE_MSL_22) {
-            Shaderc.ShaderCompileResult result = this.generateCrossCompiledShader(new CrossCompileOptions(shaderType, shaderLanguage, this.ShaderLanguageToVersion(shaderLanguage)));
+            CrossCompileOptions crossCompileOptions = new CrossCompileOptions(shaderType, shaderLanguage, this.ShaderLanguageToVersion(shaderLanguage));
+            crossCompileOptions.outputMode = outputMode;
+            Shaderc.ShaderCompileResult result = this.generateCrossCompiledShader(crossCompileOptions);
             if (result.data == null || !result.lastError.isEmpty()) {
                 throw new CompileExceptionError("Cannot cross-compile shader of type: " + shaderType + ", to language: " + shaderLanguage + ", reason: " + result.lastError);
             }

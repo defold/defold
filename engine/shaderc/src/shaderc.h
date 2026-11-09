@@ -153,8 +153,9 @@ namespace dmShaderc
 
     enum ShaderOutputMode
     {
-        SHADER_OUTPUT_MODE_BINARY,
+        SHADER_OUTPUT_MODE_DEFAULT,
         SHADER_OUTPUT_MODE_SOURCE,
+        SHADER_OUTPUT_MODE_BINARY,
     };
 
     struct ShaderCompilerOptions
@@ -165,7 +166,7 @@ namespace dmShaderc
         , m_GlslEsDefaultFloatPrecision(SHADER_PRECISION_MEDIUMP)
         , m_GlslEsDefaultIntPrecision(SHADER_PRECISION_HIGHP)
         , m_TargetPlatform(SHADER_COMPILER_PLATFORM_DEFAULT)
-        , m_OutputMode(SHADER_OUTPUT_MODE_BINARY)
+        , m_OutputMode(SHADER_OUTPUT_MODE_DEFAULT)
         , m_RemoveUnusedVariables(true)
         , m_No420PackExtension(true)
         , m_GlslEmitUboAsPlainUniforms(false)
@@ -181,8 +182,9 @@ namespace dmShaderc
         ShaderPrecision m_GlslEsDefaultFloatPrecision;
         ShaderPrecision m_GlslEsDefaultIntPrecision;
         ShaderCompilerPlatform m_TargetPlatform;
-        // Select source instead of the optional binary compilation stage.
-        // Languages without a binary backend retain their native output format.
+        // DEFAULT selects SOURCE for GLSL/MSL and BINARY for HLSL/SPIR-V.
+        // HLSL supports both explicit modes; GLSL/MSL only SOURCE and SPIR-V only BINARY.
+        // Unsupported output modes return a compilation error.
         ShaderOutputMode m_OutputMode;
         uint8_t         m_RemoveUnusedVariables      : 1;
         uint8_t         m_No420PackExtension         : 1;
