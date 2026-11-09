@@ -23,21 +23,6 @@ namespace dmGameSystem
 
     static dmResource::Result AcquireResources(dmResource::HFactory factory, MeshSetResource* resource, const char* filename)
     {
-        uint32_t texture_count = 0;
-        for (uint32_t mi = 0; mi < resource->m_MeshSet->m_Models.m_Count; ++mi)
-        {
-            const dmRigDDF::Model& model = resource->m_MeshSet->m_Models[mi];
-            for (uint32_t mesh_i = 0; mesh_i < model.m_Meshes.m_Count; ++mesh_i)
-            {
-                const dmRigDDF::Mesh& mesh = model.m_Meshes[mesh_i];
-                if (mesh.m_MorphTargetTexture && mesh.m_MorphTargetTexture[0])
-                {
-                    ++texture_count;
-                }
-            }
-        }
-        resource->m_MorphTargetTextures.SetCapacity(texture_count);
-
         // Keep hinted morph textures alive for the lifetime of the meshset.
         for (uint32_t mi = 0; mi < resource->m_MeshSet->m_Models.m_Count; ++mi)
         {
@@ -52,6 +37,10 @@ namespace dmGameSystem
                     if (result != dmResource::RESULT_OK)
                     {
                         return result;
+                    }
+                    if (resource->m_MorphTargetTextures.Full())
+                    {
+                        resource->m_MorphTargetTextures.OffsetCapacity(4);
                     }
                     resource->m_MorphTargetTextures.Push(texture);
                 }
