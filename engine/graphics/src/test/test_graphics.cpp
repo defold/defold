@@ -387,6 +387,21 @@ TEST_F(dmGraphicsTest, ZeroSizeWindowResize)
     ASSERT_EQ(HEIGHT * 2, dmGraphics::GetWindowHeight(m_Context));
 }
 
+// Resize generations retain a zero-size interval even when the window returns to identical dimensions.
+TEST_F(dmGraphicsTest, WindowResizeGeneration)
+{
+    uint32_t original = dmPlatform::GetWindowResizeGeneration(m_Window);
+    dmPlatform::SetWindowSize(m_Window, WIDTH, 0);
+    uint32_t invalid = dmPlatform::GetWindowResizeGeneration(m_Window);
+    ASSERT_NE(original, invalid);
+    dmPlatform::SetWindowSize(m_Window, WIDTH, HEIGHT);
+    uint32_t restored = dmPlatform::GetWindowResizeGeneration(m_Window);
+    ASSERT_NE(invalid, restored);
+    ASSERT_NE(original, restored);
+    dmPlatform::SetWindowSize(m_Window, WIDTH, HEIGHT);
+    ASSERT_NE(restored, dmPlatform::GetWindowResizeGeneration(m_Window));
+}
+
 TEST_F(dmGraphicsTest, TestWindowSize)
 {
     ASSERT_EQ(m_NullContext->m_BaseContext.m_Width, dmGraphics::GetWidth(m_Context));

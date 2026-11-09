@@ -49,6 +49,7 @@ struct dmWindow
     int32_t                        m_Height;
     int32_t                        m_WidthScreen;
     int32_t                        m_HeightScreen;
+    uint32_t                       m_ResizeGeneration;
     uint32_t                       m_Samples               : 8;
     uint32_t                       m_HighDPI               : 1;
     uint32_t                       m_SwapIntervalSupported : 1;

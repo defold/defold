@@ -32,6 +32,9 @@ namespace dmPlatform
 
     uint32_t       GetWindowWidth(HWindow window);
     uint32_t       GetWindowHeight(HWindow window);
+    // Changes on every resize notification or request, including repeated dimensions.
+    // Graphics backends use this to detect invalidation of an acquired surface texture.
+    uint32_t       GetWindowResizeGeneration(HWindow window);
     uint32_t       GetWindowStateParam(HWindow window, WindowState state);
     float          GetDisplayScaleFactor(HWindow window);
     // Logical density in dots per inch, as reported by the backend. 96 when the platform cannot

@@ -41,6 +41,7 @@ namespace dmPlatform
     {
         glfwGetFramebufferSize(window->m_Window, &window->m_Width, &window->m_Height);
         glfwGetWindowSize(window->m_Window, &window->m_WidthScreen, &window->m_HeightScreen);
+        ++window->m_ResizeGeneration;
     }
 
     static void OnError(int error, const char* description)
@@ -506,6 +507,11 @@ namespace dmPlatform
     uint32_t GetWindowHeight(HWindow window)
     {
         return (uint32_t) window->m_Height;
+    }
+
+    uint32_t GetWindowResizeGeneration(HWindow window)
+    {
+        return window->m_ResizeGeneration;
     }
 
     static void SetSafeAreaFull(HWindow window, WindowSafeArea* out)

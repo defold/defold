@@ -243,6 +243,7 @@ namespace dmGraphics
         WGPUCommandEncoder                 m_CommandEncoder;
         uint32_t                           m_RenderPasses;
         uint32_t                           m_LastSubmittedRenderPass;
+        uint32_t                           m_WindowResizeGeneration;
 
         // Current state
         PipelineState                      m_CurrentPipelineState;
@@ -262,7 +263,8 @@ namespace dmGraphics
         uint32_t            m_OpaqueSurface : 1;
         uint32_t            m_InitializeOpaqueSurface : 1;
         uint32_t            m_ImmediatePresentModeSupported : 1;
-        uint32_t            m_SwapIntervalChanged : 1;
+        uint32_t            m_SurfaceNeedsConfigure : 1;
+        uint32_t            m_FrameBegun : 1;
 
         // StorageBufferBinding             m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
     };
