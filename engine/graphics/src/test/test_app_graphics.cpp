@@ -271,11 +271,8 @@ struct WebGPURenderingTest : ClearBackbufferTest
     dmGraphics::HProgram         m_Program;
     dmGraphics::HUniformLocation m_Color;
 
-    void Initialize(EngineCtx* engine) override
+    static void MakeShaderDesc(dmGraphics::ShaderDesc* shader_desc)
     {
-        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
-        wgpuDevicePushErrorScope(context->m_Device, WGPUErrorFilter_Validation);
-
         const char* vertex_source =
             "@vertex fn main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {\n"
             "    var positions = array<vec2f, 3>(vec2f(-0.5, -0.5), vec2f(0.5, -0.5), vec2f(0.0, 0.5));\n"
@@ -285,14 +282,22 @@ struct WebGPURenderingTest : ClearBackbufferTest
             "struct Constants { color: vec4f, };\n"
             "@group(0) @binding(0) var<uniform> constants: Constants;\n"
             "@fragment fn main() -> @location(0) vec4f { return constants.color; }\n";
+        AddShaderWithType(shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
+                          (uint8_t*)vertex_source, strlen(vertex_source));
+        AddShaderWithType(shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
+                          (uint8_t*)fragment_source, strlen(fragment_source));
+        dmGraphics::ShaderDesc::ResourceTypeInfo* constants = AddShaderType(shader_desc, "Constants");
+        AddShaderTypeMember(shader_desc, constants, "color", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+        AddShaderResourceUniformBuffer(shader_desc, "Constants", 0, 0, 0, sizeof(dmVMath::Vector4));
+    }
+
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        wgpuDevicePushErrorScope(context->m_Device, WGPUErrorFilter_Validation);
+
         dmGraphics::ShaderDesc shader_desc = {};
-        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
-                         (uint8_t*)vertex_source, strlen(vertex_source));
-        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
-                         (uint8_t*)fragment_source, strlen(fragment_source));
-        dmGraphics::ShaderDesc::ResourceTypeInfo* constants = AddShaderType(&shader_desc, "Constants");
-        AddShaderTypeMember(&shader_desc, constants, "color", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
-        AddShaderResourceUniformBuffer(&shader_desc, "Constants", 0, 0, 0, sizeof(dmVMath::Vector4));
+        MakeShaderDesc(&shader_desc);
         char error_buffer[512] = {};
         m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &shader_desc, error_buffer, sizeof(error_buffer));
         DeleteShaderDesc(&shader_desc);
@@ -361,11 +366,8 @@ struct WebGPURenderingTest : ClearBackbufferTest
 
     void OnGraphicsClosing(EngineCtx* engine) override
     {
-        if (m_Program)
-        {
-            dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
-        }
         dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        ASSERT_NE(0u, context->m_BindGroupCache.Size());
         WGPUPopErrorScopeCallbackInfo callback_info = WGPU_POP_ERROR_SCOPE_CALLBACK_INFO_INIT;
         callback_info.mode = WGPUCallbackMode_WaitAnyOnly;
         callback_info.callback = WebGPUTestErrorCallback;
@@ -381,6 +383,96 @@ struct WebGPURenderingTest : ClearBackbufferTest
     {
         dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
         ASSERT_EQ(0u, context->m_BindGroupCache.Size());
+        if (m_Program)
+        {
+            dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
+        }
+    }
+};
+
+// Verifies bind-group invalidation when uniform buffers and programs are deleted or reloaded.
+struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
+{
+    dmGraphics::HProgram         m_InactiveProgram;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        WebGPURenderingTest::Initialize(engine);
+        m_InactiveProgram = 0;
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        if (engine->m_WasRun == 1)
+        {
+            WebGPURenderingTest::Execute(engine);
+            return;
+        }
+
+        ClearBackbufferTest::Execute(engine);
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::WebGPUContext* webgpu_context = (dmGraphics::WebGPUContext*)context;
+        dmGraphics::WebGPUProgram* program = (dmGraphics::WebGPUProgram*)m_Program;
+        if (engine->m_WasRun == 2)
+        {
+            dmGraphics::EnableProgram(context, m_Program);
+            dmVMath::Vector4 color(1.0f, 0.5f, 0.0f, 1.0f);
+            dmGraphics::SetConstantV4(context, &color, 1, m_Color);
+        }
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+
+        if (engine->m_WasRun == 30)
+        {
+            dmGraphics::UniformBufferLayout layout = *(dmGraphics::UniformBufferLayout*)program->m_BaseProgram.m_ResourceBindings[0][0].m_BindingUserData;
+            dmGraphics::HUniformBuffer buffer = dmGraphics::NewUniformBuffer(context, layout, sizeof(dmVMath::Vector4));
+            dmVMath::Vector4 color(1.0f, 0.5f, 0.0f, 1.0f);
+            dmGraphics::SetUniformBuffer(context, buffer, 0, sizeof(color), &color);
+            dmGraphics::EnableUniformBuffer(context, buffer, 0, 0);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            dmGraphics::DeleteUniformBuffer(context, buffer);
+            ASSERT_EQ(0u, webgpu_context->m_BindGroupCache.Size());
+            ASSERT_EQ((WGPUBindGroup)0, program->m_BindGroups[0]);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        }
+        else if (engine->m_WasRun == 40)
+        {
+            dmGraphics::ShaderDesc shader_desc = {};
+            MakeShaderDesc(&shader_desc);
+            char error_buffer[512] = {};
+            bool reloaded = dmGraphics::ReloadProgram(context, m_Program, &shader_desc, error_buffer, sizeof(error_buffer));
+            DeleteShaderDesc(&shader_desc);
+            ASSERT_TRUE(reloaded);
+            ASSERT_EQ(0u, webgpu_context->m_BindGroupCache.Size());
+            ASSERT_EQ(program, webgpu_context->m_CurrentProgram);
+            m_Color = GetUniformLocation(m_Program, "color");
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        }
+        else if (engine->m_WasRun == 50)
+        {
+            dmGraphics::ShaderDesc shader_desc = {};
+            MakeShaderDesc(&shader_desc);
+            char error_buffer[512] = {};
+            m_InactiveProgram = dmGraphics::NewProgram(context, &shader_desc, error_buffer, sizeof(error_buffer));
+            DeleteShaderDesc(&shader_desc);
+            ASSERT_NE((dmGraphics::HProgram)0, m_InactiveProgram);
+            dmGraphics::EnableProgram(context, m_InactiveProgram);
+            dmVMath::Vector4 color(1.0f, 0.5f, 0.0f, 1.0f);
+            dmGraphics::SetConstantV4(context, &color, 1, GetUniformLocation(m_InactiveProgram, "color"));
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            dmGraphics::EnableProgram(context, m_Program);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        }
+        else if (engine->m_WasRun == 60)
+        {
+            dmGraphics::EnableProgram(context, m_InactiveProgram);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            dmGraphics::DeleteProgram(context, m_InactiveProgram);
+            m_InactiveProgram = 0;
+            ASSERT_EQ(0u, webgpu_context->m_BindGroupCache.Size());
+            ASSERT_EQ((dmGraphics::WebGPUProgram*)0, webgpu_context->m_CurrentProgram);
+            dmGraphics::EnableProgram(context, m_Program);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        }
     }
 };
 #endif
@@ -2436,8 +2528,16 @@ static void* EngineCreate(int argc, char** argv)
 #if defined(DM_GRAPHICS_DAWN)
     else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_WEBGPU)
     {
-        dmLogInfo("test_app_graphics: running WebGPURenderingTest");
-        engine->m_Test = new WebGPURenderingTest();
+        if (HasArgument("bind-group-cache-lifetime"))
+        {
+            dmLogInfo("test_app_graphics: running WebGPUBindGroupLifetimeTest");
+            engine->m_Test = new WebGPUBindGroupLifetimeTest();
+        }
+        else
+        {
+            dmLogInfo("test_app_graphics: running WebGPURenderingTest");
+            engine->m_Test = new WebGPURenderingTest();
+        }
     }
 #endif
     else

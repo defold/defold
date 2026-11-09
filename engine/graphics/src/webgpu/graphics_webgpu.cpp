@@ -111,6 +111,7 @@ static WGPUTextureUsage g_rendertarget_usage = WGPUTextureUsage_RenderAttachment
 static GraphicsAdapterFunctionTable WebGPURegisterFunctionTable();
 static bool WebGPUIsSupported();
 static HContext WebGPUGetContext();
+static void WebGPUInvalidateBindGroups(WebGPUContext* context);
 static GraphicsAdapter g_webgpu_adapter(ADAPTER_FAMILY_WEBGPU);
 static WebGPUContext* g_WebGPUContext = NULL;
 
@@ -1783,6 +1784,7 @@ static void WebGPUDestroyTexture(WebGPUTexture* texture)
 static void WebGPUDestroyContext(WebGPUContext* context)
 {
     TRACE_CALL;
+    WebGPUInvalidateBindGroups(context);
     if (context->m_DefaultTexture2D)
     {
         WebGPUDestroyTexture(context->m_DefaultTexture2D);
@@ -1959,7 +1961,6 @@ static void WebGPUCreateCommandEncoder(WebGPUContext* context)
 }
 
 static void WebGPUEndRenderPass(WebGPUContext* context);
-static void WebGPUInvalidateBindGroups(WebGPUContext* context);
 
 static void WebGPUEndComputePass(WebGPUContext* context)
 {
@@ -2549,6 +2550,7 @@ static void WebGPUDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_
     WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
 
     WebGPUDisableUniformBuffer(_context, uniform_buffer);
+    WebGPUInvalidateBindGroups((WebGPUContext*)_context);
 
     wgpuBufferRelease(ubo->m_Buffer);
     delete ubo;
@@ -3606,6 +3608,7 @@ static HProgram WebGPUNewProgram(HContext _context, ShaderDesc* ddf, char* error
 static void WebGPUDestroyProgram(WebGPUContext* context, WebGPUProgram* program)
 {
     TRACE_CALL;
+    WebGPUInvalidateBindGroups(context);
     if(program->m_VertexModule) {
         WebGPUDestroyShader(program->m_VertexModule);
         delete program->m_VertexModule;
@@ -3644,11 +3647,16 @@ static void WebGPUDestroyProgram(WebGPUContext* context, WebGPUProgram* program)
     }
 }
 
-static void WebGPUDeleteProgram(HContext context, HProgram _program)
+static void WebGPUDeleteProgram(HContext _context, HProgram _program)
 {
     TRACE_CALL;
+    WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUProgram* program = (WebGPUProgram*)_program;
-    WebGPUDestroyProgram((WebGPUContext*)context, program);
+    WebGPUDestroyProgram(context, program);
+    if (context->m_CurrentProgram == program)
+    {
+        context->m_CurrentProgram = NULL;
+    }
     delete program;
 }
 
