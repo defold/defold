@@ -14,12 +14,12 @@
 
 package com.dynamo.bob.test.util;
 
-import static org.junit.Assert.assertEquals;
+import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
+import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 
 import java.nio.charset.StandardCharsets;
 
-import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
-import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
+import static org.junit.Assert.assertEquals;
 
 public class PropertiesTestUtil {
     public static void assertNumber(PropertyDeclarations properties, float expected, int index) {

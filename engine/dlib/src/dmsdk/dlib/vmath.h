@@ -125,8 +125,6 @@ namespace dmVMath
         return q;
     }
 
-#define DEG_FACTOR 57.295779513f
-
     /*#
      * Converts a quaternion into euler angles (r0, r1, r2), based on YZX rotation order.
      * To handle gimbal lock (singularity at r1 ~ +/- 90 degrees), the cut off is at r0 = +/- 88.85 degrees, which snaps to +/- 90.
@@ -153,7 +151,7 @@ namespace dmVMath
             {
                 dmVMath::Vector3 r(0.0f, 0.0f, 0.0f);
                 // the sum of the values yields one value, as the others are 0
-                r.setElem(mask >> 1, atan2f(q0+q1+q2, q3) * 2.0f * DEG_FACTOR);
+                r.setElem(mask >> 1, dmMath::RadToDeg(atan2f(q0 + q1 + q2, q3) * 2.0f));
                 return r;
             }
         }
@@ -185,11 +183,8 @@ namespace dmVMath
             r2 = asinf(2.0f * test);
             r0 = atan2f(2.0f * q0 * q3 - 2.0f * q1 * q2, 1.0f - 2.0f * sq0 - 2.0f * sq2);
         }
-        return dmVMath::Vector3(r0, r1, r2) * DEG_FACTOR;
+        return dmVMath::Vector3(dmMath::RadToDeg(r0), dmMath::RadToDeg(r1), dmMath::RadToDeg(r2));
     }
-
-#undef DEG_FACTOR
-#define HALF_RAD_FACTOR 0.008726646f
 
     /*#
      * Converts euler angles (x, y, z) in degrees into a quaternion
@@ -200,6 +195,7 @@ namespace dmVMath
      */
     inline dmVMath::Quat EulerToQuat(dmVMath::Vector3 xyz)
     {
+        const float half_rad_factor = dmMath::DegToRad(0.5f);
         // Early-out when the rotation axis is either X, Y or Z.
         // The reasons we make this distinction is that one-axis rotation is common (and cheaper), especially around Z in 2D games
         uint8_t mask = (xyz.getZ() != 0.f) << 2 | (xyz.getY() != 0.f) << 1 | (xyz.getX() != 0.f);
@@ -211,7 +207,7 @@ namespace dmVMath
         case 0b100:
             {
                 // the sum of the angles yields one angle, as the others are 0
-                float ha = (xyz.getX()+xyz.getY()+xyz.getZ()) * HALF_RAD_FACTOR;
+                float ha = (xyz.getX() + xyz.getY() + xyz.getZ()) * half_rad_factor;
                 dmVMath::Quat q(0.0f, 0.0f, 0.0f, dmTrigLookup::Cos(ha));
                 q.setElem(mask >> 1, dmTrigLookup::Sin(ha));
                 return q;
@@ -220,9 +216,9 @@ namespace dmVMath
         // Implementation based on:
         // http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19770024290.pdf
         // Rotation sequence: 231 (YZX)
-        float t1 = xyz.getY() * HALF_RAD_FACTOR;
-        float t2 = xyz.getZ() * HALF_RAD_FACTOR;
-        float t3 = xyz.getX() * HALF_RAD_FACTOR;
+        float t1 = xyz.getY() * half_rad_factor;
+        float t2 = xyz.getZ() * half_rad_factor;
+        float t3 = xyz.getX() * half_rad_factor;
 
         float c1 = dmTrigLookup::Cos(t1);
         float s1 = dmTrigLookup::Sin(t1);
@@ -240,7 +236,6 @@ namespace dmVMath
         quat.setZ(-s1*s3*c2 + s2*c1*c3 );
         return quat;
     }
-#undef HALF_RAD_FACTOR
 
     /*# dot product between two vectors
      * @name Dot

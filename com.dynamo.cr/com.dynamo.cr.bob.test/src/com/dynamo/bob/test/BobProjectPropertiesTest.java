@@ -14,29 +14,27 @@
 
 package com.dynamo.bob.test;
 
-import static org.junit.Assert.assertEquals;
-
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.Project;
-import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.util.BobProjectProperties;
+import org.apache.commons.configuration2.ex.ConfigurationException;
+import org.apache.commons.io.FileUtils;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
-import java.nio.file.Files;
-import java.io.File;
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import org.apache.commons.configuration2.ex.ConfigurationException;
-import org.apache.commons.io.FileUtils;
+import static org.junit.Assert.assertEquals;
 
 public class BobProjectPropertiesTest {
 

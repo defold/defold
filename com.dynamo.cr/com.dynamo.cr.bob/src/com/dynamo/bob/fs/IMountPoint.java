@@ -14,10 +14,10 @@
 
 package com.dynamo.bob.fs;
 
+import com.dynamo.bob.fs.IFileSystem.IWalker;
+
 import java.io.IOException;
 import java.util.Collection;
-
-import com.dynamo.bob.fs.IFileSystem.IWalker;
 
 /**
  * A mount point to be included in a file system.

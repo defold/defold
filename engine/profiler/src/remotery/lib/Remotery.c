@@ -517,13 +517,11 @@ static void* tlsGet(rmtTLS handle)
 // Used to store per-thread error messages
 // Static so that we can set error messages from code the Remotery object depends on
 static rmtTLS g_lastErrorMessageTlsHandle = TLS_INVALID_HANDLE;
-static const rmtU32 g_errorMessageSize = 1024;
 
+/// DEFOLD
+// The error message must be a string literal so it remains valid without an owned copy.
 static rmtError rmtMakeError(rmtError in_error, rmtPStr error_message)
 {
-    char* thread_message_ptr;
-    rmtU32 error_len;
-
     // Allocate the TLS on-demand
     // TODO(don): Make this thread-safe
     if (g_lastErrorMessageTlsHandle == TLS_INVALID_HANDLE)
@@ -531,27 +529,11 @@ static rmtError rmtMakeError(rmtError in_error, rmtPStr error_message)
         rmtTry(tlsAlloc(&g_lastErrorMessageTlsHandle));
     }
 
-    // Allocate the string storage for the error message on-demand
-    thread_message_ptr = (char*)tlsGet(g_lastErrorMessageTlsHandle);
-    if (thread_message_ptr == NULL)
-    {
-        thread_message_ptr = (char*)rmtMalloc(g_errorMessageSize);
-        if (thread_message_ptr == NULL)
-        {
-            return RMT_ERROR_MALLOC_FAIL;
-        }
-
-        tlsSet(g_lastErrorMessageTlsHandle, (void*)thread_message_ptr);
-    }
-
-    // Safe copy of the error text without going via strcpy_s down below
-    error_len = (rmtU32)strlen(error_message);
-    error_len = error_len >= g_errorMessageSize ? g_errorMessageSize - 1 : error_len;
-    memcpy(thread_message_ptr, error_message, error_len);
-    thread_message_ptr[error_len] = 0;
+    tlsSet(g_lastErrorMessageTlsHandle, (void*)error_message);
 
     return in_error;
 }
+/// END DEFOLD
 
 RMT_API rmtPStr rmt_GetLastErrorMessage()
 {
@@ -7083,13 +7065,14 @@ static void Remotery_Destructor(Remotery* rmt)
 
     rmtDelete(Server, rmt->server);
     
+/// DEFOLD
     // Free the error message TLS
-    // TODO(don): The allocated messages will need to be freed as well
     if (g_lastErrorMessageTlsHandle != TLS_INVALID_HANDLE)
     {
         tlsFree(g_lastErrorMessageTlsHandle);
         g_lastErrorMessageTlsHandle = TLS_INVALID_HANDLE;
     }
+/// END DEFOLD
     
     mtxDelete(&rmt->propertyMutex);
 }

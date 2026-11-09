@@ -234,7 +234,7 @@ jobs:
           ref: *build_sha
       - &step_python
         name: "Install Python"
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: 3.13
       - &step_dcache_key
@@ -286,7 +286,7 @@ jobs:
         run: sudo softwareupdate --install-rosetta --agree-to-license
       - &step_java
         name: "Install Java"
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           java-version: "25.0.4+101.0.LTS"
           distribution: "temurin"
@@ -299,7 +299,7 @@ jobs:
             com.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties
       - &step_cmake
         name: "Install CMake"
-        uses: lukka/get-cmake@a89e43e22a96abafcd7a62db652a65ecd33052c9 # v4.4.4
+        uses: lukka/get-cmake@f86dd60acae0d132056913e248bdabf0e0580b7a # v4.4.5
         with:
           # This action stores its CMake and Ninja download in the Actions cache by
           # default, under a key derived from the versions alone. A contrib build must
@@ -320,7 +320,7 @@ jobs:
         run: "emcc -v && export | grep EM"
       - name: "Setup Node for WASM tests"
         if: matrix.platform == 'wasm-web'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
           package-manager-cache: false
@@ -412,6 +412,11 @@ jobs:
             export ANDROID_SERIAL
             echo "Running ${{ matrix.platform }} tests on $ANDROID_SERIAL"
             ci/ci.sh engine --skip-install-ext --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} --sdk-artifacts-dir=tmp/sdk-artifacts --skip-builtins --skip-docs
+      - name: "Enable Windows JVM crash reports"
+        if: runner.os == 'Windows'
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/tmp/java-crash"
+          printf 'JDK_JAVA_OPTIONS=%s "-XX:ErrorFile=%s/tmp/java-crash/hs_err_pid%%p.log"\n' "${JDK_JAVA_OPTIONS:-}" "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
       # matrix.engine_args carries the per-platform flags; codesign and the gcloud key
       # come from env, which a matrix cannot reference, so they are appended here.
       - name: "Build engine"
@@ -451,6 +456,20 @@ jobs:
           path: |
             engine/**/logs/*.log
             external/**/logs/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: "Upload Windows native crash diagnostics"
+        if: failure() && runner.os == 'Windows'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-crash-${{ matrix.platform }}
+          # Memory dumps can contain the CI credentials inherited by build tools.
+          path: |
+            tmp/java-crash/hs_err_pid*.log
+            engine/**/hs_err_pid*.log
+            engine/**/*_shared.dll
+            engine/**/*_shared.pdb
+            com.dynamo.cr/**/hs_err_pid*.log
           if-no-files-found: ignore
           retention-days: 7
       - &step_upload_gradle_logs
@@ -1009,7 +1028,7 @@ jobs:
           sparse-checkout-cone-mode: false
       - name: "Install Python"
         if: *should_release
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: 3.13
       - name: "Read dependency cache key"

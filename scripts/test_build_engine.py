@@ -41,6 +41,7 @@ class SanitizerFeatureTests(unittest.TestCase):
         configuration.dynamo_home = '/defold/tmp/dynamo_home'
         configuration.host = configuration.target_platform = 'arm64-linux'
         configuration.build_options = ['--with-msan']
+        configuration.tool_checks = mock.Mock()
         configuration.check_sdk = mock.Mock()
         configuration._form_env = mock.Mock(return_value={})
         calls = mock.Mock()

@@ -14,14 +14,16 @@
 
 package com.dynamo.bob.bundle.test;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
+import com.dynamo.bob.bundle.IOSBundler;
 import org.apache.commons.io.FileUtils;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import com.dynamo.bob.bundle.IOSBundler;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
