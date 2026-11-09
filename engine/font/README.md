@@ -3,10 +3,11 @@
 ## Text curves
 
 Arc mapping preserves the laid-out advances on each line's own circular baseline.
-Short text is not spread across the available angle. Inner lines keep the same
-spacing and can cover a larger angle; wrapping still uses the first-baseline arc
-length for the whole text block. A zero-radius baseline follows a straight tangent
-through the origin.
+Short text is not spread across the available angle. With Line Break enabled,
+each line wraps at its own baseline's arc length, so inner lines do not lap
+themselves as their radius decreases. Unwrapped text retains its advances and can
+cover a larger angle. A zero-radius baseline follows a straight tangent through
+the origin.
 
 `FontTextCurveCreate` copies and samples a cubic Bezier chain at 64 uniform
 parameter steps per segment. Distance and frame lookups interpolate those samples;

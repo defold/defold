@@ -1029,7 +1029,7 @@ namespace dmGui
      * For text nodes, `arc_radius` is the finite signed radius of the first baseline in local units (default 100),
      * centered on the node origin. Later lines retain their baseline spacing. `arc_angle` is the angular span
      * in degrees, from 0 to 360 (default 0). Zero selects textbox layout; 360 forms a full circle.
-     * Arc layout ignores node size. Line Break wraps at the absolute radius times the angle in radians;
+     * Arc layout ignores node size. Line Break wraps each line at its absolute baseline radius times the angle in radians;
      * each line preserves its laid-out character spacing along its own radius.
      * A zero-radius baseline follows a straight tangent through the origin.
      * Explicit newlines are preserved. Both properties also support gui.animate.

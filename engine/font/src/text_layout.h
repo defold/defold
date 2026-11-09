@@ -296,6 +296,15 @@ TextResult TextLayoutSkribidiCreateMarkup(HFontCollection collection, HMarkup ma
 
 TextResult TextLayoutCreateMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, HTextLayout* outlayout);
 
+// Adaptive arc wrapping borrows the settings for the call; the caller owns the returned layout.
+// Zero radius selects the ordinary constant-width layout.
+TextResult TextLayoutCreate(HFontCollection collection, uint32_t* codepoints, uint32_t num_codepoints, TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius);
+TextResult TextLayoutCreateMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius);
+TextResult TextLayoutLegacyCreate(HFontCollection collection, uint32_t* codepoints, uint32_t num_codepoints, TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius);
+TextResult TextLayoutLegacyCreateMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius);
+TextResult TextLayoutSkribidiCreate(HFontCollection collection, uint32_t* codepoints, uint32_t num_codepoints, TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius);
+TextResult TextLayoutSkribidiCreateMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius);
+
 // Returns the shaped x coordinate to subtract when aligning a line's glyphs, decorations, and objects.
 float TextLayoutGetLineOriginX(HTextLayout layout, uint32_t line_index);
 
@@ -393,6 +402,10 @@ float TextLayoutGetMaxMarkupOutlineWidth(HTextLayout layout);
 
 // Reports whether the layout needs a shadow vertex layer.
 bool TextLayoutHasMarkupShadow(HTextLayout layout);
+
+// Shared line metrics keep arc wrapping consistent with final baseline placement.
+void  TextLayoutGetLineMetrics(HTextLayout layout, uint32_t first, uint32_t count, float size, float* ascent, float* descent);
+float TextLayoutGetLineWrapWidth(float width, float arc_radius, float baseline_offset);
 
 // Resolves line baselines and total height from shaped glyph metrics.
 void TextLayoutFinalizeLineBaselines(HTextLayout layout, TextLayoutSettings* settings);

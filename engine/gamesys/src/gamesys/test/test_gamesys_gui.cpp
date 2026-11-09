@@ -1746,6 +1746,22 @@ TEST_F(GuiTest, GuiTextArcLayout)
     ASSERT_GT(TextLayoutGetLineCount(PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout), 2u);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcAngle(scene, node, 0.0f));
     ASSERT_GT(TextLayoutGetLineCount(PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout), 2u);
+    HTextLayout textbox = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcRadius(scene, node, 40.0f));
+    ASSERT_EQ(textbox, PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcAngle(scene, node, 254.0f));
+    dmGui::SetNodeText(scene, node, "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.");
+    HTextLayout wrapped_arc = PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout;
+    const TextLine* lines = TextLayoutGetLines(wrapped_arc);
+    ASSERT_GT(TextLayoutGetLineCount(wrapped_arc), 2u);
+    for (uint32_t i = 0; i < TextLayoutGetLineCount(wrapped_arc); ++i)
+    {
+        const float radius = 40.0f + lines[i].m_Baseline - lines[0].m_Baseline;
+        if (radius != 0.0f && lines[i].m_Length > 1)
+        {
+            EXPECT_LE(lines[i].m_Width, fabsf(radius) * dmMath::DegToRad(254.0f) + 0.01f);
+        }
+    }
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
@@ -2462,6 +2478,23 @@ TEST_F(LabelComponentTest, LabelArcProperties)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
               dmGameObject::SetProperty(go, label_id, dmHashString64("arc_angle"), options, dmGameObject::PropertyVar(90.0f)));
     ASSERT_EQ(2u, TextLayoutGetLineCount(PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection)));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("text"), options, dmGameObject::PropertyVar("Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("arc_radius"), options, dmGameObject::PropertyVar(40.0f)));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
+              dmGameObject::SetProperty(go, label_id, dmHashString64("arc_angle"), options, dmGameObject::PropertyVar(254.0f)));
+    HTextLayout wrapped_arc = PrepareLabelAndGetTextLayout(m_RenderContext, m_Collection);
+    const TextLine* lines = TextLayoutGetLines(wrapped_arc);
+    ASSERT_GT(TextLayoutGetLineCount(wrapped_arc), 2u);
+    for (uint32_t i = 0; i < TextLayoutGetLineCount(wrapped_arc); ++i)
+    {
+        const float radius = 40.0f + lines[i].m_Baseline - lines[0].m_Baseline;
+        if (radius != 0.0f && lines[i].m_Length > 1)
+        {
+            EXPECT_LE(lines[i].m_Width, fabsf(radius) * dmMath::DegToRad(254.0f) + 0.01f);
+        }
+    }
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 

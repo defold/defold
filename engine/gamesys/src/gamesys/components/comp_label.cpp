@@ -257,6 +257,7 @@ namespace dmGameSystem
 
         TextLayoutSettings settings = { 0 };
         settings.m_Width = GetTextLayoutWidth(component);
+        const float arc_radius = component->m_Curve || component->m_ArcAngle == 0.0f ? 0.0f : component->m_ArcRadius;
         settings.m_LineBreak = component->m_LineBreak;
         settings.m_Leading = component->m_Leading;
         settings.m_Tracking = component->m_Tracking;
@@ -274,7 +275,7 @@ namespace dmGameSystem
 
         if (markup_result == MARKUP_RESULT_OK)
         {
-            result = TextLayoutCreateMarkup(dmRender::GetFontCollection(font_map), markup, &settings, &layout);
+            result = TextLayoutCreateMarkup(dmRender::GetFontCollection(font_map), markup, &settings, &layout, arc_radius);
         }
 
         MarkupDestroy(markup);
@@ -289,7 +290,7 @@ namespace dmGameSystem
             layout = 0;
             dmArray<uint32_t> codepoints;
             TextToCodePoints(component->m_Text, codepoints);
-            result = TextLayoutCreate(dmRender::GetFontCollection(font_map), codepoints.Begin(), codepoints.Size(), &settings, &layout);
+            result = TextLayoutCreate(dmRender::GetFontCollection(font_map), codepoints.Begin(), codepoints.Size(), &settings, &layout, arc_radius);
         }
 
         if (result != TEXT_RESULT_OK)
