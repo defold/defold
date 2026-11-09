@@ -74,7 +74,7 @@ namespace dmGameObject
     // Array growth can relocate records; swap-erasure changes their positions.
     // Lifecycle lists use stable IDs: m_AnimMap[m_Index] resolves an ID to its
     // current array position. m_Next links tracks on the same instance; listener
-    // lists in AnimationExtras use the same IDs. SIMD runs use physical positions.
+    // lists in AnimationExtras use the same IDs. Evaluation follows array order.
     struct Animation
     {
         HInstance           m_Instance;
@@ -107,11 +107,9 @@ namespace dmGameObject
         uint16_t            m_EulerChannel : 2;
         // Eligible tracks have built-in easing, looping playback, positive
         // duration and direct property writes (or are Vector3 parents). Euler
-        // tracks are excluded. Eligibility is fixed at creation; readiness also
-        // requires a playing, activated track with no delay. RebuildAnimationRuns
-        // sets readiness; StopAnimation clears it immediately, even from a setter.
+        // tracks are excluded. Eligibility is fixed at creation; evaluation also
+        // checks that each track is playing, activated and has no remaining delay.
         uint16_t            m_SimdEligible : 1;
-        uint16_t            m_SimdReady : 1;
         uint8_t             m_EasingType;
     };
 
@@ -120,28 +118,9 @@ namespace dmGameObject
     DM_STATIC_ASSERT(offsetof(Animation, m_Cursor) == offsetof(Animation, m_From) + 2 * sizeof(float), Animation_Cursor_Layout);
     DM_STATIC_ASSERT(offsetof(Animation, m_Duration) == offsetof(Animation, m_From) + 3 * sizeof(float), Animation_Duration_Layout);
 
-    // A half-open [m_Begin, m_End) range of physical indices in m_Animations.
-    // Each run contains a multiple of four consecutive ready tracks. Batches
-    // may mix instances, targets, durations, playback and built-in easing curves.
-    // Runs are a cached view of the array, not separate animation storage.
-    //
-    // Example: [6 ready tracks][1 scalar track][4 ready tracks] produces runs
-    // [0, 4) and [7, 11). Indices 4..6 are evaluated individually in array order.
-    // Euler tracks, custom easing curves (TYPE_FLOAT_VECTOR), once playback and
-    // other ineligible tracks stay in the same array and use scalar evaluation,
-    // as do short tails.
-    struct AnimationRun
-    {
-        uint32_t m_Begin;
-        uint32_t m_End;
-    };
-
     struct AnimWorld
     {
         dmArray<Animation>                   m_Animations;
-        dmArray<AnimationRun>                m_SimdRuns;
-        uint32_t                             m_SimdRunsDirty : 1;
-        uint32_t                             m_HasAnimationSetters : 1;
         dmObjectPool<AnimationExtras>        m_AnimationExtras;
         dmArray<uint32_t>                    m_AnimMap;
         dmIndexPool<uint32_t>                m_AnimMapIndexPool;
@@ -174,59 +153,10 @@ namespace dmGameObject
         world->m_AnimMapIndexPool.SetCapacity(capacity);
     }
 
-    static bool IsAnimationSetter(const Animation* anim)
-    {
-        return anim->m_Playing && !anim->m_Composite && !anim->m_IsGameObjectEulerProperty && anim->m_Value == 0;
-    }
-
-    // Cache execution spans after membership changes. Records and callback order
-    // stay unchanged, and steady-state SIMD loops need no per-track state checks.
-    static void RebuildAnimationRuns(AnimWorld* world)
-    {
-        world->m_SimdRuns.SetSize(0);
-        world->m_HasAnimationSetters = 0;
-        const uint32_t size = world->m_Animations.Size();
-        uint32_t begin = 0;
-        bool pending_delays = false;
-        for (uint32_t i = 0; i <= size; ++i)
-        {
-            if (i < size)
-            {
-                Animation& anim = world->m_Animations[i];
-                const bool active = anim.m_SimdEligible && anim.m_Playing && !anim.m_FirstUpdate;
-                anim.m_SimdReady = active && anim.m_Delay == 0.0f;
-                pending_delays |= active && !anim.m_SimdReady;
-                // Setters can cancel later tracks while evaluating. Such collections
-                // validate each four-track batch instead of trusting cached spans.
-                world->m_HasAnimationSetters |= IsAnimationSetter(&anim);
-                if (anim.m_SimdReady)
-                {
-                    continue;
-                }
-            }
-            // Keep complete batches; the remaining zero to three tracks stay scalar.
-            const uint32_t count = (i - begin) & ~3u;
-            if (count != 0)
-            {
-                if (world->m_SimdRuns.Full())
-                {
-                    world->m_SimdRuns.OffsetCapacity(dmMath::Max(16u, world->m_SimdRuns.Capacity() / 2));
-                }
-                AnimationRun run = { begin, begin + count };
-                world->m_SimdRuns.Push(run);
-            }
-            begin = i + 1;
-        }
-        // A newly activated track may consume a partial-frame delay in evaluation.
-        // Revisit it next frame, without maintaining readiness in the arithmetic loop.
-        world->m_SimdRunsDirty = pending_delays;
-    }
-
-    // Remove a stopped record. A scalar tail preserves all spans; a swap that moves
-    // a ready track changes its physical index and invalidates the execution cache.
+    // Remove a stopped record, then repair the stable ID mapping and lifecycle
+    // bounds for the record moved by swap-erasure.
     static void EraseAnimation(AnimWorld* world, uint32_t index)
     {
-        world->m_SimdRunsDirty |= world->m_Animations.Back().m_SimdReady;
         Animation& moved = world->m_Animations.EraseSwap(index);
         if (index < world->m_Animations.Size())
         {
@@ -308,8 +238,6 @@ namespace dmGameObject
 
     static void StopAnimation(AnimWorld* world, Animation* anim, bool finished)
     {
-        world->m_SimdRunsDirty |= anim->m_SimdReady || IsAnimationSetter(anim);
-        anim->m_SimdReady = 0;
         anim->m_Finished = finished;
         anim->m_Playing = 0;
         uint32_t index = (uint32_t)(anim - world->m_Animations.Begin());
@@ -486,7 +414,7 @@ namespace dmGameObject
         bool m_Euler;
     };
 
-    // Update one track that is outside a SIMD run, including delayed, custom-curve,
+    // Update one track individually, including delayed, custom-curve,
     // Euler and once-playback tracks. Completion callbacks remain in finalization.
     // Keep this in the traversal loop to avoid a function call for every scalar track.
     static DM_FORCE_INLINE void UpdateAnimationScalar(AnimWorld* world, Collection* collection, Animation& anim, float dt, AnimationUpdateChanges& changes)
@@ -588,51 +516,37 @@ namespace dmGameObject
         }
     }
 
-    // Setters can stop later tracks, so inspect all four just before evaluating them.
-    static bool CanUpdateAnimationSimd4(const Animation* animations, uint32_t count)
+    static bool IsAnimationSimdReady(const Animation& anim)
     {
-        return count >= 4 && (animations[0].m_SimdReady & animations[1].m_SimdReady &
-                              animations[2].m_SimdReady & animations[3].m_SimdReady);
+        return anim.m_SimdEligible && anim.m_Playing && !anim.m_FirstUpdate && anim.m_Delay == 0.0f;
     }
 
-    // Walk the array in physical order, interleaving scalar work and SIMD runs.
-    // UseBatches is selected once per collection/frame and requires an executable
-    // four-track batch and nonnegative dt. Without one, compile out batch dispatch.
-    // This does not select a hardware backend: UpdateAnimationSimd4 uses the same
-    // Simd* operations with native vectors or scalar primitives. Individual-track
-    // evaluation handles unsupported tracks and tails in either case.
-    template <bool UseBatches>
+    // Inspect current state immediately before each group. A property setter may
+    // have canceled a later track while an earlier scalar track was evaluated.
+    static bool CanUpdateAnimationSimd4(const Animation* animations, uint32_t count)
+    {
+        return count >= 4 && IsAnimationSimdReady(animations[0]) && IsAnimationSimdReady(animations[1]) &&
+               IsAnimationSimdReady(animations[2]) && IsAnimationSimdReady(animations[3]);
+    }
+
+    // Keep physical order: update four eligible tracks together, otherwise one.
+    // Negative steps use scalar evaluation to preserve delay and cursor behavior.
     static AnimationUpdateChanges EvaluateAnimations(AnimWorld* world, Collection* collection, uint32_t size, float frame_dt)
     {
         AnimationUpdateChanges changes = { false, false };
-        // A setter may cancel a later track during this walk. In that case check
-        // all four records just before each batch, rather than trusting a run.
-        const bool cached_runs = !world->m_HasAnimationSetters;
-        uint32_t run_index = 0;
-        uint32_t next_run = cached_runs && world->m_SimdRuns.Size() != 0 ? world->m_SimdRuns[0].m_Begin : size;
-        for (uint32_t i = 0; i < size; ++i)
+        const bool use_simd = frame_dt >= 0.0f;
+        for (uint32_t i = 0; i < size;)
         {
-            Animation& anim = world->m_Animations[i];
-            const bool use_batch = UseBatches &&
-                                   (cached_runs ? i == next_run : CanUpdateAnimationSimd4(&anim, size - i));
-            if (use_batch)
+            Animation* animations = &world->m_Animations[i];
+            if (use_simd && CanUpdateAnimationSimd4(animations, size - i))
             {
-                const uint32_t end = cached_runs ? world->m_SimdRuns[run_index].m_End : i + 4;
-                Animation* animations = world->m_Animations.Begin();
-                for (uint32_t j = i; j < end; j += 4)
-                {
-                    changes.m_Transforms |= UpdateAnimationSimd4(&animations[j], frame_dt);
-                }
-                i = end - 1;
-                if (cached_runs)
-                {
-                    ++run_index;
-                    next_run = run_index < world->m_SimdRuns.Size() ? world->m_SimdRuns[run_index].m_Begin : size;
-                }
+                changes.m_Transforms |= UpdateAnimationSimd4(animations, frame_dt);
+                i += 4;
             }
             else
             {
-                UpdateAnimationScalar(world, collection, anim, frame_dt, changes);
+                UpdateAnimationScalar(world, collection, *animations, frame_dt, changes);
+                ++i;
             }
         }
         return changes;
@@ -648,17 +562,15 @@ namespace dmGameObject
          *
          * The first pass activates tracks whose delay expires this frame and
          * captures their from-values. Delay is consumed in evaluation, so a track
-         * with a partial-frame delay stays scalar until the next run rebuild.
+         * with a partial-frame delay stays scalar until the next frame.
          * Newly started animations should automatically cancel others of the
          * same property, which is why this is done in a separate pass. Otherwise
          * an ongoing animation could already have changed the property's value
          * before the newly started animation captures it as its from-value.
          *
-         * After activation, rebuild dirty SIMD runs before the second pass
-         * advances and evaluates the array. Unchanged runs are reused across
-         * frames. Activation, stopping and swap-erasure invalidate the cache when
-         * readiness or physical positions change. The arithmetic loop does not
-         * reschedule tracks.
+         * The second pass advances and evaluates tracks in array order. It checks
+         * current state before each group of four, using SIMD for eligible groups
+         * and scalar evaluation for other tracks and short tails.
          *
          * Euler writes are committed after evaluation, once per touched instance,
          * before finalization prunes stopped animations and calls callbacks.
@@ -693,7 +605,6 @@ namespace dmGameObject
                     continue;
                 }
                 anim.m_FirstUpdate = 0;
-                world->m_SimdRunsDirty |= anim.m_SimdEligible;
                 // Update from-value
                 if (!anim.m_Composite)
                 {
@@ -734,21 +645,7 @@ namespace dmGameObject
                 }
             }
         }
-        AnimationUpdateChanges changes;
-        if (world->m_SimdRunsDirty && frame_dt >= 0.0f)
-        {
-            RebuildAnimationRuns(world);
-        }
-        if (world->m_SimdRuns.Size() != 0 && frame_dt >= 0.0f)
-        {
-            changes = EvaluateAnimations<true>(world, collection, size, frame_dt);
-        }
-        else
-        {
-            changes = EvaluateAnimations<false>(world, collection, size, frame_dt);
-        }
-        // Negative steps can restore delays. Refresh readiness before batching again.
-        world->m_SimdRunsDirty |= frame_dt < 0.0f;
+        AnimationUpdateChanges changes = EvaluateAnimations(world, collection, size, frame_dt);
         transforms_updated = changes.m_Transforms;
         euler_updated = changes.m_Euler;
         if (transforms_updated)
@@ -958,9 +855,6 @@ namespace dmGameObject
         animation.m_SimdEligible = !animation.m_IsGameObjectEulerProperty && (value != 0 || composite_count == 3) &&
                                    easing.type < dmEasing::TYPE_FLOAT_VECTOR && animation.m_Duration > 0.0f &&
                                    playback >= PLAYBACK_LOOP_FORWARD && playback <= PLAYBACK_LOOP_PINGPONG;
-        // Appending an unready track leaves existing spans intact. Setters change
-        // whether evaluation may trust them, even before their delay expires.
-        world->m_SimdRunsDirty |= IsAnimationSetter(&animation);
         animation.m_FirstUpdate = 1;
         world->m_FirstPendingAnimation = dmMath::Min(world->m_FirstPendingAnimation, top);
 

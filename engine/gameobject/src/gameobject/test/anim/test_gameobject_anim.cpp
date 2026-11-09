@@ -425,7 +425,7 @@ TEST_F(AnimTest, LifecycleBoundsFollowSwapErasure)
 
 // Delayed loops must become batchable after a scalar-only pass. Negative steps,
 // cancellation and scalar completion must keep values equal to isolated tracks.
-TEST_F(AnimTest, AnimationRunsBecomeReadyAfterScalarEvaluation)
+TEST_F(AnimTest, DelayedLoopsMatchScalarEvaluation)
 {
     const uint32_t count = 13;
     dmGameObject::HCollection references[count];
@@ -449,7 +449,7 @@ TEST_F(AnimTest, AnimationRunsBecomeReadyAfterScalarEvaluation)
     }
     for (uint32_t frame = 0; frame < 24; ++frame)
     {
-        // Scalar tails start and finish alongside the unchanged loop spans.
+        // Scalar tracks start and finish alongside the looping tracks.
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, Animate(m_Collection, objects[0], 0, hash("position.z"),
                                                             dmGameObject::PLAYBACK_ONCE_FORWARD, target, dmEasing::Curve(dmEasing::TYPE_LINEAR), 0, 0, AnimationStopped, this, 0));
         if (frame == 12)
@@ -1719,9 +1719,9 @@ TEST_F(AnimTest, LinkedList)
 #undef ASSERT_FRAME
 }
 
-// Introducing and deleting a component property track must safely switch between
-// cached spans and checked batches without losing built-in or custom tracks.
-TEST_F(AnimTest, AnimationRunsSwitchToCheckedBatches)
+// Adding and deleting a component property track must preserve the values of
+// built-in and custom looping tracks.
+TEST_F(AnimTest, ComponentPropertyTracksPreserveLoopValues)
 {
     dmGameObject::HInstance objects[6];
     dmGameObject::HInstance scripted = 0;
