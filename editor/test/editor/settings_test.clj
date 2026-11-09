@@ -17,9 +17,23 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.process :as process]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [support.process-util :as process-util]))
+
+;; URL defaults must not load the server during parallel startup.
+;; A fresh JVM prevents earlier namespace loads from hiding the regression.
+(deftest url-defaults-do-not-load-local-extension-server
+  (process-util/with-child-process {:out :inherit :err :inherit}
+    '(do
+       (System/setProperty "glass.platform" "headless")
+       (System/setProperty "prism.order" "sw")
+       (System/setProperty "defold.dev" "true")
+       (require 'editor.game-project-core)
+       (assert (not (contains? (loaded-libs) 'local-extensions)))) []
+    (is (zero? (process/await-exit-code process)))))
 
 ;; The retired project-wide font setting must explain the per-font replacement
 ;; without blocking builds.
