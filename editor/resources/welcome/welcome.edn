@@ -110,7 +110,15 @@
                              :skip-root? true}]}
 
                {:label "welcome.tab.samples"
-                :templates [{:name "welcome.new-project.sample-3d-platformer.title"
+                :templates [{:name "welcome.new-project.sample-poki.title"
+                             :description "welcome.new-project.sample-poki.description"
+                             :image "sample-poki.png"
+                             :duration "Long"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/sample-poki/archive/92d74c7d49fa3ef2fb397c521d03485119329265.zip"
+                             :skip-root? true}
+
+                            {:name "welcome.new-project.sample-3d-platformer.title"
                              :description "welcome.new-project.sample-3d-platformer.description"
                              :image "sample-3d-platformer.png"
                              :duration "Medium"
