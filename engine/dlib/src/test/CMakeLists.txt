@@ -110,6 +110,7 @@ endfunction()
 
 dlib_add_test(test_memory)
 dlib_add_test(test_align)
+dlib_add_test(test_align C TARGET_NAME test_align_c)
 dlib_add_test(test_buffer)
 dlib_add_test(test_math)
 dlib_add_test(test_transform)
