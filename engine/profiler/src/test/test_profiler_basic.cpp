@@ -268,6 +268,31 @@ TEST_F(ProfilerBasicTest, ThreadSurvivesProfilerRestart)
     ASSERT_TRUE(m_Samples.m_Valid);
 }
 
+class ProfilerBasicMemoryTest : public ProfilerBasicTest
+{
+    public:
+    void SetUp()
+    {
+        ProfilerBasicTest::SetUp();
+        m_PreviousLimit = g_MaxSampleCount;
+        g_MaxSampleCount = 4096;
+        dmProfiler::SetSampleTreeCallback(0, 0);
+    }
+
+    void TearDown()
+    {
+        g_MaxSampleCount = m_PreviousLimit;
+        ProfilerBasicTest::TearDown();
+    }
+
+    ThreadData* GetThreadData()
+    {
+        return GetOrCreateThreadData(g_ProfileContext, GetThreadId());
+    }
+
+    uint32_t m_PreviousLimit;
+};
+
 // Verifies lazy entry, repeated exit and re-entry on an existing thread,
 // guarding against eager sample pools, stale tokens and double cleanup.
 TEST_F(ProfilerBasicTest, ExplicitThreadLifecycle)
@@ -296,6 +321,147 @@ TEST_F(ProfilerBasicTest, ExplicitThreadLifecycle)
     ASSERT_EQ(PROFILE_RESULT_OK, ProfileThreadExited());
     ASSERT_EQ(0u, g_ProfileContext->m_ThreadData.Size());
     ASSERT_EQ(0u, g_ProfileContext->m_ThreadNames.Size());
+}
+
+// Verifies that small trees allocate and reuse one sample page, guarding against
+// reserving the full configured sample limit for every lightly used thread.
+TEST_F(ProfilerBasicMemoryTest, SmallTreesReuseOnePage)
+{
+    ThreadData* td = GetThreadData();
+    ASSERT_EQ(0u, td->m_SamplePages.Size());
+    uint64_t name_hash = 0;
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("small_tree", &name_hash));
+    ASSERT_EQ(1u, td->m_SamplePages.Size());
+    ASSERT_EQ(1u, td->m_SampleCount);
+    Sample* page = td->m_SamplePages[0];
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("small_tree", name_hash));
+    ASSERT_EQ(0u, td->m_SampleCount);
+
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("small_tree", &name_hash));
+    ASSERT_EQ(1u, td->m_SamplePages.Size());
+    ASSERT_EQ(page, td->m_SamplePages[0]);
+    ASSERT_EQ(1u, td->m_CurrentSample->m_CallCount);
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("small_tree", name_hash));
+}
+
+// Verifies pointer stability, sibling order and repeated-scope aggregation across
+// page-directory growth, guarding against moved samples or broken child links.
+TEST_F(ProfilerBasicMemoryTest, WideTreePreservesOrderAndAggregation)
+{
+    uint64_t root_hash = 0;
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("wide_tree", &root_hash));
+    ThreadData* td = GetThreadData();
+    Sample* root = td->m_CurrentSample;
+    Sample* first_child = 0;
+    const uint32_t child_count = g_SamplePageSize * 4 + 17;
+    for (uint32_t i = 0; i < child_count; ++i)
+    {
+        char name[32];
+        snprintf(name, sizeof(name), "child_%u", i);
+        uint64_t name_hash = 0;
+        for (uint32_t call = 0; call < 2; ++call)
+        {
+            ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin(name, &name_hash));
+            if (i == 0)
+            {
+                first_child = td->m_CurrentSample;
+            }
+            ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd(name, name_hash));
+        }
+    }
+    ASSERT_EQ(root, td->m_CurrentSample);
+    ASSERT_EQ(first_child, root->m_FirstChild);
+    ASSERT_EQ(child_count + 1, td->m_SampleCount);
+    ASSERT_EQ(5u, td->m_SamplePages.Size());
+
+    dmProfiler::SampleIterator iter;
+    dmProfiler::SampleIterateChildren(root, &iter);
+    for (uint32_t i = 0; i < child_count; ++i)
+    {
+        ASSERT_TRUE(dmProfiler::SampleIterateNext(&iter));
+        char name[32];
+        snprintf(name, sizeof(name), "child_%u", i);
+        ASSERT_STREQ(name, dmProfiler::SampleGetName(iter.m_Sample));
+        ASSERT_EQ(2u, dmProfiler::SampleGetCallCount(iter.m_Sample));
+    }
+    ASSERT_FALSE(dmProfiler::SampleIterateNext(&iter));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("wide_tree", root_hash));
+    ASSERT_EQ(0u, td->m_SampleCount);
+}
+
+// Verifies that parent links remain valid across page growth and all nested
+// scopes close normally, guarding against corruption of the active scope stack.
+TEST_F(ProfilerBasicMemoryTest, NestedScopesCrossPages)
+{
+    const uint32_t depth = g_SamplePageSize * 2 + 17;
+    uint64_t name_hash = 0;
+    for (uint32_t i = 0; i < depth; ++i)
+    {
+        ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("nested", &name_hash));
+    }
+    ThreadData* td = GetThreadData();
+    ASSERT_EQ(3u, td->m_SamplePages.Size());
+    Sample* sample = td->m_CurrentSample;
+    for (uint32_t i = 0; i < depth; ++i)
+    {
+        ASSERT_NE(&td->m_Root, sample);
+        sample = sample->m_Parent;
+    }
+    ASSERT_EQ(&td->m_Root, sample);
+    for (uint32_t i = 0; i < depth; ++i)
+    {
+        ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("nested", name_hash));
+    }
+    ASSERT_EQ(&td->m_Root, td->m_CurrentSample);
+    ASSERT_EQ(0u, td->m_SampleCount);
+    ASSERT_EQ(0u, td->m_OverflowDepth);
+}
+
+// Verifies a partial final page and balanced overflow while retaining the
+// thread's original limit when the default changes during pool growth.
+TEST_F(ProfilerBasicMemoryTest, PreservesLimitAndOverflowAcrossPages)
+{
+    const uint32_t limit = g_SamplePageSize + 3;
+    g_MaxSampleCount = limit;
+    uint64_t name_hash = 0;
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("limited", &name_hash));
+    ThreadData* td = GetThreadData();
+    g_MaxSampleCount = 1;
+    for (uint32_t i = 1; i < limit; ++i)
+    {
+        ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("limited", &name_hash));
+    }
+    ASSERT_EQ(limit, td->m_MaxSampleCount);
+    ASSERT_EQ(limit, td->m_SampleCount);
+    ASSERT_EQ(2u, td->m_SamplePages.Size());
+    Sample* current = td->m_CurrentSample;
+    ASSERT_EQ(PROFILE_RESULT_OUT_OF_SAMPLES, ProfileScopeBegin("limited", &name_hash));
+    ASSERT_EQ(PROFILE_RESULT_OUT_OF_SAMPLES, ProfileScopeBegin("limited", &name_hash));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("limited", name_hash));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("limited", name_hash));
+    ASSERT_EQ(current, td->m_CurrentSample);
+    ASSERT_EQ(0u, td->m_OverflowDepth);
+    for (uint32_t i = 0; i < limit; ++i)
+    {
+        ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("limited", name_hash));
+    }
+    ASSERT_EQ(0u, td->m_SampleCount);
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("limited", &name_hash));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("limited", name_hash));
+    ASSERT_EQ(2u, td->m_SamplePages.Size());
+}
+
+// Verifies the existing zero-limit behavior without allocating sample pages,
+// guarding against rounding the configured maximum up to a whole page.
+TEST_F(ProfilerBasicMemoryTest, ZeroLimitDoesNotAllocate)
+{
+    g_MaxSampleCount = 0;
+    uint64_t name_hash = 0;
+    ASSERT_EQ(PROFILE_RESULT_OUT_OF_SAMPLES, ProfileScopeBegin("disabled", &name_hash));
+    ThreadData* td = GetThreadData();
+    ASSERT_EQ(0u, td->m_SamplePages.Size());
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("disabled", name_hash));
+    ASSERT_EQ(0u, td->m_OverflowDepth);
 }
 
 int main(int argc, char** argv)
