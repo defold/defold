@@ -283,7 +283,7 @@ public class ShaderCompilers {
 
             ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
             if (this.baseOptions != null) {
-                opts.outputMode = this.baseOptions.outputMode;
+                opts.hLSLOutputMode = this.baseOptions.hLSLOutputMode;
                 opts.externalToolPath = this.baseOptions.externalToolPath;
                 opts.externalToolArgs = this.baseOptions.externalToolArgs;
             }
@@ -313,7 +313,7 @@ public class ShaderCompilers {
                 boolean arrayTextureFallbackRequired = ShaderUtil.VariantTextureArrayFallback.isRequired(shaderLanguage);
 
                 boolean create_hlsl_root_signature = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60 &&
-                    opts.outputMode != Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_SOURCE;
+                    opts.hLSLOutputMode != Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_SOURCE;
                 List<Shaderc.ShaderCompileResult> compiled_shaders = new ArrayList<>();
                 List<ShaderDesc.ShaderType> compiled_shader_types = new ArrayList<>();
                 List<Boolean> compiled_shader_variant_flags = new ArrayList<>();

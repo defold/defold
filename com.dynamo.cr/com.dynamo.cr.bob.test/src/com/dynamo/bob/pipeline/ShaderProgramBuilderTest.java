@@ -43,44 +43,31 @@ import static org.junit.Assert.assertTrue;
 
 public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
-    // Guards against the common compiler discarding explicit modes before target validation.
+    // Guards HLSL source selection from changing the text/binary formats of other targets.
     @Test
-    public void testCommonShaderCompilerRejectsUnsupportedOutputModes() throws Exception {
-        String[] sources = { fp, "#version 450\nlayout(location=0) out vec4 color; void main(){color=vec4(1);}" };
-        String[] adapters = { "opengl", "vulkan" };
-        Shaderc.ShaderOutputMode[] modes = {
-            Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_BINARY,
-            Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_SOURCE
-        };
-        for (String source : sources) {
-            for (int i = 0; i < adapters.length; ++i) {
-                ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
-                options.outputMode = modes[i];
-                IShaderCompiler compiler = ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64Win32, options);
-                try {
-                    compileShaderWithCompiler(compiler, adapters[i], "common-invalid-output-mode", source);
-                    org.junit.Assert.fail("Expected rejection for " + adapters[i] + " / " + modes[i]);
-                } catch (CompileExceptionError error) {
-                    assertTrue(error.getMessage(), error.getMessage().contains("output is not supported"));
-                    assertTrue(error.getMessage(), error.getMessage().contains(modes[i].toString()));
-                }
-            }
-        }
+    public void testCommonShaderCompilerHLSLSourceDoesNotAffectOtherTargets() throws Exception {
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.hLSLOutputMode = Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_SOURCE;
+        IShaderCompiler compiler = ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64Win32, options);
+        ShaderDesc glsl = compileShaderWithCompiler(compiler, "opengl", "common-glsl-output");
+        assertTrue(glsl.getShaders(0).getSource().toStringUtf8().contains("void main"));
+        ShaderDesc spirv = compileShaderWithCompiler(compiler, "vulkan", "common-spirv-output");
+        assertEquals(0x07230203, spirv.getShaders(0).getSource().asReadOnlyByteBuffer().order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt());
     }
 
-    // Verifies common HLSL source output skips binary finalization while DEFAULT/BINARY retain it.
+    // Verifies common HLSL source output skips binary finalization while binary output retains it.
     @Test
     public void testCommonShaderCompilerHLSLOutputModes() throws Exception {
         String[] sources = { fp, "#version 450\nlayout(location=0) out vec4 color; void main(){color=vec4(1);}" };
         for (String source : sources) {
-            for (Shaderc.ShaderOutputMode mode : Shaderc.ShaderOutputMode.values()) {
+            for (Shaderc.HLSLOutputMode mode : Shaderc.HLSLOutputMode.values()) {
                 ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
-                options.outputMode = mode;
+                options.hLSLOutputMode = mode;
                 IShaderCompiler compiler = ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64Win32, options);
                 ShaderDesc shader = compileShaderWithCompiler(compiler, "dx12", "common-hlsl-output-mode", source);
                 checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_HLSL_60);
                 byte[] data = shader.getShaders(0).getSource().toByteArray();
-                if (mode == Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_SOURCE) {
+                if (mode == Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_SOURCE) {
                     String text = new String(data, StandardCharsets.UTF_8);
                     assertTrue(text.contains("SV_Target"));
                     assertFalse(text.contains("RootSignature"));
@@ -91,85 +78,6 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                 }
             }
         }
-    }
-
-    private void checkOutputModes(String source) throws Exception {
-        ShaderCompilePipeline.ShaderModuleDesc module = new ShaderCompilePipeline.ShaderModuleDesc();
-        module.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
-        module.resourcePath = "output-modes.fp";
-        module.source = source;
-        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
-        modules.add(module);
-        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
-        assertEquals(Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_DEFAULT, options.outputMode);
-        ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline("output-modes", modules, options);
-        ShaderDesc.Language[] languages = {
-            ShaderDesc.Language.LANGUAGE_GLSL_SM120, ShaderDesc.Language.LANGUAGE_GLSL_SM330,
-            ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_GLES_SM300,
-            ShaderDesc.Language.LANGUAGE_MSL_22, ShaderDesc.Language.LANGUAGE_WGSL,
-            ShaderDesc.Language.LANGUAGE_HLSL_60, ShaderDesc.Language.LANGUAGE_SPIRV
-        };
-        try {
-            for (ShaderDesc.Language language : languages) {
-                for (Shaderc.ShaderOutputMode mode : Shaderc.ShaderOutputMode.values()) {
-                    boolean spirv = language == ShaderDesc.Language.LANGUAGE_SPIRV;
-                    boolean hlsl = language == ShaderDesc.Language.LANGUAGE_HLSL_60;
-                    boolean unsupported = (mode == Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_SOURCE && spirv) ||
-                        (mode == Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_BINARY && !spirv && !hlsl);
-                    try {
-                        Shaderc.ShaderCompileResult result = pipeline.crossCompile(module.type, language, mode);
-                        assertFalse("Expected rejection for " + language + " / " + mode, unsupported);
-                        if (spirv) {
-                            assertEquals(0x07230203, java.nio.ByteBuffer.wrap(result.data).order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt());
-                        } else if (hlsl && mode != Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_SOURCE) {
-                            assertEquals("DXBC", new String(result.data, 0, 4, StandardCharsets.UTF_8));
-                            assertTrue(result.hLSLRootSignature.length > 0);
-                        } else {
-                            String text = new String(result.data, StandardCharsets.UTF_8);
-                            String marker = hlsl ? "SV_Target" : language == ShaderDesc.Language.LANGUAGE_MSL_22 ? "metal_stdlib" :
-                                language == ShaderDesc.Language.LANGUAGE_WGSL ? "@fragment" : "void main";
-                            assertTrue(language + " / " + mode + ": " + text, text.contains(marker));
-                        }
-                    } catch (CompileExceptionError error) {
-                        if (!unsupported) {
-                            throw error;
-                        }
-                        assertTrue(error.getMessage(), error.getMessage().contains("output is not supported"));
-                        assertTrue(error.getMessage(), error.getMessage().contains(language.toString()));
-                    }
-                }
-            }
-            // A source override must not change later calls on the same pipeline.
-            pipeline.crossCompile(module.type, ShaderDesc.Language.LANGUAGE_HLSL_60, Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_SOURCE);
-            Shaderc.ShaderCompileResult binary = pipeline.crossCompile(module.type, ShaderDesc.Language.LANGUAGE_HLSL_60);
-            assertEquals("DXBC", new String(binary.data, 0, 4, StandardCharsets.UTF_8));
-            assertEquals(Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_DEFAULT, options.outputMode);
-
-            options.outputMode = Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_SOURCE;
-            try {
-                pipeline.crossCompile(module.type, ShaderDesc.Language.LANGUAGE_SPIRV);
-                org.junit.Assert.fail("Pipeline-wide SOURCE must reject SPIR-V");
-            } catch (CompileExceptionError error) {
-                assertTrue(error.getMessage().contains("output is not supported"));
-            }
-            // Per-call DEFAULT resolves for this target even when the pipeline requests SOURCE.
-            Shaderc.ShaderCompileResult spirv = pipeline.crossCompile(module.type, ShaderDesc.Language.LANGUAGE_SPIRV, Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_DEFAULT);
-            assertEquals(0x07230203, java.nio.ByteBuffer.wrap(spirv.data).order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt());
-        } finally {
-            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
-        }
-    }
-
-    // Verifies default formats, explicit modes and errors across all modern pipeline targets.
-    @Test
-    public void testShaderOutputModes() throws Exception {
-        checkOutputModes("#version 450\nlayout(location=0) out vec4 color;\nvoid main() { color=vec4(1); }\n");
-    }
-
-    // Guards legacy GLSL and WGSL paths against bypassing output-mode validation and overrides.
-    @Test
-    public void testLegacyShaderOutputModes() throws Exception {
-        checkOutputModes("void main() { gl_FragColor=vec4(1); }\n");
     }
 
     // Source output must bypass DXC while preserving compute workgroup reflection through JNI.
@@ -184,7 +92,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
         modules.add(module);
         ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
-        options.outputMode = Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_SOURCE;
+        options.hLSLOutputMode = Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_SOURCE;
         ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline("source-output", modules, options);
         try {
             Shaderc.ShaderCompileResult result = pipeline.crossCompile(module.type, ShaderDesc.Language.LANGUAGE_HLSL_60);

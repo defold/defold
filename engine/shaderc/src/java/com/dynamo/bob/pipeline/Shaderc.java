@@ -264,23 +264,22 @@ public class Shaderc {
         }
     };
 
-    public enum ShaderOutputMode {
-        SHADER_OUTPUT_MODE_DEFAULT(0),
-        SHADER_OUTPUT_MODE_SOURCE(1),
-        SHADER_OUTPUT_MODE_BINARY(2);
+    public enum HLSLOutputMode {
+        HLSL_OUTPUT_MODE_BINARY(0),
+        HLSL_OUTPUT_MODE_SOURCE(1);
         private final int value;
-        private ShaderOutputMode(int value) {
+        private HLSLOutputMode(int value) {
             this.value = value;
         }
         public int getValue() {
             return this.value;
         }
-        static public ShaderOutputMode fromValue(int value) throws IllegalArgumentException {
-            for (ShaderOutputMode e : ShaderOutputMode.values()) {
+        static public HLSLOutputMode fromValue(int value) throws IllegalArgumentException {
+            for (HLSLOutputMode e : HLSLOutputMode.values()) {
                 if (e.value == value)
                     return e;
             }
-            throw new IllegalArgumentException(String.format("Invalid value to ShaderOutputMode: %d", value) );
+            throw new IllegalArgumentException(String.format("Invalid value to HLSLOutputMode: %d", value) );
         }
     };
 
@@ -290,7 +289,7 @@ public class Shaderc {
         public ShaderPrecision glslEsDefaultFloatPrecision = ShaderPrecision.SHADER_PRECISION_MEDIUMP;
         public ShaderPrecision glslEsDefaultIntPrecision = ShaderPrecision.SHADER_PRECISION_MEDIUMP;
         public ShaderCompilerPlatform targetPlatform = ShaderCompilerPlatform.SHADER_COMPILER_PLATFORM_DEFAULT;
-        public ShaderOutputMode outputMode = ShaderOutputMode.SHADER_OUTPUT_MODE_DEFAULT;
+        public HLSLOutputMode hLSLOutputMode = HLSLOutputMode.HLSL_OUTPUT_MODE_BINARY;
         public byte removeUnusedVariables = 0;
         public byte no420PackExtension = 0;
         public byte glslEmitUboAsPlainUniforms = 0;

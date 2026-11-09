@@ -190,60 +190,26 @@ static inline const char* FindFirstOccurrence(const dmArray<uint8_t>& data, cons
     return 0;
 }
 
-// Verifies default formats and explicit modes, including rejection before cross-compilation.
-TEST(Shaderc, OutputModes)
+// Verifies opting into HLSL source bypasses binary compilation and root-signature generation.
+TEST(Shaderc, HLSLSourceOutput)
 {
-    using namespace dmShaderc;
     uint32_t data_size;
     void* data = ReadFile("./build/src/test/data/simple.spv", &data_size);
     ASSERT_NE((void*) 0, data);
-    HShaderContext context = NewShaderContext(SHADER_STAGE_FRAGMENT, data, data_size);
-    ShaderLanguage languages[] = { SHADER_LANGUAGE_GLSL, SHADER_LANGUAGE_MSL, SHADER_LANGUAGE_HLSL, SHADER_LANGUAGE_SPIRV };
-    ShaderOutputMode modes[] = { SHADER_OUTPUT_MODE_DEFAULT, SHADER_OUTPUT_MODE_SOURCE, SHADER_OUTPUT_MODE_BINARY };
-    const char* source_markers[] = { "#version", "metal_stdlib", "SV_Target" };
-    for (uint32_t i = 0; i < sizeof(languages) / sizeof(languages[0]); ++i)
-    {
-        for (uint32_t j = 0; j < sizeof(modes) / sizeof(modes[0]); ++j)
-        {
-            HShaderCompiler compiler = NewShaderCompiler(context, languages[i]);
-            ShaderCompilerOptions options;
-            options.m_OutputMode = modes[j];
-            options.m_Version = languages[i] == SHADER_LANGUAGE_HLSL ? 60 : languages[i] == SHADER_LANGUAGE_MSL ? 22 : 330;
-            ShaderCompileResult* result = Compile(context, compiler, options);
-            bool unsupported = (modes[j] == SHADER_OUTPUT_MODE_BINARY && (languages[i] == SHADER_LANGUAGE_GLSL || languages[i] == SHADER_LANGUAGE_MSL)) ||
-                               (modes[j] == SHADER_OUTPUT_MODE_SOURCE && languages[i] == SHADER_LANGUAGE_SPIRV);
-            if (unsupported)
-            {
-                ASSERT_NE((const char*) 0, strstr(result->m_LastError, "output is not supported"));
-                ASSERT_EQ(0u, result->m_Data.Size());
-            }
-            else
-            {
-                ASSERT_STREQ("", result->m_LastError);
-                ASSERT_GT(result->m_Data.Size(), 4u);
-                if (languages[i] == SHADER_LANGUAGE_SPIRV)
-                {
-                    ASSERT_EQ(data_size, result->m_Data.Size());
-                    ASSERT_EQ(0, memcmp(data, result->m_Data.Begin(), data_size));
-                }
-                else if (languages[i] == SHADER_LANGUAGE_HLSL && modes[j] != SHADER_OUTPUT_MODE_SOURCE)
-                {
-                    ASSERT_TRUE(HasDXBCHeader(result->m_Data.Begin(), result->m_Data.Size()));
-                    ASSERT_GT(result->m_HLSLRootSignature.Size(), 0u);
-                }
-                else
-                {
-                    ASSERT_NE((const char*) 0, FindFirstOccurrence(result->m_Data, source_markers[i]));
-                    ASSERT_FALSE(HasDXBCHeader(result->m_Data.Begin(), result->m_Data.Size()));
-                    ASSERT_EQ(0u, result->m_HLSLRootSignature.Size());
-                }
-            }
-            ASSERT_EQ(modes[j], options.m_OutputMode);
-            FreeShaderCompileResult(result);
-            DeleteShaderCompiler(compiler);
-        }
-    }
-    DeleteShaderContext(context);
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_HLSLOutputMode = dmShaderc::HLSL_OUTPUT_MODE_SOURCE;
+    options.m_Version = 60;
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
+    ASSERT_STREQ("", result->m_LastError);
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(result->m_Data, "SV_Target"));
+    ASSERT_FALSE(dmShaderc::HasDXBCHeader(result->m_Data.Begin(), result->m_Data.Size()));
+    ASSERT_EQ(0u, result->m_HLSLRootSignature.Size());
+
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(context);
     free(data);
 }
 

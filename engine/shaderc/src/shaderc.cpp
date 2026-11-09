@@ -123,65 +123,15 @@ namespace dmShaderc
         }
     }
 
-    static const char* ResolveOutputMode(ShaderLanguage language, ShaderOutputMode* mode)
+    ShaderCompileResult* Compile(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions& options)
     {
-        if (*mode == SHADER_OUTPUT_MODE_DEFAULT)
-        {
-            *mode = language == SHADER_LANGUAGE_HLSL || language == SHADER_LANGUAGE_SPIRV ? SHADER_OUTPUT_MODE_BINARY : SHADER_OUTPUT_MODE_SOURCE;
-        }
-        if (*mode != SHADER_OUTPUT_MODE_SOURCE && *mode != SHADER_OUTPUT_MODE_BINARY)
-        {
-            return "Invalid shader output mode";
-        }
-        switch (language)
-        {
-            case SHADER_LANGUAGE_GLSL:
-            {
-                return *mode == SHADER_OUTPUT_MODE_SOURCE ? 0 : "BINARY output is not supported for GLSL";
-            }
-            case SHADER_LANGUAGE_MSL:
-            {
-                return *mode == SHADER_OUTPUT_MODE_SOURCE ? 0 : "BINARY output is not supported for MSL";
-            }
-            case SHADER_LANGUAGE_SPIRV:
-            {
-                return *mode == SHADER_OUTPUT_MODE_BINARY ? 0 : "SOURCE output is not supported for SPIR-V";
-            }
-            case SHADER_LANGUAGE_HLSL:
-            {
-#if !defined(DM_BINARY_HLSL_SUPPORTED)
-                if (*mode == SHADER_OUTPUT_MODE_BINARY)
-                {
-                    return "BINARY output is not supported for HLSL in this build";
-                }
-#endif
-                return 0;
-            }
-            default:
-            {
-                return "Unsupported shader language";
-            }
-        }
-    }
-
-    ShaderCompileResult* Compile(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions& requested_options)
-    {
-        ShaderCompilerOptions options = requested_options;
-        const char* error = ResolveOutputMode(compiler->m_Language, &options.m_OutputMode);
-        if (error)
-        {
-            ShaderCompileResult* result = (ShaderCompileResult*) calloc(1, sizeof(ShaderCompileResult));
-            result->m_LastError = error;
-            return result;
-        }
-
         if (compiler->m_Language == SHADER_LANGUAGE_SPIRV)
         {
             return CompileSPIRV(context, (ShaderCompilerSPIRV*) compiler, options);
         }
 
 #ifdef DM_BINARY_HLSL_SUPPORTED
-        if (compiler->m_Language == SHADER_LANGUAGE_HLSL && options.m_OutputMode == SHADER_OUTPUT_MODE_BINARY)
+        if (compiler->m_Language == SHADER_LANGUAGE_HLSL && options.m_HLSLOutputMode == HLSL_OUTPUT_MODE_BINARY)
         {
             ShaderCompileResult* result_xcompiled = CompileSPVC(context, (ShaderCompilerSPVC*) compiler, options);
             if (result_xcompiled->m_LastError[0])

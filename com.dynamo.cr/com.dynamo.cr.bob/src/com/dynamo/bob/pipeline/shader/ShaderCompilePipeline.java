@@ -46,9 +46,9 @@ public class ShaderCompilePipeline {
         public boolean glslEmitUboAsPlainUniforms;
         public boolean splitTextureSamplers;
         public boolean remapVertexFragmentIOForHLSL;
-        // DEFAULT selects source for GLSL/MSL/WGSL and binary for HLSL/SPIR-V.
-        // Use a per-call override when a downstream compiler needs HLSL source.
-        public Shaderc.ShaderOutputMode outputMode = Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_DEFAULT;
+        // Select HLSL source when a downstream compiler handles the binary stage.
+        // This option does not affect GLSL, MSL, WGSL or SPIR-V output.
+        public Shaderc.HLSLOutputMode hLSLOutputMode = Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_BINARY;
         public ArrayList<String> defines = new ArrayList<>();
         public String externalToolPath;
         public String externalToolArgs;
@@ -261,7 +261,6 @@ public class ShaderCompilePipeline {
         final ShaderDesc.ShaderType shaderType;
         final ShaderDesc.Language shaderLanguage;
         final int version;
-        Shaderc.ShaderOutputMode outputMode = Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_DEFAULT;
         String rootSignatureOverride;
         boolean hLSLMoveSVPositionToFront;
 
@@ -354,7 +353,7 @@ public class ShaderCompilePipeline {
         opts.externalCompilerArgs = this.options.externalToolArgs;
         opts.rootSignatureOverride = compileOptions.rootSignatureOverride;
         opts.hLSLMoveSVPositionToFront = (byte) (compileOptions.hLSLMoveSVPositionToFront ? 1 : 0);
-        opts.outputMode = compileOptions.outputMode;
+        opts.hLSLOutputMode = this.options.hLSLOutputMode;
 
         Shaderc.ShaderCompileResult result = ShadercJni.Compile(module.spirvContext, compiler, opts);
         ShadercJni.DeleteShaderCompiler(compiler);
@@ -754,30 +753,6 @@ public class ShaderCompilePipeline {
     }
 
     public Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride, boolean hLSLMoveSVPositionToFront) throws IOException, CompileExceptionError {
-        return crossCompile(shaderType, shaderLanguage, rootSignatureOverride, hLSLMoveSVPositionToFront, this.options.outputMode);
-    }
-
-    public Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, Shaderc.ShaderOutputMode outputMode) throws IOException, CompileExceptionError {
-        return crossCompile(shaderType, shaderLanguage, null, false, outputMode);
-    }
-
-    protected static Shaderc.ShaderOutputMode resolveOutputMode(ShaderDesc.Language shaderLanguage, Shaderc.ShaderOutputMode outputMode) throws CompileExceptionError {
-        boolean binaryTarget = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60 || shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV;
-        if (outputMode == Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_DEFAULT) {
-            return binaryTarget ? Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_BINARY : Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_SOURCE;
-        }
-        if (outputMode == null) {
-            throw new CompileExceptionError("Shader output mode must not be null");
-        }
-        if ((outputMode == Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_SOURCE && shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) ||
-            (outputMode == Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_BINARY && !binaryTarget)) {
-            throw new CompileExceptionError(outputMode + " output is not supported for " + shaderLanguage);
-        }
-        return outputMode;
-    }
-
-    public Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride, boolean hLSLMoveSVPositionToFront, Shaderc.ShaderOutputMode outputMode) throws IOException, CompileExceptionError {
-        outputMode = resolveOutputMode(shaderLanguage, outputMode);
         assert(rootSignatureOverride == null || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60);
         assert(!hLSLMoveSVPositionToFront || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60);
         int version = ShaderLanguageToVersion(shaderLanguage);
@@ -805,7 +780,6 @@ public class ShaderCompilePipeline {
             return result;
         } else if (CanBeCrossCompiled(shaderLanguage)) {
             CrossCompileOptions compileOptions = new CrossCompileOptions(shaderType, shaderLanguage, version);
-            compileOptions.outputMode = outputMode;
             compileOptions.rootSignatureOverride = rootSignatureOverride;
             compileOptions.hLSLMoveSVPositionToFront = hLSLMoveSVPositionToFront;
             Shaderc.ShaderCompileResult result = generateCrossCompiledShader(compileOptions);
