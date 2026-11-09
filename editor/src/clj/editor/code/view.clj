@@ -3410,6 +3410,10 @@
 
 (def ^:private language-server-loading-message (localization/message "code.language-server.loading"))
 
+(defn- document-symbols->items [document-symbols]
+  (mapv #(select-keys % [:name :kind :selection-range :detail :tags])
+        (flatten-document-symbols document-symbols)))
+
 (handler/defhandler :code.jump-to-symbol :code-view
   (enabled? [view-node evaluation-context]
     (let [resource-node (get-property view-node :resource-node evaluation-context)
@@ -3423,19 +3427,14 @@
             localization (get-property view-node :localization evaluation-context)]
         (if-not (lsp/has-language-servers-running-for-resource? lsp resource)
           (show-no-language-server-for-resource-language-notification! resource)
-          (let [document-symbols->items (fn document-symbols->items [document-symbols]
-                                          (mapv #(select-keys % [:name :kind :selection-range :detail :tags])
-                                                (flatten-document-symbols document-symbols)))
-                items (document-symbols->items (get-property view-node :document-symbols evaluation-context))
-                items-ref (when (lsp/document-symbols-pending? lsp resource)
-                            (let [items-ref (atom {:items items :loading true})]
-                              (lsp/on-document-symbols-ready!
-                                lsp resource
-                                (fn on-document-symbols-ready []
-                                  (ui/run-later
-                                    (reset! items-ref {:items (document-symbols->items (g/node-value view-node :document-symbols))
-                                                       :loading false}))))
-                              items-ref))
+          (let [items (document-symbols->items (get-property view-node :document-symbols evaluation-context))
+                items-ref (atom {:items items :loading true})
+                _ (lsp/get-document-symbols!
+                    lsp resource
+                    (fn on-document-symbols [document-symbols]
+                      (ui/run-later
+                        (reset! items-ref {:items (document-symbols->items document-symbols)
+                                           :loading false}))))
                 ;; Previewing moves the cursor as the selection changes, so remember
                 ;; where we started to put it back if the dialog is cancelled.
                 original-view {:cursor-ranges (get-property view-node :cursor-ranges evaluation-context)

@@ -510,35 +510,39 @@
 
 (defn- set-view-document-symbols [resource responses-ch document-symbols]
   (bound-fn write-document-symbols [state]
-    (if-not (identical? responses-ch (get-in state [:active-requests (document-symbols-id resource)]))
-      state
-      (do
-        (when-let [view-node (-> state :resource->view-node (get resource))]
-          (ui/run-later
-            (g/transact
-              {:undoable false}
-              (g/set-property view-node :document-symbols document-symbols))))
-        (run! #(%) (get-in state [:active-request-listeners (document-symbols-id resource)]))
-        (-> state
-            (update :active-requests dissoc (document-symbols-id resource))
-            (update :active-request-listeners dissoc (document-symbols-id resource)))))))
+    (let [{:keys [callbacks] :as request} (get-in state [:resource->open-state resource :document-symbol-request])]
+      (if-not (identical? responses-ch (:responses-ch request))
+        state
+        (do
+          (when-let [view-node (-> state :resource->view-node (get resource))]
+            (ui/run-later
+              (g/transact
+                {:undoable false}
+                (g/set-property view-node :document-symbols document-symbols))))
+          (run! #(% document-symbols) callbacks)
+          (update-in state [:resource->open-state resource]
+                     #(-> %
+                          (dissoc :document-symbol-request)
+                          (assoc :document-symbols document-symbols))))))))
 
-(defn- cancel-active-request [state id]
-  (if-let [responses-ch (get-in state [:active-requests id])]
+(defn- cancel-document-symbol-request [state resource]
+  (if-let [responses-ch (get-in state [:resource->open-state resource :document-symbol-request :responses-ch])]
     (-> state
         ((cancel-requests responses-ch (coll/keys (:server->server-state state))))
-        (update :active-requests dissoc id))
+        (update-in [:resource->open-state resource] dissoc :document-symbol-request))
     state))
 
 (defn- request-document-symbols [state resource]
   (let [{:keys [in]} state
-        responses-ch (a/chan 1 cat)]
+        responses-ch (a/chan 1 cat)
+        callbacks (get-in state [:resource->open-state resource :document-symbol-request :callbacks] [])]
     (a/go
       (let [responses (<! (a/into [] responses-ch))]
         (>! in (set-view-document-symbols resource responses-ch responses))))
     (-> state
-        (cancel-active-request (document-symbols-id resource))
-        (assoc-in [:active-requests (document-symbols-id resource)] responses-ch)
+        (cancel-document-symbol-request resource)
+        (assoc-in [:resource->open-state resource :document-symbol-request]
+                  {:responses-ch responses-ch :callbacks callbacks})
         (send-requests!
           responses-ch
           :capabilities-pred :document-symbol
@@ -596,7 +600,7 @@
                         (case (text-sync-kind capabilities)
                           :incremental @incremental-change-delay
                           :full @full-text-change-delay)))
-        (cond-> (assoc-in state [:resource->open-state resource] {:lines new-lines :version new-version})
+        (cond-> (update-in state [:resource->open-state resource] assoc :lines new-lines :version new-version)
           (resource-viewed? state resource)
           (schedule-debounce
             (document-symbols-id resource)
@@ -608,7 +612,9 @@
   (notify-interested-servers! state resource
                               :capabilities-pred capability-open-close?
                               :message (lsp.server/close-text-document resource))
-  (update state :resource->open-state dissoc resource))
+  (-> state
+      (cancel-document-symbol-request resource)
+      (update :resource->open-state dissoc resource)))
 
 (defn- ensure-resource-open! [state resource lines]
   (if (resource-open? state resource)
@@ -740,10 +746,11 @@
                        :view-node->resource {}
                        ;; map from debounce id to cancel-ch (close to cancel)
                        :debounce {}
-                       :active-requests {}
-                       :active-request-listeners {}
                        ;; map {resource {:lines ["code..."] :version int}},
-                       ;; indicates that the resource is open
+                       ;; indicates that the resource is open; viewed
+                       ;; resources also keep :document-symbols and, while
+                       ;; a symbol request is in flight,
+                       ;; :document-symbol-request {:responses-ch :callbacks}
                        ;; invariant: every viewed resource must be open
                        :resource->open-state {}}]
       (vreset! state-vol state)
@@ -799,24 +806,22 @@
             (set-view-node-completion-trigger-characters-tx state resource view-node))))
       state)))
 
-(defn document-symbols-pending?
-  "True while a document-symbol request is pending for the resource."
-  [lsp resource]
-  (contains? (:active-requests (lsp)) (document-symbols-id resource)))
+(defn get-document-symbols!
+  "Call callback with the resource's document symbols
 
-(defn on-document-symbols-ready!
-  "Call ready-fn when the resource's pending symbol request finishes, or as
-  soon as this registration is processed if no request is pending.
+  If a symbol request is in flight, callback waits for it to finish, otherwise
+  it receives the latest symbols right away.
 
-  ready-fn takes no arguments and runs on the LSP manager thread. Any symbol
-  update is queued on the UI thread first; use ui/run-later to read it.
-  Registrations survive request replacement and are discarded on view close."
-  [lsp resource ready-fn]
-  (lsp (bound-fn add-document-symbols-listener [state]
-         (let [id (document-symbols-id resource)]
-           (if (contains? (:active-requests state) id)
-             (update-in state [:active-request-listeners id] (fnil conj []) ready-fn)
-             (do (ready-fn) state))))))
+  callback receives a vector of document symbols and runs on the LSP manager
+  thread. A waiting callback survives request replacement and is discarded
+  when the view closes."
+  [lsp resource callback]
+  (lsp (bound-fn get-document-symbols [state]
+         (let [{:keys [document-symbol-request document-symbols]} (get-in state [:resource->open-state resource])]
+           (if document-symbol-request
+             (update-in state [:resource->open-state resource :document-symbol-request :callbacks] conj callback)
+             (do (callback (or document-symbols []))
+                 state))))))
 
 (defn set-render-progress!
   "Set the callback that displays language server progress.
@@ -846,8 +851,7 @@
           (update :resource->view-node dissoc resource)
           (update :view-node->resource dissoc view-node)
           (cancel-document-symbols-refresh resource)
-          (cancel-active-request (document-symbols-id resource))
-          (update :active-request-listeners dissoc (document-symbols-id resource))
+          (cancel-document-symbol-request resource)
           ;; will close if clean or removed, keep open if dirty
           (sync-resource-state! resource))
       state)))
