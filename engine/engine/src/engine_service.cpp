@@ -1045,7 +1045,7 @@ namespace dmEngineService
         dmWebServer::Send(request, PROFILER_HTML, PROFILER_HTML_SIZE);
     }
 
-    static void AddProfilerHandler(dmWebServer::HServer web_server, const char* path, const dmWebServer::HandlerParams* params, const char* openapi_json, uint32_t flags = 0)
+    static void AddProfilerHandler(dmWebServer::HServer web_server, const char* path, const dmWebServer::HandlerParams* params, const char* openapi_json, uint32_t flags)
     {
         dmWebServer::Result result = dmWebServer::AddHandler(web_server, path, params, openapi_json, flags);
         if (result != dmWebServer::RESULT_OK && result != dmWebServer::RESULT_HANDLER_ALREADY_REGISTRED)
@@ -1060,7 +1060,7 @@ namespace dmEngineService
         dmWebServer::HandlerParams gputrace_params;
         gputrace_params.m_Handler = GPUTraceRequest;
         gputrace_params.m_Userdata = &engine_service->m_GPUTrace;
-        AddProfilerHandler(engine_service->m_WebServer, "/profiler/gputrace", &gputrace_params, GPU_TRACE_OPENAPI);
+        AddProfilerHandler(engine_service->m_WebServer, "/profiler/gputrace", &gputrace_params, GPU_TRACE_OPENAPI, 0);
 #endif
 
         dmWebServer::HandlerParams resource_params;
@@ -1068,28 +1068,27 @@ namespace dmEngineService
         engine_service->m_ResourceHandlerParams.m_Factory = factory;
         engine_service->m_ResourceHandlerParams.m_Regist = regist;
         resource_params.m_Userdata = &engine_service->m_ResourceHandlerParams;
-        AddProfilerHandler(engine_service->m_WebServer, "/resources_data", &resource_params, RESOURCES_OPENAPI);
+        AddProfilerHandler(engine_service->m_WebServer, "/resources_data", &resource_params, RESOURCES_OPENAPI, 0);
 
         dmWebServer::HandlerParams gameobject_params;
         gameobject_params.m_Handler = HttpGameObjectRequestCallback;
         gameobject_params.m_Userdata = &engine_service->m_ResourceHandlerParams;
-        AddProfilerHandler(engine_service->m_WebServer, "/gameobjects_data", &gameobject_params, GAMEOBJECTS_OPENAPI);
+        AddProfilerHandler(engine_service->m_WebServer, "/gameobjects_data", &gameobject_params, GAMEOBJECTS_OPENAPI, 0);
 
         dmWebServer::HandlerParams scenegraph_params;
         scenegraph_params.m_Handler = HttpSceneGraphRequestCallback;
         scenegraph_params.m_Userdata = &engine_service->m_ResourceHandlerParams;
-        AddProfilerHandler(engine_service->m_WebServer, "/scene_graph", &scenegraph_params, SCENE_GRAPH_OPENAPI);
+        AddProfilerHandler(engine_service->m_WebServer, "/scene_graph", &scenegraph_params, SCENE_GRAPH_OPENAPI, 0);
 
-        // The entry point to the engine service profiler
+        // Preserve the profiler's root fallback for URLs without a more specific handler.
         dmWebServer::HandlerParams profile_params;
         profile_params.m_Handler = ProfileHandler;
         profile_params.m_Userdata = 0;
-        AddProfilerHandler(engine_service->m_WebServer, "/", &profile_params, PROFILE_OPENAPI, OBSERVATION_FLAGS);
+        AddProfilerHandler(engine_service->m_WebServer, "/", &profile_params, PROFILE_OPENAPI, 0);
     }
 
     void SetState(HEngineService engine_service, const EngineState* state)
     {
         engine_service->m_State = *state;
     }
-
 }

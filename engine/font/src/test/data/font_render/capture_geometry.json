@@ -1,5 +1,7 @@
 {
   "single_line": {"width": 640, "height": 100, "origin_x": 20, "origin_top": 20, "layout_width": 3000},
+  "arc": {"width": 640, "height": 600, "origin_x": 320, "origin_top": 300, "layout_width": 503},
+  "path": {"width": 640, "height": 320, "origin_x": 40, "origin_top": 100, "layout_width": 520},
   "radial_block_ellipse": {"width": 360, "height": 200, "origin_x": 20, "origin_top": 20, "layout_width": 3000},
   "english": {"width": 640, "height": 920, "origin_x": 20, "origin_top": 20, "layout_width": 600},
   "arabic": {"width": 640, "height": 1820, "origin_x": 20, "origin_top": 20, "layout_width": 600},

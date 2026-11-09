@@ -20,6 +20,7 @@
 #include <basis/encoder/basisu_bc7e_scalar.h>
 #include <basis/encoder/basisu_comp.h>
 #include <basis/zstd/zstd.h>
+#include <dlib/align.h>
 #include <dlib/zlib.h>
 #include <string.h>
 
@@ -125,7 +126,7 @@ namespace dmTexc
             uint32_t value_size = size - (uint32_t)(value - key);
             if (!ApplyMetadata(texture, key, value, value_size, error))
                 return false;
-            uint64_t padded_size = ((uint64_t)size + 3) & ~3ULL;
+            uint64_t padded_size = DM_ALIGN64(size, 4);
             if (padded_size > end - offset)
                 return Fail(error, "Invalid KTX2 metadata padding");
             offset += (uint32_t)padded_size;
@@ -401,7 +402,8 @@ namespace dmTexc
         uint32_t prefix_size = (uint32_t)source_header->m_dfd_byte_offset + (uint32_t)source_header->m_dfd_byte_length;
         if (source_header->m_kvd_byte_length)
             prefix_size = (uint32_t)source_header->m_kvd_byte_offset + (uint32_t)source_header->m_kvd_byte_length;
-        uint64_t total_size = ((uint64_t)prefix_size + 15) & ~15ULL;
+        const uint64_t aligned_prefix_size = DM_ALIGN64(prefix_size, 16);
+        uint64_t total_size = aligned_prefix_size;
         for (uint32_t i = 0; i < texture->m_Info.m_LevelCount; ++i)
             total_size += texture->m_Levels[i].m_UncompressedSize;
         if (total_size > UINT32_MAX)
@@ -414,7 +416,7 @@ namespace dmTexc
         basist::ktx2_header* header = (basist::ktx2_header*)data.Begin();
         header->m_supercompression_scheme = basist::KTX2_SS_NONE;
         basist::ktx2_level_index* levels = (basist::ktx2_level_index*)(data.Begin() + sizeof(*header));
-        uint32_t offset = (prefix_size + 15) & ~15U;
+        uint32_t offset = (uint32_t)aligned_prefix_size;
         for (uint32_t i = texture->m_Info.m_LevelCount; i > 0; --i)
         {
             dmArray<uint8_t> blocks;

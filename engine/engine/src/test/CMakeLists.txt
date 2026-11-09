@@ -74,6 +74,7 @@ set(ENGINE_TEST_CONTENT_SETTINGS
   "debugger.ini"
   "issue-12703.ini"
   "render_script.ini"
+  "script_modules.ini"
   "camera_acquire_input_focus.ini"
   "service/runtime.ini"
   "text_input.ini")
@@ -118,6 +119,7 @@ add_custom_command(
     --stage-root "${ENGINE_TEST_RUNTIME_ROOT}"
     --stamp "${ENGINE_TEST_CONTENT_STAMP}"
     --platform "${TARGET_PLATFORM}"
+    ${ENGINE_SHADER_OUTPUT_ARGS}
     --java "${Java_JAVA_EXECUTABLE}"
     --builtins-root "${ENGINE_BUILTINS_COMPILED_DIR}"
     ${ENGINE_TEST_CLASSPATH_ARGS}
@@ -137,6 +139,34 @@ add_dependencies(engine_test_content engine_bob_engine_jar)
 add_dependencies(engine_test_content engine_builtins)
 if(TARGET shaderc_jar)
   add_dependencies(engine_test_content shaderc_jar)
+endif()
+
+if(TARGET_PLATFORM STREQUAL HOST_PLATFORM)
+  foreach(_engine_variant IN ITEMS dmengine dmengine_release)
+    set(_script_modules_command
+      "${CMAKE_COMMAND}"
+      "-DENGINE=$<TARGET_FILE:${_engine_variant}>"
+      "-DCONTENT_ROOT=${ENGINE_TEST_RUNTIME_ROOT}/build/default"
+      "-DSUPPORTS_COMPUTE=${DEFOLD_PLATFORM_SUPPORTS_COMPUTE}"
+      "-DWITH_ASAN=${WITH_ASAN}"
+      -P "${ENGINE_TEST_ROOT}/test_script_modules.cmake")
+    defold_test_run_settings(_script_modules_runner _script_modules_options shared)
+    # Verify Lua module registration in the shipped engine variants (#13681).
+    add_custom_target(run_test_script_modules_${_engine_variant}
+      COMMAND ${_script_modules_runner} ${_script_modules_command}
+      DEPENDS ${_engine_variant} engine_test_content
+      ${_script_modules_options} VERBATIM)
+    add_dependencies(build_tests ${_engine_variant} engine_test_content)
+    # Match the other GPU tests: local desktops and Linux CI with a display.
+    if(NOT WITH_MSAN AND (NOT DEFINED ENV{GITHUB_ACTIONS} OR TARGET_PLATFORM MATCHES "linux$"))
+      defold_add_to_run_tests(run_test_script_modules_${_engine_variant}
+        COMMAND ${_script_modules_command}
+        DEPENDS ${_engine_variant} engine_test_content)
+      defold_register_sequential_test_command(script_modules_${_engine_variant}
+        COMMAND ${_script_modules_command}
+        DEPENDS ${_engine_variant} engine_test_content)
+    endif()
+  endforeach()
 endif()
 
 if(TARGET debugger AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)

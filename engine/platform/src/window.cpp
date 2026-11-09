@@ -52,18 +52,28 @@ namespace dmPlatform
     {
         return 96.0f;
     }
-#endif
 
-#if defined(DM_PLATFORM_VENDOR) && !defined(DM_PLATFORM_NULL)
-    // Vendor backends do not expose client-unit metrics or support window resizing.
-    bool GetWindowClientSize(HWindow, uint32_t*, uint32_t*)
+    // Vendor backends without separate client metrics use their existing window dimensions.
+    bool GetWindowClientSize(HWindow window, uint32_t* width, uint32_t* height)
     {
-        return false;
+        if (!GetWindowStateParam(window, WINDOW_STATE_OPENED))
+        {
+            return false;
+        }
+        *width = GetWindowWidth(window);
+        *height = GetWindowHeight(window);
+        return true;
     }
 
     bool IsWindowResizeSupported(HWindow)
     {
         return false;
+    }
+
+    NativeWindowId GetNativeWindowId(HWindow)
+    {
+        NativeWindowId identity = {};
+        return identity;
     }
 #endif
 

@@ -33,24 +33,32 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-;; Resizing sends one JSON request with rotation applied, without a state lookup
-;; or receipt polling.
+;; Each simulator selection supersedes pending resizes with rotation applied,
+;; without a state lookup or receipt polling.
+;; Assert request metadata on the test thread so failures are counted.
 (deftest window-resize-test
   (let [requests (atom [])]
     (with-open [server (http-server/start!
                          (fn handle-resize [{:keys [method path body headers]}]
-                           (is (= "POST" method))
-                           (is (= "/window/resize" path))
-                           (is (= "application/json" (get headers "content-type")))
-                           (is (nil? (get headers "x-engine-instance")))
-                           (swap! requests conj (json/read-str (slurp body) :key-fn keyword))
+                           (swap! requests conj {:method method
+                                                 :path path
+                                                 :headers (select-keys headers ["content-type" "x-engine-instance"])
+                                                 :body (json/read-str (slurp body) :key-fn keyword)})
                            (http-server/json-response {:operation_id "r1" :state "queued"}
                                                       202 {"location" "/window/resize/r1"}))
                          :host "127.0.0.1")]
       (let [target {:url (http-server/local-url server)}]
         (engine/change-resolution! target 640 360 false)
         (engine/change-resolution! target 501 351 true))
-      (is (= [{:width 640 :height 360} {:width 351 :height 501}] @requests)))))
+      (is (= [{:method "POST"
+               :path "/window/resize"
+               :headers {"content-type" "application/json"}
+               :body {:width 640 :height 360 :supersede true}}
+              {:method "POST"
+               :path "/window/resize"
+               :headers {"content-type" "application/json"}
+               :body {:width 351 :height 501 :supersede true}}]
+             @requests)))))
 
 ;; Rejected resize requests retain the existing HTTP error behavior without
 ;; retrying.

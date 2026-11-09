@@ -259,20 +259,31 @@ TEST_F(EngineServiceOpenAPITest, ObservationContract)
     }
 }
 
-// Observation registrations match paths independently of queries and reject methods and incomplete uploads before dispatch.
-TEST_F(EngineServiceOpenAPITest, ObservationValidation)
+// Observation constraints hold with or without the profiler's fallback, which handles only unmatched paths.
+TEST_P(EngineServiceOpenAPITest, ObservationValidation)
 {
-    dmEngineService::InitProfiler(m_Service, 0, 0);
-    const char* paths[] = { "/ping", "/info", "/state", "/openapi.json", "/" };
+    if (GetParam())
+    {
+        dmEngineService::InitProfiler(m_Service, 0, 0);
+    }
+    const char* paths[] = { "/ping", "/info", "/state", "/openapi.json" };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
     {
         char path[64];
         dmSnPrintf(path, sizeof(path), "%s/other", paths[i]);
         Fetch("GET", path);
-        ASSERT_EQ(404, m_Status);
+        ASSERT_EQ(GetParam() ? 200 : 404, m_Status);
+        if (GetParam())
+        {
+            ASSERT_STREQ("text/html", m_ContentType);
+        }
         dmSnPrintf(path, sizeof(path), "%sXYZ", paths[i]);
         Fetch("GET", path);
-        ASSERT_EQ(404, m_Status);
+        ASSERT_EQ(GetParam() ? 200 : 404, m_Status);
+        if (GetParam())
+        {
+            ASSERT_STREQ("text/html", m_ContentType);
+        }
         dmSnPrintf(path, sizeof(path), "%s?wait=1", paths[i]);
         Fetch("GET", path);
         ASSERT_EQ(200, m_Status);
@@ -290,7 +301,36 @@ TEST_F(EngineServiceOpenAPITest, ObservationValidation)
         ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "Connection: close"));
     }
     Fetch("GET", "/unknown");
-    ASSERT_EQ(404, m_Status);
+    ASSERT_EQ(GetParam() ? 200 : 404, m_Status);
+    if (GetParam())
+    {
+        ASSERT_STREQ("text/html", m_ContentType);
+    }
+}
+
+// Preserve profiler HTML for root and unmatched URLs without imposing observation method restrictions.
+TEST_F(EngineServiceOpenAPITest, ProfilerFallbackCompatibility)
+{
+    dmEngineService::InitProfiler(m_Service, 0, 0);
+    Fetch("GET", "/");
+    ASSERT_EQ(200, m_Status);
+    ASSERT_STREQ("text/html", m_ContentType);
+    dmArray<char> html;
+    html.SetCapacity(m_Body.Size());
+    html.PushArray(m_Body.Begin(), m_Body.Size());
+
+    const char* paths[] = { "/", "/unknown?value=1" };
+    const char* methods[] = { "GET", "POST", "DELETE" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
+    {
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(methods); ++j)
+        {
+            Fetch(methods[j], paths[i]);
+            ASSERT_EQ(200, m_Status);
+            ASSERT_STREQ("text/html", m_ContentType);
+            ASSERT_STREQ(html.Begin(), m_Body.Begin());
+        }
+    }
 }
 
 // Each registration flag is independent; exact matching preserves queries and allows a shorter prefix fallback.
@@ -794,7 +834,8 @@ TEST_F(EngineServiceRuntimeTest, WindowServiceAcrossReboot)
     dmEngine::Delete(m_Engine);
     m_RequestInstance = 0;
     Fetch("GET", "/window");
-    ASSERT_EQ(404, m_Status);
+    ASSERT_EQ(200, m_Status);
+    ASSERT_STREQ("text/html", m_ContentType);
     Fetch("GET", "/openapi.json");
     ASSERT_EQ((const char*)0, strstr(m_Body.Begin(), "\"/window\""));
     m_Engine = dmEngine::New(m_Service);
@@ -822,7 +863,7 @@ TEST_F(EngineServiceRuntimeTest, WindowServiceAcrossReboot)
     ASSERT_EQ((const char*)0, strstr(path + 1, "\"/window\""));
 }
 
-// Zero-step, throttled, and disabled simulation leave resizes queued until the ordinary extension update resumes.
+// Consecutive selections during zero-step, throttled, and disabled simulation apply only the latest size on resume.
 TEST_F(EngineServiceRuntimeTest, WindowResizeWaitsForSimulation)
 {
     ASSERT_TRUE(InitProject());
@@ -845,11 +886,18 @@ TEST_F(EngineServiceRuntimeTest, WindowResizeWaitsForSimulation)
         dmEngine::SetEngineThrottle(m_Engine, i == 1, 0);
         m_Engine->m_ThrottleCooldown = 1;
         dmEngine::SetUpdateEnabled(i != 2);
-        char request[64], receipt[192];
-        dmSnPrintf(request, sizeof(request), "{\"width\":%u,\"height\":%u}", sizes[i][0], sizes[i][1]);
+        char request[96], receipt[192], previous[192];
+        dmSnPrintf(request, sizeof(request), "{\"width\":%u,\"height\":%u,\"supersede\":true}", sizes[i][1], sizes[i][0]);
+        Fetch("POST", "/window/resize", request);
+        ASSERT_EQ(202, m_Status);
+        dmStrlCpy(previous, m_Location, sizeof(previous));
+        dmSnPrintf(request, sizeof(request), "{\"width\":%u,\"height\":%u,\"supersede\":true}", sizes[i][0], sizes[i][1]);
         Fetch("POST", "/window/resize", request);
         ASSERT_EQ(202, m_Status);
         dmStrlCpy(receipt, m_Location, sizeof(receipt));
+        Fetch("GET", previous);
+        ASSERT_EQ(200, m_Status);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "resize_superseded"));
         ExpectState(true, frame);
         Fetch("GET", receipt);
         ASSERT_EQ(200, m_Status);
@@ -1280,10 +1328,11 @@ TEST_P(EngineServiceOpenAPITest, ExtensionLifecycle)
         ASSERT_EQ((const char*)0, strstr(m_Body.Begin(), "\"/extension/test\""));
 
         Fetch("GET", "/extension/test");
-        ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, m_Result);
-        ASSERT_EQ(404, m_Status);
+        ASSERT_EQ(dmHttpClient::RESULT_OK, m_Result);
+        ASSERT_EQ(200, m_Status);
+        ASSERT_STREQ("text/html", m_ContentType);
 
-        // Removing an extension may move the root handler ahead of the other profiler handlers.
+        // Removing an extension may move the root fallback ahead of the other profiler handlers.
         Fetch("GET", "/scene_graph");
         ASSERT_EQ(500, m_Status);
         ASSERT_STREQ("text/plain", m_ContentType);
@@ -1332,7 +1381,8 @@ TEST_F(EngineServiceOpenAPITest, UndocumentedExtensionLifecycle)
 
         ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::RemoveHandler(server, "/undocumented"));
         Fetch("GET", "/undocumented");
-        ASSERT_EQ(404, m_Status);
+        ASSERT_EQ(200, m_Status);
+        ASSERT_STREQ("text/html", m_ContentType);
         Fetch("GET", "/openapi.json");
         ASSERT_EQ(200, m_Status);
         ASSERT_STREQ(original.Begin(), m_Body.Begin());

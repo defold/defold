@@ -4195,7 +4195,7 @@ TEST_F(dmGuiTest, NodeTransform)
     dmGui::RenderScene(m_Scene, render_params, transforms);
     ASSERT_MAT4(transforms[0], ref_mat);
 
-    const float radians = 90.0f * M_PI / 180.0f;
+    const float radians = dmMath::DegToRad(90.0f);
     ref_mat *= dmVMath::Matrix4::rotation(radians * 0.50f, Vector3(0.0f, 1.0f, 0.0f));
     ref_mat *= dmVMath::Matrix4::rotation(radians * 1.00f, Vector3(0.0f, 0.0f, 1.0f));
     ref_mat *= dmVMath::Matrix4::rotation(radians * 0.25f, Vector3(1.0f, 0.0f, 0.0f));

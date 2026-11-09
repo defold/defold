@@ -35,6 +35,8 @@ struct dmWindow
     bool                  m_ResizeSupported;
     FWindowResizeCallback m_ResizeCallback;
     void*                 m_Userdata;
+
+    dmPlatform::NativeWindowId m_NativeWindowId;
 };
 
 namespace dmPlatform
@@ -64,6 +66,11 @@ namespace dmPlatform
         *width = window->m_Width;
         *height = window->m_Height;
         return window->m_ClientAvailable;
+    }
+    NativeWindowId GetNativeWindowId(HWindow window)
+    {
+        NativeWindowId identity = {};
+        return window && window->m_Opened ? window->m_NativeWindowId : identity;
     }
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
     {
@@ -149,6 +156,8 @@ class PlatformServiceTest : public HttpServiceTest
         m_Window->m_DisplayScale = 1.0f;
         m_Window->m_ClientAvailable = true;
         m_Window->m_ResizeSupported = true;
+        m_Window->m_NativeWindowId.m_Type = dmPlatform::NATIVE_WINDOW_TYPE_NONE;
+        m_Window->m_NativeWindowId.m_Id = 0;
         m_Window->m_ResizeCallback = OnResize;
         m_Window->m_Userdata = this;
     }
@@ -259,6 +268,52 @@ TEST_F(PlatformServiceTest, WindowGeometry)
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"window\":null,\"drawable\":null"));
 }
 
+// Native identities retain their OS type and all integer bits without depending on client metrics or resize support.
+TEST_F(PlatformServiceTest, NativeWindowIdentity)
+{
+    struct Case
+    {
+        dmPlatform::NativeWindowId m_Identity;
+        const char*                m_Expected;
+    } cases[] = {
+        { { dmPlatform::NATIVE_WINDOW_TYPE_WIN32, UINT64_MAX }, "\"native_window\":{\"type\":\"win32\",\"id\":\"18446744073709551615\"}" },
+        { { dmPlatform::NATIVE_WINDOW_TYPE_COCOA, 123456 }, "\"native_window\":{\"type\":\"cocoa\",\"id\":\"123456\"}" },
+        { { dmPlatform::NATIVE_WINDOW_TYPE_X11, 0x12345678 }, "\"native_window\":{\"type\":\"x11\",\"id\":\"305419896\"}" },
+    };
+    m_Window->m_ClientAvailable = m_Window->m_ResizeSupported = false;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        m_Window->m_NativeWindowId = cases[i].m_Identity;
+        Fetch("GET", "/window");
+        ASSERT_EQ(200, m_Status);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), cases[i].m_Expected));
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"revision\":\"w1\""));
+    }
+}
+
+// Missing or closed windows expose no identity, and reattachment reads the new window's ID instead of a stale handle.
+TEST_F(PlatformServiceTest, NativeWindowIdentityLifetime)
+{
+    Fetch("GET", "/window");
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"native_window\":null"));
+    m_Window->m_NativeWindowId.m_Type = dmPlatform::NATIVE_WINDOW_TYPE_COCOA;
+    m_Window->m_NativeWindowId.m_Id = 42;
+    Fetch("GET", "/window");
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"native_window\":{\"type\":\"cocoa\",\"id\":\"42\"}"));
+    CloseWindow();
+    Fetch("GET", "/window");
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"native_window\":null"));
+    OpenWindow();
+    m_Window->m_NativeWindowId.m_Type = dmPlatform::NATIVE_WINDOW_TYPE_COCOA;
+    m_Window->m_NativeWindowId.m_Id = 43;
+    dmPlatformService::Detach(m_Service);
+    Fetch("GET", "/window");
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"native_window\":null"));
+    dmPlatformService::Attach(m_Service, m_Window);
+    Fetch("GET", "/window");
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"native_window\":{\"type\":\"cocoa\",\"id\":\"43\"}"));
+}
+
 // A refused resize is issued once; receipts retain the eventual observed size across later window changes.
 TEST_F(PlatformServiceTest, ResizeObservation)
 {
@@ -288,6 +343,107 @@ TEST_F(PlatformServiceTest, ResizeObservation)
     ASSERT_EQ(3U, m_ResizeCount);
     Fetch("GET", m_Receipt);
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"already_matches\":true"));
+}
+
+// Consecutive simulator selections replace queued work without dispatching the old size or losing its receipt.
+TEST_F(PlatformServiceTest, SupersedeQueuedResize)
+{
+    Queue("{\"width\":640,\"height\":360}");
+    char previous[192];
+    dmStrlCpy(previous, m_Receipt, sizeof(previous));
+    Fetch("POST", "/window/resize", "{\"width\":360,\"height\":640,\"supersede\":false}");
+    ASSERT_EQ(409, m_Status);
+    Queue("{\"width\":360,\"height\":640,\"supersede\":true}");
+    ASSERT_EQ(0U, m_ResizeCount);
+    ASSERT_EQ(960U, dmPlatform::GetWindowWidth(m_Window));
+    Fetch("GET", previous);
+    ASSERT_EQ(200, m_Status);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"failed\""));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "resize_superseded"));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"requested\":{\"width\":640,\"height\":360}"));
+
+    dmPlatformService::Update(m_Service);
+    ASSERT_EQ(1U, m_ResizeCount);
+    ASSERT_EQ(360U, dmPlatform::GetWindowWidth(m_Window));
+    ASSERT_EQ(640U, dmPlatform::GetWindowHeight(m_Window));
+    Fetch("GET", m_Receipt);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"complete\""));
+    Fetch("GET", previous);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "resize_superseded"));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"window\":{\"width\":960,\"height\":640}"));
+}
+
+// A selection can recover immediately from an OS-refused resize instead of waiting for its deadline.
+TEST_F(PlatformServiceTest, SupersedeAwaitingResize)
+{
+    m_ClampResize = true;
+    Queue("{\"width\":640,\"height\":360}");
+    char previous[192];
+    dmStrlCpy(previous, m_Receipt, sizeof(previous));
+    dmPlatformService::Update(m_Service);
+    ASSERT_EQ(1U, m_ResizeCount);
+    Fetch("GET", previous);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"awaiting_window\""));
+
+    Queue("{\"width\":360,\"height\":640,\"supersede\":true}");
+    m_ClampResize = false;
+    dmPlatformService::Update(m_Service);
+    ASSERT_EQ(2U, m_ResizeCount);
+    ASSERT_EQ(360U, dmPlatform::GetWindowWidth(m_Window));
+    ASSERT_EQ(640U, dmPlatform::GetWindowHeight(m_Window));
+    Fetch("GET", previous);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"failed\""));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "resize_superseded"));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"window\":{\"width\":960,\"height\":640}"));
+    Fetch("GET", m_Receipt);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"complete\""));
+}
+
+// Invalid or conflicting replacement requests must leave the accepted resize intact.
+TEST_F(PlatformServiceTest, RejectedSupersedePreservesResize)
+{
+    Queue("{\"width\":640,\"height\":360}");
+    Fetch("POST", "/window/resize", "{\"width\":0,\"height\":640,\"supersede\":true}");
+    ASSERT_EQ(400, m_Status);
+    Fetch("POST", "/window/resize", "{\"width\":360,\"height\":640,\"supersede\":true,\"expected_window_revision\":\"old\"}");
+    ASSERT_EQ(409, m_Status);
+    m_Window->m_ResizeSupported = false;
+    Fetch("POST", "/window/resize", "{\"width\":360,\"height\":640,\"supersede\":true}");
+    ASSERT_EQ(501, m_Status);
+    m_Window->m_ResizeSupported = true;
+    Fetch("GET", m_Receipt);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"queued\""));
+    dmPlatformService::Update(m_Service);
+    ASSERT_EQ(1U, m_ResizeCount);
+    ASSERT_EQ(640U, dmPlatform::GetWindowWidth(m_Window));
+    ASSERT_EQ(360U, dmPlatform::GetWindowHeight(m_Window));
+}
+
+// Expired queued and awaiting resizes cannot block new requests when extension updates are paused.
+TEST_F(PlatformServiceTest, ExpiredResizeDoesNotBlockAdmission)
+{
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        Queue("{\"width\":640,\"height\":360,\"timeout_ms\":1}");
+        char previous[192];
+        dmStrlCpy(previous, m_Receipt, sizeof(previous));
+        if (i == 1)
+        {
+            m_ClampResize = true;
+            dmPlatformService::Update(m_Service);
+        }
+        g_ServiceTime += 2000;
+        Queue("{\"width\":360,\"height\":640}");
+        Fetch("GET", previous);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"failed\""));
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "resize_not_observed"));
+        m_ClampResize = false;
+        dmPlatformService::Update(m_Service);
+        ASSERT_EQ(360U, dmPlatform::GetWindowWidth(m_Window));
+        ASSERT_EQ(640U, dmPlatform::GetWindowHeight(m_Window));
+        Fetch("GET", m_Receipt);
+        ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"state\":\"complete\""));
+    }
 }
 
 // Admission and dispatch both reject stale geometry and unavailable surfaces before issuing a setter.
@@ -472,7 +628,10 @@ TEST_F(PlatformServiceTest, WindowRequestValidation)
         "{\"width\":1,\"height\":1} {}", "{\"width\":1,\"height\":1,\"timeout_ms\":60001}",
         "{\"width\":1,\"height\":1,\"timeout_ms\":0}", "{\"width\":1,\"height\":1,\"expected_window_revision\":null}",
         "{\"width\":2147483648,\"height\":1}", "{\"width\":18446744073709551616,\"height\":1}",
-        "{\"width\":1,\"height\":1,\"timeout_ms\":false}"
+        "{\"width\":1,\"height\":1,\"timeout_ms\":false}",
+        "{\"width\":1,\"height\":1,\"supersede\":1}", "{\"width\":1,\"height\":1,\"supersede\":null}",
+        "{\"width\":1,\"height\":1,\"supersede\":\"true\"}", "{\"width\":1,\"height\":1,\"supersede\":truex}",
+        "{\"width\":1,\"height\":1,\"supersede\":true,\"supersede\":false}"
     };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(invalid); ++i)
     {

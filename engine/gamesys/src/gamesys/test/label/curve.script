@@ -1,0 +1,9 @@
+function init(self)
+    -- One path transforms all three lines. Their baseline offsets follow its up axis.
+    label.set_curve("#label", {
+        {position = {-340, 0, 0}, out_handle = {80, 0, 0}, up = {0, 1, 0}, scale = 1},
+        {position = {-110, 15, 0}, in_handle = {-80, 0, 0}, out_handle = {80, 0, 0}},
+        {position = {110, -15, 0}, in_handle = {-80, 0, 0}, out_handle = {80, 0, 0}},
+        {position = {340, 0, 0}, in_handle = {-80, 0, 0}},
+    })
+end
