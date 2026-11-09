@@ -80,6 +80,62 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    private ShaderDesc compileHLSLSourcePair(String fragmentSource) throws Exception {
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.hLSLOutputMode = Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_SOURCE;
+        IShaderCompiler compiler = ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64Win32, options);
+        IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
+        compileOptions.shaderAdapters = "dx12";
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
+        ShaderCompilePipeline.ShaderModuleDesc vertex = new ShaderCompilePipeline.ShaderModuleDesc();
+        vertex.type = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
+        vertex.resourcePath = "/source-pair.vp";
+        vertex.source = vp;
+        modules.add(vertex);
+        ShaderCompilePipeline.ShaderModuleDesc fragment = new ShaderCompilePipeline.ShaderModuleDesc();
+        fragment.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+        fragment.resourcePath = "/source-pair.fp";
+        fragment.source = fragmentSource;
+        modules.add(fragment);
+        return ShaderProgramBuilder.buildResultsToShaderDescBuildResults(
+            compiler.compile(modules, "/source-pair.spc", compileOptions)).shaderDesc;
+    }
+
+    // Source output must normalize both stage interfaces when the fragment shader reads gl_FragCoord.
+    @Test
+    public void testHLSLSourcePairWithFragCoord() throws Exception {
+        ShaderDesc shader = compileHLSLSourcePair(
+            "varying vec4 fragColor;\nvoid main() { gl_FragColor = fragColor + gl_FragCoord; }\n");
+        assertEquals(2, shader.getShadersCount());
+        assertTrue(shader.getHlslRootSignature().isEmpty());
+        for (ShaderDesc.Shader stage : shader.getShadersList()) {
+            String source = stage.getSource().toStringUtf8();
+            int position = source.indexOf(": SV_Position");
+            int varying = source.indexOf("fragColor : TEXCOORD0");
+            assertTrue(source, position >= 0 && varying >= 0 && position < varying);
+            assertFalse(source.contains("RootSignature"));
+        }
+    }
+
+    // Without gl_FragCoord, moving vertex SV_Position would shift varyings away from fragment inputs.
+    @Test
+    public void testHLSLSourcePairWithoutFragCoord() throws Exception {
+        ShaderDesc shader = compileHLSLSourcePair(fp);
+        assertEquals(2, shader.getShadersCount());
+        assertTrue(shader.getHlslRootSignature().isEmpty());
+        for (ShaderDesc.Shader stage : shader.getShadersList()) {
+            String source = stage.getSource().toStringUtf8();
+            int varying = source.indexOf("fragColor : TEXCOORD0");
+            assertTrue(source, varying >= 0);
+            if (stage.getShaderType() == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX) {
+                assertTrue(source, source.indexOf(": SV_Position") > varying);
+            } else {
+                assertFalse(source.contains(": SV_Position"));
+            }
+            assertFalse(source.contains("RootSignature"));
+        }
+    }
+
     // Source output must bypass DXC while preserving compute workgroup reflection through JNI.
     @Test
     public void testSM6HLSLSourceOutput() throws Exception {

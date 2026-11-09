@@ -140,11 +140,18 @@ public class ShaderCompilers {
         return false;
     }
 
-    private static boolean hLSLShaderHasSVPositionInput(byte[] shaderData) {
+    private static boolean hLSLShaderHasSVPositionInput(byte[] shaderData, Shaderc.HLSLOutputMode outputMode) {
+        if (shaderData == null) {
+            return false;
+        }
+        if (outputMode == Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_SOURCE) {
+            // SPIRV-Cross emits this semantic for gl_FragCoord in the fragment input struct.
+            return containsAscii(shaderData, 0, shaderData.length, ": SV_Position");
+        }
         // D3DCompiler stores input signatures in DXBC ISGN/ISG1 chunks. We only
         // need to know whether the pixel shader consumes gl_FragCoord, which is
         // represented as an SV_Position input semantic in that chunk.
-        if (shaderData == null || shaderData.length < 32 ||
+        if (shaderData.length < 32 ||
             !chunkFourCCEquals(shaderData, 0, "DXBC")) {
             return false;
         }
@@ -312,7 +319,8 @@ public class ShaderCompilers {
 
                 boolean arrayTextureFallbackRequired = ShaderUtil.VariantTextureArrayFallback.isRequired(shaderLanguage);
 
-                boolean create_hlsl_root_signature = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60 &&
+                boolean isHLSL = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60;
+                boolean create_hlsl_root_signature = isHLSL &&
                     opts.hLSLOutputMode != Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_SOURCE;
                 List<Shaderc.ShaderCompileResult> compiled_shaders = new ArrayList<>();
                 List<ShaderDesc.ShaderType> compiled_shader_types = new ArrayList<>();
@@ -341,9 +349,10 @@ public class ShaderCompilers {
                 }
 
                 boolean hLSLMoveSVPositionToFront = false;
-                if (create_hlsl_root_signature && !isComputeType && compiled_shaders.size() > 1) {
+                // Stage interfaces must agree even when source output skips binary root signatures.
+                if (isHLSL && !isComputeType && compiled_shaders.size() > 1) {
                     int fragmentShaderIndex = compiled_shader_types.indexOf(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
-                    if (fragmentShaderIndex >= 0 && hLSLShaderHasSVPositionInput(compiled_shaders.get(fragmentShaderIndex).data)) {
+                    if (fragmentShaderIndex >= 0 && hLSLShaderHasSVPositionInput(compiled_shaders.get(fragmentShaderIndex).data, opts.hLSLOutputMode)) {
                         hLSLMoveSVPositionToFront = true;
                         for (int i = 0; i < compiled_shaders.size(); ++i) {
                             Shaderc.ShaderCompileResult recompiledShader = pipeline.crossCompile(compiled_shader_types.get(i), shaderLanguage, null, true);
