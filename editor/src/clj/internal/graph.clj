@@ -20,12 +20,14 @@
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
             [util.eduction :as e]
-            [util.pkid-vector :as pkid-vector])
-  (:import [clojure.lang IPersistentSet Indexed]
+            [util.pkid-vector :as pkid-vector]
+            [util.task :as task])
+  (:import [clojure.lang Counted IPersistentSet IReduceInit Indexed RT]
            [com.github.benmanes.caffeine.cache Cache Caffeine LoadingCache]
            [internal.graph.types Arc Endpoint]
-           [java.util ArrayList HashMap Objects]
-           [java.util.concurrent ConcurrentHashMap ForkJoinPool]))
+           [java.util ArrayDeque ArrayList Collection HashMap Iterator Objects]
+           [java.util.concurrent ConcurrentHashMap LinkedBlockingQueue]
+           [java.util.concurrent.atomic AtomicInteger]))
 
 ;; A brief braindump on Overrides.
 ;;
@@ -709,83 +711,135 @@
   ([basis target-id target-label]
    (arc-table-arcs (-> basis gt/tarcs (get target-id) (get target-label)))))
 
+(defn- push-source-arc-frame!
+  [^ArrayDeque pending ^Iterator targets source-override-chain source-override-node-chain source-index-chain next-override-id source-ids]
+  (if-not (.hasNext targets)
+    pending
+    (doto (or pending (ArrayDeque.))
+      (.push [source-override-chain source-override-node-chain source-index-chain next-override-id source-ids targets]))))
+
 (defn- lift-source-arc
   "Used by arcs-by-source/lift-source-arcs to infer all implicit arcs
   the explicit arc `arc` gives rise to if we follow the
   `source-override-node-chain` upwards from the source-id of
   `arc`.
-  Returns a list of arcs where:
+  Appends to and returns the transient result vector with arcs where:
   * source-id is the final node in source-override-node-chain
   * target-id is an override node in the final override in
   source-override-chain - whose chain of originals passes through the
   original target of `arc` - for which `source-override-chain` is the
   first and longest subsequence of its own chain of overrides.
   * the `arc` has not been shadowed by an intermediate explicit arc"
-  [basis source-override-chain source-override-node-chain source-index-chain arc]
-  (let [target (gt/target-id arc)
-        target-label (gt/target-label arc)]
-    (if (coll/empty? source-override-chain)
-      [arc]
-      (let [source-index (first source-index-chain)
-            next-override-id (first source-override-chain)
-            ^IPersistentSet source-ids (or (:ids source-index) (int-map/int-set))
-            nodes (gt/nodes basis)
-            target-override-node-ids (target-overrides-for-source basis target source-index next-override-id)]
-        (into []
-              (comp
-                ;; only follow what could make the source override chain
-                ;; a subsequence of this target chain - don't traverse
-                ;; up the wrong branch
-                (remove (fn [target-override-node-id]
-                          (let [override-id (-> target-override-node-id nodes gt/override-id)]
-                            (and (not= next-override-id override-id)
-                                 ;; measurably faster than contains?
-                                 (.contains source-ids override-id)))))
-                ;; An explicit arc shadows/blocks implicit arcs
-                (filter (fn [target-override-node-id]
-                          (coll/not-any?
-                            (fn [arc]
-                              (node-by-id-at basis (gt/source-id arc)))
-                            (explicit-arcs-by-target basis target-override-node-id target-label))))
-                ;; Keep lifting, with different remaining chains
-                ;; depending on if the current target override matches
-                ;; the (current) source.
-                (mapcat (fn [target-override-node-id]
-                          (let [target-override-id (gt/override-id (nodes target-override-node-id))]
-                            (if (= target-override-id (first source-override-chain))
-                              (lift-source-arc basis
-                                               (rest source-override-chain)
-                                               (rest source-override-node-chain)
-                                               (rest source-index-chain)
-                                               (assoc arc
-                                                 :source-id (first source-override-node-chain)
-                                                 :target-id target-override-node-id))
-                              (lift-source-arc basis
-                                               source-override-chain
-                                               source-override-node-chain
-                                               source-index-chain
-                                               (assoc arc :target-id target-override-node-id)))))))
-              target-override-node-ids)))))
+  [basis source-override-chain source-override-node-chain source-index-chain arc result]
+  (if (coll/empty? source-override-chain)
+    (conj! result arc)
+    (let [nodes (gt/nodes basis)
+          target-label (gt/target-label arc)]
+      ;; This is an iterative version of a recursive traversal of target
+      ;; overrides. `pending` takes the place of the recursive call stack.
+      (loop [source-override-chain source-override-chain
+             source-override-node-chain source-override-node-chain
+             source-index-chain source-index-chain
+             next-override-id (first source-override-chain)
+             source-ids (or (:ids (first source-index-chain)) (int-map/int-set))
+             targets (RT/iter (target-overrides-for-source
+                                basis
+                                (gt/target-id arc)
+                                (first source-index-chain)
+                                (first source-override-chain)))
+             ^ArrayDeque pending nil
+             result result]
+        (if-not (.hasNext targets)
+          (if-let [[source-override-chain source-override-node-chain source-index-chain next-override-id source-ids targets]
+                   (when pending (.poll pending))]
+            (recur source-override-chain source-override-node-chain source-index-chain
+                   next-override-id source-ids targets pending result)
+            result)
+          (let [target-override-node-id (.next targets)
+                target-override-id (gt/override-id (nodes target-override-node-id))]
+            (if-not (and
+                      ;; only follow what could make the source override chain
+                      ;; a subsequence of this target chain - don't traverse
+                      ;; up the wrong branch
+                      (or (= next-override-id target-override-id)
+                          ;; measurably faster than contains?
+                          (not (.contains ^IPersistentSet source-ids target-override-id)))
+                      ;; An explicit arc shadows/blocks implicit arcs
+                      (coll/not-any?
+                        (fn [arc]
+                          (node-by-id-at basis (gt/source-id arc)))
+                        (explicit-arcs-by-target basis target-override-node-id target-label)))
+              (recur source-override-chain source-override-node-chain source-index-chain
+                     next-override-id source-ids targets pending result)
+              ;; Keep lifting, with different remaining chains
+              ;; depending on if the current target override matches
+              ;; the (current) source.
+              (if (= target-override-id next-override-id)
+                (let [remaining-source-override-chain (rest source-override-chain)]
+                  (if (coll/empty? remaining-source-override-chain)
+                    (recur source-override-chain source-override-node-chain source-index-chain
+                           next-override-id source-ids targets pending
+                           (conj! result
+                                  (assoc arc
+                                    :source-id (first source-override-node-chain)
+                                    :target-id target-override-node-id)))
+                    (let [remaining-source-override-node-chain (rest source-override-node-chain)
+                          remaining-source-index-chain (rest source-index-chain)
+                          remaining-next-override-id (first remaining-source-override-chain)
+                          source-index (first remaining-source-index-chain)
+                          child-targets (target-overrides-for-source basis target-override-node-id source-index remaining-next-override-id)]
+                      (if (coll/empty? child-targets)
+                        (recur source-override-chain source-override-node-chain source-index-chain
+                               next-override-id source-ids targets pending result)
+                        (recur remaining-source-override-chain remaining-source-override-node-chain remaining-source-index-chain
+                               remaining-next-override-id (or (:ids source-index) (int-map/int-set))
+                               (RT/iter child-targets)
+                               (push-source-arc-frame!
+                                 pending
+                                 targets
+                                 source-override-chain
+                                 source-override-node-chain
+                                 source-index-chain
+                                 next-override-id
+                                 source-ids)
+                               result)))))
+                (let [child-targets (target-overrides-for-source basis target-override-node-id (first source-index-chain) next-override-id)]
+                  (if (coll/empty? child-targets)
+                    (recur source-override-chain source-override-node-chain source-index-chain
+                           next-override-id source-ids targets pending result)
+                    (recur source-override-chain source-override-node-chain source-index-chain
+                           next-override-id source-ids (RT/iter child-targets)
+                           (push-source-arc-frame!
+                             pending
+                             targets
+                             source-override-chain
+                             source-override-node-chain
+                             source-index-chain
+                             next-override-id
+                             source-ids)
+                           result)))))))))))
 
 (defn- lift-source-arcs
   [basis override-chains+explicit-arcs]
-  (into []
-        (comp
-          (filter (fn [[_ _ explicit-arcs]] (seq explicit-arcs)))
-          (keep (fn [[override-chain override-node-chain explicit-arcs]]
-                  ;; Here we can (assert (every? #(= (:source-id %) (:source-id (first explicit-arcs))) explicit-arcs))
-                  (let [source (gt/source-id (first explicit-arcs))
-                        ;; The source index prevents following target
-                        ;; overrides along the wrong "branches" (for which there may be another
-                        ;; better -earlier- matching source node).
-                        source-index-chain (coll/into-> (conj override-node-chain source) []
-                                             (take (count override-chain))
-                                             (map #(override-index basis %)))]
-                    (coll/not-empty
-                      (coll/into-> explicit-arcs []
-                        (mapcat #(lift-source-arc basis override-chain override-node-chain source-index-chain %)))))))
-          cat)
-        override-chains+explicit-arcs))
+  (persistent!
+    (reduce
+      (fn [result [override-chain override-node-chain explicit-arcs]]
+        ;; Here we can (assert (every? #(= (:source-id %)
+        ;;                                 (:source-id (first explicit-arcs)))
+        ;;                             explicit-arcs))
+        (let [source (gt/source-id (first explicit-arcs))
+              ;; The source index prevents following target
+              ;; overrides along the wrong "branches" (for which there may
+              ;; be another better -earlier- matching source node).
+              source-index-chain (coll/into-> (conj override-node-chain source) []
+                                   (take (count override-chain))
+                                   (map #(override-index basis %)))]
+          (reduce (fn [result arc]
+                    (lift-source-arc basis override-chain override-node-chain source-index-chain arc result))
+                  result
+                  explicit-arcs)))
+      (transient [])
+      override-chains+explicit-arcs)))
 
 (defn- propagate-source-arcs
   "Used by arcs-by-source. After having found a set of arcs from a
@@ -847,7 +901,7 @@
   of the start node.
   Returns a list of 3-tuples [override-chain override-node-chain
   explicit-arcs] where:
-  * explicit-arcs is the explicit arcs found at the current node
+  * explicit-arcs contains at least one explicit arc from the current node
   * override-node-chain is the sequence of override node ids to follow
   from the current node to reach the start node
   * override-chain is the sequence of override ids to follow from the
@@ -1033,7 +1087,7 @@
      the internal input-dependencies, i.e. outputs consuming the given output
      the closest override-nodes, i.e. override-node-a + output-x, as they can be potential dependents
      all connected nodes, where node-id-a + output-x => [[node-id-b + input-y] ...] => [[node-id-b + output+z] ...]"
-  [^Successors successors basis node-id label]
+  [^Successors successors basis node-id label ^ArrayList cache-writes]
   (let [cache (.-cache successors)]
     (if-let [cached-value (-> @cache (get node-id) (get label))]
       cached-value
@@ -1067,17 +1121,36 @@
             (let [result (if (.isEmpty deps)
                            empty-endpoints-array
                            (.toArray deps ^Endpoint/1 empty-endpoints-array))]
-              (swap! cache update node-id assoc label result)
+              (doto cache-writes
+                (.add node-id)
+                (.add label)
+                (.add result))
               result)))))))
+
+;; The trace claims each endpoint once, so it need not read pending rows.
+(defn- cache-successor-rows! [^Successors successors ^ArrayList writes]
+  (when-not (.isEmpty writes)
+    (swap! (.-cache successors)
+           (fn cache-rows [current-state]
+             (let [n (.size writes)]
+               (loop [i 0
+                      result (transient current-state)]
+                 (if (= i n)
+                   (persistent! result)
+                   (let [node-id (.get writes i)
+                         label (.get writes (inc i))
+                         endpoints (.get writes (+ i 2))]
+                     (recur (+ i 3)
+                            (assoc! result node-id (assoc (get result node-id) label endpoints)))))))))))
 
 (defn successors
   "Public only for tests and introspection tooling. Implementation detail."
   ^Object/1 [basis node-id label]
-  (query-successors
-    (gt/successors basis)
-    basis
-    node-id
-    label))
+  (let [node-successors (gt/successors basis)
+        cache-writes (ArrayList.)
+        result (query-successors node-successors basis node-id label cache-writes)]
+    (cache-successor-rows! node-successors cache-writes)
+    result))
 
 (def ^:private ^LoadingCache basis-dependencies-cache
   ;; Reuse results while the graph has the same Successors object.
@@ -1089,6 +1162,96 @@
       (.maximumSize 4)
       (.build (fn make-dependencies-cache [_]
                 (-> (Caffeine/newBuilder) (.maximumSize 4) .build)))))
+
+;; A batch covers size endpoints across successive arrays, starting at
+;; (start-array, start-offset). The successor arrays are shared with the cache
+;; and other batches and must remain immutable.
+(defonce/type EndpointArrayBatch [^objects arrays ^long start-array ^long start-offset ^long size]
+  Counted
+  (count [_] (int size))
+
+  IReduceInit
+  (reduce [_ f init]
+    (loop [array-index start-array offset start-offset remaining size result init]
+      (if (zero? remaining)
+        result
+        (let [^objects endpoints (aget arrays array-index)
+              n (min remaining (- (alength endpoints) offset))
+              limit (+ offset n)
+              result (loop [i offset
+                            result result]
+                       (if (= i limit)
+                         result
+                         (let [result (f result (aget endpoints i))]
+                           (if (reduced? result)
+                             result
+                             (recur (inc i) result)))))]
+          (if (reduced? result)
+            @result
+            (recur (inc array-index) 0 (- remaining n) result)))))))
+
+;; Public only for tests.
+(def ^:const dependency-batch-size 512)
+
+(defn- endpoint-array-batches [endpoint-arrays]
+  (let [arrays (object-array endpoint-arrays)
+        length (alength arrays)]
+    (loop [array-index 0
+           offset 0
+           start-array 0
+           start-offset 0
+           size 0
+           result (transient [])]
+      (if (= array-index length)
+        (persistent!
+          (if (zero? size)
+            result
+            (conj! result (->EndpointArrayBatch arrays start-array start-offset size))))
+        (let [^objects endpoints (aget arrays array-index)
+              available (- (alength endpoints) offset)
+              needed (- dependency-batch-size size)]
+          (if (< available needed)
+            (recur (inc array-index) 0 start-array start-offset (+ size available) result)
+            (let [next-offset (+ offset needed)
+                  next-array (if (= next-offset (alength endpoints)) (inc array-index) array-index)
+                  next-offset (if (= next-offset (alength endpoints)) 0 next-offset)]
+              (recur next-array next-offset next-array next-offset 0
+                     (conj! result (->EndpointArrayBatch arrays start-array start-offset dependency-batch-size))))))))))
+
+(defn- trace-dependency-batches! [trace-batch endpoints]
+  ;; Stay on the calling thread until there is parallel work.
+  (loop [endpoints endpoints]
+    (let [batches (trace-batch endpoints)]
+      (case (count batches)
+        0 nil
+        1 (recur (nth batches 0))
+        (let [worker-count (max 2 (.availableProcessors (Runtime/getRuntime)))
+              queue (LinkedBlockingQueue. ^Collection batches)
+              ;; Count queued batches and batches owned by workers, including
+              ;; their in-place continuations. Register extra batches before
+              ;; publishing. An empty queue is not completion.
+              pending-count (AtomicInteger. (count batches))
+              stop (Object.)]
+          (task/scope :all-successful
+            (dotimes [_ worker-count]
+              (task/fork
+                (loop [endpoints (.take queue)]
+                  (when-not (identical? stop endpoints)
+                    (let [batches (trace-batch endpoints)
+                          batch-count (count batches)]
+                      (case batch-count
+                        0 (do
+                            (when (zero? (.decrementAndGet pending-count))
+                              (dotimes [_ worker-count]
+                                (.add queue stop)))
+                            (recur (.take queue)))
+                        1 (recur (nth batches 0))
+                        (do
+                          (.addAndGet pending-count (dec batch-count))
+                          (dotimes [i (dec batch-count)]
+                            (.add queue (nth batches i)))
+                          (recur (peek batches)))))))))
+            nil))))))
 
 (defmacro ^:private dependencies-impl [basis endpoints initial-nodes]
   ;; Generate separate runtime walkers for performance. On a project with ~1M
@@ -1103,31 +1266,28 @@
          (let [basis# ~basis
                ~@(when initial-nodes [initial-nodes-sym initial-nodes])
                node-successors# (gt/successors basis#)
-               pool# (ForkJoinPool/commonPool)
                all-endpoints# (ConcurrentHashMap.)
 
-               make-task!#
-               (fn make-task!# [endpoints#]
-                 (fn trace-dependency-batch# []
-                   (coll/into-> endpoints# []
-                     (mapcat
-                       (fn trace-endpoint# [endpoint#]
-                         (let [~node-id-sym (gt/endpoint-node-id endpoint#)]
-                           (when (and ~@(when initial-nodes
-                                          [`(contains? ~initial-nodes-sym ~node-id-sym)])
-                                      (nil? (.putIfAbsent all-endpoints# endpoint# true)))
-                             (query-successors node-successors# basis#
-                                               ~node-id-sym (gt/endpoint-label endpoint#)))))))))
-
-               endpoints->tasks-xf# (comp (partition-all 512) (map make-task!#))
-               future->tasks-xf# (comp (mapcat deref) endpoints->tasks-xf#)]
-           (loop [tasks# (coll/into-> ~endpoints [] endpoints->tasks-xf#)]
-             (let [next-tasks#
-                   (if (= 1 (count tasks#))
-                     (coll/into-> ((nth tasks# 0)) [] endpoints->tasks-xf#)
-                     (coll/into-> (.invokeAll pool# tasks#) [] future->tasks-xf#))]
-               (when (pos? (count next-tasks#))
-                 (recur next-tasks#))))
+               trace-batch#
+               (fn trace-dependency-batch# [endpoints#]
+                 (if (> (count endpoints#) dependency-batch-size)
+                   (coll/into-> endpoints# [] (partition-all dependency-batch-size))
+                   (let [cache-writes# (ArrayList.)
+                         endpoint-arrays#
+                         (coll/into-> endpoints# []
+                           (keep
+                             (fn trace-endpoint# [endpoint#]
+                               (let [~node-id-sym (gt/endpoint-node-id endpoint#)]
+                                 (when (and ~@(when initial-nodes
+                                                [`(contains? ~initial-nodes-sym ~node-id-sym)])
+                                            (nil? (.putIfAbsent all-endpoints# endpoint# true)))
+                                   (let [successors# (query-successors node-successors# basis#
+                                                                       ~node-id-sym (gt/endpoint-label endpoint#) cache-writes#)]
+                                     (when (pos? (alength ^Object/1 successors#))
+                                       successors#)))))))]
+                     (cache-successor-rows! node-successors# cache-writes#)
+                     (endpoint-array-batches endpoint-arrays#))))]
+           (trace-dependency-batches! trace-batch# ~endpoints)
            (array/reducible (.toArray (.keySet all-endpoints#))))))))
 
 (defn dependencies

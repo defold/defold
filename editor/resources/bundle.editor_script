@@ -400,6 +400,7 @@ local android_dialog = editor.ui.component(function(props)
             editor.bundle.set_element_check_box(config, set_config, "bundle_format", "apk", localization.message("dialog.bundle.option.bundle-format.apk"), errors and errors.bundle_format),
             editor.bundle.set_element_check_box(config, set_config, "bundle_format", "aab", localization.message("dialog.bundle.option.bundle-format.aab"), errors and errors.bundle_format)
         }),
+        editor.bundle.grid_row(nil, editor.bundle.check_box(config, set_config, "download_size_report", localization.message("dialog.bundle.option.android.download-size-report"))),
         editor.bundle.common_variant_grid_row(config, set_config),
         editor.bundle.texture_compression_grid_row(config, set_config),
         editor.bundle.check_boxes_grid_row(config, set_config),
@@ -507,7 +508,8 @@ local function bundle_android(show_dialog)
         bundle_format = (apk and aab and "apk,aab") or (apk and "apk") or "aab",
         keystore = #config.keystore > 0 and config.keystore or nil,
         keystore_pass = #config["keystore-pass"] > 0 and config["keystore-pass"] or nil,
-        key_pass = #config["key-pass"] > 0 and config["key-pass"] or nil
+        key_pass = #config["key-pass"] > 0 and config["key-pass"] or nil,
+        download_size_report = config.download_size_report and (output_directory .. "/download_size.json") or nil
     })
 
     if apk and config.install then
@@ -597,6 +599,7 @@ function M.get_prefs_schema()
                 item = editor.prefs.schema.enum({values = {"apk", "aab"}}),
                 default = {apk = true}
             }),
+            download_size_report = editor.prefs.schema.boolean(),
             install = editor.prefs.schema.boolean(),
             launch = editor.prefs.schema.boolean()
         })

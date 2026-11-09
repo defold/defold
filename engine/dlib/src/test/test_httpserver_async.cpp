@@ -31,17 +31,6 @@ namespace dmTestSocket
     static int32_atomic_t g_BlockedSends;
     static int32_atomic_t g_EmptySelects;
 
-    static Result Select(Selector* selector, int32_t timeout)
-    {
-        // Match WSAPoll's nonempty socket requirement on every test platform.
-        if (selector->m_Poller.m_Pollfds.Empty())
-        {
-            dmAtomicIncrement32(&g_EmptySelects);
-            return RESULT_INVAL;
-        }
-        return dmSocket::Select(selector, timeout);
-    }
-
     static bool IsNonBlocking(Socket socket)
     {
         for (uint32_t i = 0; i < g_NonBlockingSockets.Size(); ++i)
@@ -88,6 +77,17 @@ namespace dmTestSocket
             return RESULT_WOULDBLOCK;
         }
         return dmSocket::Send(socket, buffer, length, sent);
+    }
+
+    static Result Select(Selector* selector, int32_t timeout)
+    {
+        // Match WSAPoll on every platform: at least one socket is required.
+        if (selector->m_Poller.m_Pollfds.Empty())
+        {
+            dmAtomicIncrement32(&g_EmptySelects);
+            return RESULT_INVAL;
+        }
+        return dmSocket::Select(selector, timeout);
     }
 }
 
@@ -225,18 +225,26 @@ class HttpServerAsyncTest : public jc_test_params_class<uint32_t>
     }
 };
 
-// Idle updates must not poll empty socket sets, including after the response sender drains.
-TEST_P(HttpServerAsyncTest, IdleUpdate)
+// Idle servers and clients awaiting a response must avoid empty polls, which fail on Windows.
+TEST_P(HttpServerAsyncTest, IdleAndPendingResponses)
 {
     ASSERT_EQ(dmTestHttpServer::RESULT_OK, dmTestHttpServer::Update(m_Server));
     dmSocket::Socket client = Connect();
     ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, client);
+    WaitForConnections(1);
+    dmAtomicStoreRelease32(&dmTestSocket::g_BlockedSocket, m_Server->m_Connections[0].m_Socket);
     SendRequest(client);
+    WaitForRequests(1);
+    dmTestHttpServer::AsyncResponse* response = m_Server->m_Connections[0].m_Response;
+    ASSERT_NE((dmTestHttpServer::AsyncResponse*)0, response);
+    ASSERT_EQ(0, dmAtomicLoadAcquire32(&response->m_Done));
+    ASSERT_EQ(dmTestHttpServer::RESULT_OK, dmTestHttpServer::Update(m_Server));
+
+    dmAtomicStoreRelease32(&dmTestSocket::g_BlockedSocket, dmSocket::INVALID_SOCKET_HANDLE);
     ReadPong(client);
     dmSocket::Delete(client);
     WaitForConnections(0);
     ASSERT_EQ(dmTestHttpServer::RESULT_OK, dmTestHttpServer::Update(m_Server));
-    ASSERT_EQ(1U, m_Requests);
 }
 
 // Check nonblocking mode before stale I/O so a regression fails without entering a blocking call.
@@ -286,8 +294,6 @@ TEST_P(HttpServerAsyncTest, BackpressureAndRecovery)
         dmTestHttpServer::Update(m_Server);
     }
     ASSERT_GT(dmAtomicGet32(&dmTestSocket::g_BlockedSends), 0);
-    // The only connection is still sending, so there are no sockets to read.
-    ASSERT_EQ(dmTestHttpServer::RESULT_OK, dmTestHttpServer::Update(m_Server));
 
     dmSocket::Socket fast = Connect();
     ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, fast);

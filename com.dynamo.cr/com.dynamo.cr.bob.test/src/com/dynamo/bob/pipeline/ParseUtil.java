@@ -14,37 +14,36 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-
-import com.dynamo.bob.util.TextureUtil;
-import org.apache.commons.io.FilenameUtils;
-
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.font.proto.GlyphBankProto;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gamesys.proto.DataProto;
-import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
+import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesys.proto.Gui;
 import com.dynamo.gamesys.proto.ModelProto;
 import com.dynamo.gamesys.proto.Physics.CollisionObjectDesc;
-import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
+import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.graphics.proto.Graphics;
 import com.dynamo.lua.proto.Lua.LuaModule;
+import com.dynamo.render.proto.Compute;
 import com.dynamo.render.proto.Font;
 import com.dynamo.render.proto.Material;
-import com.dynamo.render.proto.Compute;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.rig.proto.Rig;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.TextFormat.ParseException;
+import org.apache.commons.io.FilenameUtils;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ParseUtil {
 
