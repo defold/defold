@@ -265,7 +265,7 @@ static void WebGPUTestErrorCallback(WGPUPopErrorScopeStatus status, WGPUErrorTyp
     }
 }
 
-// Verifies rendering with cached bind groups and guards against releasing them twice at shutdown.
+// Verifies cache growth and lookups, rendering, and bind-group cleanup during shutdown.
 struct WebGPURenderingTest : ClearBackbufferTest
 {
     dmGraphics::HProgram         m_Program;
@@ -322,9 +322,32 @@ struct WebGPURenderingTest : ClearBackbufferTest
             dmGraphics::EnableState(context, dmGraphics::STATE_DEPTH_TEST);
         }
         dmGraphics::SetDepthMask(context, engine->m_WasRun % 2 == 0);
+        dmGraphics::WebGPUContext* webgpu_context = (dmGraphics::WebGPUContext*)context;
+        uint32_t capacity = webgpu_context->m_BindGroupCache.Capacity();
+        const uint32_t draw_count = engine->m_WasRun == 1 ? 512 : 1;
         dmVMath::Vector4 color(1.0f, 0.5f, 0.0f, 1.0f);
-        dmGraphics::SetConstantV4(context, &color, 1, m_Color);
-        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        for (uint32_t i = 0; i < draw_count; ++i)
+        {
+            color.setX(1.0f - i / 1024.0f);
+            dmGraphics::SetConstantV4(context, &color, 1, m_Color);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            if (webgpu_context->m_BindGroupCache.Capacity() != capacity)
+            {
+                ASSERT_EQ(capacity * 2, webgpu_context->m_BindGroupCache.Capacity());
+                capacity = webgpu_context->m_BindGroupCache.Capacity();
+            }
+        }
+        if (engine->m_WasRun == 1)
+        {
+            ASSERT_EQ(draw_count, webgpu_context->m_BindGroupCache.Size());
+            dmHashTable64<WGPUBindGroup>::Iterator iterator = webgpu_context->m_BindGroupCache.GetIterator();
+            while (iterator.Next())
+            {
+                WGPUBindGroup* cached = webgpu_context->m_BindGroupCache.Get(iterator.GetKey());
+                ASSERT_NE((WGPUBindGroup*)0, cached);
+                ASSERT_EQ(iterator.GetValue(), *cached);
+            }
+        }
         dmGraphics::DisableProgram(context);
 #if defined(DM_PLATFORM_MACOS)
         // EngineUpdate changes the interval during frames 1 and 2. Check the

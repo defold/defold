@@ -1607,7 +1607,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
         return false;
 
     context->m_SamplerCache.SetCapacity(32, 64);
-    context->m_BindGroupCache.SetCapacity(32, 64);
+    context->m_BindGroupCache.SetCapacity(64);
     context->m_RenderPipelineCache.SetCapacity(32, 64);
     context->m_ComputePipelineCache.SetCapacity(32, 64);
     SetSwapInterval((HContext) context, params.m_SwapInterval);
@@ -3124,7 +3124,10 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
             desc.layout             = context->m_CurrentProgram->m_BindGroupLayouts[set];
             WGPUBindGroup bindgroup = wgpuDeviceCreateBindGroup(context->m_Device, &desc);
             if (context->m_BindGroupCache.Full())
-                context->m_BindGroupCache.SetCapacity(32, context->m_BindGroupCache.Capacity() + 4);
+            {
+                // Scale the bucket count with capacity instead of rehashing into 32 buckets.
+                context->m_BindGroupCache.SetCapacity(context->m_BindGroupCache.Capacity() * 2);
+            }
             context->m_BindGroupCache.Put(bindgroup_hash, bindgroup);
             context->m_CurrentProgram->m_BindGroups[set] = bindgroup;
         }
