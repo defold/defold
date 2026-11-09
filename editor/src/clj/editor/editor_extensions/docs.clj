@@ -897,8 +897,7 @@ end
             :type :function
             :description "Create a grid row for the common boolean settings"
             :parameters [{:name "config" :types ["table<string, any>"] :doc "bundle config"}
-                         {:name "set_config" :types ["function"] :doc "config setter"}
-                         {:name "[extra_check_boxes]" :types ["editor.component[]"] :doc "additional check boxes, placed after the build report check box"}]
+                         {:name "set_config" :types ["function"] :doc "config setter"}]
             :returnvalues [{:name "row" :types ["(editor.component|false)[]"] :doc "grid row"}]}
            {:name "editor.bundle.config"
             :type :function

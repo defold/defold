@@ -402,9 +402,8 @@ local android_dialog = editor.ui.component(function(props)
         }),
         editor.bundle.common_variant_grid_row(config, set_config),
         editor.bundle.texture_compression_grid_row(config, set_config),
-        editor.bundle.check_boxes_grid_row(config, set_config, {
-            editor.bundle.check_box(config, set_config, "download_size_report", localization.message("dialog.bundle.option.android.download-size-report"))
-        }),
+        editor.bundle.check_boxes_grid_row(config, set_config),
+        editor.bundle.grid_row(nil, editor.bundle.check_box(config, set_config, "download_size_report", localization.message("dialog.bundle.option.android.download-size-report"))),
         {editor.ui.separator({column_span=2})},
         editor.bundle.grid_row(localization.message("dialog.bundle.label.on-bundled"), {
             editor.bundle.check_box(config, set_config, "install", localization.message("dialog.bundle.option.on-bundled.install"), {enabled = can_install_and_launch}),
