@@ -58,18 +58,15 @@
                      [commons-codec/commons-codec                 "1.10"]
                      [org.projectodd.shimdandy/shimdandy-api      "1.2.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.2.0"]
-                     [potemkin                                    "0.4.3"]
-                     [com.sun.jersey/jersey-core                  "1.19"]
-                     [com.sun.jersey/jersey-client                "1.19"]
-                     [com.sun.jersey.contribs/jersey-multipart    "1.19"]
                      [javax.vecmath/vecmath                       "1.5.2"]
                      [org.codehaus.jackson/jackson-core-asl       "1.9.13"]
                      [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
                      [org.eclipse.jgit/org.eclipse.jgit           "7.6.0.202603022253-r"]
                      [org.apache.commons/commons-compress         "1.18"]
 
-                     [net.java.dev.jna/jna                        "4.1.0"]
-                     [net.java.dev.jna/jna-platform               "4.1.0"]
+                     ;; Bob supplies JNA core.
+                     [net.java.dev.jna/jna-platform               "5.13.0"
+                      :exclusions [net.java.dev.jna/jna]]
 
                      [com.defold.lib/bob                          "1.0"]
                      [com.defold.lib/dmengine                     "1.0"]
@@ -96,10 +93,15 @@
                                    org.openjfx/javafx-media
                                    org.openjfx/javafx-web]]
 
-                     [org.jogamp.gluegen/gluegen-rt "2.6.0"]
-                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-linux-amd64"]
-                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-macosx-universal"]
-                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-windows-amd64"]
+                     ;; The GlueGen runtime does not use ANTLR 2.
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0"
+                      :exclusions [antlr/antlr]]
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-linux-amd64"
+                      :exclusions [antlr/antlr]]
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-macosx-universal"
+                      :exclusions [antlr/antlr]]
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-windows-amd64"
+                      :exclusions [antlr/antlr]]
                      [org.jogamp.jogl/jogl-all      "2.6.0"]
                      [org.jogamp.jogl/jogl-all      "2.6.0" :classifier "natives-linux-amd64"]
                      [org.jogamp.jogl/jogl-all      "2.6.0" :classifier "natives-macosx-universal"]

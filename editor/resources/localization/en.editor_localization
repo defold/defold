@@ -612,6 +612,7 @@ dialog.bundle.label.android.key-pass = Key password
 dialog.bundle.label.android.bundle-format = Bundle format
 dialog.bundle.option.bundle-format.apk = APK
 dialog.bundle.option.bundle-format.aab = AAB
+dialog.bundle.option.android.download-size-report = Estimate download size
 dialog.bundle.title.choose-keystore = Choose Keystore
 dialog.bundle.filter.keystore = Keystore (*.keystore, *.jks)
 dialog.bundle.title.choose-keystore-pass = Choose Keystore password
@@ -1577,6 +1578,11 @@ property.gui.y-anchor = Y Anchor
 property.gui.y-anchor.tooltip = Controls vertical positioning when the parent or scene is resized. **Top** and **Bottom** keep the pivot at the same proportional distance from that edge; **None** keeps it relative to the adjusted center.
 
 # Properties: label
+
+property.label.arc-radius = Arc Radius
+property.label.arc-radius.tooltip = Signed radius of the first text baseline in local units, centered on the object origin. Later lines retain the layout's line spacing.
+property.label.arc-angle = Arc Angle
+property.label.arc-angle.tooltip = Angular span from `0` to `360` degrees, inclusive. `360` forms a full circle. `0` selects textbox layout. Arc layout ignores Size. Line Break wraps text at the arc length; explicit newlines are preserved.
 
 property.label.color = Color
 property.label.color.tooltip = Sets the text's RGBA color. Use the alpha channel to control opacity.

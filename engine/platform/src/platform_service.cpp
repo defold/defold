@@ -46,6 +46,7 @@ namespace dmPlatformService
         const char*   m_Error;
         const char*   m_Message;
         bool          m_AlreadyMatches;
+        bool          m_Supersede;
     };
 
     struct Service
@@ -257,15 +258,24 @@ namespace dmPlatformService
         Revision(service, revision, sizeof(revision));
         const char* unavailable = UnavailableReason(service);
         dmSnPrintf(reason, sizeof(reason), "\"%s\"", unavailable ? unavailable : "");
+        char native_window[96] = "null";
+        dmPlatform::NativeWindowId identity = dmPlatform::GetNativeWindowId(service->m_Window);
+        if (identity.m_Type != dmPlatform::NATIVE_WINDOW_TYPE_NONE)
+        {
+            static const char* types[] = { "none", "win32", "cocoa", "x11" };
+            // A decimal string preserves all handle bits in clients with double-precision JSON numbers.
+            dmSnPrintf(native_window, sizeof(native_window), "{\"type\":\"%s\",\"id\":\"%llu\"}",
+                       types[identity.m_Type], (unsigned long long)identity.m_Id);
+        }
         // Format fixed-point components so the game's numeric locale cannot change the JSON decimal point.
         uint64_t display_scale = (uint64_t)(state->m_DisplayScale * 1000000.0 + 0.5);
         char body[1024];
         int length = dmSnPrintf(body, sizeof(body),
                                 "{\"revision\":\"%s\",\"window\":%s,\"drawable\":%s,\"display_scale\":%llu.%06llu,"
-                                "\"resize\":{\"supported\":%s,\"unavailable_reason\":%s,\"max_operations\":64,\"retention_ms\":60000}}",
+                                "\"native_window\":%s,\"resize\":{\"supported\":%s,\"unavailable_reason\":%s,\"max_operations\":64,\"retention_ms\":60000}}",
                                 revision, window, drawable,
                                 (unsigned long long)(display_scale / 1000000), (unsigned long long)(display_scale % 1000000),
-                                unavailable ? "false" : "true", unavailable ? reason : "null");
+                                native_window, unavailable ? "false" : "true", unavailable ? reason : "null");
         SendJson(request, 200, body, length, sizeof(body));
     }
 
@@ -328,7 +338,7 @@ namespace dmPlatformService
         for (int field = json.Get(0).m_Container.m_First; field >= 0; field = json.Get(field).m_Next)
         {
             const char* name = json.Get(field).Name(json.m_Text);
-            if (strcmp(name, "width") && strcmp(name, "height") && strcmp(name, "timeout_ms") && strcmp(name, "expected_window_revision"))
+            if (strcmp(name, "width") && strcmp(name, "height") && strcmp(name, "timeout_ms") && strcmp(name, "expected_window_revision") && strcmp(name, "supersede"))
             {
                 return false;
             }
@@ -351,6 +361,12 @@ namespace dmPlatformService
             }
             dmStrlCpy(resize->m_ExpectedRevision, revision, sizeof(resize->m_ExpectedRevision));
         }
+        int supersede_field = json.Field(0, "supersede");
+        if (supersede_field >= 0 && json.Get(supersede_field).m_Type != dmJson::TYPE_BOOL)
+        {
+            return false;
+        }
+        resize->m_Supersede = json.Boolean(supersede_field, false);
         resize->m_Width = (uint32_t)width;
         resize->m_Height = (uint32_t)height;
         resize->m_Timeout = (uint32_t)timeout;
@@ -456,12 +472,24 @@ namespace dmPlatformService
             Error(request, 409, "window_revision_changed", "Window geometry changed; reacquire /window");
             return;
         }
+        uint64_t now = service->m_GetTime();
         if (service->m_Active >= 0)
         {
-            Error(request, 409, "resize_busy", "Another resize is pending");
-            return;
+            Resize* active = &service->m_Resizes[service->m_Active];
+            if (now >= active->m_Deadline)
+            {
+                Finish(service, active, now, "resize_not_observed", "Requested client size was not observed before the deadline");
+            }
+            else if (operation.m_Supersede)
+            {
+                Finish(service, active, now, "resize_superseded", "Resize was superseded by a newer request");
+            }
+            else
+            {
+                Error(request, 409, "resize_busy", "Another resize is pending");
+                return;
+            }
         }
-        uint64_t now = service->m_GetTime();
         operation.m_Id = ++service->m_Sequence;
         operation.m_Deadline = now + (uint64_t)operation.m_Timeout * 1000;
         service->m_Active = (int32_t)((operation.m_Id - 1) % MAX_RESIZES);

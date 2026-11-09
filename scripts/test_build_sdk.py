@@ -469,6 +469,7 @@ class SdkInstallationTests(unittest.TestCase):
                 for target in ('armv7-android', 'arm64-android', 'x86_64-android'):
                     with self.subTest(host=host, target=target):
                         configuration = build.Configuration.__new__(build.Configuration)
+                        configuration.tool_checks = mock.Mock()
                         configuration.ext = str(root)
                         configuration.host = host
                         configuration.target_platform = target
@@ -498,6 +499,7 @@ class SdkCheckTests(unittest.TestCase):
         self.configuration.host = 'arm64-macos'
         self.configuration.target_platform = 'arm64-macos'
         self.configuration.skip_tests = False
+        self.configuration.tool_checks = build.tool_checks.ToolChecks(self.configuration)
         self.configuration.build_tracker = build.BuildTimeTracker(logger=lambda message: None)
         self.configuration._form_env = lambda: os.environ.copy()
         self.protobuf_output = json.dumps({
@@ -516,7 +518,6 @@ class SdkCheckTests(unittest.TestCase):
             'DEFOLD_SDK_CHECK\tToolchain\tarm64-macos\t/tools/toolchain.cmake',
         ))
         for patch in (
-                mock.patch.object(self.configuration, 'check_python'),
                 mock.patch.object(self.configuration, '_log'),
                 mock.patch.object(build.sdk, 'get_sdk_info', return_value={
                     'arm64-macos': {'version': '27.0', 'path': '/tools/MacOSX27.0.sdk'},
@@ -533,6 +534,8 @@ class SdkCheckTests(unittest.TestCase):
             result = self.protobuf_output
         else:
             result = 'cmake version 4.4.0\nCMake suite' if args[-1] == '--version' else self.cmake_output
+            if isinstance(result, str) and '-DDEFOLD_REQUIRE_PROTOC=OFF' in args:
+                result = '\n'.join(line for line in result.splitlines() if not line.startswith('DEFOLD_SDK_CHECK\tProtoc'))
         return self.command_result(result, **kwargs)
 
     def command_result(self, result, **kwargs):
@@ -592,13 +595,13 @@ class SdkCheckTests(unittest.TestCase):
                     self.configuration._log.reset_mock()
                     self.configuration.build_tracker.start_command('check_sdk', quiet=True)
                     if passed:
-                        result, elapsed = self.configuration._run_sdk_check('Python', lambda: True)
+                        result, elapsed = self.configuration.tool_checks._run('Python', lambda: True)
                         self.assertTrue(result)
                         self.assertEqual(0.25, elapsed)
-                        self.configuration._log_sdk_check('Python', 'OK', elapsed=elapsed)
+                        self.configuration.tool_checks._report('Python', 'OK', elapsed=elapsed)
                     else:
                         with self.assertRaises(SystemExit):
-                            self.configuration._run_sdk_check('Python', lambda: False)
+                            self.configuration.tool_checks._run('Python', lambda: False)
                     self.assertIn(f'Python: {"OK" if passed else "Failed"}', self.messages())
                     self.assertEqual(verbose, '[0.25 s]' in self.messages())
                     self.assertEqual({'Python': {'duration': 0.25}},
@@ -650,8 +653,8 @@ class SdkCheckTests(unittest.TestCase):
         with mock.patch.object(build.sys.stdout, 'isatty', return_value=True), \
                 mock.patch.dict(os.environ, {'NOCOLOR': ''}):
             os.environ.pop('NO_COLOR', None)
-            self.configuration._log_sdk_check('Java', 'Java 25.0.1')
-            self.configuration._log_sdk_check('Ninja', 'Not found', passed=False)
+            self.configuration.tool_checks._report('Java', 'Java 25.0.1')
+            self.configuration.tool_checks._report('Ninja', 'Not found', passed=False)
         messages = self.messages()
         self.assertIn('\033[32m✓\033[0m \033[32mJava: Java 25.0.1\033[0m', messages)
         self.assertIn('\033[31m✗\033[0m \033[38;5;208mNinja: Not found\033[0m', messages)
@@ -666,7 +669,7 @@ class SdkCheckTests(unittest.TestCase):
                 os.environ.pop('NO_COLOR', None)
                 os.environ.update(environment)
                 self.configuration.no_colors = no_colors
-                self.configuration._log_sdk_check('Java', 'Java 25.0.1')
+                self.configuration.tool_checks._report('Java', 'Java 25.0.1')
         self.assertNotIn('\033[', self.messages())
 
     # A failed compiler test must reveal its diagnostics and suppress the success summary.
@@ -732,7 +735,8 @@ Call Stack (most recent call first):
                     self.assertRaises(SystemExit):
                 self.configuration.verbose = verbose
                 self.configuration._log.reset_mock()
-                self.configuration._check_sdk_cmake(['cmake'])
+                self.configuration.tool_checks = build.tool_checks.ToolChecks(self.configuration)
+                self.configuration.tool_checks._check_cmake_tools(['cmake'])
             messages = self.messages()
             self.assertIn('✓ Java: Java 25.0.1', messages)
             self.assertIn('✓ Ninja: Ninja 1.12.1', messages)
@@ -761,7 +765,7 @@ Call Stack (most recent call first):
                 else:
                     with self.assertRaises(SystemExit):
                         self.configuration.check_sdk()
-                    self.assertIn('✗ Wasm test runner: Not found', self.messages())
+                    self.assertIn('✗ Wasm test runner: Failed', self.messages())
                     self.assertNotIn('All checks passed', self.messages())
 
     # ARMv7 on macOS must check its generator SDK as well as Android; other Android builds need only Android.
@@ -818,8 +822,9 @@ class CmakeSdkCheckTests(unittest.TestCase):
                 configuration.no_colors = no_colors
                 configuration.build_tracker = build.BuildTimeTracker(logger=lambda message: None)
                 configuration._log = mock.Mock()
+                configuration.tool_checks = build.tool_checks.ToolChecks(configuration)
                 with self.assertRaises(SystemExit):
-                    configuration._check_sdk_cmake([build.shutil.which('cmake'), '-P', str(script)])
+                    configuration.tool_checks._check_cmake_tools([build.shutil.which('cmake'), '-P', str(script)])
                 text = '\n'.join(call.args[0] for call in configuration._log.call_args_list)
                 self.assertIn('✗ Java: Java 25 or newer is required', text)
                 self.assertNotIn('CMake environment', text)
@@ -855,6 +860,7 @@ set(Java_JAVA_EXECUTABLE "${TOOLS_ROOT}/Java (test)/java")
                 configuration.no_colors = True
                 configuration.build_tracker = build.BuildTimeTracker(logger=lambda message: None)
                 configuration._log = mock.Mock()
+                configuration.tool_checks = build.tool_checks.ToolChecks(configuration)
                 args = [
                     build.shutil.which('cmake'), '-DDEFOLD_SDK_CHECK=ON',
                     f'-DCMAKE_MODULE_PATH={root.as_posix()}', f'-DTOOLS_ROOT={root.as_posix()}',
@@ -865,10 +871,10 @@ set(Java_JAVA_EXECUTABLE "${TOOLS_ROOT}/Java (test)/java")
                 ]
                 if fail_java:
                     with self.assertRaises(SystemExit) as error:
-                        configuration._check_sdk_cmake(args)
+                        configuration.tool_checks._check_cmake_tools(args)
                     self.assertNotEqual(0, error.exception.code)
                 else:
-                    configuration._check_sdk_cmake(args)
+                    configuration.tool_checks._check_cmake_tools(args)
                 messages = '\n'.join(call.args[0] for call in configuration._log.call_args_list)
                 self.assertNotIn('DEFOLD_SDK_CHECK', messages)
                 if fail_java:
@@ -913,14 +919,15 @@ message("DEFOLD_SDK_CHECK\\tProtoc\\t${_protoc_ver}\\t${_DEFOLD_PROTOC_REAL}")
                 configuration.no_colors = True
                 configuration.build_tracker = build.BuildTimeTracker(logger=lambda message: None)
                 configuration._log = mock.Mock()
+                configuration.tool_checks = build.tool_checks.ToolChecks(configuration)
                 args = [cmake, f'-DDEFOLD_HOME={repository.as_posix()}',
                         f'-DDEFOLD_SDK_ROOT={root.as_posix()}', '-P', str(script)]
                 with mock.patch.dict(os.environ, {'PATH': str(programs)}):
                     if on_path:
-                        configuration._check_sdk_cmake(args)
+                        configuration.tool_checks._check_cmake_tools(args)
                     else:
                         with self.assertRaises(SystemExit):
-                            configuration._check_sdk_cmake(args)
+                            configuration.tool_checks._check_cmake_tools(args)
                 messages = '\n'.join(call.args[0] for call in configuration._log.call_args_list)
                 if on_path:
                     self.assertIn('✓ Protoc: libprotoc 35.1', messages)

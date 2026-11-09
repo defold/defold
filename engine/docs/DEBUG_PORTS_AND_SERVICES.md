@@ -29,10 +29,12 @@ The engine service is implemented as a small web server running within the engin
 The observation URLs are unversioned. `/ping`, `/info`, `/state`, and
 `/openapi.json` accept only `GET` at the exact path, without a request body.
 Query strings are accepted and ignored by these handlers.
-Unsupported methods return `405` with `Allow: GET`; unknown
-paths return `404`. Unexpected bodies return `400` and close the connection
-without waiting for the upload. Invalid or unsupported body framing, including
-chunked uploads, is rejected by the HTTP server. Observation errors use
+Unsupported methods return `405` with `Allow: GET`. Unmatched paths return
+`404` before profiler initialization; afterward, the existing `/` prefix
+fallback serves profiler HTML. The profiler handler retains its existing method
+and body handling. Unexpected bodies on observation endpoints return `400` and
+close the connection without waiting for the upload. Invalid or unsupported body
+framing, including chunked uploads, is rejected by the HTTP server. Observation errors use
 `{"error":{"code":"...","message":"..."}}`; routing and framing errors can be plain text.
 
 Header values share a 1024-byte storage budget, including one terminating byte
@@ -219,6 +221,7 @@ and extension; headless debug engines retain the observation routes.
   "window": {"width": 960, "height": 640},
   "drawable": {"width": 1920, "height": 1280},
   "display_scale": 2,
+  "native_window": {"type": "cocoa", "id": "123456"},
   "resize": {"supported": true, "unavailable_reason": null, "max_operations": 64, "retention_ms": 60000}
 }
 ```
@@ -226,8 +229,20 @@ and extension; headless debug engines retain the observation routes.
 The values above are illustrative. `window` is the client area in native setter
 units, excluding decorations; `drawable` is the presentable image in pixels.
 Unavailable dimensions are `null`, including window/drawable on headless engines.
-Native mobile backends currently report drawable dimensions but no client metrics or resize support.
+Native mobile and vendor backends fall back to their existing window width/height
+for client metrics and do not advertise resize support. Desktop backends report
+client dimensions separately from drawable pixels, including on high-DPI displays.
 Desktop windowed modes support resize; fullscreen modes do not.
+
+`native_window` is an optional OS identity obtained through
+`dmPlatform::GetNativeWindowId()`. Its `type` is `win32` for an HWND, `cocoa` for
+an NSWindow window number (CGWindowID), or `x11` for an X11 Window on the same
+X server. The `id` is an unsigned decimal string so JSON clients preserve every
+bit. It is `null` for closed, headless, mobile, vendor, and Wayland windows.
+An identity is borrowed and usable only in the same desktop session while the
+native window exists. IDs may be reused: read it again after window recreation
+or engine restart, and retain the engine instance from `/state` when using it.
+Native identity changes do not advance the geometry revision.
 
 The service advances the geometry revision when it observes changed window/drawable
 dimensions or availability, or when a window is attached or detached. Changes away
@@ -259,6 +274,11 @@ result. Resizing preserves the graphics reference resolution used by
 30000. Optional `expected_window_revision` is checked at acceptance and again
 before the setter runs. Unknown/duplicate fields are rejected.
 
+Optional `supersede` defaults to `false`. With `true`, an accepted request replaces
+any pending resize, including one awaiting an OS size change. The replaced receipt
+becomes `failed` with `resize_superseded` and retains its observed dimensions.
+Invalid, stale-instance, or revision-conflicting requests never replace pending work.
+
 A `202` response contains a queued receipt and a `Location` URL. To confirm
 completion, poll `GET /window/resize/{id}` with the same `X-Engine-Instance` to observe
 `queued -> awaiting_window -> complete | failed`. IDs are local to the service;
@@ -266,7 +286,8 @@ keep the original instance header even if the engine reboots during polling.
 The setter runs once during the extension update, before a graphics frame begins.
 Resizes wait while simulation is skipped, including throttled, paused, or
 zero-step iterations. Deadlines continue to use elapsed monotonic time and are
-checked when updates resume. Reads never advance a frame or dispatch a resize.
+checked when updates resume or a new resize is admitted, so expired work cannot
+block a new selection while paused. Reads never advance a frame or dispatch a resize.
 
 ```json
 {
@@ -299,10 +320,11 @@ valid uploads yield without admitting an operation. Release builds expose no
 window service. Screenshot capture and image endpoints are a separate delivery.
 
 **Compatibility / release note:** The debug engine now uses service API version 2.
-The editor sends one width/height JSON request to `/window/resize` for each
-simulator change, without an instance preflight or receipt polling. It retains
-the existing request timeout and HTTP error behavior, including reporting busy
-responses without retrying. Acceptance does not confirm completion. The project
+The editor sends one width/height JSON request with `supersede: true` to
+`/window/resize` for each simulator change, without an instance preflight or receipt
+polling. The latest selection replaces pending work, including while paused or
+awaiting a refused resize. It retains the existing request timeout and HTTP error
+behavior. Acceptance does not confirm completion. The project
 design resolution remains unchanged (#11025).
 Presets specify window client units, so high-DPI hosts may have more drawable
 pixels. Generic DDF HTTP dispatch remains unchanged, including `/post/@render/resize`.

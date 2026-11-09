@@ -272,6 +272,11 @@ void dmHashEnableReverseHash(bool enable)
     dmHashContainer().Enable(enable);
 }
 
+bool dmHashIsReverseHashEnabled()
+{
+    return dmHashContainer().m_Enabled;
+}
+
 #define mmix(h,k) { k *= m; k ^= k >> r; k *= m; h *= m; h ^= k; }
 
 // Based on MurmurHash2A but endian neutral

@@ -31,6 +31,22 @@ namespace dmPlatform
         return glfwGetCocoaWindow(window->m_Window);
     }
 
+    NativeWindowId GetNativeWindowId(HWindow window)
+    {
+        NativeWindowId identity = {};
+        if (window && GetWindowStateParam(window, WINDOW_STATE_OPENED))
+        {
+            // NSWindow pointers are process-local; the window number identifies the WindowServer window.
+            NSInteger number = [(NSWindow*)GetOSXNSWindow(window) windowNumber];
+            if (number > 0)
+            {
+                identity.m_Type = NATIVE_WINDOW_TYPE_COCOA;
+                identity.m_Id = (uint64_t)number;
+            }
+        }
+        return identity;
+    }
+
     id GetOSXNSView(HWindow window)
     {
         return glfwGetCocoaView(window->m_Window);

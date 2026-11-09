@@ -80,7 +80,8 @@
       (.setRequestProperty conn "Content-Type" "application/json")
       (with-open [os (.getOutputStream conn)]
         (.write os (.getBytes ^String (json/write-str {:width (if rotate height width)
-                                                       :height (if rotate width height)})
+                                                       :height (if rotate width height)
+                                                       :supersede true})
                               StandardCharsets/UTF_8)))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))

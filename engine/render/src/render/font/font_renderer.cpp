@@ -29,6 +29,7 @@
 #include "fontmap.h"
 #include "fontmap_private.h"
 #include "font_renderer_private.h"  // for FontMap, RenderLayerMask
+#include <font/render/text_arc.h>
 
 #include "font_renderer.h"          // for FontGlyphCompression
 #include "default/font_default_vertex.h"
@@ -50,6 +51,9 @@ namespace dmRender
 
     static const uint32_t FALLBACK_CODEPOINT = 126U; // '~'
     static const dmhash_t FONT_EFFECTS_HASH = dmHashString64("font_effects");
+    static const dmhash_t BAND_TEXTURE_HASH = dmHashString64("band_texture");
+    static const dmhash_t PAINT_TEXTURE_HASH = dmHashString64("paint_texture");
+    static const dmhash_t EFFECT_BITMAP_HASH = dmHashString64("effect_bitmap");
 
     static CacheGlyph* GetDecorationCacheGlyph(HFontMap font_map, uint32_t frame)
     {
@@ -95,6 +99,7 @@ namespace dmRender
         for (uint32_t i = 0; i < entry_count; ++i)
         {
             HTextLayout text_layout = text_context.m_TextEntries[i].m_TextLayout;
+            FontTextCurveRelease(text_context.m_TextEntries[i].m_Curve);
             if (text_layout)
             {
                 TextLayoutRelease(text_layout);
@@ -190,6 +195,7 @@ namespace dmRender
     , m_ShadowColor(0.0f, 0.0f, 0.0f, 1.0f)
     , m_Text(0x0)
     , m_TextLayout(0x0)
+    , m_Curve(0x0)
     , m_SourceBlendFactor(dmGraphics::BLEND_FACTOR_ONE)
     , m_DestinationBlendFactor(dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
     , m_RenderOrder(0)
@@ -199,6 +205,8 @@ namespace dmRender
     , m_Leading(1.0f)
     , m_Tracking(0.0f)
     , m_FontSize(0.0f)
+    , m_ArcRadius(0.0f)
+    , m_ArcAngle(0.0f)
     , m_LineBreak(false)
     , m_Align(TEXT_ALIGN_LEFT)
     , m_VAlign(TEXT_VALIGN_TOP)
@@ -346,6 +354,8 @@ namespace dmRender
         te.m_FontMap = font_map;
         te.m_Material = material;
         te.m_TextLayout = text_layout;
+        te.m_Curve = params.m_Curve;
+        FontTextCurveRetain(te.m_Curve);
         te.m_BatchKey = batch_key;
         te.m_Next = -1;
         te.m_Tail = -1;
@@ -361,6 +371,8 @@ namespace dmRender
         te.m_Leading = params.m_Leading;
         te.m_Tracking = params.m_Tracking;
         te.m_FontSize = params.m_FontSize > 0.0f ? params.m_FontSize : GetFontMapSize(font_map);
+        te.m_ArcRadius = params.m_ArcRadius;
+        te.m_ArcAngle = params.m_ArcAngle;
         te.m_LineBreak = params.m_LineBreak;
         te.m_Align = params.m_Align;
         te.m_VAlign = params.m_VAlign;
@@ -399,6 +411,28 @@ namespace dmRender
 
         te.m_FrustumCullingRadiusSq = dmVMath::LengthSqr(cornerpoint_world - centerpoint_world);
         te.m_FrustumCullingCenter = dmVMath::Point3(centerpoint_world.getXYZ());
+
+        FontTextArc arc;
+        if (te.m_Curve)
+        {
+            Vector3 minimum, maximum;
+            float scale;
+            FontTextCurveGetBounds(te.m_Curve, &minimum, &maximum, &scale);
+            const Vector3 center = (minimum + maximum) * 0.5f;
+            const float radius = Length(maximum - minimum) * 0.5f + scale * (metrics.m_Width + metrics.m_Height + font_map->m_CacheCellPadding);
+            te.m_FrustumCullingCenter = Point3((te.m_Transform * Point3(center)).getXYZ());
+            te.m_FrustumCullingRadiusSq = radius * radius * (LengthSqr(te.m_Transform.getCol0()) + LengthSqr(te.m_Transform.getCol1()) + LengthSqr(te.m_Transform.getCol2()));
+        }
+        else if (text_layout && FontPrepareTextArc(text_layout, te.m_Width, te.m_Height, te.m_Align, te.m_VAlign,
+                                                   font_map->m_IsMonospaced ? font_map->m_Padding : 0.0f,
+                                                   te.m_ArcRadius, te.m_ArcAngle, &arc))
+        {
+            // Include the circle, baseline offsets and glyph extents so curved
+            // text cannot disappear at the straight-text bounds.
+            const float radius = fabsf(arc.m_Radius) + metrics.m_Width + metrics.m_Height + font_map->m_CacheCellPadding;
+            te.m_FrustumCullingCenter = Point3(te.m_Transform.getTranslation());
+            te.m_FrustumCullingRadiusSq = radius * radius * (LengthSqr(te.m_Transform.getCol0()) + LengthSqr(te.m_Transform.getCol1()));
+        }
 
         assert( params.m_NumRenderConstants <= dmRender::MAX_FONT_RENDER_CONSTANTS );
         te.m_NumRenderConstants = params.m_NumRenderConstants;
@@ -490,6 +524,9 @@ namespace dmRender
         config.m_FaceColor[3] = face_color.getW();
         config.m_Width = te.m_Width;
         config.m_Height = te.m_Height;
+        config.m_ArcRadius = te.m_ArcRadius;
+        config.m_ArcAngle = te.m_ArcAngle;
+        config.m_Curve = te.m_Curve;
         config.m_RecipAtlasWidth = recip_w;
         config.m_RecipAtlasHeight = recip_h;
         config.m_DecorationU = decoration_cache ? (decoration_cache->m_X + 0.5f) * recip_w : 0.0f;
@@ -621,13 +658,13 @@ namespace dmRender
         ro->m_Material = material;
         memset(ro->m_Textures, 0, sizeof(ro->m_Textures));
         uint32_t curve_unit = dmRender::GetMaterialSamplerUnit(material, g_CurveTextureHash);
-        uint32_t band_unit = dmRender::GetMaterialSamplerUnit(material, dmHashString64("band_texture"));
+        uint32_t band_unit = dmRender::GetMaterialSamplerUnit(material, BAND_TEXTURE_HASH);
         if (band_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_IsVector)
             ro->m_Textures[band_unit] = font_map->m_VectorBandTexture;
-        uint32_t paint_unit = dmRender::GetMaterialSamplerUnit(material, dmHashString64("paint_texture"));
+        uint32_t paint_unit = dmRender::GetMaterialSamplerUnit(material, PAINT_TEXTURE_HASH);
         if (paint_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_IsVector)
             ro->m_Textures[paint_unit] = font_map->m_VectorPaintTexture;
-        uint32_t bitmap_unit = dmRender::GetMaterialSamplerUnit(material, dmHashString64("effect_bitmap"));
+        uint32_t bitmap_unit = dmRender::GetMaterialSamplerUnit(material, EFFECT_BITMAP_HASH);
         if (bitmap_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_VectorBitmapEffects)
             ro->m_Textures[bitmap_unit] = font_map->m_VectorSdfTexture;
         uint32_t texture_unit = dmRender::GetMaterialSamplerUnit(material, g_TextureSamplerHash);
@@ -755,6 +792,7 @@ namespace dmRender
                 }
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
+                // A selected text batch can produce no glyph vertices.
                 if (text_context.m_VerticesFlushed != text_context.m_VertexIndex)
                 {
                     const uint32_t vertex_size = sizeof(FontDefaultVertex);
