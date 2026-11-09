@@ -4783,6 +4783,8 @@ namespace dmGraphics
         rt->m_ColorAttachmentCount = color_index;
         rt->m_Base.m_ColorAttachmentCount = color_index;
 
+        // Serialize slot reuse and container growth with the texture worker.
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
@@ -4790,7 +4792,10 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*) _context;
         MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
-        context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        }
 
         DeleteMetalRenderTargetTextures(_context, rt);
         delete rt;
