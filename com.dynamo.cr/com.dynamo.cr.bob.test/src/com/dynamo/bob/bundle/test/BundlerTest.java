@@ -1014,6 +1014,23 @@ public class BundlerTest {
         assertEquals(0, FileUtils.listFiles(bundleDir, new String[] {"apks"}, true).size());
     }
 
+    // Verifies a download-size-report path that is an existing directory is left untouched and
+    // the bundle still succeeds, guarding against the old-report cleanup deleting the directory.
+    @Test
+    public void testAndroidDownloadSizeReportDirectoryIsKept() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        if (platform != Platform.Armv7Android && platform != Platform.Arm64Android) {
+            return;
+        }
+
+        createDefaultFiles(contentRoot);
+        downloadSizeReportFile = new File(outputDir, "reports");
+        File keptFile = new File(createFile(downloadSizeReportFile.getAbsolutePath(), "keep.txt", "keep"));
+        build();
+
+        assertTrue(downloadSizeReportFile.isDirectory());
+        assertTrue(keptFile.isFile());
+    }
+
     private String getExpectedDynamicLibraryPath(String libName) {
         if (platform == Platform.X86_64Linux || platform == Platform.Arm64Linux) {
             return libName;

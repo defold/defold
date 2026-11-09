@@ -897,10 +897,14 @@ public class AndroidBundler implements IBundler {
      * and write it to reportFile. A failure is logged but doesn't fail the bundle.
      */
     private void writeDownloadSizeReport(Project project, File aab, File outDir, File reportFile) {
+        if (reportFile.isDirectory()) {
+            logger.warning("Skipping Google Play download size estimate: %s is a directory", reportFile.getAbsolutePath());
+            return;
+        }
         logger.info("Estimating Google Play download size");
         File apks = new File(outDir, FilenameUtils.getBaseName(aab.getPath()) + "-download-size.apks");
-        FileUtils.deleteQuietly(reportFile);
         try {
+            Files.deleteIfExists(reportFile.toPath());
             List<String> args = new ArrayList<String>();
             args.add("build-apks");
             args.add("--bundle"); args.add(aab.getAbsolutePath());
