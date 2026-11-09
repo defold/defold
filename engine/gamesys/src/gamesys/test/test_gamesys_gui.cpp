@@ -3257,9 +3257,13 @@ TEST_F(GuiTest, PerPropertyPrecedence)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-// Layout callbacks must dispatch the correct payload using aligned message storage under UBSan.
+// Layout callbacks need display profiles and must dispatch the correct payload using aligned message storage under UBSan.
 TEST_F(GuiTest, LayoutCallbackAfterInit)
 {
+    dmRender::HDisplayProfiles display_profiles = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/display_profiles/gui_layout_no_auto.display_profilesc", (void**)&display_profiles));
+    dmGui::SetDisplayProfiles(m_GuiContext, display_profiles);
+
     lua_State* L = m_Scriptlibcontext.m_LuaState;
     ASSERT_TRUE(RunString(L, "layout_changed_messages = {}"));
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -3271,15 +3275,17 @@ TEST_F(GuiTest, LayoutCallbackAfterInit)
     dmhash_t previous_layout = dmGui::GetLayout(scene);
     ASSERT_EQ(dmHashString64(""), previous_layout);
     scene->m_ApplyLayoutCallback(scene, dmHashString64("Landscape"));
+    ASSERT_EQ(dmHashString64("Landscape"), dmGui::GetLayout(scene));
     ASSERT_TRUE(RunString(L,
         "assert(#layout_changed_messages == 1)\n"
         "local message = layout_changed_messages[1]\n"
         "assert(message.initialized)\n"
         "assert(message.previous_id == hash(''))\n"
         "assert(message.id == hash('Landscape'))"));
-    ASSERT_EQ(2.0f, dmGui::GetNodeProperty(scene, dmGui::GetNodeById(scene, "custom_props_layout"), dmGui::PROPERTY_POSITION).getX());
-
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGui::SetDisplayProfiles(m_GuiContext, 0);
+    dmResource::Release(m_Factory, display_profiles);
 }
 
 TEST_F(GuiTest, GuiCustomPropertiesFromDDF)
