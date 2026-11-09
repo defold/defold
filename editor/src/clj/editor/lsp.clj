@@ -511,8 +511,7 @@
     (if-not (identical? responses-ch (get-in state [:active-requests (document-symbols-id resource)]))
       state
       (do
-        (when-let [view-node (and (some? document-symbols)
-                                  (-> state :resource->view-node (get resource)))]
+        (when-let [view-node (-> state :resource->view-node (get resource))]
           (ui/run-later
             (g/transact
               {:undoable false}
@@ -530,21 +529,11 @@
     state))
 
 (defn- request-document-symbols [state resource]
-  (let [{:keys [in server->server-state]} state
-        responses-ch (a/chan 1)
-        has-server (coll/any?
-                     (fn [[server {:keys [status capabilities]}]]
-                       (and (= :running status)
-                            (:document-symbol capabilities)
-                            (server-handles-resource? server resource)))
-                     server->server-state)]
+  (let [{:keys [in]} state
+        responses-ch (a/chan 1 cat)]
     (a/go
       (let [responses (<! (a/into [] responses-ch))]
-        (>! in (set-view-document-symbols
-                 resource
-                 responses-ch
-                 (when (or (coll/not-empty responses) (not has-server))
-                   (coll/into-> responses [] cat))))))
+        (>! in (set-view-document-symbols resource responses-ch responses))))
     (-> state
         (cancel-active-request (document-symbols-id resource))
         (assoc-in [:active-requests (document-symbols-id resource)] responses-ch)
