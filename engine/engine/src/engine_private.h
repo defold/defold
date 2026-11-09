@@ -156,6 +156,8 @@ namespace dmEngine
         uint32_t                                    m_ClearColor;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
+        uint32_t                                    m_PhysicalWidth;
+        uint32_t                                    m_PhysicalHeight;
         uint32_t                                    m_PendingWindowResizeWidth;
         uint32_t                                    m_PendingWindowResizeHeight;
         bool                                        m_HasPendingWindowResize;

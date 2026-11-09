@@ -21,6 +21,8 @@ namespace dmRender
     /*# Camera API documentation
      *
      * Camera functions, messages and constants.
+     * When the window width or height is zero, camera calculations use the last
+     * valid window size, or the project display size if no valid size has been observed.
      *
      * @document
      * @name Camera

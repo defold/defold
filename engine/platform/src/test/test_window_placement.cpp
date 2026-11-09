@@ -36,6 +36,23 @@ static void SetStateEnvironment(const char* value)
 #endif
 }
 
+// A minimized window can have zero screen dimensions; mouse conversion must not divide by them.
+TEST(WindowSize, ZeroSizeMousePosition)
+{
+    dmWindow window = {};
+    const int sizes[][2] = { { 0, 0 }, { 400, 0 }, { 0, 300 } };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
+    {
+        window.m_WidthScreen = sizes[i][0];
+        window.m_HeightScreen = sizes[i][1];
+        int32_t x = -1;
+        int32_t y = -1;
+        dmPlatform::GetMousePosition(&window, &x, &y);
+        ASSERT_EQ(0, x);
+        ASSERT_EQ(0, y);
+    }
+}
+
 class WindowPlacementTest : public jc_test_base_class
 {
 protected:

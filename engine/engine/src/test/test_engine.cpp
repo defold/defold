@@ -29,10 +29,13 @@
 #include <dlib/profile.h>
 #include <script/sys_ddf.h>
 #include <render/render_ddf.h>
+#include <platform/window.hpp>
+#include <input/input_ddf.h>
 #include <gameobject/component.h>
 #include <dmsdk/extension/extension.hpp>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
+#include "../../../render/src/render/render_script.h"
 #include "../engine.h"
 #include "../engine_private.h"
 
@@ -530,6 +533,8 @@ struct WindowResizeMessages
     uint32_t m_Height;
 };
 
+extern uint64_t g_Flipped;
+
 static void CollectWindowResize(dmMessage::Message* message, void* user_data)
 {
     if (message->m_Id != dmRenderDDF::WindowResized::m_DDFDescriptor->m_NameHash)
@@ -579,6 +584,295 @@ TEST_F(EngineTest, WindowResizeBeforeRenderContext)
 
     dmEngine::Delete(engine);
     dmEngineFinalize();
+}
+
+// Zero-size resize events remain observable without corrupting geometry or rendering, and valid resizes recover.
+TEST_F(EngineTest, ZeroSizeWindowResize)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    dmEngine::OnWindowResize(engine, 128, 96);
+    dmEngine::OnWindowResize(engine, 0, 0);
+    ASSERT_EQ(0u, engine->m_PendingWindowResizeWidth);
+    ASSERT_EQ(0u, engine->m_PendingWindowResizeHeight);
+    ASSERT_NEAR(1.0f / 128, engine->m_InvPhysicalWidth, 0.00001f);
+    ASSERT_NEAR(1.0f / 96, engine->m_InvPhysicalHeight, 0.00001f);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = { "dmengine", "--config=dmengine.unload_builtins=0", project_path };
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
+    dmMessage::HSocket socket;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &socket));
+    WindowResizeMessages messages = {};
+    dmMessage::Dispatch(socket, CollectWindowResize, &messages);
+
+    dmPlatform::SetWindowSize(engine->m_Window, 128, 96);
+    dmMessage::Dispatch(socket, CollectWindowResize, &messages);
+    dmInputDDF::MouseTrigger mouse_trigger = {};
+    mouse_trigger.m_Input = dmInputDDF::MOUSE_BUTTON_1;
+    mouse_trigger.m_Action = "pointer";
+    dmInputDDF::TouchTrigger touch_trigger = {};
+    touch_trigger.m_Input = dmInputDDF::TOUCH_MULTI;
+    touch_trigger.m_Action = "touches";
+    dmInputDDF::InputBinding binding = {};
+    binding.m_MouseTrigger.m_Data = &mouse_trigger;
+    binding.m_MouseTrigger.m_Count = 1;
+    binding.m_TouchTrigger.m_Data = &touch_trigger;
+    binding.m_TouchTrigger.m_Count = 1;
+    dmInput::SetBinding(engine->m_GameInputBinding, &binding);
+    dmHID::Update(engine->m_HidContext);
+    dmHID::HMouse mouse = dmHID::GetMouse(engine->m_HidContext, 0);
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, true);
+    const uint32_t sizes[][2] = { { 0, 0 }, { 128, 0 }, { 0, 96 } };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
+    {
+        dmPlatform::SetWindowSize(engine->m_Window, sizes[i][0], sizes[i][1]);
+        dmMessage::Dispatch(socket, CollectWindowResize, &messages);
+        ASSERT_EQ(sizes[i][0], messages.m_Width);
+        ASSERT_EQ(sizes[i][1], messages.m_Height);
+        ASSERT_EQ(sizes[i][0], dmGraphics::GetWindowWidth(engine->m_GraphicsContext));
+        ASSERT_EQ(sizes[i][1], dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
+        ASSERT_EQ(128u, engine->m_PhysicalWidth);
+        ASSERT_EQ(96u, engine->m_PhysicalHeight);
+        ASSERT_NEAR(1.0f / 128, engine->m_InvPhysicalWidth, 0.00001f);
+        ASSERT_NEAR(1.0f / 96, engine->m_InvPhysicalHeight, 0.00001f);
+        uint32_t width, height;
+        dmGui::GetPhysicalResolution(engine->m_GuiContext, width, height);
+        ASSERT_EQ(128u, width);
+        ASSERT_EQ(96u, height);
+
+        g_Flipped = 0;
+        dmHID::SetMousePosition(mouse, 10 + i, 20 + i);
+        dmHID::ClearTouches(dmHID::GetTouchDevice(engine->m_HidContext, 0));
+        dmHID::AddTouch(dmHID::GetTouchDevice(engine->m_HidContext, 0), 30 + i, 40 + i, 1, i == 0 ? dmHID::PHASE_BEGAN : dmHID::PHASE_MOVED);
+        dmEngine::StepFrames(engine, 0.0f, 1);
+        ASSERT_EQ(0u, g_Flipped);
+        bool found_pointer = false;
+        bool found_touch = false;
+        for (uint32_t j = 0; j < engine->m_InputBuffer.Size(); ++j)
+        {
+            const dmGameObject::InputAction& action = engine->m_InputBuffer[j];
+            if (action.m_ActionId == dmHashString64("pointer"))
+            {
+                found_pointer = true;
+                ASSERT_NEAR((10.5f + i) * engine->m_Width / 128, action.m_X, 0.0001f);
+                ASSERT_NEAR(engine->m_Height - (20.5f + i) * engine->m_Height / 96, action.m_Y, 0.0001f);
+                ASSERT_EQ(95 - (20 + i), action.m_ScreenY);
+            }
+            if (action.m_ActionId == dmHashString64("touches"))
+            {
+                found_touch = true;
+                ASSERT_EQ(1u, action.m_Count);
+                const dmHID::Touch& touch = action.m_Touch[0];
+                ASSERT_EQ((int32_t) ((30.5f + i) * engine->m_Width / 128), touch.m_X);
+                ASSERT_EQ((int32_t) (engine->m_Height - (40.5f + i) * engine->m_Height / 96), touch.m_Y);
+                ASSERT_EQ(95 - (40 + i), touch.m_ScreenY);
+            }
+        }
+        ASSERT_TRUE(found_pointer);
+        ASSERT_TRUE(found_touch);
+    }
+
+    dmPlatform::SetWindowSize(engine->m_Window, 256, 192);
+    ASSERT_EQ(256u, engine->m_PhysicalWidth);
+    ASSERT_EQ(192u, engine->m_PhysicalHeight);
+    ASSERT_NEAR(1.0f / 256, engine->m_InvPhysicalWidth, 0.00001f);
+    ASSERT_NEAR(1.0f / 192, engine->m_InvPhysicalHeight, 0.00001f);
+    g_Flipped = 0;
+    dmEngine::StepFrames(engine, 0.0f, 1);
+    ASSERT_EQ(1u, g_Flipped);
+
+    dmMessage::URL receiver;
+    dmMessage::ResetURL(&receiver);
+    receiver.m_Socket = socket;
+    dmRenderDDF::Resize resize = {};
+    dmhash_t resize_id = dmRenderDDF::Resize::m_DDFDescriptor->m_NameHash;
+    uintptr_t descriptor = (uintptr_t) dmRenderDDF::Resize::m_DDFDescriptor;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, resize_id, 0, descriptor, &resize, sizeof(resize), 0));
+    g_Flipped = 0;
+    dmEngine::StepFrames(engine, 0.0f, 1);
+    ASSERT_EQ(0u, dmGraphics::GetWindowWidth(engine->m_GraphicsContext));
+    ASSERT_EQ(0u, dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
+    ASSERT_EQ(0u, g_Flipped);
+    resize.m_Width = 320;
+    resize.m_Height = 240;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, resize_id, 0, descriptor, &resize, sizeof(resize), 0));
+    dmEngine::StepFrames(engine, 0.0f, 1);
+    ASSERT_EQ(320u, dmGraphics::GetWindowWidth(engine->m_GraphicsContext));
+    ASSERT_EQ(240u, dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
+    dmEngine::StepFrames(engine, 0.0f, 1);
+    ASSERT_EQ(1u, g_Flipped);
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+}
+
+class ZeroSizeProjectionTest : public jc_test_params_class<const char*>
+{
+};
+
+// Projection messages received at zero size must take effect when the same window dimensions return.
+TEST_P(ZeroSizeProjectionTest, ZeroSizeProjectionMessage)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = { "dmengine", "--config=dmengine.unload_builtins=0", "--config=bootstrap.render=/builtins/render/default.renderc", project_path };
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
+    dmRender::HRenderScriptInstance instance = engine->m_RenderScriptPrototype->m_Instance;
+    dmPlatform::SetWindowSize(engine->m_Window, 128, 96);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(instance));
+
+    dmMessage::URL receiver;
+    dmMessage::ResetURL(&receiver);
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket));
+    dmPlatform::SetWindowSize(engine->m_Window, 0, 0);
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmHashString64(GetParam()), 0, 0, 0, 0, 0));
+    dmEngine::StepFrames(engine, 0.0f, 1);
+
+    dmPlatform::SetWindowSize(engine->m_Window, 128, 96);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(instance));
+    dmRender::RenderScriptResult result = dmRender::UpdateRenderScriptInstance(instance, 0.0f);
+
+    float zoom = 1.0f;
+    if (strcmp(GetParam(), "use_fixed_fit_projection") == 0)
+    {
+        zoom = dmMath::Min(128.0f / engine->m_Width, 96.0f / engine->m_Height);
+    }
+    float width = 128.0f / zoom;
+    float height = 96.0f / zoom;
+    float left = (engine->m_Width - width) * 0.5f;
+    float bottom = (engine->m_Height - height) * 0.5f;
+    dmVMath::Matrix4 expected = dmVMath::Matrix4::orthographic(left, left + width, bottom, bottom + height, -1, 1);
+
+    dmVMath::Matrix4 actual = dmVMath::Matrix4::identity();
+    bool has_projection = false;
+    if (result == dmRender::RENDER_SCRIPT_RESULT_OK)
+    {
+        lua_State* L = instance->m_RenderContext->m_RenderScriptContext.m_LuaState;
+        int top = lua_gettop(L);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, instance->m_RenderScriptDataReference);
+        lua_getfield(L, -1, "state");
+        lua_getfield(L, -1, "main_camera");
+        lua_getfield(L, -1, "proj");
+        has_projection = dmScript::IsMatrix4(L, -1);
+        if (has_projection)
+        {
+            actual = *dmScript::CheckMatrix4(L, -1);
+        }
+        lua_settop(L, top);
+    }
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, result);
+    ASSERT_TRUE(has_projection);
+    for (uint32_t row = 0; row < 4; ++row)
+    {
+        for (uint32_t col = 0; col < 4; ++col)
+        {
+            ASSERT_NEAR(expected.getElem(row, col), actual.getElem(row, col), 0.00001f);
+        }
+    }
+}
+
+const char* zero_size_projection_modes[] = { "use_fixed_projection", "use_fixed_fit_projection" };
+INSTANTIATE_TEST_CASE_P(ZeroSizeProjection, ZeroSizeProjectionTest, jc_test_values_in(zero_size_projection_modes));
+
+// Debug lines and text must remain frame-local while zero-size windows skip rendering.
+TEST_F(EngineTest, ZeroSizeDrawBufferCleanup)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = { "dmengine", "--config=dmengine.unload_builtins=0", project_path };
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
+    dmRender::ClearRenderObjects(engine->m_RenderContext);
+    dmPlatform::SetWindowSize(engine->m_Window, 0, 0);
+    dmMessage::URL receiver;
+    dmMessage::ResetURL(&receiver);
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket));
+    dmRenderDDF::DrawLine line = {};
+    line.m_StartPoint = dmVMath::Point3(0, 0, 0);
+    line.m_EndPoint = dmVMath::Point3(1, 1, 0);
+    line.m_Color = dmVMath::Vector4(1, 1, 1, 1);
+    struct
+    {
+        dmRenderDDF::DrawText m_Message;
+        char                  m_Text[5];
+    } text;
+    text.m_Message.m_Position = dmVMath::Point3(0, 0, 0);
+    text.m_Message.m_Text = (const char*) ((uintptr_t) text.m_Text - (uintptr_t) &text);
+    dmStrlCpy(text.m_Text, "test", sizeof(text.m_Text));
+
+    uint32_t vertices[3], entries[3], bytes[3];
+    for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(vertices); ++frame)
+    {
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmRenderDDF::DrawLine::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmRenderDDF::DrawLine::m_DDFDescriptor, &line, sizeof(line), 0));
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmRenderDDF::DrawText::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmRenderDDF::DrawText::m_DDFDescriptor, &text, sizeof(text), 0));
+        dmEngine::StepFrames(engine, 0.0f, 1);
+        vertices[frame] = engine->m_RenderContext->m_DebugRenderer.m_TypeData[dmRender::DEBUG_RENDER_TYPE_LINE_3D].m_RenderObject.m_VertexCount;
+        entries[frame] = engine->m_RenderContext->m_TextContext.m_TextEntries.Size();
+        bytes[frame] = engine->m_RenderContext->m_TextContext.m_TextBuffer.Size();
+    }
+    dmPlatform::SetWindowSize(engine->m_Window, 128, 96);
+    g_Flipped = 0;
+    dmEngine::StepFrames(engine, 0.0f, 1);
+    uint32_t flipped = g_Flipped;
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(vertices); ++frame)
+    {
+        ASSERT_EQ(0u, vertices[frame]);
+        ASSERT_EQ(0u, entries[frame]);
+        ASSERT_EQ(0u, bytes[frame]);
+    }
+    ASSERT_EQ(1u, flipped);
+}
+
+// A render callback that invalidates the window must discard its commands and recover on the next valid frame.
+TEST_F(EngineTest, ZeroSizeResizeDuringRender)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = { "dmengine", "--config=dmengine.unload_builtins=0", project_path };
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
+    dmPlatform::SetWindowSize(engine->m_Window, 128, 96);
+    dmRender::HRenderScriptInstance instance = engine->m_RenderScriptPrototype->m_Instance;
+    dmRender::HRenderScript script = instance->m_RenderScript;
+    lua_State* L = instance->m_RenderContext->m_RenderScriptContext.m_LuaState;
+    const char* source =
+        "return function(self)\n"
+        "    window.set_size(0, 0)\n"
+        "    render.set_view(vmath.matrix4_translation(vmath.vector3(7, 9, 0)))\n"
+        "    render.set_projection(vmath.matrix4())\n"
+        "end";
+    ASSERT_EQ(0, luaL_loadstring(L, source));
+    ASSERT_EQ(0, lua_pcall(L, 0, 1, 0));
+    int callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    int original = script->m_FunctionReferences[dmRender::RENDER_SCRIPT_FUNCTION_UPDATE];
+    script->m_FunctionReferences[dmRender::RENDER_SCRIPT_FUNCTION_UPDATE] = callback;
+    dmEngine::StepFrames(engine, 0.0f, 1);
+    uint32_t command_count = instance->m_CommandBuffer.Size();
+    uint32_t width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
+    uint32_t height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
+    script->m_FunctionReferences[dmRender::RENDER_SCRIPT_FUNCTION_UPDATE] = original;
+    dmScript::Unref(L, LUA_REGISTRYINDEX, callback);
+    dmPlatform::SetWindowSize(engine->m_Window, 128, 96);
+    g_Flipped = 0;
+    dmEngine::StepFrames(engine, 0.0f, 1);
+    uint32_t flipped = g_Flipped;
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+    ASSERT_EQ(0u, width);
+    ASSERT_EQ(0u, height);
+    ASSERT_EQ(0u, command_count);
+    ASSERT_EQ(1u, flipped);
 }
 
 // Extension and engine time must agree after every update, including when delta time is zero.

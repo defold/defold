@@ -5763,6 +5763,63 @@ TEST_F(dmGuiTest, CloneNodeAndBackwardLoopAnimAtWrap)
     dmGui::RemoveTexture(m_Scene, dmHashString64("t1"));
 }
 
+// A GUI created with no drawable surface must use the project geometry until the first valid resize.
+TEST_F(dmGuiTest, ZeroSizeInitialPhysicalResolution)
+{
+    dmGui::NewContextParams params;
+    params.m_ScriptContext = m_ScriptContext;
+    params.m_DefaultProjectWidth = 640;
+    params.m_DefaultProjectHeight = 480;
+    params.m_PhysicalWidth = 640;
+    params.m_PhysicalHeight = 0;
+    dmGui::HContext context = dmGui::NewContext(&params);
+    uint32_t width, height;
+    dmGui::GetPhysicalResolution(context, width, height);
+    ASSERT_EQ(640u, width);
+    ASSERT_EQ(480u, height);
+    dmGui::DeleteContext(context, m_ScriptContext);
+}
+
+// Zero-size resizes must preserve GUI geometry, including parenting with keep_scene_transform (#9196).
+TEST_F(dmGuiTest, ZeroSizePhysicalResolution)
+{
+    dmGui::SetDefaultResolution(m_Context, 100, 100);
+    dmGui::SetSceneResolution(m_Scene, 100, 100);
+    dmGui::SetPhysicalResolution(m_Context, 200, 100);
+    dmGui::UpdateSafeAreaAdjust(m_Context, dmGui::SAFE_AREA_BOTH, 200, 100, 10, 5, 10, 5);
+    dmGui::HNode parent = dmGui::NewNode(m_Scene, Point3(10, 20, 0), Vector3(20, 20, 0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode child = dmGui::NewNode(m_Scene, Point3(40, 50, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
+    Vector4 screen = _GET_NODE_SCENE_POSITION(m_Scene, child);
+    const uint32_t sizes[][2] = { { 0, 0 }, { 200, 0 }, { 0, 100 } };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
+    {
+        dmGui::SetPhysicalResolution(m_Context, sizes[i][0], sizes[i][1]);
+        dmGui::UpdateSafeAreaAdjust(m_Context, dmGui::SAFE_AREA_BOTH, sizes[i][0], sizes[i][1], 0, 0, 0, 0);
+        uint32_t width, height;
+        dmGui::GetPhysicalResolution(m_Context, width, height);
+        ASSERT_EQ(200u, width);
+        ASSERT_EQ(100u, height);
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParent(m_Scene, child, parent, true));
+        Vector4 actual = _GET_NODE_SCENE_POSITION(m_Scene, child);
+        ASSERT_NEAR(screen.getX(), actual.getX(), 0.0001f);
+        ASSERT_NEAR(screen.getY(), actual.getY(), 0.0001f);
+        Point3 local = dmGui::ScreenToLocalPosition(m_Scene, child, Point3(screen.getXYZ()));
+        Point3 position = dmGui::GetNodePosition(m_Scene, child);
+        ASSERT_NEAR(position.getX(), local.getX(), 0.0001f);
+        ASSERT_NEAR(position.getY(), local.getY(), 0.0001f);
+        dmGui::SetScreenPosition(m_Scene, child, Point3(screen.getXYZ()));
+        actual = _GET_NODE_SCENE_POSITION(m_Scene, child);
+        ASSERT_NEAR(screen.getX(), actual.getX(), 0.0001f);
+        ASSERT_NEAR(screen.getY(), actual.getY(), 0.0001f);
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParent(m_Scene, child, dmGui::INVALID_HANDLE, true));
+    }
+    dmGui::SetPhysicalResolution(m_Context, 300, 200);
+    uint32_t width, height;
+    dmGui::GetPhysicalResolution(m_Context, width, height);
+    ASSERT_EQ(300u, width);
+    ASSERT_EQ(200u, height);
+}
+
 // Check consistancy of get_screen_position/set_screen_position functions
 TEST_F(dmGuiTest, SetGetScreenPosition)
 {

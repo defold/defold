@@ -760,6 +760,13 @@ namespace dmPlatform
 
     void GetMousePosition(HWindow window, int32_t* x, int32_t* y)
     {
+        if (window->m_WidthScreen == 0 || window->m_HeightScreen == 0)
+        {
+            *x = 0;
+            *y = 0;
+            return;
+        }
+
         double xpos, ypos;
         glfwGetCursorPos(window->m_Window, &xpos, &ypos);
 

@@ -3616,13 +3616,51 @@ bail:
         context->m_Result = RunScript(instance, RENDER_SCRIPT_FUNCTION_ONMESSAGE, message);
     }
 
+    static void DiscardRenderScriptCommands(HRenderScriptInstance instance, uint32_t first_command, uint32_t first_constant)
+    {
+        // Only unexecuted commands own these operands; earlier commands may already have run.
+        for (uint32_t i = first_command; i < instance->m_CommandBuffer.Size(); ++i)
+        {
+            Command& command = instance->m_CommandBuffer[i];
+            switch (command.m_Type)
+            {
+                case COMMAND_TYPE_SET_VIEW:
+                case COMMAND_TYPE_SET_PROJECTION:
+                {
+                    delete (dmVMath::Matrix4*) command.m_Operands[0];
+                    break;
+                }
+                case COMMAND_TYPE_DRAW:
+                {
+                    delete (FrustumOptions*) command.m_Operands[2];
+                    break;
+                }
+                case COMMAND_TYPE_DRAW_DEBUG3D:
+                {
+                    delete (FrustumOptions*) command.m_Operands[0];
+                    break;
+                }
+                default:
+                {
+                    break;
+                }
+            }
+        }
+        instance->m_CommandBuffer.SetSize(first_command);
+        instance->m_RenderContext->m_ConstantBufferCloneCursor = first_constant;
+    }
+
     RenderScriptResult DispatchRenderScriptInstance(HRenderScriptInstance instance)
     {
         DM_PROFILE("DispatchRSI");
         DispatchContext context;
         context.m_Instance = instance;
         context.m_Result = RENDER_SCRIPT_RESULT_OK;
+        uint32_t first_command = instance->m_CommandBuffer.Size();
+        uint32_t first_constant = instance->m_RenderContext->m_ConstantBufferCloneCursor;
         dmMessage::Dispatch(instance->m_RenderContext->m_Socket, DispatchCallback, (void*)&context);
+        // Update discards message-handler commands; release them even when no update follows.
+        DiscardRenderScriptCommands(instance, first_command, first_constant);
         return context.m_Result;
     }
 
@@ -3630,6 +3668,7 @@ bail:
     {
         DM_PROFILE("UpdateRSI");
         instance->m_CommandBuffer.SetSize(0);
+        uint32_t first_constant = instance->m_RenderContext->m_ConstantBufferCloneCursor;
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
 
@@ -3637,7 +3676,15 @@ bail:
 
         if (instance->m_CommandBuffer.Size() > 0)
         {
-            ParseCommands(instance->m_RenderContext, &instance->m_CommandBuffer.Front(), instance->m_CommandBuffer.Size());
+            dmGraphics::HContext graphics_context = instance->m_RenderContext->m_GraphicsContext;
+            if (dmGraphics::GetWindowWidth(graphics_context) != 0 && dmGraphics::GetWindowHeight(graphics_context) != 0)
+            {
+                ParseCommands(instance->m_RenderContext, &instance->m_CommandBuffer.Front(), instance->m_CommandBuffer.Size());
+            }
+            else
+            {
+                DiscardRenderScriptCommands(instance, 0, first_constant);
+            }
         }
         return result;
     }

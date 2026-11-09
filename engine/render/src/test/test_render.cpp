@@ -474,6 +474,98 @@ TEST_F(dmRenderTest, TestRenderCameraEffectiveAspectRatio)
     dmRender::DeleteRenderCamera(m_Context, camera);
 }
 
+// Cameras created while the surface is unavailable use project dimensions rather than a zero-size projection.
+TEST_F(dmRenderTest, ZeroSizeInitialRenderCamera)
+{
+    dmGraphics::NullContext* context = (dmGraphics::NullContext*) m_GraphicsContext;
+    context->m_BaseContext.m_Width = 640;
+    context->m_BaseContext.m_Height = 480;
+    dmPlatform::SetWindowSize(m_Window, 0, 0);
+    dmRender::HRenderCamera camera = dmRender::NewRenderCamera(m_Context);
+    dmRender::RenderCameraData data = {};
+    data.m_AutoAspectRatio = true;
+    data.m_Fov = M_PI / 4.0f;
+    data.m_NearZ = 0.1f;
+    data.m_FarZ = 100.0f;
+    data.m_OrthographicZoom = 1.0f;
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+    Point3 position(0.0f, 0.0f, 0.0f);
+    Quat rotation = Quat::identity();
+    dmRender::UpdateRenderCamera(m_Context, camera, &position, &rotation);
+    ASSERT_NEAR(640.0f / 480.0f, dmRender::GetRenderCameraEffectiveAspectRatio(m_Context, camera), EPSILON);
+    Matrix4 actual;
+    dmRender::GetRenderCameraProjection(m_Context, camera, &actual);
+    Matrix4 expected = Matrix4::perspective(data.m_Fov, 640.0f / 480.0f, data.m_NearZ, data.m_FarZ);
+    for (uint32_t row = 0; row < 4; ++row)
+    {
+        for (uint32_t col = 0; col < 4; ++col)
+        {
+            ASSERT_NEAR(expected.getElem(row, col), actual.getElem(row, col), EPSILON);
+        }
+    }
+    dmRender::DeleteRenderCamera(m_Context, camera);
+}
+
+// Zero-size surfaces preserve camera projections, aspect ratios, zoom, and coordinate conversions until restoration.
+TEST_F(dmRenderTest, ZeroSizeRenderCamera)
+{
+    const uint32_t sizes[][2] = { { 0, 0 }, { 20, 0 }, { 0, 10 } };
+    for (uint32_t mode = 0; mode < 4; ++mode)
+    {
+        dmPlatform::SetWindowSize(m_Window, 20, 10);
+        dmRender::HRenderCamera camera = dmRender::NewRenderCamera(m_Context);
+        dmRender::RenderCameraData data = {};
+        data.m_Viewport = Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+        data.m_AspectRatio = 1.0f;
+        data.m_AutoAspectRatio = true;
+        data.m_Fov = M_PI / 4.0f;
+        data.m_NearZ = 0.1f;
+        data.m_FarZ = 100.0f;
+        data.m_OrthographicZoom = 1.0f;
+        data.m_OrthographicProjection = mode != 0;
+        data.m_OrthographicMode = mode == 0 ? dmRender::ORTHO_MODE_FIXED : mode - 1;
+        dmRender::SetRenderCameraData(m_Context, camera, &data);
+        Point3 position(0.0f, 0.0f, 0.0f);
+        Quat rotation = Quat::identity();
+        dmRender::UpdateRenderCamera(m_Context, camera, &position, &rotation);
+        Matrix4 projection;
+        dmRender::GetRenderCameraProjection(m_Context, camera, &projection);
+        float zoom = dmRender::GetRenderCameraOrthographicAutoZoom(m_Context, camera);
+        Vector3 world(1.0f, 2.0f, -10.0f);
+        Vector3 screen;
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::CameraWorldToScreen(m_Context, camera, world, &screen));
+
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
+        {
+            dmPlatform::SetWindowSize(m_Window, sizes[i][0], sizes[i][1]);
+            dmRender::UpdateRenderCamera(m_Context, camera, &position, &rotation);
+            ASSERT_NEAR(2.0f, dmRender::GetRenderCameraEffectiveAspectRatio(m_Context, camera), EPSILON);
+            ASSERT_NEAR(zoom, dmRender::GetRenderCameraOrthographicAutoZoom(m_Context, camera), EPSILON);
+            Matrix4 actual;
+            dmRender::GetRenderCameraProjection(m_Context, camera, &actual);
+            for (uint32_t row = 0; row < 4; ++row)
+            {
+                for (uint32_t col = 0; col < 4; ++col)
+                {
+                    ASSERT_NEAR(projection.getElem(row, col), actual.getElem(row, col), EPSILON);
+                }
+            }
+            Vector3 actual_screen, actual_world;
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::CameraWorldToScreen(m_Context, camera, world, &actual_screen));
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::CameraScreenToWorld(m_Context, camera, screen.getX(), screen.getY(), screen.getZ(), &actual_world));
+            ASSERT_NEAR(screen.getX(), actual_screen.getX(), EPSILON);
+            ASSERT_NEAR(screen.getY(), actual_screen.getY(), EPSILON);
+            ASSERT_NEAR(world.getX(), actual_world.getX(), 0.0001f);
+            ASSERT_NEAR(world.getY(), actual_world.getY(), 0.0001f);
+            ASSERT_NEAR(world.getZ(), actual_world.getZ(), 0.0001f);
+        }
+        dmPlatform::SetWindowSize(m_Window, 30, 10);
+        dmRender::UpdateRenderCamera(m_Context, camera, &position, &rotation);
+        ASSERT_NEAR(3.0f, dmRender::GetRenderCameraEffectiveAspectRatio(m_Context, camera), EPSILON);
+        dmRender::DeleteRenderCamera(m_Context, camera);
+    }
+}
+
 TEST_F(dmRenderTest, TestRenderCameraOrthographicAutoZoom)
 {
     dmRender::HRenderCamera camera = dmRender::NewRenderCamera(m_Context);

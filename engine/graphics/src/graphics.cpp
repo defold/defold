@@ -2255,10 +2255,28 @@ namespace dmGraphics
     }
     void SetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
+        if (width == 0 || height == 0)
+        {
+            HWindow window = g_functions.m_GetWindow(context);
+            if (dmPlatform::GetWindowStateParam(window, WINDOW_STATE_OPENED))
+            {
+                dmPlatform::SetWindowSize(window, width, height);
+            }
+            return;
+        }
         g_functions.m_SetWindowSize(context, width, height);
     }
     void ResizeWindow(HContext context, uint32_t width, uint32_t height)
     {
+        if (width == 0 || height == 0)
+        {
+            HWindow window = g_functions.m_GetWindow(context);
+            if (dmPlatform::GetWindowStateParam(window, WINDOW_STATE_OPENED))
+            {
+                dmPlatform::SetWindowSize(window, width, height);
+            }
+            return;
+        }
         g_functions.m_ResizeWindow(context, width, height);
     }
     void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)

@@ -53,13 +53,14 @@ local function update_clear_color(state, color)
 end
 
 local function update_camera(camera, state)
-    if camera.projection_fn then
+    if state.valid and camera.projection_fn then
         camera.proj = camera.projection_fn(camera, state)
         camera.options.frustum = camera.proj * camera.view
     end
 end
 
 local function update_state(state)
+    local was_valid = state.valid
     state.window_width = render.get_window_width()
     state.window_height = render.get_window_height()
     state.valid = state.window_width > 0 and state.window_height > 0
@@ -67,7 +68,7 @@ local function update_state(state)
         return false
     end
     -- Make sure state updated only once when resize window
-    if state.window_width == state.prev_window_width and state.window_height == state.prev_window_height then
+    if was_valid and state.window_width == state.prev_window_width and state.window_height == state.prev_window_height then
         return true
     end
     state.prev_window_width = state.window_width

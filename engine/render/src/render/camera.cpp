@@ -14,11 +14,25 @@
 
 #include <assert.h>
 #include <dlib/hash.h>
+#include <dlib/math.h>
 #include "render_private.h"
 
 namespace dmRender
 {
     const float EPS = 1e-6f;
+
+    static void UpdateCameraWindowSize(HRenderContext render_context, RenderCamera* camera)
+    {
+        // Size APIs report zero for an unavailable surface; camera math keeps valid geometry.
+        dmGraphics::HContext graphics_context = GetGraphicsContext(render_context);
+        uint32_t width = dmGraphics::GetWindowWidth(graphics_context);
+        uint32_t height = dmGraphics::GetWindowHeight(graphics_context);
+        if (width != 0 && height != 0)
+        {
+            camera->m_LastWindowWidth = width;
+            camera->m_LastWindowHeight = height;
+        }
+    }
 
     HRenderCamera NewRenderCamera(HRenderContext render_context)
     {
@@ -31,6 +45,10 @@ namespace dmRender
         camera->m_URL                  = dmMessage::URL();
         camera->m_Handle               = render_context->m_RenderCameras.Put(camera);
         camera->m_OrthographicAutoZoom = 1.0f;
+        dmGraphics::HContext graphics_context = GetGraphicsContext(render_context);
+        camera->m_LastWindowWidth = dmMath::Max(1u, dmGraphics::GetWidth(graphics_context));
+        camera->m_LastWindowHeight = dmMath::Max(1u, dmGraphics::GetHeight(graphics_context));
+        UpdateCameraWindowSize(render_context, camera);
 
         memset(&camera->m_Data, 0, sizeof(camera->m_Data));
         camera->m_Data.m_Viewport = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
@@ -96,10 +114,8 @@ namespace dmRender
 
         if (c->m_Data.m_AutoAspectRatio)
         {
-            dmGraphics::HContext graphics_context = GetGraphicsContext(render_context);
-            float width = (float) dmGraphics::GetWindowWidth(graphics_context);
-            float height = (float) dmGraphics::GetWindowHeight(graphics_context);
-            return width / height;
+            UpdateCameraWindowSize(render_context, c);
+            return (float) c->m_LastWindowWidth / c->m_LastWindowHeight;
         }
         else
         {
@@ -128,8 +144,9 @@ namespace dmRender
         }
 
         dmGraphics::HContext graphics_context = GetGraphicsContext(render_context);
-        float width        = (float) dmGraphics::GetWindowWidth(graphics_context);
-        float height       = (float) dmGraphics::GetWindowHeight(graphics_context);
+        UpdateCameraWindowSize(render_context, c);
+        float width        = (float) c->m_LastWindowWidth;
+        float height       = (float) c->m_LastWindowHeight;
         float aspect_ratio = c->m_Data.m_AspectRatio;
 
         if (c->m_Data.m_AutoAspectRatio)
@@ -231,17 +248,9 @@ namespace dmRender
         RenderCamera* camera = render_context->m_RenderCameras.Get(camera_handle);
 
         // Window size
-        dmGraphics::HContext gc = GetGraphicsContext(render_context);
-        float win_w = (float) dmGraphics::GetWindowWidth(gc);
-        float win_h = (float) dmGraphics::GetWindowHeight(gc);
-        if (win_w <= 0.0f)
-        {
-            win_w = 1.0f;
-        }
-        if (win_h <= 0.0f)
-        {
-            win_h = 1.0f;
-        }
+        UpdateCameraWindowSize(render_context, camera);
+        float win_w = (float) camera->m_LastWindowWidth;
+        float win_h = (float) camera->m_LastWindowHeight;
 
         // Viewport-aware screen -> Normalized Device Coordinates
         const dmVMath::Vector4& vp = camera->m_Data.m_Viewport;
@@ -306,17 +315,9 @@ namespace dmRender
         float y_ndc = clip.getY() * inv_w;
 
         // Window size
-        dmGraphics::HContext gc = GetGraphicsContext(render_context);
-        float win_w = (float) dmGraphics::GetWindowWidth(gc);
-        float win_h = (float) dmGraphics::GetWindowHeight(gc);
-        if (win_w <= 0.0f)
-        {
-            win_w = 1.0f;
-        }
-        if (win_h <= 0.0f)
-        {
-            win_h = 1.0f;
-        }
+        UpdateCameraWindowSize(render_context, camera);
+        float win_w = (float) camera->m_LastWindowWidth;
+        float win_h = (float) camera->m_LastWindowHeight;
 
         // Viewport mapping (Normalized Device Coordinates -> screen pixels)
         const dmVMath::Vector4& vp = camera->m_Data.m_Viewport;

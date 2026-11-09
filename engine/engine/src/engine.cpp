@@ -255,8 +255,18 @@ namespace dmEngine
     };
 
 
+    static bool HasValidWindowSize(Engine* engine)
+    {
+        return dmGraphics::GetWindowWidth(engine->m_GraphicsContext) != 0 && dmGraphics::GetWindowHeight(engine->m_GraphicsContext) != 0;
+    }
+
     static void UpdateGuiSafeAreaAdjust(Engine* engine, uint32_t window_width, uint32_t window_height)
     {
+        if (window_width == 0 || window_height == 0)
+        {
+            return;
+        }
+
         HWindow window = dmGraphics::GetWindow(engine->m_GraphicsContext);
         WindowSafeArea safe_area;
         if (!dmPlatform::GetSafeArea(window, &safe_area))
@@ -316,17 +326,23 @@ namespace dmEngine
         engine->m_PendingWindowResizeHeight = height;
         engine->m_HasPendingWindowResize = true;
         FlushPendingWindowResize(engine);
-        engine->m_InvPhysicalWidth = 1.0f / width;
-        engine->m_InvPhysicalHeight = 1.0f / height;
-        // update gui context if it exists
-        if (engine->m_GuiContext)
+        // Keep geometry used for calculations while the drawable surface is unavailable.
+        if (width != 0 && height != 0)
         {
-            dmGui::SetPhysicalResolution(engine->m_GuiContext, width, height);
-        }
+            engine->m_PhysicalWidth = width;
+            engine->m_PhysicalHeight = height;
+            engine->m_InvPhysicalWidth = 1.0f / width;
+            engine->m_InvPhysicalHeight = 1.0f / height;
+            // update gui context if it exists
+            if (engine->m_GuiContext)
+            {
+                dmGui::SetPhysicalResolution(engine->m_GuiContext, width, height);
+            }
 
-        if (engine->m_GraphicsContext)
-        {
-            UpdateGuiSafeAreaAdjust(engine, width, height);
+            if (engine->m_GraphicsContext)
+            {
+                UpdateGuiSafeAreaAdjust(engine, width, height);
+            }
         }
 
         dmGameSystem::OnWindowResized(width, height);
@@ -487,6 +503,8 @@ namespace dmEngine
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
     , m_InvPhysicalHeight(1.0f/640)
+    , m_PhysicalWidth(960)
+    , m_PhysicalHeight(640)
     , m_PendingWindowResizeWidth(0)
     , m_PendingWindowResizeHeight(0)
     , m_HasPendingWindowResize(false)
@@ -1426,8 +1444,10 @@ namespace dmEngine
         uint32_t physical_dpi = dmGraphics::GetDisplayDpi(engine->m_GraphicsContext);
         uint32_t physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
         uint32_t physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
-        engine->m_InvPhysicalWidth = 1.0f / physical_width;
-        engine->m_InvPhysicalHeight = 1.0f / physical_height;
+        engine->m_PhysicalWidth = physical_width != 0 && physical_height != 0 ? physical_width : engine->m_Width;
+        engine->m_PhysicalHeight = physical_width != 0 && physical_height != 0 ? physical_height : engine->m_Height;
+        engine->m_InvPhysicalWidth = 1.0f / engine->m_PhysicalWidth;
+        engine->m_InvPhysicalHeight = 1.0f / engine->m_PhysicalHeight;
 
 #if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
         engine->m_RunWhileIconified = dmConfigFile::GetInt(engine->m_Config, "engine.run_while_iconified", 0);
@@ -1588,8 +1608,8 @@ namespace dmEngine
         physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
         physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
 
-        gui_params.m_PhysicalWidth = physical_width;
-        gui_params.m_PhysicalHeight = physical_height;
+        gui_params.m_PhysicalWidth = engine->m_PhysicalWidth;
+        gui_params.m_PhysicalHeight = engine->m_PhysicalHeight;
         gui_params.m_DefaultProjectWidth = engine->m_Width;
         gui_params.m_DefaultProjectHeight = engine->m_Height;
         gui_params.m_Dpi = physical_dpi;
@@ -1730,7 +1750,8 @@ namespace dmEngine
         dmPlatform::ShowWindow(engine->m_Window);
 
         // clear it a couple of times, due to initialization of extensions might stall the updates
-        for (int i = 0; i < 3; ++i) {
+        for (int i = 0; i < 3 && HasValidWindowSize(engine); ++i)
+        {
             dmGraphics::BeginFrame(engine->m_GraphicsContext);
             dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
             dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
@@ -1894,7 +1915,7 @@ bail:
     static void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
     {
         Engine* engine = (Engine*)user_data;
-        int32_t window_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
+        int32_t window_height = engine->m_PhysicalHeight;
         window_height -= 1; // mouse position uses [0; size - 1] instead of [1, size]
         dmArray<dmGameObject::InputAction>* input_buffer = &engine->m_InputBuffer;
         dmGameObject::InputAction input_action;
@@ -2178,6 +2199,13 @@ bail:
 
                 dmSound::Update();
 
+                bool window_size_valid = HasValidWindowSize(engine);
+                do_render = do_render && window_size_valid;
+                if (!window_size_valid && engine->m_RenderScriptPrototype)
+                {
+                    dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
+                }
+
                 // Don't render while iconified
                 if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED) && do_render)
                 {
@@ -2208,29 +2236,34 @@ bail:
 
                     dmRender::RenderListEnd(engine->m_RenderContext);
 
-                    dmGraphics::BeginFrame(engine->m_GraphicsContext);
+                    // Resize messages can invalidate the surface before the graphics frame begins.
+                    do_render = HasValidWindowSize(engine);
+                    if (do_render)
+                    {
+                        dmGraphics::BeginFrame(engine->m_GraphicsContext);
 
-                    if (engine->m_RenderScriptPrototype)
-                    {
-                        dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);
-                    }
-                    else
-                    {
-                        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
-                                            (float)((engine->m_ClearColor>> 0)&0xFF),
-                                            (float)((engine->m_ClearColor>> 8)&0xFF),
-                                            (float)((engine->m_ClearColor>>16)&0xFF),
-                                            (float)((engine->m_ClearColor>>24)&0xFF),
-                                            1.0f, 0);
-                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+                        if (engine->m_RenderScriptPrototype)
+                        {
+                            dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);
+                        }
+                        else
+                        {
+                            dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
+                            dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
+                                              (float)((engine->m_ClearColor >> 0) & 0xFF),
+                                              (float)((engine->m_ClearColor >> 8) & 0xFF),
+                                              (float)((engine->m_ClearColor >> 16) & 0xFF),
+                                              (float)((engine->m_ClearColor >> 24) & 0xFF),
+                                              1.0f, 0);
+                            dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+                        }
                     }
                 }
 
                 if (!dmGameSystem::PostUpdate(engine->m_GameSystem, GetMainCollection(engine)))
                     Exit(engine, 1);
 
-                if (do_render)
+                if (do_render || frame_rendered || !window_size_valid)
                 {
                     dmRender::ClearRenderObjects(engine->m_RenderContext);
                 }
@@ -2256,7 +2289,7 @@ bail:
                 service_updated = true;
             }
 
-            if (do_render)
+            if (do_render && HasValidWindowSize(engine))
             {
 #if !defined(DM_RELEASE)
                 dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, ResFontGetHandle(engine->m_SystemFont));
@@ -2270,11 +2303,15 @@ bail:
                     ScopedExtensionParams ext_params(engine);
                     dmExtension::PostRender(ext_params);
                 }
-
+            }
+            if (do_render)
+            {
+                // Finish an opened graphics frame even if a callback invalidated its surface.
                 dmGraphics::Flip(engine->m_GraphicsContext);
-
-                if (engine->m_EngineService && frame_rendered)
-                    dmEngineService::EndFrame(engine->m_EngineService);
+            }
+            if (engine->m_EngineService && frame_rendered)
+            {
+                dmEngineService::EndFrame(engine->m_EngineService);
             }
         }
         ProfileFrameEnd(profile);
@@ -2313,7 +2350,7 @@ bail:
             return 0;
         }
 
-        bool do_render = g_EngineRenderEnabled && !dmRender::IsRenderPaused(engine->m_RenderContext);
+        bool do_render = g_EngineRenderEnabled && !dmRender::IsRenderPaused(engine->m_RenderContext) && HasValidWindowSize(engine);
         bool supports_vsync = dmGraphics::IsContextFeatureSupported(engine->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_VSYNC);
         if (do_render && supports_vsync)
         {
