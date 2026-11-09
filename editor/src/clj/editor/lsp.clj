@@ -395,9 +395,20 @@
                 (localization/message "progress.language-server-with-message" {"title" title "message" message})
                 (localization/message "progress.language-server" {"title" title}))]
           (if percentage
-            (progress/make message-pattern 100 (min 100 (long percentage)))
+            (progress/make message-pattern 100 (min 99 (long percentage)))
             (progress/make-indeterminate message-pattern)))
         progress/done))))
+
+(defn- on-progress [server token {:keys [kind] :as value}]
+  (fn [state]
+    (if-not (contains? (:server->server-state state) server)
+      state
+      (let [state (if (= "end" kind)
+                    (update-in state [:server->server-state server :progress] dissoc token)
+                    (update-in state [:server->server-state server :progress token]
+                               merge (select-keys value [:title :message :percentage])))]
+        (render-server-progress! state)
+        state))))
 
 (defn- dispose-server-state! [state server {:keys [in out diagnostics] :as server-state}]
   {:pre [(s/assert ::server-state server-state)]}
@@ -466,16 +477,7 @@
     (lsp.server/make project server input output
                      :on-initialized (partial on-server-initialized server)
                      :on-publish-diagnostics (partial on-diagnostics-published server)
-                     :on-progress (fn on-progress [token {:keys [kind] :as value}]
-                                    (fn update-progress [state]
-                                      (if-not (contains? (:server->server-state state) server)
-                                        state
-                                        (let [state (if (= "end" kind)
-                                                      (update-in state [:server->server-state server :progress] dissoc token)
-                                                      (update-in state [:server->server-state server :progress token]
-                                                                 merge (select-keys value [:title :message :percentage])))]
-                                          (render-server-progress! state)
-                                          state))))
+                     :on-progress (partial on-progress server)
                      :on-response (partial on-server-response server))
     (-> state
         (update :channels conj output)
