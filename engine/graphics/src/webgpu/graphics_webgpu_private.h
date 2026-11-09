@@ -19,6 +19,7 @@
 #include <vector>
 
 #include <dlib/hashtable.h>
+#include <dlib/double_linked_list.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dlib/opaque_handle_container.h>
 
@@ -84,6 +85,16 @@ namespace dmGraphics
         char*            m_FlippedEntryPoint = NULL;
     };
 
+    // The context owns cached entries and their native references. Programs borrow entries
+    // until invalidated or enabled again; heap allocation keeps them stable across rehashes.
+    struct WebGPUBindGroup
+    {
+        dmDoubleLinkedList::ListNode m_ListNode; // Must be first for intrusive list operations.
+        WGPUBindGroup                m_BindGroup;
+        uint64_t                     m_Hash;
+        uint32_t                     m_LastUsedFrame;
+    };
+
     struct WebGPUProgram
     {
         WebGPUProgram()
@@ -97,7 +108,7 @@ namespace dmGraphics
         WebGPUShaderModule*    m_ComputeModule;
 
         WGPUBindGroupLayout    m_BindGroupLayouts[MAX_SET_COUNT];
-        WGPUBindGroup          m_BindGroups[MAX_SET_COUNT];
+        WebGPUBindGroup*       m_BindGroups[MAX_SET_COUNT];
         WGPUPipelineLayout     m_PipelineLayout;
 
         uint64_t               m_Hash;
@@ -203,7 +214,9 @@ namespace dmGraphics
         GraphicsContext                    m_BaseContext;
         dmHashTable64<WGPURenderPipeline>  m_RenderPipelineCache;
         dmHashTable64<WGPUComputePipeline> m_ComputePipelineCache;
-        dmHashTable64<WGPUBindGroup>       m_BindGroupCache;
+        dmHashTable64<WebGPUBindGroup*>    m_BindGroupCache;
+        dmDoubleLinkedList::List           m_BindGroupCacheLRU;
+        uint32_t                           m_BindGroupCacheFrame;
         dmHashTable64<WGPUSampler>         m_SamplerCache;
 
         WebGPUTexture*                     m_CurrentTextureUnits[MAX_TEXTURE_COUNT];

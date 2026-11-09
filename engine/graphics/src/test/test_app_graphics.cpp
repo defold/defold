@@ -270,6 +270,8 @@ struct WebGPURenderingTest : ClearBackbufferTest
 {
     dmGraphics::HProgram         m_Program;
     dmGraphics::HUniformLocation m_Color;
+    uint64_t                     m_BenchmarkTime;
+    uint32_t                     m_BenchmarkFrames;
 
     static void MakeShaderDesc(dmGraphics::ShaderDesc* shader_desc)
     {
@@ -308,10 +310,13 @@ struct WebGPURenderingTest : ClearBackbufferTest
             return;
         }
         m_Color = GetUniformLocation(m_Program, "color");
+        m_BenchmarkTime = 0;
+        m_BenchmarkFrames = 0;
     }
 
     void Execute(EngineCtx* engine) override
     {
+        const uint64_t start = dmTime::GetMonotonicTime();
         ClearBackbufferTest::Execute(engine);
         dmGraphics::HContext context = engine->m_GraphicsContext;
         dmGraphics::SetViewport(context, 0, 0, dmGraphics::GetWindowWidth(context), dmGraphics::GetWindowHeight(context));
@@ -329,7 +334,7 @@ struct WebGPURenderingTest : ClearBackbufferTest
         dmGraphics::SetDepthMask(context, engine->m_WasRun % 2 == 0);
         dmGraphics::WebGPUContext* webgpu_context = (dmGraphics::WebGPUContext*)context;
         uint32_t capacity = webgpu_context->m_BindGroupCache.Capacity();
-        const uint32_t draw_count = engine->m_WasRun == 1 ? 512 : 1;
+        const uint32_t draw_count = engine->m_WasRun == 1 || HasArgument("bind-group-benchmark") ? 512 : 1;
         dmVMath::Vector4 color(1.0f, 0.5f, 0.0f, 1.0f);
         for (uint32_t i = 0; i < draw_count; ++i)
         {
@@ -345,11 +350,11 @@ struct WebGPURenderingTest : ClearBackbufferTest
         if (engine->m_WasRun == 1)
         {
             ASSERT_EQ(draw_count, webgpu_context->m_BindGroupCache.Size());
-            dmHashTable64<WGPUBindGroup>::Iterator iterator = webgpu_context->m_BindGroupCache.GetIterator();
+            dmHashTable64<dmGraphics::WebGPUBindGroup*>::Iterator iterator = webgpu_context->m_BindGroupCache.GetIterator();
             while (iterator.Next())
             {
-                WGPUBindGroup* cached = webgpu_context->m_BindGroupCache.Get(iterator.GetKey());
-                ASSERT_NE((WGPUBindGroup*)0, cached);
+                dmGraphics::WebGPUBindGroup** cached = webgpu_context->m_BindGroupCache.Get(iterator.GetKey());
+                ASSERT_NE((dmGraphics::WebGPUBindGroup**)0, cached);
                 ASSERT_EQ(iterator.GetValue(), *cached);
             }
         }
@@ -362,10 +367,20 @@ struct WebGPURenderingTest : ClearBackbufferTest
             ASSERT_EQ(engine->m_WasRun != 2, WebGPUIsDisplaySyncEnabled());
         }
 #endif
+        if (HasArgument("bind-group-benchmark") && engine->m_WasRun > 32)
+        {
+            m_BenchmarkTime += dmTime::GetMonotonicTime() - start;
+            ++m_BenchmarkFrames;
+        }
     }
 
     void OnGraphicsClosing(EngineCtx* engine) override
     {
+        if (m_BenchmarkFrames)
+        {
+            dmLogInfo("Bind-group benchmark: %u frames, 512 draws/frame, %.3f ms/frame CPU",
+                      m_BenchmarkFrames, m_BenchmarkTime / (1000.0 * m_BenchmarkFrames));
+        }
         dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
         ASSERT_NE(0u, context->m_BindGroupCache.Size());
         WGPUPopErrorScopeCallbackInfo callback_info = WGPU_POP_ERROR_SCOPE_CALLBACK_INFO_INIT;
@@ -383,6 +398,7 @@ struct WebGPURenderingTest : ClearBackbufferTest
     {
         dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
         ASSERT_EQ(0u, context->m_BindGroupCache.Size());
+        ASSERT_EQ((dmDoubleLinkedList::ListNode*)0, dmDoubleLinkedList::ListGetLast(&context->m_BindGroupCacheLRU));
         if (m_Program)
         {
             dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
@@ -390,14 +406,18 @@ struct WebGPURenderingTest : ClearBackbufferTest
     }
 };
 
-// Verifies bind-group invalidation when uniform buffers and programs are deleted or reloaded.
+// Verifies age expiry across frame-counter wrap, fast-path reuse, and resource/program invalidation.
 struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
 {
+    dmGraphics::WebGPUBindGroup* m_HotGroup;
     dmGraphics::HProgram         m_InactiveProgram;
 
     void Initialize(EngineCtx* engine) override
     {
         WebGPURenderingTest::Initialize(engine);
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        context->m_BindGroupCacheFrame = UINT32_MAX - 4;
+        m_HotGroup = 0;
         m_InactiveProgram = 0;
     }
 
@@ -419,7 +439,32 @@ struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
             dmVMath::Vector4 color(1.0f, 0.5f, 0.0f, 1.0f);
             dmGraphics::SetConstantV4(context, &color, 1, m_Color);
         }
+
+        if (engine->m_WasRun >= 13 && engine->m_WasRun <= 21)
+        {
+            if (engine->m_WasRun == 21)
+            {
+                ASSERT_EQ(0u, webgpu_context->m_BindGroupCache.Size());
+                ASSERT_EQ((dmGraphics::WebGPUBindGroup*)0, program->m_BindGroups[0]);
+            }
+            return;
+        }
+
         dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        if (engine->m_WasRun == 2)
+        {
+            m_HotGroup = program->m_BindGroups[0];
+        }
+        else if (engine->m_WasRun <= 12)
+        {
+            // No EnableProgram/SetConstant calls: the selected-group fast path must refresh age.
+            ASSERT_EQ(m_HotGroup, program->m_BindGroups[0]);
+            ASSERT_EQ(webgpu_context->m_BindGroupCacheFrame, m_HotGroup->m_LastUsedFrame);
+            if (engine->m_WasRun >= 10)
+            {
+                ASSERT_EQ(1u, webgpu_context->m_BindGroupCache.Size());
+            }
+        }
 
         if (engine->m_WasRun == 30)
         {
@@ -431,7 +476,7 @@ struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
             dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
             dmGraphics::DeleteUniformBuffer(context, buffer);
             ASSERT_EQ(0u, webgpu_context->m_BindGroupCache.Size());
-            ASSERT_EQ((WGPUBindGroup)0, program->m_BindGroups[0]);
+            ASSERT_EQ((dmGraphics::WebGPUBindGroup*)0, program->m_BindGroups[0]);
             dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
         }
         else if (engine->m_WasRun == 40)
@@ -464,6 +509,8 @@ struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
         }
         else if (engine->m_WasRun == 60)
         {
+            // Enabling an inactive program must discard its expired borrowed entry.
+            ASSERT_EQ(1u, webgpu_context->m_BindGroupCache.Size());
             dmGraphics::EnableProgram(context, m_InactiveProgram);
             dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
             dmGraphics::DeleteProgram(context, m_InactiveProgram);
