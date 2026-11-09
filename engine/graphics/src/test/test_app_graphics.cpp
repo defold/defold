@@ -295,6 +295,8 @@ struct WebGPURenderingTest : ClearBackbufferTest
 
     void Initialize(EngineCtx* engine) override
     {
+        m_BenchmarkTime = 0;
+        m_BenchmarkFrames = 0;
         dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
         wgpuDevicePushErrorScope(context->m_Device, WGPUErrorFilter_Validation);
 
@@ -310,8 +312,6 @@ struct WebGPURenderingTest : ClearBackbufferTest
             return;
         }
         m_Color = GetUniformLocation(m_Program, "color");
-        m_BenchmarkTime = 0;
-        m_BenchmarkFrames = 0;
     }
 
     void Execute(EngineCtx* engine) override
