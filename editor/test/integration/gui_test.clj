@@ -18,6 +18,7 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.attachment :as attachment]
             [editor.buffers :as buffers]
             [editor.build :as build]
             [editor.colors :as colors]
@@ -453,6 +454,54 @@
          :resource-property :test-gui-resource
          :attachment-property :test-gui-resources
          :attach-fn attach-test-gui-resource}))))
+
+;; Loaded scenes keep their registration and caches until reload, including the
+;; defaults used by editor scripts when adding nodes after a registry change.
+(deftest gui-resource-type-snapshot-test
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (register-test-gui-extensions workspace)
+    (let [scene-data {:nodes [{:type :type-box :id "box"}]}
+          gui-resource (test-util/make-resource! workspace "/registration.gui" scene-data)]
+      (workspace/resource-sync! workspace)
+      (let [scene (test-util/resource-node project gui-resource)
+            scene-info (g/valid-node-value scene :trivial-gui-scene-info)
+            type-info (get-in scene-info [:gui-node-type-registry :node-type->type-info TestCustomGuiNode])
+            counters (g/invalidate-counters)
+            updated-type-info (assoc-in type-info [:defaults :test-number] 42.0)]
+        (g/transact
+          (workspace/register-resource-type workspace :ext "unrelated-plugin-resource")
+          (gui/register-custom-node-type-info workspace updated-type-info))
+        (is (identical? scene-info (g/valid-node-value scene :trivial-gui-scene-info)))
+        (is (coll/every? (complement (g/endpoint-invalidated-pred counters))
+                         (mapv #(g/endpoint scene %)
+                               [:save-value :build-targets :trivial-gui-scene-info])))
+
+        (testing "Editor scripts use the loaded registration for scene and child attachments."
+          (let [rt (rt/make)]
+            (doseq [parent-node-id [scene (gui-node scene "box")]]
+              (let [[child-node-id] (g/tx-nodes-added
+                                      (g/transact
+                                        (attachment/add
+                                          workspace parent-node-id :nodes TestCustomGuiNode
+                                          (fn init-child [parent-node-id child-node-id]
+                                            (g/expand-ec ext-graph/init-attachment rt project parent-node-id TestCustomGuiNode child-node-id {}))
+                                          fn/constantly-nil)))]
+                (is (= 1.0 (prop child-node-id :test-number)))))))
+
+        (testing "A newly loaded scene uses the updated registration."
+          (test-util/make-resource! workspace "/new-registration.gui" scene-data)
+          (workspace/resource-sync! workspace)
+          (let [new-scene (test-util/resource-node project "/new-registration.gui")]
+            (is (= 42.0 (get-in (g/valid-node-value new-scene :trivial-gui-scene-info)
+                                [:gui-node-type-registry :node-type->type-info TestCustomGuiNode :defaults :test-number])))))
+
+        (testing "Reloading an existing scene adopts the updated registration."
+          (test-util/write-file-resource! workspace "/registration.gui" (assoc scene-data :max-nodes 256))
+          (workspace/resource-sync! workspace)
+          (let [reloaded-scene (test-util/resource-node project gui-resource)]
+            (is (not= scene reloaded-scene))
+            (is (= 42.0 (get-in (g/valid-node-value reloaded-scene :trivial-gui-scene-info)
+                                [:gui-node-type-registry :node-type->type-info TestCustomGuiNode :defaults :test-number])))))))))
 
 (defn- property-value-choices [node-id label]
   (->> (g/node-value node-id :_properties)
