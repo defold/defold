@@ -1776,6 +1776,13 @@ namespace dmGameSystem
     static void RenderBatch(SpriteWorld* sprite_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("SpriteRenderBatch");
+#if defined(DM_SPRITE_QUAD_BENCHMARK)
+        // The opt-in benchmark compiles this translation unit with its own prototype.
+        if (RenderQuadBenchmarkBatch(sprite_world, render_context, buf, begin, end))
+        {
+            return;
+        }
+#endif
 
         uint32_t component_index = (uint32_t)buf[*begin].m_UserData;
         const SpriteComponent* first = &sprite_world->m_Components.Get(component_index);
@@ -1811,7 +1818,13 @@ namespace dmGameSystem
         uint8_t* vb_iter  = vb_begin;
         uint8_t* ib_iter  = ib_begin;
 
+#if defined(DM_SPRITE_QUAD_BENCHMARK)
+        uint64_t pack_begin = dmTime::GetMonotonicTime();
+#endif
         CreateVertexData(sprite_world, &material_attribute_info, &vb_iter, &ib_iter, buf, begin, end);
+#if defined(DM_SPRITE_QUAD_BENCHMARK)
+        g_QuadPackTime += dmTime::GetMonotonicTime() - pack_begin;
+#endif
 
         sprite_world->m_VertexBufferWritePtr = vb_iter;
         sprite_world->m_IndexBufferWritePtr = ib_iter;
@@ -2121,6 +2134,9 @@ namespace dmGameSystem
         dmRender::TrimBuffer(render_context, world->m_IndexBuffer);
         dmRender::RewindBuffer(render_context, world->m_IndexBuffer);
         world->m_DispatchCount = 0;
+#if defined(DM_SPRITE_QUAD_BENCHMARK)
+        UpdateQuadBenchmarkBuffers(render_context);
+#endif
 
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -2169,6 +2185,12 @@ namespace dmGameSystem
                 component->m_BoundsDirty = 0;
             }
 
+#if defined(DM_SPRITE_QUAD_BENCHMARK)
+            if (g_QuadMode)
+            {
+                continue;
+            }
+#endif
             // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
             vertex_memsize += component->m_VertexStride - vertex_memsize % component->m_VertexStride;
 
@@ -2194,17 +2216,32 @@ namespace dmGameSystem
         switch (params.m_Operation)
         {
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
+            {
+#if defined(DM_SPRITE_QUAD_BENCHMARK)
+                BeginQuadBenchmarkDispatch();
+#endif
                 world->m_VertexBufferWritePtr = world->m_VertexBufferData;
                 world->m_IndexBufferWritePtr = world->m_IndexBufferData;
                 world->m_RenderObjectsInUse = 0;
                 break;
+            }
             case dmRender::RENDER_LIST_OPERATION_END:
             {
+#if defined(DM_SPRITE_QUAD_BENCHMARK)
+                if (EndQuadBenchmarkDispatch(params.m_Context))
+                {
+                    break;
+                }
+                uint64_t upload_begin = dmTime::GetMonotonicTime();
+#endif
                 uint32_t vertex_data_size = world->m_VertexBufferWritePtr - world->m_VertexBufferData;
                 uint32_t index_data_size  = world->m_IndexBufferWritePtr - world->m_IndexBufferData;
 
                 dmRender::SetBufferData(params.m_Context, world->m_VertexBuffer, vertex_data_size, world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
                 dmRender::SetBufferData(params.m_Context, world->m_IndexBuffer, index_data_size, world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+#if defined(DM_SPRITE_QUAD_BENCHMARK)
+                g_QuadUploadTime += dmTime::GetMonotonicTime() - upload_begin;
+#endif
 
                 DM_PROPERTY_ADD_U32(rmtp_SpriteVertexCount, world->m_VertexCount);
                 DM_PROPERTY_ADD_U32(rmtp_SpriteVertexSize, vertex_data_size);
@@ -2234,7 +2271,11 @@ namespace dmGameSystem
         if (!sprite_count)
             return dmGameObject::UPDATE_RESULT_OK;
 
-        if (sprite_world->m_ReallocBuffers)
+        if (sprite_world->m_ReallocBuffers
+#if defined(DM_SPRITE_QUAD_BENCHMARK)
+            && !g_QuadMode
+#endif
+            )
         {
             ReAllocateBuffers(sprite_world, render_context);
         }

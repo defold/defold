@@ -318,6 +318,17 @@ if(GAMESYS_BUILD_PERFORMANCE_TESTS)
   defold_register_test_target(benchmark_models OFF "${GS_TEST_RUN_DIR}"
     RUNTIME_DEPENDS gamesys_test_data_model)
   add_dependencies(benchmark_models gamesys_test_data_model)
+
+  # benchmark_sprite_quads includes comp_sprite.cpp to replace the archive's
+  # component object only in this executable. Normal engine builds have no hooks.
+  defold_add_executable(benchmark_sprite_quads
+    "${GS_TEST_ROOT}/benchmark_sprite_quads.cpp"
+    ${_TEST1_EXPORTED_CPP} ${_EMBED_HEADERS} ${_EMBED_CPP})
+  target_compile_definitions(benchmark_sprite_quads PRIVATE DM_SPRITE_QUAD_BENCHMARK)
+  gamesys_configure_common_test(benchmark_sprite_quads BENCHMARK)
+  defold_register_test_target(benchmark_sprite_quads OFF "${GS_TEST_RUN_DIR}"
+    RUNTIME_DEPENDS gamesys_test_data_sprite)
+  add_dependencies(benchmark_sprite_quads gamesys_test_data_sprite)
 endif()
 
 # ---------------------------------------------------------------------------

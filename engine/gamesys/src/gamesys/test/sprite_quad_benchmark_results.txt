@@ -1,0 +1,142 @@
+Sprite quad instancing benchmark — 2026-11-09
+
+Branch: benchmark-sprite-quad-instancing
+Base branch: optimize-custom-vertex-writes
+Base revision: f452542ba227c4d6c222202aee326013d256d4a9
+CPU: 12th Gen Intel(R) Core(TM) i9-12900K (24 logical processors)
+OS: Windows-11-10.0.26300-SP0
+Build: x86_64-win32, MSVC 14.51.36231, CMake RelWithDebInfo (/O2)
+Executable SHA-256: 5305126e8f03e4bb38da96835032081429e97fa006c02e7b22b83725c4ff6faa
+
+Decision
+
+The CPU results justify a real-backend quad prototype. For moving, animated
+sprites in one batch/pass, compact instances reduce measured CPU preparation
+by about 20% at 10,000 and 50,000 sprites. They reduce packing time by about
+48% and 45%, respectively. Matrix instances also improve preparation time,
+but save much less dynamic data at counts using 16-bit indices.
+
+This is not a GPU result or a whole-game frame-time prediction. Do not switch
+the default sprite material based on this benchmark. Next measure actual
+driver uploads, vertex processing, fragment work and presentation on desktop
+and a mobile/web adapter, with rendered-image parity.
+
+Method
+
+- Real sprite update, transform propagation, animation cache, sorted render
+  list, batching, buffer packing and render-object submission.
+- Baseline: current optimized quad writer; 4 vertices (24 bytes each) and
+  6 indices. Index width changes above 16,384 sprites.
+- Matrix: shared unit quad plus 104-byte instance (mat4 + mat3 + float page).
+- Compact: shared unit quad plus 64-byte instance (world origin/two XYZ axes,
+  affine UV mapping, page), packed into four vec4 attributes.
+- Both instance formats fold size/pivot into their geometry transform. They
+  are private fixed-layout prototypes, not a public material/API contract.
+- Shared quad vertex/index buffers total 44 bytes, uploaded once, excluded
+  from the dynamic upload columns. Baseline is unpaged; both prototypes
+  include a 4-byte page field, set to zero for this fixture.
+- Single texture, alpha blend, four animation frames, all flip combinations,
+  off-center pivot, negative scale and a sprite plane rotated in 3D.
+- Static: stationary transforms and frozen animation; moving: moving
+  transforms and frozen animation; animated: moving transforms and animation.
+- Fragmented: 64 synthetic batch keys at distinct depth groups. This models
+  batch fragmentation, not the driver cost of changing actual materials.
+- Multipass: three draws of the same list, separate buffered backing per pass.
+- Null backend: indexed vertex capture is disabled equally in all modes.
+  Its usual CPU expansion ignores instance_count and would bias comparison.
+  Null draw setup/counters remain; uploaded bytes and bindings are validated.
+- prepare_us = measured sprite-pipeline CPU frame time minus measured null
+  upload allocation/copy time. It includes update, submission, sorting,
+  packing and count-only drawing. Upload time is NOT driver/GPU upload time.
+- Three fresh processes per mode/scenario/count, rotating mode order.
+  Each process: first rendered frame, 30 warmup frames, 7 samples of 60 frames.
+  A setup update precedes the first rendered frame. Cold rows are excluded.
+- Summaries are medians of process medians of warm sample means. Different
+  columns are summarized independently and need not sum exactly.
+- No CPU affinity or clock locking. Run ranges below expose variability.
+- Input mutations, construction, validation and logging are outside timings.
+
+Validation
+
+- 135 benchmark invocations passed (3 counts x 5 scenarios x 3 modes x 3 runs).
+- Reconstruct every instanced corner/UV and compare with CreateVertexData.
+- Check uploaded payloads, shared geometry, instance counts, buffer offsets,
+  sorted instance order, draw count and submitted index count.
+- Check buffer backing count matches dispatch count in multipass cases.
+- Existing SpriteTest.* suite: 20 tests, 2,942 assertions passed.
+- This does not validate GPU shaders, transparency compositing or rendering
+  on an actual graphics adapter. No slice-9, trimmed geometry, multiple
+  textures, arbitrary custom attributes, or production fallback implementation.
+
+Results (microseconds; negative change means faster than expanded)
+
+count scenario mode prepare_us pack_us null_upload_us prepare_change_pct dynamic_bytes
+1000 static expanded 63.566 31.183 1.667 0.0 108000
+1000 static matrix 48.483 18.150 1.583 -23.7 104000
+1000 static compact 46.100 16.067 0.983 -27.5 64000
+1000 moving expanded 88.016 31.033 1.850 0.0 108000
+1000 moving matrix 71.850 17.550 1.567 -18.4 104000
+1000 moving compact 70.384 16.183 0.983 -20.0 64000
+1000 animated expanded 92.867 31.150 1.717 0.0 108000
+1000 animated matrix 77.084 17.400 1.683 -17.0 104000
+1000 animated compact 75.783 16.033 0.950 -18.4 64000
+1000 fragmented expanded 121.650 36.983 1.850 0.0 108000
+1000 fragmented matrix 97.383 19.333 1.617 -19.9 104000
+1000 fragmented compact 97.000 18.450 0.983 -20.3 64000
+1000 multipass expanded 173.683 91.967 6.017 0.0 324000
+1000 multipass matrix 128.734 53.050 5.533 -25.9 312000
+1000 multipass compact 121.417 48.733 2.900 -30.1 192000
+10000 static expanded 593.050 311.050 262.767 0.0 1080000
+10000 static matrix 408.933 172.500 268.817 -31.0 1040000
+10000 static compact 399.516 157.083 179.633 -32.6 640000
+10000 moving expanded 836.216 300.833 264.417 0.0 1080000
+10000 moving matrix 678.533 173.317 32.650 -18.9 1040000
+10000 moving compact 656.033 155.833 19.800 -21.5 640000
+10000 animated expanded 887.767 302.250 272.433 0.0 1080000
+10000 animated matrix 731.033 173.167 29.567 -17.7 1040000
+10000 animated compact 705.033 157.733 16.917 -20.6 640000
+10000 fragmented expanded 1013.866 318.267 262.700 0.0 1080000
+10000 fragmented matrix 846.450 186.083 284.017 -16.5 1040000
+10000 fragmented compact 836.033 173.500 179.667 -17.5 640000
+10000 multipass expanded 1710.933 911.100 806.567 0.0 3240000
+10000 multipass matrix 1225.783 507.333 838.083 -28.4 3120000
+10000 multipass compact 1179.900 476.283 517.083 -31.0 1920000
+50000 static expanded 3564.717 1578.117 1206.083 0.0 6000000
+50000 static matrix 2595.717 913.500 995.267 -27.2 5200000
+50000 static compact 2403.084 815.517 609.700 -32.6 3200000
+50000 moving expanded 5109.900 1608.333 1291.483 0.0 6000000
+50000 moving matrix 4165.733 946.883 1046.217 -18.5 5200000
+50000 moving compact 4006.883 863.100 634.467 -21.6 3200000
+50000 animated expanded 5212.250 1571.900 1305.217 0.0 6000000
+50000 animated matrix 4303.834 942.617 1047.033 -17.4 5200000
+50000 animated compact 4147.816 859.367 649.633 -20.4 3200000
+50000 fragmented expanded 7012.317 2599.100 1271.617 0.0 6000000
+50000 fragmented matrix 6261.466 1944.750 1029.917 -10.7 5200000
+50000 fragmented compact 5497.183 1654.717 656.367 -21.6 3200000
+50000 multipass expanded 19206.267 8904.133 4452.350 0.0 18000000
+50000 multipass matrix 7580.067 3018.950 3013.933 -60.5 15600000
+50000 multipass compact 6626.633 2489.967 1801.233 -65.5 9600000
+
+Animated single-pass CPU preparation: range of process medians (microseconds)
+
+1000 expanded: 92.300 .. 93.184
+1000 matrix: 76.783 .. 78.266
+1000 compact: 74.983 .. 75.867
+10000 expanded: 871.433 .. 895.833
+10000 matrix: 722.233 .. 731.100
+10000 compact: 702.750 .. 723.433
+50000 expanded: 5182.333 .. 5496.384
+50000 matrix: 4172.017 .. 4640.200
+50000 compact: 4037.533 .. 4671.534
+
+Reproduce (repository root, Defold build shell)
+
+cmake -S . -B engine/build/x86_64-win32 -DDEFOLD_ENABLE_FEATURES=performance_tests
+cmake --build engine/build/x86_64-win32 --target benchmark_sprite_quads
+python engine/gamesys/src/gamesys/test/compare_sprite_quad_benchmarks.py --binary engine/gamesys/build/x86_64-win32/src/gamesys/test/benchmark_sprite_quads.exe --runtime engine/gamesys/build/x86_64-win32/gamesys-test-runtime --output tmp/sprite-quad-benchmark-final --frames 60 --samples 7 --warmup 30 --runs 3
+
+Raw logs, per-sample values, metadata and per-run medians are preserved locally
+in tmp/sprite-quad-benchmark-final/{raw.json,summary.json,summary.txt,*.log}.
+The runner recreates these artifacts. This file preserves the result snapshot
+with the benchmark sources. Timings are not assertions or automatic CI gates.
+
