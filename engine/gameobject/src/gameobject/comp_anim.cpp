@@ -358,7 +358,6 @@ namespace dmGameObject
     // Storage stays AoS; only these temporary registers are transposed.
     static bool UpdateAnimationSimd4(Animation* anim, float dt)
     {
-
         // 1. Pack four AoS records into vectors with one animation per lane.
         // m_From, m_To, m_Cursor and m_Duration must stay consecutive in Animation.
         // Before transposing, each vector is one record; afterwards, it is one field.
@@ -487,12 +486,121 @@ namespace dmGameObject
         bool m_Euler;
     };
 
+    // Update one track that is outside a SIMD run, including delayed, custom-curve,
+    // Euler and once-playback tracks. Completion callbacks remain in finalization.
+    // Keep this in the traversal loop to avoid a function call for every scalar track.
+    static DM_FORCE_INLINE void UpdateAnimationScalar(AnimWorld* world, Collection* collection, Animation& anim, float dt, AnimationUpdateChanges& changes)
+    {
+        // Ignore canceled or delayed animations
+        if (!anim.m_Playing)
+        {
+            return;
+        }
+        if (anim.m_Delay > dt)
+        {
+            anim.m_Delay -= dt;
+            return;
+        }
+        // Consume the delay without scheduling work in the arithmetic loop.
+        const float delay = anim.m_Delay;
+        dt -= delay;
+        anim.m_Delay = 0.0f;
+        // Advance cursor
+        if (anim.m_Playback != PLAYBACK_NONE)
+        {
+            anim.m_Cursor += dt;
+        }
+        // Adjust cursor
+        bool completed = false;
+        switch (anim.m_Playback)
+        {
+            case PLAYBACK_ONCE_FORWARD:
+            case PLAYBACK_ONCE_BACKWARD:
+            case PLAYBACK_ONCE_PINGPONG:
+            {
+                if (anim.m_Cursor >= anim.m_Duration)
+                {
+                    anim.m_Cursor = anim.m_Duration;
+                    completed = true;
+                }
+                break;
+            }
+            case PLAYBACK_LOOP_FORWARD:
+            case PLAYBACK_LOOP_BACKWARD:
+            {
+                if (anim.m_Duration > 0)
+                {
+                    while (anim.m_Cursor >= anim.m_Duration)
+                    {
+                        anim.m_Cursor -= anim.m_Duration;
+                    }
+                }
+                break;
+            }
+            case PLAYBACK_LOOP_PINGPONG:
+            {
+                if (anim.m_Duration > 0)
+                {
+                    while (anim.m_Cursor >= anim.m_Duration)
+                    {
+                        anim.m_Cursor -= anim.m_Duration;
+                        anim.m_Backwards = ~anim.m_Backwards;
+                    }
+                }
+                break;
+            }
+            default:
+            {
+                break;
+            }
+        }
+
+        // Evaluate animation
+        if (!anim.m_Composite)
+        {
+            float t = 1.0f;
+            if (anim.m_Cursor < anim.m_Duration)
+            {
+                t = dmMath::Clamp(anim.m_Cursor * anim.m_InvDuration, 0.0f, 1.0f);
+            }
+            if (anim.m_Backwards)
+            {
+                t = 1.0f - t;
+            }
+            if (anim.m_Playback == PLAYBACK_ONCE_PINGPONG || anim.m_Playback == PLAYBACK_LOOP_PINGPONG)
+            {
+                t *= 2.0f;
+                if (t > 1.0f)
+                {
+                    t = 2.0f - t;
+                }
+            }
+            t = anim.m_EasingType == dmEasing::TYPE_FLOAT_VECTOR
+                ? dmEasing::GetValue(world->m_AnimationExtras.Get(anim.m_ExtrasIndex).m_Easing, t)
+                : dmEasing::GetValue((dmEasing::Type)anim.m_EasingType, t);
+            float v = anim.m_From + (anim.m_To - anim.m_From) * t;
+            changes.m_Euler |= ApplyAnimationValue(collection, &anim, v);
+            changes.m_Transforms |= anim.m_IsGameObjectTransformProperty;
+        }
+        if (completed)
+        {
+            StopAnimation(world, &anim, true);
+        }
+    }
+
+    // Setters can stop later tracks, so inspect all four just before evaluating them.
+    static bool CanUpdateAnimationSimd4(const Animation* animations, uint32_t count)
+    {
+        return count >= 4 && (animations[0].m_SimdReady & animations[1].m_SimdReady &
+                              animations[2].m_SimdReady & animations[3].m_SimdReady);
+    }
+
     // Walk the array in physical order, interleaving scalar work and SIMD runs.
     // UseBatches is selected once per collection/frame and requires an executable
     // four-track batch and nonnegative dt. Without one, compile out batch dispatch.
     // This does not select a hardware backend: UpdateAnimationSimd4 uses the same
     // Simd* operations with native vectors or scalar primitives. Individual-track
-    // evaluation below handles unsupported tracks and tails in either case.
+    // evaluation handles unsupported tracks and tails in either case.
     template <bool UseBatches>
     static AnimationUpdateChanges EvaluateAnimations(AnimWorld* world, Collection* collection, uint32_t size, float frame_dt)
     {
@@ -505,10 +613,9 @@ namespace dmGameObject
         for (uint32_t i = 0; i < size; ++i)
         {
             Animation& anim = world->m_Animations[i];
-            Animation* batch = &anim;
-            if (UseBatches && anim.m_SimdReady &&
-                ((cached_runs && i == next_run) || (!cached_runs && i + 4 <= size &&
-                                                    (batch[1].m_SimdReady & batch[2].m_SimdReady & batch[3].m_SimdReady))))
+            const bool use_batch = UseBatches &&
+                                   (cached_runs ? i == next_run : CanUpdateAnimationSimd4(&anim, size - i));
+            if (use_batch)
             {
                 const uint32_t end = cached_runs ? world->m_SimdRuns[run_index].m_End : i + 4;
                 Animation* animations = world->m_Animations.Begin();
@@ -524,102 +631,7 @@ namespace dmGameObject
                 }
                 continue;
             }
-            // Ignore canceled or delayed animations
-            if (!anim.m_Playing)
-            {
-                continue;
-            }
-            float dt = frame_dt;
-            if (anim.m_Delay > dt)
-            {
-                anim.m_Delay -= dt;
-                continue;
-            }
-            // Consume the delay without scheduling work in the arithmetic loop.
-            const float delay = anim.m_Delay;
-            dt -= delay;
-            anim.m_Delay = 0.0f;
-            // Advance cursor
-            if (anim.m_Playback != PLAYBACK_NONE)
-            {
-                anim.m_Cursor += dt;
-            }
-            // Adjust cursor
-            bool completed = false;
-            switch (anim.m_Playback)
-            {
-                case PLAYBACK_ONCE_FORWARD:
-                case PLAYBACK_ONCE_BACKWARD:
-                case PLAYBACK_ONCE_PINGPONG:
-                {
-                    if (anim.m_Cursor >= anim.m_Duration)
-                    {
-                        anim.m_Cursor = anim.m_Duration;
-                        completed = true;
-                    }
-                    break;
-                }
-                case PLAYBACK_LOOP_FORWARD:
-                case PLAYBACK_LOOP_BACKWARD:
-                {
-                    if (anim.m_Duration > 0)
-                    {
-                        while (anim.m_Cursor >= anim.m_Duration)
-                        {
-                            anim.m_Cursor -= anim.m_Duration;
-                        }
-                    }
-                    break;
-                }
-                case PLAYBACK_LOOP_PINGPONG:
-                {
-                    if (anim.m_Duration > 0)
-                    {
-                        while (anim.m_Cursor >= anim.m_Duration)
-                        {
-                            anim.m_Cursor -= anim.m_Duration;
-                            anim.m_Backwards = ~anim.m_Backwards;
-                        }
-                    }
-                    break;
-                }
-                default:
-                {
-                    break;
-                }
-            }
-
-            // Evaluate animation
-            if (!anim.m_Composite)
-            {
-                float t = 1.0f;
-                if (anim.m_Cursor < anim.m_Duration)
-                {
-                    t = dmMath::Clamp(anim.m_Cursor * anim.m_InvDuration, 0.0f, 1.0f);
-                }
-                if (anim.m_Backwards)
-                {
-                    t = 1.0f - t;
-                }
-                if (anim.m_Playback == PLAYBACK_ONCE_PINGPONG || anim.m_Playback == PLAYBACK_LOOP_PINGPONG)
-                {
-                    t *= 2.0f;
-                    if (t > 1.0f)
-                    {
-                        t = 2.0f - t;
-                    }
-                }
-                t = anim.m_EasingType == dmEasing::TYPE_FLOAT_VECTOR
-                    ? dmEasing::GetValue(world->m_AnimationExtras.Get(anim.m_ExtrasIndex).m_Easing, t)
-                    : dmEasing::GetValue((dmEasing::Type)anim.m_EasingType, t);
-                float v = anim.m_From + (anim.m_To - anim.m_From) * t;
-                changes.m_Euler |= ApplyAnimationValue(collection, &anim, v);
-                changes.m_Transforms |= anim.m_IsGameObjectTransformProperty;
-            }
-            if (completed)
-            {
-                StopAnimation(world, &anim, true);
-            }
+            UpdateAnimationScalar(world, collection, anim, frame_dt, changes);
         }
         return changes;
     }
