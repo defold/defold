@@ -3428,12 +3428,13 @@
                                                 (flatten-document-symbols document-symbols)))
                 items (document-symbols->items (get-property view-node :document-symbols evaluation-context))
                 items-ref (when (lsp/document-symbols-pending? lsp resource)
-                            (let [items-ref (atom nil)]
+                            (let [items-ref (atom {:items items :loading true})]
                               (lsp/on-document-symbols-ready!
                                 lsp resource
                                 (fn on-document-symbols-ready []
                                   (ui/run-later
-                                    (reset! items-ref (document-symbols->items (g/node-value view-node :document-symbols))))))
+                                    (reset! items-ref {:items (document-symbols->items (g/node-value view-node :document-symbols))
+                                                       :loading false}))))
                               items-ref))
                 ;; Previewing moves the cursor as the selection changes, so remember
                 ;; where we started to put it back if the dialog is cancelled.

@@ -694,66 +694,84 @@
     (when (some? item)
       (assoc (f item localization) :on-mouse-clicked {:event-type :select-item-on-double-click}))))
 
-(defn- select-list-dialog-event-handler [set-filter-term-fn]
-  (fn [state event]
-    (case (:event-type event)
-      :cancel (assoc state ::fxui/result nil)
-      :confirm (assoc state ::fxui/result {:filter-term (:filter-term state)
-                                           :selected-items (mapv (:filtered-items state) (:selected-indices state))})
-      :set-selected-indices (assoc state :selected-indices (:fx/event event))
-      :select-item-on-double-click (let [^MouseEvent e (:fx/event event)]
-                                     (if (and (= MouseButton/PRIMARY (.getButton e))
-                                              (= 2 (.getClickCount e)))
-                                       (recur state (assoc event :event-type :confirm))
-                                       state))
-      :filter-root-events (let [^Event e (:fx/event event)]
-                            (if (and (instance? KeyEvent e)
-                                     (= KeyEvent/KEY_PRESSED (.getEventType e)))
-                              (let [^KeyEvent e e]
-                                (condp = (.getCode e)
-                                  KeyCode/UP (let [view (.getTarget e)]
-                                               (when (instance? ListView (.getTarget e))
-                                                 (let [^ListView view view]
-                                                   (when (zero? (.getSelectedIndex (.getSelectionModel view)))
-                                                     (.consume e)
-                                                     (.fireEvent view (KeyEvent.
-                                                                        KeyEvent/KEY_PRESSED
-                                                                        "\t"
-                                                                        "\t"
-                                                                        KeyCode/TAB
-                                                                        #_shift true
-                                                                        #_control false
-                                                                        #_alt false
-                                                                        #_meta false)))))
+(defn- select-list-dialog-event-handler [state event]
+  (case (:event-type event)
+    :cancel (assoc state ::fxui/result nil)
+    :confirm (assoc state ::fxui/result {:filter-term (:filter-term state)
+                                         :selected-items (mapv (:filtered-items state) (:selected-indices state))})
+    :set-selected-indices (assoc state :selected-indices (:fx/event event))
+    :select-item-on-double-click (let [^MouseEvent e (:fx/event event)]
+                                   (if (and (= MouseButton/PRIMARY (.getButton e))
+                                            (= 2 (.getClickCount e)))
+                                     (recur state (assoc event :event-type :confirm))
+                                     state))
+    :filter-root-events (let [^Event e (:fx/event event)]
+                          (if (and (instance? KeyEvent e)
+                                   (= KeyEvent/KEY_PRESSED (.getEventType e)))
+                            (let [^KeyEvent e e]
+                              (condp = (.getCode e)
+                                KeyCode/UP (let [view (.getTarget e)]
+                                             (when (instance? ListView (.getTarget e))
+                                               (let [^ListView view view]
+                                                 (when (zero? (.getSelectedIndex (.getSelectionModel view)))
+                                                   (.consume e)
+                                                   (.fireEvent view (KeyEvent.
+                                                                      KeyEvent/KEY_PRESSED
+                                                                      "\t"
+                                                                      "\t"
+                                                                      KeyCode/TAB
+                                                                      #_shift true
+                                                                      #_control false
+                                                                      #_alt false
+                                                                      #_meta false)))))
+                                             state)
+                                KeyCode/DOWN (let [view (.getTarget e)]
+                                               (when (instance? TextField view)
+                                                 (let [^TextField view view]
+                                                   (.consume e)
+                                                   (.fireEvent view (KeyEvent.
+                                                                      KeyEvent/KEY_PRESSED
+                                                                      "\t"
+                                                                      "\t"
+                                                                      KeyCode/TAB
+                                                                      #_shift false
+                                                                      #_control false
+                                                                      #_alt false
+                                                                      #_meta false))))
                                                state)
-                                  KeyCode/DOWN (let [view (.getTarget e)]
-                                                 (when (instance? TextField view)
-                                                   (let [^TextField view view]
-                                                     (.consume e)
-                                                     (.fireEvent view (KeyEvent.
-                                                                        KeyEvent/KEY_PRESSED
-                                                                        "\t"
-                                                                        "\t"
-                                                                        KeyCode/TAB
-                                                                        #_shift false
-                                                                        #_control false
-                                                                        #_alt false
-                                                                        #_meta false))))
-                                                 state)
-                                  KeyCode/ENTER (if (empty? (:filtered-items state))
-                                                  state
-                                                  (recur state (assoc event :event-type :confirm)))
-                                  KeyCode/ESCAPE (recur state (assoc event :event-type :cancel))
-                                  state))
-                              state))
-      :set-filter-term (let [filter-term (:fx/event event)]
-                         (set-filter-term-fn state filter-term)))))
+                                KeyCode/ENTER (if (coll/empty? (:filtered-items state))
+                                                state
+                                                (recur state (assoc event :event-type :confirm)))
+                                KeyCode/ESCAPE (recur state (assoc event :event-type :cancel))
+                                state))
+                            state))
+    :set-filter-term (let [filter-term (:fx/event event)]
+                       (if (= (:filter-term state) filter-term)
+                         state
+                         (assoc state :filter-term filter-term)))))
 
 (defn- default-cell-fn [item _localization]
   item)
 
 (defn- default-filter-on [item _localization]
   (str item))
+
+(defn- select-list-dialog-filter-effect
+  [{:keys [items-state items filter-term filtered-items-input start-filter] :as props}]
+  (let [filter-input [(if items-state (:items items-state) items) filter-term]]
+    {:fx/type fx/ext-effect
+     :fn start-filter
+     :args filter-input
+     :desc (assoc props
+             :fx/type select-list-dialog
+             :loading (boolean (:loading items-state))
+             :filter-in-progress (not= filter-input filtered-items-input))}))
+
+(defn- select-list-dialog-items-watcher [{:keys [items-ref] :as props}]
+  {:fx/type fx/ext-watcher
+   :ref items-ref
+   :key :items-state
+   :desc (assoc props :fx/type select-list-dialog-filter-effect)})
 
 (defn make-select-list-dialog
   "Show dialog that allows the user to select one or many of the suggested items
@@ -782,11 +800,12 @@
       :prompt         filter text field's prompt, string or MessagePattern,
                       defaults to \"dialog.select-item.prompt\" message
       :owner          the owner window, defaults to main stage
-      :items-ref      optional watched reference containing replacement items;
-                      nil means loading and keeps the currently displayed items
+      :items-ref      optional watched reference containing a map with :items,
+                      replacing the items argument, and :loading, true while
+                      more items are expected
       :loading-message
                       optional string or MessagePattern shown beside the footer
-                      spinner while :items-ref contains nil
+                      spinner while :items-ref value has :loading set
       :preview-item-fn
                       optional side-effecting fn of two args, an item to preview
                       and a source keyword describing what triggered it:
@@ -806,65 +825,39 @@
          filter-term (or (:filter options)
                          (some-> filter-atom deref)
                          "")
-         filter-future-atom (atom nil)
-         state-atom (atom {:filter-term nil ; Non-string value to ensure set-filter-term won't early-out.
-                           :filter-in-progress false
-                           :loading false
-                           :items (localization/sort-if-annotated @localization items)
+         state-atom (atom {:filter-term filter-term
                            :filtered-items []
+                           :filtered-items-input nil
                            :selected-indices []})
-
-         filter-items
-         (fn filter-items [state filter-term]
-           (let [items (:items state)]
-             (swap! filter-future-atom
-                    (fn [pending-filter-future]
-                      (thread-util/cancel-future! pending-filter-future)
-                      (future
-                        (try
-                          (let [filtered-items (vec (filter-fn filter-term items))
-                                selected-indices (if (coll/empty? filtered-items) [] [0])]
-                            (thread-util/throw-if-interrupted!)
-                            (swap! state-atom
-                                   (fn [state]
-                                     (thread-util/throw-if-interrupted!)
-                                     (assoc state
-                                       :filter-in-progress false
-                                       :filtered-items filtered-items
-                                       :selected-indices selected-indices))))
-                          (catch InterruptedException _
-                            nil)
-                          (catch Throwable error
-                            (error-reporting/report-exception! error))))))
-             (assoc state
-               :filter-term filter-term
-               :filter-in-progress true)))
-
-         set-filter-term
-         (fn set-filter-term [state filter-term]
-           (if (= (:filter-term state) filter-term)
-             state
-             (filter-items state filter-term)))
-
-         set-items
-         (fn set-items [state items]
-           (if-not items
-             (assoc state :loading true)
-             (-> state
-                 (assoc :loading false
-                        :items (localization/sort-if-annotated @localization items))
-                 (filter-items (:filter-term state)))))
-
-         _ (swap! state-atom set-filter-term filter-term)
-         _ (when items-ref
-             (add-watch items-ref state-atom (fn on-items-changed [_ _ _ items]
-                                               (swap! state-atom set-items items)))
-             (swap! state-atom set-items @items-ref))
-         event-handler (select-list-dialog-event-handler set-filter-term)
+         start-filter
+         (fn start-filter [items filter-term]
+           (let [filter-future
+                 (future
+                   (try
+                     (let [sorted-items (localization/sort-if-annotated @localization items)
+                           filtered-items (vec (filter-fn filter-term sorted-items))
+                           selected-indices (if (coll/empty? filtered-items) [] [0])]
+                       (thread-util/throw-if-interrupted!)
+                       (swap! state-atom
+                              (fn [state]
+                                (thread-util/throw-if-interrupted!)
+                                (assoc state
+                                  :filtered-items filtered-items
+                                  :filtered-items-input [items filter-term]
+                                  :selected-indices selected-indices))))
+                     (catch InterruptedException _
+                       nil)
+                     (catch Throwable error
+                       (error-reporting/report-exception! error))))]
+             (fn cancel-filter []
+               (thread-util/cancel-future! filter-future))))
          result (fxui/show-dialog-and-await-result!
                   :state-atom state-atom
-                  :event-handler event-handler
-                  :description {:fx/type select-list-dialog
+                  :event-handler select-list-dialog-event-handler
+                  :description {:fx/type select-list-dialog-items-watcher
+                                :items-ref items-ref
+                                :items items
+                                :start-filter start-filter
                                 :localization localization
                                 ;; The list only tells us focus moved or its items
                                 ;; changed. Split "items changed" into :opened (nothing
@@ -889,9 +882,6 @@
                                 :loading-message (:loading-message options)
                                 :owner (or (:owner options) (ui/main-stage))
                                 :selection (:selection options :single)})]
-     (when items-ref
-       (remove-watch items-ref state-atom))
-     (swap! filter-future-atom thread-util/cancel-future!)
      (when result
        (let [{:keys [filter-term selected-items]} result]
          (when (and filter-atom selected-items)
