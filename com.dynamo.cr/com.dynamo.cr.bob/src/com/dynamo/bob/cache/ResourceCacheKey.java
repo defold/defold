@@ -14,13 +14,13 @@
 
 package com.dynamo.bob.cache;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.io.IOException;
-import java.math.BigInteger;
-
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.fs.IResource;
+
+import java.io.IOException;
+import java.math.BigInteger;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 public class ResourceCacheKey {
 

@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
 import build
@@ -19,7 +20,8 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 
 class PythonProtobufTests(unittest.TestCase):
     def setUp(self):
-        self.enterContext(contextlib.redirect_stdout(io.StringIO()))
+        self.output = io.StringIO()
+        self.enterContext(contextlib.redirect_stdout(self.output))
         directory = self.enterContext(tempfile.TemporaryDirectory(prefix='protobuf setup '))
         self.root = Path(directory).resolve()
         self.ext = self.root / 'sdk' / 'ext'
@@ -46,7 +48,10 @@ class PythonProtobufTests(unittest.TestCase):
         self.configuration.defold_root = str(REPOSITORY)
         self.configuration.ext = str(self.ext)
         self.configuration._form_env = lambda: self.env.copy()
-        self.configuration.get_python = lambda: [sys.executable]
+        self.configuration.verbose = False
+        self.configuration.no_colors = True
+        self.configuration.build_tracker = build.BuildTimeTracker(logger=lambda message: None)
+        self.configuration.tool_checks = build.tool_checks.ToolChecks(self.configuration)
 
     def run_python(self, *args):
         return subprocess.run([sys.executable, *args], env=self.env, capture_output=True, text=True)
@@ -82,26 +87,39 @@ class PythonProtobufTests(unittest.TestCase):
 
     # SDK preflight must import the actual bundled runtime without being affected by host packages.
     def test_preflight_loads_bundled_runtime(self):
-        info = self.configuration._check_python_protobuf()
+        info = self.configuration.tool_checks.check_python_protobuf()
         self.assertEqual(self.protobuf_version, info['version'])
         self.assertEqual(self.packages / 'google' / 'protobuf' / '__init__.py', Path(info['path']))
 
-    # Missing or broken bundled runtimes must fail during setup with a concrete repair command.
+    # Missing or broken runtimes fail preflight with a repair command even when successful checks are silent.
     def test_preflight_rejects_missing_or_broken_runtime(self):
         init = self.packages / 'google' / 'protobuf' / '__init__.py'
         init.write_text("raise ImportError('broken bundled runtime')\n")
-        with self.assertRaisesRegex(build.sdk.SDKException, 'Could not load.*install_ext'):
-            self.configuration._check_python_protobuf()
-        shutil.rmtree(self.packages)
-        with self.assertRaisesRegex(build.sdk.SDKException, 'Could not load.*install_ext'):
-            self.configuration._check_python_protobuf()
+        for state in ('broken', 'missing'):
+            with self.subTest(state=state):
+                if state == 'missing':
+                    shutil.rmtree(self.packages)
+                self.output.seek(0)
+                self.output.truncate(0)
+                with self.assertRaises(SystemExit) as raised:
+                    self.configuration.tool_checks.check_python_protobuf(silent=True)
+                self.assertEqual(1, raised.exception.code)
+                message = self.output.getvalue()
+                self.assertIn('Python Protobuf: Failed', message)
+                self.assertIn('Could not load the bundled Python Protobuf runtime', message)
+                self.assertIn('./scripts/build.py install_ext', message)
+                self.assertIn('broken bundled runtime' if state == 'broken' else 'No module named', message)
 
-    # A fresh offline installation must install and validate the pinned wheel rather than a host package.
+    # Installing a wheel invalidates its cached runtime check and leaves validation to the next SDK preflight.
     @unittest.skipUnless(importlib.util.find_spec('pip'), 'pip is required for installation')
-    def test_setup_installs_and_validates_pinned_wheel(self):
-        shutil.rmtree(self.packages)
-        self.configuration._install_python_packages([f'protobuf=={self.protobuf_version}'])
-        info = self.configuration._check_python_protobuf()
+    def test_setup_defers_validation_and_invalidates_cached_runtime(self):
+        with mock.patch.object(build.run, 'env_command', wraps=build.run.env_command) as command:
+            self.configuration.tool_checks.check_python_protobuf(silent=True)
+            shutil.rmtree(self.packages)
+            self.configuration._install_python_packages([f'protobuf=={self.protobuf_version}'])
+            self.assertEqual(1, sum('-S' in call.args[1] for call in command.call_args_list))
+            info = self.configuration.tool_checks.check_python_protobuf()
+            self.assertEqual(2, sum('-S' in call.args[1] for call in command.call_args_list))
         self.assertEqual(self.protobuf_version, info['version'])
         self.assertTrue(Path(info['path']).is_relative_to(self.packages))
 

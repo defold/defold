@@ -62,7 +62,7 @@ physics_configure_test(test_physics_null physics_null OFF)
 defold_target_link_bullet3d(test_physics_null "${TARGET_PLATFORM}")
 
 defold_add_executable(test_physics_2d_null "${PHYSICS_TEST_ROOT}/test_physics_2d.cpp")
-target_compile_definitions(test_physics_2d_null PRIVATE PHYSICS_TEST_BOX2D_DEFOLD)
+target_compile_definitions(test_physics_2d_null PRIVATE PHYSICS_TEST_BOX2D_DEFOLD PHYSICS_TEST_NULL)
 target_include_directories(test_physics_2d_null PRIVATE "${DEFOLD_EXT_INCLUDE_DIR}/box2d_defold")
 physics_configure_test(test_physics_2d_null physics_null OFF)
 defold_target_link_bullet3d(test_physics_2d_null "${TARGET_PLATFORM}")

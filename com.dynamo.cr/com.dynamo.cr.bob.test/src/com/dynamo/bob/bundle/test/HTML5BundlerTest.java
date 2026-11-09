@@ -14,12 +14,18 @@
 
 package com.dynamo.bob.bundle.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.EngineArtifactsProvider;
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.bundle.BundleHelper;
+import com.dynamo.bob.bundle.HTML5Bundler;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.test.util.MockFileSystem;
+import com.dynamo.bob.util.BobProjectProperties;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,19 +41,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
-import com.dynamo.bob.Bob;
-import com.dynamo.bob.EngineArtifactsProvider;
-import com.dynamo.bob.Platform;
-import com.dynamo.bob.Project;
-import com.dynamo.bob.bundle.BundleHelper;
-import com.dynamo.bob.bundle.HTML5Bundler;
-import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.test.util.MockFileSystem;
-import com.dynamo.bob.util.BobProjectProperties;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
 /**
  * Tests for HTML5Bundler.getUrlOrigin(), which decides if index.html should contain a

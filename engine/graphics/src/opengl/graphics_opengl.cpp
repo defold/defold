@@ -21,6 +21,7 @@
 #include <dlib/hash.h>
 #include <dlib/align.h>
 #include <dlib/array.h>
+#include <dlib/atomic.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
 #include <dmsdk/dlib/vmath.h>
@@ -1089,7 +1090,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         bool acquire_flag = (uintptr_t) _acquire_flag;
-        assert(dmAtomicGet32(&context->m_AuxContextJobPending));
+        assert(dmAtomicLoadAcquire32(&context->m_AuxContextJobPending));
 
         if (acquire_flag)
         {
@@ -1100,7 +1101,8 @@ static void LogFrameBufferError(GLenum status)
             dmPlatform::UnacquireAuxContext(context->m_BaseContext.m_Window, context->m_AuxContext);
         }
 
-        dmAtomicStore32(&context->m_AuxContextJobPending, 0);
+        // The caller may use or destroy the context after observing completion.
+        dmAtomicStoreRelease32(&context->m_AuxContextJobPending, 0);
         return 0;
     }
 
@@ -1128,7 +1130,7 @@ static void LogFrameBufferError(GLenum status)
         JobSystemPushJob(context->m_JobContext, hjob);
 
         // Block until the job is done
-        while(dmAtomicGet32(&context->m_AuxContextJobPending))
+        while (dmAtomicLoadAcquire32(&context->m_AuxContextJobPending))
         {
             dmTime::Sleep(100);
         }
@@ -5099,6 +5101,8 @@ static void LogFrameBufferError(GLenum status)
         glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
         CHECK_GL_ERROR;
 
+        // Serialize slot reuse and container growth with the texture worker.
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
@@ -5174,7 +5178,10 @@ static void LogFrameBufferError(GLenum status)
         DeleteRenderTargetAttachment(rt->m_DepthAttachment, rt->m_Base.m_TextureDepth);
         DeleteRenderTargetAttachment(rt->m_StencilAttachment, rt->m_Base.m_TextureStencil);
 
-        context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        }
 
         if (context->m_CurrentRenderTarget == render_target)
         {

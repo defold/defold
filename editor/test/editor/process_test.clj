@@ -22,13 +22,22 @@
             [editor.process :as process]
             [support.process-util :as process-util]
             [util.coll :as coll])
-  (:import [com.sun.jna Function NativeLibrary]
+  (:import [com.sun.jna Function NativeLibrary Pointer]
+           [com.sun.jna.platform.win32 WinNT$HANDLE WinNT$HANDLEByReference]
            [java.io BufferedReader ByteArrayOutputStream IOException]
            [java.lang ProcessBuilder$Redirect]
            [java.nio.charset StandardCharsets]
            [java.util.concurrent TimeUnit]))
 
 (set! *warn-on-reflection* true)
+
+;; Windows handle wrappers must work on every host to catch incompatible JNA
+;; core/platform versions before the Windows-only process launch tests run.
+(deftest windows-handle-reference-test
+  (let [pointer (Pointer/createConstant 1)
+        handle (WinNT$HANDLE. pointer)
+        reference (WinNT$HANDLEByReference. handle)]
+    (is (= pointer (.getPointer (.getValue reference))))))
 
 ;; Starting a child must expose its output and successful exit on every host.
 (deftest start-test
