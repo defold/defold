@@ -43,6 +43,56 @@ import static org.junit.Assert.assertTrue;
 
 public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
+    // Guards against the common compiler discarding explicit modes before target validation.
+    @Test
+    public void testCommonShaderCompilerRejectsUnsupportedOutputModes() throws Exception {
+        String[] sources = { fp, "#version 450\nlayout(location=0) out vec4 color; void main(){color=vec4(1);}" };
+        String[] adapters = { "opengl", "vulkan" };
+        Shaderc.ShaderOutputMode[] modes = {
+            Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_BINARY,
+            Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_SOURCE
+        };
+        for (String source : sources) {
+            for (int i = 0; i < adapters.length; ++i) {
+                ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+                options.outputMode = modes[i];
+                IShaderCompiler compiler = ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64Win32, options);
+                try {
+                    compileShaderWithCompiler(compiler, adapters[i], "common-invalid-output-mode", source);
+                    org.junit.Assert.fail("Expected rejection for " + adapters[i] + " / " + modes[i]);
+                } catch (CompileExceptionError error) {
+                    assertTrue(error.getMessage(), error.getMessage().contains("output is not supported"));
+                    assertTrue(error.getMessage(), error.getMessage().contains(modes[i].toString()));
+                }
+            }
+        }
+    }
+
+    // Verifies common HLSL source output skips binary finalization while DEFAULT/BINARY retain it.
+    @Test
+    public void testCommonShaderCompilerHLSLOutputModes() throws Exception {
+        String[] sources = { fp, "#version 450\nlayout(location=0) out vec4 color; void main(){color=vec4(1);}" };
+        for (String source : sources) {
+            for (Shaderc.ShaderOutputMode mode : Shaderc.ShaderOutputMode.values()) {
+                ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+                options.outputMode = mode;
+                IShaderCompiler compiler = ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64Win32, options);
+                ShaderDesc shader = compileShaderWithCompiler(compiler, "dx12", "common-hlsl-output-mode", source);
+                checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_HLSL_60);
+                byte[] data = shader.getShaders(0).getSource().toByteArray();
+                if (mode == Shaderc.ShaderOutputMode.SHADER_OUTPUT_MODE_SOURCE) {
+                    String text = new String(data, StandardCharsets.UTF_8);
+                    assertTrue(text.contains("SV_Target"));
+                    assertFalse(text.contains("RootSignature"));
+                    assertTrue(shader.getHlslRootSignature().isEmpty());
+                } else {
+                    assertEquals("DXBC", new String(data, 0, 4, StandardCharsets.US_ASCII));
+                    assertFalse(shader.getHlslRootSignature().isEmpty());
+                }
+            }
+        }
+    }
+
     private void checkOutputModes(String source) throws Exception {
         ShaderCompilePipeline.ShaderModuleDesc module = new ShaderCompilePipeline.ShaderModuleDesc();
         module.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
