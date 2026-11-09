@@ -47,6 +47,7 @@ namespace dmRender
     using namespace dmVMath;
 
     static const uint32_t FALLBACK_CODEPOINT = 126U; // '~'
+    static const dmhash_t FONT_TEXTURE_HASH = dmHashString64("texture_sampler");
     static const dmhash_t FONT_EFFECTS_HASH = dmHashString64("font_effects");
 
     static CacheGlyph* GetDecorationCacheGlyph(HFontMap font_map, uint32_t frame)
@@ -624,7 +625,9 @@ namespace dmRender
         ro->m_SetBlendFactors = 1;
         ro->m_Material = material;
         memset(ro->m_Textures, 0, sizeof(ro->m_Textures));
-        ro->m_Textures[0] = font_map->m_Texture;
+        const uint32_t atlas_unit = GetMaterialSamplerUnit(material, FONT_TEXTURE_HASH);
+        // Legacy custom materials may use another atlas sampler name at unit zero.
+        ro->m_Textures[atlas_unit == INVALID_SAMPLER_UNIT ? 0 : atlas_unit] = font_map->m_Texture;
         const uint32_t effect_unit = GetMaterialSamplerUnit(material, FONT_EFFECTS_HASH);
         if (effect_unit != INVALID_SAMPLER_UNIT)
         {

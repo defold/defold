@@ -3684,6 +3684,56 @@ TEST_F(dmRenderTest, GradientRecordsDoNotSplitFontBatch)
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
+// Both sampler orders keep gradient metadata separate from the glyph atlas.
+TEST_F(dmRenderTest, FontTexturesFollowMaterialSamplerUnits)
+{
+    dmGraphics::ShaderDescBuilder shaders;
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shaders.AddTexture("texture_sampler", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shaders.AddTexture("font_effects", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shaders.Get(), 0, 0);
+    dmRender::HMaterial  material = dmRender::NewMaterial(m_Context, program);
+
+    const char* text = "<gradient left=#ff0000 right=#0000ff>A</gradient>";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, strlen(text), &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 16.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(dmRender::GetFontCollection(m_SystemFontMap), markup, &settings, &layout));
+    MarkupDestroy(markup);
+
+    for (uint32_t effect_unit = 0; effect_unit < 2; ++effect_unit)
+    {
+        const uint32_t atlas_unit = 1 - effect_unit;
+        ASSERT_TRUE(dmRender::SetMaterialSampler(material, dmHashString64("texture_sampler"), atlas_unit, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+        ASSERT_TRUE(dmRender::SetMaterialSampler(material, dmHashString64("font_effects"), effect_unit, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+
+        dmRender::DrawTextParams params;
+        params.m_TextLayout = layout;
+        params.m_FaceColor = Vector4(1.0f);
+        params.m_WorldTransform = Matrix4::identity();
+        dmRender::RenderListBegin(m_Context);
+        dmRender::DrawText(m_Context, m_SystemFontMap, material, 0, params);
+        dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+        dmRender::RenderListEnd(m_Context);
+        dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+
+        ASSERT_EQ(1u, m_Context->m_TextContext.m_RenderObjectIndex);
+        const dmRender::RenderObject& render_object = m_Context->m_TextContext.m_RenderObjects[0];
+        ASSERT_EQ(m_SystemFontMap->m_Texture, render_object.m_Textures[atlas_unit]);
+        ASSERT_EQ(FontGetEffectTexture(m_SystemFontMap->m_EffectCache), render_object.m_Textures[effect_unit]);
+        ASSERT_NE(render_object.m_Textures[atlas_unit], render_object.m_Textures[effect_unit]);
+        dmRender::ClearRenderObjects(m_Context);
+    }
+
+    TextLayoutRelease(layout);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
 TEST_F(dmRenderTest, FontVertexDeclaration)
 {
     ASSERT_NE((dmGraphics::HVertexDeclaration)0, m_Context->m_TextContext.m_VertexDecl);
