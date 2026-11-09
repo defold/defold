@@ -27,8 +27,27 @@
     #endif
 #endif
 
+#if defined(_WIN32)
+    #define DM_THREAD_TLS_CALLBACK __stdcall
+#else
+    #define DM_THREAD_TLS_CALLBACK
+#endif
+
 namespace dmThread
 {
+    // Destructors must use DM_THREAD_TLS_CALLBACK to match the Windows calling convention.
+    typedef void (DM_THREAD_TLS_CALLBACK* TlsDestructor)(void*);
+
+    /*# allocate thread local storage with an exit destructor
+     * Calls destructor with a non-null TLS value when its thread exits. Clear
+     * values before freeing the key if their destructors must not run: Windows
+     * also invokes destructors for remaining values when the key is freed.
+     * @name dmThread::AllocTls
+     * @param destructor [type:dmThread::TlsDestructor] Callback for releasing the thread's TLS value
+     * @return key [type:dmThread::TlsKey] Key
+     */
+    TlsKey AllocTls(TlsDestructor destructor);
+
     /*# check for threading support
      *
      * @name dmThread::PlatformHasThreadSupport

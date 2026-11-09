@@ -20,7 +20,7 @@
 #include <unistd.h>
 #include <dlib/profile/profile.h>
 #include <dmsdk/dlib/static_assert.h>
-#include <dmsdk/dlib/thread.h>
+#include "thread.h"
 
 #if defined(_WIN32)
 #include <wchar.h>
@@ -133,8 +133,13 @@ namespace dmThread
 
     TlsKey AllocTls()
     {
+        return AllocTls(0);
+    }
+
+    TlsKey AllocTls(TlsDestructor destructor)
+    {
         pthread_key_t key;
-        int ret = pthread_key_create(&key, 0);
+        int ret = pthread_key_create(&key, destructor);
         assert(ret == 0);
         return ToTlsKey(key);
     }

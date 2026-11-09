@@ -15,7 +15,7 @@
 #include <assert.h>
 #include <dlib/profile/profile.h>
 #include <dmsdk/dlib/safe_windows.h>
-#include <dmsdk/dlib/thread.h>
+#include "thread.h"
 
 #include <stdlib.h>
 #include <wchar.h>
@@ -32,14 +32,15 @@ namespace dmThread
         return (HANDLE)(uintptr_t)thread;
     }
 
-    static TlsKey ToTlsKey(DWORD key)
+    static TlsKey ToTlsKey(DWORD key, bool has_destructor)
     {
-        return (TlsKey)key;
+        // Keep ordinary TLS keys on TlsAlloc; only destructor keys use FLS.
+        return ((TlsKey)key << 1) | (has_destructor ? 1 : 0);
     }
 
     static DWORD ToNativeTlsKey(TlsKey key)
     {
-        return (DWORD)key;
+        return (DWORD)(key >> 1);
     }
 
     static void* GetFunctionPtr(const char* dllname, const char* fnname)
@@ -94,24 +95,35 @@ namespace dmThread
 
     TlsKey AllocTls()
     {
-        return ToTlsKey(TlsAlloc());
+        return ToTlsKey(TlsAlloc(), false);
+    }
+
+    TlsKey AllocTls(TlsDestructor destructor)
+    {
+        if (!destructor)
+        {
+            return AllocTls();
+        }
+        DWORD key = FlsAlloc(destructor);
+        assert(key != FLS_OUT_OF_INDEXES);
+        return ToTlsKey(key, true);
     }
 
     void FreeTls(TlsKey key)
     {
-        BOOL ret = TlsFree(ToNativeTlsKey(key));
+        BOOL ret = (key & 1) ? FlsFree(ToNativeTlsKey(key)) : TlsFree(ToNativeTlsKey(key));
         assert(ret);
     }
 
     void SetTlsValue(TlsKey key, void* value)
     {
-        BOOL ret = TlsSetValue(ToNativeTlsKey(key), value);
+        BOOL ret = (key & 1) ? FlsSetValue(ToNativeTlsKey(key), value) : TlsSetValue(ToNativeTlsKey(key), value);
         assert(ret);
     }
 
     void* GetTlsValue(TlsKey key)
     {
-        return TlsGetValue(ToNativeTlsKey(key));
+        return (key & 1) ? FlsGetValue(ToNativeTlsKey(key)) : TlsGetValue(ToNativeTlsKey(key));
     }
 
     Thread GetCurrentThread()

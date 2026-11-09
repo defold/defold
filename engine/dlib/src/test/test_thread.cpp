@@ -98,6 +98,67 @@ TEST(Thread, Tls)
     dmThread::FreeTls(g_TlsKey);
 }
 
+struct TlsDestructorContext
+{
+    dmThread::TlsKey m_Key;
+    uint32_t         m_DestructorCalls;
+    bool             m_ClearValue;
+    bool             m_ValueMatches;
+};
+
+static void DM_THREAD_TLS_CALLBACK TlsDestructor(void* value)
+{
+    TlsDestructorContext* context = (TlsDestructorContext*)value;
+    ++context->m_DestructorCalls;
+}
+
+static void TlsDestructorThread(void* arg)
+{
+    TlsDestructorContext* context = (TlsDestructorContext*)arg;
+    context->m_ValueMatches = dmThread::GetTlsValue(context->m_Key) == 0;
+    dmThread::SetTlsValue(context->m_Key, context);
+    context->m_ValueMatches = context->m_ValueMatches && dmThread::GetTlsValue(context->m_Key) == context;
+    if (context->m_ClearValue)
+    {
+        dmThread::SetTlsValue(context->m_Key, 0);
+    }
+}
+
+// Verifies that each thread's non-null TLS value is destroyed exactly once on
+// exit, guarding against retained per-thread allocations such as profiler pools.
+TEST(Thread, TlsDestructor)
+{
+    dmThread::TlsKey key = dmThread::AllocTls(TlsDestructor);
+    TlsDestructorContext contexts[2] = {};
+    contexts[0].m_Key = key;
+    contexts[1].m_Key = key;
+    dmThread::Thread first = dmThread::New(TlsDestructorThread, 0x80000, &contexts[0], "tls_first");
+    dmThread::Thread second = dmThread::New(TlsDestructorThread, 0x80000, &contexts[1], "tls_second");
+    dmThread::Join(first);
+    dmThread::Join(second);
+    dmThread::FreeTls(key);
+
+    ASSERT_TRUE(contexts[0].m_ValueMatches);
+    ASSERT_TRUE(contexts[1].m_ValueMatches);
+    ASSERT_EQ(1u, contexts[0].m_DestructorCalls);
+    ASSERT_EQ(1u, contexts[1].m_DestructorCalls);
+}
+
+// Verifies that clearing a TLS value suppresses its exit destructor, preventing
+// double cleanup when the thread has already released its own data.
+TEST(Thread, ClearedTlsValueSkipsDestructor)
+{
+    TlsDestructorContext context = {};
+    context.m_Key = dmThread::AllocTls(TlsDestructor);
+    context.m_ClearValue = true;
+    dmThread::Thread thread = dmThread::New(TlsDestructorThread, 0x80000, &context, "tls_cleared");
+    dmThread::Join(thread);
+    dmThread::FreeTls(context.m_Key);
+
+    ASSERT_TRUE(context.m_ValueMatches);
+    ASSERT_EQ(0u, context.m_DestructorCalls);
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);
