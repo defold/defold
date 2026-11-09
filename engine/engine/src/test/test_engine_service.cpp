@@ -22,7 +22,7 @@
 #include <dlib/webserver.h>
 #include <resource/resource_ddf.h>
 #include <graphics/graphics.h>
-#include <dlib/json.h>
+#include <dlib/json.hpp>
 
 TEST_F(EngineTest, ServiceInstanceNameSanitizesAddress)
 {

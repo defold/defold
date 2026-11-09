@@ -17,7 +17,7 @@
 #include <test/http_service_test.h>
 #include "../platform_service.h"
 #include "../window.hpp"
-#include <dlib/json.h>
+#include <dlib/json.hpp>
 #include <dlib/math.h>
 #include <dlib/webserver.h>
 #include <locale.h>

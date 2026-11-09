@@ -19,7 +19,7 @@
 #include <dlib/array.h>
 #include <dlib/crypt.h>
 #include <dlib/dstrings.h>
-#include <dlib/json.h>
+#include <dlib/json.hpp>
 #include <dlib/mutex.h>
 #include <dlib/sys.h>
 #include <dlib/thread.h>
@@ -284,7 +284,7 @@ namespace dmRecord
         for (int field = json.Get(0).m_Container.m_First; field >= 0; field = json.Get(field).m_Next)
         {
             const dmJson::Node& node = json.Get(field);
-            const char* name = node.Name(json.m_Text);
+            const char* name = json.Name(field);
             if (!stopping && !strcmp(name, "fps"))
             {
                 if (!json.UnsignedInteger(field, &params->m_Fps) || !params->m_Fps || params->m_Fps > 60)

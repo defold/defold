@@ -15,7 +15,7 @@
 #include "platform_service.h"
 #include "platform_service_openapi.h"
 #include <dlib/dstrings.h>
-#include <dlib/json.h>
+#include <dlib/json.hpp>
 #include <dlib/time.h>
 #include "window.hpp"
 #include <dlib/webserver.h>
@@ -337,7 +337,7 @@ namespace dmPlatformService
         }
         for (int field = json.Get(0).m_Container.m_First; field >= 0; field = json.Get(field).m_Next)
         {
-            const char* name = json.Get(field).Name(json.m_Text);
+            const char* name = json.Name(field);
             if (strcmp(name, "width") && strcmp(name, "height") && strcmp(name, "timeout_ms") && strcmp(name, "expected_window_revision") && strcmp(name, "supersede"))
             {
                 return false;

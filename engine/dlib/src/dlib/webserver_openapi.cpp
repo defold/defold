@@ -14,7 +14,7 @@
 
 #include <string.h>
 #include "dstrings.h"
-#include "json.h"
+#include "json.hpp"
 #include "webserver_openapi.h"
 
 namespace dmWebServer
@@ -43,7 +43,7 @@ namespace dmWebServer
         for (int field = json.Get(path).m_Container.m_First; field >= 0; field = json.Get(field).m_Next)
         {
             const dmJson::Node& node = json.Get(field);
-            const char* name = node.Name(json.m_Text);
+            const char* name = json.Name(field);
             if (IsMethod(name))
             {
                 const dmJson::Node& responses = json.Get(json.Field(field, "responses"));
@@ -119,9 +119,10 @@ namespace dmWebServer
         }
         dmJson::Document document(32);
         uint32_t offset;
-        if (!document.Parse(json, (uint32_t)strlen(json), &offset, dmJson::PARSE_PRESERVE_VALUES))
+        dmJson::Result result = dmJson::Parse(document.Handle(), json, (uint32_t)strlen(json), &offset, dmJson::PARSE_PRESERVE_VALUES);
+        if (result != dmJson::RESULT_OK)
         {
-            return ParseError(offset, document.m_Valid ? "Unexpected data after Paths Object" : "Invalid JSON", error);
+            return ParseError(offset, result == dmJson::RESULT_TRAILING_DATA ? "Unexpected data after Paths Object" : "Invalid JSON", error);
         }
         const dmJson::Node& root = document.Get(0);
         if (root.m_Type != dmJson::TYPE_OBJECT || root.m_Container.m_First < 0)
@@ -136,7 +137,7 @@ namespace dmWebServer
         for (int field = root.m_Container.m_First; field >= 0; field = document.Get(field).m_Next)
         {
             const dmJson::Node& node = document.Get(field);
-            const char* name = node.Name(document.m_Text);
+            const char* name = document.Name(field);
             uint32_t key_offset = node.m_NameOffset - 1;
             if (name[0] != '/' || strncmp(name, prefix, strlen(prefix)) != 0)
             {

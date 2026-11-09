@@ -23,7 +23,7 @@
 #include <testmain/testmain.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
-#include <dlib/json.h>
+#include <dlib/json.hpp>
 
 class ScriptJsonTest : public dmScriptTest::ScriptTest
 {

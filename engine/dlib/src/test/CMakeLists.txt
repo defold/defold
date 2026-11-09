@@ -126,6 +126,8 @@ dlib_add_test(test_hash C TARGET_NAME test_hash_c)
 dlib_add_test(test_context_registry C)
 dlib_add_test(test_time)
 dlib_add_test(test_json)
+dlib_add_test(test_json C TARGET_NAME test_json_c)
+set_target_properties(test_json_c PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED TRUE C_EXTENSIONS FALSE)
 dlib_add_test(test_json TARGET_NAME test_json_scalar
   SOURCES "${DLIB_CORE_DIR}/json.cpp" "${DLIB_CORE_DIR}/utf8.cpp"
   DEFINES DM_SIMD_FORCE_SCALAR=1 DM_JSON_FORCE_PORTABLE_MULTIPLY=1)
