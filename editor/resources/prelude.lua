@@ -198,13 +198,17 @@ function editor.bundle.check_box(config, set_config, key, text, rest_props)
     return editor.ui.check_box(props)
 end
 
-function editor.bundle.check_boxes_grid_row(config, set_config)
-    return editor.bundle.grid_row(nil, {
+function editor.bundle.check_boxes_grid_row(config, set_config, extra_check_boxes)
+    local check_boxes = {
         editor.bundle.check_box(config, set_config, "with_symbols", localization.message("dialog.bundle.label.with-symbols")),
-        editor.bundle.check_box(config, set_config, "build_report", localization.message("dialog.bundle.label.build-report")),
-        editor.bundle.check_box(config, set_config, "liveupdate", localization.message("dialog.bundle.label.liveupdate")),
-        editor.bundle.check_box(config, set_config, "contentless", localization.message("dialog.bundle.label.contentless"))
-    })
+        editor.bundle.check_box(config, set_config, "build_report", localization.message("dialog.bundle.label.build-report"))
+    }
+    for _, check_box in ipairs(extra_check_boxes or {}) do
+        check_boxes[#check_boxes + 1] = check_box
+    end
+    check_boxes[#check_boxes + 1] = editor.bundle.check_box(config, set_config, "liveupdate", localization.message("dialog.bundle.label.liveupdate"))
+    check_boxes[#check_boxes + 1] = editor.bundle.check_box(config, set_config, "contentless", localization.message("dialog.bundle.label.contentless"))
+    return editor.bundle.grid_row(nil, check_boxes)
 end
 
 function editor.bundle.set_element_check_box(config, set_config, key, element, text, error)
