@@ -17,6 +17,8 @@
 #include <dlib/math.h>
 #include <string.h>
 #include <math.h>
+#include <stdlib.h>
+#include <stddef.h>
 
 namespace dmGraphics
 {
@@ -284,7 +286,7 @@ namespace dmGraphics
                     {
                         float float_value = VertexAttributeDataTypeToFloat(src_data.m_DataType, src_data.m_ValuePtr + src_index * src_element_byte_width);
 
-                        write_ptr = WriteVertexAttributeFromFloatToStorage(write_ptr, float_value, dst_data);
+                        WriteVertexAttributeFromFloatToStorage(write_ptr, float_value, dst_data);
                     }
 
                     write_ptr += dst_element_byte_width;
@@ -294,7 +296,6 @@ namespace dmGraphics
         // Case 3: Converting from a matrix to a larger matrix will write into the top-left portion of the destination matrix, and fill the remaining space with the identity matrix.
         else
         {
-            uint8_t* read_ptr = (uint8_t*) src_data.m_ValuePtr;
             for (int row = 0; row < dst_row_col_count; ++row)
             {
                 for (int col = 0; col < dst_row_col_count; ++col)
@@ -303,6 +304,7 @@ namespace dmGraphics
                     if (row < src_row_col_count && col < src_row_col_count)
                     {
                         const uint32_t src_index = row * src_row_col_count + col;
+                        const uint8_t* read_ptr = src_data.m_ValuePtr + src_index * src_element_byte_width;
 
                         if (src_data.m_DataType == dst_data.m_DataType)
                         {
@@ -310,11 +312,10 @@ namespace dmGraphics
                         }
                         else
                         {
-                            float float_value = VertexAttributeDataTypeToFloat(src_data.m_DataType, read_ptr + src_index * src_element_byte_width);
+                            float float_value = VertexAttributeDataTypeToFloat(src_data.m_DataType, read_ptr);
 
                             WriteVertexAttributeFromFloatToStorage(write_ptr, float_value, dst_data);
                         }
-                        read_ptr += dst_element_byte_width;
                     }
                     // Fill the rest with the identity matrix
                     else
@@ -633,6 +634,521 @@ namespace dmGraphics
 
                 write_ptr += attribute_stride;
             }
+        }
+        return write_ptr;
+    }
+
+    enum AttributeWriteOperation
+    {
+        COPY_1, COPY_2, COPY_4, COPY_8, COPY_12, COPY_16, COPY_36, COPY_64, COPY_BYTES,
+        FLOAT3_TO_FLOAT4_W, FLOAT4_TO_UNORM8, FLOAT4_TO_SNORM16, FLOAT_MAT4_TO_MAT3,
+        GENERIC_SCALAR, GENERIC_VECTOR, GENERIC_MATRIX, GENERIC_VECTOR_W
+    };
+
+    enum AttributeStream
+    {
+        ATTRIBUTE_STREAM_NONE = -1,
+        ATTRIBUTE_STREAM_POSITION_LOCAL,
+        ATTRIBUTE_STREAM_POSITION_WORLD,
+        ATTRIBUTE_STREAM_TEXCOORD,
+        ATTRIBUTE_STREAM_PAGE_INDEX,
+        ATTRIBUTE_STREAM_COLOR,
+        ATTRIBUTE_STREAM_NORMAL,
+        ATTRIBUTE_STREAM_TANGENT,
+        ATTRIBUTE_STREAM_WORLD_MATRIX,
+        ATTRIBUTE_STREAM_NORMAL_MATRIX,
+        ATTRIBUTE_STREAM_TEXTURE_TRANSFORM,
+        ATTRIBUTE_STREAM_MORPH_WEIGHTS,
+        ATTRIBUTE_STREAM_COUNT
+    };
+
+    struct PreparedAttribute
+    {
+        UnpackAttributeData               m_SourceFormat;
+        UnpackAttributeData               m_DestinationFormat;
+        uint32_t                          m_AttributeIndex;
+        int32_t                           m_StreamOffset;
+        uint32_t                          m_Channel;
+        uint32_t                          m_SourceStride;
+        uint32_t                          m_DestinationOffset;
+        uint32_t                          m_Bytes;
+        AttributeWriteOperation           m_ConversionOperation;
+        AttributeWriteOperation           m_CopyOperation;
+        AttributeWriteOperation           m_WriteOperation;
+        uint8_t                           m_Packed[16 * sizeof(float)]; // Largest supported attribute: float mat4.
+    };
+
+    WriteAttributeState::WriteAttributeState()
+    : m_Data(0), m_Capacity(0), m_NumInfos(0), m_NumOperations(0), m_VertexStride(0), m_StepFunction(VERTEX_STEP_FUNCTION_VERTEX)
+    {
+    }
+
+    WriteAttributeState::~WriteAttributeState()
+    {
+        free(m_Data);
+    }
+
+    static PreparedAttribute* GetPreparedAttributes(const WriteAttributeState& state)
+    {
+        // One allocation holds the layout snapshot followed by the operations.
+        return (PreparedAttribute*)((VertexAttributeInfo*)state.m_Data + state.m_Capacity);
+    }
+
+    // Indexed by AttributeStream.
+    static const uint32_t STREAM_OFFSETS[ATTRIBUTE_STREAM_COUNT] = {
+        offsetof(WriteAttributeParams, m_PositionsLocalSpace),
+        offsetof(WriteAttributeParams, m_PositionsWorldSpace),
+        offsetof(WriteAttributeParams, m_TexCoords),
+        offsetof(WriteAttributeParams, m_PageIndices),
+        offsetof(WriteAttributeParams, m_Colors),
+        offsetof(WriteAttributeParams, m_Normals),
+        offsetof(WriteAttributeParams, m_Tangents),
+        offsetof(WriteAttributeParams, m_WorldMatrix),
+        offsetof(WriteAttributeParams, m_NormalMatrix),
+        offsetof(WriteAttributeParams, m_TextureTransform2D),
+        offsetof(WriteAttributeParams, m_MorphTargetWeights)
+    };
+
+    static AttributeStream GetAttributeStream(const VertexAttributeInfo& info)
+    {
+        switch (info.m_SemanticType)
+        {
+            case VertexAttribute::SEMANTIC_TYPE_POSITION:
+            {
+                return info.m_CoordinateSpace == COORDINATE_SPACE_WORLD ? ATTRIBUTE_STREAM_POSITION_WORLD : ATTRIBUTE_STREAM_POSITION_LOCAL;
+            }
+            case VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
+            {
+                return ATTRIBUTE_STREAM_TEXCOORD;
+            }
+            case VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
+            {
+                return ATTRIBUTE_STREAM_PAGE_INDEX;
+            }
+            case VertexAttribute::SEMANTIC_TYPE_COLOR:
+            {
+                return ATTRIBUTE_STREAM_COLOR;
+            }
+            case VertexAttribute::SEMANTIC_TYPE_NORMAL:
+            {
+                return ATTRIBUTE_STREAM_NORMAL;
+            }
+            case VertexAttribute::SEMANTIC_TYPE_TANGENT:
+            {
+                return ATTRIBUTE_STREAM_TANGENT;
+            }
+            case VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
+            {
+                return ATTRIBUTE_STREAM_WORLD_MATRIX;
+            }
+            case VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
+            {
+                return ATTRIBUTE_STREAM_NORMAL_MATRIX;
+            }
+            case VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D:
+            {
+                return ATTRIBUTE_STREAM_TEXTURE_TRANSFORM;
+            }
+            case VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS:
+            {
+                return ATTRIBUTE_STREAM_MORPH_WEIGHTS;
+            }
+            case VertexAttribute::SEMANTIC_TYPE_NONE:
+            case VertexAttribute::SEMANTIC_TYPE_BONE_WEIGHTS:
+            case VertexAttribute::SEMANTIC_TYPE_BONE_INDICES:
+            {
+                return ATTRIBUTE_STREAM_NONE;
+            }
+            default:
+            {
+                assert(false && "Unknown semantic type");
+                return ATTRIBUTE_STREAM_NONE;
+            }
+        }
+    }
+
+    static AttributeWriteOperation GetCopyOperation(uint32_t bytes)
+    {
+        switch (bytes)
+        {
+            case 1:
+            {
+                return COPY_1;
+            }
+            case 2:
+            {
+                return COPY_2;
+            }
+            case 4:
+            {
+                return COPY_4;
+            }
+            case 8:
+            {
+                return COPY_8;
+            }
+            case 12:
+            {
+                return COPY_12;
+            }
+            case 16:
+            {
+                return COPY_16;
+            }
+            case 36:
+            {
+                return COPY_36;
+            }
+            case 64:
+            {
+                return COPY_64;
+            }
+            default:
+            {
+                return COPY_BYTES;
+            }
+        }
+    }
+
+    static void WritePreparedAttribute(AttributeWriteOperation operation, uint8_t* out, const uint8_t* source, const PreparedAttribute& entry)
+    {
+        switch (operation)
+        {
+            case COPY_1:
+            {
+                memcpy(out, source, 1);
+                return;
+            }
+            case COPY_2:
+            {
+                memcpy(out, source, 2);
+                return;
+            }
+            case COPY_4:
+            {
+                memcpy(out, source, 4);
+                return;
+            }
+            case COPY_8:
+            {
+                memcpy(out, source, 8);
+                return;
+            }
+            case COPY_12:
+            {
+                memcpy(out, source, 12);
+                return;
+            }
+            case COPY_16:
+            {
+                memcpy(out, source, 16);
+                return;
+            }
+            case COPY_36:
+            {
+                memcpy(out, source, 36);
+                return;
+            }
+            case COPY_64:
+            {
+                memcpy(out, source, 64);
+                return;
+            }
+            case COPY_BYTES:
+            {
+                memcpy(out, source, entry.m_Bytes);
+                return;
+            }
+            case FLOAT3_TO_FLOAT4_W:
+            {
+                const float one = 1.0f;
+                memcpy(out, source, 12);
+                memcpy(out + 12, &one, 4);
+                return;
+            }
+            case FLOAT4_TO_UNORM8:
+            {
+                for (uint32_t i = 0; i < 4; ++i)
+                {
+                    float value;
+                    memcpy(&value, source + i * 4, 4);
+                    float packed = dmMath::Clamp(value, -1.0f, 1.0f) * 255.0f + 0.5f;
+                    out[i] = (uint8_t)dmMath::Clamp(packed, 0.0f, 255.0f);
+                }
+                return;
+            }
+            case FLOAT4_TO_SNORM16:
+            {
+                for (uint32_t i = 0; i < 4; ++i)
+                {
+                    float value;
+                    memcpy(&value, source + i * 4, 4);
+                    float scale = value > 0.0f ? 32767.0f : 32768.0f;
+                    float packed = floorf(dmMath::Clamp(value, -1.0f, 1.0f) * scale + 0.5f);
+                    int16_t stored = (int16_t)dmMath::Clamp(packed, -32768.0f, 32767.0f);
+                    memcpy(out + i * 2, &stored, 2);
+                }
+                return;
+            }
+            case FLOAT_MAT4_TO_MAT3:
+            {
+                memcpy(out, source, 12);
+                memcpy(out + 12, source + 16, 12);
+                memcpy(out + 24, source + 32, 12);
+                return;
+            }
+            default:
+            {
+                break;
+            }
+        }
+        UnpackAttributeData src = entry.m_SourceFormat;
+        src.m_ValuePtr = source;
+        const UnpackAttributeData& dst = entry.m_DestinationFormat;
+        switch (operation)
+        {
+            case GENERIC_SCALAR:
+            {
+                WriteScalar(out, src, dst);
+                break;
+            }
+            case GENERIC_VECTOR:
+            {
+                WriteVector(out, src, dst);
+                break;
+            }
+            case GENERIC_MATRIX:
+            {
+                WriteMatrixToMatrix(out, src, dst);
+                break;
+            }
+            case GENERIC_VECTOR_W:
+            {
+                uint8_t backing[16] = {};
+                memcpy(backing, source, src.m_ElementCount * DataTypeToByteWidth(src.m_DataType));
+                if (src.m_DataType == VertexAttribute::TYPE_FLOAT)
+                {
+                    const float one = 1.0f;
+                    memcpy(backing + 12, &one, 4);
+                }
+                else
+                {
+                    WriteVertexAttributeFromFloatToStorage(backing + 3 * DataTypeToByteWidth(dst.m_DataType), 1.0f, dst);
+                }
+                src.m_ValuePtr = backing;
+                src.m_ElementCount = 4;
+                WriteVector(out, src, dst);
+                break;
+            }
+            default:
+            {
+                assert(false);
+                break;
+            }
+        }
+    }
+
+    static AttributeWriteOperation SelectWriteOperation(const PreparedAttribute& entry, const VertexAttributeInfo& info)
+    {
+        const UnpackAttributeData& src = entry.m_SourceFormat;
+        const UnpackAttributeData& dst = entry.m_DestinationFormat;
+        const bool needs_w = src.m_ElementCount < dst.m_ElementCount && dst.m_ElementCount >= 4 && SemanticTypeRequiresOneAsW(info.m_SemanticType);
+        AttributeWriteOperation operation = GENERIC_VECTOR;
+        if (src.m_VectorType == VertexAttribute::VECTOR_TYPE_SCALAR)
+        {
+            operation = GENERIC_SCALAR;
+        }
+        else if (src.m_IsMatrix && dst.m_IsMatrix)
+        {
+            operation = GENERIC_MATRIX;
+        }
+        else if (needs_w)
+        {
+            operation = GENERIC_VECTOR_W;
+        }
+        if (src.m_DataType == dst.m_DataType &&
+            ((src.m_ElementCount == dst.m_ElementCount) ||
+             (operation == GENERIC_VECTOR && src.m_ElementCount >= dst.m_ElementCount)))
+        {
+            return entry.m_CopyOperation;
+        }
+        if (src.m_DataType == VertexAttribute::TYPE_FLOAT && dst.m_DataType == VertexAttribute::TYPE_FLOAT &&
+            src.m_VectorType == VertexAttribute::VECTOR_TYPE_VEC3 && dst.m_VectorType == VertexAttribute::VECTOR_TYPE_VEC4 && needs_w)
+        {
+            return FLOAT3_TO_FLOAT4_W;
+        }
+        if (src.m_VectorType == VertexAttribute::VECTOR_TYPE_VEC4 && dst.m_VectorType == VertexAttribute::VECTOR_TYPE_VEC4 && src.m_DataType == VertexAttribute::TYPE_FLOAT && dst.m_Normalize)
+        {
+            if (dst.m_DataType == VertexAttribute::TYPE_UNSIGNED_BYTE)
+            {
+                return FLOAT4_TO_UNORM8;
+            }
+            if (dst.m_DataType == VertexAttribute::TYPE_SHORT)
+            {
+                return FLOAT4_TO_SNORM16;
+            }
+        }
+        if (src.m_VectorType == VertexAttribute::VECTOR_TYPE_MAT4 && dst.m_VectorType == VertexAttribute::VECTOR_TYPE_MAT3 && src.m_DataType == VertexAttribute::TYPE_FLOAT && dst.m_DataType == VertexAttribute::TYPE_FLOAT)
+        {
+            return FLOAT_MAT4_TO_MAT3;
+        }
+        return operation;
+    }
+
+    static bool AttributeLayoutMatches(const WriteAttributeState& state, const WriteAttributeParams& params)
+    {
+        if (state.m_NumInfos != params.m_VertexAttributeInfos->m_NumInfos || state.m_StepFunction != params.m_StepFunction)
+        {
+            return false;
+        }
+        const VertexAttributeInfo* cached = (const VertexAttributeInfo*)state.m_Data;
+        for (uint32_t i = 0; i < state.m_NumInfos; ++i)
+        {
+            const VertexAttributeInfo& info = params.m_VertexAttributeInfos->m_Infos[i];
+            if (cached[i].m_SemanticType != info.m_SemanticType || cached[i].m_CoordinateSpace != info.m_CoordinateSpace ||
+                cached[i].m_DataType != info.m_DataType || cached[i].m_VectorType != info.m_VectorType ||
+                cached[i].m_StepFunction != info.m_StepFunction || cached[i].m_Normalize != info.m_Normalize)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static void BuildAttributeLayout(WriteAttributeState* state, const WriteAttributeParams& params)
+    {
+        const uint32_t count = params.m_VertexAttributeInfos->m_NumInfos;
+        if (count > state->m_Capacity)
+        {
+            free(state->m_Data);
+            state->m_Capacity = count;
+            state->m_Data = malloc((sizeof(VertexAttributeInfo) + sizeof(PreparedAttribute)) * count);
+        }
+        state->m_NumInfos = count;
+        state->m_StepFunction = params.m_StepFunction;
+        state->m_NumOperations = 0;
+        state->m_VertexStride = 0;
+        if (count == 0)
+        {
+            return;
+        }
+        VertexAttributeInfo* cached = (VertexAttributeInfo*)state->m_Data;
+        PreparedAttribute* operations = GetPreparedAttributes(*state);
+        uint32_t channels[ATTRIBUTE_STREAM_COUNT] = {};
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const VertexAttributeInfo& info = params.m_VertexAttributeInfos->m_Infos[i];
+            cached[i] = info;
+            cached[i].m_ValuePtr = 0; // Layout snapshots never retain transient values.
+            if (info.m_StepFunction != params.m_StepFunction)
+            {
+                continue;
+            }
+            PreparedAttribute& entry = operations[state->m_NumOperations++];
+            entry.m_AttributeIndex = i;
+            entry.m_StreamOffset = -1;
+            entry.m_Channel = 0;
+            AttributeStream stream = GetAttributeStream(info);
+            if (stream != ATTRIBUTE_STREAM_NONE)
+            {
+                entry.m_StreamOffset = STREAM_OFFSETS[stream];
+                entry.m_Channel = channels[stream]++;
+            }
+            entry.m_DestinationFormat.m_VectorType = info.m_VectorType;
+            entry.m_DestinationFormat.m_DataType = info.m_DataType;
+            entry.m_DestinationFormat.m_ElementCount = VectorTypeToElementCount(info.m_VectorType);
+            entry.m_DestinationFormat.m_IsMatrix = VectorTypeIsMatrix(info.m_VectorType);
+            entry.m_DestinationFormat.m_Normalize = info.m_Normalize;
+            entry.m_DestinationFormat.m_ValuePtr = 0;
+            entry.m_Bytes = entry.m_DestinationFormat.m_ElementCount * DataTypeToByteWidth(info.m_DataType);
+            entry.m_CopyOperation = GetCopyOperation(entry.m_Bytes);
+            entry.m_DestinationOffset = state->m_VertexStride;
+            state->m_VertexStride += entry.m_Bytes;
+            entry.m_SourceFormat.m_VectorType = (VertexAttribute::VectorType)-1;
+        }
+    }
+
+    void PrepareWriteAttributes(WriteAttributeState* state, const WriteAttributeParams& params, uint32_t vertex_count)
+    {
+        if (!AttributeLayoutMatches(*state, params))
+        {
+            BuildAttributeLayout(state, params);
+        }
+        if (state->m_NumOperations == 0)
+        {
+            return;
+        }
+        PreparedAttribute* operations = GetPreparedAttributes(*state);
+        for (uint32_t i = 0; i < state->m_NumOperations; ++i)
+        {
+            PreparedAttribute& entry = operations[i];
+            const VertexAttributeInfo& info = params.m_VertexAttributeInfos->m_Infos[entry.m_AttributeIndex];
+            const uint8_t* source = 0;
+            VertexAttribute::VectorType vector_type = info.m_ValueVectorType;
+            VertexAttribute::DataType data_type = info.m_DataType;
+            bool per_vertex = false;
+            if (entry.m_StreamOffset >= 0)
+            {
+                const WriteAttributeStreamDesc& stream = *(const WriteAttributeStreamDesc*)((const uint8_t*)&params + entry.m_StreamOffset);
+                if (stream.m_Data && entry.m_Channel < stream.m_StreamCount && stream.m_Data[entry.m_Channel])
+                {
+                    source = (const uint8_t*)stream.m_Data[entry.m_Channel];
+                    vector_type = stream.m_VectorType;
+                    data_type = VertexAttribute::TYPE_FLOAT;
+                    per_vertex = !stream.m_IsGlobalData;
+                }
+            }
+            if (!source)
+            {
+                source = info.m_ValuePtr;
+                if (!source)
+                {
+                    UnpackAttributeData defaults;
+                    SetUnpackAttributeDataDefault(info, defaults, entry.m_DestinationFormat);
+                    source = defaults.m_ValuePtr;
+                    vector_type = defaults.m_VectorType;
+                    data_type = defaults.m_DataType;
+                }
+            }
+            if (entry.m_SourceFormat.m_VectorType != vector_type || entry.m_SourceFormat.m_DataType != data_type)
+            {
+                entry.m_SourceFormat.m_VectorType = vector_type;
+                entry.m_SourceFormat.m_DataType = data_type;
+                entry.m_SourceFormat.m_ElementCount = VectorTypeToElementCount(vector_type);
+                entry.m_SourceFormat.m_IsMatrix = VectorTypeIsMatrix(vector_type);
+                entry.m_SourceFormat.m_Normalize = 0;
+                entry.m_ConversionOperation = SelectWriteOperation(entry, info);
+            }
+            entry.m_SourceStride = per_vertex ? entry.m_SourceFormat.m_ElementCount * sizeof(float) : 0;
+            entry.m_SourceFormat.m_ValuePtr = source;
+            entry.m_WriteOperation = entry.m_ConversionOperation;
+            // Shared conversions are amortized over all writes for this object,
+            // including indexed calls. A single write uses the operation directly.
+            if (!per_vertex && vertex_count > 1 && entry.m_ConversionOperation != entry.m_CopyOperation)
+            {
+                WritePreparedAttribute(entry.m_ConversionOperation, entry.m_Packed, source, entry);
+                entry.m_SourceFormat.m_ValuePtr = entry.m_Packed;
+                entry.m_WriteOperation = entry.m_CopyOperation;
+            }
+        }
+    }
+
+    uint8_t* WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, uint32_t vertex_count, const WriteAttributeState& state)
+    {
+        if (state.m_NumOperations == 0)
+        {
+            return write_ptr;
+        }
+        const PreparedAttribute* operations = GetPreparedAttributes(state);
+        for (uint32_t v = 0; v < vertex_count; ++v)
+        {
+            for (uint32_t i = 0; i < state.m_NumOperations; ++i)
+            {
+                const PreparedAttribute& entry = operations[i];
+                WritePreparedAttribute(entry.m_WriteOperation, write_ptr + entry.m_DestinationOffset,
+                                       entry.m_SourceFormat.m_ValuePtr + (vertex_index + v) * entry.m_SourceStride, entry);
+            }
+            write_ptr += state.m_VertexStride;
         }
         return write_ptr;
     }

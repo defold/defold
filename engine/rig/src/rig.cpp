@@ -55,6 +55,7 @@ namespace dmRig
         dmArray<dmVMath::Vector3>       m_ScratchPositionBufferLocal;
         dmArray<dmVMath::Vector3>       m_ScratchNormalBuffer;
         dmArray<dmVMath::Vector4>       m_ScratchTangentBuffer;
+        dmGraphics::WriteAttributeState m_AttributeWriteState;
     };
 
     static void ResetPoseMatrixCache(PoseMatrixCache* cache)
@@ -1274,7 +1275,7 @@ namespace dmRig
         dmGraphics::SetWriteAttributeStreamDesc(&params->m_TexCoords, uv_channels, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, uv_channels_count, false);
     }
 
-    static uint8_t* WriteVertexDataByAttributes(const dmRigDDF::Mesh* mesh, const float* positions_world, const float* positions_local, const float* normals, const float* tangents, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, uint8_t* out_write_ptr)
+    static uint8_t* WriteVertexDataByAttributes(dmGraphics::WriteAttributeState* write_state, const dmRigDDF::Mesh* mesh, const float* positions_world, const float* positions_local, const float* normals, const float* tangents, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, uint8_t* out_write_ptr)
     {
         const float* uv0 = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
         const float* uv1 = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
@@ -1325,10 +1326,11 @@ namespace dmRig
             uv_channels,
             uv_channels_count);
 
+        dmGraphics::PrepareWriteAttributes(write_state, params, num_indices);
         for (uint32_t i = 0; i < num_indices; ++i)
         {
             uint32_t idx   = indices32?indices32[i]:indices16[i];
-            out_write_ptr  = dmGraphics::WriteAttributes(out_write_ptr, idx, 1, params);
+            out_write_ptr  = dmGraphics::WriteAttributes(out_write_ptr, idx, 1, *write_state);
         }
         return out_write_ptr;
     }
@@ -1546,7 +1548,7 @@ namespace dmRig
             dmRig::GenerateNormalData(mesh, normal_matrix, pose_matrices, normals_buffer, tangents_buffer);
         }
 
-        return WriteVertexDataByAttributes(mesh, positions_buffer_world, positions_buffer_local, normals_buffer, tangents_buffer, attribute_infos, vertex_stride, world_matrix, normal_matrix, vertex_data_out);
+        return WriteVertexDataByAttributes(&context->m_AttributeWriteState, mesh, positions_buffer_world, positions_buffer_local, normals_buffer, tangents_buffer, attribute_infos, vertex_stride, world_matrix, normal_matrix, vertex_data_out);
     }
 
     RigModelVertex* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const Matrix4& world_matrix, RigModelVertex* vertex_data_out)

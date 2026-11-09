@@ -241,6 +241,30 @@ namespace dmGraphics
         VertexStepFunction          m_StepFunction;
     };
 
+    // Reusable scratch storage for prepared vertex writes. PrepareWriteAttributes
+    // validates the layout and rebinds values before each object/mesh. Keep this
+    // in the owning render context to amortize allocation and layout preparation.
+    // A prepared state references source memory until the next preparation; it
+    // must not be shared between concurrent writers or copied.
+    // Shared converted values are captured during preparation. Prepare again
+    // after changing shared values, even when their pointers have not changed.
+    struct WriteAttributeState
+    {
+        WriteAttributeState();
+        ~WriteAttributeState();
+
+        void*              m_Data;
+        uint32_t           m_Capacity;
+        uint32_t           m_NumInfos;
+        uint32_t           m_NumOperations;
+        uint32_t           m_VertexStride;
+        VertexStepFunction m_StepFunction;
+
+        private:
+        WriteAttributeState(const WriteAttributeState&);
+        WriteAttributeState& operator=(const WriteAttributeState&);
+    };
+
     struct VertexDeclaration
     {
         struct Stream
@@ -460,6 +484,10 @@ namespace dmGraphics
     float            VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr);
     uint8_t*         WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type);
     uint8_t*         WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, uint32_t vertex_count, const WriteAttributeParams& params);
+    // vertex_count is the total number of vertices written before preparing
+    // again, including indexed writes made through several single-vertex calls.
+    void             PrepareWriteAttributes(WriteAttributeState* state, const WriteAttributeParams& params, uint32_t vertex_count);
+    uint8_t*         WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, uint32_t vertex_count, const WriteAttributeState& state);
 
     // Uniforms
     uint32_t         GetUniformCount(HProgram prog);

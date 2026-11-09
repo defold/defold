@@ -32,6 +32,7 @@ defold_create_exported_symbols_file(
 
 defold_add_executable(test_graphics
   "${GRAPHICS_TEST_SRC_DIR}/test_graphics.cpp"
+  "${GRAPHICS_TEST_SRC_DIR}/test_graphics_vertices.cpp"
   "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_graphics_null.cpp")
 target_include_directories(test_graphics PRIVATE
   "${GRAPHICS_SRC_DIR}"
@@ -50,6 +51,15 @@ if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
   target_link_libraries(test_graphics PRIVATE Threads::Threads dl)
 endif()
 defold_register_test_target(test_graphics ON "${GRAPHICS_TEST_SRC_DIR}")
+
+option(DEFOLD_BUILD_VERTEX_ATTRIBUTE_BENCHMARK "Build the custom vertex attribute CPU benchmark" OFF)
+if(DEFOLD_BUILD_VERTEX_ATTRIBUTE_BENCHMARK)
+  defold_add_executable(benchmark_graphics_vertices "${GRAPHICS_TEST_SRC_DIR}/benchmark_graphics_vertices.cpp")
+  target_include_directories(benchmark_graphics_vertices PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
+  defold_target_link_libraries(benchmark_graphics_vertices "${TARGET_PLATFORM}" dlib graphics_null profile_null platform_null)
+  defold_target_link_socket(benchmark_graphics_vertices "${TARGET_PLATFORM}" PRIVATE)
+  defold_register_test_target(benchmark_graphics_vertices OFF)
+endif()
 
 # Needs the real basis transcoder (test_graphics above links the null one, where Transcode is a stub)
 defold_add_executable(test_transcoder
