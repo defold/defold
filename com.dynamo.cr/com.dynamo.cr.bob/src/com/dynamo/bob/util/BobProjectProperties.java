@@ -14,6 +14,10 @@
 
 package com.dynamo.bob.util;
 
+import com.dynamo.bob.Bob;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.ArrayUtils;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,23 +26,18 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.lang.reflect.Field;
-
-import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.io.IOUtils;
-
-import com.dynamo.bob.Bob;
 
 /**
  * .ini-file-link parser abstraction

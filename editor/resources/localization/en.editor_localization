@@ -106,6 +106,18 @@ welcome.new-project.perspective-parallax.description = This sample shows a persp
 welcome.new-project.lightning-vfx.title = Lightning VFX
 welcome.new-project.lightning-vfx.description = The sample shows a lightning effect in a 2d scrolling shooter and how the mesh component is setup to be manipulated during gameplay.
 
+# Beta suggestions
+beta.notification.available = Defold {version} beta is out.
+beta.notification.try-it = Try It
+beta.button.do-not-suggest = Don''t Suggest Again
+beta.dialog.title = Try the Beta
+beta.dialog.header = Try Defold {version} beta?
+beta.dialog.button.later = Later
+beta.dialog.button.download = Download Beta
+beta.dialog.warning = Projects saved with the beta may not open in older versions of the editor. We recommend committing your changes or making a backup first.
+beta.no-newer-dialog.header = There is no newer beta version available at this time
+beta.check-failed-dialog.header = Couldn''t check for a beta version
+
 # Updater
 updater.button.update-available = Update Available
 updater.button.restart-to-update = Restart to Update
@@ -789,6 +801,7 @@ progress.executing-pre-build-hooks = Executing pre-build hooks…
 progress.executing-post-build-hooks = Executing post-build hooks…
 progress.executing-bundle-hook = Executing bundle hook…
 progress.building-project = Building project…
+progress.checking-beta = Checking for beta…
 progress.installing-updated-libraries = Installing updated libraries…
 progress.initializing-editor = Initializing editor {lib}
 progress.loading-editor = Loading editor
@@ -1083,6 +1096,7 @@ command.help.open-issues = Search Issues
 command.help.open-donations = Development Fund
 command.help.open-release-notes = Release Notes
 command.help.check-for-updates = Check for Updates
+command.help.try-beta = Try the Beta Version…
 command.app.about = About
 command.vcs.diff = View Diff
 command.vcs.revert = Revert
@@ -1564,6 +1578,11 @@ property.gui.y-anchor = Y Anchor
 property.gui.y-anchor.tooltip = Controls vertical positioning when the parent or scene is resized. **Top** and **Bottom** keep the pivot at the same proportional distance from that edge; **None** keeps it relative to the adjusted center.
 
 # Properties: label
+
+property.label.arc-radius = Arc Radius
+property.label.arc-radius.tooltip = Signed radius of the first text baseline in local units, centered on the object origin. Later lines retain the layout's line spacing.
+property.label.arc-angle = Arc Angle
+property.label.arc-angle.tooltip = Angular span from `0` to `360` degrees, inclusive. `360` forms a full circle. `0` selects textbox layout. Arc layout ignores Size. Line Break wraps text at the arc length; explicit newlines are preserved.
 
 property.label.color = Color
 property.label.color.tooltip = Sets the text's RGBA color. Use the alpha channel to control opacity.
@@ -2294,6 +2313,8 @@ form.label.project.box2d.position_iterations = Position Iterations
 form.help.project.box2d.position_iterations = Number of position-solver iterations per physics step in **Box2D 2.2**. Higher values reduce overlap and joint-position error, but use more CPU; lower values improve performance at the cost of positional accuracy.
 form.label.project.box2d.sub_step_count = Sub Step Count
 form.help.project.box2d.sub_step_count = Number of sub-steps used for each physics step in **Box2D 3.x**. Higher values improve collision and joint stability, especially for fast-moving bodies, but use more CPU; lower values improve performance at the cost of accuracy.
+form.label.project.box2d.worker_count = Worker Count
+form.help.project.box2d.worker_count = Number of background worker threads per **Box2D 3.x** world. **0** disables threading; **3** uses three workers plus the main thread. The main thread waits for each physics step to finish. Range: **0–31**. Read at startup. Ignored by Box2D 2.2 and on unsupported platforms.
 
 form.label.project.display = Display
 form.help.project.display = Resolution and other display related settings
@@ -2498,7 +2519,7 @@ form.help.project.liveupdate.enabled = Initializes the runtime Live Update syste
 form.label.project.liveupdate.exclude_entries_from_main_manifest = Exclude Entries from Main Manifest
 form.help.project.liveupdate.exclude_entries_from_main_manifest = **Deprecated and ignored.** When publishing Live Update content, Defold always removes excluded entries from the bundled `game.dmanifest`, while `liveupdate.game.dmanifest` retains the complete resource list. Any existing value has no effect.
 form.label.project.liveupdate.settings = Settings
-form.help.project.liveupdate.settings = Live Update settings resource used when publishing excluded content during bundling. It selects Zip, folder, or Amazon S3 output and configures its destination. The selected file must exist when publishing.
+form.help.project.liveupdate.settings = Live Update settings resource used when publishing excluded content during bundling. It selects Zip or folder output and configures its destination. The selected file must exist when publishing.
 
 form.label.project.native_extension = Native Extension
 form.help.project.native_extension = Settings for native extensions
@@ -2672,14 +2693,7 @@ form.label.light.outer-cone-angle = Outer Cone Angle
 
 form.label.liveupdate.liveupdate = Live Update
 form.label.liveupdate.liveupdate.mode = Mode
-form.help.liveupdate.liveupdate.mode = Selects the publisher used for excluded resources when **Publish Live Update Content** is enabled during bundling. **Zip** creates an archive, **Folder** stages individual compiled files, and **Amazon** uploads them to S3.
-form.label.liveupdate.amazon = Amazon
-form.label.liveupdate.liveupdate.amazon-credential-profile = Credential Profile
-form.help.liveupdate.liveupdate.amazon-credential-profile = AWS credentials profile used for uploads. The Editor reads the first existing file named by `AWS_SHARED_CREDENTIALS_FILE`, then `AWS_CREDENTIAL_PROFILES_FILE`, falling back to `~/.aws/credentials`; unset or nonexistent paths are skipped.
-form.label.liveupdate.liveupdate.amazon-bucket = Bucket
-form.help.liveupdate.liveupdate.amazon-bucket = Name of the Amazon S3 bucket that receives excluded Live Update resources when publishing. The selected profile must be able to inspect and write to it; configure read access separately so game clients can download the published content.
-form.label.liveupdate.liveupdate.amazon-prefix = Prefix
-form.help.liveupdate.liveupdate.amazon-prefix = Required S3 object-key prefix placed before each resource hash, for example `my-game/liveupdate`. Use distinct prefixes to separate projects or releases within one bucket.
+form.help.liveupdate.liveupdate.mode = Selects the publisher used for excluded resources when **Publish Live Update Content** is enabled during bundling. **Zip** creates an archive, and **Folder** stages individual compiled files.
 form.label.liveupdate.zip = Zip
 form.label.liveupdate.liveupdate.save-zip-in-bundle-folder = Save in Bundle Folder
 form.help.liveupdate.liveupdate.save-zip-in-bundle-folder = Moves the generated Live Update Zip archive into the application bundle output after bundling. When enabled, this final destination takes precedence over **Output Directory**.

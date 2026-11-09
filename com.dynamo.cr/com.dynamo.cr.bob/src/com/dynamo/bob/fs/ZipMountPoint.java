@@ -14,23 +14,22 @@
 
 package com.dynamo.bob.fs;
 
+import com.dynamo.bob.fs.IFileSystem.IWalker;
+import com.dynamo.bob.util.Library;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
+
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
-import java.util.Enumeration;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.Set;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 import java.util.zip.ZipException;
-
-import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
-
-import com.dynamo.bob.fs.IFileSystem.IWalker;
-import com.dynamo.bob.util.Library;
+import java.util.zip.ZipFile;
 
 public class ZipMountPoint implements IMountPoint {
 

@@ -26,12 +26,14 @@ import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDestroy;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDestroyMarkup;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDecodeImage;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFilterMarkup;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeArc;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeGlyph;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeImage;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateGlyph;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetEffectTexture;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetArc;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetGlyphMetrics;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetMarkupData;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetSupportedGlyphMetrics;
@@ -54,9 +56,12 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import com.dynamo.bob.font.generated.FontRendererFFM;
+import com.dynamo.bob.font.generated.FontcArc;
 import com.dynamo.bob.font.generated.FontcGlyph;
 import com.dynamo.bob.font.generated.FontcGlyphBankGlyph;
 import com.dynamo.bob.font.generated.FontcGlyphMetrics;
@@ -182,6 +187,8 @@ public final class FontRenderer implements AutoCloseable {
         public float height;
         public float leading;
         public float tracking;
+        public float arcRadius;
+        public float arcAngle;
         public int align;
         public int verticalAlign;
         public float[] faceColor = {1, 1, 1, 1};
@@ -350,6 +357,7 @@ public final class FontRenderer implements AutoCloseable {
     public static final class Layout {
         public final float width;
         public final float height;
+        public final float layoutWidth;
         public final int lineCount;
         public final float maxAscent;
         public final float maxDescent;
@@ -367,6 +375,7 @@ public final class FontRenderer implements AutoCloseable {
         private Layout(MemorySegment values, MarkupError markupError, MarkupDocument markupDocument) {
             width = FontcLayout.m_Width(values);
             height = FontcLayout.m_Height(values);
+            layoutWidth = FontcLayout.m_LayoutWidth(values);
             lineCount = FontcLayout.m_LineCount(values);
             maxAscent = FontcLayout.m_MaxAscent(values);
             maxDescent = FontcLayout.m_MaxDescent(values);
@@ -494,6 +503,43 @@ public final class FontRenderer implements AutoCloseable {
             this.componentSize = componentSize;
             int pixelCount = FontcTexture.m_PixelCount(values);
             pixels = pixelCount == 0 ? null : copyNativeBytes(FontcTexture.m_Pixels(values), pixelCount);
+        }
+    }
+
+    /** Ready-to-render arc lines and framing bounds in local font units. */
+    public static final class Arc {
+        public final List<List<Float>> outlineLines;
+        public final List<List<Float>> selectedLines;
+        public final List<Float> min;
+        public final List<Float> max;
+
+        private Arc(MemorySegment arc) {
+            float[] bounds = FontcArc.m_Bounds(arc).toArray(JAVA_FLOAT);
+            min = List.of(bounds[0], bounds[1], 0.0f);
+            max = List.of(bounds[2], bounds[3], 0.0f);
+            long byteCount = Integer.toUnsignedLong(FontcArc.m_VertexCount(arc)) * 3 * Float.BYTES;
+            float[] vertices = FontcArc.m_Vertices(arc).reinterpret(byteCount).toArray(JAVA_FLOAT);
+            ArrayList<List<Float>> lines = new ArrayList<>(vertices.length / 3);
+            for (int index = 0; index < vertices.length; index += 3)
+                lines.add(List.of(vertices[index], vertices[index + 1], vertices[index + 2]));
+            selectedLines = List.copyOf(lines);
+            outlineLines = selectedLines.subList(0, FontcArc.m_OutlineVertexCount(arc));
+        }
+    }
+
+    /**
+     * Returns the retained text's arc guides, or null for straight or empty text.
+     * Used by the Editor for arc guides and text framing; does not generate glyph images or modify the atlas.
+     */
+    public synchronized Arc getArc() {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment arc = FontcArc.allocate(arena);
+            checkResult(FontcGetArc(requireHandle(), arc), "Unable to read native text arc");
+            try {
+                return FontcArc.m_OutlineVertexCount(arc) == 0 ? null : new Arc(arc);
+            } finally {
+                FontcFreeArc(arc);
+            }
         }
     }
 
@@ -739,7 +785,7 @@ public final class FontRenderer implements AutoCloseable {
      *
      * @param text text to shape and measure
      * @param lineBreak whether the text may wrap at the supplied width
-     * @param width maximum line width when line breaking is enabled
+     * @param width textbox wrapping width; configured arc properties override it
      * @param leading line-height multiplier
      * @param tracking additional spacing between glyphs
      * @return measured text layout
@@ -975,6 +1021,8 @@ public final class FontRenderer implements AutoCloseable {
             FontcProperties.m_Height(values, properties.height);
             FontcProperties.m_Leading(values, properties.leading);
             FontcProperties.m_Tracking(values, properties.tracking);
+            FontcProperties.m_ArcRadius(values, properties.arcRadius);
+            FontcProperties.m_ArcAngle(values, properties.arcAngle);
             FontcProperties.m_SdfScale(values, properties.sdfScale);
             FontcProperties.m_BaseStyle(values, properties.baseStyle);
             // Matches the low-to-high bit fields in FontcProperties.

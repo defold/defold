@@ -136,6 +136,8 @@
                                     :font "/builtins/fonts/default.fontc",
                                     :font-size 16.0,
                                     :size [128.0 32.0 0.0 0.0],
+                                    :arc-radius 100.0,
+                                    :arc-angle 0.0,
                                     :style "default",
                                     :style-hash (murmur/hash64 "default"),
                                     :tracking 0.0,

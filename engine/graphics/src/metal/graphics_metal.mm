@@ -2644,6 +2644,7 @@ namespace dmGraphics
         context->m_MainVertexDeclaration[binding_index].m_StepFunction = vertex_declaration->m_StepFunction;
         context->m_MainVertexDeclaration[binding_index].m_PipelineHash = vertex_declaration->m_PipelineHash;
 
+        context->m_EnabledVertexDeclarations[binding_index]            = vertex_declaration;
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
         context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
 
@@ -2688,8 +2689,9 @@ namespace dmGraphics
         MetalContext* context = (MetalContext*) _context;
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
-            if (context->m_CurrentVertexDeclaration[i] == vertex_declaration)
+            if (context->m_EnabledVertexDeclarations[i] == vertex_declaration)
             {
+                context->m_EnabledVertexDeclarations[i] = 0;
                 context->m_CurrentVertexDeclaration[i]  = 0;
                 context->m_CurrentVertexBufferOffset[i] = 0;
             }
@@ -4600,9 +4602,6 @@ namespace dmGraphics
         MetalContext* context = (MetalContext*)_context;
         MetalRenderTarget* rt = new MetalRenderTarget(GetNextRenderTargetId());
 
-        memcpy(rt->m_ColorBufferLoadOps, params.m_ColorBufferLoadOps, sizeof(AttachmentOp) * MAX_BUFFER_COLOR_ATTACHMENTS);
-        memcpy(rt->m_ColorBufferStoreOps, params.m_ColorBufferStoreOps, sizeof(AttachmentOp) * MAX_BUFFER_COLOR_ATTACHMENTS);
-        memcpy(rt->m_ColorAttachmentClearValue, params.m_ColorBufferClearValue, sizeof(float) * MAX_BUFFER_COLOR_ATTACHMENTS * 4);
         memcpy(rt->m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
         memcpy(rt->m_Base.m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
         rt->m_Base.m_DepthBufferParams   = params.m_DepthBufferParams;
@@ -4694,6 +4693,11 @@ namespace dmGraphics
             rt->m_TextureColor[color_index]        = new_texture_color_handle;
             rt->m_Base.m_TextureColor[color_index] = new_texture_color_handle;
 
+            // Render-pass metadata uses the same packed indices as the textures.
+            rt->m_ColorBufferLoadOps[color_index]  = params.m_ColorBufferLoadOps[i];
+            rt->m_ColorBufferStoreOps[color_index] = params.m_ColorBufferStoreOps[i];
+            memcpy(rt->m_ColorAttachmentClearValue[color_index], params.m_ColorBufferClearValue[i], sizeof(params.m_ColorBufferClearValue[i]));
+
             uint8_t color_usage_hints = color_creation_params.m_UsageHintBits;
             if (has_msaa)
             {
@@ -4781,6 +4785,8 @@ namespace dmGraphics
         rt->m_ColorAttachmentCount = color_index;
         rt->m_Base.m_ColorAttachmentCount = color_index;
 
+        // Serialize slot reuse and container growth with the texture worker.
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
@@ -4788,7 +4794,10 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*) _context;
         MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
-        context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        }
 
         DeleteMetalRenderTargetTextures(_context, rt);
         delete rt;

@@ -15,6 +15,13 @@
 package com.dynamo.bob.tools;
 
 
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.TimeProfiler;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
@@ -24,16 +31,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import com.dynamo.bob.Bob;
-import com.dynamo.bob.Platform;
-import com.dynamo.bob.logging.Logger;
-import com.dynamo.bob.util.Exec;
-import com.dynamo.bob.util.Exec.Result;
-import com.dynamo.bob.util.TimeProfiler;
-
-import com.dynamo.bob.tools.ToolsHelper;
-
 
 
 public class AndroidTools {
