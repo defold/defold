@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.pipeline;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
@@ -424,6 +425,59 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertNotNull(fontMap);
         assertEquals("/Test.otf", fontMap.getFont());
         assertTrue(fontMap.getGlyphBank().isEmpty());
+    }
+
+    // Runtime SDF fonts reference their minified TTF/OTF outputs and rebuild legacy references (#13738).
+    @Test
+    public void testRuntimeFontPathMinification() throws Exception {
+        boolean minificationEnabled = ResourceUtil.isMinificationEnabled();
+        getProject().setOption("experimental-path-minification", "true");
+        getProject().setOption("font-runtime-generation", "true");
+        try {
+            byte[] fontBytes = getFile("/Tuffy.ttf");
+            for (String extension : new String[] { "ttf", "otf" }) {
+                String fontPath = "/runtime-font." + extension;
+                addFile(fontPath, fontBytes);
+                String source = "font: \"" + fontPath + "\"\n" +
+                        "material: \"/test.material\"\n" +
+                        "size: 16\n" +
+                        "output_format: TYPE_DISTANCE_FIELD\n";
+                String fontFile = "/runtime-" + extension + ".font";
+                addFile(fontFile, source);
+                getProject().setInputs(Collections.singletonList(fontFile));
+                for (TaskResult result : getProject().build(Progress.discarding(), "build")) {
+                    assertTrue(result.toString(), result.isOk());
+                }
+                FontMap fontMap = FontMap.parseFrom(getProject().getResource(fontFile).changeExt(".fontc").getContent());
+
+                assertNotNull(fontMap);
+                assertEquals(ResourceUtil.minifyPath(fontPath), fontMap.getFont());
+                assertNotEquals(fontPath, fontMap.getFont());
+                assertTrue(fontMap.getFont().endsWith("." + extension));
+                IResource fontOutput = getProject().getResource(fontMap.getFont()).output();
+                assertTrue(fontOutput.exists());
+                assertArrayEquals(fontBytes, fontOutput.getContent());
+                assertTrue(fontMap.getGlyphBank().isEmpty());
+
+                // Seed the old output and its signature, which did not include an extra cache key.
+                Task fontTask = getProject().createTask(getProject().getResource(fontFile));
+                Task.TaskBuilder<?> legacyTaskBuilder = Task.newBuilder(fontTask.getBuilder());
+                for (IResource input : fontTask.getInputs()) {
+                    legacyTaskBuilder.addInput(input);
+                }
+                IResource fontMapOutput = fontTask.output(0);
+                fontMapOutput.setContent(fontMap.toBuilder().setFont(fontPath).build().toByteArray());
+                getProject().getState().putSignature(fontMapOutput.getAbsPath(), legacyTaskBuilder.build().calculateSignature());
+                getProject().getState().save(getFileSystem().get(getProject().getBuildDirectory() + "/_BobBuildState_"));
+
+                for (TaskResult result : getProject().build(Progress.discarding(), "build")) {
+                    assertTrue(result.toString(), result.isOk());
+                }
+                assertEquals(fontMap.getFont(), FontMap.parseFrom(fontMapOutput.getContent()).getFont());
+            }
+        } finally {
+            ResourceUtil.enableMinification(minificationEnabled);
+        }
     }
 
     @Test
