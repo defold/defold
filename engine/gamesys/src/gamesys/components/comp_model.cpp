@@ -75,14 +75,21 @@ namespace dmGameSystem
         dmVMath::Vector4  m_AnimationData;
     };
 
+    enum NormalMatrixType
+    {
+        NORMAL_MATRIX_TYPE_MAT3,
+        NORMAL_MATRIX_TYPE_MAT4,
+    };
+
     struct InstanceTransformLayout
     {
         // Byte offsets in the instance stream; -1 when the attribute is absent.
         int32_t  m_WorldOffset;
         int32_t  m_NormalOffset;
         int32_t  m_AnimationOffset;
-        uint32_t m_NormalSize;
-        uint32_t m_Stride;
+        // Stride in bytes; matrix type is used only when m_NormalOffset >= 0.
+        uint16_t m_Stride : 15;
+        uint16_t m_NormalMatrixType : 1;
     };
 
     struct MeshAttributeRenderData
@@ -1637,7 +1644,7 @@ namespace dmGameSystem
         layout->m_WorldOffset = -1;
         layout->m_NormalOffset = -1;
         layout->m_AnimationOffset = -1;
-        layout->m_NormalSize = 0;
+        layout->m_NormalMatrixType = NORMAL_MATRIX_TYPE_MAT4;
         layout->m_Stride = 0;
         for (uint32_t i = 0; i < infos.m_NumInfos; ++i)
         {
@@ -1657,7 +1664,7 @@ namespace dmGameSystem
                      layout->m_NormalOffset < 0)
             {
                 layout->m_NormalOffset = layout->m_Stride;
-                layout->m_NormalSize = dmGraphics::VectorTypeToElementCount(info.m_VectorType) * sizeof(float);
+                layout->m_NormalMatrixType = info.m_VectorType == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3 ? NORMAL_MATRIX_TYPE_MAT3 : NORMAL_MATRIX_TYPE_MAT4;
             }
             else if (info.m_NameHash == dmRender::VERTEX_STREAM_ANIMATION_DATA &&
                      info.m_VectorType == dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4 && layout->m_AnimationOffset < 0)
@@ -1863,7 +1870,7 @@ namespace dmGameSystem
                     if (transform_layout.m_NormalOffset >= 0)
                     {
                         dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, instance_render_item->m_World);
-                        if (transform_layout.m_NormalSize == 9 * sizeof(float))
+                        if (transform_layout.m_NormalMatrixType == NORMAL_MATRIX_TYPE_MAT3)
                         {
                             // SIMD matrix columns have four floats; vertex mat3 columns have three.
                             const float* normal = (const float*)&normal_matrix;
