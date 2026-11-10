@@ -42,7 +42,6 @@
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.util :refer [split-lines]]
-            [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.node-types :as node-types]
@@ -1403,7 +1402,7 @@
                     (into (set-properties view-node nil {:rename-cursor-range nil})
                           (mapcat
                             (fn [[resource ascending-cursor-ranges-and-replacements]]
-                              (when-let [resource-node (project/get-resource-node project resource evaluation-context)]
+                              (when-let [resource-node (get (g/node-value project :nodes-by-resource-path evaluation-context) (resource/proj-path resource))]
                                 (when (g/node-instance? (:basis evaluation-context) r/CodeEditorResourceNode resource-node)
                                   (if-let [view-node (resource->view resource)]
                                     (set-properties
