@@ -37,7 +37,8 @@
             [integration.test-util :as test-util]
             [internal.java :as java]
             [support.test-support :as test-support]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.defonce :as defonce])
   (:import [com.dynamo.bob ClassLoaderResourceScanner Platform Progress Project TaskResult]
            [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageResolver$Package PackageResolver$Plan PackageResolver$Severity]
            [com.dynamo.bob.fs DefaultFileSystem]
@@ -137,7 +138,7 @@
     (Event/fireEvent tab (Event. Tab/CLOSED_EVENT))
     (.remove (.getTabs (.getTabPane tab)) tab)
     (await-ui! #(nil? (g/node-by-id view)))
-    (when job (is (future-cancelled? job)))
+    (when job (is (future-done? job)))
     (is (= {} @state))))
 
 (defn- await-preview! [state previous]
@@ -166,6 +167,14 @@
   (coll/into-> [(.getRoot table)] []
     (coll/tree-xf (constantly true) #(.getChildren ^TreeItem %))
     (keep #(.getValue ^TreeItem %))))
+
+(defonce/record OutlineIterator [root-node path]
+  outline/ItemIterator
+  (value [_]
+    (reduce #(nth (:children %1) %2) (g/node-value root-node :node-outline) path))
+  (parent [_]
+    (when (coll/not-empty path)
+      (OutlineIterator. root-node (pop path)))))
 
 (defn- with-manifest-view! [project app-view path f]
   (ui/run-now
@@ -472,7 +481,8 @@
       (is (= (g/node-value node :save-value) (g/node-value (project/get-resource-node project "/provider-reloaded.archivemanifest") :save-value))))))
 
 ;; Adding a pipeline JAR refreshes an existing manifest's cached properties.
-;; Unsaved provider settings are captured by the manifest's save value.
+;; Unsaved settings preserve the text of numeric choices that parse to the same
+;; number, as well as unrestricted numeric values.
 (deftest custom-provider-properties
   (test-util/with-scratch-project "test/resources/live_update_project"
     (test-util/make-resource! workspace "/provider.archivemanifest"
@@ -511,7 +521,16 @@
                  :properties [{:name "extension" :value "alternate"}
                               {:name "quality" :value "7"}
                               {:name "scale" :value "0.5"}]}]
-               (:providers (g/node-value node :save-value))))))))
+               (:providers (g/node-value node :save-value))))
+        (is (= ["1"] (properties/values (property "ratio"))))
+        (doseq [[index choice] [[2 "2"] [1 "1.0"] [0 "1"]]]
+          (let [description (properties-view/make-control-view (property "ratio") {} @test-util/localization)
+                options (get-in description [:desc :items])
+                change! (get-in description [:desc :on-value-changed])]
+            (is (= ["1" "1.0" "2"] options))
+            (change! (nth options index))
+            (is (nil? (properties/validation-message (property "ratio"))))
+            (is (= choice (get-in (g/node-value node :save-value) [:providers 0 :properties 3 :value])))))))))
 
 ;; Manifest loading installs one workspace listener, reused after reloads and
 ;; removal. Projects without manifests need no Live Update listener.
@@ -942,6 +961,26 @@
                                (when (contains? (.resources ^PackageResolver$Package package) "/common/shared.scriptc")
                                  name)))))))))))))
 
+;; Unrelated edits preserve invalid preset references for validation and saving.
+(deftest preserve-invalid-preset-references
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (let [value {:packages [{:name "invalid" :container-preset " " :file-compression-preset " "}]}]
+      (test-util/make-resource! workspace "/invalid.archivemanifest" value)
+      (workspace/resource-sync! workspace)
+      (let [node (project/get-resource-node project "/invalid.archivemanifest")
+            expected (assoc value :output-directory "exports")]
+        (is (= value (g/node-value node :save-value)))
+        (test-util/prop! node :output-directory "exports")
+        (is (= expected (g/node-value node :save-value)))
+        (spit (workspace/file-resource workspace "/reloaded.archivemanifest")
+              (resource-node/save-data-content (g/node-value node :save-data)))
+        (workspace/resource-sync! workspace)
+        (let [reloaded (project/get-resource-node project "/reloaded.archivemanifest")
+              package (:node-id (first (g/node-value reloaded :packages)))]
+          (is (= expected (g/node-value reloaded :save-value)))
+          (is (g/error-fatal? (test-util/prop-error package :container-preset)))
+          (is (g/error-fatal? (test-util/prop-error package :file-compression-preset))))))))
+
 ;; Malformed rules remain editable without dropping either authored target.
 (deftest preserve-invalid-rule-target
   (test-util/with-scratch-project "test/resources/live_update_project"
@@ -1093,6 +1132,34 @@
           (is (not (identical? @old-state state)))
           (is (instance? PackageResolver$Plan (get-in @state [:result :compiled :plan]))))))))
 
+;; Resource highlighting must not retain a package's old name across undo/redo.
+(deftest graph-preview-package-rename
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (let [node (project/get-resource-node project "/packages.archivemanifest")
+          package (:node-id (first (g/node-value node :packages)))]
+      (with-manifest-view! project app-view "/packages.archivemanifest"
+        (fn [{:keys [state parent]}]
+          (g/transact {:undoable false} (app-view/select app-view node [package]))
+          (await-ui! #(= "Package: levels" (.getText ^Label (.lookup ^Pane parent "#liveupdate-package-heading"))))
+          (properties/set-values!
+            (get-in (properties/coalesce [(g/node-value package :_properties)]) [:properties :id])
+            ["renamed"])
+          (await-ui! #(= "Package: renamed" (.getText ^Label (.lookup ^Pane parent "#liveupdate-package-heading"))))
+          (let [table (resource-table parent)
+                ^TreeItem item (coll/first-where #(= "/extra.json" (:path (.getValue ^TreeItem %)))
+                                                 (.getChildren (.getRoot table)))]
+            (.select (.getSelectionModel table) item)
+            (await-ui! #(.lookup ^Pane parent "#liveupdate-source"))
+            (doseq [[edit! name] [[g/undo! "levels"]
+                                  [g/redo! "renamed"]]]
+              (let [previous (:result @state)]
+                (edit! :undo/global)
+                (await-preview! state previous)
+                (is (= name (get-in @state [:result :package-name])))
+                (is (= #{"/episode.collectionc" "/extra.json"}
+                       (coll/into-> (get-in @state [:result :rows]) #{} (map :path))))
+                (await-ui! #(= (str "Package: " name) (.getText ^Label (.lookup ^Pane parent "#liveupdate-package-heading"))))))))))))
+
 (g/defnode PausedBuildTargets
   (inherits resource-node/ResourceNode)
   (input targets g/Any)
@@ -1171,6 +1238,23 @@
               (deliver (:release work) true)
               (await-ui! #(realized? (:finished work))))))))))
 
+;; Closing also accepts a completed worker whose UI callback is still queued.
+(deftest close-completed-preview
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (with-manifest-view! project app-view "/packages.archivemanifest"
+      (fn [{:keys [state]}]
+        (let [work (pause-preview! project "/packages.archivemanifest")]
+          (try
+            (await-ui! #(realized? (:started work)))
+            (let [job (:job @state)]
+              (deliver (:release work) true)
+              ;; Keep the UI callback queued until the view's cleanup runs.
+              (is (not= ::timeout (deref job 30000 ::timeout)))
+              (is (not (future-cancelled? job))))
+            (finally
+              (deliver (:release work) true)
+              (is (= true (deref (:finished work) 30000 :timeout))))))))))
+
 ;; Closing a tab interrupts active graph evaluation. Reopening creates a fresh
 ;; view after the old worker has signalled completion.
 (deftest close-active-preview
@@ -1178,10 +1262,12 @@
     (let [active (atom nil)]
       (try
         (with-manifest-view! project app-view "/packages.archivemanifest"
-          (fn [_]
+          (fn [{:keys [state]}]
             (let [work (pause-preview! project "/packages.archivemanifest")]
               (reset! active work)
-              (await-ui! #(realized? (:started work))))))
+              (await-ui! #(realized? (:started work)))
+              (swap! active assoc :job (:job @state)))))
+        (is (future-cancelled? (:job @active)))
         (is (= true (deref (:finished @active) 30000 :timeout)))
         (g/set-property! (:node @active) :gate nil)
         (with-manifest-view! project app-view "/packages.archivemanifest"
@@ -1323,6 +1409,7 @@
 
 ;; Preview changes resolve selection details from current rows, and removing the
 ;; selected resource clears its source link without leaving stale trace text.
+;; Whitespace-only search edits keep the selected resource and its details.
 (deftest graph-preview-selection-details
   (test-util/with-scratch-project "test/resources/live_update_project"
     (with-manifest-view! project app-view "/packages.archivemanifest"
@@ -1330,19 +1417,54 @@
         (let [node (project/get-resource-node project "/packages.archivemanifest")
               package (first (g/node-value node :packages))
               rule (get-in package [:rules 1 :node-id])
-              table (resource-table parent)]
+              table (resource-table parent)
+              filter-control ^TextField (.lookup ^Pane parent "#liveupdate-filter")
+              clear-button ^Button (.lookup ^Pane parent "#liveupdate-clear-search")]
           (g/transact {:undoable false} (app-view/select app-view node [(:node-id package)]))
           (let [^TreeItem item (await-ui! #(coll/first-where
                                              (fn [^TreeItem item] (= "/extra.json" (:path (.getValue item))))
                                              (.getChildren (.getRoot table))))]
             (.select (.getSelectionModel table) item))
           (await-ui! #(.lookup ^Pane parent "#liveupdate-source"))
+          (doseq [query [" " ""]]
+            (.setText filter-control query)
+            (await-ui! #(= (= "" query) (.isDisabled clear-button)))
+            (is (some? (.lookup ^Pane parent "#liveupdate-source")))
+            (is (= "/extra.json" (:path (.getValue ^TreeItem (.getSelectedItem (.getSelectionModel table)))))))
           (let [previous (:result @state)]
             (g/transact (g/set-property rule :path "/episode[.]collection"))
             (await-preview! state previous))
           (await-ui! #(nil? (.lookup ^Pane parent "#liveupdate-source")))
           (is (coll/not-any? #(= "/extra.json" (:path %)) (table-rows table)))
           (is (nil? (.getSelectedItem (.getSelectionModel table)))))))))
+
+;; Cut/paste can restore identical content with new rule nodes. Refresh their
+;; highlighting without resolving the unchanged dependency graph again.
+(deftest graph-preview-pasted-rule-highlighting
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (with-manifest-view! project app-view "/packages.archivemanifest"
+      (fn [{:keys [state parent]}]
+        (let [node (project/get-resource-node project "/packages.archivemanifest")
+              package (first (g/node-value node :packages))
+              table (resource-table parent)]
+          (g/transact {:undoable false} (app-view/select app-view node [(:node-id package)]))
+          (await-ui! #(= "Package: levels" (.getText ^Label (.lookup ^Pane parent "#liveupdate-package-heading"))))
+          (let [previous (:result @state)
+                original (g/node-value node :save-value)
+                data (outline/cut! project [(OutlineIterator. node [2 1])])]
+            (outline/paste! project (OutlineIterator. node [2]) data nil)
+            (is (= original (g/node-value node :save-value)))
+            (let [rule (get-in (g/node-value node :packages) [0 :rules 1 :node-id])
+                  compiled (await-preview! state previous)]
+              (is (not= (get-in package [:rules 1 :node-id]) rule))
+              (is (identical? (:compiled previous) compiled))
+              (let [^TreeItem item (await-ui! #(coll/first-where
+                                                 (fn [^TreeItem item]
+                                                   (= [rule] (:rule-nodes (.getValue item))))
+                                                 (.getChildren (.getRoot table))))]
+                (.select (.getSelectionModel table) item)
+                (await-ui! #(.lookup ^Pane parent "#liveupdate-source"))
+                (is (= [rule] (get (g/node-value project :selected-node-ids-by-resource-node) node)))))))))))
 
 ;; Generated editor targets retain their atlas source in package, base, and
 ;; global views, even though the texture filename differs from Bob's output.
@@ -1420,7 +1542,8 @@
                  (select-keys (into {} (table-tree table))
                               ["/custom.json" "/main.collectionc" "/z.goc"]))))))))
 
-;; Library manifests expose the same outline and selection with read-only edits.
+;; Library manifests expose the same outline and selection with read-only edits,
+;; including paste targets for packages, rules, and compression presets.
 (deftest library-manifest-read-only
   (test-util/with-project-default-library-directory
     (test-util/with-scratch-project "test/resources/live_update_project"
@@ -1468,4 +1591,13 @@
           (doseq [selected [node (:node-id package) (:node-id rule)]
                   command [:edit.add-embedded-component :edit.reorder-up :edit.reorder-down]]
             (is (false? (test-util/handler-enabled? command
-                                                    [{:name :workbench :env {:selection [selected]}}] nil)))))))))
+                                                    [{:name :workbench :env {:selection [selected]}}] nil))))
+          (let [editable (project/get-resource-node project "/packages.archivemanifest")
+                original (g/node-value node :save-value)]
+            (doseq [[source-path target-path] [[[2] []] [[2 0] [2]] [[1 0 0] [1 0]] [[1 1 0] [1 1]]]]
+              (let [data (outline/copy project [(OutlineIterator. node source-path)])
+                    target (OutlineIterator. node target-path)]
+                (is (outline/paste? project (OutlineIterator. editable target-path) data))
+                (is (false? (outline/paste? project target data)))
+                (outline/paste! project target data nil)
+                (is (= original (g/node-value node :save-value)))))))))))

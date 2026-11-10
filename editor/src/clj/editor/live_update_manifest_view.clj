@@ -252,16 +252,24 @@
    :children (mapv #(resource-tree-item %) (:children row))})
 
 (defn- selected-package [model ui-state]
-  (if (= (set (:selection model)) (:highlighted ui-state))
-    (:package ui-state "base")
-    (selection-package (:packages model) (set (:selection model)))))
+  (let [packages (:packages model)
+        selection (set (:selection model))
+        package-name (:package ui-state "base")]
+    (if (and (= selection (:highlighted ui-state))
+             (or (= "base" package-name)
+                 (coll/any? #(= package-name (get-in % [:value :name])) packages)))
+      package-name
+      (selection-package packages selection))))
 
 (defn- prepare-preview [project model previous package-name query evaluation-context]
   (let [fingerprint (:fingerprint model)
-        preview (if (= fingerprint (:fingerprint previous))
+        preview (if (and (= fingerprint (:fingerprint previous))
+                         (= (:packages model) (:packages previous)))
                   previous
-                  (let [compiled (resolve-graph project (:resource-node model) evaluation-context)]
-                    {:fingerprint fingerprint :compiled compiled
+                  (let [compiled (if (= fingerprint (:fingerprint previous))
+                                   (:compiled previous)
+                                   (resolve-graph project (:resource-node model) evaluation-context))]
+                    {:fingerprint fingerprint :compiled compiled :packages (:packages model)
                      :index (index-preview {:compiled compiled :packages (:packages model)})}))
         searching (not (string/blank? query))
         rows-package (when-not searching package-name)
@@ -312,7 +320,7 @@
     (fn update-preview! [model ui-state elapsed-time]
       (let [package-name (selected-package model ui-state)
             query (string/lower-case (string/trim (:filter ui-state "")))
-            request [(:fingerprint model) package-name query]]
+            request [(:fingerprint model) (:packages model) package-name query]]
         (when (not= request (:request @pending))
           (some-> (:job @state) future-cancel)
           (swap! state assoc :generation (Object.) :job nil :error nil)
@@ -353,9 +361,9 @@
   (let [model (g/node-value view-node :model)
         root (:resource-node model)]
     (case type
-      :filter (swap! ui-state assoc :filter event :selected-path nil)
+      :filter (swap! ui-state assoc :filter event)
       :clear-filter (do
-                      (swap! ui-state assoc :filter "" :selected-path nil)
+                      (swap! ui-state assoc :filter "")
                       (ui/request-focus! (.lookup ^Parent parent "#liveupdate-filter")))
       :open-source (ui/run-command (.getTarget ^Event event) :file.open path)
       :copy-path (.setContent (Clipboard/getSystemClipboard) (doto (ClipboardContent.) (.putString path)))

@@ -235,20 +235,20 @@
                :order order
                :rules rules
                :value (cond-> {:name id}
-                        (not (string/blank? file-compression-preset)) (assoc :file-compression-preset file-compression-preset)
+                        (coll/not-empty file-compression-preset) (assoc :file-compression-preset file-compression-preset)
                         (coll/not-empty rules) (assoc :rules (mapv :value rules))
-                        (not (string/blank? container-preset)) (assoc :container-preset container-preset))})))
+                        (coll/not-empty container-preset) (assoc :container-preset container-preset))})))
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id id order child-outlines read-only ^:try name-error ^:try file-compression-error ^:try container-error]
-            {:node-id _node-id
-             :node-outline-key id
-             :label id
-             :order order
-             :icon package-icon
-             :read-only (boolean read-only)
-             :outline-error? (or (g/error-fatal? name-error) (g/error-fatal? file-compression-error) (g/error-fatal? container-error))
-             :children (vec (sort-by :order child-outlines))
-             :child-reqs [{:node-type RuleNode :tx-attach-fn attach-rule}]})))
+            (cond-> {:node-id _node-id
+                     :node-outline-key id
+                     :label id
+                     :order order
+                     :icon package-icon
+                     :read-only (boolean read-only)
+                     :outline-error? (or (g/error-fatal? name-error) (g/error-fatal? file-compression-error) (g/error-fatal? container-error))
+                     :children (vec (sort-by :order child-outlines))}
+              (not read-only) (assoc :child-reqs [{:node-type RuleNode :tx-attach-fn attach-rule}])))))
 
 (g/defnode BasePackageNode
   (inherits outline/OutlineNode)
@@ -399,12 +399,12 @@
   (input preset-data g/Any :array)
   (output presets g/Any :cached (g/fnk [preset-data] (vec (sort-by :order preset-data))))
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id kind child-outlines]
-            {:node-id _node-id :node-outline-key (name kind)
-             :label (localization/message (str "liveupdate.compression." (name kind))) :icon icon :read-only true
-             :children (vec (sort-by :order child-outlines))
-             :child-reqs [{:node-type (case kind :container ContainerPresetNode :file FileCompressionPresetNode)
-                           :tx-attach-fn attach-pasted-preset}]})))
+          (g/fnk [_node-id kind child-outlines read-only]
+            (cond-> {:node-id _node-id :node-outline-key (name kind)
+                     :label (localization/message (str "liveupdate.compression." (name kind))) :icon icon :read-only true
+                     :children (vec (sort-by :order child-outlines))}
+              (not read-only) (assoc :child-reqs [{:node-type (case kind :container ContainerPresetNode :file FileCompressionPresetNode)
+                                                   :tx-attach-fn attach-pasted-preset}])))))
 
 (defn- make-preset [parent kind order preset]
   (case kind
@@ -446,21 +446,24 @@
 
 (defn- provider-property [node-id read-only provider ^PackageProvider$Property description authored]
   (let [id (.id description)
-        type (condp = (.type description)
-               PackageProvider$PropertyType/BOOLEAN g/Bool
-               PackageProvider$PropertyType/INTEGER g/Int
-               PackageProvider$PropertyType/NUMBER g/Num
-               g/Str)
-        parse (fn [value]
+        choices (.choices description)
+        type (if (coll/not-empty choices)
+               g/Str
+               (condp = (.type description)
+                 PackageProvider$PropertyType/BOOLEAN g/Bool
+                 PackageProvider$PropertyType/INTEGER g/Int
+                 PackageProvider$PropertyType/NUMBER g/Num
+                 g/Str))
+        parse (fn parse-provider-value [value]
                 (try
-                  {:value (.parse description value)}
+                  (let [parsed (.parse description value)]
+                    {:value (if (coll/not-empty choices) value parsed)})
                   (catch IllegalArgumentException error
                     {:value value
                      :error (g/->error node-id :provider-settings :fatal value (ex-message error))})))
         default (parse (.defaultValue description))
         value (when (contains? authored id) (parse (get authored id)))
-        error (:error (or value default))
-        choices (.choices description)]
+        error (:error (or value default))]
     {:node-id node-id
      :prop-kw :provider-settings
      :label (localization/message (str "liveupdate.provider." provider ".property." id) {} (.label description))
@@ -475,7 +478,7 @@
                          :clear-fn (fn/partial clear-provider-property provider id)}
                   (coll/not-empty choices)
                   (assoc :type :choicebox
-                         :options (mapv (fn [choice] [(.parse description choice) choice]) choices)))}))
+                         :options (mapv (fn [choice] [choice choice]) choices)))}))
 
 (defn- produce-properties [node-id declared-properties provider-settings packages container-presets read-only schemas]
   (if (g/error? schemas)
@@ -609,21 +612,21 @@
                               (g/->error _node-id :selected-paths :fatal nil (diagnostic-message diagnostic)))))))
                 (coll/into-> (.values (.matches ^PackageResolver$Selection selection)) (sorted-set) cat))))
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id child-outlines base-outline container-presets-outline file-presets-outline]
-            {:node-id _node-id
-             :node-outline-key "Live Update Manifest"
-             :label (localization/message "resource.type.archivemanifest")
-             :icon icon
-             :children (into [base-outline
-                              {:node-id _node-id
-                               :node-outline-key "compression-types"
-                               :label (localization/message "liveupdate.compression.types")
-                               :icon icon
-                               :read-only true
-                               :properties {:properties {}}
-                               :children [container-presets-outline file-presets-outline]}]
-                             (sort-by :order child-outlines))
-             :child-reqs [{:node-type PackageNode :tx-attach-fn attach-pasted-package}]}))
+          (g/fnk [_node-id child-outlines base-outline container-presets-outline file-presets-outline read-only]
+            (cond-> {:node-id _node-id
+                     :node-outline-key "Live Update Manifest"
+                     :label (localization/message "resource.type.archivemanifest")
+                     :icon icon
+                     :children (into [base-outline
+                                      {:node-id _node-id
+                                       :node-outline-key "compression-types"
+                                       :label (localization/message "liveupdate.compression.types")
+                                       :icon icon
+                                       :read-only true
+                                       :properties {:properties {}}
+                                       :children [container-presets-outline file-presets-outline]}]
+                                     (sort-by :order child-outlines))}
+              (not read-only) (assoc :child-reqs [{:node-type PackageNode :tx-attach-fn attach-pasted-package}]))))
   (output build-targets g/Any (g/constantly [])))
 
 (defn- make-rule [parent order rule]

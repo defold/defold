@@ -26,7 +26,8 @@ public final class ManifestTestProvider implements PackageProvider {
     public List<Property> getProperties() {
         return List.of(new Property("extension", "Extension", PropertyType.STRING, "custom", List.of("custom", "alternate")),
                 new Property("quality", "Quality", PropertyType.INTEGER, "2", List.of()),
-                new Property("scale", "Scale", PropertyType.NUMBER, "1.0", List.of()));
+                new Property("scale", "Scale", PropertyType.NUMBER, "1.0", List.of()),
+                new Property("ratio", "Ratio", PropertyType.NUMBER, "1", List.of("1", "1.0", "2")));
     }
     public List<Artifact> describeOutputs(Context context, PackageResolver.Package pkg) {
         var values = context.providerSettings().get(getId());

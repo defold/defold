@@ -45,7 +45,8 @@
             [util.defonce :as defonce]
             [util.eduction :as e]
             [util.fn :as fn]
-            [util.id-vec :as iv])
+            [util.id-vec :as iv]
+            [util.path :as path])
   (:import [editor.properties Curve CurveSpread]
            [java.io File]
            [javafx.beans.value ChangeListener]
@@ -302,9 +303,11 @@
                                           (localization-state (localization/message "dialog.directory.title.select"))
                                           directory
                                           (fxui/event->window event))]
-                      (let [path (if-let [proj-path (workspace/as-proj-path workspace selected)]
-                                   (if (= "/" proj-path) "." (subs proj-path 1))
-                                   (.getAbsolutePath selected))]
+                      (let [path (if (path/same? selected (workspace/project-directory workspace))
+                                   "."
+                                   (if-let [proj-path (workspace/as-proj-path workspace selected)]
+                                     (subs proj-path 1)
+                                     (.getAbsolutePath selected)))]
                         (set-values! property (mapv (constantly path) (:node-ids property)))))))}]})
 
 (defn- resolve-scrubber
