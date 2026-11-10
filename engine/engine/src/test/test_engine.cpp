@@ -339,7 +339,7 @@ TEST_F(EngineTest, DatastoreContext)
     memset(&g_DatastoreContextTest, 0, sizeof(g_DatastoreContextTest));
     g_DatastoreContextTest.m_Enabled = true;
     char        project_path[256];
-    const char* argv[] = { "test_engine", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc") };
+    const char* argv[] = { "test_engine", "--config=dmengine.unload_builtins=0", "--config=engine.datastore=1", MAKE_PATH(project_path, "/game.projectc") };
     int         result = Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0);
     g_DatastoreContextTest.m_Enabled = false;
 
@@ -356,6 +356,14 @@ static void PreRunDatastoreDisabled(dmEngine::HEngine engine, void* context)
     EXPECT_EQ((HDSContext)0, engine->m_DataStore);
     EXPECT_EQ((HJobContext)0, engine->m_DataStoreJobs);
     EXPECT_EQ((void*)0, ContextRegistryGet(engine->m_ContextRegistry, DATASTORE_CONTEXT_NAME));
+}
+
+// Default startup leaves the experimental datastore and its worker context absent.
+TEST_F(EngineTest, DatastoreDisabledByDefault)
+{
+    char        project_path[256];
+    const char* argv[] = { "test_engine", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc") };
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, PreRunDatastoreDisabled, 0, 0));
 }
 
 // Disabling the datastore omits its context and workers while allowing the
@@ -478,6 +486,7 @@ static void TestDatastoreUpdateStages(bool threaded, bool block_streaming)
     const char*       argv[] = {
         "test_engine",
         "--config=dmengine.unload_builtins=0",
+        "--config=engine.datastore=1",
         "--config=bootstrap.main_collection=/datastore/pre_update.collectionc",
         "--config=input.game_binding=/text_input/text_input.input_bindingc",
         MAKE_PATH(project_path, "/game.projectc")

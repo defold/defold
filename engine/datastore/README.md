@@ -4,7 +4,9 @@ A C API for typed rows, field queries and job scheduling. Include
 `<dmsdk/datastore/datastore.h>` and link the `datastore` library. The library
 uses dlib and has no dependency on game objects or third-party ECS libraries.
 
-The engine provides a shared `HDSContext` through `DATASTORE_CONTEXT_NAME`.
+Set `engine.datastore = 1` in `game.project` to enable the experimental engine
+datastore; it is disabled by default. The engine provides its shared `HDSContext`
+through `DATASTORE_CONTEXT_NAME`.
 Extensions borrow it and release their queries and tables before app finalization.
 Standalone callers use `DSStoreCreate(0)` and `DSStoreDestroy()`. Pass `DSCreateParams` to tune backing pages, row chunks and spare-page retention.
 

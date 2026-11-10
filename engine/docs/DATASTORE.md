@@ -747,12 +747,12 @@ Every named prerequisite must be registered as a function or event.
 
 ### Engine events
 
-`engine.datastore` defaults to `1`. Set it to `0` in `game.project` to disable
+`engine.datastore` defaults to `0`. Set it to `1` in `game.project` to enable
 the engine-owned datastore, its worker threads and per-frame scheduling:
 
 ```ini
 [engine]
-datastore = 0
+datastore = 1
 ```
 
 When disabled, looking up `DATASTORE_CONTEXT_NAME` returns null. Extensions that

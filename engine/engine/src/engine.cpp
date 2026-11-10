@@ -1269,7 +1269,7 @@ namespace dmEngine
         job_thread_create_param.m_ThreadCount       = 1;
         engine->m_JobThreadContext                  = JobSystemCreate(&job_thread_create_param);
 
-        if (dmConfigFile::GetInt(engine->m_Config, "engine.datastore", 1))
+        if (dmConfigFile::GetInt(engine->m_Config, "engine.datastore", 0))
         {
             engine->m_DataStore = DSStoreCreate(0);
         }

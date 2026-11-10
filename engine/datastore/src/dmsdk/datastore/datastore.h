@@ -624,8 +624,8 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  * Registry name for the engine-owned [type:HDSContext], available from extension
  * app initialization through app finalization. Borrow the store; do not destroy
  * it. Finish jobs and release your queries and tables before finalization ends.
- * Setting engine.datastore to 0 disables creation; context lookup returns NULL.
- * The default is 1 (enabled).
+ * Enable creation with engine.datastore = 1; the default is 0 (disabled).
+ * Context lookup returns NULL while disabled.
  *
  * @constant
  * @name DATASTORE_CONTEXT_NAME
@@ -1191,7 +1191,7 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
 /*# Before game-object updates
  *
  * Registered in the engine's DATASTORE_CONTEXT_NAME store when engine.datastore
- * is enabled (the default). After input dispatch and before game-object updates,
+ * is enabled. After input dispatch and before game-object updates,
  * the engine starts the frame's schedule and signals this event. It waits for submitted
  * functions and their dependents before updating components. The same schedule remains
  * active through [ref:DS_EVENT_GAMEOBJECT_POST_UPDATE]. Callbacks run on a dedicated
