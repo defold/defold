@@ -23,6 +23,10 @@ endif()
 add_dependencies(test_data test_data_cpp14)
 defold_register_test_target(test_data ON "${DATA_ROOT}")
 
+defold_add_executable(test_data_null "${CMAKE_CURRENT_LIST_DIR}/test_data_null.cpp")
+target_link_libraries(test_data_null PRIVATE datastore_null)
+defold_register_test_target(test_data_null ON "${DATA_ROOT}")
+
 if(WITH_TSAN)
   if(NOT TARGET dlib)
     message(FATAL_ERROR "Threading tests require a source-built, TSAN-instrumented dlib. Configure from the repository root with DEFOLD_SELECTED_ENGINE_LIBS=dlib,testmain,datastore.")

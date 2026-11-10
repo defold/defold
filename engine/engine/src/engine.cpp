@@ -1272,6 +1272,9 @@ namespace dmEngine
         if (dmConfigFile::GetInt(engine->m_Config, "engine.datastore", 1))
         {
             engine->m_DataStore = DSStoreCreate(0);
+        }
+        if (engine->m_DataStore)
+        {
             DSEventDesc event = { DS_EVENT_GAMEOBJECT_PRE_UPDATE };
             DSEventAdd(engine->m_DataStore, &event);
             event = { DS_EVENT_GAMEOBJECT_POST_UPDATE, { DS_EVENT_GAMEOBJECT_PRE_UPDATE } };

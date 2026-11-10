@@ -8,6 +8,24 @@ The engine provides a shared `HDSContext` through `DATASTORE_CONTEXT_NAME`.
 Extensions borrow it and release their queries and tables before app finalization.
 Standalone callers use `DSStoreCreate(0)` and `DSStoreDestroy()`. Pass `DSCreateParams` to tune backing pages, row chunks and spare-page retention.
 
+To remove the implementation from a custom engine, enable **Exclude Datastore**
+in the editor's App Manifest properties. This replaces `datastore` with
+`datastore_null`. The equivalent YAML is:
+
+```yaml
+platforms:
+    common:
+        context:
+            excludeLibs: [datastore]
+            libs: [datastore_null]
+```
+
+The null library contains only the engine lifecycle and scheduler entry points.
+`DSStoreCreate()` and the engine context lookup return null; no datastore workers
+are created. Extensions using row, field or query APIs require the full library.
+With `engine.datastore = 0`, the implementation remains linked and standalone
+stores are still available.
+
 - Register field layouts with `DSTableAdd()`.
 - Pass a caller-owned group ID, such as the game-object handle, when adding rows.
   Group bookkeeping is created on first use; `0` means ungrouped rows.

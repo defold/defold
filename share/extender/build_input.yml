@@ -59,6 +59,7 @@ context:
                 "record_service", "record_service.lib", "librecord_service.lib",
                 "gameobject", "gameobject.lib", "libgameobject.lib",
                 "datastore", "datastore.lib", "libdatastore.lib",
+                "datastore_null", "datastore_null.lib", "libdatastore_null.lib",
                 "ddf", "ddf.lib", "libddf.lib",
                 "dmbedtls", "dmbedtls.lib", "libdmbedtls.lib",
                 "resource", "resource.lib", "libresource.lib",

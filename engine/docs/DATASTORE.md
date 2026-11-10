@@ -759,6 +759,12 @@ When disabled, looking up `DATASTORE_CONTEXT_NAME` returns null. Extensions that
 use the engine store must handle its absence. Standalone stores created with
 `DSStoreCreate` are unaffected.
 
+To remove the implementation from a custom engine, enable **Exclude Datastore**
+in the editor's App Manifest properties. This excludes `datastore` and adds
+`datastore_null`; see the [library README](../datastore/README.md).
+The null variant supplies only engine lifecycle/scheduler entry points, returns
+no context and creates no datastore workers, regardless of `engine.datastore`.
+
 The engine-owned `DATASTORE_CONTEXT_NAME` store registers two events:
 
 | Event | Synchronized boundary |

@@ -25,7 +25,10 @@ target_include_directories(datastore PUBLIC "${DATA_SRC_DIR}")
 target_compile_definitions(datastore PRIVATE "DLIB_LOG_DOMAIN=\"DATASTORE\"")
 defold_target_link_libraries(datastore "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
 
-defold_install_targets(TARGETS datastore
+defold_add_library(datastore_null STATIC "${DATA_SRC_DIR}/data_null.cpp")
+target_include_directories(datastore_null PUBLIC "${DATA_SRC_DIR}")
+
+defold_install_targets(TARGETS datastore datastore_null
   ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
   LIBRARY DESTINATION lib/${TARGET_PLATFORM}
   RUNTIME DESTINATION bin/${TARGET_PLATFORM})

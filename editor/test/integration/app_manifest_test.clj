@@ -1200,6 +1200,35 @@
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))))
 
+;; The editor checkbox must replace the datastore on every platform, survive
+;; save/reload, and remove the replacement when the feature is enabled again.
+(deftest exclude-datastore-test
+  (let [content
+        (test-util/with-loaded-project
+          (let [node (test-util/resource-node project "/app_manifest/default.appmanifest")]
+            (is (false? (g/node-value node :exclude-datastore)))
+            (g/set-property! node :exclude-datastore true)
+            (is (true? (g/node-value node :exclude-datastore)))
+            (let [manifest (g/node-value node :manifest)
+                  content (resource-node/save-data-content (g/node-value node :save-data))]
+              (doseq [platform app-manifest/all-platforms]
+                (is (= ["datastore"] (get-in manifest [:platforms platform :context :excludeLibs])))
+                (is (= ["datastore_null"] (get-in manifest [:platforms platform :context :libs]))))
+              (is (= manifest (yaml/load content keyword)))
+              (g/set-property! node :exclude-datastore false)
+              (is (false? (g/node-value node :exclude-datastore)))
+              (doseq [platform app-manifest/all-platforms]
+                (is (= [] (get-in (g/node-value node :manifest) [:platforms platform :context :excludeLibs])))
+                (is (= [] (get-in (g/node-value node :manifest) [:platforms platform :context :libs]))))
+              content)))]
+    (test-util/with-temp-project-content
+      {"/datastore.appmanifest" (data/string->lines content)}
+      (let [node (test-util/resource-node project "/datastore.appmanifest")
+            save-data (g/node-value node :save-data)]
+        (is (true? (g/node-value node :exclude-datastore)))
+        (is (false? (:dirty save-data)))
+        (is (= content (resource-node/save-data-content save-data)))))))
+
 (deftest modification-test
   (test-util/with-loaded-project
     (let [manifest (test-util/resource-node project "/app_manifest/default.appmanifest")

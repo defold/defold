@@ -649,7 +649,8 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  *
  * @name DSStoreCreate
  * @param params [type:const DSCreateParams*] Allocation settings; zero uses defaults. Copied during creation.
- * @return store [type:HDSContext] New store, or zero for invalid allocation sizes.
+ * @return store [type:HDSContext] New store, or zero for invalid allocation sizes
+ * or when linked with datastore_null.
  */
 
 /*# Destroy a store
