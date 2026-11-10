@@ -814,12 +814,12 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetPreservesColorAttachments)
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
     ASSERT_EQ(1u, commands.Size());
     dmGraphics::HRenderTarget rt = (dmGraphics::HRenderTarget) commands[0].m_Operands[0];
-    dmGraphics::NullContext* context = (dmGraphics::NullContext*) m_GraphicsContext;
-    dmGraphics::NullRenderTarget* target = dmGraphics::GetAssetFromContainer<dmGraphics::NullRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, rt);
     for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
     {
-        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_LOAD, target->m_ColorBufferLoadOps[i]);
-        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_STORE, target->m_ColorBufferStoreOps[i]);
+        dmGraphics::AttachmentOp load_op, store_op;
+        dmGraphics::TestGetRenderTargetColorAttachmentOps(m_GraphicsContext, rt, i, &load_op, &store_op);
+        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_LOAD, load_op);
+        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_STORE, store_op);
     }
 
     dmGraphics::DeleteRenderTarget(m_GraphicsContext, rt);
