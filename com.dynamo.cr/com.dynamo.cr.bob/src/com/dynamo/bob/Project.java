@@ -1065,6 +1065,9 @@ public class Project implements AutoCloseable {
         try (progress) {
             progress.message(IProgress.Message.Bundling.INSTANCE);
             createPublisher();
+            if (!hasOption("package") || Arrays.asList(option("package", "").split(",")).contains("base")) {
+                com.dynamo.bob.archive.liveupdate.PackageWriter.validateApplicationOutputs(this);
+            }
             if (BundleHelper.isArchiveIncluded(this)) {
                 BuildGraph graph = BuildGraph.load(this);
                 graph.validate(this);
@@ -1093,7 +1096,8 @@ public class Project implements AutoCloseable {
         }
     }
 
-    private File getBundleOutputDirectory() throws CompileExceptionError {
+    /** Returns the application bundle root selected by the command line, or the build directory by default. */
+    public File getBundleOutputDirectory() throws CompileExceptionError {
         String bundleOutput = option("bundle-output", null);
         File bundleDir = null;
         if (bundleOutput != null) {

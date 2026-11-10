@@ -41,6 +41,7 @@ import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.archive.liveupdate.PackageArtifacts.Output;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
+import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.FileCompression;
@@ -182,6 +183,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
             knownOutputs.put(output.path(), output);
         }
         knownOutputs.putAll(previousOutputs);
+        Path applicationDirectory = selection.contains("base") ? applicationDirectory(project) : null;
         List<Delivery> deliveries = new ArrayList<>();
         Map<Path, Path> stagedOutputs = new LinkedHashMap<>();
         List<Output> outputs = new ArrayList<>();
@@ -226,6 +228,9 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                 }
 
                 Path destination = root.resolve(relative).normalize();
+                if (applicationDirectory != null && selection.contains(name)) {
+                    validateApplicationOutput(applicationDirectory, destination);
+                }
                 Path resolvedDestination = resolveExistingPath(destination);
                 Path collisionKey = Path.of(resolvedDestination.toString().toLowerCase(Locale.ROOT));
                 for (Path previous : occupied) {
@@ -355,6 +360,41 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                     Files.copy(file, target, StandardCopyOption.COPY_ATTRIBUTES, LinkOption.NOFOLLOW_LINKS);
                 }
             }
+        }
+    }
+
+    /** Reject existing package artifacts that application bundling would delete, including unselected packages. */
+    public static void validateApplicationOutputs(Project project) throws IOException, CompileExceptionError {
+        Path applicationDirectory = applicationDirectory(project);
+        List<Output> outputs = new ArrayList<>(PackageArtifacts.readProjectBuildOutputs(project));
+        outputs.addAll(PackageArtifacts.readBuildOutputs(project));
+        for (Output output : outputs) {
+            if (Files.exists(output.path())) {
+                validateApplicationOutput(applicationDirectory, output.path());
+            }
+        }
+    }
+
+    /** Mirrors the application directory names used by the platform bundlers. */
+    private static Path applicationDirectory(Project project) throws IOException, CompileExceptionError {
+        String title = project.getProjectProperties().getStringValue("project", "title", "Unnamed");
+        String directory = switch (project.getPlatform().getOs()) {
+            case "macos", "ios" -> title + ".app";
+            case "web", "android" -> BundleHelper.projectNameToBinaryName(title);
+            default -> title;
+        };
+        Path path = project.getBundleOutputDirectory().toPath().resolve(directory).toAbsolutePath().normalize();
+        return resolveExistingPath(path);
+    }
+
+    /** Check both nesting directions before either the package writer or application bundler changes the destination. */
+    private static void validateApplicationOutput(Path applicationDirectory, Path output) throws IOException, CompileExceptionError {
+        Path resolvedOutput = resolveExistingPath(output.toAbsolutePath().normalize());
+        Path applicationKey = Path.of(applicationDirectory.toString().toLowerCase(Locale.ROOT));
+        Path outputKey = Path.of(resolvedOutput.toString().toLowerCase(Locale.ROOT));
+        if (outputKey.startsWith(applicationKey) || applicationKey.startsWith(outputKey)) {
+            throw new CompileExceptionError("Package output overlaps the application bundle directory: " + output
+                    + ". Choose a package output directory outside " + applicationDirectory + ".");
         }
     }
 

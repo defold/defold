@@ -403,6 +403,11 @@ Explicit package selection preserves artifacts owned by unselected packages.
 Moving or copying a project rebases ownership of artifacts within the project;
 it does not transfer ownership of external output directories.
 
+Package outputs must not overlap the application directory recreated by Base bundling.
+For example, an HTML5 application named `Packages` can use `bundle/liveupdate`, but
+not `bundle/Packages/packages`. Bob rejects overlaps before writing packages or
+replacing the application, including existing unselected package outputs.
+
 Manifest packages are written only to the manifest's output directory. Legacy
 `save-zip-in-bundle-folder` and `save-folder-in-bundle-folder` settings request an
 additional copy during `bundle`. Bob copies these artifacts through fresh staging and

@@ -3329,6 +3329,108 @@ public class ProjectBuildTest {
         assertNoPackageStaging();
     }
 
+    private Project html5PackageProject() throws IOException {
+        createPackageProject();
+        setPackageOutputDirectory("bundle/Packages/packages");
+        Files.writeString(Path.of(contentRoot, "game.project"), "\n[project]\ntitle=Packages\n"
+                + "[html5]\nhtmlfile=/template.html\ncssfile=/style.css\n", java.nio.file.StandardOpenOption.APPEND);
+        createFile(contentRoot, "template.html", "<title>{{project.title}}</title>");
+        createFile(contentRoot, "style.css", "");
+        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+        project.setOption("platform", Platform.WasmWeb.getPair());
+        project.setOption("architectures", "wasm-web");
+        project.setOption("variant", "debug");
+        project.setOption("bundle-output", Path.of(contentRoot, "bundle").toString());
+        return project;
+    }
+
+    // Reject package destinations inside the application before writing artifacts or replacing the old application.
+    @Test
+    public void testHtml5BundleRejectsNestedPackageOutputs() throws Exception {
+        Path root = Path.of(contentRoot);
+        try (Project project = html5PackageProject()) {
+            project.setOption("all-packages", "true");
+            for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+            Path engines = Path.of(project.getBinaryOutputDirectory(), Platform.WasmWeb.getExtenderPair());
+            Files.createDirectories(engines);
+            for (String name : Platform.WasmWeb.formatBinaryName("dmengine")) {
+                Files.write(engines.resolve(name), new byte[]{1});
+            }
+            Path previous = root.resolve("bundle/Packages/previous.txt");
+            Files.createDirectories(previous.getParent());
+            Files.writeString(previous, "previous application");
+            try {
+                project.build(Progress.discarding(), "bundle");
+                org.junit.Assert.fail("Packages inside the application directory must be rejected");
+            } catch (CompileExceptionError expected) {
+                assertTrue(expected.getMessage(), expected.getMessage().contains("overlaps the application bundle directory"));
+            }
+            assertEquals("previous application", Files.readString(previous));
+            assertFalse(Files.exists(root.resolve("bundle/Packages/packages")));
+            assertFalse(Files.exists(root.resolve("build/game.lupackages")));
+            assertNoPackageStaging();
+
+            // A sibling directory under the same bundle root is safe.
+            setPackageOutputDirectory("bundle/liveupdate");
+            project.build(Progress.discarding(), "bundle");
+            assertFalse(Files.exists(previous));
+            try (ZipFile zip = new ZipFile(root.resolve("bundle/liveupdate/episode.zip").toFile())) {
+                Manifest.ManifestData manifest = Manifest.ManifestData.parseFrom(Manifest.ManifestFile.parseFrom(
+                        zip.getInputStream(zip.getEntry("liveupdate.game.dmanifest"))).getData());
+                assertEquals(project.getLiveUpdatePlan().packages().get("episode").resources(), manifestPaths(manifest));
+            }
+            assertEquals(project.getLiveUpdatePlan().packages().get("copy").resources(),
+                    manifestPaths(readManifestData(root.resolve("bundle/liveupdate/copy/liveupdate.game.dmanifest").toFile())));
+        }
+        assertNoPackageStaging();
+    }
+
+    // Base-only and contentless bundles must not delete unselected packages, even after changing their output setting.
+    @Test
+    public void testHtml5BaseBundleRejectsExistingNestedPackages() throws Exception {
+        Path root = Path.of(contentRoot);
+        try (Project project = html5PackageProject()) {
+            project.setOption("package", "episode,copy");
+            for (TaskResult result : project.build(Progress.discarding(), "build", "bundle")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+            Path engines = Path.of(project.getBinaryOutputDirectory(), Platform.WasmWeb.getExtenderPair());
+            Files.createDirectories(engines);
+            for (String name : Platform.WasmWeb.formatBinaryName("dmengine")) {
+                Files.write(engines.resolve(name), new byte[]{1});
+            }
+            Path previous = root.resolve("bundle/Packages/previous.txt");
+            Files.writeString(previous, "previous application");
+            Map<Path, byte[]> expectedFiles = new LinkedHashMap<>();
+            try (var files = Files.walk(previous.getParent())) {
+                for (Path file : files.filter(Files::isRegularFile).toList()) {
+                    expectedFiles.put(file, Files.readAllBytes(file));
+                }
+            }
+            Path zip = root.resolve("bundle/Packages/packages/episode.zip");
+            FileTime unchanged = FileTime.fromMillis(946684800000L);
+            Files.setLastModifiedTime(zip, unchanged);
+            setPackageOutputDirectory("bundle/liveupdate");
+            project.setOption("package", "base");
+            for (boolean contentless : List.of(false, true)) {
+                project.setOption("exclude-archive", Boolean.toString(contentless));
+                try {
+                    project.build(Progress.discarding(), "bundle");
+                    org.junit.Assert.fail("Existing packages inside the application directory must be protected");
+                } catch (CompileExceptionError expected) {
+                    assertTrue(expected.getMessage(), expected.getMessage().contains("overlaps the application bundle directory"));
+                }
+                for (Map.Entry<Path, byte[]> entry : expectedFiles.entrySet()) {
+                    assertArrayEquals(entry.getKey().toString(), entry.getValue(), Files.readAllBytes(entry.getKey()));
+                }
+                assertEquals(unchanged, Files.getLastModifiedTime(zip));
+                assertNoPackageStaging();
+            }
+        }
+    }
+
     // Ownership survives both clean commands and disabled export, keeping generated artifacts out of source matching.
     @Test
     public void testPackageOwnershipSurvivesCleanAndExportToggle() throws Exception {
