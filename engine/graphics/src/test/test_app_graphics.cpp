@@ -343,6 +343,97 @@ struct WebGPURenderingTest : ClearBackbufferTest
         ASSERT_TRUE(wait_info.completed);
     }
 };
+
+// Verifies blend factors survive pipeline creation using pixel readback, guarding descriptor lifetimes.
+struct WebGPUBlendTest : WebGPURenderingTest
+{
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        wgpuDevicePushErrorScope(context->m_Device, WGPUErrorFilter_Validation);
+        const char* vertex_source =
+            "@vertex fn main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {\n"
+            "    var p = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));\n"
+            "    return vec4f(p[index], 0.5, 1.0);\n"
+            "}\n";
+        const char* fragment_source =
+            "@fragment fn main() -> @location(0) vec4f { return vec4f(0.25, 0.5, 0.0, 0.5); }\n";
+        dmGraphics::ShaderDesc desc = {};
+        AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
+                          (uint8_t*)vertex_source, strlen(vertex_source));
+        AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
+                          (uint8_t*)fragment_source, strlen(fragment_source));
+        char error[512] = {};
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &desc, error, sizeof(error));
+        DeleteShaderDesc(&desc);
+        ASSERT_NE((dmGraphics::HProgram)0, m_Program);
+    }
+
+    void CheckTarget(EngineCtx* engine, dmGraphics::HRenderTarget target, uint32_t width, uint32_t height)
+    {
+        const struct
+        {
+            dmGraphics::BlendFactor m_Source;
+            dmGraphics::BlendFactor m_Destination;
+            uint8_t                 m_Expected[4]; // BGRA, as returned by ReadPixels().
+        } cases[] = {
+            { dmGraphics::BLEND_FACTOR_ONE,       dmGraphics::BLEND_FACTOR_ZERO,                {   0, 128, 64, 128 } },
+            { dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, {  64,  96, 48,  96 } },
+            { dmGraphics::BLEND_FACTOR_ONE,       dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, {  64, 160, 80, 160 } },
+            { dmGraphics::BLEND_FACTOR_ONE,       dmGraphics::BLEND_FACTOR_ONE,                 { 128, 192, 96, 192 } },
+            { dmGraphics::BLEND_FACTOR_DST_COLOR, dmGraphics::BLEND_FACTOR_ZERO,                {   0,  32,  8,  32 } },
+        };
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
+        dmGraphics::SetViewport(context, 0, 0, width, height);
+        dmGraphics::EnableProgram(context, m_Program);
+        for (uint32_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+        {
+            dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 32, 64, 128, 64, 1.0f, 0);
+            if (i == 0)
+            {
+                dmGraphics::DisableState(context, dmGraphics::STATE_BLEND);
+            }
+            else
+            {
+                dmGraphics::EnableState(context, dmGraphics::STATE_BLEND);
+            }
+            dmGraphics::SetBlendFunc(context, cases[i].m_Source, cases[i].m_Destination);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            uint8_t pixel[4] = {};
+            dmGraphics::ReadPixels(context, width / 2, height / 2, 1, 1, pixel, sizeof(pixel));
+            // The opaque window surface may mask alpha writes; offscreen targets retain alpha.
+            const uint32_t channels = target ? 4 : 3;
+            for (uint32_t channel = 0; channel < channels; ++channel)
+            {
+                ASSERT_LE(abs((int)pixel[channel] - cases[i].m_Expected[channel]), 1);
+            }
+        }
+        dmGraphics::DisableProgram(context);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
+        dmGraphics::DisableState(context, dmGraphics::STATE_CULL_FACE);
+        dmGraphics::DisableState(context, dmGraphics::STATE_STENCIL_TEST);
+        dmGraphics::DisableState(context, dmGraphics::STATE_SCISSOR_TEST);
+        CheckTarget(engine, 0, dmGraphics::GetWindowWidth(context), dmGraphics::GetWindowHeight(context));
+        dmGraphics::RenderTargetCreationParams params = {};
+        params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+        params.m_ColorBufferParams[0].m_Width = 8;
+        params.m_ColorBufferParams[0].m_Height = 8;
+        params.m_ColorBufferCreationParams[0].m_Width = 8;
+        params.m_ColorBufferCreationParams[0].m_Height = 8;
+        dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params);
+        ASSERT_NE((dmGraphics::HRenderTarget)0, target);
+        CheckTarget(engine, target, 8, 8);
+        dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
+        dmGraphics::DeleteRenderTarget(context, target);
+        engine->m_Running = 0;
+    }
+};
 #endif
 
 // Run with "opengl packed-depth-stencil-texture" to verify depth sampling with
@@ -2396,8 +2487,16 @@ static void* EngineCreate(int argc, char** argv)
 #if defined(DM_GRAPHICS_DAWN)
     else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_WEBGPU)
     {
-        dmLogInfo("test_app_graphics: running WebGPURenderingTest");
-        engine->m_Test = new WebGPURenderingTest();
+        if (HasArgument("webgpu-blending"))
+        {
+            dmLogInfo("test_app_graphics: running WebGPUBlendTest");
+            engine->m_Test = new WebGPUBlendTest();
+        }
+        else
+        {
+            dmLogInfo("test_app_graphics: running WebGPURenderingTest");
+            engine->m_Test = new WebGPURenderingTest();
+        }
     }
 #endif
     else
