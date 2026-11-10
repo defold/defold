@@ -62,6 +62,20 @@ namespace dmGameSystem
      * @member playback_rate? [type:number] positive animation playback rate
      */
 
+    /*# Model animation layer options
+     * @struct
+     * @name model.animation_layer_options
+     * @member order [type:integer] positive evaluation order; names and orders must be unique among layers on a model
+     * @member weight? [type:number] influence in [0, 1], defaults to 1; a zero-weight layer still advances and completes
+     * @member bones? [type:(string|hash)[]] bone names whose subtrees are selected; omit or pass an empty array to select all bones; names must exist on each target model
+     */
+
+    /*# Model animation cancellation options
+     * @struct
+     * @name model.cancel_options
+     * @member layer? [type:number] handle returned by [ref:model.animation_layer]; omit to cancel all animation
+     */
+
     /*# Axis-aligned bounding box
      * @struct
      * @name model.aabb
@@ -275,17 +289,7 @@ namespace dmGameSystem
      *
      * @name model.animation_layer
      * @param name [type:string|hash] non-empty layer name
-     * @param options [type:table] layer configuration, copied at creation
-     *
-     * `order`
-     * : [type:number] Required positive integer. Names and orders must be unique among layers on a model.
-     *
-     * `weight`
-     * : [type:number] Influence in [0, 1]. Defaults to 1. A zero-weight layer still advances and completes.
-     *
-     * `bones`
-     * : [type:table] Optional array of bone names (strings or hashes), including their subtrees.
-     * Omit or pass an empty array to select all bones. Names must exist on each target model.
+     * @param options [type:model.animation_layer_options] layer configuration, copied at creation
      *
      * @return layer_id [type:number] opaque layer handle
      * @examples
@@ -694,10 +698,7 @@ namespace dmGameSystem
      *
      * @name model.cancel
      * @param url [type:string|hash|url] the model for which to cancel the animation
-     * @param [options] [type:table] optional cancellation properties
-     *
-     * `layer`
-     * : [type:number] handle returned by [ref:model.animation_layer]. Omit to cancel all animation.
+     * @param [options] [type:model.cancel_options] optional cancellation properties
      *
      * @examples
      * ```lua
