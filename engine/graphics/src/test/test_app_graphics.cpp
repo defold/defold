@@ -265,7 +265,7 @@ static void WebGPUTestErrorCallback(WGPUPopErrorScopeStatus status, WGPUErrorTyp
     }
 }
 
-// Verifies nonzero viewport sizes and target-dependent Y origin with real GPU pixel readback.
+// Verifies viewport size, Y origin and clipped mapping with interpolated colors and GPU pixel readback.
 struct WebGPUViewportTest : ITest
 {
     dmGraphics::HProgram      m_Programs[2];
@@ -278,18 +278,22 @@ struct WebGPUViewportTest : ITest
         dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
         wgpuDevicePushErrorScope(context->m_Device, WGPUErrorFilter_Validation);
         const char* vertex_source =
-            "fn position(index: u32) -> vec4f {\n"
+            "struct VertexOutput { @builtin(position) position: vec4f, @location(0) uv: vec2f };\n"
+            "fn position(index: u32) -> VertexOutput {\n"
             "    var p = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));\n"
-            "    return vec4f(p[index], 0.5, 1.0);\n"
+            "    var out: VertexOutput;\n"
+            "    out.position = vec4f(p[index], 0.5, 1.0);\n"
+            "    out.uv = (p[index] + vec2f(1.0)) * 0.5;\n"
+            "    return out;\n"
             "}\n"
-            "@vertex fn main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f { return position(index); }\n"
+            "@vertex fn main(@builtin(vertex_index) index: u32) -> VertexOutput { return position(index); }\n"
             "// defold-webgpu-flipped-entry-point: main_flipped\n"
-            "@vertex fn main_flipped(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {\n"
-            "    var p = position(index); p.y = -p.y; return p;\n"
+            "@vertex fn main_flipped(@builtin(vertex_index) index: u32) -> VertexOutput {\n"
+            "    var p = position(index); p.position.y = -p.position.y; return p;\n"
             "}\n";
         const char* fragments[] = {
-            "@fragment fn main() -> @location(0) vec4f { return vec4f(1.0, 0.0, 0.0, 1.0); }\n",
-            "@fragment fn main() -> @location(0) vec4f { return vec4f(0.0, 1.0, 0.0, 1.0); }\n"
+            "@fragment fn main(@location(0) uv: vec2f) -> @location(0) vec4f { return vec4f(uv, 0.0, 1.0); }\n",
+            "@fragment fn main(@location(0) uv: vec2f) -> @location(0) vec4f { return vec4f(uv, 1.0, 1.0); }\n"
         };
         for (uint32_t i = 0; i < 2; ++i)
         {
@@ -320,7 +324,10 @@ struct WebGPUViewportTest : ITest
 
     void CheckTarget(EngineCtx* engine, dmGraphics::HRenderTarget target, uint32_t width, uint32_t height)
     {
-        const int32_t rects[][4] = { { 7, 5, 19, 11 }, { 44, 27, 12, 9 }, { -5, 19, 14, 6 }, { 33, 3, 0, 4 } };
+        const int32_t rects[][4] = {
+            { 7, 5, 19, 11 }, { 44, 27, 12, 9 }, { -5, 19, 14, 6 }, { 33, 3, 0, 4 },
+            { 18, -4, 12, 10 }, { (int32_t)width - 7, 45, 12, 8 }, { 58, (int32_t)height - 5, 10, 12 }
+        };
         dmGraphics::HContext context = engine->m_GraphicsContext;
         dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
         dmGraphics::SetViewport(context, 0, 0, width, height);
@@ -359,15 +366,27 @@ struct WebGPUViewportTest : ITest
                     if ((int32_t)x >= rect[0] && (int32_t)x < rect[0] + rect[2] &&
                         (int32_t)y >= top && (int32_t)y < top + rect[3])
                     {
-                        expected[0] = 0;
-                        expected[1] = i % 2 ? 255 : 0;
-                        expected[2] = i % 2 ? 0 : 255;
+                        // UVs are interpolated over the requested viewport, including clipped pixels.
+                        const float u = ((float)x + 0.5f - (float)rect[0]) / (float)rect[2];
+                        float v = ((float)y + 0.5f - (float)top) / (float)rect[3];
+                        if (!target)
+                        {
+                            v = 1.0f - v;
+                        }
+                        expected[0] = i % 2 ? 255 : 0;
+                        expected[1] = (uint8_t)(v * 255.0f + 0.5f);
+                        expected[2] = (uint8_t)(u * 255.0f + 0.5f);
                     }
                 }
                 const uint8_t* pixel = pixels.Begin() + (y * width + x) * 4;
-                if (memcmp(pixel, expected, sizeof(expected)))
+                // Allow one UNORM rounding step for the interpolated gradient.
+                for (uint32_t channel = 0; channel < sizeof(expected); ++channel)
                 {
-                    ++mismatches;
+                    if (abs((int)pixel[channel] - expected[channel]) > 1)
+                    {
+                        ++mismatches;
+                        break;
+                    }
                 }
             }
         }
