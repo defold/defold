@@ -651,6 +651,9 @@ jobs:
         env:
           EXT_CACHE_PATH: ${{ needs.bld-eng.outputs.bob-ext-cache-path }}
         run: |
+          # Cache hits bypass ci/ci.sh, which normally initializes the Defold shell.
+          python scripts/build.py --save-env-path=ci/env.sh save_env
+          source ci/env.sh
           python scripts/build.py distclean install_ext_packages
           cp -a "$EXT_CACHE_PATH/." tmp/dynamo_home/ext/
       - &step_bob_cmake
