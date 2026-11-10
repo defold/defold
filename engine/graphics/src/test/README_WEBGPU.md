@@ -10,6 +10,9 @@ compiles the production translation unit with an instrumented replacement for
 inside the API call, so ASan checks their lifetimes even though the packaged Dawn
 library is not instrumented. No production test hook is required.
 
+Main CI runs this ASan target in the `arm64-macos` engine job, using a separate
+build directory. The test does not require a window or graphics device.
+
 From a configured Defold build environment on arm64 macOS, run:
 
 ```sh
