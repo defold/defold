@@ -1259,11 +1259,11 @@ union SaveLoadBuffer
         {
             return luaL_error(L, "Failed to create callback");
         }
-        ReplaceConnectivityListener(listener);
-
-        // A change from before the listener was set isn't reported to it
+        // A change from before the listener was set isn't reported to it, and one published
+        // after the consume is
         dmSys::NetworkConnectivity status;
         dmSys::ConsumeNetworkConnectivityChange(&status);
+        ReplaceConnectivityListener(listener);
         return 0;
     }
 
