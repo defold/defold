@@ -849,10 +849,9 @@ jobs:
           token: "${{ env.SERVICES_GITHUB_TOKEN }}"
 
   build-editor:
-    # One job for every editor platform. matrix.name pins the check names to the ones the
-    # separate build-editor-linux / -macos / -windows jobs produced, so branch protection
-    # keeps working; the platform-specific steps are guarded on runner.os rather than on
-    # the platform, so a new runner needs no new branch here.
+    # One job for every editor platform. matrix.name sets the displayed check names;
+    # platform-specific steps are guarded on runner.os rather than on the platform,
+    # so a new runner needs no new branch here.
     name: "${{ matrix.name }}"
     needs: [build-bob, gen-release-notes]
     runs-on: ${{ matrix.runner }}
@@ -870,8 +869,7 @@ jobs:
             name: "build-editor-linux"
           - platform: x86_64-macos
             runner: macos-26
-            # Preserve the required check name while compiling natively on ARM.
-            name: "build-editor-macos (x86_64-macos, macos-26-intel)"
+            name: "build-editor-macos (x86_64-macos, macos-26)"
           - platform: arm64-macos
             runner: macos-26
             name: "build-editor-macos (arm64-macos, macos-26)"
