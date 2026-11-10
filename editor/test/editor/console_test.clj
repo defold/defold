@@ -14,7 +14,31 @@
 
 (ns editor.console-test
   (:require [clojure.test :refer :all]
-            [editor.console :as console]))
+            [editor.console :as console])
+  (:import [java.io ByteArrayInputStream]
+           [java.nio.charset StandardCharsets]))
+
+;; Log-service callbacks receive incoming lines and stop observing a stream
+;; after target selection changes, guarding trace-completion dispatch.
+(deftest log-service-callback-test
+  (let [lines (atom [])
+        on-log-line (fn collect-log-line! [line]
+                      (swap! lines conj line))
+        trace-line "INFO:PROFILER: Native trace complete: /tmp/game trace.trace"]
+    (with-open [stream (ByteArrayInputStream. (.getBytes (str "game output\n" trace-line "\n") StandardCharsets/UTF_8))
+                next-stream (ByteArrayInputStream. (byte-array 0))]
+      (try
+        (let [^Thread pump (console/set-log-service-stream stream on-log-line)]
+          (.join pump 5000)
+          (is (not (.isAlive pump)))
+          (is (= ["game output" trace-line] @lines)))
+
+        (let [stale-sink (console/make-remote-log-sink stream on-log-line)]
+          (console/reset-console-stream! next-stream)
+          (stale-sink trace-line)
+          (is (= ["game output" trace-line] @lines)))
+        (finally
+          (console/set-log-service-stream nil nil))))))
 
 (def ^:private line-sub-regions-pattern (var-get #'console/line-sub-regions-pattern))
 (def ^:private line-sub-regions-pattern-partial (var-get #'console/line-sub-regions-pattern-partial))

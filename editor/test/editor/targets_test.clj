@@ -16,7 +16,6 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [editor.console :as console]
-            [editor.engine :as engine]
             [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.process :as process]
@@ -24,9 +23,11 @@
             [editor.ui :as ui]
             [support.process-util :as process-util]
             [util.fn :as fn]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [util.path :as path])
   (:import [com.dynamo.system.proto System$Exit]
-           [java.io BufferedReader InputStream]
+           [java.io BufferedReader ByteArrayInputStream InputStream]
+           [java.net InetAddress ServerSocket]
            [java.util.concurrent TimeUnit TimeoutException]
            [javafx.scene Group Scene]
            [javafx.stage Stage]))
@@ -38,6 +39,24 @@
    :url "http://127.0.0.1:8001"
    :address "127.0.0.1"
    :local-address "127.0.0.1"})
+
+;; Loopback targets are local even when manual discovery stores a LAN adapter
+;; address, guarding the locality check used for automatic trace opening.
+(deftest loopback-target-locality-test
+  (doseq [address ["127.0.0.1" "127.0.0.2" "localhost"]]
+    (let [target {:name "Engine"
+                  :url (str "http://" address ":8001")
+                  :address address
+                  :local-address "192.0.2.1"}]
+      (is (= (targets/target-message (assoc target :local-address address))
+             (targets/target-message target)))))
+
+  (let [target {:name "Remote"
+                :url "http://192.0.2.2:8001"
+                :address "192.0.2.2"
+                :local-address "192.0.2.1"}]
+    (is (not= (targets/target-message (assoc target :local-address (:address target)))
+              (targets/target-message target)))))
 
 (defn- make-context
   []
@@ -131,13 +150,68 @@
         (reset! mdns-targets-atom [])
         (#'editor.targets/clear-selected-target-hint!)))))
 
+;; Selecting a target without a log service clears the previous console stream,
+;; guarding against keeping stale logs after adding completion callbacks.
 (deftest select-target-clears-log-service-stream-when-unreachable
-  (let [selected-stream (atom ::unset)]
-    (with-redefs [engine/get-log-service-stream (constantly nil)
-                  console/set-log-service-stream (fn [stream] (reset! selected-stream stream))
-                  prefs/set! (fn [& _] nil)]
-      (targets/select-target! nil (make-iphone-device-info))
-      (is (nil? @selected-stream)))))
+  (let [directory (fs/create-temp-directory! "target-log-service")
+        settings (prefs/make :scopes {:global (path/of directory "preferences")} :schemas [:default])
+        previous-target (targets/selected-target settings)]
+    (try
+      (with-open [stream (ByteArrayInputStream. (byte-array 0))]
+        (console/reset-console-stream! stream)
+        (targets/select-target! settings (dissoc (make-iphone-device-info) :log-port))
+        (is (console/current-stream? nil)))
+      (finally
+        (targets/select-target! settings previous-target)
+        (fs/delete-directory! directory)))))
+
+;; Registered listeners receive only log lines and can be added while a
+;; local log-service connection is active, without target-selection plumbing.
+(deftest select-target-log-callback-test
+  (let [directory (fs/create-temp-directory! "target-log-callback")
+        settings (prefs/make :scopes {:global (path/of directory "preferences")} :schemas [:default])
+        previous-target (targets/selected-target settings)
+        connected (promise)
+        received (promise)
+        next-received (promise)
+        line "INFO:ENGINE: target log"]
+    (try
+      (console/register-local-log-listener!
+        (fn receive-log-line! [line]
+          (deliver received line)))
+      (with-open [server (doto (ServerSocket. 0 1 (InetAddress/getByName "127.0.0.1"))
+                           (.setSoTimeout 10000))]
+        (let [sent (future
+                     (with-open [socket (.accept server)
+                                 writer (io/writer (.getOutputStream socket) :encoding "UTF-8")]
+                       (.write writer "0 OK\n")
+                       (.flush writer)
+                       (when (= true (deref connected 10000 ::not-connected))
+                         (.write writer (str line "\n"))
+                         (.flush writer))))]
+          (try
+            (targets/select-target!
+              settings
+              {:id "log-callback-test"
+               :name "Engine"
+               :url "http://127.0.0.1:8001"
+               :address "127.0.0.1"
+               :local-address "192.0.2.1"
+               :log-port (str (.getLocalPort server))})
+            (deliver connected true)
+            (is (= line (deref received 10000 ::not-received)))
+            (is (nil? (deref sent 10000 ::not-sent)))
+            (console/register-local-log-listener!
+              (fn receive-next-log-line! [line]
+                (deliver next-received line)))
+            (console/notify-local-log-listeners! "next line")
+            (is (= "next line" (deref next-received 10000 ::not-received)))
+            (finally
+              (deliver connected false)
+              (future-cancel sent)))))
+      (finally
+        (targets/select-target! settings previous-target)
+        (fs/delete-directory! directory)))))
 
 (defmacro ^:private with-launched-target
   "Bind process and target with an HTTP exit service handled by handler."

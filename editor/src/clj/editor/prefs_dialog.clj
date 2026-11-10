@@ -869,9 +869,7 @@
     :root
     {:fx/type fx.tab-pane/lifecycle
      :tab-closing-policy :unavailable
-     :tabs (coll/into->
-             (e/conj
-               (e/map
+     :tabs (-> (e/map
                  (fn [{:keys [pattern paths]}]
                    {:fx/type fx.tab/lifecycle
                     :text (localization-state pattern)
@@ -908,22 +906,25 @@
                                                       :grid-pane/column 1)])))
                                              vec)}})
                  @pages)
-               {:fx/type fx.tab/lifecycle
-                :text (localization-state (localization/message "prefs.tab.keymap"))
-                :content {:fx/type keymap-view
-                          :localization-state localization-state
-                          :keymap (keymap/from-prefs prefs-state prefs)
-                          :update-keymap (fn/partial prefs/update! prefs [:window :keymap])
-                          :mouse-bindings (prefs/get prefs-state prefs [:window :mouse-bindings])
-                          :update-mouse-bindings (fn/partial prefs/update! prefs [:window :mouse-bindings])}}
-               (when (os/is-mac-os?)
+               (e/conj
                  {:fx/type fx.tab/lifecycle
-                  :text (localization-state (localization/message "prefs.tab.profile"))
-                  :content {:fx/type profiler-xctrace/prefs-view
-                            :prefs prefs
-                            :prefs-state prefs-state
-                            :localization-state localization-state}}))
-             [] (remove nil?))}}})
+                  :text (localization-state (localization/message "prefs.tab.keymap"))
+                  :content {:fx/type keymap-view
+                            :localization-state localization-state
+                            :keymap (keymap/from-prefs prefs-state prefs)
+                            :update-keymap (fn/partial prefs/update! prefs [:window :keymap])
+                            :mouse-bindings (prefs/get prefs-state prefs [:window :mouse-bindings])
+                            :update-mouse-bindings (fn/partial prefs/update! prefs [:window :mouse-bindings])}})
+               (cond->
+                 (os/is-mac-os?)
+                 (e/conj
+                   {:fx/type fx.tab/lifecycle
+                    :text (localization-state (localization/message "prefs.tab.profile"))
+                    :content {:fx/type profiler-xctrace/prefs-view
+                              :prefs prefs
+                              :prefs-state prefs-state
+                              :localization-state localization-state}}))
+               vec)}}})
 
 (defn open!
   "Show the prefs dialog and block the thread until the dialog is closed"

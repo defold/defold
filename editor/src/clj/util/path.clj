@@ -344,6 +344,13 @@
   [x]
   (Files/isHidden (to-path x)))
 
+(defn executable?
+  "Coerces the argument to a java.nio.file.Path and returns true if a
+  corresponding file system entry exists and is executable. Follows symbolic
+  links and queries their target."
+  [x]
+  (Files/isExecutable (to-path x)))
+
 (defn same?
   "Coerces both arguments to java.nio.file.Path and returns true if both paths
   locate the same file system entry. Returns false when one or more of the paths

@@ -48,6 +48,7 @@
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
+            [editor.profiler-xctrace :as profiler-xctrace]
             [editor.properties-view :as properties-view]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
@@ -78,7 +79,8 @@
 
 (defn initialize-systems! [prefs]
   (mouse-binding/set-user-overrides! (prefs/get prefs [:window :mouse-bindings]))
-  (code-view/initialize! prefs))
+  (code-view/initialize! prefs)
+  (profiler-xctrace/initialize! prefs))
 
 (defn initialize-project! [system-config]
   (when (nil? @the-root)

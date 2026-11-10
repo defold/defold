@@ -17,8 +17,8 @@
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.separator :as fx.separator]
             [clojure.data.json :as json]
-            [clojure.java.io :as io]
             [clojure.string :as string]
+            [editor.console :as console]
             [editor.dialogs :as dialogs]
             [editor.future :as future]
             [editor.fxui :as fxui]
@@ -32,9 +32,11 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [service.log :as log]
-            [util.eduction :as e])
+            [util.eduction :as e]
+            [util.http-client :as http]
+            [util.path :as path])
   (:import [java.io IOException]
-           [java.net HttpURLConnection URLEncoder]
+           [java.net URLEncoder]
            [java.util.concurrent TimeUnit]))
 
 (set! *warn-on-reflection* true)
@@ -46,7 +48,7 @@
     (let [{:keys [path output-directory enabled delay-ms duration-ms include-energy]} (prefs/get settings [:profile :xctrace])]
       (cond-> {"DM_PROFILE_NATIVE_TRACE" (if enabled "1" "0")
                "DM_PROFILE_NATIVE_XCTRACE" (when-not (string/blank? path)
-                                             (.getAbsolutePath (io/file path)))
+                                             (str (path/absolute path)))
                "DM_PROFILE_NATIVE_TRACE_ENERGY" (if include-energy "1" "0")}
         enabled
         (assoc "DM_PROFILE_NATIVE_TRACE_DELAY_MS" (str delay-ms)
@@ -70,52 +72,43 @@
                          (.destroyForcibly child)
                          (.close (process/out child)))))
                    (catch IOException _ nil)))]
-      (when path
-        (let [file (io/file path)]
-          (when (and (.isFile file) (.canExecute file))
-            (.getAbsolutePath file)))))))
+      (when (and path (path/file? path) (path/executable? path))
+        (str (path/absolute path))))))
 
-(defn wrap-log-sink
-  "Forward log lines and open completed traces when enabled."
-  [settings log-sink]
-  (fn on-engine-log-line! [line]
-    (log-sink line)
-    (when-let [[_ path] (re-matches #"INFO:(?:ENGINE|PROFILER): Native trace complete: (/.+\.trace)" line)]
-      (when (and (os/is-mac-os?) (prefs/get settings [:profile :xctrace :open-in-instruments]))
-        (future/io
-          (try
-            (process/exec! {:err :stdout} "/usr/bin/open" "-a" "Instruments" path)
-            (catch Exception e
-              (log/warn :message "Could not open trace in Instruments" :path path :exception e))))))))
+(defn initialize! [prefs]
+  (when (os/is-mac-os?)
+    (console/register-local-log-listener!
+      (fn open-completed-trace! [line]
+        (when (prefs/get prefs [:profile :xctrace :open-in-instruments])
+          (when-let [[_ path] (re-matches #"INFO:(?:ENGINE|PROFILER): Native trace complete: (/.+\.trace)" line)]
+            (future/io
+              (try
+                (process/exec! {:err :stdout} "/usr/bin/open" "-a" "Instruments" path)
+                (catch Exception e
+                  (log/warn :message "Could not open trace in Instruments" :path path :exception e))))))))))
 
 (defn- start-trace! [target {:keys [delay-ms duration-ms include-energy output-directory]}]
-  (let [conn (doto ^HttpURLConnection (.openConnection (io/as-url (str (:url target) "/profiler/trace")))
-               (.setRequestProperty "Connection" "close")
-               (.setConnectTimeout 2000)
-               (.setReadTimeout 2000)
-               (.setDoOutput true)
-               (.setRequestMethod "POST"))]
-    (try
-      (.setRequestProperty conn "Content-Type" "application/x-www-form-urlencoded")
-      (with-open [out (io/writer (.getOutputStream conn) :encoding "UTF-8")]
-        (.write out (cond-> (str "delay_ms=" delay-ms "&duration_ms=" duration-ms "&energy=" (if include-energy "1" "0"))
-                      (not (string/blank? output-directory))
-                      (str "&path=" (URLEncoder/encode (str output-directory "/") "UTF-8")))))
-      (let [status (.getResponseCode conn)]
-        (case status
-          202 (with-open [in (io/reader (.getInputStream conn) :encoding "UTF-8")]
-                {:type :info
-                 :message (localization/message "notification.engine-profiler.trace-requested"
-                                                {"path" (get (json/read in) "path")})})
-          409 {:type :warning
-               :message (localization/message "notification.engine-profiler.trace-busy")}
-          (404 501) {:type :error
-                     :message (localization/message "notification.engine-profiler.trace-unsupported")}
-          {:type :error
-           :message (localization/message "notification.engine-profiler.trace-request-failed"
-                                          {"status" status})}))
-      (finally
-        (.disconnect conn)))))
+  (let [{:keys [status body]}
+        @(http/request
+           (str (:url target) "/profiler/trace")
+           :method "POST"
+           :headers {"Content-Type" "application/x-www-form-urlencoded"}
+           :body (cond-> (str "delay_ms=" delay-ms "&duration_ms=" duration-ms "&energy=" (if include-energy "1" "0"))
+                   (not (string/blank? output-directory))
+                   (str "&path=" (URLEncoder/encode (str output-directory "/") "UTF-8")))
+           :as :string
+           :timeout-ms 2000)]
+    (case (long status)
+      202 {:type :info
+           :message (localization/message "notification.engine-profiler.trace-requested"
+                                          {"path" (get (json/read-str body) "path")})}
+      409 {:type :warning
+           :message (localization/message "notification.engine-profiler.trace-busy")}
+      (404 501) {:type :error
+                 :message (localization/message "notification.engine-profiler.trace-unsupported")}
+      {:type :error
+       :message (localization/message "notification.engine-profiler.trace-request-failed"
+                                      {"status" status})})))
 
 (handler/defhandler :run.start-native-trace :global
   (active? [] (os/is-mac-os?))
@@ -210,18 +203,18 @@
                                :value (:output-directory settings)
                                :prompt-text (localization-state (localization/message "prefs.prompt.profile.xctrace.output-directory"))
                                :tooltip (localization-state (localization/message "prefs.help.profile.xctrace.output-directory"))
-                               :to-value #(when (or (string/blank? %) (.isAbsolute (io/file %))) %)
+                               :to-value #(when (or (string/blank? %) (path/absolute? %)) %)
                                :on-value-changed #(prefs/set! prefs [:profile :xctrace :output-directory] %)}
                               {:fx/type fxui/button
                                :text "…"
                                :tooltip (localization-state (localization/message "dialog.directory.title.select"))
                                :on-action (fn choose-output-directory! [event]
-                                            (let [current-directory (io/file (:output-directory settings))]
+                                            (let [current-directory (path/of (:output-directory settings))]
                                               (when-let [directory (dialogs/make-directory-dialog
                                                                      (localization-state (localization/message "dialog.directory.title.select"))
-                                                                     (when (.isDirectory current-directory) current-directory)
+                                                                     (when (path/directory? current-directory) (.toFile current-directory))
                                                                      (fxui/event->window event))]
-                                                (prefs/set! prefs [:profile :xctrace :output-directory] (.getAbsolutePath directory)))))}]}
+                                                (prefs/set! prefs [:profile :xctrace :output-directory] (str (path/absolute directory))))))}]}
                   (:enabled :include-energy :open-in-instruments)
                   {:fx/type fxui/check-box
                    :selected (field settings)

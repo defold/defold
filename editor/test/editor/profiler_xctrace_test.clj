@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.profiler-xctrace-test
-  (:require [clojure.java.io :as io]
-            [clojure.string :as string]
+  (:require [clojure.string :as string]
             [clojure.test :refer [deftest is]]
             [dynamo.graph :as g]
             [editor.engine :as engine]
@@ -29,7 +28,8 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [support.test-support :refer [with-clean-system]]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [util.path :as path])
   (:import [java.io InputStream]
            [java.util.concurrent CompletableFuture TimeUnit]))
 
@@ -40,16 +40,16 @@
 (deftest launch-recording-test
   (when (os/is-mac-os?)
     (let [directory (fs/create-temp-directory! "xctrace-launch")
-          binary (io/file directory "engine with spaces.sh")
-          xctrace-path (.getAbsolutePath binary)
-          settings (prefs/make :scopes {:global (io/file directory "preferences")
-                                        :project (io/file directory "editor_settings")}
+          binary (path/of directory "engine with spaces.sh")
+          xctrace-path (str (path/absolute binary))
+          settings (prefs/make :scopes {:global (path/of directory "preferences")
+                                        :project (path/of directory "editor_settings")}
                                :schemas [:default])]
       (try
         (spit binary (str "#!/bin/sh\n"
                           "printf '%s\n' \"$DM_PROFILE_NATIVE_TRACE\" \"$DM_PROFILE_NATIVE_XCTRACE\" "
                           "\"$DM_PROFILE_NATIVE_TRACE_DELAY_MS\" \"$DM_PROFILE_NATIVE_TRACE_DURATION_MS\" \"$DM_PROFILE_NATIVE_TRACE_PATH\" \"$DM_PROFILE_NATIVE_TRACE_ENERGY\"\n"))
-        (fs/set-executable! binary true)
+        (fs/set-executable! (.toFile binary) true)
         (doseq [[enabled path delay duration energy output-directory]
                 [[false xctrace-path 0 5000 true ""]
                  [true "" 0 5000 true ""]
@@ -61,8 +61,14 @@
           (prefs/set! settings [:profile :xctrace :include-energy] energy)
           (prefs/set! settings [:profile :xctrace :output-directory] output-directory)
           (let [{:keys [process log-stream]} (ui/run-now
-                                               (engine/launch! binary directory settings false 0 true
-                                                               (profiler-xctrace/launch-environment settings)))]
+                                               (engine/launch!
+                                                 (.toFile binary)
+                                                 directory
+                                                 settings
+                                                 false
+                                                 0
+                                                 true
+                                                 (profiler-xctrace/launch-environment settings)))]
             (try
               (is (.waitFor ^Process process 5 TimeUnit/SECONDS))
               (when-not (.isAlive ^Process process)
@@ -83,7 +89,7 @@
   (when (os/is-mac-os?)
     (with-clean-system
       (let [directory (fs/create-temp-directory! "xctrace-request")
-            settings (prefs/make :scopes {:global (io/file directory "preferences")} :schemas [:default])
+            settings (prefs/make :scopes {:global (path/of directory "preferences")} :schemas [:default])
             previous-target (targets/selected-target settings)
             workspace (workspace/make-workspace directory {} {} nil)
             notifications (workspace/notifications workspace)

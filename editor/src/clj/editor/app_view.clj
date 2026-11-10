@@ -1021,7 +1021,8 @@
                   (Thread/sleep step-ms)
                   (recur)))))))
       (when (console/current-stream? (:log-stream launched-target))
-        (console/append-console-line! line)))))
+        (console/append-console-line! line))
+      (console/notify-local-log-listeners! line))))
 
 (defn- reboot-engine! [target web-server debug focus]
   (try
@@ -1065,9 +1066,9 @@
                                                      (on-launched-hook! project (:process launched-target) url)))
                                  (console/start-log-pump!
                                    (:log-stream launched-target)
-                                   (profiler-xctrace/wrap-log-sink
-                                     prefs
-                                     (make-launched-log-sink launched-target (partial on-service-url-found prefs)))))
+                                   (make-launched-log-sink
+                                     launched-target
+                                     (partial on-service-url-found prefs))))
                                last-launched-target))]
     (try
       {:target
@@ -1081,8 +1082,8 @@
            (launch-new-engine!))
 
          (target-cannot-swap-engine? selected-target)
-         (let [log-stream (engine/get-log-service-stream selected-target)]
-           (console/set-log-service-stream log-stream)
+         (do
+           (targets/connect-log-service! selected-target)
            (reboot-engine! selected-target web-server debug focus))
 
          :else

@@ -1208,7 +1208,7 @@ namespace dmEngineService
         dmWebServer::HandlerParams trace_params;
         trace_params.m_Handler = TraceHandler;
         trace_params.m_Userdata = 0;
-        AddProfilerHandler(engine_service->m_WebServer, "/profiler/trace", &trace_params, TRACE_OPENAPI);
+        AddProfilerHandler(engine_service->m_WebServer, "/profiler/trace", &trace_params, TRACE_OPENAPI, 0);
 
 #if defined(DM_PLATFORM_MACOS)
         dmWebServer::HandlerParams gputrace_params;

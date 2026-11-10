@@ -25,6 +25,10 @@ Use newlines between paired forms (e.g., `let`-bindings, `cond`, map literals) t
 
 ## Keep requires sorted
 
+## Filesystem paths
+
+Prefer `util.path` and `Path` over `clojure.java.io` and `File`.
+
 ## Validate at edges, trust internals
 
 See the public boundaries of the code and which invariants are enforced there. After that, trust the private code. This means there should be no error handling or checks for invariants.
