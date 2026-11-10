@@ -39,6 +39,7 @@ import java.nio.ByteOrder;
 import java.util.Collections;
 import java.util.List;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
@@ -718,6 +719,53 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(!fontMap.getAllChars());
         assertEquals("/Tuffy.ttf", fontMap.getFont());
         assertTrue(fontMap.getGlyphBank().isEmpty());
+    }
+
+    // Runtime SDF/vector fonts reference their minified TTF/OTF outputs and rebuild legacy references (#13738).
+    @Test
+    public void testRuntimeFontPathMinification() throws Exception {
+        boolean minificationEnabled = ResourceUtil.isMinificationEnabled();
+        getProject().setOption("experimental-path-minification", "true");
+        try {
+            byte[] fontBytes = getFile("/Tuffy.ttf");
+            for (String extension : new String[] { "ttf", "otf" }) {
+                String fontPath = "/runtime-font." + extension;
+                addFile(fontPath, fontBytes);
+                for (String mode : new String[] { "SDF", "VECTOR" }) {
+                    String material = mode.equals("VECTOR") ? "/test-vector.material" : "/test.material";
+                    String source = "font: \"" + fontPath + "\"\n" +
+                            "material: \"" + material + "\"\n" +
+                            "vector_font_mode: VECTOR_FONT_MODE_" + mode + "\n" +
+                            "runtime: true\n";
+                    String fontFile = "/runtime-" + extension + "-" + mode + ".font";
+                    FontMap fontMap = getFontMap(build(fontFile, source));
+
+                    assertNotNull(fontMap);
+                    assertEquals(ResourceUtil.minifyPath(fontPath), fontMap.getFont());
+                    assertNotEquals(fontPath, fontMap.getFont());
+                    assertTrue(fontMap.getFont().endsWith("." + extension));
+                    IResource fontOutput = getProject().getResource(fontMap.getFont()).output();
+                    assertTrue(fontOutput.exists());
+                    assertArrayEquals(fontBytes, fontOutput.getContent());
+                    assertTrue(fontMap.getGlyphBank().isEmpty());
+
+                    // Seed the old output and its signature, which did not include an extra cache key.
+                    Task fontTask = getProject().createTask(getProject().getResource(fontFile));
+                    Task.TaskBuilder<?> legacyTaskBuilder = Task.newBuilder(fontTask.getBuilder());
+                    for (IResource input : fontTask.getInputs()) {
+                        legacyTaskBuilder.addInput(input);
+                    }
+                    IResource fontMapOutput = fontTask.output(0);
+                    fontMapOutput.setContent(fontMap.toBuilder().setFont(fontPath).build().toByteArray());
+                    getProject().getState().putSignature(fontMapOutput.getAbsPath(), legacyTaskBuilder.build().calculateSignature());
+                    getProject().getState().save(getFileSystem().get(getProject().getBuildDirectory() + "/_BobBuildState_"));
+
+                    assertEquals(fontMap.getFont(), getFontMap(build(fontFile, source)).getFont());
+                }
+            }
+        } finally {
+            ResourceUtil.enableMinification(minificationEnabled);
+        }
     }
 
     // Invisible vector effects do not allocate unnecessary baked bitmap data.
