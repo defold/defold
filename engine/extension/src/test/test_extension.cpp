@@ -617,6 +617,32 @@ static void FinalizeEventTest(EventTestContext* context)
     g_OmitEventCallback = false;
 }
 
+// Public C initializer macros also accept C++ enum aliases and evaluate each argument once.
+TEST(dmExtension, WindowEventInitializers)
+{
+    uint32_t window_calls = 0;
+    uint32_t type_calls = 0;
+    uint32_t width_calls = 0;
+    uint32_t height_calls = 0;
+    HWindow window = (HWindow) & window_calls;
+    dmEngine::WindowEvent event = ENGINE_WINDOW_EVENT_INITIALIZER((++window_calls, window), (++type_calls, dmEngine::WINDOW_EVENT_FOCUS_GAINED));
+    ASSERT_EQ(window, event.m_Window);
+    ASSERT_EQ(dmEngine::WINDOW_EVENT_FOCUS_GAINED, event.m_Type);
+    ASSERT_EQ(0u, event.m_Data.m_Resized.m_Width);
+    ASSERT_EQ(0u, event.m_Data.m_Resized.m_Height);
+    ASSERT_EQ(1u, window_calls);
+    ASSERT_EQ(1u, type_calls);
+
+    dmEngine::WindowEvent resized = ENGINE_WINDOW_EVENT_RESIZED_INITIALIZER((++window_calls, window), (++width_calls, 640u), (++height_calls, 360u));
+    ASSERT_EQ(window, resized.m_Window);
+    ASSERT_EQ(dmEngine::WINDOW_EVENT_RESIZED, resized.m_Type);
+    ASSERT_EQ(640u, resized.m_Data.m_Resized.m_Width);
+    ASSERT_EQ(360u, resized.m_Data.m_Resized.m_Height);
+    ASSERT_EQ(2u, window_calls);
+    ASSERT_EQ(1u, width_calls);
+    ASSERT_EQ(1u, height_calls);
+}
+
 // IDs must be matching C/C++ constant expressions; runtime checks verify their names and source windows.
 TEST(dmExtension, BuiltinEventHashes)
 {

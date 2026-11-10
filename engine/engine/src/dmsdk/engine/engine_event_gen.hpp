@@ -197,3 +197,27 @@ namespace dmEngine
  * @member  m_Data.m_Resized.m_Width [type:uint32_t] physical framebuffer width; valid only for ENGINE_WINDOW_EVENT_RESIZED
  * @member  m_Data.m_Resized.m_Height [type:uint32_t] physical framebuffer height; valid only for ENGINE_WINDOW_EVENT_RESIZED
  */
+
+/*# initialize a window event
+ * Brace initializer for an EngineWindowEvent declaration, with zeroed event data.
+ * Each argument is evaluated once. Available with the same name in C and C++.
+ * @macro
+ * @name ENGINE_WINDOW_EVENT_INITIALIZER
+ * @language C
+ * @examples
+ * ```c
+ * EngineWindowEvent event = ENGINE_WINDOW_EVENT_INITIALIZER(window, ENGINE_WINDOW_EVENT_FOCUS_GAINED);
+ * ```
+ */
+
+/*# initialize a window resize event
+ * Brace initializer for an EngineWindowEvent declaration with type ENGINE_WINDOW_EVENT_RESIZED.
+ * Each argument is evaluated once. Available with the same name in C and C++.
+ * @macro
+ * @name ENGINE_WINDOW_EVENT_RESIZED_INITIALIZER
+ * @language C
+ * @examples
+ * ```c
+ * EngineWindowEvent event = ENGINE_WINDOW_EVENT_RESIZED_INITIALIZER(window, 800, 600);
+ * ```
+ */

@@ -127,4 +127,33 @@ typedef struct EngineWindowEvent
     } m_Data;
 } EngineWindowEvent;
 
+/*# initialize a window event
+ * Brace initializer for an EngineWindowEvent declaration, with zeroed event data.
+ * Each argument is evaluated once. Available with the same name in C and C++.
+ * @macro
+ * @name ENGINE_WINDOW_EVENT_INITIALIZER
+ * @param window [type:HWindow] borrowed source window, or null
+ * @param type [type:EngineWindowEventType] window notification kind
+ * @examples
+ * ```c
+ * EngineWindowEvent event = ENGINE_WINDOW_EVENT_INITIALIZER(window, ENGINE_WINDOW_EVENT_FOCUS_GAINED);
+ * ```
+ */
+#define ENGINE_WINDOW_EVENT_INITIALIZER(window, type) { (window), (type), { { 0, 0 } } }
+
+/*# initialize a window resize event
+ * Brace initializer for an EngineWindowEvent declaration with type ENGINE_WINDOW_EVENT_RESIZED.
+ * Each argument is evaluated once. Available with the same name in C and C++.
+ * @macro
+ * @name ENGINE_WINDOW_EVENT_RESIZED_INITIALIZER
+ * @param window [type:HWindow] borrowed source window, or null
+ * @param width [type:uint32_t] physical framebuffer width
+ * @param height [type:uint32_t] physical framebuffer height
+ * @examples
+ * ```c
+ * EngineWindowEvent event = ENGINE_WINDOW_EVENT_RESIZED_INITIALIZER(window, 800, 600);
+ * ```
+ */
+#define ENGINE_WINDOW_EVENT_RESIZED_INITIALIZER(window, width, height) { (window), ENGINE_WINDOW_EVENT_RESIZED, { { (width), (height) } } }
+
 #endif // DMSDK_ENGINE_EVENT_H
