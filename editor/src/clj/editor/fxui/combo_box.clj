@@ -24,6 +24,7 @@
             [cljfx.mutator :as fx.mutator]
             [clojure.java.io :as io]
             [editor.fxui :as fxui]
+            [editor.ui-zoom :as ui-zoom]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [util.coll :as coll]
             [util.eduction :as e]
@@ -46,13 +47,17 @@
 
 (def ^:private prop-popup
   (fx/make-binding-prop
-    (fn [^Node node ^Popup popup]
+    (fn show-popup! [^Node node ^Popup popup]
       (let [bounds (.localToScreen node (.getBoundsInLocal node))
+            scale (ui-zoom/window-scale (.getWindow (.getScene node)))
             ^Region root (-> popup .getContent .getFirst)]
+        ;; Screen bounds already include application zoom. Convert the width
+        ;; back to layout units because the popup content will be scaled too.
         (doto root
-          (.setMinWidth (.getWidth bounds))
-          (.setMaxWidth (.getWidth bounds)))
-        (.show popup node (- (.getMinX bounds) 12.0) (- (.getMaxY bounds) 6.0))
+          (.setMinWidth (/ (.getWidth bounds) scale))
+          (.setMaxWidth (/ (.getWidth bounds) scale)))
+        ;; Popup anchors use screen coordinates, so scale the alignment offsets.
+        (.show popup node (- (.getMinX bounds) (* 12.0 scale)) (- (.getMaxY bounds) (* 6.0 scale)))
         #(.hide popup)))
     fx.lifecycle/dynamic))
 
