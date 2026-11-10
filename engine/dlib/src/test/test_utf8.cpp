@@ -14,6 +14,8 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include "../dlib/utf8.h"
@@ -92,6 +94,64 @@ TEST(dmUtf8, ToUtf8)
     ASSERT_EQ(0xe2U, (uint8_t) buf[0]);
     ASSERT_EQ(0x98U, (uint8_t) buf[1]);
     ASSERT_EQ(0x9eU, (uint8_t) buf[2]);
+}
+
+// Validate scalar-value boundaries without treating NUL as a string terminator
+// or consuming bytes from the next sequence.
+TEST(dmUtf8, ValidateSequence)
+{
+    const struct
+    {
+        const char* m_Text;
+        uint32_t    m_Size;
+    } valid[] = {
+        { "\x00", 1 }, { "\x7f", 1 },
+        { "\xc2\x80", 2 }, { "\xdf\xbf", 2 },
+        { "\xe0\xa0\x80", 3 }, { "\xed\x9f\xbf", 3 },
+        { "\xee\x80\x80", 3 }, { "\xef\xbf\xbf", 3 },
+        { "\xf0\x90\x80\x80", 4 }, { "\xf4\x8f\xbf\xbf", 4 }
+    };
+    ASSERT_EQ(0u, dmUtf8::ValidateSequence(0, 0));
+    for (uint32_t i = 0; i < sizeof(valid) / sizeof(valid[0]); ++i)
+    {
+        ASSERT_EQ(valid[i].m_Size, dmUtf8::ValidateSequence(valid[i].m_Text, valid[i].m_Size));
+        ASSERT_EQ(valid[i].m_Size, dmUtf8::ValidateSequence(valid[i].m_Text, valid[i].m_Size + 1));
+    }
+}
+
+// Reject invalid leaders and continuations, overlong encodings, UTF-16
+// surrogates and values above U+10FFFF consistently for JSON and the debugger.
+TEST(dmUtf8, InvalidSequences)
+{
+    const char* invalid[] = {
+        "\x80", "\xbf", "\xc0\x80", "\xc1\xbf", "\xc2\x7f",
+        "\xe0\x9f\xbf", "\xe1\x80\x7f", "\xed\xa0\x80", "\xed\xbf\xbf",
+        "\xf0\x8f\xbf\xbf", "\xf1\x80\x80\x7f", "\xf4\x90\x80\x80",
+        "\xf5\x80\x80\x80", "\xf8\x88\x80\x80\x80", "\xff"
+    };
+    for (uint32_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i)
+    {
+        ASSERT_EQ(0u, dmUtf8::ValidateSequence(invalid[i], (uint32_t)strlen(invalid[i])));
+    }
+}
+
+// Every truncated prefix must fail without reading past its allocation;
+// exact-sized buffers let ASan detect accidental lookahead beyond size.
+TEST(dmUtf8, TruncatedSequences)
+{
+    const char* sequences[] = { "\xc2\x80", "\xe0\xa0\x80", "\xf0\x90\x80\x80" };
+    for (uint32_t i = 0; i < sizeof(sequences) / sizeof(sequences[0]); ++i)
+    {
+        uint32_t size = (uint32_t)strlen(sequences[i]);
+        for (uint32_t length = 1; length < size; ++length)
+        {
+            char* prefix = (char*)malloc(length);
+            memcpy(prefix, sequences[i], length);
+            uint32_t result = dmUtf8::ValidateSequence(prefix, length);
+            free(prefix);
+            ASSERT_EQ(0u, result);
+        }
+    }
 }
 
 int main(int argc, char **argv)

@@ -1,0 +1,12 @@
+name: "script_modules"
+embedded_instances {
+  id: "test"
+  data: "components {\n"
+  "  id: \"test\"\n"
+  "  component: \"/script_modules/script_modules.script\"\n"
+  "  position { x: 0.0 y: 0.0 z: 0.0 }\n"
+  "  rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 }\n"
+  "}\n"
+  position { x: 0.0 y: 0.0 z: 0.0 }
+  rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 }
+}

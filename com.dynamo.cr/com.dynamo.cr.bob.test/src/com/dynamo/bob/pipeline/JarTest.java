@@ -14,9 +14,20 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.ClassLoaderScanner;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.Progress;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.archive.publisher.NullPublisher;
+import com.dynamo.bob.archive.publisher.PublisherSettings;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.IFileSystem;
+import com.dynamo.bob.util.BobProjectProperties;
+import org.junit.Assume;
+import org.junit.Test;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -26,20 +37,22 @@ import java.io.InputStreamReader;
 import java.net.URISyntaxException;
 import java.util.List;
 
-import org.junit.Test;
-
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.ClassLoaderScanner;
-import com.dynamo.bob.Progress;
-import com.dynamo.bob.Project;
-import com.dynamo.bob.TaskResult;
-import com.dynamo.bob.archive.publisher.NullPublisher;
-import com.dynamo.bob.archive.publisher.PublisherSettings;
-import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.fs.IFileSystem;
-import com.dynamo.bob.util.BobProjectProperties;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class JarTest {
+
+    // Verify the packaged Windows lipo starts; stripping its PE debug sections broke the Windows loader.
+    @Test
+    public void testWindowsLipoStarts() throws Exception {
+        Assume.assumeTrue(Platform.getHostPlatform() == Platform.X86_64Win32);
+        Process process = new ProcessBuilder(Bob.getExe(Platform.X86_64Win32, "lipo"), "-version")
+                .redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals(output, 0, process.waitFor());
+        assertFalse(output.trim().isEmpty());
+    }
 
     private int bob(String command) throws IOException, InterruptedException, CompileExceptionError, URISyntaxException {
         String jarPath = "../com.dynamo.cr.bob/dist/bob.jar";

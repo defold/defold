@@ -328,7 +328,7 @@ namespace dmGui
      * @member PROPERTY_SHADOW      //!< 6
      * @member PROPERTY_SLICE9      //!< 7
      * @member PROPERTY_PIE_PARAMS  //!< 8
-     * @member PROPERTY_TEXT_PARAMS //!< 9
+     * @member PROPERTY_TEXT_PARAMS //!< 9: leading, tracking, arc radius, arc degrees
      * @member PROPERTY_COUNT       //!< 10
      */
     enum Property

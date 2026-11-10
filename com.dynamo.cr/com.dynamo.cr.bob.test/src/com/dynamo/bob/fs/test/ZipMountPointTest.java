@@ -14,25 +14,24 @@
 
 package com.dynamo.bob.fs.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collection;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.test.TestLibrariesRule;
 import com.dynamo.bob.util.Library;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collection;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class ZipMountPointTest {
 

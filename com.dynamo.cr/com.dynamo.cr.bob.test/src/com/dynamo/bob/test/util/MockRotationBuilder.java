@@ -14,10 +14,10 @@
 
 package com.dynamo.bob.test.util;
 
-import javax.vecmath.Quat4d;
-
 import com.dynamo.bob.util.RigUtil.RotationBuilder;
 import com.dynamo.rig.proto.Rig.AnimationTrack.Builder;
+
+import javax.vecmath.Quat4d;
 
 public class MockRotationBuilder extends RotationBuilder {
 

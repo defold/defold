@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <dlib/align.h>
 #include <dlib/memory.h>
 
 #include "render_frame.h"
@@ -150,7 +151,7 @@ namespace dmRender
 
         RenderFrameStatistics& statistics = frame->m_View.m_Statistics;
         const uint64_t bytes = (uint64_t)count * stride;
-        const uint64_t offset = ((uint64_t)statistics.m_PayloadBytes + alignment - 1) & ~((uint64_t)alignment - 1);
+        const uint64_t offset = DM_ALIGN64(statistics.m_PayloadBytes, alignment);
 
         if (statistics.m_TableCount == frame->m_Limits.m_MaxTables || offset + bytes > frame->m_Limits.m_PayloadBytes)
             return FailCapture(frame, RENDER_FRAME_CAPACITY_EXCEEDED);

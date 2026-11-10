@@ -1854,8 +1854,9 @@ namespace dmGameSystem
                     uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance);
                     instance_data->m_AnimationData.setX((float) cache_offset);
                     instance_data->m_AnimationData.setY((float) GetBoneCount(instance_component->m_RigInstance));
-                    instance_data->m_AnimationData.setZ((float) dmGraphics::GetTextureWidth(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
-                    instance_data->m_AnimationData.setW((float) dmGraphics::GetTextureHeight(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                    dmGraphics::TextureInfo texture_info = dmGraphics::GetTextureInfo(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture);
+                    instance_data->m_AnimationData.setZ((float)texture_info.m_Width);
+                    instance_data->m_AnimationData.setW((float)texture_info.m_Height);
                 }
                 else
                 {
@@ -2023,8 +2024,9 @@ namespace dmGameSystem
                     uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance);
                     animation_data.setX((float) cache_offset);
                     animation_data.setY((float) GetBoneCount(component->m_RigInstance));
-                    animation_data.setZ((float) dmGraphics::GetTextureWidth(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
-                    animation_data.setW((float) dmGraphics::GetTextureHeight(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                    dmGraphics::TextureInfo texture_info = dmGraphics::GetTextureInfo(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture);
+                    animation_data.setZ((float)texture_info.m_Width);
+                    animation_data.setW((float)texture_info.m_Height);
                 }
 
                 SetRenderConstant(constants, dmRender::VERTEX_STREAM_ANIMATION_DATA, &animation_data, 1);
@@ -2687,6 +2689,7 @@ namespace dmGameSystem
             }
             case dmRender::RENDER_LIST_OPERATION_END:
             {
+                // A draw can leave either the instance buffer or world-space buffers unused.
                 if (!world->m_InstanceBufferDataLocalSpace.Empty())
                 {
                     dmRender::SetBufferData(params.m_Context, world->m_InstanceBufferLocalSpace, world->m_InstanceBufferDataLocalSpace.Size(), world->m_InstanceBufferDataLocalSpace.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);

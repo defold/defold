@@ -373,13 +373,20 @@
      Cycle true
      false))
 
+(definline eager?
+  "Returns true if lazy? returns false for the supplied value.
+
+  Does not check elements in the collection."
+  [value]
+  `(not (lazy? ~value)))
+
 (defn eager-seqable?
   "Returns true if the supplied value is seqable and eagerly evaluated. Useful
   in places where you want a keep around a reference to a seqable object without
   realizing it into a concrete collection. Note that this function will return
   true for nil, since it is a valid seqable value."
   [value]
-  (and (not (lazy? value))
+  (and (eager? value)
        (seqable? value)))
 
 (defonce conj-set (fnil conj #{}))

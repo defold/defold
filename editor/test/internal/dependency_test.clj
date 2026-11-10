@@ -16,12 +16,15 @@
   (:require [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [support.test-support :as ts]))
+            [support.test-support :as ts]
+            [util.coll :as coll])
+  (:import [java.util.concurrent CountDownLatch TimeUnit]))
 
 (defn- dependencies
   [& pairs]
-  (ts/graph-dependencies (g/now) (map #(apply gt/endpoint %) (partition 2 pairs))))
+  (ts/graph-dependencies (g/now) (mapv #(apply gt/endpoint %) (partition 2 pairs))))
 
 (g/defnode SingleOutput
   (output out-from-inline g/Str (g/fnk [] "out-from-inline")))
@@ -32,6 +35,43 @@
 (g/defnode InputUsedByOutput
   (input string-input g/Str)
   (output out-from-input g/Str (g/fnk [string-input] string-input)))
+
+(g/defnode DependencyCacheSource
+  (property value g/Str (default "before"))
+  (output value-out g/Str (g/fnk [value] value)))
+
+;; Verifies dependency results for equal roots, value changes, connection
+;; changes, historical bases, and undo/redo.
+(deftest dependency-cache-lifetime-test
+  (ts/with-clean-system
+    (let [[source target extra-target]
+          (ts/tx-nodes
+            (g/make-nodes [source DependencyCacheSource
+                           target InputUsedByOutput
+                           _extra-target InputUsedByOutput]
+              (g/connect source :value-out target :string-input)))
+          initial-basis (g/now)
+          roots #{(gt/endpoint source :value-out)}
+          initial-result (g/dependencies initial-basis roots)
+          initial-endpoints #{(gt/endpoint source :value-out)
+                              (gt/endpoint target :out-from-input)}
+          connected-endpoints (conj initial-endpoints
+                                    (gt/endpoint extra-target :out-from-input))]
+      (is (= initial-endpoints (set initial-result)))
+      (is (= initial-endpoints
+             (set (g/dependencies initial-basis
+                                  (hash-set (gt/endpoint source :value-out))))))
+      (g/transact (g/set-property source :value "after"))
+      (is (= "after" (g/node-value target :out-from-input)))
+      (is (= initial-endpoints (set (g/dependencies (g/now) roots))))
+      (g/transact {:undo-key ::connection}
+        (g/connect source :value-out extra-target :string-input))
+      (is (= connected-endpoints (set (g/dependencies (g/now) roots))))
+      (is (= initial-endpoints (set (g/dependencies initial-basis roots))))
+      (g/undo! ::connection)
+      (is (= initial-endpoints (set (g/dependencies (g/now) roots))))
+      (g/redo! ::connection)
+      (is (= connected-endpoints (set (g/dependencies (g/now) roots)))))))
 
 (deftest single-connection
   (testing "results include inputs"
@@ -140,6 +180,148 @@
 
   (output input-counter g/Int (g/fnk [input-1 input-2 input-3 input-4 input-5]
                                 (count (keep identity [input-1 input-2 input-3 input-4 input-5])))))
+
+;; Dependency walks must keep every endpoint when fresh or cached successor rows
+;; span several batches, cross row boundaries, or are empty.
+(deftest wide-successor-frontier-test
+  (ts/with-clean-system
+    (let [[source other-source empty-source]
+          (ts/tx-nodes (g/make-nodes [_source SingleOutput
+                                      _other-source SingleOutput
+                                      _empty-source SingleOutput]))
+          targets (vec (ts/tx-nodes
+                         (mapv (fn [_] (g/make-node InputUsedByOutput))
+                               (range (inc (* 2 ig/dependency-batch-size))))))
+          _ (g/transact
+              (mapv (fn [^long i target]
+                      (g/connect (if (< i (inc ig/dependency-batch-size)) source other-source) :out-from-inline target :string-input))
+                    (range (count targets))
+                    targets))
+          roots (mapv #(gt/endpoint % :out-from-inline) [source other-source empty-source])
+          basis (ig/invalidate-all-successors (g/now))
+          expected (coll/into-> targets (set roots) (map #(gt/endpoint % :out-from-input)))
+          actual (g/dependencies basis roots)]
+      (is (= expected (set actual)))
+      (is (= (count expected) (count actual)))
+      (is (= expected (set (g/dependencies basis roots))))
+      (testing "different roots reuse cached successor rows"
+        (let [roots [(gt/endpoint source :out-from-inline)]
+              expected (coll/into-> (subvec targets 0 (inc ig/dependency-batch-size))
+                         (set roots)
+                         (map #(gt/endpoint % :out-from-input)))
+              actual (g/dependencies basis roots)]
+          (is (= expected (set actual)))
+          (is (= (count expected) (count actual))))))))
+
+;; Dependency walks must finish short and long converging branches across task
+;; batches, including after disconnection and undo.
+(deftest uneven-branch-dependencies-test
+  (ts/with-clean-system
+    (let [[source sink] (ts/tx-nodes (g/make-node SingleOutput)
+                                     (g/make-node MultipleInputsIntoOneOutput))
+          branches (vec (g/tx-nodes-added
+                          (g/transact
+                            (mapv (fn [_] (g/make-node InputUsedByOutput))
+                                  (range (inc ig/dependency-batch-size))))))
+          chain (vec (g/tx-nodes-added
+                       (g/transact (mapv (fn [_] (g/make-node InputUsedByOutput)) (range 40)))))
+          path (into [(branches 0)] chain)
+          roots #{(gt/endpoint source :out-from-inline)}
+          expected (coll/into-> (into branches chain)
+                     #{(gt/endpoint source :out-from-inline)
+                       (gt/endpoint sink :input-counter)}
+                     (map #(gt/endpoint % :out-from-input)))]
+      (g/transact
+        [(mapv #(g/connect source :out-from-inline % :string-input) branches)
+         (mapv (fn [from to] (g/connect from :out-from-input to :string-input)) path chain)
+         (g/connect (branches 1) :out-from-input sink :input-1)
+         (g/connect (peek chain) :out-from-input sink :input-2)])
+      (let [basis (g/now)
+            result (g/dependencies basis roots)]
+        (is (= expected (set result)))
+        (is (= (count expected) (count result)))
+        (g/transact (g/disconnect source :out-from-inline (branches 0) :string-input))
+        (is (= (reduce disj expected (mapv #(gt/endpoint % :out-from-input) path))
+               (set (g/dependencies (g/now) roots))))
+        (is (= expected (set (g/dependencies basis roots))))
+        (g/undo! :undo/global)
+        (is (= expected (set (g/dependencies (g/now) roots))))))))
+
+;; Concurrent dependency walks must keep their own graph generation when a
+;; connection has changed, including several labels on the same source node.
+(deftest concurrent-successor-generations-test
+  (ts/with-clean-system
+    (let [[source old-target new-target]
+          (ts/tx-nodes
+            (g/make-nodes [source MultipleOutputs
+                           old-target InputUsedByOutput
+                           _new-target InputUsedByOutput]
+              (g/connect source :output-1 old-target :string-input)))
+          roots (mapv #(gt/endpoint source %) [:output-1 :output-2 :output-3 :output-4 :output-5])
+          old-basis (g/now)
+          _ (g/transact [(g/disconnect source :output-1 old-target :string-input)
+                         (g/connect source :output-1 new-target :string-input)])
+          new-basis (g/now)
+          ready (CountDownLatch. 2)
+          start (CountDownLatch. 1)
+          results (mapv (fn [basis]
+                          (future
+                            (.countDown ready)
+                            (.await start)
+                            (set (g/dependencies basis roots))))
+                        [old-basis new-basis])]
+      (try
+        (is (.await ready 10 TimeUnit/SECONDS))
+        (finally (.countDown start)))
+      (is (= (conj (set roots) (gt/endpoint old-target :out-from-input))
+             (deref (results 0) 10000 ::timed-out)))
+      (is (= (conj (set roots) (gt/endpoint new-target :out-from-input))
+             (deref (results 1) 10000 ::timed-out))))))
+
+;; Concurrent walks with different roots must preserve dependency results when
+;; caching different labels of one node in a shared cache, including a later
+;; walk that reuses those rows with another root collection.
+(deftest concurrent-successor-cache-writes-test
+  (ts/with-clean-system
+    (let [[source] (ts/tx-nodes (g/make-node MultipleOutputs))
+          target-groups (mapv (fn [_]
+                                (vec (ts/tx-nodes
+                                       (mapv (fn [_] (g/make-node InputUsedByOutput))
+                                             (range (inc ig/dependency-batch-size))))))
+                              (range 2))
+          _ (g/transact
+              (mapv (fn [label targets]
+                      (mapv #(g/connect source label % :string-input) targets))
+                    [:output-1 :output-2]
+                    target-groups))
+          basis (ig/invalidate-all-successors (g/now))
+          root-groups [[(gt/endpoint source :output-1)]
+                       [(gt/endpoint source :output-2)
+                        (gt/endpoint source :output-3)]]
+          expected-results (mapv (fn [roots targets]
+                                   (coll/into-> targets (set roots)
+                                     (map #(gt/endpoint % :out-from-input))))
+                                 root-groups
+                                 target-groups)
+          ready (CountDownLatch. 2)
+          start (CountDownLatch. 1)
+          results (mapv (fn [roots]
+                          (future
+                            (.countDown ready)
+                            (.await start)
+                            (set (g/dependencies basis roots))))
+                        root-groups)]
+      (try
+        (is (.await ready 10 TimeUnit/SECONDS))
+        (finally (.countDown start)))
+      (doseq [[expected result] (mapv vector expected-results results)]
+        (is (= expected (deref result 10000 ::timed-out))))
+      (let [roots (into (root-groups 0) (root-groups 1))
+            expected (coll/into-> target-groups (set roots)
+                       (comp cat (map #(gt/endpoint % :out-from-input))))
+            actual (g/dependencies basis roots)]
+        (is (= expected (set actual)))
+        (is (= (count expected) (count actual)))))))
 
 (deftest one-step-multipath
   (testing "one output to several inputs"

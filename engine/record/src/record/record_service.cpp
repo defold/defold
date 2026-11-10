@@ -19,6 +19,7 @@
 #include <dlib/array.h>
 #include <dlib/crypt.h>
 #include <dlib/dstrings.h>
+#include <dlib/json.h>
 #include <dlib/mutex.h>
 #include <dlib/sys.h>
 #include <dlib/thread.h>
@@ -49,7 +50,7 @@ namespace dmRecord
         char             m_Path[1024];
         char             m_Sha256[65];
         uint64_t         m_Size;
-        uint64_t         m_OperationId;
+        uint32_t         m_OperationId;
         dmMutex::HMutex  m_Mutex;
         dmThread::Thread m_Worker;
         FileState        m_State;
@@ -205,28 +206,13 @@ namespace dmRecord
 
     static StatusListener g_StatusListener = { OnStatus, 0 };
 
-    // All response strings originate in bounded status/platform buffers.
-    static void EscapeJson(const char* source, char* output)
+    // Callers reserve six bytes per input byte, two quotes, and a terminator.
+    static void WriteJsonString(void* context, const char* text, uint32_t size)
     {
-        while (*source)
-        {
-            unsigned char c = (unsigned char)*source++;
-            if (c == '"' || c == '\\')
-            {
-                *output++ = '\\';
-                *output++ = c;
-            }
-            else if (c < 32)
-            {
-                dmSnPrintf(output, 7, "\\u%04x", c);
-                output += 6;
-            }
-            else
-            {
-                *output++ = c;
-            }
-        }
-        *output = 0;
+        char** output = (char**)context;
+        memcpy(*output, text, size);
+        *output += size;
+        **output = 0;
     }
 
     static void SendJson(dmWebServer::Request* request, int status, const char* body)
@@ -239,10 +225,11 @@ namespace dmRecord
 
     static void Error(dmWebServer::Request* request, int status, const char* code, const char* message)
     {
-        char escaped[512 * 6 + 1];
-        EscapeJson(message, escaped);
+        char escaped[512 * 6 + 3];
+        char* output = escaped;
+        dmJson::WriteString(message, (uint32_t)strlen(message), WriteJsonString, &output);
         char body[4096];
-        dmSnPrintf(body, sizeof(body), "{\"error\":{\"code\":\"%s\",\"message\":\"%s\"}}", code, escaped);
+        dmSnPrintf(body, sizeof(body), "{\"error\":{\"code\":\"%s\",\"message\":%s}}", code, escaped);
         SendJson(request, status, body);
     }
 
@@ -257,16 +244,17 @@ namespace dmRecord
             dmSnPrintf(file_json, sizeof(file_json), "{\"id\":\"%s\",\"url\":\"/recording/files/%s\",\"state\":\"%s\",\"size\":%llu,\"sha256\":\"%s\"}", file->m_Id, file->m_Id, state, (unsigned long long)file->m_Size, file->m_Sha256);
         }
         const char* state = status->m_Pending ? (status->m_Stopping ? "stopping" : "starting") :
-                                                (status->m_Failure[0] ? "failed" : (status->m_Active ? "recording" : (status->m_Finalized ? "complete" : "idle")));
-        char failure[sizeof(status->m_Failure) * 6 + 1];
-        EscapeJson(status->m_Failure, failure);
+                            (status->m_Failure[0] ? "failed" : (status->m_Active ? "recording" : (status->m_Finalized ? "complete" : "idle")));
+        char failure[sizeof(status->m_Failure) * 6 + 3];
+        char* output = failure;
+        dmJson::WriteString(status->m_Failure, (uint32_t)strlen(status->m_Failure), WriteJsonString, &output);
         char body[8192];
-        dmSnPrintf(body, sizeof(body), "{\"instance_id\":\"%s\",\"operation_id\":%llu,\"state\":\"%s\",\"pending\":%s,\"supported\":%s,\"active\":%s,\"finalized\":%s,"
-                                       "\"backend\":\"%s\",\"format\":\"mp4\",\"codec\":\"h264\",\"audio\":%s,\"width\":%u,\"height\":%u,\"fps\":%u,"
-                                       "\"started_wall_time_us\":%llu,\"started_monotonic_time_us\":%llu,\"stopped_wall_time_us\":%llu,"
-                                       "\"stopped_monotonic_time_us\":%llu,\"failure\":\"%s\",\"file\":%s}",
+        dmSnPrintf(body, sizeof(body), "{\"instance_id\":\"%s\",\"operation_id\":%u,\"state\":\"%s\",\"pending\":%s,\"supported\":%s,\"active\":%s,\"finalized\":%s,"
+                   "\"backend\":\"%s\",\"format\":\"mp4\",\"codec\":\"h264\",\"audio\":%s,\"width\":%u,\"height\":%u,\"fps\":%u,"
+                   "\"started_wall_time_us\":%llu,\"started_monotonic_time_us\":%llu,\"stopped_wall_time_us\":%llu,"
+                   "\"stopped_monotonic_time_us\":%llu,\"failure\":%s,\"file\":%s}",
                    g_InstanceId,
-                   (unsigned long long)status->m_Id,
+                   status->m_Id,
                    state,
                    status->m_Pending ? "true" : "false",
                    status->m_Supported ? "true" : "false",
@@ -286,175 +274,44 @@ namespace dmRecord
         SendJson(request, code, body);
     }
 
-    static void SkipWhitespace(const char** p)
+    static bool ParseOptions(const char* body, uint32_t size, bool stopping, StartParams* params, uint32_t* id)
     {
-        while (**p == ' ' || **p == '\t' || **p == '\r' || **p == '\n')
-        {
-            ++*p;
-        }
-    }
-
-    // The request schema contains only known ASCII field names, unsigned
-    // integers and booleans. Reject duplicates, unknown fields and nested data.
-    static bool ParseName(const char** p, char* name, uint32_t size)
-    {
-        if (*(*p)++ != '"')
+        dmJson::Document json(32);
+        if (!json.Parse(body, size, 0, dmJson::PARSE_DECODE_VALUES) || json.Get(0).m_Type != dmJson::TYPE_OBJECT)
         {
             return false;
         }
-        uint32_t length = 0;
-        while (**p && **p != '"')
+        for (int field = json.Get(0).m_First; field >= 0; field = json.Get(field).m_Next)
         {
-            unsigned char c = (unsigned char)*(*p)++;
-            if (c == '\\')
+            const dmJson::Node& node = json.Get(field);
+            if (!stopping && !strcmp(node.m_Name, "fps"))
             {
-                if (*(*p)++ != 'u')
+                if (!json.UnsignedInteger(field, &params->m_Fps) || !params->m_Fps || params->m_Fps > 60)
                 {
                     return false;
                 }
-                uint32_t value = 0;
-                for (uint32_t i = 0; i < 4; ++i)
-                {
-                    c = (unsigned char)**p;
-                    if (!c)
-                    {
-                        return false;
-                    }
-                    ++*p;
-                    uint32_t digit = c >= '0' && c <= '9' ? c - '0' : (c >= 'a' && c <= 'f' ? c - 'a' + 10 : (c >= 'A' && c <= 'F' ? c - 'A' + 10 : 16));
-                    if (digit == 16)
-                    {
-                        return false;
-                    }
-                    value = value * 16 + digit;
-                }
-                if (value > 127)
+            }
+            else if (!stopping && !strcmp(node.m_Name, "audio"))
+            {
+                if (node.m_Type != dmJson::TYPE_BOOL)
                 {
                     return false;
                 }
-                c = (unsigned char)value;
+                params->m_Audio = json.Boolean(field, false);
             }
-            if (c < 32 || c > 127 || length + 1 >= size)
+            else if (stopping && !strcmp(node.m_Name, "operation_id"))
             {
-                return false;
-            }
-            name[length++] = c;
-        }
-        if (**p != '"')
-        {
-            return false;
-        }
-        ++*p;
-        name[length] = 0;
-        return true;
-    }
-
-    static bool ParseUInt(const char** p, uint64_t* value)
-    {
-        if (**p < '0' || **p > '9')
-        {
-            return false;
-        }
-        bool zero = **p == '0';
-        *value = 0;
-        uint32_t digits = 0;
-        do
-        {
-            uint32_t digit = *(*p)++ - '0';
-            if (*value > (UINT64_MAX - digit) / 10)
-            {
-                return false;
-            }
-            *value = *value * 10 + digit;
-            ++digits;
-        } while (**p >= '0' && **p <= '9');
-        return !zero || digits == 1;
-    }
-
-    static bool ParseOptions(const char* body, bool stopping, StartParams* params, uint64_t* id)
-    {
-        const char* p = body;
-        SkipWhitespace(&p);
-        if (*p++ != '{')
-        {
-            return false;
-        }
-        SkipWhitespace(&p);
-        uint32_t seen = 0;
-        while (*p != '}')
-        {
-            char name[32];
-            if (!ParseName(&p, name, sizeof(name)))
-            {
-                return false;
-            }
-            uint32_t field = !strcmp(name, "fps") ? 1 : (!strcmp(name, "audio") ? 2 : (!strcmp(name, "operation_id") ? 4 : 0));
-            if (!field || (seen & field) || (stopping ? field != 4 : field == 4))
-            {
-                return false;
-            }
-            seen |= field;
-            SkipWhitespace(&p);
-            if (*p++ != ':')
-            {
-                return false;
-            }
-            SkipWhitespace(&p);
-            if (field == 2)
-            {
-                if (!strncmp(p, "true", 4))
-                {
-                    params->m_Audio = true;
-                    p += 4;
-                }
-                else if (!strncmp(p, "false", 5))
-                {
-                    params->m_Audio = false;
-                    p += 5;
-                }
-                else
+                if (!json.UnsignedInteger(field, id) || !*id)
                 {
                     return false;
                 }
             }
             else
             {
-                uint64_t value;
-                if (!ParseUInt(&p, &value) || !value)
-                {
-                    return false;
-                }
-                if (field == 1 && value > 60)
-                {
-                    return false;
-                }
-                if (field == 1)
-                {
-                    params->m_Fps = (uint32_t)value;
-                }
-                else
-                {
-                    *id = value;
-                }
-            }
-            SkipWhitespace(&p);
-            if (*p == '}')
-            {
-                break;
-            }
-            if (*p++ != ',')
-            {
-                return false;
-            }
-            SkipWhitespace(&p);
-            if (*p == '}')
-            {
                 return false;
             }
         }
-        ++p;
-        SkipWhitespace(&p);
-        return *p == 0 && (!stopping || seen == 4);
+        return !stopping || *id != 0;
     }
 
     static void FileRequest(dmWebServer::Request* request, const char* id)
@@ -638,8 +495,8 @@ namespace dmRecord
         }
         StartParams params;
         params.m_Audio = IsAudioSupported();
-        uint64_t id = 0;
-        if (!ParseOptions(request->m_ContentLength ? body : "{}", stop, &params, &id))
+        uint32_t id = 0;
+        if (!ParseOptions(request->m_ContentLength ? body : "{}", request->m_ContentLength ? request->m_ContentLength : 2, stop, &params, &id))
         {
             Error(request, 400, "invalid_options", "request does not match the recording schema in /openapi.json");
             return;

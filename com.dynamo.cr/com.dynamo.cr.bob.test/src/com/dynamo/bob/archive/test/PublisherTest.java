@@ -14,18 +14,6 @@
 
 package com.dynamo.bob.archive.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
-import java.nio.charset.StandardCharsets;
-import java.util.Map;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.archive.publisher.FolderPublisher;
@@ -34,6 +22,17 @@ import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.test.util.MockFileSystem;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class PublisherTest {
     private MockFileSystem fileSystem;

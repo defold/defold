@@ -17,4 +17,11 @@
 
 #include <dmsdk/dlib/utf8.h>
 
+namespace dmUtf8
+{
+    // Length of the first valid Unicode scalar's UTF-8 sequence, or zero for
+    // empty, invalid or truncated input. Reads no more than size bytes.
+    uint32_t ValidateSequence(const char* text, uint32_t size);
+}
+
 #endif // DM_UTF8_H

@@ -2,6 +2,7 @@
 import os
 import json
 import time
+from contextlib import contextmanager
 from datetime import datetime
 import build_console
 from build_console import Style
@@ -18,6 +19,7 @@ class BuildTimeTracker:
         self.component_times = {}
         self.command_times = {}
         self.check_times = {}
+        self.step_times = {}
         self.output_file = output_file or "build_times.json"
         self.current_command = None
         self.logger = logger or print
@@ -30,6 +32,7 @@ class BuildTimeTracker:
         """Start timing a build command"""
         self.current_command = command_name
         self.check_times.pop(command_name, None)
+        self.step_times.pop(command_name, None)
         self.start_times[command_name] = time.time()
         if not quiet:
             self._log_step(f"Starting '{command_name}' at {datetime.now().strftime('%H:%M:%S')}", Style.HEADING)
@@ -49,6 +52,9 @@ class BuildTimeTracker:
             checks = self.check_times.pop(command_name, None)
             if checks:
                 self.command_times[command_name]['checks'] = checks
+            steps = self.step_times.pop(command_name, None)
+            if steps:
+                self.command_times[command_name]['steps'] = steps
             if not quiet:
                 self._log_step(f"'{command_name}' completed in {duration:.2f} s", Style.SUCCESS)
 
@@ -56,6 +62,21 @@ class BuildTimeTracker:
         """Record a measured check under the current command."""
         if self.current_command is not None:
             self.check_times.setdefault(self.current_command, {})[check_name] = {'duration': duration}
+
+    @contextmanager
+    def measure_step(self, step_name):
+        """Measure a step under its parent command, including nested commands and failures."""
+        command_name = self.current_command
+        started = time.perf_counter()
+        try:
+            yield
+        finally:
+            duration = time.perf_counter() - started
+            self.current_command = command_name
+            if command_name is not None:
+                steps = self.step_times.setdefault(command_name, {})
+                timing = steps.setdefault(step_name, {'duration': 0.0})
+                timing['duration'] += duration
 
     @staticmethod
     def read_ninja_log(build_dir):
@@ -184,6 +205,10 @@ class BuildTimeTracker:
             command_width = max(20, max(len(command) for command in commands))
             for cmd, data in sorted(commands.items(), key=lambda x: x[1]['duration'], reverse=True):
                 self.logger(f"  {cmd:<{command_width}} {data['duration']:>8.2f} s")
+                if data.get('steps'):
+                    self.logger(self.colorize("    Steps", Style.HEADING))
+                    for step, timing in sorted(data['steps'].items(), key=lambda item: item[1]['duration'], reverse=True):
+                        self.logger(f"      {step:<20} {timing['duration']:>8.2f} s")
                 if data.get('checks'):
                     self.logger(self.colorize("    Checks", Style.HEADING))
                     for check, timing in sorted(data['checks'].items(), key=lambda item: item[1]['duration'], reverse=True):
