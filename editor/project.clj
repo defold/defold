@@ -328,7 +328,10 @@
                                                           #"^libexec/(?!$)(?!.*/$)(?!x86_64-win32/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:so|dylib)$"]
                                      :uberjar-name "editor-x86_64-win32-standalone.jar"}
-                      :x86_64-macos {:dependencies [[org.openjfx/javafx-base "27" :classifier "mac"]
+                      ;; Prevent JavaFX POMs from adding ARM natives while
+                      ;; packaging the Intel bundle on an ARM host.
+                      :x86_64-macos {:exclusions [[org.openjfx/* :classifier "mac-aarch64"]]
+                                     :dependencies [[org.openjfx/javafx-base "27" :classifier "mac"]
                                                     [org.openjfx/javafx-controls "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-graphics "27" :classifier "mac" :exclusions [org.openjfx/javafx-base]]
                                                     [org.openjfx/javafx-media "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics]]

@@ -264,6 +264,7 @@ jobs:
             ~/.dcache/*-WindowsKits-*.tar.gz-*
             ~/.dcache/*-Microsoft-Visual-Studio-*.tar.gz-*
             ~/.dcache/defold-adoptium-temurin*-binaries-releases-download-*-OpenJDK*U-jdk_*
+            ~/.dcache/defold-adoptium-temurin*-binaries-releases-download-*-OpenJDK*U-jmods_*
             ~/.dcache/github_com-sass-dart-sass-releases-download-*
             ~/.dcache/github_com-LuaLS-lua-language-server-releases-download-*
             ~/.dcache/repo1_maven_org-maven2-com-ibm-icu-icu4j-*.jar-*
@@ -868,7 +869,8 @@ jobs:
             runner: ubuntu-22.04
             name: "build-editor-linux"
           - platform: x86_64-macos
-            runner: macos-26-intel
+            runner: macos-26
+            # Preserve the required check name while compiling natively on ARM.
             name: "build-editor-macos (x86_64-macos, macos-26-intel)"
           - platform: arm64-macos
             runner: macos-26
@@ -936,6 +938,12 @@ jobs:
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: "dynamo-home-${{ matrix.platform || 'x86_64-linux' }}"
+          path: "tmp/dynamo_home"
+      - name: "Download ARM engine for Intel editor compilation"
+        if: matrix.platform == 'x86_64-macos' && (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: "dynamo-home-arm64-macos"
           path: "tmp/dynamo_home"
       - *step_chmod_dynamo_home
       - &step_download_engine_share
