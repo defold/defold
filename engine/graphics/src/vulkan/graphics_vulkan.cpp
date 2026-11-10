@@ -1892,6 +1892,14 @@ bail:
         NativeExit();
     }
 
+    static void ResetStorageBufferUploadPool(StorageBufferUploadPool* pool)
+    {
+        for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
+        {
+            pool->m_Blocks[i].m_Cursor = 0;
+        }
+    }
+
     static void VulkanBeginFrame(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
@@ -1908,6 +1916,9 @@ bail:
 
         // Wait for GPU to finish work for this frame-in-flight
         vkWaitForFences(vk_device, 1, &currentFrame.m_SubmitFence, VK_TRUE, UINT64_MAX);
+
+        // Every copy referencing this frame slot's staging storage has completed.
+        ResetStorageBufferUploadPool(&context->m_StorageBufferUploadPools[frameInFlight]);
 
         // Acquire next swap chain image
         VkResult res = context->m_SwapChain->Advance(vk_device, currentFrame.m_ImageAvailable);
@@ -2545,26 +2556,105 @@ bail:
         buffer->m_StorageStages = 0;
     }
 
+    static DeviceBuffer* AllocateStorageBufferUpload(VulkanContext* context, StorageBufferUploadPool* pool, uint32_t size, uint32_t* offset)
+    {
+        StorageBufferUploadBlock* block = 0;
+        StorageBufferUploadBlock* unused = 0;
+        for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
+        {
+            StorageBufferUploadBlock* candidate = &pool->m_Blocks[i];
+            if (size <= candidate->m_Buffer.m_Base.m_Size - candidate->m_Cursor)
+            {
+                block = candidate;
+                break;
+            }
+            if (candidate->m_Cursor == 0)
+            {
+                unused = candidate;
+            }
+        }
+        if (!block)
+        {
+            // Grow only unused storage: previous slices may already be referenced by
+            // recorded copies. Retain the high-water capacity for subsequent frames.
+            uint32_t capacity = dmMath::Max(size, 256u * 1024u);
+            VkDevice device = context->m_LogicalDevice.m_Device;
+            if (unused)
+            {
+                uint32_t old_capacity = unused->m_Buffer.m_Base.m_Size;
+                // Keep geometric growth below DeviceBuffer's 31-bit size limit.
+                if (old_capacity <= 0x3fffffff)
+                {
+                    capacity = dmMath::Max(capacity, old_capacity * 2);
+                }
+                unused->m_Buffer.UnmapMemory(device);
+                DestroyDeviceBuffer(device, &unused->m_Buffer.m_Handle);
+                block = unused;
+            }
+            else
+            {
+                if (pool->m_Blocks.Full())
+                {
+                    pool->m_Blocks.OffsetCapacity(4);
+                }
+                StorageBufferUploadBlock new_block = {};
+                pool->m_Blocks.Push(new_block);
+                block = &pool->m_Blocks.Back();
+            }
+            block->m_Buffer.m_Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+            VkResult result = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, device, capacity,
+                                                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &block->m_Buffer);
+            CHECK_VK_ERROR(result);
+            result = block->m_Buffer.MapMemory(device);
+            CHECK_VK_ERROR(result);
+        }
+        // The public storage-buffer API requires four-byte-aligned sizes and offsets.
+        *offset = block->m_Cursor;
+        block->m_Cursor += size;
+        return &block->m_Buffer;
+    }
+
     static void VulkanSetStorageBufferSubData(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
     {
         VulkanContext* context = (VulkanContext*) _context;
         DeviceBuffer* buffer = (DeviceBuffer*) storage_buffer;
         assert(offset + size <= buffer->m_Base.m_Size);
-        DeviceBuffer staging(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-        DeviceBufferUploadHelper(context, data, size, 0, &staging);
-        SuspendRenderPass(context);
-        VkCommandBuffer command_buffer = context->m_FrameBegun ? context->m_MainCommandBuffers[context->m_CurrentFrameInFlight] :
-            BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool);
-        PrepareStorageBufferAccess(context, command_buffer, buffer, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-        VkBufferCopy copy = {0, offset, size};
-        vkCmdCopyBuffer(command_buffer, staging.m_Handle.m_Buffer, buffer->m_Handle.m_Buffer, 1, &copy);
-        TouchResource(context, buffer);
-        if (context->m_FrameBegun)
+        // vkCmdUpdateBuffer snapshots uploads up to Vulkan's 64 KiB limit into the command
+        // buffer, avoiding a staging allocation per call. The common API enforces alignment.
+        // Keep larger, null-data and out-of-frame uploads on the staging path below.
+        if (context->m_FrameBegun && data && size <= 65536)
         {
-            TouchResource(context, &staging);
-            DestroyResourceDeferred(context, &staging);
+            SuspendRenderPass(context);
+            VkCommandBuffer command_buffer = context->m_MainCommandBuffers[context->m_CurrentFrameInFlight];
+            PrepareStorageBufferAccess(context, command_buffer, buffer, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+            vkCmdUpdateBuffer(command_buffer, buffer->m_Handle.m_Buffer, offset, size, data);
+            TouchResource(context, buffer);
+            return;
+        }
+        StorageBufferUploadPool* pool = context->m_FrameBegun
+            ? &context->m_StorageBufferUploadPools[context->m_CurrentFrameInFlight]
+            : &context->m_SynchronousStorageBufferUploadPool;
+        // Pools own these buffers until shutdown; frame fences (or the synchronous
+        // submission below) protect their contents instead of deferred destruction.
+        uint32_t staging_offset;
+        DeviceBuffer* staging = AllocateStorageBufferUpload(context, pool, size, &staging_offset);
+        void* destination = (uint8_t*) staging->m_MappedDataPtr + staging_offset;
+        if (data)
+        {
+            memcpy(destination, data, size);
         }
         else
+        {
+            memset(destination, 0, size);
+        }
+        SuspendRenderPass(context);
+        VkCommandBuffer command_buffer = context->m_FrameBegun ? context->m_MainCommandBuffers[context->m_CurrentFrameInFlight] :
+                                         BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool);
+        PrepareStorageBufferAccess(context, command_buffer, buffer, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+        VkBufferCopy copy = { staging_offset, offset, size };
+        vkCmdCopyBuffer(command_buffer, staging->m_Handle.m_Buffer, buffer->m_Handle.m_Buffer, 1, &copy);
+        TouchResource(context, buffer);
+        if (!context->m_FrameBegun)
         {
             VkFence fence;
             VkResult result = SubmitCommandBuffer(&context->m_LogicalDevice, command_buffer, &fence);
@@ -2573,7 +2663,7 @@ bail:
             CHECK_VK_ERROR(result);
             vkDestroyFence(context->m_LogicalDevice.m_Device, fence, 0);
             vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool, 1, &command_buffer);
-            DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &staging.m_Handle);
+            ResetStorageBufferUploadPool(pool);
         }
     }
 
@@ -5529,6 +5619,17 @@ bail:
         delete[] temp_data;
     }
 
+    static void DestroyStorageBufferUploadPool(VkDevice device, StorageBufferUploadPool* pool)
+    {
+        for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
+        {
+            DeviceBuffer* buffer = &pool->m_Blocks[i].m_Buffer;
+            buffer->UnmapMemory(device);
+            DestroyDeviceBuffer(device, &buffer->m_Handle);
+        }
+        pool->m_Blocks.SetSize(0);
+    }
+
     void VulkanDestroyResources(HContext _context)
     {
         VulkanContext* context = (VulkanContext*)_context;
@@ -5578,7 +5679,9 @@ bail:
         for (uint8_t i=0; i < DM_ARRAY_SIZE(context->m_MainScratchBuffers); i++)
         {
             DestroyDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer.m_Handle);
+            DestroyStorageBufferUploadPool(vk_device, &context->m_StorageBufferUploadPools[i]);
         }
+        DestroyStorageBufferUploadPool(vk_device, &context->m_SynchronousStorageBufferUploadPool);
 
         for (uint8_t i=0; i < DM_ARRAY_SIZE(context->m_MainDescriptorAllocators); i++)
         {

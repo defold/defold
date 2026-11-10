@@ -289,6 +289,23 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
         # LeakSanitizer's exit check, which runs after vkDestroyInstance.
         list(APPEND _graphics_test_command "VK_LOADER_DISABLE_DYNAMIC_LIBRARY_UNLOADING=1")
       endif()
+      if("vulkan" IN_LIST _graphics_available AND NOT CMAKE_CROSSCOMPILING)
+        set(_graphics_subdata_command ${_graphics_test_command}
+          "$<TARGET_FILE:test_app_graphics>" vulkan ssbo-subdata)
+        add_custom_target(run_test_graphics_storage_buffer_subdata
+          COMMAND ${_graphics_runner} ${_graphics_subdata_command}
+          DEPENDS test_app_graphics ${_graphics_run_options}
+          COMMENT "Testing Vulkan storage-buffer sub-data uploads")
+        # Match the hosted GPU-test policy; the manual target remains available.
+        if(NOT WITH_MSAN AND (NOT DEFINED ENV{GITHUB_ACTIONS} OR TARGET_PLATFORM MATCHES "linux$"))
+          defold_register_sequential_test_command(graphics_storage_buffer_subdata
+            COMMAND ${_graphics_subdata_command} DEPENDS test_app_graphics)
+          if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+            defold_add_to_run_tests(run_test_graphics_storage_buffer_subdata RUN_GROUP graphics
+              COMMAND ${_graphics_subdata_command} DEPENDS test_app_graphics)
+          endif()
+        endif()
+      endif()
       set(_graphics_capture_env)
       if(NOT TARGET_PLATFORM STREQUAL "arm64_sim-ios")
         list(APPEND _graphics_capture_env "GRAPHICS_CAPTURE_EXECUTABLE=$<TARGET_FILE:test_app_graphics>")

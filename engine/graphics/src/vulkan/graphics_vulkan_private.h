@@ -91,6 +91,17 @@ namespace dmGraphics
         DeviceBuffer  m_DeviceBuffer;
     };
 
+    struct StorageBufferUploadBlock
+    {
+        DeviceBuffer m_Buffer;
+        uint32_t     m_Cursor;
+    };
+
+    struct StorageBufferUploadPool
+    {
+        dmArray<StorageBufferUploadBlock> m_Blocks;
+    };
+
     struct VulkanTexture
     {
         struct VulkanHandle
@@ -496,6 +507,8 @@ namespace dmGraphics
         VkCommandBuffer                 m_MainCommandBufferUploadHelper;
         ResourcesToDestroyList*         m_MainResourcesToDestroy[DM_MAX_FRAMES_IN_FLIGHT];
         ScratchBuffer                   m_MainScratchBuffers[DM_MAX_FRAMES_IN_FLIGHT];
+        StorageBufferUploadPool         m_StorageBufferUploadPools[DM_MAX_FRAMES_IN_FLIGHT];
+        StorageBufferUploadPool         m_SynchronousStorageBufferUploadPool;
         DescriptorAllocator             m_MainDescriptorAllocators[DM_MAX_FRAMES_IN_FLIGHT];
         uint32_t                        m_DescriptorAllocatorGeneration[DM_MAX_FRAMES_IN_FLIGHT];
         VkRenderPass                    m_MainRenderPass;
