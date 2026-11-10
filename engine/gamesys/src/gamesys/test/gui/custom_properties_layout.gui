@@ -61,6 +61,7 @@ nodes {
 layouts {
   name: "Landscape"
   nodes {
+    overridden_fields: 1
     position {
       x: 2.0
       y: 0.0
