@@ -654,7 +654,7 @@ namespace dmExtension
                     out_event->m_Event = EXTENSION_EVENT_ID_ENGINE_INITIALIZED;
                     return true;
                 }
-                case dmEngine::STATE_DELETE:
+                case dmEngine::STATE_DELETE_BEGIN:
                 {
                     out_event->m_Event = EXTENSION_EVENT_ID_ENGINE_DELETE;
                     return true;

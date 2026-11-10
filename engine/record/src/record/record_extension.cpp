@@ -48,7 +48,7 @@ namespace dmRecord
     {
         // Join native capture before sound, render and window teardown begins.
         if (event_id == dmEngine::EVENT_STATE && data && data_size == sizeof(dmEngine::StateEvent) &&
-            ((const dmEngine::StateEvent*)data)->m_State == dmEngine::STATE_DELETE)
+            ((const dmEngine::StateEvent*)data)->m_State == dmEngine::STATE_DELETE_BEGIN)
         {
             FinalizeService();
         }

@@ -207,7 +207,7 @@ extern "C" void EngineRecord();
 
 static void EngineDelete()
 {
-    dmEngine::StateEvent event = { dmEngine::STATE_DELETE };
+    dmEngine::StateEvent event = { dmEngine::STATE_DELETE_BEGIN };
     dmExtension::BroadcastEvent(dmExtension::ParamsGetContextRegistry(&g_Params), dmEngine::EVENT_STATE, &event, sizeof(event));
     DM_MUTEX_SCOPED_LOCK(dmRecord::g_Mutex);
     dmRecord::g_Teardown = true;

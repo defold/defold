@@ -116,7 +116,7 @@ static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const vo
             ++g_EngineEvents.m_Initialized;
             g_EngineEvents.m_InitializedContexts = params->m_L && params->m_ResourceFactory;
         }
-        else if (event->m_State == dmEngine::STATE_DELETE)
+        else if (event->m_State == dmEngine::STATE_DELETE_BEGIN)
         {
             ++g_EngineEvents.m_Deleted;
             g_EngineEvents.m_DeletedBeforeFinalize = g_EngineEvents.m_Finalized == 0;
@@ -145,12 +145,12 @@ static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const vo
         g_EngineEvents.m_PayloadValid &= engine == g_EngineEvents.m_Engine &&
                                          resized->m_Window == g_EngineEvents.m_Engine->m_Window;
         ++g_EngineEvents.m_Resized;
-        g_EngineEvents.m_Width = resized->m_Data.m_Size.m_Width;
-        g_EngineEvents.m_Height = resized->m_Data.m_Size.m_Height;
-        if (resized->m_Data.m_Size.m_Width && resized->m_Data.m_Size.m_Height)
+        g_EngineEvents.m_Width = resized->m_Data.m_Resized.m_Width;
+        g_EngineEvents.m_Height = resized->m_Data.m_Resized.m_Height;
+        if (resized->m_Data.m_Resized.m_Width && resized->m_Data.m_Resized.m_Height)
         {
-            float dx = g_EngineEvents.m_Engine->m_InvPhysicalWidth - 1.0f / resized->m_Data.m_Size.m_Width;
-            float dy = g_EngineEvents.m_Engine->m_InvPhysicalHeight - 1.0f / resized->m_Data.m_Size.m_Height;
+            float dx = g_EngineEvents.m_Engine->m_InvPhysicalWidth - 1.0f / resized->m_Data.m_Resized.m_Width;
+            float dy = g_EngineEvents.m_Engine->m_InvPhysicalHeight - 1.0f / resized->m_Data.m_Resized.m_Height;
             g_EngineEvents.m_WindowStateApplied &= dx < 0.00001f && dx > -0.00001f && dy < 0.00001f && dy > -0.00001f;
         }
     }

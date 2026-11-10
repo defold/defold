@@ -202,7 +202,7 @@ static void TypeEvent(dmExtension::Params* params, dmhash_t event_id, const void
         const dmEngine::StateEvent* event = (const dmEngine::StateEvent*)data;
         g_EventTest.m_State = event->m_State;
         g_EventTest.m_SourceWindow = 0;
-        if (event->m_State == dmEngine::STATE_DELETE)
+        if (event->m_State == dmEngine::STATE_DELETE_BEGIN)
         {
             ++g_EventTest.m_DeleteCount;
         }
@@ -215,8 +215,8 @@ static void TypeEvent(dmExtension::Params* params, dmhash_t event_id, const void
         if (event->m_Type == dmEngine::WINDOW_EVENT_RESIZED)
         {
             ++g_EventTest.m_WindowCount;
-            g_EventTest.m_Width = event->m_Data.m_Size.m_Width;
-            g_EventTest.m_Height = event->m_Data.m_Size.m_Height;
+            g_EventTest.m_Width = event->m_Data.m_Resized.m_Width;
+            g_EventTest.m_Height = event->m_Data.m_Resized.m_Height;
             if (g_EventTest.m_DispatchNested)
             {
                 g_EventTest.m_DispatchNested = false;
@@ -607,7 +607,7 @@ TEST(dmExtension, BuiltinEventHashes)
     DM_STATIC_ASSERT(ENGINE_STATE_EVENT == dmEngine::EVENT_STATE, Engine_State_Event_Mismatch);
     DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT == dmEngine::EVENT_WINDOW, Engine_Window_Event_Mismatch);
     DM_STATIC_ASSERT(ENGINE_STATE_INITIALIZED == dmEngine::STATE_INITIALIZED, Engine_State_INITIALIZED_Mismatch);
-    DM_STATIC_ASSERT(ENGINE_STATE_DELETE == dmEngine::STATE_DELETE, Engine_State_DELETE_Mismatch);
+    DM_STATIC_ASSERT(ENGINE_STATE_DELETE_BEGIN == dmEngine::STATE_DELETE_BEGIN, Engine_State_DELETE_Mismatch);
     DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT_RESIZED == dmEngine::WINDOW_EVENT_RESIZED, Engine_Window_RESIZED_Mismatch);
     DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT_MINIMIZED == dmEngine::WINDOW_EVENT_MINIMIZED, Engine_Window_MINIMIZED_Mismatch);
     DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT_RESTORED == dmEngine::WINDOW_EVENT_RESTORED, Engine_Window_RESTORED_Mismatch);
@@ -643,7 +643,7 @@ TEST(dmExtension, BuiltinEventHashes)
         }
         else
         {
-            dmEngine::State state = i == 4 ? dmEngine::STATE_INITIALIZED : dmEngine::STATE_DELETE;
+            dmEngine::State state = i == 4 ? dmEngine::STATE_INITIALIZED : dmEngine::STATE_DELETE_BEGIN;
             EXPECT_EQ(state, g_EventTest.m_State);
             EXPECT_EQ(state, g_TypeCEventState);
         }
@@ -819,7 +819,7 @@ TEST(dmExtension, UserDataLifecycle)
         g_EventTest.m_DispatchNested = true;
         dmEngine::WindowEvent window = { 0, dmEngine::WINDOW_EVENT_RESIZED, { { 100, 50 } } };
         dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_WINDOW, &window, sizeof(window));
-        BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE);
+        BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE_BEGIN);
         EXPECT_EQ((void*)0, dmExtension::AppParamsGetUserData(&context.m_AppParams));
         EXPECT_EQ((void*)0, dmExtension::ParamsGetUserData(&context.m_Params));
         dmExtension::Finalize(&context.m_Params);
@@ -840,7 +840,7 @@ TEST(dmExtension, UserDataLifecycle)
         {
             dmExtension::Initialize(&context.m_Params);
         }
-        BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE);
+        BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE_BEGIN);
         FinalizeEventTest(&context);
         EXPECT_EQ((int*)0, g_TypeTest.m_UserData);
     }
@@ -944,7 +944,7 @@ TEST(dmExtension, GenericEventLifecycle)
     EXPECT_EQ(2u, g_EventTest.m_WindowCount);
     dmExtension::AppFinalize(&context.m_AppParams);
     uint32_t count = g_EventTest.m_Count;
-    BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE);
+    BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE_BEGIN);
     EXPECT_EQ(count, g_EventTest.m_Count);
 
     g_OmitEventCallback = true;
@@ -969,7 +969,7 @@ TEST(dmExtension, GenericEventInitializationFailure)
         {
             dmExtension::Initialize(&context.m_Params);
         }
-        BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE);
+        BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE_BEGIN);
         FinalizeEventTest(&context);
         ASSERT_EQ(mode == TYPE_TEST_INITIALIZE_FAIL ? 1u : 0u, g_EventTest.m_DeleteCount);
         ASSERT_TRUE(g_TypeTest.m_OrderValid);

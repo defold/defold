@@ -55,7 +55,7 @@ void TestTypeCBroadcastBuiltinEvent(HContextRegistry context_registry, uint32_t 
     else
     {
         EngineStateEvent data = {
-            index == 4 ? ENGINE_STATE_INITIALIZED : ENGINE_STATE_DELETE
+            index == 4 ? ENGINE_STATE_INITIALIZED : ENGINE_STATE_DELETE_BEGIN
         };
         ExtensionBroadcastEvent(context_registry, ENGINE_STATE_EVENT, &data, sizeof(data));
     }
@@ -79,7 +79,7 @@ static void OnEvent(ExtensionParams* params, dmhash_t event_id, const void* data
         const EngineStateEvent* event = (const EngineStateEvent*)data;
         g_TypeCEventState = event->m_State;
         g_TypeCEventWindow = 0;
-        if (event->m_State == ENGINE_STATE_DELETE)
+        if (event->m_State == ENGINE_STATE_DELETE_BEGIN)
         {
             ++g_TypeCDeleteCount;
         }
@@ -92,8 +92,8 @@ static void OnEvent(ExtensionParams* params, dmhash_t event_id, const void* data
         if (event->m_Type == ENGINE_WINDOW_EVENT_RESIZED)
         {
             ++g_TypeCWindowCount;
-            g_TypeCWindowWidth = event->m_Data.m_Size.m_Width;
-            g_TypeCWindowHeight = event->m_Data.m_Size.m_Height;
+            g_TypeCWindowWidth = event->m_Data.m_Resized.m_Width;
+            g_TypeCWindowHeight = event->m_Data.m_Resized.m_Height;
         }
     }
 }

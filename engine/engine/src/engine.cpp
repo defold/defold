@@ -157,6 +157,9 @@ namespace dmEngine
 
 #define SYSTEM_SOCKET_NAME "@system"
 
+#define WINDOW_EVENT_INITIALIZER(window, type) { (window), (type), { { 0, 0 } } }
+#define WINDOW_RESIZED_EVENT_INITIALIZER(window, width, height) { (window), dmEngine::WINDOW_EVENT_RESIZED, { { (width), (height) } } }
+
     // Policy rate used when swap-interval pacing is requested but presentation
     // cannot currently pace the frame, such as when rendering is disabled.
     // Headless engines remain unpaced unless an explicit update frequency is set.
@@ -332,7 +335,7 @@ namespace dmEngine
 
         dmGameSystem::OnWindowResized(width, height);
 
-        dmEngine::WindowEvent event = { engine->m_Window, dmEngine::WINDOW_EVENT_RESIZED, { { width, height } } };
+        dmEngine::WindowEvent event = WINDOW_RESIZED_EVENT_INITIALIZER(engine->m_Window, width, height);
         dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_WINDOW, &event, sizeof(event));
     }
 
@@ -349,7 +352,7 @@ namespace dmEngine
     static void OnWindowFocus(void* user_data, uint32_t focus)
     {
         Engine* engine = (Engine*)user_data;
-        dmEngine::WindowEvent event = { engine->m_Window, focus ? dmEngine::WINDOW_EVENT_FOCUS_GAINED : dmEngine::WINDOW_EVENT_FOCUS_LOST, { { 0, 0 } } };
+        dmEngine::WindowEvent event = WINDOW_EVENT_INITIALIZER(engine->m_Window, focus ? dmEngine::WINDOW_EVENT_FOCUS_GAINED : dmEngine::WINDOW_EVENT_FOCUS_LOST);
         dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_WINDOW, &event, sizeof(event));
 
         dmGameSystem::OnWindowFocus(focus != 0);
@@ -363,7 +366,7 @@ namespace dmEngine
         // on some platforms both events will arrive when regaining focus
         engine->m_PreviousFrameTime = dmTime::GetMonotonicTime(); // we might have stalled for a long time
 
-        dmEngine::WindowEvent event = { engine->m_Window, iconify ? dmEngine::WINDOW_EVENT_MINIMIZED : dmEngine::WINDOW_EVENT_RESTORED, { { 0, 0 } } };
+        dmEngine::WindowEvent event = WINDOW_EVENT_INITIALIZER(engine->m_Window, iconify ? dmEngine::WINDOW_EVENT_MINIMIZED : dmEngine::WINDOW_EVENT_RESTORED);
         dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_WINDOW, &event, sizeof(event));
 
         dmGameSystem::OnWindowIconify(iconify != 0);
@@ -531,7 +534,7 @@ namespace dmEngine
             dmEngineService::OnEngineDelete(engine->m_EngineService);
 
         {
-            dmEngine::StateEvent event = { dmEngine::STATE_DELETE };
+            dmEngine::StateEvent event = { dmEngine::STATE_DELETE_BEGIN };
             dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_STATE, &event, sizeof(event));
         }
 

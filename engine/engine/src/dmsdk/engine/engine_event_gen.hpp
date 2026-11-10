@@ -25,19 +25,9 @@
 
 /*# Engine event definitions
  *
- * Built-in event hashes and payloads published through the generic extension
+ * Built-in event identifiers and payloads published through the generic extension
  * event transport in `<dmsdk/extension/extension.h>`. Custom events may use
- * arbitrary name hashes and payloads without central registration.
- *
- * Built-in IDs are precomputed dmHashString64 values and integer constant
- * expressions in C and C++.
- *
- * Built-in event hashes and their names:
- *
- * | Constant | Name | Payload and delivery |
- * | -------- | ---- | -------------------- |
- * | `EVENT_STATE` | `_dm_event_engine_state` | StateEvent. Successful initialization and engine deletion. |
- * | `EVENT_WINDOW` | `_dm_event_engine_window` | WindowEvent. Resize, minimize/restore and focus notifications from the window callbacks. May precede engine Initialize. |
+ * their own identifiers and payloads without central registration.
  *
  * Payloads and their handles are borrowed for the synchronous callback. Obtain
  * the source engine from the callback registry using ENGINE_CONTEXT_NAME.
@@ -66,8 +56,7 @@ extern "C" {
 namespace dmEngine
 {
     /*# engine state notification
-     * Hash of `_dm_event_engine_state` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
-     * Precomputed dmHashString64 value; no runtime hashing.
+     * Identifier for StateEvent notifications.
      * @constant
      * @name EVENT_STATE
      * @language C++
@@ -75,8 +64,7 @@ namespace dmEngine
     static const dmhash_t EVENT_STATE = ENGINE_STATE_EVENT;
 
     /*# engine window notification
-     * Hash of `_dm_event_engine_window` for dmExtension::BroadcastEvent and dmExtension::FEventCallback.
-     * Precomputed dmHashString64 value; no runtime hashing.
+     * Identifier for WindowEvent notifications.
      * @constant
      * @name EVENT_WINDOW
      * @language C++
@@ -89,18 +77,18 @@ namespace dmEngine
      * @name State
      * @language C++
      * @member  STATE_INITIALIZED Successful engine initialization has completed.
-     * @member  STATE_DELETE Engine deletion begins, before collections and systems are torn down. Also delivered after initialization failure if AppInitialize succeeded.
+     * @member  STATE_DELETE_BEGIN Engine deletion begins, before collections and systems are torn down. Also delivered after initialization failure if AppInitialize succeeded.
      */
     typedef ::EngineState State;
     static const State STATE_INITIALIZED = ::ENGINE_STATE_INITIALIZED;
-    static const State STATE_DELETE = ::ENGINE_STATE_DELETE;
+    static const State STATE_DELETE_BEGIN = ::ENGINE_STATE_DELETE_BEGIN;
 
     /*# window notification kind
      * Identifies the active payload in WindowEvent.
      * @enum
      * @name WindowEventType
      * @language C++
-     * @member  WINDOW_EVENT_RESIZED Resize notification. Read physical dimensions from m_Data.m_Size.
+     * @member  WINDOW_EVENT_RESIZED Resize notification. Read physical dimensions from m_Data.m_Resized.
      * @member  WINDOW_EVENT_MINIMIZED The window was minimized; not a hide notification.
      * @member  WINDOW_EVENT_RESTORED The window was restored from minimization; not a show notification.
      * @member  WINDOW_EVENT_FOCUS_GAINED The window or app screen gained focus.
@@ -126,7 +114,7 @@ namespace dmEngine
     /*# engine window event payload
      * Payload for EVENT_WINDOW with data_size equal to sizeof(WindowEvent).
      * m_Type selects the valid union member. Only WINDOW_EVENT_RESIZED has
-     * event-specific data: m_Data.m_Size contains the physical framebuffer dimensions.
+     * event-specific data: m_Data.m_Resized contains the physical framebuffer dimensions.
      * Do not read that member for other notification types.
      *
      * Resize delivery follows the existing window state updates and notifications,
@@ -138,8 +126,8 @@ namespace dmEngine
      * @language C++
      * @member m_Window [type:HWindow] borrowed source window, or null if not yet available
      * @member m_Type [type:WindowEventType] notification selecting the valid payload
-     * @member  m_Data.m_Size.m_Width [type:uint32_t] physical framebuffer width; valid only for WINDOW_EVENT_RESIZED
-     * @member  m_Data.m_Size.m_Height [type:uint32_t] physical framebuffer height; valid only for WINDOW_EVENT_RESIZED
+     * @member  m_Data.m_Resized.m_Width [type:uint32_t] physical framebuffer width; valid only for WINDOW_EVENT_RESIZED
+     * @member  m_Data.m_Resized.m_Height [type:uint32_t] physical framebuffer height; valid only for WINDOW_EVENT_RESIZED
      */
     typedef EngineWindowEvent WindowEvent;
 
@@ -148,8 +136,7 @@ namespace dmEngine
 
 #endif // #define DMSDK_ENGINE_EVENT_GEN_HPP
 /*# engine state notification
- * Hash of `_dm_event_engine_state` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Precomputed dmHashString64 value; no runtime hashing.
+ * Identifier for EngineStateEvent notifications.
  * @constant
  * @name ENGINE_STATE_EVENT
  * @language C
@@ -161,12 +148,11 @@ namespace dmEngine
  * @name EngineState
  * @language C
  * @member  ENGINE_STATE_INITIALIZED Successful engine initialization has completed.
- * @member  ENGINE_STATE_DELETE Engine deletion begins, before collections and systems are torn down. Also delivered after initialization failure if AppInitialize succeeded.
+ * @member  ENGINE_STATE_DELETE_BEGIN Engine deletion begins, before collections and systems are torn down. Also delivered after initialization failure if AppInitialize succeeded.
  */
 
 /*# engine window notification
- * Hash of `_dm_event_engine_window` for ExtensionBroadcastEvent and FExtensionEventCallback.
- * Precomputed dmHashString64 value; no runtime hashing.
+ * Identifier for EngineWindowEvent notifications.
  * @constant
  * @name ENGINE_WINDOW_EVENT
  * @language C
@@ -177,7 +163,7 @@ namespace dmEngine
  * @enum
  * @name EngineWindowEventType
  * @language C
- * @member  ENGINE_WINDOW_EVENT_RESIZED Resize notification. Read physical dimensions from m_Data.m_Size.
+ * @member  ENGINE_WINDOW_EVENT_RESIZED Resize notification. Read physical dimensions from m_Data.m_Resized.
  * @member  ENGINE_WINDOW_EVENT_MINIMIZED The window was minimized; not a hide notification.
  * @member  ENGINE_WINDOW_EVENT_RESTORED The window was restored from minimization; not a show notification.
  * @member  ENGINE_WINDOW_EVENT_FOCUS_GAINED The window or app screen gained focus.
@@ -196,7 +182,7 @@ namespace dmEngine
 /*# engine window event payload
  * Payload for ENGINE_WINDOW_EVENT with data_size equal to sizeof(EngineWindowEvent).
  * m_Type selects the valid union member. Only ENGINE_WINDOW_EVENT_RESIZED has
- * event-specific data: m_Data.m_Size contains the physical framebuffer dimensions.
+ * event-specific data: m_Data.m_Resized contains the physical framebuffer dimensions.
  * Do not read that member for other notification types.
  *
  * Resize delivery follows the existing window state updates and notifications,
@@ -208,6 +194,6 @@ namespace dmEngine
  * @language C
  * @member m_Window [type:HWindow] borrowed source window, or null if not yet available
  * @member m_Type [type:EngineWindowEventType] notification selecting the valid payload
- * @member  m_Data.m_Size.m_Width [type:uint32_t] physical framebuffer width; valid only for ENGINE_WINDOW_EVENT_RESIZED
- * @member  m_Data.m_Size.m_Height [type:uint32_t] physical framebuffer height; valid only for ENGINE_WINDOW_EVENT_RESIZED
+ * @member  m_Data.m_Resized.m_Width [type:uint32_t] physical framebuffer width; valid only for ENGINE_WINDOW_EVENT_RESIZED
+ * @member  m_Data.m_Resized.m_Height [type:uint32_t] physical framebuffer height; valid only for ENGINE_WINDOW_EVENT_RESIZED
  */
