@@ -2213,11 +2213,18 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, uint32_t clear_flags, 
 
     if (context->m_ViewportChanged)
     {
-        const int32_t vx1 = dmMath::Clamp(context->m_ViewportRect[0], 0, int32_t(context->m_CurrentRenderPass.m_Target->m_Width));
-        const int32_t vy1 = dmMath::Clamp(context->m_ViewportRect[1], 0, int32_t(context->m_CurrentRenderPass.m_Target->m_Height));
-        const int32_t vx2 = dmMath::Clamp(context->m_ViewportRect[2], 0, int32_t(context->m_CurrentRenderPass.m_Target->m_Width));
-        const int32_t vy2 = dmMath::Clamp(context->m_ViewportRect[3], 0, int32_t(context->m_CurrentRenderPass.m_Target->m_Height));
-        wgpuRenderPassEncoderSetViewport(context->m_CurrentRenderPass.m_Encoder, vx1, vy1, vx2 - vx1, vy2 - vy1, 0.0f, 1.0f);
+        WebGPURenderTarget* target = context->m_CurrentRenderPass.m_Target;
+        const float x = (float)context->m_ViewportRect[0];
+        float y = (float)context->m_ViewportRect[1];
+        const float width = (float)context->m_ViewportRect[2];
+        const float height = (float)context->m_ViewportRect[3];
+        // Offscreen shaders already flip Y to preserve GL-style texture orientation.
+        // Only the window viewport needs a bottom-left to top-left conversion.
+        if (target->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            y = (float)target->m_Height - y - height;
+        }
+        wgpuRenderPassEncoderSetViewport(context->m_CurrentRenderPass.m_Encoder, x, y, width, height, 0.0f, 1.0f);
         wgpuRenderPassEncoderSetScissorRect(context->m_CurrentRenderPass.m_Encoder, context->m_CurrentRenderPass.m_Target->m_Scissor[0], context->m_CurrentRenderPass.m_Target->m_Scissor[1], context->m_CurrentRenderPass.m_Target->m_Scissor[2], context->m_CurrentRenderPass.m_Target->m_Scissor[3]);
         context->m_ViewportChanged = 0;
     }
