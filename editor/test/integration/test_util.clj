@@ -352,14 +352,18 @@
     (workspace/get-resource-type workspace editability type-ext)))
 
 (defn write-file-resource!
-  ^File [workspace proj-path save-value]
+  "Writes raw string or byte-array contents, or serializes a resource
+  save-value. Returns the written file."
+  ^File [workspace proj-path content]
   {:pre [(string/starts-with? proj-path "/")]}
   (let [basis (g/now)
-        resource-type (proj-path-resource-type basis workspace proj-path)
         project-directory (workspace/project-directory basis workspace)
         file (io/file project-directory (subs proj-path 1))
-        write-fn (:write-fn resource-type)
-        contents (write-fn save-value)]
+        contents (if (or (string? content) (bytes? content))
+                   content
+                   (let [resource-type (proj-path-resource-type basis workspace proj-path)
+                         write-fn (:write-fn resource-type)]
+                     (write-fn content)))]
     (test-support/write-until-new-mtime
       file contents)
     file))
@@ -722,15 +726,18 @@
                ~@forms)))))))
 
 (defmacro with-temp-project-content
-  [save-values-by-proj-path & body]
-  `(let [save-values-by-proj-path# ~save-values-by-proj-path
+  "Creates a temporary project from a map of project paths to file contents.
+  The file contents can be byte arrays, strings, or save-values. The latter will
+  be serialized using the resource type's :write-fn."
+  [contents-by-proj-path & body]
+  `(let [contents-by-proj-path# ~contents-by-proj-path
          ~'project-path (make-temp-project-copy! "test/resources/empty_project")]
-     (with-open [project-directory-deleter# (make-directory-deleter ~'project-path)]
+     (with-open [_project-directory-deleter# (make-directory-deleter ~'project-path)]
        (test-support/with-clean-system {:cache-size ~system-cache-size
                                         :cache-retain? project/cache-retain?}
          (let [~'workspace (setup-workspace! ~'project-path)]
-           (doseq [[proj-path# save-value#] save-values-by-proj-path#]
-             (write-file-resource! ~'workspace proj-path# save-value#))
+           (doseq [[proj-path# content#] contents-by-proj-path#]
+             (write-file-resource! ~'workspace proj-path# content#))
            (workspace/resource-sync! ~'workspace)
            (fetch-libraries! ~'workspace)
            (let [~'project (setup-project! ~'workspace)
@@ -1323,7 +1330,7 @@
 
 (def referenced-collection (comp single referenced-collections))
 
-(defonce ^:private png-image-bytes
+(defonce png-image-bytes
   ;; Bytes representing a single-color 256 by 256 pixel PNG file.
   ;; Source: https://www.mjt.me.uk/posts/smallest-png/
   (byte-array [0x89 0x50 0x4E 0x47  0x0D 0x0A 0x1A 0x0A  0x00 0x00 0x00 0x0D  0x49 0x48 0x44 0x52

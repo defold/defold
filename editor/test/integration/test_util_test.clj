@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.test-util-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.collection :as collection]
             [editor.defold-project :as project]
@@ -26,7 +27,28 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :as test-support]))
+            [support.test-support :as test-support])
+  (:import [java.nio.file Files]))
+
+;; Preserves raw text and binary bytes, including empty files, while continuing
+;; to serialize resource maps and script line vectors.
+(deftest with-temp-project-content-test
+  (let [raw-text "-- åäö\r\nreturn {}\r\n"
+        raw-bytes (byte-array [0 -1 -128 127 13 10])]
+    (test-util/with-temp-project-content
+      {"/nested/raw.script" raw-text
+       "/nested/raw.bin" raw-bytes
+       "/nested/empty.txt" ""
+       "/nested/empty.bin" (byte-array 0)
+       "/test.collection" {:name "temporary"}
+       "/lines.script" ["-- saved lines" "return {}" ""]}
+      (is (= raw-text (slurp (io/file project-path "nested/raw.script"))))
+      (is (= (vec raw-bytes)
+             (vec (Files/readAllBytes (.toPath (io/file project-path "nested/raw.bin"))))))
+      (is (= "" (slurp (io/file project-path "nested/empty.txt"))))
+      (is (zero? (Files/size (.toPath (io/file project-path "nested/empty.bin")))))
+      (is (= "temporary" (:name (g/node-value (test-util/resource-node project "/test.collection") :save-value))))
+      (is (= "-- saved lines\nreturn {}\n" (slurp (io/file project-path "lines.script")))))))
 
 (deftest number-type-preserving?-test
   (let [number-type-preserving? ; Silence inner assertions since we'll be triggering failures.
