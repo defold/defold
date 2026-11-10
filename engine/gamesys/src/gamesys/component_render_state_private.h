@@ -239,11 +239,30 @@ namespace dmGameSystem
     dmRender::RenderFrameResult CaptureComponentRenderWorld(HComponentRenderWorld world, dmRender::HRenderFrameStorage frame, FComponentRenderWriteInputs write_inputs, void* producer_context);
 
     /**
-     * Queue-compatible render-owner callback dispatching immutable component inputs.
+     * Prepare component rendering from immutable inputs on the render owner.
      * Initialization failure cleans partial state and skips that world's payloads. The
      * first error is retained; other accepted entries still execute after an init/consume error.
+     * Call EndComponentRenderFrameConsumption after all passes, before returning to the
+     * queue. Do not nest consumption or retire storage between the two calls.
      * @param context Component lifetime manager
      * @param frame Published frame view; no game world/context is passed to consumers
+     */
+    void BeginComponentRenderFrameConsumption(HComponentRenderStateContext context, const dmRender::RenderFrameView& frame);
+
+    /**
+     * Finish every prepared capture after all passes, including captures whose Consume
+     * failed. Releases borrowed inputs before CPU retirement; does not retire the frame
+     * or destroy worlds. Must run even for empty or fully culled frames.
+     * @param context Component lifetime manager
+     * @param frame Same published frame passed to BeginComponentRenderFrameConsumption
+     */
+    void EndComponentRenderFrameConsumption(HComponentRenderStateContext context, const dmRender::RenderFrameView& frame);
+
+    /**
+     * Queue-compatible consumer for component-only frames. Pairs preparation and cleanup
+     * immediately because there are no passes; rendering contexts use the explicit pair.
+     * @param context Component lifetime manager
+     * @param frame Published component inputs
      */
     void ConsumeComponentRenderFrame(void* context, const dmRender::RenderFrameView& frame);
 

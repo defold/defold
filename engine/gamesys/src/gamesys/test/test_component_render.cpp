@@ -30,6 +30,7 @@
 #include <gameobject/gameobject.h>
 #include <graphics/null/graphics_null_private.h>
 #include <platform/window.hpp>
+#include <render/render_command.h>
 #include <render/render_execution.h>
 #include <render/render_frame_queue.h>
 #include <render/render_frame.h>
@@ -58,6 +59,7 @@ namespace
         EVENT_TYPE_RENDER_CREATE,
         EVENT_TYPE_RENDER_CONSUME,
         EVENT_TYPE_RENDER_DRAW,
+        EVENT_TYPE_RENDER_END_FRAME,
         EVENT_TYPE_RENDER_DELETE,
     };
 
@@ -88,10 +90,13 @@ namespace
         uint8_t                                 m_FailRenderInit;
         uint8_t                                 m_FailRenderConsume;
         uint8_t                                 m_HoldConsume;
+        uint8_t                                 m_HoldDraw;
         // All concurrent accesses to these flags hold m_Mutex.
         uint8_t                                 m_WrongOwner;
         uint8_t                                 m_ConsumeEntered;
         uint8_t                                 m_ReleaseConsume;
+        uint8_t                                 m_DrawEntered;
+        uint8_t                                 m_ReleaseDraw;
     };
 
     struct ArtificialType
@@ -129,6 +134,8 @@ namespace
     struct ArtificialRenderer
     {
         dmGameSystem::ComponentRenderWorldInfo m_Info;
+        dmGameSystem::ComponentRenderFrame     m_Frame;
+        Probe*                                m_Probe;
         dmRender::HRenderItem                  m_Item;
         dmRender::HRenderItemDispatch          m_Dispatch;
     };
@@ -317,11 +324,29 @@ namespace
     {
         if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
         {
-            Probe* probe = (Probe*)params.m_UserData;
+            ArtificialRenderer* renderer = (ArtificialRenderer*)params.m_UserData;
+            Probe* probe = renderer->m_Probe;
+            dmMutex::Lock(probe->m_Mutex);
+            if (probe->m_HoldDraw)
+            {
+                probe->m_DrawEntered = true;
+                dmConditionVariable::Broadcast(probe->m_Changed);
+                while (!probe->m_ReleaseDraw)
+                {
+                    dmConditionVariable::Wait(probe->m_Changed, probe->m_Mutex);
+                }
+            }
+            dmMutex::Unlock(probe->m_Mutex);
+
+            // Dispatch runs after ConsumeRenderer has returned. Read the borrowed
+            // payload here, rather than a value copied into the persistent item.
+            assert(renderer->m_Frame.m_Frame);
+            const ArtificialInput* input = (const ArtificialInput*)dmRender::GetRenderFrameTableData(
+                *renderer->m_Frame.m_Frame, renderer->m_Frame.m_FirstTable);
             for (uint32_t* i = params.m_Begin; i != params.m_End; ++i)
             {
                 const dmRender::RenderListEntry& entry = params.m_Buf[*i];
-                RecordEvent(probe, EVENT_TYPE_RENDER_DRAW, 0, 0, entry.m_BatchKey, 0,
+                RecordEvent(probe, EVENT_TYPE_RENDER_DRAW, input->m_Type, input->m_World, input->m_Value, input->m_X,
                             dmRender::EXECUTION_OWNER_RENDER, entry.m_UserData);
             }
         }
@@ -331,13 +356,14 @@ namespace
     {
         Probe* probe = (Probe*)context;
         assert(size == sizeof(dmGameSystem::ComponentRenderWorldInfo));
-        ArtificialRenderer* renderer = (ArtificialRenderer*)malloc(sizeof(ArtificialRenderer));
+        ArtificialRenderer* renderer = (ArtificialRenderer*)calloc(1, sizeof(ArtificialRenderer));
         renderer->m_Info = *(const dmGameSystem::ComponentRenderWorldInfo*)data;
+        renderer->m_Probe = probe;
         *state = renderer;
         RecordEvent(probe, EVENT_TYPE_RENDER_CREATE, renderer->m_Info.m_ComponentIndex, 0, 0, 0, dmRender::EXECUTION_OWNER_RENDER, renderer->m_Info.m_WorldId);
         if (probe->m_RenderContext)
         {
-            renderer->m_Dispatch = dmRender::RegisterRenderListDispatch(probe->m_RenderContext, DrawArtificialRenderer, 0, probe);
+            renderer->m_Dispatch = dmRender::RegisterRenderListDispatch(probe->m_RenderContext, DrawArtificialRenderer, 0, renderer);
             renderer->m_Item = dmRender::NewRenderItem(probe->m_RenderContext, renderer->m_Dispatch, renderer->m_Info.m_WorldId);
             dmRender::SetMaterial(probe->m_RenderContext, renderer->m_Item, 0);
             dmRender::Enable(probe->m_RenderContext, renderer->m_Item, true);
@@ -346,7 +372,7 @@ namespace
     }
 
     static dmRender::RenderFrameResult ConsumeRenderer(void* context, void* state,
-        const dmRender::RenderFrameView& frame, uint32_t first_table, uint32_t table_count)
+                                                       const dmGameSystem::ComponentRenderFrame& frame)
     {
         Probe* probe = (Probe*)context;
         dmMutex::Lock(probe->m_Mutex);
@@ -361,10 +387,12 @@ namespace
         }
         dmMutex::Unlock(probe->m_Mutex);
         ArtificialRenderer* renderer = (ArtificialRenderer*)state;
-        assert(table_count == 1);
-        const ArtificialInput* input = (const ArtificialInput*)dmRender::GetRenderFrameTableData(frame, first_table);
-        assert(frame.m_Tables[first_table].m_Count == 1);
-        assert(frame.m_Tables[first_table].m_Stride == sizeof(*input));
+        assert(!renderer->m_Frame.m_Frame);
+        renderer->m_Frame = frame;
+        assert(frame.m_TableCount == 1);
+        const ArtificialInput* input = (const ArtificialInput*)dmRender::GetRenderFrameTableData(*frame.m_Frame, frame.m_FirstTable);
+        assert(frame.m_Frame->m_Tables[frame.m_FirstTable].m_Count == 1);
+        assert(frame.m_Frame->m_Tables[frame.m_FirstTable].m_Stride == sizeof(*input));
         assert(input->m_Type == renderer->m_Info.m_ComponentIndex);
 
         RecordEvent((Probe*)context, EVENT_TYPE_RENDER_CONSUME, input->m_Type, input->m_World, input->m_Value, input->m_X, dmRender::EXECUTION_OWNER_RENDER, renderer->m_Info.m_WorldId);
@@ -376,9 +404,22 @@ namespace
         return ((Probe*)context)->m_FailRenderConsume ? dmRender::RENDER_FRAME_INVALID_ARGUMENT : dmRender::RENDER_FRAME_OK;
     }
 
+    static void EndRendererFrame(void* context, void* state, const dmGameSystem::ComponentRenderFrame& frame)
+    {
+        ArtificialRenderer* renderer = (ArtificialRenderer*)state;
+        assert(renderer->m_Frame.m_Frame == frame.m_Frame);
+        assert(renderer->m_Frame.m_FirstTable == frame.m_FirstTable);
+        assert(renderer->m_Frame.m_TableCount == frame.m_TableCount);
+        const ArtificialInput* input = (const ArtificialInput*)dmRender::GetRenderFrameTableData(*frame.m_Frame, frame.m_FirstTable);
+        RecordEvent((Probe*)context, EVENT_TYPE_RENDER_END_FRAME, input->m_Type, input->m_World, input->m_Value, input->m_X,
+                    dmRender::EXECUTION_OWNER_RENDER, renderer->m_Info.m_WorldId);
+        memset(&renderer->m_Frame, 0, sizeof(renderer->m_Frame));
+    }
+
     static void DeleteRenderer(void* context, void* state)
     {
         ArtificialRenderer* renderer = (ArtificialRenderer*)state;
+        assert(!renderer->m_Frame.m_Frame);
         Probe* probe = (Probe*)context;
         if (probe->m_RenderContext)
         {
@@ -395,6 +436,7 @@ namespace
         type.m_Capture = Capture;
         type.m_RenderCallbacks.m_Initialize = InitializeRenderer;
         type.m_RenderCallbacks.m_Consume = ConsumeRenderer;
+        type.m_RenderCallbacks.m_EndFrame = EndRendererFrame;
         type.m_RenderCallbacks.m_Destroy = DeleteRenderer;
         type.m_RenderContext = probe;
         return type;
@@ -1168,6 +1210,7 @@ TEST(ComponentRender, ComponentInputsAreConsumedBeforePassCommands)
         ASSERT_EQ(EVENT_TYPE_RENDER_CREATE, fixture.m_Probe.m_Events[first_consume_event].m_EventType);
         ASSERT_EQ(EVENT_TYPE_RENDER_CONSUME, fixture.m_Probe.m_Events[first_consume_event + 1].m_EventType);
         ASSERT_EQ(EVENT_TYPE_RENDER_DRAW, fixture.m_Probe.m_Events[first_consume_event + 2].m_EventType);
+        ASSERT_EQ(EVENT_TYPE_RENDER_END_FRAME, fixture.m_Probe.m_Events[first_consume_event + 3].m_EventType);
         ASSERT_EQ(10u, GetEvent(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW, 0).m_Value);
         ASSERT_EQ(1.0f, fixture.m_RenderContext->m_Time);
         ASSERT_EQ(0.125f, fixture.m_RenderContext->m_Dt);
@@ -1179,6 +1222,222 @@ TEST(ComponentRender, ComponentInputsAreConsumedBeforePassCommands)
             ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_IDLE, Pump(&executor, false));
             dmRender::HRenderFrameQueue queue = dmGameSystem::GetComponentRenderQueue(fixture.m_Render);
             dmRender::StopRenderFrameQueue(queue);
+            ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_DRAINED, Pump(&executor, true));
+        }
+        ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
+        DeleteComponentRenderFixture(&fixture);
+    }
+}
+
+// Verify borrowed inputs last through every pass, end without any matching draw, and clear before storage reuse.
+TEST(ComponentRender, FrameBindingsSpanAllPasses)
+{
+    const dmRender::ExecutionMode modes[] = { dmRender::EXECUTION_MODE_INLINE, dmRender::EXECUTION_MODE_THREADED };
+    const uint32_t mode_count = HasThreads() ? 2 : 1;
+    for (uint32_t mode = 0; mode < mode_count; ++mode)
+    {
+        // No commands, a filtered-out draw, and two actual draws all share the same
+        // complete-frame end boundary, regardless of render-list END callbacks.
+        for (uint32_t pass_count = 0; pass_count <= 2; ++pass_count)
+        {
+            ComponentRenderFixture fixture;
+            NewComponentRenderFixture(&fixture, modes[mode], 1, true, true);
+            fixture.m_Types[0].m_ObserveRetirement = true;
+            Executor executor;
+            if (modes[mode] == dmRender::EXECUTION_MODE_THREADED)
+            {
+                StartExecutor(&executor, &fixture);
+            }
+
+            dmGameObject::HCollection collection = NewCollection(&fixture, "frame_scoped_bindings");
+            ASSERT_NE((dmGameObject::HCollection)0, collection);
+            dmRender::HRenderFrameQueue queue = dmGameSystem::GetComponentRenderQueue(fixture.m_Render);
+            const uint32_t draws_per_frame = pass_count == 2 ? 2 : 0;
+            for (uint32_t frame_index = 0; frame_index < 2; ++frame_index)
+            {
+                const uint32_t captured_value = 10 + 100 * frame_index;
+                GetWorld(collection)->m_Value = captured_value;
+                dmRender::RenderFrameTicket ticket;
+                ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::BeginRenderFrameCapture(queue, &ticket));
+                dmRender::BeginFrame(fixture.m_RenderContext, (float)frame_index, 0.125f);
+                dmRender::RenderListBegin(fixture.m_RenderContext);
+                ASSERT_TRUE(dmGameSystem::CaptureComponentRenderData(fixture.m_Render, collection, ticket.m_Frame));
+                ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::RecordRenderFrameInfo(ticket.m_Frame,
+                                                                                     dmRender::GetRenderFrameInfo(fixture.m_RenderContext)));
+
+                dmRender::Predicate predicate = {};
+                predicate.m_TagCount = 1;
+                predicate.m_Tags[0] = dmHashString64("not-an-artificial-item");
+                dmRender::Command commands[] = { dmRender::Command(dmRender::COMMAND_TYPE_DRAW), dmRender::Command(dmRender::COMMAND_TYPE_DRAW) };
+                for (uint32_t pass = 0; pass < pass_count; ++pass)
+                {
+                    dmRender::Command source(dmRender::COMMAND_TYPE_DRAW, pass_count == 1 ? (uint64_t)&predicate : 0, 0, 0, dmRender::SORT_NONE);
+                    ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::RecordRenderCommand(fixture.m_RenderContext,
+                                                                                       ticket.m_Frame, source, &commands[pass], 0, false, false));
+                }
+                if (pass_count)
+                {
+                    ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::AppendRenderCommands(ticket.m_Frame, commands, pass_count));
+                }
+
+                GetWorld(collection)->m_Value = 999;
+                if (modes[mode] == dmRender::EXECUTION_MODE_INLINE)
+                {
+                    dmGraphics::BeginFrame(fixture.m_Graphics);
+                }
+                ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::PublishRenderFrame(queue, ticket));
+                if (modes[mode] == dmRender::EXECUTION_MODE_THREADED)
+                {
+                    ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_CONSUMED, Pump(&executor, true));
+                }
+
+                ASSERT_EQ(frame_index + 1, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));
+                ASSERT_EQ((frame_index + 1) * draws_per_frame, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW));
+                ASSERT_EQ(frame_index + 1, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_END_FRAME));
+                ASSERT_EQ(captured_value, GetEvent(&fixture.m_Probe, EVENT_TYPE_RENDER_END_FRAME, frame_index).m_Value);
+                for (uint32_t draw = 0; draw < draws_per_frame; ++draw)
+                {
+                    ASSERT_EQ(captured_value, GetEvent(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW,
+                                                       frame_index * draws_per_frame + draw).m_Value);
+                }
+
+                // Cleanup follows the final draw but does not retire the packet.
+                ASSERT_EQ(EVENT_TYPE_RENDER_END_FRAME, fixture.m_Probe.m_Events[fixture.m_Probe.m_EventCount - 1].m_EventType);
+                ASSERT_EQ(frame_index, CountEvents(&fixture.m_Probe, EVENT_TYPE_FRAME_RELEASE));
+                ASSERT_EQ(1u, dmRender::RetireRenderFrames(queue));
+                ASSERT_EQ(EVENT_TYPE_FRAME_RELEASE, fixture.m_Probe.m_Events[fixture.m_Probe.m_EventCount - 1].m_EventType);
+            }
+
+            DeleteCollection(&fixture, collection);
+            if (modes[mode] == dmRender::EXECUTION_MODE_THREADED)
+            {
+                ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_IDLE, Pump(&executor, false));
+                dmRender::StopRenderFrameQueue(queue);
+                ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_DRAINED, Pump(&executor, true));
+            }
+            else
+            {
+                dmGameSystem::ServiceComponentRenderContext(fixture.m_Render);
+            }
+            ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DELETE));
+            ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
+            DeleteComponentRenderFixture(&fixture);
+        }
+    }
+}
+
+// Verify a late draw reads published input after game-world deletion and ends before retirement destroys renderer state.
+TEST(ComponentRender, LateDrawSurvivesGameWorldDeletion)
+{
+    if (!HasThreads())
+    {
+        return;
+    }
+
+    ComponentRenderFixture fixture;
+    NewComponentRenderFixture(&fixture, dmRender::EXECUTION_MODE_THREADED, 1, true, true);
+    fixture.m_Types[0].m_ObserveRetirement = true;
+    fixture.m_Probe.m_HoldDraw = true;
+    Executor executor;
+    StartExecutor(&executor, &fixture);
+    dmGameObject::HCollection collection = NewCollection(&fixture, "deleted_before_late_draw");
+    ASSERT_NE((dmGameObject::HCollection)0, collection);
+
+    ASSERT_TRUE(dmGameSystem::BeginFrame(fixture.m_Context));
+    dmRender::BeginFrame(fixture.m_RenderContext, 1.0f, 0.125f);
+    dmRender::RenderListBegin(fixture.m_RenderContext);
+    ASSERT_TRUE(dmGameSystem::Render(fixture.m_Context, collection));
+    ASSERT_TRUE(dmGameSystem::SubmitRender(fixture.m_Context, 0, 0.125f, 0));
+    RequestPump(&executor, true);
+    dmMutex::Lock(fixture.m_Probe.m_Mutex);
+    while (!fixture.m_Probe.m_DrawEntered)
+    {
+        dmConditionVariable::Wait(fixture.m_Probe.m_Changed, fixture.m_Probe.m_Mutex);
+    }
+    dmMutex::Unlock(fixture.m_Probe.m_Mutex);
+
+    GetWorld(collection)->m_Value = 999;
+    DeleteCollection(&fixture, collection);
+    ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));
+    ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW));
+    ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_END_FRAME));
+    ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_FRAME_RELEASE));
+    ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DELETE));
+
+    dmMutex::Lock(fixture.m_Probe.m_Mutex);
+    fixture.m_Probe.m_ReleaseDraw = true;
+    dmConditionVariable::Broadcast(fixture.m_Probe.m_Changed);
+    dmMutex::Unlock(fixture.m_Probe.m_Mutex);
+    ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_CONSUMED, WaitPump(&executor));
+
+    ASSERT_EQ(10u, GetEvent(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW, 0).m_Value);
+    ASSERT_EQ(1u, GetEvent(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW, 0).m_World);
+    ASSERT_EQ(EVENT_TYPE_RENDER_DRAW, fixture.m_Probe.m_Events[fixture.m_Probe.m_EventCount - 2].m_EventType);
+    ASSERT_EQ(EVENT_TYPE_RENDER_END_FRAME, fixture.m_Probe.m_Events[fixture.m_Probe.m_EventCount - 1].m_EventType);
+    ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_FRAME_RELEASE));
+
+    dmGameSystem::EndComponentRenderFrame(fixture.m_Render);
+    ASSERT_EQ(EVENT_TYPE_FRAME_RELEASE, fixture.m_Probe.m_Events[fixture.m_Probe.m_EventCount - 1].m_EventType);
+    ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_IDLE, Pump(&executor, false));
+    ASSERT_EQ(EVENT_TYPE_RENDER_DELETE, fixture.m_Probe.m_Events[fixture.m_Probe.m_EventCount - 1].m_EventType);
+    dmRender::StopRenderFrameQueue(dmGameSystem::GetComponentRenderQueue(fixture.m_Render));
+    ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_DRAINED, Pump(&executor, true));
+    ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
+    DeleteComponentRenderFixture(&fixture);
+}
+
+// Verify component preparation errors still execute accepted passes and end every initialized component before retirement.
+TEST(ComponentRender, FailedPreparationStillReplaysPassesAndEnds)
+{
+    const dmRender::ExecutionMode modes[] = { dmRender::EXECUTION_MODE_INLINE, dmRender::EXECUTION_MODE_THREADED };
+    const uint32_t mode_count = HasThreads() ? 2 : 1;
+    for (uint32_t mode = 0; mode < mode_count; ++mode)
+    {
+        ComponentRenderFixture fixture;
+        NewComponentRenderFixture(&fixture, modes[mode], 2, true, true);
+        fixture.m_Probe.m_FailRenderConsume = true;
+        fixture.m_Types[0].m_ObserveRetirement = true;
+        fixture.m_Types[1].m_ObserveRetirement = true;
+        Executor executor;
+        if (modes[mode] == dmRender::EXECUTION_MODE_THREADED)
+        {
+            StartExecutor(&executor, &fixture);
+        }
+        dmGameObject::HCollection collection = NewCollection(&fixture, "failed_frame_preparation");
+        ASSERT_NE((dmGameObject::HCollection)0, collection);
+
+        ASSERT_TRUE(dmGameSystem::BeginFrame(fixture.m_Context));
+        dmRender::BeginFrame(fixture.m_RenderContext, 1.0f, 0.125f);
+        dmRender::RenderListBegin(fixture.m_RenderContext);
+        ASSERT_TRUE(dmGameSystem::Render(fixture.m_Context, collection));
+        if (modes[mode] == dmRender::EXECUTION_MODE_INLINE)
+        {
+            dmGraphics::BeginFrame(fixture.m_Graphics);
+        }
+        ASSERT_TRUE(dmGameSystem::SubmitRender(fixture.m_Context, 0, 0.125f, 0));
+        if (modes[mode] == dmRender::EXECUTION_MODE_THREADED)
+        {
+            ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_CONSUMED, Pump(&executor, true));
+        }
+
+        ASSERT_EQ(2u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));
+        ASSERT_EQ(2u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW));
+        ASSERT_EQ(2u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_END_FRAME));
+        const uint32_t event_count = fixture.m_Probe.m_EventCount;
+        ASSERT_EQ(EVENT_TYPE_RENDER_DRAW, fixture.m_Probe.m_Events[event_count - 4].m_EventType);
+        ASSERT_EQ(EVENT_TYPE_RENDER_DRAW, fixture.m_Probe.m_Events[event_count - 3].m_EventType);
+        ASSERT_EQ(EVENT_TYPE_RENDER_END_FRAME, fixture.m_Probe.m_Events[event_count - 2].m_EventType);
+        ASSERT_EQ(EVENT_TYPE_RENDER_END_FRAME, fixture.m_Probe.m_Events[event_count - 1].m_EventType);
+        ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_FRAME_RELEASE));
+
+        ASSERT_FALSE(dmGameSystem::PostUpdate(fixture.m_Context, collection));
+        ASSERT_EQ(2u, CountEvents(&fixture.m_Probe, EVENT_TYPE_FRAME_RELEASE));
+        ASSERT_EQ(dmRender::RENDER_FRAME_INVALID_ARGUMENT, dmGameSystem::GetComponentRenderResult(fixture.m_Render));
+        DeleteCollection(&fixture, collection);
+        if (modes[mode] == dmRender::EXECUTION_MODE_THREADED)
+        {
+            ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_IDLE, Pump(&executor, false));
+            dmRender::StopRenderFrameQueue(dmGameSystem::GetComponentRenderQueue(fixture.m_Render));
             ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_DRAINED, Pump(&executor, true));
         }
         ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
@@ -1838,6 +2097,7 @@ TEST(ComponentRender, ReadingFrameSurvivesGameWorldDeletion)
     ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_GAME_DELETE));
     ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CREATE));
     ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));
+    ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_END_FRAME));
     ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DELETE));
     ASSERT_EQ(0u, dmRender::RetireRenderFrames(queue));
     ASSERT_EQ(1u, dmGameSystem::GetComponentRenderWorldCount(fixture.m_Render));
@@ -1951,6 +2211,7 @@ TEST(ComponentRender, RendererInitializationFailureIsNotRetried)
     ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CREATE));
     ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));
     ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DELETE));
+    ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_END_FRAME));
     ASSERT_EQ(dmRender::RENDER_FRAME_INVALID_ARGUMENT,
         dmGameSystem::GetComponentRenderResult(fixture.m_Render));
 
@@ -1977,6 +2238,7 @@ TEST(ComponentRender, RendererConsumeErrorPreservesAcceptedEntries)
     ASSERT_TRUE(BeginAndRenderComponents(fixture.m_Context, collection));
 
     ASSERT_EQ(2u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));
+    ASSERT_EQ(2u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_END_FRAME));
     ASSERT_FALSE(dmGameSystem::PostUpdate(fixture.m_Context, collection));
     ASSERT_EQ(2u, CountEvents(&fixture.m_Probe, EVENT_TYPE_POST_UPDATE));
     ASSERT_FALSE(dmGameSystem::BeginFrame(fixture.m_Context));

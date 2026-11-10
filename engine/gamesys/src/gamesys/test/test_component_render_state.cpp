@@ -34,21 +34,24 @@ struct ComponentFixture
 
 struct ComponentProbe
 {
-    uint64_t          m_Sum;
-    HRenderExecution  m_Execution;
-    RenderFrameResult m_InitializeResult;
-    RenderFrameResult m_ConsumeResult;
-    uint32_t          m_Initialized;
-    uint32_t          m_Consumed;
-    uint32_t          m_Destroyed;
-    uint32_t          m_InitValue;
-    uint32_t          m_FirstTable;
-    uint32_t          m_TableCount;
+    ComponentRenderFrame m_Frames[4];
+    uint64_t             m_Sum;
+    uint64_t             m_EndSum;
+    HRenderExecution     m_Execution;
+    RenderFrameResult    m_InitializeResult;
+    RenderFrameResult    m_ConsumeResult;
+    uint32_t             m_Initialized;
+    uint32_t             m_Consumed;
+    uint32_t             m_Ended;
+    uint32_t             m_Destroyed;
+    uint32_t             m_InitValue;
+    uint32_t             m_FirstTable;
+    uint32_t             m_TableCount;
     // This fixture executes all callbacks inline on the test thread.
-    uint8_t           m_PartialState : 1;
-    uint8_t           m_NullState : 1;
-    uint8_t           m_WrongOwner : 1;
-    uint8_t           m_InvalidInput : 1;
+    uint8_t              m_PartialState : 1;
+    uint8_t              m_NullState : 1;
+    uint8_t              m_WrongOwner : 1;
+    uint8_t              m_InvalidInput : 1;
 };
 
 struct ComponentState
@@ -86,39 +89,73 @@ static RenderFrameResult InitializeComponent(void* renderer_context, const void*
     return probe->m_InitializeResult;
 }
 
-static RenderFrameResult ConsumeComponent(void* renderer_context, void* state, const RenderFrameView& frame,
-    uint32_t first_table, uint32_t table_count)
+static uint64_t SumComponentInputs(ComponentProbe* probe, const ComponentRenderFrame& frame)
 {
-    ComponentProbe* probe = (ComponentProbe*)renderer_context;
-    probe->m_WrongOwner |= !IsRenderExecutionOwner(probe->m_Execution, EXECUTION_OWNER_RENDER);
-    ++probe->m_Consumed;
-    probe->m_FirstTable = first_table;
-    probe->m_TableCount = table_count;
-    probe->m_InvalidInput |= (state == 0) != probe->m_NullState;
-    if (state)
-        probe->m_InvalidInput |= ((ComponentState*)state)->m_Value != probe->m_InitValue;
-    for (uint32_t i = 0; i < table_count; ++i)
+    uint64_t sum = 0;
+    for (uint32_t i = 0; i < frame.m_TableCount; ++i)
     {
-        const RenderFrameTable& table = frame.m_Tables[first_table + i];
+        uint32_t table_index = frame.m_FirstTable + i;
+        const RenderFrameTable& table = frame.m_Frame->m_Tables[table_index];
         if (table.m_Type != 123 || table.m_Count != 4 || table.m_Stride != sizeof(uint32_t))
         {
             probe->m_InvalidInput = true;
             continue;
         }
-        const uint32_t* values = (const uint32_t*)GetRenderFrameTableData(frame, first_table + i);
+        const uint32_t* values = (const uint32_t*)GetRenderFrameTableData(*frame.m_Frame, table_index);
         for (uint32_t j = 0; j < 4; ++j)
-            probe->m_Sum += values[j];
+        {
+            sum += values[j];
+        }
     }
+    return sum;
+}
+
+static RenderFrameResult ConsumeComponent(void* renderer_context, void* state, const ComponentRenderFrame& frame)
+{
+    ComponentProbe* probe = (ComponentProbe*)renderer_context;
+    probe->m_WrongOwner |= !IsRenderExecutionOwner(probe->m_Execution, EXECUTION_OWNER_RENDER);
+    probe->m_Frames[probe->m_Consumed] = frame;
+    ++probe->m_Consumed;
+    probe->m_FirstTable = frame.m_FirstTable;
+    probe->m_TableCount = frame.m_TableCount;
+    probe->m_InvalidInput |= (state == 0) != probe->m_NullState;
+    if (state)
+    {
+        probe->m_InvalidInput |= ((ComponentState*)state)->m_Value != probe->m_InitValue;
+    }
+    probe->m_Sum += SumComponentInputs(probe, frame);
     return probe->m_ConsumeResult;
+}
+
+static void EndComponentFrame(void* renderer_context, void* state, const ComponentRenderFrame& frame)
+{
+    ComponentProbe* probe = (ComponentProbe*)renderer_context;
+    probe->m_WrongOwner |= !IsRenderExecutionOwner(probe->m_Execution, EXECUTION_OWNER_RENDER);
+    probe->m_InvalidInput |= (state == 0) != probe->m_NullState;
+    if (state)
+    {
+        probe->m_InvalidInput |= ((ComponentState*)state)->m_Value != probe->m_InitValue;
+    }
+
+    ComponentRenderFrame& captured = probe->m_Frames[probe->m_Ended];
+    probe->m_InvalidInput |= frame.m_Frame != captured.m_Frame;
+    probe->m_InvalidInput |= frame.m_FirstTable != captured.m_FirstTable;
+    probe->m_InvalidInput |= frame.m_TableCount != captured.m_TableCount;
+    probe->m_EndSum += SumComponentInputs(probe, captured);
+    captured.m_Frame = 0;
+    ++probe->m_Ended;
 }
 
 static void DestroyComponent(void* renderer_context, void* state)
 {
     ComponentProbe* probe = (ComponentProbe*)renderer_context;
     probe->m_WrongOwner |= !IsRenderExecutionOwner(probe->m_Execution, EXECUTION_OWNER_RENDER);
+    probe->m_InvalidInput |= probe->m_Consumed != probe->m_Ended;
     ++probe->m_Destroyed;
     if (state)
+    {
         probe->m_InvalidInput |= ((ComponentState*)state)->m_Value != probe->m_InitValue;
+    }
     free(state);
 }
 
@@ -177,7 +214,7 @@ static void DeleteComponentFixture(ComponentFixture* fixture)
 static HComponentRenderWorld CreateComponentWorld(ComponentFixture* fixture, ComponentProbe* probe, uint32_t init_value)
 {
     probe->m_Execution = fixture->m_Execution;
-    ComponentRenderCallbacks callbacks = { InitializeComponent, ConsumeComponent, DestroyComponent };
+    ComponentRenderCallbacks callbacks = { InitializeComponent, ConsumeComponent, EndComponentFrame, DestroyComponent };
     return NewComponentRenderWorld(fixture->m_Components, callbacks, probe, &init_value, sizeof(init_value));
 }
 
@@ -189,7 +226,7 @@ TEST(ComponentRenderState, CopiedInputsOutliveGameStorage)
     ASSERT_TRUE(CreateComponentFixture(&fixture, limits));
     ComponentProbe probe = {};
     probe.m_Execution = fixture.m_Execution;
-    ComponentRenderCallbacks callbacks = { InitializeComponent, ConsumeComponent, DestroyComponent };
+    ComponentRenderCallbacks callbacks = { InitializeComponent, ConsumeComponent, EndComponentFrame, DestroyComponent };
     uint32_t* init_data = (uint32_t*)malloc(sizeof(uint32_t));
     ASSERT_NE((uint32_t*)0, init_data);
     *init_data = 71;
@@ -216,7 +253,10 @@ TEST(ComponentRenderState, CopiedInputsOutliveGameStorage)
     ASSERT_EQ(1u, probe.m_Initialized);
     ASSERT_EQ(71u, probe.m_InitValue);
     ASSERT_EQ(1u, probe.m_Consumed);
+    ASSERT_EQ(1u, probe.m_Ended);
     ASSERT_EQ((uint64_t)46, probe.m_Sum);
+    ASSERT_EQ(probe.m_Sum, probe.m_EndSum);
+    ASSERT_EQ((const RenderFrameView*)0, probe.m_Frames[0].m_Frame);
     ASSERT_EQ(0u, probe.m_Destroyed);
     ASSERT_EQ(1u, RetireRenderFrames(fixture.m_Queue));
     ASSERT_EQ(0u, probe.m_Destroyed);
@@ -226,6 +266,67 @@ TEST(ComponentRenderState, CopiedInputsOutliveGameStorage)
     ASSERT_EQ(RENDER_FRAME_OK, GetComponentRenderStateResult(fixture.m_Components));
     ASSERT_FALSE(probe.m_WrongOwner);
     ASSERT_FALSE(probe.m_InvalidInput);
+    DeleteComponentFixture(&fixture);
+}
+
+// Verify inputs remain borrowed until explicit frame cleanup, with distinct ranges for repeated captures of one world.
+TEST(ComponentRenderState, FrameScopePreservesSeparateCaptureRanges)
+{
+    ComponentFixture fixture;
+    RenderFrameLimits limits = { 1024, 16, 16 };
+    ASSERT_TRUE(CreateComponentFixture(&fixture, limits));
+    ComponentProbe probe = {};
+    HComponentRenderWorld world = CreateComponentWorld(&fixture, &probe, 7);
+    ASSERT_NE((HComponentRenderWorld)0, world);
+
+    HRenderFrameStorage storage = NewRenderFrame(limits);
+    ASSERT_NE((HRenderFrameStorage)0, storage);
+    BeginRenderFrame(storage, 1);
+    ComponentProducer first = { { 1, 2, 3, 4 }, 1, 0, RENDER_FRAME_OK };
+    ComponentProducer second = { { 10, 20, 30, 40 }, 2, 0, RENDER_FRAME_OK };
+    ASSERT_EQ(RENDER_FRAME_OK, CaptureComponentRenderWorld(world, storage, CaptureComponentValues, &first));
+
+    uint32_t unrelated = 999;
+    uint32_t index;
+    ASSERT_EQ(RENDER_FRAME_OK, CopyRenderFrameTable(storage, 456, 1, sizeof(unrelated), 4, &unrelated, &index));
+    ASSERT_EQ(RENDER_FRAME_OK, CaptureComponentRenderWorld(world, storage, CaptureComponentValues, &second));
+    ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(storage));
+    const RenderFrameView* frame = GetRenderFrameView(storage);
+    ASSERT_NE((const RenderFrameView*)0, frame);
+    DeleteComponentRenderWorld(world);
+
+    BeginComponentRenderFrameConsumption(fixture.m_Components, *frame);
+    ASSERT_EQ(1u, probe.m_Initialized);
+    ASSERT_EQ(2u, probe.m_Consumed);
+    ASSERT_EQ(0u, probe.m_Ended);
+    ASSERT_EQ(frame, probe.m_Frames[0].m_Frame);
+    ASSERT_EQ(frame, probe.m_Frames[1].m_Frame);
+    ASSERT_EQ(1u, probe.m_Frames[0].m_FirstTable);
+    ASSERT_EQ(1u, probe.m_Frames[0].m_TableCount);
+    ASSERT_EQ(4u, probe.m_Frames[1].m_FirstTable);
+    ASSERT_EQ(2u, probe.m_Frames[1].m_TableCount);
+
+    // Later draw callbacks can still read each capture after component consumption returns.
+    memset(first.m_Values, 0, sizeof(first.m_Values));
+    memset(second.m_Values, 0, sizeof(second.m_Values));
+    ASSERT_EQ((uint64_t)10, SumComponentInputs(&probe, probe.m_Frames[0]));
+    ASSERT_EQ((uint64_t)200, SumComponentInputs(&probe, probe.m_Frames[1]));
+    ASSERT_EQ(0u, probe.m_Destroyed);
+
+    EndComponentRenderFrameConsumption(fixture.m_Components, *frame);
+    ASSERT_EQ(2u, probe.m_Ended);
+    ASSERT_EQ((uint64_t)210, probe.m_EndSum);
+    ASSERT_EQ((const RenderFrameView*)0, probe.m_Frames[0].m_Frame);
+    ASSERT_EQ((const RenderFrameView*)0, probe.m_Frames[1].m_Frame);
+    ASSERT_EQ(0u, probe.m_Destroyed);
+    ASSERT_EQ(1u, GetComponentRenderStateWorldCount(fixture.m_Components));
+
+    ResetRenderFrame(storage);
+    ASSERT_EQ(RENDER_FRAME_PUMP_IDLE, PumpRenderFrameQueue(fixture.m_Queue, false));
+    ASSERT_EQ(1u, probe.m_Destroyed);
+    ASSERT_FALSE(probe.m_WrongOwner);
+    ASSERT_FALSE(probe.m_InvalidInput);
+    DeleteRenderFrame(storage);
     DeleteComponentFixture(&fixture);
 }
 
@@ -247,12 +348,14 @@ TEST(ComponentRenderState, PersistentWorldAcrossFrames)
         ASSERT_EQ(RENDER_FRAME_OK, PublishRenderFrame(fixture.m_Queue, ticket));
         ASSERT_EQ(1u, probe.m_Initialized);
         ASSERT_EQ(i + 1, probe.m_Consumed);
+        ASSERT_EQ(i + 1, probe.m_Ended);
         ASSERT_EQ(1u, RetireRenderFrames(fixture.m_Queue));
         ASSERT_EQ(RENDER_FRAME_PUMP_IDLE, PumpRenderFrameQueue(fixture.m_Queue, false));
         ASSERT_EQ(0u, probe.m_Destroyed);
         ASSERT_EQ(1u, GetComponentRenderStateWorldCount(fixture.m_Components));
     }
     ASSERT_EQ((uint64_t)40, probe.m_Sum);
+    ASSERT_EQ(probe.m_Sum, probe.m_EndSum);
     DeleteComponentRenderWorld(world);
     ASSERT_EQ(RENDER_FRAME_PUMP_IDLE, PumpRenderFrameQueue(fixture.m_Queue, false));
     ASSERT_EQ(1u, probe.m_Destroyed);
@@ -277,6 +380,7 @@ TEST(ComponentRenderState, NeverRenderedWorld)
     ASSERT_EQ(0u, GetComponentRenderStateWorldCount(fixture.m_Components));
     ASSERT_EQ(0u, probe.m_Initialized);
     ASSERT_EQ(0u, probe.m_Consumed);
+    ASSERT_EQ(0u, probe.m_Ended);
     ASSERT_EQ(0u, probe.m_Destroyed);
     ASSERT_EQ(RENDER_FRAME_OK, GetComponentRenderStateResult(fixture.m_Components));
     DeleteComponentFixture(&fixture);
@@ -309,8 +413,10 @@ TEST(ComponentRenderState, InitializationFailureCleanupAndContinuation)
             ASSERT_EQ(RENDER_FRAME_OK, PublishRenderFrame(fixture.m_Queue, ticket));
             ASSERT_EQ(1u, failed.m_Initialized);
             ASSERT_EQ(0u, failed.m_Consumed);
+            ASSERT_EQ(0u, failed.m_Ended);
             ASSERT_EQ(partial_states[test] ? 1u : 0u, failed.m_Destroyed);
             ASSERT_EQ(i + 1, healthy.m_Consumed);
+            ASSERT_EQ(i + 1, healthy.m_Ended);
             ASSERT_EQ(RENDER_FRAME_OUT_OF_MEMORY, GetComponentRenderStateResult(fixture.m_Components));
             ASSERT_EQ(1u, RetireRenderFrames(fixture.m_Queue));
         }
@@ -356,12 +462,16 @@ TEST(ComponentRenderState, ConsumeErrorPreservesAcceptedWork)
     ASSERT_EQ(RENDER_FRAME_OK, PublishRenderFrame(fixture.m_Queue, ticket));
     ASSERT_EQ(1u, first.m_Consumed);
     ASSERT_EQ(1u, second.m_Consumed);
+    ASSERT_EQ(1u, first.m_Ended);
+    ASSERT_EQ(1u, second.m_Ended);
     ASSERT_EQ(2u, first.m_FirstTable);
     ASSERT_EQ(1u, first.m_TableCount);
     ASSERT_EQ(4u, second.m_FirstTable);
     ASSERT_EQ(2u, second.m_TableCount);
     ASSERT_EQ((uint64_t)10, first.m_Sum);
     ASSERT_EQ((uint64_t)200, second.m_Sum);
+    ASSERT_EQ(first.m_Sum, first.m_EndSum);
+    ASSERT_EQ(second.m_Sum, second.m_EndSum);
     ASSERT_EQ(RENDER_FRAME_INVALID_STATE, GetComponentRenderStateResult(fixture.m_Components));
     ASSERT_EQ(1u, RetireRenderFrames(fixture.m_Queue));
     ASSERT_EQ(RENDER_FRAME_PUMP_IDLE, PumpRenderFrameQueue(fixture.m_Queue, false));
@@ -395,6 +505,8 @@ TEST(ComponentRenderState, EmptyCaptureFailureRejectsWholeFrame)
     ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, PublishRenderFrame(fixture.m_Queue, ticket));
     ASSERT_EQ(0u, first.m_Initialized);
     ASSERT_EQ(0u, second.m_Initialized);
+    ASSERT_EQ(0u, first.m_Ended);
+    ASSERT_EQ(0u, second.m_Ended);
     DeleteComponentRenderWorld(first_world);
     DeleteComponentRenderWorld(second_world);
     ASSERT_EQ(RENDER_FRAME_OK, CancelRenderFrameCapture(fixture.m_Queue, ticket));
@@ -496,7 +608,7 @@ TEST(ComponentRenderState, PartialCaptureReferenceCleanup)
     }
 }
 
-// Verify successful zero-table capture and stateless initialization still execute one accepted callback and paired destruction.
+// Verify zero-table capture and stateless initialization still pair consumption with frame cleanup and destruction.
 TEST(ComponentRenderState, EmptyPayloadAndNullState)
 {
     ComponentFixture fixture;
@@ -514,6 +626,7 @@ TEST(ComponentRenderState, EmptyPayloadAndNullState)
     ASSERT_EQ(RENDER_FRAME_OK, PublishRenderFrame(fixture.m_Queue, ticket));
     ASSERT_EQ(1u, probe.m_Initialized);
     ASSERT_EQ(1u, probe.m_Consumed);
+    ASSERT_EQ(1u, probe.m_Ended);
     ASSERT_EQ(0u, probe.m_TableCount);
     ASSERT_EQ(1u, RetireRenderFrames(fixture.m_Queue));
     ASSERT_EQ(RENDER_FRAME_PUMP_IDLE, PumpRenderFrameQueue(fixture.m_Queue, false));
@@ -532,13 +645,16 @@ TEST(ComponentRenderState, InvalidArguments)
     probe.m_Execution = fixture.m_Execution;
     uint32_t init = 1;
     const ComponentRenderCallbacks invalid[] = {
-        { 0, ConsumeComponent, DestroyComponent },
-        { InitializeComponent, 0, DestroyComponent },
-        { InitializeComponent, ConsumeComponent, 0 },
+        { 0, ConsumeComponent, EndComponentFrame, DestroyComponent },
+        { InitializeComponent, 0, EndComponentFrame, DestroyComponent },
+        { InitializeComponent, ConsumeComponent, 0, DestroyComponent },
+        { InitializeComponent, ConsumeComponent, EndComponentFrame, 0 },
     };
     for (uint32_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i)
+    {
         ASSERT_EQ((HComponentRenderWorld)0, NewComponentRenderWorld(fixture.m_Components, invalid[i], &probe, &init, sizeof(init)));
-    ComponentRenderCallbacks callbacks = { InitializeComponent, ConsumeComponent, DestroyComponent };
+    }
+    ComponentRenderCallbacks callbacks = { InitializeComponent, ConsumeComponent, EndComponentFrame, DestroyComponent };
     ASSERT_EQ((HComponentRenderWorld)0, NewComponentRenderWorld(fixture.m_Components, callbacks, &probe, 0, sizeof(init)));
     ASSERT_EQ(0u, GetComponentRenderStateWorldCount(fixture.m_Components));
     HComponentRenderWorld world = CreateComponentWorld(&fixture, &probe, 1);

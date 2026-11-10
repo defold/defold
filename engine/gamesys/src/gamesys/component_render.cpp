@@ -73,9 +73,12 @@ namespace dmGameSystem
             dmGraphics::BeginFrame(dmRender::GetGraphicsContext(context->m_RenderContext));
         }
         dmRender::BeginRenderFrameConsumption(context->m_RenderContext, frame);
-        ConsumeComponentRenderFrame(context->m_StateContext, frame);
+        BeginComponentRenderFrameConsumption(context->m_StateContext, frame);
         dmRender::RenderListEnd(context->m_RenderContext);
         dmRender::ConsumeRenderCommands(context->m_RenderContext, frame);
+        // Per-draw END dispatches are not frame completion: they may run repeatedly
+        // or not at all. Clear borrowed inputs only after every recorded pass.
+        EndComponentRenderFrameConsumption(context->m_StateContext, frame);
     }
 
     static bool CreateFrameQueue(HComponentRenderContext context)
@@ -251,7 +254,7 @@ namespace dmGameSystem
     {
         if (dmGameObject::HasComponentWorldCreationStarted(context->m_Register) ||
             !type.m_Capture || !type.m_RenderCallbacks.m_Initialize ||
-            !type.m_RenderCallbacks.m_Consume || !type.m_RenderCallbacks.m_Destroy)
+            !type.m_RenderCallbacks.m_Consume || !type.m_RenderCallbacks.m_EndFrame || !type.m_RenderCallbacks.m_Destroy)
         {
             return dmGameObject::RESULT_INVALID_OPERATION;
         }
