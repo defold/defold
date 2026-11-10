@@ -1132,9 +1132,72 @@ namespace dmGraphics
         }
     }
 
+    static void DeleteTextureUploadBlock(VulkanContext* context, TextureUploadBlock* block)
+    {
+        TextureUploadPool* pool = &context->m_TextureUploadPool;
+        assert(!block->m_InUse);
+        for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
+        {
+            if (pool->m_Blocks[i] == block)
+            {
+                pool->m_Blocks.EraseSwap(i);
+                break;
+            }
+        }
+        block->m_Buffer.UnmapMemory(context->m_LogicalDevice.m_Device);
+        DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &block->m_Buffer.m_Handle);
+        delete block;
+    }
+
+    // Evict only retired uploads. Reserve room before allocating on a miss as well
+    // as on release, so growth does not unnecessarily retain obsolete small blocks.
+    static void ReserveTextureUploadIdleSpace(VulkanContext* context, uint64_t size, TextureUploadBlock* releasing)
+    {
+        TextureUploadPool* pool = &context->m_TextureUploadPool;
+        while (pool->m_IdleBytes + size > TEXTURE_UPLOAD_IDLE_BUDGET)
+        {
+            TextureUploadBlock* oldest = 0;
+            for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
+            {
+                TextureUploadBlock* candidate = pool->m_Blocks[i];
+                if (candidate != releasing && !candidate->m_InUse &&
+                    (!oldest || candidate->m_LastReleased < oldest->m_LastReleased))
+                {
+                    oldest = candidate;
+                }
+            }
+            assert(oldest);
+            pool->m_IdleBytes -= oldest->m_AllocationSize;
+            DeleteTextureUploadBlock(context, oldest);
+        }
+    }
+
+    static void ReleaseTextureUpload(VulkanContext* context, FenceResourcesToDestroy* resources)
+    {
+        TextureUploadPool* pool = &context->m_TextureUploadPool;
+        TextureUploadBlock* block = resources->m_TextureUploadBlock;
+        if (!block)
+        {
+            return;
+        }
+        assert(block->m_InUse);
+        block->m_InUse = false;
+        // This bounds retained idle memory, not the memory required by in-flight uploads.
+        if (block->m_AllocationSize > TEXTURE_UPLOAD_IDLE_BUDGET)
+        {
+            // A driver's memory requirements can exceed the requested buffer size.
+            DeleteTextureUploadBlock(context, block);
+            return;
+        }
+        ReserveTextureUploadIdleSpace(context, block->m_AllocationSize, block);
+        block->m_LastReleased = ++pool->m_ReleaseSerial;
+        pool->m_IdleBytes += block->m_AllocationSize;
+    }
+
     // Note: fence_resources ptr is no longer valid after this call!
     static void DestroyFenceResourcesImmediately(VulkanContext* context, HOpaqueHandle fence_resource_handle, FenceResourcesToDestroy* fence_resources)
     {
+        ReleaseTextureUpload(context, fence_resources);
         vkDestroyFence(context->m_LogicalDevice.m_Device, fence_resources->m_Fence, NULL);
 
         for (int j = 0; j < fence_resources->m_ResourcesCount; ++j)
@@ -5363,6 +5426,47 @@ bail:
         return context->m_FenceResourcesToDestroy.Put(fence_resources);
     }
 
+    static TextureUploadBlock* AcquireTextureUpload(VulkanContext* context, uint32_t size)
+    {
+        TextureUploadPool* pool = &context->m_TextureUploadPool;
+        TextureUploadBlock* block = 0;
+        for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
+        {
+            TextureUploadBlock* candidate = pool->m_Blocks[i];
+            if (!candidate->m_InUse && candidate->m_Buffer.m_Base.m_Size >= size &&
+                (!block || candidate->m_Buffer.m_Base.m_Size < block->m_Buffer.m_Base.m_Size))
+            {
+                block = candidate;
+            }
+        }
+        if (block)
+        {
+            pool->m_IdleBytes -= block->m_AllocationSize;
+        }
+        else
+        {
+            uint32_t capacity = dmMath::Max(size, (uint32_t) (256 * 1024));
+            ReserveTextureUploadIdleSpace(context, capacity, 0);
+            block = new TextureUploadBlock();
+            block->m_Buffer.m_Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+            VkResult result = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+                                                 capacity, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &block->m_Buffer);
+            CHECK_VK_ERROR(result);
+            result = block->m_Buffer.MapMemory(context->m_LogicalDevice.m_Device);
+            CHECK_VK_ERROR(result);
+            VkMemoryRequirements requirements;
+            vkGetBufferMemoryRequirements(context->m_LogicalDevice.m_Device, block->m_Buffer.m_Handle.m_Buffer, &requirements);
+            block->m_AllocationSize = requirements.size;
+            if (pool->m_Blocks.Full())
+            {
+                pool->m_Blocks.OffsetCapacity(4);
+            }
+            pool->m_Blocks.Push(block);
+        }
+        block->m_InUse = true;
+        return block;
+    }
+
     static void CopyToTexture(VulkanContext* context, const TextureParams& params,
         bool use_stage_buffer, uint32_t tex_data_size, void* tex_data_ptr, VulkanTexture* texture_out)
     {
@@ -5394,18 +5498,33 @@ bail:
             context->m_LogicalDevice.m_Device,
             context->m_LogicalDevice.m_CommandPool);
 
-        // Stage buffer path
+        // Only retain uploads that fit the idle budget. Larger uploads keep their
+        // existing transient allocation and retire with the submission fence.
         DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-        VkResult res = CreateDeviceBuffer(
-            context->m_PhysicalDevice.m_Device,
-            vk_device,
-            tex_data_size,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            &stage_buffer);
-        CHECK_VK_ERROR(res);
-
-        res = WriteToDeviceBuffer(vk_device, tex_data_size, 0, tex_data_ptr, &stage_buffer);
-        CHECK_VK_ERROR(res);
+        TextureUploadBlock* upload_block = 0;
+        DeviceBuffer* upload_buffer = &stage_buffer;
+        VkResult res;
+        if (tex_data_size <= TEXTURE_UPLOAD_IDLE_BUDGET)
+        {
+            upload_block = AcquireTextureUpload(context, tex_data_size);
+            upload_buffer = &upload_block->m_Buffer;
+            if (tex_data_ptr)
+            {
+                memcpy(upload_buffer->m_MappedDataPtr, tex_data_ptr, tex_data_size);
+            }
+            else
+            {
+                memset(upload_buffer->m_MappedDataPtr, 0, tex_data_size);
+            }
+        }
+        else
+        {
+            res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, vk_device, tex_data_size,
+                                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
+            CHECK_VK_ERROR(res);
+            res = WriteToDeviceBuffer(vk_device, tex_data_size, 0, tex_data_ptr, &stage_buffer);
+            CHECK_VK_ERROR(res);
+        }
 
         TransitionImageLayoutWithCmdBuffer(
             vk_command_buffer,
@@ -5424,7 +5543,7 @@ bail:
             context,
             vk_command_buffer,
             copy_regions.Begin(),
-            &stage_buffer,
+            upload_buffer,
             texture_out,
             params,
             layer_count,
@@ -5456,6 +5575,13 @@ bail:
         pending_upload->m_Resources[1].m_CommandBuffer = cmd_buffer.m_Handle;
         pending_upload->m_Resources[1].m_ResourceType  = RESOURCE_TYPE_COMMAND_BUFFER;
         pending_upload->m_ResourcesCount               = 2;
+        pending_upload->m_TextureUploadBlock           = upload_block;
+        if (upload_block)
+        {
+            // The pool owns the buffer; the fence only retires its current upload.
+            pending_upload->m_Resources[0] = pending_upload->m_Resources[1];
+            pending_upload->m_ResourcesCount = 1;
+        }
 
         texture_out->m_PendingUpload = DestroyFenceResourcesDeferred(context, pending_upload);
     }
@@ -5694,6 +5820,20 @@ bail:
         }
 
         FlushFenceResourcesToDestroy(context);
+
+        {
+            TextureUploadPool* pool = &context->m_TextureUploadPool;
+            for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
+            {
+                TextureUploadBlock* block = pool->m_Blocks[i];
+                assert(!block->m_InUse);
+                block->m_Buffer.UnmapMemory(vk_device);
+                DestroyDeviceBuffer(vk_device, &block->m_Buffer.m_Handle);
+                delete block;
+            }
+            pool->m_Blocks.SetSize(0);
+            pool->m_IdleBytes = 0;
+        }
 
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);

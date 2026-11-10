@@ -2459,6 +2459,7 @@ struct VulkanStorageBufferSubDataTest : ITest
         }
     }
 };
+#include "test_texture_upload_pool.h"
 #endif
 
 static int OnWindowClose(void* user_data)
@@ -2552,6 +2553,10 @@ static void* EngineCreate(int argc, char** argv)
     {
         dmLogInfo("test_app_graphics: running VulkanStorageBufferSubDataTest");
         engine->m_Test = new VulkanStorageBufferSubDataTest();
+    }
+    else if (HasArgument("texture-upload-pool"))
+    {
+        engine->m_Test = new VulkanTextureUploadPoolTest();
     }
     else
 #endif

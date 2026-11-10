@@ -102,6 +102,23 @@ namespace dmGraphics
         dmArray<StorageBufferUploadBlock> m_Blocks;
     };
 
+    const uint64_t TEXTURE_UPLOAD_IDLE_BUDGET = 16 * 1024 * 1024;
+
+    struct TextureUploadBlock
+    {
+        DeviceBuffer m_Buffer;
+        VkDeviceSize m_AllocationSize;
+        uint64_t     m_LastReleased;
+        bool         m_InUse;
+    };
+
+    struct TextureUploadPool
+    {
+        dmArray<TextureUploadBlock*> m_Blocks;
+        uint64_t                     m_IdleBytes = 0;
+        uint64_t                     m_ReleaseSerial = 0;
+    };
+
     struct VulkanTexture
     {
         struct VulkanHandle
@@ -422,6 +439,7 @@ namespace dmGraphics
         VkFence           m_Fence;
         ResourceToDestroy m_Resources[MAX_FENCE_RESOURCES_TO_DESTROY_PER_ENTRY];
         uint8_t           m_ResourcesCount;
+        TextureUploadBlock* m_TextureUploadBlock = 0;
     };
 
     struct SwapChainCapabilities
@@ -509,6 +527,7 @@ namespace dmGraphics
         ScratchBuffer                   m_MainScratchBuffers[DM_MAX_FRAMES_IN_FLIGHT];
         StorageBufferUploadPool         m_StorageBufferUploadPools[DM_MAX_FRAMES_IN_FLIGHT];
         StorageBufferUploadPool         m_SynchronousStorageBufferUploadPool;
+        TextureUploadPool               m_TextureUploadPool;
         DescriptorAllocator             m_MainDescriptorAllocators[DM_MAX_FRAMES_IN_FLIGHT];
         uint32_t                        m_DescriptorAllocatorGeneration[DM_MAX_FRAMES_IN_FLIGHT];
         VkRenderPass                    m_MainRenderPass;
@@ -632,6 +651,7 @@ namespace dmGraphics
     VkResult        TransitionImageLayout(LogicalDevice* logical_device, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1, VkCommandPool command_pool = VK_NULL_HANDLE);
     VkResult        WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
     void            DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value);
+    void            FlushFenceResourcesToDestroy(VulkanContext* context);
     void            FlushResourcesToDestroy(VulkanContext* context, ResourcesToDestroyList* resource_list);
     void            ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
     VkCommandBuffer BeginSingleTimeCommands(VkDevice device, VkCommandPool cmd_pool);
