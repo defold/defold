@@ -1064,11 +1064,11 @@ public class Project implements AutoCloseable {
     private void bundle(IProgress progress) throws IOException, CompileExceptionError {
         try (progress) {
             progress.message(IProgress.Message.Bundling.INSTANCE);
-            createPublisher();
             if (!hasOption("package") || Arrays.asList(option("package", "").split(",")).contains("base")) {
                 com.dynamo.bob.archive.liveupdate.PackageWriter.validateApplicationOutputs(this);
             }
             if (BundleHelper.isArchiveIncluded(this)) {
+                createPublisher();
                 BuildGraph graph = BuildGraph.load(this);
                 graph.validate(this);
                 outputs.clear();

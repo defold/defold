@@ -1856,6 +1856,24 @@ public class ProjectBuildTest {
         assertFalse(Files.exists(Path.of(contentRoot, "packages")));
     }
 
+    // Contentless bundles must not require legacy publisher settings when package export is enabled.
+    @Test
+    public void testContentlessBundleWithoutPublisherSettings() throws Exception {
+        for (String option : List.of("liveupdate", "all-packages")) {
+            Path bundleDirectory = Path.of(contentRoot, "build/bundle", option);
+            try (Project project = packageReportProject(false)) {
+                project.setOption("exclude-archive", "true");
+                project.setOption(option, "true");
+                project.setOption("bundle-output", bundleDirectory.toString());
+                assertTrue(project.build(Progress.discarding(), "bundle").isEmpty());
+            }
+            assertEquals("complete", Files.readString(bundleDirectory.resolve("application")));
+        }
+        assertFalse(Files.exists(Path.of(contentRoot, "build/game.graph.json")));
+        assertFalse(Files.exists(Path.of(contentRoot, "build/game.arcd")));
+        assertFalse(Files.exists(Path.of(contentRoot, "build/game.lupackages")));
+    }
+
     // CLI aliases warn once, and repeated package options override the deprecated Live Update switch.
     @Test
     public void testDeprecatedArchiveAndLiveUpdateOptions() throws Exception {
