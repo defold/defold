@@ -151,7 +151,9 @@
 
   :aliases           {"benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
                       "preflight" ["with-profile" "+preflight,+dev,+test" "preflight"]
-                      "prerelease" ["do" "clean," "protobuf," "sass" "once," "javac," "with-profile" "dev,sidecar,release" "run" "-m" "aot"]}
+                      "prerelease" ["do" "clean," "protobuf," "sass" "once," "javac," "with-profile" "dev,sidecar,release" "run" "-m" "aot"]
+                      ;; Requires init, with no tests run afterwards.
+                      "prerelease-prepared" ["with-profile" "dev,sidecar,release" "run" "-m" "aot"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"
@@ -257,6 +259,8 @@
                               :java-source-paths ^:replace []
                               :dependencies ^:replace [[org.clojure/clojure "1.12.0"]
                                                        [org.antlr/antlr4 "4.9.1"]]}
+                      ;; Scan sources without compiling the editor.
+                      :ns-batch-builder {:prep-tasks ^:replace []}
                       :zip-parallel {:prep-tasks ^:replace []
                                      :source-paths ^:replace ["src/zip_parallel"]
                                      :java-source-paths ^:replace []

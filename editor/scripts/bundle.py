@@ -717,12 +717,15 @@ def build(options):
         log("Building editor for %s..." % platform)
         jdk = get_jdk(platform)
         init_editor(options, platform, jdk)
-        invoke_lein(['run', '-m', 'editor.ns-batch-builder', 'resources/sorted_clojure_ns_list.edn'], jdk_path=jdk)
+        invoke_lein(['with-profile', '+ns-batch-builder', 'run', '-m', 'editor.ns-batch-builder', 'resources/sorted_clojure_ns_list.edn'], jdk_path=jdk)
         if options.skip_tests:
             log("Skipping tests.")
         else:
             run_tests(jdk)
-        invoke_lein(['prerelease'], jdk_path=jdk)
+        # init already cleaned and prepared protobufs and stylesheets. Reuse them
+        # unless tests and documentation generation have added build outputs.
+        prerelease_task = 'prerelease-prepared' if options.skip_tests else 'prerelease'
+        invoke_lein([prerelease_task], jdk_path=jdk)
         create_bundle(jdk, platform, options)
 
 def init_editor(options, platform, jdk):
