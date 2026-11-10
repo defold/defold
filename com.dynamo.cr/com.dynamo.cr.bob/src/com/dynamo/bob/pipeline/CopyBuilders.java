@@ -24,6 +24,9 @@ import com.dynamo.bob.fs.IResource;
 
 public class CopyBuilders {
 
+    @BuilderParams(name="ModelBuffers", inExts={".modelbuffers"}, outExt=".modelbuffersc")
+    public static class ModelBuffersBuilder extends CopyBuilder {}
+
     @BuilderParams(name = "Wav", inExts = ".wav", outExt = ".wavc")
     public static class WavBuilder extends CopyBuilder {
         @Override

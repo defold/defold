@@ -14,14 +14,14 @@
 
 package com.dynamo.bob.test;
 
+import org.apache.commons.io.FileUtils;
+import org.junit.rules.ExternalResource;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
-
-import org.apache.commons.io.FileUtils;
-import org.junit.rules.ExternalResource;
 
 public class TestLibrariesRule extends ExternalResource {
 

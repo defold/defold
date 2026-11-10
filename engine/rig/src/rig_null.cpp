@@ -16,15 +16,21 @@
 
 namespace dmRig
 {
+    dmhash_t GetAnimationLayerName(HAnimationLayer layer)
+    {
+        return 0;
+    }
+
     HAnimationLayer NewAnimationLayer(const AnimationLayerParams& params)
     {
         return 0;
     }
 
     void ReleaseAnimationLayer(HAnimationLayer layer)
-    { }
+    {
+    }
 
-    Result PlayAnimation(HRigInstance instance, HAnimationLayer layer, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate)
+    Result PlayAnimation(HRigInstance instance, HAnimationLayer layer, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate, AnimationLayerError* error)
     {
         return RESULT_ERROR;
     }
@@ -50,6 +56,45 @@ namespace dmRig
     Result CancelAnimation(HRigInstance instance, HAnimationLayer layer)
     {
         return dmRig::RESULT_OK;
+    }
+
+    void SetAnimationLayerId(HAnimationLayer layer, uint64_t id)
+    {
+    }
+
+    HAnimationLayer FindAnimationLayer(HRigInstance instance, dmhash_t name)
+    {
+        return 0;
+    }
+
+    HAnimationLayer FindAnimationLayerById(HRigInstance instance, uint64_t id)
+    {
+        return 0;
+    }
+
+    dmhash_t GetAnimation(HRigInstance instance, HAnimationLayer layer)
+    {
+        return 0;
+    }
+
+    float GetCursor(HRigInstance instance, HAnimationLayer layer, bool normalized)
+    {
+        return 0.0f;
+    }
+
+    Result SetCursor(HRigInstance instance, HAnimationLayer layer, float cursor, bool normalized)
+    {
+        return RESULT_ERROR;
+    }
+
+    float GetPlaybackRate(HRigInstance instance, HAnimationLayer layer)
+    {
+        return 1.0f;
+    }
+
+    Result SetPlaybackRate(HRigInstance instance, HAnimationLayer layer, float playback_rate)
+    {
+        return RESULT_ERROR;
     }
 
     dmhash_t GetAnimation(HRigInstance instance)

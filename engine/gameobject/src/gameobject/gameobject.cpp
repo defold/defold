@@ -754,7 +754,7 @@ namespace dmGameObject
         HRegister regist = collection->m_Register;
         for (uint32_t i = 0; i < collection->m_ComponentWorldsCreated; ++i)
         {
-            DM_PROFILE_DYN(regist->m_ComponentTypes[i].m_Name, 0);
+            DM_PROFILE_DYN(regist->m_ComponentTypes[i].m_Name, &regist->m_ComponentTypes[i].m_NameHash);
 
             ComponentDeleteWorldParams params;
             params.m_Context = regist->m_ComponentTypes[i].m_Context;
@@ -1294,7 +1294,7 @@ namespace dmGameObject
             ComponentType* component_type = component->m_Type;
             assert(component_type);
 
-            DM_PROFILE_DYN(component_type->m_Name, 0);
+            DM_PROFILE_DYN(component_type->m_Name, &component_type->m_NameHash);
 
             uintptr_t* component_instance_data = 0;
             if (component_type->m_InstanceHasUserData)
@@ -1365,7 +1365,7 @@ namespace dmGameObject
             Prototype::Component* component = &prototype->m_Components[i];
             ComponentType* component_type = component->m_Type;
 
-            DM_PROFILE_DYN(component_type->m_Name, 0);
+            DM_PROFILE_DYN(component_type->m_Name, &component_type->m_NameHash);
 
             uintptr_t* component_instance_data = 0;
             if (component_type->m_InstanceHasUserData)
@@ -3224,7 +3224,7 @@ namespace dmGameObject
 
             if (func)
             {
-                DM_PROFILE_DYN(component_type->m_Name, 0);
+                DM_PROFILE_DYN(component_type->m_Name, &component_type->m_NameHash);
                 update_params.m_World = collection->m_ComponentWorlds[update_index];
                 update_params.m_Context = component_type->m_Context;
 
@@ -3400,7 +3400,7 @@ namespace dmGameObject
             const ComponentWorldCallbacks& callbacks = collection->m_Register->m_ComponentWorldCallbacks;
             if (callbacks.m_Render || component_type->m_RenderFunction)
             {
-                DM_PROFILE_DYN(component_type->m_Name, 0);
+                DM_PROFILE_DYN(component_type->m_Name, &component_type->m_NameHash);
                 ComponentsRenderParams params;
                 params.m_Collection = hcollection;
                 params.m_World = collection->m_ComponentWorlds[update_index];
@@ -3446,7 +3446,7 @@ namespace dmGameObject
 
             if (component_type->m_PostUpdateFunction)
             {
-                DM_PROFILE_DYN(component_type->m_Name, 0);
+                DM_PROFILE_DYN(component_type->m_Name, &component_type->m_NameHash);
                 ComponentsPostUpdateParams params;
                 params.m_Collection = collection->m_HCollection;
                 params.m_World = collection->m_ComponentWorlds[update_index];
@@ -4482,7 +4482,24 @@ namespace dmGameObject
     PropertyResult SetProperty(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, const PropertyVar& value)
     {
         if (instance == 0)
+        {
             return PROPERTY_RESULT_INVALID_INSTANCE;
+        }
+        uint64_t number_key;
+        if (GetPropertyOptionsNumberKey(&options, 0, &number_key) == PROPERTY_RESULT_OK)
+        {
+            // Components must resolve numeric keys explicitly before a setter can mutate anything.
+            PropertyDesc desc;
+            PropertyResult result = GetProperty(collection, instance, component_id, property_id, options, desc);
+            if (result != PROPERTY_RESULT_OK)
+            {
+                return result;
+            }
+            if (desc.m_ValueType != PROP_VALUE_HASHTABLE)
+            {
+                return PROPERTY_RESULT_INVALID_KEY;
+            }
+        }
         if (component_id == 0)
         {
             dmTransform::Transform* transform = &collection->m_LocalTransforms[instance->m_Index];
@@ -4731,6 +4748,17 @@ namespace dmGameObject
             return false;
         option->m_Key = key;
         option->m_HasKey = 1;
+        option->m_IsNumberKey = 0;
+        return true;
+    }
+
+    bool AddPropertyOptionsNumberKey(PropertyOptions* options, uint64_t key)
+    {
+        if (!AddPropertyOptionsKey(options, key))
+        {
+            return false;
+        }
+        options->m_Options[options->m_OptionsCount - 1].m_IsNumberKey = 1;
         return true;
     }
 
@@ -4741,6 +4769,7 @@ namespace dmGameObject
             return false;
         option->m_Index = index;
         option->m_HasKey = 0;
+        option->m_IsNumberKey = 0;
         return true;
     }
 
@@ -4760,6 +4789,7 @@ namespace dmGameObject
         PropertyOption* option = &options->m_Options[index];
         option->m_Index = value;
         option->m_HasKey = 0;
+        option->m_IsNumberKey = 0;
         return true;
     }
 
@@ -4784,9 +4814,26 @@ namespace dmGameObject
     {
         if (!options || index >= options->m_OptionsCount)
             return PROPERTY_RESULT_INVALID_INDEX;
-        if (!options->m_Options[index].m_HasKey)
+        if (!options->m_Options[index].m_HasKey || options->m_Options[index].m_IsNumberKey)
+        {
             return PROPERTY_RESULT_TYPE_MISMATCH;
+        }
         *result = options->m_Options[index].m_Key;
+        return PROPERTY_RESULT_OK;
+    }
+
+    PropertyResult GetPropertyOptionsNumberKey(HPropertyOptions options, uint32_t index, uint64_t* result)
+    {
+        if (!options || index >= options->m_OptionsCount)
+        {
+            return PROPERTY_RESULT_INVALID_INDEX;
+        }
+        const PropertyOption& option = options->m_Options[index];
+        if (!option.m_HasKey || !option.m_IsNumberKey)
+        {
+            return PROPERTY_RESULT_TYPE_MISMATCH;
+        }
+        *result = option.m_Key;
         return PROPERTY_RESULT_OK;
     }
 

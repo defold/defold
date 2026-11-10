@@ -323,6 +323,7 @@
   (rig/make-mesh-set-build-target (resource/workspace resource)
                                   _node-id
                                   (assoc (:mesh-set content) :raw-models [])
+                                  (:model-buffers content)
                                   (:morph-target-textures content)))
 
 (g/defnk produce-skeleton [content]

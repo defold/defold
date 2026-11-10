@@ -105,25 +105,72 @@ namespace dmRig
         return 0x0;
     }
 
+    dmhash_t GetAnimationLayerName(HAnimationLayer layer)
+    {
+        return layer ? layer->m_Name : 0;
+    }
+
+    void SetAnimationLayerId(HAnimationLayer layer, uint64_t id)
+    {
+        if (layer)
+        {
+            layer->m_Id = id;
+        }
+    }
+
+    HAnimationLayer FindAnimationLayer(HRigInstance instance, dmhash_t name)
+    {
+        for (uint32_t i = 0; i < instance->m_Layers.Size(); ++i)
+        {
+            HAnimationLayer layer = instance->m_Layers[i]->m_Definition;
+            if (layer->m_Name == name)
+            {
+                return layer;
+            }
+        }
+        return 0;
+    }
+
+    HAnimationLayer FindAnimationLayerById(HRigInstance instance, uint64_t id)
+    {
+        if (!id)
+        {
+            return 0;
+        }
+        for (uint32_t i = 0; i < instance->m_Layers.Size(); ++i)
+        {
+            HAnimationLayer layer = instance->m_Layers[i]->m_Definition;
+            if (layer->m_Id == id)
+            {
+                return layer;
+            }
+        }
+        return 0;
+    }
+
     HAnimationLayer NewAnimationLayer(const AnimationLayerParams& params)
     {
         AnimationLayer* layer = new AnimationLayer;
         layer->m_Name = params.m_Name;
+        layer->m_Id = 0;
         layer->m_Order = params.m_Order;
         layer->m_Weight = params.m_Weight;
-        layer->m_AllBones = params.m_AllBones;
         layer->m_RefCount = 1;
         layer->m_Bones.SetCapacity(params.m_BoneCount);
         layer->m_Bones.SetSize(params.m_BoneCount);
         if (params.m_BoneCount)
+        {
             memcpy(layer->m_Bones.Begin(), params.m_Bones, sizeof(dmhash_t) * params.m_BoneCount);
+        }
         return layer;
     }
 
     void ReleaseAnimationLayer(HAnimationLayer layer)
     {
         if (layer && --layer->m_RefCount == 0)
+        {
             delete layer;
+        }
     }
 
     static RigPlayer* GetPlayer(RigPlaybackState* state)
@@ -141,9 +188,27 @@ namespace dmRig
         for (uint32_t i = 0; i < instance->m_Layers.Size(); ++i)
         {
             if (instance->m_Layers[i]->m_Definition == definition)
+            {
                 return instance->m_Layers[i];
+            }
         }
         return 0;
+    }
+
+    static RigPlaybackState* GetPlayback(HRigInstance instance, HAnimationLayer definition)
+    {
+        if (!definition)
+        {
+            return &instance->m_BasePlayback;
+        }
+        RigLayer* layer = FindLayer(instance, definition);
+        return layer ? &layer->m_Playback : 0;
+    }
+
+    static RigPlayer* GetPlayer(HRigInstance instance, HAnimationLayer definition)
+    {
+        RigPlaybackState* state = GetPlayback(instance, definition);
+        return state ? GetPlayer(state) : 0;
     }
 
     static Result SetPlayerCursor(RigPlayer* player, float cursor, bool normalized)
@@ -199,11 +264,14 @@ namespace dmRig
     static void PlayAnimation(HRigInstance instance, RigPlaybackState* state, const dmRigDDF::RigAnimation* animation, RigPlayback playback, float blend_duration, float offset, float playback_rate)
     {
         state->m_Blending = blend_duration > 0.0f;
+        state->m_PoseDirty = 0;
         state->m_BlendDuration = blend_duration;
         state->m_BlendTimer = 0.0f;
         state->m_Generation = ++instance->m_PlayGeneration;
         if (!state->m_Blending)
+        {
             GetPlayer(state)->m_Playing = 0;
+        }
 
         state->m_CurrentPlayer = (state->m_CurrentPlayer + 1) % 2;
         RigPlayer* player = GetPlayer(state);
@@ -213,7 +281,9 @@ namespace dmRig
         player->m_Playback = playback;
         player->m_Backwards = playback == PLAYBACK_ONCE_BACKWARD || playback == PLAYBACK_LOOP_BACKWARD;
         if (player->m_Backwards)
+        {
             offset = 1.0f - dmMath::Clamp(offset, 0.0f, 1.0f);
+        }
         SetPlayerCursor(player, offset, true);
         player->m_PlaybackRate = dmMath::Max(0.0f, playback_rate);
         // Keep this frame's evaluated skinning pose until the next rig update.
@@ -241,7 +311,7 @@ namespace dmRig
         uint32_t bone_count = instance->m_Pose.Size();
         layer->m_Mask.SetCapacity(bone_count);
         layer->m_Mask.SetSize(bone_count);
-        memset(layer->m_Mask.Begin(), definition->m_AllBones ? 1 : 0, bone_count);
+        memset(layer->m_Mask.Begin(), definition->m_Bones.Empty() ? 1 : 0, bone_count);
 
         for (uint32_t i = 0; i < definition->m_Bones.Size(); ++i)
         {
@@ -280,8 +350,13 @@ namespace dmRig
         instance->m_Layers[index] = layer;
     }
 
-    Result PlayAnimation(HRigInstance instance, HAnimationLayer definition, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate)
+    Result PlayAnimation(HRigInstance instance, HAnimationLayer definition, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate, AnimationLayerError* error)
     {
+        if (error)
+        {
+            memset(error, 0, sizeof(*error));
+            error->m_Order = definition ? definition->m_Order : 0;
+        }
         if (!definition)
         {
             return PlayAnimation(instance, animation_id, playback, blend_duration, offset, playback_rate);
@@ -295,7 +370,7 @@ namespace dmRig
 
         if (!instance->m_Skeleton || instance->m_Pose.Empty() || !instance->m_BoneIndices)
         {
-            return RESULT_ERROR;
+            return RESULT_NO_SKELETON;
         }
 
         RigLayer* layer = FindLayer(instance, definition);
@@ -307,6 +382,11 @@ namespace dmRig
                 HAnimationLayer other = instance->m_Layers[i]->m_Definition;
                 if (other->m_Name == definition->m_Name || other->m_Order == definition->m_Order)
                 {
+                    if (error)
+                    {
+                        error->m_ConflictingName = other->m_Name;
+                        error->m_ConflictingOrder = other->m_Order;
+                    }
                     return RESULT_LAYER_CONFLICT;
                 }
             }
@@ -318,6 +398,10 @@ namespace dmRig
                 const uint32_t* bone_index = instance->m_BoneIndices->Get(bone_name);
                 if (!bone_index || *bone_index >= bone_count)
                 {
+                    if (error)
+                    {
+                        error->m_Bone = bone_name;
+                    }
                     return RESULT_BONE_NOT_FOUND;
                 }
             }
@@ -326,6 +410,8 @@ namespace dmRig
             layer = new RigLayer;
             memset(&layer->m_Playback, 0, sizeof(layer->m_Playback));
             layer->m_Definition = definition;
+            layer->m_ActivationDuration = dmMath::Max(0.0f, blend_duration);
+            layer->m_ActivationTimer = 0.0f;
             ++definition->m_RefCount;
 
             InitializeLayerMask(instance, layer);
@@ -365,6 +451,7 @@ namespace dmRig
         instance->m_BasePlayback.m_Players[0].m_Playing = 0;
         instance->m_BasePlayback.m_Players[1].m_Playing = 0;
         instance->m_BasePlayback.m_Blending = 0;
+        instance->m_BasePlayback.m_PoseDirty = 0;
         instance->m_BasePlayback.m_Generation = ++instance->m_PlayGeneration;
         // Freeze the base pose and release overlays. The next update publishes it.
         if (!instance->m_BasePose.Empty())
@@ -403,8 +490,13 @@ namespace dmRig
 
     dmhash_t GetAnimation(HRigInstance instance)
     {
-        RigPlayer* player = GetPlayer(instance);
-        return player->m_AnimationId;
+        return GetAnimation(instance, (HAnimationLayer)0);
+    }
+
+    dmhash_t GetAnimation(HRigInstance instance, HAnimationLayer layer)
+    {
+        RigPlayer* player = GetPlayer(instance, layer);
+        return player ? player->m_AnimationId : 0;
     }
 
     dmhash_t GetModel(HRigInstance instance)
@@ -458,7 +550,9 @@ namespace dmRig
     static PendingRigEvent* NewEvent(HRigInstance instance, RigPlaybackState* state, HAnimationLayer layer, RigEventType type)
     {
         if (instance->m_PendingEvents.Full())
+        {
             instance->m_PendingEvents.OffsetCapacity(dmMath::Max(1u, instance->m_PendingEvents.Capacity()));
+        }
         instance->m_PendingEvents.SetSize(instance->m_PendingEvents.Size() + 1);
         PendingRigEvent* event = &instance->m_PendingEvents.Back();
         event->m_Type = type;
@@ -494,7 +588,9 @@ namespace dmRig
                 const dmRigDDF::EventKey* key = &track->m_Keys[ki];
                 float cursor = key->m_T;
                 if (backwards)
+                {
                     cursor = duration - cursor;
+                }
                 if (start_cursor <= cursor && cursor < end_cursor)
                 {
                     PendingRigEvent* event = NewEvent(instance, state, layer, RIG_EVENT_TYPE_KEYFRAME);
@@ -983,18 +1079,26 @@ namespace dmRig
     static bool IsPlaying(RigPlaybackState* state, bool finish_blend)
     {
         RigPlayer* player = GetPlayer(state);
-        return (player->m_Playing || (finish_blend && state->m_Blending)) && player->m_Animation;
+        return (player->m_Playing || state->m_PoseDirty || (finish_blend && state->m_Blending)) && player->m_Animation;
     }
 
     bool IsAnimating(HRigInstance instance)
     {
         if (!instance->m_Enabled)
+        {
             return false;
+        }
         if (IsPlaying(&instance->m_BasePlayback, false))
+        {
             return true;
+        }
         for (uint32_t i = 0; i < instance->m_Layers.Size(); ++i)
-            if (IsPlaying(&instance->m_Layers[i]->m_Playback, true))
+        {
+            if (IsPlaying(&instance->m_Layers[i]->m_Playback, true) || instance->m_Layers[i]->m_ActivationTimer < instance->m_Layers[i]->m_ActivationDuration)
+            {
                 return true;
+            }
+        }
         return false;
     }
 
@@ -1013,8 +1117,11 @@ namespace dmRig
     static void EvaluatePlayback(HRigContext context, RigInstance* instance, RigPlaybackState* state, HAnimationLayer layer, dmArray<BonePose>& pose, float dt)
     {
         if (!IsPlaying(state, layer != 0))
+        {
             return;
+        }
 
+        state->m_PoseDirty = 0;
         ResetPose(instance->m_Skeleton, pose);
         RigPlayer* player = GetPlayer(state);
         UpdateBlend(state, dt);
@@ -1032,7 +1139,9 @@ namespace dmRig
             ApplyAnimation(instance, outgoing, pose, instance->m_IKAnimation, 1.0f);
             ApplyAnimation(instance, player, scratch, instance->m_IKAnimation, 1.0f);
             for (uint32_t bi = 0; bi < pose.Size(); ++bi)
+            {
                 BlendTransform(pose[bi].m_Local, scratch[bi].m_Local, fade_rate);
+            }
         }
         else if (state->m_Blending && !fade_in)
         {
@@ -1045,7 +1154,9 @@ namespace dmRig
                 UpdatePlayer(instance, state, layer, p, dt, blend_weight);
                 ApplyAnimation(instance, p, pose, instance->m_IKAnimation, alpha);
                 if (!layer)
+                {
                     ApplyMorphAnimation(instance, p, alpha);
+                }
                 alpha = player == p ? 1.0f - fade_rate : fade_rate;
             }
         }
@@ -1054,7 +1165,9 @@ namespace dmRig
             UpdatePlayer(instance, state, layer, player, dt, 1.0f);
             ApplyAnimation(instance, player, pose, instance->m_IKAnimation, 1.0f);
             if (!layer)
+            {
                 ApplyMorphAnimation(instance, player, 1.0f);
+            }
         }
 
         if (state->m_Blending)
@@ -1063,7 +1176,9 @@ namespace dmRig
             {
                 Quat rotation = pose[bi].m_Local.GetRotation();
                 if (dot(rotation, rotation) > 0.001f)
+                {
                     pose[bi].m_Local.SetRotation(normalize(rotation));
+                }
             }
         }
     }
@@ -1071,7 +1186,9 @@ namespace dmRig
     static void DoAnimate(HRigContext context, RigInstance* instance, float dt)
     {
         if (!instance->m_MorphSlots.Empty())
+        {
             ResetMorphWeights(instance);
+        }
 
         if (!IsAnimating(instance) && (!instance->m_LayerPoseDirty || !instance->m_Enabled))
         {
@@ -1105,19 +1222,26 @@ namespace dmRig
         if (!instance->m_Layers.Empty())
         {
             for (uint32_t bi = 0; bi < pose.Size(); ++bi)
+            {
                 pose[bi].m_Local = base_pose[bi].m_Local;
+            }
             for (uint32_t i = 0; i < instance->m_Layers.Size(); ++i)
             {
                 RigLayer* layer = instance->m_Layers[i];
                 RigPlaybackState* state = &layer->m_Playback;
                 EvaluatePlayback(context, instance, state, layer->m_Definition, layer->m_Pose, dt);
                 float weight = layer->m_Definition->m_Weight;
-                if (state->m_Blending && !state->m_Players[(state->m_CurrentPlayer + 1) % 2].m_Animation)
-                    weight *= state->m_BlendTimer / state->m_BlendDuration;
+                if (layer->m_ActivationTimer < layer->m_ActivationDuration)
+                {
+                    layer->m_ActivationTimer = dmMath::Min(layer->m_ActivationTimer + dt, layer->m_ActivationDuration);
+                    weight *= layer->m_ActivationTimer / layer->m_ActivationDuration;
+                }
                 for (uint32_t bi = 0; bi < pose.Size(); ++bi)
                 {
                     if (!layer->m_Mask[bi] || weight == 0.0f)
+                    {
                         continue;
+                    }
                     BlendTransform(pose[bi].m_Local, layer->m_Pose[bi].m_Local, weight);
                 }
             }
@@ -1137,12 +1261,16 @@ namespace dmRig
             {
                 RigLayer* layer = FindLayer(instance, event.m_Layer);
                 if (!layer)
+                {
                     continue;
+                }
                 state = &layer->m_Playback;
             }
             // A preceding callback may replace or cancel another completed animation.
             if (state->m_Generation != event.m_Generation || !instance->m_EventCallback)
+            {
                 continue;
+            }
             void* data = event.m_Type == RIG_EVENT_TYPE_COMPLETED ? (void*)&event.m_Completed : (void*)&event.m_Keyframe;
             instance->m_EventCallback(event.m_Type, data, instance->m_EventCBUserData1, instance->m_EventCBUserData2);
         }
@@ -1157,7 +1285,8 @@ namespace dmRig
         for (uint32_t i = 0; i < count; ++i)
         {
             RigInstance* instance = instances[i];
-            if (DoPostUpdate(instance)) {
+            if (DoPostUpdate(instance))
+            {
                 updated_pose = true;
             }
             DispatchEvents(instance);
@@ -1232,7 +1361,12 @@ namespace dmRig
 
     float GetCursor(HRigInstance instance, bool normalized)
     {
-        RigPlayer* player = GetPlayer(instance);
+        return GetCursor(instance, (HAnimationLayer)0, normalized);
+    }
+
+    float GetCursor(HRigInstance instance, HAnimationLayer layer, bool normalized)
+    {
+        RigPlayer* player = GetPlayer(instance, layer);
 
         if (!player || !player->m_Animation)
         {
@@ -1266,12 +1400,32 @@ namespace dmRig
 
     Result SetCursor(HRigInstance instance, float cursor, bool normalized)
     {
-        return SetPlayerCursor(GetPlayer(instance), cursor, normalized);
+        return SetCursor(instance, (HAnimationLayer)0, cursor, normalized);
+    }
+
+    Result SetCursor(HRigInstance instance, HAnimationLayer layer, float cursor, bool normalized)
+    {
+        RigPlaybackState* state = GetPlayback(instance, layer);
+        if (!state)
+        {
+            return RESULT_ERROR;
+        }
+        Result result = SetPlayerCursor(GetPlayer(state), cursor, normalized);
+        if (result == RESULT_OK)
+        {
+            state->m_PoseDirty = 1;
+        }
+        return result;
     }
 
     float GetPlaybackRate(HRigInstance instance)
     {
-        RigPlayer* player = GetPlayer(instance);
+        return GetPlaybackRate(instance, (HAnimationLayer)0);
+    }
+
+    float GetPlaybackRate(HRigInstance instance, HAnimationLayer layer)
+    {
+        RigPlayer* player = GetPlayer(instance, layer);
 
         if (!player || !player->m_Animation)
         {
@@ -1283,7 +1437,12 @@ namespace dmRig
 
     Result SetPlaybackRate(HRigInstance instance, float playback_rate)
     {
-        RigPlayer* player = GetPlayer(instance);
+        return SetPlaybackRate(instance, (HAnimationLayer)0, playback_rate);
+    }
+
+    Result SetPlaybackRate(HRigInstance instance, HAnimationLayer layer, float playback_rate)
+    {
+        RigPlayer* player = GetPlayer(instance, layer);
 
         if (!player)
         {
@@ -1309,7 +1468,7 @@ namespace dmRig
             {
                 const dmRigDDF::Mesh& mesh = model->m_Meshes[i];
 
-                vertex_count += mesh.m_Positions.m_Count/3;
+                vertex_count += mesh.m_VertexCount ? mesh.m_VertexCount : mesh.m_Positions.m_Count / 3;
             }
         }
 
@@ -1605,20 +1764,20 @@ namespace dmRig
             {
                 for (int c = 0; c < 3; ++c)
                 {
-                    out_write_ptr->m_Position[c] = *positions++;
-                    out_write_ptr->m_Normal[c] = *normals++;
+                    out_write_ptr->pos[c] = *positions++;
+                    out_write_ptr->normal[c] = *normals++;
                 }
 
                 for (int c = 0; c < 4; ++c)
                 {
-                    out_write_ptr->m_Color[c] = colors ? *colors++ : 1.0f;
-                    out_write_ptr->m_Tangent[c] = *tangents++;
+                    out_write_ptr->color[c] = colors ? *colors++ : 1.0f;
+                    out_write_ptr->tangent[c] = *tangents++;
                 }
 
                 for (int c = 0; c < 2; ++c)
                 {
-                    out_write_ptr->m_UV0[c] = uv0 ? *uv0++ : 0.0f;
-                    out_write_ptr->m_UV1[c] = uv1 ? *uv1++ : 0.0f;
+                    out_write_ptr->uv0[c] = uv0 ? *uv0++ : 0.0f;
+                    out_write_ptr->uv1[c] = uv1 ? *uv1++ : 0.0f;
                 }
 
                 out_write_ptr++;
@@ -1645,20 +1804,20 @@ namespace dmRig
 
                 for (int c = 0; c < 3; ++c)
                 {
-                    out_write_ptr->m_Position[c] = positions[idx*3+c];
-                    out_write_ptr->m_Normal[c] = normals[idx*3+c];
+                    out_write_ptr->pos[c] = positions[idx * 3 + c];
+                    out_write_ptr->normal[c] = normals[idx * 3 + c];
                 }
 
                 for (int c = 0; c < 4; ++c)
                 {
-                    out_write_ptr->m_Color[c] = colors ? colors[idx*4+c] : 1.0f;
-                    out_write_ptr->m_Tangent[c] = tangents[idx*4+c];
+                    out_write_ptr->color[c] = colors ? colors[idx * 4 + c] : 1.0f;
+                    out_write_ptr->tangent[c] = tangents[idx * 4 + c];
                 }
 
                 for (int c = 0; c < 2; ++c)
                 {
-                    out_write_ptr->m_UV0[c] = uv0 ? uv0[idx*2+c] : 0.0f;
-                    out_write_ptr->m_UV1[c] = uv1 ? uv1[idx*2+c] : 0.0f;
+                    out_write_ptr->uv0[c] = uv0 ? uv0[idx * 2 + c] : 0.0f;
+                    out_write_ptr->uv1[c] = uv1 ? uv1[idx * 2 + c] : 0.0f;
                 }
 
                 out_write_ptr++;

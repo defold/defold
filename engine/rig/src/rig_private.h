@@ -48,7 +48,9 @@ namespace dmRig
         , m_Cursor(0.0f)
         , m_Playback(dmRig::PLAYBACK_ONCE_FORWARD)
         , m_Playing(0x0)
-        , m_Backwards(0x0) {};
+        , m_Backwards(0x0)
+        {
+        };
 
         /// Currently playing animation
         const dmRigDDF::RigAnimation* m_Animation;
@@ -79,16 +81,15 @@ namespace dmRig
     /*
     * Immutable layer definition shared by rig instances through reference counting.
     * Defines evaluation order, blend weight and bone selection; playback state lives in RigLayer.
-    * m_AllBones distinguishes an omitted bone selection from an explicitly empty one.
     */
     struct AnimationLayer
     {
         dmhash_t          m_Name;
+        uint64_t          m_Id; // Zero after the public handle is destroyed.
         dmArray<dmhash_t> m_Bones;
         uint32_t          m_RefCount;
         int32_t           m_Order;
         float             m_Weight;
-        bool              m_AllBones;
     };
 
     /*
@@ -103,6 +104,7 @@ namespace dmRig
         uint64_t  m_Generation;
         uint8_t   m_CurrentPlayer;
         uint8_t   m_Blending;
+        uint8_t   m_PoseDirty;
     };
 
     /*
@@ -113,6 +115,9 @@ namespace dmRig
     {
         HAnimationLayer      m_Definition;
         RigPlaybackState     m_Playback;
+        // Activation advances independently of replacements and clip crossfades.
+        float                m_ActivationDuration;
+        float                m_ActivationTimer;
         dmArray<uint8_t>     m_Mask;
         dmArray<BonePose>    m_Pose;
     };

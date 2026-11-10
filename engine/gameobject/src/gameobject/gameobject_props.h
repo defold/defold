@@ -67,6 +67,7 @@ namespace dmGameObject
         };
 
         uint8_t m_HasKey : 1;
+        uint8_t m_IsNumberKey : 1;
     };
 
     struct PropertyOptions
@@ -74,9 +75,12 @@ namespace dmGameObject
         PropertyOptions();
         PropertyOption m_Options[MAX_PROPERTY_OPTIONS_COUNT];
         uint8_t        m_OptionsCount;
+        bool           m_IsAnimation; // Component setters can clamp easing overshoot.
     };
 
     bool AddPropertyOptionsKey(PropertyOptions* options, dmhash_t key);
+    bool AddPropertyOptionsNumberKey(PropertyOptions* options, uint64_t key);
+    PropertyResult GetPropertyOptionsNumberKey(HPropertyOptions options, uint32_t index, uint64_t* result);
     bool AddPropertyOptionsIndex(PropertyOptions* options, int32_t index);
     bool AddPropertyOption(PropertyOptions* options, PropertyOption option);
     bool SetPropertyOptionsByIndex(PropertyOptions* options, uint32_t index, int32_t value);

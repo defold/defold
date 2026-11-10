@@ -39,14 +39,32 @@ namespace dmRig
         float           m_Weight;
         const dmhash_t* m_Bones;
         uint32_t        m_BoneCount;
-        uint8_t         m_AllBones : 1;
-        uint8_t : 7;
     };
 
+    // Details for a failed layer play; populated before any playback state changes.
+    struct AnimationLayerError
+    {
+        int32_t  m_Order;
+        dmhash_t m_Bone;
+        dmhash_t m_ConflictingName;
+        int32_t  m_ConflictingOrder;
+    };
+
+    dmhash_t GetAnimationLayerName(HAnimationLayer layer);
+    // The script registry assigns an ID and invalidates it before releasing its reference.
+    void            SetAnimationLayerId(HAnimationLayer layer, uint64_t id);
+    HAnimationLayer FindAnimationLayer(HRigInstance instance, dmhash_t name);
+    HAnimationLayer FindAnimationLayerById(HRigInstance instance, uint64_t id);
+    // A null layer addresses base playback. Non-null layers must belong to this instance.
+    dmhash_t        GetAnimation(HRigInstance instance, HAnimationLayer layer);
+    float           GetCursor(HRigInstance instance, HAnimationLayer layer, bool normalized);
+    Result          SetCursor(HRigInstance instance, HAnimationLayer layer, float cursor, bool normalized);
+    float           GetPlaybackRate(HRigInstance instance, HAnimationLayer layer);
+    Result          SetPlaybackRate(HRigInstance instance, HAnimationLayer layer, float playback_rate);
     HAnimationLayer NewAnimationLayer(const AnimationLayerParams& params);
     void ReleaseAnimationLayer(HAnimationLayer layer);
     // A successful play retains the definition until cancellation or instance destruction.
-    Result PlayAnimation(HRigInstance instance, HAnimationLayer layer, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate);
+    Result PlayAnimation(HRigInstance instance, HAnimationLayer layer, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate, AnimationLayerError* error = 0);
 
     // Remove one layer without stopping base playback or other layers.
     Result CancelAnimation(HRigInstance instance, HAnimationLayer layer);

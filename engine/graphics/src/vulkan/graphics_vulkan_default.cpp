@@ -170,15 +170,12 @@ namespace dmGraphics
         }
     }
 
-    void VulkanSetWindowSize(HContext _context, uint32_t width, uint32_t height)
+    void VulkanResizeWindow(HContext _context, uint32_t width, uint32_t height)
     {
         VulkanContext* context = (VulkanContext*) _context;
 
         if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
-            context->m_BaseContext.m_Width  = width;
-            context->m_BaseContext.m_Height = height;
-
             dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
 
             context->m_WindowWidth  = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
@@ -191,12 +188,14 @@ namespace dmGraphics
         }
     }
 
-    void VulkanResizeWindow(HContext _context, uint32_t width, uint32_t height)
+    void VulkanSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         VulkanContext* context = (VulkanContext*) _context;
         if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
-            VulkanSetWindowSize(_context, width, height);
+            context->m_BaseContext.m_Width  = width;
+            context->m_BaseContext.m_Height = height;
+            VulkanResizeWindow(_context, width, height);
         }
     }
 }

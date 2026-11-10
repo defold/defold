@@ -402,7 +402,8 @@ namespace dmShaderc
 
             dmhash_t resource_name_hash = dmHashString64(bindDesc.Name);
             memset(&resource_entries[i], 0, sizeof(HLSLResourceMapping));
-            resource_entries[i].m_Name = bindDesc.Name;
+            // The compile result outlives the DXC reflection object.
+            resource_entries[i].m_Name = strdup(bindDesc.Name);
             resource_entries[i].m_NameHash = resource_name_hash;
             resource_entries[i].m_RootParameterIndex = i;
 

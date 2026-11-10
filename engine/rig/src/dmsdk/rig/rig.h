@@ -51,7 +51,8 @@ namespace dmRig
         RESULT_ANIM_NOT_FOUND    = 3,
         RESULT_UPDATED_POSE      = 4,
         RESULT_BONE_NOT_FOUND    = 5,
-        RESULT_LAYER_CONFLICT    = 6
+        RESULT_LAYER_CONFLICT    = 6,
+        RESULT_NO_SKELETON       = 7
     };
 
     enum RigPlayback
@@ -114,12 +115,12 @@ namespace dmRig
 
     struct RigModelVertex
     {
-        float m_Position[3];
-        float m_Normal[3];
-        float m_Tangent[4];
-        float m_Color[4];
-        float m_UV0[2];
-        float m_UV1[2];
+        float pos[3];
+        float normal[3];
+        float tangent[4];
+        float color[4];
+        float uv0[2];
+        float uv1[2];
     };
 
     // Can we not use the skeleton directly?

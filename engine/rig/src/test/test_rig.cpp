@@ -809,7 +809,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmHashTable64<uint32_t>&
             uint32_t samples = 2;
             anim_track0.m_Rotations.m_Data = new float[samples*4];
             anim_track0.m_Rotations.m_Count = samples*4;
-            float rot_angle = ((float)M_PI / 180.0f) * (-89.0f);
+            float rot_angle = dmMath::DegToRad(-89.0f);
             ((Quat*)anim_track0.m_Rotations.m_Data)[0] = Quat::rotationZ(rot_angle);
             ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::rotationZ(rot_angle);
 
@@ -833,7 +833,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmHashTable64<uint32_t>&
             uint32_t samples = 2;
             anim_track0.m_Rotations.m_Data = new float[samples*4];
             anim_track0.m_Rotations.m_Count = samples*4;
-            float rot_angle = ((float)M_PI / 180.0f) * (89.0f);
+            float rot_angle = dmMath::DegToRad(89.0f);
             ((Quat*)anim_track0.m_Rotations.m_Data)[0] = Quat::rotationZ(rot_angle);
             ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::rotationZ(rot_angle);
 
@@ -1232,7 +1232,7 @@ protected:
 
 class AnimationLayerTest : public RigInstanceTest
 {
-protected:
+    protected:
     void SetUp() override
     {
         RigInstanceTest::SetUp();
@@ -1258,9 +1258,9 @@ protected:
         }
     }
 
-    dmRig::HAnimationLayer Layer(const char* name, int order, float weight, const dmhash_t* bones = 0, uint32_t count = 0, bool all = true)
+    dmRig::HAnimationLayer Layer(const char* name, int order, float weight, const dmhash_t* bones = 0, uint32_t count = 0)
     {
-        dmRig::AnimationLayerParams params = {dmHashString64(name), order, weight, bones, count, all};
+        dmRig::AnimationLayerParams params = { dmHashString64(name), order, weight, bones, count };
         return dmRig::NewAnimationLayer(params);
     }
 };
@@ -1268,10 +1268,10 @@ protected:
 // Verifies subtree masks, deterministic overlap order and weight composition reach both world poses and skinning matrices.
 TEST_F(AnimationLayerTest, MasksOrderWeightAndSkinning)
 {
-    dmhash_t lower_bones[] = {3};
-    dmhash_t upper_bones[] = {4};
-    dmRig::HAnimationLayer lower = Layer("lower", 1, 0.5f, lower_bones, 1, false);
-    dmRig::HAnimationLayer upper = Layer("upper", 2, 0.5f, upper_bones, 1, false);
+    dmhash_t lower_bones[] = { 3 };
+    dmhash_t upper_bones[] = { 4 };
+    dmRig::HAnimationLayer lower = Layer("lower", 1, 0.5f, lower_bones, 1);
+    dmRig::HAnimationLayer upper = Layer("upper", 2, 0.5f, upper_bones, 1);
     dmRig::HAnimationLayer silent = Layer("silent", 3, 0.0f);
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, 1, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, upper, 3, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1));
@@ -1349,18 +1349,127 @@ TEST_F(AnimationLayerTest, FadeAndMissingChannels)
     dmRig::ReleaseAnimationLayer(layer);
 }
 
-// Verifies invalid masks and conflicting definitions leave an existing layer's playback unchanged.
+// Verifies replacing a partially activated layer preserves influence, even with a zero-time update.
+TEST_F(AnimationLayerTest, ReplacementPreservesActivation)
+{
+    dmRig::HAnimationLayer layer = Layer("half", 1, 0.5f);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, 3, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, layer, 1, dmRig::PLAYBACK_LOOP_FORWARD, 2, 0, 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1));
+    ASSERT_NEAR(25, (*dmRig::GetPose(m_Instance))[0].m_Local.GetTranslation().getX(), RIG_EPSILON_FLOAT);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, layer, 2, dmRig::PLAYBACK_LOOP_FORWARD, 2, 0, 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0));
+    ASSERT_NEAR(25, (*dmRig::GetPose(m_Instance))[0].m_Local.GetTranslation().getX(), RIG_EPSILON_FLOAT);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1));
+    ASSERT_NEAR(22.5f, (*dmRig::GetPose(m_Instance))[0].m_Local.GetTranslation().getX(), RIG_EPSILON_FLOAT);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1));
+    ASSERT_NEAR(25, (*dmRig::GetPose(m_Instance))[0].m_Local.GetTranslation().getX(), RIG_EPSILON_FLOAT);
+    dmRig::ReleaseAnimationLayer(layer);
+}
+
+// Verifies activation finishes on a held pose after replacement stops clip advancement and crossfading.
+TEST_F(AnimationLayerTest, ActivationContinuesAfterReplacementCompletes)
+{
+    dmRig::HAnimationLayer layer = Layer("half", 1, 0.5f);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, 3, dmRig::PLAYBACK_ONCE_FORWARD, 0, 0, 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, layer, 1, dmRig::PLAYBACK_ONCE_FORWARD, 4, 0, 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, layer, 1, dmRig::PLAYBACK_ONCE_FORWARD, 0, 0, 10));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0));
+    ASSERT_NEAR(27.5f, (*dmRig::GetPose(m_Instance))[0].m_Local.GetTranslation().getX(), RIG_EPSILON_FLOAT);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1));
+    ASSERT_NEAR(25, (*dmRig::GetPose(m_Instance))[0].m_Local.GetTranslation().getX(), RIG_EPSILON_FLOAT);
+    ASSERT_TRUE(dmRig::IsAnimating(m_Instance));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 2));
+    ASSERT_NEAR(20, (*dmRig::GetPose(m_Instance))[0].m_Local.GetTranslation().getX(), RIG_EPSILON_FLOAT);
+    ASSERT_FALSE(dmRig::IsAnimating(m_Instance));
+    dmRig::ReleaseAnimationLayer(layer);
+}
+
+// Verifies layer property writes target the incoming clip, preserve base state and refresh held poses without restarting.
+TEST_F(AnimationLayerTest, PlaybackProperties)
+{
+    dmRig::HAnimationLayer layer = Layer("layer", 1, 1);
+    dmRig::SetAnimationLayerId(layer, 42);
+    ASSERT_EQ((dmRig::HAnimationLayer)0, dmRig::FindAnimationLayerById(m_Instance, 42));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, 3, dmRig::PLAYBACK_ONCE_FORWARD, 0, 0, 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, layer, 1, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1));
+    ASSERT_EQ(layer, dmRig::FindAnimationLayer(m_Instance, dmHashString64("layer")));
+    ASSERT_EQ(layer, dmRig::FindAnimationLayerById(m_Instance, 42));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, layer, 2, dmRig::PLAYBACK_ONCE_FORWARD, 1, 0, 2));
+    ASSERT_EQ(2u, dmRig::GetAnimation(m_Instance, layer));
+    ASSERT_EQ(3u, dmRig::GetAnimation(m_Instance));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, layer, 0.25f, true));
+    ASSERT_NEAR(0.25f, dmRig::GetCursor(m_Instance, layer, true), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetPlaybackRate(m_Instance, layer, 0.5f));
+    ASSERT_NEAR(0.5f, dmRig::GetPlaybackRate(m_Instance, layer), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(1, dmRig::GetPlaybackRate(m_Instance), RIG_EPSILON_FLOAT);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1));
+    ASSERT_NEAR(0.5f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.5f, dmRig::GetCursor(m_Instance, layer, true), RIG_EPSILON_FLOAT);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 3));
+    ASSERT_FALSE(dmRig::IsAnimating(m_Instance));
+
+    // Give the held clip a changing position so a cursor write must resample its pose.
+    dmRigDDF::AnimationTrack& track = m_AnimationSet->m_Animations[1].m_Tracks[0];
+    delete[] track.m_Positions.m_Data;
+    track.m_Positions.m_Count = 9;
+    track.m_Positions.m_Data = new float[9];
+    const float positions[] = { 0, 0, 0, 10, 0, 0, 20, 0, 0 };
+    memcpy(track.m_Positions.m_Data, positions, sizeof(positions));
+    dmRig::SetAnimationLayerId(layer, 0);
+    ASSERT_EQ((dmRig::HAnimationLayer)0, dmRig::FindAnimationLayerById(m_Instance, 42));
+    ASSERT_EQ(layer, dmRig::FindAnimationLayer(m_Instance, dmHashString64("layer")));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, layer, 0.25f, true));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1));
+    ASSERT_NEAR(5, (*dmRig::GetPose(m_Instance))[0].m_Local.GetTranslation().getX(), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(0.25f, dmRig::GetCursor(m_Instance, layer, true), RIG_EPSILON_FLOAT);
+    ASSERT_FALSE(dmRig::IsAnimating(m_Instance));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::CancelAnimation(m_Instance, layer));
+    ASSERT_EQ((dmRig::HAnimationLayer)0, dmRig::FindAnimationLayer(m_Instance, dmHashString64("layer")));
+    ASSERT_EQ(dmRig::RESULT_ERROR, dmRig::SetCursor(m_Instance, layer, 0, true));
+    ASSERT_EQ(dmRig::RESULT_ERROR, dmRig::SetPlaybackRate(m_Instance, layer, 1));
+    dmRig::ReleaseAnimationLayer(layer);
+}
+
+// Verifies an empty bone list selects the entire skeleton, matching an omitted list.
+TEST_F(AnimationLayerTest, EmptyBonesSelectAll)
+{
+    dmRig::HAnimationLayer layer = Layer("all", 1, 1, 0, 0);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, layer, 2, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0));
+    for (uint32_t i = 0; i < dmRig::GetPose(m_Instance)->Size(); ++i)
+    {
+        ASSERT_NEAR(20, (*dmRig::GetPose(m_Instance))[i].m_Local.GetTranslation().getX(), RIG_EPSILON_FLOAT);
+    }
+    dmRig::ReleaseAnimationLayer(layer);
+}
+
+// Verifies validation reports the offending bone/layer and leaves existing playback unchanged.
 TEST_F(AnimationLayerTest, ValidationIsAtomic)
 {
     dmRig::HAnimationLayer layer = Layer("layer", 1, 1);
     dmRig::HAnimationLayer same_name = Layer("layer", 2, 1);
     dmRig::HAnimationLayer same_order = Layer("other", 1, 1);
     dmhash_t missing = 99;
-    dmRig::HAnimationLayer invalid = Layer("missing", 3, 1, &missing, 1, false);
+    dmRig::HAnimationLayer invalid = Layer("missing", 3, 1, &missing, 1);
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, layer, 1, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1));
-    ASSERT_EQ(dmRig::RESULT_LAYER_CONFLICT, dmRig::PlayAnimation(m_Instance, same_name, 2, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1));
-    ASSERT_EQ(dmRig::RESULT_LAYER_CONFLICT, dmRig::PlayAnimation(m_Instance, same_order, 2, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1));
-    ASSERT_EQ(dmRig::RESULT_BONE_NOT_FOUND, dmRig::PlayAnimation(m_Instance, invalid, 2, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1));
+    dmRig::AnimationLayerError error;
+    ASSERT_EQ(dmRig::RESULT_LAYER_CONFLICT, dmRig::PlayAnimation(m_Instance, same_name, 2, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1, &error));
+    ASSERT_EQ(dmHashString64("layer"), error.m_ConflictingName);
+    ASSERT_EQ(1, error.m_ConflictingOrder);
+    ASSERT_EQ(2, error.m_Order);
+    ASSERT_EQ(dmRig::RESULT_LAYER_CONFLICT, dmRig::PlayAnimation(m_Instance, same_order, 2, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1, &error));
+    ASSERT_EQ(dmHashString64("layer"), error.m_ConflictingName);
+    ASSERT_EQ(1, error.m_ConflictingOrder);
+    ASSERT_EQ(1, error.m_Order);
+    ASSERT_EQ(dmRig::RESULT_BONE_NOT_FOUND, dmRig::PlayAnimation(m_Instance, invalid, 2, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1, &error));
+    ASSERT_EQ(missing, error.m_Bone);
+    m_Instance->m_Skeleton = 0;
+    dmRig::Result no_skeleton = dmRig::PlayAnimation(m_Instance, layer, 2, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1, &error);
+    m_Instance->m_Skeleton = m_Skeleton;
+    ASSERT_EQ(dmRig::RESULT_NO_SKELETON, no_skeleton);
     ASSERT_EQ(dmRig::RESULT_ANIM_NOT_FOUND, dmRig::PlayAnimation(m_Instance, layer, 99, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1));
     ASSERT_NEAR(10, (*dmRig::GetPose(m_Instance))[0].m_Local.GetTranslation().getX(), RIG_EPSILON_FLOAT);
@@ -1388,7 +1497,9 @@ struct LayerTransitionContext
 static void BlendAfterCompletion(dmRig::RigEventType type, void* data, void* user_data1, void* user_data2)
 {
     if (type != dmRig::RIG_EVENT_TYPE_COMPLETED)
+    {
         return;
+    }
     LayerTransitionContext* context = (LayerTransitionContext*)user_data1;
     dmRig::RigCompletedEventData* event = (dmRig::RigCompletedEventData*)data;
     ++context->m_Completions;
@@ -1399,7 +1510,7 @@ static void BlendAfterCompletion(dmRig::RigEventType type, void* data, void* use
 TEST_F(AnimationLayerTest, CompletionBlendPreservesSkinningPose)
 {
     dmRig::HAnimationLayer layer = Layer("shooting", 1, 1);
-    LayerTransitionContext completion = {m_Instance, 0};
+    LayerTransitionContext completion = { m_Instance, 0 };
     dmRig::SetEventCallback(m_Instance, BlendAfterCompletion, &completion, 0);
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, layer, 2, dmRig::PLAYBACK_ONCE_FORWARD, 0, 0, 1));
     ASSERT_NE(dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY, dmRig::AcquirePoseMatrixCacheEntry(m_Context, m_Instance));
@@ -1451,11 +1562,15 @@ TEST_F(AnimationLayerTest, PlayAfterUpdatePreservesSkinningPose)
 static void LayerCompletion(dmRig::RigEventType type, void* data, void* user_data1, void* user_data2)
 {
     if (type != dmRig::RIG_EVENT_TYPE_COMPLETED)
+    {
         return;
+    }
     LayerCompletionContext* context = (LayerCompletionContext*)user_data1;
     dmRig::RigCompletedEventData* event = (dmRig::RigCompletedEventData*)data;
     if (event->m_Layer)
+    {
         ++context->m_LayerCount;
+    }
     else
     {
         ++context->m_BaseCount;
@@ -1467,8 +1582,8 @@ static void LayerCompletion(dmRig::RigEventType type, void* data, void* user_dat
 TEST_F(AnimationLayerTest, ReentrantCompletion)
 {
     dmRig::HAnimationLayer layer = Layer("replace", 1, 1);
-    dmRig::HAnimationLayer empty = Layer("empty", 2, 0, 0, 0, false);
-    LayerCompletionContext completion = {m_Instance, layer, 0, 0};
+    dmRig::HAnimationLayer empty = Layer("empty", 2, 0);
+    LayerCompletionContext completion = { m_Instance, layer, 0, 0 };
     dmRig::SetEventCallback(m_Instance, LayerCompletion, &completion, 0);
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, 1, dmRig::PLAYBACK_ONCE_FORWARD, 0, 0, 1));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, layer, 2, dmRig::PLAYBACK_ONCE_FORWARD, 0, 0, 1));
@@ -1492,7 +1607,9 @@ TEST_F(AnimationLayerTest, SharedDefinitionLifetimeAndSkeletonMapping)
     dmHashTable64<uint32_t> other_indices;
     other_indices.SetCapacity(4, 6);
     for (uint32_t i = 0; i < 6; ++i)
+    {
         other_indices.Put(i, i == 1 ? 3 : i == 3 ? 1 : i);
+    }
     dmRig::InstanceCreateParams params = {};
     params.m_BindPose = &m_BindPose;
     params.m_BoneIndices = &other_indices;
@@ -1504,7 +1621,7 @@ TEST_F(AnimationLayerTest, SharedDefinitionLifetimeAndSkeletonMapping)
     dmRig::HRigInstance other;
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceCreate(m_Context, params, &other));
     dmhash_t bone = 3;
-    dmRig::HAnimationLayer layer = Layer("shared", 1, 1, &bone, 1, false);
+    dmRig::HAnimationLayer layer = Layer("shared", 1, 1, &bone, 1);
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, layer, 1, dmRig::PLAYBACK_ONCE_FORWARD, 0, 0, 1));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(other, layer, 2, dmRig::PLAYBACK_ONCE_BACKWARD, 0, 0.25f, 0.5f));
     dmRig::ReleaseAnimationLayer(layer);
@@ -1856,8 +1973,8 @@ TEST_F(RigInstanceTest, BlendRotation)
 
     dmArray<dmRig::BonePose>& pose = *dmRig::GetPose(m_Instance);
 
-    const Quat rot_1 = Quat::rotationZ((float)M_PI / 180.0f * (-89.0f));
-    const Quat rot_2 = Quat::rotationZ((float)M_PI / 180.0f * (89.0f));
+    const Quat rot_1 = Quat::rotationZ(dmMath::DegToRad(-89.0f));
+    const Quat rot_2 = Quat::rotationZ(dmMath::DegToRad(89.0f));
     const Quat rot_midway = Quat::identity();
 
     // Verify that the rotation is "static" -89 degrees.
@@ -1887,10 +2004,10 @@ TEST_F(RigInstanceTest, GetVertexCount)
 }
 
 #define ASSERT_VERT_POS(exp, act)\
-    ASSERT_EQ(exp, Vector3(act.m_Position[0], act.m_Position[1], act.m_Position[2]));
+    ASSERT_EQ(exp, Vector3(act.pos[0], act.pos[1], act.pos[2]));
 
 #define ASSERT_VERT_NORM(exp, act)\
-    ASSERT_EQ(exp, Vector3(act.m_Normal[0], act.m_Normal[1], act.m_Normal[2]));
+    ASSERT_EQ(exp, Vector3(act.normal[0], act.normal[1], act.normal[2]));
 
 #define ASSERT_VERT_UV(exp_u, exp_v, act_u, act_v)\
     ASSERT_NEAR(exp_u, act_u, RIG_EPSILON_FLOAT);\
@@ -1954,7 +2071,7 @@ TEST_F(RigInstanceTest, GenerateTexcoordData)
 
     // sample 0
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, m_FirstMesh, Matrix4::identity(), data));
-    ASSERT_VERT_UV(-1.0f, 2.0f, data[0].m_UV0[0], data[0].m_UV0[1]);
+    ASSERT_VERT_UV(-1.0f, 2.0f, data[0].uv0[0], data[0].uv0[1]);
 }
 
 // Test to verify that two rigs does not interfere with each others pose information,

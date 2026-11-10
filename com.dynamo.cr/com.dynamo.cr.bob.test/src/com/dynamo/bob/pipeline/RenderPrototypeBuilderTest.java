@@ -14,17 +14,17 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import java.util.List;
-
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.render.proto.Render.RenderPrototypeDesc;
+import com.google.protobuf.Message;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.bob.fs.ResourceUtil;
-import com.dynamo.bob.CompileExceptionError;
-import com.google.protobuf.Message;
-import com.dynamo.render.proto.Render.RenderPrototypeDesc;
+import java.util.List;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class RenderPrototypeBuilderTest extends AbstractProtoBuilderTest {
 
