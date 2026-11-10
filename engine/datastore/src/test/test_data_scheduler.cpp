@@ -34,17 +34,17 @@ struct ScheduledEntity
 struct ScheduledContext
 {
     DSFieldId m_Field;
-    uint32_t m_Calls;
-    float    m_Amount;
-    float    m_Total;
+    uint32_t  m_Calls;
+    float     m_Amount;
+    float     m_Total;
 };
 
 struct ScheduledRanges
 {
     DSFieldId m_Field;
-    uint32_t m_Calls;
-    uint32_t m_Counts[74];
-    uint32_t m_Visits[74];
+    uint32_t  m_Calls;
+    uint32_t  m_Counts[74];
+    uint32_t  m_Visits[74];
 };
 
 extern "C" int TestDataSchedulerFromC(void);
@@ -68,7 +68,7 @@ static void CountAndHealRanges(HDSQuery query, uint32_t first, uint32_t num_rows
     EXPECT_EQ(first + num_rows, index);
 }
 
-static void    HealRows(HDSQuery query, uint32_t first, uint32_t num_rows, void* context)
+static void HealRows(HDSQuery query, uint32_t first, uint32_t num_rows, void* context)
 {
     ScheduledContext* state = (ScheduledContext*)context;
     ++state->m_Calls;
@@ -77,7 +77,9 @@ static void    HealRows(HDSQuery query, uint32_t first, uint32_t num_rows, void*
     {
         DSRowIterator rows = DSIterRows(&it);
         while (DSRowIterNext(&rows))
+        {
             *DSRowIterGetFloatMut(&rows, state->m_Field) += state->m_Amount;
+        }
     }
 }
 
@@ -90,7 +92,9 @@ static void ReadHealthRows(HDSQuery query, uint32_t first, uint32_t num_rows, vo
     {
         DSRowIterator rows = DSIterRows(&it);
         while (DSRowIterNext(&rows))
+        {
             state->m_Total += *DSRowIterGetFloat(&rows, state->m_Field);
+        }
     }
 }
 
@@ -103,7 +107,9 @@ static void MoveRows(HDSQuery query, uint32_t first, uint32_t num_rows, void* co
     {
         DSRowIterator rows = DSIterRows(&it);
         while (DSRowIterNext(&rows))
+        {
             DSRowIterGetVector3Mut(&rows, state->m_Field)->m_Values[0] += state->m_Amount;
+        }
     }
 }
 
@@ -140,7 +146,9 @@ static void FinishSchedule(HDSContext store, uint32_t num_jobs)
 {
     // Count deterministic job steps, not retries while waiting for workers.
     for (uint32_t i = 0; i < num_jobs; ++i)
+    {
         ASSERT_EQ(i + 1 == num_jobs ? DS_RESULT_OK : DS_RESULT_BUSY, DSSchedulerUpdate(store));
+    }
     ASSERT_EQ(DS_RESULT_OK, DSSchedulerEnd(store));
 }
 
@@ -184,7 +192,9 @@ TEST(DataScheduler, SplitRangesCoverRowsAcrossTables)
         float values[74];
         ASSERT_EQ(DS_RESULT_OK, DSFieldGetFloatBatch(store, 74, ids, field.m_Field, values));
         for (uint32_t r = 0; r < 74; ++r)
+        {
             ASSERT_EQ((float)(s + 1), values[r]);
+        }
         ASSERT_EQ(DS_RESULT_OK, DSFunctionRemove(store, function.m_Name));
     }
     ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
@@ -214,7 +224,9 @@ TEST(DataScheduler, SplitRangesRefreshAfterPopulationChanges)
             FinishSchedule(store, num_jobs);
             ASSERT_EQ(num_jobs, ranges.m_Calls);
             for (uint32_t r = 0; r < 3; ++r)
+            {
                 ASSERT_EQ(r < num_rows ? 1u : 0u, ranges.m_Visits[r]);
+            }
             if (!num_rows)
             {
                 ASSERT_EQ(0u, ranges.m_Counts[0]);
@@ -475,13 +487,19 @@ TEST(DataScheduler, QueryAccessMatrix)
                 ASSERT_EQ(frame + 1, first_context.m_Calls);
                 ASSERT_EQ(frame + 1, second_context.m_Calls);
                 if (!a)
+                {
                     ASSERT_EQ(3.0f * (50 + frame * (a + b)), first_context.m_Total);
+                }
                 if (!b)
+                {
                     ASSERT_EQ(3.0f * (50 + frame * (a + b) + a), second_context.m_Total);
+                }
                 float health[3];
                 ASSERT_EQ(DS_RESULT_OK, DSFieldGetFloatBatch(store, 3, ids, dmHashString64("health"), health));
                 for (uint32_t i = 0; i < 3; ++i)
+                {
                     ASSERT_EQ(50.0f + (frame + 1) * (a + b), health[i]);
+                }
             }
             ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(first));
             ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(second));
@@ -561,7 +579,9 @@ TEST(DataScheduler, DisjointFieldsAndGroups)
         { dmHashString64("health_8"), {}, second, HealRows, &second_context }
     };
     for (uint32_t i = 0; i < 4; ++i)
+    {
         ASSERT_EQ(DS_RESULT_OK, DSFunctionAdd(store, &systems[i]));
+    }
     HJobContext jobs = CreateScheduledJobs();
     ASSERT_EQ(DS_RESULT_OK, DSSchedulerBegin(store, jobs));
     ASSERT_EQ(3u, store->m_ActiveQueries.Size());
@@ -575,7 +595,9 @@ TEST(DataScheduler, DisjointFieldsAndGroups)
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetVector3(store, other_id, dmHashString64("position"), &position));
     ASSERT_EQ(10.0f, position.m_Values[0]);
     for (uint32_t i = 0; i < 4; ++i)
+    {
         ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(systems[i].m_Query));
+    }
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
     JobSystemDestroy(jobs);
 }
@@ -740,7 +762,9 @@ TEST(DataScheduler, TableChangesAndExternalReservations)
             ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 2, 0, 1, &input, 0));
         }
         if (pass == 2)
+        {
             ASSERT_EQ(DS_RESULT_OK, DSTableRemove(store, 2));
+        }
         ASSERT_EQ(DS_RESULT_OK, DSSchedulerBegin(store, jobs));
         ASSERT_EQ(pass == 1 ? 1u : 2u, store->m_ActiveQueries.Size());
         FinishSchedule(store, 2);
@@ -784,9 +808,13 @@ TEST(DataScheduler, EndWaitsForReadyFunctions)
         { dmHashString64("pending_child"), { dmHashString64("pending") }, query, ReadHealthRows, &pending }
     };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(events); ++i)
+    {
         ASSERT_EQ(DS_RESULT_OK, DSEventAdd(store, &events[i]));
+    }
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(systems); ++i)
+    {
         ASSERT_EQ(DS_RESULT_OK, DSFunctionAdd(store, &systems[i]));
+    }
 
     for (uint32_t frame = 0; frame < 2; ++frame)
     {
@@ -798,7 +826,9 @@ TEST(DataScheduler, EndWaitsForReadyFunctions)
         DSQueryEnd(query);
         ASSERT_EQ(DS_RESULT_BUSY, DSSchedulerEnd(store));
         while (DSSchedulerEnd(store) == DS_RESULT_BUSY)
+        {
             DSSchedulerUpdate(store);
+        }
         ASSERT_EQ(frame + 1, writer.m_Calls);
         ASSERT_EQ(frame + 1, reader.m_Calls);
         ASSERT_EQ(0u, pending.m_Calls);

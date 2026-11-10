@@ -34,14 +34,18 @@ void GetDataMemoryStats(HDSContext store, DSMemoryStats* out_stats)
     memset(out_stats, 0, sizeof(*out_stats));
     out_stats->m_Tables = store->m_Tables.Size();
     out_stats->m_StoreBytes = sizeof(DSStore) + (uint64_t)store->m_Tables.Capacity() * sizeof(DSTable*) +
-    (uint64_t)store->m_Queries.Capacity() * sizeof(HDSQuery) +
-    dmHashTable64<DSGroup>::GetMemorySize(store->m_Groups.Capacity() * 2 / 3, store->m_Groups.Capacity());
+                              (uint64_t)store->m_Queries.Capacity() * sizeof(HDSQuery) +
+                              dmHashTable64<DSGroup>::GetMemorySize(store->m_Groups.Capacity() * 2 / 3, store->m_Groups.Capacity());
     // Object pool storage: query pointers, logical entries and the reverse index.
     out_stats->m_StoreBytes += (uint64_t)store->m_ActiveQueries.Capacity() * (sizeof(HDSQuery) + 3 * sizeof(uint32_t));
     out_stats->m_StoreBytes += (uint64_t)store->m_Pages.Capacity() * sizeof(DSRowPage);
     for (uint32_t p = 0; p < store->m_Pages.Size(); ++p)
+    {
         if (store->m_Pages[p].m_Data)
+        {
             out_stats->m_PageSlackBytes += store->m_PageSize;
+        }
+    }
     out_stats->m_SlotBytes = (uint64_t)store->m_Slots.Capacity() * sizeof(DSSlot);
     for (DSBlobPool* pool = store->m_Pools; pool; pool = pool->m_Next)
     {
@@ -49,26 +53,30 @@ void GetDataMemoryStats(HDSContext store, DSMemoryStats* out_stats)
         // The embedded table/row arrays are accounted below. Retain unused initial
         // row capacity here when an array has grown out of the shared allocation.
         out_stats->m_InstanceBytes += pool->m_AllocationSize - (uint64_t)pool->m_Blob->m_TableCount * sizeof(DSTable) +
-        (uint64_t)pool->m_Pages.Capacity() * sizeof(uint8_t*) +
-        (uint64_t)pool->m_Pages.Size() * (1u << pool->m_PageShift) * pool->m_InstanceStride;
+                                      (uint64_t)pool->m_Pages.Capacity() * sizeof(uint8_t*) +
+                                      (uint64_t)pool->m_Pages.Size() * (1u << pool->m_PageShift) * pool->m_InstanceStride;
         for (uint32_t i = 0; i < pool->m_Issued; ++i)
         {
             HDSBlobInstance instance = GetPoolInstance(pool, i);
             if (instance->m_Pool)
+            {
                 GetPayloadMemory(instance->m_Payloads, out_stats);
+            }
         }
     }
     for (uint32_t i = 0; i < store->m_Queries.Size(); ++i)
     {
         HDSQuery query = store->m_Queries[i];
         out_stats->m_QueryBytes += sizeof(DSQuery) + (uint64_t)query->m_Tables.Capacity() * sizeof(DSQueryTable) +
-        (uint64_t)query->m_Fields.Capacity() * sizeof(DSQueryFieldInfo) +
-        (uint64_t)query->m_Groups.Capacity() * sizeof(DSId) +
-        (uint64_t)query->m_Ranges.Capacity() * sizeof(DSQueryRange) +
-        (uint64_t)query->m_Tags.Capacity() * sizeof(uint64_t) +
-        (uint64_t)query->m_Conflicts.Capacity() * sizeof(DSQueryConflict);
+                                   (uint64_t)query->m_Fields.Capacity() * sizeof(DSQueryFieldInfo) +
+                                   (uint64_t)query->m_Groups.Capacity() * sizeof(DSId) +
+                                   (uint64_t)query->m_Ranges.Capacity() * sizeof(DSQueryRange) +
+                                   (uint64_t)query->m_Tags.Capacity() * sizeof(uint64_t) +
+                                   (uint64_t)query->m_Conflicts.Capacity() * sizeof(DSQueryConflict);
         for (const DSBlock* block = query->m_Bindings; block; block = block->m_Next)
+        {
             out_stats->m_QueryBytes += sizeof(DSBlock) + block->m_Capacity;
+        }
     }
     for (uint32_t i = 0; i < store->m_Tables.Size(); ++i)
     {
@@ -80,7 +88,7 @@ void GetDataMemoryStats(HDSContext store, DSMemoryStats* out_stats)
         {
             const DSOwnedTable* owned = table->m_Owned;
             out_stats->m_TableBytes += sizeof(DSOwnedTable) + (uint64_t)owned->m_Tags.Capacity() * sizeof(uint64_t) +
-            (uint64_t)owned->m_Fields.Capacity() * sizeof(DSFieldMeta);
+                                       (uint64_t)owned->m_Fields.Capacity() * sizeof(DSFieldMeta);
             for (const DSPayloadBlock* block = owned->m_BaseValues; block; block = block->m_Next)
             {
                 ++out_stats->m_BaseBlocks;
@@ -91,7 +99,9 @@ void GetDataMemoryStats(HDSContext store, DSMemoryStats* out_stats)
         else
         {
             if (IsPoolStorage(table->m_Pool, table->m_Rows.Begin()))
+            {
                 out_stats->m_InstanceBytes -= (uint64_t)table->m_Rows.Capacity() * sizeof(DSRow);
+            }
         }
         if (table->m_Structs)
         {
@@ -112,13 +122,15 @@ void GetDataMemoryStats(HDSContext store, DSMemoryStats* out_stats)
             out_stats->m_ValueBytes += values;
             out_stats->m_BaseRowBytes += table->m_DefaultOffset;
             if (table->m_Chunks[c].m_Page != UINT32_MAX)
+            {
                 out_stats->m_PageSlackBytes -= values + table->m_DefaultOffset;
+            }
         }
         out_stats->m_TableBytes += (uint64_t)table->m_ViewAliases.Capacity() * sizeof(DSTable*);
         GetPayloadMemory(table->m_Payloads, out_stats);
     }
     out_stats->m_TotalBytes = out_stats->m_StoreBytes + out_stats->m_TableBytes + out_stats->m_RowMetadataBytes + out_stats->m_PageSlackBytes +
-    out_stats->m_SlotBytes + out_stats->m_BaseRowBytes + out_stats->m_ValueBytes + out_stats->m_InstanceBytes +
-    out_stats->m_QueryBytes + out_stats->m_BaseCapacity + out_stats->m_PayloadCapacity +
-    (out_stats->m_BaseBlocks + out_stats->m_PayloadBlocks) * sizeof(DSPayloadBlock);
+                              out_stats->m_SlotBytes + out_stats->m_BaseRowBytes + out_stats->m_ValueBytes + out_stats->m_InstanceBytes +
+                              out_stats->m_QueryBytes + out_stats->m_BaseCapacity + out_stats->m_PayloadCapacity +
+                              (out_stats->m_BaseBlocks + out_stats->m_PayloadBlocks) * sizeof(DSPayloadBlock);
 }

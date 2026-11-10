@@ -135,7 +135,9 @@ TEST(DataRows, GrowthRangesRemovalAndReset)
     ASSERT_EQ(input[9].m_Health + 7, value);
     ASSERT_EQ(DS_RESULT_OK, DSFieldGetUInt32Batch(store, 33, ids + 3, 4, colors));
     for (uint32_t i = 0; i < 33; ++i)
+    {
         ASSERT_EQ(input[i + 3].m_Color, colors[i]);
+    }
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     ASSERT_EQ(33u, DSQueryGetRowCount(query));
     DSQueryEnd(query);
@@ -163,7 +165,7 @@ TEST(DataRows, NativeRowPointers)
         1,
         DS_ROW_MUTABLE,
         { { 2, DS_TYPE_VECTOR3, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD },
-          { 3, DS_TYPE_FLOAT, 0, DS_QUERY_ITEM_FIELD } }
+            { 3, DS_TYPE_FLOAT, 0, DS_QUERY_ITEM_FIELD } }
     };
     HDSQuery query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
@@ -228,9 +230,13 @@ TEST(DataRows, NativeRowPointerFlags)
             ASSERT_EQ(i >= 3, read != 0);
             ASSERT_EQ(i >= 3, write != 0);
             if (read)
+            {
                 ASSERT_EQ(input[mode == 0 ? 1 : 0].m_Health, read->m_Health);
+            }
             if (write)
+            {
                 ASSERT_EQ((const void*)read, (const void*)write);
+            }
             DSQueryEnd(query);
         }
         ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
@@ -263,7 +269,9 @@ TEST(DataRows, WholeRowReservations)
     const uint32_t writes[] = { 0, 1, 0, 2, 7, 0 };
     HDSQuery       queries[6];
     for (uint32_t i = 0; i < 6; ++i)
+    {
         ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &descriptions[i], &queries[i]));
+    }
     // Row access does not change the access declared for a typed field binding.
     ASSERT_EQ(UINT32_MAX, DSQueryFindField(queries[4], &position_mut));
     for (uint32_t pass = 0; pass < 2; ++pass)
@@ -276,13 +284,17 @@ TEST(DataRows, WholeRowReservations)
                 bool conflict = a == b || (writes[a] & reads[b]) || (writes[b] & reads[a]);
                 ASSERT_EQ(conflict ? DS_RESULT_BUSY : DS_RESULT_OK, DSQueryTryBegin(queries[b]));
                 if (!conflict)
+                {
                     DSQueryEnd(queries[b]);
+                }
             }
             DSQueryEnd(queries[a]);
         }
     }
     for (uint32_t i = 0; i < 6; ++i)
+    {
         ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(queries[i]));
+    }
     DSQueryDesc invalid = { 0, 0, 1 };
     HDSQuery    query = 0;
     ASSERT_EQ(DS_RESULT_INVALID_ARGUMENT, DSQueryCreate(store, &invalid, &query));
@@ -335,7 +347,9 @@ TEST(DataRows, WholeRowGroupsAndTableChanges)
     DSQueryEnd(other);
     ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(other));
     for (uint32_t i = 0; i < 2; ++i)
+    {
         ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(queries[i]));
+    }
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
 

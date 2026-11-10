@@ -14,8 +14,8 @@
 
 #include "data.h"
 
-static const size_t      PAYLOAD_BLOCK_SIZE = 4096;
-static const size_t      PAYLOAD_BLOCK_HEADER_SIZE = (sizeof(DSPayloadBlock) + 7) & ~(size_t)7;
+static const size_t PAYLOAD_BLOCK_SIZE = 4096;
+static const size_t PAYLOAD_BLOCK_HEADER_SIZE = (sizeof(DSPayloadBlock) + 7) & ~(size_t)7;
 
 static DSPayloadHeader** FreeLink(DSPayloadHeader* chunk)
 {
@@ -25,18 +25,26 @@ static DSPayloadHeader** FreeLink(DSPayloadHeader* chunk)
 static void DeletePayloadBlock(DSPayloadBlock* block)
 {
     if (block->m_Previous)
+    {
         block->m_Previous->m_Next = block->m_Next;
+    }
     else
+    {
         *block->m_Owner = block->m_Next;
+    }
     if (block->m_Next)
+    {
         block->m_Next->m_Previous = block->m_Previous;
+    }
     delete[] (uint8_t*)block;
 }
 
 static DSPayloadBlock* NewPayloadBlock(DSPayloadBlock** blocks, size_t size)
 {
     if (*blocks && !(*blocks)->m_LiveSize)
+    {
         DeletePayloadBlock(*blocks);
+    }
     size_t          capacity = size > PAYLOAD_BLOCK_SIZE ? size : PAYLOAD_BLOCK_SIZE;
     DSPayloadBlock* block = (DSPayloadBlock*)new uint8_t[PAYLOAD_BLOCK_HEADER_SIZE + capacity];
     *block = {};
@@ -44,7 +52,9 @@ static DSPayloadBlock* NewPayloadBlock(DSPayloadBlock** blocks, size_t size)
     block->m_Owner = blocks;
     block->m_Capacity = capacity;
     if (*blocks)
+    {
         (*blocks)->m_Previous = block;
+    }
     *blocks = block;
     return block;
 }
@@ -56,7 +66,9 @@ void ReservePayloads(DSPayloadBlock** blocks, size_t size)
     {
         available += block->m_Capacity - block->m_LiveSize;
         if (available >= size)
+        {
             return;
+        }
     }
     NewPayloadBlock(blocks, size);
 }
@@ -73,7 +85,9 @@ void* AllocatePayload(DSPayloadBlock** blocks, size_t size)
         {
             DSPayloadHeader* chunk = *link;
             if (chunk->m_Size < size)
+            {
                 continue;
+            }
             *link = *FreeLink(chunk);
             if (chunk->m_Size - size >= sizeof(DSPayloadHeader) + 8)
             {
@@ -118,11 +132,15 @@ void ReleasePayload(void* bytes)
         block->m_Free = 0;
     }
     else
+    {
         DeletePayloadBlock(block);
+    }
 }
 
 void DeletePayloads(DSPayloadBlock** blocks)
 {
     while (*blocks)
+    {
         DeletePayloadBlock(*blocks);
+    }
 }

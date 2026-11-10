@@ -275,19 +275,23 @@ static int Launch(int argc, char* argv[], FPreRun pre_run, FPostRun post_run, vo
 static ExtensionResult DatastoreAppInitialize(ExtensionAppParams* params)
 {
     if (!g_DatastoreContextTest.m_Enabled)
+    {
         return EXTENSION_RESULT_OK;
+    }
 
     HContextRegistry contexts = ExtensionAppParamsGetContextRegistry(params);
     HDSContext       store = (HDSContext)ContextRegistryGet(contexts, DATASTORE_CONTEXT_NAME);
     g_DatastoreContextTest.m_Store = store;
     if (!store)
+    {
         return EXTENSION_RESULT_INIT_ERROR;
+    }
 
     DSFieldDesc field = { dmHashString64("health"), DS_TYPE_NUMBER };
     DSTableDesc table = { dmHashString64("context_test"), 0, 0, &field, 1, sizeof(double) };
     double      health = 100.0;
     g_DatastoreContextTest.m_AppInitialize = DSTableAdd(store, &table) == DS_RESULT_OK &&
-    DSRowCreate(store, table.m_Type, 0, 1, &health, &g_DatastoreContextTest.m_Row) == DS_RESULT_OK;
+                                             DSRowCreate(store, table.m_Type, 0, 1, &health, &g_DatastoreContextTest.m_Row) == DS_RESULT_OK;
     return g_DatastoreContextTest.m_AppInitialize ? EXTENSION_RESULT_OK : EXTENSION_RESULT_INIT_ERROR;
 }
 
@@ -296,20 +300,24 @@ static bool CheckDatastoreContext(HContextRegistry contexts)
     HDSContext store = (HDSContext)ContextRegistryGet(contexts, DATASTORE_CONTEXT_NAME);
     double     health = 0.0;
     return store && store == g_DatastoreContextTest.m_Store &&
-    DSFieldGetNumber(store, g_DatastoreContextTest.m_Row, dmHashString64("health"), &health) == DS_RESULT_OK && health == 100.0;
+           DSFieldGetNumber(store, g_DatastoreContextTest.m_Row, dmHashString64("health"), &health) == DS_RESULT_OK && health == 100.0;
 }
 
 static ExtensionResult DatastoreInitialize(ExtensionParams* params)
 {
     if (g_DatastoreContextTest.m_Enabled)
+    {
         g_DatastoreContextTest.m_Initialize = CheckDatastoreContext(ExtensionParamsGetContextRegistry(params));
+    }
     return EXTENSION_RESULT_OK;
 }
 
 static ExtensionResult DatastoreFinalize(ExtensionParams* params)
 {
     if (g_DatastoreContextTest.m_Enabled)
+    {
         g_DatastoreContextTest.m_Finalize = CheckDatastoreContext(ExtensionParamsGetContextRegistry(params));
+    }
     return EXTENSION_RESULT_OK;
 }
 
@@ -318,7 +326,7 @@ static ExtensionResult DatastoreAppFinalize(ExtensionAppParams* params)
     if (g_DatastoreContextTest.m_Enabled)
     {
         g_DatastoreContextTest.m_AppFinalize = CheckDatastoreContext(ExtensionAppParamsGetContextRegistry(params)) &&
-        DSTableRemove(g_DatastoreContextTest.m_Store, dmHashString64("context_test")) == DS_RESULT_OK;
+                                               DSTableRemove(g_DatastoreContextTest.m_Store, dmHashString64("context_test")) == DS_RESULT_OK;
     }
     return EXTENSION_RESULT_OK;
 }
@@ -368,7 +376,9 @@ static void UpdateScheduledHealth(HDSQuery query, uint32_t first, uint32_t num_r
     {
         DSRowIterator rows = DSIterRows(&it);
         while (DSRowIterNext(&rows))
+        {
             *DSRowIterGetNumberMut(&rows, state->m_Field) += 1.0;
+        }
     }
 }
 
@@ -380,7 +390,9 @@ static void ReadScheduledHealth(HDSQuery query, uint32_t first, uint32_t num_row
     {
         DSRowIterator rows = DSIterRows(&it);
         while (DSRowIterNext(&rows))
+        {
             state->m_Observed = *DSRowIterGetNumber(&rows, state->m_Field);
+        }
     }
 }
 
@@ -399,7 +411,9 @@ static void ReadScheduledPostUpdate(HDSQuery query, uint32_t first, uint32_t num
     {
         DSRowIterator rows = DSIterRows(&it);
         while (DSRowIterNext(&rows))
+        {
             state->m_PostObserved = *DSRowIterGetNumber(&rows, state->m_Field);
+        }
     }
     state->m_Valid &= state->m_PostObserved == 100.0 + 10.0 * state->m_Checks;
 }
@@ -444,7 +458,9 @@ static int32_t BlockDatastoreStreamingJob(HJobContext, HJob, void* context, void
     gate->m_Started = true;
     dmConditionVariable::Signal(gate->m_Condition);
     while (!gate->m_Release)
+    {
         dmConditionVariable::Wait(gate->m_Condition, gate->m_Mutex);
+    }
     return 0;
 }
 
@@ -506,7 +522,9 @@ static void TestDatastoreUpdateStages(bool threaded, bool block_streaming)
         { dmHashString64("test.manual"), { dmHashString64("test.manual_update") }, query, UnexpectedScheduledUpdate, &state }
     };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(functions); ++i)
+    {
         ASSERT_EQ(DS_RESULT_OK, DSFunctionAdd(store, &functions[i]));
+    }
 
     lua_State* L = dmScript::GetLuaState(engine->m_ScriptContext);
     lua_pushlightuserdata(L, &state);
@@ -526,12 +544,16 @@ static void TestDatastoreUpdateStages(bool threaded, bool block_streaming)
         ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(engine->m_JobThreadContext, handle));
         DM_MUTEX_SCOPED_LOCK(gate.m_Mutex);
         while (!gate.m_Started)
+        {
             dmConditionVariable::Wait(gate.m_Condition, gate.m_Mutex);
+        }
     }
 
     dmHID::AddKeyboardChar(engine->m_HidContext, 'A');
     for (uint32_t i = 0; i < 3; ++i)
+    {
         dmEngine::Step(engine);
+    }
 
     if (block_streaming)
     {
@@ -543,14 +565,18 @@ static void TestDatastoreUpdateStages(bool threaded, bool block_streaming)
             dmConditionVariable::Signal(gate.m_Condition);
         }
         while (!gate.m_Complete)
+        {
             JobSystemUpdate(engine->m_JobThreadContext, 0);
+        }
         dmConditionVariable::Delete(gate.m_Condition);
         dmMutex::Delete(gate.m_Mutex);
     }
 
     // Successful removal also verifies the engine ended the schedule and released queries.
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(functions); ++i)
+    {
         ASSERT_EQ(DS_RESULT_OK, DSFunctionRemove(store, functions[i].m_Name));
+    }
     ASSERT_EQ(DS_RESULT_OK, DSEventRemove(store, custom_event.m_Name));
     ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
     ASSERT_EQ(DS_RESULT_OK, DSTableRemove(store, table.m_Type));

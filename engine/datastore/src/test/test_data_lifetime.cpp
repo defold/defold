@@ -46,7 +46,9 @@ static DSResult RegisterLifetimeTable(HDSContext store, DSResetPolicy reset)
         sizeof(LifetimeRow)
     };
     if (reset)
+    {
         table.m_ResetPolicy = reset;
+    }
     return DSTableAdd(store, &table);
 }
 
@@ -69,7 +71,9 @@ static DSResult CreateLifetimeRows(HDSContext store, DSId group, DSId* ids, bool
     row.m_Attributes.m_Struct = &object;
     row.m_Loot.m_List = &list;
     if (!columns)
+    {
         return DSRowCreate(store, 1, group, 1, &row, ids);
+    }
     DSFieldArray fields[] = {
         { 4, &row.m_Loot },
         { 3, &row.m_Attributes },
@@ -159,6 +163,7 @@ static void CheckLifetimeViews(HDSContext store, DSId id)
 TEST(DataLifetime, ResetPolicyAndContainerViews)
 {
     for (uint32_t history = 0; history < 2; ++history)
+    {
         for (uint32_t columns = 0; columns < 2; ++columns)
         {
             HDSContext store = DSStoreCreate(0);
@@ -179,7 +184,9 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
             GetDataMemoryStats(store, &stats);
             ASSERT_EQ(history != 0, FindTable(store, 1)->m_DefaultOffset != 0);
             if (!history)
+            {
                 ASSERT_EQ(0u, stats.m_BaseRowBytes + stats.m_BaseCapacity);
+            }
 
             DSQueryItem requested = { 4, DS_TYPE_LIST, 0, DS_QUERY_ITEM_FIELD };
             DSQueryDesc desc = { 0, 0, 0, { requested } };
@@ -254,6 +261,7 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
             ASSERT_EQ(0u, stats.m_StructRowBytes);
             ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
         }
+    }
 }
 
 // Empty containers terminate without changing the output; nested and independent
@@ -333,7 +341,9 @@ TEST(DataLifetime, PayloadChurn)
         ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, sentinel, 2, name));
         ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, sentinel));
         if (i == 9)
+        {
             GetDataMemoryStats(store, &warm);
+        }
     }
     CheckLifetimeViews(store, sentinel);
     DSMemoryStats current;
@@ -406,6 +416,7 @@ TEST(DataLifetime, QueryCompatibilityCache)
 TEST(DataLifetime, GroupRemovalReleasesNestedPayloads)
 {
     for (uint32_t history = 0; history < 2; ++history)
+    {
         for (uint32_t columns = 0; columns < 2; ++columns)
         {
             HDSContext store = DSStoreCreate(0);
@@ -423,4 +434,5 @@ TEST(DataLifetime, GroupRemovalReleasesNestedPayloads)
             ASSERT_EQ(0u, stats.m_BaseUsed + stats.m_PayloadUsed);
             ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
         }
+    }
 }

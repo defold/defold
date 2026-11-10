@@ -52,13 +52,17 @@ TEST(DataGroups, ScatteredRowsAcrossTables)
     ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[0][1]));
     ASSERT_EQ(DS_RESULT_OK, DSGroupRemove(store, groups[1]));
     for (uint32_t t = 0; t < 3; ++t)
+    {
         for (uint32_t r = 0; r < 128; ++r)
         {
             double value;
             ASSERT_EQ(r % 3 == 1 ? DS_RESULT_NOT_FOUND : DS_RESULT_OK, DSFieldGetNumber(store, ids[t][r], 1, &value));
             if (r % 3 != 1)
+            {
                 ASSERT_EQ((double)r, value);
+            }
         }
+    }
     // Unregistering a table must unlink its remaining members before later owner removal.
     ASSERT_EQ(DS_RESULT_OK, DSTableRemove(store, 2));
     ASSERT_EQ(DS_RESULT_OK, DSGroupRemove(store, groups[0]));
@@ -125,22 +129,32 @@ TEST(DataGroups, RegistryGrowthAndReuse)
     GroupRow row = { 25, { "name" } };
     DSId     ids[256];
     for (uint32_t i = 0; i < 256; ++i)
+    {
         ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, UINT64_C(0x100000000) + i, 1, &row, &ids[i]));
+    }
     uint32_t capacity = store->m_Groups.Capacity();
     for (uint32_t i = 0; i < 256; i += 2)
+    {
         ASSERT_EQ(DS_RESULT_OK, DSGroupRemove(store, UINT64_C(0x100000000) + i));
+    }
     for (uint32_t i = 0; i < 128; ++i)
+    {
         ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, UINT64_C(0x200000000) + i, 1, &row, 0));
+    }
     ASSERT_EQ(capacity, store->m_Groups.Capacity());
     for (uint32_t i = 0; i < 256; ++i)
     {
         double value;
         ASSERT_EQ(i & 1 ? DS_RESULT_OK : DS_RESULT_NOT_FOUND, DSFieldGetNumber(store, ids[i], 1, &value));
         if (i & 1)
+        {
             ASSERT_EQ(DS_RESULT_OK, DSGroupRemove(store, UINT64_C(0x100000000) + i));
+        }
     }
     for (uint32_t i = 0; i < 128; ++i)
+    {
         ASSERT_EQ(DS_RESULT_OK, DSGroupRemove(store, UINT64_C(0x200000000) + i));
+    }
     ASSERT_EQ(0u, store->m_Groups.Size());
     ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
 }
@@ -162,7 +176,9 @@ TEST(DataGroups, BlobRegistrationsAndEmptyInstances)
     DSId      group = NextTestGroupId(), other = NextTestGroupId();
     HDSBlobInstance instances[4];
     for (uint32_t i = 0; i < 4; ++i)
+    {
         ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, i == 2 ? other : group, &instances[i]));
+    }
     DSId survivor = MakeId(store, GetInstanceSlots(instances[2])[0]);
     ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, MakeId(store, GetInstanceSlots(instances[0])[0]), 2, "replacement"));
     ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, MakeId(store, GetInstanceSlots(instances[0])[0])));
@@ -218,7 +234,9 @@ TEST(DataGroups, EmptyBlobs)
     {
         HDSContext source = DSStoreCreate(0);
         if (tables)
+        {
             RegisterGroupTable(source, 1);
+        }
         uint32_t size;
         ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, 0, 0, &size));
         uint8_t* bytes = new uint8_t[size];

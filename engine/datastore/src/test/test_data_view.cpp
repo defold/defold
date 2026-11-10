@@ -31,13 +31,15 @@ static DSResult RegisterView(HDSContext store, uint64_t type, ViewRow* values, u
     return DSTableAddView(store, &desc, values, capacity, count, indices, ids);
 }
 
-static DSResult CreateViewQuery(HDSContext store, uint64_t tag, uint64_t field, uint32_t access, HDSQuery* query, DSFieldId* binding, uint32_t flags = 0)
+static DSResult CreateViewQuery(HDSContext store, uint64_t tag, uint64_t field, uint32_t access, HDSQuery* query, DSFieldId* binding, uint32_t flags)
 {
     DSQueryItem required = { field, field == 1 ? DS_TYPE_VECTOR3 : DS_TYPE_FLOAT, access, DS_QUERY_ITEM_FIELD };
     DSQueryDesc desc = { 0, 0, flags, { required, { tag, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_TAG } } };
     DSResult    result = DSQueryCreate(store, &desc, query);
     if (result == DS_RESULT_OK)
+    {
         *binding = DSQueryFindField(*query, &required);
+    }
     return result;
 }
 
@@ -128,11 +130,11 @@ TEST(DataView, AliasedReservations)
     ASSERT_EQ(DS_RESULT_OK, RegisterView(store, 300, values, 4, 2, c, 0));
     HDSQuery writer, disjoint, reader, reader2, health;
     DSFieldId field;
-    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 100, 1, DS_FIELD_MUTABLE, &writer, &field));
-    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 200, 1, DS_FIELD_MUTABLE, &disjoint, &field));
-    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 300, 1, 0, &reader, &field));
-    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 100, 1, 0, &reader2, &field));
-    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 300, 2, DS_FIELD_MUTABLE, &health, &field));
+    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 100, 1, DS_FIELD_MUTABLE, &writer, &field, 0));
+    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 200, 1, DS_FIELD_MUTABLE, &disjoint, &field, 0));
+    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 300, 1, 0, &reader, &field, 0));
+    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 100, 1, 0, &reader2, &field, 0));
+    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 300, 2, DS_FIELD_MUTABLE, &health, &field, 0));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(writer));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(disjoint));
     ASSERT_EQ(DS_RESULT_BUSY, DSQueryTryBegin(reader));
@@ -170,9 +172,9 @@ TEST(DataView, WholeRowAliasReservations)
     DSFieldId field;
     ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 100, 1, 0, &writer, &field, DS_ROW_MUTABLE));
     ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 200, 1, 0, &disjoint, &field, DS_ROW_MUTABLE));
-    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 300, 1, 0, &reader, &field));
-    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 300, 2, DS_FIELD_MUTABLE, &health, &field));
-    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 100, 1, 0, &position, &field));
+    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 300, 1, 0, &reader, &field, 0));
+    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 300, 2, DS_FIELD_MUTABLE, &health, &field, 0));
+    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 100, 1, 0, &position, &field, 0));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(writer));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(disjoint));
     ASSERT_EQ(DS_RESULT_BUSY, DSQueryTryBegin(reader));
@@ -209,7 +211,7 @@ TEST(DataView, NullBackingPublishesNoView)
     ASSERT_EQ(DS_RESULT_OK, RegisterView(store, 100, values, 1, 0, 0, 0));
     HDSQuery  query;
     DSFieldId field;
-    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 100, 1, 0, &query, &field));
+    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 100, 1, 0, &query, &field, 0));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     ASSERT_EQ(0u, DSQueryGetRowCount(query));
     DSIterator it = DSQueryIter(query);
@@ -230,7 +232,7 @@ TEST(DataView, EmptyAndReboundViews)
     ASSERT_EQ(DS_RESULT_OK, RegisterView(store, 100, values, 2, 0, 0, 0));
     HDSQuery query;
     DSFieldId field;
-    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 100, 1, 0, &query, &field));
+    ASSERT_EQ(DS_RESULT_OK, CreateViewQuery(store, 100, 1, 0, &query, &field, 0));
     ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
     ASSERT_EQ(0u, DSQueryGetRowCount(query));
     DSIterator it = DSQueryIterRange(query, 0, 0);

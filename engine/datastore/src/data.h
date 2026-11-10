@@ -165,8 +165,8 @@ struct DSStruct
 // Zero-initialize decoded input; set copies the values. Read with DSListGetValue.
 struct DSList
 {
-    const DSValue* m_Values; // Decoded elements; unused for packed views.
-    uint32_t       m_Count;  // Number of elements.
+    const DSValue*     m_Values; // Decoded elements; unused for packed views.
+    uint32_t           m_Count; // Number of elements.
     // private
     const uint8_t*     m_Buffer; // Borrowed bytes backing a packed container; NULL for decoded input.
     uint32_t           m_Offset; // Container header offset in m_Buffer.
@@ -601,19 +601,18 @@ static inline uint32_t* GetInstanceSlots(HDSBlobInstance instance)
 
 // Shared allocation and lookup helpers. Arena blocks belong to their table,
 // registration or query; borrowed values remain valid until that owner resets/frees them.
-void                           ReserveData(DSBlock** blocks, size_t size, size_t minimum_capacity = 4096);
-void*                          AllocateData(DSBlock** blocks, size_t size, size_t minimum_capacity = 4096);
-void                           DeleteBlocks(DSBlock** blocks);
-void                           ReservePayloads(DSPayloadBlock** blocks, size_t size);
-void*                          AllocatePayload(DSPayloadBlock** blocks, size_t size);
-void                           ReleasePayload(void* bytes);
-void                           DeletePayloads(DSPayloadBlock** blocks);
-void                           ReleaseReference(DSTable* table, DSValueType type, uint64_t reference);
-DSTable*                       FindTable(HDSContext store, uint64_t type);
-void                           InitializeRowStorage(HDSContext store, DSTable* table);
-void                           ReserveRowStorage(HDSContext store, DSTable* table, uint32_t num_rows);
-void                           TrimRowStorage(HDSContext store, DSTable* table, uint32_t num_rows);
-void                           DeleteRowPages(HDSContext store);
+void*    AllocateData(DSBlock** blocks, size_t size, size_t minimum_capacity);
+void     DeleteBlocks(DSBlock** blocks);
+void     ReservePayloads(DSPayloadBlock** blocks, size_t size);
+void*    AllocatePayload(DSPayloadBlock** blocks, size_t size);
+void     ReleasePayload(void* bytes);
+void     DeletePayloads(DSPayloadBlock** blocks);
+void     ReleaseReference(DSTable* table, DSValueType type, uint64_t reference);
+DSTable* FindTable(HDSContext store, uint64_t type);
+void     InitializeRowStorage(HDSContext store, DSTable* table);
+void     ReserveRowStorage(HDSContext store, DSTable* table, uint32_t num_rows);
+void     TrimRowStorage(HDSContext store, DSTable* table, uint32_t num_rows);
+void     DeleteRowPages(HDSContext store);
 
 static inline DSPayloadBlock** GetNativePayloads(DSTable* table)
 {
@@ -647,12 +646,12 @@ DSResult ValidateStoredValue(const DSTable* table, const DSFieldMeta& meta, DSVa
 void     StoreStoredValue(DSTable* table, const DSFieldMeta& meta, DSPayloadBlock** blocks, uint8_t* bytes, const DSValueData* value);
 
 // Owned dynamic structs use table/row indices. Lists retain packed containers.
-void               StoreValue(DSPayloadBlock** blocks, uint8_t* bytes, DSValueType type, const DSValueData* value);
-uint64_t           StoreStructRow(DSTable* table, DSPayloadBlock** blocks, const DSStruct* object);
-DSStruct           ReadStructRow(const DSTable* table, uint64_t reference);
-void               ReleaseStructRow(DSTable* table, uint64_t reference);
-void               DeleteStructStorage(DSTable* table);
-void               ReleaseRowValues(DSTable* table, uint32_t row, bool defaults);
+void     StoreValue(DSPayloadBlock** blocks, uint8_t* bytes, DSValueType type, const DSValueData* value);
+uint64_t StoreStructRow(DSTable* table, DSPayloadBlock** blocks, const DSStruct* object);
+DSStruct ReadStructRow(const DSTable* table, uint64_t reference);
+void     ReleaseStructRow(DSTable* table, uint64_t reference);
+void     DeleteStructStorage(DSTable* table);
+void     ReleaseRowValues(DSTable* table, uint32_t row, bool defaults);
 
 static inline bool IsStructRow(uint64_t reference)
 {
@@ -664,14 +663,18 @@ inline uint64_t ReadDataInteger(const uint8_t* bytes, uint32_t size)
 {
     uint64_t value = 0;
     for (uint32_t i = 0; i < size; ++i)
+    {
         value |= (uint64_t)bytes[i] << (i * 8);
+    }
     return value;
 }
 
 inline void WriteDataInteger(uint8_t* bytes, uint64_t value, uint32_t size)
 {
     for (uint32_t i = 0; i < size; ++i)
+    {
         bytes[i] = (uint8_t)(value >> (i * 8));
+    }
 }
 
 // Fixed-size copies preserve float bits and support unaligned source bytes.
@@ -698,7 +701,9 @@ inline DSFieldMeta ReadFileFieldMeta(const uint8_t* metadata, uint32_t index)
 inline DSFieldMeta GetFieldMeta(const DSTable* table, uint32_t index)
 {
     if (!table->m_Pool)
+    {
         return table->m_Owned->m_Fields.Begin()[index];
+    }
     const uint8_t* metadata = table->m_Blob + table->m_Offsets.m_Table + DATA_TABLE_HEADER_SIZE + table->m_TagCount * 8;
     return ReadFileFieldMeta(metadata, index);
 }
@@ -711,16 +716,22 @@ inline uint64_t GetTableTag(const DSTable* table, uint32_t index)
 static inline uint8_t* GetRowBytes(const DSTable* table, uint32_t row)
 {
     if (table->m_IsView)
+    {
         return (uint8_t*)table->m_Values.Begin() + (size_t)table->m_Rows[row].m_BaseIndex * table->m_RowStride;
+    }
     if (!table->m_RowStride)
+    {
         return 0;
+    }
     return table->m_Chunks.Begin()[row >> table->m_ChunkShift].m_Data + (size_t)(row & table->m_ChunkMask) * table->m_RowStride;
 }
 
 static inline uint32_t GetRowSpan(const DSTable* table, uint32_t row, uint32_t count)
 {
     if (table->m_IsView || !table->m_RowStride)
+    {
         return count;
+    }
     uint32_t available = table->m_ChunkMask + 1 - (row & table->m_ChunkMask);
     return count < available ? count : available;
 }
@@ -762,7 +773,9 @@ static inline bool Contains(const dmArray<T>& array, T value)
     for (uint32_t i = 0; i < array.Size(); ++i)
     {
         if (array[i] == value)
+        {
             return true;
+        }
     }
     return false;
 }
@@ -772,7 +785,9 @@ static inline uint32_t FindField(const DSTable* table, uint64_t field)
     for (uint32_t i = 0; i < table->m_MetadataCount; ++i)
     {
         if (GetFieldMeta(table, i).m_Field == field)
+        {
             return i;
+        }
     }
     return UINT32_MAX;
 }
@@ -791,7 +806,9 @@ static inline DSSlot* FindSlot(HDSContext store, DSId id)
 {
     uint32_t index = (uint32_t)id;
     if (index >= store->m_Slots.Size())
+    {
         return 0;
+    }
     DSSlot* slot = &store->m_Slots[index];
     return slot->m_Table && slot->m_Generation == (uint32_t)(id >> 32) ? slot : 0;
 }
@@ -810,11 +827,15 @@ static inline DSResult CopyTypedValue(const DSTable* table, const uint8_t* bytes
         }
         case DS_TYPE_FLOAT:
         case DS_TYPE_UINT32:
+        {
             memcpy(out_value, bytes, 4);
             break;
+        }
         case DS_TYPE_BOOLEAN:
+        {
             *(uint8_t*)out_value = *bytes;
             break;
+        }
         case DS_TYPE_STRING:
         {
             uint64_t    reference = ReadDataInteger(bytes, 8);
@@ -823,16 +844,24 @@ static inline DSResult CopyTypedValue(const DSTable* table, const uint8_t* bytes
             break;
         }
         case DS_TYPE_VECTOR3:
+        {
             ReadDataFloats(out_value, bytes, 3);
             break;
+        }
         case DS_TYPE_VECTOR4:
+        {
             ReadDataFloats(out_value, bytes, 4);
             break;
+        }
         case DS_TYPE_MATRIX4:
+        {
             ReadDataFloats(out_value, bytes, 16);
             break;
+        }
         default:
+        {
             break;
+        }
     }
     return DS_RESULT_OK;
 }
@@ -897,9 +926,9 @@ extern "C"
     DSResult DSFieldSet(HDSContext store, DSId id, uint64_t field, const DSValue* value);
 
     // Internal batch helpers for engine construction and generic inspection.
-    uint32_t  DSIterGetCount(const DSIterator* iterator);
-    DSId      DSIterGetId(const DSIterator* iterator, uint32_t row);
-    DSId DSIterGetGroupId(const DSIterator* iterator, uint32_t row);
+    uint32_t DSIterGetCount(const DSIterator* iterator);
+    DSId     DSIterGetId(const DSIterator* iterator, uint32_t row);
+    DSId     DSIterGetGroupId(const DSIterator* iterator, uint32_t row);
 
     /** Read a field from the current batch
      *
@@ -959,7 +988,7 @@ extern "C"
      * @param component_id [type:uint64_t] Component name hash to save in a packed blob; defaults to zero for unnamed rows.
      * @return result [type:DSResult] LOCKED while query reservations are active; otherwise OK, NOT_FOUND for an unknown table, INVALID_ARGUMENT for invalid input/counts or mismatched kinds.
      */
-    DSResult DSRowAdd(HDSContext store, uint64_t type, DSId group, const DSValueType* types, const DSValueData* values, uint32_t value_count, DSId* out_id, uint64_t component_id = 0);
+    DSResult DSRowAdd(HDSContext store, uint64_t type, DSId group, const DSValueType* types, const DSValueData* values, uint32_t value_count, DSId* out_id, uint64_t component_id);
 
     /** Insert decoded rows in bulk
      *

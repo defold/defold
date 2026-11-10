@@ -41,7 +41,9 @@ static void CountScheduledRowsFromC(HDSQuery query, uint32_t first, uint32_t num
 int TestDataSchedulerFromC(void)
 {
     HDSContext  store = DSStoreCreate(0);
-    DSQueryDesc query_desc = { 0 };
+    DSQueryDesc query_desc = {
+        0
+    };
     HDSQuery    query;
     if (DSQueryCreate(store, &query_desc, &query) != DS_RESULT_OK)
     {
@@ -51,15 +53,25 @@ int TestDataSchedulerFromC(void)
     uint32_t     count = 0;
     DSSystemDesc desc = {
         .m_Name = dmHashString64("game.count"),
-        .m_DependsOn = { dmHashString64("engine.update.begin") },
+        .m_DependsOn = {
+            dmHashString64("engine.update.begin")
+        },
         .m_Query = query,
         .m_Process = CountScheduledRowsFromC,
         .m_Context = &count,
         .m_RowsPerJob = 64
     };
-    DSEventDesc                  begin = { .m_Name = dmHashString64("engine.update.begin") };
-    DSEventDesc                  end = { .m_Name = dmHashString64("engine.update.end"), .m_DependsOn = { dmHashString64("game.count") } };
-    struct JobSystemCreateParams params = { .m_ThreadNamePrefix = "ds-c", .m_ThreadCount = 0 };
+    DSEventDesc                  begin = {
+        .m_Name = dmHashString64("engine.update.begin")
+    };
+    DSEventDesc                  end = {
+        .m_Name = dmHashString64("engine.update.end"), .m_DependsOn = {
+            dmHashString64("game.count")
+        }
+    };
+    struct JobSystemCreateParams params = {
+        .m_ThreadNamePrefix = "ds-c", .m_ThreadCount = 0
+    };
     HJobContext                  jobs = JobSystemCreate(&params);
     int                          ok = DSFunctionAdd(store, &desc) == DS_RESULT_OK && count == 0;
     ok = DSEventAdd(store, &begin) == DS_RESULT_OK && ok;
@@ -82,9 +94,13 @@ int TestDataSchedulerFromC(void)
 
 int TestDataStoreLifecycleFromC(void)
 {
-    DSCreateParams params = { .m_PageSize = 512 * 1024, .m_RowChunkSize = 64 * 1024 };
+    DSCreateParams params = {
+        .m_PageSize = 512 * 1024, .m_RowChunkSize = 64 * 1024
+    };
     HDSContext     store = DSStoreCreate(&params);
-    DSQueryDesc    desc = { 0 };
+    DSQueryDesc    desc = {
+        0
+    };
     HDSQuery       query;
     if (DSQueryCreate(store, &desc, &query) != DS_RESULT_OK)
     {
@@ -108,10 +124,12 @@ int TestDataQuerySetupFromC(void)
 {
     HDSContext  store = DSStoreCreate(0);
     DSQueryDesc desc = {
-        .m_Items = { DSTag("boid"),
-                     DSField("position", DS_TYPE_VECTOR3, DS_FIELD_MUTABLE),
-                     DSField("velocity", DS_TYPE_VECTOR3, 0),
-                     DSTag("school") }
+        .m_Items = {
+            DSTag("boid"),
+            DSField("position", DS_TYPE_VECTOR3, DS_FIELD_MUTABLE),
+            DSField("velocity", DS_TYPE_VECTOR3, 0),
+            DSTag("school")
+        }
     };
     HDSQuery query;
     DSResult result = DSQueryCreate(store, &desc, &query);
@@ -119,8 +137,8 @@ int TestDataQuerySetupFromC(void)
     if (ok)
     {
         ok = DSQueryFindField(query, &desc.m_Items[1]) != UINT32_MAX &&
-        DSQueryFindField(query, &desc.m_Items[2]) != UINT32_MAX &&
-        DSQueryFindField(query, &desc.m_Items[0]) == UINT32_MAX;
+             DSQueryFindField(query, &desc.m_Items[2]) != UINT32_MAX &&
+             DSQueryFindField(query, &desc.m_Items[0]) == UINT32_MAX;
         ok = DSQueryDestroy(query) == DS_RESULT_OK && ok;
     }
     return DSStoreDestroy(store) == DS_RESULT_OK && ok ? 0 : 1;
@@ -129,7 +147,9 @@ int TestDataQuerySetupFromC(void)
 // Exercise every batch type through C, including aggregate errors and callbacks.
 static int TestDataBatchFromC(HDSContext store, DSId id)
 {
-    DSId        ids[] = { id, id, id };
+    DSId        ids[] = {
+        id, id, id
+    };
     double      numbers[3];
     uint8_t     booleans[3];
     const char* strings[3];
@@ -143,11 +163,17 @@ static int TestDataBatchFromC(HDSContext store, DSId id)
         DSFieldGetVector3Batch(store, 3, ids, 43, vectors3) != DS_RESULT_OK ||
         DSFieldGetVector4Batch(store, 3, ids, 44, vectors4) != DS_RESULT_OK ||
         DSFieldGetMatrix4Batch(store, 3, ids, 45, matrices) != DS_RESULT_OK)
+    {
         return 0;
+    }
     for (uint32_t i = 0; i < 3; ++i)
+    {
         if (numbers[i] != 29 || booleans[i] != 0 || strings[i][0] != 'o' || strings[i] != strings[0] ||
             vectors3[i].m_Values[2] != 0.25f || vectors4[i].m_Values[3] != 0.75f || matrices[i].m_Values[14] != 44)
+        {
             return 0;
+        }
+    }
 
     ids[1] = 0;
     if (read_numbers(store, 3, ids, 42, numbers) != DS_RESULT_NOT_FOUND ||
@@ -156,43 +182,65 @@ static int TestDataBatchFromC(HDSContext store, DSId id)
         DSFieldGetVector3Batch(store, 3, ids, 43, vectors3) != DS_RESULT_NOT_FOUND ||
         DSFieldGetVector4Batch(store, 3, ids, 44, vectors4) != DS_RESULT_NOT_FOUND ||
         DSFieldGetMatrix4Batch(store, 3, ids, 45, matrices) != DS_RESULT_NOT_FOUND)
+    {
         return 0;
+    }
 
     return read_numbers(0, 0, 0, 42, 0) == DS_RESULT_OK &&
-    DSFieldGetBooleanBatch(0, 0, 0, 47, 0) == DS_RESULT_OK &&
-    DSFieldGetStringBatch(0, 0, 0, 48, 0) == DS_RESULT_OK &&
-    DSFieldGetVector3Batch(0, 0, 0, 43, 0) == DS_RESULT_OK &&
-    DSFieldGetVector4Batch(0, 0, 0, 44, 0) == DS_RESULT_OK &&
-    DSFieldGetMatrix4Batch(0, 0, 0, 45, 0) == DS_RESULT_OK;
+           DSFieldGetBooleanBatch(0, 0, 0, 47, 0) == DS_RESULT_OK &&
+           DSFieldGetStringBatch(0, 0, 0, 48, 0) == DS_RESULT_OK &&
+           DSFieldGetVector3Batch(0, 0, 0, 43, 0) == DS_RESULT_OK &&
+           DSFieldGetVector4Batch(0, 0, 0, 44, 0) == DS_RESULT_OK &&
+           DSFieldGetMatrix4Batch(0, 0, 0, 45, 0) == DS_RESULT_OK;
 }
 
 int TestDataFromC(HDSContext store, DSId group)
 {
     uint64_t    tag = 7;
     DSQueryItem fields[] = {
-        { .m_Hash = 42, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 43, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 44, .m_Type = DS_TYPE_VECTOR4, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 45, .m_Type = DS_TYPE_MATRIX4, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 47, .m_Type = DS_TYPE_BOOLEAN, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 48, .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 46, .m_Type = DS_TYPE_STRUCT, .m_Kind = DS_QUERY_ITEM_FIELD }
+        {
+            .m_Hash = 42, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD
+        },
+        {
+            .m_Hash = 43, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD
+        },
+        {
+            .m_Hash = 44, .m_Type = DS_TYPE_VECTOR4, .m_Kind = DS_QUERY_ITEM_FIELD
+        },
+        {
+            .m_Hash = 45, .m_Type = DS_TYPE_MATRIX4, .m_Kind = DS_QUERY_ITEM_FIELD
+        },
+        {
+            .m_Hash = 47, .m_Type = DS_TYPE_BOOLEAN, .m_Kind = DS_QUERY_ITEM_FIELD
+        },
+        {
+            .m_Hash = 48, .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD
+        },
+        {
+            .m_Hash = 46, .m_Type = DS_TYPE_STRUCT, .m_Kind = DS_QUERY_ITEM_FIELD
+        }
     };
     DSQueryDesc desc = {
         .m_GroupIds = &group,
         .m_GroupIdCount = 1,
-        .m_Items = { fields[0],
-                     fields[1],
-                     fields[2],
-                     fields[3],
-                     fields[4],
-                     fields[5],
-                     fields[6],
-                     { .m_Hash = tag, .m_Kind = DS_QUERY_ITEM_TAG } }
+        .m_Items = {
+            fields[0],
+            fields[1],
+            fields[2],
+            fields[3],
+            fields[4],
+            fields[5],
+            fields[6],
+            {
+                .m_Hash = tag, .m_Kind = DS_QUERY_ITEM_TAG
+            }
+        }
     };
     HDSQuery query;
     if (DSQueryCreate(store, &desc, &query) != DS_RESULT_OK)
+    {
         return 1;
+    }
     DSFieldId number_field = DSQueryFindField(query, &fields[0]);
     if (DSQueryTryBegin(query) != DS_RESULT_OK)
     {
@@ -211,38 +259,48 @@ int TestDataFromC(HDSContext store, DSId group)
     ok = ok && !DSRowIterNext(&rows) && !DSIterNext(&it);
     DSQueryEnd(query);
     ok = ok && DSFieldSetNumber(store, id, 42, 23.0) == DS_RESULT_OK &&
-    DSFieldGetNumber(store, id, 42, &number) == DS_RESULT_OK && number == 23.0;
+         DSFieldGetNumber(store, id, 42, &number) == DS_RESULT_OK && number == 23.0;
     ok = ok && DSFieldSetNumber(store, id, 42, 29.0) == DS_RESULT_OK;
 
-    DSVector3 vector3 = { .m_Values = { 1.0f, 0.5f, 0.25f } };
+    DSVector3 vector3 = {
+        .m_Values = {
+            1.0f, 0.5f, 0.25f
+        }
+    };
     DSVector3 out3;
     ok = ok && DSFieldSetVector3(store, id, 43, &vector3) == DS_RESULT_OK &&
-    DSFieldGetVector3(store, id, 43, &out3) == DS_RESULT_OK && out3.m_Values[1] == 0.5f;
+         DSFieldGetVector3(store, id, 43, &out3) == DS_RESULT_OK && out3.m_Values[1] == 0.5f;
 
-    DSVector4 vector4 = { .m_Values = { 1.0f, 0.5f, 0.25f, 0.75f } };
+    DSVector4 vector4 = {
+        .m_Values = {
+            1.0f, 0.5f, 0.25f, 0.75f
+        }
+    };
     DSVector4 out4;
     ok = ok && DSFieldSetVector4(store, id, 44, &vector4) == DS_RESULT_OK &&
-    DSFieldGetVector4(store, id, 44, &out4) == DS_RESULT_OK && out4.m_Values[3] == 0.75f;
+         DSFieldGetVector4(store, id, 44, &out4) == DS_RESULT_OK && out4.m_Values[3] == 0.75f;
 
     DSMatrix4 matrix;
     DSMatrix4 out_matrix;
     for (uint32_t i = 0; i < 16; ++i)
+    {
         matrix.m_Values[i] = (float)i;
+    }
     matrix.m_Values[3 * 4 + 2] = 44.0f;
     ok = ok && DSFieldSetMatrix4(store, id, 45, &matrix) == DS_RESULT_OK &&
-    DSFieldGetMatrix4(store, id, 45, &out_matrix) == DS_RESULT_OK && out_matrix.m_Values[14] == 44.0f;
+         DSFieldGetMatrix4(store, id, 45, &out_matrix) == DS_RESULT_OK && out_matrix.m_Values[14] == 44.0f;
 
     uint8_t boolean = 0;
     ok = ok && DSFieldSetBoolean(store, id, 47, 1) == DS_RESULT_OK &&
-    DSFieldGetBoolean(store, id, 47, &boolean) == DS_RESULT_OK && boolean == 1 &&
-    DSFieldSetBoolean(store, id, 47, 0) == DS_RESULT_OK &&
-    DSFieldGetBoolean(store, id, 47, &boolean) == DS_RESULT_OK && boolean == 0;
+         DSFieldGetBoolean(store, id, 47, &boolean) == DS_RESULT_OK && boolean == 1 &&
+         DSFieldSetBoolean(store, id, 47, 0) == DS_RESULT_OK &&
+         DSFieldGetBoolean(store, id, 47, &boolean) == DS_RESULT_OK && boolean == 0;
 
     const char* string;
     ok = ok && DSFieldSetString(store, id, 48, "copied") == DS_RESULT_OK &&
-    DSFieldGetString(store, id, 48, &string) == DS_RESULT_OK && string[0] == 'c' &&
-    DSFieldSetString(store, id, 48, "override") == DS_RESULT_OK &&
-    DSFieldGetString(store, id, 48, &string) == DS_RESULT_OK && string[0] == 'o';
+         DSFieldGetString(store, id, 48, &string) == DS_RESULT_OK && string[0] == 'c' &&
+         DSFieldSetString(store, id, 48, "override") == DS_RESULT_OK &&
+         DSFieldGetString(store, id, 48, &string) == DS_RESULT_OK && string[0] == 'o';
 
     ok = ok && TestDataBatchFromC(store, id);
     DSQueryDestroy(query);
@@ -251,11 +309,19 @@ int TestDataFromC(HDSContext store, DSId group)
 
 int TestInlineDataFromC(HDSContext store)
 {
-    DSQueryItem requested_field = { .m_Hash = dmHashString64("2.40.10"), .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc desc = { .m_Items = { requested_field } };
+    DSQueryItem requested_field = {
+        .m_Hash = dmHashString64("2.40.10"), .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD
+    };
+    DSQueryDesc desc = {
+        .m_Items = {
+            requested_field
+        }
+    };
     HDSQuery    query;
     if (DSQueryCreate(store, &desc, &query) != DS_RESULT_OK)
+    {
         return 1;
+    }
     if (DSQueryTryBegin(query) != DS_RESULT_OK)
     {
         DSQueryDestroy(query);
@@ -276,18 +342,36 @@ int TestInlineDataFromC(HDSContext store)
 int TestDataPointersFromC(HDSContext store, int write)
 {
     DSQueryItem query_fields[] = {
-        { .m_Hash = 5, .m_Type = DS_TYPE_MATRIX4, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 3, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 1, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 4, .m_Type = DS_TYPE_VECTOR4, .m_Kind = DS_QUERY_ITEM_FIELD },
-        { .m_Hash = 2, .m_Type = DS_TYPE_BOOLEAN, .m_Kind = DS_QUERY_ITEM_FIELD }
+        {
+            .m_Hash = 5, .m_Type = DS_TYPE_MATRIX4, .m_Kind = DS_QUERY_ITEM_FIELD
+        },
+        {
+            .m_Hash = 3, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD
+        },
+        {
+            .m_Hash = 1, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD
+        },
+        {
+            .m_Hash = 4, .m_Type = DS_TYPE_VECTOR4, .m_Kind = DS_QUERY_ITEM_FIELD
+        },
+        {
+            .m_Hash = 2, .m_Type = DS_TYPE_BOOLEAN, .m_Kind = DS_QUERY_ITEM_FIELD
+        }
     };
     for (uint32_t i = 0; i < 5; ++i)
+    {
         query_fields[i].m_Access = write ? DS_FIELD_MUTABLE : 0;
-    DSQueryDesc desc = { .m_Items = { query_fields[0], query_fields[1], query_fields[2], query_fields[3], query_fields[4] } };
+    }
+    DSQueryDesc desc = {
+        .m_Items = {
+            query_fields[0], query_fields[1], query_fields[2], query_fields[3], query_fields[4]
+        }
+    };
     HDSQuery    query;
     if (DSQueryCreate(store, &desc, &query) != DS_RESULT_OK)
+    {
         return 1;
+    }
     int      ok = 1;
     DSFieldId fields[5];
     for (uint32_t i = 0; i < 5; ++i)
@@ -295,7 +379,9 @@ int TestDataPointersFromC(HDSContext store, int write)
         fields[i] = DSQueryFindField(query, &query_fields[i]);
         ok = ok && fields[i] != UINT32_MAX;
     }
-    DSQueryItem wrong = { .m_Hash = 1, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD };
+    DSQueryItem wrong = {
+        .m_Hash = 1, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD
+    };
     ok = ok && DSQueryFindField(query, &wrong) == UINT32_MAX;
     wrong.m_Hash = 999;
     ok = ok && DSQueryFindField(query, &wrong) == UINT32_MAX;
@@ -315,10 +401,10 @@ int TestDataPointersFromC(HDSContext store, int write)
         while (DSRowIterNext(&rows))
         {
             ok = ok && *DSRowIterGetNumber(&rows, fields[2]) == 17.0 &&
-            *DSRowIterGetBoolean(&rows, fields[4]) == 0 &&
-            read_vector(&rows, fields[1])->m_Values[2] == 3.0f &&
-            DSRowIterGetVector4(&rows, fields[3])->m_Values[3] == 4.0f &&
-            DSRowIterGetMatrix4(&rows, fields[0])->m_Values[15] == 15.0f;
+                 *DSRowIterGetBoolean(&rows, fields[4]) == 0 &&
+                 read_vector(&rows, fields[1])->m_Values[2] == 3.0f &&
+                 DSRowIterGetVector4(&rows, fields[3])->m_Values[3] == 4.0f &&
+                 DSRowIterGetMatrix4(&rows, fields[0])->m_Values[15] == 15.0f;
             if (write)
             {
                 *DSRowIterGetNumberMut(&rows, fields[2]) = 29.0;
@@ -327,10 +413,10 @@ int TestDataPointersFromC(HDSContext store, int write)
                 DSRowIterGetVector4Mut(&rows, fields[3])->m_Values[3] = 40.0f;
                 DSRowIterGetMatrix4Mut(&rows, fields[0])->m_Values[15] = 150.0f;
                 ok = ok && *DSRowIterGetNumber(&rows, fields[2]) == 29.0 &&
-                *DSRowIterGetBoolean(&rows, fields[4]) == 1 &&
-                read_vector(&rows, fields[1])->m_Values[2] == 30.0f &&
-                DSRowIterGetVector4(&rows, fields[3])->m_Values[3] == 40.0f &&
-                DSRowIterGetMatrix4(&rows, fields[0])->m_Values[15] == 150.0f;
+                     *DSRowIterGetBoolean(&rows, fields[4]) == 1 &&
+                     read_vector(&rows, fields[1])->m_Values[2] == 30.0f &&
+                     DSRowIterGetVector4(&rows, fields[3])->m_Values[3] == 40.0f &&
+                     DSRowIterGetMatrix4(&rows, fields[0])->m_Values[15] == 150.0f;
             }
             ++count;
         }
@@ -344,7 +430,9 @@ int TestDataPointersFromC(HDSContext store, int write)
         DSQueryEnd(query);
     }
     else
+    {
         ok = 0;
+    }
     DSQueryDestroy(query);
     return ok ? 0 : 1;
 }
@@ -363,24 +451,60 @@ int TestDataNativeRowsFromC(void)
         DSVector3    m_Position;
     };
     DSFieldDesc state_fields[] = {
-        { .m_Field = 1, .m_Type = DS_TYPE_NUMBER, .m_Offset = offsetof(struct State, m_Health), .m_Name = "health" },
-        { .m_Field = 2, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = offsetof(struct State, m_Enabled), .m_Name = "enabled" }
+        {
+            .m_Field = 1, .m_Type = DS_TYPE_NUMBER, .m_Offset = offsetof(struct State, m_Health), .m_Name = "health"
+        },
+        {
+            .m_Field = 2, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = offsetof(struct State, m_Enabled), .m_Name = "enabled"
+        }
     };
-    DSStructDesc state = { .m_Fields = state_fields, .m_FieldCount = 2, .m_Size = sizeof(struct State) };
+    DSStructDesc state = {
+        .m_Fields = state_fields, .m_FieldCount = 2, .m_Size = sizeof(struct State)
+    };
     DSFieldDesc  fields[] = {
-        { .m_Field = 3, .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(struct Enemy, m_State), .m_Struct = &state, .m_Name = "state" },
-        { .m_Field = 4, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(struct Enemy, m_Position) }
+        {
+            .m_Field = 3, .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(struct Enemy, m_State), .m_Struct = &state, .m_Name = "state"
+        },
+        {
+            .m_Field = 4, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(struct Enemy, m_Position)
+        }
     };
     uint64_t     tag = 7;
-    DSTableDesc  table = { .m_Type = 10, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(struct Enemy), .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc  table = {
+        .m_Type = 10, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(struct Enemy), .m_ResetPolicy = DS_RESET_RETAIN
+    };
     struct Enemy input[] = {
-        { .m_State = { .m_Health = 50, .m_Enabled = 1 }, .m_Position = { .m_Values = { 1, 2, 3 } } },
-        { .m_State = { .m_Health = 75 }, .m_Position = { .m_Values = { 4, 5, 6 } } }
+        {
+            .m_State = {
+                .m_Health = 50, .m_Enabled = 1
+            }, .m_Position = {
+                .m_Values = {
+                    1, 2, 3
+                }
+            }
+        },
+        {
+            .m_State = {
+                .m_Health = 75
+            }, .m_Position = {
+                .m_Values = {
+                    4, 5, 6
+                }
+            }
+        }
     };
     DSId        group = UINT64_C(0x1234567887654321);
     DSId        ids[2], added[2];
-    DSQueryItem health = { .m_Hash = dmHashString64("state.health"), .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc query_desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Flags = DS_ROW_MUTABLE, .m_Items = { health, { .m_Hash = tag, .m_Kind = DS_QUERY_ITEM_TAG } } };
+    DSQueryItem health = {
+        .m_Hash = dmHashString64("state.health"), .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD
+    };
+    DSQueryDesc query_desc = {
+        .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Flags = DS_ROW_MUTABLE, .m_Items = {
+            health, {
+                .m_Hash = tag, .m_Kind = DS_QUERY_ITEM_TAG
+            }
+        }
+    };
     HDSContext  store = DSStoreCreate(0);
     HDSQuery    query = NULL;
     int         active = 0;
@@ -404,7 +528,9 @@ int TestDataNativeRowsFromC(void)
     CHECK_NATIVE(DSRowGetComponentId(store, ids[1]) == 0);
 
     // Prepare complete rows on the caller side, including nested fields.
-    struct Enemy enemies[] = { input[0], input[0] };
+    struct Enemy enemies[] = {
+        input[0], input[0]
+    };
     enemies[0].m_State.m_Health = 80;
     enemies[1].m_State.m_Health = 90;
     CHECK_NATIVE(DSRowCreate(store, 10, 0, 2, enemies, added) == DS_RESULT_OK);
@@ -432,7 +558,9 @@ int TestDataNativeRowsFromC(void)
     CHECK_NATIVE(DSRowReset(store, ids[0]) == DS_RESULT_OK);
 
     // Failed input leaves IDs and query membership intact.
-    DSId unchanged[] = { 123, 456 };
+    DSId unchanged[] = {
+        123, 456
+    };
     enemies[1].m_State.m_Enabled = 2;
     CHECK_NATIVE(DSRowCreate(store, 10, 0, 2, enemies, unchanged) == DS_RESULT_INVALID_ARGUMENT);
     enemies[1].m_State.m_Enabled = 1;
@@ -466,18 +594,26 @@ int TestDataNativeRowsFromC(void)
     CHECK_NATIVE(DSFieldGetNumber(store, ids[1], health.m_Hash, &number) == DS_RESULT_NOT_FOUND);
 
     // A NULL native string is invalid; valid references are copied on insertion.
-    DSFieldDesc string = { .m_Field = 1, .m_Type = DS_TYPE_STRING };
+    DSFieldDesc string = {
+        .m_Field = 1, .m_Type = DS_TYPE_STRING
+    };
     table.m_Fields = &string;
     table.m_FieldCount = 1;
     table.m_RowStride = 8;
     CHECK_NATIVE(DSTableAdd(store, &table) == DS_RESULT_OK);
-    DSReference missing_strings[2] = { 0 };
+    DSReference missing_strings[2] = {
+        0
+    };
     CHECK_NATIVE(DSRowCreate(store, 10, 0, 2, missing_strings, unchanged) == DS_RESULT_INVALID_ARGUMENT);
 cleanup:
     if (active)
+    {
         DSQueryEnd(query);
+    }
     if (query)
+    {
         DSQueryDestroy(query);
+    }
     DSStoreDestroy(store);
 #undef CHECK_NATIVE
     return error;
@@ -501,42 +637,116 @@ int TestDataSoARowsFromC(void)
         DSMatrix4    m_Transform;
     };
     DSFieldDesc state_fields[] = {
-        { .m_Field = 1, .m_Type = DS_TYPE_NUMBER, .m_Offset = offsetof(struct State, m_Health), .m_Name = "health" },
-        { .m_Field = 2, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = offsetof(struct State, m_Enabled), .m_Name = "enabled" },
-        { .m_Field = 3, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(struct State, m_Direction), .m_Name = "direction" }
+        {
+            .m_Field = 1, .m_Type = DS_TYPE_NUMBER, .m_Offset = offsetof(struct State, m_Health), .m_Name = "health"
+        },
+        {
+            .m_Field = 2, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = offsetof(struct State, m_Enabled), .m_Name = "enabled"
+        },
+        {
+            .m_Field = 3, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(struct State, m_Direction), .m_Name = "direction"
+        }
     };
-    DSStructDesc state = { .m_Fields = state_fields, .m_FieldCount = 3, .m_Size = sizeof(struct State) };
+    DSStructDesc state = {
+        .m_Fields = state_fields, .m_FieldCount = 3, .m_Size = sizeof(struct State)
+    };
     DSFieldDesc  layout[] = {
-        { .m_Field = 10, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = offsetof(struct Enemy, m_Active) },
-        { .m_Field = 20, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(struct Enemy, m_Position) },
-        { .m_Field = 30, .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(struct Enemy, m_State), .m_Struct = &state, .m_Name = "state" },
-        { .m_Field = 40, .m_Type = DS_TYPE_VECTOR4, .m_Offset = offsetof(struct Enemy, m_Color) },
-        { .m_Field = 50, .m_Type = DS_TYPE_MATRIX4, .m_Offset = offsetof(struct Enemy, m_Transform) }
+        {
+            .m_Field = 10, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = offsetof(struct Enemy, m_Active)
+        },
+        {
+            .m_Field = 20, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(struct Enemy, m_Position)
+        },
+        {
+            .m_Field = 30, .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(struct Enemy, m_State), .m_Struct = &state, .m_Name = "state"
+        },
+        {
+            .m_Field = 40, .m_Type = DS_TYPE_VECTOR4, .m_Offset = offsetof(struct Enemy, m_Color)
+        },
+        {
+            .m_Field = 50, .m_Type = DS_TYPE_MATRIX4, .m_Offset = offsetof(struct Enemy, m_Transform)
+        }
     };
-    DSTableDesc  table = { .m_Type = 10, .m_Fields = layout, .m_FieldCount = 5, .m_RowStride = sizeof(struct Enemy), .m_ResetPolicy = DS_RESET_RETAIN };
-    uint8_t      active[] = { 1, 0 };
-    DSVector3    positions[] = { { .m_Values = { 1, 2, 3 } }, { .m_Values = { 4, 5, 6 } } };
+    DSTableDesc  table = {
+        .m_Type = 10, .m_Fields = layout, .m_FieldCount = 5, .m_RowStride = sizeof(struct Enemy), .m_ResetPolicy = DS_RESET_RETAIN
+    };
+    uint8_t      active[] = {
+        1, 0
+    };
+    DSVector3    positions[] = { {
+                                     .m_Values = {
+                                         1, 2, 3
+                                     }
+                                 }, {
+                                     .m_Values = {
+                                         4, 5, 6
+                                     }
+                                 } };
     struct State states[] = {
-        { .m_Health = 50, .m_Enabled = 1, .m_Direction = { .m_Values = { 1, 0, 0 } } },
-        { .m_Health = 75, .m_Enabled = 0, .m_Direction = { .m_Values = { 0, 1, 0 } } }
+        {
+            .m_Health = 50, .m_Enabled = 1, .m_Direction = {
+                .m_Values = {
+                    1, 0, 0
+                }
+            }
+        },
+        {
+            .m_Health = 75, .m_Enabled = 0, .m_Direction = {
+                .m_Values = {
+                    0, 1, 0
+                }
+            }
+        }
     };
-    DSVector4 colors[] = { { .m_Values = { 7, 8, 9, 10 } }, { .m_Values = { 11, 12, 13, 14 } } };
-    DSMatrix4 transforms[2] = { 0 };
+    DSVector4 colors[] = { {
+                               .m_Values = {
+                                   7, 8, 9, 10
+                               }
+                           }, {
+                               .m_Values = {
+                                   11, 12, 13, 14
+                               }
+                           } };
+    DSMatrix4 transforms[2] = {
+        0
+    };
     for (uint32_t r = 0; r < 2; ++r)
+    {
         for (uint32_t i = 0; i < 16; ++i)
+        {
             transforms[r].m_Values[i] = (float)(r * 16 + i);
+        }
+    }
     // Input order is independent of layout and byte order.
     DSFieldArray fields[] = {
-        { .m_Field = 50, .m_Values = transforms },
-        { .m_Field = 30, .m_Values = states },
-        { .m_Field = 10, .m_Values = active },
-        { .m_Field = 40, .m_Values = colors },
-        { .m_Field = 20, .m_Values = positions }
+        {
+            .m_Field = 50, .m_Values = transforms
+        },
+        {
+            .m_Field = 30, .m_Values = states
+        },
+        {
+            .m_Field = 10, .m_Values = active
+        },
+        {
+            .m_Field = 40, .m_Values = colors
+        },
+        {
+            .m_Field = 20, .m_Values = positions
+        }
     };
-    DSId        ids[2] = { 123, 456 };
+    DSId        ids[2] = {
+        123, 456
+    };
     DSId        group = UINT64_C(0x1234567887654321);
-    DSQueryItem health = { .m_Hash = dmHashString64("state.health"), .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD };
-    DSQueryDesc query_desc = { .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = { health } };
+    DSQueryItem health = {
+        .m_Hash = dmHashString64("state.health"), .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD
+    };
+    DSQueryDesc query_desc = {
+        .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = {
+            health
+        }
+    };
     HDSContext  store = DSStoreCreate(0);
     HDSQuery    query = NULL;
     int         error = 0;
@@ -624,26 +834,44 @@ int TestDataSoARowsFromC(void)
     DSQueryEnd(query);
     reserved = 0;
 
-    DSTableDesc empty = { .m_Type = 11 };
+    DSTableDesc empty = {
+        .m_Type = 11
+    };
     CHECK_SOA(DSTableAdd(store, &empty) == DS_RESULT_OK);
     CHECK_SOA(DSRowCreateSoA(store, 11, group, 2, 0, NULL, ids) == DS_RESULT_OK);
     CHECK_SOA(DSRowRemove(store, ids[1]) == DS_RESULT_OK);
-    DSStructDesc zero_struct = { 0 };
-    DSFieldDesc  zero_field = { .m_Field = 1, .m_Type = DS_TYPE_STRUCT, .m_Struct = &zero_struct, .m_Name = "empty" };
-    DSTableDesc  zero_table = { .m_Type = 13, .m_Fields = &zero_field, .m_FieldCount = 1 };
-    DSFieldArray zero_values = { .m_Field = 1 };
+    DSStructDesc zero_struct = {
+        0
+    };
+    DSFieldDesc  zero_field = {
+        .m_Field = 1, .m_Type = DS_TYPE_STRUCT, .m_Struct = &zero_struct, .m_Name = "empty"
+    };
+    DSTableDesc  zero_table = {
+        .m_Type = 13, .m_Fields = &zero_field, .m_FieldCount = 1
+    };
+    DSFieldArray zero_values = {
+        .m_Field = 1
+    };
     CHECK_SOA(DSTableAdd(store, &zero_table) == DS_RESULT_OK);
     CHECK_SOA(DSRowCreateSoA(store, 13, 0, 2, 1, &zero_values, ids) == DS_RESULT_OK);
     CHECK_SOA(DSRowRemove(store, ids[0]) == DS_RESULT_OK);
-    DSFieldDesc string = { .m_Field = 1, .m_Type = DS_TYPE_STRING };
-    DSTableDesc references = { .m_Type = 12, .m_Fields = &string, .m_FieldCount = 1, .m_RowStride = 8 };
+    DSFieldDesc string = {
+        .m_Field = 1, .m_Type = DS_TYPE_STRING
+    };
+    DSTableDesc references = {
+        .m_Type = 12, .m_Fields = &string, .m_FieldCount = 1, .m_RowStride = 8
+    };
     CHECK_SOA(DSTableAdd(store, &references) == DS_RESULT_OK);
     CHECK_SOA(DSRowCreateSoA(store, 12, group, 2, 1, fields, ids) == DS_RESULT_INVALID_ARGUMENT);
 cleanup:
     if (reserved)
+    {
         DSQueryEnd(query);
+    }
     if (query)
+    {
         DSQueryDestroy(query);
+    }
     DSStoreDestroy(store);
 #undef CHECK_SOA
     return error;
@@ -656,69 +884,139 @@ int CreateReferenceRowsFromC(HDSContext store, int soa, DSId ids[2])
     char        faction[] = "guards";
     char        loot_name[] = "coin";
     DSFieldDesc members[] = {
-        { .m_Field = 1, .m_Type = DS_TYPE_STRING, .m_Offset = offsetof(struct ReferenceAttributes, m_Faction), .m_Name = "faction" },
-        { .m_Field = 2, .m_Type = DS_TYPE_NUMBER, .m_Offset = offsetof(struct ReferenceAttributes, m_AlertRadius), .m_Name = "alert_radius" }
+        {
+            .m_Field = 1, .m_Type = DS_TYPE_STRING, .m_Offset = offsetof(struct ReferenceAttributes, m_Faction), .m_Name = "faction"
+        },
+        {
+            .m_Field = 2, .m_Type = DS_TYPE_NUMBER, .m_Offset = offsetof(struct ReferenceAttributes, m_AlertRadius), .m_Name = "alert_radius"
+        }
     };
-    DSStructDesc               layout = { .m_Fields = members, .m_FieldCount = 2, .m_Size = sizeof(struct ReferenceAttributes) };
+    DSStructDesc               layout = {
+        .m_Fields = members, .m_FieldCount = 2, .m_Size = sizeof(struct ReferenceAttributes)
+    };
     struct ReferenceAttributes attributes[] = {
-        { .m_Faction = { .m_String = faction }, .m_AlertRadius = 15.0 },
-        { .m_Faction = { .m_String = "bandits" }, .m_AlertRadius = 25.0 }
+        {
+            .m_Faction = {
+                .m_String = faction
+            }, .m_AlertRadius = 15.0
+        },
+        {
+            .m_Faction = {
+                .m_String = "bandits"
+            }, .m_AlertRadius = 25.0
+        }
     };
     DSStructInput objects[] = {
-        { .m_Layout = &layout, .m_Values = &attributes[0] },
-        { .m_Layout = &layout, .m_Values = &attributes[1] }
+        {
+            .m_Layout = &layout, .m_Values = &attributes[0]
+        },
+        {
+            .m_Layout = &layout, .m_Values = &attributes[1]
+        }
     };
-    DSReference strings[] = { { .m_String = loot_name }, { .m_String = "health_pickup" } };
-    DSReference structures[] = { { .m_Struct = &objects[0] }, { .m_Struct = &objects[1] } };
+    DSReference strings[] = { {
+                                  .m_String = loot_name
+                              }, {
+                                  .m_String = "health_pickup"
+                              } };
+    DSReference structures[] = { {
+                                     .m_Struct = &objects[0]
+                                 }, {
+                                     .m_Struct = &objects[1]
+                                 } };
     DSListInput lists[] = {
-        { .m_Type = DS_TYPE_STRING, .m_Count = 2, .m_Values = strings },
-        { .m_Type = DS_TYPE_STRUCT, .m_Count = 2, .m_Values = structures }
+        {
+            .m_Type = DS_TYPE_STRING, .m_Count = 2, .m_Values = strings
+        },
+        {
+            .m_Type = DS_TYPE_STRUCT, .m_Count = 2, .m_Values = structures
+        }
     };
-    DSReference names[] = { { .m_String = name }, { .m_String = "Bandit" } };
-    DSReference loot[] = { { .m_List = &lists[0] }, { .m_List = &lists[1] } };
+    DSReference names[] = { {
+                                .m_String = name
+                            }, {
+                                .m_String = "Bandit"
+                            } };
+    DSReference loot[] = { {
+                               .m_List = &lists[0]
+                           }, {
+                               .m_List = &lists[1]
+                           } };
     DSFieldDesc fields[] = {
-        { .m_Field = 10, .m_Type = DS_TYPE_STRING, .m_Offset = offsetof(struct ReferenceEnemy, m_Name) },
-        { .m_Field = 11, .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(struct ReferenceEnemy, m_Attributes) },
-        { .m_Field = 12, .m_Type = DS_TYPE_LIST, .m_Offset = offsetof(struct ReferenceEnemy, m_Loot) },
-        { .m_Field = 13, .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(struct ReferenceEnemy, m_State), .m_Struct = &layout, .m_Name = "state" }
+        {
+            .m_Field = 10, .m_Type = DS_TYPE_STRING, .m_Offset = offsetof(struct ReferenceEnemy, m_Name)
+        },
+        {
+            .m_Field = 11, .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(struct ReferenceEnemy, m_Attributes)
+        },
+        {
+            .m_Field = 12, .m_Type = DS_TYPE_LIST, .m_Offset = offsetof(struct ReferenceEnemy, m_Loot)
+        },
+        {
+            .m_Field = 13, .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(struct ReferenceEnemy, m_State), .m_Struct = &layout, .m_Name = "state"
+        }
     };
-    DSTableDesc table = { .m_Type = 93, .m_Fields = fields, .m_FieldCount = 4, .m_RowStride = sizeof(struct ReferenceEnemy), .m_ResetPolicy = DS_RESET_RETAIN };
+    DSTableDesc table = {
+        .m_Type = 93, .m_Fields = fields, .m_FieldCount = 4, .m_RowStride = sizeof(struct ReferenceEnemy), .m_ResetPolicy = DS_RESET_RETAIN
+    };
     if (DSTableAdd(store, &table) != DS_RESULT_OK)
+    {
         return 1;
+    }
 
     DSResult result;
     if (soa)
     {
         // Supply columns out of metadata order, including complete inline structs.
         DSFieldArray columns[] = {
-            { .m_Field = 12, .m_Values = loot },
-            { .m_Field = 13, .m_Values = attributes },
-            { .m_Field = 10, .m_Values = names },
-            { .m_Field = 11, .m_Values = structures }
+            {
+                .m_Field = 12, .m_Values = loot
+            },
+            {
+                .m_Field = 13, .m_Values = attributes
+            },
+            {
+                .m_Field = 10, .m_Values = names
+            },
+            {
+                .m_Field = 11, .m_Values = structures
+            }
         };
         result = DSRowCreateSoA(store, 93, 0, 2, 4, columns, ids);
     }
     else
     {
         struct ReferenceEnemy enemies[] = {
-            { .m_Name = names[0], .m_Attributes = structures[0], .m_Loot = loot[0], .m_State = attributes[0] },
-            { .m_Name = names[1], .m_Attributes = structures[1], .m_Loot = loot[1], .m_State = attributes[1] }
+            {
+                .m_Name = names[0], .m_Attributes = structures[0], .m_Loot = loot[0], .m_State = attributes[0]
+            },
+            {
+                .m_Name = names[1], .m_Attributes = structures[1], .m_Loot = loot[1], .m_State = attributes[1]
+            }
         };
         result = DSRowCreate(store, 93, 0, 2, enemies, ids);
     }
     if (result != DS_RESULT_OK)
+    {
         return 2;
+    }
 
     // Neither payloads nor descriptors may be retained from caller-owned storage.
     name[0] = faction[0] = loot_name[0] = 'X';
     attributes[0].m_AlertRadius = -1;
     const char* stored_name;
     if (DSFieldGetString(store, ids[0], 10, &stored_name) != DS_RESULT_OK || strcmp(stored_name, "Guard"))
+    {
         return 3;
+    }
     if (DSFieldGetString(store, ids[0], dmHashString64("state.faction"), &stored_name) != DS_RESULT_OK || strcmp(stored_name, "guards"))
+    {
         return 4;
+    }
     if (DSFieldSetString(store, ids[0], 10, "Captain") != DS_RESULT_OK || DSRowReset(store, ids[0]) != DS_RESULT_OK)
+    {
         return 5;
+    }
     return DSFieldGetString(store, ids[0], 10, &stored_name) == DS_RESULT_OK && strcmp(stored_name, "Guard") == 0 ? 0 : 6;
 }
 
@@ -727,35 +1025,79 @@ int CreateMixedListRowsFromC(HDSContext store, int soa, DSId ids[2])
     double        number = 100.0;
     char          string[] = "coin";
     uint8_t       boolean = 1;
-    DSVector3     vector3 = { .m_Values = { 1, 2, 3 } };
-    DSVector4     vector4 = { .m_Values = { 4, 5, 6, 7 } };
-    DSMatrix4     matrix = { .m_Values = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 } };
-    DSFieldDesc   member = { .m_Field = 42, .m_Type = DS_TYPE_NUMBER };
-    DSStructDesc  layout = { .m_Fields = &member, .m_FieldCount = 1, .m_Size = sizeof(number) };
-    DSStructInput object = { .m_Layout = &layout, .m_Values = &number };
-    double        numbers[] = { 1, 2 };
-    DSListInput   nested = { .m_Type = DS_TYPE_NUMBER, .m_Count = 2, .m_Values = numbers };
+    DSVector3     vector3 = {
+        .m_Values = {
+            1, 2, 3
+        }
+    };
+    DSVector4     vector4 = {
+        .m_Values = {
+            4, 5, 6, 7
+        }
+    };
+    DSMatrix4     matrix = {
+        .m_Values = {
+            1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1
+        }
+    };
+    DSFieldDesc   member = {
+        .m_Field = 42, .m_Type = DS_TYPE_NUMBER
+    };
+    DSStructDesc  layout = {
+        .m_Fields = &member, .m_FieldCount = 1, .m_Size = sizeof(number)
+    };
+    DSStructInput object = {
+        .m_Layout = &layout, .m_Values = &number
+    };
+    double        numbers[] = {
+        1, 2
+    };
+    DSListInput   nested = {
+        .m_Type = DS_TYPE_NUMBER, .m_Count = 2, .m_Values = numbers
+    };
     DSValueType   types[] = {
         DS_TYPE_NUMBER, DS_TYPE_STRING, DS_TYPE_BOOLEAN, DS_TYPE_STRUCT, DS_TYPE_LIST, DS_TYPE_NULL, DS_TYPE_VECTOR3, DS_TYPE_VECTOR4, DS_TYPE_MATRIX4
     };
-    const void* values[] = { &number, string, &boolean, &object, &nested, NULL, &vector3, &vector4, &matrix };
+    const void* values[] = {
+        &number, string, &boolean, &object, &nested, NULL, &vector3, &vector4, &matrix
+    };
     // m_Type is ignored when per-element kinds are supplied.
-    DSListInput mixed = { .m_Type = (DSValueType)UINT32_MAX, .m_Count = 9, .m_Values = values, .m_Types = types };
-    DSReference child = { .m_List = &mixed };
-    DSListInput parent = { .m_Type = DS_TYPE_LIST, .m_Count = 1, .m_Values = &child };
-    DSReference rows[] = { { .m_List = &mixed }, { .m_List = &parent } };
-    DSFieldDesc field = { .m_Field = 1, .m_Type = DS_TYPE_LIST };
-    DSTableDesc table = { .m_Type = 94, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference), .m_ResetPolicy = DS_RESET_RETAIN };
+    DSListInput mixed = {
+        .m_Type = (DSValueType)UINT32_MAX, .m_Count = 9, .m_Values = values, .m_Types = types
+    };
+    DSReference child = {
+        .m_List = &mixed
+    };
+    DSListInput parent = {
+        .m_Type = DS_TYPE_LIST, .m_Count = 1, .m_Values = &child
+    };
+    DSReference rows[] = { {
+                               .m_List = &mixed
+                           }, {
+                               .m_List = &parent
+                           } };
+    DSFieldDesc field = {
+        .m_Field = 1, .m_Type = DS_TYPE_LIST
+    };
+    DSTableDesc table = {
+        .m_Type = 94, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference), .m_ResetPolicy = DS_RESET_RETAIN
+    };
     if (DSTableAdd(store, &table) != DS_RESULT_OK)
+    {
         return 1;
+    }
     DSResult result;
     if (soa)
     {
-        DSFieldArray column = { .m_Field = 1, .m_Values = rows };
+        DSFieldArray column = {
+            .m_Field = 1, .m_Values = rows
+        };
         result = DSRowCreateSoA(store, 94, 0, 2, 1, &column, ids);
     }
     else
+    {
         result = DSRowCreate(store, 94, 0, 2, rows, ids);
+    }
 
     number = -1;
     string[0] = 'X';
@@ -768,34 +1110,50 @@ int CreateMixedListRowsFromC(HDSContext store, int soa, DSId ids[2])
     values[1] = NULL;
     member.m_Field = 0;
     if (result != DS_RESULT_OK)
+    {
         return 2;
+    }
     DSValueView list, item;
     uint32_t    count;
     if (DSFieldGetView(store, ids[0], 1, &list) != DS_RESULT_OK ||
         DSViewGetCount(&list, &count) != DS_RESULT_OK || count != 9)
+    {
         return 3;
+    }
     if (DSViewGetElement(&list, 6, &item) != DS_RESULT_OK ||
         DSViewGetVector3(&item, &vector3) != DS_RESULT_OK || vector3.m_Values[2] != 3)
+    {
         return 4;
+    }
     if (DSViewGetElement(&list, 7, &item) != DS_RESULT_OK ||
         DSViewGetVector4(&item, &vector4) != DS_RESULT_OK || vector4.m_Values[3] != 7)
+    {
         return 5;
+    }
     if (DSViewGetElement(&list, 8, &item) != DS_RESULT_OK ||
         DSViewGetMatrix4(&item, &matrix) != DS_RESULT_OK || matrix.m_Values[15] != 1)
+    {
         return 6;
+    }
     if (DSViewGetElement(&list, 2, &item) != DS_RESULT_OK ||
         DSViewGetBoolean(&item, &boolean) != DS_RESULT_OK || boolean != 1)
+    {
         return 7;
+    }
     types[0] = DS_TYPE_NUMBER;
     DSViewIterator iterator = DSViewIter(&list);
     uint32_t       seen = 0;
     while (DSViewIterNext(&iterator, &item))
     {
         if (seen >= 9 || DSViewGetType(&item) != types[seen])
+        {
             return 8;
+        }
         ++seen;
     }
     if (seen != 9 || DSViewIterNext(&iterator, &item) || DSViewGetType(&item) != DS_TYPE_MATRIX4)
+    {
         return 9;
+    }
     return 0;
 }

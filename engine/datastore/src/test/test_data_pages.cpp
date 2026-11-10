@@ -44,7 +44,9 @@ static uint32_t PageCount(HDSContext store)
 {
     uint32_t count = 0;
     for (uint32_t i = 0; i < store->m_Pages.Size(); ++i)
+    {
         count += store->m_Pages[i].m_Data != 0;
+    }
     return count;
 }
 
@@ -59,7 +61,9 @@ TEST(DataPages, Parameters)
         { 256, 32 }
     };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(invalid); ++i)
+    {
         ASSERT_EQ((HDSContext)0, DSStoreCreate(&invalid[i]));
+    }
     DSCreateParams defaults = {};
     HDSContext     store = DSStoreCreate(&defaults);
     ASSERT_NE((HDSContext)0, store);
@@ -78,7 +82,9 @@ TEST(DataPages, GrowthRangesSwapAndReset)
     PageRow input[259];
     DSId    ids[259];
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(input); ++i)
+    {
         input[i] = PageRow { (double)i, { { (float)i, 2, 3 } }, i };
+    }
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 10, 0, 1, input, ids));
     DSTable*       table = FindTable(store, 10);
     const uint8_t* first = GetRowBytes(table, 0);
@@ -159,7 +165,9 @@ TEST(DataPages, SharedPagesAndReuse)
     HDSContext     store = DSStoreCreate(&params);
     PageRow        input[129] = {};
     for (uint32_t i = 0; i < 129; ++i)
+    {
         input[i].m_Health = i;
+    }
     uint32_t slots = 0;
     for (uint32_t wave = 0; wave < 8; ++wave)
     {
@@ -169,7 +177,9 @@ TEST(DataPages, SharedPagesAndReuse)
         DSId live;
         ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 20, 0, 1, input + 128, &live));
         if (!wave)
+        {
             slots = store->m_Pages.Size();
+        }
         ASSERT_EQ(slots, store->m_Pages.Size());
         ASSERT_EQ(DS_RESULT_OK, DSTableRemove(store, 10));
         double value;
@@ -223,9 +233,11 @@ TEST(DataPages, BlobReferencesAcrossChunks)
     ASSERT_EQ(DS_RESULT_OK, DSTableAdd(source, &table));
     PageReferenceRow input[41];
     for (uint32_t i = 0; i < 41; ++i)
+    {
         input[i] = PageReferenceRow { (double)i, { "enemy" } };
+    }
     ASSERT_EQ(DS_RESULT_OK, DSRowCreate(source, 10, 0, 41, input, 0));
-    uint8_t  DM_ALIGNED(8) bytes[4096];
+    uint8_t DM_ALIGNED(8) bytes[4096];
     uint32_t size;
     ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(source, bytes, sizeof(bytes), &size));
     HDSBlob blob;
@@ -233,7 +245,9 @@ TEST(DataPages, BlobReferencesAcrossChunks)
     HDSContext      store = DSStoreCreate(&params);
     HDSBlobInstance instances[3];
     for (uint32_t i = 0; i < 3; ++i)
+    {
         ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(store, blob, 0, &instances[i]));
+    }
     DSQueryDesc desc = { 0, 0, 0, { { 1, DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_FIELD } } };
     HDSQuery    query;
     ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));

@@ -657,9 +657,13 @@ namespace dmEngine
 
         ContextRegistrySet(engine->m_ContextRegistry, DATASTORE_CONTEXT_NAME, 0);
         if (engine->m_DataStoreJobs)
+        {
             JobSystemDestroy(engine->m_DataStoreJobs);
+        }
         if (engine->m_DataStore)
+        {
             DSStoreDestroy(engine->m_DataStore);
+        }
 
         // TODO: Job-system shutdown on threaded platforms was disabled because it hung.
         // Resolve the hang and graphics teardown ordering before enabling it.
@@ -2208,9 +2212,13 @@ bail:
                     DSResult result = DSSchedulerBegin(engine->m_DataStore, engine->m_DataStoreJobs);
                     datastore_schedule = result == DS_RESULT_OK;
                     if (datastore_schedule)
+                    {
                         UpdateDataStore(engine, "engine.gameobject.pre_update");
+                    }
                     else
+                    {
                         dmLogError("Failed to begin datastore schedule (%d)", result);
+                    }
                 }
 
                 dmGameObject::UpdateContext update_context;

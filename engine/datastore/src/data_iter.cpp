@@ -31,9 +31,13 @@ DSIterator DSQueryIterRange(HDSQuery query, uint32_t first, uint32_t count)
         {
             uint32_t middle = low + (high - low) / 2;
             if (ranges[middle].m_First + ranges[middle].m_Count <= first)
+            {
                 low = middle + 1;
+            }
             else
+            {
                 high = middle;
+            }
         }
         iterator.m_RangeIndex = low;
         iterator.m_NextRow = first - ranges[low].m_First;
@@ -45,7 +49,9 @@ bool DSIterNext(DSIterator* iterator)
 {
     iterator->m_Count = 0;
     if (!iterator->m_Remaining)
+    {
         return false;
+    }
 
     HDSQuery            query = iterator->m_Query;
     const DSQueryRange& range = query->m_Ranges[iterator->m_RangeIndex++];
@@ -53,7 +59,9 @@ bool DSIterNext(DSIterator* iterator)
     DSTable*            table = match.m_Table;
     uint32_t            count = range.m_Count - iterator->m_NextRow;
     if (count > iterator->m_Remaining)
+    {
         count = iterator->m_Remaining;
+    }
 
     uint32_t start = range.m_Start + iterator->m_NextRow;
     iterator->m_Table = table;
@@ -88,21 +96,27 @@ uint64_t DSIterGetType(const DSIterator* iterator)
 DSId DSIterGetId(const DSIterator* iterator, uint32_t row)
 {
     if (row >= DSIterGetCount(iterator))
+    {
         return 0;
+    }
     return MakeId(iterator->m_Query->m_Store, ((const DSRow*)iterator->m_Rows)[row].m_Slot);
 }
 
 DSId DSIterGetGroupId(const DSIterator* iterator, uint32_t row)
 {
     if (row >= DSIterGetCount(iterator))
+    {
         return 0;
+    }
     return ((const DSRow*)iterator->m_Rows)[row].m_Group;
 }
 
 DSResult DSIterGetFieldByHash(const DSIterator* iterator, uint32_t row, uint64_t field, DSValue* out_value)
 {
     if (row >= iterator->m_Count)
+    {
         return DS_RESULT_INVALID_ARGUMENT;
+    }
     DSTable* table = (DSTable*)iterator->m_Table;
     uint32_t index = (uint32_t)((const DSRow*)iterator->m_Rows - table->m_Rows.Begin()) + row;
     return ReadField(table, index, field, out_value);
@@ -111,7 +125,9 @@ DSResult DSIterGetFieldByHash(const DSIterator* iterator, uint32_t row, uint64_t
 DSResult DSIterGetField(const DSIterator* iterator, uint32_t row, DSFieldId field, DSValue* out_value)
 {
     if (row >= iterator->m_Count || !iterator->m_Fields || field >= iterator->m_FieldCount)
+    {
         return DS_RESULT_INVALID_ARGUMENT;
+    }
     const DSQueryBinding& binding = ((const DSQueryBinding*)iterator->m_Fields)[field];
     *out_value = ReadBoundValue((const DSTable*)iterator->m_Table, &((const DSRow*)iterator->m_Rows)[row], binding.m_Meta);
     return DS_RESULT_OK;
@@ -120,9 +136,13 @@ DSResult DSIterGetField(const DSIterator* iterator, uint32_t row, DSFieldId fiel
 DSResult DSIterSetField(const DSIterator* iterator, uint32_t row, DSFieldId field, const DSValue* value)
 {
     if (row >= iterator->m_Count || !iterator->m_Fields || field >= iterator->m_FieldCount)
+    {
         return DS_RESULT_INVALID_ARGUMENT;
+    }
     if (iterator->m_Query->m_Fields[field].m_Access != DS_FIELD_MUTABLE)
+    {
         return DS_RESULT_INVALID_ARGUMENT;
+    }
     const DSQueryBinding& binding = ((const DSQueryBinding*)iterator->m_Fields)[field];
     return SetRowField((DSTable*)iterator->m_Table, &((DSRow*)iterator->m_Rows)[row], binding.m_Meta, value);
 }

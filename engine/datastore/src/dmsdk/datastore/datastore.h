@@ -32,478 +32,482 @@ extern "C"
 {
 #endif
 
-    // Shared types
-
-    typedef struct DSStore* HDSContext;
-    typedef struct DSQuery* HDSQuery;
-    typedef uint64_t        DSId;
-    typedef uint32_t        DSFieldId;
-
-    typedef enum DSResult
-    {
-        DS_RESULT_OK = 0,
-        DS_RESULT_NOT_FOUND = -1,
-        DS_RESULT_LOCKED = -3,
-        DS_RESULT_INVALID_ARGUMENT = -4,
-        DS_RESULT_ALREADY_EXISTS = -5,
-        DS_RESULT_BUFFER_TOO_SMALL = -6,
-        DS_RESULT_INVALID_FORMAT = -7,
-        DS_RESULT_BUSY = -8,
-    } DSResult;
-
-    typedef enum DSValueType
-    {
-        DS_TYPE_NUMBER = 0,
-        DS_TYPE_BOOLEAN = 1,
-        DS_TYPE_STRING = 2,
-        DS_TYPE_NULL = 3,
-        DS_TYPE_STRUCT = 4,
-        DS_TYPE_LIST = 5,
-        DS_TYPE_VECTOR3 = 6,
-        DS_TYPE_VECTOR4 = 7,
-        DS_TYPE_MATRIX4 = 8,
-        DS_TYPE_FLOAT = 9,
-        DS_TYPE_UINT32 = 10,
-    } DSValueType;
-
-    typedef struct DSVector3
-    {
-        float m_Values[3];
-    } DSVector3;
-
-    typedef struct DSVector4
-    {
-        float m_Values[4];
-    } DSVector4;
-
-    typedef struct DSMatrix4
-    {
-        float m_Values[16];
-    } DSMatrix4;
-
-    typedef struct DSCreateParams
-    {
-        uint32_t m_PageSize;
-        uint32_t m_RowChunkSize;
-        uint32_t m_MaxSparePages;
-    } DSCreateParams;
-
-    typedef struct DSStructDesc DSStructDesc;
-    typedef struct DSFieldDesc
-    {
-        uint64_t            m_Field;  // Field name hash.
-        DSValueType         m_Type;   // Declared kind; fixed for the table lifetime.
-        uint32_t            m_Offset; // Byte offset within the containing row/struct.
-        const DSStructDesc* m_Struct; // Reusable inline layout; NULL for scalar/dynamic values.
-        const char*         m_Name;   // Borrowed local name for inline composition; optional for other root fields.
-    } DSFieldDesc;
-
-    struct DSStructDesc
-    {
-        const DSFieldDesc* m_Fields;     // Borrowed member descriptions; copied at registration.
-        uint32_t           m_FieldCount; // Number of immediate members.
-        uint32_t           m_Size;       // Struct size in bytes, including trailing padding.
-    };
-
-    typedef enum DSResetPolicy
-    {
-        DS_RESET_NONE = 0,
-        DS_RESET_RETAIN = 1,
-    } DSResetPolicy;
-
-    typedef struct DSTableDesc
-    {
-        uint64_t           m_Type;        // Data type name hash.
-        const uint64_t*    m_Tags;        // Borrowed tag hashes; copied at registration.
-        uint32_t           m_TagCount;    // Number of tags.
-        const DSFieldDesc* m_Fields;      // Borrowed root field descriptions; copied at registration.
-        uint32_t           m_FieldCount;  // Number of root fields.
-        uint32_t           m_RowStride;   // Bytes per row, including trailing alignment padding.
-        DSResetPolicy      m_ResetPolicy; // Current values only by default; RETAIN keeps initial values for reset.
-    } DSTableDesc;
-
-    typedef struct DSFieldArray
-    {
-        uint64_t    m_Field;  // Root field name hash.
-        const void* m_Values; // Borrowed contiguous array of native field values.
-    } DSFieldArray;
-
-    typedef struct DSStructInput
-    {
-        const DSStructDesc* m_Layout; // Native member layout, borrowed through creation.
-        const void*         m_Values; // One native struct matching m_Layout.
-    } DSStructInput;
-
-    typedef struct DSListInput
-    {
-        DSValueType        m_Type;   // Shared element kind when m_Types is NULL.
-        uint32_t           m_Count;  // Number of elements.
-        const void*        m_Values; // Native array, or array of payload pointers when m_Types is set.
-        const DSValueType* m_Types;  // Optional per-element kinds; selects mixed input.
-    } DSListInput;
-
-    typedef union DSReference
-    {
-        const char*          m_String; // NUL-terminated string input.
-        const DSStructInput* m_Struct; // Dynamic struct input.
-        const DSListInput*   m_List;   // Dynamic list input.
-        // private
-        uint64_t m_Storage; // Keeps reference slots eight bytes on 32-bit and 64-bit hosts.
-    } DSReference;
-
-    typedef struct DSBlob*         HDSBlob;
-    typedef struct DSBlobInstance* HDSBlobInstance;
-
-    typedef enum DSAccess
-    {
-        DS_FIELD_MUTABLE = 1,
-    } DSAccess;
-
-    typedef enum DSQueryFlags
-    {
-        DS_ROW_MUTABLE = 2,
-    } DSQueryFlags;
-
-    typedef enum DSQueryItemKind
-    {
-        DS_QUERY_ITEM_NONE = 0,
-        DS_QUERY_ITEM_FIELD = 1,
-        DS_QUERY_ITEM_TAG = 2,
-    } DSQueryItemKind;
-
-    typedef struct DSQueryItem
-    {
-        uint64_t        m_Hash;
-        DSValueType     m_Type;
-        uint32_t        m_Access;
-        DSQueryItemKind m_Kind;
-    } DSQueryItem;
-
-    typedef struct DSQueryDesc
-    {
-        const DSId*      m_GroupIds;
-        uint32_t         m_GroupIdCount;
-        uint32_t         m_Flags;
-        DSQueryItem      m_Items[DS_QUERY_MAX_ITEMS];
-    } DSQueryDesc;
-
-    typedef void (*DSSystemProcess)(HDSQuery query, uint32_t first, uint32_t num_rows, void* context);
-
-    typedef struct DSSystemDesc
-    {
-        dmhash_t        m_Name;
-        dmhash_t        m_DependsOn[DS_SYSTEM_MAX_DEPENDENCIES];
-        HDSQuery        m_Query;
-        DSSystemProcess m_Process;
-        void*           m_Context;
-        uint32_t        m_RowsPerJob;
-    } DSSystemDesc;
-
-    typedef struct DSEventDesc
-    {
-        dmhash_t m_Name;
-        dmhash_t m_DependsOn[DS_SYSTEM_MAX_DEPENDENCIES];
-    } DSEventDesc;
-
-    typedef struct DSIterator
-    {
-        // private
-        HDSQuery        m_Query;
-        uint32_t        m_NextRow;
-        uint32_t        m_Count;
-        void*           m_Table;
-        void*           m_Rows;
-        const void*     m_Fields;
-        const uint32_t* m_FieldOffsets;
-        uint8_t*        m_Values;
-        uint32_t        m_RowStride;
-        uint32_t        m_FieldCount;
-        uint32_t        m_RangeIndex;
-        uint32_t        m_Remaining;
-        uint8_t         m_Flags;
-    } DSIterator;
-
-    typedef struct DSRowIterator
-    {
-        // private
-        const DSIterator* m_Parent;
-        uint32_t          m_Index;
-        uint32_t          m_NextRow;
-    } DSRowIterator;
-
-    typedef struct DSValueView
-    {
-        // private
-        uint64_t m_Storage[9];
-    } DSValueView;
-
-    typedef struct DSViewIterator
-    {
-        // private
-        const DSValueView* m_Parent;
-        uint32_t           m_Index;
-        uint32_t           m_Count;
-    } DSViewIterator;
-
-    // Store lifetime
-
-    HDSContext DSStoreCreate(const DSCreateParams* params);
-    DSResult   DSStoreDestroy(HDSContext store);
-    DSResult   DSGroupRemove(HDSContext store, DSId group);
-
-    // Native tables and rows
-
-    DSResult DSTableAdd(HDSContext store, const DSTableDesc* desc);
-    DSResult DSTableAddView(HDSContext store, const DSTableDesc* desc, void* values, uint32_t value_count, uint32_t row_count, const uint32_t* indices, DSId* out_ids);
-    DSResult DSTableRemove(HDSContext store, uint64_t type);
-    DSResult DSRowCreate(HDSContext store, uint64_t type, DSId group, uint32_t count, const void* rows, DSId* out_ids);
-    DSResult DSRowCreateSoA(HDSContext store, uint64_t type, DSId group, uint32_t count, uint32_t field_count, const DSFieldArray* fields, DSId* out_ids);
-    DSResult DSRowRemove(HDSContext store, DSId id);
-    DSResult DSRowReset(HDSContext store, DSId id);
-    uint64_t DSRowGetComponentId(HDSContext store, DSId id);
-
-    // Resource instances
-
-    DSResult                       DSBlobLoad(const void* buffer, uint32_t buffer_size, HDSBlob* out_blob);
-    void                           DSBlobDestroy(HDSBlob blob);
-    DSResult                       DSBlobAdd(HDSContext store, HDSBlob blob, DSId group, HDSBlobInstance* out_instance);
-    DSResult                       DSBlobRemove(HDSBlobInstance instance);
-    DSResult                       DSBlobReset(HDSBlobInstance instance);
-
-    // Queries
-
-    DSQueryItem DSTag(const char* name);
-    DSQueryItem DSField(const char* name, DSValueType type, uint32_t access);
-
-    DSResult                  DSQueryCreate(HDSContext store, const DSQueryDesc* desc, HDSQuery* out_query);
-    DSResult                  DSQueryDestroy(HDSQuery query);
-
-    DSResult                  DSQueryTryBegin(HDSQuery query);
-    uint32_t                  DSQueryGetRowCount(HDSQuery query);
-    void                      DSQueryEnd(HDSQuery query);
-
-    DSFieldId                 DSQueryFindField(HDSQuery query, const DSQueryItem* field);
-
-    // Scheduled callbacks
-
-    DSResult DSFunctionAdd(HDSContext store, const DSSystemDesc* desc);
-    DSResult DSFunctionRemove(HDSContext store, dmhash_t name);
-    DSResult DSEventAdd(HDSContext store, const DSEventDesc* desc);
-    DSResult DSEventRemove(HDSContext store, dmhash_t name);
-    DSResult DSSchedulerBegin(HDSContext store, HJobContext jobs);
-    DSResult DSSchedulerEvent(HDSContext store, dmhash_t name);
-    DSResult DSSchedulerUpdate(HDSContext store);
-    DSResult DSSchedulerSync(HDSContext store);
-    DSResult DSSchedulerEnd(HDSContext store);
-
-    // Iteration
-
-    // Query batches
-    DSIterator DSQueryIterRange(HDSQuery query, uint32_t first, uint32_t count);
-    DSIterator DSQueryIter(HDSQuery query);
-    bool       DSIterNext(DSIterator* iterator);
-    uint64_t   DSIterGetType(const DSIterator* iterator);
-
-    // Rows
-    static inline DSRowIterator DSIterRows(const DSIterator* iterator);
-    static inline bool          DSRowIterNext(DSRowIterator* iterator);
-    DSId                        DSRowIterGetId(const DSRowIterator* iterator);
-    DSId                        DSRowIterGetGroupId(const DSRowIterator* iterator);
-    static inline const void*   DSRowIterGetData(const DSRowIterator* iterator);
-    static inline void*         DSRowIterGetDataMut(const DSRowIterator* iterator);
-
-    // Field pointers
-    static inline const double*    DSRowIterGetNumber(const DSRowIterator* iterator, DSFieldId field);
-    static inline double*          DSRowIterGetNumberMut(const DSRowIterator* iterator, DSFieldId field);
-
-    static inline const float*     DSRowIterGetFloat(const DSRowIterator* iterator, DSFieldId field);
-    static inline float*           DSRowIterGetFloatMut(const DSRowIterator* iterator, DSFieldId field);
-
-    static inline const uint32_t*  DSRowIterGetUInt32(const DSRowIterator* iterator, DSFieldId field);
-    static inline uint32_t*        DSRowIterGetUInt32Mut(const DSRowIterator* iterator, DSFieldId field);
-
-    static inline const uint8_t*   DSRowIterGetBoolean(const DSRowIterator* iterator, DSFieldId field);
-    static inline uint8_t*         DSRowIterGetBooleanMut(const DSRowIterator* iterator, DSFieldId field);
-
-    static inline const DSVector3* DSRowIterGetVector3(const DSRowIterator* iterator, DSFieldId field);
-    static inline DSVector3*       DSRowIterGetVector3Mut(const DSRowIterator* iterator, DSFieldId field);
-
-    static inline const DSVector4* DSRowIterGetVector4(const DSRowIterator* iterator, DSFieldId field);
-    static inline DSVector4*       DSRowIterGetVector4Mut(const DSRowIterator* iterator, DSFieldId field);
-
-    static inline const DSMatrix4* DSRowIterGetMatrix4(const DSRowIterator* iterator, DSFieldId field);
-    static inline DSMatrix4*       DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, DSFieldId field);
-
-    // Field values
-
-    DSResult DSFieldGetNumber(HDSContext store, DSId id, uint64_t field, double* out_value);
-    DSResult DSFieldGetNumberBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, double* out_values);
-    DSResult DSFieldSetNumber(HDSContext store, DSId id, uint64_t field, double value);
-
-    DSResult DSFieldGetFloat(HDSContext store, DSId id, uint64_t field, float* out_value);
-    DSResult DSFieldGetFloatBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, float* out_values);
-    DSResult DSFieldSetFloat(HDSContext store, DSId id, uint64_t field, float value);
-
-    DSResult DSFieldGetUInt32(HDSContext store, DSId id, uint64_t field, uint32_t* out_value);
-    DSResult DSFieldGetUInt32Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, uint32_t* out_values);
-    DSResult DSFieldSetUInt32(HDSContext store, DSId id, uint64_t field, uint32_t value);
-
-    DSResult DSFieldGetBoolean(HDSContext store, DSId id, uint64_t field, uint8_t* out_value);
-    DSResult DSFieldGetBooleanBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, uint8_t* out_values);
-    DSResult DSFieldSetBoolean(HDSContext store, DSId id, uint64_t field, uint8_t value);
-
-    DSResult DSFieldGetString(HDSContext store, DSId id, uint64_t field, const char** out_value);
-    DSResult DSFieldGetStringBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, const char** out_values);
-    DSResult DSFieldSetString(HDSContext store, DSId id, uint64_t field, const char* value);
-
-    DSResult DSFieldGetVector3(HDSContext store, DSId id, uint64_t field, DSVector3* out_value);
-    DSResult DSFieldGetVector3Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSVector3* out_values);
-    DSResult DSFieldSetVector3(HDSContext store, DSId id, uint64_t field, const DSVector3* value);
-
-    DSResult DSFieldGetVector4(HDSContext store, DSId id, uint64_t field, DSVector4* out_value);
-    DSResult DSFieldGetVector4Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSVector4* out_values);
-    DSResult DSFieldSetVector4(HDSContext store, DSId id, uint64_t field, const DSVector4* value);
-
-    DSResult DSFieldGetMatrix4(HDSContext store, DSId id, uint64_t field, DSMatrix4* out_value);
-    DSResult DSFieldGetMatrix4Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSMatrix4* out_values);
-    DSResult DSFieldSetMatrix4(HDSContext store, DSId id, uint64_t field, const DSMatrix4* value);
-
-    // Dynamic containers
-
-    DSResult    DSFieldGetView(HDSContext store, DSId id, uint64_t field, DSValueView* out_view);
-    void        DSRowIterGetView(const DSRowIterator* iterator, DSFieldId field, DSValueView* out_view);
-    DSValueType DSViewGetType(const DSValueView* view);
-    DSResult    DSViewGetCount(const DSValueView* view, uint32_t* out_count);
-    DSResult    DSViewGetField(const DSValueView* view, uint64_t field, DSValueView* out_view);
-    DSResult    DSViewGetElement(const DSValueView* view, uint32_t index, DSValueView* out_view);
-
-    DSViewIterator DSViewIter(const DSValueView* view);
-    bool           DSViewIterNext(DSViewIterator* iterator, DSValueView* out_view);
-
-    DSResult    DSViewGetNumber(const DSValueView* view, double* out_value);
-    DSResult    DSViewGetFloat(const DSValueView* view, float* out_value);
-    DSResult    DSViewGetUInt32(const DSValueView* view, uint32_t* out_value);
-    DSResult    DSViewGetBoolean(const DSValueView* view, uint8_t* out_value);
-    DSResult    DSViewGetString(const DSValueView* view, const char** out_value);
-    DSResult    DSViewGetVector3(const DSValueView* view, DSVector3* out_value);
-    DSResult    DSViewGetVector4(const DSValueView* view, DSVector4* out_value);
-    DSResult    DSViewGetMatrix4(const DSValueView* view, DSMatrix4* out_value);
-
-    // Inline implementations
-
+// Shared types
+
+typedef struct DSStore* HDSContext;
+typedef struct DSQuery* HDSQuery;
+typedef uint64_t        DSId;
+typedef uint32_t        DSFieldId;
+
+typedef enum DSResult
+{
+    DS_RESULT_OK               = 0,
+    DS_RESULT_NOT_FOUND        = -1,
+    DS_RESULT_LOCKED           = -3,
+    DS_RESULT_INVALID_ARGUMENT = -4,
+    DS_RESULT_ALREADY_EXISTS   = -5,
+    DS_RESULT_BUFFER_TOO_SMALL = -6,
+    DS_RESULT_INVALID_FORMAT   = -7,
+    DS_RESULT_BUSY             = -8,
+} DSResult;
+
+typedef enum DSValueType
+{
+    DS_TYPE_NUMBER  = 0,
+    DS_TYPE_BOOLEAN = 1,
+    DS_TYPE_STRING  = 2,
+    DS_TYPE_NULL    = 3,
+    DS_TYPE_STRUCT  = 4,
+    DS_TYPE_LIST    = 5,
+    DS_TYPE_VECTOR3 = 6,
+    DS_TYPE_VECTOR4 = 7,
+    DS_TYPE_MATRIX4 = 8,
+    DS_TYPE_FLOAT   = 9,
+    DS_TYPE_UINT32  = 10,
+} DSValueType;
+
+typedef struct DSVector3
+{
+    float m_Values[3];
+} DSVector3;
+
+typedef struct DSVector4
+{
+    float m_Values[4];
+} DSVector4;
+
+typedef struct DSMatrix4
+{
+    float m_Values[16];
+} DSMatrix4;
+
+typedef struct DSCreateParams
+{
+    uint32_t m_PageSize;
+    uint32_t m_RowChunkSize;
+    uint32_t m_MaxSparePages;
+} DSCreateParams;
+
+typedef struct DSStructDesc DSStructDesc;
+typedef struct DSFieldDesc
+{
+    uint64_t            m_Field;      // Field name hash.
+    DSValueType         m_Type;       // Declared kind; fixed for the table lifetime.
+    uint32_t            m_Offset;     // Byte offset within the containing row/struct.
+    const DSStructDesc* m_Struct;     // Reusable inline layout; NULL for scalar/dynamic values.
+    const char*         m_Name;       // Borrowed local name for inline composition; optional for other root fields.
+} DSFieldDesc;
+
+struct DSStructDesc
+{
+    const DSFieldDesc* m_Fields;         // Borrowed member descriptions; copied at registration.
+    uint32_t           m_FieldCount;     // Number of immediate members.
+    uint32_t           m_Size;           // Struct size in bytes, including trailing padding.
+};
+
+typedef enum DSResetPolicy
+{
+    DS_RESET_NONE   = 0,
+    DS_RESET_RETAIN = 1,
+} DSResetPolicy;
+
+typedef struct DSTableDesc
+{
+    uint64_t           m_Type;            // Data type name hash.
+    const uint64_t*    m_Tags;            // Borrowed tag hashes; copied at registration.
+    uint32_t           m_TagCount;        // Number of tags.
+    const DSFieldDesc* m_Fields;          // Borrowed root field descriptions; copied at registration.
+    uint32_t           m_FieldCount;      // Number of root fields.
+    uint32_t           m_RowStride;       // Bytes per row, including trailing alignment padding.
+    DSResetPolicy      m_ResetPolicy;     // Current values only by default; RETAIN keeps initial values for reset.
+} DSTableDesc;
+
+typedef struct DSFieldArray
+{
+    uint64_t    m_Field;      // Root field name hash.
+    const void* m_Values;     // Borrowed contiguous array of native field values.
+} DSFieldArray;
+
+typedef struct DSStructInput
+{
+    const DSStructDesc* m_Layout;     // Native member layout, borrowed through creation.
+    const void*         m_Values;     // One native struct matching m_Layout.
+} DSStructInput;
+
+typedef struct DSListInput
+{
+    DSValueType        m_Type;       // Shared element kind when m_Types is NULL.
+    uint32_t           m_Count;      // Number of elements.
+    const void*        m_Values;     // Native array, or array of payload pointers when m_Types is set.
+    const DSValueType* m_Types;      // Optional per-element kinds; selects mixed input.
+} DSListInput;
+
+typedef union DSReference
+{
+    const char*          m_String;     // NUL-terminated string input.
+    const DSStructInput* m_Struct;     // Dynamic struct input.
+    const DSListInput*   m_List;       // Dynamic list input.
     // private
-    // Address calculation for the public pointer wrappers. Validated field handles and current
-    // row indices are caller obligations; no repeated checks occur here.
-    static inline void*         DSFieldGetPointerInternal(const DSIterator* batch, uint32_t row, DSFieldId field);
+    uint64_t             m_Storage; // Keeps reference slots eight bytes on 32-bit and 64-bit hosts.
+} DSReference;
 
-    static inline DSRowIterator DSIterRows(const DSIterator* iterator)
-    {
-        DSRowIterator rows;
-        rows.m_Parent = iterator;
-        rows.m_Index = UINT32_MAX;
-        rows.m_NextRow = 0;
-        return rows;
-    }
+typedef struct DSBlob*         HDSBlob;
+typedef struct DSBlobInstance* HDSBlobInstance;
 
-    static inline bool DSRowIterNext(DSRowIterator* iterator)
-    {
-        if (iterator->m_NextRow >= iterator->m_Parent->m_Count)
-        {
-            iterator->m_Index = UINT32_MAX;
-            return false;
-        }
-        iterator->m_Index = iterator->m_NextRow++;
-        return true;
-    }
+typedef enum DSAccess
+{
+    DS_FIELD_MUTABLE = 1,
+} DSAccess;
 
-    static inline const void* DSRowIterGetData(const DSRowIterator* iterator)
-    {
-        if (!(iterator->m_Parent->m_Flags & DS_ROW_MUTABLE))
-            return 0;
-        return iterator->m_Parent->m_Values + (size_t)iterator->m_Index * iterator->m_Parent->m_RowStride;
-    }
+typedef enum DSQueryFlags
+{
+    DS_ROW_MUTABLE = 2,
+} DSQueryFlags;
 
-    static inline void* DSRowIterGetDataMut(const DSRowIterator* iterator)
-    {
-        if (!(iterator->m_Parent->m_Flags & DS_ROW_MUTABLE))
-            return 0;
-        return iterator->m_Parent->m_Values + (size_t)iterator->m_Index * iterator->m_Parent->m_RowStride;
-    }
+typedef enum DSQueryItemKind
+{
+    DS_QUERY_ITEM_NONE  = 0,
+    DS_QUERY_ITEM_FIELD = 1,
+    DS_QUERY_ITEM_TAG   = 2,
+} DSQueryItemKind;
 
-    static inline void* DSFieldGetPointerInternal(const DSIterator* batch, uint32_t row, DSFieldId field)
-    {
-        return batch->m_Values + (size_t)row * batch->m_RowStride + batch->m_FieldOffsets[field];
-    }
+typedef struct DSQueryItem
+{
+    uint64_t        m_Hash;
+    DSValueType     m_Type;
+    uint32_t        m_Access;
+    DSQueryItemKind m_Kind;
+} DSQueryItem;
 
-    static inline const double* DSRowIterGetNumber(const DSRowIterator* iterator, DSFieldId field)
-    {
-        return (const double*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-    }
+typedef struct DSQueryDesc
+{
+    const DSId*      m_GroupIds;
+    uint32_t         m_GroupIdCount;
+    uint32_t         m_Flags;
+    DSQueryItem      m_Items[DS_QUERY_MAX_ITEMS];
+} DSQueryDesc;
 
-    static inline double* DSRowIterGetNumberMut(const DSRowIterator* iterator, DSFieldId field)
-    {
-        return (double*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-    }
+typedef void (*DSSystemProcess)(HDSQuery query, uint32_t first, uint32_t num_rows, void* context);
 
-    static inline const float* DSRowIterGetFloat(const DSRowIterator* iterator, DSFieldId field)
-    {
-        return (const float*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-    }
+typedef struct DSSystemDesc
+{
+    dmhash_t        m_Name;
+    dmhash_t        m_DependsOn[DS_SYSTEM_MAX_DEPENDENCIES];
+    HDSQuery        m_Query;
+    DSSystemProcess m_Process;
+    void*           m_Context;
+    uint32_t        m_RowsPerJob;
+} DSSystemDesc;
 
-    static inline float* DSRowIterGetFloatMut(const DSRowIterator* iterator, DSFieldId field)
-    {
-        return (float*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-    }
+typedef struct DSEventDesc
+{
+    dmhash_t m_Name;
+    dmhash_t m_DependsOn[DS_SYSTEM_MAX_DEPENDENCIES];
+} DSEventDesc;
 
-    static inline const uint32_t* DSRowIterGetUInt32(const DSRowIterator* iterator, DSFieldId field)
-    {
-        return (const uint32_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-    }
+typedef struct DSIterator
+{
+    // private
+    HDSQuery        m_Query;
+    uint32_t        m_NextRow;
+    uint32_t        m_Count;
+    void*           m_Table;
+    void*           m_Rows;
+    const void*     m_Fields;
+    const uint32_t* m_FieldOffsets;
+    uint8_t*        m_Values;
+    uint32_t        m_RowStride;
+    uint32_t        m_FieldCount;
+    uint32_t        m_RangeIndex;
+    uint32_t        m_Remaining;
+    uint8_t         m_Flags;
+} DSIterator;
 
-    static inline uint32_t* DSRowIterGetUInt32Mut(const DSRowIterator* iterator, DSFieldId field)
-    {
-        return (uint32_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-    }
+typedef struct DSRowIterator
+{
+    // private
+    const DSIterator* m_Parent;
+    uint32_t          m_Index;
+    uint32_t          m_NextRow;
+} DSRowIterator;
 
-    static inline const uint8_t* DSRowIterGetBoolean(const DSRowIterator* iterator, DSFieldId field)
-    {
-        return (const uint8_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-    }
+typedef struct DSValueView
+{
+    // private
+    uint64_t m_Storage[9];
+} DSValueView;
 
-    static inline uint8_t* DSRowIterGetBooleanMut(const DSRowIterator* iterator, DSFieldId field)
-    {
-        return (uint8_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-    }
+typedef struct DSViewIterator
+{
+    // private
+    const DSValueView* m_Parent;
+    uint32_t           m_Index;
+    uint32_t           m_Count;
+} DSViewIterator;
 
-    static inline const DSVector3* DSRowIterGetVector3(const DSRowIterator* iterator, DSFieldId field)
-    {
-        return (const DSVector3*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-    }
+// Store lifetime
 
-    static inline DSVector3* DSRowIterGetVector3Mut(const DSRowIterator* iterator, DSFieldId field)
-    {
-        return (DSVector3*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-    }
+HDSContext DSStoreCreate(const DSCreateParams* params);
+DSResult   DSStoreDestroy(HDSContext store);
+DSResult   DSGroupRemove(HDSContext store, DSId group);
 
-    static inline const DSVector4* DSRowIterGetVector4(const DSRowIterator* iterator, DSFieldId field)
-    {
-        return (const DSVector4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-    }
+// Native tables and rows
 
-    static inline DSVector4* DSRowIterGetVector4Mut(const DSRowIterator* iterator, DSFieldId field)
-    {
-        return (DSVector4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-    }
+DSResult DSTableAdd(HDSContext store, const DSTableDesc* desc);
+DSResult DSTableAddView(HDSContext store, const DSTableDesc* desc, void* values, uint32_t value_count, uint32_t row_count, const uint32_t* indices, DSId* out_ids);
+DSResult DSTableRemove(HDSContext store, uint64_t type);
+DSResult DSRowCreate(HDSContext store, uint64_t type, DSId group, uint32_t count, const void* rows, DSId* out_ids);
+DSResult DSRowCreateSoA(HDSContext store, uint64_t type, DSId group, uint32_t count, uint32_t field_count, const DSFieldArray* fields, DSId* out_ids);
+DSResult DSRowRemove(HDSContext store, DSId id);
+DSResult DSRowReset(HDSContext store, DSId id);
+uint64_t DSRowGetComponentId(HDSContext store, DSId id);
 
-    static inline const DSMatrix4* DSRowIterGetMatrix4(const DSRowIterator* iterator, DSFieldId field)
-    {
-        return (const DSMatrix4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-    }
+// Resource instances
 
-    static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, DSFieldId field)
+DSResult DSBlobLoad(const void* buffer, uint32_t buffer_size, HDSBlob* out_blob);
+void     DSBlobDestroy(HDSBlob blob);
+DSResult DSBlobAdd(HDSContext store, HDSBlob blob, DSId group, HDSBlobInstance* out_instance);
+DSResult DSBlobRemove(HDSBlobInstance instance);
+DSResult DSBlobReset(HDSBlobInstance instance);
+
+// Queries
+
+DSQueryItem DSTag(const char* name);
+DSQueryItem DSField(const char* name, DSValueType type, uint32_t access);
+
+DSResult DSQueryCreate(HDSContext store, const DSQueryDesc* desc, HDSQuery* out_query);
+DSResult DSQueryDestroy(HDSQuery query);
+
+DSResult DSQueryTryBegin(HDSQuery query);
+uint32_t DSQueryGetRowCount(HDSQuery query);
+void     DSQueryEnd(HDSQuery query);
+
+DSFieldId DSQueryFindField(HDSQuery query, const DSQueryItem* field);
+
+// Scheduled callbacks
+
+DSResult DSFunctionAdd(HDSContext store, const DSSystemDesc* desc);
+DSResult DSFunctionRemove(HDSContext store, dmhash_t name);
+DSResult DSEventAdd(HDSContext store, const DSEventDesc* desc);
+DSResult DSEventRemove(HDSContext store, dmhash_t name);
+DSResult DSSchedulerBegin(HDSContext store, HJobContext jobs);
+DSResult DSSchedulerEvent(HDSContext store, dmhash_t name);
+DSResult DSSchedulerUpdate(HDSContext store);
+DSResult DSSchedulerSync(HDSContext store);
+DSResult DSSchedulerEnd(HDSContext store);
+
+// Iteration
+
+// Query batches
+DSIterator DSQueryIterRange(HDSQuery query, uint32_t first, uint32_t count);
+DSIterator DSQueryIter(HDSQuery query);
+bool       DSIterNext(DSIterator* iterator);
+uint64_t   DSIterGetType(const DSIterator* iterator);
+
+// Rows
+static inline DSRowIterator DSIterRows(const DSIterator* iterator);
+static inline bool          DSRowIterNext(DSRowIterator* iterator);
+DSId                        DSRowIterGetId(const DSRowIterator* iterator);
+DSId                        DSRowIterGetGroupId(const DSRowIterator* iterator);
+static inline const void*   DSRowIterGetData(const DSRowIterator* iterator);
+static inline void*         DSRowIterGetDataMut(const DSRowIterator* iterator);
+
+// Field pointers
+static inline const double* DSRowIterGetNumber(const DSRowIterator* iterator, DSFieldId field);
+static inline double*       DSRowIterGetNumberMut(const DSRowIterator* iterator, DSFieldId field);
+
+static inline const float* DSRowIterGetFloat(const DSRowIterator* iterator, DSFieldId field);
+static inline float*       DSRowIterGetFloatMut(const DSRowIterator* iterator, DSFieldId field);
+
+static inline const uint32_t* DSRowIterGetUInt32(const DSRowIterator* iterator, DSFieldId field);
+static inline uint32_t*       DSRowIterGetUInt32Mut(const DSRowIterator* iterator, DSFieldId field);
+
+static inline const uint8_t* DSRowIterGetBoolean(const DSRowIterator* iterator, DSFieldId field);
+static inline uint8_t*       DSRowIterGetBooleanMut(const DSRowIterator* iterator, DSFieldId field);
+
+static inline const DSVector3* DSRowIterGetVector3(const DSRowIterator* iterator, DSFieldId field);
+static inline DSVector3*       DSRowIterGetVector3Mut(const DSRowIterator* iterator, DSFieldId field);
+
+static inline const DSVector4* DSRowIterGetVector4(const DSRowIterator* iterator, DSFieldId field);
+static inline DSVector4*       DSRowIterGetVector4Mut(const DSRowIterator* iterator, DSFieldId field);
+
+static inline const DSMatrix4* DSRowIterGetMatrix4(const DSRowIterator* iterator, DSFieldId field);
+static inline DSMatrix4*       DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, DSFieldId field);
+
+// Field values
+
+DSResult DSFieldGetNumber(HDSContext store, DSId id, uint64_t field, double* out_value);
+DSResult DSFieldGetNumberBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, double* out_values);
+DSResult DSFieldSetNumber(HDSContext store, DSId id, uint64_t field, double value);
+
+DSResult DSFieldGetFloat(HDSContext store, DSId id, uint64_t field, float* out_value);
+DSResult DSFieldGetFloatBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, float* out_values);
+DSResult DSFieldSetFloat(HDSContext store, DSId id, uint64_t field, float value);
+
+DSResult DSFieldGetUInt32(HDSContext store, DSId id, uint64_t field, uint32_t* out_value);
+DSResult DSFieldGetUInt32Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, uint32_t* out_values);
+DSResult DSFieldSetUInt32(HDSContext store, DSId id, uint64_t field, uint32_t value);
+
+DSResult DSFieldGetBoolean(HDSContext store, DSId id, uint64_t field, uint8_t* out_value);
+DSResult DSFieldGetBooleanBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, uint8_t* out_values);
+DSResult DSFieldSetBoolean(HDSContext store, DSId id, uint64_t field, uint8_t value);
+
+DSResult DSFieldGetString(HDSContext store, DSId id, uint64_t field, const char** out_value);
+DSResult DSFieldGetStringBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, const char** out_values);
+DSResult DSFieldSetString(HDSContext store, DSId id, uint64_t field, const char* value);
+
+DSResult DSFieldGetVector3(HDSContext store, DSId id, uint64_t field, DSVector3* out_value);
+DSResult DSFieldGetVector3Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSVector3* out_values);
+DSResult DSFieldSetVector3(HDSContext store, DSId id, uint64_t field, const DSVector3* value);
+
+DSResult DSFieldGetVector4(HDSContext store, DSId id, uint64_t field, DSVector4* out_value);
+DSResult DSFieldGetVector4Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSVector4* out_values);
+DSResult DSFieldSetVector4(HDSContext store, DSId id, uint64_t field, const DSVector4* value);
+
+DSResult DSFieldGetMatrix4(HDSContext store, DSId id, uint64_t field, DSMatrix4* out_value);
+DSResult DSFieldGetMatrix4Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSMatrix4* out_values);
+DSResult DSFieldSetMatrix4(HDSContext store, DSId id, uint64_t field, const DSMatrix4* value);
+
+// Dynamic containers
+
+DSResult    DSFieldGetView(HDSContext store, DSId id, uint64_t field, DSValueView* out_view);
+void        DSRowIterGetView(const DSRowIterator* iterator, DSFieldId field, DSValueView* out_view);
+DSValueType DSViewGetType(const DSValueView* view);
+DSResult    DSViewGetCount(const DSValueView* view, uint32_t* out_count);
+DSResult    DSViewGetField(const DSValueView* view, uint64_t field, DSValueView* out_view);
+DSResult    DSViewGetElement(const DSValueView* view, uint32_t index, DSValueView* out_view);
+
+DSViewIterator DSViewIter(const DSValueView* view);
+bool           DSViewIterNext(DSViewIterator* iterator, DSValueView* out_view);
+
+DSResult DSViewGetNumber(const DSValueView* view, double* out_value);
+DSResult DSViewGetFloat(const DSValueView* view, float* out_value);
+DSResult DSViewGetUInt32(const DSValueView* view, uint32_t* out_value);
+DSResult DSViewGetBoolean(const DSValueView* view, uint8_t* out_value);
+DSResult DSViewGetString(const DSValueView* view, const char** out_value);
+DSResult DSViewGetVector3(const DSValueView* view, DSVector3* out_value);
+DSResult DSViewGetVector4(const DSValueView* view, DSVector4* out_value);
+DSResult DSViewGetMatrix4(const DSValueView* view, DSMatrix4* out_value);
+
+// Inline implementations
+
+// private
+// Address calculation for the public pointer wrappers. Validated field handles and current
+// row indices are caller obligations; no repeated checks occur here.
+static inline void* DSFieldGetPointerInternal(const DSIterator* batch, uint32_t row, DSFieldId field);
+
+static inline DSRowIterator DSIterRows(const DSIterator* iterator)
+{
+    DSRowIterator rows;
+    rows.m_Parent = iterator;
+    rows.m_Index = UINT32_MAX;
+    rows.m_NextRow = 0;
+    return rows;
+}
+
+static inline bool DSRowIterNext(DSRowIterator* iterator)
+{
+    if (iterator->m_NextRow >= iterator->m_Parent->m_Count)
     {
-        return (DSMatrix4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+        iterator->m_Index = UINT32_MAX;
+        return false;
     }
+    iterator->m_Index = iterator->m_NextRow++;
+    return true;
+}
+
+static inline const void* DSRowIterGetData(const DSRowIterator* iterator)
+{
+    if (!(iterator->m_Parent->m_Flags & DS_ROW_MUTABLE))
+    {
+        return 0;
+    }
+    return iterator->m_Parent->m_Values + (size_t)iterator->m_Index * iterator->m_Parent->m_RowStride;
+}
+
+static inline void* DSRowIterGetDataMut(const DSRowIterator* iterator)
+{
+    if (!(iterator->m_Parent->m_Flags & DS_ROW_MUTABLE))
+    {
+        return 0;
+    }
+    return iterator->m_Parent->m_Values + (size_t)iterator->m_Index * iterator->m_Parent->m_RowStride;
+}
+
+static inline void* DSFieldGetPointerInternal(const DSIterator* batch, uint32_t row, DSFieldId field)
+{
+    return batch->m_Values + (size_t)row * batch->m_RowStride + batch->m_FieldOffsets[field];
+}
+
+static inline const double* DSRowIterGetNumber(const DSRowIterator* iterator, DSFieldId field)
+{
+    return (const double*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline double* DSRowIterGetNumberMut(const DSRowIterator* iterator, DSFieldId field)
+{
+    return (double*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline const float* DSRowIterGetFloat(const DSRowIterator* iterator, DSFieldId field)
+{
+    return (const float*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline float* DSRowIterGetFloatMut(const DSRowIterator* iterator, DSFieldId field)
+{
+    return (float*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline const uint32_t* DSRowIterGetUInt32(const DSRowIterator* iterator, DSFieldId field)
+{
+    return (const uint32_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline uint32_t* DSRowIterGetUInt32Mut(const DSRowIterator* iterator, DSFieldId field)
+{
+    return (uint32_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline const uint8_t* DSRowIterGetBoolean(const DSRowIterator* iterator, DSFieldId field)
+{
+    return (const uint8_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline uint8_t* DSRowIterGetBooleanMut(const DSRowIterator* iterator, DSFieldId field)
+{
+    return (uint8_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline const DSVector3* DSRowIterGetVector3(const DSRowIterator* iterator, DSFieldId field)
+{
+    return (const DSVector3*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline DSVector3* DSRowIterGetVector3Mut(const DSRowIterator* iterator, DSFieldId field)
+{
+    return (DSVector3*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline const DSVector4* DSRowIterGetVector4(const DSRowIterator* iterator, DSFieldId field)
+{
+    return (const DSVector4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline DSVector4* DSRowIterGetVector4Mut(const DSRowIterator* iterator, DSFieldId field)
+{
+    return (DSVector4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline const DSMatrix4* DSRowIterGetMatrix4(const DSRowIterator* iterator, DSFieldId field)
+{
+    return (const DSMatrix4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, DSFieldId field)
+{
+    return (DSMatrix4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
 
 #ifdef __cplusplus
 }
@@ -712,7 +716,6 @@ extern "C"
  * @member DS_RESET_NONE Store current values only; the default. Reset returns INVALID_ARGUMENT.
  * @member DS_RESET_RETAIN Keep an extra copy of initial values for row/field reset.
  */
-
 
 
 /*# Field layout

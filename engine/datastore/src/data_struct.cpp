@@ -20,10 +20,16 @@ static const uint32_t INVALID_ROW = UINT32_MAX;
 static uint32_t FindStructField(const DSStruct* object, uint64_t name, uint32_t hint)
 {
     if (GetChildName(object, hint) == name)
+    {
         return hint;
+    }
     for (uint32_t i = 0; i < object->m_Count; ++i)
+    {
         if (GetChildName(object, i) == name)
+        {
             return i;
+        }
+    }
     return UINT32_MAX;
 }
 
@@ -33,17 +39,23 @@ static uint32_t FindStructLayout(const DSStructStorage* storage, const DSStruct*
     {
         const DSStructTable* table = storage->m_Tables[t];
         if (table->m_Fields.Size() != object->m_Count)
+        {
             continue;
+        }
         uint32_t matched = 0;
         for (; matched < object->m_Count; ++matched)
         {
             const DSStructField& field = table->m_Fields[matched];
             uint32_t             index = FindStructField(object, field.m_Name, matched);
             if (index == UINT32_MAX || GetStructFieldType(object, index) != field.m_Type)
+            {
                 break;
+            }
         }
         if (matched == object->m_Count)
+        {
             return t;
+        }
     }
     return UINT32_MAX;
 }
@@ -74,11 +86,15 @@ static uint32_t AddStructLayout(DSStructStorage* storage, const DSStruct* object
 uint64_t StoreStructRow(DSTable* owner, DSPayloadBlock** blocks, const DSStruct* object)
 {
     if (!owner->m_Structs)
+    {
         owner->m_Structs = new DSStructStorage;
+    }
     DSStructStorage* storage = owner->m_Structs;
     uint32_t         index = FindStructLayout(storage, object);
     if (index == UINT32_MAX)
+    {
         index = AddStructLayout(storage, object);
+    }
     assert(index < (1u << 30));
     DSStructTable* table = storage->m_Tables[index];
     uint32_t       row = table->m_FreeRow;
@@ -90,7 +106,9 @@ uint64_t StoreStructRow(DSTable* owner, DSPayloadBlock** blocks, const DSStruct*
         table->m_Values.SetSize(table->m_Values.Size() + table->m_RowStride);
     }
     else
+    {
         table->m_FreeRow = (uint32_t)ReadDataInteger(table->m_Values.Begin() + (size_t)row * table->m_RowStride, 4);
+    }
     ++table->m_RowCount;
     memset(table->m_Values.Begin() + (size_t)row * table->m_RowStride, 0, table->m_RowStride);
     DSValue source = {};
@@ -109,7 +127,9 @@ uint64_t StoreStructRow(DSTable* owner, DSPayloadBlock** blocks, const DSStruct*
             WriteDataInteger(table->m_Values.Begin() + (size_t)row * table->m_RowStride + field.m_Offset, reference, 8);
         }
         else
+        {
             StoreValue(blocks, table->m_Values.Begin() + (size_t)row * table->m_RowStride + field.m_Offset, field.m_Type, &value.m_Value);
+        }
     }
     return ((uint64_t)row << 32) | ((uint64_t)index << 2) | 2;
 }
@@ -133,7 +153,9 @@ void ReleaseStructRow(DSTable* owner, uint64_t reference)
     {
         const DSStructField& field = table->m_Fields[i];
         if (field.m_Type == DS_TYPE_STRUCT || field.m_Type == DS_TYPE_STRING || field.m_Type == DS_TYPE_LIST)
+        {
             ReleaseReference(owner, field.m_Type, ReadDataInteger(bytes + field.m_Offset, 8));
+        }
     }
     if (--table->m_RowCount == 0)
     {
@@ -149,8 +171,12 @@ void ReleaseStructRow(DSTable* owner, uint64_t reference)
 void DeleteStructStorage(DSTable* table)
 {
     if (!table->m_Structs)
+    {
         return;
+    }
     for (uint32_t i = 0; i < table->m_Structs->m_Tables.Size(); ++i)
+    {
         delete table->m_Structs->m_Tables[i];
+    }
     delete table->m_Structs;
 }
