@@ -334,6 +334,9 @@ struct WebGPURenderingTest : ClearBackbufferTest
         dmGraphics::SetDepthMask(context, engine->m_WasRun % 2 == 0);
         dmGraphics::WebGPUContext* webgpu_context = (dmGraphics::WebGPUContext*)context;
         uint32_t capacity = webgpu_context->m_BindGroupCache.Capacity();
+        uint32_t pool_capacity = webgpu_context->m_BindGroupPool->Capacity();
+        uint32_t first_group_index = dmGraphics::INVALID_BIND_GROUP_INDEX;
+        WGPUBindGroup first_group = NULL;
         const uint32_t draw_count = engine->m_WasRun == 1 || HasArgument("bind-group-benchmark") ? 512 : 1;
         dmVMath::Vector4 color(1.0f, 0.5f, 0.0f, 1.0f);
         for (uint32_t i = 0; i < draw_count; ++i)
@@ -341,6 +344,17 @@ struct WebGPURenderingTest : ClearBackbufferTest
             color.setX(1.0f - i / 1024.0f);
             dmGraphics::SetConstantV4(context, &color, 1, m_Color);
             dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            if (engine->m_WasRun == 1 && i == 0)
+            {
+                first_group_index = ((dmGraphics::WebGPUProgram*)m_Program)->m_BindGroupIndices[0];
+                ASSERT_EQ(0u, first_group_index);
+                first_group = webgpu_context->m_BindGroupPool->Get(first_group_index).m_BindGroup;
+            }
+            if (webgpu_context->m_BindGroupPool->Capacity() != pool_capacity)
+            {
+                ASSERT_EQ(pool_capacity * 2, webgpu_context->m_BindGroupPool->Capacity());
+                pool_capacity = webgpu_context->m_BindGroupPool->Capacity();
+            }
             if (webgpu_context->m_BindGroupCache.Capacity() != capacity)
             {
                 ASSERT_EQ(capacity * 2, webgpu_context->m_BindGroupCache.Capacity());
@@ -350,12 +364,15 @@ struct WebGPURenderingTest : ClearBackbufferTest
         if (engine->m_WasRun == 1)
         {
             ASSERT_EQ(draw_count, webgpu_context->m_BindGroupCache.Size());
-            dmHashTable64<dmGraphics::WebGPUBindGroup*>::Iterator iterator = webgpu_context->m_BindGroupCache.GetIterator();
+            ASSERT_EQ(draw_count, webgpu_context->m_BindGroupPool->Size());
+            ASSERT_EQ(first_group, webgpu_context->m_BindGroupPool->Get(first_group_index).m_BindGroup);
+            dmHashTable64<uint32_t>::Iterator iterator = webgpu_context->m_BindGroupCache.GetIterator();
             while (iterator.Next())
             {
-                dmGraphics::WebGPUBindGroup** cached = webgpu_context->m_BindGroupCache.Get(iterator.GetKey());
-                ASSERT_NE((dmGraphics::WebGPUBindGroup**)0, cached);
+                uint32_t* cached = webgpu_context->m_BindGroupCache.Get(iterator.GetKey());
+                ASSERT_NE((uint32_t*)0, cached);
                 ASSERT_EQ(iterator.GetValue(), *cached);
+                ASSERT_NE((dmGraphics::WebGPUBindGroup*)0, webgpu_context->m_BindGroupPool->GetPtr(*cached));
             }
         }
         dmGraphics::DisableProgram(context);
@@ -398,6 +415,7 @@ struct WebGPURenderingTest : ClearBackbufferTest
     {
         dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
         ASSERT_EQ(0u, context->m_BindGroupCache.Size());
+        ASSERT_EQ(0u, context->m_BindGroupPool->Size());
         if (m_Program)
         {
             dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
@@ -405,18 +423,22 @@ struct WebGPURenderingTest : ClearBackbufferTest
     }
 };
 
-// Verifies table-scan expiry with colliding entries, frame-counter wrap, reuse, and invalidation.
+// Verifies pool compaction/reuse, colliding-key expiry, frame-counter wrap, and invalidation.
 struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
 {
-    dmGraphics::WebGPUBindGroup* m_HotGroup;
-    dmGraphics::HProgram         m_InactiveProgram;
+    uint32_t             m_HotGroupIndex;
+    WGPUBindGroup        m_HotGroup;
+    uint32_t             m_PoolCapacity;
+    dmGraphics::HProgram m_InactiveProgram;
 
     void Initialize(EngineCtx* engine) override
     {
         WebGPURenderingTest::Initialize(engine);
         dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
         context->m_BindGroupCacheFrame = UINT32_MAX - 4;
-        m_HotGroup = 0;
+        m_HotGroupIndex = dmGraphics::INVALID_BIND_GROUP_INDEX;
+        m_HotGroup = NULL;
+        m_PoolCapacity = 0;
         m_InactiveProgram = 0;
     }
 
@@ -447,7 +469,7 @@ struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
             if (engine->m_WasRun == 21)
             {
                 ASSERT_EQ(0u, webgpu_context->m_BindGroupCache.Size());
-                ASSERT_EQ((dmGraphics::WebGPUBindGroup*)0, program->m_BindGroups[0]);
+                ASSERT_EQ(dmGraphics::INVALID_BIND_GROUP_INDEX, program->m_BindGroupIndices[0]);
             }
             return;
         }
@@ -455,22 +477,39 @@ struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
         dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
         if (engine->m_WasRun == 2)
         {
-            m_HotGroup = program->m_BindGroups[0];
+            // Select a group beyond slot zero so cold-entry expiry must compact it.
+            dmVMath::Vector4 color(1.0f, 0.5f, 0.0f, 1.0f);
+            dmGraphics::SetConstantV4(context, &color, 1, m_Color);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            m_HotGroupIndex = program->m_BindGroupIndices[0];
+            m_HotGroup = webgpu_context->m_BindGroupPool->Get(m_HotGroupIndex).m_BindGroup;
+            m_PoolCapacity = webgpu_context->m_BindGroupPool->Capacity();
+            ASSERT_NE(webgpu_context->m_BindGroupPool->GetRawObjects().Begin(), webgpu_context->m_BindGroupPool->GetPtr(m_HotGroupIndex));
         }
         else if (engine->m_WasRun <= 12)
         {
             // No EnableProgram/SetConstant calls: the selected-group fast path must refresh age.
-            ASSERT_EQ(m_HotGroup, program->m_BindGroups[0]);
-            ASSERT_EQ(webgpu_context->m_BindGroupCacheFrame, m_HotGroup->m_LastUsedFrame);
+            ASSERT_EQ(m_HotGroupIndex, program->m_BindGroupIndices[0]);
+            ASSERT_EQ(m_HotGroup, webgpu_context->m_BindGroupPool->Get(m_HotGroupIndex).m_BindGroup);
+            ASSERT_EQ(webgpu_context->m_BindGroupCacheFrame, webgpu_context->m_BindGroupPool->Get(m_HotGroupIndex).m_LastUsedFrame);
             if (engine->m_WasRun == 9)
             {
                 ASSERT_NE(1u, webgpu_context->m_BindGroupCache.Size());
             }
-            else if (engine->m_WasRun >= 10)
+            else if (engine->m_WasRun == 10)
+            {
+                // Both groups touched in frame two still have age eight.
+                ASSERT_EQ(2u, webgpu_context->m_BindGroupCache.Size());
+                ASSERT_EQ(2u, webgpu_context->m_BindGroupPool->Size());
+            }
+            else if (engine->m_WasRun >= 11)
             {
                 ASSERT_EQ(1u, webgpu_context->m_BindGroupCache.Size());
+                ASSERT_EQ(1u, webgpu_context->m_BindGroupPool->Size());
+                ASSERT_EQ(webgpu_context->m_BindGroupPool->GetRawObjects().Begin(), webgpu_context->m_BindGroupPool->GetPtr(m_HotGroupIndex));
             }
         }
+        ASSERT_EQ(m_PoolCapacity, webgpu_context->m_BindGroupPool->Capacity());
 
         if (engine->m_WasRun == 30)
         {
@@ -482,7 +521,7 @@ struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
             dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
             dmGraphics::DeleteUniformBuffer(context, buffer);
             ASSERT_EQ(0u, webgpu_context->m_BindGroupCache.Size());
-            ASSERT_EQ((dmGraphics::WebGPUBindGroup*)0, program->m_BindGroups[0]);
+            ASSERT_EQ(dmGraphics::INVALID_BIND_GROUP_INDEX, program->m_BindGroupIndices[0]);
             dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
         }
         else if (engine->m_WasRun == 40)

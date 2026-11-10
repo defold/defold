@@ -1609,6 +1609,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
 
     context->m_SamplerCache.SetCapacity(32, 64);
     context->m_BindGroupCache.SetCapacity(64);
+    context->m_BindGroupPool->SetCapacity(64);
     context->m_RenderPipelineCache.SetCapacity(32, 64);
     context->m_ComputePipelineCache.SetCapacity(32, 64);
     SetSwapInterval((HContext) context, params.m_SwapInterval);
@@ -1785,6 +1786,8 @@ static void WebGPUDestroyContext(WebGPUContext* context)
 {
     TRACE_CALL;
     WebGPUInvalidateBindGroups(context);
+    delete context->m_BindGroupPool;
+    context->m_BindGroupPool = NULL;
     if (context->m_DefaultTexture2D)
     {
         WebGPUDestroyTexture(context->m_DefaultTexture2D);
@@ -1849,6 +1852,7 @@ static HContext WebGPUNewContext(const ContextParams& params)
     {
         g_WebGPUContext = (WebGPUContext*)malloc(sizeof(WebGPUContext));
         memset(g_WebGPUContext, 0, sizeof(*g_WebGPUContext));
+        g_WebGPUContext->m_BindGroupPool = new dmObjectPool<WebGPUBindGroup>();
         if (InitializeWebGPUContext(g_WebGPUContext, params))
             return (HContext) g_WebGPUContext;
         DeleteContext((HContext) g_WebGPUContext);
@@ -2250,10 +2254,10 @@ static void WebGPUPruneBindGroups(WebGPUContext* context)
 {
     const uint32_t max_age = 8;
     dmArray<uint64_t> expired_keys;
-    dmHashTable64<WebGPUBindGroup*>::Iterator iterator = context->m_BindGroupCache.GetIterator();
+    dmHashTable64<uint32_t>::Iterator iterator = context->m_BindGroupCache.GetIterator();
     while (iterator.Next())
     {
-        WebGPUBindGroup* group = iterator.GetValue();
+        WebGPUBindGroup* group = &context->m_BindGroupPool->Get(iterator.GetValue());
         if (context->m_BindGroupCacheFrame - group->m_LastUsedFrame > max_age)
         {
             if (expired_keys.Full())
@@ -2268,16 +2272,17 @@ static void WebGPUPruneBindGroups(WebGPUContext* context)
     for (uint32_t i = 0; i < expired_keys.Size(); ++i)
     {
         const uint64_t hash = expired_keys[i];
-        WebGPUBindGroup* group = *context->m_BindGroupCache.Get(hash);
+        const uint32_t group_index = *context->m_BindGroupCache.Get(hash);
+        WebGPUBindGroup* group = &context->m_BindGroupPool->Get(group_index);
         // Inactive programs clear their borrowed entries in EnableProgram().
         // The enabled program may survive across frames without being rebound.
         if (context->m_CurrentProgram)
         {
             for (uint32_t set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
             {
-                if (context->m_CurrentProgram->m_BindGroups[set] == group)
+                if (context->m_CurrentProgram->m_BindGroupIndices[set] == group_index)
                 {
-                    context->m_CurrentProgram->m_BindGroups[set] = NULL;
+                    context->m_CurrentProgram->m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
                 }
             }
         }
@@ -2291,7 +2296,7 @@ static void WebGPUPruneBindGroups(WebGPUContext* context)
 
         context->m_BindGroupCache.Erase(hash);
         wgpuBindGroupRelease(group->m_BindGroup);
-        delete group;
+        context->m_BindGroupPool->Free(group_index, false);
     }
 }
 
@@ -2572,7 +2577,7 @@ static void WebGPUDisableUniformBuffer(HContext _context, HUniformBuffer uniform
 
         if (set_was_cleared && context->m_CurrentProgram && set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet)
         {
-            context->m_CurrentProgram->m_BindGroups[set] = NULL;
+            context->m_CurrentProgram->m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
         }
     }
 
@@ -2592,7 +2597,7 @@ static void WebGPUEnableUniformBuffer(HContext _context, HUniformBuffer uniform_
 
     if (context->m_CurrentProgram && set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet)
     {
-        context->m_CurrentProgram->m_BindGroups[set] = NULL;
+        context->m_CurrentProgram->m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
     }
 }
 
@@ -2641,7 +2646,9 @@ static void WebGPUDisableStorageBuffer(HContext _context, HStorageBuffer storage
             }
         }
         if (changed && context->m_CurrentProgram)
-            context->m_CurrentProgram->m_BindGroups[set] = NULL;
+        {
+            context->m_CurrentProgram->m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
+        }
     }
 }
 
@@ -2700,7 +2707,9 @@ static void WebGPUEnableStorageBuffer(HContext _context, HStorageBuffer storage_
     WebGPUContext* context = (WebGPUContext*) _context;
     context->m_CurrentStorageBuffers[set][binding] = (WebGPUStorageBuffer*) storage_buffer;
     if (context->m_CurrentProgram)
-        context->m_CurrentProgram->m_BindGroups[set] = NULL;
+    {
+        context->m_CurrentProgram->m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
+    }
 }
 
 static HVertexBuffer WebGPUNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -3011,9 +3020,9 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
         {
             continue;
         }
-        if (context->m_CurrentProgram->m_BindGroups[set])
+        if (context->m_CurrentProgram->m_BindGroupIndices[set] != INVALID_BIND_GROUP_INDEX)
         {
-            context->m_CurrentProgram->m_BindGroups[set]->m_LastUsedFrame = context->m_BindGroupCacheFrame;
+            context->m_BindGroupPool->Get(context->m_CurrentProgram->m_BindGroupIndices[set]).m_LastUsedFrame = context->m_BindGroupCacheFrame;
             continue;
         }
 
@@ -3174,16 +3183,21 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
         }
 
         const uint64_t bindgroup_hash = dmHashFinal64(&bindgroup_hash_state);
-        if (WebGPUBindGroup** cached_bindgroup = context->m_BindGroupCache.Get(bindgroup_hash))
+        if (uint32_t* cached_bindgroup = context->m_BindGroupCache.Get(bindgroup_hash))
         {
-            context->m_CurrentProgram->m_BindGroups[set] = *cached_bindgroup;
-            (*cached_bindgroup)->m_LastUsedFrame = context->m_BindGroupCacheFrame;
+            context->m_CurrentProgram->m_BindGroupIndices[set] = *cached_bindgroup;
+            context->m_BindGroupPool->Get(*cached_bindgroup).m_LastUsedFrame = context->m_BindGroupCacheFrame;
         }
         else
         {
             desc.entries            = entries;
             desc.layout             = context->m_CurrentProgram->m_BindGroupLayouts[set];
-            WebGPUBindGroup* bindgroup = new WebGPUBindGroup;
+            if (context->m_BindGroupPool->Full())
+            {
+                context->m_BindGroupPool->SetCapacity(context->m_BindGroupPool->Capacity() * 2);
+            }
+            const uint32_t group_index = context->m_BindGroupPool->Alloc();
+            WebGPUBindGroup* bindgroup = &context->m_BindGroupPool->Get(group_index);
             bindgroup->m_BindGroup = wgpuDeviceCreateBindGroup(context->m_Device, &desc);
             bindgroup->m_LastUsedFrame = context->m_BindGroupCacheFrame;
             if (context->m_BindGroupCache.Full())
@@ -3191,8 +3205,8 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                 // Scale the bucket count with capacity instead of rehashing into 32 buckets.
                 context->m_BindGroupCache.SetCapacity(context->m_BindGroupCache.Capacity() * 2);
             }
-            context->m_BindGroupCache.Put(bindgroup_hash, bindgroup);
-            context->m_CurrentProgram->m_BindGroups[set] = bindgroup;
+            context->m_BindGroupCache.Put(bindgroup_hash, group_index);
+            context->m_CurrentProgram->m_BindGroupIndices[set] = group_index;
         }
     }
 }
@@ -3214,9 +3228,10 @@ static void WebGPUSetupComputePipeline(WebGPUContext* context)
     // Set the bind groups
     for (int set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
     {
-        if (context->m_CurrentProgram->m_BindGroups[set])
+        const uint32_t group_index = context->m_CurrentProgram->m_BindGroupIndices[set];
+        if (group_index != INVALID_BIND_GROUP_INDEX)
         {
-            wgpuComputePassEncoderSetBindGroup(context->m_CurrentComputePass.m_Encoder, set, context->m_CurrentProgram->m_BindGroups[set]->m_BindGroup, 0, 0);
+            wgpuComputePassEncoderSetBindGroup(context->m_CurrentComputePass.m_Encoder, set, context->m_BindGroupPool->Get(group_index).m_BindGroup, 0, 0);
         }
     }
 }
@@ -3295,11 +3310,15 @@ static void WebGPUSetupRenderPipeline(WebGPUContext* context, WebGPUBuffer* inde
     // Set the bind groups
     for (int set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
     {
-        WebGPUBindGroup* bindgroup = context->m_CurrentProgram->m_BindGroups[set];
-        if (bindgroup && bindgroup->m_BindGroup != context->m_CurrentRenderPass.m_BindGroups[set])
+        const uint32_t group_index = context->m_CurrentProgram->m_BindGroupIndices[set];
+        if (group_index != INVALID_BIND_GROUP_INDEX)
         {
-            wgpuRenderPassEncoderSetBindGroup(context->m_CurrentRenderPass.m_Encoder, set, bindgroup->m_BindGroup, 0, 0);
-            context->m_CurrentRenderPass.m_BindGroups[set] = bindgroup->m_BindGroup;
+            WGPUBindGroup bindgroup = context->m_BindGroupPool->Get(group_index).m_BindGroup;
+            if (bindgroup != context->m_CurrentRenderPass.m_BindGroups[set])
+            {
+                wgpuRenderPassEncoderSetBindGroup(context->m_CurrentRenderPass.m_Encoder, set, bindgroup, 0, 0);
+                context->m_CurrentRenderPass.m_BindGroups[set] = bindgroup;
+            }
         }
     }
 }
@@ -3700,9 +3719,9 @@ static void WebGPUDestroyProgram(WebGPUContext* context, WebGPUProgram* program)
             wgpuBindGroupLayoutRelease(program->m_BindGroupLayouts[i]);
             program->m_BindGroupLayouts[i] = NULL;
         }
-        // Bind groups are owned and released by m_BindGroupCache. Programs only
-        // keep borrowed references to the currently selected cached groups.
-        program->m_BindGroups[i] = NULL;
+        // Bind groups are owned and released by the context's pool/cache. Programs only
+        // keep borrowed indices to the currently selected cached groups.
+        program->m_BindGroupIndices[i] = INVALID_BIND_GROUP_INDEX;
     }
     if (program->m_PipelineLayout)
     {
@@ -3745,7 +3764,7 @@ static void WebGPUEnableProgram(HContext _context, HProgram program)
 
     for (uint32_t set = 0; set < gpu_program->m_BaseProgram.m_MaxSet; ++set)
     {
-        gpu_program->m_BindGroups[set] = NULL;
+        gpu_program->m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
     }
 
     context->m_CurrentProgram = gpu_program;
@@ -3873,7 +3892,7 @@ static void WebGPUSetConstantV4(HContext _context, const Vector4* data, int coun
     if (memcpy(write_ptr, (uint8_t*) data, sizeof(dmVMath::Vector4) * count))
     {
         memcpy(write_ptr, (uint8_t*)data, sizeof(dmVMath::Vector4) * count);
-        context->m_CurrentProgram->m_BindGroups[set] = NULL;
+        context->m_CurrentProgram->m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
     }
 }
 
@@ -3896,7 +3915,7 @@ static void WebGPUSetConstantM4(HContext _context, const Vector4* data, int coun
     if (memcmp(write_ptr, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count))
     {
         memcpy(write_ptr, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
-        context->m_CurrentProgram->m_BindGroups[set] = NULL;
+        context->m_CurrentProgram->m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
     }
 }
 
@@ -3920,7 +3939,9 @@ static void WebGPUSetSampler(HContext _context, HUniformLocation location, int32
         // The associated sampler may live in another bind group, so invalidate
         // every group belonging to this program after changing the shared unit.
         for (uint32_t i = 0; i < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++i)
-            context->m_CurrentProgram->m_BindGroups[i] = NULL;
+        {
+            context->m_CurrentProgram->m_BindGroupIndices[i] = INVALID_BIND_GROUP_INDEX;
+        }
     }
 }
 
@@ -3942,10 +3963,10 @@ static HTexture WebGPUNewTexture(HContext _context, const TextureCreationParams&
     return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
 }
 
-static void WebGPUCleanupBindGroupCache(WebGPUContext* context, const uint64_t* key, WebGPUBindGroup** value)
+static void WebGPUCleanupBindGroupCache(WebGPUContext* context, const uint64_t* key, uint32_t* value)
 {
-    wgpuBindGroupRelease((*value)->m_BindGroup);
-    delete *value;
+    wgpuBindGroupRelease(context->m_BindGroupPool->Get(*value).m_BindGroup);
+    context->m_BindGroupPool->Free(*value, false);
 }
 
 static void WebGPUInvalidateBindGroups(WebGPUContext* context)
@@ -3955,7 +3976,9 @@ static void WebGPUInvalidateBindGroups(WebGPUContext* context)
     if (context->m_CurrentProgram)
     {
         for (uint32_t set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
-            context->m_CurrentProgram->m_BindGroups[set] = NULL;
+        {
+            context->m_CurrentProgram->m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
+        }
     }
     for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
         context->m_CurrentRenderPass.m_BindGroups[set] = NULL;
@@ -4018,7 +4041,9 @@ static void WebGPUEnableTexture(HContext _context, uint32_t unit, uint8_t id_ind
             // A separated sampler can live in another bind group than its
             // associated texture, and both bindings refer to this unit.
             for (int set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
-                context->m_CurrentProgram->m_BindGroups[set] = NULL;
+            {
+                context->m_CurrentProgram->m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
+            }
         }
     }
 }
@@ -4034,7 +4059,9 @@ static void WebGPUDisableTexture(HContext _context, uint32_t unit, HTexture text
         if (context->m_CurrentProgram)
         {
             for (int set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
-                context->m_CurrentProgram->m_BindGroups[set] = NULL;
+            {
+                context->m_CurrentProgram->m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
+            }
         }
     }
 }
