@@ -265,85 +265,6 @@ static void WebGPUTestErrorCallback(WGPUPopErrorScopeStatus status, WGPUErrorTyp
     }
 }
 
-struct WebGPURenderingTest : ClearBackbufferTest
-{
-    dmGraphics::HProgram m_Program;
-
-    void Initialize(EngineCtx* engine) override
-    {
-        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
-        wgpuDevicePushErrorScope(context->m_Device, WGPUErrorFilter_Validation);
-
-        const char* vertex_source =
-            "@vertex fn main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {\n"
-            "    var positions = array<vec2f, 3>(vec2f(-0.5, -0.5), vec2f(0.5, -0.5), vec2f(0.0, 0.5));\n"
-            "    return vec4f(positions[index], 0.5, 1.0);\n"
-            "}\n";
-        const char* fragment_source =
-            "@fragment fn main() -> @location(0) vec4f { return vec4f(1.0, 0.5, 0.0, 1.0); }\n";
-        dmGraphics::ShaderDesc shader_desc = {};
-        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
-                         (uint8_t*)vertex_source, strlen(vertex_source));
-        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
-                         (uint8_t*)fragment_source, strlen(fragment_source));
-        char error_buffer[512] = {};
-        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &shader_desc, error_buffer, sizeof(error_buffer));
-        DeleteShaderDesc(&shader_desc);
-        if (!m_Program)
-        {
-            dmLogError("WebGPU rendering test could not create program: %s", error_buffer);
-            engine->m_Failed = true;
-        }
-    }
-
-    void Execute(EngineCtx* engine) override
-    {
-        ClearBackbufferTest::Execute(engine);
-        dmGraphics::HContext context = engine->m_GraphicsContext;
-        dmGraphics::SetViewport(context, 0, 0, dmGraphics::GetWindowWidth(context), dmGraphics::GetWindowHeight(context));
-        dmGraphics::EnableProgram(context, m_Program);
-        // Both paths must create a valid depth-stencil pipeline. In WebGPU v2,
-        // disabled depth writes must be False rather than Undefined.
-        if (engine->m_WasRun % 2)
-        {
-            dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
-        }
-        else
-        {
-            dmGraphics::EnableState(context, dmGraphics::STATE_DEPTH_TEST);
-        }
-        dmGraphics::SetDepthMask(context, engine->m_WasRun % 2 == 0);
-        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
-        dmGraphics::DisableProgram(context);
-#if defined(DM_PLATFORM_MACOS)
-        // EngineUpdate changes the interval during frames 1 and 2. Check the
-        // actual Metal layer after BeginFrame applies each pending change.
-        if (engine->m_WasRun <= 3)
-        {
-            ASSERT_EQ(engine->m_WasRun != 2, WebGPUIsDisplaySyncEnabled());
-        }
-#endif
-    }
-
-    void OnGraphicsClosing(EngineCtx* engine) override
-    {
-        if (m_Program)
-        {
-            dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
-        }
-        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
-        WGPUPopErrorScopeCallbackInfo callback_info = WGPU_POP_ERROR_SCOPE_CALLBACK_INFO_INIT;
-        callback_info.mode = WGPUCallbackMode_WaitAnyOnly;
-        callback_info.callback = WebGPUTestErrorCallback;
-        callback_info.userdata1 = engine;
-        WGPUFutureWaitInfo wait_info = { wgpuDevicePopErrorScope(context->m_Device, callback_info), 0 };
-        WGPUWaitStatus status = wgpuInstanceWaitAny(context->m_Instance, 1, &wait_info, UINT64_MAX);
-        engine->m_Failed |= context->m_HasValidationError != 0;
-        ASSERT_EQ(WGPUWaitStatus_Success, status);
-        ASSERT_TRUE(wait_info.completed);
-    }
-};
-
 // Verifies nonzero viewport sizes and target-dependent Y origin with real GPU pixel readback.
 struct WebGPUViewportTest : ITest
 {
@@ -491,6 +412,85 @@ struct WebGPUViewportTest : ITest
         ASSERT_EQ(WGPUWaitStatus_Success, wgpuInstanceWaitAny(context->m_Instance, 1, &wait, UINT64_MAX));
         ASSERT_TRUE(wait.completed);
         engine->m_Failed |= context->m_HasValidationError != 0;
+    }
+};
+
+struct WebGPURenderingTest : ClearBackbufferTest
+{
+    dmGraphics::HProgram m_Program;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        wgpuDevicePushErrorScope(context->m_Device, WGPUErrorFilter_Validation);
+
+        const char* vertex_source =
+            "@vertex fn main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {\n"
+            "    var positions = array<vec2f, 3>(vec2f(-0.5, -0.5), vec2f(0.5, -0.5), vec2f(0.0, 0.5));\n"
+            "    return vec4f(positions[index], 0.5, 1.0);\n"
+            "}\n";
+        const char* fragment_source =
+            "@fragment fn main() -> @location(0) vec4f { return vec4f(1.0, 0.5, 0.0, 1.0); }\n";
+        dmGraphics::ShaderDesc shader_desc = {};
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
+                         (uint8_t*)vertex_source, strlen(vertex_source));
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
+                         (uint8_t*)fragment_source, strlen(fragment_source));
+        char error_buffer[512] = {};
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &shader_desc, error_buffer, sizeof(error_buffer));
+        DeleteShaderDesc(&shader_desc);
+        if (!m_Program)
+        {
+            dmLogError("WebGPU rendering test could not create program: %s", error_buffer);
+            engine->m_Failed = true;
+        }
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        ClearBackbufferTest::Execute(engine);
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::SetViewport(context, 0, 0, dmGraphics::GetWindowWidth(context), dmGraphics::GetWindowHeight(context));
+        dmGraphics::EnableProgram(context, m_Program);
+        // Both paths must create a valid depth-stencil pipeline. In WebGPU v2,
+        // disabled depth writes must be False rather than Undefined.
+        if (engine->m_WasRun % 2)
+        {
+            dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
+        }
+        else
+        {
+            dmGraphics::EnableState(context, dmGraphics::STATE_DEPTH_TEST);
+        }
+        dmGraphics::SetDepthMask(context, engine->m_WasRun % 2 == 0);
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        dmGraphics::DisableProgram(context);
+#if defined(DM_PLATFORM_MACOS)
+        // EngineUpdate changes the interval during frames 1 and 2. Check the
+        // actual Metal layer after BeginFrame applies each pending change.
+        if (engine->m_WasRun <= 3)
+        {
+            ASSERT_EQ(engine->m_WasRun != 2, WebGPUIsDisplaySyncEnabled());
+        }
+#endif
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        if (m_Program)
+        {
+            dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
+        }
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        WGPUPopErrorScopeCallbackInfo callback_info = WGPU_POP_ERROR_SCOPE_CALLBACK_INFO_INIT;
+        callback_info.mode = WGPUCallbackMode_WaitAnyOnly;
+        callback_info.callback = WebGPUTestErrorCallback;
+        callback_info.userdata1 = engine;
+        WGPUFutureWaitInfo wait_info = { wgpuDevicePopErrorScope(context->m_Device, callback_info), 0 };
+        WGPUWaitStatus status = wgpuInstanceWaitAny(context->m_Instance, 1, &wait_info, UINT64_MAX);
+        engine->m_Failed |= context->m_HasValidationError != 0;
+        ASSERT_EQ(WGPUWaitStatus_Success, status);
+        ASSERT_TRUE(wait_info.completed);
     }
 };
 #endif
@@ -2544,18 +2544,15 @@ static void* EngineCreate(int argc, char** argv)
         }
     }
 #if defined(DM_GRAPHICS_DAWN)
+    else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_WEBGPU && HasArgument("webgpu-viewport"))
+    {
+        dmLogInfo("test_app_graphics: running WebGPUViewportTest");
+        engine->m_Test = new WebGPUViewportTest();
+    }
     else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_WEBGPU)
     {
-        if (HasArgument("webgpu-viewport"))
-        {
-            dmLogInfo("test_app_graphics: running WebGPUViewportTest");
-            engine->m_Test = new WebGPUViewportTest();
-        }
-        else
-        {
-            dmLogInfo("test_app_graphics: running WebGPURenderingTest");
-            engine->m_Test = new WebGPURenderingTest();
-        }
+        dmLogInfo("test_app_graphics: running WebGPURenderingTest");
+        engine->m_Test = new WebGPURenderingTest();
     }
 #endif
     else
