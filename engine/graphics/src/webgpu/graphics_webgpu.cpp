@@ -1849,7 +1849,6 @@ static HContext WebGPUNewContext(const ContextParams& params)
     {
         g_WebGPUContext = (WebGPUContext*)malloc(sizeof(WebGPUContext));
         memset(g_WebGPUContext, 0, sizeof(*g_WebGPUContext));
-        dmDoubleLinkedList::ListInit(&g_WebGPUContext->m_BindGroupCacheLRU);
         if (InitializeWebGPUContext(g_WebGPUContext, params))
             return (HContext) g_WebGPUContext;
         DeleteContext((HContext) g_WebGPUContext);
@@ -2247,26 +2246,20 @@ static void WebGPUClear(HContext _context, uint32_t flags, uint8_t red, uint8_t 
                           (flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT) ? &stencil : 0);
 }
 
-static void WebGPUTouchBindGroup(WebGPUContext* context, WebGPUBindGroup* group)
-{
-    if (group->m_LastUsedFrame != context->m_BindGroupCacheFrame)
-    {
-        group->m_LastUsedFrame = context->m_BindGroupCacheFrame;
-        dmDoubleLinkedList::ListRemove(&context->m_BindGroupCacheLRU, &group->m_ListNode);
-        dmDoubleLinkedList::ListAdd(&context->m_BindGroupCacheLRU, &group->m_ListNode);
-    }
-}
-
 static void WebGPUPruneBindGroups(WebGPUContext* context)
 {
     const uint32_t max_age = 8;
-    dmDoubleLinkedList::ListNode* oldest;
-    while ((oldest = dmDoubleLinkedList::ListGetLast(&context->m_BindGroupCacheLRU)))
+    dmHashTable64<WebGPUBindGroup*>::Iterator iterator = context->m_BindGroupCache.GetIterator();
+    bool has_next = iterator.Next();
+    while (has_next)
     {
-        WebGPUBindGroup* group = (WebGPUBindGroup*)oldest;
+        const uint64_t hash = iterator.GetKey();
+        WebGPUBindGroup* group = iterator.GetValue();
+        // Erase reuses the current entry for the free list, so advance before removing it.
+        has_next = iterator.Next();
         if (context->m_BindGroupCacheFrame - group->m_LastUsedFrame <= max_age)
         {
-            break;
+            continue;
         }
 
         // Inactive programs clear their borrowed entries in EnableProgram().
@@ -2289,8 +2282,7 @@ static void WebGPUPruneBindGroups(WebGPUContext* context)
             }
         }
 
-        dmDoubleLinkedList::ListRemove(&context->m_BindGroupCacheLRU, oldest);
-        context->m_BindGroupCache.Erase(group->m_Hash);
+        context->m_BindGroupCache.Erase(hash);
         wgpuBindGroupRelease(group->m_BindGroup);
         delete group;
     }
@@ -3014,7 +3006,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
         }
         if (context->m_CurrentProgram->m_BindGroups[set])
         {
-            WebGPUTouchBindGroup(context, context->m_CurrentProgram->m_BindGroups[set]);
+            context->m_CurrentProgram->m_BindGroups[set]->m_LastUsedFrame = context->m_BindGroupCacheFrame;
             continue;
         }
 
@@ -3178,7 +3170,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
         if (WebGPUBindGroup** cached_bindgroup = context->m_BindGroupCache.Get(bindgroup_hash))
         {
             context->m_CurrentProgram->m_BindGroups[set] = *cached_bindgroup;
-            WebGPUTouchBindGroup(context, *cached_bindgroup);
+            (*cached_bindgroup)->m_LastUsedFrame = context->m_BindGroupCacheFrame;
         }
         else
         {
@@ -3186,7 +3178,6 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
             desc.layout             = context->m_CurrentProgram->m_BindGroupLayouts[set];
             WebGPUBindGroup* bindgroup = new WebGPUBindGroup;
             bindgroup->m_BindGroup = wgpuDeviceCreateBindGroup(context->m_Device, &desc);
-            bindgroup->m_Hash = bindgroup_hash;
             bindgroup->m_LastUsedFrame = context->m_BindGroupCacheFrame;
             if (context->m_BindGroupCache.Full())
             {
@@ -3194,7 +3185,6 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                 context->m_BindGroupCache.SetCapacity(context->m_BindGroupCache.Capacity() * 2);
             }
             context->m_BindGroupCache.Put(bindgroup_hash, bindgroup);
-            dmDoubleLinkedList::ListAdd(&context->m_BindGroupCacheLRU, &bindgroup->m_ListNode);
             context->m_CurrentProgram->m_BindGroups[set] = bindgroup;
         }
     }
@@ -3955,7 +3945,6 @@ static void WebGPUInvalidateBindGroups(WebGPUContext* context)
 {
     context->m_BindGroupCache.Iterate(WebGPUCleanupBindGroupCache, context);
     context->m_BindGroupCache.Clear();
-    dmDoubleLinkedList::ListInit(&context->m_BindGroupCacheLRU);
     if (context->m_CurrentProgram)
     {
         for (uint32_t set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)

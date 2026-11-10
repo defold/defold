@@ -19,7 +19,6 @@
 #include <vector>
 
 #include <dlib/hashtable.h>
-#include <dlib/double_linked_list.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dlib/opaque_handle_container.h>
 
@@ -89,10 +88,8 @@ namespace dmGraphics
     // until invalidated or enabled again; heap allocation keeps them stable across rehashes.
     struct WebGPUBindGroup
     {
-        dmDoubleLinkedList::ListNode m_ListNode; // Must be first for intrusive list operations.
-        WGPUBindGroup                m_BindGroup;
-        uint64_t                     m_Hash;
-        uint32_t                     m_LastUsedFrame;
+        WGPUBindGroup m_BindGroup;
+        uint32_t      m_LastUsedFrame;
     };
 
     struct WebGPUProgram
@@ -215,7 +212,6 @@ namespace dmGraphics
         dmHashTable64<WGPURenderPipeline>  m_RenderPipelineCache;
         dmHashTable64<WGPUComputePipeline> m_ComputePipelineCache;
         dmHashTable64<WebGPUBindGroup*>    m_BindGroupCache;
-        dmDoubleLinkedList::List           m_BindGroupCacheLRU;
         uint32_t                           m_BindGroupCacheFrame;
         dmHashTable64<WGPUSampler>         m_SamplerCache;
 

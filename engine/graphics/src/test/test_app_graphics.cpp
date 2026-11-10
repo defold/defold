@@ -398,7 +398,6 @@ struct WebGPURenderingTest : ClearBackbufferTest
     {
         dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
         ASSERT_EQ(0u, context->m_BindGroupCache.Size());
-        ASSERT_EQ((dmDoubleLinkedList::ListNode*)0, dmDoubleLinkedList::ListGetLast(&context->m_BindGroupCacheLRU));
         if (m_Program)
         {
             dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
@@ -406,7 +405,7 @@ struct WebGPURenderingTest : ClearBackbufferTest
     }
 };
 
-// Verifies age expiry across frame-counter wrap, fast-path reuse, and resource/program invalidation.
+// Verifies table-scan expiry with colliding entries, frame-counter wrap, reuse, and invalidation.
 struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
 {
     dmGraphics::WebGPUBindGroup* m_HotGroup;
@@ -426,6 +425,9 @@ struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
         if (engine->m_WasRun == 1)
         {
             WebGPURenderingTest::Execute(engine);
+            // Force collisions to verify that pruning visits every entry while erasing.
+            dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+            context->m_BindGroupCache.SetCapacity(1, context->m_BindGroupCache.Capacity() * 2);
             return;
         }
 
@@ -460,7 +462,11 @@ struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
             // No EnableProgram/SetConstant calls: the selected-group fast path must refresh age.
             ASSERT_EQ(m_HotGroup, program->m_BindGroups[0]);
             ASSERT_EQ(webgpu_context->m_BindGroupCacheFrame, m_HotGroup->m_LastUsedFrame);
-            if (engine->m_WasRun >= 10)
+            if (engine->m_WasRun == 9)
+            {
+                ASSERT_NE(1u, webgpu_context->m_BindGroupCache.Size());
+            }
+            else if (engine->m_WasRun >= 10)
             {
                 ASSERT_EQ(1u, webgpu_context->m_BindGroupCache.Size());
             }
