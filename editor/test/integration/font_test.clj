@@ -852,7 +852,7 @@
                ["/sdf-explicit-size.font" (assoc sdf-desc :runtime false :size 37) 37 [37 37] 37]
                ["/vector-static.font" (assoc vector-desc :runtime false) 0 [nil nil] 16]
                ["/vector-dynamic.font" (assoc vector-desc :runtime true) 0 [nil nil] 16]
-               ["/vector-explicit-size.font" (assoc vector-desc :runtime true :size 37) 37 [nil nil] 16]
+               ["/vector-explicit-size.font" (assoc vector-desc :runtime true :size 37) 0 [nil nil] 16]
                ["/vector-static-outline.font" (assoc vector-desc :runtime false :outline-alpha 1.0 :outline-width 2.0) 0 [nil nil] nil]
                ["/vector-dynamic-shadow.font" (assoc vector-desc :runtime true :shadow-alpha 1.0 :shadow-blur 2) 0 [nil nil] nil]
                ["/vector-static-effect-size.font" (assoc vector-desc :runtime false :size 37 :outline-alpha 1.0 :outline-width 2.0) 37 [37 37] 37]

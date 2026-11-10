@@ -1069,6 +1069,9 @@
 (defn- scalable-font? [font]
   (scalable-font-path? (resource/proj-path font)))
 
+(defn- bitmap-font-path? [font-path]
+  (= "fnt" (resource/filename->type-ext font-path)))
+
 (defn- bitmap-font? [font]
   (= "fnt" (some-> font resource/type-ext)))
 
@@ -1956,21 +1959,39 @@
         vector-font-mode :vector-font-mode
         runtime :runtime))))
 
-(defn sanitize-font [_read-opts _owner-resource {:keys [characters extra-characters font] :as font-desc}]
+(defonce ^:private default-font-desc-pb-field-values (protobuf/optional-field-defaults Font$FontDesc))
+
+(defn sanitize-font [_read-opts _owner-resource font-desc]
   {:pre [(map? font-desc)]} ; Font$FontDesc in map format.
   ;; In a previous file format, we would always include all printable ASCII
   ;; characters in the font, and the user could specify :extra-characters to
   ;; include in addition to the ASCII characters.
   ;; Now, we instead explicitly list the :characters to include, but default to
   ;; the printable ASCII characters.
-  (let [scalable (scalable-font-path? font)
+  (let [{:keys [characters
+                extra-characters
+                font
+                outline-alpha
+                outline-width
+                shadow-alpha
+                shadow-blur
+                shadow-x
+                shadow-y]
+         :or {outline-alpha (:outline-alpha default-font-desc-pb-field-values)
+              outline-width (:outline-width default-font-desc-pb-field-values)
+              shadow-alpha (:shadow-alpha default-font-desc-pb-field-values)
+              shadow-blur (:shadow-blur default-font-desc-pb-field-values)
+              shadow-x (:shadow-x default-font-desc-pb-field-values)
+              shadow-y (:shadow-x default-font-desc-pb-field-values)}} font-desc
+        scalable (scalable-font-path? font)
         mode (if (and (= :type-distance-field (:output-format font-desc))
                       (= :vector-font-mode-bitmap (:vector-font-mode font-desc :vector-font-mode-bitmap)))
                :vector-font-mode-sdf
-               (:vector-font-mode font-desc (protobuf/default Font$FontDesc :vector-font-mode)))
-        legacy-bitmap (and font
-                           (= "fnt" (resource/filename->type-ext font))
-                           (zero? (count characters)))
+               (:vector-font-mode font-desc (:vector-font-mode default-font-desc-pb-field-values)))
+        vector (and scalable (= :vector-font-mode-vector mode))
+        bitmap (bitmap-font-path? font)
+        legacy-bitmap (and bitmap (zero? (count characters)))
+        effects (font-effects-enabled? outline-alpha outline-width shadow-alpha shadow-blur shadow-x shadow-y)
 
         explicit-characters
         (if (pos? (count characters))
@@ -1995,6 +2016,8 @@
 
     (-> font-desc
         (dissoc :extra-characters :output-format)
+        (cond-> (or bitmap (and vector (not effects)))
+          (dissoc :size))
         (cond-> (or (not scalable) (not= :vector-font-mode-bitmap mode))
           (dissoc :render-mode))
         (cond-> (and scalable (not= mode (protobuf/default Font$FontDesc :vector-font-mode)))
