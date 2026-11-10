@@ -199,10 +199,10 @@
                                               :text-data text-data}
                                   :passes [pass/transparent pass/selection]}
                :children [(cond-> {:node-id _node-id
-                           :aabb aabb
-                           :renderable {:render-fn render-lines
-                                        :tags #{:text :outline}
-                                        :batch-key ::outline
+                                   :aabb aabb
+                                   :renderable {:render-fn render-lines
+                                                :tags #{:text :outline}
+                                                :batch-key ::outline
                                                 :user-data {:line-data lines
                                                             :selected-line-data (:selected-line-data arc-data)}
                                                 :passes [pass/outline]}}
@@ -347,10 +347,10 @@
                                                         text line-break (first size) tracking leading)))
   (output text-data g/KeywordMap (g/fnk [text-layout font-data color outline shadow pivot size arc-radius arc-angle arc-active ^:try arc-error]
                                    (-> {:text-layout text-layout
-                                                    :font-data font-data
-                                                    :color color
-                                                    :outline outline
-                                                    :shadow shadow
+                                        :font-data font-data
+                                        :color color
+                                        :outline outline
+                                        :shadow shadow
                                         :align (pivot->h-align pivot)}
                                        (cond-> font-data
                                          (assoc :box-height (second size)

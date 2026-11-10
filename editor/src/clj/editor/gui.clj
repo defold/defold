@@ -2278,10 +2278,10 @@
                                     [(:width text-layout) (:height text-layout) 0]))
   (output text-data g/KeywordMap (g/fnk [text-layout font-data color alpha outline outline-alpha shadow shadow-alpha manual-size pivot arc-radius arc-angle arc-active ^:try arc-error]
                                    (-> {:text-layout text-layout
-                                                    :font-data font-data
-                                                    :color (assoc color 3 alpha)
-                                                    :outline (assoc outline 3 outline-alpha)
-                                                    :shadow (assoc shadow 3 shadow-alpha)
+                                        :font-data font-data
+                                        :color (assoc color 3 alpha)
+                                        :outline (assoc outline 3 outline-alpha)
+                                        :shadow (assoc shadow 3 shadow-alpha)
                                         :align (pivot->h-align pivot)}
                                        (cond-> font-data
                                          (assoc :box-height (second manual-size)
