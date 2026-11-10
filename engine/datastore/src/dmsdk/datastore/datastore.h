@@ -245,148 +245,246 @@ typedef struct DSViewIterator
     uint32_t           m_Count;
 } DSViewIterator;
 
-// Store lifetime
+// Create and destroy stores, or remove all data belonging to a group.
 
+// Create an owned store; NULL params use allocation defaults.
 HDSContext DSStoreCreate(const DSCreateParams* params);
+// Destroy an owned store and release its data.
 DSResult   DSStoreDestroy(HDSContext store);
+// Remove all rows and blob instances belonging to a group.
 DSResult   DSGroupRemove(HDSContext store, DSId group);
 
-// Native tables and rows
+// Add tables and create, remove or reset their rows.
 
+// Copy a native row layout and add its table type.
 DSResult DSTableAdd(HDSContext store, const DSTableDesc* desc);
+// Expose caller-owned rows without copying their value bytes.
 DSResult DSTableAddView(HDSContext store, const DSTableDesc* desc, void* values, uint32_t value_count, uint32_t row_count, const uint32_t* indices, DSId* out_ids);
+// Remove a table type and release its rows and owned values.
 DSResult DSTableRemove(HDSContext store, uint64_t type);
+// Copy an array of native rows into a group.
 DSResult DSRowCreate(HDSContext store, uint64_t type, DSId group, uint32_t count, const void* rows, DSId* out_ids);
+// Create grouped rows from separate field arrays.
 DSResult DSRowCreateSoA(HDSContext store, uint64_t type, DSId group, uint32_t count, uint32_t field_count, const DSFieldArray* fields, DSId* out_ids);
+// Remove a row and release its owned values.
 DSResult DSRowRemove(HDSContext store, DSId id);
+// Restore retained initial values for a row.
 DSResult DSRowReset(HDSContext store, DSId id);
+// Get a row's source component ID, or zero when unavailable.
 uint64_t DSRowGetComponentId(HDSContext store, DSId id);
 
-// Resource instances
+// Load caller-owned blobs and manage their runtime instances.
 
+// Validate and borrow an immutable data blob.
 DSResult DSBlobLoad(const void* buffer, uint32_t buffer_size, HDSBlob* out_blob);
+// Release a blob reference; the caller still owns its bytes.
 void     DSBlobDestroy(HDSBlob blob);
+// Create grouped mutable rows from a loaded blob.
 DSResult DSBlobAdd(HDSContext store, HDSBlob blob, DSId group, HDSBlobInstance* out_instance);
+// Remove an instance and release its remaining rows.
 DSResult DSBlobRemove(HDSBlobInstance instance);
+// Restore loaded values for an instance's remaining rows.
 DSResult DSBlobReset(HDSBlobInstance instance);
 
-// Queries
+// Select rows by fields, tags and groups, and reserve their read/write access.
 
+// Describe a required tag by name.
 DSQueryItem DSTag(const char* name);
+// Describe a typed field and its read or mutable access.
 DSQueryItem DSField(const char* name, DSValueType type, uint32_t access);
 
+// Create a live query from fields, tags and optional groups.
 DSResult DSQueryCreate(HDSContext store, const DSQueryDesc* desc, HDSQuery* out_query);
+// Destroy an inactive query after its iterators finish.
 DSResult DSQueryDestroy(HDSQuery query);
 
+// Reserve query access without waiting for conflicting queries.
 DSResult DSQueryTryBegin(HDSQuery query);
+// Count rows in the active query reservation.
 uint32_t DSQueryGetRowCount(HDSQuery query);
+// Release the query reservation and end iterator access.
 void     DSQueryEnd(HDSQuery query);
 
+// Bind a field once for use with this query's iterators.
 DSFieldId DSQueryFindField(HDSQuery query, const DSQueryItem* field);
 
-// Scheduled callbacks
+// Schedule query callbacks using named events and dependencies.
 
+// Register a query callback and its named dependencies.
 DSResult DSFunctionAdd(HDSContext store, const DSSystemDesc* desc);
+// Unregister a callback after its schedule has ended.
 DSResult DSFunctionRemove(HDSContext store, dmhash_t name);
+// Register an event and its optional prerequisites.
 DSResult DSEventAdd(HDSContext store, const DSEventDesc* desc);
+// Unregister an event after its schedule has ended.
 DSResult DSEventRemove(HDSContext store, dmhash_t name);
+// Start a schedule using the caller's job context.
 DSResult DSSchedulerBegin(HDSContext store, HJobContext jobs);
+// Signal an event and launch its ready callbacks.
 DSResult DSSchedulerEvent(HDSContext store, dmhash_t name);
+// Process completed jobs and launch newly ready callbacks.
 DSResult DSSchedulerUpdate(HDSContext store);
+// Wait for submitted callbacks and their ready dependents.
 DSResult DSSchedulerSync(HDSContext store);
+// End a schedule once its ready work has finished.
 DSResult DSSchedulerEnd(HDSContext store);
 
-// Iteration
+// Iterate batches within an active query reservation.
 
-// Query batches
+// Create an iterator over a reserved range of matching rows.
 DSIterator DSQueryIterRange(HDSQuery query, uint32_t first, uint32_t count);
+// Create an iterator over all rows in the active reservation.
 DSIterator DSQueryIter(HDSQuery query);
+// Advance to the next batch; false ends iteration.
 bool       DSIterNext(DSIterator* iterator);
+// Get the type hash of the current batch.
 uint64_t   DSIterGetType(const DSIterator* iterator);
 
-// Rows
+// Iterate rows within the current batch.
+
+// Create an iterator over the current batch's rows.
 static inline DSRowIterator DSIterRows(const DSIterator* iterator);
+// Advance to the next row; false ends iteration.
 static inline bool          DSRowIterNext(DSRowIterator* iterator);
+// Get the current row's stable ID.
 DSId                        DSRowIterGetId(const DSRowIterator* iterator);
+// Get the current row's caller-provided group ID.
 DSId                        DSRowIterGetGroupId(const DSRowIterator* iterator);
+// Borrow row bytes, or NULL without DS_ROW_MUTABLE.
 static inline const void*   DSRowIterGetData(const DSRowIterator* iterator);
+// Borrow writable row bytes, or NULL without DS_ROW_MUTABLE.
 static inline void*         DSRowIterGetDataMut(const DSRowIterator* iterator);
 
-// Field pointers
+// Borrow typed field pointers using handles bound by DSQueryFindField().
+
+// Borrow a read-only number field.
 static inline const double* DSRowIterGetNumber(const DSRowIterator* iterator, DSFieldId field);
+// Borrow a writable number field.
 static inline double*       DSRowIterGetNumberMut(const DSRowIterator* iterator, DSFieldId field);
 
+// Borrow a read-only float field.
 static inline const float* DSRowIterGetFloat(const DSRowIterator* iterator, DSFieldId field);
+// Borrow a writable float field.
 static inline float*       DSRowIterGetFloatMut(const DSRowIterator* iterator, DSFieldId field);
 
+// Borrow a read-only unsigned integer field.
 static inline const uint32_t* DSRowIterGetUInt32(const DSRowIterator* iterator, DSFieldId field);
+// Borrow a writable unsigned integer field.
 static inline uint32_t*       DSRowIterGetUInt32Mut(const DSRowIterator* iterator, DSFieldId field);
 
+// Borrow a read-only boolean field.
 static inline const uint8_t* DSRowIterGetBoolean(const DSRowIterator* iterator, DSFieldId field);
+// Borrow a writable boolean field.
 static inline uint8_t*       DSRowIterGetBooleanMut(const DSRowIterator* iterator, DSFieldId field);
 
+// Borrow a read-only Vector3 field.
 static inline const DSVector3* DSRowIterGetVector3(const DSRowIterator* iterator, DSFieldId field);
+// Borrow a writable Vector3 field.
 static inline DSVector3*       DSRowIterGetVector3Mut(const DSRowIterator* iterator, DSFieldId field);
 
+// Borrow a read-only Vector4 field.
 static inline const DSVector4* DSRowIterGetVector4(const DSRowIterator* iterator, DSFieldId field);
+// Borrow a writable Vector4 field.
 static inline DSVector4*       DSRowIterGetVector4Mut(const DSRowIterator* iterator, DSFieldId field);
 
+// Borrow a read-only Matrix4 field.
 static inline const DSMatrix4* DSRowIterGetMatrix4(const DSRowIterator* iterator, DSFieldId field);
+// Borrow a writable Matrix4 field.
 static inline DSMatrix4*       DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, DSFieldId field);
 
-// Field values
+// Read or replace existing fields by row ID and field-name hash.
 
+// Read a double-precision number.
 DSResult DSFieldGetNumber(HDSContext store, DSId id, uint64_t field, double* out_value);
+// Read numbers for an array of row IDs.
 DSResult DSFieldGetNumberBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, double* out_values);
+// Replace a double-precision number.
 DSResult DSFieldSetNumber(HDSContext store, DSId id, uint64_t field, double value);
 
+// Read a single-precision number.
 DSResult DSFieldGetFloat(HDSContext store, DSId id, uint64_t field, float* out_value);
+// Read floats for an array of row IDs.
 DSResult DSFieldGetFloatBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, float* out_values);
+// Replace a single-precision number.
 DSResult DSFieldSetFloat(HDSContext store, DSId id, uint64_t field, float value);
 
+// Read an unsigned 32-bit integer.
 DSResult DSFieldGetUInt32(HDSContext store, DSId id, uint64_t field, uint32_t* out_value);
+// Read unsigned integers for an array of row IDs.
 DSResult DSFieldGetUInt32Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, uint32_t* out_values);
+// Replace an unsigned 32-bit integer.
 DSResult DSFieldSetUInt32(HDSContext store, DSId id, uint64_t field, uint32_t value);
 
+// Read a boolean.
 DSResult DSFieldGetBoolean(HDSContext store, DSId id, uint64_t field, uint8_t* out_value);
+// Read booleans for an array of row IDs.
 DSResult DSFieldGetBooleanBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, uint8_t* out_values);
+// Replace a boolean.
 DSResult DSFieldSetBoolean(HDSContext store, DSId id, uint64_t field, uint8_t value);
 
+// Read a borrowed string pointer.
 DSResult DSFieldGetString(HDSContext store, DSId id, uint64_t field, const char** out_value);
+// Read string pointers for an array of row IDs.
 DSResult DSFieldGetStringBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, const char** out_values);
+// Copy a replacement string into the row.
 DSResult DSFieldSetString(HDSContext store, DSId id, uint64_t field, const char* value);
 
+// Read a three-component vector.
 DSResult DSFieldGetVector3(HDSContext store, DSId id, uint64_t field, DSVector3* out_value);
+// Read three-component vectors for an array of row IDs.
 DSResult DSFieldGetVector3Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSVector3* out_values);
+// Replace a three-component vector.
 DSResult DSFieldSetVector3(HDSContext store, DSId id, uint64_t field, const DSVector3* value);
 
+// Read a four-component vector.
 DSResult DSFieldGetVector4(HDSContext store, DSId id, uint64_t field, DSVector4* out_value);
+// Read four-component vectors for an array of row IDs.
 DSResult DSFieldGetVector4Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSVector4* out_values);
+// Replace a four-component vector.
 DSResult DSFieldSetVector4(HDSContext store, DSId id, uint64_t field, const DSVector4* value);
 
+// Read a 4x4 matrix.
 DSResult DSFieldGetMatrix4(HDSContext store, DSId id, uint64_t field, DSMatrix4* out_value);
+// Read 4x4 matrices for an array of row IDs.
 DSResult DSFieldGetMatrix4Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSMatrix4* out_values);
+// Replace a 4x4 matrix.
 DSResult DSFieldSetMatrix4(HDSContext store, DSId id, uint64_t field, const DSMatrix4* value);
 
-// Dynamic containers
+// Inspect borrowed values and traverse dynamic structs or lists.
 
+// Borrow a field value for dynamic inspection.
 DSResult    DSFieldGetView(HDSContext store, DSId id, uint64_t field, DSValueView* out_view);
+// Borrow a field view from the current row.
 void        DSRowIterGetView(const DSRowIterator* iterator, DSFieldId field, DSValueView* out_view);
+// Get the value kind represented by a view.
 DSValueType DSViewGetType(const DSValueView* view);
+// Count a struct's members or a list's elements.
 DSResult    DSViewGetCount(const DSValueView* view, uint32_t* out_count);
+// Find a struct member by its local name hash.
 DSResult    DSViewGetField(const DSValueView* view, uint64_t field, DSValueView* out_view);
+// Read a list element by index.
 DSResult    DSViewGetElement(const DSValueView* view, uint32_t index, DSValueView* out_view);
 
+// Create an iterator over a container's immediate values.
 DSViewIterator DSViewIter(const DSValueView* view);
+// Read the next child value; false ends iteration.
 bool           DSViewIterNext(DSViewIterator* iterator, DSValueView* out_view);
 
+// Read a double-precision number from a view.
 DSResult DSViewGetNumber(const DSValueView* view, double* out_value);
+// Read a single-precision number from a view.
 DSResult DSViewGetFloat(const DSValueView* view, float* out_value);
+// Read an unsigned 32-bit integer from a view.
 DSResult DSViewGetUInt32(const DSValueView* view, uint32_t* out_value);
+// Read a boolean from a view.
 DSResult DSViewGetBoolean(const DSValueView* view, uint8_t* out_value);
+// Read a borrowed string pointer from a view.
 DSResult DSViewGetString(const DSValueView* view, const char** out_value);
+// Read a three-component vector from a view.
 DSResult DSViewGetVector3(const DSValueView* view, DSVector3* out_value);
+// Read a four-component vector from a view.
 DSResult DSViewGetVector4(const DSValueView* view, DSVector4* out_value);
+// Read a 4x4 matrix from a view.
 DSResult DSViewGetMatrix4(const DSValueView* view, DSMatrix4* out_value);
 
 // Inline implementations
