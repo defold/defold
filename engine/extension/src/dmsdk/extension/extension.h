@@ -606,7 +606,7 @@ static const size_t ExtensionDescBufferSize = DM_EXTENSION_DESC_BUFFER_SIZE;
  * @name ExtensionRegister
  * @param desc [type:void*] A persistent buffer of at least 128 bytes.
  * @param desc_size [type:const char*] size of buffer holding desc. in bytes
- * @param name [type:const char*] extension name. human readble. max 16 characters long.
+ * @param name [type:const char*] extension name. Copied for the process lifetime, retaining at most 15 bytes plus NUL.
  * @param app_initialize [type:FExtensionAppInitialize] app-init function. May be null
  * @param app_finalize [type:FExtensionAppFinalize] app-final function. May be null
  * @param initialize [type:FExtensionInitialize] init function. May not be 0

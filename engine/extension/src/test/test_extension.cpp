@@ -65,9 +65,14 @@ extern "C"
     extern HWindow g_TypeCEventWindow;
 }
 
+DM_ALIGNED(16) static uint8_t g_LegacyNameCopyDescriptor[DM_EXTENSION_DESC_BUFFER_SIZE];
+static char g_LegacySourceName[] = "LegacyCopyTest";
+
 struct Initializer {
     Initializer() {
         dmExportedSymbols();
+        ExtensionRegister(g_LegacyNameCopyDescriptor, sizeof(g_LegacyNameCopyDescriptor), g_LegacySourceName, 0, 0, 0, 0, 0, 0);
+        memset(g_LegacySourceName, 'x', sizeof(g_LegacySourceName) - 1);
     }
 } g_SymbolInitializer;
 
@@ -366,6 +371,17 @@ static dmExtension::Result TypedInitialize(dmExtension::Params*)
     return dmExtension::RESULT_OK;
 }
 
+// Legacy registration retains its copied name after the caller reuses its storage.
+TEST(dmExtension, LegacyRegistrationCopiesName)
+{
+    DM_ALIGNED(16) static uint8_t duplicate[DM_EXTENSION_DESC_BUFFER_SIZE];
+    dmExtension::HExtensionDesc registered = dmExtension::GetFirstExtension();
+    ASSERT_EQ((dmExtension::HExtensionDesc)g_LegacyNameCopyDescriptor, registered);
+
+    ExtensionRegister(duplicate, sizeof(duplicate), "LegacyCopyTest", 0, 0, 0, 0, 0, 0);
+    ASSERT_EQ(registered, dmExtension::GetFirstExtension());
+}
+
 // C++ extension callbacks must be assignable to the C API without a function-pointer cast.
 TEST(dmExtension, CallbackTypeCompatibility)
 {
@@ -420,7 +436,7 @@ TEST(dmExtension, Basic)
         ++extension_count;
         extension = dmExtension::GetNextExtension(extension);
     }
-    ASSERT_EQ(5u, extension_count);
+    ASSERT_EQ(6u, extension_count);
     ASSERT_EQ((dmExtension::HExtensionDesc)0, extension);
 
     ASSERT_NE((void*)0, ContextRegistryGet(context_registry, "lib"));
