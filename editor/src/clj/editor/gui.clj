@@ -3818,10 +3818,6 @@
 (g/defnode GuiSceneNode
   (inherits resource-node/ResourceNode)
 
-  ;; Registry changes require reloading the scene to recreate its nodes.
-  (property gui-resource-type g/Any
-            (dynamic visible (g/constantly false)))
-
   (property script resource/Resource ; Required protobuf field.
             (value (gu/passthrough script-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -3893,6 +3889,7 @@
   (input project-settings g/Any)
   (input default-tex-params g/Any)
   (input exclude-gles-sm100 g/Any)
+  (input gui-resource-type g/Any)
   (output default-tex-params g/Any (gu/passthrough default-tex-params))
   (input display-profiles g/Any)
   (input node-msgs g/Any)
@@ -4162,7 +4159,7 @@
                                    (when-not (:deprecated info)
                                      (make-add-handler template-scene parent (:display-name info) (:icon info)
                                                        add-gui-node-handler (node-type-info->add-handler-user-data info))))
-                                 (scene->gui-node-type-infos scene evaluation-context)))
+                                 (scene->gui-node-type-infos template-scene evaluation-context)))
                          [])
 
                        (g/node-instance-match basis node [GuiSceneNode GuiNode NodeTree])
@@ -4273,7 +4270,7 @@
 (def ^:private default-font-proj-path "/builtins/fonts/default.font")
 (def ^:private default-material-proj-path (protobuf/default Gui$SceneDesc :material))
 
-(defn load-gui-scene [{:keys [project resolve-resource-fn]} {:keys [owner-resource resource-type] self :node-id scene :source-value}]
+(defn load-gui-scene [{:keys [project resolve-resource-fn workspace]} {:keys [owner-resource resource-type] self :node-id scene :source-value}]
   {:pre [(map? scene)]} ; Gui$SceneDesc in map format.
   (let [gui-node-type-registry (:gui-node-type-registry resource-type)
         gui-resource-kind-registry (:gui-resource-kind-registry resource-type)
@@ -4351,7 +4348,7 @@
         adjust-reference :adjust-reference
         max-nodes :max-nodes
         max-dynamic-textures :max-dynamic-textures)
-      (g/set-property self :gui-resource-type resource-type)
+      (g/connect workspace :gui-resource-type self :gui-resource-type)
       (g/connect project :settings self :project-settings)
       (g/connect project :default-tex-params self :default-tex-params)
       (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)

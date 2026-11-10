@@ -455,9 +455,9 @@
          :attachment-property :test-gui-resources
          :attach-fn attach-test-gui-resource}))))
 
-;; Loaded scenes keep their registration and caches until reload, including the
-;; defaults used by editor scripts when adding nodes after a registry change.
-(deftest gui-resource-type-snapshot-test
+;; Unrelated resource registrations preserve GUI caches, while GUI registration
+;; changes reach existing scenes and supply updated editor-script defaults.
+(deftest gui-resource-type-registration-test
   (test-util/with-scratch-project "test/resources/empty_project"
     (register-test-gui-extensions workspace)
     (let [scene-data {:nodes [{:type :type-box :id "box"}]}
@@ -468,15 +468,22 @@
             type-info (get-in scene-info [:gui-node-type-registry :node-type->type-info TestCustomGuiNode])
             counters (g/invalidate-counters)
             updated-type-info (assoc-in type-info [:defaults :test-number] 42.0)]
-        (g/transact
-          (workspace/register-resource-type workspace :ext "unrelated-plugin-resource")
-          (gui/register-custom-node-type-info workspace updated-type-info))
+        (g/transact (workspace/register-resource-type workspace :ext "unrelated-plugin-resource"))
         (is (identical? scene-info (g/valid-node-value scene :trivial-gui-scene-info)))
         (is (coll/every? (complement (g/endpoint-invalidated-pred counters))
                          (mapv #(g/endpoint scene %)
                                [:save-value :build-targets :trivial-gui-scene-info])))
 
-        (testing "Editor scripts use the loaded registration for scene and child attachments."
+        (testing "GUI registrations update existing scenes."
+          (g/transact (gui/register-custom-node-type-info workspace updated-type-info))
+          (is (not (identical? scene-info (g/valid-node-value scene :trivial-gui-scene-info))))
+          (is (= 42.0 (get-in (g/valid-node-value scene :trivial-gui-scene-info)
+                              [:gui-node-type-registry :node-type->type-info TestCustomGuiNode :defaults :test-number])))
+          (is (coll/every? (g/endpoint-invalidated-pred counters)
+                           (mapv #(g/endpoint scene %)
+                                 [:save-value :build-targets :trivial-gui-scene-info]))))
+
+        (testing "Editor scripts use updated defaults for scene and child attachments."
           (let [rt (rt/make)]
             (doseq [parent-node-id [scene (gui-node scene "box")]]
               (let [[child-node-id] (g/tx-nodes-added
@@ -486,22 +493,7 @@
                                           (fn init-child [parent-node-id child-node-id]
                                             (g/expand-ec ext-graph/init-attachment rt project parent-node-id TestCustomGuiNode child-node-id {}))
                                           fn/constantly-nil)))]
-                (is (= 1.0 (prop child-node-id :test-number)))))))
-
-        (testing "A newly loaded scene uses the updated registration."
-          (test-util/make-resource! workspace "/new-registration.gui" scene-data)
-          (workspace/resource-sync! workspace)
-          (let [new-scene (test-util/resource-node project "/new-registration.gui")]
-            (is (= 42.0 (get-in (g/valid-node-value new-scene :trivial-gui-scene-info)
-                                [:gui-node-type-registry :node-type->type-info TestCustomGuiNode :defaults :test-number])))))
-
-        (testing "Reloading an existing scene adopts the updated registration."
-          (test-util/write-file-resource! workspace "/registration.gui" (assoc scene-data :max-nodes 256))
-          (workspace/resource-sync! workspace)
-          (let [reloaded-scene (test-util/resource-node project gui-resource)]
-            (is (not= scene reloaded-scene))
-            (is (= 42.0 (get-in (g/valid-node-value reloaded-scene :trivial-gui-scene-info)
-                                [:gui-node-type-registry :node-type->type-info TestCustomGuiNode :defaults :test-number])))))))))
+                (is (= 42.0 (prop child-node-id :test-number)))))))))))
 
 (defn- property-value-choices [node-id label]
   (->> (g/node-value node-id :_properties)
@@ -2039,6 +2031,92 @@
         (is (= 7.0
                (:number (coll/first-where #(= (murmur/hash64 "test_number") (:id-hash %))
                                           built-custom-properties))))))))
+
+;; Reloading a template after registering a custom type must leave its unchanged
+;; parent able to save, reload and build overridden custom properties.
+(deftest gui-template-reload-after-registration-test
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (test-util/make-resource! workspace "/source.gui" {:nodes [{:type :type-box :id "box"}]})
+    (test-util/make-resource! workspace "/parent.gui"
+                              {:nodes [{:type :type-template :id "template" :template "/source.gui"}]})
+    (workspace/resource-sync! workspace)
+    (let [parent (test-util/resource-node project "/parent.gui")
+          source (test-util/resource-node project "/source.gui")]
+      (g/transact
+        (gui/register-custom-node-type-info workspace
+                                            {:node-type TestCustomGuiNode
+                                             :display-name "Test Custom"
+                                             :custom-type-name "TestCustom"
+                                             :icon "icons/32/Icons_40-GUI-Box-node.png"
+                                             :defaults gui/shape-base-node-defaults}))
+      (test-util/write-file-resource! workspace "/source.gui"
+        {:nodes [{:type :type-custom
+                  :custom-type-name "TestCustom"
+                  :id "custom"
+                  :custom-properties [{:id "test_number"
+                                       :type :type-number
+                                       :number 17.0}]}]})
+      (workspace/resource-sync! workspace)
+      (is (= parent (test-util/resource-node project "/parent.gui")))
+      (is (not= source (test-util/resource-node project "/source.gui")))
+      (prop! (gui-node parent "template/custom") :test-number 23.0)
+      (let [saved (g/valid-node-value parent :save-value)
+            saved-node (coll/first-where #(= "template/custom" (:id %)) (:nodes saved))
+            built-node (coll/first-where #(= "template/custom" (:id %))
+                                         (get-in (g/valid-node-value parent :build-targets) [0 :user-data :pb :nodes]))]
+        (is (= 23.0 (saved-node-desc-custom-property-value saved-node "test_number" :number)))
+        (is (= (murmur/hash32 "TestCustom") (:custom-type built-node)))
+        (is (= 23.0 (:number (coll/first-where #(= (murmur/hash64 "test_number") (:id-hash %))
+                                               (:custom-properties built-node)))))
+        (test-util/write-file-resource! workspace "/parent.gui" saved)
+        (workspace/resource-sync! workspace)
+        (let [reloaded-parent (test-util/resource-node project "/parent.gui")]
+          (is (not= parent reloaded-parent))
+          (is (= 23.0 (prop (gui-node reloaded-parent "template/custom") :test-number))))))))
+
+;; Template Add menus must use current registrations whether the parent or the
+;; source reloads, and the added node must remain saveable and buildable.
+(deftest gui-template-add-after-registration-test
+  (doseq [reload-path ["/parent.gui" "/source.gui"]]
+    (testing (str "Reloading " reload-path)
+      (test-util/with-scratch-project "test/resources/empty_project"
+        (let [source-data {:nodes [{:type :type-box :id "box"}]}
+              parent-data {:nodes [{:type :type-template :id "template" :template "/source.gui"}]}]
+          (test-util/make-resource! workspace "/source.gui" source-data)
+          (test-util/make-resource! workspace "/parent.gui" parent-data)
+          (workspace/resource-sync! workspace)
+          (g/transact
+            (gui/register-custom-node-type-info workspace
+                                                {:node-type TestCustomGuiNode
+                                                 :display-name "Test Custom"
+                                                 :custom-type-name "TestCustom"
+                                                 :icon "icons/32/Icons_40-GUI-Box-node.png"
+                                                 :defaults (assoc gui/shape-base-node-defaults :test-number 42.0)}))
+          (test-util/write-file-resource! workspace reload-path
+            (assoc (if (= "/parent.gui" reload-path) parent-data source-data)
+              :max-nodes 256))
+          (workspace/resource-sync! workspace)
+          (let [parent (test-util/resource-node project "/parent.gui")
+                source (test-util/resource-node project "/source.gui")
+                template (gui-node parent "template")
+                contexts [(handler/->context :workbench {:selection [template] :project project :app-view app-view})]
+                option (coll/first-where #(= "TestCustom" (get-in % [:user-data :custom-type-name]))
+                                         (test-util/handler-options :edit.add-embedded-component contexts nil))]
+            (is (map? option))
+            (when option
+              (let [child (test-util/handler-run :edit.add-embedded-component contexts (:user-data option))
+                    id (g/valid-node-value child :id)
+                    saved (g/valid-node-value source :save-value)
+                    saved-node (coll/first-where #(= id (:id %)) (:nodes saved))
+                    built-node (coll/first-where #(= id (:id %))
+                                                 (get-in (g/valid-node-value source :build-targets) [0 :user-data :pb :nodes]))]
+                (is (= source (get-in option [:user-data :scene])))
+                (is (= 42.0 (prop child :test-number)))
+                (is (map? (g/valid-node-value source :node-outline)))
+                (is (= 42.0 (saved-node-desc-custom-property-value saved-node "test_number" :number)))
+                (is (= (murmur/hash32 "TestCustom") (:custom-type built-node)))
+                (is (= 42.0 (:number (coll/first-where #(= (murmur/hash64 "test_number") (:id-hash %))
+                                                       (:custom-properties built-node)))))))))))))
 
 (defn has-successor?
   ([source-id+source-label target-id+target-label]
