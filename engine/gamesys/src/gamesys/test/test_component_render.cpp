@@ -28,6 +28,7 @@
 #include <gameobject/component.h>
 #include <gameobject/gameobject_private.h>
 #include <gameobject/gameobject.h>
+#include <graphics/null/graphics_null_private.h>
 #include <platform/window.hpp>
 #include <render/render_execution.h>
 #include <render/render_frame_queue.h>
@@ -41,8 +42,6 @@
 #include "gamesys/component_render_state_private.h"
 #include "gamesys/gamesys.h"
 #include "gamesys/gamesys_context_private.h"
-
-#include <null/graphics_null_private.h>
 
 namespace
 {

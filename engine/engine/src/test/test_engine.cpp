@@ -30,10 +30,10 @@
 #include <script/sys_ddf.h>
 #include <render/render_ddf.h>
 #include <gameobject/component.h>
+#include <graphics/graphics_private.h>
+#include <graphics/null/graphics_null_private.h>
 #include <dmsdk/extension/extension.hpp>
 #include "test_engine.h"
-#include <graphics_private.h>
-#include <null/graphics_null_private.h>
 #include "../engine.h"
 #include "../engine_private.h"
 

@@ -204,6 +204,17 @@ namespace dmRender
         return RENDER_FRAME_OK;
     }
 
+    // Return the first power of two greater than x, or zero on uint32_t overflow.
+    static inline uint32_t NextPowerOfTwo(uint32_t x)
+    {
+        x |= x >> 1;
+        x |= x >> 2;
+        x |= x >> 4;
+        x |= x >> 8;
+        x |= x >> 16;
+        return x + 1;
+    }
+
     RenderFrameResult AllocateRenderFrameDynamicTable(HRenderFrameStorage frame, uint32_t type, uint32_t count,
                                                       uint32_t stride, uint32_t alignment, uint32_t* table_index, void** data)
     {
@@ -238,13 +249,7 @@ namespace dmRender
         {
             // Size classes avoid retaining a new near-identical block whenever a
             // snapshot grows slightly between frames. Old table pointers stay valid.
-            uint32_t capacity = (uint32_t)bytes - 1;
-            capacity |= capacity >> 1;
-            capacity |= capacity >> 2;
-            capacity |= capacity >> 4;
-            capacity |= capacity >> 8;
-            capacity |= capacity >> 16;
-            ++capacity;
+            uint32_t capacity = NextPowerOfTwo((uint32_t)bytes - 1);
             if (capacity < 64u * 1024u)
             {
                 capacity = 64u * 1024u;
