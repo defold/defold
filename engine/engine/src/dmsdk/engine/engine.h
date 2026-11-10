@@ -17,6 +17,10 @@
 
 #include <dmsdk/platform/window.h>
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 /*# Engine API documentation
  * Engine instance handles and access to the engine-owned window.
  * @document
@@ -54,5 +58,9 @@ typedef struct Engine* HEngine;
  * @return window [type:HWindow] borrowed window, or null if the engine has no window
  */
 HWindow EngineGetWindow(HEngine engine);
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif // DMSDK_ENGINE_H

@@ -45,15 +45,17 @@ JC_TEST_FIXTURE_TEARDOWN(EngineApi)
     TestEngineDelete(jc_test_fixture->m_Engine);
 }
 
-// The C window accessor follows the engine from construction to successful initialization.
+// The window accessor preserves C linkage when its C header precedes the C++ facade.
 TEST_F(EngineApi, WindowAccessor)
 {
     ASSERT_EQ((HWindow)0, EngineGetWindow(jc_test_fixture->m_Engine));
+    ASSERT_EQ((HWindow)0, TestEngineGetWindowCpp(jc_test_fixture->m_Engine));
 
     HWindow window = 0;
     ASSERT_TRUE(TestEngineInit(jc_test_fixture->m_Engine, &window));
     ASSERT_NE((HWindow)0, window);
     ASSERT_EQ(window, EngineGetWindow(jc_test_fixture->m_Engine));
+    ASSERT_EQ(window, TestEngineGetWindowCpp(jc_test_fixture->m_Engine));
 }
 
 // C update parameters support standalone, missing-entry and engine-owned registries before initialization.
