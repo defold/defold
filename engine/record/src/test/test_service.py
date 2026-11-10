@@ -819,6 +819,15 @@ class RecordingServiceTest(unittest.TestCase):
                 connection.shutdown(socket.SHUT_RDWR)
             self.assertFalse(self.request("GET", "/recording/status")["active"])
 
+    # Operation IDs use the full uint32 range and reject invalid types and overflow before matching a receipt.
+    def test_operation_id_validation(self):
+        for value in [0, -1, 4294967296, 18446744073709551615, 1.5, True, "1", None]:
+            with self.subTest(value=value):
+                self.request("POST", "/recording/stop", {"operation_id": value}, 400)
+        for value in [2147483648, 4294967295]:
+            with self.subTest(value=value):
+                self.request("POST", "/recording/stop", {"operation_id": value}, 410)
+
     # Reject invalid JSON, unknown/duplicate keys and invalid bounds before starting capture.
     def test_request_validation(self):
         invalid = [[], {"path": "/tmp/unowned.mp4"}, {"fps": 0}, {"fps": 61}, {"width": 10},
@@ -870,12 +879,13 @@ class RecordingServiceTest(unittest.TestCase):
                 self.assertTrue(status["finalized"])
                 self.assertEqual(expected_audio, status["audio"])
 
-    # Failed starts release partial files; reboot invalidates receipts and cleans active recordings.
+    # Failure text survives JSON escaping; failed starts and reboots clean up files and receipts.
     def test_failure_and_restart_cleanup(self):
         self.request("GET", "/test/fail-start")
         self.request("POST", "/recording/start", {}, 202)
         status = self.wait_status()
         self.assertEqual("failed", status["state"])
+        self.assertEqual('test start failed: "capture\\device"\n\b\f', status["failure"])
         self.assertEqual([], list(pathlib.Path(self.directory.name).iterdir()))
         self.request("GET", "/test/restart")
         type(self).instance_id = self.request("GET", "/recording/capabilities")["instance_id"]

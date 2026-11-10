@@ -27,6 +27,7 @@ import javax.vecmath.Matrix4d;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.graphics.proto.Graphics.VertexStepFunction;
 import com.sun.jna.Callback;
 import com.sun.jna.Native;
 import com.sun.jna.NativeLibrary;
@@ -139,10 +140,12 @@ public class ParticleLibrary {
         public int     numInfos;
         public int     vertexStride;
         public int     structSize;
+        // Indexed by VertexStepFunction, matching dmGraphics::VertexAttributeInfos::m_SemanticFlags.
+        public int[]   semanticFlags = new int[VertexStepFunction.VERTEX_STEP_FUNCTION_INSTANCE_VALUE + 1];
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList("infos", "numInfos", "vertexStride", "structSize");
+            return Arrays.asList("infos", "numInfos", "vertexStride", "structSize", "semanticFlags");
         }
     }
 

@@ -80,6 +80,7 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   physics_null
   platform
   platform_null
+  platform_service
   platform_vulkan
   profile
   profile_noasan

@@ -16,7 +16,7 @@
 #include <string.h>
 
 #include <dmsdk/dlib/log.h>
-#include <dmsdk/dlib/atomic.h>
+#include <dlib/atomic.h>
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/spinlock.h>
 #include <dmsdk/dlib/profile.h>
@@ -36,7 +36,7 @@ namespace dmProfilerRemotery
 
     static bool IsInitialized()
     {
-        return dmAtomicGet32(&g_ProfilerInitialized) != 0 && g_Remotery != 0;
+        return dmAtomicLoadAcquire32(&g_ProfilerInitialized) != 0 && g_Remotery != 0;
     }
 
     static void* CreateListener()
@@ -69,7 +69,7 @@ namespace dmProfilerRemotery
         rmt_SetCurrentThreadName("Main");
 
         dmSpinlock::Create(&g_ProfilerLock);
-        dmAtomicStore32(&g_ProfilerInitialized, 1);
+        dmAtomicStoreRelease32(&g_ProfilerInitialized, 1);
 
         dmLogInfo("Initialized Remotery (ws://127.0.0.1:%d/rmt)", settings->port);
 
@@ -82,7 +82,7 @@ namespace dmProfilerRemotery
 
         {
             DM_SPINLOCK_SCOPED_LOCK(g_ProfilerLock);
-            dmAtomicStore32(&g_ProfilerInitialized, 0);
+            dmAtomicStoreRelease32(&g_ProfilerInitialized, 0);
 
             if (g_Remotery)
                 rmt_DestroyGlobalInstance(g_Remotery);
@@ -445,6 +445,11 @@ static dmExtension::Result ProfilerRemotery_AppFinalize(dmExtension::AppParams* 
 {
     if (dmExtension::AppParamsGetAppExitCode(params) == dmExtension::APP_EXIT_CODE_EXIT)
     {
+        // This extension can finalize before ProfilerExt calls ProfileFinalize().
+        if (dmProfilerRemotery::IsInitialized())
+        {
+            dmProfilerRemotery::DestroyListener(g_Listener.m_Ctx);
+        }
         ProfileUnregisterProfiler(g_ProfilerName);
         dmProfilerRemotery::g_ProfilerRegistered = false;
     }

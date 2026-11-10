@@ -14,8 +14,16 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Task;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.rig.proto.Rig.AnimationSet;
+import com.dynamo.rig.proto.Rig.RigAnimation;
+import com.google.protobuf.Message;
+import org.apache.commons.io.IOUtils;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -26,17 +34,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.io.IOUtils;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Task;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.util.MurmurHash;
-import com.dynamo.rig.proto.Rig.AnimationSet;
-import com.dynamo.rig.proto.Rig.RigAnimation;
-import com.google.protobuf.Message;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class AnimationSetBuilderTest extends AbstractProtoBuilderTest {
 

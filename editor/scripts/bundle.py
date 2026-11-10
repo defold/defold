@@ -158,7 +158,7 @@ def download(label, url):
 def ziptree(path, outfile, directory = None):
     # Directory is similar to -C in tar
 
-    zip = zipfile.ZipFile(outfile, 'w')
+    zip = zipfile.ZipFile(outfile, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6)
     for root, dirs, files in os.walk(path):
         for f in files:
             p = os.path.join(root, f)
@@ -325,10 +325,16 @@ def remove_platform_files_from_archive(platform, jar, jdk=None):
     files = zin.namelist()
     files_to_remove = set()
 
+    # Compiler libraries run on the editor host, including when building for other targets.
+    other_platform_lib_pattern = re.compile(
+        r"^lib/(?!%s/)(?:x86_64|arm64)-(?:linux|macos|win32)/" % re.escape(platform))
+
     # find files to remove from libexec/*
     libexec_platform = "libexec/" + platform
     _unpack_platform = "_unpack/" + platform
     for file in files:
+        if other_platform_lib_pattern.match(file):
+            files_to_remove.add(file)
         if file.startswith("libexec"):
             # don't remove any folders
             if file.endswith("/"):
@@ -589,7 +595,8 @@ def create_dmg(bundle_dir, options, platform):
     dmg_file = os.path.join("target/editor", "Defold-%s.dmg" % platform)
     if os.path.exists(dmg_file):
         os.remove(dmg_file)
-    run.command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
+    run.command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-format', 'UDZO',
+                 '-imagekey', 'zlib-level=9', '-srcfolder', dmg_dir, dmg_file])
 
     # sign the dmg
     if options.codesign:

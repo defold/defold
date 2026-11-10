@@ -16,6 +16,7 @@
 #include <render/render_target_ddf.h>
 #include "gamesys/resources/res_buffer.h"
 #include "gamesys/resources/res_mesh.h"
+#include "gamesys/resources/res_meshset.h"
 #include "gamesys/resources/res_texture.h"
 
 #define JC_TEST_IMPLEMENTATION
@@ -211,6 +212,34 @@ TEST_F(TileGrid3DResourceTest, LoadTileGrid)
     void* resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.tilemapc", &resource));
     ASSERT_NE((void*) 0, resource);
+    dmResource::Release(m_Factory, resource);
+}
+
+// Preserve every resource-created color attachment between passes, matching OpenGL (#13603).
+TEST_F(RenderTargetResourceTest, PreservesColorAttachments)
+{
+    dmRenderDDF::RenderTargetDesc desc = {};
+    desc.m_Type = dmGraphics::TextureImage::TYPE_2D;
+    dmRenderDDF::RenderTargetDesc::ColorAttachment attachments[dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS] = {};
+    desc.m_ColorAttachments.m_Data = attachments;
+    desc.m_ColorAttachments.m_Count = dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS;
+    for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+    {
+        attachments[i].m_Width = 4;
+        attachments[i].m_Height = 4;
+        attachments[i].m_Format = dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA;
+    }
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&desc, dmRenderDDF::RenderTargetDesc::m_DDFDescriptor, buffer));
+    dmGameSystem::RenderTargetResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, "/preserve.render_targetc", buffer.Begin(), buffer.Size(), (void**) &resource));
+    dmGraphics::NullContext* context = (dmGraphics::NullContext*) m_GraphicsContext;
+    dmGraphics::NullRenderTarget* target = dmGraphics::GetAssetFromContainer<dmGraphics::NullRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, resource->m_RenderTarget);
+    for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+    {
+        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_LOAD, target->m_ColorBufferLoadOps[i]);
+        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_STORE, target->m_ColorBufferStoreOps[i]);
+    }
     dmResource::Release(m_Factory, resource);
 }
 
@@ -559,8 +588,8 @@ TEST_F(LightResourceTest, LightResourcePrototype)
     ASSERT_VEC4(dmVMath::Vector4(0.2f, 0.8f, 0.1f, 1.0f), proto->m_Color);
     ASSERT_NEAR(4.0f, proto->m_Intensity, EPSILON);
     ASSERT_NEAR(20.0f, proto->m_Range, EPSILON);
-    ASSERT_NEAR(15.0f * 3.14159265f / 180.0f, proto->m_InnerConeAngle, EPSILON);
-    ASSERT_NEAR(30.0f * 3.14159265f / 180.0f, proto->m_OuterConeAngle, EPSILON);
+    ASSERT_NEAR(dmMath::DegToRad(15.0f), proto->m_InnerConeAngle, EPSILON);
+    ASSERT_NEAR(dmMath::DegToRad(30.0f), proto->m_OuterConeAngle, EPSILON);
 
     dmResource::Release(m_Factory, (void*)res);
 }
@@ -617,7 +646,7 @@ TEST_F(LightResourceTest, LightComponentUpdatesLightBuffer)
     ASSERT_VEC3(pos_spot, L_spot.m_Position);
     ASSERT_VEC4(dmVMath::Vector4(0.2f, 0.8f, 0.1f, 1.0f), L_spot.m_Color);
     ASSERT_VEC4(dmVMath::Vector4(0.0f, 0.0f, -1.0f, 20.0f), L_spot.m_DirectionRange);
-    ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_SPOT, 4.0f, 15.0f * 3.14159265f / 180.0f, 30.0f * 3.14159265f / 180.0f), L_spot.m_Params);
+    ASSERT_VEC4(dmVMath::Vector4((float) dmRender::LIGHT_TYPE_SPOT, 4.0f, dmMath::DegToRad(15.0f), dmMath::DegToRad(30.0f)), L_spot.m_Params);
 
     const Point3 pos_point_moved(7.0f, 8.0f, 9.0f);
     dmGameObject::SetPosition(go_point, pos_point_moved);
@@ -2458,6 +2487,139 @@ const char* valid_mesh_resources[] = {"/mesh/no_data.meshc", "/mesh/triangle.mes
 INSTANTIATE_TEST_CASE_P(Mesh, ResourceTest, jc_test_values_in(valid_mesh_resources));
 
 /* MeshSet */
+
+class MeshSetResourceTest : public ResourceTest
+{
+    public:
+    MeshSetResourceTest()
+    {
+        SetContentFolder("model");
+    }
+};
+
+static dmDDF::Result SaveMorphMeshSet(const char* first_texture, const char* second_texture, dmArray<uint8_t>& buffer)
+{
+    dmRigDDF::Mesh meshes[3] = {};
+    meshes[0].m_MorphTargetTexture = first_texture;
+    meshes[2].m_MorphTargetTexture = second_texture;
+    dmRigDDF::Model models[2] = {};
+    models[0].m_Meshes.m_Data = meshes;
+    models[0].m_Meshes.m_Count = 2;
+    models[1].m_Meshes.m_Data = meshes + 2;
+    models[1].m_Meshes.m_Count = 1;
+    dmRigDDF::MeshSet mesh_set = {};
+    mesh_set.m_Models.m_Data = models;
+    mesh_set.m_Models.m_Count = DM_ARRAY_SIZE(models);
+    return dmDDF::SaveMessageToArray(&mesh_set, dmRigDDF::MeshSet::m_DDFDescriptor, buffer);
+}
+
+// A preloaded meshset must retain its morph textures after the preloader releases its references (#13705).
+TEST_F(MeshSetResourceTest, PreloadRetainsMorphTextures)
+{
+    const char* path = "/model/morph_mixed_targets.meshsetc";
+    dmResource::HPreloader preloader = dmResource::NewPreloader(m_Factory, path);
+    dmResource::Result result = dmResource::RESULT_PENDING;
+    uint64_t deadline = dmTime::GetMonotonicTime() + 30 * 1000000;
+    while (result == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() < deadline)
+    {
+        result = dmResource::UpdatePreloader(preloader, 0, 0, 10000);
+    }
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    dmGameSystem::MeshSetResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, (void**)&resource));
+    dmResource::DeletePreloader(preloader);
+
+    dmArray<dmhash_t> paths;
+    dmArray<dmGraphics::HTexture> textures;
+    for (uint32_t mi = 0; mi < resource->m_MeshSet->m_Models.m_Count; ++mi)
+    {
+        const dmRigDDF::Model& model = resource->m_MeshSet->m_Models[mi];
+        for (uint32_t mesh_i = 0; mesh_i < model.m_Meshes.m_Count; ++mesh_i)
+        {
+            const char* texture_path = model.m_Meshes[mesh_i].m_MorphTargetTexture;
+            ASSERT_NE((const char*)0, texture_path);
+            dmhash_t path_hash = dmHashString64(texture_path);
+            ASSERT_EQ(1u, dmResource::GetRefCount(m_Factory, path_hash));
+            dmGameSystem::TextureResource* texture = 0;
+            ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, texture_path, (void**)&texture));
+            paths.OffsetCapacity(1);
+            paths.Push(path_hash);
+            textures.OffsetCapacity(1);
+            textures.Push(texture->m_Texture);
+            dmResource::Release(m_Factory, texture);
+        }
+    }
+    ASSERT_EQ(2u, paths.Size());
+    dmResource::Release(m_Factory, resource);
+    for (uint32_t i = 0; i < paths.Size(); ++i)
+    {
+        EXPECT_EQ(0u, dmResource::GetRefCount(m_Factory, paths[i]));
+        EXPECT_FALSE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, textures[i]));
+    }
+}
+
+// A missing morph texture must release textures acquired earlier in the same meshset load.
+TEST_F(MeshSetResourceTest, CreateFailureReleasesMorphTextures)
+{
+    const char* texture_path = "/model/texture_valid_png.texturec";
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, SaveMorphMeshSet(texture_path, "/model/missing_morph.texturec", buffer));
+    void* resource = 0;
+    EXPECT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, dmResource::CreateResource(m_Factory, "/failed_morph.meshsetc", buffer.Begin(), buffer.Size(), &resource));
+    EXPECT_EQ((void*)0, resource);
+    EXPECT_EQ(0u, dmResource::GetRefCount(m_Factory, dmHashString64(texture_path)));
+}
+
+// Reload must reuse shared morph textures, balance duplicate references, and release removed dependencies.
+TEST_F(MeshSetResourceTest, ReloadPreservesAndReleasesMorphTextures)
+{
+    const char* path = "/reload_morph.meshsetc";
+    const char* texture_path = "/model/texture_valid_png.texturec";
+    dmhash_t texture_hash = dmHashString64(texture_path);
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, SaveMorphMeshSet(texture_path, texture_path, buffer));
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, path, buffer.Begin(), buffer.Size(), &resource));
+    ASSERT_EQ(2u, dmResource::GetRefCount(m_Factory, texture_hash));
+    dmGameSystem::TextureResource* texture = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, texture_path, (void**)&texture));
+    dmGraphics::HTexture original = texture->m_Texture;
+    dmResource::Release(m_Factory, texture);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    EXPECT_EQ(2u, dmResource::GetRefCount(m_Factory, texture_hash));
+    EXPECT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, original));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, texture_path, (void**)&texture));
+    EXPECT_EQ(original, texture->m_Texture);
+    dmResource::Release(m_Factory, texture);
+
+    ASSERT_EQ(dmDDF::RESULT_OK, SaveMorphMeshSet("", "", buffer));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    EXPECT_EQ(0u, dmResource::GetRefCount(m_Factory, texture_hash));
+    EXPECT_FALSE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, original));
+    dmResource::Release(m_Factory, resource);
+}
+
+// A failed reload must preserve the old meshset and release partially acquired replacement dependencies.
+TEST_F(MeshSetResourceTest, FailedReloadPreservesMorphTextures)
+{
+    const char* path = "/reload_morph.meshsetc";
+    const char* texture_path = "/model/texture_valid_png.texturec";
+    dmhash_t texture_hash = dmHashString64(texture_path);
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, SaveMorphMeshSet(texture_path, texture_path, buffer));
+    dmGameSystem::MeshSetResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, path, buffer.Begin(), buffer.Size(), (void**)&resource));
+    dmRigDDF::MeshSet* original = resource->m_MeshSet;
+    ASSERT_EQ(2u, dmResource::GetRefCount(m_Factory, texture_hash));
+
+    ASSERT_EQ(dmDDF::RESULT_OK, SaveMorphMeshSet(texture_path, "/model/missing_morph.texturec", buffer));
+    EXPECT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    EXPECT_EQ(original, resource->m_MeshSet);
+    EXPECT_EQ(2u, dmResource::GetRefCount(m_Factory, texture_hash));
+    dmResource::Release(m_Factory, resource);
+    EXPECT_EQ(0u, dmResource::GetRefCount(m_Factory, texture_hash));
+}
 
 const char* valid_meshset_resources[] = {"/meshset/valid_gltf.meshsetc", "/meshset/valid_gltf.skeletonc", "/meshset/valid_gltf_generated_0.animationsetc"};
 INSTANTIATE_TEST_CASE_P(MeshSet, ResourceTest, jc_test_values_in(valid_meshset_resources));

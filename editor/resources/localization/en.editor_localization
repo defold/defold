@@ -77,6 +77,8 @@ welcome.new-project.colorslide-tutorial.title = Colorslide Tutorial
 welcome.new-project.colorslide-tutorial.description = In this medium difficulty tutorial you build an in-game GUI, a GUI screen for level selection and a start screen for a simple multi level mobile game.
 
 # Welcome -> New Project -> From Sample
+welcome.new-project.sample-poki.title = 3D Space Shooter web game for Poki
+welcome.new-project.sample-poki.description = This is a ready-to-play 3D shooter sample game featuring complete gameplay logic, a polished UI, an in-game shop with upgrades and skins, localization, audio settings and other best practices for a web game optimized for Poki.
 welcome.new-project.sample-3d-platformer.title = 3D Platformer Starter Kit
 welcome.new-project.sample-3d-platformer.description = This is a ready-to-play 3D platformer sample with responsive character movement, jumping, an orbit camera, collectibles, animated characters, lighting, and shadows.
 welcome.new-project.sample-3d-third-person-playground.title = 3D Third-Person Playground
@@ -105,6 +107,18 @@ welcome.new-project.perspective-parallax.title = Perspective Parallax
 welcome.new-project.perspective-parallax.description = This sample shows a perspective camera parallax effect.
 welcome.new-project.lightning-vfx.title = Lightning VFX
 welcome.new-project.lightning-vfx.description = The sample shows a lightning effect in a 2d scrolling shooter and how the mesh component is setup to be manipulated during gameplay.
+
+# Beta suggestions
+beta.notification.available = Defold {version} beta is out.
+beta.notification.try-it = Try It
+beta.button.do-not-suggest = Don''t Suggest Again
+beta.dialog.title = Try the Beta
+beta.dialog.header = Try Defold {version} beta?
+beta.dialog.button.later = Later
+beta.dialog.button.download = Download Beta
+beta.dialog.warning = Projects saved with the beta may not open in older versions of the editor. We recommend committing your changes or making a backup first.
+beta.no-newer-dialog.header = There is no newer beta version available at this time
+beta.check-failed-dialog.header = Couldn''t check for a beta version
 
 # Updater
 updater.button.update-available = Update Available
@@ -600,6 +614,7 @@ dialog.bundle.label.android.key-pass = Key password
 dialog.bundle.label.android.bundle-format = Bundle format
 dialog.bundle.option.bundle-format.apk = APK
 dialog.bundle.option.bundle-format.aab = AAB
+dialog.bundle.option.android.download-size-report = Estimate download size
 dialog.bundle.title.choose-keystore = Choose Keystore
 dialog.bundle.filter.keystore = Keystore (*.keystore, *.jks)
 dialog.bundle.title.choose-keystore-pass = Choose Keystore password
@@ -788,6 +803,7 @@ progress.executing-pre-build-hooks = Executing pre-build hooks…
 progress.executing-post-build-hooks = Executing post-build hooks…
 progress.executing-bundle-hook = Executing bundle hook…
 progress.building-project = Building project…
+progress.checking-beta = Checking for beta…
 progress.installing-updated-libraries = Installing updated libraries…
 progress.initializing-editor = Initializing editor {lib}
 progress.loading-editor = Loading editor
@@ -1082,6 +1098,7 @@ command.help.open-issues = Search Issues
 command.help.open-donations = Development Fund
 command.help.open-release-notes = Release Notes
 command.help.check-for-updates = Check for Updates
+command.help.try-beta = Try the Beta Version…
 command.app.about = About
 command.vcs.diff = View Diff
 command.vcs.revert = Revert
@@ -1563,6 +1580,11 @@ property.gui.y-anchor = Y Anchor
 property.gui.y-anchor.tooltip = Controls vertical positioning when the parent or scene is resized. **Top** and **Bottom** keep the pivot at the same proportional distance from that edge; **None** keeps it relative to the adjusted center.
 
 # Properties: label
+
+property.label.arc-radius = Arc Radius
+property.label.arc-radius.tooltip = Signed radius of the first text baseline in local units, centered on the object origin. Later lines retain the layout's line spacing.
+property.label.arc-angle = Arc Angle
+property.label.arc-angle.tooltip = Angular span from `0` to `360` degrees, inclusive. `360` forms a full circle. `0` selects textbox layout. Arc layout ignores Size. Line Break wraps text at the arc length; explicit newlines are preserved.
 
 property.label.color = Color
 property.label.color.tooltip = Sets the text's RGBA color. Use the alpha channel to control opacity.
@@ -2293,6 +2315,8 @@ form.label.project.box2d.position_iterations = Position Iterations
 form.help.project.box2d.position_iterations = Number of position-solver iterations per physics step in **Box2D 2.2**. Higher values reduce overlap and joint-position error, but use more CPU; lower values improve performance at the cost of positional accuracy.
 form.label.project.box2d.sub_step_count = Sub Step Count
 form.help.project.box2d.sub_step_count = Number of sub-steps used for each physics step in **Box2D 3.x**. Higher values improve collision and joint stability, especially for fast-moving bodies, but use more CPU; lower values improve performance at the cost of accuracy.
+form.label.project.box2d.worker_count = Worker Count
+form.help.project.box2d.worker_count = Number of background worker threads per **Box2D 3.x** world. **0** disables threading; **3** uses three workers plus the main thread. The main thread waits for each physics step to finish. Range: **0–31**. Read at startup. Ignored by Box2D 2.2 and on unsupported platforms.
 
 form.label.project.display = Display
 form.help.project.display = Resolution and other display related settings

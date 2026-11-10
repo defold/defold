@@ -678,6 +678,7 @@ namespace dmGameSystem
         contact_user_data.m_Count = 0;
 
         dmPhysics::StepWorldContext step_world_context;
+        step_world_context.m_ContactCallbacksReadOnly = world->m_BaseWorld.m_CallbackInfo && world->m_BaseWorld.m_CallbackInfoBatched;
         step_world_context.m_CollisionCallback = (event_mask & EVENT_MASK_COLLISION) ? CollisionCallback : 0;
         step_world_context.m_CollisionUserData = &collision_user_data;
         step_world_context.m_ContactPointCallback = (event_mask & EVENT_MASK_CONTACT) ? ContactPointCallback : 0;

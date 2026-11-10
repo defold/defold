@@ -62,15 +62,17 @@ namespace dmTime
         return seconds * 1000000ULL + remainder * 1000000ULL / frequency;
     }
 
-    static uint64_t frequency = 0;
+    static uint64_t GetCounterFrequency()
+    {
+        LARGE_INTEGER frequency;
+        QueryPerformanceFrequency(&frequency);
+        return (uint64_t)frequency.QuadPart;
+    }
 
     uint64_t GetMonotonicTime()
     {
-        if (frequency == 0) {
-            LARGE_INTEGER freq;
-            QueryPerformanceFrequency(&freq);
-            frequency = freq.QuadPart;
-        }
+        // Function-local static initialization synchronizes concurrent first callers.
+        static const uint64_t frequency = GetCounterFrequency();
         LARGE_INTEGER counter;
         QueryPerformanceCounter(&counter);
         return PerformanceCounterToMicroseconds((uint64_t)counter.QuadPart, frequency);
