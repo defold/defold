@@ -15,6 +15,12 @@ Full Bob also needs these tools for the other desktop hosts; install them with
 platforms. `build_bob` uses the installed tools without extracting their packages
 again.
 
+In CI, Bob build and test jobs first try to restore the exact dependency cache
+used by the Linux x86-64 engine job. A cache hit only needs the prepackaged tools
+and Python dependencies installed before copying the cached native files. A cache
+miss, restore failure, or disabled caching uses the normal CMake and Clang setup
+and dependency build instead.
+
 Full Bob uses engines and builtins from `$DYNAMO_HOME/archive/<revision>/engine`
 when available, otherwise from the local engine build. Compiler libraries and
 helper JARs prefer local builds, with the archive as a fallback. Gradle reads
