@@ -197,6 +197,8 @@ namespace dmExtension
      * Synchronous delivery on the engine thread, after successful AppInitialize (or
      * when it is omitted) until that extension's AppFinalize begins. Engine Initialize is not required:
      * window events and cleanup after a failed initialization may have partial contexts.
+     * Engine-owned registry entries are cleared as their contexts are destroyed;
+     * Lua and resource-factory parameters can be null during application finalization.
      * Event dispatch is not thread-safe. Publish events only on the engine thread.
      * Callbacks run synchronously on the calling thread; dispatch
      * does not marshal calls from worker threads. Nested dispatch on the same
@@ -760,6 +762,8 @@ namespace dmExtension
  * Synchronous delivery on the engine thread, after successful AppInitialize (or
  * when it is omitted) until that extension's AppFinalize begins. Engine Initialize is not required:
  * window events and cleanup after a failed initialization may have partial contexts.
+ * Engine-owned registry entries are cleared as their contexts are destroyed;
+ * Lua and resource-factory parameters can be null during application finalization.
  * Event dispatch is not thread-safe. Publish events only on the engine thread.
  * Callbacks run synchronously on the calling thread; dispatch
  * does not marshal calls from worker threads. Nested dispatch on the same

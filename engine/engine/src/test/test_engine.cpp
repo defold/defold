@@ -207,6 +207,78 @@ static dmExtension::Result RegisterDeltaTimeTest(dmExtension::HExtension extensi
 
 DM_DECLARE_EXTENSION(EngineDeltaTimeTestExt, RegisterDeltaTimeTest, 0);
 
+struct AppFinalizeBroadcastObservations
+{
+    uint32_t m_Received;
+    bool     m_ContextsCleared;
+    bool     m_LiveContextsValid;
+    bool     m_ReceiverFinalized;
+};
+
+static AppFinalizeBroadcastObservations g_AppFinalizeBroadcast = {};
+static bool g_ObserveAppFinalizeBroadcast = false;
+
+static void AppFinalizeBroadcastEvent(dmExtension::Params* params, dmhash_t event_id, const void*, uint32_t data_size)
+{
+    if (!g_ObserveAppFinalizeBroadcast || event_id != dmHashString64("test.app_finalize"))
+    {
+        return;
+    }
+
+    ++g_AppFinalizeBroadcast.m_Received;
+    HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
+    const char* destroyed_contexts[] = {
+        GAMEOBJECT_CONTEXT_NAME, RENDER_CONTEXT_NAME, HID_CONTEXT_NAME,
+        "guic", SCRIPT_CONTEXT_NAME, LUA_CONTEXT_NAME, "gui_scriptc",
+        RESOURCE_FACTORY_CONTEXT_NAME, GRAPHICS_CONTEXT_NAME
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(destroyed_contexts); ++i)
+    {
+        g_AppFinalizeBroadcast.m_ContextsCleared &= ContextRegistryGet(registry, destroyed_contexts[i]) == 0;
+    }
+    g_AppFinalizeBroadcast.m_ContextsCleared &= params->m_L == 0 && params->m_ResourceFactory == 0;
+
+    dmEngine::HEngine engine = (dmEngine::HEngine)ContextRegistryGet(registry, ENGINE_CONTEXT_NAME);
+    g_AppFinalizeBroadcast.m_LiveContextsValid &= engine != 0 && params->m_ConfigFile != 0;
+    g_AppFinalizeBroadcast.m_LiveContextsValid &= engine && dmEngine::GetWindow(engine) == 0;
+    g_AppFinalizeBroadcast.m_LiveContextsValid &= params->m_ConfigFile == ContextRegistryGet(registry, CONFIGFILE_CONTEXT_NAME);
+    g_AppFinalizeBroadcast.m_LiveContextsValid &= data_size == 0 && !g_AppFinalizeBroadcast.m_ReceiverFinalized;
+}
+
+static dmExtension::Result AppFinalizeBroadcastReceiver(dmExtension::AppParams*)
+{
+    if (g_ObserveAppFinalizeBroadcast)
+    {
+        g_AppFinalizeBroadcast.m_ReceiverFinalized = true;
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result AppFinalizeBroadcastSender(dmExtension::AppParams* params)
+{
+    if (g_ObserveAppFinalizeBroadcast)
+    {
+        dmExtension::BroadcastEvent(dmExtension::AppParamsGetContextRegistry(params), dmHashString64("test.app_finalize"), 0, 0);
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result RegisterAppFinalizeBroadcastReceiver(dmExtension::HExtension extension)
+{
+    dmExtension::SetEventFn(extension, AppFinalizeBroadcastEvent);
+    dmExtension::SetAppFinalizeFn(extension, AppFinalizeBroadcastReceiver);
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result RegisterAppFinalizeBroadcastSender(dmExtension::HExtension extension)
+{
+    dmExtension::SetAppFinalizeFn(extension, AppFinalizeBroadcastSender);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineAppFinalizeBroadcastReceiver, RegisterAppFinalizeBroadcastReceiver, 0);
+DM_DECLARE_EXTENSION(EngineAppFinalizeBroadcastSender, RegisterAppFinalizeBroadcastSender, 0);
+
 static void TestEngineInitialize(void* _ctx)
 {
     dmEngineInitialize();
@@ -880,6 +952,26 @@ TEST_F(EngineTest, GenericEngineDeleteAfterInitializationFailure)
     ASSERT_TRUE(events.m_PayloadValid);
     ASSERT_TRUE(events.m_WindowAccessorValid);
     ASSERT_TRUE(events.m_WindowClearedAtAppFinalize);
+}
+
+// Broadcasts during AppFinalize must not expose freed engine contexts after success or initialization failure.
+TEST_F(EngineTest, AppFinalizeBroadcastContexts)
+{
+    for (uint32_t fail_initialization = 0; fail_initialization < 2; ++fail_initialization)
+    {
+        memset(&g_AppFinalizeBroadcast, 0, sizeof(g_AppFinalizeBroadcast));
+        g_AppFinalizeBroadcast.m_ContextsCleared = true;
+        g_AppFinalizeBroadcast.m_LiveContextsValid = true;
+        g_ObserveAppFinalizeBroadcast = true;
+        EngineEventObservations events = RunEngineEventCycle(fail_initialization != 0);
+        g_ObserveAppFinalizeBroadcast = false;
+
+        ASSERT_EQ(fail_initialization == 0, events.m_InitSucceeded);
+        ASSERT_EQ(1u, g_AppFinalizeBroadcast.m_Received);
+        ASSERT_TRUE(g_AppFinalizeBroadcast.m_ContextsCleared);
+        ASSERT_TRUE(g_AppFinalizeBroadcast.m_LiveContextsValid);
+        ASSERT_TRUE(g_AppFinalizeBroadcast.m_ReceiverFinalized);
+    }
 }
 
 // Extension and engine time must agree after every update, including when delta time is zero.
@@ -2067,6 +2159,8 @@ int main(int argc, char **argv)
 #endif
     dmExportedSymbols();
     EngineDeltaTimeTestExt();
+    EngineAppFinalizeBroadcastReceiver();
+    EngineAppFinalizeBroadcastSender();
     TestMainPlatformInit();
 
     ProfileInitialize();

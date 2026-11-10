@@ -574,6 +574,8 @@ namespace dmEngine
         dmHttpClient::ReopenConnectionPool();
 
         dmGameObject::DeleteRegister(engine->m_Register);
+        engine->m_Register = 0;
+        ContextRegistrySet(engine->m_ContextRegistry, GAMEOBJECT_CONTEXT_NAME, 0);
 
         UnloadBootstrapContent(engine);
 
@@ -583,16 +585,26 @@ namespace dmEngine
             dmInput::DeleteContext(engine->m_InputContext);
 
         if (engine->m_RenderContext)
+        {
             dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_ScriptContext);
+            engine->m_RenderContext = 0;
+            ContextRegistrySet(engine->m_ContextRegistry, RENDER_CONTEXT_NAME, 0);
+        }
 
         if (engine->m_HidContext)
         {
             dmHID::Final(engine->m_HidContext);
             dmHID::DeleteContext(engine->m_HidContext);
+            engine->m_HidContext = 0;
+            ContextRegistrySet(engine->m_ContextRegistry, HID_CONTEXT_NAME, 0);
         }
 
         if (engine->m_GuiContext)
+        {
             dmGui::DeleteContext(engine->m_GuiContext, engine->m_ScriptContext);
+            engine->m_GuiContext = 0;
+            ContextRegistrySet(engine->m_ContextRegistry, "guic", 0);
+        }
 
         ScopedExtensionParams extension_params(engine);
         if (engine->m_ScriptContext) {
@@ -601,11 +613,16 @@ namespace dmEngine
 
             dmScript::Finalize(engine->m_ScriptContext);
             dmScript::DeleteContext(engine->m_ScriptContext);
+            engine->m_ScriptContext = 0;
+            extension_params.SetLuaContext(0);
+            ContextRegistrySet(engine->m_ContextRegistry, "gui_scriptc", 0);
         }
 
         if (engine->m_Factory)
         {
             dmResource::DeleteFactory(engine->m_Factory);
+            engine->m_Factory = 0;
+            ContextRegistrySet(engine->m_ContextRegistry, RESOURCE_FACTORY_CONTEXT_NAME, 0);
         }
 
         // Resource type contexts remain alive until factory teardown completes.
@@ -616,6 +633,8 @@ namespace dmEngine
         {
             dmGraphics::CloseWindow(engine->m_GraphicsContext);
             dmGraphics::DeleteContext(engine->m_GraphicsContext);
+            engine->m_GraphicsContext = 0;
+            ContextRegistrySet(engine->m_ContextRegistry, GRAPHICS_CONTEXT_NAME, 0);
         }
 
         if (engine->m_Window)
