@@ -81,7 +81,7 @@ local html5_bundle_dialog = editor.ui.component(function(props)
     local config, set_config = editor.ui.use_state(props.config)
     local architecture_error = html5_errors(config)
     return editor.bundle.dialog(localization.message("dialog.bundle.header.html5"), config, nil, architecture_error, {
-        two_column_grid_row(localization.message("dialog.bundle.label.architectures"), {
+        editor.bundle.grid_row(localization.message("dialog.bundle.label.architectures"), {
             editor.bundle.set_element_check_box(config, set_config, "architectures", "wasm-web", localization.message("dialog.bundle.option.architecture.wasm-web"), architecture_error),
             editor.bundle.set_element_check_box(config, set_config, "architectures", "wasm_pthread-web", localization.message("dialog.bundle.option.architecture.wasm_pthread-web"), architecture_error)
         }),
