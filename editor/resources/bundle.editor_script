@@ -1,5 +1,16 @@
 local M = {}
 
+local function two_column_grid_row(text, content)
+    local rows = {}
+    for i = 1, #content, 2 do
+        rows[#rows+1] = {content[i], content[i+1]}
+    end
+    return editor.bundle.grid_row(text, editor.ui.grid({
+        columns = {{grow = true}, {grow = true}},
+        children = rows
+    }))
+end
+
 -- LINUX
 
 local linux_platforms = {"x86_64-linux", "arm64-linux"}
@@ -38,7 +49,7 @@ local macos_bundle_dialog = editor.ui.component(function(props)
     local config, set_config = editor.ui.use_state(props.config)
     local architecture_error = macos_errors(config)
     return editor.bundle.dialog(localization.message("dialog.bundle.header.macos"), config, nil, architecture_error, {
-        editor.bundle.grid_row(localization.message("dialog.bundle.label.architectures"), {
+        two_column_grid_row(localization.message("dialog.bundle.label.architectures"), {
             editor.bundle.set_element_check_box(config, set_config, "architectures", "x86_64-macos", localization.message("dialog.bundle.option.architecture.x86_64-macos"), architecture_error),
             editor.bundle.set_element_check_box(config, set_config, "architectures", "arm64-macos", localization.message("dialog.bundle.option.architecture.arm64-macos"), architecture_error)
         }),
@@ -70,7 +81,7 @@ local html5_bundle_dialog = editor.ui.component(function(props)
     local config, set_config = editor.ui.use_state(props.config)
     local architecture_error = html5_errors(config)
     return editor.bundle.dialog(localization.message("dialog.bundle.header.html5"), config, nil, architecture_error, {
-        editor.bundle.grid_row(localization.message("dialog.bundle.label.architectures"), {
+        two_column_grid_row(localization.message("dialog.bundle.label.architectures"), {
             editor.bundle.set_element_check_box(config, set_config, "architectures", "wasm-web", localization.message("dialog.bundle.option.architecture.wasm-web"), architecture_error),
             editor.bundle.set_element_check_box(config, set_config, "architectures", "wasm_pthread-web", localization.message("dialog.bundle.option.architecture.wasm_pthread-web"), architecture_error)
         }),
@@ -391,12 +402,12 @@ local android_dialog = editor.ui.component(function(props)
                 extensions = {"*.txt"}
             }}
         })),
-        editor.bundle.grid_row(localization.message("dialog.bundle.label.architectures"), {
+        two_column_grid_row(localization.message("dialog.bundle.label.architectures"), {
             editor.bundle.set_element_check_box(config, set_config, "architectures", "armv7-android", localization.message("dialog.bundle.option.architecture.armv7-android"), errors and errors.architectures),
             editor.bundle.set_element_check_box(config, set_config, "architectures", "arm64-android", localization.message("dialog.bundle.option.architecture.arm64-android"), errors and errors.architectures),
             editor.bundle.set_element_check_box(config, set_config, "architectures", "x86_64-android", localization.message("dialog.bundle.option.architecture.x86_64-android"), errors and errors.architectures)
         }),
-        editor.bundle.grid_row(localization.message("dialog.bundle.label.android.bundle-format"), {
+        two_column_grid_row(localization.message("dialog.bundle.label.android.bundle-format"), {
             editor.bundle.set_element_check_box(config, set_config, "bundle_format", "apk", localization.message("dialog.bundle.option.bundle-format.apk"), errors and errors.bundle_format),
             editor.bundle.set_element_check_box(config, set_config, "bundle_format", "aab", localization.message("dialog.bundle.option.bundle-format.aab"), errors and errors.bundle_format)
         }),
