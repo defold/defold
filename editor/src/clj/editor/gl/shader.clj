@@ -18,7 +18,6 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.buffers :refer [bbuf->string]]
-            [editor.console :as console]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.types :as gl.types]
@@ -570,12 +569,18 @@
      :sampler-name->uniform-names sampler-name->uniform-names
      :sampler-index->sampler-name sampler-index->sampler-name}))
 
+(defonce ^:private report-failure-line-fn-atom (atom nil))
+
+(defn set-failure-line-reporter! [report-failure-line-fn]
+  (reset! report-failure-line-fn-atom report-failure-line-fn))
+
 (defn- make-shader-program-or-report-failure [^GL3 gl request-data]
   (try
     (make-shader-program gl request-data)
     (catch Exception error
-      (console/append-console-line! (str "ERROR:SHADER: Failed to create shader program for " (or (:proj-path request-data) "built-in shader")))
-      (run! console/append-console-line! (string/split-lines (ex-message error)))
+      (when-let [report-failure-line! @report-failure-line-fn-atom]
+        (report-failure-line! (str "ERROR:SHADER: Failed to create shader program for " (or (:proj-path request-data) "built-in shader")))
+        (run! report-failure-line! (string/split-lines (ex-message error))))
       {:program 0
        :uniform-infos {}
        :sampler-name->uniform-names {}
