@@ -24,6 +24,7 @@ import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
+import org.junit.Test;
 
 public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
 

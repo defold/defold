@@ -138,6 +138,7 @@ namespace dmEngine
         bool                                        m_WasIconified;
         bool                                        m_QuitOnEsc;
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
+        bool                                        m_Ready;                    //!< Engine and bootstrap initialization succeeded for a real project
         bool                                        m_RunWhileIconified;
         bool                                        m_UseHighRefreshRate;       // iOS: allow display link rates above 60 Hz
         uint32_t                                    m_SwapInterval;             // Swap interval requested by the application
@@ -254,6 +255,10 @@ namespace dmEngine
     // accumulated; callbacks that arrive faster than fixed_dt run no step until
     // a full step has accumulated. Exposed for deterministic unit testing.
     float CalcCallbackTimeStep(float frame_dt, float fixed_dt, float max_time_step, uint32_t max_frame_intervals, float& accum_frame_time, uint32_t& num_steps);
+
+    // Executes the scheduled steps and polls the service even when none run.
+    // Kept separate from clock-based pacing for deterministic unit testing.
+    void StepFrames(HEngine engine, float step_dt, uint32_t num_steps);
 
     /**
      *

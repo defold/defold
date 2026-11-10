@@ -105,6 +105,7 @@ namespace dmPhysics
     struct Body
     {
         b2BodyId    m_BodyId;
+        HWorld2D    m_World;
         // Grids represent each layer as a separate body
         ShapeData** m_Shapes;
         uint8_t     m_ShapeCount;
@@ -144,6 +145,8 @@ namespace dmPhysics
 
         dmArray<Body*>              m_Bodies;
         dmArray<ContactPair>        m_ContactBuffer;
+        dmArray<b2ContactId>        m_TouchingContacts;
+        dmHashTable64<uint32_t>     m_TouchingContactIndices;
 
         // TODO: I think we can merge these into a single buffer of bytes
         dmArray<b2ShapeId>          m_GetShapeScratchBuffer;
@@ -151,7 +154,9 @@ namespace dmPhysics
         dmArray<b2ShapeId>          m_GetSensorOverlapsScratchBuffer;
 
         uint8_t                     m_AllowDynamicTransforms:1;
-        uint8_t                     :7;
+        uint8_t                     m_ExternalBox2DAccess:1;
+        uint8_t                     m_ContactEventsInitialized:1;
+        uint8_t                     :5;
     };
 
     struct Context2D

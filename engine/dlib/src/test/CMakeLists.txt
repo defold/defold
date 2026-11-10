@@ -110,6 +110,7 @@ endfunction()
 
 dlib_add_test(test_memory)
 dlib_add_test(test_align)
+dlib_add_test(test_align C TARGET_NAME test_align_c)
 dlib_add_test(test_buffer)
 dlib_add_test(test_math)
 dlib_add_test(test_transform)
@@ -124,6 +125,31 @@ dlib_add_test(test_endian C)
 dlib_add_test(test_hash C TARGET_NAME test_hash_c)
 dlib_add_test(test_context_registry C)
 dlib_add_test(test_time)
+dlib_add_test(test_json)
+dlib_add_test(test_json TARGET_NAME test_json_scalar
+  SOURCES "${DLIB_CORE_DIR}/json.cpp"
+  DEFINES DM_SIMD_FORCE_SCALAR=1)
+
+# Native hosts can isolate each upstream fixture in a process with a timeout.
+if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND TARGET_PLATFORM MATCHES "^(arm64|x86_64)-(macos|linux|win32)$")
+  _defold_find_python(json_corpus_python)
+  foreach(json_target test_json test_json_scalar)
+    set(json_corpus_command "${json_corpus_python}" "${DLIB_TEST_ROOT}/test_json_corpus.py"
+      --executable "$<TARGET_FILE:${json_target}>")
+    add_test(NAME ${json_target}_corpus COMMAND ${json_corpus_command})
+    set_tests_properties(${json_target}_corpus PROPERTIES TIMEOUT 120)
+    defold_test_run_settings(json_corpus_runner json_corpus_options json_corpus)
+    add_custom_target(run_${json_target}_corpus
+      COMMAND ${json_corpus_runner} ${json_corpus_command}
+      DEPENDS ${json_target} VERBATIM ${json_corpus_options})
+    defold_register_sequential_test_command(${json_target}_corpus
+      COMMAND ${json_corpus_command} DEPENDS ${json_target})
+    if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+      defold_add_to_run_tests(run_${json_target}_corpus RUN_GROUP json_corpus
+        COMMAND ${json_corpus_command} DEPENDS ${json_target})
+    endif()
+  endforeach()
+endif()
 
 set(_dlib_test_socket_defines)
 if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
@@ -215,8 +241,10 @@ if(NOT DLIB_TEST_SKIP_HTTP)
   endif()
   dlib_add_test(test_httpcache SKIP_RUN)
   dlib_add_test(test_httpserver SKIP_RUN)
+  dlib_add_test(test_httpserver_async)
   dlib_add_test(test_webserver SKIP_RUN)
   dlib_add_test(test_webserver_openapi)
+  dlib_add_test(test_webserver_routing)
   dlib_add_test(test_connection_pool SKIP_RUN)
 endif()
 
@@ -253,8 +281,8 @@ dlib_add_test(test_embed
 if(NOT DLIB_TEST_SKIP_THREADS)
   dlib_add_test(test_atomic)
   dlib_add_test(test_spinlock)
-  dlib_add_test(test_condition_variable)
 endif()
+dlib_add_test(test_condition_variable)
 dlib_add_test(test_job_system)
 
 if(DLIB_TEST_SKIP_RUN)

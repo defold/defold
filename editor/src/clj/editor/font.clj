@@ -38,6 +38,7 @@
             [editor.id :as id]
             [editor.localization :as localization]
             [editor.material :as material]
+            [editor.math :as math]
             [editor.outline :as outline]
             [editor.pipeline :as pipeline]
             [editor.properties :as properties]
@@ -53,7 +54,7 @@
             [schema.core :as schema]
             [util.coll :as coll]
             [util.defonce :as defonce])
-  (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$GlyphBank FontRenderer$GlyphBankGlyph FontRenderer$Layout FontRenderer$MarkupAttribute FontRenderer$MarkupDocument FontRenderer$MarkupError FontRenderer$MarkupException FontRenderer$MarkupNode FontRenderer$MarkupParseResult FontRenderer$MarkupSpan FontRenderer$Params FontRenderer$Properties FontRenderer$Style FontRenderer$Texture FontRenderer$VertexBufferRequirements FontStyles]
+  (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$Arc FontRenderer$GlyphBank FontRenderer$GlyphBankGlyph FontRenderer$Layout FontRenderer$MarkupAttribute FontRenderer$MarkupDocument FontRenderer$MarkupError FontRenderer$MarkupException FontRenderer$MarkupNode FontRenderer$MarkupParseResult FontRenderer$MarkupSpan FontRenderer$Params FontRenderer$Properties FontRenderer$Style FontRenderer$Texture FontRenderer$VertexBufferRequirements FontStyles]
            [com.dynamo.bob.util MurmurHash]
            [com.dynamo.font.proto GlyphBankProto$GlyphBank]
            [com.dynamo.render.proto Font$CompiledStyle Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$StyleDesc Font$VectorFontMode]
@@ -299,6 +300,8 @@
             (set! (.-baseStyle properties) (if (= "" style) 0 (MurmurHash/hash64 ^String style)))
             (set! (.-useBaseStyle properties) true)
             (set! (.-fontSize properties) (float (or font-size 0.0)))
+            (set! (.-arcRadius properties) (float (:arc-radius font-map 0.0)))
+            (set! (.-arcAngle properties) (float (:arc-angle font-map 0.0)))
             (.setProperties renderer properties))
         [^FontRenderer$Layout layout use-rich-text native-text native-markup]
         (if-not (.-use-rich-text renderer-spec)
@@ -334,7 +337,7 @@
      :native-markup native-markup
      :use-rich-text use-rich-text
      :line-break line-break?
-     :layout-width max-width
+     :layout-width (if (zero? (double (:arc-angle font-map 0.0))) max-width (double (.-layoutWidth layout)))
      :text-tracking text-tracking
      :text-leading text-leading}))
 
@@ -671,7 +674,11 @@
   "Measures text through the native renderer at the preview's display size."
   [font-map text line-break max-width text-tracking text-leading font-size]
   (if (or (nil? font-map) (coll/empty? text))
-    (let [reference-size (double (or (:size font-map) 0))
+    (let [max-width (if (and (:native-renderer-spec font-map)
+                             (not (zero? (double (:arc-angle font-map 0.0)))))
+                      (:layout-width (native-layout-text font-map "" line-break max-width text-tracking text-leading font-size))
+                      max-width)
+          reference-size (double (or (:size font-map) 0))
           font-scale (if (and (some? font-size)
                               (pos? ^double font-size)
                               (pos? reference-size))
@@ -782,6 +789,8 @@
     (set! (.-height properties) height)
     (set! (.-leading properties) leading)
     (set! (.-tracking properties) tracking)
+    (set! (.-arcRadius properties) (float (:arc-radius entry 0.0)))
+    (set! (.-arcAngle properties) (float (:arc-angle entry 0.0)))
     (set! (.-align properties) (int align))
     (set! (.-verticalAlign properties) vertical-align)
     (set! (.-faceColor properties) (float-array face-color))
@@ -801,7 +810,8 @@
      :transform transform
      :atlas-key [(:style text-layout) font-size use-rich-text line-break width tracking text markup]
      :state-key [use-gpu-effects (:style text-layout) font-size use-rich-text line-break width height leading tracking align vertical-align
-                 face-color outline-color shadow-color shadow-alpha sdf-scale text markup]}))
+                 face-color outline-color shadow-color shadow-alpha sdf-scale text markup
+                 (:arc-radius entry 0.0) (:arc-angle entry 0.0)]}))
 
 (defn- apply-native-entry-state!
   [^FontRenderer native-renderer native-entry-state]
@@ -809,6 +819,43 @@
   (if-let [markup (:markup native-entry-state)]
     (.setMarkup native-renderer ^String markup)
     (.setText native-renderer ^String (:text native-entry-state))))
+
+(defn arc-property-error [node-id property value limits]
+  (validation/prop-error :fatal node-id property
+                         (partial validation/prop-outside-range? limits)
+                         value (properties/label-message :label property)))
+
+(defn arc-error [node-id arc-radius arc-angle]
+  (g/flatten-errors
+    (arc-property-error node-id :arc-radius arc-radius [(- Float/MAX_VALUE) Float/MAX_VALUE])
+    (arc-property-error node-id :arc-angle arc-angle [0.0 360.0])))
+
+(defn with-arc-properties [data arc-radius arc-angle arc-error]
+  ;; Keep invalid edits previewable.
+  ;; Property errors remain visible.
+  (cond-> data
+    (not (g/error-value? arc-error))
+    (assoc :arc-radius arc-radius :arc-angle arc-angle)))
+
+(def arc-angle-edit-type
+  "Angle scrubber bounds shared by label and GUI text arcs."
+  {:type g/Num
+   :min 0.0
+   :max 360.0})
+
+(defn arc-data
+  "Returns the curved outline and bounds enclosing it and the text vertices."
+  [font-map entry]
+  (when (and (not (zero? (double (:arc-angle entry 0.0))))
+             (:native-renderer-spec font-map))
+    (let [renderer-spec (:native-renderer-spec font-map)
+          ^FontRenderer renderer (scene-cache/request-object! ::native-measure-renderers renderer-spec nil renderer-spec)
+          state (make-native-entry-state font-map (assoc entry :world-transform math/identity-mat4) false)]
+      (apply-native-entry-state! renderer state)
+      (when-let [^FontRenderer$Arc arc (.getArc renderer)]
+        {:line-data (.-outlineLines arc)
+         :selected-line-data (.-selectedLines arc)
+         :aabb (geom/coords->aabb (.-min arc) (.-max arc))}))))
 
 (defn- generate-native-texture!
   [^GL3 gl ^FontRenderer native-renderer texture ^long known-atlas-version]

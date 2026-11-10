@@ -14,22 +14,21 @@
 
 package com.dynamo.bob.cache.test;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.cache.ResourceCache;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.cache.ResourceCache;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 
 public class ResourceCacheTest {

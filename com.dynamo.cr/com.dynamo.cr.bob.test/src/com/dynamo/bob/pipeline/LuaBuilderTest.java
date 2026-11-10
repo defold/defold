@@ -14,20 +14,19 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.util.Set;
-
-import org.junit.Test;
-
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
-import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.test.util.PropertiesTestUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.lua.proto.Lua.LuaModule;
-import com.dynamo.script.proto.Lua.LuaSource;
-import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
+import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
+import com.dynamo.script.proto.Lua.LuaSource;
+import org.junit.Test;
+
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

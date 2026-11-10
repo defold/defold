@@ -15,6 +15,7 @@
 #include "debugger_private.h"
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include <dlib/json.h>
 #include <dlib/time.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1031,11 +1032,11 @@ namespace dmDebugger
                 d->m_BreakpointLookup.Put(key, bp);
         }
     }
-    static void SetBreakpoints(Debugger* d, const Json& json, int seq, int args)
+    static void SetBreakpoints(Debugger* d, const dmJson::Document& json, int seq, int args)
     {
-        const char* source = json.String(json.Field(json.Field(args, "source"), "path"));
+        const char* source = json.String(json.Field(json.Field(args, "source"), "path"), 0);
         int         breakpoints = json.Field(args, "breakpoints");
-        if (!source || !source[0] || (breakpoints >= 0 && json.Get(breakpoints).m_Type != JSON_ARRAY))
+        if (!source || !source[0] || (breakpoints >= 0 && json.Get(breakpoints).m_Type != dmJson::TYPE_ARRAY))
         {
             Respond(d, seq, "setBreakpoints", 0, "Expected source.path and breakpoints array");
             return;
@@ -1043,7 +1044,7 @@ namespace dmDebugger
         // Validate the complete replacement before modifying the current list.
         for (int i = json.Get(breakpoints).m_First; i >= 0; i = json.Get(i).m_Next)
         {
-            int line = json.Integer(json.Field(i, "line"));
+            int line = json.Integer(json.Field(i, "line"), -1);
             if (line < (d->m_LinesStartAt1 ? 1 : 0) || line == 2147483647)
             {
                 Respond(d, seq, "setBreakpoints", 0, "Invalid breakpoint line");
@@ -1053,7 +1054,7 @@ namespace dmDebugger
             for (uint32_t f = 0; f < sizeof(fields) / sizeof(fields[0]); ++f)
             {
                 int field = json.Field(i, fields[f]);
-                if (field >= 0 && json.Get(field).m_Type != JSON_STRING)
+                if (field >= 0 && json.Get(field).m_Type != dmJson::TYPE_STRING)
                 {
                     Respond(d, seq, "setBreakpoints", 0, "Breakpoint expressions and log messages must be strings");
                     return;
@@ -1097,7 +1098,7 @@ namespace dmDebugger
             bp->m_Condition = strdup(condition);
             bp->m_LogMessage = strdup(log);
             bp->m_LogPoint = json.Field(i, "logMessage") >= 0;
-            bp->m_Line = json.Integer(json.Field(i, "line")) + !d->m_LinesStartAt1;
+            bp->m_Line = json.Integer(json.Field(i, "line"), -1) + !d->m_LinesStartAt1;
             bp->m_HitTarget = (uint32_t)target;
             for (uint32_t s = 0; s < d->m_Sources.Size(); ++s)
                 if (dmStrEq(d->m_Sources[s]->m_Path, bp->m_Path))
@@ -1110,10 +1111,10 @@ namespace dmDebugger
         Respond(d, seq, "setBreakpoints", &body);
     }
 
-    static void BreakpointLocations(Debugger* d, const Json& json, int seq, int args)
+    static void BreakpointLocations(Debugger* d, const dmJson::Document& json, int seq, int args)
     {
-        const char* source = json.String(json.Field(json.Field(args, "source"), "path"));
-        int         first = json.Integer(json.Field(args, "line"));
+        const char* source = json.String(json.Field(json.Field(args, "source"), "path"), 0);
+        int         first = json.Integer(json.Field(args, "line"), -1);
         int         last = json.Integer(json.Field(args, "endLine"), first);
         int         column = json.Integer(json.Field(args, "column"), d->m_ColumnsStartAt1 ? 1 : 0);
         int         end_column = json.Integer(json.Field(args, "endColumn"), 2147483647);
@@ -1162,17 +1163,17 @@ namespace dmDebugger
         Event(d, "continued", &body);
     }
 
-    static void Request(Debugger* d, const Json& json)
+    static void Request(Debugger* d, const dmJson::Document& json)
     {
-        const char* command = json.String(json.Field(0, "command"));
-        int         seq = json.Integer(json.Field(0, "seq"));
+        const char* command = json.String(json.Field(0, "command"), 0);
+        int         seq = json.Integer(json.Field(0, "seq"), -1);
         int         args = json.Field(0, "arguments");
         if (!command || seq < 0 || !dmStrEq(json.String(json.Field(0, "type"), ""), "request"))
         {
             d->m_ClosePending = true;
             return;
         }
-        if (args >= 0 && json.Get(args).m_Type != JSON_OBJECT)
+        if (args >= 0 && json.Get(args).m_Type != dmJson::TYPE_OBJECT)
         {
             Respond(d, seq, command, 0, "Expected arguments object");
             return;
@@ -1191,9 +1192,9 @@ namespace dmDebugger
             }
             d->m_LinesStartAt1 = json.Boolean(json.Field(args, "linesStartAt1"), true);
             d->m_ColumnsStartAt1 = json.Boolean(json.Field(args, "columnsStartAt1"), true);
-            d->m_VariableType = json.Boolean(json.Field(args, "supportsVariableType"));
-            d->m_VariablePaging = json.Boolean(json.Field(args, "supportsVariablePaging"));
-            d->m_InvalidatedEvent = json.Boolean(json.Field(args, "supportsInvalidatedEvent"));
+            d->m_VariableType = json.Boolean(json.Field(args, "supportsVariableType"), false);
+            d->m_VariablePaging = json.Boolean(json.Field(args, "supportsVariablePaging"), false);
+            d->m_InvalidatedEvent = json.Boolean(json.Field(args, "supportsInvalidatedEvent"), false);
             d->m_Initialized = true;
             Buffer body;
             body.Add(
@@ -1214,7 +1215,7 @@ namespace dmDebugger
         }
         if (dmStrEq(command, "disconnect"))
         {
-            if (json.Boolean(json.Field(args, "terminateDebuggee")))
+            if (json.Boolean(json.Field(args, "terminateDebuggee"), false))
             {
                 Respond(d, seq, command, 0, "An attached debugger cannot terminate the engine");
                 return;
@@ -1234,21 +1235,21 @@ namespace dmDebugger
                 return;
             }
             int timeout_arg = json.Field(args, "evaluationTimeout");
-            int timeout = timeout_arg < 0 ? 1000 : json.Integer(timeout_arg);
+            int timeout = timeout_arg < 0 ? 1000 : json.Integer(timeout_arg, -1);
             if (timeout < 1 || timeout > 60000)
             {
                 Respond(d, seq, command, 0, "evaluationTimeout must be between 1 and 60000 milliseconds");
                 return;
             }
             d->m_EvaluationTimeout = timeout;
-            const char* root = json.String(json.Field(args, "localRoot"));
+            const char* root = json.String(json.Field(args, "localRoot"), 0);
             if (root)
             {
                 Buffer normalized;
                 NormalizePath(root, normalized);
                 d->m_LocalRoot = strdup(normalized.Data());
             }
-            d->m_StopOnEntry = json.Boolean(json.Field(args, "stopOnEntry"));
+            d->m_StopOnEntry = json.Boolean(json.Field(args, "stopOnEntry"), false);
             SetHooks(d, true);
             d->m_Attached = true;
             d->m_AttachSeq = seq;
@@ -1285,7 +1286,7 @@ namespace dmDebugger
         if (dmStrEq(command, "setExceptionBreakpoints"))
         {
             int filters = json.Field(args, "filters");
-            if (json.Get(filters).m_Type != JSON_ARRAY)
+            if (json.Get(filters).m_Type != dmJson::TYPE_ARRAY)
             {
                 Respond(d, seq, command, 0, "Expected filters array");
                 return;
@@ -1333,7 +1334,7 @@ namespace dmDebugger
             return;
         if (dmStrEq(command, "pause") || dmStrEq(command, "continue") || dmStrEq(command, "next") || dmStrEq(command, "stepIn") || dmStrEq(command, "stepOut"))
         {
-            int id = json.Integer(json.Field(args, "threadId"));
+            int id = json.Integer(json.Field(args, "threadId"), -1);
             if (!d->m_Configured || id <= 0 || !FindThread(d, (uint32_t)id))
             {
                 Respond(d, seq, command, 0, "Invalid thread or session not configured");
@@ -1457,6 +1458,8 @@ namespace dmDebugger
             Disconnect(d);
             return;
         }
+        // Reuse storage across this batch, allocating only for complete frames.
+        dmJson::Document request(0);
         for (int i = 0; i < 32 && !d->m_ClosePending; ++i)
         {
             uint32_t offset = 0, size = 0;
@@ -1467,9 +1470,10 @@ namespace dmDebugger
                 return;
             }
             if (!frame)
+            {
                 break;
-            Json request;
-            if (!request.Parse(d->m_Input.Data() + offset, size))
+            }
+            if (!request.Parse(d->m_Input.Data() + offset, size, 0, dmJson::PARSE_DECODE_VALUES))
             {
                 Disconnect(d);
                 return;

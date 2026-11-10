@@ -2089,8 +2089,9 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
     texture_set_ddf->m_Texture     = 0;
     texture_set_ddf->m_TextureHash = texture_path_hash;
 
-    float tex_width            = dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture);
-    float tex_height           = dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture);
+    dmGraphics::TextureInfo texture_info = dmGraphics::GetTextureInfo(g_ResourceModule.m_GraphicsContext, texture);
+    float tex_width            = texture_info.m_Width;
+    float tex_height           = texture_info.m_Height;
 
     texture_set_ddf->m_Geometries.m_Data  = new dmGameSystemDDF::SpriteGeometry[num_geometries];
     texture_set_ddf->m_Geometries.m_Count = num_geometries;
@@ -2770,8 +2771,9 @@ static int GetAtlas(lua_State* L)
     lua_rawset(L, -3);
     #undef SET_LUA_TABLE_FIELD
 
-    float tex_width  = (float) dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture_set_res->m_Texture->m_Texture);
-    float tex_height = (float) dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture_set_res->m_Texture->m_Texture);
+    dmGraphics::TextureInfo texture_info = dmGraphics::GetTextureInfo(g_ResourceModule.m_GraphicsContext, texture_set_res->m_Texture->m_Texture);
+    float tex_width  = (float)texture_info.m_Width;
+    float tex_height = (float)texture_info.m_Height;
 
     lua_pushliteral(L, "geometries");
     lua_newtable(L);

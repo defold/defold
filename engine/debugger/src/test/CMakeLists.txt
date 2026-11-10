@@ -20,12 +20,6 @@ if(WITH_ASAN)
   set(DEBUGGER_TEST_ASAN_SOURCE "${DEFOLD_HOME}/engine/lua/src/lua_asan.cpp")
 endif()
 
-defold_add_executable(test_dap_json test_dap_json.cpp)
-target_include_directories(test_dap_json PRIVATE ..)
-target_link_libraries(test_dap_json PRIVATE debugger)
-defold_target_link_libraries(test_dap_json "${TARGET_PLATFORM}" profile_null)
-defold_register_test_target(test_dap_json ON)
-
 defold_add_executable(dap_debuggee test_debugger.cpp ${DEBUGGER_TEST_ASAN_SOURCE})
 target_include_directories(dap_debuggee PRIVATE ..)
 target_link_libraries(dap_debuggee PRIVATE debugger)

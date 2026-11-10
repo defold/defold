@@ -47,7 +47,7 @@ public:
     }
 };
 
-// Registration and removal must keep the generated paths synchronized with live handlers.
+// Registration and removal must keep discovery synchronized, including handlers with routing flags.
 TEST_F(WebServerOpenAPITest, RegisterAndRemovePaths)
 {
     static const char first[] = "{\"/first\":{" GET_OPERATION "}}";
@@ -56,7 +56,8 @@ TEST_F(WebServerOpenAPITest, RegisterAndRemovePaths)
     dmWebServer::GetOpenAPIPaths(m_Server, &paths);
     ASSERT_STREQ("{}", paths.Begin());
     ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/first", &m_Params, first));
-    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/second", &m_Params, second));
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/second", &m_Params, second,
+                                                              dmWebServer::MATCH_EXACT_PATH | dmWebServer::GET_ONLY | dmWebServer::NO_REQUEST_BODY));
     dmWebServer::GetOpenAPIPaths(m_Server, &paths);
     ASSERT_STREQ("{\"/first\":{" GET_OPERATION "},\"/second\":{" GET_OPERATION "}}", paths.Begin());
     ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::RemoveHandler(m_Server, "/first"));
@@ -249,6 +250,32 @@ TEST_F(WebServerOpenAPITest, PreserveJSONValues)
     dmArray<char> paths;
     dmWebServer::GetOpenAPIPaths(m_Server, &paths);
     ASSERT_STREQ(json, paths.Begin());
+}
+
+// Metadata examples containing NUL escapes and numbers beyond double range must survive registration and aggregation.
+TEST_F(WebServerOpenAPITest, PreserveUnrepresentableValues)
+{
+    static const char json[] = "{\"/values\":{" GET_OPERATION ",\"x-data\":{\"string\":\"a\\u0000b\",\"number\":1e400}}}";
+    ASSERT_EQ(dmWebServer::RESULT_OK, dmWebServer::AddHandler(m_Server, "/values", &m_Params, json));
+    dmArray<char> paths;
+    dmWebServer::GetOpenAPIPaths(m_Server, &paths);
+    ASSERT_STREQ(json, paths.Begin());
+}
+
+// Decoding escaped path names must preserve their original spans for conflict diagnostics and aggregation.
+TEST_F(WebServerOpenAPITest, EncodedPathLocations)
+{
+    const char encoded_path[] = "\\/items\\/\\u0061";
+    const char members[] = "\"\\/items\\/\\u0061\":{" GET_OPERATION "} ";
+    const char json[] = " \n{ \"\\/items\\/\\u0061\":{" GET_OPERATION "} } \r\n";
+    dmWebServer::OpenAPI parsed;
+    ASSERT_TRUE(dmWebServer::ParseOpenAPI("/items", json, &parsed));
+    ASSERT_EQ(sizeof(members) - 1, parsed.m_Length);
+    ASSERT_EQ(0, memcmp(members, parsed.m_Json, parsed.m_Length));
+    const dmWebServer::OpenAPIPath* path = dmWebServer::FindOpenAPIPath(&parsed, dmHashString64("/items/a"));
+    ASSERT_NE((const dmWebServer::OpenAPIPath*)0, path);
+    ASSERT_EQ(sizeof(encoded_path) - 1, path->m_Length);
+    ASSERT_EQ(0, memcmp(encoded_path, parsed.m_Json + path->m_Offset, path->m_Length));
 }
 
 // Excessively nested metadata must be rejected before recursive parsing exhausts the stack.

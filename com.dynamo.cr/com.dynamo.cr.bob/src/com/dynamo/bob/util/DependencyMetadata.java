@@ -17,7 +17,6 @@ package com.dynamo.bob.util;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
-import javax.xml.bind.DatatypeConverter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URI;
@@ -26,9 +25,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -139,7 +138,7 @@ public final class DependencyMetadata {
     private static String fileSha1(Path path) {
         try {
             var sha1 = FileUtil.calculateSha1(path.toFile());
-            return DatatypeConverter.printHexBinary(sha1).toLowerCase(Locale.ROOT);
+            return HexFormat.of().formatHex(sha1);
         } catch (Exception e) {
             throw new RuntimeException("Failed to generate dependencies info", e);
         }

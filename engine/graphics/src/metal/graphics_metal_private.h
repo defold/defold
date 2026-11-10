@@ -306,7 +306,6 @@ namespace dmGraphics
             MTL::Function* m_FsFunction;
             uint8_t        m_ClearColor   : 1;
             uint8_t        m_ClearDepth   : 1;
-            uint8_t        m_ClearStencil : 1;
         };
 
         PipelineCache        m_PipelineCache;
