@@ -110,14 +110,6 @@ namespace dmRig
         return layer ? layer->m_Name : 0;
     }
 
-    void SetAnimationLayerId(HAnimationLayer layer, uint64_t id)
-    {
-        if (layer)
-        {
-            layer->m_Id = id;
-        }
-    }
-
     HAnimationLayer FindAnimationLayer(HRigInstance instance, dmhash_t name)
     {
         for (uint32_t i = 0; i < instance->m_Layers.Size(); ++i)
@@ -131,28 +123,10 @@ namespace dmRig
         return 0;
     }
 
-    HAnimationLayer FindAnimationLayerById(HRigInstance instance, uint64_t id)
-    {
-        if (!id)
-        {
-            return 0;
-        }
-        for (uint32_t i = 0; i < instance->m_Layers.Size(); ++i)
-        {
-            HAnimationLayer layer = instance->m_Layers[i]->m_Definition;
-            if (layer->m_Id == id)
-            {
-                return layer;
-            }
-        }
-        return 0;
-    }
-
     HAnimationLayer NewAnimationLayer(const AnimationLayerParams& params)
     {
         AnimationLayer* layer = new AnimationLayer;
         layer->m_Name = params.m_Name;
-        layer->m_Id = 0;
         layer->m_Order = params.m_Order;
         layer->m_Weight = params.m_Weight;
         layer->m_RefCount = 1;

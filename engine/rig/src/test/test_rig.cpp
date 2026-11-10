@@ -1390,12 +1390,10 @@ TEST_F(AnimationLayerTest, ActivationContinuesAfterReplacementCompletes)
 TEST_F(AnimationLayerTest, PlaybackProperties)
 {
     dmRig::HAnimationLayer layer = Layer("layer", 1, 1);
-    dmRig::SetAnimationLayerId(layer, 42);
-    ASSERT_EQ((dmRig::HAnimationLayer)0, dmRig::FindAnimationLayerById(m_Instance, 42));
+    ASSERT_EQ((dmRig::HAnimationLayer)0, dmRig::FindAnimationLayer(m_Instance, dmHashString64("layer")));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, 3, dmRig::PLAYBACK_ONCE_FORWARD, 0, 0, 1));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, layer, 1, dmRig::PLAYBACK_LOOP_FORWARD, 0, 0, 1));
     ASSERT_EQ(layer, dmRig::FindAnimationLayer(m_Instance, dmHashString64("layer")));
-    ASSERT_EQ(layer, dmRig::FindAnimationLayerById(m_Instance, 42));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, layer, 2, dmRig::PLAYBACK_ONCE_FORWARD, 1, 0, 2));
     ASSERT_EQ(2u, dmRig::GetAnimation(m_Instance, layer));
     ASSERT_EQ(3u, dmRig::GetAnimation(m_Instance));
@@ -1418,8 +1416,6 @@ TEST_F(AnimationLayerTest, PlaybackProperties)
     track.m_Positions.m_Data = new float[9];
     const float positions[] = { 0, 0, 0, 10, 0, 0, 20, 0, 0 };
     memcpy(track.m_Positions.m_Data, positions, sizeof(positions));
-    dmRig::SetAnimationLayerId(layer, 0);
-    ASSERT_EQ((dmRig::HAnimationLayer)0, dmRig::FindAnimationLayerById(m_Instance, 42));
     ASSERT_EQ(layer, dmRig::FindAnimationLayer(m_Instance, dmHashString64("layer")));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, layer, 0.25f, true));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1));

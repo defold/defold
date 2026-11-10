@@ -102,28 +102,27 @@ function init(self)
     play(shared, "#other", "Survey", complete("Survey", "base"), 5)
     assert(go.get("#fox", "animation") == hash("Run"))
 
-    -- Numeric and named selectors address per-model playback, including a custom layer named base.
-    assert(go.get("#fox", "animation", { key = shared }) == hash("Walk"))
+    -- Layer names address per-model playback, including a custom layer named base.
     assert(go.get("#fox", "animation", { key = hash("base") }) == hash("Walk"))
-    assert(go.get("#other", "animation", { key = shared }) == hash("Survey"))
+    assert(go.get("#other", "animation", { key = hash("base") }) == hash("Survey"))
     assert(go.get("#other", "animation", { key = "base" }) == hash("Survey"))
-    go.set("#fox", "cursor", 0.25, { key = shared })
+    go.set("#fox", "cursor", 0.25, { key = hash("base") })
     assert(math.abs(go.get("#fox", "cursor", { key = hash("base") }) - 0.25) < 0.0001)
-    assert(go.get("#other", "cursor", { key = shared }) == 0)
+    assert(go.get("#other", "cursor", { key = hash("base") }) == 0)
     assert(go.get("#fox", "cursor") == 0)
     go.set("#fox", "cursor", 0, { key = hash("base") })
-    assert(go.get("#fox", "cursor", { key = shared }) == 0)
-    go.set("#fox", "playback_rate", 0.5, { key = shared })
+    assert(go.get("#fox", "cursor", { key = hash("base") }) == 0)
+    go.set("#fox", "playback_rate", 0.5, { key = hash("base") })
     assert(go.get("#fox", "playback_rate", { key = hash("base") }) == 0.5)
-    assert(go.get("#other", "playback_rate", { key = shared }) == 5)
+    assert(go.get("#other", "playback_rate", { key = hash("base") }) == 5)
     assert(go.get("#fox", "playback_rate") == 3)
     go.set("#fox", "playback_rate", -1, { key = "base" })
-    assert(go.get("#fox", "playback_rate", { key = shared }) == 0)
+    assert(go.get("#fox", "playback_rate", { key = hash("base") }) == 0)
     go.set("#fox", "playback_rate", 3, { key = hash("base") })
-    assert_error_contains(function() go.set("#fox", "animation", hash("Run"), { key = shared }) end, "read only")
+    assert_error_contains(function() go.set("#fox", "animation", hash("Run"), { key = hash("base") }) end, "read only")
     assert_error_contains(function() go.set("#fox", "animation", hash("Run")) end, "read only")
     for _, property in ipairs({ "animation", "cursor", "playback_rate" }) do
-        for _, key in ipairs({ chained, hash("missing"), 9007199254740991, 0, -1, 1.5, math.huge, 0/0, 9007199254740992, false, {} }) do
+        for _, key in ipairs({ shared, chained, hash("chained"), hash("missing"), 9007199254740991, 0, -1, 1.5, math.huge, 0/0, 9007199254740992, false, {} }) do
             assert_error(function() go.get("#fox", property, { key = key }) end)
             assert_error(function() go.set("#fox", property, 1, { key = key }) end)
         end
@@ -132,12 +131,10 @@ function init(self)
         assert_error(function() go.get("#fox", property, { keys = { hash("base"), hash("base") } }) end)
     end
     for _, property in ipairs({ "cursor", "playback_rate" }) do
-        assert_error(function() go.set("#fox", property, "bad", { key = shared }) end)
-        assert_error(function() go.set("#fox", property, math.huge, { key = shared }) end)
-        assert_error(function() go.set("#fox", property, 0/0, { key = shared }) end)
+        assert_error(function() go.set("#fox", property, "bad", { key = hash("base") }) end)
+        assert_error(function() go.set("#fox", property, math.huge, { key = hash("base") }) end)
+        assert_error(function() go.set("#fox", property, 0/0, { key = hash("base") }) end)
     end
-    assert_error_contains(function() go.get("#fox", "cursor", { key = 9007199254740991 }) end, "Invalid numeric key 9007199254740991", "cursor")
-    assert_error_contains(function() go.set("#fox", "cursor", 0.5, { key = 9007199254740991 }) end, "Invalid numeric key 9007199254740991", "cursor")
     -- Numeric selectors on unrelated properties must fail before modifying a scalar or array.
     local position = go.get(".", "position")
     assert_error(function() go.set(".", "position", vmath.vector3(99), { key = shared }) end)
@@ -161,7 +158,7 @@ function init(self)
     collectgarbage("collect")
     assert(weak_callbacks.targeted_cancelled == nil)
 
-    assert_error(function() go.get("#cancelled", "cursor", { key = shared }) end)
+    assert_error(function() go.get("#cancelled", "cursor", { key = hash("base") }) end)
     assert_error(function() go.set("#cancelled", "cursor", 0.5, { key = hash("base") }) end)
 
     -- A module-held numeric handle must become invalid without cancelling shared playback.
@@ -198,7 +195,7 @@ function init(self)
     model.cancel("#fox", { layer = replaced })
     model.play_anim("#fox", "Run", go.PLAYBACK_LOOP_FORWARD, { layer = replaced }, never_complete("replaced"))
     play(replaced, "#fox", "Run", complete("Run", "replaced"))
-    assert(go.get("#fox", "animation", { key = replaced }) == hash("Run"))
+    assert(go.get("#fox", "animation", { key = hash("replaced") }) == hash("Run"))
     assert(go.get("#fox", "playback_rate", { key = hash("replaced") }) == 3)
     -- Destroying a definition before completion must preserve its callback identity.
     local temporary = new_layer("temporary", { order = 4 })

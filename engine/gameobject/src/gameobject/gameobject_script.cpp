@@ -139,7 +139,7 @@ namespace dmGameObject
      * @struct
      * @name go.property_options
      * @member index? [type:integer] Index into an array property, starting at one.
-     * @member key? [type:hash|string|number] Name of an internal property, or a numeric model animation layer ID.
+     * @member key? [type:hash] Name of an internal property.
      * @member keys? [type:hash[]] Internal component resources identified by key, such as particle FX emitters.
      */
 

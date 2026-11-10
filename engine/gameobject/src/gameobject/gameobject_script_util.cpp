@@ -16,8 +16,6 @@
 #include "gameobject_private.h"
 #include "gameobject_props.h"
 #include <stdint.h>
-#include <math.h>
-#include <dlib/dstrings.h>
 #include <ddf/ddf.h>
 #include <resource/resource.h>
 #include <dmsdk/gameobject/res_lua.h>
@@ -90,21 +88,8 @@ namespace dmGameObject
         lua_getfield(L, index, "key");
         if (!lua_isnil(L, -1))
         {
-            bool added;
-            if (lua_type(L, -1) == LUA_TNUMBER)
-            {
-                lua_Number value = lua_tonumber(L, -1);
-                if (!isfinite(value) || value < 1 || value > 9007199254740991.0 || floor(value) != value)
-                {
-                    return luaL_error(L, "Numeric property keys must be positive exact integers (at most 2^53 - 1).");
-                }
-                added = AddPropertyOptionsNumberKey(options, (uint64_t)value);
-            }
-            else
-            {
-                added = AddPropertyOptionsKey(options, dmScript::CheckHashOrString(L, -1));
-            }
-            if (!added)
+            dmhash_t value = dmScript::CheckHashOrString(L, -1);
+            if (!dmGameObject::AddPropertyOptionsKey(options, value))
             {
                 return luaL_error(L, "Too many options supplied to options table (max=%d).", MAX_PROPERTY_OPTIONS_COUNT);
             }
@@ -218,8 +203,6 @@ namespace dmGameObject
         dmhash_t key = 0;
         int32_t index = 0;
         bool key_requested = false;
-        uint64_t number_key = 0;
-        bool number_key_requested = GetPropertyOptionsNumberKey((HPropertyOptions) & property_options, 0, &number_key) == PROPERTY_RESULT_OK;
 
         if (index_requested)
         {
@@ -227,7 +210,7 @@ namespace dmGameObject
         }
         else
         {
-            key_requested = number_key_requested || GetPropertyOptionsKey((HPropertyOptions) & property_options, 0, &key) == dmGameObject::PROPERTY_RESULT_OK;
+            key_requested = GetPropertyOptionsKey((HPropertyOptions) &property_options, 0, &key) == dmGameObject::PROPERTY_RESULT_OK;
         }
 
         switch (result)
@@ -275,12 +258,6 @@ namespace dmGameObject
                 {
                     return luaL_error(L, "Property '%s' is a hashtable, but in options table specified index instead of key.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
                 }
-                if (number_key_requested)
-                {
-                    char key_string[32];
-                    dmSnPrintf(key_string, sizeof(key_string), "%.0f", (double)number_key);
-                    return luaL_error(L, "Invalid numeric key %s for property '%s'", key_string, dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-                }
                 return luaL_error(L, "Invalid key '%s' for property '%s'", dmHashReverseSafe64Alloc(&hash_ctx, key), dmHashReverseSafe64Alloc(&hash_ctx, property_id));
             }
         case dmGameObject::PROPERTY_RESULT_NOT_FOUND:
@@ -307,9 +284,7 @@ namespace dmGameObject
         DM_HASH_REVERSE_MEM(hash_ctx, 512);
 
         dmhash_t key = 0;
-        uint64_t number_key = 0;
-        bool number_key_requested = GetPropertyOptionsNumberKey((HPropertyOptions) & property_options, 0, &number_key) == PROPERTY_RESULT_OK;
-        bool has_key = number_key_requested || GetPropertyOptionsKey((HPropertyOptions) & property_options, 0, &key) == dmGameObject::PROPERTY_RESULT_OK;
+        bool has_key = GetPropertyOptionsKey((HPropertyOptions) &property_options, 0, &key) == dmGameObject::PROPERTY_RESULT_OK;
 
         int32_t index = 0;
         GetPropertyOptionsIndex((HPropertyOptions) &property_options, 0, &index);
@@ -357,12 +332,6 @@ namespace dmGameObject
                 if (!has_key)
                 {
                     return luaL_error(L, "Property '%s' is a hashtable, but in options table specified index instead of key.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-                }
-                if (number_key_requested)
-                {
-                    char key_string[32];
-                    dmSnPrintf(key_string, sizeof(key_string), "%.0f", (double)number_key);
-                    return luaL_error(L, "Invalid numeric key %s for property '%s'", key_string, dmHashReverseSafe64Alloc(&hash_ctx, property_id));
                 }
                 return luaL_error(L, "Invalid key '%s' for property '%s'", dmHashReverseSafe64Alloc(&hash_ctx, key), dmHashReverseSafe64Alloc(&hash_ctx, property_id));
             }

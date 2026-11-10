@@ -58,16 +58,7 @@ namespace dmRig
         return dmRig::RESULT_OK;
     }
 
-    void SetAnimationLayerId(HAnimationLayer layer, uint64_t id)
-    {
-    }
-
     HAnimationLayer FindAnimationLayer(HRigInstance instance, dmhash_t name)
-    {
-        return 0;
-    }
-
-    HAnimationLayer FindAnimationLayerById(HRigInstance instance, uint64_t id)
     {
         return 0;
     }

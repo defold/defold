@@ -72,23 +72,23 @@ namespace dmGameSystem
     /*# [type:number] model cursor
      *
      * The normalized animation cursor. The type of the property is number.
-     * Pass `{ key = layer_id }` or `{ key = hash("layer_name") }` in the [ref:go.get]
+     * Pass `{ key = hash("layer_name") }` in the [ref:go.get]
      * options to address a layer on this model. Omit the key to address base playback.
-     * A destroyed ID is invalid; the name remains usable while the model retains the layer.
+     * The name remains usable while the model retains the layer, even after its handle is destroyed.
      *
      * [icon:attention] Please note that model events may not fire as expected when the cursor is manipulated directly.
      *
-     * [ref:go.set] accepts the same selectors. Changes affect only this model's layer playback.
+     * [ref:go.set] accepts the same selector. Changes affect only this model's layer playback.
      *
      * @name cursor
      * @property
      *
      * @examples
      *
-     * How to read and change a layer's cursor using either selector:
+     * How to read and change a layer's cursor by name:
      *
      * ```lua
-     * local cursor = go.get("#model", "cursor", { key = self.upper_body })
+     * local cursor = go.get("#model", "cursor", { key = hash("upper_body") })
      * go.set("#model", "cursor", cursor, { key = hash("upper_body") })
      * ```
      *
@@ -116,11 +116,11 @@ namespace dmGameSystem
     /*# [type:number] model playback_rate
      *
      * The animation playback rate. A multiplier to the animation playback rate. The type of the property is number.
-     * Pass `{ key = layer_id }` or `{ key = hash("layer_name") }` in the [ref:go.get]
+     * Pass `{ key = hash("layer_name") }` in the [ref:go.get]
      * options to address a layer on this model. Omit the key to address base playback.
-     * A destroyed ID is invalid; the name remains usable while the model retains the layer.
+     * The name remains usable while the model retains the layer, even after its handle is destroyed.
      *
-     * [ref:go.set] accepts the same selectors. Changes affect only this model's layer playback.
+     * [ref:go.set] accepts the same selector. Changes affect only this model's layer playback.
      *
      * @name playback_rate
      * @property
@@ -144,9 +144,9 @@ namespace dmGameSystem
      /*# [type:hash] model animation
      *
      * The current animation set on the component. The type of the property is hash.
-     * Pass `{ key = layer_id }` or `{ key = hash("layer_name") }` in the [ref:go.get]
+     * Pass `{ key = hash("layer_name") }` in the [ref:go.get]
      * options to address a layer on this model. Omit the key to address base playback.
-     * A destroyed ID is invalid; the name remains usable while the model retains the layer.
+     * The name remains usable while the model retains the layer, even after its handle is destroyed.
      *
      * This property is read-only; use [ref:model.play_anim] to change the animation.
      *
@@ -193,8 +193,6 @@ namespace dmGameSystem
     static char ANIMATION_LAYERS_REGISTRY_KEY;
     // Lua numbers represent every integer up to 2^53 exactly. Never recycle IDs.
     static const lua_Number MAX_ANIMATION_LAYER_ID = 9007199254740991.0;
-    // Unique across script contexts, which can address the same model instance.
-    static lua_Number g_NextAnimationLayerId = 1;
 
     struct LuaAnimationLayer
     {
@@ -231,7 +229,6 @@ namespace dmGameSystem
     static int AnimationLayerGC(lua_State* L)
     {
         LuaAnimationLayer* layer = (LuaAnimationLayer*)luaL_checkudata(L, 1, ANIMATION_LAYER_TYPE);
-        dmRig::SetAnimationLayerId(layer->m_Layer, 0);
         dmRig::ReleaseAnimationLayer(layer->m_Layer);
         layer->m_Layer = 0;
         return 0;
@@ -252,7 +249,6 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         LuaAnimationLayer* layer = CheckAnimationLayer(L, 1);
-        dmRig::SetAnimationLayerId(layer->m_Layer, 0);
         dmRig::ReleaseAnimationLayer(layer->m_Layer);
         layer->m_Layer = 0;
         PushAnimationLayers(L);
@@ -369,12 +365,15 @@ namespace dmGameSystem
         params.m_BoneCount = bone_count;
 
         PushAnimationLayers(L);
-        lua_Number id = g_NextAnimationLayerId;
+        lua_getfield(L, -1, "next_id");
+        lua_Number id = lua_tonumber(L, -1);
+        lua_pop(L, 1);
         if (id > MAX_ANIMATION_LAYER_ID)
         {
             return luaL_error(L, "animation layer handle IDs exhausted");
         }
-        ++g_NextAnimationLayerId;
+        lua_pushnumber(L, id + 1);
+        lua_setfield(L, -2, "next_id");
         lua_pushnumber(L, id);
         LuaAnimationLayer* layer = (LuaAnimationLayer*)lua_newuserdata(L, sizeof(LuaAnimationLayer));
         layer->m_Layer = 0;
@@ -385,7 +384,6 @@ namespace dmGameSystem
         {
             return luaL_error(L, "animation layers are not supported by this engine");
         }
-        dmRig::SetAnimationLayerId(layer->m_Layer, (uint64_t)id);
         lua_rawset(L, -3);
         lua_pop(L, 3); // Registry, temporary bone buffer and bone array.
         lua_pushnumber(L, id);
@@ -1159,6 +1157,8 @@ namespace dmGameSystem
         {
             lua_pop(L, 1);
             lua_newtable(L);
+            lua_pushnumber(L, 1);
+            lua_setfield(L, -2, "next_id");
             lua_pushlightuserdata(L, &ANIMATION_LAYERS_REGISTRY_KEY);
             lua_pushvalue(L, -2);
             lua_rawset(L, LUA_REGISTRYINDEX);
@@ -1181,7 +1181,6 @@ namespace dmGameSystem
             if (lua_type(L, -1) == LUA_TUSERDATA)
             {
                 LuaAnimationLayer* layer = (LuaAnimationLayer*)lua_touserdata(L, -1);
-                dmRig::SetAnimationLayerId(layer->m_Layer, 0);
                 dmRig::ReleaseAnimationLayer(layer->m_Layer);
                 layer->m_Layer = 0;
                 lua_pushvalue(L, -2);

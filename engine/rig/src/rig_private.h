@@ -85,7 +85,6 @@ namespace dmRig
     struct AnimationLayer
     {
         dmhash_t          m_Name;
-        uint64_t          m_Id; // Zero after the public handle is destroyed.
         dmArray<dmhash_t> m_Bones;
         uint32_t          m_RefCount;
         int32_t           m_Order;

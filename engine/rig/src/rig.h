@@ -51,10 +51,7 @@ namespace dmRig
     };
 
     dmhash_t GetAnimationLayerName(HAnimationLayer layer);
-    // The script registry assigns an ID and invalidates it before releasing its reference.
-    void            SetAnimationLayerId(HAnimationLayer layer, uint64_t id);
     HAnimationLayer FindAnimationLayer(HRigInstance instance, dmhash_t name);
-    HAnimationLayer FindAnimationLayerById(HRigInstance instance, uint64_t id);
     // A null layer addresses base playback. Non-null layers must belong to this instance.
     dmhash_t        GetAnimation(HRigInstance instance, HAnimationLayer layer);
     float           GetCursor(HRigInstance instance, HAnimationLayer layer, bool normalized);

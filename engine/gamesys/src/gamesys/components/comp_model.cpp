@@ -17,7 +17,6 @@
 #include <string.h>
 #include <float.h>
 #include <math.h>
-#include <gameobject/gameobject_props.h>
 
 #include <dlib/array.h>
 #include <dlib/hash.h>
@@ -3026,13 +3025,8 @@ namespace dmGameSystem
         {
             return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
         }
-        uint64_t id;
         dmhash_t name;
-        if (dmGameObject::GetPropertyOptionsNumberKey(options, 0, &id) == dmGameObject::PROPERTY_RESULT_OK)
-        {
-            *layer = dmRig::FindAnimationLayerById(instance, id);
-        }
-        else if (dmGameObject::GetPropertyOptionsKey(options, 0, &name) == dmGameObject::PROPERTY_RESULT_OK)
+        if (dmGameObject::GetPropertyOptionsKey(options, 0, &name) == dmGameObject::PROPERTY_RESULT_OK)
         {
             *layer = dmRig::FindAnimationLayer(instance, name);
         }
@@ -3050,14 +3044,6 @@ namespace dmGameSystem
             if (result != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return result;
-            }
-        }
-        else
-        {
-            uint64_t id;
-            if (dmGameObject::GetPropertyOptionsNumberKey(params.m_Options, 0, &id) == dmGameObject::PROPERTY_RESULT_OK)
-            {
-                return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
         }
         if (params.m_PropertyId == PROP_SKIN)
@@ -3132,14 +3118,6 @@ namespace dmGameSystem
             if (result != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return result;
-            }
-        }
-        else
-        {
-            uint64_t id;
-            if (dmGameObject::GetPropertyOptionsNumberKey(params.m_Options, 0, &id) == dmGameObject::PROPERTY_RESULT_OK)
-            {
-                return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
         }
         if (params.m_PropertyId == PROP_SKIN)
