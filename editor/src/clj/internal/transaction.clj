@@ -2301,9 +2301,12 @@
                                 :phase :producing-tx-data
                                 :prerequisite-node-ids (volatile! #{})}
         evaluation-context (assoc evaluation-context :active-materialization active-materialization)
+
         ;; The callback completes declared prerequisites before returning steps.
-        ;; Snapshot only afterwards: failure must not retract their results.
-        tx-data ((:_materialize-fn node) node-id evaluation-context)
+        ;; Snapshot only afterward: failure must not retract their results.
+        {:keys [tx-data cache-entries-fn]}
+        ((:_materialize-fn node) node-id evaluation-context)
+
         ;; Keep our declaration even if another shell replaces the registry
         ;; entry before this materialization finishes.
         prerequisite-shell-node-ids @(:prerequisite-node-ids active-materialization)
@@ -2324,23 +2327,31 @@
         previous-basis @basis-ref
         previous-materialization-results @materialization-results-atom]
     (try
-      (let [result (transact*
-                     (evaluation-transaction-context
-                       (update evaluation-context :active-materialization assoc
-                               :phase :realizing-tx-data
-                               :post-prerequisites-basis previous-basis))
-                     nil
-                     [(materialize-shell node-id) tx-data])
-            materialize-info {:node-id node-id
-                              :shell-node node
-                              :changes (:realized-changes result)
-                              :prerequisite-shell-node-ids prerequisite-shell-node-ids
-                              :prerequisite-source-state (capture-prerequisite-source-state previous-basis previous-materialization-results prerequisite-shell-node-ids)
-                              :dependencies (select-keys previous-materialization-results prerequisite-shell-node-ids)}]
+      (let [result
+            (transact*
+              (evaluation-transaction-context
+                (update evaluation-context :active-materialization assoc
+                        :phase :realizing-tx-data
+                        :post-prerequisites-basis previous-basis))
+              nil
+              [(materialize-shell node-id) tx-data])
+
+            materialize-info
+            {:node-id node-id
+             :shell-node node
+             :changes (:realized-changes result)
+             :prerequisite-shell-node-ids prerequisite-shell-node-ids
+             :prerequisite-source-state (capture-prerequisite-source-state previous-basis previous-materialization-results prerequisite-shell-node-ids)
+             :dependencies (select-keys previous-materialization-results prerequisite-shell-node-ids)
+             :cache-entries (when cache-entries-fn
+                              (cache-entries-fn result))}]
+
         (apply-evaluation-result!
           evaluation-context
           (->MaterializationTXC materialize-info)
           (assoc-in result [:materialization-results node-id] materialize-info))
+        ;; These values describe the finalized node, after invalidation.
+        (swap! (:local-atom evaluation-context) into (:cache-entries materialize-info))
         materialize-info)
       (catch Throwable error
         (coll/reduce-kv-> evaluation-context-atoms nil
@@ -2354,10 +2365,12 @@
   ;; Materialization must use the caller's real caches and transaction data so
   ;; successive shells reuse computed values and retain their bookkeeping.
   ;; Retain the tracing cache atoms too: their values describe the same basis.
-  (let [evaluation-context (if-not (:dry-run evaluation-context)
-                             evaluation-context
-                             (assoc (in/live-run-evaluation-context evaluation-context)
-                               :in-production #{}))
+  (let [evaluation-context
+        (if-not (:dry-run evaluation-context)
+          evaluation-context
+          (assoc (in/live-run-evaluation-context evaluation-context)
+            :in-production #{}))
+
         basis-ref (:basis-ref evaluation-context)
         shared-materialization-registry-atom (:shared-materialization-registry-atom evaluation-context)
         node (ig/node-by-id-at @basis-ref node-id)]
@@ -2414,7 +2427,9 @@
                                  (when-not (stale-materialization? error)
                                    (throw error))))]
                   (if result
-                    (apply-evaluation-result! evaluation-context change result)
+                    (do
+                      (apply-evaluation-result! evaluation-context change result)
+                      (swap! (:local-atom evaluation-context) into (:cache-entries materialize-info)))
                     (recur (conj rejected-promises result-promise))))))))))))
 
 (extend-type ShellNode

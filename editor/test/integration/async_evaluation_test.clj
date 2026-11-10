@@ -115,7 +115,7 @@
                       (g/add-node
                         (g/construct-shell LayoutTestNode {:_node-id shell}
                           (fn materialize-node [self _evaluation-context]
-                            (g/set-property self :layout->prop->override {"Landscape" {:value 7}})))))
+                            {:tx-data (g/set-property self :layout->prop->override {"Landscape" {:value 7}})}))))
                     shell))]
       (ui/run-now
         (let [basis (g/now)
@@ -138,7 +138,7 @@
               [(g/add-node
                  (g/construct-shell console/ConsoleNode {:_node-id console-node}
                    (fn materialize-console [self _evaluation-context]
-                     (g/set-property self :modified-lines ["Background read"]))))
+                     {:tx-data (g/set-property self :modified-lines ["Background read"])})))
                (g/connect console-node :_node-id console-view :resource-node)])
             [console-node (get-in (console/routes console-view) ["/console" "GET"])]))]
     (ui/run-now

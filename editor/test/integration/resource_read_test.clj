@@ -40,6 +40,54 @@
 
 (set! *warn-on-reflection* true)
 
+;; Materialization and shared tracing reuse source data for save outputs, while
+;; tentative evaluations and later edits must not publish stale cached values.
+(deftest materialization-caches-save-data-test
+  (test-util/with-temp-project-content
+    {"/cached.atlas" {:images [{:image "/builtins/graphics/particle_blob.png"}]}}
+    (let [node-id (test-util/resource-node project "/cached.atlas")
+          save-value-endpoint (g/endpoint node-id :save-value)
+          save-data-endpoint (g/endpoint node-id :save-data)]
+      (g/with-evaluation-context [first-evaluation-context (g/make-evaluation-context)]
+        (g/with-evaluation-context [second-evaluation-context (g/make-evaluation-context)]
+          (g/materialize-node! node-id first-evaluation-context)
+          (g/materialize-node! node-id (g/dry-run-evaluation-context second-evaluation-context))
+          (let [source-value (g/raw-property-value @(:basis-ref first-evaluation-context) node-id :source-value)]
+            (doseq [evaluation-context [first-evaluation-context second-evaluation-context]]
+              (is (identical? source-value (g/node-value node-id :save-value evaluation-context)))
+              (is (= (resource-node/make-save-data node-id (resource-node/resource @(:basis-ref evaluation-context) node-id) source-value false)
+                     (g/node-value node-id :save-data evaluation-context)))))
+          (is (not (contains? (g/cache) save-value-endpoint)))
+          (is (not (contains? (g/cache) save-data-endpoint)))
+          (g/update-system-from-evaluation-context! first-evaluation-context)
+          (is (contains? (g/cache) save-value-endpoint))
+          (is (contains? (g/cache) save-data-endpoint))
+          (g/set-property! node-id :margin 17)
+          (g/update-system-from-evaluation-context! second-evaluation-context)
+          (is (not (contains? (g/cache) save-value-endpoint)))
+          (is (not (contains? (g/cache) save-data-endpoint)))
+          (is (= 17 (:margin (g/node-value node-id :save-value))))
+          (is (true? (:dirty (g/node-value node-id :save-data)))))))))
+
+;; Project settings must be initialized before loading dependent resources so
+;; their freshly cached source values survive the first build's loading pass.
+(deftest build-load-preserves-cached-save-data-test
+  (test-util/with-temp-project-content
+    {"/game.project" [{:path ["bootstrap" "main_collection"] :value "/main.collection"}]
+     "/main.collection" {:name "main"
+                         :instances [{:id "gui" :prototype "/gui.go"}]}
+     "/gui.go" {:components [{:id "gui" :component "/test.gui"}]}
+     "/texture.atlas" {:images [{:image "/builtins/graphics/particle_blob.png"}]}
+     "/template.gui" {:textures [{:name "texture" :texture "/texture.atlas"}]
+                      :nodes [{:id "box" :type :type-box :texture "texture/particle_blob"}]}
+     "/test.gui" {:nodes [{:id "template" :type :type-template :template "/template.gui"}]}}
+    (let [proj-path->node-id (g/node-value project :nodes-by-resource-path)]
+      (is (not (resource-node/loaded? (proj-path->node-id "/game.project"))))
+      (build/load-build-resources! project ["/game.project"] progress/null-render-progress! fn/constantly-false)
+      (doseq [proj-path ["/main.collection" "/gui.go" "/template.gui" "/test.gui"]
+              label [:save-value :save-data]]
+        (is (contains? (g/cache) (g/endpoint (proj-path->node-id proj-path) label)) (str [proj-path label]))))))
+
 (g/defnode NodesByResourcePathProbe
   (inherits resource/ResourceNode)
   (property reads g/Any :unjammable)
@@ -51,8 +99,10 @@
 ;; Loading the second atlas should reuse :nodes-by-resource-path even though
 ;; each atlas resolves the missing image path to a separate resource object.
 (deftest build-load-reuses-nodes-by-resource-path-test
-  (let [image-paths ["/builtins/graphics/particle_blob.png" "/missing.png"]
-        atlas {:images (mapv (fn [path] {:image path}) image-paths)}]
+  (let [image-proj-paths ["/builtins/graphics/particle_blob.png" "/missing.png"]
+        atlas {:images (mapv (fn [proj-path]
+                               {:image proj-path})
+                             image-proj-paths)}]
     (test-util/with-temp-project-content {"/first.atlas" atlas "/second.atlas" atlas}
       (build/load-build-resources! project ["/first.atlas"] progress/null-render-progress! fn/constantly-false)
       (let [reads (atom 0)
@@ -69,7 +119,7 @@
           (is (pos? initial-reads))
           (build/load-build-resources! project ["/second.atlas"] progress/null-render-progress! fn/constantly-false)
           (is (resource-node/loaded? atlas-node))
-          (is (= image-paths (mapv :image (:images (g/node-value atlas-node :save-value)))))
+          (is (= image-proj-paths (mapv :image (:images (g/node-value atlas-node :save-value)))))
           (is (= initial-reads @reads)))))))
 
 ;; Build dependency tracing can create nodes for missing resources. Its caller
@@ -305,7 +355,7 @@
     (fn build-prerequisites [_read-opts _owner-resource value]
       (:prerequisites value))
     (fn check-build-load [project _workspace load-fn-calls]
-      (let [nodes-by-path (g/node-value project :nodes-by-resource-path)
+      (let [proj-path->node-id (g/node-value project :nodes-by-resource-path)
             reports (atom [])
             render-load-progress! #(swap! reports conj %)]
         (is (thrown-with-msg?
@@ -313,20 +363,20 @@
               (build/load-build-resources! project ["/root.prereq"] render-load-progress!
                                            #(pos? (count @load-fn-calls)))))
         (is (= ["/shared.prereq"] @load-fn-calls))
-        (is (resource-node/loaded? (nodes-by-path "/shared.prereq")))
-        (is (not (resource-node/loaded? (nodes-by-path "/left.prereq"))))
+        (is (resource-node/loaded? (proj-path->node-id "/shared.prereq")))
+        (is (not (resource-node/loaded? (proj-path->node-id "/left.prereq"))))
         (is (= progress/done (peek @reports)))
 
         (reset! reports [])
         (build/load-build-resources! project ["/root.prereq"] render-load-progress! fn/constantly-false)
         (let [load-progress (filterv #(pos? (:size %)) (pop @reports))
-              expected-paths ["/left.prereq" "/right.prereq" "/prerequisite.prereq" "/root.prereq"]]
+              expected-proj-paths ["/left.prereq" "/right.prereq" "/prerequisite.prereq" "/root.prereq"]]
           (is (= (mapv #(localization/message "progress.loading-resource" {"resource" %})
-                       expected-paths)
+                       expected-proj-paths)
                  (mapv progress/message
-                       (subvec load-progress 0 (count expected-paths)))))
-          (is (= (into ["/shared.prereq"] expected-paths) @load-fn-calls)))
-        (is (not (resource-node/loaded? (nodes-by-path "/unrelated.prereq"))))
+                       (subvec load-progress 0 (count expected-proj-paths)))))
+          (is (= (into ["/shared.prereq"] expected-proj-paths) @load-fn-calls)))
+        (is (not (resource-node/loaded? (proj-path->node-id "/unrelated.prereq"))))
         (is (= progress/done (peek @reports)))))))
 
 ;; A shell read leaves the node unmaterialized. Once the same evaluation

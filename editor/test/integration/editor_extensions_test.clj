@@ -281,9 +281,9 @@
               (g/add-node
                 (g/construct-shell TestNode
                   {:_node-id node-id}
-                  (fn [self _evaluation-context]
+                  (fn materialize-test-shell [self _evaluation-context]
                     (swap! materialization-count inc)
-                    (g/set-property self :value 17)))))
+                    {:tx-data (g/set-property self :value 17)}))))
           rt (rt/make :env {"get_value" (rt/lua-fn [{:keys [evaluation-context]}]
                                           (rt/->lua (g/node-value node-id :value evaluation-context)))
                             "refresh" (rt/suspendable-lua-fn [_]

@@ -159,7 +159,7 @@
           (g/add-node
             (g/construct-shell ExpandTestNode {:_node-id shell}
               (fn materialize-fn [self _evaluation-context]
-                (g/set-property self :value 9)))))
+                {:tx-data (g/set-property self :value 9)}))))
         (g/transact
           [(g/callback-ec
              (fn initialize-tx-data-context [{:keys [tx-data-context-atom]}]

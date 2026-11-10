@@ -190,7 +190,8 @@
         (workspace/artifact-map! workspace (:artifact-map build-results))))))
 
 ;; Load progress includes dependencies of project validation resources.
-;; Connections used only by build targets stay lazy.
+;; Connections used only by build targets stay lazy. Freshly loaded save
+;; values remain cached after compilation to avoid reconstruction on rebuild.
 (deftest build-reports-resource-load-progress
   (with-clean-system
     (let [workspace (test-util/setup-scratch-workspace! "test/resources/small_project")]
@@ -199,12 +200,13 @@
       (test-util/write-file-resource! workspace "/graph_only.lua" ["return {}"])
       (workspace/resource-sync! workspace)
       (let [project (test-util/setup-project! workspace)
-            nodes-by-path (g/node-value project :nodes-by-resource-path)
+            proj-path->node-id (g/node-value project :nodes-by-resource-path)
             reports (atom [])]
-        (game-project/set-setting! (nodes-by-path "/game.project") ["input" "game_binding"]
+        (game-project/set-setting! (proj-path->node-id "/game.project") ["input" "game_binding"]
                                    (workspace/find-resource workspace "/edited.input_binding"))
-        (g/transact (g/connect (nodes-by-path "/graph_only.lua") :build-targets
-                               (nodes-by-path "/game.project") :dep-build-targets))
+        (g/transact
+          (g/connect (proj-path->node-id "/graph_only.lua") :build-targets
+                     (proj-path->node-id "/game.project") :dep-build-targets))
         (let [result @(app-view/async-build! project
                                              :build-engine false
                                              :run-build-hooks false
@@ -218,6 +220,12 @@
                               (get positions-by-message (localization/message "progress.loading-resource" {"resource" path}) -1))]
           (is (nil? (:error result)))
           (is (pos? (count (:artifacts result))))
+          (doseq [proj-path ["/main/main.collection" "/main/logo.atlas" "/edited.input_binding"]
+                  label [:save-value :save-data]
+                  :let [node-id (proj-path->node-id proj-path)]]
+            (is (contains? (g/cache)
+                           (g/endpoint node-id label))
+                (str [proj-path label])))
           (is (pos? (count reading)))
           (is (= @reports (conj (into reading loading) progress/done)))
           (is (= (vec (range (count loading))) (mapv :pos loading)))
@@ -226,8 +234,8 @@
             (is (< -1 (load-position path)) path))
           (is (< -1 (load-position "/builtins/graphics/particle_blob.png") (load-position "/builtins/graphics/particle_blob.tilesource")))
           (is (= -1 (load-position "/graph_only.lua")))
-          (is (resource-node/loaded? (nodes-by-path "/graph_only.lua")))
-          (is (not (resource-node/loaded? (nodes-by-path "/input/game.input_binding")))))))))
+          (is (resource-node/loaded? (proj-path->node-id "/graph_only.lua")))
+          (is (not (resource-node/loaded? (proj-path->node-id "/input/game.input_binding")))))))))
 
 (deftest build-targets-remain-in-cache-after-build
   (let [project-path "test/resources/build_project/SideScroller"

@@ -38,7 +38,7 @@
                         (g/add-node
                           (g/construct-shell AsyncTestNode {:_node-id shell}
                             (fn materialize-node [self _evaluation-context]
-                              (g/set-property self :value 7)))))
+                              {:tx-data (g/set-property self :value 7)}))))
                       shell))
             basis (g/now)
             error @(future
@@ -67,7 +67,7 @@
                     (g/add-node
                       (g/construct-shell AsyncTestNode {:_node-id shell}
                         (fn materialize-node [self _evaluation-context]
-                          (g/set-property self :value 7)))))
+                          {:tx-data (g/set-property self :value 7)}))))
                   [shell (g/make-node! AsyncTestNode)]))
 
               evaluation-context
@@ -173,7 +173,7 @@
                         (g/construct-shell AsyncTestNode {:_node-id node}
                           (fn materialize-node [self _evaluation-context]
                             (swap! materialization-count inc)
-                            (g/set-property self :value 7))))))
+                            {:tx-data (g/set-property self :value 7)})))))
                   [node (g/make-node! AsyncTestNode)]))]
           (ui/run-now
             (let [basis (g/now)

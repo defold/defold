@@ -520,14 +520,19 @@
 
 (defn construct-shell
   "Constructs a node whose non-unjammable outputs materialize it on demand.
-  materialize-fn receives the node-id and evaluation-context and returns the
-  transaction steps that populate it. It must materialize its prerequisites via
-  materialize-prerequisites! before returning steps. These steps can initialize
-  this node, create substructure and connect to existing nodes. Array inputs
-  retain independent contributions; single inputs use the last connection.
-  Other existing external state cannot be altered. Materialization replaces
-  the shell with a regular node and runs its default setters before applying
-  the returned steps."
+  materialize-fn receives the node-id and evaluation-context and returns a map
+  with :tx-data containing the transaction steps that populate it. It must
+  materialize its prerequisites via materialize-prerequisites! before returning
+  the map. These steps can initialize this node, create substructure and connect
+  to existing nodes. Array inputs retain independent contributions; single
+  inputs use the last connection. Other existing external state cannot be
+  altered. Materialization replaces the shell with a regular node and runs its
+  default setters before applying the returned steps.
+
+  The optional :cache-entries-fn receives the finalized transaction
+  result and returns endpoint/value pairs equivalent to evaluating those
+  outputs on the materialized node. These values enter the evaluation-context
+  cache after invalidation and are subject to the normal commit checks."
   [node-type properties materialize-fn]
   (in/construct-shell node-type properties materialize-fn))
 

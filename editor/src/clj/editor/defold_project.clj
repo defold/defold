@@ -590,40 +590,37 @@
                 :unretained unretained
                 :limit limit))))
 
+(defn- loaded-save-data-cache-entries [basis node-load-infos project excluded-resource-node-id?]
+  (coll/into-> node-load-infos []
+    (filter
+      (fn [{:keys [node-id]}]
+        (and (not (excluded-resource-node-id? node-id))
+             (g/connected? basis node-id :save-data project :save-data))))
+    (mapcat
+      (fn [{:keys [node-id read-error resource source-value]}]
+        (let [save-data-endpoint+cached-value
+              (pair (g/endpoint node-id :save-data)
+                    (or read-error
+                        (resource-node/make-save-data node-id resource source-value false)))
+
+              is-save-value-output-cached
+              (-> (g/node-type* basis node-id)
+                  (g/cached-outputs)
+                  (contains? :save-value))]
+
+          (cond-> [save-data-endpoint+cached-value]
+            is-save-value-output-cached
+            (conj (pair (g/endpoint node-id :save-value)
+                        (or read-error source-value)))))))))
+
 (defn cache-loaded-save-data! [node-load-infos project excluded-resource-node-id?]
-  (let [basis (g/now)
+  (g/cache-output-values!
+    (loaded-save-data-cache-entries (g/now) node-load-infos project excluded-resource-node-id?))
+  (log-cache-info! (g/cache) "Cached loaded save data in system cache."))
 
-        cached-resource-node-id?
-        (into #{}
-              (comp (map gt/source-id)
-                    (remove excluded-resource-node-id?))
-              (g/inputs basis project :save-data))
-
-        endpoint+cached-value-pairs
-        (into []
-              (mapcat (fn [{:keys [node-id source-value] :as node-load-info}]
-                        (when (cached-resource-node-id? node-id)
-                          (let [{:keys [read-error resource]} node-load-info
-
-                                save-data-endpoint+cached-value
-                                (pair (g/endpoint node-id :save-data)
-                                      (or read-error
-                                          (resource-node/make-save-data node-id resource source-value false)))
-
-                                is-save-value-output-cached
-                                (-> (g/node-type* basis node-id)
-                                    (g/cached-outputs)
-                                    (contains? :save-value))]
-
-                            (cond-> [save-data-endpoint+cached-value]
-
-                              is-save-value-output-cached
-                              (conj (pair (g/endpoint node-id :save-value)
-                                          (or read-error source-value))))))))
-              node-load-infos)]
-
-    (g/cache-output-values! endpoint+cached-value-pairs)
-    (log-cache-info! (g/cache) "Cached loaded save data in system cache.")))
+(defn- migrated-resource-node-ids [basis migrated-node-ids]
+  (coll/into-> migrated-node-ids #{}
+    (keep #(resource-node/owner-resource-node-id basis %))))
 
 (defn ^:dynamic report-defunload-issues! [workspace unsafe-dependency-proj-paths-by-referencing-proj-path loaded-undesired-proj-paths]
   (let [[^File report-file we-created-report-file] (resource/defunload-issues-file)
@@ -1161,9 +1158,7 @@
             (g/callback render-progress! (progress/make-indeterminate (localization/message "progress.finalizing")))))
 
         migrated-resource-node-ids
-        (into #{}
-              (keep #(resource-node/owner-resource-node-id basis %))
-              (g/migrated-node-ids tx-result))
+        (migrated-resource-node-ids basis (g/migrated-node-ids tx-result))
 
         migrated-proj-paths
         (into (sorted-set)
@@ -1284,9 +1279,28 @@
                                   (str "Unable to load prerequisite '" (node-proj-path prerequisite-node-id) "'."))
                         exception (ex-info message (ex-data exception) exception)]
                     (node-load-info-read-error node-load-info exception (coll/vals errors))))))))]
-    (e/concat
-      (node-load-info->disk-state-tx-data node-load-info)
-      (load-nodes-tx-data load-opts [node-load-info] progress/null-render-progress! progress/null-render-progress! nil))))
+    {:tx-data
+     (e/concat
+       (node-load-info->disk-state-tx-data node-load-info)
+       (load-nodes-tx-data load-opts [node-load-info] progress/null-render-progress! progress/null-render-progress! nil)
+       (g/expand-ec
+         (fn invalidate-migrated-save-data [evaluation-context]
+           ;; A referencing resource can migrate a loaded prerequisite.
+           ;; Use its current save-value after migration.
+           (let [{:keys [basis-ref tx-data-context-atom]} evaluation-context
+                 migrated-node-ids (:migrated-node-ids @tx-data-context-atom)]
+             (coll/into-> (migrated-resource-node-ids @basis-ref migrated-node-ids) []
+               (mapcat
+                 (fn [node-id]
+                   [(g/invalidate-output node-id :save-data)
+                    (g/invalidate-output node-id :save-value)])))))))
+
+     :cache-entries-fn
+     (fn materialized-save-data-cache-entries [{:keys [basis] :as tx-result}]
+       ;; A load-fn can fail after the resource was read successfully.
+       (when-not (g/defective? basis node-id)
+         (let [migrated-resource-node-ids (migrated-resource-node-ids basis (g/migrated-node-ids tx-result))]
+           (loaded-save-data-cache-entries basis [node-load-info] project migrated-resource-node-ids))))}))
 
 (defn make-resource-node-tx-data [project transpiler-tx-data-fn! node-id resource resource-type]
   {:pre [(g/node-id? project)

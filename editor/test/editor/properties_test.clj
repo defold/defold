@@ -251,8 +251,8 @@
         (g/add-node
           (g/construct-shell NumProp {:_node-id shell-node-id}
             (fn materialize-property-node [self _evaluation-context]
-              [(g/add-node (g/construct NumProp {:_node-id generated-node-id :my-prop 10}))
-               (g/set-property self :my-prop generated-node-id)]))))
+              {:tx-data [(g/add-node (g/construct NumProp {:_node-id generated-node-id :my-prop 10}))
+                         (g/set-property self :my-prop generated-node-id)]}))))
       (let [property
             (-> (:my-prop (coalesce-nodes [node-id]))
                 (assoc-in [:edit-type :prepare-user-edit-fn]

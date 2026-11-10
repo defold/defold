@@ -214,13 +214,18 @@
                   (pair node-id proj-path))))))))
 
 (defn load-build-resources!
-  "Reads the dependencies of the build roots and project validation resources,
-  then materializes their shells in dependency order."
+  "Initializes project settings, reads the dependencies of the build roots and
+  project validation resources, then materializes their shells in dependency
+  order."
   [project root-proj-paths render-load-progress! task-cancelled?]
   (let [report-progress! (cancellable-render-progress render-load-progress! task-cancelled?)]
     (try
       (report-progress! (progress/make-cancellable-indeterminate (localization/message "progress.loading-project")))
       (let [nodes (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+                    ;; Initialize shared settings and profiles before dependent
+                    ;; resources cache their save values.
+                    (doseq [label [:settings :display-profiles :texture-profiles :use-font-layout :use-rich-text]]
+                      (g/node-value project label evaluation-context))
                     (let [nodes (read-build-resource-nodes! project root-proj-paths report-progress! evaluation-context)]
                       ;; Reuse these source values during materialization.
                       (ui/run-now
