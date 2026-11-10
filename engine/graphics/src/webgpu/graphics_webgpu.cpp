@@ -1785,6 +1785,8 @@ static void WebGPUDestroyContext(WebGPUContext* context)
 {
     TRACE_CALL;
     WebGPUInvalidateBindGroups(context);
+    context->m_ExpiredBindGroupKeys.SetSize(0);
+    context->m_ExpiredBindGroupKeys.SetCapacity(0);
     if (context->m_DefaultTexture2D)
     {
         WebGPUDestroyTexture(context->m_DefaultTexture2D);
@@ -2249,19 +2251,27 @@ static void WebGPUClear(HContext _context, uint32_t flags, uint8_t red, uint8_t 
 static void WebGPUPruneBindGroups(WebGPUContext* context)
 {
     const uint32_t max_age = 8;
+    dmArray<uint64_t>& expired_keys = context->m_ExpiredBindGroupKeys;
+    expired_keys.SetSize(0);
     dmHashTable64<WebGPUBindGroup*>::Iterator iterator = context->m_BindGroupCache.GetIterator();
-    bool has_next = iterator.Next();
-    while (has_next)
+    while (iterator.Next())
     {
-        const uint64_t hash = iterator.GetKey();
         WebGPUBindGroup* group = iterator.GetValue();
-        // Erase reuses the current entry for the free list, so advance before removing it.
-        has_next = iterator.Next();
-        if (context->m_BindGroupCacheFrame - group->m_LastUsedFrame <= max_age)
+        if (context->m_BindGroupCacheFrame - group->m_LastUsedFrame > max_age)
         {
-            continue;
+            if (expired_keys.Full())
+            {
+                expired_keys.SetCapacity(expired_keys.Capacity() ? expired_keys.Capacity() * 2 : 64);
+            }
+            expired_keys.Push(iterator.GetKey());
         }
+    }
 
+    // Erase changes entry links, so remove expired groups after traversing the table.
+    for (uint32_t i = 0; i < expired_keys.Size(); ++i)
+    {
+        const uint64_t hash = expired_keys[i];
+        WebGPUBindGroup* group = *context->m_BindGroupCache.Get(hash);
         // Inactive programs clear their borrowed entries in EnableProgram().
         // The enabled program may survive across frames without being rebound.
         if (context->m_CurrentProgram)

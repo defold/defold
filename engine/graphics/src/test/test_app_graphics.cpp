@@ -425,7 +425,7 @@ struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
         if (engine->m_WasRun == 1)
         {
             WebGPURenderingTest::Execute(engine);
-            // Force collisions to verify that pruning visits every entry while erasing.
+            // Force collisions to verify that pruning removes every expired entry.
             dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
             context->m_BindGroupCache.SetCapacity(1, context->m_BindGroupCache.Capacity() * 2);
             return;

@@ -212,6 +212,7 @@ namespace dmGraphics
         dmHashTable64<WGPURenderPipeline>  m_RenderPipelineCache;
         dmHashTable64<WGPUComputePipeline> m_ComputePipelineCache;
         dmHashTable64<WebGPUBindGroup*>    m_BindGroupCache;
+        dmArray<uint64_t>                  m_ExpiredBindGroupKeys;
         uint32_t                           m_BindGroupCacheFrame;
         dmHashTable64<WGPUSampler>         m_SamplerCache;
 
