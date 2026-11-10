@@ -13,12 +13,13 @@
 // specific language governing permissions and limitations under the License.
 
 #include "utf8.h"
+#include <simd/simd.h>
 
 /**
  * utf-8 support
  *
- * Except for ValidateSequence, supplied utf-8 sequences must be well-formed;
- * invalid sequences are not detected. It's however guaranteed that
+ * Except for Validate and ValidateSequence, supplied utf-8 sequences must be
+ * well-formed; invalid sequences are not detected. It's however guaranteed that
  * the library function will not read outside the buffer and the terminating
  * '\0' character is always respected.
  */
@@ -55,6 +56,50 @@ namespace dmUtf8
             return 0;
         }
         return count;
+    }
+
+    // One bulk call lets the compiler inline sequence validation for mixed
+    // blocks, while retaining the existing SIMD ASCII fast path.
+    uint32_t Validate(const char* text, uint32_t size)
+    {
+        for (uint32_t i = 0; i < size;)
+        {
+            // Check four blocks together to amortize the ASCII reduction.
+            if (size - i >= 64)
+            {
+                dsimd_uint4_t a = SimdOrUint(SimdLoadUint(text + i), SimdLoadUint(text + i + 16));
+                dsimd_uint4_t b = SimdOrUint(SimdLoadUint(text + i + 32), SimdLoadUint(text + i + 48));
+                dsimd_uint4_t high = SimdAndUint(SimdOrUint(a, b), SimdSplatUint(0x80808080));
+                if (SimdAll(SimdEqualUint(high, SimdSplatUint(0))))
+                {
+                    i += 64;
+                    continue;
+                }
+            }
+            uint32_t end = size - i > 16 ? i + 16 : size;
+            if (size - i >= 16)
+            {
+                dsimd_uint4_t bytes = SimdLoadUint(text + i);
+                dsimd_uint4_t high = SimdAndUint(bytes, SimdSplatUint(0x80808080));
+                if (SimdAll(SimdEqualUint(high, SimdSplatUint(0))))
+                {
+                    i += 16;
+                    continue;
+                }
+            }
+            // Validate a mixed block once instead of reloading it for every
+            // byte. A UTF-8 sequence may extend beyond the block boundary.
+            do
+            {
+                uint32_t bytes = ValidateSequence(text + i, size - i);
+                if (!bytes)
+                {
+                    return i;
+                }
+                i += bytes;
+            } while (i < end);
+        }
+        return size;
     }
 
     static const uint32_t offsets[6] = {

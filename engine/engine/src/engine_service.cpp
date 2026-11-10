@@ -18,7 +18,7 @@
 #include <dlib/webserver.h>
 #include <dlib/message.h>
 #include <dlib/dstrings.h>
-#include <dlib/json.h>
+#include <dlib/json.hpp>
 #include <dlib/math.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>

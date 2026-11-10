@@ -154,6 +154,72 @@ TEST(dmUtf8, TruncatedSequences)
     }
 }
 
+// Bulk validation must match the sequence API's first invalid offset for
+// deterministic random bytes, without reading outside exact-sized allocations.
+TEST(dmUtf8, BulkValidationDifferential)
+{
+    uint32_t random = 0x12345678;
+    for (uint32_t n = 0; n < 20000; ++n)
+    {
+        random = random * 1664525u + 1013904223u;
+        uint32_t size = random >> 24;
+        char* text = (char*)malloc(size ? size : 1);
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            random = random * 1664525u + 1013904223u;
+            text[i] = (char)(random >> 24);
+        }
+        uint32_t valid = 0;
+        while (valid < size)
+        {
+            uint32_t length = dmUtf8::ValidateSequence(text + valid, size - valid);
+            if (!length)
+            {
+                break;
+            }
+            valid += length;
+        }
+        EXPECT_EQ(valid, dmUtf8::Validate(text, size));
+        free(text);
+    }
+}
+
+// ASCII fast paths must preserve invalid offsets and handle NUL, multibyte and
+// truncated sequences across 16- and 64-byte block boundaries without overread.
+TEST(dmUtf8, BulkValidationBoundaries)
+{
+    const struct
+    {
+        const char* m_Text;
+        uint32_t    m_Size;
+        bool        m_Valid;
+    } cases[] = {
+        { "\x00", 1, true }, { "\xc2\x80", 2, true },
+        { "\xe0\xa0\x80", 3, true }, { "\xf4\x8f\xbf\xbf", 4, true },
+        { "\x80", 1, false }, { "\xc0\x80", 2, false },
+        { "\xed\xa0\x80", 3, false }, { "\xf4\x90\x80\x80", 4, false },
+        { "\xc2", 1, false }, { "\xe0\xa0", 2, false },
+        { "\xf0\x90\x80", 3, false }
+    };
+    ASSERT_EQ(0u, dmUtf8::Validate(0, 0));
+    for (uint32_t prefix = 0; prefix < 128; ++prefix)
+    {
+        for (uint32_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+        {
+            for (uint32_t suffix = 0; suffix <= 16; suffix += 16)
+            {
+                uint32_t size = prefix + cases[i].m_Size + suffix;
+                char* text = (char*)malloc(size);
+                memset(text, 'a', size);
+                memcpy(text + prefix, cases[i].m_Text, cases[i].m_Size);
+                uint32_t result = dmUtf8::Validate(text, size);
+                free(text);
+                ASSERT_EQ(cases[i].m_Valid ? size : prefix, result);
+            }
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);
