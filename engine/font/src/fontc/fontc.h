@@ -44,7 +44,7 @@ extern "C"
         FONT_RENDERER_LAYER_SHADOW = 4,
     } FontRendererLayer;
 
-    /* Rich-text parser error classification returned by FontcParseMarkup. */
+    /* Rich-text diagnostic classification returned by FontcParseMarkup and FontcCompileStyle. */
     typedef enum FontcMarkupErrorType
     {
         FONTC_MARKUP_ERROR_NONE,
@@ -62,6 +62,7 @@ extern "C"
         FONTC_MARKUP_ERROR_UNKNOWN_TAG,
         FONTC_MARKUP_ERROR_UNKNOWN_ATTRIBUTE,
         FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE,
+        FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS,
     } FontcMarkupErrorType;
 
     typedef struct FontcParams
@@ -139,6 +140,10 @@ extern "C"
         // Text measurement at the renderer's size, independent of raster padding.
         float    m_LayoutWidth;
         float    m_LayoutLeftBearing;
+        // Unpadded bounds used to match runtime gradient fitting to previews.
+        float    m_UnpaddedWidth;
+        float    m_UnpaddedAscent;
+        float    m_UnpaddedDescent;
     } FontcGlyphMetrics;
 
     typedef struct FontcProperties
@@ -152,11 +157,24 @@ extern "C"
         float    m_Leading;
         float    m_Tracking;
         float    m_SdfScale;
-        uint32_t m_LineBreak;
-        uint32_t m_Align;
-        uint32_t m_VerticalAlign;
         uint64_t m_BaseStyle;
-        uint32_t m_UseBaseStyle;
+        // Java accesses m_Bits because jextract does not expose bit fields.
+        // The supported editor hosts use the little-endian layout below.
+        union
+        {
+            struct
+            {
+                uint8_t m_LineBreak : 1;
+                uint8_t m_Align : 2;
+                uint8_t m_VerticalAlign : 2;
+                uint8_t m_UseBaseStyle : 1;
+                // Emit effect UVs and lookup indices for shaders with a font_effects sampler.
+                uint8_t m_UseGPUEffects : 1;
+            };
+            uint8_t m_Bits;
+        };
+        // Vector layout size in pixels; zero uses the glyph generation size.
+        float    m_FontSize;
     } FontcProperties;
 
     /* Compiled style data. Color arrays are RGBA; flags distinguish inherited
@@ -182,13 +200,26 @@ extern "C"
 
     typedef struct FontcStyleEffect
     {
-        float m_Colors[16];
-        float m_Amplitude;
-        float m_Hz;
-        float m_Wavelength;
-        uint32_t m_Type;
-        uint32_t m_Fit;
-        uint32_t m_GradientMode;
+        float    m_Colors[16];
+        float    m_Amplitude;
+        float    m_Hz;
+        float    m_Wavelength;
+        float    m_Positions[4];
+        // Authored linear angle, or radial pivot x/y, radius x/y, angle, and unused.
+        float    m_Parameters[6];
+        // Low-to-high bits of m_Bits on editor hosts; also read/written by Java.
+        union
+        {
+            struct
+            {
+                uint16_t m_Type : 2;
+                uint16_t m_Fit : 2;
+                uint16_t m_GradientMode : 2;
+                uint16_t m_ColorType : 2;
+                uint16_t m_StopCount : 3; // 0 when unused, otherwise 1-4.
+            };
+            uint16_t m_Bits;
+        };
     } FontcStyleEffect;
 
     typedef struct FontcStyleData
@@ -354,12 +385,14 @@ extern "C"
      * Parses UTF-8 rich text into a font-independent syntax tree. On success,
      * the returned handle owns the parsed source, visible text, nodes,
      * attributes, and spans until released with `FontcDestroyMarkup`.
+     * Invalid effect values do not prevent parsing; error then identifies the
+     * first ignored effect so tooling can display a warning.
      *
      * @name FontcParseMarkup
      * @param markup [type: const char*] UTF-8 rich-text markup.
      * @param markup_byte_count [type: uint32_t] Number of bytes in the markup.
      * @param parsed_markup [type: HFontcMarkup*] Receives the parsed handle on success.
-     * @param error [type: FontcMarkupError*] Receives structured parser error information.
+     * @param error [type: FontcMarkupError*] Receives the first parser error or effect warning, or FONTC_MARKUP_ERROR_NONE.
      * @return result [type: FontRendererResult] Result of the operation.
      */
     DM_DLLEXPORT FontRendererResult FontcParseMarkup(const char*       markup,
@@ -629,7 +662,7 @@ extern "C"
     DM_DLLEXPORT uint64_t FontcHash(HFontRenderer renderer);
 
     /*#
-     * Starts preparation of a render batch.
+     * Starts preparation of a render batch and clears its gradient lookup records.
      * Glyphs touched after this call are protected from atlas eviction for the
      * remainder of the batch. Call this once before preparing all text entries
      * whose generated texture and vertices will be rendered together.
@@ -649,7 +682,9 @@ extern "C"
      * returned atlas version must be retained by the caller for subsequent calls.
      * The returned pixel buffer, when present, is owned by the caller and must be
      * released with FontcFreeTexture. Generate the texture before querying
-     * or writing vertices so their glyphs are available in the atlas.
+     * or writing vertices so their glyphs are available in the atlas. For Vector
+     * fonts this is the byte effect atlas; also request the numeric textures with
+     * FontcGetVectorTextures using the same known atlas version.
      *
      * @name FontcGenerateTexture
      * @param renderer [type: HFontRenderer] Font renderer context.
@@ -661,12 +696,35 @@ extern "C"
                                                          uint64_t      known_atlas_version,
                                                          FontcTexture* texture);
 
+    /* Returns Slug numeric textures after FontcGenerateTexture has prepared the
+     * glyphs for all entries in a batch. Curves are RGBA16F; bands are packed R32UI,
+     * matching the runtime texture formats. Updates contain complete images, whose
+     * heights grow with the active glyph set. Release both with FontcFreeTexture.
+     * The existing atlas version covers all three textures. */
+    DM_DLLEXPORT FontRendererResult FontcGetVectorTextures(HFontRenderer renderer, uint64_t known_atlas_version,
+                                                          FontcTexture* curves, FontcTexture* bands);
+
+    /*#
+     * Copies the gradient lookup texture for vertices generated since FontcBeginBatch.
+     * Enable FontcProperties.m_UseGPUEffects when the material has a font_effects
+     * sampler, then call this after writing all vertices in the batch. Keep the
+     * returned snapshot with those vertices; the next batch may reuse lookup indices.
+     * Copies only the used rows. Batches without GPU effects return an empty texture.
+     * Release the copied pixel buffer with FontcFreeTexture.
+     *
+     * @name FontcGetEffectTexture
+     * @param renderer [type: HFontRenderer] Font renderer context.
+     * @param texture [type: FontcTexture*] Receives the full RGBA8 lookup texture.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+    DM_DLLEXPORT FontRendererResult FontcGetEffectTexture(HFontRenderer renderer, FontcTexture* texture);
+
     /*#
      * Releases the pixel buffer in a texture update and clears the structure.
      * Passing a null pointer is allowed.
      *
      * @name FontcFreeTexture
-     * @param texture [type: FontcTexture*] Texture returned by FontcGenerateTexture.
+     * @param texture [type: FontcTexture*] Texture returned by FontcGenerateTexture or FontcGetEffectTexture.
      */
     DM_DLLEXPORT void FontcFreeTexture(FontcTexture* texture);
 

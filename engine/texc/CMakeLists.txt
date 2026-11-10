@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 4.0)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../scripts/cmake")
 include(defold)
+include(simd)
 
 project(defold_texc LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 
@@ -27,6 +28,66 @@ if(TARGET_PLATFORM MATCHES "macos|linux|win32$")
 endif()
 
 if(TEXC_IS_DESKTOP)
+  # Prevent IPO from merging the baseline dispatcher and separately compiled ISAs.
+  function(texc_disable_lto target)
+    set_target_properties(${target} PROPERTIES
+      INTERPROCEDURAL_OPTIMIZATION FALSE
+      INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE
+      INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO FALSE)
+  endfunction()
+
+  set(TEXC_SIMD_OBJECTS)
+  set(TEXC_SIMD_SHARED_OBJECTS)
+  set(TEXC_SIMD_DEFINES)
+  set(_texc_simd_variants scalar)
+  if(TARGET_PLATFORM MATCHES "^x86_64-")
+    list(APPEND _texc_simd_variants sse3 sse42 avx2 avx512)
+    set(TEXC_SIMD_DEFINES DM_TEXC_HAS_SSE3 DM_TEXC_HAS_SSE42 DM_TEXC_HAS_AVX2 DM_TEXC_HAS_AVX512)
+  elseif(TARGET_PLATFORM MATCHES "^arm64-")
+    list(APPEND _texc_simd_variants neon)
+    set(TEXC_SIMD_DEFINES DM_TEXC_HAS_NEON)
+  endif()
+  foreach(_variant IN LISTS _texc_simd_variants)
+    string(TOUPPER "${_variant}" _isa)
+    if(_variant STREQUAL "scalar")
+      set(_source texc_simd_scalar.cpp)
+      set(_isa SSE2)
+    elseif(_variant MATCHES "^sse")
+      set(_source texc_simd_sse.cpp)
+      if(_variant STREQUAL "sse42")
+        set(_isa SSE4.2)
+      endif()
+    elseif(_variant MATCHES "^avx")
+      set(_source texc_simd_avx.cpp)
+    else()
+      set(_source texc_simd_neon.cpp)
+    endif()
+    set(_target texc_simd_${_variant})
+    set(_sources "${TEXC_SRC_DIR}/${_source}")
+    if(NOT _variant STREQUAL "scalar")
+      list(APPEND _sources "${TEXC_SRC_DIR}/texc_simd_resize.cpp")
+    endif()
+    set(_shared_target ${_target})
+    set(_targets ${_target})
+    if(WITH_ASAN OR WITH_HWASAN OR WITH_UBSAN OR WITH_TSAN)
+      set(_shared_target ${_target}_noasan)
+      list(APPEND _targets ${_shared_target})
+    endif()
+    foreach(_kernel_target IN LISTS _targets)
+      add_library(${_kernel_target} OBJECT ${_sources})
+      target_link_libraries(${_kernel_target} PRIVATE defold_sdk)
+      target_include_directories(${_kernel_target} PRIVATE "${DEFOLD_HOME}/engine/dlib/src")
+      set_target_properties(${_kernel_target} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+      texc_disable_lto(${_kernel_target})
+      defold_target_simd_x86_isa(${_kernel_target} "${_isa}")
+    endforeach()
+    if(NOT _shared_target STREQUAL _target)
+      defold_target_skip_sanitizer(${_shared_target})
+    endif()
+    list(APPEND TEXC_SIMD_OBJECTS $<TARGET_OBJECTS:${_target}>)
+    list(APPEND TEXC_SIMD_SHARED_OBJECTS $<TARGET_OBJECTS:${_shared_target}>)
+  endforeach()
+
   find_package(JNI REQUIRED)
   find_program(DEFOLD_PYTHON NAMES python3 python REQUIRED)
   defold_find_clang_cpp(DEFOLD_CLANGPP)
@@ -40,7 +101,9 @@ if(TEXC_IS_DESKTOP)
     "${TEXC_SRC_DIR}/texc_enc_astc.cpp"
     "${TEXC_SRC_DIR}/texc_enc_basis.cpp"
     "${TEXC_SRC_DIR}/texc_enc_default.cpp"
-    "${TEXC_SRC_DIR}/texc_private.cpp")
+    "${TEXC_SRC_DIR}/texc_private.cpp"
+    "${TEXC_SRC_DIR}/texc_ktx2.cpp"
+    "${TEXC_SRC_DIR}/texc_resize.cpp")
 
   set(TEXC_JAVA_DIR "${CMAKE_CURRENT_BINARY_DIR}/java")
   set(TEXC_JNI_DIR "${CMAKE_CURRENT_BINARY_DIR}/jni")
@@ -72,11 +135,16 @@ if(TEXC_IS_DESKTOP)
   add_custom_target(texc_generated_bindings
     DEPENDS "${TEXC_GENERATED_JAVA}" "${TEXC_GENERATED_CPP}" "${TEXC_GENERATED_H}")
 
-  defold_add_library(texc STATIC ${TEXC_CORE_SOURCES})
-  target_include_directories(texc PUBLIC "${TEXC_SRC_DIR}")
+  defold_add_library(texc STATIC ${TEXC_CORE_SOURCES} ${TEXC_SIMD_OBJECTS})
+  target_compile_definitions(texc PRIVATE ${TEXC_SIMD_DEFINES})
+  defold_target_simd_x86_isa(texc SSE2)
+  texc_disable_lto(texc)
+  target_include_directories(texc PUBLIC "${TEXC_SRC_DIR}" PRIVATE "${DEFOLD_HOME}/engine/dlib/src")
   defold_target_link_libraries(texc "${TARGET_PLATFORM}" SCOPE PUBLIC ${TEXC_DEPENDENCIES})
 
   add_library(texc_bindings OBJECT "${TEXC_GENERATED_CPP}")
+  texc_disable_lto(texc_bindings)
+  defold_target_simd_x86_isa(texc_bindings SSE2)
   defold_target_skip_sanitizer(texc_bindings)
   target_include_directories(texc_bindings PRIVATE "${TEXC_SRC_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" "${TEXC_JNI_DIR}" ${JNI_INCLUDE_DIRS})
   defold_target_link_libraries(texc_bindings "${TARGET_PLATFORM}" SCOPE PRIVATE ${TEXC_BINDINGS_DEPENDENCIES})
@@ -85,10 +153,14 @@ if(TEXC_IS_DESKTOP)
 
   add_library(texc_shared SHARED
     ${TEXC_CORE_SOURCES}
+    ${TEXC_SIMD_SHARED_OBJECTS}
     "${TEXC_SRC_DIR}/texclibrary_jni.cpp"
     $<TARGET_OBJECTS:texc_bindings>)
   defold_target_skip_sanitizer(texc_shared)
-  target_include_directories(texc_shared PRIVATE "${TEXC_SRC_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" "${TEXC_JNI_DIR}" ${JNI_INCLUDE_DIRS})
+  target_compile_definitions(texc_shared PRIVATE ${TEXC_SIMD_DEFINES})
+  defold_target_simd_x86_isa(texc_shared SSE2)
+  texc_disable_lto(texc_shared)
+  target_include_directories(texc_shared PRIVATE "${DEFOLD_HOME}/engine/dlib/src" "${TEXC_SRC_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" "${TEXC_JNI_DIR}" ${JNI_INCLUDE_DIRS})
   add_dependencies(texc_shared texc_bindings)
   defold_target_link_libraries(texc_shared "${TARGET_PLATFORM}"
     ${TEXC_SHARED_DEPENDENCIES})

@@ -33,6 +33,9 @@ struct FontGlyphGenParams
 };
 
 FontResult FontGenerateGlyph(HFont font, uint32_t glyph_index, const FontGlyphGenParams* params, FontGlyph* glyph);
+// Produces original vector outlines and an optional RGB effect atlas (face
+// coverage, outline distance field, blurred shadow) in one owned FontGlyph.
+FontResult FontGenerateVectorGlyph(HFont font, uint32_t glyph_index, const FontGlyphGenParams* params, FontGlyph* glyph);
 uint32_t FontGetGlyphChannelCount(bool output_bitmap, bool has_outline, bool has_shadow, float shadow_blur);
 
 #endif // DM_FONT_GLYPH_GEN_H

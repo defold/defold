@@ -1,15 +1,48 @@
 set(TEXC_TEST_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
-defold_add_executable(test_texc "${TEXC_TEST_DIR}/test_texc.cpp")
-target_include_directories(test_texc PRIVATE "${TEXC_SRC_DIR}" "${TEXC_TEST_DIR}/..")
-defold_target_link_libraries(test_texc "${TARGET_PLATFORM}"
-  texc
-  dlib
-  zip
-  mbedtls
-  image
-  profile_null
-  basis_encoder
-  astcenc)
-# Texture codec tests use memory and their own fixtures, without shared devices or ports.
-defold_register_test_target(test_texc ON "${TEXC_ROOT}" RUN_GROUP texc)
+function(texc_add_test target)
+  defold_add_executable(${target} ${ARGN})
+  texc_disable_lto(${target})
+  target_include_directories(${target} PRIVATE "${TEXC_SRC_DIR}" "${DEFOLD_HOME}/engine/dlib/src")
+  target_compile_definitions(${target} PRIVATE ${TEXC_SIMD_DEFINES})
+  defold_target_simd_x86_isa(${target} SSE2)
+  defold_target_link_libraries(${target} "${TARGET_PLATFORM}"
+    texc dlib zip mbedtls image profile_null basis_encoder astcenc)
+  # Memory-only fixtures do not share devices or ports.
+  defold_register_test_target(${target} ON "${TEXC_ROOT}" RUN_GROUP texc)
+endfunction()
+
+texc_add_test(test_texc "${TEXC_TEST_DIR}/test_texc.cpp" "${TEXC_TEST_DIR}/test_texc_ktx2.cpp")
+texc_add_test(test_texc_image_ops "${TEXC_TEST_DIR}/test_texc_image_ops.cpp")
+
+# The in-repo SIMDe scalar subset also exercises AVX kernels through emulation.
+add_library(texc_resize_reference OBJECT EXCLUDE_FROM_ALL "${TEXC_SRC_DIR}/texc_simd_scalar.cpp")
+texc_disable_lto(texc_resize_reference)
+target_link_libraries(texc_resize_reference PRIVATE defold_sdk)
+target_include_directories(texc_resize_reference PRIVATE "${TEXC_SRC_DIR}" "${DEFOLD_HOME}/engine/dlib/src")
+target_compile_definitions(texc_resize_reference PRIVATE DM_TEXC_TEST_REFERENCE=1)
+defold_target_simd_x86_isa(texc_resize_reference SSE2)
+if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+  target_compile_options(texc_resize_reference PRIVATE /fp:strict)
+  set(_emulation_flag "/FI${DEFOLD_HOME}/engine/dlib/src/test/test_simd_wide_emulate.h")
+  set(_fp_flag /fp:strict)
+else()
+  target_compile_options(texc_resize_reference PRIVATE -ffp-contract=off)
+  set(_emulation_flag -include "${DEFOLD_HOME}/engine/dlib/src/test/test_simd_wide_emulate.h")
+  set(_fp_flag -ffp-contract=off)
+endif()
+foreach(_width IN ITEMS 32 64)
+  set(_kernels texc_emulated${_width})
+  add_library(${_kernels} OBJECT EXCLUDE_FROM_ALL "${TEXC_SRC_DIR}/texc_simd_avx.cpp" "${TEXC_SRC_DIR}/texc_simd_resize.cpp")
+  texc_disable_lto(${_kernels})
+  target_link_libraries(${_kernels} PRIVATE defold_sdk)
+  target_include_directories(${_kernels} PRIVATE "${DEFOLD_HOME}/engine/dlib/src")
+  target_compile_definitions(${_kernels} PRIVATE DM_TEXC_TEST_WIDE=1 DM_SIMD_TEST_WIDE_BYTES=${_width})
+  defold_target_simd_x86_isa(${_kernels} SSE2)
+  target_compile_options(${_kernels} PRIVATE ${_emulation_flag} ${_fp_flag})
+  set(_target test_texc_image_ops_emulated${_width})
+  texc_add_test(${_target} "${TEXC_TEST_DIR}/test_texc_image_ops.cpp"
+    $<TARGET_OBJECTS:${_kernels}> $<TARGET_OBJECTS:texc_resize_reference>)
+  target_compile_definitions(${_target} PRIVATE DM_TEXC_TEST_WIDE=1)
+  target_compile_options(${_target} PRIVATE ${_fp_flag})
+endforeach()

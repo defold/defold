@@ -17,7 +17,7 @@
 
 
 #include "sound_pfb.h"
-#include "dsimd.h"
+#include <simd/simd.h>
 
 #include <dlib/log.h>
 

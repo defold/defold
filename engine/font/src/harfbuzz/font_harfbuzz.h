@@ -19,8 +19,9 @@
 
 typedef struct hb_font_t hb_font_t;
 
-/*# HarfBuzz-backed TrueType/OpenType face
- * Opaque face data used to map characters, read metrics, and decode outlines.
+/*# TrueType/OpenType face with HarfBuzz shaping
+ * Uses HarfBuzz for mapping and layout metrics, and our standalone parser
+ * for default-instance outlines and glyph bounds.
  * The object borrows the complete source font data supplied to
  * FontHarfbuzzCreate.
  * @typedef
@@ -28,13 +29,13 @@ typedef struct hb_font_t hb_font_t;
  */
 struct FontHarfbuzz;
 
-/*# create a HarfBuzz-backed TrueType/OpenType face
+/*# create a TrueType/OpenType face with HarfBuzz shaping
  * The source data is borrowed and must remain valid until destruction.
  * @name FontHarfbuzzCreate
  * @param data [type: const void*] complete TTF, OTF, or TTC data
  * @param data_size [type: uint32_t] size of data in bytes
  * @param face_index [type: uint32_t] zero-based face index
- * @return font [type: FontHarfbuzz*] face, or null when allocation fails
+ * @return font [type: FontHarfbuzz*] face, or null for unsupported or invalid font data
  */
 FontHarfbuzz* FontHarfbuzzCreate(const void* data, uint32_t data_size, uint32_t face_index);
 
@@ -97,7 +98,7 @@ void FontHarfbuzzGetGlyphHMetrics(FontHarfbuzz* font, uint32_t glyph_index, int3
  */
 FontOutlineType FontHarfbuzzGetOutlineType(FontHarfbuzz* font);
 
-/*# return unscaled glyph bounds
+/*# return unscaled outline bounds, excluding COLR paint and clip data
  * @name FontHarfbuzzGetGlyphBox
  * @param font [type: FontHarfbuzz*] source face
  * @param glyph_index [type: uint32_t] glyph index
@@ -125,5 +126,9 @@ hb_font_t* FontHarfbuzzGetFont(FontHarfbuzz* font);
  * @return hb_font [type: hb_font_t*] borrowed HarfBuzz font
  */
 hb_font_t* FontGetHarfbuzzFontFromTTF(HFont font);
+
+// Borrowed color-table view owned by the standalone outline parser.
+struct FontColr;
+const FontColr* FontHarfbuzzGetColr(FontHarfbuzz* font);
 
 #endif // DM_FONT_HARFBUZZ_H

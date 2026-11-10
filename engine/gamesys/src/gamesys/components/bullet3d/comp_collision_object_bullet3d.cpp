@@ -917,6 +917,7 @@ namespace dmGameSystem
 
     static bool GetShapeBullet3D(CollisionWorld* _world, CollisionComponent* _component, uint32_t shape_ix, ShapeInfo* shape_info)
     {
+        CollisionWorldBullet3D* world = (CollisionWorldBullet3D*)_world;
         CollisionComponentBullet3D* component = (CollisionComponentBullet3D*) _component;
         uint32_t shape_count = _component->m_Resource->m_ShapeCount;
 
@@ -934,13 +935,13 @@ namespace dmGameSystem
             case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
             {
                 float sphere_radius;
-                dmPhysics::GetCollisionShapeRadius3D(shape3d, &sphere_radius);
+                dmPhysics::GetCollisionShapeRadius3D(world->m_World3D, shape3d, &sphere_radius);
                 shape_info->m_SphereDiameter = sphere_radius * 2.0f;
             } break;
             case dmPhysicsDDF::CollisionShape::TYPE_BOX:
             {
                 float half_extents[3];
-                dmPhysics::GetCollisionShapeHalfBoxExtents3D(shape3d, half_extents);
+                dmPhysics::GetCollisionShapeHalfBoxExtents3D(world->m_World3D, shape3d, half_extents);
                 shape_info->m_BoxDimensions[0] = half_extents[0] * 2.0f;
                 shape_info->m_BoxDimensions[1] = half_extents[1] * 2.0f;
                 shape_info->m_BoxDimensions[2] = half_extents[2] * 2.0f;
@@ -948,7 +949,7 @@ namespace dmGameSystem
             case dmPhysicsDDF::CollisionShape::TYPE_CAPSULE:
             {
                 float radius, half_height;
-                dmPhysics::GetCollisionShapeCapsuleRadiusHeight3D(shape3d, &radius, &half_height);
+                dmPhysics::GetCollisionShapeCapsuleRadiusHeight3D(world->m_World3D, shape3d, &radius, &half_height);
                 shape_info->m_CapsuleDiameterHeight[0] = radius * 2.0f;
                 shape_info->m_CapsuleDiameterHeight[1] = half_height * 2.0f;
             } break;
@@ -1011,7 +1012,7 @@ namespace dmGameSystem
                 {
                     return false;
                 }
-                dmPhysics::SetCollisionShapeRadius3D(shape3d, shape_info->m_SphereDiameter * 0.5f);
+                dmPhysics::SetCollisionShapeRadius3D(world->m_World3D, shape3d, shape_info->m_SphereDiameter * 0.5f);
                 CompCollisionObjectRefreshBullet3DShape(world, component);
             } break;
             case dmPhysicsDDF::CollisionShape::TYPE_BOX:

@@ -1,0 +1,10 @@
+--- a/encoder/basisu_comp.cpp
++++ b/encoder/basisu_comp.cpp
+@@ -1980,6 +1980,7 @@
+ 
+ 		m_uastc_backend_output.m_tex_format = basist::basis_tex_format::cUASTC_LDR_4x4;
+ 		m_uastc_backend_output.m_etc1s = false;
++		m_uastc_backend_output.m_srgb = m_params.m_ktx2_and_basis_srgb_transfer_function;
+ 		m_uastc_backend_output.m_slice_desc = m_slice_descs;
+ 		m_uastc_backend_output.m_slice_image_data.resize(m_slice_descs.size());
+ 		m_uastc_backend_output.m_slice_image_crcs.resize(m_slice_descs.size());

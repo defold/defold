@@ -468,6 +468,8 @@ namespace dmGui
         uint8_t  m_AccelerationSet : 1;
         /// If the input action was consumed in an event dispatch
         uint8_t  m_Consumed : 1;
+        /// Device category (dmHID::InputSource), defaulting to keyboard
+        uint8_t  m_Source : 3;
     };
 
     struct RenderEntry {
@@ -997,6 +999,8 @@ namespace dmGui
     float GetNodeTextLeading(HScene scene, HNode node);
     void SetNodeTextTracking(HScene scene, HNode node, float tracking);
     float GetNodeTextTracking(HScene scene, HNode node);
+    void SetNodeFontSize(HScene scene, HNode node, float font_size);
+    float GetNodeFontSize(HScene scene, HNode node);
 
     HTextureSource GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);

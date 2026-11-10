@@ -2809,6 +2809,7 @@ bail:
         context->m_MainVertexDeclaration[binding_index].m_StepFunction = vertex_declaration->m_StepFunction;
         context->m_MainVertexDeclaration[binding_index].m_PipelineHash = vertex_declaration->m_PipelineHash;
 
+        context->m_EnabledVertexDeclarations[binding_index]            = vertex_declaration;
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
         context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
 
@@ -2852,8 +2853,9 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
-            if (context->m_CurrentVertexDeclaration[i] == vertex_declaration)
+            if (context->m_EnabledVertexDeclarations[i] == vertex_declaration)
             {
+                context->m_EnabledVertexDeclarations[i] = 0;
                 context->m_CurrentVertexDeclaration[i]  = 0;
                 context->m_CurrentVertexBufferOffset[i] = 0;
             }
@@ -3405,19 +3407,11 @@ bail:
 
         PipelineState pipeline_state_draw = context->m_PipelineState;
 
-        // Offscreen Vulkan rendering uses the opposite effective winding from
-        // OpenGL, so flip the cull side to preserve the existing culling
-        // semantics used by render scripts.
+        // The offscreen viewport reverses winding. Flip the front-face definition
+        // so culling, two-sided stencil and gl_FrontFacing all agree.
         if (current_rt->m_Base.m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
         {
-            if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
-            {
-                pipeline_state_draw.m_CullFaceType = FACE_TYPE_FRONT;
-            }
-            else if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_FRONT)
-            {
-                pipeline_state_draw.m_CullFaceType = FACE_TYPE_BACK;
-            }
+            pipeline_state_draw.m_FaceWinding = pipeline_state_draw.m_FaceWinding == FACE_WINDING_CCW ? FACE_WINDING_CW : FACE_WINDING_CCW;
         }
 
         // Update the viewport
@@ -4460,7 +4454,7 @@ bail:
             VulkanTexture* depth_stencil_texture_ptr = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, depth_stencil_texture);
             if (num_color_textures == 0)
             {
-                fb_width  = rtOut->m_Base.m_DepthStencilTextureParams.m_Height;
+                fb_width  = rtOut->m_Base.m_DepthStencilTextureParams.m_Width;
                 fb_height = rtOut->m_Base.m_DepthStencilTextureParams.m_Height;
             }
 
@@ -4676,7 +4670,7 @@ bail:
         }
 
         // don't save the data
-        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
             ClearTextureParamsData(rt->m_Base.m_ColorTextureParams[i]);
         }
@@ -4732,6 +4726,10 @@ bail:
                 VkImageUsageFlags vk_usage_flags     = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | new_texture_color->m_UsageFlags;
                 VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
+                if (!has_msaa && !IsTextureMemoryless(new_texture_color))
+                {
+                    vk_usage_flags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+                }
                 if (IsTextureMemoryless(new_texture_color))
                 {
                     vk_memory_type |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
@@ -4771,7 +4769,10 @@ bail:
                     HTexture new_texture_color_resolve_handle = NewTexture((HContext) context, params.m_ColorBufferCreationParams[i]);
                     VulkanTexture* new_texture_color_resolve = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, new_texture_color_resolve_handle);
 
-                    VkImageUsageFlags vk_resolve_usage_flags = (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | new_texture_color_resolve->m_UsageFlags) & ~VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+                    VkImageUsageFlags vk_resolve_usage_flags = new_texture_color_resolve->m_UsageFlags;
+                    vk_resolve_usage_flags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+                    vk_resolve_usage_flags &= ~VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+
                     VkResult resolve_res = CreateTexture(
                         context->m_PhysicalDevice.m_Device,
                         context->m_LogicalDevice.m_Device,
@@ -4805,6 +4806,12 @@ bail:
             VkImageTiling vk_depth_tiling    = VK_IMAGE_TILING_OPTIMAL;
 
             const TextureCreationParams& stencil_depth_create_params = has_depth ? params.m_DepthBufferCreationParams : params.m_StencilBufferCreationParams;
+
+            if (color_index == 0)
+            {
+                fb_width  = stencil_depth_create_params.m_Width;
+                fb_height = stencil_depth_create_params.m_Height;
+            }
 
             // Only try depth formats first
             if (has_depth && !has_stencil)
@@ -4843,6 +4850,8 @@ bail:
             CHECK_VK_ERROR(res);
         }
 
+        // Serialize slot reuse and container growth with the texture worker.
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
@@ -4851,7 +4860,10 @@ bail:
         VulkanContext* context = (VulkanContext*)_context;
         VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
         RenderTarget* brt      = &rt->m_Base;
-        context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        }
 
         // Framebuffers and their face views must be retired before the images they reference.
         DestroyRenderTarget(context, rt);
@@ -4934,6 +4946,10 @@ bail:
                 VkImageUsageFlags vk_usage_flags     = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | texture_color->m_UsageFlags;
                 VkMemoryPropertyFlags vk_memory_type = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
+                if (rt->m_Base.m_SampleCount == 1 && !IsTextureMemoryless(texture_color))
+                {
+                    vk_usage_flags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+                }
                 if (IsTextureMemoryless(texture_color))
                 {
                     vk_memory_type |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
@@ -4974,7 +4990,9 @@ bail:
             if (brt->m_TextureColorResolve[i])
             {
                 VulkanTexture* texture_color_resolve = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureColorResolve[i]);
-                VkImageUsageFlags vk_resolve_usage_flags = (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | texture_color_resolve->m_UsageFlags) & ~VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+                VkImageUsageFlags vk_resolve_usage_flags = texture_color_resolve->m_UsageFlags;
+                vk_resolve_usage_flags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+                vk_resolve_usage_flags &= ~VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
 
                 texture_color_resolve->m_ImageLayout[0] = VK_IMAGE_LAYOUT_PREINITIALIZED;
 
@@ -5025,7 +5043,7 @@ bail:
             VkResult res = CreateDepthStencilTexture(context,
                 vk_depth_stencil_format, vk_image_tiling,
                 width, height, (VkSampleCountFlagBits) brt->m_SampleCount,
-                VK_IMAGE_ASPECT_DEPTH_BIT,
+                GetDefaultDepthAndStencilAspectFlags(vk_depth_stencil_format),
                 depth_stencil_texture);
             CHECK_VK_ERROR(res);
 
@@ -5983,13 +6001,49 @@ bail:
     {
         VulkanContext* context = (VulkanContext*) _context;
 
-        assert (buffer_size >= width * height * 4);
-
         // The swapchain image belongs to the application only between acquire
         // and present. Readback must include the draws recorded in this frame.
         if (!context->m_FrameBegun)
         {
             dmLogError("VulkanReadPixels requires an active frame before Flip.");
+            return;
+        }
+
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+
+        const bool backbuffer = context->m_CurrentRenderTarget == context->m_MainRenderTarget;
+        uint32_t layer = 0;
+        HTexture color_handle = context->m_CurrentSwapchainTexture;
+        if (!backbuffer)
+        {
+            VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+            layer = rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? rt->m_Base.m_CubeMapFace : 0;
+            color_handle = rt->m_Base.m_TextureColor[0];
+            if (rt->m_Base.m_TextureColorResolve[0])
+            {
+                color_handle = rt->m_Base.m_TextureColorResolve[0];
+            }
+        }
+
+        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, color_handle);
+        if (!texture)
+        {
+            dmLogError("VulkanReadPixels: no color attachment to read");
+            return;
+        }
+
+        if (uint64_t(x) + width > texture->m_Base.m_Width ||
+            uint64_t(y) + height > texture->m_Base.m_Height)
+        {
+            dmLogError("VulkanReadPixels: region is outside the color attachment");
+            return;
+        }
+
+        const bool is_rgba = texture->m_Format == VK_FORMAT_R8G8B8A8_UNORM || texture->m_Format == VK_FORMAT_R8G8B8A8_SRGB;
+        const bool is_bgra = texture->m_Format == VK_FORMAT_B8G8R8A8_UNORM || texture->m_Format == VK_FORMAT_B8G8R8A8_SRGB;
+        if (!is_rgba && !is_bgra)
+        {
+            dmLogError("VulkanReadPixels: expected an RGBA8/BGRA8 color attachment");
             return;
         }
 
@@ -6018,44 +6072,44 @@ bail:
         FrameResource& frame = context->m_FrameResources[context->m_CurrentFrameInFlight];
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[context->m_CurrentFrameInFlight];
 
-        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
+        const VkImageLayout layout = backbuffer ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
         // Render-pass final layouts are implicit and aren't tracked by the
         // texture helper. Preserve the rendered contents and make color writes
         // visible to the copy instead of transitioning from UNDEFINED.
         VkImageMemoryBarrier image_barrier = {};
         image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        image_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        image_barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT;
         image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        image_barrier.oldLayout = context->m_MainRTBegunThisFrame ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : tex_sc->m_ImageLayout[0];
+        image_barrier.oldLayout = backbuffer && !context->m_MainRTBegunThisFrame ? texture->m_ImageLayout[0] : layout;
         image_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
         image_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         image_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        image_barrier.image = tex_sc->m_Handle.m_Image;
+        image_barrier.image = texture->m_Handle.m_Image;
         image_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         image_barrier.subresourceRange.levelCount = 1;
+        image_barrier.subresourceRange.baseArrayLayer = layer;
         image_barrier.subresourceRange.layerCount = 1;
         vkCmdPipelineBarrier(vk_command_buffer,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
             0, 0, 0, 0, 0, 1, &image_barrier);
-        tex_sc->m_ImageLayout[0] = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 
         VkBufferImageCopy vk_copy_region = {};
         vk_copy_region.imageOffset.x               = x;
-        vk_copy_region.imageOffset.y               = y;
+        vk_copy_region.imageOffset.y               = texture->m_Base.m_Height - y - height;
         vk_copy_region.imageExtent.width           = width;
         vk_copy_region.imageExtent.height          = height;
         vk_copy_region.imageExtent.depth           = 1;
         vk_copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        vk_copy_region.imageSubresource.baseArrayLayer = layer;
         vk_copy_region.imageSubresource.layerCount = 1;
 
-        TouchResource(context, tex_sc);
+        TouchResource(context, texture);
         TouchResource(context, &stage_buffer);
 
         vkCmdCopyImageToBuffer(
             vk_command_buffer,
-            context->m_SwapChain->Image(),
+            texture->m_Handle.m_Image,
             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             stage_buffer.m_Handle.m_Buffer,
             1, &vk_copy_region);
@@ -6067,13 +6121,15 @@ bail:
         vkCmdPipelineBarrier(vk_command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
             0, 1, &host_barrier, 0, 0, 0, 0);
 
-        TransitionImageLayoutWithCmdBuffer(
-            vk_command_buffer,
-            tex_sc,
-            VK_IMAGE_ASPECT_COLOR_BIT,
-            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-            0,
-            1);
+        // Restore only the copied face. The generic helper tracks layouts per
+        // mip and would transition layer zero instead of the selected cube face.
+        image_barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        image_barrier.dstAccessMask = backbuffer ? 0 : VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        image_barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        image_barrier.newLayout = layout;
+        vkCmdPipelineBarrier(vk_command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+            0, 0, 0, 0, 0, 1, &image_barrier);
+        texture->m_ImageLayout[0] = layout;
 
         res = vkEndCommandBuffer(vk_command_buffer);
         CHECK_VK_ERROR(res);
@@ -6104,6 +6160,12 @@ bail:
         CHECK_VK_ERROR(res);
 
         memcpy(buffer, stage_buffer.m_MappedDataPtr, width * height * 4);
+
+        // Match OpenGLReadPixels: callers receive BGRA regardless of attachment format.
+        if (is_rgba)
+        {
+            SwizzleRGBAToBGRA(buffer, width * height);
+        }
 
         stage_buffer.UnmapMemory(context->m_LogicalDevice.m_Device);
 

@@ -17,6 +17,7 @@
 
 #include <ddf/ddf.h>
 #include <dlib/math.h>
+#include <dlib/testutil.h>
 #include <font/glyphbank_ddf.h>
 #include "font.h"
 #include "font_glyphbank.h"
@@ -58,6 +59,9 @@ static bool AlignmentGlyph(void* context, uint32_t index, FontGlyphBankGlyph* ou
     output->m_Descent = glyph.m_Descent;
     output->m_LayoutWidth = glyph.m_LayoutWidth;
     output->m_LayoutLeftBearing = glyph.m_LayoutLeftBearing;
+    output->m_UnpaddedWidth = glyph.m_UnpaddedWidth;
+    output->m_UnpaddedAscent = glyph.m_UnpaddedAscent;
+    output->m_UnpaddedDescent = glyph.m_UnpaddedDescent;
     if (glyph.m_GlyphDataSize)
     {
         const uint8_t* data = bank->m_GlyphData.m_Data + glyph.m_GlyphDataOffset;
@@ -115,13 +119,15 @@ static bool ResolveAlignmentGlyph(void* context, const TextGlyph& text, FontLayo
 
 static void CreateAlignmentFixture(FontAlignmentFixture& fixture, bool compiled)
 {
+    char path[512];
     TextLayoutSettings settings = {};
     settings.m_Size = 15;
     settings.m_Width = 65;
     settings.m_Leading = 1;
     if (compiled)
     {
-        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile("build/src/test/data/font_render/alignment.glyph_bankc",
+        const char* host_path = dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/test/data/font_render/alignment.glyph_bankc");
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile(host_path,
             dmFontDDF::GlyphBank::m_DDFDescriptor, (void**)&fixture.m_Bank));
         dmFontDDF::GlyphBank* bank = fixture.m_Bank;
         memset(&fixture.m_Provider, 0, sizeof(fixture.m_Provider));
@@ -134,13 +140,14 @@ static void CreateAlignmentFixture(FontAlignmentFixture& fixture, bool compiled)
         fixture.m_Provider.m_MaxAscent = bank->m_MaxAscent;
         fixture.m_Provider.m_MaxDescent = bank->m_MaxDescent;
         fixture.m_Provider.m_HasLayoutMetrics = bank->m_HasLayoutMetrics;
+        fixture.m_Provider.m_HasUnpaddedMetrics = bank->m_HasUnpaddedMetrics;
         fixture.m_Font = FontCreateGlyphBank("alignment.glyph_bankc", &fixture.m_Provider);
         settings.m_Monospace = bank->m_IsMonospaced && !bank->m_HasLayoutMetrics;
         settings.m_Padding = bank->m_HasLayoutMetrics ? 0 : bank->m_Padding;
     }
     else
     {
-        fixture.m_Font = FontLoadFromPath("src/test/data/vera_mo_bd.ttf");
+        fixture.m_Font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/vera_mo_bd.ttf"));
     }
     ASSERT_NE((HFont)0, fixture.m_Font);
     fixture.m_Collection = FontCollectionCreate();

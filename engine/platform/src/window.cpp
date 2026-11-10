@@ -14,7 +14,38 @@
 
 #include "window.hpp"
 
+#include <math.h>
 #include <string.h>
+
+namespace dmPlatform
+{
+    bool ConvertReservedArea(double left, double top, double right, double bottom,
+                             double view_width, double view_height,
+                             uint32_t window_width, uint32_t window_height, WindowReservedArea* out)
+    {
+        if (view_width <= 0.0 || view_height <= 0.0 || window_width == 0 || window_height == 0)
+            return false;
+
+        left = fmax(0.0, left);
+        top = fmax(0.0, top);
+        right = fmin(view_width, right);
+        bottom = fmin(view_height, bottom);
+        if (right <= left || bottom <= top)
+            return false;
+
+        const double scale_x = window_width / view_width;
+        const double scale_y = window_height / view_height;
+        const int32_t x = (int32_t)floor(left * scale_x);
+        const int32_t y = (int32_t)floor(top * scale_y);
+        const int32_t max_x = (int32_t)fmin(window_width, ceil(right * scale_x));
+        const int32_t max_y = (int32_t)fmin(window_height, ceil(bottom * scale_y));
+        out->m_X = x;
+        out->m_Y = (int32_t)window_height - max_y;
+        out->m_Width = max_x - x;
+        out->m_Height = max_y - y;
+        return true;
+    }
+}
 
 extern "C"
 {
@@ -136,6 +167,11 @@ extern "C"
     bool WindowGetSafeArea(HWindow window, WindowSafeArea* out)
     {
         return dmPlatform::GetSafeArea(window, out);
+    }
+
+    uint32_t WindowGetReservedAreas(HWindow window, const WindowReservedArea** areas)
+    {
+        return dmPlatform::GetReservedAreas(window, areas);
     }
 
     const char* WindowGetJoystickDeviceName(HWindow window, uint32_t joystick_index)

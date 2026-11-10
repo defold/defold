@@ -49,10 +49,9 @@ namespace dmExtension
      * @member  EXTENSION_RESULT_OK
      * @member  EXTENSION_RESULT_INIT_ERROR
      */
-    enum Result {
-        RESULT_OK = 0,
-        RESULT_INIT_ERROR = -1,
-    };
+    typedef ::ExtensionResult Result;
+    static const Result RESULT_OK = ::EXTENSION_RESULT_OK;
+    static const Result RESULT_INIT_ERROR = ::EXTENSION_RESULT_INIT_ERROR;
 
     /*# event id enumeration
      * Event id enumeration.
@@ -265,6 +264,30 @@ namespace dmExtension
      * callbacks are not forwarded from scenes; use [ref:ExtensionRegisteriOSUISceneDelegate].
      * The game window is created after application launch. Use scene connection to
      * access it, and scene connection options for cold-launch URLs and user activities.
+     *
+     * application:supportedInterfaceOrientationsForWindow: can override the game's
+     * orientation settings, including on iOS 27 and later. The last nonzero mask
+     * containing only valid UIInterfaceOrientationMask bits in delegate dispatch
+     * order is used. Invalid masks are ignored. The application, scene, and root
+     * view controller share this policy, including during full-screen presentations.
+     *
+     * The game's default mask comes from the DefoldSupportedInterfaceOrientations
+     * Info.plist array, with DefoldSupportedInterfaceOrientations~ipad taking
+     * precedence on iPad. If neither contains usable orientations, Defold falls back
+     * to UISupportedInterfaceOrientations~ipad on iPad, then
+     * UISupportedInterfaceOrientations. Arrays contain UIKit orientation names such
+     * as UIInterfaceOrientationPortrait. The default policy excludes upside-down
+     * portrait on iPhone. If no array is usable, all device-supported orientations
+     * are allowed. The built-in manifest keeps the UIKit arrays broad and uses the
+     * Defold array for the game's orientation settings.
+     *
+     * UIKit may ignore orientation restrictions, including on iPhone Duo's inner
+     * display. Games must still handle window size changes.
+     *
+     * Register before scene connection to affect the initial orientation.
+     * To update the policy after scene connection, call
+     * setNeedsUpdateOfSupportedInterfaceOrientations on the root view controller
+     * (iOS 16+) or attemptRotationToDeviceOrientation (iOS 15).
      * @name RegisteriOSUIApplicationDelegate
      * @language C++
      * @param delegate [type:void*] An id<UIApplicationDelegate>.
@@ -291,7 +314,7 @@ namespace dmExtension
      * willContinueUserActivityWithType, didFailToContinueUserActivityWithType:error:
      * and didUpdateUserActivity callbacks. Other optional delegate methods are not
      * forwarded. No legacy UIApplicationDelegate callbacks are synthesized.
-     * 
+     *
      * Register before UIApplicationMain (for example in a static constructor) to
      * receive the initial scene connection. Extension app-initialize is too late.
      * Cold-launch URLs, user activities and notification responses are available in
@@ -305,14 +328,14 @@ namespace dmExtension
      * of its observers, so unregistering during delivery affects subsequent events.
      * Duplicate registrations are ignored. Late registration does not replay events.
      * This function is only available on iOS. [icon:ios]
-     * @examples 
+     * @examples
      * ```objective-c
      * // myextension_ios.mm
      * @interface MySceneDelegate : NSObject <UISceneDelegate>
      * - (void)scene:(UIScene*)scene willConnectToSession:(UISceneSession*)session options:(UISceneConnectionOptions*)options;
      * - (void)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)contexts;
      * @end
-     * 
+     *
      * struct MySceneDelegateRegistration
      * {
      *     MySceneDelegate* m_Delegate;
@@ -605,6 +628,30 @@ namespace dmExtension
  * callbacks are not forwarded from scenes; use [ref:ExtensionRegisteriOSUISceneDelegate].
  * The game window is created after application launch. Use scene connection to
  * access it, and scene connection options for cold-launch URLs and user activities.
+ *
+ * application:supportedInterfaceOrientationsForWindow: can override the game's
+ * orientation settings, including on iOS 27 and later. The last nonzero mask
+ * containing only valid UIInterfaceOrientationMask bits in delegate dispatch
+ * order is used. Invalid masks are ignored. The application, scene, and root
+ * view controller share this policy, including during full-screen presentations.
+ *
+ * The game's default mask comes from the DefoldSupportedInterfaceOrientations
+ * Info.plist array, with DefoldSupportedInterfaceOrientations~ipad taking
+ * precedence on iPad. If neither contains usable orientations, Defold falls back
+ * to UISupportedInterfaceOrientations~ipad on iPad, then
+ * UISupportedInterfaceOrientations. Arrays contain UIKit orientation names such
+ * as UIInterfaceOrientationPortrait. The default policy excludes upside-down
+ * portrait on iPhone. If no array is usable, all device-supported orientations
+ * are allowed. The built-in manifest keeps the UIKit arrays broad and uses the
+ * Defold array for the game's orientation settings.
+ *
+ * UIKit may ignore orientation restrictions, including on iPhone Duo's inner
+ * display. Games must still handle window size changes.
+ *
+ * Register before scene connection to affect the initial orientation.
+ * To update the policy after scene connection, call
+ * setNeedsUpdateOfSupportedInterfaceOrientations on the root view controller
+ * (iOS 16+) or attemptRotationToDeviceOrientation (iOS 15).
  * @name ExtensionRegisteriOSUIApplicationDelegate
  * @language C
  * @param delegate [type:void*] An id<UIApplicationDelegate>.
@@ -629,7 +676,7 @@ namespace dmExtension
  * willContinueUserActivityWithType, didFailToContinueUserActivityWithType:error:
  * and didUpdateUserActivity callbacks. Other optional delegate methods are not
  * forwarded. No legacy UIApplicationDelegate callbacks are synthesized.
- * 
+ *
  * Register before UIApplicationMain (for example in a static constructor) to
  * receive the initial scene connection. Extension app-initialize is too late.
  * Cold-launch URLs, user activities and notification responses are available in
@@ -643,14 +690,14 @@ namespace dmExtension
  * of its observers, so unregistering during delivery affects subsequent events.
  * Duplicate registrations are ignored. Late registration does not replay events.
  * This function is only available on iOS. [icon:ios]
- * @examples 
+ * @examples
  * ```objective-c
  * // myextension_ios.mm
  * @interface MySceneDelegate : NSObject <UISceneDelegate>
  * - (void)scene:(UIScene*)scene willConnectToSession:(UISceneSession*)session options:(UISceneConnectionOptions*)options;
  * - (void)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)contexts;
  * @end
- * 
+ *
  * struct MySceneDelegateRegistration
  * {
  *     MySceneDelegate* m_Delegate;

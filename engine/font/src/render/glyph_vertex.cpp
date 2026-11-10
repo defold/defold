@@ -164,7 +164,7 @@ void FontGetDecorationPattern(const TextDecoration& decoration, const FontDecora
 // Resolves the colors at the geometrical ends of a decoration. Looking up the
 // leftmost and rightmost glyph, rather than the first and last logical glyph,
 // also produces the correct gradient direction for right-to-left text.
-void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decoration, const float base_color[4], TextGlyphFaceColors* face_colors)
+void FontGetDecorationEndGlyphs(HTextLayout layout, const TextDecoration& decoration, uint32_t* left, uint32_t* right)
 {
     const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
     uint32_t left_index = decoration.m_GlyphStart;
@@ -185,10 +185,24 @@ void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decor
         }
     }
 
+    *left = left_index;
+    *right = right_index;
+}
+
+void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decoration, const float base_color[4], TextGlyphFaceColors* face_colors)
+{
+    FontGetDecorationFaceColors(layout, decoration, base_color, face_colors, true);
+}
+
+void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decoration, const float base_color[4], TextGlyphFaceColors* face_colors, bool apply_gradients)
+{
+    const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+    uint32_t         left_index, right_index;
+    FontGetDecorationEndGlyphs(layout, decoration, &left_index, &right_index);
     TextGlyphRenderData left;
     TextGlyphRenderData right;
-    TextLayoutGetGlyphRenderData(layout, glyphs[left_index], base_color, &left);
-    TextLayoutGetGlyphRenderData(layout, glyphs[right_index], base_color, &right);
+    TextLayoutGetGlyphRenderData(layout, glyphs[left_index], base_color, &left, apply_gradients);
+    TextLayoutGetGlyphRenderData(layout, glyphs[right_index], base_color, &right, apply_gradients);
     memcpy(face_colors->m_BottomLeft, left.m_FaceColors.m_BottomLeft, sizeof(face_colors->m_BottomLeft));
     memcpy(face_colors->m_TopLeft, left.m_FaceColors.m_TopLeft, sizeof(face_colors->m_TopLeft));
     memcpy(face_colors->m_BottomRight, right.m_FaceColors.m_BottomRight, sizeof(face_colors->m_BottomRight));
@@ -287,6 +301,7 @@ void FontPackGlyphVertices(const FontGlyphVertexParams& params, const FontVertex
     face_6.m_UV[1] = face_3.m_UV[1];
 
 #define SET_PROPERTIES(vertex, face_color) \
+    memset(vertex.m_Effect, 0, sizeof(vertex.m_Effect)); \
     SetColor(vertex.m_FaceColor, face_color); \
     SetColor(vertex.m_OutlineColor, outline_color); \
     SetColor(vertex.m_ShadowColor, shadow_color); \
@@ -406,6 +421,7 @@ void FontPackDecorationVertices(const FontDecorationVertexParams& params, const 
         vertex.m_UV[0] = packed_texture_u;
         vertex.m_UV[1] = packed_texture_v;
         SetColor(vertex.m_FaceColor, face_colors[i]);
+        memset(vertex.m_Effect, 0, sizeof(vertex.m_Effect));
         SetColor(vertex.m_OutlineColor, outline_color);
         SetColor(vertex.m_ShadowColor, shadow_color);
         vertex.m_SdfParams[0] = sdf_edge_value;

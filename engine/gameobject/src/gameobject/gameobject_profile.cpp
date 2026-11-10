@@ -82,7 +82,7 @@ static bool IterateGameObjectGetNext(SceneNodeIterator* it)
         if (index != INVALID_INSTANCE_INDEX)
         {
             Instance* instance = collection->m_Instances[index];
-            if (!instance || instance->m_Parent != parent->m_Index)
+            if (!instance || collection->m_ParentIndices[instance->m_Index] != parent->m_Index)
                 return false;
 
             it->m_Node = it->m_NextChild;
@@ -103,10 +103,10 @@ static bool IterateGameObjectGetNext(SceneNodeIterator* it)
     }
 
     uint32_t next_component = (uint32_t)it->m_NextChild.m_Node;
-    if (next_component < parent->m_Prototype->m_ComponentCount) {
+    Prototype* prototype = GetPrototype(collection, parent);
+    if (next_component < prototype->m_ComponentCount) {
         uint32_t index = next_component;
         Instance* instance = parent;
-        Prototype* prototype = parent->m_Prototype;
 
         // Find the actual component instance data
         // if none exist at this index, fast forward to the next item in the list
@@ -194,7 +194,7 @@ static bool ResolveComponentNode(SceneNode* node, ComponentType** out_component_
     if (!instance)
         return false;
 
-    Prototype* prototype = instance->m_Prototype;
+    Prototype* prototype = GetPrototype(collection, instance);
     uint32_t component_instance_data_index = 0;
     for (uint32_t i = 0; i < prototype->m_ComponentCount; ++i)
     {
@@ -427,7 +427,7 @@ static bool IterateGameObjectPropertiesGetNext(SceneNodePropertyIterator* pit)
         {
             pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_HASH;
 
-            dmResource::GetPath(collection->m_Factory, instance->m_Prototype, &pit->m_Property.m_Value.m_Hash);
+            dmResource::GetPath(collection->m_Factory, GetPrototype(collection, instance), &pit->m_Property.m_Value.m_Hash);
         }
         return true;
     }
@@ -441,9 +441,9 @@ static bool IterateGameObjectPropertiesGetNext(SceneNodePropertyIterator* pit)
         SceneNodePropertyType type = SCENE_NODE_PROPERTY_TYPE_VECTOR3;
         switch(index)
         {
-            case 0: value = Vector4(dmGameObject::GetPosition(instance)); break;
-            case 1: value = Vector4(dmGameObject::GetRotation(instance)); type = SCENE_NODE_PROPERTY_TYPE_QUAT; break;
-            case 2: value = Vector4(dmGameObject::GetScale(instance)); break;
+            case 0: value = Vector4(dmGameObject::GetPosition(collection, instance)); break;
+            case 1: value = Vector4(dmGameObject::GetRotation(collection, instance)); type = SCENE_NODE_PROPERTY_TYPE_QUAT; break;
+            case 2: value = Vector4(dmGameObject::GetScale(collection, instance)); break;
             case 3: value = Vector4(GetWorldPosition(collection, instance)); break;
             case 4: value = Vector4(GetWorldRotation(collection, instance)); type = SCENE_NODE_PROPERTY_TYPE_QUAT; break;
             case 5: value = Vector4(GetWorldScale(collection, instance)); break;

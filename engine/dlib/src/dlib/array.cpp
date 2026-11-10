@@ -45,13 +45,14 @@ namespace dmArrayUtil
         // copy content if any
         if (old_capacity)
         {
-            memcpy(new_storage, (void *)*first, (size_t)(type_size * (size_t)new_size));
+            if (new_size)
+                memcpy(new_storage, (void *)*first, (size_t)(type_size * (size_t)new_size));
             delete[] (uint8_t*) *first;
         }
 
         *first = (uintptr_t)new_storage;
-        *end   = (uintptr_t)(new_storage + (new_size * type_size));
-        *last  = (uintptr_t)(new_storage + (capacity * type_size));
+        *end   = (uintptr_t)new_storage + (new_size * type_size);
+        *last  = (uintptr_t)new_storage + (capacity * type_size);
     }
 }
 

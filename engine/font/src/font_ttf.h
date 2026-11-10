@@ -28,4 +28,8 @@ FontResult FontGetGlyphTTF(HFont font, uint32_t glyph_index, const FontGlyphOpti
 bool FontGetGlyphBoxTTF(HFont font, uint32_t glyph_index, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1);
 FontResult FontGetGlyphSDFMetricsTTF(HFont font, uint32_t glyph_index, float scale, float padding, FontGlyph* glyph);
 
+// Internal borrowed COLR/CPAL view for vector renderers. Only TTF/OTF sources.
+struct FontColr;
+const FontColr* FontGetColrTTF(HFont font);
+
 #endif // DM_FONT_TTF_H

@@ -303,6 +303,8 @@ message PlatformProfile
     required bool mipmaps                       = 3;
     optional uint32 max_texture_size            = 4;
     optional bool premultiply_alpha             = 5 [default = true];
+    // Use the source KTX2 compression format instead of the configured format alternatives.
+    optional bool keep_ktx2_format               = 6 [default = false];
 }
 
 message TextureProfile
@@ -455,6 +457,9 @@ message ShaderDesc
         optional uint64 name_hash = 1;
         optional uint32 binding   = 2;
         optional uint32 set       = 3;
+        // Slot in the compiled HLSL root signature, after merging shared stage bindings.
+        // Resource reflection order can differ from root parameter order.
+        required uint32 root_parameter_index = 4;
     }
 
     message MSLResourceMapping

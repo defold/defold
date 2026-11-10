@@ -1451,7 +1451,8 @@ namespace dmGameSystem
         return 1;
     }
     /*# get collision shape info
-     * Gets collision shape data from a collision object
+     * Gets collision shape data from a collision object. Dimensions are in game units,
+     * independent of the `physics.scale` setting.
      *
      * @name physics.get_shape
      * @param url [type:string|hash|url] the collision object.
@@ -1521,7 +1522,8 @@ namespace dmGameSystem
     }
 
     /*# set collision shape data
-     * Sets collision shape data for a collision object. Please note that updating data in 3D
+     * Sets collision shape data for a collision object. Dimensions are in game units,
+     * independent of the `physics.scale` setting. Please note that updating data in 3D
      * can be quite costly for box and capsules. Because of the physics engine, the cost
      * comes from having to recreate the shape objects when certain shapes needs to be updated.
      *

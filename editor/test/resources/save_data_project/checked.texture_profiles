@@ -16,6 +16,7 @@ profiles {
       compressor_preset: "UNCOMPRESSED"
     }
     mipmaps: true
+    keep_ktx2_format: true
   }
 }
 profiles {

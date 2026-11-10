@@ -112,7 +112,8 @@ namespace dmRig
         uint8_t                       m_Enabled : 1;
         uint8_t                       m_DoRender : 1;
         uint8_t                       m_HasPoseMatrixCacheAnimatedPose : 1;
-        uint8_t                       : 3;
+        uint8_t                       m_RequiresUpdate : 1;
+        uint8_t : 2;
     };
 
     /** Pose matrix cache

@@ -71,8 +71,10 @@
        persistent!))
 
 (defn decorate-outline [outline hidden-node-outline-key-paths outline-name-paths localization-state selection]
-  (letfn [(decorate [{:keys [node-id children] :as outline} node-id-path node-outline-key-path parent-reference?]
-            (let [node-id-path (conj node-id-path node-id)
+  (letfn [(decorate [{:keys [node-id children] :as outline} node-id-path node-outline-key-path parent-reference? selection-path]
+            (let [selection-path (outline/selection-path selection-path outline)
+                  selection-id (outline/selection-id selection-path)
+                  node-id-path (conj node-id-path selection-id)
                   node-outline-key-path (if (empty? node-outline-key-path)
                                           [node-id]
                                           (if-some [node-outline-key (:node-outline-key outline)]
@@ -83,9 +85,12 @@
                             (mapv #(decorate %
                                              node-id-path
                                              node-outline-key-path
-                                             (or parent-reference? (:outline-reference? outline)))))
+                                             (or parent-reference? (:outline-reference? outline))
+                                             selection-path)))
                   outline (assoc outline
-                            :node-id-path node-id-path
+                            :item-id-path node-id-path
+                            :node-id-path (mapv outline/selection-node-id node-id-path)
+                            :selection-id selection-id
                             :node-outline-key-path node-outline-key-path
                             :parent-reference? parent-reference?
                             :children (mapv :outline data)
@@ -99,12 +104,12 @@
               {:outline outline
                :child-error (or (:child-error outline) (:outline-error? outline))
                :child-overridden (or (:child-overridden outline) (:outline-overridden? outline))}))]
-    (let [outline (:outline (decorate outline [] [] (:outline-reference? outline)))
+    (let [outline (:outline (decorate outline [] [] (:outline-reference? outline) []))
           node-id->node-id-paths (util/group-into
                                    {} [] key val
                                    (coll/into-> [outline] :eduction
                                      (coll/tree-xf :children :children)
-                                     (map (coll/pair-fn :node-id :node-id-path))))
+                                     (coll/pair-map-by :selection-id :item-id-path)))
           default-selection (coll/into-> selection {}
                               (keep #(when-let [node-id-paths (node-id->node-id-paths %)]
                                        (coll/pair % #{(first node-id-paths)}))))
@@ -117,7 +122,7 @@
                              full-expanded
                              (-> default-selection
                                  auto-expand
-                                 (assoc (:node-id-path outline) true)))]
+                                 (assoc (:item-id-path outline) true)))]
       {:outline outline
        :default-selected-node-id->node-id-paths default-selection
        :default-node-id-path->expanded default-expanded})))
@@ -131,10 +136,10 @@
           (fn set-selected-node-id-paths [^TreeView tree-view [new-selected-node-id-paths _key]]
             (let [selection-model (.getSelectionModel tree-view)
                   old-selected-node-id-paths (coll/into-> (.getSelectedItems selection-model) #{}
-                                               (keep #(some-> % TreeItem/.getValue :node-id-path)))]
+                                               (keep #(some-> % TreeItem/.getValue :item-id-path)))]
               (when-not (= old-selected-node-id-paths new-selected-node-id-paths)
                 (let [new-selected-indices (coll/into-> (range (.getExpandedItemCount tree-view)) []
-                                             (filter #(contains? new-selected-node-id-paths (:node-id-path (.getValue (.getTreeItem tree-view %))))))]
+                                             (filter #(contains? new-selected-node-id-paths (:item-id-path (.getValue (.getTreeItem tree-view %))))))]
                   (.clearSelection selection-model)
                   (when-not (coll/empty? new-selected-indices)
                     (let [first-index (new-selected-indices 0)]
@@ -163,13 +168,13 @@
               (->> tree-items
                    (e/filter some?)
                    (e/keep #(-> ^TreeItem % .getValue))
-                   (util/group-into {} #{} :node-id :node-id-path)))
+                   (util/group-into {} #{} :selection-id :item-id-path)))
   (app-view/select! app-view (coll/into-> tree-items []
                                (filter some?)
-                               (keep #(-> ^TreeItem % .getValue :node-id))
+                               (keep #(-> ^TreeItem % .getValue :selection-id))
                                (distinct))))
 
-(defn- outline->tree-item [{:keys [node-id-path] :as outline} node-id-path->expanded swap-state active-resource-node]
+(defn- outline->tree-item [{node-id-path :item-id-path :as outline} node-id-path->expanded swap-state active-resource-node]
   {:fx/type fx.tree-item/lifecycle
    :value outline
    :expanded (node-id-path->expanded node-id-path)
@@ -377,7 +382,7 @@
   ([outline-view evaluation-context]
    (ui/selection-root-items
      (g/node-value outline-view :tree-view evaluation-context)
-     :node-id)))
+     :selection-id)))
 
 (defn- outline-active? [outline-view evaluation-context]
   (g/node-value outline-view :outline-active evaluation-context))
@@ -417,7 +422,9 @@
   (active? [selection evaluation-context] (handler/selection->node-ids selection evaluation-context))
   (enabled? [selection outline-view evaluation-context]
     (and (outline-active? outline-view evaluation-context)
-         (< 0 (count selection))))
+         (< 0 (count selection))
+         (coll/not-any? outline/entry-selection?
+                        (g/node-value outline-view :selection evaluation-context))))
   (run [outline-view project]
     (let [root-its (root-iterators outline-view)
           cb (Clipboard/getSystemClipboard)
@@ -739,7 +746,7 @@
   (selection [_this _evaluation-context]
     (ui/selection tree-view))
   (succeeding-selection [_this _evaluation-context]
-    (ui/succeeding-selection tree-view (ui/selection-root-items tree-view :node-id)))
+    (ui/succeeding-selection tree-view (ui/selection-root-items tree-view :selection-id)))
   (alt-selection [_this _evaluation-context]
     (alt-selection (ui/selection tree-view))))
 

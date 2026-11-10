@@ -15,13 +15,22 @@
 package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.node.ObjectNode;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.fs.GltfMountPoint;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.gamesys.proto.ModelProto.Model;
@@ -32,7 +41,7 @@ import com.google.protobuf.Message;
 
 public class ModelBuilderTest extends AbstractProtoBuilderTest {
 
-    final String GLTF = "{\"asset\":{\"version\":\"2.0\"},\"scene\":0,\"scenes\":[{\"nodes\":[0]}],\"nodes\":[{\"mesh\":0,\"name\":\"Node0\"}],\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1}]}],\"buffers\":[{\"uri\":\"data:application/octet-stream;base64,AAAAAAAAAAAAgD8AAAAAAAAAAADwPwAAAAAAAPA/AAAAAAAAgD8AIAAAAAAAQAAAAAAAAEAAAAAAAAA=\",\"byteLength\":42}],\"bufferViews\":[{\"buffer\":0,\"byteOffset\":0,\"byteLength\":36},{\"buffer\":0,\"byteOffset\":36,\"byteLength\":6}],\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\",\"min\":[0.0,0.0,0.0],\"max\":[1.0,1.0,0.0]},{\"bufferView\":1,\"componentType\":5123,\"count\":3,\"type\":\"SCALAR\"}],\"materials\":[{\"pbrMetallicRoughness\":{}}]}";
+    final String GLTF = "{\"asset\":{\"version\":\"2.0\"},\"scene\":0,\"scenes\":[{\"nodes\":[0]}],\"nodes\":[{\"mesh\":0,\"name\":\"Node0\"}],\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1}]}],\"buffers\":[{\"uri\":\"data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAABAAIA\",\"byteLength\":42}],\"bufferViews\":[{\"buffer\":0,\"byteOffset\":0,\"byteLength\":36},{\"buffer\":0,\"byteOffset\":36,\"byteLength\":6}],\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\",\"min\":[0.0,0.0,0.0],\"max\":[1.0,1.0,0.0]},{\"bufferView\":1,\"componentType\":5123,\"count\":3,\"type\":\"SCALAR\"}],\"materials\":[{\"pbrMetallicRoughness\":{}}]}";
     @Before
     public void setup() {
         addTestFiles();
@@ -114,6 +123,150 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         assertEquals("/test_meshset.meshsetc", rigScene.getMeshSet());
         assertEquals(ResourceUtil.minifyPath("/test_skeleton.skeletonc"), rigScene.getSkeleton());
         assertEquals("/test_animation_generated_0.animationsetc", rigScene.getAnimationSet());
+    }
+
+    // Verifies static meshes reject skinned materials through direct, legacy, and fallback bindings.
+    @Test
+    public void testStaticMeshRejectsSkinnedMaterial() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        addFile("/static.gltf", GLTF.replace("\"indices\":1", "\"indices\":1,\"material\":1")
+                .replace("\"materials\":[{\"pbrMetallicRoughness\":{}}]",
+                         "\"materials\":[{\"name\":\"A\"},{\"name\":\"B\"},{\"name\":\"C\"}]"));
+        String skinned = "/builtins/materials/model_skinned_instanced.material";
+        for (String binding : List.of(
+                "material: \"" + skinned + "\"",
+                "materials { name: \"B\" material: \"" + skinned + "\" }",
+                "materials { name: \"A\" material: \"" + skinned + "\" } materials { name: \"C\" material: \"/builtins/materials/model.material\" }",
+                "materials { name: \"Stale\" material: \"" + skinned + "\" } materials { name: \"C\" material: \"/builtins/materials/model.material\" }")) {
+            try {
+                build("/static.model", "mesh: \"/static.gltf\" " + binding);
+                fail("Static mesh must reject a skinned material: " + binding);
+            } catch (CompileExceptionError e) {
+                assertTrue(e.getMessage(), e.getMessage().contains(skinned));
+                assertTrue(e.getMessage(), e.getMessage().contains("has no skin data"));
+            }
+        }
+    }
+
+    // Verifies skin data, rather than animation clips, determines material compatibility.
+    @Test
+    public void testSkinnedMeshWithoutAnimations() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        try (var stream = getClass().getResourceAsStream("bend2bones.gltf")) {
+            addFile("/skinned.gltf", stream.readAllBytes());
+        }
+        var outputs = build("/skinned.model", "mesh: \"/skinned.gltf\" skeleton: \"/skinned.gltf\" materials { name: \"Material\" material: \"/builtins/materials/model_skinned_instanced.material\" }");
+        assertEquals("", getMessage(outputs, RigScene.class).getAnimationSet());
+    }
+
+    // Verifies skinned meshes without imported material slots use the model's default binding.
+    @Test
+    public void testSkinnedMeshWithoutMaterialSlots() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        try (var stream = getClass().getResourceAsStream("bend2bones.gltf")) {
+            ObjectNode gltf = (ObjectNode) new ObjectMapper().readTree(stream);
+            gltf.remove("materials");
+            for (var mesh : gltf.get("meshes")) {
+                for (var primitive : mesh.get("primitives")) {
+                    ((ObjectNode) primitive).remove("material");
+                }
+            }
+            addFile("/skinned.gltf", gltf.toString());
+        }
+        var outputs = build("/skinned.model", "mesh: \"/skinned.gltf\" skeleton: \"/skinned.gltf\" materials { name: \"default\" material: \"/builtins/materials/model_skinned_instanced.material\" }");
+        assertEquals(0, getMessage(outputs, MeshSet.class).getMaterialsCount());
+        assertEquals("default", getMessage(outputs, Model.class).getMaterials(0).getName());
+    }
+
+    // Verifies the standalone built-in glTF material and its include graph compile as a model dependency.
+    @Test
+    public void testModelBuildsWithBuiltinGltfMaterial() throws Exception {
+        addFile("/builtin.gltf", GLTF);
+        getProject().mount(new ClassLoaderResourceScanner());
+        var outputs = build("/builtin.model", "mesh: \"/builtin.gltf\"\nmaterials { name: \"default\" material: \"/builtins/materials/gltf.material\" }\n");
+        var model = getMessage(outputs, Model.class);
+        assertEquals(ResourceUtil.minifyPath("/builtins/materials/gltf.materialc"), model.getMaterials(0).getMaterial());
+        assertTrue(getProject().getResource("/builtins/materials/gltf.material").exists());
+    }
+
+    // Verifies generated glTF materials and images build using packaged shaders without an external PBR library.
+    @Test
+    public void testModelBuildsGltfVirtualMaterialAndImage() throws Exception {
+        addImage("/virtual.png", 2, 2);
+        String imageData = Base64.getEncoder().encodeToString(getFile("/virtual.png"));
+        String virtualGltf = GLTF.replace(
+                "\"materials\":[{\"pbrMetallicRoughness\":{}}]",
+                "\"images\":[{\"name\":\"VirtualImage\",\"uri\":\"data:image/png;base64," + imageData + "\"}],"
+                + "\"textures\":[{\"source\":0}],"
+                + "\"materials\":[{\"name\":\"VirtualMaterial\",\"pbrMetallicRoughness\":{"
+                + "\"baseColorTexture\":{\"index\":0}}}]");
+        addFile("/virtual.gltf", virtualGltf);
+        getProject().mount(new ClassLoaderResourceScanner());
+
+        String modelSource =
+                "mesh: \"/virtual.gltf\"\n" +
+                "materials {\n" +
+                "  name: \"VirtualMaterial\"\n" +
+                "  material: \"/virtual.gltf/materials/VirtualMaterial_0.material\"\n" +
+                "  textures {\n" +
+                "    sampler: \"PbrMetallicRoughness_baseColorTexture\"\n" +
+                "    texture: \"/virtual.gltf/images/VirtualImage_0.png\"\n" +
+                "  }\n" +
+                "}\n";
+
+        Model model = getMessage(build("/virtual.model", modelSource), Model.class);
+        assertEquals(ResourceUtil.minifyPath("/virtual.gltf/materials/VirtualMaterial_0.materialc"),
+                model.getMaterials(0).getMaterial());
+        assertEquals("/virtual.gltf/images/VirtualImage_0.texturec",
+                model.getMaterials(0).getTextures(0).getTexture());
+        assertTrue(getFileSystem().get("build/virtual.gltf/materials/VirtualMaterial_0.materialc").exists());
+        assertTrue(getFileSystem().get("build/virtual.gltf/images/VirtualImage_0.texturec").exists());
+    }
+
+    // Verifies copied glTF meshes build with the packaged shaders and no project shader stubs.
+    @Test
+    public void testCopiedMeshesBuildAsModels() throws Exception {
+        String primitive = "{\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1}]}";
+        String source = GLTF.replace(primitive, primitive + "," + primitive + ","
+                + primitive.replace("{\"primitives", "{\"name\":\"Shared\",\"primitives") + ","
+                + primitive.replace("{\"primitives", "{\"name\":\"Shared\",\"primitives"))
+                .replace("\"indices\":1", "\"indices\":1,\"material\":0");
+        addFile("/meshes.gltf", source);
+        getProject().mount(new ClassLoaderResourceScanner());
+
+        var names = List.of("Shared_0", "Shared_1");
+        for (int index = 0; index < names.size(); ++index) {
+            var mesh = getProject().getResource("/meshes.gltf/meshes/" + names.get(index));
+            var outputs = build("/copied" + index + ".model", new String(mesh.getContent(), StandardCharsets.UTF_8));
+            var model = getMessage(outputs, Model.class);
+            assertEquals(index + 2, model.getMeshIndex());
+            assertEquals(ResourceUtil.minifyPath("/meshes.gltf/materials/0.materialc"), model.getMaterials(0).getMaterial());
+            var meshSet = MeshSet.parseFrom(getFileSystem().get("build/meshes.meshsetc").getContent());
+            assertEquals(2, meshSet.getRawModelsCount());
+            assertEquals(1, meshSet.getRawModels(index).getMeshesCount());
+        }
+    }
+
+    @Test
+    public void testDuplicateMeshNameWithDefaultIndex() throws Exception {
+        var primitive = "{\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1}]}";
+        var namedPrimitive = primitive.replace("{\"primitives", "{\"name\":\"Shared\",\"primitives");
+        addFile("/duplicates.gltf", GLTF.replace(primitive, namedPrimitive + "," + namedPrimitive));
+
+        for (var indexField : List.of("", "mesh_index: 0\n")) {
+            var outputs = build("/selected.model",
+                    "mesh: \"/duplicates.gltf\"\nmesh_name: \"Shared\"\n" + indexField);
+            assertEquals(0, getMessage(outputs, Model.class).getMeshIndex());
+        }
+    }
+
+    @Test
+    public void testWholeSceneWithDefaultIndex() throws Exception {
+        addFile("/scene.gltf", GLTF);
+        for (var indexField : List.of("", "mesh_index: 0\n")) {
+            var outputs = build("/whole.model", "mesh: \"/scene.gltf\"\n" + indexField);
+            assertEquals(-1, getMessage(outputs, Model.class).getMeshIndex());
+        }
     }
 
     @Test

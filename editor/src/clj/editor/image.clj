@@ -16,18 +16,24 @@
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.gl :as gl]
+            [editor.gl.pass :as pass]
             [editor.gl.texture :as texture]
             [editor.image-util :as image-util]
             [editor.localization :as localization]
+            [editor.outline :as outline]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pose :as pose]
+            [editor.properties :as properties]
             [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
+            [editor.scene-picking :as scene-picking]
             [editor.texture-util :as texture-util]
-            [editor.workspace :as workspace])
-  (:import [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
+            [editor.types :as types]
+            [editor.workspace :as workspace]
+            [util.coll :as coll])
+  (:import [com.dynamo.bob.pipeline TexcLibraryJni TextureGenerator TextureGenerator$GenerateResult]
            [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]))
 
 (set! *warn-on-reflection* true)
@@ -105,6 +111,8 @@
   (input build-settings g/Any)
   (input texture-profiles g/Any)
 
+  (output image-resource resource/Resource (g/fnk [resource] resource))
+
   (output texture-profile g/Any (g/fnk [texture-profiles resource]
                                   (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
 
@@ -138,6 +146,217 @@
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))
 
+(defn- ktx2-content-gen-fn
+  [{:keys [resource digest-ignored/error-node-id]}]
+  (resource-io/with-error-translation resource error-node-id :content-generator
+    (resource/resource->bytes resource)))
+
+(defn- generate-ktx2-texture
+  [content-generator texture-profile compress preview]
+  (let [{:keys [resource digest-ignored/error-node-id]} (:args content-generator)]
+    (resource-io/with-error-translation resource error-node-id :gpu-texture
+      (let [content (texture-util/call-generator content-generator)]
+        (g/precluding-errors [content]
+          (tex-gen/make-ktx2-texture-image content texture-profile compress preview))))))
+
+(defn- build-ktx2-texture
+  [resource _dep-resources {:keys [content-generator texture-profile compress]}]
+  (let [result (generate-ktx2-texture content-generator texture-profile compress false)]
+    (g/precluding-errors [result]
+      {:resource resource
+       :write-content-fn tex-gen/write-texturec-content-fn
+       :user-data {:texture-generator-result result}})))
+
+(defn- ktx2-gpu-texture-gen-fn
+  [{:keys [request-id texture-request-datas-delay]}]
+  (texture-util/make-gpu-texture request-id (force texture-request-datas-delay)))
+
+(defn- read-ktx2-info
+  [content]
+  (with-open [image (TexcLibraryJni/LoadKtx2 content)]
+    {:dimensions [(.-width image) (.-height image)]
+     :format (case (.-vkFormat image)
+               0 (if (= 1 (.-supercompression image)) "ETC1S" "UASTC")
+               (9 15) "R8"
+               (16 22) "RG8"
+               (23 29) "RGB8"
+               (37 43) "RGBA8"
+               (145 146) "BC7")
+     :supercompression (case (.-supercompression image)
+                         0 "—"
+                         1 "BasisLZ"
+                         2 "Zstd"
+                         3 "Zlib")
+     :mip-count (.-levelCount image)
+     :channels (.-channels image)
+     :color-space (if (.-srgb image) "sRGB" "Linear")
+     :premultiplied-alpha (.-premultiplied image)
+     :orientation (str (if (.-flipX image) "l" "r") (if (.-flipY image) "u" "d"))}))
+
+(defn- render-ktx2-mip-selection
+  [gl render-args renderables renderable-count]
+  (assert (= pass/selection (:pass render-args)))
+  (assert (= 1 renderable-count))
+  (let [renderable (first renderables)
+        [width height] (:dimensions (:user-data renderable))]
+    (render-util/render-color-quad! gl render-args ::ktx2-mip-selection
+                                    (scene-picking/renderable-picking-id-uniform renderable)
+                                    [[0 0] [0 height] [width height] [width 0]])))
+
+(defn- mip-outline [node-id image-resource level {:keys [dimensions]}]
+  {:node-id node-id
+   :node-outline-key (str "mip-" level)
+   :label (localization/message "outline.ktx2.mip" {"level" level "width" (first dimensions) "height" (second dimensions)})
+   :icon (workspace/resource-icon image-resource)
+   :read-only true
+   :properties {:node-id node-id
+                :display-order [:level :dimensions]
+                :properties {:level {:node-id node-id
+                                     :type g/Int
+                                     :value level
+                                     :label (localization/message "property.ktx2.level")
+                                     :read-only? true}
+                             :dimensions {:node-id node-id
+                                          :type types/Vec2
+                                          :value dimensions
+                                          :label (localization/message "property.ktx2.dimensions")
+                                          :read-only? true}}}})
+
+(defn- mip-scene [node-id level {:keys [dimensions offset-x]} gpu-texture]
+  (let [[width height] dimensions
+        scene (render-util/make-outlined-textured-quad-scene #{:image} (pose/translation-pose offset-x 0.0 0.0) width height gpu-texture 0)]
+    (-> scene
+        (assoc :node-id node-id
+               :selection-id (outline/->OutlineEntrySelection node-id [(str "mip-" level)])
+               :node-outline-key (str "mip-" level))
+        (update :children conj
+                {:node-id node-id
+                 :aabb (:aabb scene)
+                 :renderable {:render-fn render-ktx2-mip-selection
+                              :tags #{:image}
+                              :user-data {:dimensions dimensions}
+                              :passes [pass/selection]}}))))
+
+(defn- ktx2-properties [node-id texture-info]
+  (let [property-types [[:dimensions types/Vec2]
+                        [:format g/Str]
+                        [:supercompression g/Str]
+                        [:mip-count g/Int]
+                        [:channels g/Int]
+                        [:color-space g/Str]
+                        [:premultiplied-alpha g/Bool]
+                        [:orientation g/Str]]]
+    {:node-id node-id
+     :display-order (mapv first property-types)
+     :properties (coll/into-> property-types {}
+                   (map (fn [[property type]]
+                          [property (cond-> {:node-id node-id
+                                             :type type
+                                             :value (get texture-info property)
+                                             :label (properties/label-message :ktx2 property)
+                                             :read-only? true}
+                                      (= :orientation property)
+                                      (assoc :tooltip (localization/message "property.ktx2.orientation.tooltip" {} "none")))])))}))
+
+(g/defnode Ktx2ImageNode
+  (inherits ImageNode)
+
+  (output node-outline outline/OutlineData :cached
+          (g/fnk [_node-id image-resource mips texture-info]
+            {:node-id _node-id
+             :node-outline-key "ktx2"
+             :label (localization/message "outline.ktx2")
+             :icon "icons/32/Icons_13-Atlas.png"
+             :read-only true
+             :properties (ktx2-properties _node-id texture-info)
+             :children (coll/into-> mips []
+                         (map-indexed #(mip-outline _node-id image-resource %1 %2)))}))
+
+  (output content-generator g/Any :cached
+          (g/fnk [_node-id image-resource]
+            (resource-io/with-error-translation image-resource _node-id :content-generator
+              {:f ktx2-content-gen-fn
+               :sha1 (resource/resource->path-inclusive-sha1-hex image-resource)
+               :args {:resource image-resource
+                      :digest-ignored/error-node-id _node-id}})))
+
+  (output texture-info g/Any :cached
+          (g/fnk [_node-id image-resource content-generator]
+            (resource-io/with-error-translation image-resource _node-id :texture-info
+              (read-ktx2-info (texture-util/call-generator content-generator)))))
+
+  (output sha256 g/Str :cached
+          (g/fnk [_node-id image-resource]
+            (resource-io/with-error-translation image-resource _node-id :sha256
+              (resource/resource->sha256-hex image-resource))))
+
+  (output mips g/Any :cached
+          (g/fnk [texture-info]
+            (let [{:keys [dimensions mip-count]} texture-info]
+              (loop [level 0
+                     offset-x 0
+                     mips []]
+                (if (= level mip-count)
+                  mips
+                  (let [[width :as mip-dimensions] (mapv #(max 1 (bit-shift-right % level)) dimensions)]
+                    (recur (inc level)
+                           (+ offset-x (long width) 16)
+                           (conj mips {:dimensions mip-dimensions :offset-x offset-x}))))))))
+
+  (output size g/Any
+          (g/fnk [texture-info]
+            (let [[width height] (:dimensions texture-info)]
+              {:width width :height height})))
+
+  (output mip-texture-request-datas g/Any :cached
+          (g/fnk [_node-id resource content-generator]
+            (resource-io/with-error-translation resource _node-id :mip-texture-request-datas
+              (let [content (texture-util/call-generator content-generator)]
+                (g/precluding-errors [content]
+                  (with-open [image (TexcLibraryJni/LoadKtx2 content)]
+                    (mapv (fn [level]
+                            (texture/texture-image->texture-request-data
+                              (TextureGenerator/generateKtx2MipPreview image level)
+                              (hash [(:sha1 content-generator) level])))
+                          (range (.-levelCount image)))))))))
+
+  (output mip-gpu-textures g/Any :cached
+          (g/fnk [_node-id mip-texture-request-datas]
+            (coll/into-> mip-texture-request-datas []
+              (map-indexed
+                (fn [level request-data]
+                  (-> (texture-util/make-gpu-texture [_node-id :mip level] [request-data])
+                      (texture/set-params {:min-filter gl/nearest
+                                           :mag-filter gl/nearest})))))))
+
+  (output scene g/Any :cached
+          (g/fnk [_node-id texture-info mips mip-gpu-textures texture-profile]
+            (let [[width height] (:dimensions texture-info)]
+              {:node-id _node-id
+               :children (coll/into-> mips []
+                           (map-indexed #(mip-scene _node-id %1 %2 (mip-gpu-textures %1))))
+               :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))})))
+
+  (output gpu-texture-generator g/Any :cached
+          (g/fnk [_node-id content-generator texture-profile]
+            {:f ktx2-gpu-texture-gen-fn
+             :args {:request-id _node-id
+                    :texture-request-datas-delay
+                    (delay
+                      (let [result (generate-ktx2-texture content-generator texture-profile false true)]
+                        (g/precluding-errors [result]
+                          [(texture/texture-image->texture-request-data result (hash [(:sha1 content-generator) texture-profile]))])))}}))
+
+  (output build-targets g/Any :cached
+          (g/fnk [_node-id resource content-generator texture-profile build-settings]
+            [(bt/with-content-hash
+               {:node-id _node-id
+                :resource (workspace/make-build-resource resource)
+                :build-fn build-ktx2-texture
+                :user-data {:content-generator content-generator
+                            :texture-profile texture-profile
+                            :compress (:compress-textures? build-settings false)}})])))
+
 (defn- load-image
   [{:keys [project]} {self :node-id}]
   (concat
@@ -152,6 +371,15 @@
       :icon "icons/32/Icons_25-AT-Image.png"
       :build-ext "texturec"
       :node-type ImageNode
+      :load-fn load-image
+      :stateless? true
+      :view-types [:scene :default])
+    (workspace/register-resource-type workspace
+      :ext "ktx2"
+      :label (localization/message "resource.type.ktx2")
+      :icon "icons/32/Icons_25-AT-Image.png"
+      :build-ext "texturec"
+      :node-type Ktx2ImageNode
       :load-fn load-image
       :stateless? true
       :view-types [:scene :default])

@@ -72,7 +72,8 @@ protected:
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
-        dmGameObject::DeleteRegister(m_Register);
+        if (m_Register)
+            dmGameObject::DeleteRegister(m_Register);
     }
 
 public:
@@ -114,6 +115,76 @@ TEST_F(CollectionLimitTest, CreateAndHitLimitAndSetGetPosition)
         float expected = (float)(i + 1);
         ASSERT_NEAR(expected, dmGameObject::GetPosition(instances[i]).getX(), 0.0f);
     }
+}
+
+// Prototype slots must grow without changing existing indices, reuse released slots,
+// and reject overflow without wrapping a 16-bit index into the empty prototype.
+TEST_F(CollectionLimitTest, PrototypePoolGrowthReuseAndLimit)
+{
+    const uint32_t prototype_count = dmGameObject::INVALID_PROTOTYPE_INDEX - 1;
+    dmGameObject::Prototype* prototypes = new dmGameObject::Prototype[prototype_count];
+    for (uint32_t i = 0; i < prototype_count; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::RegisterPrototype(m_Register, &prototypes[i]));
+        ASSERT_EQ(i + 1, (uint32_t)prototypes[i].m_Index);
+    }
+    for (uint32_t i = 0; i < prototype_count; ++i)
+        ASSERT_EQ(&prototypes[i], m_Register->m_Prototypes[prototypes[i].m_Index]);
+
+    dmGameObject::Prototype overflow;
+    ASSERT_FALSE(dmGameObject::RegisterPrototype(m_Register, &overflow));
+    ASSERT_EQ(dmGameObject::INVALID_PROTOTYPE_INDEX, overflow.m_Index);
+    const uint32_t released = 1024;
+    uint16_t index = prototypes[released].m_Index;
+    dmGameObject::UnregisterPrototype(m_Register, &prototypes[released]);
+    ASSERT_TRUE(dmGameObject::RegisterPrototype(m_Register, &overflow));
+    ASSERT_EQ(index, overflow.m_Index);
+    ASSERT_EQ(&overflow, m_Register->m_Prototypes[index]);
+    dmGameObject::UnregisterPrototype(m_Register, &overflow);
+    for (uint32_t i = 0; i < prototype_count; ++i)
+    {
+        if (i != released)
+            dmGameObject::UnregisterPrototype(m_Register, &prototypes[i]);
+    }
+    ASSERT_EQ(1u, (uint32_t)m_Register->m_PrototypeIndices.Size());
+    delete[] prototypes;
+}
+
+// Instances share a resource slot, which stays alive until its final resource reference is released.
+TEST_F(CollectionLimitTest, SharedPrototypeResourceLifetime)
+{
+    m_Collection = dmGameObject::NewCollection("shared_prototype", m_Factory, m_Register, 8, 0);
+    ASSERT_NE((dmGameObject::HCollection)0, m_Collection);
+    dmGameObject::Prototype* prototype;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/go1.goc", (void**)&prototype));
+    uint16_t index = prototype->m_Index;
+    dmGameObject::HInstance first = dmGameObject::New(m_Collection, "/go1.goc");
+    dmGameObject::HInstance second = dmGameObject::New(m_Collection, "/go1.goc");
+    ASSERT_NE((dmGameObject::HInstance)0, first);
+    ASSERT_NE((dmGameObject::HInstance)0, second);
+    ASSERT_EQ(index, dmGameObject::GetInstanceFromHandle(first)->m_PrototypeIndex);
+    ASSERT_EQ(index, dmGameObject::GetInstanceFromHandle(second)->m_PrototypeIndex);
+    dmGameObject::Delete(m_Collection, first, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(prototype, m_Register->m_Prototypes[index]);
+    dmGameObject::Delete(m_Collection, second, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(prototype, m_Register->m_Prototypes[index]);
+    dmResource::Release(m_Factory, prototype);
+    ASSERT_EQ((dmGameObject::Prototype*)0, m_Register->m_Prototypes[index]);
+    ASSERT_EQ(1u, (uint32_t)m_Register->m_PrototypeIndices.Size());
+}
+
+// Engine shutdown deletes the register before the factory; later resource destruction must not use the freed pool.
+TEST_F(CollectionLimitTest, PrototypeResourceOutlivesRegister)
+{
+    dmGameObject::Prototype* prototype;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/go1.goc", (void**)&prototype));
+    ASSERT_NE(dmGameObject::INVALID_PROTOTYPE_INDEX, prototype->m_Index);
+    dmGameObject::DeleteRegister(m_Register);
+    m_Register = 0;
+    ASSERT_EQ(dmGameObject::INVALID_PROTOTYPE_INDEX, prototype->m_Index);
+    dmResource::Release(m_Factory, prototype);
 }
 
 TEST_F(CollectionLimitTest, RejectsCollectionAboveHandleCapacity)

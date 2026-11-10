@@ -1,0 +1,77 @@
+SIMDe (SIMD Everywhere)
+https://github.com/simd-everywhere/simde
+
+A generated scalar subset is used as a portable reference in SIMD and
+texture-processing unit tests. The vendored subset is test-only.
+Source revision: 0ff5341927e15df0c3da8bb13bb32ec7f95aef84
+
+The ARMv7 byte-table lookup in engine/dlib/src/simd/simd_neon.h is adapted
+from SIMDe and retains its upstream MIT notice.
+
+MIT License
+
+Copyright notices from SIMDe:
+2015      Brandon Rowlett <browlett@nvidia.com>
+2015      Ken Fast <kfast@gdeb.com>
+2015-2017 John W. Ratcliff <jratcliffscarab@gmail.com>
+2016      Thomas Pornin <pornin@bolet.org>
+2017      Evan Nemerson <evan@nemerson.com>
+2017      Hasindu Gamaarachchi <hasindu@unsw.edu.au>
+2017-2020 Evan Nemerson <evan@nemerson.com>
+2018      Jeff Daily <jeff.daily@amd.com>
+2018-2020 Evan Nemerson <evan@nemerson.com>
+2019      Evan Nemerson <evan@nemerson.com>
+2019-2020 Michael R. Crusoe <crusoe@debian.org>
+2020      Ashleigh Newman-Jones <ashnewman-jones@hotmail.co.uk>
+2020      Christopher Moore <moore@free.fr>
+2020      Evan Nemerson <evan@nemerson.com>
+2020      Hidayat Khan <huk2209@gmail.com>
+2020      Himanshi Mathur <himanshi18037@iiitd.ac.in>
+2020      Sean Maher <seanptmaher@gmail.com>
+2020      Sean Maher <seanptmaher@gmail.com> (Copyright owned by Google, LLC)
+2020      kitegi <kitegi@users.noreply.github.com>
+2020 Michael R. Crusoe <crusoe@debian.org>
+2020-2021 Christopher Moore <moore@free.fr>
+2020-2021 Evan Nemerson <evan@nemerson.com>
+2020-2022 Evan Nemerson <evan@nemerson.com>
+2021      Andrew Rodriguez <anrodriguez@linkedin.com>
+2021      Atharva Nimbalkar <atharvakn@gmail.com>
+2021      Christopher Moore <moore@free.fr>
+2021      Décio Luiz Gazzoni Filho <decio@decpp.net>
+2021      Evan Nemerson <evan@nemerson.com>
+2021      Kunwar Maheep Singh <kunwar.maheep@students.iiit.ac.in>
+2021      Zhi An Ng <zhin@google.com> (Copyright owned by Google, LLC)
+2022      Evan Nemerson <evan@nemerson.com>
+2022      Paul Saab <ps@mu.org>
+2023      Chi-Wei Chu <wewe5215@gapp.nthu.edu.tw> (Copyright owned by NTHU pllab)
+2023      Ju-Hung Li <jhlee@pllab.cs.nthu.edu.tw> (Copyright owned by NTHU pllab)
+2023      Michael R. Crusoe <crusoe@debian.org>
+2023      Yi-Yen Chung <eric681@andestech.com> (Copyright owned by Andes Technology)
+2023      Yung-Cheng Su <eric20607@gapp.nthu.edu.tw>
+2023      Yung-Cheng Su <eric20607@gapp.nthu.edu.tw> (Copyright owned by NTHU pllab)
+2023-2025 Michael R. Crusoe <crusoe@debian.org>
+2023-2026 Michael R. Crusoe <crusoe@debian.org>
+2024      Robin Christ <robinchrist@users.noreply.github.com>
+2025      Adrian Riedl <Adrian.Riedl@in.tum.de>
+2025      Michael R. Crusoe <crusoe@debian.org>
+2025      Mickey Zhu <mickey_zhu@realsil.com.cn>
+2026      Michael R. Crusoe <crusoe@debian.org>
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

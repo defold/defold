@@ -20,6 +20,7 @@
 #include <ctype.h>
 #include "http_client.h"
 
+#include <dlib/atomic.h>
 #include <dlib/connection_pool.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -374,7 +375,7 @@ namespace dmHttpClient
 
     static bool HasRequestTimedOut(HClient client)
     {
-        if (client->m_CancelFlag && *client->m_CancelFlag)
+        if (client->m_CancelFlag && dmAtomicGet32(client->m_CancelFlag))
             return true;
         if( client->m_RequestTimeout == 0 )
             return false;
@@ -713,6 +714,8 @@ bail:
     {
         // to_transfer can be set to -1 when the "Content-Length" is unknown
         int total_transferred = 0;
+        // Transfer-Encoding takes precedence over Content-Length.
+        int content_length = response->m_Chunked ? -1 : response->m_ContentLength;
 
 #if defined(DM_NO_HTTP_CACHE)
         (void) add_to_cache;
@@ -727,7 +730,7 @@ bail:
             } else {
                 n = dmMath::Min(to_transfer - total_transferred, response->m_TotalReceived - response->m_ContentOffset);
             }
-            http_content(response, client->m_Userdata, response->m_Status, client->m_Buffer + response->m_ContentOffset, n, response->m_ContentLength,
+            http_content(response, client->m_Userdata, response->m_Status, client->m_Buffer + response->m_ContentOffset, n, content_length,
                         response->m_RangeStart, response->m_RangeEnd, response->m_DocumentSize,
                         method);
 

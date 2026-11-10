@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dmsdk/dlib/log.h>
+#include <dmsdk/dlib/array.h>
 
 #include <math.h>
 #include <stdlib.h> // free
@@ -21,6 +22,7 @@
 #include "font_ttf.h"
 #include "font_outline.h"
 #include "font_sdf.h"
+#include "truetype/font_colr.h"
 
 #if defined(FONT_USE_HARFBUZZ)
     #include "harfbuzz/font_harfbuzz.h"
@@ -35,6 +37,7 @@
     #define FontImplGetGlyphBox          FontHarfbuzzGetGlyphBox
     #define FontImplGetOutlineType       FontHarfbuzzGetOutlineType
     #define FontImplGetVerticalMetrics   FontHarfbuzzGetVerticalMetrics
+    #define FontImplGetColr              FontHarfbuzzGetColr
 
 #else
     #include "truetype/font_truetype.h"
@@ -49,6 +52,7 @@
     #define FontImplGetGlyphBox          FontTrueTypeGetGlyphBox
     #define FontImplGetOutlineType       FontTrueTypeGetOutlineType
     #define FontImplGetVerticalMetrics   FontTrueTypeGetVerticalMetrics
+    #define FontImplGetColr              FontTrueTypeGetColr
 #endif
 
 struct TTFFont
@@ -121,6 +125,11 @@ static FontResult FreeGlyphTTF(HFont hfont, FontGlyph* glyph)
 {
     (void)hfont;
     FontSDFFree(&glyph->m_Bitmap);
+
+    free(glyph->m_Outline.m_Commands);
+    glyph->m_Outline.m_Commands = 0;
+    glyph->m_Outline.m_CommandCount = 0;
+    glyph->m_Outline.m_Flags = 0;
     return FONT_RESULT_OK;
 }
 
@@ -143,6 +152,207 @@ static FontResult GetGlyphOutlineTTF(HFont hfont, uint32_t glyph_index, FontOutl
     return result;
 }
 
+struct OutlineBuildContext
+{
+    dmArray<FontCurveCommand> m_Commands;
+    bool                      m_Unsupported;
+
+    OutlineBuildContext()
+    : m_Unsupported(false)
+    {
+    }
+};
+
+static void EnsureOutlineCapacity(OutlineBuildContext* ctx)
+{
+    if (ctx->m_Commands.Full())
+    {
+        ctx->m_Commands.OffsetCapacity(16);
+    }
+}
+
+static void PushOutlineCommand(OutlineBuildContext* ctx, const FontCurveCommand& command)
+{
+    EnsureOutlineCapacity(ctx);
+    ctx->m_Commands.Push(command);
+}
+
+static void OutlineMoveTo(OutlineBuildContext* ctx, float scale, float to_x, float to_y)
+{
+    FontCurveCommand command;
+    memset(&command, 0, sizeof(command));
+    command.m_Type = FONT_CURVE_MOVE_TO;
+    command.m_Points[0].m_X = to_x * scale;
+    command.m_Points[0].m_Y = to_y * scale;
+    PushOutlineCommand(ctx, command);
+}
+
+static void OutlineLineTo(OutlineBuildContext* ctx, float scale, float to_x, float to_y)
+{
+    FontCurveCommand command;
+    memset(&command, 0, sizeof(command));
+    command.m_Type = FONT_CURVE_LINE_TO;
+    command.m_Points[0].m_X = to_x * scale;
+    command.m_Points[0].m_Y = to_y * scale;
+    PushOutlineCommand(ctx, command);
+}
+
+static void OutlineQuadraticTo(OutlineBuildContext* ctx, float scale,
+                               float control_x, float control_y,
+                               float to_x, float to_y)
+{
+    FontCurveCommand command;
+    memset(&command, 0, sizeof(command));
+    command.m_Type = FONT_CURVE_QUADRATIC_TO;
+    command.m_Points[0].m_X = control_x * scale;
+    command.m_Points[0].m_Y = control_y * scale;
+    command.m_Points[1].m_X = to_x * scale;
+    command.m_Points[1].m_Y = to_y * scale;
+    PushOutlineCommand(ctx, command);
+}
+
+static void OutlineClosePath(OutlineBuildContext* ctx)
+{
+    FontCurveCommand command;
+    memset(&command, 0, sizeof(command));
+    command.m_Type = FONT_CURVE_CLOSE;
+    PushOutlineCommand(ctx, command);
+}
+
+static FontOutlinePoint OutlineMidpoint(const FontOutlinePoint& a, const FontOutlinePoint& b)
+{
+    FontOutlinePoint point = { (a.m_X + b.m_X) * 0.5f, (a.m_Y + b.m_Y) * 0.5f };
+    return point;
+}
+
+static bool OutlineCubicTo(OutlineBuildContext* ctx, float scale, float tolerance_squared,
+                           const FontOutlinePoint& p0, const FontOutlinePoint& p1,
+                           const FontOutlinePoint& p2, const FontOutlinePoint& p3, uint32_t depth)
+{
+    // Degree reduction followed by degree elevation bounds the error by the
+    // largest control-point difference. Subdivide until that bound is small
+    // in font units, keeping the approximation independent of bitmap size.
+    const float error_x = (3.0f * (p1.m_X - p2.m_X) - p0.m_X + p3.m_X) / 6.0f;
+    const float error_y = (3.0f * (p1.m_Y - p2.m_Y) - p0.m_Y + p3.m_Y) / 6.0f;
+    if (error_x * error_x + error_y * error_y <= tolerance_squared)
+    {
+        const float control_x = (3.0f * (p1.m_X + p2.m_X) - p0.m_X - p3.m_X) * 0.25f;
+        const float control_y = (3.0f * (p1.m_Y + p2.m_Y) - p0.m_Y - p3.m_Y) * 0.25f;
+        OutlineQuadraticTo(ctx, scale, control_x, control_y, p3.m_X, p3.m_Y);
+        return true;
+    }
+    if (depth == 16)
+        return false;
+
+    const FontOutlinePoint p01 = OutlineMidpoint(p0, p1);
+    const FontOutlinePoint p12 = OutlineMidpoint(p1, p2);
+    const FontOutlinePoint p23 = OutlineMidpoint(p2, p3);
+    const FontOutlinePoint p012 = OutlineMidpoint(p01, p12);
+    const FontOutlinePoint p123 = OutlineMidpoint(p12, p23);
+    const FontOutlinePoint middle = OutlineMidpoint(p012, p123);
+    return OutlineCubicTo(ctx, scale, tolerance_squared, p0, p01, p012, middle, depth + 1) &&
+           OutlineCubicTo(ctx, scale, tolerance_squared, middle, p123, p23, p3, depth + 1);
+}
+
+static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, float scale, FontGlyph* glyph)
+{
+
+    FontOutline outline = {};
+    FontResult result = FontImplGetGlyphOutline(font->m_Font, glyph_index, &outline);
+    if (result != FONT_RESULT_OK)
+        return result;
+
+    result = FontOutlineMakeYMonotonic(&outline);
+    if (result != FONT_RESULT_OK)
+    {
+        FontFreeGlyphOutline(&outline);
+        return result;
+    }
+
+    OutlineBuildContext ctx;
+    ctx.m_Commands.SetCapacity(32);
+    ctx.m_Commands.SetSize(0);
+    FontOutlinePoint current = {};
+    FontOutlinePoint start = {};
+    const float tolerance = 1.0f / (4096.0f * FontImplGetScaleFromSize(font->m_Font, 1));
+
+    for (uint32_t i = 0; i < outline.m_CommandCount; ++i)
+    {
+        const FontOutlineCommand& command = outline.m_Commands[i];
+        switch (command.m_Type)
+        {
+            case FONT_OUTLINE_MOVE_TO:
+            {
+                OutlineMoveTo(&ctx, scale, command.m_Points[0].m_X, command.m_Points[0].m_Y);
+                current = start = command.m_Points[0];
+                break;
+            }
+            case FONT_OUTLINE_LINE_TO:
+            {
+                OutlineLineTo(&ctx, scale, command.m_Points[0].m_X, command.m_Points[0].m_Y);
+                current = command.m_Points[0];
+                break;
+            }
+            case FONT_OUTLINE_QUADRATIC_TO:
+            {
+                OutlineQuadraticTo(&ctx, scale,
+                                   command.m_Points[0].m_X, command.m_Points[0].m_Y,
+                                   command.m_Points[1].m_X, command.m_Points[1].m_Y);
+                current = command.m_Points[1];
+                break;
+            }
+            case FONT_OUTLINE_CUBIC_TO:
+            {
+                if (!OutlineCubicTo(&ctx, scale, tolerance * tolerance, current,
+                                    command.m_Points[0], command.m_Points[1], command.m_Points[2], 0))
+                    ctx.m_Unsupported = true;
+                current = command.m_Points[2];
+                break;
+            }
+            case FONT_OUTLINE_CLOSE:
+            {
+                OutlineClosePath(&ctx);
+                current = start;
+                break;
+            }
+            default:
+            {
+                break;
+            }
+        }
+    }
+
+    FontFreeGlyphOutline(&outline);
+
+    if (ctx.m_Unsupported)
+    {
+        return FONT_RESULT_NOT_SUPPORTED;
+    }
+
+    if (ctx.m_Commands.Size() == 0)
+    {
+        return FONT_RESULT_OK;
+    }
+
+    uint32_t data_size = ctx.m_Commands.Size() * sizeof(FontCurveCommand);
+    FontCurveCommand* commands = (FontCurveCommand*)malloc(data_size);
+    if (!commands)
+    {
+        return FONT_RESULT_ERROR;
+    }
+
+    memcpy(commands, ctx.m_Commands.Begin(), data_size);
+    glyph->m_Outline.m_Commands = commands;
+    glyph->m_Outline.m_CommandCount = ctx.m_Commands.Size();
+    glyph->m_Outline.m_Flags = 0;
+    return FONT_RESULT_OK;
+}
+
+static bool GetOutlineBox(void* data, uint32_t glyph, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
+{
+    return FontImplGetGlyphBox((FontImpl*)data, glyph, x0, y0, x1, y1);
+}
+
 FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOptions* options, const FontSDFParams* image_params, FontGlyph* glyph)
 {
     TTFFont* font = ToFont(hfont);
@@ -161,15 +371,19 @@ FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOpt
     // generation already needs instead of interpreting its CharString twice.
     bool bounds_from_outline = options->m_GenerateImage && !font->m_HasGlyfOutlines;
     FontImplGetGlyphHMetrics(font->m_Font, glyph_index, &advx, &lsb);
-    if (!bounds_from_outline)
+    // Metrics-only requests also serve legacy layout. Drawing a PaintGlyph or
+    // rasterizing an outline must ignore the glyph's independent COLR bounds.
+    bool color_bounds = !options->m_GenerateOutline && !options->m_GenerateImage &&
+                        FontColrGetGlyphBox(FontImplGetColr(font->m_Font), glyph_index, GetOutlineBox, font->m_Font, &x0, &y0, &x1, &y1);
+    if (!bounds_from_outline && !color_bounds)
         FontImplGetGlyphBox(font->m_Font, glyph_index, &x0, &y0, &x1, &y1);
 
     float scale = options->m_Scale;
-    float padding = options->m_StbttSDFPadding;
+    float padding = options->m_UseUnpaddedBounds && !options->m_GenerateImage ? 0.0f : options->m_StbttSDFPadding;
     int on_edge_value = options->m_StbttSDFOnEdgeValue;
 
-    int ascent = 0;
-    int descent = 0;
+    float ascent = y1 * scale;
+    float descent = -y0 * scale;
     int srch = 0;
     int offsetx = 0;
     int offsety = 0;
@@ -216,31 +430,56 @@ FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOpt
         FontFreeGlyphOutline(&outline);
     }
 
-    // The dimensions of the visible area
-    if (x0 != x1 && y0 != y1)
+    bool has_sdf_image = options->m_GenerateImage && glyph->m_Bitmap.m_Data;
+
+    if (options->m_GenerateOutline)
     {
-        // Only modify non empty glyphs (from stbtt_GetGlyphSDF())
+        glyph->m_Outline.m_Width = (x1 - x0) * scale;
+        glyph->m_Outline.m_Height = (y1 - y0) * scale;
+        glyph->m_Outline.m_LeftBearing = x0 * scale;
+        glyph->m_Outline.m_Ascent = y1 * scale;
+        glyph->m_Outline.m_Descent = -y0 * scale;
+    }
+
+    // The dimensions of the visible area
+    if ((!options->m_GenerateOutline || options->m_GenerateImage) && x0 != x1 && y0 != y1)
+    {
+        // Preserve legacy layout bounds while keeping analytical outlines unpadded.
         x0 -= padding;
         y0 -= padding;
         x1 += padding;
         y1 += padding;
     }
 
-    glyph->m_Width = (x1 - x0) * scale;
-    glyph->m_Height = (y1 - y0) * scale;
     glyph->m_Advance = advx*scale;
-    glyph->m_LeftBearing = lsb*scale;
     glyph->m_Ascent = ascent;
     glyph->m_Descent = descent;
 
-    // Bitmap coverage is sampled on the rasterizer's pixel grid. Preserve its
-    // exact origin instead of centering the padded image around outline metrics.
-    // This changes image placement only; text advances remain floating point.
-    if (glyph->m_Bitmap.m_Data)
+    // Preserve the sampled image bounds and origin; advances remain floating point.
+    if (has_sdf_image)
     {
-        glyph->m_Width = glyph->m_Bitmap.m_Width;
-        glyph->m_Height = glyph->m_Bitmap.m_Height;
-        glyph->m_LeftBearing = offsetx;
+        glyph->m_Width = (float)glyph->m_Bitmap.m_Width;
+        glyph->m_Height = (float)srch;
+        glyph->m_LeftBearing = (float)offsetx;
+    }
+    else
+    {
+        glyph->m_Width = (x1 - x0) * scale;
+        glyph->m_Height = (y1 - y0) * scale;
+        glyph->m_LeftBearing = (options->m_GenerateOutline && !options->m_GenerateImage) ? x0 * scale : lsb * scale;
+    }
+
+    if (options->m_GenerateOutline)
+    {
+        FontResult outline_result = GenerateGlyphOutlineTTF(font, glyph_index, scale, glyph);
+        if (outline_result != FONT_RESULT_OK)
+        {
+            if (glyph->m_Bitmap.m_Data)
+            {
+                FontSDFFree(&glyph->m_Bitmap);
+            }
+            return outline_result;
+        }
     }
 
     return FONT_RESULT_OK;
@@ -366,4 +605,9 @@ FontResult FontGetGlyphSDFMetricsTTF(HFont hfont, uint32_t glyph_index, float sc
     glyph->m_Ascent = -y0;
     glyph->m_Descent = y1;
     return FONT_RESULT_OK;
+}
+
+const FontColr* FontGetColrTTF(HFont font)
+{
+    return FontImplGetColr(ToFont(font)->m_Font);
 }

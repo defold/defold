@@ -105,8 +105,10 @@ static void CustomLogListener(LogSeverity severity, const char* domain, const ch
     ctx->m_NumWritten += strlen(formatted_string);
     dmMutex::Unlock(ctx->m_Mutex);
 
-    // This is not supported, and should be sent to the void
-    dmLogInfo("Calling dmLog::LogInternal from the Log Listener");
+    // The asynchronous logger discards recursive messages from its dispatch thread.
+    // Synchronous listeners must not log recursively while the logger lock is held.
+    if (dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
+        dmLogInfo("Calling dmLog::LogInternal from the Log Listener");
 }
 
 
@@ -153,6 +155,7 @@ TEST(dmLog, Client)
 
 #endif // HAS_SYSTEM_FUNCTION
 
+// Verify listener serialization and complete output from four concurrent logging threads.
 TEST(dmLog, Stress)
 {
     dLib::SetDebugMode(false);
@@ -419,4 +422,3 @@ int main(int argc, char **argv)
     dmSocket::Finalize();
     return ret;
 }
-

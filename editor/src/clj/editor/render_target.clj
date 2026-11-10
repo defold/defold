@@ -197,6 +197,11 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output build-errors g/Any (g/fnk [_node-id type sample-count color-attachments depth-stencil-attachment-width depth-stencil-attachment-height]
                                (g/package-errors _node-id
+                                 (when (and (zero? (count color-attachments))
+                                            (or (zero? depth-stencil-attachment-width)
+                                                (zero? depth-stencil-attachment-height)))
+                                   (g/->error _node-id :color-attachments :fatal color-attachments
+                                              (localization/message "error.render-target.must-have-attachment")))
                                  (validation/prop-error :fatal _node-id :color-attachments validate-color-attachment-count color-attachments color-attachments-message)
                                  (into [] (map-indexed
                                             (fn [i color-attachment]

@@ -119,7 +119,10 @@ namespace dmTexc
     uint32_t GetWidth(Image* image);
     uint32_t GetHeight(Image* image);
 
-    // Resize a texture. The texture must have format PF_R8G8B8A8 to be resized.
+    // Resize RGBA8 with separable Lanczos4 filtering, clamped edges and rounding
+    // to the nearest byte. Channels are filtered as stored, without gamma conversion.
+    // RGBA32F uses bilinear interpolation. Returns a new caller-owned Image,
+    // or null on invalid dimensions or allocation failure.
     Image* Resize(Image* image, uint32_t width, uint32_t height);
 
     // Pre-multiply the color with alpha in a texture. The texture must have format PF_R8G8B8A8 for the alpha to be pre-multiplied.

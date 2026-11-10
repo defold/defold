@@ -16,10 +16,18 @@
 #define DM_FONTMAP_PRIVATE_H
 
 #include "font_renderer.h"
+#include <font_render.h>
+#include <font/font_vector_slug.h>
+#include <font/render/glyph_vertex.h>
+#include <font/font_vector_paint.hpp>
 #include "../render_private.h"
 
 namespace dmRender
 {
+    // max_glyph_count includes ordinary vector glyphs as well as color glyphs.
+    void PrepareVectorPaintGlyphs(HFontMap font_map, HTextLayout layout, uint32_t frame, uint32_t max_glyph_count);
+    const FontVectorPaintGlyph* GetVectorPaintGlyph(HFontMap font_map, HFont font, uint32_t glyph);
+
     struct FontMap
     {
         FontMap()
@@ -38,8 +46,19 @@ namespace dmRender
             free(m_CellTempData);
             m_CellTempData = 0;
 
+            delete m_VectorPaint;
+            if (m_VectorPaintTexture)
+                dmGraphics::DeleteTexture(m_GraphicsContext, m_VectorPaintTexture);
+            FontDeleteEffectCache(m_EffectCache);
+            delete m_SlugData;
+            if (m_VectorBandTexture)
+                dmGraphics::DeleteTexture(m_GraphicsContext, m_VectorBandTexture);
+
             if (m_Texture)
                 dmGraphics::DeleteTexture(m_GraphicsContext, m_Texture);
+
+            if (m_VectorSdfTexture)
+                dmGraphics::DeleteTexture(m_GraphicsContext, m_VectorSdfTexture);
 
             dmHashTable<uint64_t, FontGlyph*>::Iterator iter = m_Glyphs.GetIterator();
             while(iter.Next())
@@ -47,6 +66,7 @@ namespace dmRender
                 FontGlyph* glyph = iter.GetValue();
                 if ( (glyph->m_Bitmap.m_Flags & FONT_GLYPH_BM_FLAG_DATA_IS_BORROWED) == 0)
                     free((void*)glyph->m_Bitmap.m_Data);
+                free((void*)glyph->m_Outline.m_Commands);
                 delete glyph;
             }
         }
@@ -55,7 +75,17 @@ namespace dmRender
         HFontCollection         m_FontCollection;
         void*                   m_UserData; // The font map resources (see res_font.cpp)
         dmGraphics::HContext    m_GraphicsContext; // Used to recreate textures
-        dmGraphics::HTexture    m_Texture;
+        dmGraphics::HTexture    m_Texture;       // Legacy glyph cache texture, or curve texture for vector fonts
+        dmGraphics::HTexture    m_VectorSdfTexture;
+        dmGraphics::HTexture    m_VectorBandTexture;
+        FontVectorSlugData*     m_SlugData;
+        dmArray<FontGlyphVertex> m_DecorationVertices;
+        FontVectorPaintCache*   m_VectorPaint;
+        dmGraphics::HTexture   m_VectorPaintTexture;
+        bool                    m_VectorBitmapEffects;
+        bool                    m_SlugResetPending;
+        uint32_t                m_SlugOverflowFrame;
+        FontEffectCache*        m_EffectCache;
         HMaterial               m_Material;
         dmhash_t                m_NameHash;
 
@@ -112,8 +142,11 @@ namespace dmRender
         uint8_t                 m_IsCacheSizeTooSmall:1;
         uint8_t                 m_CacheChannels:3;      // Number of channels (1-4)
         uint8_t                 m_IsSdf:1;
-        uint8_t                 :7;
+        uint8_t                 m_IsVector:1;
+        uint8_t                 :3;
     };
+    // Apply deferred vector atlas changes before any render batch captures textures.
+    void PrepareVectorCache(HFontMap font_map, uint32_t frame);
 }
 
 #endif // #ifndef DM_FONTMAP_PRIVATE_H

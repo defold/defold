@@ -60,8 +60,16 @@ extern "C"
         bool    m_SelectAllDown;
     } FontViewerNuklearInput;
 
+    typedef enum FontViewerRenderMode
+    {
+        FONT_VIEWER_RENDER_SDF,
+        FONT_VIEWER_RENDER_BITMAP,
+        FONT_VIEWER_RENDER_VECTOR,
+    } FontViewerRenderMode;
+
     typedef struct FontViewerProperties
     {
+        FontViewerRenderMode m_RenderMode;
         float m_Alpha;
         float m_OutlineAlpha;
         float m_OutlineWidth;

@@ -29,14 +29,14 @@ static int g_WindowQueries;
 static int g_ResizeCount;
 static int g_QueueDuringCallback;
 
-// Wrap only the native surface access so both real GLFW backends can run without an Activity.
-extern "C" ANativeWindow* __wrap_glfwAcquireAndroidWindow(void)
+// Wrap only the native surface access so both native platform backends can run without an Activity.
+extern "C" ANativeWindow* __wrap_dmNativeAcquireAndroidWindow(void)
 {
     ++g_WindowQueries;
     return g_WindowAvailable ? (ANativeWindow*)&g_NativeWindow : 0;
 }
 
-extern "C" void __wrap_glfwReleaseAndroidWindow(ANativeWindow* window)
+extern "C" void __wrap_dmNativeReleaseAndroidWindow(ANativeWindow* window)
 {
     (void)window;
 }
@@ -55,15 +55,15 @@ extern "C" int32_t __wrap_ANativeWindow_getHeight(ANativeWindow* window)
 
 static void OnResize(int width, int height)
 {
-    ASSERT_EQ(width, _glfwWin.width);
-    ASSERT_EQ(height, _glfwWin.height);
+    ASSERT_EQ(width, dmNativeWin.width);
+    ASSERT_EQ(height, dmNativeWin.height);
     ASSERT_EQ(g_WindowWidth, width);
     ASSERT_EQ(g_WindowHeight, height);
     ++g_ResizeCount;
     if (g_QueueDuringCallback)
     {
         g_QueueDuringCallback = 0;
-        _glfwAndroidPlatformSetPendingResizeBecauseOfInsets();
+        dmNativeAndroidPlatformSetPendingResizeBecauseOfInsets();
     }
 }
 
@@ -72,16 +72,16 @@ class AndroidInsetsTest : public jc_test_base_class
 protected:
     void SetUp()
     {
-        memset(&_glfwWin, 0, sizeof(_glfwWin));
-        _glfwWin.clientAPI = GLFW_NO_API;
+        memset(&dmNativeWin, 0, sizeof(dmNativeWin));
+        dmNativeWin.clientAPI = NATIVE_NO_API;
         g_WindowAvailable = 1;
         g_WindowWidth = 2034;
         g_WindowHeight = 1398;
         // Drain any pending event left by the previous test before installing the callback.
-        _glfwAndroidPlatformAfterFlushEvents();
-        _glfwWin.width = g_WindowWidth;
-        _glfwWin.height = g_WindowHeight;
-        _glfwWin.windowSizeCallback = OnResize;
+        dmNativeAndroidPlatformAfterFlushEvents();
+        dmNativeWin.width = g_WindowWidth;
+        dmNativeWin.height = g_WindowHeight;
+        dmNativeWin.windowSizeCallback = OnResize;
         g_WindowQueries = 0;
         g_ResizeCount = 0;
         g_QueueDuringCallback = 0;
@@ -91,13 +91,13 @@ protected:
 // Verifies a same-size inset change refreshes Vulkan in both backends, and idle polls never query the native window.
 TEST_F(AndroidInsetsTest, InsetsChangeWithoutResize)
 {
-    _glfwAndroidPlatformSetPendingResizeBecauseOfInsets();
-    _glfwAndroidPlatformSetPendingResizeBecauseOfInsets();
+    dmNativeAndroidPlatformSetPendingResizeBecauseOfInsets();
+    dmNativeAndroidPlatformSetPendingResizeBecauseOfInsets();
     ASSERT_EQ(0, g_ResizeCount);
-    _glfwAndroidPlatformAfterFlushEvents();
+    dmNativeAndroidPlatformAfterFlushEvents();
     ASSERT_EQ(1, g_ResizeCount);
     ASSERT_EQ(1, g_WindowQueries);
-    _glfwAndroidPlatformAfterFlushEvents();
+    dmNativeAndroidPlatformAfterFlushEvents();
     ASSERT_EQ(1, g_ResizeCount);
     ASSERT_EQ(1, g_WindowQueries);
 }
@@ -106,12 +106,12 @@ TEST_F(AndroidInsetsTest, InsetsChangeWithoutResize)
 TEST_F(AndroidInsetsTest, InsetsQueuedDuringCallback)
 {
     g_QueueDuringCallback = 1;
-    _glfwAndroidPlatformSetPendingResizeBecauseOfInsets();
-    _glfwAndroidPlatformAfterFlushEvents();
+    dmNativeAndroidPlatformSetPendingResizeBecauseOfInsets();
+    dmNativeAndroidPlatformAfterFlushEvents();
     ASSERT_EQ(1, g_ResizeCount);
-    _glfwAndroidPlatformAfterFlushEvents();
+    dmNativeAndroidPlatformAfterFlushEvents();
     ASSERT_EQ(2, g_ResizeCount);
-    _glfwAndroidPlatformAfterFlushEvents();
+    dmNativeAndroidPlatformAfterFlushEvents();
     ASSERT_EQ(2, g_ResizeCount);
 }
 
@@ -119,19 +119,19 @@ TEST_F(AndroidInsetsTest, InsetsQueuedDuringCallback)
 TEST_F(AndroidInsetsTest, RetryWithoutNativeWindow)
 {
     g_WindowAvailable = 0;
-    _glfwAndroidPlatformSetPendingResizeBecauseOfInsets();
-    _glfwAndroidPlatformAfterFlushEvents();
+    dmNativeAndroidPlatformSetPendingResizeBecauseOfInsets();
+    dmNativeAndroidPlatformAfterFlushEvents();
     ASSERT_EQ(0, g_ResizeCount);
     g_WindowAvailable = 1;
-    _glfwAndroidPlatformAfterFlushEvents();
+    dmNativeAndroidPlatformAfterFlushEvents();
     ASSERT_EQ(1, g_ResizeCount);
 
     g_WindowAvailable = 0;
-    _glfwAndroidPlatformOnResize();
-    _glfwAndroidPlatformAfterFlushEvents();
+    dmNativeAndroidPlatformOnResize();
+    dmNativeAndroidPlatformAfterFlushEvents();
     ASSERT_EQ(1, g_ResizeCount);
     g_WindowAvailable = 1;
-    _glfwAndroidPlatformAfterFlushEvents();
+    dmNativeAndroidPlatformAfterFlushEvents();
     ASSERT_EQ(2, g_ResizeCount);
 }
 
@@ -140,20 +140,20 @@ TEST_F(AndroidInsetsTest, ResizeUpdatesDimensionsBeforeCallback)
 {
     g_WindowWidth = 1398;
     g_WindowHeight = 2034;
-    _glfwAndroidPlatformOnResize();
-    _glfwAndroidPlatformAfterFlushEvents();
+    dmNativeAndroidPlatformOnResize();
+    dmNativeAndroidPlatformAfterFlushEvents();
     ASSERT_EQ(1, g_ResizeCount);
-    ASSERT_EQ(g_WindowWidth, _glfwWin.width);
-    ASSERT_EQ(g_WindowHeight, _glfwWin.height);
+    ASSERT_EQ(g_WindowWidth, dmNativeWin.width);
+    ASSERT_EQ(g_WindowHeight, dmNativeWin.height);
 }
 
 // Verifies recreating a Vulkan native window refreshes its insets even when its dimensions are unchanged.
 TEST_F(AndroidInsetsTest, RecreatedNativeWindowRefresh)
 {
-    _glfwAndroidPlatformOnInitWindow();
-    _glfwAndroidPlatformAfterFlushEvents();
+    dmNativeAndroidPlatformOnInitWindow();
+    dmNativeAndroidPlatformAfterFlushEvents();
     ASSERT_EQ(1, g_ResizeCount);
-    _glfwAndroidPlatformAfterFlushEvents();
+    dmNativeAndroidPlatformAfterFlushEvents();
     ASSERT_EQ(1, g_ResizeCount);
 }
 

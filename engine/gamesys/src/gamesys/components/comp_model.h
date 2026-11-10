@@ -59,7 +59,7 @@ namespace dmGameSystem
 
     ModelResource*          CompModelGetModelResource(ModelComponent* component);
     dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index);
-    bool                    CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled);
+    bool                    CompModelSetMeshEnabled(ModelWorld* world, ModelComponent* component, dmhash_t mesh_id, bool enabled);
     bool                    CompModelGetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool* out);
     uint32_t                CompModelGetMeshCount(ModelComponent* component);
     void                    CompModelGetAABB(ModelComponent* component, dmVMath::Vector3* out_min, dmVMath::Vector3* out_max);

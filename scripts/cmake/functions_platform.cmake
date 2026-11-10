@@ -32,6 +32,8 @@ function(defold_target_link_platform target platform)
     if(DEFOLD_PLATFORM_WINDOW_LIBRARY)
         set(_plat_lib "${DEFOLD_PLATFORM_WINDOW_LIBRARY}")
     # Web platforms use their platform-native window integration.
+    elseif(platform MATCHES "android$" AND WITH_VULKAN AND NOT WITH_OPENGL)
+        set(_plat_lib platform_vulkan)
     elseif(platform STREQUAL "wasm-web" OR platform STREQUAL "wasm_pthread-web")
         set(_plat_lib platform)
     else()
@@ -58,6 +60,11 @@ function(defold_target_link_platform target platform)
 
     # Prefer linking to a CMake target if it exists
     target_link_libraries(${target} ${DPL_SCOPE} ${_plat_lib})
+
+    if(_plat_lib STREQUAL "platform" AND NOT TARGET "${_plat_lib}")
+        # Standalone consumers cannot inherit the platform target's web link options.
+        defold_target_link_libraries_web(${target} "${platform}" SCOPE ${DPL_SCOPE} library_platform.js)
+    endif()
 endfunction()
 
 

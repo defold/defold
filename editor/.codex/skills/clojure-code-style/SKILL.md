@@ -15,6 +15,10 @@ When one branch of an `if` is trivial, prefer placing the trivial branch in the 
 
 Avoid introducing multiple arities to functions. Prefer updating call sites with added arguments instead. For recursive functions, prefer a separate private `-impl`-suffixed helper over an internal-only arity.
 
+## Anonymous `(fn ...)` names
+
+Name functions that are stored or invoked later for clearer stack traces. Small inline transformations and `#(...)` may remain unnamed.
+
 ## Grouping and spacing
 
 Use newlines between paired forms (e.g., `let`-bindings, `cond`, map literals) to keep indentation under control. Separate blocks with blank lines.
@@ -43,6 +47,10 @@ Prefer `if-let`/`when-let` over `if-some`/`when-some`. Latter can be used only w
 ## Linting
 
 Use `clj-kondo` to find and fix lint issues in your changes.
+
+## Formatting
+
+Format every touched file with `lein cljfmt fix ...`
 
 ## Editor recovery
 

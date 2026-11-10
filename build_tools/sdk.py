@@ -27,6 +27,8 @@ SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 # If you update editor JDK version, don't forget to update it here too:
 # - /editor/bundle-resources/config at "launcher.jdk" key
 # - /editor/src/clj/editor/updater.clj, `protected-dirs` let binding
+# ci/cache_key.py reads this constant. If its name or assignment structure
+# changes, check and update that script as needed.
 VERSION_EDITOR_JDK="25.0.4.1+1"
 
 ## **********************************************************************************************
@@ -65,6 +67,8 @@ ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 # Win32
 
 # The version we have prepackaged
+# ci/cache_key.py reads these version constants. If their names or assignment
+# structure changes, check and update that script as needed.
 VERSION_WINDOWS_SDK="10.0.28000.0"
 VISUAL_STUDIO_VERSION="2026"
 VERSION_WINDOWS_MSVC="14.51.36231"

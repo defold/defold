@@ -306,7 +306,8 @@
    ^double fov-y
    ^Vector4d focus-point
    ^double focus-distance
-   filter-fn]
+   filter-fn
+   mode-2d]
   Position
   (position [this] position)
   Rotation
