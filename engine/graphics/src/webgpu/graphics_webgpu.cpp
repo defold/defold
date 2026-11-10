@@ -1785,8 +1785,6 @@ static void WebGPUDestroyContext(WebGPUContext* context)
 {
     TRACE_CALL;
     WebGPUInvalidateBindGroups(context);
-    context->m_ExpiredBindGroupKeys.SetSize(0);
-    context->m_ExpiredBindGroupKeys.SetCapacity(0);
     if (context->m_DefaultTexture2D)
     {
         WebGPUDestroyTexture(context->m_DefaultTexture2D);
@@ -2251,8 +2249,7 @@ static void WebGPUClear(HContext _context, uint32_t flags, uint8_t red, uint8_t 
 static void WebGPUPruneBindGroups(WebGPUContext* context)
 {
     const uint32_t max_age = 8;
-    dmArray<uint64_t>& expired_keys = context->m_ExpiredBindGroupKeys;
-    expired_keys.SetSize(0);
+    dmArray<uint64_t> expired_keys;
     dmHashTable64<WebGPUBindGroup*>::Iterator iterator = context->m_BindGroupCache.GetIterator();
     while (iterator.Next())
     {
