@@ -2068,9 +2068,12 @@
 (defn stale-materialization? [error]
   (= ::stale-materialization (:ex-type (ex-data error))))
 
+(defn- materialization-applied? [{:keys [basis materialization-results]} {:keys [node-id] :as materialize-info}]
+  (and (identical? materialize-info (get materialization-results node-id))
+       (not (in/shell-node? (ig/node-by-id-at basis node-id)))))
+
 (defn- perform-materialization [ctx {:keys [node-id shell-node changes dependencies prerequisite-shell-node-ids prerequisite-source-state] :as materialize-info}]
-  (if (and (identical? materialize-info (get (:materialization-results ctx) node-id))
-           (not (in/shell-node? (ig/node-by-id-at (:basis ctx) node-id))))
+  (if (materialization-applied? ctx materialize-info)
     ctx ; The materialization has already happened.
     (do
       (when-not (identical? shell-node (ig/node-by-id-at (:basis ctx) node-id))
@@ -2147,6 +2150,31 @@
              :tx-data-context-atom (:tx-data-context-atom evaluation-context)
              :initial-invalidate-counters (:initial-invalidate-counters evaluation-context)
              :realized-changes [])))
+
+(defn- replay-materialization [initial-transaction-context replayed-materializations {:keys [dependencies] :as materialize-info}]
+  (if (materialization-applied? (or (peek replayed-materializations) initial-transaction-context) materialize-info)
+    replayed-materializations
+    (let [replayed-materializations
+          (coll/reduce-kv-> dependencies replayed-materializations
+            (fn [replayed-materializations _node-id dependency]
+              (replay-materialization initial-transaction-context replayed-materializations dependency)))
+
+          {:keys [basis materialization-results]}
+          (or (peek replayed-materializations) initial-transaction-context)
+
+          ;; Finalize each materialization separately so its invalidations apply
+          ;; after prerequisite cache entries, just as when first materialized.
+          ;; Keep the results private until the entire replay has been checked.
+          result
+          (-> initial-transaction-context
+              (assoc :basis basis
+                     :initial-basis basis
+                     :materialization-results materialization-results)
+              (perform-change (->MaterializationTXC materialize-info))
+              (assoc :completed-action-count 1)
+              finalize-replayed-changes
+              (assoc :materialize-info materialize-info))]
+      (conj replayed-materializations result))))
 
 (defn- apply-evaluation-result! [evaluation-context change result]
   (let [{:keys [basis-ref changes-atom invalidated-endpoints-atom materialization-results-atom nodes-added-atom nodes-deleted-atom]} evaluation-context
@@ -2417,20 +2445,17 @@
               (log-node-materialization! 4 node "Materialization received.")
               (if error
                 (throw error)
-                (let [change (->MaterializationTXC materialize-info)
-                      result (try
-                               (-> (evaluation-transaction-context evaluation-context)
-                                   (perform-change change)
-                                   (assoc :completed-action-count 1)
-                                   (finalize-replayed-changes))
-                               (catch ExceptionInfo error
-                                 (when-not (stale-materialization? error)
-                                   (throw error))))]
-                  (if result
-                    (do
-                      (apply-evaluation-result! evaluation-context change result)
-                      (swap! (:local-atom evaluation-context) into (:cache-entries materialize-info)))
-                    (recur (conj rejected-promises result-promise))))))))))))
+                (let [replayed-materializations
+                      (try
+                        (replay-materialization (evaluation-transaction-context evaluation-context) [] materialize-info)
+                        (catch ExceptionInfo error
+                          (when-not (stale-materialization? error)
+                            (throw error))))]
+                  (if-not replayed-materializations
+                    (recur (conj rejected-promises result-promise))
+                    (doseq [{:keys [materialize-info] :as result} replayed-materializations]
+                      (apply-evaluation-result! evaluation-context (->MaterializationTXC materialize-info) result)
+                      (swap! (:local-atom evaluation-context) into (:cache-entries materialize-info)))))))))))))
 
 (extend-type ShellNode
   gt/Materializable

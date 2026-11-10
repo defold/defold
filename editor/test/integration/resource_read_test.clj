@@ -69,6 +69,73 @@
           (is (= 17 (:margin (g/node-value node-id :save-value))))
           (is (true? (:dirty (g/node-value node-id :save-data)))))))))
 
+;; Sharing a materialization must retain source-derived save entries for every
+;; newly replayed prerequisite, even if the producer is discarded.
+(deftest shared-materialization-caches-prerequisite-save-data-test
+  (doseq [dry-run [false true]]
+    (test-util/with-temp-project-content
+      {"/template.gui" {:nodes [{:id "box" :type :type-box}]}
+       "/nested.gui" {:nodes [{:id "template" :type :type-template :template "/template.gui"}]}
+       "/parent.gui" {:nodes [{:id "nested" :type :type-template :template "/nested.gui"}
+                              {:id "template" :type :type-template :template "/template.gui"}]}}
+      (let [resource-node-ids (mapv #(test-util/resource-node project %) ["/template.gui" "/nested.gui" "/parent.gui"])
+            parent-node-id (peek resource-node-ids)]
+        (g/with-evaluation-context [producer (g/make-evaluation-context)]
+          (g/with-evaluation-context [consumer (g/make-evaluation-context)]
+            (g/materialize-node! parent-node-id producer)
+            (g/close-evaluation-context! producer)
+            (g/materialize-node! parent-node-id (cond-> consumer dry-run g/dry-run-evaluation-context))
+            (g/update-system-from-evaluation-context! consumer)
+            (doseq [node-id resource-node-ids]
+              (let [source-value (g/raw-property-value (g/now) node-id :source-value)]
+                (is (identical? source-value (get (g/cache) (g/endpoint node-id :save-value))))
+                (is (= (resource-node/make-save-data node-id (resource-node/resource (g/now) node-id) source-value false)
+                       (get (g/cache) (g/endpoint node-id :save-data))))))))))))
+
+;; A parent's migration must invalidate prerequisite source entries during
+;; shared replay, while unrelated prerequisite entries remain cached.
+(deftest shared-materialization-invalidates-migrated-prerequisite-save-data-test
+  (doseq [prerequisite-proj-path [nil "/scaled.label" "/parent.go"]]
+    (test-util/with-temp-project-content
+      {"/scaled.label" {:font "/builtins/fonts/default.font"
+                        :material "/builtins/fonts/label.material"
+                        :size [128.0 32.0 0.0 0.0]
+                        :text "Scaled"
+                        :scale [2.0 3.0 4.0 0.0]}
+       "/plain.label" {:font "/builtins/fonts/default.font"
+                       :material "/builtins/fonts/label.material"
+                       :size [128.0 32.0 0.0 0.0]
+                       :text "Plain"}
+       "/parent.go" {:components [{:id "scaled" :component "/scaled.label"}
+                                  {:id "plain" :component "/plain.label"}]}
+       "/root.collection" {:name "root"
+                           :instances [{:id "parent" :prototype "/parent.go"}]}}
+      (let [scaled-label-node-id (test-util/resource-node project "/scaled.label")
+            plain-label-node-id (test-util/resource-node project "/plain.label")
+            parent-node-id (test-util/resource-node project "/parent.go")
+            root-node-id (test-util/resource-node project "/root.collection")]
+        (g/with-evaluation-context [producer (g/make-evaluation-context)]
+          (g/with-evaluation-context [consumer (g/make-evaluation-context)]
+            (g/materialize-node! root-node-id producer)
+            (g/close-evaluation-context! producer)
+            (when prerequisite-proj-path
+              (g/materialize-node! (test-util/resource-node project prerequisite-proj-path) consumer)
+              (is (= (= "/scaled.label" prerequisite-proj-path)
+                     (contains? @(:local-atom consumer) (g/endpoint scaled-label-node-id :save-value)))))
+            (g/materialize-node! root-node-id consumer)
+            (g/update-system-from-evaluation-context! consumer)
+            (doseq [node-id [scaled-label-node-id parent-node-id]
+                    label [:save-value :save-data]]
+              (is (not (contains? (g/cache) (g/endpoint node-id label)))))
+            (doseq [node-id [plain-label-node-id root-node-id]
+                    label [:save-value :save-data]]
+              (is (contains? (g/cache) (g/endpoint node-id label))))
+            (is (not (contains? (g/node-value scaled-label-node-id :save-value) :scale)))
+            (is (= [2.0 3.0 4.0]
+                   (get-in (g/node-value parent-node-id :save-value) [:components 0 :scale])))
+            (doseq [node-id [scaled-label-node-id parent-node-id]]
+              (is (true? (:dirty (g/node-value node-id :save-data)))))))))))
+
 ;; Project settings must be initialized before loading dependent resources so
 ;; their freshly cached source values survive the first build's loading pass.
 (deftest build-load-preserves-cached-save-data-test
