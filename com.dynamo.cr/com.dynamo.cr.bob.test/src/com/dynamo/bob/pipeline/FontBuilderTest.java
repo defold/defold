@@ -1169,6 +1169,37 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
     }
 
+    // Static fonts can share a generated glyph bank when path minification is enabled (#13739).
+    @Test
+    public void testSharedGlyphBankPathMinification() throws Exception {
+        boolean minificationEnabled = ResourceUtil.isMinificationEnabled();
+        getProject().setOption("experimental-path-minification", "true");
+        try {
+            String source = "font: \"/Tuffy.ttf\"\nsize: 16\ncharacters: \"A\"\n";
+            addFile("/shared-a.font", source + "material: \"/test.material\"\n");
+            addFile("/shared-b.font", source + "material: \"/test2.material\"\n");
+            getProject().setInputs(List.of("/shared-a.font", "/shared-b.font"));
+
+            List<TaskResult> results = getProject().build(Progress.discarding(), "build");
+            for (TaskResult result : results) {
+                assertTrue(result.toString(), result.isOk());
+            }
+
+            FontMap first = FontMap.parseFrom(getProject().getResource("/shared-a.font").changeExt(".fontc").getContent());
+            FontMap second = FontMap.parseFrom(getProject().getResource("/shared-b.font").changeExt(".fontc").getContent());
+            assertEquals(first.getGlyphBank(), second.getGlyphBank());
+            assertTrue(first.getGlyphBank().endsWith(".glyph_bankc"));
+            assertTrue(!first.getGlyphBank().contains("_generated_"));
+            assertNotEquals(first.getMaterial(), second.getMaterial());
+
+            IResource output = getProject().getResource(first.getGlyphBank()).output();
+            GlyphBank glyphBank = GlyphBank.parseFrom(output.getContent());
+            assertTrue(glyphBank.getGlyphsList().stream().anyMatch(glyph -> glyph.getCharacter() == 'A'));
+        } finally {
+            ResourceUtil.enableMinification(minificationEnabled);
+        }
+    }
+
     @Test
     public void testFNTGlpyBankPath() throws Exception {
 
