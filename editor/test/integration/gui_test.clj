@@ -486,13 +486,14 @@
         (testing "Editor scripts use updated defaults for scene and child attachments."
           (let [rt (rt/make)]
             (doseq [parent-node-id [scene (gui-node scene "box")]]
-              (let [[child-node-id] (g/tx-nodes-added
-                                      (g/transact
-                                        (attachment/add
-                                          workspace parent-node-id :nodes TestCustomGuiNode
-                                          (fn init-child [parent-node-id child-node-id]
-                                            (g/expand-ec ext-graph/init-attachment rt project parent-node-id TestCustomGuiNode child-node-id {}))
-                                          fn/constantly-nil)))]
+              (let [[child-node-id]
+                    (g/tx-nodes-added
+                      (g/transact
+                        (attachment/add
+                          workspace parent-node-id :nodes TestCustomGuiNode
+                          (fn init-child [parent-node-id child-node-id]
+                            (g/expand-ec ext-graph/init-attachment rt project parent-node-id TestCustomGuiNode child-node-id {}))
+                          fn/constantly-nil)))]
                 (is (= 42.0 (prop child-node-id :test-number)))))))))))
 
 (defn- property-value-choices [node-id label]
@@ -2043,12 +2044,13 @@
     (let [parent (test-util/resource-node project "/parent.gui")
           source (test-util/resource-node project "/source.gui")]
       (g/transact
-        (gui/register-custom-node-type-info workspace
-                                            {:node-type TestCustomGuiNode
-                                             :display-name "Test Custom"
-                                             :custom-type-name "TestCustom"
-                                             :icon "icons/32/Icons_40-GUI-Box-node.png"
-                                             :defaults gui/shape-base-node-defaults}))
+        (gui/register-custom-node-type-info
+          workspace
+          {:node-type TestCustomGuiNode
+           :display-name "Test Custom"
+           :custom-type-name "TestCustom"
+           :icon "icons/32/Icons_40-GUI-Box-node.png"
+           :defaults gui/shape-base-node-defaults}))
       (test-util/write-file-resource! workspace "/source.gui"
         {:nodes [{:type :type-custom
                   :custom-type-name "TestCustom"
@@ -2086,12 +2088,13 @@
           (test-util/make-resource! workspace "/parent.gui" parent-data)
           (workspace/resource-sync! workspace)
           (g/transact
-            (gui/register-custom-node-type-info workspace
-                                                {:node-type TestCustomGuiNode
-                                                 :display-name "Test Custom"
-                                                 :custom-type-name "TestCustom"
-                                                 :icon "icons/32/Icons_40-GUI-Box-node.png"
-                                                 :defaults (assoc gui/shape-base-node-defaults :test-number 42.0)}))
+            (gui/register-custom-node-type-info
+              workspace
+              {:node-type TestCustomGuiNode
+               :display-name "Test Custom"
+               :custom-type-name "TestCustom"
+               :icon "icons/32/Icons_40-GUI-Box-node.png"
+               :defaults (assoc gui/shape-base-node-defaults :test-number 42.0)}))
           (test-util/write-file-resource! workspace reload-path
             (assoc (if (= "/parent.gui" reload-path) parent-data source-data)
               :max-nodes 256))
