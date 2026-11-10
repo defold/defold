@@ -232,6 +232,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: *build_sha
+          # Jobs can narrow the checkout; an unset value keeps the full tree.
+          sparse-checkout: ${{ env.CHECKOUT_PATHS }}
+          sparse-checkout-cone-mode: false
       - &step_python
         name: "Install Python"
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -546,16 +549,13 @@ jobs:
     needs: [bld-eng]
     if: always()
     runs-on: ubuntu-latest
+    env:
+      CHECKOUT_PATHS: "/ci/build_report_summary.cjs"
     permissions:
       actions: read
       contents: read
     steps:
-      - name: "Checkout report script"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: *build_sha
-          sparse-checkout: "/ci/build_report_summary.cjs"
-          sparse-checkout-cone-mode: false
+      - *step_checkout
       - name: Summarize build reports
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
@@ -699,24 +699,20 @@ jobs:
     # Only the combined SDK is published to S3; platform SDKs are temporary artifacts.
     if: *if_sdk_enabled
     timeout-minutes: 10
+    env:
+      # SDK inputs are downloaded artifacts; only the merge/upload tools,
+      # offline Python dependencies, and platform metadata are needed.
+      CHECKOUT_PATHS: |
+        /VERSION
+        /ci/
+        /scripts/
+        /build_tools/
+        /packages/python/
+        /packages/boto3_data/
+        /share/
     steps:
       - *step_validate_build_commit
-      - name: "Checkout SDK packaging tools"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: *build_sha
-          # SDK inputs are downloaded artifacts; only the merge/upload tools,
-          # offline Python dependencies, and platform metadata are needed.
-          sparse-checkout: |
-            /VERSION
-            /ci/
-            /scripts/
-            /build_tools/
-            /packages/python/
-            /packages/boto3_data/
-            /share/
-          # Cone mode would also fetch unrelated archives under packages/.
-          sparse-checkout-cone-mode: false
+      - *step_checkout
       - *step_python
       - name: "Download temporary platform SDKs"
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
