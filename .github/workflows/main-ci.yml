@@ -140,13 +140,13 @@ jobs:
             codesign: true
           - name: "bld-eng-web (wasm-web)"
             platform: wasm-web
-            runner: ubuntu-22.04
+            runner: ubuntu-22.04-arm
             timeout: 45
             engine_args: "--skip-builtins --skip-docs --skip-tests"
             emsdk: true
           - name: "bld-eng-web (wasm_pthread-web)"
             platform: wasm_pthread-web
-            runner: ubuntu-22.04
+            runner: ubuntu-22.04-arm
             timeout: 45
             engine_args: "--skip-builtins --skip-docs --skip-tests"
             emsdk: true
@@ -320,7 +320,11 @@ jobs:
           version: "4.0.6"
       - name: "Verify emsdk"
         if: matrix.emsdk
-        run: "emcc -v && export | grep EM"
+        run: |
+          uname -m
+          emcc -v
+          file -L "$EMSDK/upstream/bin/clang" "$EMSDK/upstream/bin/wasm-ld" "$EMSDK/upstream/bin/wasm-opt"
+          export | grep EM
       - name: "Setup Node for WASM tests"
         if: matrix.platform == 'wasm-web'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
