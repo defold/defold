@@ -197,6 +197,9 @@
                                 :val {:type :array :item {:type :number}}}
               :hidden-panes {:type :set :item {:type :keyword}}
               :locale {:type :locale}
+              :ui-scale {:type :enum
+                         :values [100 125 150 175 200 250 300]
+                         :default 100}
               :keymap {:type :object-of
                        :key {:type :keyword} ;; command
                        :val {:type :object
