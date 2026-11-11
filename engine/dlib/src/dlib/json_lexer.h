@@ -18,6 +18,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <dlib/endian.h>
+#include <dlib/inline.h>
 #include <simd/simd.h>
 #include "json_number.h"
 
@@ -25,7 +26,7 @@ namespace dmJson
 {
     // Consume bounded digit runs, batching eight bytes at a time on native builds.
     // Unsigned wrap is defined; conversion only uses this accumulator for <=19 digits.
-    static uint64_t ReadDigits(char*& cursor, const char* end, uint64_t coefficient)
+    static DM_FORCE_INLINE uint64_t ReadDigits(char*& cursor, const char* end, uint64_t coefficient)
     {
         char* position = cursor;
         // Wasm short-number workloads favor scalar accumulation.
@@ -456,7 +457,7 @@ namespace dmJson
         }
         // Lua retains leading zeros, a leading plus, and incomplete fractions.
         // Document callers use the strict grammar by default.
-        double ReadNumber(bool decode, bool relaxed = false)
+        DM_FORCE_INLINE double ReadNumber(bool decode, bool relaxed = false)
         {
             double value = 0;
             char* begin = m_Cursor;
