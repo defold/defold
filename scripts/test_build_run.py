@@ -129,6 +129,131 @@ class RunCommandTests(unittest.TestCase):
                 self.assertEqual(errno.ENOSPC, raised.exception.errno)
                 self.assert_processes_closed()
 
+    # macOS must preserve a callback failure when the process group contains an unreaped, exited child.
+    @unittest.skipUnless(sys.platform == 'darwin', 'Requires macOS process exit notifications')
+    def test_callback_failure_after_child_exit_preserves_error(self):
+        import select
+
+        failure = OSError(errno.ENOSPC, 'simulated log disk full')
+
+        def on_output(line):
+            child = self.children[-1]
+            queue = select.kqueue()
+            try:
+                queue.control([select.kevent(child.pid, filter=select.KQ_FILTER_PROC,
+                                             flags=select.KQ_EV_ADD | select.KQ_EV_ONESHOT,
+                                             fflags=select.KQ_NOTE_EXIT)], 0, 0)
+                child.stdin.close()
+                self.assertTrue(queue.control(None, 1, 10), 'Child did not exit')
+            finally:
+                queue.close()
+            raise failure
+
+        for terminal_output in (False, True):
+            with self.subTest(terminal_output=terminal_output), self.assertRaises(OSError) as raised:
+                run.env_command(os.environ, [sys.executable, '-c',
+                                'import sys; print("ready", flush=True); sys.stdin.read()'],
+                                silent=True, terminal_output=terminal_output, kill_process_tree=True,
+                                on_output=on_output)
+            self.assertIs(failure, raised.exception)
+            self.assertFalse(getattr(failure, '__notes__', []))
+            self.assert_processes_closed()
+
+    # Cleanup errors must remain diagnostic notes while callbacks and interrupts retain their identity.
+    def test_cleanup_failure_preserves_callback_error(self):
+        stop_process = run._stop_process
+        secret = 'private-cleanup-token'
+
+        def stop_and_fail(process, kill_process_tree):
+            stop_process(process, kill_process_tree)
+            raise PermissionError(errno.EPERM, 'simulated cleanup failure: ' + secret)
+
+        for terminal_output in (False, True):
+            for exception_type in (OSError, KeyboardInterrupt):
+                failure = exception_type('original callback failure')
+
+                def on_output(line):
+                    raise failure
+
+                with self.subTest(terminal_output=terminal_output, exception=exception_type.__name__), \
+                        mock.patch.object(run, '_stop_process', side_effect=stop_and_fail), \
+                        self.assertRaises(exception_type) as raised:
+                    run.env_command(os.environ, [sys.executable, '-c',
+                                    'import sys; print("ready", flush=True); sys.stdin.readline()'],
+                                    silent=True, terminal_output=terminal_output, on_output=on_output,
+                                    redacted_values=[secret])
+                self.assertIs(failure, raised.exception)
+                self.assertEqual(1, len(failure.__notes__))
+                self.assertIn('simulated cleanup failure', failure.__notes__[0])
+                self.assertNotIn(secret, failure.__notes__[0])
+                self.assertIn('***', failure.__notes__[0])
+                self.assert_processes_closed()
+
+    # A pipe close failure must not hide a command's exit status or leave the other pipes open.
+    def test_pipe_close_failure_preserves_status_and_closes_pipes(self):
+        spawn = run.subprocess.Popen
+        for terminal_output in (False, True):
+            for retcode in (0, 7):
+                failure = OSError(errno.EIO, 'simulated pipe close failure')
+
+                def spawn_with_close_failure(*args, **kwargs):
+                    child = spawn(*args, **kwargs)
+                    close = child.stdin.close
+
+                    def close_and_fail():
+                        close()
+                        raise failure
+
+                    self.enterContext(mock.patch.object(child.stdin, 'close', side_effect=close_and_fail))
+                    return child
+
+                exception_type = run.ExecException if retcode else OSError
+                with self.subTest(terminal_output=terminal_output, retcode=retcode), \
+                        mock.patch.object(run.subprocess, 'Popen', side_effect=spawn_with_close_failure), \
+                        self.assertRaises(exception_type) as raised:
+                    run.env_command(os.environ, [sys.executable, '-c',
+                                    f'import sys; print("diagnostic", flush=True); sys.exit({retcode})'],
+                                    silent=True, terminal_output=terminal_output)
+                if retcode:
+                    self.assertEqual(retcode, raised.exception.retcode)
+                    self.assertIn('diagnostic', raised.exception.output)
+                    self.assertIn('simulated pipe close failure', '\n'.join(raised.exception.__notes__))
+                else:
+                    self.assertIs(failure, raised.exception)
+                self.assert_processes_closed()
+
+    # A denied group signal must still stop the owned launcher and close readers without hiding the failure.
+    @unittest.skipIf(os.name == 'nt', 'Requires POSIX process groups')
+    def test_group_signal_failure_still_stops_launcher(self):
+        for terminal_output in (False, True):
+            failure = OSError(errno.ENOSPC, 'simulated log disk full')
+
+            def on_output(line):
+                raise failure
+
+            with self.subTest(terminal_output=terminal_output), \
+                    mock.patch.object(run.os, 'killpg', side_effect=PermissionError(errno.EPERM, 'group signal denied')), \
+                    self.assertRaises(OSError) as raised:
+                run.env_command(os.environ, [sys.executable, '-c',
+                                'import sys; print("ready", flush=True); sys.stdin.readline()'],
+                                silent=True, terminal_output=terminal_output, kill_process_tree=True,
+                                on_output=on_output)
+            self.assertIs(failure, raised.exception)
+            self.assertIn('group signal denied', '\n'.join(failure.__notes__))
+            self.assert_processes_closed()
+
+    # The macOS zombie-group workaround must not suppress permission errors on other platforms.
+    @unittest.skipIf(os.name == 'nt', 'Requires POSIX process groups')
+    def test_group_permission_error_after_exit_is_reported_on_other_platforms(self):
+        process = mock.Mock(pid=12345)
+        process.poll.return_value = 0
+        failure = PermissionError(errno.EPERM, 'group signal denied')
+        with mock.patch.object(run.sys, 'platform', 'linux'), \
+                mock.patch.object(run.os, 'killpg', side_effect=failure), \
+                self.assertRaises(PermissionError) as raised:
+            run._stop_process(process, kill_process_tree=True)
+        self.assertIs(failure, raised.exception)
+
     # A failed pipe reader must propagate its error and stop the child instead of hanging on the other stream.
     def test_reader_failure_stops_process_and_other_reader(self):
         read_lines = run._terminal_lines

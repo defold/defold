@@ -323,6 +323,58 @@
         (is (= #{}
                (set (g/successors (g/now) resource :b))))))))
 
+(g/defnode CachedReceiver
+  (input value g/Any)
+  (output result g/Any :cached (g/fnk [value] value)))
+
+;; Rewiring two labels produces duplicate old/new arc changes. Cached consumers
+;; must stay correct through undo/redo and subsequent edits to either label.
+(deftest duplicate-successor-changes-test
+  (ts/with-clean-system
+    (let [[source first-target second-target]
+          (ts/tx-nodes
+            (g/make-node Resource :d "initial" :marker (int 0))
+            (g/make-node CachedReceiver)
+            (g/make-node CachedReceiver))
+
+          assert-values!
+          (fn assert-values! [expected]
+            (is (= expected
+                   [(g/node-value first-target :result)
+                    (g/node-value second-target :result)])))]
+
+      (g/transact
+        [(g/connect source :d first-target :value)
+         (g/connect source :marker second-target :value)])
+      (assert-values! ["initial" 0])
+
+      ;; Populate successor caches for both labels before rewiring them.
+      (g/transact
+        [(g/set-property source :d "before")
+         (g/set-property source :marker (int 1))])
+      (assert-values! ["before" 1])
+
+      (testing "Rewiring, undo and redo invalidate cached consumers."
+        (g/transact
+          [(g/disconnect source :d first-target :value)
+           (g/disconnect source :marker second-target :value)
+           (g/connect source :marker first-target :value)
+           (g/connect source :d second-target :value)])
+        (assert-values! [1 "before"])
+
+        (g/undo! :undo/global)
+        (assert-values! ["before" 1])
+
+        (g/redo! :undo/global)
+        (assert-values! [1 "before"]))
+
+      (testing "Each label invalidates its new consumer independently."
+        (g/transact (g/set-property source :d "after"))
+        (assert-values! [1 "after"])
+
+        (g/transact (g/set-property source :marker (int 2)))
+        (assert-values! [2 "after"])))))
+
 (deftest flag-successors-changed-test
   (testing "Merges node ids and source arcs."
     (let [ctx {:full-invalidation false

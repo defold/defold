@@ -190,6 +190,29 @@ static inline const char* FindFirstOccurrence(const dmArray<uint8_t>& data, cons
     return 0;
 }
 
+// Verifies opting into HLSL source bypasses binary compilation and root-signature generation.
+TEST(Shaderc, HLSLSourceOutput)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/simple.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_HLSLOutputMode = dmShaderc::HLSL_OUTPUT_MODE_SOURCE;
+    options.m_Version = 60;
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
+    ASSERT_STREQ("", result->m_LastError);
+    ASSERT_NE((const char*) 0, FindFirstOccurrence(result->m_Data, "SV_Target"));
+    ASSERT_FALSE(dmShaderc::HasDXBCHeader(result->m_Data.Begin(), result->m_Data.Size()));
+    ASSERT_EQ(0u, result->m_HLSLRootSignature.Size());
+
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(context);
+    free(data);
+}
+
 TEST(Shaderc, ModifyBindings)
 {
     uint32_t data_size;

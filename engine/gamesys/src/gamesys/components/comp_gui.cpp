@@ -717,6 +717,9 @@ namespace dmGameSystem
         gui_world->m_ParticleAttributeInfos.m_VertexStride = dmGraphics::GetVertexDeclarationStride(gui_world->m_VertexDeclaration);
         gui_world->m_ParticleAttributeInfos.m_NumInfos     = 4;
         gui_world->m_ParticleAttributeInfos.m_StructSize   = sizeof(dmGraphics::VertexAttributeInfos);
+        gui_world->m_ParticleAttributeInfos.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX] =
+            dmGraphics::SEMANTIC_FLAG_POSITION | dmGraphics::SEMANTIC_FLAG_TEXCOORD |
+            dmGraphics::SEMANTIC_FLAG_COLOR | dmGraphics::SEMANTIC_FLAG_PAGE_INDEX;
 
         // Grows automatically
         gui_world->m_ClientVertexBuffer.SetCapacity(512);

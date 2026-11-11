@@ -3838,12 +3838,12 @@ public class ProjectBuildTest {
         try (var input = getClass().getResourceAsStream("/com/dynamo/bob/pipeline/bend2bones.gltf")) {
             Files.copy(input, Path.of(contentRoot, "extra/model.gltf"));
         }
-        createFile(contentRoot, "extra/display.model", "mesh: \"/extra/model.gltf\"\n");
+        createFile(contentRoot, "extra/display.model", "mesh: \"/extra/model.gltf\"\nskeleton: \"/extra/model.gltf\"\n");
         var display = livePackage("display", "zip", addPath("Display", "/extra/display[.]model"));
         var data = livePackage("data", "zip", addPath("Data", "/extra/data[.]json"));
         savePackages(display, data);
         var initial = buildPackageProject(true, true, "build");
-        assertEquals(List.of("/extra/model.meshsetc"), initial.sourceOutputs().get("/extra/model.gltf"));
+        assertEquals(List.of("/extra/model.skeletonc"), initial.sourceOutputs().get("/extra/model.gltf"));
 
         savePackages(display, data, livePackage("model", "zip", addPath("Model", "/extra/model[.]gltf")));
         try (Project project = packageReportProject(false)) {
