@@ -12,25 +12,22 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-/* Lua CJSON floating point conversion routines */
+#ifndef DM_RENDER_FRAME_TEST_ALLOCATIONS_H
+#define DM_RENDER_FRAME_TEST_ALLOCATIONS_H
 
-/* Buffer required to store the largest string representation of a double.
- *
- * Longest double printed with %.14g is 21 characters long:
- * -1.7976931348623e+308 */
-# define FPCONV_G_FMT_BUFSIZE   32
+#include <stdlib.h>
+#include <dlib/memory.h>
 
-#ifdef USE_INTERNAL_FPCONV
-static inline void fpconv_init()
+extern "C" void* RenderFrameTestMalloc(size_t size);
+
+namespace dmMemory
 {
-    /* Do nothing - not required */
+    Result RenderFrameTestAlignedMalloc(void** memory, unsigned int alignment, unsigned int size);
 }
-#else
-extern void fpconv_init();
-#endif
 
-extern int fpconv_g_fmt(char*, double, int);
-extern double fpconv_strtod(const char*, char**);
+// Included only when compiling storage for test_render_frame. Read the real allocator
+// declarations first so replacement functions do not inherit system DLL-import attributes.
+#define malloc RenderFrameTestMalloc
+#define AlignedMalloc RenderFrameTestAlignedMalloc
 
-/* vi:ai et sw=4 ts=4:
- */
+#endif // DM_RENDER_FRAME_TEST_ALLOCATIONS_H

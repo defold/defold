@@ -366,7 +366,7 @@
       (pair pb-field pb-value))
     entry))
 
-(declare base-node-type-registry extension-type-name->id gui-node-type-registry-from-resource-types gui-resource-kind-registry-from-resource-types registered-node-desc-type-info registered-node-type-info update-gui-resource-type-tx-data)
+(declare base-node-type-registry extension-type-name->id gui-node-type-registry-from-resource-types registered-node-desc-type-info registered-node-type-info update-gui-resource-type-tx-data)
 
 ;; /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -3448,7 +3448,7 @@
     :particlefxs particlefx-resource-msgs
     :resources resource-msgs))
 
-(g/defnk produce-save-value [layout-names node-msgs node-overrides pb-msg resource-types]
+(g/defnk produce-save-value [gui-resource-type layout-names node-msgs node-overrides pb-msg]
   ;; Any Gui$NodeDescs in the resulting SceneDesc or its LayoutDescs should be
   ;; sparsely stored. Only field values that deviate from their originals should
   ;; be included, but ultimately it is the fields listed as :overridden-fields
@@ -3456,7 +3456,7 @@
   ;; inside the editor. Note that a field may be among the :overridden-fields
   ;; without us writing a corresponding value for it to the file in case its
   ;; overridden value matches the protobuf field default.
-  (let [gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
+  (let [gui-node-type-registry (:gui-node-type-registry gui-resource-type)
 
         layout-descs
         (mapv #(make-layout-desc gui-node-type-registry % node-msgs)
@@ -3649,7 +3649,7 @@
                                  node-desc-for-layout)
                        node-desc-for-layout))))))))
 
-(g/defnk produce-build-targets [_node-id build-errors resource pb-msg dep-build-targets template-build-targets layout-names node-msgs resource-types]
+(g/defnk produce-build-targets [_node-id build-errors resource pb-msg dep-build-targets template-build-targets layout-names node-msgs gui-resource-type]
   ;; Built Gui$NodeDescs should be fully-formed, since no additional merging of
   ;; overridden properties will be done by the runtime. A corresponding NodeDesc
   ;; in a LayoutDesc will fully replace its original NodeDesc, if present in the
@@ -3663,7 +3663,7 @@
         :user-data {:pb {}
                     :pb-class (:pb-class pb-def)}})]
     (g/precluding-errors build-errors
-      (let [gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
+      (let [gui-node-type-registry (:gui-node-type-registry gui-resource-type)
 
             template-build-targets (flatten template-build-targets)
 
@@ -3889,7 +3889,7 @@
   (input project-settings g/Any)
   (input default-tex-params g/Any)
   (input exclude-gles-sm100 g/Any)
-  (input resource-types g/Any)
+  (input gui-resource-type g/Any)
   (output default-tex-params g/Any (gu/passthrough default-tex-params))
   (input display-profiles g/Any)
   (input node-msgs g/Any)
@@ -4022,9 +4022,9 @@
 
   (input aux-trivial-gui-scene-info TrivialGuiSceneInfo)
   (output own-trivial-gui-scene-info TrivialGuiSceneInfo
-          (g/fnk [resource-types layout-names visible-layout]
+          (g/fnk [gui-resource-type layout-names visible-layout]
             {:current-layout visible-layout
-             :gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
+             :gui-node-type-registry (:gui-node-type-registry gui-resource-type)
              :layout-names layout-names}))
   (output trivial-gui-scene-info TrivialGuiSceneInfo :cached
           (g/fnk [aux-trivial-gui-scene-info own-trivial-gui-scene-info]
@@ -4143,8 +4143,8 @@
 
 (defn- scene->gui-node-type-infos [scene evaluation-context]
   (-> scene
-      (g/node-value :resource-types evaluation-context)
-      gui-node-type-registry-from-resource-types
+      (g/node-value :gui-resource-type evaluation-context)
+      :gui-node-type-registry
       :type-infos))
 
 (defn- add-handler-options [node evaluation-context]
@@ -4159,7 +4159,7 @@
                                    (when-not (:deprecated info)
                                      (make-add-handler template-scene parent (:display-name info) (:icon info)
                                                        add-gui-node-handler (node-type-info->add-handler-user-data info))))
-                                 (scene->gui-node-type-infos scene evaluation-context)))
+                                 (scene->gui-node-type-infos template-scene evaluation-context)))
                          [])
 
                        (g/node-instance-match basis node [GuiSceneNode GuiNode NodeTree])
@@ -4270,13 +4270,10 @@
 (def ^:private default-font-proj-path "/builtins/fonts/default.font")
 (def ^:private default-material-proj-path (protobuf/default Gui$SceneDesc :material))
 
-(defn load-gui-scene [{:keys [project resolve-resource-fn workspace] :as load-opts} {:keys [owner-resource] self :node-id scene :source-value}]
+(defn load-gui-scene [{:keys [project resolve-resource-fn workspace]} {:keys [owner-resource resource-type] self :node-id scene :source-value}]
   {:pre [(map? scene)]} ; Gui$SceneDesc in map format.
-  (let [editable->type-ext->resource-type (:editable->type-ext->resource-type load-opts)
-        editable (resource/editable-resource? owner-resource)
-        resource-types (editable->type-ext->resource-type editable)
-        gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
-        gui-resource-kind-registry (gui-resource-kind-registry-from-resource-types resource-types)
+  (let [gui-node-type-registry (:gui-node-type-registry resource-type)
+        gui-resource-kind-registry (:gui-resource-kind-registry resource-type)
 
         node->layout->prop->override
         (reduce (fn [node->layout->prop->override layout-desc]
@@ -4351,7 +4348,7 @@
         adjust-reference :adjust-reference
         max-nodes :max-nodes
         max-dynamic-textures :max-dynamic-textures)
-      (g/connect workspace :resource-types self :resource-types)
+      (g/connect workspace :gui-resource-type self :gui-resource-type)
       (g/connect project :settings self :project-settings)
       (g/connect project :default-tex-params self :default-tex-params)
       (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
@@ -4680,8 +4677,8 @@
                         (fn [[resource-kind {:keys [exts] :as resource-kind-info}]]
                           (when-not (neg? (coll/index-of exts ext))
                             (pair resource-kind resource-kind-info)))
-                        (gui-resource-kind-registry-from-resource-types
-                          (g/node-value gui-scene :resource-types evaluation-context)))]
+                        (:gui-resource-kind-registry
+                          (g/node-value gui-scene :gui-resource-type evaluation-context)))]
             (let [target-node (gui-resource-kind-node (:basis evaluation-context) gui-scene resource-kind)
                   name-counts (g/node-value target-node :name-counts evaluation-context)
                   name (id/gen base-name name-counts)]
@@ -5196,9 +5193,6 @@
 (defn- gui-node-type-registry-from-resource-types [resource-types]
   (:gui-node-type-registry (get resource-types (:ext pb-def))))
 
-(defn- gui-resource-kind-registry-from-resource-types [resource-types]
-  (:gui-resource-kind-registry (get resource-types (:ext pb-def))))
-
 (defn- update-gui-resource-type-map [resource-types f & args]
   (apply update resource-types (:ext pb-def) f args))
 
@@ -5309,9 +5303,8 @@
                   #(layout-property-clear-in-specific-layout evaluation-context layout-name node-id prop-kw))))))))))
 
 (defn- init-gui-node-attachment [{:keys [basis] :as evaluation-context} rt project parent-node-id child-node-type child-node-id attachment node-id-base-name-fn]
-  (let [workspace (project/workspace project evaluation-context)
-        resource-types (resource/resource-types-by-type-ext basis workspace :editable)
-        gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
+  (let [gui-scene (node->gui-scene basis parent-node-id)
+        gui-node-type-registry (:gui-node-type-registry (g/node-value gui-scene :gui-resource-type evaluation-context))
         {:keys [type defaults]} (registered-node-type-info gui-node-type-registry child-node-type)
         node-tree-or-gui-node (if (g/node-instance? basis GuiSceneNode parent-node-id)
                                 (gui-attachment/scene-node->node-tree basis parent-node-id)

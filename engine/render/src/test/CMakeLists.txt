@@ -55,6 +55,7 @@ foreach(_render_test IN ITEMS
   test_render_execution
   test_render_frame
   test_render_frame_queue
+  test_render_command_frame
   test_display_profiles
   test_render_programs
   test_render_script
@@ -66,6 +67,18 @@ foreach(_render_test IN ITEMS
 endforeach()
 
 target_sources(test_render_frame_queue PRIVATE "${RENDER_TEST_ROOT}/render_frame_benchmark.cpp")
+target_sources(test_render_script PRIVATE "${RENDER_TEST_ROOT}/render_script_benchmark.cpp")
+
+# Compile storage locally so allocation failures can be injected without adding
+# allocator hooks to the production API. Source properties are scoped to this directory.
+target_sources(test_render_frame PRIVATE "${RENDER_SRC_DIR}/render/render_frame_storage.cpp")
+if(MSVC)
+  set(_frame_test_allocator_include "/FI${RENDER_TEST_ROOT}/render_frame_test_allocations.h")
+else()
+  set(_frame_test_allocator_include "-include;${RENDER_TEST_ROOT}/render_frame_test_allocations.h")
+endif()
+set_source_files_properties("${RENDER_SRC_DIR}/render/render_frame_storage.cpp" PROPERTIES
+  COMPILE_OPTIONS "${_frame_test_allocator_include}")
 
 # Vector-font tests load sibling font fixtures that are outside Node's mounted
 # working directory. Embed them at the paths used by the tests in the web VFS.

@@ -29,6 +29,7 @@ struct ShaderCompilerOptionsJNI {
     jfieldID glslEsDefaultFloatPrecision;
     jfieldID glslEsDefaultIntPrecision;
     jfieldID targetPlatform;
+    jfieldID hLSLOutputMode;
     jfieldID removeUnusedVariables;
     jfieldID no420PackExtension;
     jfieldID glslEmitUboAsPlainUniforms;

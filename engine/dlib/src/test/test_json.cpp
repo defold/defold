@@ -14,9 +14,12 @@
 
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
-#include <dlib/json.h>
+#include <dlib/json.hpp>
+#include <dlib/json_private.hpp>
+#include <dlib/json_lexer.h>
 #include <dlib/math.h>
 #include <locale.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -62,19 +65,113 @@ static void Array(dmArray<char>& text, uint32_t count)
     Append(text, "]");
 }
 
+static uint32_t NextRandom(uint32_t* state)
+{
+    *state = *state * 1664525u + 1013904223u;
+    return *state;
+}
+
+static bool ChildCountsMatch(const dmJson::Document& json)
+{
+    for (uint32_t i = 0; i < json.NodeCount(); ++i)
+    {
+        const dmJson::Node& node = json.Get(i);
+        if (node.m_Type != dmJson::TYPE_ARRAY && node.m_Type != dmJson::TYPE_OBJECT)
+        {
+            continue;
+        }
+        uint32_t count = 0;
+        for (int child = node.m_Container.m_First; child >= 0; child = json.Get(child).m_Next)
+        {
+            if ((uint32_t)child >= json.NodeCount() || ++count > json.NodeCount())
+            {
+                return false;
+            }
+        }
+        if (node.m_Container.m_Count != count)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Generated C++ functions share C handles, enum identities and borrowed nodes.
+TEST(dmJson, CApiInteroperability)
+{
+    dmJson::HDocument document = dmJson::Create(0);
+    const char text[] = "{\"value\":42,\"string\":\"text\",\"flag\":true}";
+    ASSERT_EQ(dmJson::RESULT_OK, dmJson::Parse(document, text, sizeof(text) - 1, 0, dmJson::PARSE_DECODE_VALUES));
+    ASSERT_EQ(4u, dmJson::GetNodeCount(document));
+    int value = dmJson::Field(document, 0, "value");
+    ASSERT_TRUE(dmJson::GetNode(document, value) == JsonGetNode(document, value));
+    ASSERT_STREQ("value", dmJson::GetName(document, value));
+    ASSERT_EQ(42, dmJson::Integer(document, value, -1));
+    uint32_t number = 0;
+    ASSERT_TRUE(dmJson::UnsignedInteger(document, value, &number));
+    ASSERT_EQ(42u, number);
+    ASSERT_STREQ("text", dmJson::String(document, dmJson::Field(document, 0, "string"), 0));
+    ASSERT_TRUE(dmJson::Boolean(document, dmJson::Field(document, 0, "flag"), false));
+    ASSERT_TRUE(dmJson::GetText(document) == JsonGetText(document));
+    dmJson::Destroy(document);
+
+    dmJson::Document scoped(0);
+    ASSERT_EQ(JSON_RESULT_OK, JsonParse(scoped.Handle(), "[1]", 3, 0, JSON_PARSE_DECODE_VALUES));
+    ASSERT_EQ(1, scoped.Integer(scoped.Get(0).m_Container.m_First, -1));
+    ASSERT_FALSE(scoped.Parse("{} x", 4, 0, dmJson::PARSE_DECODE_VALUES));
+    ASSERT_FALSE(scoped.Parse("[1,", 3, 0, dmJson::PARSE_DECODE_VALUES));
+    ASSERT_TRUE(scoped.Parse("{}", 2, 0, dmJson::PARSE_DECODE_VALUES));
+}
+
+// Containers retain direct child counts, including empty containers, in both
+// modes. Reusing the document after growth or failure must discard old counts.
+TEST(dmJson, DirectChildCounts)
+{
+    const char text[] = "{\"array\":[1,{\"nested\":[true,null]},[],{}],\"empty\":{},\"string\":\"value\"}";
+    dmJson::Document json(0);
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        dmJson::ParseMode mode = i % 2 ? dmJson::PARSE_PRESERVE_VALUES : dmJson::PARSE_DECODE_VALUES;
+        ASSERT_TRUE(json.Parse(text, sizeof(text) - 1, 0, mode));
+        ASSERT_TRUE(ChildCountsMatch(json));
+        ASSERT_EQ(3u, json.Get(0).m_Container.m_Count);
+        int array = json.Field(0, "array");
+        ASSERT_EQ(4u, json.Get(array).m_Container.m_Count);
+        int object = json.Get(json.Get(array).m_Container.m_First).m_Next;
+        ASSERT_EQ(1u, json.Get(object).m_Container.m_Count);
+        ASSERT_EQ(2u, json.Get(json.Field(object, "nested")).m_Container.m_Count);
+        ASSERT_EQ(0u, json.Get(json.Field(0, "empty")).m_Container.m_Count);
+
+        ASSERT_TRUE(json.Parse("[]", 2, 0, mode));
+        ASSERT_EQ(0u, json.Get(0).m_Container.m_Count);
+        ASSERT_FALSE(json.Parse("[true,", 6, 0, mode));
+        ASSERT_TRUE(json.Parse("[false]", 7, 0, mode));
+        ASSERT_EQ(1u, json.Get(0).m_Container.m_Count);
+        ASSERT_TRUE(json.Parse("{}", 2, 0, mode));
+        ASSERT_EQ(0u, json.Get(0).m_Container.m_Count);
+    }
+    dmArray<char> text_array;
+    Array(text_array, 70000);
+    ASSERT_TRUE(json.Parse(text_array.Begin(), text_array.Size(), 0, dmJson::PARSE_DECODE_VALUES));
+    ASSERT_EQ(70000u, json.Get(0).m_Container.m_Count);
+    ASSERT_TRUE(ChildCountsMatch(json));
+    ASSERT_TRUE(json.Parse("[]", 2, 0, dmJson::PARSE_PRESERVE_VALUES));
+    ASSERT_EQ(0u, json.Get(0).m_Container.m_Count);
+}
+
 // Preserve every value when an array grows beyond its initial capacity;
 // subsequent parses must discard the previous document.
 TEST(dmJson, InitialCapacityAndGrowingArray)
 {
     dmJson::Document json(32);
-    uint32_t initial_capacity = json.m_Nodes.Capacity();
+    uint32_t initial_capacity = json.Handle()->m_Nodes.Capacity();
     ASSERT_LT(initial_capacity, 1024u);
     dmArray<char> text;
     Array(text, 1024);
     ASSERT_TRUE(json.Parse(text.Begin(), text.Size(), 0, dmJson::PARSE_DECODE_VALUES));
-    ASSERT_EQ(1025u, json.m_Nodes.Size());
-    ASSERT_GT(json.m_Nodes.Capacity(), initial_capacity);
-    int value = json.Get(0).m_First;
+    ASSERT_EQ(1025u, json.NodeCount());
+    ASSERT_GT(json.Handle()->m_Nodes.Capacity(), initial_capacity);
+    int value = json.Get(0).m_Container.m_First;
     for (int i = 0; i < 1024; ++i)
     {
         ASSERT_GE(value, 0);
@@ -84,8 +181,46 @@ TEST(dmJson, InitialCapacityAndGrowingArray)
     ASSERT_EQ(-1, value);
     const char* small_json = "{\"value\":42}";
     ASSERT_TRUE(json.Parse(small_json, (uint32_t)strlen(small_json), 0, dmJson::PARSE_DECODE_VALUES));
-    ASSERT_EQ(2u, json.m_Nodes.Size());
+    ASSERT_EQ(2u, json.NodeCount());
     ASSERT_EQ(42, json.Integer(json.Field(0, "value"), -1));
+}
+
+// Offset-based names retain empty and escaped keys through node/text growth and
+// document reuse. Array members and the root must remain unnamed in both modes.
+TEST(dmJson, CompactNameOffsets)
+{
+    ASSERT_EQ((size_t)32, sizeof(dmJson::Node));
+    dmJson::Document json(0);
+    dmArray<char> values;
+    Array(values, 128);
+    dmArray<char> text;
+    Append(text, "{\"\":1,\"\\u006bey\":{\"nested\":2},\"array\":");
+    WriteJson(&text, values.Begin(), values.Size());
+    Append(text, "}");
+    for (uint32_t pass = 0; pass < 4; ++pass)
+    {
+        dmJson::ParseMode mode = pass & 1 ? dmJson::PARSE_PRESERVE_VALUES : dmJson::PARSE_DECODE_VALUES;
+        ASSERT_TRUE(json.Parse("{\"old\":42}", 10, 0, mode));
+        ASSERT_TRUE(json.Parse(text.Begin(), text.Size(), 0, mode));
+        ASSERT_GT(json.Handle()->m_Nodes.Capacity(), 32u);
+        ASSERT_EQ(-1, json.Field(0, "old"));
+        ASSERT_EQ(0u, json.Get(0).m_NameOffset);
+        ASSERT_TRUE(json.Name(0) == 0);
+        ASSERT_STREQ("", json.Name(json.Field(0, "")));
+        int key = json.Field(0, "key");
+        ASSERT_GE(key, 0);
+        ASSERT_STREQ("key", json.Name(key));
+        ASSERT_EQ(8u, json.Get(key).m_NameLength);
+        ASSERT_EQ(0, memcmp(text.Begin() + json.Get(key).m_NameOffset, "\\u006bey", 8));
+        ASSERT_STREQ("nested", json.Name(json.Field(key, "nested")));
+        int array = json.Field(0, "array");
+        ASSERT_EQ(128u, json.Get(array).m_Container.m_Count);
+        for (int child = json.Get(array).m_Container.m_First; child >= 0; child = json.Get(child).m_Next)
+        {
+            ASSERT_EQ(0u, json.Get(child).m_NameOffset);
+            ASSERT_TRUE(json.Name(child) == 0);
+        }
+    }
 }
 
 // Reused text and nodes must discard previous values across growth, smaller
@@ -93,26 +228,26 @@ TEST(dmJson, InitialCapacityAndGrowingArray)
 TEST(dmJson, ReusedDocumentStorage)
 {
     dmJson::Document json(0);
-    ASSERT_EQ(0u, json.m_TextCapacity);
-    ASSERT_TRUE(json.m_Text == 0);
-    ASSERT_EQ(0u, json.m_Nodes.Capacity());
+    ASSERT_EQ(0u, json.Handle()->m_TextCapacity);
+    ASSERT_TRUE(json.Text() == 0);
+    ASSERT_EQ(0u, json.Handle()->m_Nodes.Capacity());
     dmArray<char> text;
     Array(text, 128);
     ASSERT_TRUE(json.Parse(text.Begin(), text.Size(), 0, dmJson::PARSE_DECODE_VALUES));
-    char* storage = json.m_Text;
-    uint32_t capacity = json.m_TextCapacity;
-    uint32_t node_capacity = json.m_Nodes.Capacity();
+    const char* storage = json.Text();
+    uint32_t capacity = json.Handle()->m_TextCapacity;
+    uint32_t node_capacity = json.Handle()->m_Nodes.Capacity();
 
     const char small_json[] = "{\"value\":\"a\\nb\"}";
     ASSERT_TRUE(json.Parse(small_json, sizeof(small_json) - 1, 0, dmJson::PARSE_DECODE_VALUES));
-    ASSERT_EQ(2u, json.m_Nodes.Size());
+    ASSERT_EQ(2u, json.NodeCount());
     ASSERT_STREQ("a\nb", json.String(json.Field(0, "value"), 0));
     const char metadata[] = "{\"value\":\"a\\u0000b\",\"number\":1e400}";
     ASSERT_TRUE(json.Parse(metadata, sizeof(metadata) - 1, 0, dmJson::PARSE_PRESERVE_VALUES));
-    ASSERT_EQ(3u, json.m_Nodes.Size());
+    ASSERT_EQ(3u, json.NodeCount());
     ASSERT_STREQ("raw", json.String(json.Field(0, "value"), "raw"));
     const dmJson::Node& value = json.Get(json.Field(0, "value"));
-    ASSERT_EQ(0, memcmp(metadata + value.m_Offset, json.m_Text + value.m_Offset, value.m_Length));
+    ASSERT_EQ(0, memcmp(metadata + value.m_Offset, json.Text() + value.m_Offset, value.m_Length));
 
     uint32_t offset;
     ASSERT_FALSE(json.Parse("\"x", 2, &offset, dmJson::PARSE_DECODE_VALUES));
@@ -122,12 +257,12 @@ TEST(dmJson, ReusedDocumentStorage)
     ASSERT_FALSE(json.Parse("", 0, &offset, dmJson::PARSE_DECODE_VALUES));
     ASSERT_EQ(0u, offset);
     ASSERT_TRUE(json.Parse("{}", 2, 0, dmJson::PARSE_DECODE_VALUES));
-    ASSERT_EQ(1u, json.m_Nodes.Size());
-    ASSERT_EQ(-1, json.Get(0).m_First);
+    ASSERT_EQ(1u, json.NodeCount());
+    ASSERT_EQ(-1, json.Get(0).m_Container.m_First);
     ASSERT_EQ(-1, json.Field(0, "number"));
-    ASSERT_TRUE(storage == json.m_Text);
-    ASSERT_EQ(capacity, json.m_TextCapacity);
-    ASSERT_EQ(node_capacity, json.m_Nodes.Capacity());
+    ASSERT_TRUE(storage == json.Text());
+    ASSERT_EQ(capacity, json.Handle()->m_TextCapacity);
+    ASSERT_EQ(node_capacity, json.Handle()->m_Nodes.Capacity());
 
     uint32_t size = capacity + 17;
     text.SetCapacity(size);
@@ -137,15 +272,15 @@ TEST(dmJson, ReusedDocumentStorage)
     ASSERT_TRUE(json.Parse(text.Begin(), size, 0, dmJson::PARSE_DECODE_VALUES));
     ASSERT_EQ(size - 2, strlen(json.String(0, 0)));
     ASSERT_EQ(size, json.Get(0).m_Length);
-    ASSERT_GE(json.m_TextCapacity, size + 1);
-    storage = json.m_Text;
-    capacity = json.m_TextCapacity;
+    ASSERT_GE(json.Handle()->m_TextCapacity, size + 1);
+    storage = json.Text();
+    capacity = json.Handle()->m_TextCapacity;
     ASSERT_TRUE(json.Parse("[]", 2, 0, dmJson::PARSE_DECODE_VALUES));
-    ASSERT_EQ(1u, json.m_Nodes.Size());
-    ASSERT_EQ(-1, json.Get(0).m_First);
-    ASSERT_TRUE(storage == json.m_Text);
-    ASSERT_EQ(capacity, json.m_TextCapacity);
-    ASSERT_EQ(0, json.m_Text[2]);
+    ASSERT_EQ(1u, json.NodeCount());
+    ASSERT_EQ(-1, json.Get(0).m_Container.m_First);
+    ASSERT_TRUE(storage == json.Text());
+    ASSERT_EQ(capacity, json.Handle()->m_TextCapacity);
+    ASSERT_EQ(0, json.Text()[2]);
 }
 
 // Grow beyond the former 1 MiB limit, reuse the allocation for smaller inputs,
@@ -164,17 +299,17 @@ TEST(dmJson, ReusedTextStorageGrowth)
         text[0] = text[size - 1] = '"';
         ASSERT_TRUE(json.Parse(text.Begin(), size, 0, dmJson::PARSE_DECODE_VALUES));
         ASSERT_EQ(size - 2, strlen(json.String(0, 0)));
-        ASSERT_GE(json.m_TextCapacity, size + 1);
+        ASSERT_GE(json.Handle()->m_TextCapacity, size + 1);
     }
-    char* storage = json.m_Text;
-    uint32_t capacity = json.m_TextCapacity;
+    const char* storage = json.Text();
+    uint32_t capacity = json.Handle()->m_TextCapacity;
     uint32_t offset;
     ASSERT_FALSE(json.Parse("", UINT32_MAX, &offset, dmJson::PARSE_DECODE_VALUES));
     ASSERT_EQ(0u, offset);
     ASSERT_TRUE(json.Parse("null", 4, 0, dmJson::PARSE_DECODE_VALUES));
     ASSERT_EQ(dmJson::TYPE_NULL, json.Get(0).m_Type);
-    ASSERT_TRUE(storage == json.m_Text);
-    ASSERT_EQ(capacity, json.m_TextCapacity);
+    ASSERT_TRUE(storage == json.Text());
+    ASSERT_EQ(capacity, json.Handle()->m_TextCapacity);
 }
 
 // Explicit reserves, including a zero reserve, must grow safely while mixed node types retain their values.
@@ -185,9 +320,9 @@ TEST(dmJson, ReservedCapacityAndMixedValues)
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(capacities); ++i)
     {
         dmJson::Document json(capacities[i]);
-        ASSERT_EQ(capacities[i], json.m_Nodes.Capacity());
+        ASSERT_EQ(capacities[i], json.Handle()->m_Nodes.Capacity());
         ASSERT_TRUE(json.Parse(text, sizeof(text) - 1, 0, dmJson::PARSE_DECODE_VALUES));
-        int value = json.Get(json.Field(0, "array")).m_First;
+        int value = json.Get(json.Field(0, "array")).m_Container.m_First;
         ASSERT_EQ(42, json.Integer(value, -1));
         value = json.Get(value).m_Next;
         ASSERT_STREQ("value", json.String(value, 0));
@@ -201,13 +336,13 @@ TEST(dmJson, ReservedCapacityAndMixedValues)
         ASSERT_EQ(-7, json.Integer(value, -7));
         value = json.Get(value).m_Next;
         ASSERT_EQ(dmJson::TYPE_OBJECT, json.Get(value).m_Type);
-        ASSERT_EQ(-1, json.Get(value).m_First);
+        ASSERT_EQ(-1, json.Get(value).m_Container.m_First);
         value = json.Get(value).m_Next;
         ASSERT_EQ(dmJson::TYPE_ARRAY, json.Get(value).m_Type);
-        ASSERT_EQ(-1, json.Get(value).m_First);
+        ASSERT_EQ(-1, json.Get(value).m_Container.m_First);
         ASSERT_EQ(-1, json.Get(value).m_Next);
         ASSERT_STREQ("", json.String(json.Field(0, "empty"), 0));
-        ASSERT_EQ(-1, json.Get(-1).m_First);
+        ASSERT_EQ(-1, json.Get(-1).m_Container.m_First);
         ASSERT_EQ(-7, json.Integer(-1, -7));
     }
 }
@@ -226,14 +361,15 @@ TEST(dmJson, WideObjectFields)
         Fields(text, counts[c]);
         Append(text, "}");
         ASSERT_TRUE(json.Parse(text.Begin(), text.Size(), 0, dmJson::PARSE_DECODE_VALUES));
-        ASSERT_EQ(counts[c] + 1, json.m_Nodes.Size());
-        int field = json.Get(0).m_First;
+        ASSERT_EQ(counts[c] + 1, json.NodeCount());
+        ASSERT_EQ(counts[c], json.Get(0).m_Container.m_Count);
+        int field = json.Get(0).m_Container.m_First;
         for (uint32_t i = 0; i < counts[c]; ++i)
         {
             char name[32];
             snprintf(name, sizeof(name), "k%u", i);
             ASSERT_GE(field, 0);
-            ASSERT_STREQ(name, json.Get(field).m_Name);
+            ASSERT_STREQ(name, json.Name(field));
             ASSERT_EQ((int)i, json.Integer(field, -1));
             field = json.Get(field).m_Next;
         }
@@ -302,7 +438,7 @@ TEST(dmJson, NestedObjectKeyScope)
         int nested = json.Field(0, "nested");
         ASSERT_EQ(31, json.Integer(json.Field(nested, "k31"), -1));
         int rows = json.Field(0, "rows");
-        int first = json.Get(rows).m_First;
+        int first = json.Get(rows).m_Container.m_First;
         ASSERT_EQ(0, json.Integer(json.Field(first, "k0"), -1));
         ASSERT_EQ(31, json.Integer(json.Field(json.Get(first).m_Next, "k31"), -1));
         dmArray<char> invalid;
@@ -321,8 +457,9 @@ TEST(dmJson, LargeNodeStorage)
     dmArray<char>    text;
     Array(text, 65536 * 2);
     ASSERT_TRUE(json.Parse(text.Begin(), text.Size(), 0, dmJson::PARSE_DECODE_VALUES));
-    ASSERT_EQ(65536u * 2 + 1, json.m_Nodes.Size());
-    int value = json.Get(0).m_First;
+    ASSERT_EQ(65536u * 2 + 1, json.NodeCount());
+    ASSERT_EQ(65536u * 2, json.Get(0).m_Container.m_Count);
+    int value = json.Get(0).m_Container.m_First;
     for (int i = 0; i < 65536 * 2; ++i)
     {
         ASSERT_GE(value, 0);
@@ -330,12 +467,12 @@ TEST(dmJson, LargeNodeStorage)
         value = json.Get(value).m_Next;
     }
     ASSERT_EQ(-1, value);
-    uint32_t capacity = json.m_Nodes.Capacity();
+    uint32_t capacity = json.Handle()->m_Nodes.Capacity();
     ASSERT_FALSE(json.Parse("[", 1, 0, dmJson::PARSE_DECODE_VALUES));
     const char* small_json = "{\"valid\":true}";
     ASSERT_TRUE(json.Parse(small_json, (uint32_t)strlen(small_json), 0, dmJson::PARSE_DECODE_VALUES));
     ASSERT_TRUE(json.Boolean(json.Field(0, "valid"), false));
-    ASSERT_EQ(capacity, json.m_Nodes.Capacity());
+    ASSERT_EQ(capacity, json.Handle()->m_Nodes.Capacity());
 }
 
 // Dynamic document growth must retain the recursive parser's stack guard and
@@ -408,6 +545,213 @@ TEST(dmJson, NumberConversion)
     }
 }
 
+// Decimal conversion rounds halfway cases to even, including subnormal, normal
+// and overflow boundaries, while preserve mode accepts every valid number token.
+TEST(dmJson, DecimalRoundingBoundaries)
+{
+    const struct
+    {
+        const char* m_Text;
+        uint64_t    m_Bits;
+    } cases[] = {
+        // Normal values around rounding midpoints, with carries from low digits.
+        { "7540734479557463550e-129", UINT64_C(0x29122280444a178f) },
+        { "9110134847227034417e-100", UINT64_C(0x2f1ba730b2d3956a) },
+        { "1748112591483723627e261", UINT64_C(0x79e8a75db49aa61a) },
+        { "3364025406290504086e106", UINT64_C(0x59c971bfb10557e3) },
+        { "1304028409783462827e-159", UINT64_C(0x22afcdb295a07a4c) },
+        { "8275182978025965278e-234", UINT64_C(0x1346d24edd088ee6) },
+        { "9616741057934083115e61", UINT64_C(0x5089f424cc062de4) },
+        { "4960893288971496669e47", UINT64_C(0x4d92d7b496d37959) },
+        { "1.00000000000000011102230246251565404236316680908203124", UINT64_C(0x3ff0000000000000) },
+        { "1.00000000000000011102230246251565404236316680908203125", UINT64_C(0x3ff0000000000000) },
+        { "1.00000000000000011102230246251565404236316680908203126", UINT64_C(0x3ff0000000000001) },
+        { "1.00000000000000033306690738754696212708950042724609375", UINT64_C(0x3ff0000000000002) },
+        { "2.4703282292062327e-324", UINT64_C(0x0000000000000000) },
+        { "-2.4703282292062327e-324", UINT64_C(0x8000000000000000) },
+        { "2.4703282292062328e-324", UINT64_C(0x0000000000000001) },
+        { "4.9406564584124654e-324", UINT64_C(0x0000000000000001) },
+        { "2.2250738585072011e-308", UINT64_C(0x000fffffffffffff) },
+        { "2.2250738585072012e-308", UINT64_C(0x0010000000000000) },
+        { "1.7976931348623157e308", UINT64_C(0x7fefffffffffffff) },
+        { "1.7976931348623158e308", UINT64_C(0x7fefffffffffffff) },
+        { "1.7976931348623159e308", UINT64_C(0x7ff0000000000000) },
+        { "1e999999999999999999999", UINT64_C(0x7ff0000000000000) },
+        { "-1e-999999999999999999999", UINT64_C(0x8000000000000000) },
+        { "-0e999999999999999999999", UINT64_C(0x8000000000000000) },
+    };
+    dmJson::Document json(0);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        uint32_t size = (uint32_t)strlen(cases[i].m_Text);
+        bool finite = (cases[i].m_Bits & UINT64_C(0x7ff0000000000000)) != UINT64_C(0x7ff0000000000000);
+        ASSERT_EQ(finite, json.Parse(cases[i].m_Text, size, 0, dmJson::PARSE_DECODE_VALUES));
+        if (finite)
+        {
+            ASSERT_EQ(0, memcmp(&cases[i].m_Bits, &json.Get(0).m_Number, sizeof(double)));
+        }
+        ASSERT_TRUE(json.Parse(cases[i].m_Text, size, 0, dmJson::PARSE_PRESERVE_VALUES));
+    }
+}
+
+// Every cached decimal power must preserve libc rounding, including derived metadata at the range endpoints.
+TEST(dmJson, DecimalPowerRange)
+{
+    char* previous = strdup(setlocale(LC_NUMERIC, 0));
+    setlocale(LC_NUMERIC, "C");
+    const char* coefficients[] = { "1", "9007199254740993", "9999999999999999999", "18446744073709551615" };
+    dmJson::Document json(0);
+    for (int exponent = -342; exponent <= 308; ++exponent)
+    {
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(coefficients); ++i)
+        {
+            char text[64];
+            uint32_t size = dmSnPrintf(text, sizeof(text), "%se%d", coefficients[i], exponent);
+            double expected = strtod(text, 0);
+            bool accepted = json.Parse(text, size, 0, dmJson::PARSE_DECODE_VALUES);
+            EXPECT_EQ(!isinf(expected), accepted);
+            if (accepted)
+            {
+                EXPECT_EQ(0, memcmp(&expected, &json.Get(0).m_Number, sizeof(double)));
+            }
+        }
+    }
+    setlocale(LC_NUMERIC, previous);
+    free(previous);
+}
+
+// Digits beyond the exact fallback's retained prefix must distinguish an exact
+// halfway value from a value just above it, for both positive and negative input.
+TEST(dmJson, LongDecimalRounding)
+{
+    dmJson::Document json(0);
+    dmArray<char> text;
+    for (uint32_t negative = 0; negative < 2; ++negative)
+    {
+        text.SetSize(0);
+        Append(text, negative ? "-" : "");
+        Append(text, "1.00000000000000011102230246251565404236316680908203125");
+        for (uint32_t i = 0; i < 900; ++i)
+        {
+            Append(text, "0");
+        }
+        for (uint32_t tail = 0; tail < 2; ++tail)
+        {
+            if (tail)
+            {
+                Append(text, "1");
+            }
+            ASSERT_TRUE(json.Parse(text.Begin(), text.Size(), 0, dmJson::PARSE_DECODE_VALUES));
+            uint64_t expected = (UINT64_C(0x3ff0000000000000) + tail) | ((uint64_t)negative << 63);
+            ASSERT_EQ(0, memcmp(&expected, &json.Get(0).m_Number, sizeof(double)));
+            ASSERT_TRUE(json.Parse(text.Begin(), text.Size(), 0, dmJson::PARSE_PRESERVE_VALUES));
+        }
+    }
+}
+
+// Large exponents can cancel thousands of integer or fractional digits; range
+// checks must use the complete decimal position without overflowing arithmetic.
+TEST(dmJson, LongDecimalExponents)
+{
+    dmJson::Document json(0);
+    dmArray<char> text;
+    const uint32_t sizes[] = { 801, 4096 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
+    {
+        for (uint32_t fraction = 0; fraction < 2; ++fraction)
+        {
+            text.SetSize(0);
+            Append(text, fraction ? "0." : "1");
+            for (uint32_t n = 0; n < sizes[i]; ++n)
+            {
+                Append(text, "0");
+            }
+            char suffix[32];
+            dmSnPrintf(suffix, sizeof(suffix), fraction ? "1e%u" : "e-%u", sizes[i] + fraction);
+            Append(text, suffix);
+            ASSERT_TRUE(json.Parse(text.Begin(), text.Size(), 0, dmJson::PARSE_DECODE_VALUES));
+            ASSERT_EQ(1.0, json.Get(0).m_Number);
+            ASSERT_TRUE(json.Parse(text.Begin(), text.Size(), 0, dmJson::PARSE_PRESERVE_VALUES));
+        }
+    }
+}
+
+// Number-scan metadata must preserve strtod rounding, signed zero and range
+// behavior, including long tokens whose integer accumulator wraps.
+TEST(dmJson, NumericDifferential)
+{
+    char* previous = strdup(setlocale(LC_NUMERIC, 0));
+    setlocale(LC_NUMERIC, "C");
+    uint32_t random = 0xdeadbeef;
+    dmJson::Document json(0);
+    for (uint32_t i = 0; i < 12000; ++i)
+    {
+        char token[128];
+        char* out = token;
+        if (NextRandom(&random) & 0x100)
+        {
+            *out++ = '-';
+        }
+        uint32_t digits = 1 + NextRandom(&random) % 40;
+        uint32_t point = NextRandom(&random) % digits;
+        *out++ = '1' + NextRandom(&random) % 9;
+        for (uint32_t j = 1; j < digits; ++j)
+        {
+            if (j == point)
+            {
+                *out++ = '.';
+            }
+            *out++ = '0' + NextRandom(&random) % 10;
+        }
+        if (i % 3)
+        {
+            out += dmSnPrintf(out, sizeof(token) - (size_t)(out - token), "e%d", (int)(NextRandom(&random) % 700) - 370);
+        }
+        *out = 0;
+        double expected = strtod(token, 0);
+        bool accepted = json.Parse(token, (uint32_t)(out - token), 0, dmJson::PARSE_DECODE_VALUES);
+        // Nonfatal checks ensure the original locale is restored on failure.
+        EXPECT_EQ((bool)isfinite(expected), accepted);
+        if (accepted)
+        {
+            EXPECT_EQ(0, memcmp(&expected, &json.Get(0).m_Number, sizeof(double)));
+        }
+        EXPECT_TRUE(json.Parse(token, (uint32_t)(out - token), 0, dmJson::PARSE_PRESERVE_VALUES));
+    }
+    setlocale(LC_NUMERIC, previous);
+    free(previous);
+}
+
+// Conversion remains locale-independent when the process locale changes between parses.
+TEST(dmJson, LocaleChangesBetweenParses)
+{
+    char* previous = strdup(setlocale(LC_NUMERIC, 0));
+    dmJson::Document json(32);
+    const char* locales[] = { "C", "sv_SE.UTF-8", "C", "de_DE.UTF-8", "C" };
+    const char* text = "[1.25,2.5e1,9007199254740993,-0.0]";
+    const double expected[] = { 1.25, 25.0, 9007199254740992.0, -0.0 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(locales); ++i)
+    {
+        if (!setlocale(LC_NUMERIC, locales[i]))
+        {
+            continue;
+        }
+        bool accepted = json.Parse(text, (uint32_t)strlen(text), 0, dmJson::PARSE_DECODE_VALUES);
+        EXPECT_TRUE(accepted);
+        if (accepted)
+        {
+            int child = json.Get(0).m_Container.m_First;
+            for (uint32_t n = 0; n < DM_ARRAY_SIZE(expected); ++n)
+            {
+                EXPECT_EQ(0, memcmp(&expected[n], &json.Get(child).m_Number, sizeof(double)));
+                child = json.Get(child).m_Next;
+            }
+        }
+    }
+    setlocale(LC_NUMERIC, previous);
+    free(previous);
+}
+
 // JSON decimals and exponents retain full precision, and commas remain token boundaries, after a locale change.
 TEST(dmJson, NumericLocale)
 {
@@ -433,7 +777,7 @@ TEST(dmJson, NumericLocale)
     const double values[] = { 1.0, 2.0, 640.0, 360.0, -1.25, 0.0012, 1.2345678901234567e100, 2147483647.0 };
     // Nonfatal checks ensure the original locale is restored even if parsing regresses.
     EXPECT_TRUE(json.Parse(text, (uint32_t)strlen(text), 0, dmJson::PARSE_DECODE_VALUES));
-    int node = json.Get(0).m_First;
+    int node = json.Get(0).m_Container.m_First;
     for (uint32_t i = 0; i < sizeof(values) / sizeof(values[0]); ++i)
     {
         EXPECT_EQ(dmJson::TYPE_NUMBER, json.Get(node).m_Type);
@@ -480,11 +824,11 @@ TEST(dmJson, SourceLocations)
     ASSERT_GE(field, 0);
     const dmJson::Node& array = json.Get(field);
     ASSERT_EQ(8u, array.m_NameLength);
-    ASSERT_EQ(0, memcmp(text + (array.m_Name - json.m_Text), "\\u006bey", array.m_NameLength));
+    ASSERT_EQ(0, memcmp(text + array.m_NameOffset, "\\u006bey", array.m_NameLength));
     const char encoded[] = "[\"a\\nb\", {}, []]";
     ASSERT_EQ(sizeof(encoded) - 1, array.m_Length);
     ASSERT_EQ(0, memcmp(text + array.m_Offset, encoded, array.m_Length));
-    const dmJson::Node& string = json.Get(array.m_First);
+    const dmJson::Node& string = json.Get(array.m_Container.m_First);
     ASSERT_STREQ("a\nb", string.m_String);
     ASSERT_EQ(6u, string.m_Length);
     ASSERT_EQ(0, memcmp(text + string.m_Offset, "\"a\\nb\"", string.m_Length));
@@ -507,8 +851,8 @@ TEST(dmJson, PreserveValues)
     ASSERT_GE(number, 0);
     ASSERT_EQ(dmJson::TYPE_STRING, json.Get(string).m_Type);
     ASSERT_EQ(dmJson::TYPE_NUMBER, json.Get(number).m_Type);
-    ASSERT_EQ(0, memcmp(text + json.Get(string).m_Offset, json.m_Text + json.Get(string).m_Offset, json.Get(string).m_Length));
-    ASSERT_EQ(0, memcmp(text + json.Get(number).m_Offset, json.m_Text + json.Get(number).m_Offset, json.Get(number).m_Length));
+    ASSERT_EQ(0, memcmp(text + json.Get(string).m_Offset, json.Text() + json.Get(string).m_Offset, json.Get(string).m_Length));
+    ASSERT_EQ(0, memcmp(text + json.Get(number).m_Offset, json.Text() + json.Get(number).m_Offset, json.Get(number).m_Length));
     ASSERT_STREQ("fallback", json.String(string, "fallback"));
     ASSERT_EQ(-1, json.Integer(number, -1));
     uint32_t value;
@@ -534,14 +878,11 @@ TEST(dmJson, ErrorOffsets)
 {
     dmJson::Document json(32);
     uint32_t offset;
-    ASSERT_FALSE(json.Parse("{} \tx", 5, &offset, dmJson::PARSE_DECODE_VALUES));
-    ASSERT_TRUE(json.m_Valid);
+    ASSERT_EQ(dmJson::RESULT_TRAILING_DATA, dmJson::Parse(json.Handle(), "{} \tx", 5, &offset, dmJson::PARSE_DECODE_VALUES));
     ASSERT_EQ(4u, offset);
-    ASSERT_FALSE(json.Parse("[1,", 3, &offset, dmJson::PARSE_DECODE_VALUES));
-    ASSERT_FALSE(json.m_Valid);
+    ASSERT_EQ(dmJson::RESULT_SYNTAX_ERROR, dmJson::Parse(json.Handle(), "[1,", 3, &offset, dmJson::PARSE_DECODE_VALUES));
     ASSERT_EQ(3u, offset);
-    ASSERT_FALSE(json.Parse("\"a\xff\"", 4, &offset, dmJson::PARSE_DECODE_VALUES));
-    ASSERT_FALSE(json.m_Valid);
+    ASSERT_EQ(dmJson::RESULT_SYNTAX_ERROR, dmJson::Parse(json.Handle(), "\"a\xff\"", 4, &offset, dmJson::PARSE_DECODE_VALUES));
     ASSERT_EQ(2u, offset);
 }
 
@@ -584,6 +925,102 @@ TEST(dmJson, Utf8BlockBoundaries)
         ASSERT_TRUE(json.Parse(text, length + 2, 0, dmJson::PARSE_DECODE_VALUES));
         ASSERT_EQ(length, strlen(json.String(0, 0)));
         free(storage);
+    }
+}
+
+// Every escape byte must retain the same validity in decoded, buffered, and preserved strings.
+TEST(dmJson, SimpleEscapeBytes)
+{
+    const char encoded[] = "\"\\/bfnrt";
+    const char decoded[] = "\"\\/\b\f\n\r\t";
+    dmJson::StringBuffer buffer;
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        for (uint32_t byte = 0; byte < 256; ++byte)
+        {
+            char input[] = { '"', '\\', (char)byte, '"' };
+            const char* escape = byte ? strchr(encoded, byte) : 0;
+            dmJson::Lexer lexer(input, input + sizeof(input));
+            char* value = lexer.ReadString(mode != 0, mode == 2 ? &buffer : 0);
+            ASSERT_EQ(escape != 0, lexer.m_Valid);
+            if (escape)
+            {
+                ASSERT_EQ(mode ? 1u : 2u, lexer.m_StringLength);
+                ASSERT_EQ(mode ? decoded[escape - encoded] : '\\', value[0]);
+            }
+        }
+    }
+}
+
+// Consecutive Unicode escapes must grow buffered output safely, preserve input and reject every truncation.
+TEST(dmJson, BufferedStringBoundaries)
+{
+    const char suffix[] = "\\n\\u0041\\u041f\\u4e2d\\u0000\\ud83d\\ude00abcdefghijklmnopqrstuvwxyz0123456789\\t\"";
+    const char decoded[] = "\nA\xd0\x9f\xe4\xb8\xad\0\xf0\x9f\x98\x80" "abcdefghijklmnopqrstuvwxyz0123456789\t";
+    dmJson::StringBuffer buffer;
+    for (uint32_t prefix = 0; prefix < 530; ++prefix)
+    {
+        uint32_t size = prefix + sizeof(suffix);
+        char* input = (char*)malloc(size);
+        input[0] = '"';
+        memset(input + 1, 'a', prefix);
+        memcpy(input + prefix + 1, suffix, sizeof(suffix) - 1);
+        dmJson::Lexer lexer(input, input + size);
+        lexer.m_AllowNul = true;
+        char* result = lexer.ReadString(true, &buffer);
+        ASSERT_TRUE(lexer.m_Valid);
+        ASSERT_EQ(prefix + sizeof(decoded) - 1, lexer.m_StringLength);
+        ASSERT_EQ(0, memcmp(result, input + 1, prefix));
+        ASSERT_EQ(0, memcmp(result + prefix, decoded, sizeof(decoded) - 1));
+        ASSERT_EQ(0, memcmp(input + prefix + 1, suffix, sizeof(suffix) - 1));
+        ASSERT_EQ(input + size, lexer.m_Cursor);
+        for (uint32_t length = 1; length < sizeof(suffix) - 1; ++length)
+        {
+            dmJson::Lexer truncated(input, input + prefix + 1 + length);
+            truncated.m_AllowNul = true;
+            ASSERT_EQ((char*)0, truncated.ReadString(true, &buffer));
+            ASSERT_FALSE(truncated.m_Valid);
+        }
+        free(input);
+    }
+}
+
+// Buffered spans must safely grow across plain text, raw controls and escapes producing up to four bytes.
+TEST(dmJson, BufferedStringSpans)
+{
+    const char escaped[] = "\\t\\u0041\\u041f\\u4e2d\\u0000\\ud83d\\ude00\\\\\1";
+    const char decoded[] = "\tA\xd0\x9f\xe4\xb8\xad\0\xf0\x9f\x98\x80\\\1";
+    dmArray<char> input;
+    dmArray<char> expected;
+    Append(input, "\"\\n");
+    Append(expected, "\n");
+    for (uint32_t length = 0; length < 64; ++length)
+    {
+        for (uint32_t i = 0; i < length; ++i)
+        {
+            Append(input, "a");
+            Append(expected, "a");
+        }
+        Append(input, escaped);
+        WriteJson(&expected, decoded, sizeof(decoded) - 1);
+    }
+    Append(input, "\"");
+    dmArray<char> original;
+    WriteJson(&original, input.Begin(), input.Size());
+    for (uint32_t capacity = 4; capacity < 530; ++capacity)
+    {
+        dmJson::StringBuffer buffer;
+        buffer.m_Data = (char*)malloc(capacity);
+        buffer.m_Capacity = capacity;
+        dmJson::Lexer lexer(input.Begin(), input.End());
+        lexer.m_AllowNul = true;
+        lexer.m_AllowControl = true;
+        char* result = lexer.ReadString(true, &buffer);
+        ASSERT_TRUE(lexer.m_Valid);
+        ASSERT_EQ(expected.Size(), lexer.m_StringLength);
+        ASSERT_EQ(0, memcmp(result, expected.Begin(), expected.Size()));
+        ASSERT_EQ(input.End(), lexer.m_Cursor);
+        ASSERT_EQ(0, memcmp(input.Begin(), original.Begin(), input.Size()));
     }
 }
 
@@ -703,8 +1140,85 @@ static int ParseCorpusFile(const char* path)
     }
     dmJson::Document json(32);
     bool decoded = json.Parse(text.Begin(), (uint32_t)size, 0, dmJson::PARSE_DECODE_VALUES);
+    if (decoded && !ChildCountsMatch(json))
+    {
+        return 3;
+    }
     bool preserved = json.Parse(text.Begin(), (uint32_t)size, 0, dmJson::PARSE_PRESERVE_VALUES);
+    if (preserved && !ChildCountsMatch(json))
+    {
+        return 3;
+    }
     printf("%d %d\n", (int)decoded, (int)preserved);
+    return 0;
+}
+
+// The native runner supplies independent expected binary64 bits in little-endian
+// records: uint32 length, uint64 bits, then the raw JSON number. Both modes reuse
+// the document; the runner checks the exact record count and enforces a timeout.
+static int ParseNumberCases(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    if (!file)
+    {
+        return 2;
+    }
+    dmJson::Document json(0);
+    dmArray<char> text;
+    uint32_t count = 0;
+    unsigned char header[12];
+    size_t read;
+    while ((read = fread(header, 1, sizeof(header), file)) == sizeof(header))
+    {
+        uint32_t size = 0;
+        uint64_t expected = 0;
+        for (uint32_t i = 0; i < 4; ++i)
+        {
+            size |= (uint32_t)header[i] << (8 * i);
+        }
+        for (uint32_t i = 0; i < 8; ++i)
+        {
+            expected |= (uint64_t)header[i + 4] << (8 * i);
+        }
+        if (!size || size == UINT32_MAX)
+        {
+            fclose(file);
+            return 2;
+        }
+        if (size + 1 > text.Capacity())
+        {
+            text.SetCapacity(size + 1);
+        }
+        if (fread(text.Begin(), 1, size, file) != size)
+        {
+            fclose(file);
+            return 2;
+        }
+        text.Begin()[size] = 0;
+        bool decoded = json.Parse(text.Begin(), size, 0, dmJson::PARSE_DECODE_VALUES);
+        bool finite = (expected & UINT64_C(0x7ff0000000000000)) != UINT64_C(0x7ff0000000000000);
+        uint64_t actual = 0;
+        if (decoded)
+        {
+            memcpy(&actual, &json.Get(0).m_Number, sizeof(actual));
+        }
+        if (decoded != finite || (decoded && (actual != expected || json.Get(0).m_Type != dmJson::TYPE_NUMBER))
+            || !json.Parse(text.Begin(), size, 0, dmJson::PARSE_PRESERVE_VALUES))
+        {
+            fprintf(stderr, "Number case %u: %.80s (length %u), expected %016llx got %016llx, decoded=%d\n",
+                    count, text.Begin(), size, (unsigned long long)expected, (unsigned long long)actual, decoded);
+            fclose(file);
+            return 3;
+        }
+        ++count;
+    }
+    bool complete = read == 0 && !ferror(file);
+    fclose(file);
+    if (!complete)
+    {
+        return 2;
+    }
+    printf("%u\n", count);
     return 0;
 }
 
@@ -713,6 +1227,10 @@ int main(int argc, char** argv)
     if (argc == 3 && !strcmp(argv[1], "--corpus"))
     {
         return ParseCorpusFile(argv[2]);
+    }
+    if (argc == 3 && !strcmp(argv[1], "--numbers"))
+    {
+        return ParseNumberCases(argv[2]);
     }
     jc_test_init(&argc, argv);
     return jc_test_run_all();

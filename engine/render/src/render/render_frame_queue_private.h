@@ -17,27 +17,29 @@
 
 #include <dlib/condition_variable.h>
 #include <dlib/mutex.h>
+
 #include "render_frame_queue.h"
 
-// Implementation/test layout only. Consumers use the opaque queue API.
 namespace dmRender
 {
     /** Fixed slot metadata protected by the queue mutex in threaded mode. */
     struct RenderFrameSlot
     {
-        RenderFrameId    m_FrameId;
-        HRenderFrame     m_Frame;
-        RenderFrameState m_State;
+        RenderFrameId       m_FrameId;
+        HRenderFrameStorage m_Frame;
+        RenderFrameState    m_State;
     };
 
     /**
-     * One accepted Ready/Reading frame and one game-owned Building frame. No queue of
-     * replaceable snapshots: accepted frames may carry side effects and must be consumed.
+     * Inline owns one slot; threaded owns one accepted Ready/Reading frame and one
+     * game-owned Building frame. Accepted frames may carry side effects and must be
+     * consumed; they are not replaceable snapshots.
      */
-    struct RenderFrameQueueContext
+    struct RenderFrameQueue
     {
         RenderFrameQueueParams                  m_Params;
         RenderFrameSlot                         m_Slots[2];
+        uint32_t                                m_SlotCount;
         RenderFrameId                           m_NextFrameId;
         uint64_t                                m_Revision;
         uint64_t                                m_Published;
@@ -73,4 +75,5 @@ namespace dmRender
     };
 
 }
+
 #endif // DM_RENDER_FRAME_QUEUE_PRIVATE_H

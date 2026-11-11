@@ -19,7 +19,7 @@
 #include <dlib/array.h>
 #include <dlib/crypt.h>
 #include <dlib/dstrings.h>
-#include <dlib/json.h>
+#include <dlib/json.hpp>
 #include <dlib/mutex.h>
 #include <dlib/sys.h>
 #include <dlib/thread.h>
@@ -281,17 +281,18 @@ namespace dmRecord
         {
             return false;
         }
-        for (int field = json.Get(0).m_First; field >= 0; field = json.Get(field).m_Next)
+        for (int field = json.Get(0).m_Container.m_First; field >= 0; field = json.Get(field).m_Next)
         {
             const dmJson::Node& node = json.Get(field);
-            if (!stopping && !strcmp(node.m_Name, "fps"))
+            const char* name = json.Name(field);
+            if (!stopping && !strcmp(name, "fps"))
             {
                 if (!json.UnsignedInteger(field, &params->m_Fps) || !params->m_Fps || params->m_Fps > 60)
                 {
                     return false;
                 }
             }
-            else if (!stopping && !strcmp(node.m_Name, "audio"))
+            else if (!stopping && !strcmp(name, "audio"))
             {
                 if (node.m_Type != dmJson::TYPE_BOOL)
                 {
@@ -299,7 +300,7 @@ namespace dmRecord
                 }
                 params->m_Audio = json.Boolean(field, false);
             }
-            else if (stopping && !strcmp(node.m_Name, "operation_id"))
+            else if (stopping && !strcmp(name, "operation_id"))
             {
                 if (!json.UnsignedInteger(field, id) || !*id)
                 {
