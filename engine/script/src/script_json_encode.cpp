@@ -26,6 +26,19 @@ extern "C"
 
 namespace dmScript
 {
+    // Emit two digits per division after the coefficient has been rounded.
+    static const char DIGIT_PAIRS[] =
+        "00010203040506070809"
+        "10111213141516171819"
+        "20212223242526272829"
+        "30313233343536373839"
+        "40414243444546474849"
+        "50515253545556575859"
+        "60616263646566676869"
+        "70717273747576777879"
+        "80818283848586878889"
+        "90919293949596979899";
+
     struct JsonWriter
     {
         dmJson::StringBuffer m_Buffer;
@@ -188,10 +201,13 @@ namespace dmScript
                 }
             }
             char digits[14];
-            for (int i = 13; i >= 0; --i)
+            // Fixed-width groups preserve leading zeros and the existing
+            // trimming/decimal-point logic below.
+            for (int i = 12; i >= 0; i -= 2)
             {
-                digits[i] = '0' + coefficient % 10;
-                coefficient /= 10;
+                uint32_t pair = (uint32_t)(coefficient % 100);
+                coefficient /= 100;
+                memcpy(digits + i, DIGIT_PAIRS + pair * 2, 2);
             }
             int length = 14;
             while (length > 1 && digits[length - 1] == '0')
@@ -244,11 +260,24 @@ namespace dmScript
                 char* out = digits + sizeof(digits);
                 bool negative = signbit(value) != 0;
                 uint64_t integer = (uint64_t)(negative ? -value : value);
-                do
+                // Write complete pairs backwards, then the one- or
+                // two-digit leading group without adding a leading zero.
+                while (integer >= 100)
                 {
-                    *--out = '0' + integer % 10;
-                    integer /= 10;
-                } while (integer);
+                    uint32_t pair = (uint32_t)(integer % 100);
+                    integer /= 100;
+                    out -= 2;
+                    memcpy(out, DIGIT_PAIRS + pair * 2, 2);
+                }
+                if (integer < 10)
+                {
+                    *--out = '0' + (uint32_t)integer;
+                }
+                else
+                {
+                    out -= 2;
+                    memcpy(out, DIGIT_PAIRS + (uint32_t)integer * 2, 2);
+                }
                 if (negative)
                 {
                     *--out = '-';

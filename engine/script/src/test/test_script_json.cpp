@@ -316,7 +316,12 @@ TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
     setlocale(LC_NUMERIC, "C");
     const int modes[] = { FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO };
     const double boundaries[] = {
-        0.0, 1e-5, 1e-4, 0.001, 0.1, 1.0, 9.99999999999995,
+        0.0, 1e-5, 1e-4, 0.001, 0.1, 1.0,
+        // Exercise digit-group boundaries and zeros inside a coefficient.
+        9.0, 10.0, 99.0, 100.0, 101.0, 999.0, 1000.0, 1001.0,
+        10000.0, 10001.0, 99999999999999.0,
+        1.010101010101, 10.00100010001, 0.0001000100010001,
+        9.99999999999995,
         99.9999999999995, 99999999999999.5, 1e14, 1e300
     };
     for (uint32_t mode = 0; mode < sizeof(modes) / sizeof(modes[0]); ++mode)
