@@ -203,15 +203,9 @@ namespace dmGameSystem
      * See [ref:resource.set_texture] for an example on how to set the texture of an atlas.
      */
 
-    static const char* ANIMATION_LAYER_TYPE = "model_animation_layer_definition";
     static char ANIMATION_LAYERS_REGISTRY_KEY;
     // Lua numbers represent every integer up to 2^53 exactly. Never recycle IDs.
     static const lua_Number MAX_ANIMATION_LAYER_ID = 9007199254740991.0;
-
-    struct LuaAnimationLayer
-    {
-        dmRig::HAnimationLayer m_Layer;
-    };
 
     static void PushAnimationLayers(lua_State* L)
     {
@@ -219,7 +213,7 @@ namespace dmGameSystem
         lua_rawget(L, LUA_REGISTRYINDEX);
     }
 
-    static LuaAnimationLayer* CheckAnimationLayer(lua_State* L, int index)
+    static dmRig::HAnimationLayer CheckAnimationLayer(lua_State* L, int index)
     {
         luaL_checktype(L, index, LUA_TNUMBER);
         lua_Number id = lua_tonumber(L, index);
@@ -230,22 +224,13 @@ namespace dmGameSystem
         PushAnimationLayers(L);
         lua_pushnumber(L, id);
         lua_rawget(L, -2);
-        LuaAnimationLayer* layer = (LuaAnimationLayer*)lua_touserdata(L, -1);
-        if (!layer || !layer->m_Layer)
+        dmRig::HAnimationLayer layer = (dmRig::HAnimationLayer)lua_touserdata(L, -1);
+        if (!layer)
         {
             luaL_error(L, "animation layer handle is destroyed or invalid");
         }
         lua_pop(L, 2);
         return layer;
-    }
-
-    // The registry owns definitions; public handles are numbers with no ownership.
-    static int AnimationLayerGC(lua_State* L)
-    {
-        LuaAnimationLayer* layer = (LuaAnimationLayer*)luaL_checkudata(L, 1, ANIMATION_LAYER_TYPE);
-        dmRig::ReleaseAnimationLayer(layer->m_Layer);
-        layer->m_Layer = 0;
-        return 0;
     }
 
     /*# destroy an animation layer definition
@@ -262,9 +247,8 @@ namespace dmGameSystem
     static int LuaModelComp_DestroyAnimationLayer(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        LuaAnimationLayer* layer = CheckAnimationLayer(L, 1);
-        dmRig::ReleaseAnimationLayer(layer->m_Layer);
-        layer->m_Layer = 0;
+        dmRig::HAnimationLayer layer = CheckAnimationLayer(L, 1);
+        dmRig::ReleaseAnimationLayer(layer);
         PushAnimationLayers(L);
         lua_pushvalue(L, 1);
         lua_pushnil(L);
@@ -378,16 +362,23 @@ namespace dmGameSystem
         }
         lua_pushnumber(L, id + 1);
         lua_setfield(L, -2, "next_id");
+        // Reserve the entry before allocating the native layer. Replacing it below
+        // cannot grow the table and leave the layer unowned if Lua runs out of memory.
         lua_pushnumber(L, id);
-        LuaAnimationLayer* layer = (LuaAnimationLayer*)lua_newuserdata(L, sizeof(LuaAnimationLayer));
-        layer->m_Layer = 0;
-        luaL_getmetatable(L, ANIMATION_LAYER_TYPE);
-        lua_setmetatable(L, -2);
-        layer->m_Layer = dmRig::NewAnimationLayer(params);
-        if (!layer->m_Layer)
+        lua_pushboolean(L, 0);
+        lua_rawset(L, -3);
+        dmRig::HAnimationLayer layer = dmRig::NewAnimationLayer(params);
+        if (!layer)
         {
+            lua_pushnumber(L, id);
+            lua_pushnil(L);
+            lua_rawset(L, -3);
             return luaL_error(L, "animation layers are not supported by this engine");
         }
+        // Raw pointers in the private registry need no userdata allocation or GC.
+        // Explicit destruction and context finalization release its owned references.
+        lua_pushnumber(L, id);
+        lua_pushlightuserdata(L, layer);
         lua_rawset(L, -3);
         lua_pop(L, 3); // Registry, temporary bone buffer and bone array.
         lua_pushnumber(L, id);
@@ -590,7 +581,7 @@ namespace dmGameSystem
             lua_getfield(L, -1, "layer");
             if (!lua_isnil(L, -1))
             {
-                layer = CheckAnimationLayer(L, -1)->m_Layer;
+                layer = CheckAnimationLayer(L, -1);
             }
             lua_pop(L, 1);
 
@@ -721,7 +712,7 @@ namespace dmGameSystem
             lua_getfield(L, 2, "layer");
             if (!lua_isnil(L, -1))
             {
-                dmRig::HAnimationLayer layer = CheckAnimationLayer(L, -1)->m_Layer;
+                dmRig::HAnimationLayer layer = CheckAnimationLayer(L, -1);
                 ModelWorld* world;
                 ModelComponent* component;
                 dmScript::GetComponentFromLua(L, 1, MODEL_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0);
@@ -1147,12 +1138,6 @@ namespace dmGameSystem
     static dmExtension::Result ScriptModelInitialize(dmExtension::Params* params)
     {
         lua_State* L = params->m_L;
-        luaL_newmetatable(L, ANIMATION_LAYER_TYPE);
-        lua_pushcfunction(L, AnimationLayerGC);
-        lua_setfield(L, -2, "__gc");
-        lua_pushliteral(L, "animation layer");
-        lua_setfield(L, -2, "__metatable");
-        lua_pop(L, 1);
         PushAnimationLayers(L);
         if (lua_isnil(L, -1))
         {
@@ -1179,11 +1164,10 @@ namespace dmGameSystem
         lua_pushnil(L);
         while (lua_next(L, -2))
         {
-            if (lua_type(L, -1) == LUA_TUSERDATA)
+            if (lua_islightuserdata(L, -1))
             {
-                LuaAnimationLayer* layer = (LuaAnimationLayer*)lua_touserdata(L, -1);
-                dmRig::ReleaseAnimationLayer(layer->m_Layer);
-                layer->m_Layer = 0;
+                dmRig::HAnimationLayer layer = (dmRig::HAnimationLayer)lua_touserdata(L, -1);
+                dmRig::ReleaseAnimationLayer(layer);
                 lua_pushvalue(L, -2);
                 lua_pushnil(L);
                 lua_rawset(L, -5);

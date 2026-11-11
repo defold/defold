@@ -2573,6 +2573,23 @@ TEST_F(ModelTest, AnimationLayers)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Verifies handles survive Lua collection and context teardown cleans up definitions left without explicit destruction.
+TEST_F(ModelTest, AnimationLayerContextLifetime)
+{
+    ASSERT_TRUE(RunString(m_Scriptlibcontext.m_LuaState,
+                          "local layers = {}\n"
+                          "for i = 1, 64 do\n"
+                          "    layers[i] = model.animation_layer('context_layer_' .. i, { order = i, bones = { 'spine' } })\n"
+                          "    assert(type(layers[i]) == 'number')\n"
+                          "end\n"
+                          "collectgarbage('collect')\n"
+                          "for i = 1, 64, 2 do\n"
+                          "    model.destroy_animation_layer(layers[i])\n"
+                          "    assert(not pcall(model.destroy_animation_layer, layers[i]))\n"
+                          "end\n"));
+    // The remaining definitions have no Lua owner and must be released by the fixture's context finalization.
+}
+
 // Verifies resource reload releases active layer and base callbacks before recreating the rig.
 TEST_F(ModelTest, AnimationLayersReload)
 {
