@@ -1,6 +1,8 @@
 set(GRAPHICS_TEST_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
-if(TARGET graphics_vulkan AND NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(x86_64-win32|x86_64-linux|arm64-linux|x86_64-macos|arm64-macos)$")
+# The SDK builds graphics_vulkan even when Vulkan is disabled for the engine.
+# Match defold_target_link_graphics so this test also links the Vulkan loader.
+if(WITH_VULKAN AND TARGET graphics_vulkan AND NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(x86_64-win32|x86_64-linux|arm64-linux|x86_64-macos|arm64-macos)$")
   set(_reuse_generated "${CMAKE_CURRENT_BINARY_DIR}/buffer_reuse_generated")
   find_program(_reuse_glslang NAMES glslang glslangValidator
     HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}" REQUIRED)
