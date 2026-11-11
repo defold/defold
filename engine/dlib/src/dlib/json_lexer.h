@@ -49,6 +49,40 @@ namespace dmJson
             coefficient = coefficient * 100000000 + (uint32_t)quads * 10000 + (quads >> 32);
             position += 8;
         }
+#else
+        // Unroll short digit runs with one bounds check for the whole group.
+        // Stop at each non-digit so the delimiter remains unconsumed.
+        while (end - position >= 4)
+        {
+            uint32_t digit = (uint32_t)(uint8_t)*position - (uint32_t)'0';
+            if (digit > 9)
+            {
+                break;
+            }
+            coefficient = coefficient * 10 + digit;
+            ++position;
+            digit = (uint32_t)(uint8_t)*position - (uint32_t)'0';
+            if (digit > 9)
+            {
+                break;
+            }
+            coefficient = coefficient * 10 + digit;
+            ++position;
+            digit = (uint32_t)(uint8_t)*position - (uint32_t)'0';
+            if (digit > 9)
+            {
+                break;
+            }
+            coefficient = coefficient * 10 + digit;
+            ++position;
+            digit = (uint32_t)(uint8_t)*position - (uint32_t)'0';
+            if (digit > 9)
+            {
+                break;
+            }
+            coefficient = coefficient * 10 + digit;
+            ++position;
+        }
 #endif
         // Finish short runs and tails without reading beyond the input bound.
         while (position < end && *position >= '0' && *position <= '9')
