@@ -45,6 +45,7 @@
 #include "render/font/fontmap_private.h"
 #include "render/font/font_renderer_private.h"
 #include "render/font/default/font_default_vertex.h"
+#include "render_consumer_benchmark.h"
 
 #include <font/font_glyphbank.h>
 
@@ -7434,6 +7435,13 @@ int main(int argc, char **argv)
 {
     dmExportedSymbols();
     TestMainPlatformInit();
+    for (int i = 1; i < argc; ++i)
+    {
+        if (strcmp(argv[i], "--render-consumer-benchmark") == 0)
+        {
+            return RunRenderConsumerBenchmark(argc, argv);
+        }
+    }
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
