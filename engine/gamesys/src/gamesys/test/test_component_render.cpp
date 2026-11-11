@@ -572,6 +572,7 @@ namespace
         dmMutex::Delete(fixture->m_Probe.m_Mutex);
         if (fixture->m_Graphics)
         {
+            dmGraphics::CloseWindow(fixture->m_Graphics);
             dmGraphics::DeleteContext(fixture->m_Graphics);
             dmPlatform::CloseWindow(fixture->m_Window);
             dmPlatform::DeleteWindow(fixture->m_Window);
@@ -1275,6 +1276,7 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DeleteRenderContext(render, script));
     dmScript::Finalize(script);
     dmScript::DeleteContext(script);
+    dmGraphics::CloseWindow(graphics);
     dmGraphics::DeleteContext(graphics);
     dmPlatform::CloseWindow(window);
     dmPlatform::DeleteWindow(window);

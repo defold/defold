@@ -67,6 +67,24 @@ lein run
 
 `lein init` installs Bob into the editor's local Maven repository and prepares generated resources. When using a local Bob build, rerun `lein init` without a SHA after rebuilding `bob.jar` or changing inputs to generated resources, before starting the editor again. With a released engine, continue to use `lein init <sha1>` for the matching archived artifacts.
 
+## Building the Intel macOS bundle on Apple silicon
+
+After setting up the build environment, run from `editor/`:
+
+```sh
+python3 scripts/bundle.py --platform=x86_64-macos --version=<version> --engine-artifacts=<engine-sha1> --skip-tests build
+```
+
+The build uses the native ARM JDK for compilation and packaging. It downloads
+matching Intel JMODs and uses the ARM `jlink` to create the Intel runtime. Native
+libraries for both the build host and target are prepared for compilation; only
+the target libraries are retained in the bundle. For `--engine-artifacts=dynamo-home`,
+both ARM and Intel engine artifacts must be available locally.
+
+Rosetta is not required to build the bundle. Build-time tests run on the native
+host JVM. To run the editor tests on the Intel JVM, use the `test` command with
+`--platform=x86_64-macos`; that requires Rosetta on Apple silicon.
+
 ## Running the Editor for Performance Checks
 
 From `editor/`, run `lein with-profile +performance run` when measuring editor runtime performance. The `performance` profile disables exception decoration, schema checks, and compiled spec assertions, which otherwise affect measurements. Use `lein run` for normal development.
