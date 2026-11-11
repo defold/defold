@@ -70,9 +70,9 @@
     &-6 {-fx-min-height: 20px; }
   }
   &-code-block {
-    -fx-padding: 10px;
     -fx-background-color: -df-background-lightish;
     -fx-background-radius: 4px;
+    &-content { -fx-padding: 10px; }
     &-hover { visibility: hidden; }
     &:hover > &-hover { visibility: visible; }
     &-button {

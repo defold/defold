@@ -267,7 +267,7 @@
 
 ;; endregion
 
-(declare children-section-view)
+(declare children-section-view prop-pref-height-defining-max-width)
 
 (defn- indent-view [indent view]
   {:pre [indent]}
@@ -317,10 +317,15 @@
   (when-let [view (children-section-view node (-> ctx (style "code") (assoc :paragraph false)))]
     {:fx/type fx.stack-pane/lifecycle
      :style-class "md-code-block"
-     :children [view
+     :children [{:fx/type fx.scroll-pane/lifecycle
+                 :style-class "md-code-scroll-pane"
+                 :min-height :use-pref-size
+                 prop-pref-height-defining-max-width -1.0
+                 :content (fxui/add-style-classes view "md-code-block-content")}
                 {:fx/type fx.v-box/lifecycle
                  :style-class "md-code-block-hover"
                  :alignment :top-right
+                 :pick-on-bounds false
                  :children [{:fx/type fx.button/lifecycle
                              :style-class "md-code-block-button"
                              :graphic copy-icon

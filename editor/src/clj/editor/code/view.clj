@@ -2508,7 +2508,7 @@
                :content [{:fx/type fx/ext-get-ref :ref :content}]}}]
             completions-doc
             (conj
-              (let [pref-doc-width 350.0
+              (let [pref-doc-width 450.0
                     doc-max-height (- (.getMaxY screen-bounds) (.getY anchor))
                     spacing 6.0
                     left-space (- (.getX anchor) spacing)
