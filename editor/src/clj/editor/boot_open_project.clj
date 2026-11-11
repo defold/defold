@@ -204,7 +204,7 @@
           asset-browser        (asset-browser/make-asset-browser workspace assets prefs localization)
           open-resource        (partial app-view/open-resource! app-view prefs localization project)
           console-view         (console/make-console! workspace console-tab console-grid-pane open-resource prefs localization)
-          _                    (shader/set-failure-line-reporter! console/append-console-line!)
+          _                    (shader/init-failure-line-reporter! console/append-console-line!)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications localization)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          localization

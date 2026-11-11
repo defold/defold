@@ -569,18 +569,18 @@
      :sampler-name->uniform-names sampler-name->uniform-names
      :sampler-index->sampler-name sampler-index->sampler-name}))
 
-(defonce ^:private report-failure-line-fn-atom (atom nil))
+(defonce ^:dynamic *report-failure-line!*
+  (fn report-failure-line! [_line]))
 
-(defn set-failure-line-reporter! [report-failure-line-fn]
-  (reset! report-failure-line-fn-atom report-failure-line-fn))
+(defn init-failure-line-reporter! [report-failure-line-fn]
+  (alter-var-root #'*report-failure-line!* (constantly report-failure-line-fn)))
 
 (defn- make-shader-program-or-report-failure [^GL3 gl request-data]
   (try
     (make-shader-program gl request-data)
     (catch Exception error
-      (when-let [report-failure-line! @report-failure-line-fn-atom]
-        (report-failure-line! (str "ERROR:SHADER: Failed to create shader program for " (or (:proj-path request-data) "built-in shader")))
-        (run! report-failure-line! (string/split-lines (ex-message error))))
+      (*report-failure-line!* (str "ERROR:SHADER: Failed to create shader program for " (or (:proj-path request-data) "built-in shader")))
+      (run! *report-failure-line!* (string/split-lines (ex-message error)))
       {:program 0
        :uniform-infos {}
        :sampler-name->uniform-names {}
