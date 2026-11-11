@@ -29,7 +29,7 @@ namespace dmResourceProviderFile
 
     struct FileProviderContext
     {
-        char m_BasePath[DMPATH_MAX_PATH];
+        char m_FileSystemBasePath[DMPATH_MAX_PATH];
         char m_HostBasePath[DMPATH_MAX_PATH];
         char m_PackageBasePath[DMPATH_MAX_PATH];
     };
@@ -50,11 +50,11 @@ namespace dmResourceProviderFile
             return dmResourceProvider::RESULT_INVAL_ERROR;
         }
 
-        // Anchor both lookup roots before application code can change the process cwd.
+        // Capture filesystem roots before application code can change the process cwd.
         const char* root = base_path[0] ? base_path : "/";
         FileProviderContext* archive = new FileProviderContext;
         dmStrlCpy(archive->m_PackageBasePath, root, sizeof(archive->m_PackageBasePath));
-        dmSys::Result result = dmSys::GetAbsolutePath(root, archive->m_BasePath, sizeof(archive->m_BasePath));
+        dmSys::Result result = dmSys::GetAbsolutePath(root, archive->m_FileSystemBasePath, sizeof(archive->m_FileSystemBasePath));
         if (result != dmSys::RESULT_OK)
         {
             delete archive;
@@ -88,7 +88,7 @@ namespace dmResourceProviderFile
         {
             return 0;
         }
-        // Package names are independent of cwd and must not fall back to relative filesystem reads.
+        // Package lookup: names are independent of cwd and must not fall back to relative files.
         if (dmSnPrintf(buffer, buffer_len, "%s%s", archive->m_PackageBasePath, path) >= (int)buffer_len)
         {
             return 0;
@@ -97,7 +97,8 @@ namespace dmResourceProviderFile
         {
             return buffer;
         }
-        if (dmSnPrintf(buffer, buffer_len, "%s%s", archive->m_BasePath, path) >= (int)buffer_len)
+        // Filesystem lookup: use the absolute root captured at mount time.
+        if (dmSnPrintf(buffer, buffer_len, "%s%s", archive->m_FileSystemBasePath, path) >= (int)buffer_len)
         {
             return 0;
         }
@@ -105,6 +106,7 @@ namespace dmResourceProviderFile
         {
             return buffer;
         }
+        // Host fallback: preserve the native-file priority.
         if (archive->m_HostBasePath[0])
         {
             char host_path[dmResource::RESOURCE_PATH_MAX];

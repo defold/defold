@@ -338,11 +338,10 @@ resource_configure_test(test_block_allocator ON)
 defold_add_executable(test_provider_file "${RESOURCE_TEST_ROOT}/test_provider_file.cpp")
 resource_configure_test(test_provider_file ON ResourceProviderFile)
 
-# Exercise host fallback on every platform using the real mount resolver and a test host root.
+# Exercise host fallback on every platform using the production mapper and a test host root.
 defold_add_executable(test_provider_file_host
   "${RESOURCE_TEST_ROOT}/test_provider_file_host.cpp"
-  "${RESOURCE_SRC_DIR}/providers/provider_file.cpp"
-  "${RESOURCE_ROOT}/../dlib/src/dlib/sys.cpp")
+  "${RESOURCE_SRC_DIR}/providers/provider_file.cpp")
 target_compile_definitions(test_provider_file_host PRIVATE GetHostFileName=GetTestHostFileName)
 resource_configure_test(test_provider_file_host ON ResourceProviderFile)
 

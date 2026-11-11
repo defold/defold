@@ -424,21 +424,27 @@ namespace dmSys
         return app->activity->assetManager;
     }
 
-    bool ResourceExistsInPackage(const char* path)
+    static AAsset* OpenAndroidAsset(const char* path, int mode)
     {
         if (path[0] == '/')
         {
-            return false;
+            return 0;
         }
         AAssetManager* am = GetAndroidAssetManager();
-        if (am)
+        if (!am)
         {
-            AAsset* asset = AAssetManager_open(am, FixAndroidResourcePath(path), AASSET_MODE_RANDOM);
-            if (asset)
-            {
-                AAsset_close(asset);
-                return true;
-            }
+            return 0;
+        }
+        return AAssetManager_open(am, FixAndroidResourcePath(path), mode);
+    }
+
+    bool ResourceExistsInPackage(const char* path)
+    {
+        AAsset* asset = OpenAndroidAsset(path, AASSET_MODE_RANDOM);
+        if (asset)
+        {
+            AAsset_close(asset);
+            return true;
         }
         return false;
     }
@@ -454,18 +460,13 @@ namespace dmSys
 
     Result ResourceSize(const char* path, uint32_t* resource_size)
     {
-        AAssetManager* am = GetAndroidAssetManager();
-        if (am)
+        AAsset* asset = OpenAndroidAsset(path, AASSET_MODE_RANDOM);
+        if (asset)
         {
-            const char* asset_path = FixAndroidResourcePath(path);
-            AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_RANDOM);
-            if (asset)
-            {
-                *resource_size = (uint32_t)AAsset_getLength(asset);
+            *resource_size = (uint32_t)AAsset_getLength(asset);
 
-                AAsset_close(asset);
-                return RESULT_OK;
-            }
+            AAsset_close(asset);
+            return RESULT_OK;
         }
 
         return dmSysPosix::ResourceSize(path, resource_size);
@@ -475,30 +476,24 @@ namespace dmSys
     {
         *resource_size = 0;
 
-        AAssetManager* am = GetAndroidAssetManager();
-        if (am)
+        // NOTE: AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
+        AAsset* asset = OpenAndroidAsset(path, AASSET_MODE_BUFFER);
+        if (asset)
         {
-            const char* asset_path = FixAndroidResourcePath(path);
-
-            // NOTE: AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
-            AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_BUFFER);
-            if (asset)
+            uint32_t asset_size = (uint32_t)AAsset_getLength(asset);
+            if (asset_size > buffer_size)
             {
-                uint32_t asset_size = (uint32_t)AAsset_getLength(asset);
-                if (asset_size > buffer_size)
-                {
-                    AAsset_close(asset);
-                    return RESULT_INVAL;
-                }
-                uint32_t nread = (uint32_t)AAsset_read(asset, buffer, asset_size);
                 AAsset_close(asset);
-                if (nread != asset_size)
-                {
-                    return RESULT_IO;
-                }
-                *resource_size = asset_size;
-                return RESULT_OK;
+                return RESULT_INVAL;
             }
+            uint32_t nread = (uint32_t)AAsset_read(asset, buffer, asset_size);
+            AAsset_close(asset);
+            if (nread != asset_size)
+            {
+                return RESULT_IO;
+            }
+            *resource_size = asset_size;
+            return RESULT_OK;
         }
 
         return dmSysPosix::LoadResource(path, buffer, buffer_size, resource_size);
@@ -509,25 +504,19 @@ namespace dmSys
         if (buffer == 0 || size == 0)
             return RESULT_INVAL;
 
-        AAssetManager* am = GetAndroidAssetManager();
-        if (am)
+        // NOTE: AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
+        AAsset* asset = OpenAndroidAsset(path, AASSET_MODE_BUFFER);
+        if (asset)
         {
-            const char* asset_path = FixAndroidResourcePath(path);
-
-            // NOTE: AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
-            AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_BUFFER);
-            if (asset)
+            int result = AAsset_seek(asset, offset, SEEK_SET);
+            if (result < 0)
             {
-                int result = AAsset_seek(asset, offset, SEEK_SET);
-                if (result < 0)
-                {
-                    return RESULT_INVAL;
-                }
-                uint32_t nmemb = (uint32_t)AAsset_read(asset, buffer, size);
-                AAsset_close(asset);
-                *nread = nmemb;
-                return RESULT_OK;
+                return RESULT_INVAL;
             }
+            uint32_t nmemb = (uint32_t)AAsset_read(asset, buffer, size);
+            AAsset_close(asset);
+            *nread = nmemb;
+            return RESULT_OK;
         }
 
         return dmSysPosix::LoadResourcePartial(path, offset, size, buffer, nread);

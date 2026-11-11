@@ -28,10 +28,30 @@
 static char g_HostRoot[DMPATH_MAX_PATH];
 static const uint8_t SOMEDATA[] = { 0, 1, 2, 3, 4, 5, 6, 7 };
 
+static const char* MakePathTruncatingToHostFile(const char* root, char* path, uint32_t path_size)
+{
+    // Select an existing filename so the remaining bytes can be filled by "/." components.
+    const char* file = (strlen(root) & 1) ? "/empty" : "/somedata";
+    uint32_t padding = DMPATH_MAX_PATH - 1 - (uint32_t)strlen(root) - (uint32_t)strlen(file);
+    if (padding >= path_size)
+    {
+        return 0;
+    }
+    for (uint32_t i = 0; i < padding; i += 2)
+    {
+        path[i] = '/';
+        path[i + 1] = '.';
+    }
+    if (dmSnPrintf(path + padding, path_size - padding, "%sx", file) >= (int)(path_size - padding))
+    {
+        return 0;
+    }
+    return file;
+}
+
 namespace dmSys
 {
-    // This target renames GetHostFileName in the provider and sys.cpp so the real
-    // resolver uses a nonempty host root without replacing filesystem reads.
+    // Replace the provider's host mapper while keeping production path expansion and filesystem reads.
     Result GetTestHostFileName(char* buffer, size_t buffer_size, const char* path)
     {
         if (!g_HostRoot[0])
@@ -128,18 +148,12 @@ TEST_F(HostFileProviderArchive, LongPathDoesNotReadTruncatedHostFile)
     char root[DMPATH_MAX_PATH];
     ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetAbsolutePath(mapped_root, root, sizeof(root)));
 
-    // Choose a filename that leaves an even number of bytes for "/." padding.
-    // Dot components survive normalization and avoid creating long directory names.
-    const char* file = (strlen(root) & 1) ? "/empty" : "/somedata";
-    uint32_t padding = DMPATH_MAX_PATH - 1 - (uint32_t)strlen(root) - (uint32_t)strlen(file);
-    ASSERT_LT(padding, dmResource::RESOURCE_PATH_MAX);
     char path[dmResource::RESOURCE_PATH_MAX];
-    for (uint32_t i = 0; i < padding; i += 2)
-    {
-        path[i] = '/';
-        path[i + 1] = '.';
-    }
-    ASSERT_LT(dmSnPrintf(path + padding, sizeof(path) - padding, "%sx", file), (int)(sizeof(path) - padding));
+    const char* file = MakePathTruncatingToHostFile(root, path, sizeof(path));
+    ASSERT_NE((const char*)0, file);
+    char truncated_target[DMPATH_MAX_PATH];
+    ASSERT_LT(dmSnPrintf(truncated_target, sizeof(truncated_target), "%s%s", root, file), (int)sizeof(truncated_target));
+    ASSERT_TRUE(dmSys::ResourceExists(truncated_target));
 
     uint32_t file_size = 0;
     EXPECT_EQ(dmResourceProvider::RESULT_NOT_FOUND, dmResourceProvider::GetFileSize(m_Archive, 0, path, &file_size));
