@@ -416,6 +416,11 @@ namespace dmRender
     void BeginFrame(HRenderContext render_context, float time, float dt)
     {
         BeginRenderFrameRecording(render_context, time, dt);
+        BeginRenderFrameExecution(render_context, time, dt);
+    }
+
+    void BeginRenderFrameExecution(HRenderContext render_context, float time, float dt)
+    {
         render_context->m_Time = time;
         render_context->m_Dt = dt;
 

@@ -365,9 +365,22 @@ namespace dmGameSystem
     bool BeginFrame(HContext context);
 
     /**
+     * Set recording time after simulation, before PreRender and component capture.
+     * Snapshot recording leaves the renderer's active frame untouched. Legacy inline
+     * rendering also sets execution time and resets light submissions here.
+     * @param context Game-system instance with a renderer and an admitted frame
+     * @param time Accumulated simulation time
+     * @param dt Simulation delta time
+     */
+    void BeginRender(HContext context, float time, float dt);
+
+    /**
      * Capture components after final transforms/PreRender, before destructive PostUpdate.
      * Requires successful BeginFrame. Does not submit or consume: SubmitRender completes
-     * the packet with script/default pass commands. Legacy components still render inline.
+     * the packet with script/default pass commands. Legacy components still render inline,
+     * with their render list reset here, after PreRender. Snapshot lists are consumer-owned.
+     * Call once for the root collection per frame; collection proxies recurse through
+     * gameobject rendering within this traversal.
      * Capture failures are logged and cancel that frame.
      * @param context Game-system instance
      * @param collection Root collection to render
@@ -392,6 +405,15 @@ namespace dmGameSystem
      * @return True on successful submission; errors are logged internally
      */
     bool SubmitRender(HContext context, dmRender::HRenderScriptInstance script, float dt, uint32_t clear_color);
+
+    /**
+     * Finish legacy inline rendering after PostUpdate, before profiler/PostRender work.
+     * Clears render objects, debug and text data even if recording failed or drawing
+     * was skipped this update. Snapshot contexts do nothing here: their consumer
+     * cleans up each accepted frame after all passes and component EndFrame callbacks.
+     * @param context Game-system instance with a renderer
+     */
+    void EndRender(HContext context);
 
     /**
      * Finish the frame after drawing, including frames where drawing was skipped. Performs

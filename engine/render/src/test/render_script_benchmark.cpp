@@ -62,7 +62,7 @@ namespace
     static void Consume(void* user, const RenderFrameView& frame)
     {
         Benchmark* bench = (Benchmark*)user;
-        BeginRenderFrameConsumption(bench->m_Render, frame, RENDER_LIST_PREPARATION_LEGACY);
+        BeginRenderFrameConsumption(bench->m_Render, frame, RENDER_FRAME_PREPARATION_LEGACY);
         RenderListEnd(bench->m_Render);
         ConsumeRenderCommands(bench->m_Render, frame);
     }

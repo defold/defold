@@ -22,6 +22,10 @@
 #include <script/script.h>
 #include <testmain/testmain.h>
 
+#include "../../../graphics/src/graphics_private.h"
+#include "../../../graphics/src/test/test_graphics_util.h"
+
+#include "render/debug_renderer.h"
 #include "render/render_command.h"
 #include "render/render_frame.h"
 #include "render/render_private.h"
@@ -358,6 +362,148 @@ static void SubmitTransientRenderEntry(HRenderContext context, uint32_t* drawn)
     RenderListSubmit(context, entry, entry + 1);
 }
 
+static void InitializeFrameBoundaryState(HRenderContext context, HLightInstance* light)
+{
+    SetLightBufferCount(context, 1);
+    LightPrototypeParams light_params;
+    HLightPrototype prototype = NewLightPrototype(context, light_params);
+
+    dmGraphics::ShaderDescBuilder shader;
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    dmArray<uint8_t> shader_data;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(shader.Get(), dmGraphics::ShaderDesc::m_DDFDescriptor, shader_data));
+    InitializeDebugRenderer(context, 8, shader_data.Begin(), shader_data.Size());
+
+    context->m_RenderObjects.SetCapacity(1);
+    // These tests check text-storage lifetime without requiring a font or glyph cache.
+    context->m_TextContext.m_TextBuffer.SetCapacity(1);
+    context->m_TextContext.m_TextEntries.SetCapacity(1);
+    *light = NewLightInstance(context, prototype);
+}
+
+static void SubmitFrameBoundaryState(HRenderContext context, HLightInstance light)
+{
+    SubmitLightInstance(context, light);
+    Line2D(context, 0, 0, 1, 1, dmVMath::Vector4(1), dmVMath::Vector4(1));
+    context->m_TextContext.m_TextBuffer.Push('x');
+}
+
+// Starting recording for the next frame must not reset data the current consumer still uses.
+TEST_F(RenderCommandReplay, RecordingNextFramePreservesConsumerState)
+{
+    HLightInstance light = 0;
+    InitializeFrameBoundaryState(m_Context, &light);
+    ASSERT_NE((HLightInstance)0, light);
+    BeginRenderFrameRecording(m_Context, 12.0f, 0.25f);
+    ASSERT_EQ(RENDER_FRAME_OK, RecordRenderFrameInfo(m_Frame, GetRenderFrameInfo(m_Context)));
+    ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(m_Frame));
+
+    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_FRAME_PREPARATION_CONSUMER);
+    SubmitFrameBoundaryState(m_Context, light);
+    TextEntry entry = {};
+    m_Context->m_TextContext.m_TextEntries.Push(entry);
+    ASSERT_EQ(RESULT_OK, AddToRender(m_Context, &m_Context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_3D].m_RenderObject));
+    const uint32_t text_frame = m_Context->m_TextContext.m_Frame;
+
+    BeginRenderFrameRecording(m_Context, 13.0f, 0.5f);
+
+    ASSERT_EQ(13.0f, GetRenderFrameInfo(m_Context).m_Time);
+    ASSERT_EQ(0.5f, GetRenderFrameInfo(m_Context).m_Dt);
+    ASSERT_EQ(12.0f, m_Context->m_Time);
+    ASSERT_EQ(0.25f, m_Context->m_Dt);
+    ASSERT_EQ(1u, m_Context->m_LightBufferSubmitted[0]);
+    ASSERT_EQ(2u, m_Context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_3D].m_RenderObject.m_VertexCount);
+    ASSERT_EQ(1u, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_TextBuffer.Size());
+    ASSERT_EQ('x', m_Context->m_TextContext.m_TextBuffer[0]);
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
+    ASSERT_EQ(text_frame, m_Context->m_TextContext.m_Frame);
+
+    EndRenderFrameConsumption(m_Context, RENDER_FRAME_PREPARATION_CONSUMER);
+}
+
+// Consumer setup resets lights once; lists and draws preserve frame data until consumer cleanup.
+TEST_F(RenderCommandReplay, ConsumerBoundaryOwnsSetupAndCleanup)
+{
+    HLightInstance light = 0;
+    InitializeFrameBoundaryState(m_Context, &light);
+    ASSERT_NE((HLightInstance)0, light);
+    SubmitLightInstance(m_Context, light);
+    BeginRenderFrameRecording(m_Context, 12.0f, 0.25f);
+    ASSERT_EQ(RENDER_FRAME_OK, RecordRenderFrameInfo(m_Frame, GetRenderFrameInfo(m_Context)));
+    ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(m_Frame));
+    const uint32_t text_frame = m_Context->m_TextContext.m_Frame;
+
+    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_FRAME_PREPARATION_CONSUMER);
+    ASSERT_EQ(0u, m_Context->m_LightBufferSubmitted[0]);
+    SubmitFrameBoundaryState(m_Context, light);
+
+    for (uint32_t pass = 0; pass < 2; ++pass)
+    {
+        RenderListBegin(m_Context);
+        RenderListEnd(m_Context);
+        ASSERT_EQ(RESULT_OK, DrawDebug3d(m_Context, 0));
+        ASSERT_EQ(1u, m_Context->m_RenderObjects.Size());
+        ASSERT_EQ(1u, m_Context->m_LightBufferSubmitted[0]);
+        ASSERT_EQ(2u, m_Context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_3D].m_RenderObject.m_VertexCount);
+        ASSERT_EQ(1u, m_Context->m_TextContext.m_TextBuffer.Size());
+        ASSERT_EQ(text_frame, m_Context->m_TextContext.m_Frame);
+    }
+
+    TextEntry entry = {};
+    m_Context->m_TextContext.m_TextEntries.Push(entry);
+    EndRenderFrameConsumption(m_Context, RENDER_FRAME_PREPARATION_CONSUMER);
+
+    ASSERT_EQ(0u, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(0u, m_Context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_3D].m_RenderObject.m_VertexCount);
+    ASSERT_EQ(0u, m_Context->m_DebugRenderer.m_UploadedVertexCount);
+    ASSERT_EQ(0u, m_Context->m_TextContext.m_TextBuffer.Size());
+    ASSERT_EQ(0u, m_Context->m_TextContext.m_TextEntries.Size());
+    ASSERT_EQ(text_frame + 1, m_Context->m_TextContext.m_Frame);
+    ASSERT_EQ(1u, m_Context->m_LightBufferSubmitted[0]);
+
+    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_FRAME_PREPARATION_CONSUMER);
+    ASSERT_EQ(0u, m_Context->m_LightBufferSubmitted[0]);
+    EndRenderFrameConsumption(m_Context, RENDER_FRAME_PREPARATION_CONSUMER);
+}
+
+// Legacy consumption must retain producer submissions until the existing inline cleanup boundary.
+TEST_F(RenderCommandReplay, LegacyBoundaryPreservesProducerSetupAndCleanup)
+{
+    HLightInstance light = 0;
+    InitializeFrameBoundaryState(m_Context, &light);
+    ASSERT_NE((HLightInstance)0, light);
+    BeginFrame(m_Context, 12.0f, 0.25f);
+    RenderListBegin(m_Context);
+    SubmitFrameBoundaryState(m_Context, light);
+    TextEntry entry = {};
+    m_Context->m_TextContext.m_TextEntries.Push(entry);
+    ASSERT_EQ(RESULT_OK, AddToRender(m_Context, &m_Context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_3D].m_RenderObject));
+    ASSERT_EQ(RENDER_FRAME_OK, RecordRenderFrameInfo(m_Frame, GetRenderFrameInfo(m_Context)));
+    ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(m_Frame));
+    const uint32_t text_frame = m_Context->m_TextContext.m_Frame;
+
+    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_FRAME_PREPARATION_LEGACY);
+    EndRenderFrameConsumption(m_Context, RENDER_FRAME_PREPARATION_LEGACY);
+
+    ASSERT_EQ(12.0f, m_Context->m_Time);
+    ASSERT_EQ(0.25f, m_Context->m_Dt);
+    ASSERT_EQ(1u, m_Context->m_LightBufferSubmitted[0]);
+    ASSERT_EQ(2u, m_Context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_3D].m_RenderObject.m_VertexCount);
+    ASSERT_EQ(1u, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_TextBuffer.Size());
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
+    ASSERT_EQ(text_frame, m_Context->m_TextContext.m_Frame);
+
+    ASSERT_EQ(RESULT_OK, ClearRenderObjects(m_Context));
+    ASSERT_EQ(0u, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(0u, m_Context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_3D].m_RenderObject.m_VertexCount);
+    ASSERT_EQ(0u, m_Context->m_TextContext.m_TextBuffer.Size());
+    ASSERT_EQ(0u, m_Context->m_TextContext.m_TextEntries.Size());
+    ASSERT_EQ(text_frame + 1, m_Context->m_TextContext.m_Frame);
+}
+
 // Consumer preparation resets frame/view scratch without freeing capacity or persistent item caches.
 TEST_F(RenderCommandReplay, ConsumerPreparationPreservesPersistentItemsAndCache)
 {
@@ -390,7 +536,7 @@ TEST_F(RenderCommandReplay, ConsumerPreparationPreservesPersistentItemsAndCache)
     ASSERT_EQ(1u, m_Context->m_RenderListScratch.m_SortBuffer.Size());
     ASSERT_EQ((uint32_t)item, m_Context->m_RenderListScratch.m_SortBuffer[0]);
 
-    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_LIST_PREPARATION_CONSUMER);
+    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_FRAME_PREPARATION_CONSUMER);
     ASSERT_EQ(12.0f, m_Context->m_Time);
     ASSERT_EQ(0.25f, m_Context->m_Dt);
     ASSERT_EQ(0u, m_Context->m_SubmittedRenderItemDispatches.Size());
@@ -441,7 +587,7 @@ TEST_F(RenderCommandReplay, CommandOnlyConsumerFrameClearsPreviousSubmissions)
     const Command draw(COMMAND_TYPE_DRAW, 0, 0, 0, SORT_NONE);
     ASSERT_EQ(RENDER_FRAME_OK, AppendRenderCommands(m_Frame, &draw, 1));
     ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(m_Frame));
-    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_LIST_PREPARATION_CONSUMER);
+    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_FRAME_PREPARATION_CONSUMER);
     ASSERT_EQ(0u, m_Context->m_SubmittedRenderItemDispatches.Size());
     ASSERT_EQ(0u, m_Context->m_RenderListDispatch.Size());
     ASSERT_EQ(0u, m_Context->m_TransientRenderList.Size());
@@ -474,7 +620,7 @@ TEST_F(RenderCommandReplay, LegacyPreparationPreservesProducerSubmissions)
     const Command draw(COMMAND_TYPE_DRAW, 0, 0, 0, SORT_NONE);
     ASSERT_EQ(RENDER_FRAME_OK, AppendRenderCommands(m_Frame, &draw, 1));
     ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(m_Frame));
-    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_LIST_PREPARATION_LEGACY);
+    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_FRAME_PREPARATION_LEGACY);
     ASSERT_EQ(1u, m_Context->m_SubmittedRenderItemDispatches.Size());
     ASSERT_EQ(2u, m_Context->m_RenderListDispatch.Size());
     ASSERT_EQ(1u, m_Context->m_TransientRenderList.Size());

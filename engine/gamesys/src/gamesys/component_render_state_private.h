@@ -43,15 +43,15 @@ namespace dmGameSystem
      * Creates no thread. A render context allocates a queue even without opted-in
      * components, so default and command-only frames can be submitted.
      * Borrows execution, which must outlive the bridge; also usable by isolated tests.
-     * Legacy list preparation requires inline execution when a renderer is supplied.
+     * Legacy frame preparation requires inline execution when a renderer is supplied.
      * @param regist Game-object register, which must outlive the bridge
      * @param execution Borrowed execution context
      * @param limits Per-slot storage limits
      * @param render_context Borrowed renderer, or null for component-only lifecycle tests
-     * @param preparation Consumer-owned list setup, or legacy preparation for unmigrated inline callers
+     * @param preparation Consumer-owned frame setup, or legacy preparation for unmigrated inline callers
      * @return New bridge, or null on invalid preparation, allocation failure or unavailable world-owner hooks
      */
-    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context, dmRender::RenderListPreparation preparation);
+    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context, dmRender::RenderFramePreparation preparation);
 
     /**
      * Register a game type and optional render bridge in one operation on the game owner.
@@ -109,6 +109,14 @@ namespace dmGameSystem
      * @return Building frame, or null if no frame is admitted
      */
     dmRender::HRenderFrameStorage GetComponentRenderFrame(HComponentRenderContext context);
+
+    /**
+     * Get the fixed setup/cleanup policy for this bridge. Gamesys uses it to keep
+     * legacy renderer writes on the inline path and out of snapshot recording.
+     * @param context Component rendering bridge
+     * @return Frame preparation selected at context creation
+     */
+    dmRender::RenderFramePreparation GetComponentRenderFramePreparation(HComponentRenderContext context);
 
     /**
      * Submit the frame after its component data and render commands are recorded.

@@ -79,25 +79,39 @@ namespace dmRender
         return CopyRenderFrameTable(frame, RENDER_FRAME_INFO_TABLE_TYPE, 1, sizeof(info), alignof(RenderFrameInfo), &info, &table);
     }
 
-    void BeginRenderFrameConsumption(HRenderContext context, const RenderFrameView& frame, RenderListPreparation preparation)
+    void BeginRenderFrameConsumption(HRenderContext context, const RenderFrameView& frame, RenderFramePreparation preparation)
     {
-        if (preparation == RENDER_LIST_PREPARATION_CONSUMER)
-        {
-            // Reset even command-only frames: the previous frame's dispatches may
-            // have cleared their borrowed inputs during component EndFrame.
-            RenderListBegin(context);
-        }
         for (uint32_t i = 0; i < frame.m_Statistics.m_TableCount; ++i)
         {
             if (frame.m_Tables[i].m_Type == RENDER_FRAME_INFO_TABLE_TYPE)
             {
                 const RenderFrameInfo* info = (const RenderFrameInfo*)GetRenderFrameTableData(frame, i);
-                // Light/debug/text preparation still runs before game-side component
-                // traversal. Moving that reset here would erase inline submissions.
-                context->m_Time = info->m_Time;
-                context->m_Dt = info->m_Dt;
+                if (preparation == RENDER_FRAME_PREPARATION_CONSUMER)
+                {
+                    BeginRenderFrameExecution(context, info->m_Time, info->m_Dt);
+                    // Reset even command-only frames: the previous frame's dispatches
+                    // may have cleared their borrowed inputs during component EndFrame.
+                    RenderListBegin(context);
+                }
+                else
+                {
+                    // Legacy components have already submitted lights and items inline.
+                    // Restore captured timing without erasing those submissions.
+                    context->m_Time = info->m_Time;
+                    context->m_Dt = info->m_Dt;
+                }
                 return;
             }
+        }
+    }
+
+    void EndRenderFrameConsumption(HRenderContext context, RenderFramePreparation preparation)
+    {
+        if (preparation == RENDER_FRAME_PREPARATION_CONSUMER)
+        {
+            // Text/debug data may be used by several passes. Release it only after
+            // the complete frame and component EndFrame callbacks have finished.
+            ClearRenderObjects(context);
         }
     }
 

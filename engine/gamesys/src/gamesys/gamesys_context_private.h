@@ -36,9 +36,9 @@ namespace dmGameSystem
     };
 
     // Internal setup for snapshot consumers and isolated executors. The ordinary
-    // engine keeps legacy list preparation until its components have migrated.
+    // engine keeps legacy frame preparation until its components have migrated.
     // Borrowed execution and render contexts must outlive Finalize.
-    HContext NewContext(const ContextParams& params, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::RenderListPreparation preparation);
+    HContext NewContext(const ContextParams& params, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::RenderFramePreparation preparation);
 }
 
 #endif // DM_GAMESYS_CONTEXT_PRIVATE_H

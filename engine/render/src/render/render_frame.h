@@ -24,15 +24,16 @@ namespace dmRender
     static const uint32_t RENDER_FRAME_INFO_TABLE_TYPE = UINT32_MAX - 4;
 
     /**
-     * Select where a complete frame's render list is prepared. Snapshot consumers
-     * start a fresh list before updating and submitting persistent render items.
-     * The legacy option preserves lists already prepared by unmigrated inline
-     * components. It is a temporary compatibility boundary, not a threading mode.
+     * Select where a complete frame is prepared and cleaned up. Snapshot consumers
+     * reset execution state before component consumption and release per-frame data
+     * after all passes. The legacy option preserves inline preparation and cleanup
+     * around unmigrated components and extensions. This is a temporary compatibility
+     * boundary, not a threading mode.
      */
-    enum RenderListPreparation
+    enum RenderFramePreparation
     {
-        RENDER_LIST_PREPARATION_CONSUMER,
-        RENDER_LIST_PREPARATION_LEGACY,
+        RENDER_FRAME_PREPARATION_CONSUMER,
+        RENDER_FRAME_PREPARATION_LEGACY,
     };
 
     /**
@@ -101,17 +102,26 @@ namespace dmRender
     /**
      * Start execution from the published frame metadata. Called before component
      * consumption and pass replay; the consumer never reads producer timing.
-     * Consumer preparation clears frame submissions, not persistent item handles
-     * or their caches. Components then populate those items from captured inputs.
-     * Legacy preparation preserves already submitted inline items. Neither option
-     * resets producer-owned light, debug or text preparation during migration.
+     * Consumer preparation resets submitted lights and the render list, not persistent
+     * item handles or their caches. Components populate these from captured inputs.
+     * Legacy preparation preserves lights and items already submitted inline.
      * Does not begin graphics: inline callers begin before Lua recording, while
      * threaded callers begin on the render owner before consumption.
      * @param context Render-owner execution context
      * @param frame Published frame with exactly one metadata table
-     * @param preparation Consumer-owned list setup or legacy inline compatibility
+     * @param preparation Consumer-owned frame setup or legacy inline compatibility
      */
-    void BeginRenderFrameConsumption(HRenderContext context, const RenderFrameView& frame, RenderListPreparation preparation);
+    void BeginRenderFrameConsumption(HRenderContext context, const RenderFrameView& frame, RenderFramePreparation preparation);
+
+    /**
+     * Finish a consumed frame after every pass and component EndFrame callback.
+     * Consumer preparation clears render objects, debug and text data once here.
+     * Legacy preparation leaves cleanup to the inline caller after PostUpdate.
+     * Canceled unpublished frames never enter consumption and need no cleanup here.
+     * @param context Render-owner execution context
+     * @param preparation Same preparation used when beginning consumption
+     */
+    void EndRenderFrameConsumption(HRenderContext context, RenderFramePreparation preparation);
 
     /**
      * Record the no-render-script viewport, clear and draw using the same command
