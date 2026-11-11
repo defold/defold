@@ -4620,9 +4620,9 @@ TEST_F(ModelTest, PbrUniformBufferLayouts)
     // In-memory resource replacement has no filename in its reload notification.
     dmArray<uint8_t> model_bytes;
     ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(model->m_Model,
-                                                      dmModelDDF::Model::m_DDFDescriptor, model_bytes));
+                                                          dmModelDDF::Model::m_DDFDescriptor, model_bytes));
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64("/model/pbr_properties.modelc"),
-                                                          model_bytes.Begin(), model_bytes.Size()));
+                                                             model_bytes.Begin(), model_bytes.Size()));
     ASSERT_EQ(0u, model->m_MaterialBuffers.Size());
     ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[3]->m_Material, 0, &after_reload));
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, paths[3], 0));
@@ -4670,5 +4670,79 @@ TEST_F(ModelTest, PbrUniformBufferDraws)
     dmGameSystem::HComponentRenderConstants constants;
     GetModelComponentRenderConstants(component, 0, &constants);
     ASSERT_EQ((dmGameSystem::HComponentRenderConstants)0, constants);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Custom layouts and older compiled metadata must keep named constants on UBO contexts, including script overrides.
+TEST_F(ModelTest, PbrCustomLayoutsUseNamedConstants)
+{
+    ASSERT_TRUE(dmGraphics::IsContextFeatureSupported(m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/model/pbr_properties.goc", dmHashString64("/pbr"), 0, Point3(0), Quat::identity(), Vector3(1));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    const char* paths[] = { "/model/pbr_legacy.materialc", "/model/pbr_custom.materialc", "/model/pbr_metallic.materialc", "/model/pbr_metallic.materialc" };
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    const Vector4 tint(0.2f, 0.3f, 0.4f, 1.0f);
+    for (uint32_t pass = 0; pass < DM_ARRAY_SIZE(paths); ++pass)
+    {
+        dmGameSystem::MaterialResource* material;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, paths[pass], (void**)&material));
+        dmRenderDDF::MaterialDesc::PbrParameters parameters;
+        dmRender::GetMaterialPBRParameters(material->m_Material, &parameters);
+        ASSERT_TRUE(parameters.m_HasParameters);
+        ASSERT_TRUE(parameters.m_HasMetallicRoughness);
+        ASSERT_EQ(pass >= 2, parameters.m_HasFixedLayout != 0);
+        if (pass == 3)
+        {
+            // Resources compiled before this flag was added must also use the compatibility path.
+            parameters.m_HasFixedLayout = false;
+            dmRender::SetMaterialPBRParameters(material->m_Material, &parameters);
+        }
+        dmGameObject::PropertyOptions options;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instance, dmHashString64("model"), dmHashString64("material"), options, dmGameObject::PropertyVar(dmHashString64(paths[pass]))));
+        if (pass == 1)
+        {
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instance, dmHashString64("model"), dmHashString64("customTint"), options, dmGameObject::PropertyVar(tint)));
+        }
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmRender::ClearRenderObjects(m_RenderContext);
+        dmRender::RenderListBegin(m_RenderContext);
+        ASSERT_TRUE(dmGameObject::Render(m_Collection));
+        dmRender::RenderListEnd(m_RenderContext);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_NONE));
+        uint32_t matched = 0;
+        for (uint32_t i = 0; i < context->m_RenderObjects.Size(); ++i)
+        {
+            dmRender::RenderObject* object = context->m_RenderObjects[i];
+            if (object->m_Material != material->m_Material)
+            {
+                continue;
+            }
+            ++matched;
+            ASSERT_EQ(pass == 2 ? 1u : 0u, object->m_UniformBufferCount);
+            if (pass != 2)
+            {
+                ASSERT_NE((dmRender::HNamedConstantBuffer)0, object->m_ConstantBuffer);
+                Vector4* values;
+                uint32_t count;
+                ASSERT_TRUE(dmRender::GetNamedConstant(object->m_ConstantBuffer, dmGameSystem::PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR, &values, &count));
+                ASSERT_EQ(1u, count);
+                ASSERT_VEC4(Vector4(0.10f, 0.0f, 0.0f, 0.19f), values[0]);
+                if (pass == 1)
+                {
+                    ASSERT_TRUE(dmRender::GetNamedConstant(object->m_ConstantBuffer, dmHashString64("customTint"), &values, &count));
+                    ASSERT_EQ(1u, count);
+                    ASSERT_VEC4(tint, values[0]);
+                }
+            }
+        }
+        ASSERT_GT(matched, 0u);
+        if (pass == 3)
+        {
+            parameters.m_HasFixedLayout = true;
+            dmRender::SetMaterialPBRParameters(material->m_Material, &parameters);
+        }
+        dmResource::Release(m_Factory, material);
+    }
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }

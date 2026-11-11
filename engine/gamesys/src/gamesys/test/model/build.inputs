@@ -10,6 +10,8 @@
 /model/morph_selected.model
 /model/one_mesh_two_materials.go
 /model/pbr_common.material
+/model/pbr_custom.material
+/model/pbr_legacy.material
 /model/pbr_metallic.material
 /model/pbr_metallic_transmission.material
 /model/pbr_transmission.material

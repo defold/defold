@@ -199,85 +199,83 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         }
     }
 
-    private static CompileExceptionError invalidPbrLayout(String message) {
-        return new CompileExceptionError("Invalid PbrMaterial uniform layout: " + message);
+    private static boolean isPbrVec4(ShaderDesc.ResourceMember member, String name, int offset) {
+        return member.getName().equals(name) && !member.getType().getUseTypeIndex() &&
+                member.getType().getShaderType() == ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4 &&
+                member.getElementCount() <= 1 && member.getOffset() == offset;
     }
 
-    private static void validatePbrVec4(ShaderDesc.ResourceMember member, String name, int offset, String owner) throws CompileExceptionError {
-        if (!member.getName().equals(name) || member.getType().getUseTypeIndex() ||
-                member.getType().getShaderType() != ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4 ||
-                member.getElementCount() > 1 || member.getOffset() != offset) {
-            throw invalidPbrLayout(owner + " must contain vec4 " + name + " at byte offset " + offset + ".");
-        }
-    }
-
-    private static ShaderDesc.ResourceTypeInfo getPbrStruct(ShaderDesc.ShaderReflection reflection, ShaderDesc.ResourceType type, String name) throws CompileExceptionError {
+    private static ShaderDesc.ResourceTypeInfo getPbrStruct(ShaderDesc.ShaderReflection reflection, ShaderDesc.ResourceType type) {
         if (!type.getUseTypeIndex() || type.getTypeIndex() < 0 || type.getTypeIndex() >= reflection.getTypesCount()) {
-            throw invalidPbrLayout(name + " must be a PBR struct.");
+            return null;
         }
         return reflection.getTypes(type.getTypeIndex());
     }
 
-    private static void validatePbrMaterial(ShaderDesc.ShaderReflection reflection, ShaderDesc.ResourceBinding resource,
-            ShaderDesc.ResourceTypeInfo material, MaterialDesc.PbrParameters.Builder parameters) throws CompileExceptionError {
+    // Whole-struct uploads are only safe for this layout. Other custom layouts retain named constants.
+    private static boolean hasFixedPbrLayout(ShaderDesc.ShaderReflection reflection, ShaderDesc.ResourceBinding resource,
+            ShaderDesc.ResourceTypeInfo material) {
         int commonSize = PBR_COMMON_MEMBERS.length * 16;
         if (material.getMembersCount() < PBR_COMMON_MEMBERS.length || resource.getBlockSize() < commonSize || resource.getElementCount() > 1) {
-            throw invalidPbrLayout("PbrMaterial must begin with the four common vec4 fields and cannot be an array.");
+            return false;
         }
         for (int i = 0; i < PBR_COMMON_MEMBERS.length; ++i) {
-            validatePbrVec4(material.getMembers(i), PBR_COMMON_MEMBERS[i], i * 16, PBR_MATERIAL_NAME);
+            if (!isPbrVec4(material.getMembers(i), PBR_COMMON_MEMBERS[i], i * 16)) {
+                return false;
+            }
         }
 
         HashSet<PbrParameterType> seen = new HashSet<>();
         ArrayList<int[]> ranges = new ArrayList<>();
         for (int i = PBR_COMMON_MEMBERS.length; i < material.getMembersCount(); ++i) {
             ShaderDesc.ResourceMember member = material.getMembers(i);
-            ShaderDesc.ResourceTypeInfo struct = getPbrStruct(reflection, member.getType(), member.getName());
-            PbrParameterType parameter = pbrStructNameToParameterType.get(struct.getName());
-            if (parameter == null) {
-                throw invalidPbrLayout("Unsupported channel " + member.getName() + " of type " + struct.getName() + ".");
-            }
-            if (!seen.add(parameter)) {
-                throw invalidPbrLayout("Duplicate channel " + struct.getName() + ".");
-            }
-            if (!member.getName().equals(parameter.memberName) || member.getElementCount() > 1) {
-                throw invalidPbrLayout("Use a single " + parameter.structName + " " + parameter.memberName + " channel.");
+            ShaderDesc.ResourceTypeInfo struct = getPbrStruct(reflection, member.getType());
+            PbrParameterType parameter = struct == null ? null : pbrStructNameToParameterType.get(struct.getName());
+            if (parameter == null || !seen.add(parameter) || !member.getName().equals(parameter.memberName) || member.getElementCount() > 1) {
+                return false;
             }
             if (struct.getMembersCount() != parameter.members.length) {
-                throw invalidPbrLayout(parameter.structName + " must contain exactly " + parameter.members.length + " vec4 fields.");
+                return false;
             }
             for (int j = 0; j < parameter.members.length; ++j) {
-                validatePbrVec4(struct.getMembers(j), parameter.members[j], j * 16, parameter.structName);
+                if (!isPbrVec4(struct.getMembers(j), parameter.members[j], j * 16)) {
+                    return false;
+                }
             }
 
             int offset = member.getOffset();
             int size = parameter.members.length * 16;
             if (offset < commonSize || offset % 16 != 0 || offset > resource.getBlockSize() - size) {
-                throw invalidPbrLayout(parameter.memberName + " must be aligned to 16 bytes and fit inside the uniform block.");
+                return false;
             }
             for (int[] range : ranges) {
                 if (offset < range[1] && offset + size > range[0]) {
-                    throw invalidPbrLayout(parameter.memberName + " overlaps another channel.");
+                    return false;
                 }
             }
             ranges.add(new int[] { offset, offset + size });
-            addPbrParameter(parameters, parameter);
         }
+        return true;
     }
 
-    public static MaterialDesc.PbrParameters makePbrParametersProtoMessage(Graphics.ShaderDesc.ShaderReflection shaderReflection) throws CompileExceptionError {
+    public static MaterialDesc.PbrParameters makePbrParametersProtoMessage(Graphics.ShaderDesc.ShaderReflection shaderReflection) {
         if (shaderReflection == null) {
             return null;
         }
         MaterialDesc.PbrParameters.Builder parameters = MaterialDesc.PbrParameters.newBuilder();
         for (ShaderDesc.ResourceBinding resource : shaderReflection.getUniformBuffersList()) {
-            if (!resource.getType().getUseTypeIndex()) {
-                continue;
-            }
-            ShaderDesc.ResourceTypeInfo material = getPbrStruct(shaderReflection, resource.getType(), resource.getName());
-            if (material.getName().equals(PBR_MATERIAL_NAME)) {
-                validatePbrMaterial(shaderReflection, resource, material, parameters);
+            ShaderDesc.ResourceTypeInfo material = getPbrStruct(shaderReflection, resource.getType());
+            if (material != null && material.getName().equals(PBR_MATERIAL_NAME)) {
+                boolean fixedLayout = hasFixedPbrLayout(shaderReflection, resource, material);
+                parameters.setHasFixedLayout(fixedLayout && (!parameters.getHasParameters() || parameters.getHasFixedLayout()));
                 parameters.setHasParameters(true);
+                for (ShaderDesc.ResourceMember member : material.getMembersList()) {
+                    ShaderDesc.ResourceTypeInfo struct = getPbrStruct(shaderReflection, member.getType());
+                    PbrParameterType parameter = struct == null ? null : pbrStructNameToParameterType.get(struct.getName());
+                    if (parameter != null) {
+                        addPbrParameter(parameters, parameter);
+                    }
+                }
             }
         }
         return parameters.getHasParameters() ? parameters.build() : null;

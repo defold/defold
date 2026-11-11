@@ -58,8 +58,8 @@ namespace dmGameSystem
     struct ModelMaterialBuffer
     {
         dmRender::UniformBufferBinding m_Binding;
-        dmGraphics::HProgram           m_Program;
         uint64_t                       m_ProgramVersion;
+        dmGraphics::HProgram           m_Program;
         uint32_t                       m_MaterialIndex;
     };
 
@@ -150,40 +150,40 @@ namespace dmGameSystem
         PbrCommon             m_Common;
         PbrMetallicRoughness  m_MetallicRoughness;
         PbrSpecularGlossiness m_SpecularGlossiness;
+        PbrVolume             m_Volume;
         PbrClearCoat          m_ClearCoat;
         PbrTransmission       m_Transmission;
-        PbrIor                m_Ior;
         PbrSpecular           m_Specular;
-        PbrVolume             m_Volume;
         PbrSheen              m_Sheen;
-        PbrEmissiveStrength   m_EmissiveStrength;
         PbrIridescence        m_Iridescence;
+        PbrIor                m_Ior;
+        PbrEmissiveStrength   m_EmissiveStrength;
     };
 
     struct PbrChannelInfo
     {
+        dmhash_t m_Constants[4];
         dmhash_t m_NameHash;
         uint32_t m_DataOffset;
         uint32_t m_Size;
         int32_t  m_TextureVector;
-        dmhash_t m_Constants[4];
     };
 
     // Globals
     static dmRigDDF::Material   g_DefaultMaterial;
     static bool                 g_DefaultMaterialInitialized = false;
     static const PbrChannelInfo g_PbrChannels[] = {
-        { dmHashString64("pbrCommon"), offsetof(PbrMaterialData, m_Common), sizeof(PbrCommon), 1, { PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT, PBR_COMMON_TEXTURES, PBR_EMISSIVE_FACTOR_AND_STRENGTH, PBR_NORMAL_SCALE_AND_OCCLUSION_STRENGTH } },
-        { dmHashString64("pbrMetallicRoughness"), offsetof(PbrMaterialData, m_MetallicRoughness), sizeof(PbrMetallicRoughness), 2, { PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR, PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR, PBR_METALLIC_ROUGHNESS_TEXTURES } },
-        { dmHashString64("pbrSpecularGlossiness"), offsetof(PbrMaterialData, m_SpecularGlossiness), sizeof(PbrSpecularGlossiness), 2, { PBR_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR, PBR_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR, PBR_SPECULAR_GLOSSINESS_TEXTURES } },
-        { dmHashString64("pbrClearCoat"), offsetof(PbrMaterialData, m_ClearCoat), sizeof(PbrClearCoat), 1, { PBR_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR, PBR_CLEAR_COAT_TEXTURES } },
-        { dmHashString64("pbrTransmission"), offsetof(PbrMaterialData, m_Transmission), sizeof(PbrTransmission), 1, { PBR_TRANSMISSION_TRANSMISSION_FACTOR, PBR_TRANSMISSION_TEXTURES } },
-        { dmHashString64("pbrIor"), offsetof(PbrMaterialData, m_Ior), sizeof(PbrIor), -1, { PBR_IOR_IOR_FACTOR } },
-        { dmHashString64("pbrSpecular"), offsetof(PbrMaterialData, m_Specular), sizeof(PbrSpecular), 1, { PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR, PBR_SPECULAR_TEXTURES } },
-        { dmHashString64("pbrVolume"), offsetof(PbrMaterialData, m_Volume), sizeof(PbrVolume), 2, { PBR_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR, PBR_VOLUME_ATTENUATION_DISTANCE, PBR_VOLUME_TEXTURES } },
-        { dmHashString64("pbrSheen"), offsetof(PbrMaterialData, m_Sheen), sizeof(PbrSheen), 1, { PBR_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR, PBR_SHEEN_TEXTURES } },
-        { dmHashString64("pbrEmissiveStrength"), offsetof(PbrMaterialData, m_EmissiveStrength), sizeof(PbrEmissiveStrength), -1, { PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH } },
-        { dmHashString64("pbrIridescence"), offsetof(PbrMaterialData, m_Iridescence), sizeof(PbrIridescence), 1, { PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX, PBR_IRIDESCENCE_TEXTURES } },
+        { { PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT, PBR_COMMON_TEXTURES, PBR_EMISSIVE_FACTOR_AND_STRENGTH, PBR_NORMAL_SCALE_AND_OCCLUSION_STRENGTH }, dmHashString64("pbrCommon"), offsetof(PbrMaterialData, m_Common), sizeof(PbrCommon), 1 },
+        { { PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR, PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR, PBR_METALLIC_ROUGHNESS_TEXTURES }, dmHashString64("pbrMetallicRoughness"), offsetof(PbrMaterialData, m_MetallicRoughness), sizeof(PbrMetallicRoughness), 2 },
+        { { PBR_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR, PBR_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR, PBR_SPECULAR_GLOSSINESS_TEXTURES }, dmHashString64("pbrSpecularGlossiness"), offsetof(PbrMaterialData, m_SpecularGlossiness), sizeof(PbrSpecularGlossiness), 2 },
+        { { PBR_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR, PBR_CLEAR_COAT_TEXTURES }, dmHashString64("pbrClearCoat"), offsetof(PbrMaterialData, m_ClearCoat), sizeof(PbrClearCoat), 1 },
+        { { PBR_TRANSMISSION_TRANSMISSION_FACTOR, PBR_TRANSMISSION_TEXTURES }, dmHashString64("pbrTransmission"), offsetof(PbrMaterialData, m_Transmission), sizeof(PbrTransmission), 1 },
+        { { PBR_IOR_IOR_FACTOR }, dmHashString64("pbrIor"), offsetof(PbrMaterialData, m_Ior), sizeof(PbrIor), -1 },
+        { { PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR, PBR_SPECULAR_TEXTURES }, dmHashString64("pbrSpecular"), offsetof(PbrMaterialData, m_Specular), sizeof(PbrSpecular), 1 },
+        { { PBR_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR, PBR_VOLUME_ATTENUATION_DISTANCE, PBR_VOLUME_TEXTURES }, dmHashString64("pbrVolume"), offsetof(PbrMaterialData, m_Volume), sizeof(PbrVolume), 2 },
+        { { PBR_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR, PBR_SHEEN_TEXTURES }, dmHashString64("pbrSheen"), offsetof(PbrMaterialData, m_Sheen), sizeof(PbrSheen), 1 },
+        { { PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH }, dmHashString64("pbrEmissiveStrength"), offsetof(PbrMaterialData, m_EmissiveStrength), sizeof(PbrEmissiveStrength), -1 },
+        { { PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX, PBR_IRIDESCENCE_TEXTURES }, dmHashString64("pbrIridescence"), offsetof(PbrMaterialData, m_Iridescence), sizeof(PbrIridescence), 1 },
     };
 
     static inline void InitDefaultPBRTextureView(dmRigDDF::TextureView& texture_view)
@@ -487,6 +487,11 @@ namespace dmGameSystem
         if (!parameters.m_HasParameters)
         {
             return true;
+        }
+
+        if (!parameters.m_HasFixedLayout)
+        {
+            return false;
         }
 
         dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);

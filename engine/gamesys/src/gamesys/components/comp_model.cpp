@@ -1723,7 +1723,9 @@ namespace dmGameSystem
     static bool ApplyPBRMaterial(dmGraphics::HContext graphics_context, ModelComponent* component, MeshRenderItem* render_item,
                                  dmRender::HMaterial material, HComponentRenderConstants* constants, dmRender::RenderObject* ro)
     {
-        if (dmGraphics::IsContextFeatureSupported(graphics_context, dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER))
+        dmRenderDDF::MaterialDesc::PbrParameters parameters;
+        dmRender::GetMaterialPBRParameters(material, &parameters);
+        if (parameters.m_HasFixedLayout && dmGraphics::IsContextFeatureSupported(graphics_context, dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER))
         {
             return SetModelMaterialBuffer(graphics_context, component->m_Resource, material, render_item->m_MaterialIndex, ro);
         }

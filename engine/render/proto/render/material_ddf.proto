@@ -97,6 +97,8 @@ message MaterialDesc
         optional bool has_sheen               = 9;
         optional bool has_emissive_strength   = 10;
         optional bool has_iridescence         = 11;
+        // Only validated layouts can use immutable whole-struct uploads. Older resources use named constants.
+        optional bool has_fixed_layout        = 12 [default = false];
     }
 
     message Sampler

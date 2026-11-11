@@ -29,6 +29,7 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class MaterialBuilderTest extends AbstractProtoBuilderTest {
@@ -480,6 +481,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
         MaterialDesc.PbrParameters pbrParameters = material.getPbrParameters();
         assertTrue(pbrParameters.getHasParameters());
+        assertTrue(pbrParameters.getHasFixedLayout());
         assertTrue(pbrParameters.getHasMetallicRoughness());
         assertTrue(pbrParameters.getHasSpecularGlossiness());
         assertTrue(pbrParameters.getHasClearcoat());
@@ -514,6 +516,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
                 buildPbrReflection("pbr_common_only", "", PBR_COMMON_FIELDS, ""));
         assertNotNull(parameters);
         assertTrue(parameters.getHasParameters());
+        assertTrue(parameters.getHasFixedLayout());
         assertFalse(parameters.getHasMetallicRoughness());
         assertFalse(parameters.getHasClearcoat());
         assertNull(MaterialBuilder.makePbrParametersProtoMessage(null));
@@ -548,6 +551,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
             MaterialDesc.PbrParameters parameters = MaterialBuilder.makePbrParametersProtoMessage(reflection);
             assertNotNull(parameters);
             assertTrue(parameters.getHasParameters());
+            assertTrue(parameters.getHasFixedLayout());
             assertEquals((mask & 1) != 0, parameters.getHasMetallicRoughness());
             assertEquals((mask & 2) != 0, parameters.getHasClearcoat());
             assertFalse(parameters.getHasSpecularGlossiness());
@@ -563,35 +567,33 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
-    // Reject partial, reordered, mistyped, array and extended channel structs before native whole-struct copies can misinterpret them.
+    // Custom channel layouts must retain named constants instead of unsafe native whole-struct copies.
     @Test
-    public void testPbrRejectsMalformedChannelStructs() throws Exception {
-        String[] malformedMembers = {
+    public void testPbrCustomChannelLayoutsUseNamedConstants() throws Exception {
+        String[] customMembers = {
             "vec4 baseColorFactor; vec4 metallicAndRoughnessFactor;",
             "vec4 metallicAndRoughnessFactor; vec4 baseColorFactor; vec4 metallicRoughnessTextures;",
-            "vec3 baseColorFactor; vec4 metallicAndRoughnessFactor; vec4 metallicRoughnessTextures;",
+            "vec4 baseColorFactor; vec4 metallicAndRoughnessFactor; vec3 metallicRoughnessTextures;",
             "vec4 baseColorFactor[2]; vec4 metallicAndRoughnessFactor; vec4 metallicRoughnessTextures;",
             "vec4 baseColorFactor; vec4 metallicAndRoughnessFactor; vec4 metallicRoughnessTextures; vec4 extra;",
         };
-        for (int i = 0; i < malformedMembers.length; ++i) {
-            Graphics.ShaderDesc.ShaderReflection reflection = buildPbrReflection("pbr_malformed_" + i,
-                    "struct PbrMetallicRoughness { " + malformedMembers[i] + " };", PBR_COMMON_FIELDS,
+        for (int i = 0; i < customMembers.length; ++i) {
+            Graphics.ShaderDesc.ShaderReflection reflection = buildPbrReflection("pbr_custom_" + i,
+                    "struct PbrMetallicRoughness { " + customMembers[i] + " };", PBR_COMMON_FIELDS,
                     "PbrMetallicRoughness pbrMetallicRoughness;");
-            try {
-                MaterialBuilder.makePbrParametersProtoMessage(reflection);
-                fail("Expected malformed PbrMetallicRoughness to be rejected: " + i);
-            } catch (CompileExceptionError error) {
-                assertTrue(error.getMessage(), error.getMessage().contains("Invalid PbrMaterial uniform layout"));
-                assertTrue(error.getMessage(), error.getMessage().contains("PbrMetallicRoughness"));
-            }
+            MaterialDesc.PbrParameters parameters = MaterialBuilder.makePbrParametersProtoMessage(reflection);
+            assertNotNull(parameters);
+            assertTrue(parameters.getHasParameters());
+            assertTrue(parameters.getHasMetallicRoughness());
+            assertFalse(parameters.getHasFixedLayout());
         }
     }
 
-    // Root fields and channel identities are fixed; unrelated, duplicate, renamed and array channels cannot claim the PBR ABI.
+    // Older common fields and custom members must remain buildable without opting into fixed-layout uploads.
     @Test
-    public void testPbrRejectsMalformedMaterialBlocks() throws Exception {
+    public void testPbrCustomMaterialBlocksUseNamedConstants() throws Exception {
         String definitions = "struct PbrIor { vec4 ior; }; struct Other { vec4 value; };";
-        String[][] malformedBlocks = {
+        String[][] customBlocks = {
             {"vec4 pbrAlphaCutoffAndDoubleSidedAndIsUnlit; vec4 pbrCommonTextures;", "PbrIor pbrIor;"},
             {PBR_COMMON_FIELDS.replace("vec4 pbrCommonTextures", "vec3 pbrCommonTextures"), ""},
             {PBR_COMMON_FIELDS, "Other extra;"},
@@ -600,15 +602,14 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
             {PBR_COMMON_FIELDS, "PbrIor renamed;"},
             {PBR_COMMON_FIELDS, "PbrIor pbrIor[2];"},
         };
-        for (int i = 0; i < malformedBlocks.length; ++i) {
-            Graphics.ShaderDesc.ShaderReflection reflection = buildPbrReflection("pbr_malformed_block_" + i,
-                    definitions, malformedBlocks[i][0], malformedBlocks[i][1]);
-            try {
-                MaterialBuilder.makePbrParametersProtoMessage(reflection);
-                fail("Expected malformed PbrMaterial to be rejected: " + i);
-            } catch (CompileExceptionError error) {
-                assertTrue(error.getMessage(), error.getMessage().contains("Invalid PbrMaterial uniform layout"));
-            }
+        for (int i = 0; i < customBlocks.length; ++i) {
+            Graphics.ShaderDesc.ShaderReflection reflection = buildPbrReflection("pbr_custom_block_" + i,
+                    definitions, customBlocks[i][0], customBlocks[i][1]);
+            MaterialDesc.PbrParameters parameters = MaterialBuilder.makePbrParametersProtoMessage(reflection);
+            assertNotNull(parameters);
+            assertTrue(parameters.getHasParameters());
+            assertFalse(parameters.getHasFixedLayout());
+            assertEquals(i == 0 || i >= 4, parameters.getHasIor());
         }
     }
 }

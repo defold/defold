@@ -334,9 +334,9 @@ namespace dmGraphics
     // the program is deleted or ReloadProgram is called, including a failed reload.
     struct UniformBufferBindingInfo
     {
+        dmhash_t                      m_NameHash;
         const char*                   m_Name;
         const char*                   m_InstanceName;
-        dmhash_t                      m_NameHash;
         const ShaderResourceTypeInfo* m_Types;
         uint32_t                      m_NumTypes;
         uint32_t                      m_RootTypeIndex;

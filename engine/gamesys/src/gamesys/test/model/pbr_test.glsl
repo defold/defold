@@ -124,8 +124,13 @@ uniform PbrMaterial
     // Common properties
     vec4 pbrAlphaCutoffAndDoubleSidedAndIsUnlit; // R: alphaCutoff (Default=0.5), G: doubleSided (Default=false), B: unlit (Default=false)
     vec4 pbrCommonTextures;                      // R: use normalTexture, G: use occlusionTexture, B: use emissiveTexture
+#ifndef PBR_LEGACY_COMMON
     vec4 pbrEmissiveFactorAndStrength;
     vec4 pbrNormalScaleAndOcclusionStrength;
+#endif
+#ifdef PBR_CUSTOM_TINT
+    vec4 customTint;
+#endif
 #ifdef PBR_METALLIC_ROUGHNESS
     PbrMetallicRoughness  pbrMetallicRoughness;
 #endif
@@ -162,8 +167,13 @@ out vec4 FragColor;
 
 void main()
 {
-    FragColor = pbrAlphaCutoffAndDoubleSidedAndIsUnlit + pbrCommonTextures +
-                pbrEmissiveFactorAndStrength + pbrNormalScaleAndOcclusionStrength;
+    FragColor = pbrAlphaCutoffAndDoubleSidedAndIsUnlit + pbrCommonTextures;
+#ifndef PBR_LEGACY_COMMON
+    FragColor += pbrEmissiveFactorAndStrength + pbrNormalScaleAndOcclusionStrength;
+#endif
+#ifdef PBR_CUSTOM_TINT
+    FragColor *= customTint;
+#endif
 #ifdef PBR_METALLIC_ROUGHNESS
     FragColor += pbrMetallicRoughness.baseColorFactor + pbrMetallicRoughness.metallicAndRoughnessFactor + pbrMetallicRoughness.metallicRoughnessTextures;
 #endif
