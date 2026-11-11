@@ -29,6 +29,7 @@
 (def empty-sorted-map (sorted-map))
 (def empty-set #{})
 (def empty-sorted-set (sorted-set))
+(def empty-vector [])
 
 (defmacro into->
   "Transfer the sequence supplied as the first argument into the destination
