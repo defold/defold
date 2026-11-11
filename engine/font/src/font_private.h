@@ -17,6 +17,18 @@
 
 #include "font.h"
 
+// Arc-aware backend entry points borrow the settings and return a caller-owned layout.
+TextResult TextLayoutLegacyCreate(HFontCollection collection, uint32_t* codepoints, uint32_t num_codepoints, TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius);
+TextResult TextLayoutLegacyCreateMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius);
+TextResult TextLayoutSkribidiCreate(HFontCollection collection, uint32_t* codepoints, uint32_t num_codepoints, TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius);
+TextResult TextLayoutSkribidiCreateMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius);
+
+// Shared line metrics keep arc wrapping consistent with final baseline placement.
+// Returns raw glyph metrics without substituting the default font for zero-height glyphs.
+void  TextLayoutGetGlyphMetrics(const TextGlyph* glyph, float size, float* ascent, float* descent);
+void  TextLayoutGetLineMetrics(HTextLayout layout, uint32_t first, uint32_t count, float size, float* ascent, float* descent);
+float TextLayoutGetLineWrapWidth(float width, float arc_radius, float baseline_offset);
+
 // Unit tests
 void FontDebug(HFont font, float scale, float padding, const char* text);
 void FontDebugGlyph(FontGlyph* glyph, int indent);

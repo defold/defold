@@ -14,6 +14,7 @@
 
 #include "fontc.h"
 #include "font.h"
+#include "font_private.h"
 #include "font_glyphbank.h"
 #include "font_ttf.h"
 #include "font_vector_slug.h"

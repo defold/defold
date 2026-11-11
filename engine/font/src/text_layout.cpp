@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "text_layout.h"
+#include "font_private.h"
 #include "fontcollection.h"
 #include "render/text_arc.h"
 #include <assert.h>

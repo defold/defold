@@ -27,6 +27,7 @@
 #include <dmsdk/font/fontcollection.h>
 
 #include "text_layout.h"
+#include "font_private.h"
 
 static const dmhash_t TAG_SPRITE = dmHashString64("sprite");
 

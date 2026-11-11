@@ -26,6 +26,7 @@
 #include <dmsdk/dlib/hashtable.h>
 
 #include "font.h"
+#include "font_private.h"
 #include "fontcollection.h"
 #include "text_layout.h"
 
@@ -639,7 +640,12 @@ static void FreeLayout(LayoutContext* ctx)
 }
 
 // Keep paragraph context intact while adding layout-only line separators.
-static void BuildArcWrapRuns(const dmArray<skb_content_run_t>& runs, const uint32_t* codepoints, uint32_t count, const dmArray<uint32_t>& breaks, dmArray<uint32_t>& text, dmArray<uint32_t>& source_indices, dmArray<skb_content_run_t>& wrapped_runs)
+static void BuildArcWrapRuns(const dmArray<skb_content_run_t>& runs,
+                             const uint32_t* codepoints, uint32_t count,
+                             const dmArray<uint32_t>& breaks,
+                             dmArray<uint32_t>& text,
+                             dmArray<uint32_t>& source_indices,
+                             dmArray<skb_content_run_t>& wrapped_runs)
 {
     text.SetCapacity(count + breaks.Size());
     text.SetSize(0);
@@ -693,7 +699,10 @@ static void BuildArcWrapRuns(const dmArray<skb_content_run_t>& runs, const uint3
     }
 }
 
-static uint32_t GetArcLineBreak(skb_temp_alloc_t* alloc, const skb_layout_params_t& params, const dmArray<skb_content_run_t>& runs, uint32_t start, uint32_t end, float width)
+static uint32_t GetArcLineBreak(skb_temp_alloc_t* alloc,
+                                const skb_layout_params_t& params,
+                                const dmArray<skb_content_run_t>& runs,
+                                uint32_t start, uint32_t end, float width)
 {
     dmArray<skb_content_run_t> slice;
     slice.SetCapacity(runs.Size());

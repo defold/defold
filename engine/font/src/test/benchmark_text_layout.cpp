@@ -23,6 +23,7 @@
 #include <dlib/vmath.h>
 
 #include "font.h"
+#include "font_private.h"
 #include "fontcollection.h"
 #include "glyph_gen.h"
 #include "layout_vertex.h"
