@@ -17,11 +17,49 @@
 #include <stdint.h>
 #include <math.h>
 #include <stdlib.h>
+#include <dlib/endian.h>
 #include <simd/simd.h>
 #include "json_number.h"
 
 namespace dmJson
 {
+    // Consume bounded digit runs, batching eight bytes at a time on native builds.
+    // Unsigned wrap is defined; conversion only uses this accumulator for <=19 digits.
+    static uint64_t ReadDigits(char*& cursor, const char* end, uint64_t coefficient)
+    {
+        char* position = cursor;
+        // Wasm short-number workloads favor scalar accumulation.
+#if !defined(__wasm__)
+        while (end - position >= 8 && position[7] >= '0' && position[7] <= '9')
+        {
+            uint64_t bytes;
+            memcpy(&bytes, position, sizeof(bytes));
+            // Non-digits set at least one high byte bit in this range test.
+            if (((bytes + UINT64_C(0x4646464646464646)) | (bytes - UINT64_C(0x3030303030303030))) & UINT64_C(0x8080808080808080))
+            {
+                break;
+            }
+#if DM_ENDIAN == DM_ENDIAN_BIG
+            bytes = EndianSwap64(bytes);
+#endif
+            bytes &= UINT64_C(0x0f0f0f0f0f0f0f0f);
+            // Combine adjacent decimal digits into pairs, then four-digit groups.
+            uint64_t pairs = (bytes & UINT64_C(0x00ff00ff00ff00ff)) * 10 + ((bytes >> 8) & UINT64_C(0x00ff00ff00ff00ff));
+            uint64_t quads = (pairs & UINT64_C(0x0000ffff0000ffff)) * 100 + ((pairs >> 16) & UINT64_C(0x0000ffff0000ffff));
+            coefficient = coefficient * 100000000 + (uint32_t)quads * 10000 + (quads >> 32);
+            position += 8;
+        }
+#endif
+        // Finish short runs and tails without reading beyond the input bound.
+        while (position < end && *position >= '0' && *position <= '9')
+        {
+            coefficient = coefficient * 10 + (uint32_t)(*position - '0');
+            ++position;
+        }
+        cursor = position;
+        return coefficient;
+    }
+
     static bool PlainStringBlock(const char* text, bool ascii_only)
     {
         dsimd_uint4_t bytes = SimdLoadUint(text);
@@ -400,12 +438,7 @@ namespace dmJson
             }
             else if (m_Cursor < m_End && *m_Cursor >= (relaxed ? '0' : '1') && *m_Cursor <= '9')
             {
-                while (m_Cursor < m_End && *m_Cursor >= '0' && *m_Cursor <= '9')
-                {
-                    // Unsigned wrap is defined; only <=19 digits use this accumulator.
-                    coefficient = coefficient * 10 + (uint32_t)(*m_Cursor - '0');
-                    ++m_Cursor;
-                }
+                coefficient = ReadDigits(m_Cursor, m_End, coefficient);
             }
             else if (!relaxed || m_Cursor == m_End || *m_Cursor != '.')
             {
@@ -416,11 +449,7 @@ namespace dmJson
             if (m_Cursor < m_End && *m_Cursor == '.')
             {
                 char* fraction = ++m_Cursor;
-                while (m_Cursor < m_End && *m_Cursor >= '0' && *m_Cursor <= '9')
-                {
-                    coefficient = coefficient * 10 + (uint32_t)(*m_Cursor - '0');
-                    ++m_Cursor;
-                }
+                coefficient = ReadDigits(m_Cursor, m_End, coefficient);
                 if (fraction == m_Cursor && (!relaxed || !digits))
                 {
                     m_Valid = false;

@@ -722,6 +722,58 @@ TEST(dmJson, NumericDifferential)
     free(previous);
 }
 
+// Digit groups and scalar tails stop at the same byte and round identically
+// across unaligned, exactly bounded inputs and non-digit bytes within a group.
+TEST(dmJson, DigitGroupBoundaries)
+{
+    const unsigned char stops[] = { 0, ' ', ',', ']', ':', '/', 0x80, 0xff };
+    for (uint32_t prefix = 0; prefix < 16; ++prefix)
+    {
+        for (uint32_t length = 1; length <= 32; ++length)
+        {
+            char* text = (char*)malloc(prefix + length);
+            for (uint32_t stop = 1; stop <= length; ++stop)
+            {
+                for (uint32_t variant = 0; variant < sizeof(stops) / sizeof(stops[0]); ++variant)
+                {
+                    char reference[33];
+                    for (uint32_t i = 0; i < length; ++i)
+                    {
+                        reference[i] = '1' + i % 9;
+                    }
+                    if (stop < length)
+                    {
+                        reference[stop] = (char)stops[variant];
+                    }
+                    reference[length] = 0;
+                    char* end = 0;
+                    double expected = strtod(reference, &end);
+                    memcpy(text + prefix, reference, length);
+                    dmJson::Lexer lexer(text + prefix, text + prefix + length);
+                    double actual = lexer.ReadNumber(true, false);
+                    ASSERT_TRUE(lexer.m_Valid);
+                    ASSERT_EQ(end - reference, lexer.m_Cursor - (text + prefix));
+                    ASSERT_EQ(0, memcmp(&expected, &actual, sizeof(actual)));
+                }
+            }
+            free(text);
+        }
+    }
+    const char* relaxed[] = { "0000000012345678", ".1234567890123456", "+1234567890123456", "12345678.", "12345678e", "12345678e+" };
+    for (uint32_t i = 0; i < sizeof(relaxed) / sizeof(relaxed[0]); ++i)
+    {
+        char text[64];
+        strcpy(text, relaxed[i]);
+        char* end = 0;
+        double expected = strtod(text, &end);
+        dmJson::Lexer lexer(text, text + strlen(text));
+        double actual = lexer.ReadNumber(true, true);
+        ASSERT_TRUE(lexer.m_Valid);
+        ASSERT_EQ(end, lexer.m_Cursor);
+        ASSERT_EQ(0, memcmp(&expected, &actual, sizeof(actual)));
+    }
+}
+
 // Conversion remains locale-independent when the process locale changes between parses.
 TEST(dmJson, LocaleChangesBetweenParses)
 {
