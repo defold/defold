@@ -335,15 +335,18 @@ namespace dmScript
                                depth + 1, (uint32_t)(m_Lexer.m_Cursor - m_Input) + 1);
                     return luaL_error(m_Lua, "%s", message) != 0;
                 }
-                lua_newtable(m_Lua);
                 ++m_Lexer.m_Cursor;
                 uint32_t count = 0;
                 m_Lexer.Space();
                 if (m_Lexer.m_Cursor < m_Lexer.m_End && *m_Lexer.m_Cursor == end)
                 {
+                    lua_newtable(m_Lua);
                     ++m_Lexer.m_Cursor;
                     return true;
                 }
+                // The final length is unknown. Start nonempty arrays with two
+                // slots and let Lua grow them normally; empty tables stay small.
+                lua_createtable(m_Lua, array ? 2 : 0, 0);
                 while (true)
                 {
                     m_Lexer.Space();

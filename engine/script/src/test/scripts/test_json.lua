@@ -273,10 +273,51 @@ function test_json_encoder_compatibility()
     end
 end
 
+-- Decoded arrays must remain writable tables as they grow, including null holes.
+function test_json_decoder_array_growth()
+    for _, text in ipairs({"[]", "[ ]", "{}", "{ }"}) do
+        local value = json.decode(text)
+        assert(type(value) == "table" and next(value) == nil)
+        value[1] = 7
+        assert(value[1] == 7)
+        value.key = "written"
+        assert(value.key == "written")
+    end
+    for _, size in ipairs({1, 2, 3, 4, 5, 17, 129}) do
+        local numbers = {}
+        for i = 1, size do numbers[i] = tostring(i) end
+        local value = json.decode("[" .. table.concat(numbers, ",") .. "]")
+        assert(type(value) == "table" and #value == size)
+        for i = 1, size do assert(value[i] == i) end
+        value[size + 1] = size + 1
+        value[1] = -1
+        assert(#value == size + 1 and value[1] == -1)
+        local copy = json.decode(json.encode(value))
+        assert(copy[1] == -1 and copy[size + 1] == size + 1)
+    end
+    for _, keep_null in ipairs({false, true}) do
+        local value = json.decode('[null,1,null,{},[],[2,3,4],null]',
+                                  {decode_null_as_userdata = keep_null})
+        local expected_null = keep_null and json.null or nil
+        assert(value[1] == expected_null and value[3] == expected_null and value[7] == expected_null)
+        assert(value[2] == 1 and next(value[4]) == nil and next(value[5]) == nil)
+        assert(#value[6] == 3 and value[6][3] == 4)
+        value[3] = "filled"
+        value[5][1] = "nested write"
+        assert(value[3] == "filled" and value[5][1] == "nested write")
+    end
+    for _, text in ipairs({"[", "[1,", "[1,2,", "[1,2,3,]", '{"x":[1,2,}'}) do
+        assert(not pcall(json.decode, text))
+        assert(json.decode("[1,2,3]")[3] == 3)
+    end
+end
+
+
 function test_json()
     test_json_decode()
     test_json_encode()
     test_json_decode_encode()
+    test_json_decoder_array_growth()
     test_json_decoder_compatibility()
     test_json_decoder_legacy_syntax()
     test_json_encoder_compatibility()
