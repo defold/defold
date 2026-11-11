@@ -43,9 +43,23 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testVectorShaderRequiresExplicitGles100Exclusion() throws Exception {
         getProject().setOption("platform", "wasm-web");
-        addFile("/custom.vp", "#version 330\nin vec4 position;\nvoid main() { gl_Position = position; }\n");
-        addFile("/custom.fp", "#version 330\nuniform usampler2D band_texture;\nout vec4 color;\n" +
-            "void main() { color = vec4(texelFetch(band_texture, ivec2(0), 0)); }\n");
+        addFile("/custom.vp", """
+                #version 330
+                in vec4 position;
+                void main()
+                {
+                    gl_Position = position;
+                }
+                """);
+        addFile("/custom.fp", """
+                #version 330
+                uniform usampler2D band_texture;
+                out vec4 color;
+                void main()
+                {
+                    color = vec4(texelFetch(band_texture, ivec2(0), 0));
+                }
+                """);
         String material = "name: \"vector\"\nvertex_program: \"/custom.vp\"\nfragment_program: \"/custom.fp\"\n";
         for (boolean exclude : new boolean[] {false, true, false}) {
             getProject().setOption("exclude-gles-sm100", Boolean.toString(exclude));
@@ -55,7 +69,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
                 assertNotNull(shader);
                 assertFalse(shader.getShadersList().stream().anyMatch(
                     variant -> variant.getLanguage() == Graphics.ShaderDesc.Language.LANGUAGE_GLES_SM100));
-            } catch (com.dynamo.bob.CompileExceptionError error) {
+            } catch (CompileExceptionError error) {
                 assertFalse(error.getMessage(), exclude);
                 assertTrue(error.getMessage(), error.getMessage().contains("shader.exclude_gles_sm100"));
                 assertTrue(error.getMessage(), error.getMessage().contains("OpenGL ES 2.0 / WebGL 1.0"));
@@ -114,7 +128,9 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testCombinedShader() throws Exception {
-        String srcShaderStr = "void main() {}\n";
+        String srcShaderStr = """
+                void main() {}
+                """;
         Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(
                 new String[]{"/test_combined.vp", "/test_combined.fp"},
                 new String[]{srcShaderStr, srcShaderStr},
@@ -145,7 +161,12 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
     public void testVectorCurveSamplerPreservesGles100Compatibility() throws Exception {
         getProject().setOption("platform", "wasm-web");
 
-        String vertexShader = "void main() { gl_Position = vec4(0.0); }\n";
+        String vertexShader = """
+                void main()
+                {
+                    gl_Position = vec4(0.0);
+                }
+                """;
         String fragmentShader = """
                 uniform sampler2D %s;
                 void main() {
@@ -195,7 +216,9 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
     public void testMigrateVertexAttributes() throws Exception {
         addFile("/test_migrate_vx_attributes.material", "");
 
-        String srcShaderStr = "void main() {}\n";
+        String srcShaderStr = """
+                void main() {}
+                """;
         Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(new String[]{"/test_migrate_vx_attributes.vp", "/test_migrate_vx_attributes.fp"}, new String[]{srcShaderStr,srcShaderStr}, "/test_migrate_vx_attributes.shbundle");
         assertEquals(2, shaderDesc.getShadersCount());
 
@@ -230,7 +253,9 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testVariantArrayTextures() throws Exception {
-        String vsShaderLegacy = "void main() {}\n";
+        String vsShaderLegacy = """
+                void main() {}
+                """;
         String fsShaderLegacy =
                 """
                 varying mediump vec2 var_texcoord0;
@@ -278,7 +303,9 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testMigrateTextures() throws Exception {
-        String srcShaderStr = "void main() {}\n";
+        String srcShaderStr = """
+                void main() {}
+                """;
         Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(new String[]{"/test_vp.vp", "/test_fp.fp"}, new String[]{srcShaderStr,srcShaderStr}, "/test.shbundle");
         assertEquals(2, shaderDesc.getShadersCount());
 
@@ -345,7 +372,9 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testSharedShaderProgram() throws Exception {
-        String vsShaderLegacy = "void main() {}\n";
+        String vsShaderLegacy = """
+                void main() {}
+                """;
         String fsShaderLegacy =
                 """
                 uniform vec4 tint;
@@ -374,7 +403,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(materialGreen.getProgram(), materialBlue.getProgram());
     }
 
-    // All supported PBR channel structs remain available after validating their fixed uniform ABI.
+    // All supported PBR channels must retain their feature flags and qualify for fixed-layout uploads.
     @Test
     public void testPbrParameters() throws Exception {
         String vsShaderStr = """
@@ -502,9 +531,27 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
             """;
 
     private Graphics.ShaderDesc.ShaderReflection buildPbrReflection(String name, String definitions, String commonFields, String channels) throws Exception {
-        String vertex = "#version 140\nin vec4 position;\nvoid main() { gl_Position = position; }\n";
-        String fragment = "#version 140\n" + definitions + "\nuniform PbrMaterial {\n" + commonFields + channels +
-                "\n};\nout vec4 color;\nvoid main() { color = pbrAlphaCutoffAndDoubleSidedAndIsUnlit; }\n";
+        String vertex = """
+                #version 140
+                in vec4 position;
+                void main()
+                {
+                    gl_Position = position;
+                }
+                """;
+        String fragment = """
+                #version 140
+                %s
+                uniform PbrMaterial
+                {
+                %s%s
+                };
+                out vec4 color;
+                void main()
+                {
+                    color = pbrAlphaCutoffAndDoubleSidedAndIsUnlit;
+                }
+                """.formatted(definitions, commonFields, channels);
         return addAndBuildShaderDescs(new String[] {"/" + name + ".vp", "/" + name + ".fp"},
                 new String[] {vertex, fragment}, "/" + name + ".shbundle").getReflection();
     }

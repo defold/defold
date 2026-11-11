@@ -1730,8 +1730,7 @@ namespace dmGameSystem
             return SetModelMaterialBuffer(graphics_context, component->m_Resource, material, render_item->m_MaterialIndex, ro);
         }
 
-        if (FillPBRConstants(component->m_Resource, &component->m_Resource->m_Materials[render_item->m_MaterialIndex],
-                             &render_item->m_RenderConstants, material, render_item->m_MaterialIndex))
+        if (FillPBRConstants(component->m_Resource, &render_item->m_RenderConstants, material, render_item->m_MaterialIndex))
         {
             CopyRenderConstants(render_item->m_RenderConstants, *constants);
             *constants = render_item->m_RenderConstants;

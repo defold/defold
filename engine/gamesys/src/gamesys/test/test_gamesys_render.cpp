@@ -2131,8 +2131,6 @@ class ModelBufferInstancingTest : public ModelTest
     public:
     void Run(bool use_pbr, bool different_pbr, bool render_override)
     {
-        // This shader fixture exercises the legacy named-constant PBR path.
-        PbrLegacyContextScope legacy_context(m_GraphicsContext);
         TestShaderDesc shader("void main() {}");
         shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
         shader.AddInput("instance_world", 1, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
@@ -4308,7 +4306,7 @@ TEST_F(ModelTest, PbrTextureFactorDefaults)
         source.m_Occlusiontexture.m_Scale = cases[i].m_OcclusionStrength;
 
         dmGameSystem::HComponentRenderConstants constants = 0;
-        bool filled = dmGameSystem::FillPBRConstants(model, &material_info, &constants, material_info.m_Material->m_Material, 0);
+        bool filled = dmGameSystem::FillPBRConstants(model, &constants, material_info.m_Material->m_Material, 0);
         source.m_Normaltexture = original_normal;
         source.m_Occlusiontexture = original_occlusion;
         ASSERT_TRUE(filled);

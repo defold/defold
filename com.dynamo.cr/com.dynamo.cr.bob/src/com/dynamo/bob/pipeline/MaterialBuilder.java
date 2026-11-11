@@ -19,8 +19,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 
 import com.dynamo.bob.fs.IResource;
@@ -225,7 +225,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
             }
         }
 
-        HashSet<PbrParameterType> seen = new HashSet<>();
+        EnumSet<PbrParameterType> seen = EnumSet.noneOf(PbrParameterType.class);
         ArrayList<int[]> ranges = new ArrayList<>();
         for (int i = PBR_COMMON_MEMBERS.length; i < material.getMembersCount(); ++i) {
             ShaderDesc.ResourceMember member = material.getMembers(i);
@@ -263,25 +263,26 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
             return null;
         }
         MaterialDesc.PbrParameters.Builder parameters = MaterialDesc.PbrParameters.newBuilder();
+        boolean hasFixedLayout = true;
         for (ShaderDesc.ResourceBinding resource : shaderReflection.getUniformBuffersList()) {
             ShaderDesc.ResourceTypeInfo material = getPbrStruct(shaderReflection, resource.getType());
-            if (material != null && material.getName().equals(PBR_MATERIAL_NAME)) {
-                boolean fixedLayout = hasFixedPbrLayout(shaderReflection, resource, material);
-                parameters.setHasFixedLayout(fixedLayout && (!parameters.getHasParameters() || parameters.getHasFixedLayout()));
-                parameters.setHasParameters(true);
-                for (ShaderDesc.ResourceMember member : material.getMembersList()) {
-                    ShaderDesc.ResourceTypeInfo struct = getPbrStruct(shaderReflection, member.getType());
-                    PbrParameterType parameter = struct == null ? null : pbrStructNameToParameterType.get(struct.getName());
-                    if (parameter != null) {
-                        addPbrParameter(parameters, parameter);
-                    }
+            if (material == null || !material.getName().equals(PBR_MATERIAL_NAME)) {
+                continue;
+            }
+            hasFixedLayout &= hasFixedPbrLayout(shaderReflection, resource, material);
+            parameters.setHasParameters(true);
+            for (ShaderDesc.ResourceMember member : material.getMembersList()) {
+                ShaderDesc.ResourceTypeInfo struct = getPbrStruct(shaderReflection, member.getType());
+                PbrParameterType parameter = struct == null ? null : pbrStructNameToParameterType.get(struct.getName());
+                if (parameter != null) {
+                    addPbrParameter(parameters, parameter);
                 }
             }
         }
-        return parameters.getHasParameters() ? parameters.build() : null;
+        return parameters.getHasParameters() ? parameters.setHasFixedLayout(hasFixedLayout).build() : null;
     }
 
-    private static void buildPbrParameters(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) throws CompileExceptionError {
+    private static void buildPbrParameters(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) {
         MaterialDesc.PbrParameters builtPbrParameters = makePbrParametersProtoMessage(shaderBuilder.getReflection());
         if (builtPbrParameters != null) {
             materialBuilder.setPbrParameters(builtPbrParameters);

@@ -88,10 +88,9 @@ namespace dmGameSystem
     extern const dmhash_t PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT;
     extern const dmhash_t PBR_COMMON_TEXTURES;
 
-    struct MaterialInfo;
     struct ModelResource;
 
-    bool FillPBRConstants(ModelResource* resource, const MaterialInfo* material_info, HComponentRenderConstants* render_constants, dmRender::HMaterial material, uint32_t material_index);
+    bool FillPBRConstants(ModelResource* resource, HComponentRenderConstants* render_constants, dmRender::HMaterial material, uint32_t material_index);
 
     bool SetModelMaterialBuffer(dmGraphics::HContext context, ModelResource* resource, dmRender::HMaterial material, uint32_t material_index, dmRender::RenderObject* ro);
     void DeleteModelMaterialBuffers(dmGraphics::HContext context, ModelResource* resource);

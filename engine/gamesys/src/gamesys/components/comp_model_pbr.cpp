@@ -169,7 +169,8 @@ namespace dmGameSystem
         int32_t  m_TextureVector;
     };
 
-    // Globals
+    static const dmhash_t PBR_MATERIAL_NAME_HASH = dmHashString64("PbrMaterial");
+
     static dmRigDDF::Material   g_DefaultMaterial;
     static bool                 g_DefaultMaterialInitialized = false;
     static const PbrChannelInfo g_PbrChannels[] = {
@@ -240,26 +241,18 @@ namespace dmGameSystem
 
     static const dmRigDDF::Material& GetPBRMaterial(ModelResource* resource, uint32_t material_index)
     {
-        dmRigDDF::MeshSet* mesh_set = resource->m_RigScene->m_MeshSetRes->m_MeshSet;
-        const dmRigDDF::Material* ddf_material_ptr = 0;
-
+        const dmRigDDF::MeshSet* mesh_set = resource->m_RigScene->m_MeshSetRes->m_MeshSet;
         if (material_index < mesh_set->m_Materials.m_Count)
         {
-            ddf_material_ptr = &mesh_set->m_Materials[material_index];
+            return mesh_set->m_Materials[material_index];
         }
-        else
+
+        // Models without imported material data use neutral PBR defaults.
+        if (!g_DefaultMaterialInitialized)
         {
-            // If there is no material available from the glTF file,
-            // we need to use a default material so we can render at least something.
-            if (!g_DefaultMaterialInitialized)
-            {
-                InitDefaultPBRMaterial(g_DefaultMaterial);
-            }
-            ddf_material_ptr = &g_DefaultMaterial;
+            InitDefaultPBRMaterial(g_DefaultMaterial);
         }
-
-        return *ddf_material_ptr;
-
+        return g_DefaultMaterial;
     }
 
     static void FillPBRData(const dmRigDDF::Material& ddf_material, PbrMaterialData* data)
@@ -340,10 +333,10 @@ namespace dmGameSystem
             }
         }
         {
-            dmVMath::Vector4 thicknessFactorAndAttenuationColor = dmVMath::Vector4(ddf_material.m_Volume.m_Thicknessfactor, ddf_material.m_Volume.m_Attenuationcolor.getX(), ddf_material.m_Volume.m_Attenuationcolor.getY(), ddf_material.m_Volume.m_Attenuationcolor.getZ());
-            dmVMath::Vector4 attenuationDistance = dmVMath::Vector4(ddf_material.m_Volume.m_Attenuationdistance, 0.0f, 0.0f, 0.0f);
-            data->m_Volume.m_Factor = thicknessFactorAndAttenuationColor;
-            data->m_Volume.m_Distance = attenuationDistance;
+            dmVMath::Vector4 volume_factor = dmVMath::Vector4(ddf_material.m_Volume.m_Thicknessfactor, ddf_material.m_Volume.m_Attenuationcolor.getX(), ddf_material.m_Volume.m_Attenuationcolor.getY(), ddf_material.m_Volume.m_Attenuationcolor.getZ());
+            dmVMath::Vector4 attenuation_distance = dmVMath::Vector4(ddf_material.m_Volume.m_Attenuationdistance, 0.0f, 0.0f, 0.0f);
+            data->m_Volume.m_Factor = volume_factor;
+            data->m_Volume.m_Distance = attenuation_distance;
 
             if (ddf_material.m_Volume.m_Thicknesstexture.m_Texture.m_Index != -1)
             {
@@ -353,8 +346,8 @@ namespace dmGameSystem
             }
         }
         {
-            dmVMath::Vector4 sheenColorAndRoughnessFactor = dmVMath::Vector4(ddf_material.m_Sheen.m_Sheencolorfactor.getX(), ddf_material.m_Sheen.m_Sheencolorfactor.getY(), ddf_material.m_Sheen.m_Sheencolorfactor.getZ(), ddf_material.m_Sheen.m_Sheenroughnessfactor);
-            data->m_Sheen.m_Factor = sheenColorAndRoughnessFactor;
+            dmVMath::Vector4 sheen_factor = dmVMath::Vector4(ddf_material.m_Sheen.m_Sheencolorfactor.getX(), ddf_material.m_Sheen.m_Sheencolorfactor.getY(), ddf_material.m_Sheen.m_Sheencolorfactor.getZ(), ddf_material.m_Sheen.m_Sheenroughnessfactor);
+            data->m_Sheen.m_Factor = sheen_factor;
 
             if (ddf_material.m_Sheen.m_Sheencolortexture.m_Texture.m_Index != -1 ||
                 ddf_material.m_Sheen.m_Sheenroughnesstexture.m_Texture.m_Index != -1)
@@ -366,12 +359,12 @@ namespace dmGameSystem
             }
         }
         {
-            dmVMath::Vector4 emissiveFactorAndStrength = dmVMath::Vector4(ddf_material.m_Emissivestrength.m_Emissivestrength, 0.0f, 0.0f, 0.0f);
-            data->m_EmissiveStrength.m_Factor = emissiveFactorAndStrength;
+            dmVMath::Vector4 emissive_strength = dmVMath::Vector4(ddf_material.m_Emissivestrength.m_Emissivestrength, 0.0f, 0.0f, 0.0f);
+            data->m_EmissiveStrength.m_Factor = emissive_strength;
         }
         {
-            dmVMath::Vector4 iridescenceFactorAndIorAndThicknessMinMax = dmVMath::Vector4(ddf_material.m_Iridescence.m_Iridescencefactor, ddf_material.m_Iridescence.m_Iridescenceior, ddf_material.m_Iridescence.m_Iridescencethicknessmin, ddf_material.m_Iridescence.m_Iridescencethicknessmax);
-            data->m_Iridescence.m_Factor = iridescenceFactorAndIorAndThicknessMinMax;
+            dmVMath::Vector4 iridescence_factor = dmVMath::Vector4(ddf_material.m_Iridescence.m_Iridescencefactor, ddf_material.m_Iridescence.m_Iridescenceior, ddf_material.m_Iridescence.m_Iridescencethicknessmin, ddf_material.m_Iridescence.m_Iridescencethicknessmax);
+            data->m_Iridescence.m_Factor = iridescence_factor;
 
             if (ddf_material.m_Iridescence.m_Iridescencetexture.m_Texture.m_Index != -1 ||
                 ddf_material.m_Iridescence.m_Iridescencethicknesstexture.m_Texture.m_Index != -1)
@@ -382,8 +375,8 @@ namespace dmGameSystem
                 data->m_Iridescence.m_Textures = iridescence_textures;
             }
         }
-        dmVMath::Vector4 alphaCutoffAndDoubleSidedAndIsUnlit = dmVMath::Vector4(ddf_material.m_Alphacutoff, ddf_material.m_Doublesided, ddf_material.m_Unlit, (float) ddf_material.m_Alphamode);
-        data->m_Common.m_AlphaCutoffAndDoubleSidedAndIsUnlit = alphaCutoffAndDoubleSidedAndIsUnlit;
+        dmVMath::Vector4 alpha_settings = dmVMath::Vector4(ddf_material.m_Alphacutoff, ddf_material.m_Doublesided, ddf_material.m_Unlit, (float) ddf_material.m_Alphamode);
+        data->m_Common.m_AlphaCutoffAndDoubleSidedAndIsUnlit = alpha_settings;
 
         dmVMath::Vector4 emissive_factor(ddf_material.m_Emissivefactor.getX(), ddf_material.m_Emissivefactor.getY(),
                                          ddf_material.m_Emissivefactor.getZ(), ddf_material.m_Emissivestrength.m_Emissivestrength);
@@ -409,7 +402,7 @@ namespace dmGameSystem
 
     }
 
-    bool FillPBRConstants(ModelResource* resource, const MaterialInfo* material_info, HComponentRenderConstants* render_constants, dmRender::HMaterial material, uint32_t material_index)
+    bool FillPBRConstants(ModelResource* resource, HComponentRenderConstants* render_constants, dmRender::HMaterial material, uint32_t material_index)
     {
         dmRenderDDF::MaterialDesc::PbrParameters parameters;
         dmRender::GetMaterialPBRParameters(material, &parameters);
@@ -515,7 +508,7 @@ namespace dmGameSystem
         }
 
         dmGraphics::UniformBufferBindingInfo layout;
-        if (!dmGraphics::GetUniformBufferBinding(program, dmHashString64("PbrMaterial"), &layout))
+        if (!dmGraphics::GetUniformBufferBinding(program, PBR_MATERIAL_NAME_HASH, &layout))
         {
             dmLogError("PBR material has no PbrMaterial uniform block. Rebuild its shaders for this graphics context.");
             return false;
@@ -525,7 +518,8 @@ namespace dmGameSystem
         FillPBRData(GetPBRMaterial(resource, material_index), &data);
         const dmGraphics::ShaderResourceTypeInfo& root = layout.m_Types[layout.m_RootTypeIndex];
 
-        if (root.m_MemberCount < 4 || layout.m_Size < sizeof(PbrCommon))
+        const uint32_t common_member_count = sizeof(PbrCommon) / sizeof(dmVMath::Vector4);
+        if (root.m_MemberCount < common_member_count || layout.m_Size < sizeof(PbrCommon))
         {
             dmLogError("PbrMaterial must use the built-in common fields and channel structs.");
             return false;
@@ -535,7 +529,7 @@ namespace dmGameSystem
         memcpy(bytes, &data.m_Common, sizeof(data.m_Common));
 
         // Bob validates the fixed channel ABIs. Only top-level offsets vary by shader.
-        for (uint32_t member_index = 4; member_index < root.m_MemberCount; ++member_index)
+        for (uint32_t member_index = common_member_count; member_index < root.m_MemberCount; ++member_index)
         {
             const dmGraphics::ShaderResourceMember& member = root.m_Members[member_index];
             const PbrChannelInfo* channel = 0;
@@ -570,7 +564,7 @@ namespace dmGameSystem
         free(bytes);
 
         ModelMaterialBuffer* buffer = new ModelMaterialBuffer;
-        buffer->m_Binding.m_NameHash = dmHashString64("PbrMaterial");
+        buffer->m_Binding.m_NameHash = PBR_MATERIAL_NAME_HASH;
         buffer->m_Binding.m_Buffer = ubo;
         buffer->m_Binding.m_Layout = layout.m_Layout;
         buffer->m_Binding.m_Size = layout.m_Size;
