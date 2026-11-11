@@ -27,8 +27,11 @@ Ogg tools, Linux `zipalign`, and Linux and macOS `lipo` tools to `tmp` and remov
 their debug information; the original binaries remain available for debugging.
 Windows `lipo.exe` is left unchanged: stripping its debug sections with LLVM
 produces a binary that Windows cannot load.
-The build uses the installed `strip_android` tool, or `llvm-strip` on `PATH` if
-that tool is not packaged for the build host (such as ARM64 Linux).
+The build uses the host's `llvm-strip` (`llvm-strip.exe` on Windows) from `PATH`.
+Set `LLVM_STRIP` to an absolute executable path to select a specific LLVM installation.
+See the [LLVM strip setup instructions](../../README_SETUP.md#required-software---llvm-strip)
+for installation. The packaged `strip_android` tool is used only when bundling
+Android binaries.
 
 `scripts/update-editor-binaries.sh` installs Bob with `-Pprefer-local-engines` so
 local engine binaries and `classes.dex` take precedence over a synced archive.
