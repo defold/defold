@@ -790,6 +790,22 @@ TEST(dmJson, NumericLocale)
     free(previous);
 }
 
+// Signed integer boundaries must survive float-to-int lowering, including Emscripten's legacy browser path.
+TEST(dmJson, SignedIntegerBoundaries)
+{
+    const char text[] = "[-2147483648,-2147483647,-2147483646,2147483646,2147483647]";
+    const int expected[] = { INT32_MIN, INT32_MIN + 1, INT32_MIN + 2, INT32_MAX - 1, INT32_MAX };
+    dmJson::Document json(32);
+    ASSERT_TRUE(json.Parse(text, sizeof(text) - 1, 0, dmJson::PARSE_DECODE_VALUES));
+    int node = json.Get(0).m_Container.m_First;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(expected); ++i)
+    {
+        ASSERT_EQ(expected[i], json.Integer(node, 0));
+        node = json.Get(node).m_Next;
+    }
+    ASSERT_EQ(-1, node);
+}
+
 // Unsigned IDs retain all 32 bits and reject out-of-range, fractional and nonnumeric values.
 TEST(dmJson, UnsignedIntegers)
 {

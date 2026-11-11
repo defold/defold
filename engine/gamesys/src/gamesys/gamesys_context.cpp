@@ -14,6 +14,7 @@
 
 #include <dlib/log.h>
 #include <gameobject/gameobject.h>
+#include <render/render_frame.h>
 
 #include "gamesys_context_private.h"
 
@@ -21,9 +22,14 @@ namespace dmGameSystem
 {
     HContext NewContext(const ContextParams& params)
     {
-        // Foundation budget, allocated only when a component opts into capture.
-        // Component migration will size these limits for real captured workloads.
-        const dmRender::RenderFrameLimits limits = { 256 * 1024, 1024, 1024 };
+        // Component migration will size this reserve for captured workloads. Fixed pass
+        // storage is added from command capacity; constant snapshots grow separately.
+        const dmRender::RenderFrameLimits component_limits = { 256 * 1024, 1024, 1024 };
+        dmRender::RenderFrameLimits limits;
+        if (dmRender::CalculateRenderFrameLimits(params.m_RenderContext, component_limits, &limits) != dmRender::RENDER_FRAME_OK)
+        {
+            return 0;
+        }
         return NewContext(params, dmRender::GetRenderExecution(params.m_RenderContext), limits);
     }
 
@@ -31,7 +37,7 @@ namespace dmGameSystem
     {
         Context* context = new Context;
         context->m_Params = params;
-        context->m_ComponentRenderContext = NewComponentRenderContext(params.m_Register, execution, limits);
+        context->m_ComponentRenderContext = NewComponentRenderContext(params.m_Register, execution, limits, params.m_RenderContext);
         if (!context->m_ComponentRenderContext)
         {
             delete context;
@@ -64,6 +70,42 @@ namespace dmGameSystem
             return true;
         dmLogError("Component rendering or render-input capture failed.");
         return false;
+    }
+
+    bool SubmitRender(HContext context, dmRender::HRenderScriptInstance script, float dt, uint32_t clear_color)
+    {
+        HComponentRenderContext components = context->m_ComponentRenderContext;
+        dmRender::HRenderContext render_context = context->m_Params.m_RenderContext;
+        dmRender::HRenderFrameStorage frame = GetComponentRenderFrame(components);
+        // Graphics-free lifecycle tests submit component inputs without render passes.
+        if (render_context)
+        {
+            if (!frame)
+            {
+                return CheckRenderResult(dmRender::RENDER_FRAME_INVALID_STATE, "record");
+            }
+
+            dmRender::RenderFrameInfo info = dmRender::GetRenderFrameInfo(render_context);
+            dmRender::RenderFrameResult result = dmRender::RecordRenderFrameInfo(frame, info);
+            if (result == dmRender::RENDER_FRAME_OK)
+            {
+                if (script)
+                {
+                    result = dmRender::RecordRenderScriptInstance(script, dt, frame);
+                }
+                else
+                {
+                    result = dmRender::RecordDefaultRenderCommands(render_context, frame, info, clear_color);
+                }
+            }
+            if (result != dmRender::RENDER_FRAME_OK)
+            {
+                // Do not publish a valid-looking prefix after Lua/allocation failure.
+                // Submit observes this sticky error and releases the entire snapshot.
+                dmRender::FailRenderFrame(frame, result);
+            }
+        }
+        return CheckRenderResult(SubmitComponentRenderFrame(components), "submit");
     }
 
     bool PostUpdate(HContext context, dmGameObject::HCollection collection)
