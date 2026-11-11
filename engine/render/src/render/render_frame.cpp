@@ -79,18 +79,21 @@ namespace dmRender
         return CopyRenderFrameTable(frame, RENDER_FRAME_INFO_TABLE_TYPE, 1, sizeof(info), alignof(RenderFrameInfo), &info, &table);
     }
 
-    void BeginRenderFrameConsumption(HRenderContext context, const RenderFrameView& frame)
+    void BeginRenderFrameConsumption(HRenderContext context, const RenderFrameView& frame, RenderListPreparation preparation)
     {
+        if (preparation == RENDER_LIST_PREPARATION_CONSUMER)
+        {
+            // Reset even command-only frames: the previous frame's dispatches may
+            // have cleared their borrowed inputs during component EndFrame.
+            RenderListBegin(context);
+        }
         for (uint32_t i = 0; i < frame.m_Statistics.m_TableCount; ++i)
         {
             if (frame.m_Tables[i].m_Type == RENDER_FRAME_INFO_TABLE_TYPE)
             {
                 const RenderFrameInfo* info = (const RenderFrameInfo*)GetRenderFrameTableData(frame, i);
-                // Apply only immutable timing here. BeginFrame's legacy preparation
-                // still precedes producer component traversal: resetting submissions
-                // here would erase lights already submitted by inline components.
-                // Move preparation here once components publish inputs and the render
-                // owner builds the lists, instead of components updating them inline.
+                // Light/debug/text preparation still runs before game-side component
+                // traversal. Moving that reset here would erase inline submissions.
                 context->m_Time = info->m_Time;
                 context->m_Dt = info->m_Dt;
                 return;

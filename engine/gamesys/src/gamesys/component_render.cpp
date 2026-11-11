@@ -47,6 +47,7 @@ namespace dmGameSystem
         dmRender::HRenderFrameQueue               m_Queue;
         // Active only during traversal, not while producer credit is merely reserved.
         dmRender::HRenderFrameStorage             m_ActiveFrame;
+        dmRender::RenderListPreparation           m_ListPreparation;
     };
 
     // Game-owner association for one generational collection handle. Lifetime slots
@@ -72,7 +73,7 @@ namespace dmGameSystem
         {
             dmGraphics::BeginFrame(dmRender::GetGraphicsContext(context->m_RenderContext));
         }
-        dmRender::BeginRenderFrameConsumption(context->m_RenderContext, frame);
+        dmRender::BeginRenderFrameConsumption(context->m_RenderContext, frame, context->m_ListPreparation);
         BeginComponentRenderFrameConsumption(context->m_StateContext, frame);
         dmRender::RenderListEnd(context->m_RenderContext);
         dmRender::ConsumeRenderCommands(context->m_RenderContext, frame);
@@ -187,8 +188,10 @@ namespace dmGameSystem
         if (!type)
         {
             // Legacy callbacks can access live game worlds and persistent render
-            // items. They are compatibility-only, never admitted to overlap.
-            if (render && dmRender::GetRenderExecutionMode(owner->m_Execution) == dmRender::EXECUTION_MODE_THREADED)
+            // items. A consumer-owned list would discard their submissions, even
+            // inline; only the serialized legacy adapter can run them safely.
+            if (render && (dmRender::GetRenderExecutionMode(owner->m_Execution) == dmRender::EXECUTION_MODE_THREADED ||
+                           (owner->m_RenderContext && owner->m_ListPreparation == dmRender::RENDER_LIST_PREPARATION_CONSUMER)))
             {
                 dmLogError("Component %u has not migrated to owned render inputs.", component_index);
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
@@ -211,12 +214,19 @@ namespace dmGameSystem
         return result == dmRender::RENDER_FRAME_OK ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
     }
 
-    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context)
+    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context, dmRender::RenderListPreparation preparation)
     {
+        if (render_context && preparation == dmRender::RENDER_LIST_PREPARATION_LEGACY &&
+            dmRender::GetRenderExecutionMode(execution) == dmRender::EXECUTION_MODE_THREADED)
+        {
+            dmLogError("Legacy render-list preparation requires inline execution.");
+            return 0;
+        }
         ComponentRenderContext* context = new ComponentRenderContext();
         context->m_Register = regist;
         context->m_Execution = execution;
         context->m_RenderContext = render_context;
+        context->m_ListPreparation = preparation;
         context->m_Limits = limits;
         context->m_NextWorldId = 1;
         context->m_StateContext = NewComponentRenderStateContext(execution);

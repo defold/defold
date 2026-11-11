@@ -30,14 +30,16 @@ namespace dmGameSystem
         {
             return 0;
         }
-        return NewContext(params, dmRender::GetRenderExecution(params.m_RenderContext), limits);
+        // Built-in components still submit their render items before consumption.
+        // Snapshot-only callers select consumer preparation through internal setup.
+        return NewContext(params, dmRender::GetRenderExecution(params.m_RenderContext), limits, dmRender::RENDER_LIST_PREPARATION_LEGACY);
     }
 
-    HContext NewContext(const ContextParams& params, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits)
+    HContext NewContext(const ContextParams& params, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::RenderListPreparation preparation)
     {
         Context* context = new Context;
         context->m_Params = params;
-        context->m_ComponentRenderContext = NewComponentRenderContext(params.m_Register, execution, limits, params.m_RenderContext);
+        context->m_ComponentRenderContext = NewComponentRenderContext(params.m_Register, execution, limits, params.m_RenderContext, preparation);
         if (!context->m_ComponentRenderContext)
         {
             delete context;

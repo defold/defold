@@ -24,6 +24,18 @@ namespace dmRender
     static const uint32_t RENDER_FRAME_INFO_TABLE_TYPE = UINT32_MAX - 4;
 
     /**
+     * Select where a complete frame's render list is prepared. Snapshot consumers
+     * start a fresh list before updating and submitting persistent render items.
+     * The legacy option preserves lists already prepared by unmigrated inline
+     * components. It is a temporary compatibility boundary, not a threading mode.
+     */
+    enum RenderListPreparation
+    {
+        RENDER_LIST_PREPARATION_CONSUMER,
+        RENDER_LIST_PREPARATION_LEGACY,
+    };
+
+    /**
      * Producer snapshot for a complete frame. The frame ID is in RenderFrameView.
      * Surface 0 denotes this render context's default window; other IDs are reserved
      * for owner-routed surfaces. Extents describe recording-time dimensions, not a
@@ -89,12 +101,17 @@ namespace dmRender
     /**
      * Start execution from the published frame metadata. Called before component
      * consumption and pass replay; the consumer never reads producer timing.
+     * Consumer preparation clears frame submissions, not persistent item handles
+     * or their caches. Components then populate those items from captured inputs.
+     * Legacy preparation preserves already submitted inline items. Neither option
+     * resets producer-owned light, debug or text preparation during migration.
      * Does not begin graphics: inline callers begin before Lua recording, while
      * threaded callers begin on the render owner before consumption.
      * @param context Render-owner execution context
      * @param frame Published frame with exactly one metadata table
+     * @param preparation Consumer-owned list setup or legacy inline compatibility
      */
-    void BeginRenderFrameConsumption(HRenderContext context, const RenderFrameView& frame);
+    void BeginRenderFrameConsumption(HRenderContext context, const RenderFrameView& frame, RenderListPreparation preparation);
 
     /**
      * Record the no-render-script viewport, clear and draw using the same command

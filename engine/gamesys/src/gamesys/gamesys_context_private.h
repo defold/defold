@@ -35,9 +35,10 @@ namespace dmGameSystem
         HComponentRenderContext  m_ComponentRenderContext;
     };
 
-    // Graphics-free tests borrow execution directly; production setup borrows it
-    // from params.m_RenderContext. The borrowed owner must outlive Finalize.
-    HContext NewContext(const ContextParams& params, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits);
+    // Internal setup for snapshot consumers and isolated executors. The ordinary
+    // engine keeps legacy list preparation until its components have migrated.
+    // Borrowed execution and render contexts must outlive Finalize.
+    HContext NewContext(const ContextParams& params, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::RenderListPreparation preparation);
 }
 
 #endif // DM_GAMESYS_CONTEXT_PRIVATE_H

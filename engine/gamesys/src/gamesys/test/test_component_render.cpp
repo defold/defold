@@ -39,6 +39,7 @@
 #include <script/script.h>
 #include <testmain/testmain.h>
 
+#include "../../../../graphics/src/test/test_graphics_util.h"
 #include "gamesys/component_render.h"
 #include "gamesys/component_render_state_private.h"
 #include "gamesys/gamesys.h"
@@ -46,6 +47,8 @@
 
 namespace
 {
+    struct SnapshotRenderer;
+
     enum EventType
     {
         EVENT_TYPE_GAME_CREATE,
@@ -80,6 +83,7 @@ namespace
         Event                                   m_Events[128];
         dmRender::HRenderExecution              m_Execution;
         dmRender::HRenderContext                m_RenderContext;
+        SnapshotRenderer*                       m_SnapshotRenderer;
         dmMutex::HMutex                         m_Mutex;
         dmConditionVariable::HConditionVariable m_Changed;
         uint32_t                                m_EventCount;
@@ -112,14 +116,28 @@ namespace
         uint8_t                               m_NestedRenderRejected : 1;
     };
 
+    // Small game-side data set for the retained-item reference component.
+    struct SnapshotItem
+    {
+        float    m_X;
+        float    m_Radius;
+        uint32_t m_Value;
+        uint32_t m_Material;
+        uint32_t m_Order;
+        uint32_t m_BatchKey;
+        uint8_t  m_Enabled : 1;
+    };
+
     struct ArtificialWorld
     {
+        SnapshotItem                  m_Items[3];
         dmGameObject::HInstance       m_Instance;
         ArtificialType*               m_Type;
         dmRender::HRenderFrameStorage m_LastCapturedFrame;
         dmGameObject::HCollection     m_ChildCollection;
         uint32_t                      m_Id;
         uint32_t                      m_Value;
+        uint32_t                      m_ItemCount;
         uint8_t                       m_ChildEnabled : 1;
     };
 
@@ -442,6 +460,138 @@ namespace
         return type;
     }
 
+    // Retained handles belong to the renderer. Only the borrowed descriptor changes
+    // each frame; item user data is an index into that frame's immutable input array.
+    struct SnapshotRenderer
+    {
+        dmRender::HRenderItem              m_Items[3];
+        dmGameSystem::ComponentRenderFrame m_Frame;
+        dmRender::HMaterial                m_Materials[2];
+        Probe*                             m_Probe;
+        dmGraphics::HProgram               m_Program;
+        dmRender::HRenderItemDispatch      m_Dispatch;
+        uint32_t                           m_ItemCount;
+    };
+
+    static dmRender::RenderFrameResult CaptureSnapshotItems(const dmGameSystem::ComponentRenderCaptureParams& params)
+    {
+        ArtificialWorld* world = (ArtificialWorld*)params.m_World;
+        // An empty capture still receives Consume/EndFrame, but needs no input table.
+        if (!world->m_ItemCount)
+        {
+            return dmRender::RENDER_FRAME_OK;
+        }
+        uint32_t table;
+        return dmRender::CopyRenderFrameTable(params.m_Frame, 0, world->m_ItemCount, sizeof(SnapshotItem),
+                                              alignof(SnapshotItem), world->m_Items, &table);
+    }
+
+    static void DrawSnapshotItems(const dmRender::RenderListDispatchParams& params)
+    {
+        if (params.m_Operation != dmRender::RENDER_LIST_OPERATION_BATCH)
+        {
+            return;
+        }
+        SnapshotRenderer* renderer = (SnapshotRenderer*)params.m_UserData;
+        ASSERT_NE((const dmRender::RenderFrameView*)0, renderer->m_Frame.m_Frame);
+        const SnapshotItem* inputs = (const SnapshotItem*)dmRender::GetRenderFrameTableData(
+            *renderer->m_Frame.m_Frame, renderer->m_Frame.m_FirstTable);
+        for (uint32_t* i = params.m_Begin; i != params.m_End; ++i)
+        {
+            const dmRender::RenderListEntry& entry = params.m_Buf[*i];
+            const uint32_t index = (uint32_t)entry.m_UserData;
+            const SnapshotItem& input = inputs[index];
+            ASSERT_EQ(input.m_X, entry.m_WorldPosition.getX());
+            ASSERT_EQ(input.m_Order, entry.m_Order);
+            ASSERT_EQ(input.m_BatchKey, entry.m_BatchKey);
+            RecordEvent(renderer->m_Probe, EVENT_TYPE_RENDER_DRAW, 0, index, input.m_Value, input.m_X,
+                        dmRender::EXECUTION_OWNER_RENDER, renderer->m_Items[index]);
+        }
+    }
+
+    static dmRender::RenderFrameResult InitializeSnapshotRenderer(void* context, const void*, uint32_t, void** state)
+    {
+        Probe* probe = (Probe*)context;
+        SnapshotRenderer* renderer = (SnapshotRenderer*)calloc(1, sizeof(SnapshotRenderer));
+        renderer->m_Probe = probe;
+        renderer->m_Dispatch = dmRender::RegisterRenderListDispatch(probe->m_RenderContext, DrawSnapshotItems, 0, renderer);
+        dmGraphics::ShaderDescBuilder shader;
+        shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+        shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+        renderer->m_Program = dmGraphics::NewProgram(probe->m_RenderContext->m_GraphicsContext, shader.Get(), 0, 0);
+        const dmhash_t tags[] = { dmHashString64("snapshot-blue"), dmHashString64("snapshot-red") };
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            renderer->m_Materials[i] = dmRender::NewMaterial(probe->m_RenderContext, renderer->m_Program);
+            dmRender::SetMaterialTags(renderer->m_Materials[i], 1, &tags[i]);
+        }
+        probe->m_SnapshotRenderer = renderer;
+        *state = renderer;
+        RecordEvent(probe, EVENT_TYPE_RENDER_CREATE, 0, 0, 0, 0, dmRender::EXECUTION_OWNER_RENDER);
+        return dmRender::RENDER_FRAME_OK;
+    }
+
+    static dmRender::RenderFrameResult ConsumeSnapshotItems(void*, void* state, const dmGameSystem::ComponentRenderFrame& frame)
+    {
+        SnapshotRenderer* renderer = (SnapshotRenderer*)state;
+        dmRender::HRenderContext context = renderer->m_Probe->m_RenderContext;
+        renderer->m_Frame = frame;
+        const uint32_t count = frame.m_TableCount ? frame.m_Frame->m_Tables[frame.m_FirstTable].m_Count : 0;
+        const SnapshotItem* inputs = count ? (const SnapshotItem*)dmRender::GetRenderFrameTableData(*frame.m_Frame, frame.m_FirstTable) : 0;
+        for (uint32_t i = renderer->m_ItemCount; i < count; ++i)
+        {
+            renderer->m_Items[i] = dmRender::NewRenderItem(context, renderer->m_Dispatch, i);
+        }
+        for (uint32_t i = count; i < renderer->m_ItemCount; ++i)
+        {
+            dmRender::Enable(context, renderer->m_Items[i], false);
+        }
+        if (renderer->m_ItemCount < count)
+        {
+            renderer->m_ItemCount = count;
+        }
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const SnapshotItem& input = inputs[i];
+            dmRender::HRenderItem item = renderer->m_Items[i];
+            dmRender::SetWorldTransform(context, item, dmVMath::Matrix4::translation(dmVMath::Vector3(input.m_X, 0, 0)));
+            dmRender::SetBoundingSphere(context, item, dmVMath::Point3(input.m_X, 0, 0), input.m_Radius);
+            dmRender::SetMaterial(context, item, renderer->m_Materials[input.m_Material]);
+            dmRender::SetOrder(context, item, dmRender::RENDER_ORDER_AFTER_WORLD, input.m_Order);
+            dmRender::SetBatchKey(context, item, input.m_BatchKey);
+            dmRender::Enable(context, item, input.m_Enabled);
+        }
+        dmRender::SubmitRenderListDispatch(context, renderer->m_Dispatch);
+        RecordEvent(renderer->m_Probe, EVENT_TYPE_RENDER_CONSUME, 0, 0, count, 0, dmRender::EXECUTION_OWNER_RENDER);
+        return dmRender::RENDER_FRAME_OK;
+    }
+
+    static void EndSnapshotFrame(void*, void* state, const dmGameSystem::ComponentRenderFrame&)
+    {
+        SnapshotRenderer* renderer = (SnapshotRenderer*)state;
+        memset(&renderer->m_Frame, 0, sizeof(renderer->m_Frame));
+        RecordEvent(renderer->m_Probe, EVENT_TYPE_RENDER_END_FRAME, 0, 0, 0, 0, dmRender::EXECUTION_OWNER_RENDER);
+    }
+
+    static void DeleteSnapshotRenderer(void*, void* state)
+    {
+        SnapshotRenderer* renderer = (SnapshotRenderer*)state;
+        dmRender::HRenderContext context = renderer->m_Probe->m_RenderContext;
+        for (uint32_t i = 0; i < renderer->m_ItemCount; ++i)
+        {
+            dmRender::DeleteRenderItem(context, renderer->m_Items[i]);
+        }
+        dmRender::UnregisterRenderListDispatch(context, renderer->m_Dispatch);
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            dmRender::DeleteMaterial(context, renderer->m_Materials[i]);
+        }
+        dmGraphics::DeleteProgram(context->m_GraphicsContext, renderer->m_Program);
+        RecordEvent(renderer->m_Probe, EVENT_TYPE_RENDER_DELETE, 0, 0, 0, 0, dmRender::EXECUTION_OWNER_RENDER);
+        renderer->m_Probe->m_SnapshotRenderer = 0;
+        free(renderer);
+    }
+
     static dmGameObject::Result RegisterRenderer(ComponentRenderFixture* fixture, uint32_t index)
     {
         dmGameSystem::ComponentRenderType type = MakeRenderType(&fixture->m_Probe);
@@ -533,7 +683,7 @@ namespace
         context_params.m_RenderContext = fixture->m_RenderContext;
         context_params.m_ScriptContext = fixture->m_Script;
         const dmRender::RenderFrameLimits limits = { 4096, 16, 16 };
-        fixture->m_Context = dmGameSystem::NewContext(context_params, fixture->m_Execution, limits);
+        fixture->m_Context = dmGameSystem::NewContext(context_params, fixture->m_Execution, limits, dmRender::RENDER_LIST_PREPARATION_CONSUMER);
         assert(fixture->m_Context);
         fixture->m_Render = fixture->m_Context->m_ComponentRenderContext;
         fixture->m_TypeCount = type_count;
@@ -1158,6 +1308,194 @@ TEST(ComponentRender, LegacyCallbacksRequireInlineExecution)
     }
 }
 
+// Verify consumer-owned preparation rejects legacy submissions instead of clearing them before drawing.
+TEST(ComponentRender, ConsumerPreparationRejectsLegacyRenderCallbacks)
+{
+    ComponentRenderFixture fixture;
+    NewComponentRenderFixture(&fixture, dmRender::EXECUTION_MODE_INLINE, 1, false, true);
+    dmGameObject::HCollection collection = NewCollection(&fixture, "legacy_consumer_preparation");
+    ASSERT_NE((dmGameObject::HCollection)0, collection);
+
+    ASSERT_TRUE(dmGameSystem::BeginFrame(fixture.m_Context));
+    ASSERT_FALSE(dmGameSystem::Render(fixture.m_Context, collection));
+    ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_LEGACY_RENDER));
+    ASSERT_EQ((uint64_t)0, dmRender::GetRenderFrameQueueStatus(dmGameSystem::GetComponentRenderQueue(fixture.m_Render)).m_Published);
+
+    DeleteCollection(&fixture, collection);
+    DeleteComponentRenderFixture(&fixture);
+}
+
+// Verify threaded setup cannot preserve a list that an inline producer would prepare.
+TEST(ComponentRender, LegacyPreparationRejectsThreadedSetup)
+{
+    if (!HasThreads())
+    {
+        return;
+    }
+
+    ComponentRenderFixture fixture;
+    NewComponentRenderFixture(&fixture, dmRender::EXECUTION_MODE_INLINE, 0, false, true);
+    ASSERT_TRUE(dmGameSystem::Finalize(fixture.m_Context));
+    fixture.m_Render = 0;
+    dmRender::ExecutionSelection selection;
+    dmRender::HRenderExecution execution = dmRender::NewRenderExecution(dmRender::EXECUTION_MODE_THREADED, true, &selection);
+    ASSERT_NE((dmRender::HRenderExecution)0, execution);
+    const dmRender::RenderFrameLimits limits = { 4096, 16, 16 };
+
+    // Finalization removed the fixture's bridge: rejection must come from the
+    // preparation/execution combination, not conflicting lifecycle hooks.
+    ASSERT_EQ((dmGameSystem::HComponentRenderContext)0,
+              dmGameSystem::NewComponentRenderContext(fixture.m_Register, execution, limits, fixture.m_RenderContext, dmRender::RENDER_LIST_PREPARATION_LEGACY));
+
+    dmRender::DeleteRenderExecution(execution);
+    DeleteComponentRenderFixture(&fixture);
+}
+
+// Verify snapshots alone update retained items, including tags, bounds, order, disabled tails and omitted worlds.
+TEST(ComponentRender, RetainedItemsFollowPublishedSnapshots)
+{
+    const dmRender::ExecutionMode modes[] = { dmRender::EXECUTION_MODE_INLINE, dmRender::EXECUTION_MODE_THREADED };
+    const uint32_t mode_count = HasThreads() ? 2 : 1;
+    for (uint32_t mode = 0; mode < mode_count; ++mode)
+    {
+        ComponentRenderFixture fixture;
+        NewComponentRenderFixture(&fixture, modes[mode], 1, false, true);
+        dmGameSystem::ComponentRenderType type;
+        type.m_Capture = CaptureSnapshotItems;
+        type.m_RenderCallbacks.m_Initialize = InitializeSnapshotRenderer;
+        type.m_RenderCallbacks.m_Consume = ConsumeSnapshotItems;
+        type.m_RenderCallbacks.m_EndFrame = EndSnapshotFrame;
+        type.m_RenderCallbacks.m_Destroy = DeleteSnapshotRenderer;
+        type.m_RenderContext = &fixture.m_Probe;
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::RegisterComponentRenderType(fixture.m_Render, 0, type));
+        dmGameObject::HCollection collection = NewCollection(&fixture, "snapshot_render_items");
+        ASSERT_NE((dmGameObject::HCollection)0, collection);
+        Executor executor;
+        if (modes[mode] == dmRender::EXECUTION_MODE_THREADED)
+        {
+            StartExecutor(&executor, &fixture);
+        }
+
+        dmRender::HRenderFrameQueue queue = dmGameSystem::GetComponentRenderQueue(fixture.m_Render);
+        dmRender::HRenderItem retained_items[3];
+        const uint32_t item_counts[] = { 3, 3, 1, 0, 2, 3, 1 };
+        const uint32_t draw_counts[] = { 1, 2, 1, 0, 1, 0, 1 };
+        const uint32_t draw_indices[][2] = { { 0, 0 }, { 2, 1 }, { 0, 0 }, { 0, 0 }, { 1, 0 }, { 0, 0 }, { 0, 0 } };
+        for (uint32_t frame_index = 0; frame_index < 7; ++frame_index)
+        {
+            SnapshotItem inputs[] = {
+                { 0.0f, 0.1f, 10 + frame_index, 0, 30, 100 + frame_index, 1 },
+                { 0.25f, 0.1f, 20 + frame_index, 1, 20, 200 + frame_index, 1 },
+                { 100.0f, 0.1f, 30 + frame_index, 0, 10, 300 + frame_index, 1 }
+            };
+            if (frame_index == 1)
+            {
+                // The same frustum must see changed bounds and the red-to-blue
+                // material change. Explicit order puts item 2 before item 1.
+                inputs[0].m_X = 100.0f;
+                inputs[1].m_Material = 0;
+                inputs[2].m_X = 0.5f;
+            }
+            if (frame_index == 4)
+            {
+                inputs[0].m_Enabled = false;
+                inputs[1].m_Material = 0;
+            }
+            ArtificialWorld* world = GetWorld(collection);
+            memcpy(world->m_Items, inputs, sizeof(inputs));
+            world->m_ItemCount = item_counts[frame_index];
+            const uint32_t first_draw = CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW);
+            dmRender::RenderFrameTicket ticket;
+            ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::BeginRenderFrameCapture(queue, &ticket));
+            dmRender::BeginFrame(fixture.m_RenderContext, (float)frame_index, 0.125f);
+            if (frame_index != 5)
+            {
+                ASSERT_TRUE(dmGameSystem::CaptureComponentRenderData(fixture.m_Render, collection, ticket.m_Frame));
+            }
+            ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::RecordRenderFrameInfo(ticket.m_Frame,
+                                                                                 dmRender::GetRenderFrameInfo(fixture.m_RenderContext)));
+            dmRender::Predicate predicate = {};
+            predicate.m_TagCount = 1;
+            predicate.m_Tags[0] = dmHashString64("snapshot-blue");
+            dmRender::FrustumOptions frustum;
+            frustum.m_Matrix = dmVMath::Matrix4::identity();
+            frustum.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+            dmRender::Command commands[] = { dmRender::Command(dmRender::COMMAND_TYPE_DRAW), dmRender::Command(dmRender::COMMAND_TYPE_DRAW) };
+            for (uint32_t pass = 0; pass < 2; ++pass)
+            {
+                dmRender::Command source(dmRender::COMMAND_TYPE_DRAW, (uint64_t)&predicate, 0, (uint64_t)&frustum, dmRender::SORT_BACK_TO_FRONT);
+                ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::RecordRenderCommand(fixture.m_RenderContext,
+                                                                                   ticket.m_Frame, source, &commands[pass], 0, false, false));
+            }
+            ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::AppendRenderCommands(ticket.m_Frame, commands, 2));
+
+            // Only ConsumeSnapshotItems may modify retained items; neither capture
+            // nor later game mutations can install render state or borrowed pointers.
+            ASSERT_EQ(first_draw, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW));
+            if (frame_index == 0)
+            {
+                ASSERT_EQ((SnapshotRenderer*)0, fixture.m_Probe.m_SnapshotRenderer);
+            }
+            memset(world->m_Items, 0xdd, sizeof(world->m_Items));
+            world->m_ItemCount = 0;
+            if (modes[mode] == dmRender::EXECUTION_MODE_INLINE)
+            {
+                dmGraphics::BeginFrame(fixture.m_Graphics);
+            }
+            ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::PublishRenderFrame(queue, ticket));
+            if (modes[mode] == dmRender::EXECUTION_MODE_THREADED)
+            {
+                ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_CONSUMED, Pump(&executor, true));
+            }
+
+            SnapshotRenderer* renderer = fixture.m_Probe.m_SnapshotRenderer;
+            ASSERT_EQ(3u, renderer->m_ItemCount);
+            ASSERT_EQ((const dmRender::RenderFrameView*)0, renderer->m_Frame.m_Frame);
+            ASSERT_EQ(first_draw + 2 * draw_counts[frame_index], CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW));
+            ASSERT_EQ(frame_index == 5 ? 0u : 1u, fixture.m_RenderContext->m_SubmittedRenderItemDispatches.Size());
+            for (uint32_t draw = 0; draw < 2 * draw_counts[frame_index]; ++draw)
+            {
+                const uint32_t index = draw_indices[frame_index][draw % draw_counts[frame_index]];
+                Event event = GetEvent(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW, first_draw + draw);
+                ASSERT_EQ(index, event.m_World);
+                ASSERT_EQ(inputs[index].m_Value, event.m_Value);
+                ASSERT_EQ(inputs[index].m_X, event.m_X);
+                ASSERT_EQ(renderer->m_Items[index], event.m_RenderWorld);
+            }
+            for (uint32_t item = 0; item < 3; ++item)
+            {
+                if (frame_index == 0)
+                {
+                    retained_items[item] = renderer->m_Items[item];
+                }
+                ASSERT_EQ(retained_items[item], renderer->m_Items[item]);
+                if (frame_index != 5)
+                {
+                    const bool enabled = item < item_counts[frame_index] && inputs[item].m_Enabled;
+                    ASSERT_EQ(enabled, fixture.m_RenderContext->m_PersistentRenderItems[(uint32_t)retained_items[item]].m_Enabled != 0);
+                }
+            }
+            ASSERT_EQ(1u, dmRender::RetireRenderFrames(queue));
+        }
+
+        DeleteCollection(&fixture, collection);
+        if (modes[mode] == dmRender::EXECUTION_MODE_THREADED)
+        {
+            ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_IDLE, Pump(&executor, false));
+            dmRender::StopRenderFrameQueue(queue);
+            ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_DRAINED, Pump(&executor, true));
+        }
+        else
+        {
+            dmGameSystem::ServiceComponentRenderContext(fixture.m_Render);
+        }
+        ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CREATE));
+        ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DELETE));
+        ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
+        DeleteComponentRenderFixture(&fixture);
+    }
+}
+
 // Verify BeginFrame supplies recording timing and both consumers populate render items before pass commands draw them.
 TEST(ComponentRender, ComponentInputsAreConsumedBeforePassCommands)
 {
@@ -1175,12 +1513,10 @@ TEST(ComponentRender, ComponentInputsAreConsumedBeforePassCommands)
         dmGameObject::HCollection collection = NewCollection(&fixture, "complete_frame_order");
         ASSERT_NE((dmGameObject::HCollection)0, collection);
 
-        // Exercise the real pass consumer with null graphics. Legacy list preparation
-        // remains serialized here until components publish inputs and the render
-        // owner takes over list preparation from the game owner.
+        // The consumer begins the list before populating items from this snapshot.
+        // BeginFrame still prepares the legacy light/debug state on the producer.
         ASSERT_TRUE(dmGameSystem::BeginFrame(fixture.m_Context));
         dmRender::BeginFrame(fixture.m_RenderContext, 1.0f, 0.125f);
-        dmRender::RenderListBegin(fixture.m_RenderContext);
         ASSERT_TRUE(dmGameSystem::Render(fixture.m_Context, collection));
         ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));
         ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW));
@@ -1260,7 +1596,6 @@ TEST(ComponentRender, FrameBindingsSpanAllPasses)
                 dmRender::RenderFrameTicket ticket;
                 ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::BeginRenderFrameCapture(queue, &ticket));
                 dmRender::BeginFrame(fixture.m_RenderContext, (float)frame_index, 0.125f);
-                dmRender::RenderListBegin(fixture.m_RenderContext);
                 ASSERT_TRUE(dmGameSystem::CaptureComponentRenderData(fixture.m_Render, collection, ticket.m_Frame));
                 ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::RecordRenderFrameInfo(ticket.m_Frame,
                                                                                      dmRender::GetRenderFrameInfo(fixture.m_RenderContext)));
@@ -1345,7 +1680,6 @@ TEST(ComponentRender, LateDrawSurvivesGameWorldDeletion)
 
     ASSERT_TRUE(dmGameSystem::BeginFrame(fixture.m_Context));
     dmRender::BeginFrame(fixture.m_RenderContext, 1.0f, 0.125f);
-    dmRender::RenderListBegin(fixture.m_RenderContext);
     ASSERT_TRUE(dmGameSystem::Render(fixture.m_Context, collection));
     ASSERT_TRUE(dmGameSystem::SubmitRender(fixture.m_Context, 0, 0.125f, 0));
     RequestPump(&executor, true);
@@ -1408,7 +1742,6 @@ TEST(ComponentRender, FailedPreparationStillReplaysPassesAndEnds)
 
         ASSERT_TRUE(dmGameSystem::BeginFrame(fixture.m_Context));
         dmRender::BeginFrame(fixture.m_RenderContext, 1.0f, 0.125f);
-        dmRender::RenderListBegin(fixture.m_RenderContext);
         ASSERT_TRUE(dmGameSystem::Render(fixture.m_Context, collection));
         if (modes[mode] == dmRender::EXECUTION_MODE_INLINE)
         {

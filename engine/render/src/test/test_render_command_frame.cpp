@@ -340,6 +340,142 @@ class RenderCommandReplay : public jc_test_base_class
     }
 };
 
+static void CountRenderListEntries(const RenderListDispatchParams& params)
+{
+    if (params.m_Operation == RENDER_LIST_OPERATION_BATCH)
+    {
+        *(uint32_t*)params.m_UserData += params.m_End - params.m_Begin;
+    }
+}
+
+static void SubmitTransientRenderEntry(HRenderContext context, uint32_t* drawn)
+{
+    HRenderListDispatch dispatch = RenderListMakeDispatch(context, CountRenderListEntries, 0, drawn);
+    RenderListEntry* entry = RenderListAlloc(context, 1);
+    entry->m_Dispatch = dispatch;
+    entry->m_TagListKey = RegisterMaterialTagList(context, 0, 0);
+    entry->m_WorldPosition = dmVMath::Point3(0, 0, 0);
+    RenderListSubmit(context, entry, entry + 1);
+}
+
+// Consumer preparation resets frame enrollment, not persistent items or their cached tag ranges.
+TEST_F(RenderCommandReplay, ConsumerPreparationPreservesPersistentItemsAndCache)
+{
+    uint32_t drawn = 0;
+    HRenderItemDispatch dispatch = RegisterRenderListDispatch(m_Context, CountRenderListEntries, 0, &drawn);
+    HRenderItem item = NewRenderItem(m_Context, dispatch, 42);
+    ASSERT_TRUE(SetMaterial(m_Context, item, 0));
+    ASSERT_TRUE(Enable(m_Context, item, true));
+
+    RenderListBegin(m_Context);
+    SubmitRenderListDispatch(m_Context, dispatch);
+    RenderListEnd(m_Context);
+    ASSERT_EQ(RESULT_OK, DrawRenderList(m_Context, 0, 0, 0, SORT_NONE));
+    ASSERT_EQ(1u, drawn);
+    RenderItemDispatch* registration = m_Context->m_RenderItemDispatches[dispatch];
+    ASSERT_FALSE(registration->m_RebuildCache);
+    ASSERT_EQ(1u, registration->m_SortIndices.Size());
+    ASSERT_EQ(1u, registration->m_Ranges.Size());
+
+    RenderFrameInfo info = GetRenderFrameInfo(m_Context);
+    info.m_Time = 12.0f;
+    info.m_Dt = 0.25f;
+    ASSERT_EQ(RENDER_FRAME_OK, RecordRenderFrameInfo(m_Frame, info));
+    const Command draw(COMMAND_TYPE_DRAW, 0, 0, 0, SORT_NONE);
+    ASSERT_EQ(RENDER_FRAME_OK, AppendRenderCommands(m_Frame, &draw, 1));
+    ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(m_Frame));
+
+    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_LIST_PREPARATION_CONSUMER);
+    ASSERT_EQ(12.0f, m_Context->m_Time);
+    ASSERT_EQ(0.25f, m_Context->m_Dt);
+    ASSERT_EQ(0u, m_Context->m_SubmittedRenderItemDispatches.Size());
+    ASSERT_EQ(0u, m_Context->m_RenderListDispatch.Size());
+    ASSERT_EQ(RENDERLIST_INVALID_DISPATCH, registration->m_FrameDispatch);
+    ASSERT_FALSE(registration->m_RebuildCache);
+    ASSERT_EQ(1u, registration->m_SortIndices.Size());
+    ASSERT_EQ((uint32_t)item, registration->m_SortIndices[0]);
+    ASSERT_EQ(1u, registration->m_Ranges.Size());
+
+    // The same handle is still enabled and can be updated and enrolled for this frame.
+    ASSERT_TRUE(SetBatchKey(m_Context, item, 7));
+    SubmitRenderListDispatch(m_Context, dispatch);
+    RenderListEnd(m_Context);
+    ConsumeRenderCommands(m_Context, *GetRenderFrameView(m_Frame));
+    ASSERT_EQ(2u, drawn);
+    ASSERT_EQ(7u, m_Context->m_RenderList[(uint32_t)item].m_BatchKey);
+
+    ASSERT_TRUE(DeleteRenderItem(m_Context, item));
+    UnregisterRenderListDispatch(m_Context, dispatch);
+}
+
+// A frame without captured component inputs must not draw earlier persistent or transient submissions.
+TEST_F(RenderCommandReplay, CommandOnlyConsumerFrameClearsPreviousSubmissions)
+{
+    uint32_t drawn = 0;
+    HRenderItemDispatch dispatch = RegisterRenderListDispatch(m_Context, CountRenderListEntries, 0, &drawn);
+    HRenderItem item = NewRenderItem(m_Context, dispatch, 42);
+    ASSERT_TRUE(SetMaterial(m_Context, item, 0));
+    ASSERT_TRUE(Enable(m_Context, item, true));
+
+    RenderListBegin(m_Context);
+    SubmitRenderListDispatch(m_Context, dispatch);
+    SubmitTransientRenderEntry(m_Context, &drawn);
+    RenderListEnd(m_Context);
+    ASSERT_EQ(RESULT_OK, DrawRenderList(m_Context, 0, 0, 0, SORT_NONE));
+    ASSERT_EQ(2u, drawn);
+
+    const RenderFrameInfo info = GetRenderFrameInfo(m_Context);
+    ASSERT_EQ(RENDER_FRAME_OK, RecordRenderFrameInfo(m_Frame, info));
+    const Command draw(COMMAND_TYPE_DRAW, 0, 0, 0, SORT_NONE);
+    ASSERT_EQ(RENDER_FRAME_OK, AppendRenderCommands(m_Frame, &draw, 1));
+    ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(m_Frame));
+    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_LIST_PREPARATION_CONSUMER);
+    ASSERT_EQ(0u, m_Context->m_SubmittedRenderItemDispatches.Size());
+    ASSERT_EQ(0u, m_Context->m_RenderListDispatch.Size());
+    ASSERT_EQ(0u, m_Context->m_TransientRenderList.Size());
+    ASSERT_EQ(0u, m_Context->m_TransientRenderListIndices.Size());
+
+    RenderListEnd(m_Context);
+    ConsumeRenderCommands(m_Context, *GetRenderFrameView(m_Frame));
+    ASSERT_EQ(2u, drawn);
+    ASSERT_EQ(0u, m_Context->m_RenderListSortBuffer.Size());
+
+    ASSERT_TRUE(DeleteRenderItem(m_Context, item));
+    UnregisterRenderListDispatch(m_Context, dispatch);
+}
+
+// Legacy preparation preserves producer-enrolled persistent and transient items until recorded passes execute.
+TEST_F(RenderCommandReplay, LegacyPreparationPreservesProducerSubmissions)
+{
+    uint32_t drawn = 0;
+    HRenderItemDispatch dispatch = RegisterRenderListDispatch(m_Context, CountRenderListEntries, 0, &drawn);
+    HRenderItem item = NewRenderItem(m_Context, dispatch, 42);
+    ASSERT_TRUE(SetMaterial(m_Context, item, 0));
+    ASSERT_TRUE(Enable(m_Context, item, true));
+
+    RenderListBegin(m_Context);
+    SubmitRenderListDispatch(m_Context, dispatch);
+    SubmitTransientRenderEntry(m_Context, &drawn);
+
+    const RenderFrameInfo info = GetRenderFrameInfo(m_Context);
+    ASSERT_EQ(RENDER_FRAME_OK, RecordRenderFrameInfo(m_Frame, info));
+    const Command draw(COMMAND_TYPE_DRAW, 0, 0, 0, SORT_NONE);
+    ASSERT_EQ(RENDER_FRAME_OK, AppendRenderCommands(m_Frame, &draw, 1));
+    ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(m_Frame));
+    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_LIST_PREPARATION_LEGACY);
+    ASSERT_EQ(1u, m_Context->m_SubmittedRenderItemDispatches.Size());
+    ASSERT_EQ(2u, m_Context->m_RenderListDispatch.Size());
+    ASSERT_EQ(1u, m_Context->m_TransientRenderList.Size());
+    ASSERT_EQ(1u, m_Context->m_TransientRenderListIndices.Size());
+
+    RenderListEnd(m_Context);
+    ConsumeRenderCommands(m_Context, *GetRenderFrameView(m_Frame));
+    ASSERT_EQ(2u, drawn);
+
+    ASSERT_TRUE(DeleteRenderItem(m_Context, item));
+    UnregisterRenderListDispatch(m_Context, dispatch);
+}
+
 // Derived limits preserve component reservations alongside fixed command and operand storage.
 TEST_F(RenderCommandReplay, DerivedLimitsIncludeComponentReservations)
 {

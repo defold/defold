@@ -51,6 +51,12 @@ namespace dmGameSystem
      * EndFrame, after all passes have executed. Keep bindings per capture, not per
      * mutable game world. A failure is reported but does not skip EndFrame or other
      * accepted work.
+     * Renderer state owns persistent render items. Refresh their transform, bounds,
+     * material, ordering and batch data from this capture, disable unused items,
+     * then submit the dispatch. Item user data can identify a stable renderer slot;
+     * resolve that slot against the current capture in draw callbacks, not a game
+     * component pointer. Items and their caches may survive EndFrame, but borrowed
+     * input bindings may not. Resource lifetime is separate from item lifetime.
      * @param renderer_context Registered renderer-owned/read-safe context
      * @param state State returned by initialization
      * @param frame Borrowed frame and the input-table range for this capture

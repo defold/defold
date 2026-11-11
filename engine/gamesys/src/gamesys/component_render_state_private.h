@@ -18,6 +18,7 @@
 #include <gameobject/component.h>
 #include <render/render.h>
 #include <render/render_frame_queue.h>
+#include <render/render_frame.h>
 
 #include "component_render.h"
 
@@ -42,13 +43,15 @@ namespace dmGameSystem
      * Creates no thread. A render context allocates a queue even without opted-in
      * components, so default and command-only frames can be submitted.
      * Borrows execution, which must outlive the bridge; also usable by isolated tests.
+     * Legacy list preparation requires inline execution when a renderer is supplied.
      * @param regist Game-object register, which must outlive the bridge
      * @param execution Borrowed execution context
      * @param limits Per-slot storage limits
      * @param render_context Borrowed renderer, or null for component-only lifecycle tests
-     * @return New bridge, or null on allocation failure or unavailable world-owner hooks
+     * @param preparation Consumer-owned list setup, or legacy preparation for unmigrated inline callers
+     * @return New bridge, or null on invalid preparation, allocation failure or unavailable world-owner hooks
      */
-    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context);
+    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context, dmRender::RenderListPreparation preparation);
 
     /**
      * Register a game type and optional render bridge in one operation on the game owner.
