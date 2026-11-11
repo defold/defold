@@ -186,6 +186,39 @@ TEST(dmJson, InitialCapacityAndGrowingArray)
     ASSERT_EQ(42, json.Integer(json.Field(0, "value"), -1));
 }
 
+// Sparse arrays must not reserve nodes in proportion to a long string's size,
+// even when a dense prefix exhausts the initial node allocation.
+TEST(dmJson, SparseArrayStorage)
+{
+    const uint32_t string_length = 1024 * 1024;
+    for (uint32_t prefix_count = 0; prefix_count <= 256; prefix_count += 256)
+    {
+        dmArray<char> text;
+        text.SetCapacity(string_length + 1024);
+        char* cursor = text.Begin();
+        *cursor++ = '[';
+        for (uint32_t i = 0; i < prefix_count; ++i)
+        {
+            *cursor++ = '0';
+            *cursor++ = ',';
+        }
+        *cursor++ = '"';
+        memset(cursor, 'a', string_length);
+        cursor += string_length;
+        *cursor++ = '"';
+        *cursor++ = ']';
+        text.SetSize((uint32_t)(cursor - text.Begin()));
+
+        dmJson::Document json(256);
+        ASSERT_TRUE(json.Parse(text.Begin(), text.Size(), 0, dmJson::PARSE_DECODE_VALUES));
+        ASSERT_EQ(prefix_count + 2, json.NodeCount());
+        ASSERT_EQ(prefix_count + 1, json.Get(0).m_Container.m_Count);
+        ASSERT_LT(json.Handle()->m_Nodes.Capacity() * sizeof(JsonNode), string_length / 4);
+        ASSERT_EQ(string_length, strlen(json.String(prefix_count + 1, 0)));
+        ASSERT_EQ(-1, json.Get(prefix_count + 1).m_Next);
+    }
+}
+
 // Offset-based names retain empty and escaped keys through node/text growth and
 // document reuse. Array members and the root must remain unnamed in both modes.
 TEST(dmJson, CompactNameOffsets)
