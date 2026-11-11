@@ -321,7 +321,8 @@ TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
     };
     for (uint32_t mode = 0; mode < sizeof(modes) / sizeof(modes[0]); ++mode)
     {
-        if (fesetround(modes[mode]))
+        // Emscripten can report success without changing the rounding mode.
+        if (fesetround(modes[mode]) || fegetround() != modes[mode])
         {
             continue;
         }
@@ -378,7 +379,8 @@ TEST_F(ScriptJsonTest, TestJsonEncodeRoundingMode)
     const int modes[] = { FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO };
     for (uint32_t mode = 0; mode < sizeof(modes) / sizeof(modes[0]); ++mode)
     {
-        if (fesetround(modes[mode]))
+        // Emscripten can report success without changing the rounding mode.
+        if (fesetround(modes[mode]) || fegetround() != modes[mode])
         {
             continue;
         }

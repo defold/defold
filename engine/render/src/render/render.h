@@ -273,8 +273,8 @@ namespace dmRender
     void SetViewMatrix(HRenderContext render_context, const dmVMath::Matrix4& view);
     void SetProjectionMatrix(HRenderContext render_context, const dmVMath::Matrix4& projection);
 
-    // Begin a render frame by setting its time and delta-time (in seconds) and resetting
-    // per-frame renderer state such as submitted light instances.
+    // Begin inline frame preparation by setting recording/execution time and delta-time
+    // (in seconds) and resetting per-frame renderer state such as submitted lights.
     void BeginFrame(HRenderContext render_context, float time, float dt);
 
     HMaterial GetContextMaterial(HRenderContext render_context);
