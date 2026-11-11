@@ -31,6 +31,7 @@ namespace dmResourceProviderFile
     {
         char m_BasePath[DMPATH_MAX_PATH];
         char m_HostBasePath[DMPATH_MAX_PATH];
+        char m_PackageBasePath[DMPATH_MAX_PATH];
     };
 
     static bool MatchesUri(const dmURI::Parts* uri)
@@ -52,6 +53,7 @@ namespace dmResourceProviderFile
         // Anchor both lookup roots before application code can change the process cwd.
         const char* root = base_path[0] ? base_path : "/";
         FileProviderContext* archive = new FileProviderContext;
+        dmStrlCpy(archive->m_PackageBasePath, root, sizeof(archive->m_PackageBasePath));
         dmSys::Result result = dmSys::GetAbsolutePath(root, archive->m_BasePath, sizeof(archive->m_BasePath));
         if (result != dmSys::RESULT_OK)
         {
@@ -85,6 +87,15 @@ namespace dmResourceProviderFile
         if (strlen(path) >= dmResource::RESOURCE_PATH_MAX)
         {
             return 0;
+        }
+        // Package names are independent of cwd and must not fall back to relative filesystem reads.
+        if (dmSnPrintf(buffer, buffer_len, "%s%s", archive->m_PackageBasePath, path) >= (int)buffer_len)
+        {
+            return 0;
+        }
+        if (dmSys::ResourceExistsInPackage(buffer))
+        {
+            return buffer;
         }
         if (dmSnPrintf(buffer, buffer_len, "%s%s", archive->m_BasePath, path) >= (int)buffer_len)
         {

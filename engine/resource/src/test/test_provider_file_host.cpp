@@ -16,6 +16,7 @@
 #include <dlib/log.h>
 #include <dlib/path.h>
 #include <dlib/sys.h>
+#include <dlib/sys_private.h>
 #include <dlib/testutil.h>
 #include <dlib/uri.h>
 
@@ -37,16 +38,7 @@ namespace dmSys
         {
             return RESULT_NOENT;
         }
-        if (strncmp(path, g_HostRoot, strlen(g_HostRoot)) == 0)
-        {
-            return dmStrlCpy(buffer, path, buffer_size) < buffer_size ? RESULT_OK : RESULT_INVAL;
-        }
-        if (dmSnPrintf(buffer, buffer_size, "%s/%s", g_HostRoot, path) >= (int)buffer_size)
-        {
-            return RESULT_INVAL;
-        }
-        dmPath::Normalize(buffer, buffer, buffer_size);
-        return RESULT_OK;
+        return GetHostFileNameImpl(buffer, buffer_size, path, g_HostRoot);
     }
 }
 
@@ -155,6 +147,35 @@ TEST_F(HostFileProviderArchive, LongPathDoesNotReadTruncatedHostFile)
     EXPECT_EQ(dmResourceProvider::RESULT_NOT_FOUND, dmResourceProvider::ReadFile(m_Archive, 0, path, buffer, sizeof(buffer)));
     uint32_t nread = 0;
     EXPECT_EQ(dmResourceProvider::RESULT_NOT_FOUND, dmResourceProvider::ReadFilePartial(m_Archive, 0, path, 0, sizeof(buffer), buffer, &nread));
+}
+
+// A truncated host root must not cache a different directory that contains a real file.
+TEST_F(HostFileProviderArchive, TruncatedHostRootDoesNotReadOtherDirectory)
+{
+    const char* directory = "src/test/files";
+    uint32_t padding = DMPATH_MAX_PATH - 2 - (uint32_t)strlen(g_HostRoot) - (uint32_t)strlen(directory);
+    ASSERT_GT(padding, 1U);
+    char root[DMPATH_MAX_PATH];
+    root[0] = '.';
+    memset(root + 1, '/', padding - 1);
+    ASSERT_LT(dmSnPrintf(root + padding, sizeof(root) - padding, "%s-missing", directory), (int)(sizeof(root) - padding));
+
+    char absolute_root[DMPATH_MAX_PATH];
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetAbsolutePath(root, absolute_root, sizeof(absolute_root)));
+    ASSERT_FALSE(dmSys::ResourceExists(absolute_root));
+
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::Unmount(m_Archive));
+    m_Archive = 0;
+    dmURI::Parts uri;
+    dmURI::Parse(root, &uri);
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::CreateMount(m_Loader, &uri, 0, &m_Archive));
+
+    uint32_t file_size = 0;
+    EXPECT_EQ(dmResourceProvider::RESULT_NOT_FOUND, dmResourceProvider::GetFileSize(m_Archive, 0, "/somedata", &file_size));
+    uint8_t buffer[sizeof(SOMEDATA)] = { 0 };
+    EXPECT_EQ(dmResourceProvider::RESULT_NOT_FOUND, dmResourceProvider::ReadFile(m_Archive, 0, "/somedata", buffer, sizeof(buffer)));
+    uint32_t nread = 0;
+    EXPECT_EQ(dmResourceProvider::RESULT_NOT_FOUND, dmResourceProvider::ReadFilePartial(m_Archive, 0, "/somedata", 0, sizeof(buffer), buffer, &nread));
 }
 
 // Failure to resolve a host fallback must not break an otherwise valid native mount.

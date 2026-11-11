@@ -288,6 +288,7 @@ if(NOT DLIB_TEST_SKIP_THREADS)
 endif()
 dlib_add_test(test_condition_variable)
 dlib_add_test(test_job_system)
+dlib_add_test(test_sys_sdk)
 
 if(DLIB_TEST_SKIP_RUN)
   dlib_add_test(test_sys SKIP_RUN)

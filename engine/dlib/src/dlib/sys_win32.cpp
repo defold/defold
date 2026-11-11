@@ -112,26 +112,7 @@ namespace dmSys
 
     Result GetHostFileName(char* buffer, size_t buffer_size, const char* path)
     {
-        const char* hostfs = DM_HOSTFS;
-        size_t hostfs_len = strlen(hostfs);
-
-        if (hostfs_len == 0 || strncmp(path, hostfs, hostfs_len) == 0)
-        {
-            dmStrlCpy(buffer, path, buffer_size);
-        }
-        else
-        {
-            dmStrlCpy(buffer, hostfs, buffer_size);
-            size_t buffer_len = buffer_size > 0 ? strlen(buffer) : 0;
-            if (buffer_len > 0 && buffer[buffer_len - 1] != '/')
-            {
-                dmStrlCat(buffer, "/", buffer_size);
-            }
-            dmStrlCat(buffer, path, buffer_size);
-        }
-
-        dmPath::Normalize(buffer, buffer, buffer_size);
-        return RESULT_OK;
+        return GetHostFileNameImpl(buffer, buffer_size, path, DM_HOSTFS);
     }
 
     void SetNetworkConnectivityHost(const char* host)

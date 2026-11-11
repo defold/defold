@@ -193,6 +193,27 @@ TEST(dmSys, IsDir)
     ASSERT_EQ(dmSys::RESULT_UNKNOWN, r); // TODO: This api isn't very nice /MAWE
 }
 
+// Host mapping must detect truncation before normalization can turn it into another path.
+TEST(dmSys, HostFileNameBuffer)
+{
+    char path[64];
+    EXPECT_EQ(dmSys::RESULT_OK, dmSys::GetHostFileNameImpl(path, sizeof(path), "file", "host"));
+    EXPECT_STREQ("host/file", path);
+    EXPECT_EQ(dmSys::RESULT_OK, dmSys::GetHostFileNameImpl(path, sizeof("host/file"), "file", "host"));
+    EXPECT_STREQ("host/file", path);
+    EXPECT_EQ(dmSys::RESULT_INVAL, dmSys::GetHostFileNameImpl(path, sizeof("host/file") - 1, "file", "host"));
+    EXPECT_EQ(dmSys::RESULT_INVAL, dmSys::GetHostFileNameImpl(path, sizeof("host"), "file", "host"));
+    EXPECT_EQ(dmSys::RESULT_INVAL, dmSys::GetHostFileNameImpl(path, sizeof("host") - 1, "file", "host"));
+    EXPECT_EQ(dmSys::RESULT_INVAL, dmSys::GetHostFileNameImpl(path, sizeof("file") - 1, "file", ""));
+    EXPECT_EQ(dmSys::RESULT_INVAL, dmSys::GetHostFileNameImpl(path, sizeof("host/file") - 1, "host/file", "host"));
+    EXPECT_EQ(dmSys::RESULT_INVAL, dmSys::GetHostFileNameImpl(path, 0, "file", "host"));
+
+    char padded[sizeof(path)];
+    memset(padded, '/', sizeof(padded));
+    memcpy(padded + sizeof(padded) - sizeof("short-missing"), "short-missing", sizeof("short-missing"));
+    EXPECT_EQ(dmSys::RESULT_INVAL, dmSys::GetHostFileNameImpl(path, sizeof("host/short"), padded, "host"));
+}
+
 // GetCwd returns an existing directory and reports insufficient caller-owned buffers.
 TEST(dmSys, GetCwd)
 {

@@ -150,32 +150,6 @@ namespace dmSys
     Result IsDir(const char* path);
 
     /**
-     * Get the current working directory of the process.
-     * @param path caller-owned output buffer
-     * @param path_len output buffer size, including the terminating null
-     * @return RESULT_OK on success, RESULT_INVAL if the buffer size is invalid or too small,
-     *         or another filesystem error. Buffer contents are unspecified on failure.
-     */
-    Result GetCwd(char* path, uint32_t path_len);
-
-    /**
-     * Change the process current working directory for all threads.
-     * @param path directory to change to
-     * @return RESULT_OK on success, or a filesystem error
-     */
-    Result ChDir(const char* path);
-
-    /**
-     * Resolve a path against the current working directory without requiring it to exist.
-     * @param path null-terminated input path, which must not overlap path_out
-     * @param path_out caller-owned output buffer
-     * @param path_len output buffer size, including the terminating null
-     * @return RESULT_OK on success, RESULT_INVAL if the buffer is too small,
-     *         or another filesystem error. Buffer contents are unspecified on failure.
-     */
-    Result GetAbsolutePath(const char* path, char* path_out, uint32_t path_len);
-
-    /**
      * Remove directory tree structure and files within
      * @param path path to directory to remove
      * @return RESULT_OK on success
@@ -217,6 +191,7 @@ namespace dmSys
     /**
      * Prefixes a path with the correct host mount
      * Used during development to read/write files on the host PC
+     * @return RESULT_OK on success, RESULT_INVAL if the expanded path does not fit
      */
     Result GetHostFileName(char* buffer, size_t buffer_size, const char* path);
 
@@ -329,6 +304,14 @@ namespace dmSys
      * @return true if resource exists
      */
     bool ResourceExists(const char* path);
+
+    /**
+     * Check a package-relative resource name without probing the local filesystem.
+     * @param path package-relative resource name
+     * @return true if the resource exists in the application package; false for
+     *         absolute filesystem paths or platforms without packaged resources
+     */
+    bool ResourceExistsInPackage(const char* path);
 
     /**
      * Get resource sie

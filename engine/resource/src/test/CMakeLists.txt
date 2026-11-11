@@ -346,6 +346,18 @@ defold_add_executable(test_provider_file_host
 target_compile_definitions(test_provider_file_host PRIVATE GetHostFileName=GetTestHostFileName)
 resource_configure_test(test_provider_file_host ON ResourceProviderFile)
 
+# Exercise packaged-resource names alongside real filesystem reads on every platform.
+defold_add_executable(test_provider_file_assets
+  "${RESOURCE_TEST_ROOT}/test_provider_file_assets.cpp"
+  "${RESOURCE_SRC_DIR}/providers/provider_file.cpp")
+target_compile_definitions(test_provider_file_assets PRIVATE
+  ResourceExistsInPackage=GetTestResourceExistsInPackage
+  ResourceExists=GetTestResourceExists
+  ResourceSize=GetTestResourceSize
+  LoadResource=GetTestLoadResource
+  LoadResourcePartial=GetTestLoadResourcePartial)
+resource_configure_test(test_provider_file_assets ON ResourceProviderFile)
+
 if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND NOT TARGET_PLATFORM MATCHES "web$")
   defold_add_executable(test_provider_http "${RESOURCE_TEST_ROOT}/test_provider_http.cpp")
   target_compile_definitions(test_provider_http PRIVATE DM_TEST_HTTP_SUPPORTED)

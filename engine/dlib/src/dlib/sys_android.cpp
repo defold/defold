@@ -424,17 +424,30 @@ namespace dmSys
         return app->activity->assetManager;
     }
 
-    bool ResourceExists(const char* path)
+    bool ResourceExistsInPackage(const char* path)
     {
+        if (path[0] == '/')
+        {
+            return false;
+        }
         AAssetManager* am = GetAndroidAssetManager();
         if (am)
         {
-            AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_RANDOM);
+            AAsset* asset = AAssetManager_open(am, FixAndroidResourcePath(path), AASSET_MODE_RANDOM);
             if (asset)
             {
                 AAsset_close(asset);
                 return true;
             }
+        }
+        return false;
+    }
+
+    bool ResourceExists(const char* path)
+    {
+        if (ResourceExistsInPackage(path))
+        {
+            return true;
         }
         return dmSysPosix::ResourceExists(path);
     }
@@ -444,8 +457,8 @@ namespace dmSys
         AAssetManager* am = GetAndroidAssetManager();
         if (am)
         {
-            path = FixAndroidResourcePath(path);
-            AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_RANDOM);
+            const char* asset_path = FixAndroidResourcePath(path);
+            AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_RANDOM);
             if (asset)
             {
                 *resource_size = (uint32_t)AAsset_getLength(asset);
