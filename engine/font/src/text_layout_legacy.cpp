@@ -75,6 +75,64 @@ static inline uint32_t SkipWS(TextGlyph* glyphs, uint32_t num_glyphs, uint32_t* 
     return c;
 }
 
+// Measure all prefixes once; tracking and font sizes can make later prefixes fit again.
+// Keep at least one glyph when none fits.
+template <typename Metric>
+static uint32_t FitArcWord(TextLayout* layout,
+                           uint32_t row_start, uint32_t word_length,
+                           Metric& metrics, bool measure_trailing_space,
+                           const TextLayoutSettings* settings, float arc_radius,
+                           float first_ascent, float top, float* text_width)
+{
+    TextGlyph* glyphs = layout->m_Glyphs.Begin();
+    float default_ascent, default_descent;
+    TextLayoutGetLineMetrics(layout, row_start, 0, settings->m_Size, &default_ascent, &default_descent);
+    float ascent = 0.0f;
+    float descent = 0.0f;
+    float glyph_ascent = 0.0f;
+    float glyph_descent = 0.0f;
+    const TextGlyph* measured = 0;
+    uint32_t last_nonspace = row_start;
+    float trailing_space_width = 0.0f;
+    float untrimmed_width = 0.0f;
+    uint32_t fitted_length = 0;
+    for (uint32_t i = 0; i < word_length; ++i)
+    {
+        const TextGlyph& glyph = glyphs[row_start + i];
+        if (!measured || (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT) ||
+            (measured->m_Flags & TEXT_GLYPH_FLAG_OBJECT) || measured->m_Font != glyph.m_Font ||
+            measured->m_RenderScale != glyph.m_RenderScale)
+        {
+            TextLayoutGetGlyphMetrics(&glyph, settings->m_Size, &glyph_ascent, &glyph_descent);
+            measured = &glyph;
+        }
+        ascent = i == 0 ? glyph_ascent : fmaxf(ascent, glyph_ascent);
+        descent = i == 0 ? glyph_descent : fmaxf(descent, glyph_descent);
+        if (glyph.m_Codepoint == dmUtf8::UTF_WHITESPACE_SPACE)
+        {
+            trailing_space_width += glyph.m_Advance;
+        }
+        else
+        {
+            last_nonspace = row_start + i;
+            trailing_space_width = 0.0f;
+        }
+        const float previous_width = untrimmed_width;
+        untrimmed_width = metrics.GetPrefixWidth(row_start, i + 1, last_nonspace, trailing_space_width);
+        const float line_ascent = ascent == 0.0f && descent == 0.0f ? default_ascent : ascent;
+        const float available_width = TextLayoutGetLineWrapWidth(settings->m_Width, arc_radius,
+                                                                 layout->m_Lines.Empty() ? 0.0f : first_ascent - top - line_ascent);
+        const float prefix_width = !measure_trailing_space && glyph.m_Codepoint == dmUtf8::UTF_WHITESPACE_SPACE
+            ? previous_width : untrimmed_width;
+        if (fitted_length == 0 || dmMath::Abs(prefix_width) <= available_width)
+        {
+            fitted_length = i + 1;
+            *text_width = prefix_width;
+        }
+    }
+    return fitted_length;
+}
+
 /*
  * Simple text-layout.
  * Single trailing white-space is not accounted for when breaking but the count is included in the lines array
@@ -150,54 +208,8 @@ void Layout(TextLayout*               layout,
             last_w = w;
             if (wrap_arc)
             {
-                // Measure all prefixes once; tracking and font sizes can make later prefixes fit again.
-                // Keep at least one glyph when none fits.
-                const uint32_t word_length = last_n;
-                float default_ascent, default_descent;
-                TextLayoutGetLineMetrics(layout, row_start, 0, settings->m_Size, &default_ascent, &default_descent);
-                float ascent = 0.0f;
-                float descent = 0.0f;
-                float glyph_ascent = 0.0f;
-                float glyph_descent = 0.0f;
-                const TextGlyph* measured = 0;
-                uint32_t last_nonspace = row_start;
-                float trailing_space_width = 0.0f;
-                float untrimmed_width = 0.0f;
-                last_n = 0;
-                for (uint32_t i = 0; i < word_length; ++i)
-                {
-                    const TextGlyph& glyph = glyphs[row_start + i];
-                    if (!measured || (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT) ||
-                        (measured->m_Flags & TEXT_GLYPH_FLAG_OBJECT) || measured->m_Font != glyph.m_Font ||
-                        measured->m_RenderScale != glyph.m_RenderScale)
-                    {
-                        TextLayoutGetGlyphMetrics(&glyph, settings->m_Size, &glyph_ascent, &glyph_descent);
-                        measured = &glyph;
-                    }
-                    ascent = i == 0 ? glyph_ascent : fmaxf(ascent, glyph_ascent);
-                    descent = i == 0 ? glyph_descent : fmaxf(descent, glyph_descent);
-                    if (glyph.m_Codepoint == dmUtf8::UTF_WHITESPACE_SPACE)
-                    {
-                        trailing_space_width += glyph.m_Advance;
-                    }
-                    else
-                    {
-                        last_nonspace = row_start + i;
-                        trailing_space_width = 0.0f;
-                    }
-                    const float previous_width = untrimmed_width;
-                    untrimmed_width = metrics.GetPrefixWidth(row_start, i + 1, last_nonspace, trailing_space_width);
-                    const float line_ascent = ascent == 0.0f && descent == 0.0f ? default_ascent : ascent;
-                    const float available_width = TextLayoutGetLineWrapWidth(settings->m_Width, arc_radius,
-                                                                             layout->m_Lines.Empty() ? 0.0f : first_ascent - top - line_ascent);
-                    const float prefix_width = !measure_trailing_space && glyph.m_Codepoint == dmUtf8::UTF_WHITESPACE_SPACE
-                        ? previous_width : untrimmed_width;
-                    if (last_n == 0 || dmMath::Abs(prefix_width) <= available_width)
-                    {
-                        last_n = i + 1;
-                        last_w = prefix_width;
-                    }
-                }
+                last_n = FitArcWord(layout, row_start, last_n, metrics, measure_trailing_space,
+                                    settings, arc_radius, first_ascent, top, &last_w);
                 cursor = row_start + last_n;
                 c = cursor < num_glyphs ? glyphs[cursor].m_Codepoint : 0;
             }
