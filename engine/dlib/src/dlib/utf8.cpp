@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "utf8.h"
+#include <dlib/endian.h>
 #include <simd/simd.h>
 
 /**
@@ -25,6 +26,81 @@
  */
 namespace dmUtf8
 {
+#if DM_ENDIAN == DM_ENDIAN_LITTLE && !DM_SIMD_FORCE_SCALAR && (defined(DM_SIMD_NEON) || defined(DM_SIMD_WASM))
+    // Nibble tables adapted from simdjson's utf8_lookup4_algorithm.h (MIT).
+    // Copyright 2018-2025 The simdjson authors
+    //
+    // Permission is hereby granted, free of charge, to any person obtaining a copy of
+    // this software and associated documentation files (the "Software"), to deal in
+    // the Software without restriction, including without limitation the rights to
+    // use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+    // the Software, and to permit persons to whom the Software is furnished to do so,
+    // subject to the following conditions:
+    //
+    // The above copyright notice and this permission notice shall be included in all
+    // copies or substantial portions of the Software.
+    //
+    // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+    // FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+    // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+    // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+    // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+    // The block starts at a sequence boundary. The caller rechecks any
+    // trailing partial sequence instead of consuming its leading bytes.
+    static bool ValidateBlock(dsimd_uint4_t bytes)
+    {
+        // Table bits describe illegal adjacent-byte combinations. The final
+        // continuation check cancels bits required by three/four-byte sequences.
+        enum
+        {
+            SHORT         = 1,
+            LONG          = 2,
+            OVERLONG3     = 4,
+            LARGE         = 8,
+            SURROGATE     = 16,
+            OVERLONG2     = 32,
+            OVERLONG4     = 64,
+            CONTINUATIONS = 128,
+            CARRY         = SHORT | LONG | CONTINUATIONS
+        };
+        static const uint8_t previous_high[16] = {
+            LONG, LONG, LONG, LONG, LONG, LONG, LONG, LONG, CONTINUATIONS, CONTINUATIONS, CONTINUATIONS, CONTINUATIONS, SHORT | OVERLONG2, SHORT, SHORT | OVERLONG3 | SURROGATE, SHORT | LARGE | OVERLONG4
+        };
+        static const uint8_t previous_low[16] = {
+            CARRY | OVERLONG3 | OVERLONG2 | OVERLONG4, CARRY | OVERLONG2, CARRY, CARRY, CARRY | LARGE, CARRY | LARGE | OVERLONG4, CARRY | LARGE | OVERLONG4, CARRY | LARGE | OVERLONG4, CARRY | LARGE | OVERLONG4, CARRY | LARGE | OVERLONG4, CARRY | LARGE | OVERLONG4, CARRY | LARGE | OVERLONG4, CARRY | LARGE | OVERLONG4, CARRY | LARGE | OVERLONG4 | SURROGATE, CARRY | LARGE | OVERLONG4, CARRY | LARGE | OVERLONG4
+        };
+        static const uint8_t current_high[16] = {
+            SHORT, SHORT, SHORT, SHORT, SHORT, SHORT, SHORT, SHORT, LONG | OVERLONG2 | CONTINUATIONS | OVERLONG3 | OVERLONG4, LONG | OVERLONG2 | CONTINUATIONS | OVERLONG3 | LARGE, LONG | OVERLONG2 | CONTINUATIONS | SURROGATE | LARGE, LONG | OVERLONG2 | CONTINUATIONS | SURROGATE | LARGE, SHORT, SHORT, SHORT, SHORT
+        };
+        // Each call starts at a sequence boundary; prior bytes are ASCII zeros.
+        static const uint8_t shift1[16] = { 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 };
+        static const uint8_t shift2[16] = { 255, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 };
+        static const uint8_t shift3[16] = { 255, 255, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
+        // Align the previous three bytes with each current byte. Shuffle
+        // indices outside this block supply zeros because it starts at a boundary.
+        dsimd_byte16_t input = SimdUintToBytes(bytes);
+        dsimd_uint4_t previous1 = SimdBytesToUint(SimdShuffleBytes(input, SimdLoadBytes(shift1)));
+        dsimd_uint4_t previous2 = SimdBytesToUint(SimdShuffleBytes(input, SimdLoadBytes(shift2)));
+        dsimd_uint4_t previous3 = SimdBytesToUint(SimdShuffleBytes(input, SimdLoadBytes(shift3)));
+        dsimd_uint4_t nibble_mask = SimdSplatUint(0x0f0f0f0f);
+        dsimd_byte16_t high1 = SimdUintToBytes(SimdAndUint(SimdShiftRightUint(previous1, 4), nibble_mask));
+        dsimd_byte16_t low1 = SimdUintToBytes(SimdAndUint(previous1, nibble_mask));
+        dsimd_byte16_t high = SimdUintToBytes(SimdAndUint(SimdShiftRightUint(bytes, 4), nibble_mask));
+        // Intersect the previous byte's high/low nibble classes with the
+        // current high nibble to detect invalid pairs in parallel.
+        dsimd_uint4_t special = SimdAndUint(SimdBytesToUint(SimdShuffleBytes(SimdLoadBytes(previous_high), high1)),
+                                            SimdBytesToUint(SimdShuffleBytes(SimdLoadBytes(previous_low), low1)));
+        special = SimdAndUint(special, SimdBytesToUint(SimdShuffleBytes(SimdLoadBytes(current_high), high)));
+        // These masked additions cannot carry between bytes. A high bit is set
+        // only for E0..FF two bytes back, or F0..FF three bytes back.
+        dsimd_uint4_t third = SimdAndUint(previous2, SimdAddUint(SimdAndUint(previous2, SimdSplatUint(0x60606060)), SimdSplatUint(0x20202020)));
+        dsimd_uint4_t fourth = SimdAndUint(previous3, SimdAddUint(SimdAndUint(previous3, SimdSplatUint(0x70707070)), SimdSplatUint(0x10101010)));
+        dsimd_uint4_t required = SimdAndUint(SimdOrUint(third, fourth), SimdSplatUint(0x80808080));
+        return SimdAll(SimdEqualUint(SimdXorUint(special, required), SimdSplatUint(0)));
+    }
+#endif
+
     uint32_t ValidateSequence(const char* text, uint32_t size)
     {
         if (size == 0)
@@ -86,6 +162,19 @@ namespace dmUtf8
                     i += 16;
                     continue;
                 }
+#if DM_ENDIAN == DM_ENDIAN_LITTLE && !DM_SIMD_FORCE_SCALAR && (defined(DM_SIMD_NEON) || defined(DM_SIMD_WASM))
+                if (ValidateBlock(bytes))
+                {
+                    // Leave any incomplete trailing sequence for the next block
+                    // or scalar tail. Failure always recovers from a boundary.
+                    uint32_t count = (uint8_t)text[i + 15] >= 0xc0 ? 15 :
+                                     (uint8_t)text[i + 14] >= 0xe0 ? 14 :
+                                     (uint8_t)text[i + 13] >= 0xf0 ? 13 :
+                                     16;
+                    i += count;
+                    continue;
+                }
+#endif
             }
             // Validate a mixed block once instead of reloading it for every
             // byte. A UTF-8 sequence may extend beyond the block boundary.
