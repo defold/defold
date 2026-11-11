@@ -15,7 +15,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/json_lexer.h>
 #include "script_json.h"
-#include <fenv.h>
+#include "script_json_rounding.h"
 #include <limits.h>
 #include <string.h>
 extern "C"
@@ -149,7 +149,7 @@ namespace dmScript
         {
             bool negative = value < 0;
             double magnitude = negative ? -value : value;
-            if (magnitude < 1e-4 || magnitude >= 1e14 || fegetround() != FE_TONEAREST)
+            if (magnitude < 1e-4 || magnitude >= 1e14 || GetJsonRoundingMode() != JSON_ROUND_NEAREST)
             {
                 return false;
             }
@@ -265,15 +265,15 @@ namespace dmScript
             // Use round-to-nearest even if the caller changed the thread's mode.
             // Android's printf can emit non-digits in other rounding modes.
             // Restore before a Lua error, which bypasses C++ destructors.
-            int previous_rounding = fegetround();
-            if (previous_rounding != FE_TONEAREST)
+            int previous_rounding = GetJsonRoundingMode();
+            if (previous_rounding != JSON_ROUND_NEAREST)
             {
-                fesetround(FE_TONEAREST);
+                SetJsonRoundingMode(JSON_ROUND_NEAREST);
             }
             int length = dmSnPrintf(text, 64, "%.14g", value);
-            if (previous_rounding != FE_TONEAREST)
+            if (previous_rounding != JSON_ROUND_NEAREST)
             {
-                fesetround(previous_rounding);
+                SetJsonRoundingMode(previous_rounding);
             }
             if (length < 0)
             {

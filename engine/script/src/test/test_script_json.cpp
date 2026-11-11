@@ -14,7 +14,7 @@
 
 #include <string.h> // memcpy
 #include <locale.h>
-#include <fenv.h>
+#include "script_json_rounding.h"
 #include <math.h>
 
 #include "script.h"
@@ -311,10 +311,10 @@ TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
 {
     int top = lua_gettop(L);
     dmJson::Document document(1);
-    int previous_rounding = fegetround();
+    int previous_rounding = dmScript::GetJsonRoundingMode();
     char* previous_locale = strdup(setlocale(LC_NUMERIC, 0));
     setlocale(LC_NUMERIC, "C");
-    const int modes[] = { FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO };
+    const int modes[] = { dmScript::JSON_ROUND_NEAREST, dmScript::JSON_ROUND_DOWNWARD, dmScript::JSON_ROUND_UPWARD, dmScript::JSON_ROUND_TOWARDZERO };
     const double boundaries[] = {
         0.0, 1e-5, 1e-4, 0.001, 0.1, 1.0, 9.99999999999995,
         99.9999999999995, 99999999999999.5, 1e14, 1e300
@@ -322,7 +322,7 @@ TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
     for (uint32_t mode = 0; mode < sizeof(modes) / sizeof(modes[0]); ++mode)
     {
         // Emscripten can report success without changing the rounding mode.
-        if (fesetround(modes[mode]) || fegetround() != modes[mode])
+        if (dmScript::SetJsonRoundingMode(modes[mode]) || dmScript::GetJsonRoundingMode() != modes[mode])
         {
             continue;
         }
@@ -336,14 +336,14 @@ TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
                 {
                     double number = negative ? -neighbors[neighbor] : neighbors[neighbor];
                     char expected[64];
-                    fesetround(FE_TONEAREST);
+                    dmScript::SetJsonRoundingMode(dmScript::JSON_ROUND_NEAREST);
                     dmSnPrintf(expected, sizeof(expected), "%.14g", number);
-                    fesetround(modes[mode]);
+                    dmScript::SetJsonRoundingMode(modes[mode]);
                     lua_pushnumber(L, number);
                     char* text = 0;
                     size_t size = 0;
                     EXPECT_EQ(1, dmScript::LuaToJson(L, -1, 0, &text, &size));
-                    EXPECT_EQ(modes[mode], fegetround());
+                    EXPECT_EQ(modes[mode], dmScript::GetJsonRoundingMode());
                     EXPECT_STREQ(expected, text);
                     EXPECT_TRUE(document.Parse(text, (uint32_t)size, 0, dmJson::PARSE_PRESERVE_VALUES));
                     free(text);
@@ -352,7 +352,7 @@ TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
             }
         }
     }
-    fesetround(previous_rounding);
+    dmScript::SetJsonRoundingMode(previous_rounding);
     setlocale(LC_NUMERIC, previous_locale);
     free(previous_locale);
 }
@@ -375,12 +375,12 @@ TEST_F(ScriptJsonTest, TestJsonEncodeRoundingMode)
         { UINT64_C(0xfe37e43c8800759b), "-1e+300" },
     };
     int top = lua_gettop(L);
-    int previous_rounding = fegetround();
-    const int modes[] = { FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO };
+    int previous_rounding = dmScript::GetJsonRoundingMode();
+    const int modes[] = { dmScript::JSON_ROUND_NEAREST, dmScript::JSON_ROUND_DOWNWARD, dmScript::JSON_ROUND_UPWARD, dmScript::JSON_ROUND_TOWARDZERO };
     for (uint32_t mode = 0; mode < sizeof(modes) / sizeof(modes[0]); ++mode)
     {
         // Emscripten can report success without changing the rounding mode.
-        if (fesetround(modes[mode]) || fegetround() != modes[mode])
+        if (dmScript::SetJsonRoundingMode(modes[mode]) || dmScript::GetJsonRoundingMode() != modes[mode])
         {
             continue;
         }
@@ -392,16 +392,16 @@ TEST_F(ScriptJsonTest, TestJsonEncodeRoundingMode)
             char* text = 0;
             size_t size = 0;
             EXPECT_EQ(1, dmScript::LuaToJson(L, -1, 0, &text, &size));
-            EXPECT_EQ(modes[mode], fegetround());
+            EXPECT_EQ(modes[mode], dmScript::GetJsonRoundingMode());
             EXPECT_STREQ(cases[i].m_Expected, text);
             free(text);
             lua_settop(L, top);
         }
         EXPECT_TRUE(RunString(L, "assert(not pcall(json.encode, {1.25e100, math.huge}))"));
-        EXPECT_EQ(modes[mode], fegetround());
+        EXPECT_EQ(modes[mode], dmScript::GetJsonRoundingMode());
         lua_settop(L, top);
     }
-    fesetround(previous_rounding);
+    dmScript::SetJsonRoundingMode(previous_rounding);
 }
 
 // Locale changes must not change JSON's decimal point or consume value separators (issue #10130).
