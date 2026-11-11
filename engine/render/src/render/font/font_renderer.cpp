@@ -400,7 +400,7 @@ namespace dmRender
         }
         else
         {
-            GetTextMetrics(font_map, text, &settings, &metrics, arc_radius);
+            GetTextMetrics(font_map, text, &settings, arc_radius, &metrics);
         }
 
         // find center and radius for frustum culling

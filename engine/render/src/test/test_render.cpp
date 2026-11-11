@@ -3693,7 +3693,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     TextLayoutSettings settings = {0};
     settings.m_Leading = 1.0f;
 
-    GetTextMetrics(m_SystemFontMap, "Hello World", &settings, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", &settings, 0.0f, &metrics);
     ASSERT_EQ(2.0f, metrics.m_MaxAscent);
     ASSERT_EQ(1.0f, metrics.m_MaxDescent);
     ASSERT_EQ(22.0f, metrics.m_Width);
@@ -3702,7 +3702,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
 
     settings.m_Width = 16.0f;
     settings.m_LineBreak = true;
-    GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", &settings, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", &settings, 0.0f, &metrics);
     ASSERT_EQ(14.0f, metrics.m_Width);
     ASSERT_EQ(9.0f, metrics.m_Height);
     ASSERT_EQ(3u, metrics.m_LineCount);
@@ -3748,7 +3748,7 @@ TEST_F(dmRenderTest, GetTextMetricsWhitespace)
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
     {
         dmRender::TextMetrics metrics = {};
-        GetTextMetrics(m_SystemFontMap, cases[i].m_Text, &settings, &metrics);
+        GetTextMetrics(m_SystemFontMap, cases[i].m_Text, &settings, 0.0f, &metrics);
         printf("Text metrics for '%s': width %g, expected %g\n", cases[i].m_Text, metrics.m_Width, cases[i].m_ExpectedWidth);
         EXPECT_EQ(cases[i].m_ExpectedWidth, metrics.m_Width);
         EXPECT_EQ(cases[i].m_ExpectedHeight, metrics.m_Height);
@@ -3799,7 +3799,7 @@ TEST_F(dmRenderTest, GetTextMetricsWrapped)
     {
         settings.m_Width = cases[i].m_Width;
         dmRender::TextMetrics metrics[2] = {};
-        GetTextMetrics(m_SystemFontMap, cases[i].m_Text, &settings, &metrics[0]);
+        GetTextMetrics(m_SystemFontMap, cases[i].m_Text, &settings, 0.0f, &metrics[0]);
         HTextLayout layout = CreateTextLayout(m_SystemFontMap, cases[i].m_Text, settings);
         ASSERT_NE((HTextLayout)0, layout);
         GetTextMetrics(m_SystemFontMap, layout, &metrics[1]);
@@ -3824,8 +3824,8 @@ TEST_F(dmRenderTest, GetPreparedTextMetrics)
     settings.m_Tracking = 0.0f;
     settings.m_LineBreak = true;
 
-    dmRender::TextMetrics raw_metrics = {0};
-    dmRender::GetTextMetrics(m_SystemFontMap, text, &settings, &raw_metrics);
+    dmRender::TextMetrics raw_metrics = { 0 };
+    dmRender::GetTextMetrics(m_SystemFontMap, text, &settings, 0.0f, &raw_metrics);
 
     HTextLayout layout = CreateTextLayout(m_SystemFontMap, text, settings);
     ASSERT_NE((HTextLayout)0, layout);

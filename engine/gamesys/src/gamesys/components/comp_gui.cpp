@@ -3613,7 +3613,7 @@ namespace dmGameSystem
         settings.m_Padding = dmRender::GetFontMapPadding(font);
 
         dmRender::TextMetrics metrics;
-        dmRender::GetTextMetrics(font, text, &settings, &metrics);
+        dmRender::GetTextMetrics(font, text, &settings, 0.0f, &metrics);
         out_metrics->m_Width = metrics.m_Width;
         out_metrics->m_Height = metrics.m_Height;
         out_metrics->m_MaxAscent = metrics.m_MaxAscent;

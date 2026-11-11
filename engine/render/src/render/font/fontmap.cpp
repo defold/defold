@@ -533,12 +533,7 @@ namespace dmRender
         return font_map->m_Padding;
     }
 
-    void GetTextMetrics(HFontMap font_map, const char* text, TextLayoutSettings* settings, TextMetrics* metrics)
-    {
-        GetTextMetrics(font_map, text, settings, metrics, 0.0f);
-    }
-
-    void GetTextMetrics(HFontMap font_map, const char* text, TextLayoutSettings* settings, TextMetrics* metrics, float arc_radius)
+    void GetTextMetrics(HFontMap font_map, const char* text, TextLayoutSettings* settings, float arc_radius, TextMetrics* metrics)
     {
         DM_PROFILE(__FUNCTION__);
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
