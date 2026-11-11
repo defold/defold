@@ -313,10 +313,50 @@ function test_json_decoder_array_growth()
 end
 
 
+-- Decoded objects must retain fields and normal writes as their hash storage grows.
+function test_json_decoder_object_growth()
+    for _, size in ipairs({1, 2, 3, 4, 5, 8, 9, 17, 129}) do
+        local fields = {}
+        for i = 1, size do fields[i] = '"key' .. i .. '":' .. i end
+        local value = json.decode("{" .. table.concat(fields, ",") .. "}")
+        assert(type(value) == "table")
+        local count = 0
+        for key, number in pairs(value) do
+            assert(key == "key" .. number)
+            count = count + 1
+        end
+        assert(count == size)
+        for i = 1, size do assert(value["key" .. i] == i) end
+        value.key1 = -1
+        value.extra = "written"
+        local copy = json.decode(json.encode(value))
+        assert(copy.key1 == -1 and copy.extra == "written")
+        value.key1 = nil
+        assert(value.key1 == nil and value.extra == "written")
+    end
+    for _, keep_null in ipairs({false, true}) do
+        local options = {decode_null_as_userdata = keep_null}
+        local value = json.decode('{"a":1,"a":null,"b":{},"c":{"d":[1,2,3]}}', options)
+        local expected_null = keep_null and json.null or nil
+        assert(value.a == expected_null and next(value.b) == nil and value.c.d[3] == 3)
+        value.b.key = "nested write"
+        assert(value.b.key == "nested write")
+        local only_null = json.decode('{"a":null}', options)
+        assert(only_null.a == expected_null)
+        if not keep_null then assert(next(only_null) == nil) end
+    end
+    for _, text in ipairs({"{", '{"key":', '{"key":1,', '{"key":1,}', '{"key":{"x":]}'}) do
+        assert(not pcall(json.decode, text))
+        assert(json.decode('{"key":7}').key == 7)
+    end
+end
+
+
 function test_json()
     test_json_decode()
     test_json_encode()
     test_json_decode_encode()
+    test_json_decoder_object_growth()
     test_json_decoder_array_growth()
     test_json_decoder_compatibility()
     test_json_decoder_legacy_syntax()

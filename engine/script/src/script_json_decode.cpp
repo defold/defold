@@ -346,7 +346,8 @@ namespace dmScript
                 }
                 // The final length is unknown. Start nonempty arrays with two
                 // slots and let Lua grow them normally; empty tables stay small.
-                lua_createtable(m_Lua, array ? 2 : 0, 0);
+                // Give nonempty objects a small hash hint to avoid early growth.
+                lua_createtable(m_Lua, array ? 2 : 0, array ? 0 : 2);
                 while (true)
                 {
                     m_Lexer.Space();
