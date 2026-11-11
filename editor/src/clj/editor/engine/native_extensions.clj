@@ -169,15 +169,13 @@
   {"baseVariant" "debug"
    "withSymbols" true})
 
-(defn- resource-node-content ^bytes [resource-node evaluation-context]
+(defn- resource-node-content
+  ^bytes [resource-node evaluation-context]
   (if-let [content (some-> (g/node-value resource-node :save-data evaluation-context)
                            (resource-node/save-data-content))]
     (.getBytes content StandardCharsets/UTF_8)
     (with-open [is (io/input-stream (g/node-value resource-node :resource evaluation-context))]
       (.readAllBytes is))))
-
-(defn- resource-node-last-modified [resource-node evaluation-context]
-  (.lastModified (io/file (g/node-value resource-node :resource evaluation-context))))
 
 (defn- app-manifest-with-editor-build-context [manifest]
   (when (and (map? manifest)
@@ -185,13 +183,15 @@
                  (map? (get manifest "context"))))
     (update manifest "context" merge editor-build-app-manifest-context)))
 
-(defn- dump-app-manifest-content ^bytes [manifest]
+(defn- dump-app-manifest-content
+  ^bytes [manifest]
   (let [^String content (yaml/dump manifest
                                    :order-pattern ["context" "platforms"]
                                    :indent 4)]
     (.getBytes content StandardCharsets/UTF_8)))
 
-(defn- app-manifest-content ^bytes [app-manifest-resource-node evaluation-context]
+(defn- app-manifest-content
+  ^bytes [app-manifest-resource-node evaluation-context]
   (let [^bytes original-content (when app-manifest-resource-node
                                   (resource-node-content app-manifest-resource-node evaluation-context))
         manifest (if original-content
@@ -203,14 +203,14 @@
       original-content)))
 
 (defn- make-app-manifest-resource [app-manifest-resource-node evaluation-context]
-  (reify ExtenderResource
-    (getPath [_] app-manifest-upload-path)
-    (getContent [_]
-      (app-manifest-content app-manifest-resource-node evaluation-context))
-    (getLastModified [_]
-      (if app-manifest-resource-node
-        (resource-node-last-modified app-manifest-resource-node evaluation-context)
-        0))))
+  (let [content (app-manifest-content app-manifest-resource-node evaluation-context)
+        resource (some-> app-manifest-resource-node (g/node-value :resource evaluation-context))
+        file (some-> resource io/file)]
+    (reify ExtenderResource
+      (getPath [_] app-manifest-upload-path)
+      (getContent [_] content)
+      (getLastModified [_]
+        (if file (.lastModified file) 0)))))
 
 (defn- global-resource-nodes-by-upload-path [project evaluation-context]
   (let [project-settings (g/node-value project :settings evaluation-context)]
@@ -283,63 +283,88 @@
         (pos? (count (global-resource-nodes-by-upload-path project evaluation-context))))))
 
 (defn- make-extender-resources [project platform evaluation-context]
-  (let [global-resource-nodes (global-resource-nodes-by-upload-path project evaluation-context)]
+  (let [global-resource-nodes (global-resource-nodes-by-upload-path project evaluation-context)
+        app-manifest-resource-node (get global-resource-nodes app-manifest-upload-path)
+        app-manifest-resource (make-app-manifest-resource app-manifest-resource-node evaluation-context)]
     (reduce-kv
       (fn [^ArrayList acc upload-path resource-node]
-        (doto acc
-          (.add (reify ExtenderResource
-                  (getPath [_] upload-path)
-                  (getContent [_]
-                    (resource-node-content resource-node evaluation-context))
-                  (getLastModified [_]
-                    (resource-node-last-modified resource-node evaluation-context))))))
+        (let [save-data (g/node-value resource-node :save-data evaluation-context)
+              content (some-> save-data resource-node/save-data-content)
+              resource (or (:resource save-data)
+                           (g/node-value resource-node :resource evaluation-context))
+              file (io/file resource)]
+          (doto acc
+            (.add (reify ExtenderResource
+                    (getPath [_] upload-path)
+                    (getContent [_]
+                      (if content
+                        (.getBytes ^String content StandardCharsets/UTF_8)
+                        (with-open [input-stream (io/input-stream file)]
+                          (.readAllBytes input-stream))))
+                    (getLastModified [_] (.lastModified file)))))))
       (doto (ArrayList.)
-        (.add (make-app-manifest-resource (get global-resource-nodes app-manifest-upload-path) evaluation-context)))
+        (.add app-manifest-resource))
       (merge (dissoc global-resource-nodes app-manifest-upload-path)
              (extension-resource-nodes-by-upload-path project evaluation-context platform)
              (get-main-manifest-file-upload-resource project evaluation-context platform)))))
 
-(defn get-engine-archive
-  [project platform prefs evaluation-context ^IProgress progress]
+(defn make-engine-archive-request
+  "Captures the graph values needed to fetch an engine archive. The request can
+  be used after committing and closing the evaluation-context."
+  [project platform prefs evaluation-context]
   (if-not (supported-platform? platform)
     (throw (engine-build-errors/unsupported-platform-error platform))
-    (let [{:keys [basis-ref]} evaluation-context
-          extender-platform (get-in extender-platforms [platform :platform])
-          project-directory (workspace/project-directory @basis-ref (project/workspace project evaluation-context))
-          cache-directory (cache-dir project-directory)
-          sdk-version (system/defold-engine-sha1)
-          cache (ExtenderClientCache. cache-directory)
-          extender-resources (make-extender-resources project platform evaluation-context)
-          cache-key (.calcKey cache extender-platform sdk-version extender-resources)
-          url (get-build-server-url prefs project evaluation-context)
-          headers (get-build-server-headers prefs)
-          username (string/trim (prefs/get prefs [:extensions :build-server-username]))
-          password (prefs/get prefs [:extensions :build-server-password])]
-      (if (.isCached cache extender-platform cache-key)
-        {:id {:type :custom :version cache-key}
-         :cached true
-         :engine-archive (.getCachedBuildFile cache extender-platform)
-         :extender-platform extender-platform}
-        (let [extender-client (ExtenderClient. url cache-directory)
-              destination-file (fs/create-temp-file! (str "build_" sdk-version) ".zip")
-              log-file (fs/create-temp-file! (str "build_" sdk-version) ".txt")]
-          (try
-            (when-let [^String auth (or
-                                      (and (not (string/blank? username))
-                                           (not (coll/empty? password))
-                                           (str username ":" password))
-                                      (.getUserInfo (URI. url)))]
-              (.setHeader extender-client "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes auth StandardCharsets/UTF_8)))))
-            (when (pos? (count headers))
-              (.setHeaders extender-client headers))
-            (.message progress IProgress$Message$BuildingEngine/INSTANCE)
-            (.build extender-client extender-platform sdk-version extender-resources destination-file log-file
-                    (BundleHelper/createProgressListener progress extender-platform extender-resources))
-            {:id {:type :custom :version cache-key}
-             :engine-archive destination-file
-             :extender-platform extender-platform}
-            (catch Exception e
-              (throw (engine-build-errors/build-error
-                       (or (:cause (Throwable->map e))
-                           (.getSimpleName (class e)))
-                       (slurp log-file))))))))))
+    (let [basis @(:basis-ref evaluation-context)
+          workspace (project/workspace project evaluation-context)]
+      {:extender-platform (get-in extender-platforms [platform :platform])
+       :project-directory (workspace/project-directory basis workspace)
+       :sdk-version (system/defold-engine-sha1)
+       :extender-resources (make-extender-resources project platform evaluation-context)
+       :url (get-build-server-url prefs project evaluation-context)
+       :headers (get-build-server-headers prefs)
+       :username (string/trim (prefs/get prefs [:extensions :build-server-username]))
+       :password (prefs/get prefs [:extensions :build-server-password])})))
+
+(defn get-engine-archive
+  [engine-archive-request ^IProgress progress]
+  (let [{:keys [extender-platform
+                extender-resources
+                headers
+                password
+                project-directory
+                sdk-version
+                url
+                username]} engine-archive-request
+        cache-directory (cache-dir project-directory)
+        cache (ExtenderClientCache. cache-directory)
+        cache-key (.calcKey cache extender-platform sdk-version extender-resources)]
+    (if (.isCached cache extender-platform cache-key)
+      {:id {:type :custom :version cache-key}
+       :cached true
+       :engine-archive (.getCachedBuildFile cache extender-platform)
+       :extender-platform extender-platform}
+      (let [extender-client (ExtenderClient. url cache-directory)
+            destination-file (fs/create-temp-file! (str "build_" sdk-version) ".zip")
+            log-file (fs/create-temp-file! (str "build_" sdk-version) ".txt")]
+        (try
+          (when-let [^String auth
+                     (or
+                       (and (not (string/blank? username))
+                            (not (coll/empty? password))
+                            (str username ":" password))
+                       (.getUserInfo (URI. url)))]
+            (.setHeader extender-client "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes auth StandardCharsets/UTF_8)))))
+          (when (pos? (count headers))
+            (.setHeaders extender-client headers))
+          (.message progress IProgress$Message$BuildingEngine/INSTANCE)
+          (.build extender-client extender-platform sdk-version extender-resources destination-file log-file
+                  (BundleHelper/createProgressListener progress extender-platform extender-resources))
+          {:id {:type :custom
+                :version cache-key}
+           :engine-archive destination-file
+           :extender-platform extender-platform}
+          (catch Exception e
+            (throw (engine-build-errors/build-error
+                     (or (:cause (Throwable->map e))
+                         (.getSimpleName (class e)))
+                     (slurp log-file)))))))))

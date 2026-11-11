@@ -142,6 +142,7 @@
    :update-overrides
    :update-successors
    :cache-save-data
+   :load-build-resources
    :evaluate-build-targets
    :resolve-build-target-deps
    :build-build-targets
@@ -327,6 +328,12 @@
           (log-info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))
 
       migrated-resource-node-ids)))
+
+(defonce ^:private -load-build-resources-
+  (when create-unmaterialized-shell-nodes
+    (run-and-measure-task!
+      :load-build-resources
+      (build/load-build-resources! project ["/game.project"] progress/null-render-progress! fn/constantly-false))))
 
 (defonce build-results
   (g/with-auto-evaluation-context evaluation-context

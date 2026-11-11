@@ -1317,10 +1317,7 @@
                       (future
                         (try
                           (with-open [progress ^IProgress engine-progress]
-                            (ea/with-auto-evaluation-context evaluation-context
-                              ;; Retain native extension file hashes for the
-                              ;; next build.
-                              (engine/get-engine project evaluation-context prefs platform progress)))
+                            (engine/get-engine project prefs platform progress))
                           (catch Throwable error
                             error))))
               nil)))

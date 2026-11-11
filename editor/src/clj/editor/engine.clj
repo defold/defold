@@ -16,6 +16,7 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as str]
+            [editor.async :as ea]
             [editor.code.util :refer [split-lines]]
             [editor.engine.native-extensions :as native-extensions]
             [editor.fs :as fs]
@@ -249,12 +250,19 @@
   {:id {:type <:dev :bundled :custom> + entries for sha/path - something identifying this engine version}
    :dmengine <File to bundled/dev dmengine>
    :engine-archive <File to custom engine archive downloaded from extension server>
-   :extender-platform <String platform the engine was compiled for>}"
-  [project evaluation-context prefs platform progress]
+   :extender-platform <String platform the engine was compiled for>}
+
+  Queues the graph merge on the UI thread before fetching the engine, so waiting
+  for the build server does not keep the evaluation-context open."
+  [project prefs platform progress]
   (or (dev-custom-engine prefs platform)
-      (if (native-extensions/has-engine-extensions? project evaluation-context)
-        (native-extensions/get-engine-archive project platform prefs evaluation-context progress)
-        (bundled-engine platform))))
+      (let [engine-archive-request
+            (ea/with-auto-evaluation-context evaluation-context
+              (when (native-extensions/has-engine-extensions? project evaluation-context)
+                (native-extensions/make-engine-archive-request project platform prefs evaluation-context)))]
+        (if engine-archive-request
+          (native-extensions/get-engine-archive engine-archive-request progress)
+          (bundled-engine platform)))))
 
 (defn- zip-entries! [^ZipFile zipfile]
   (enumeration-seq (.entries zipfile)))

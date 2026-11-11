@@ -18,16 +18,24 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.build :as build]
             [editor.defold-project :as project]
+            [editor.engine :as engine]
             [editor.engine.native-extensions :as native-extensions]
+            [editor.fs :as fs]
+            [editor.progress :as progress]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.yaml :as yaml]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]]
+            [util.fn :as fn]
             [util.repo :as repo])
-  (:import [com.defold.extender.client ExtenderResource]
-           [com.dynamo.bob Platform]
+  (:import [clojure.lang ExceptionInfo]
+           [com.defold.extender.client ExtenderClientCache ExtenderResource]
+           [com.dynamo.bob IProgress Platform]
            [com.dynamo.bob.archive EngineVersion]
            [java.nio.charset StandardCharsets]))
 
@@ -116,6 +124,102 @@
 (def ^:private expected-editor-build-context
   {"baseVariant" "debug"
    "withSymbols" true})
+
+;; Engine upload resources must preserve unsaved source and manifest values
+;; after their evaluation-context closes, without eagerly reading binary files.
+(deftest engine-archive-request-snapshot-test
+  (test-util/with-temp-project-content
+    {"/game.project" [{:path ["native_extension" "app_manifest"]
+                       :value "/game.appmanifest"}]
+     "/game.appmanifest" ["context:" "  excludeLibs: [physics]"]
+     "/extension/ext.manifest" ["name: test_extension"]
+     "/extension/src/main.cpp" ["original source"]
+     "/extension/lib/common/native.a" (byte-array [1 2 3])}
+    (let [source (test-util/resource-node project "/extension/src/main.cpp")
+          manifest (test-util/resource-node project "/game.appmanifest")]
+      (test-util/set-code-editor-source! source "unsaved source\n")
+      (test-util/set-code-editor-source! manifest "context:\n  excludeLibs: [physics, input]\n")
+      (let [{:keys [extender-resources]}
+            (g/with-auto-evaluation-context evaluation-context
+              (native-extensions/make-engine-archive-request
+                project "x86_64-macos" (test-util/make-test-prefs) evaluation-context))]
+        (is (zero? (g/evaluation-context-count)))
+        (test-util/set-code-editor-source! source "newer source\n")
+        (test-util/set-code-editor-source! manifest "context: {}\n")
+        (is (= "unsaved source\n"
+               (extender-resource-content (extender-resource extender-resources "extension/src/main.cpp"))))
+        (is (= ["physics" "input"]
+               (get-in (extender-resource-yaml extender-resources "_app/app.manifest")
+                       ["context" "excludeLibs"])))
+        (is (= expected-editor-build-context
+               (select-keys (get (extender-resource-yaml extender-resources "_app/app.manifest") "context")
+                            ["baseVariant" "withSymbols"])))
+        (with-open [output-stream (io/output-stream (io/file project-path "extension/lib/common/native.a"))]
+          (.write output-stream (byte-array [4 5 6])))
+        (is (= [4 5 6]
+               (vec (.getContent ^ExtenderResource (extender-resource extender-resources "extension/lib/common/native.a")))))
+        (doseq [^ExtenderResource resource extender-resources]
+          (is (pos? (.getLastModified resource))))))))
+
+;; Engine requests must preserve their cache key when their snapshot closes,
+;; so cached engine archives can be reused without contacting the server.
+(deftest engine-archive-cache-after-context-close-test
+  (test-util/with-temp-project-content
+    {"/extension/ext.manifest" ["name: test_extension"]
+     "/extension/src/main.cpp" ["source"]}
+    (let [test-prefs (test-util/make-test-prefs)
+          {:keys [extender-platform sdk-version extender-resources]}
+          (g/with-auto-evaluation-context evaluation-context
+            (native-extensions/make-engine-archive-request project "x86_64-macos" test-prefs evaluation-context))
+
+          cache-directory (doto (io/file project-path ".internal" "cache" "engine-archives")
+                            fs/create-directories!)
+          engine-cache (ExtenderClientCache. cache-directory)
+          cache-key (.calcKey engine-cache extender-platform sdk-version extender-resources)
+          archive-file (io/file project-path "engine.zip")]
+      (spit archive-file "cached engine archive")
+      (.put engine-cache extender-platform cache-key archive-file)
+      (let [engine-descriptor (engine/get-engine project test-prefs "x86_64-macos" nil)]
+        (is (true? (:cached engine-descriptor)))
+        (is (= {:type :custom :version cache-key} (:id engine-descriptor)))
+        (is (= "cached engine archive" (slurp (:engine-archive engine-descriptor))))
+        (is (zero? (ui/run-now (g/evaluation-context-count))))))))
+
+;; The queued graph merge must close the snapshot while the remote engine build
+;; is still active, allowing resource loads to release their replay data.
+(deftest engine-build-releases-materializations-test
+  (test-util/with-temp-project-content
+    {"/extension/ext.manifest" ["name: test_extension"]
+     "/extension/src/main.cpp" ["source"]
+     "/first.lua" ["return {}"]
+     "/second.lua" ["return {}"]}
+    (let [reached-engine-build (atom false)
+          loaded-resources (atom [])
+          engine-progress
+          (reify IProgress
+            (isCanceled [_] false)
+            (close [_])
+            (split [_ _] (throw (UnsupportedOperationException.)))
+            (message [_ _]
+              (reset! reached-engine-build true)
+              (is (zero? (ui/run-now (g/evaluation-context-count))))
+              (build/load-build-resources!
+                project ["/first.lua" "/second.lua"]
+                (fn render-load-progress! [load-progress]
+                  (when (= "progress.loading-resource" (:k (progress/message load-progress)))
+                    (swap! loaded-resources conj (get-in (progress/message load-progress) [:m "resource"]))
+                    (is (zero? (g/evaluation-context-count)))
+                    (is (= {} (:materialization-results @g/*the-system*)))
+                    (is (= {} @(:shared-materialization-registry-atom @g/*the-system*)))))
+                fn/constantly-false)
+              (throw (ex-info "Stop before contacting the build server." {}))))]
+      (is (thrown-with-msg? ExceptionInfo #"Stop before contacting the build server"
+                            (engine/get-engine project (test-util/make-test-prefs) "x86_64-macos" engine-progress)))
+      (is @reached-engine-build)
+      (is (= ["/first.lua" "/second.lua"] (filterv #{"/first.lua" "/second.lua"} @loaded-resources)))
+      (doseq [proj-path ["/first.lua" "/second.lua"]]
+        (is (resource-node/loaded? (test-util/resource-node project proj-path))))
+      (is (zero? (g/evaluation-context-count))))))
 
 (deftest ^:native-extensions app-manifest-context-test
   (testing "app manifest is synthesized with editor build options"
